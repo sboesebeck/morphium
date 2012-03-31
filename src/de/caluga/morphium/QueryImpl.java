@@ -5,6 +5,7 @@ import com.mongodb.BasicDBObject;
 import com.mongodb.DBCursor;
 import com.mongodb.DBObject;
 import de.caluga.morphium.annotations.Id;
+import de.caluga.morphium.annotations.StoreLastAccess;
 import org.bson.types.ObjectId;
 
 import java.lang.reflect.Field;
@@ -230,9 +231,39 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
             DBObject o = it.next();
             T unmarshall = mapper.unmarshall(type, o);
             ret.add(unmarshall);
+
+            updateLastAccess(o, unmarshall);
+
             Morphium.get().firePostLoadEvent(unmarshall);
         }
         return ret;
+    }
+
+    private void updateLastAccess(DBObject o, T unmarshall) {
+        if (type.isAnnotationPresent(StoreLastAccess.class)) {
+            StoreLastAccess t = (StoreLastAccess) type.getAnnotation(StoreLastAccess.class);
+            String ctf = t.lastAccessField();
+            Field f = mapper.getField(type, ctf);
+            if (f != null) {
+                try {
+                    f.set(unmarshall, System.currentTimeMillis());
+                } catch (IllegalAccessException e) {
+                    System.out.println("Could not set modification time");
+
+                }
+                if (t.logUser()) {
+                    ctf = t.lastAccessUserField();
+                    f = mapper.getField(type, ctf);
+                    try {
+                        f.set(o, Morphium.getConfig().getSecurityMgr().getCurrentUserId());
+                    } catch (IllegalAccessException e) {
+//                    logger.error("Could not set changed by",e);
+                    }
+                }
+                //Storing access timestamps
+                Morphium.get().store(unmarshall);
+            }
+        }
     }
 
     @Override
@@ -262,6 +293,7 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
         if (ret != null) {
             T unmarshall = mapper.unmarshall(type, ret);
             Morphium.get().firePostLoadEvent(unmarshall);
+            updateLastAccess(ret,unmarshall);
             return unmarshall;
         }
         return null;

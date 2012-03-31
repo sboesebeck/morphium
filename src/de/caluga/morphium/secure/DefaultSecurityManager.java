@@ -19,4 +19,9 @@ public class DefaultSecurityManager implements MongoSecurityManager {
         return true;
     }
 
+    @Override
+    public Object getCurrentUserId() {
+        return "USER";
+    }
+
 }

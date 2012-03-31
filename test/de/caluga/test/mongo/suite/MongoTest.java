@@ -28,7 +28,10 @@ public class MongoTest {
             Morphium.get().clearCollection(UncachedObject.class);
             log.info("Uncached object prepared!");
             Morphium.get().clearCollection(CachedObject.class);
+            Morphium.get().clearCollection(ComplexObject.class);
 
+            Morphium.get().ensureIndex(UncachedObject.class,"counter","value");
+            Morphium.get().ensureIndex(CachedObject.class,"counter","value");
 
             log.info("Preparation finished");
         } catch (Exception e) {
