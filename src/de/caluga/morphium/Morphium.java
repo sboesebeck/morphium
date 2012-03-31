@@ -312,7 +312,6 @@ public class Morphium {
         }
         callLifecycleMethod(PreStore.class, o);
 
-
     }
 
     private void firePostStoreEvent(Object o) {
@@ -320,6 +319,8 @@ public class Morphium {
             l.postStore(o);
         }
         callLifecycleMethod(PostStore.class, o);
+        //existing object  => store last Access, if needed
+
     }
 
     private void firePreDropEvent(Class cls) {
@@ -393,6 +394,7 @@ public class Morphium {
             l.postLoad(o);
         }
         callLifecycleMethod(PostLoad.class, o);
+
     }
 
     private void storeNoCache(Object o) {
@@ -402,7 +404,69 @@ public class Morphium {
         }
         inc(StatisticKeys.WRITES);
         firePreStoreEvent(o);
+
         DBObject marshall = config.getMapper().marshall(o);
+
+        if (config.getMapper().getId(o)==null) {
+            //new object - need to store creation time
+            if (type.isAnnotationPresent(StoreCreationTime.class)) {
+                StoreCreationTime t = (StoreCreationTime) type.getAnnotation(StoreCreationTime.class);
+                String ctf = t.creationTimeField();
+                long now = System.currentTimeMillis();
+                Field f = getField(type, ctf);
+                if (f != null) {
+                    try {
+                        f.set(o, now);
+                    } catch (IllegalAccessException e) {
+                        logger.error("Could not set creation time", e);
+
+                    }
+                }
+                marshall.put(ctf, now);
+                if (t.storeCreatedBy()) {
+                    ctf = t.createdByField();
+                    f = getField(type, ctf);
+                    if (f != null) {
+                        try {
+                            f.set(o, config.getSecurityMgr().getCurrentUserId());
+                        } catch (IllegalAccessException e) {
+                            logger.error("Could not set created by", e);
+                        }
+                    }
+                    marshall.put(ctf, config.getSecurityMgr().getCurrentUserId());
+                }
+            }
+        }
+        if (type.isAnnotationPresent(StoreLastChange.class)) {
+            StoreLastChange t = (StoreLastChange) type.getAnnotation(StoreLastChange.class);
+            String ctf = t.lastChangeField();
+            long now = System.currentTimeMillis();
+            Field f = getField(type, ctf);
+            if (f != null) {
+                try {
+                    f.set(o, now);
+                } catch (IllegalAccessException e) {
+                    logger.error("Could not set modification time", e);
+
+                }
+            }
+            marshall.put(ctf, now);
+            if (t.storeLastChangeBy()) {
+                ctf = t.lastChangeField();
+                f = getField(type, ctf);
+                if (f != null) {
+                    try {
+                        f.set(o, config.getSecurityMgr().getCurrentUserId());
+                    } catch (IllegalAccessException e) {
+                        logger.error("Could not set changed by", e);
+                    }
+                }
+                marshall.put(ctf, config.getSecurityMgr().getCurrentUserId());
+            }
+        }
+
+
+
         database.getCollection(config.getMapper().getCollectionName(o.getClass())).save(marshall);
         List<String> flds = config.getMapper().getFields(o.getClass(), Id.class);
         if (flds == null) {
@@ -777,11 +841,11 @@ public class Morphium {
         }
     }
 
-    public void ensureIndex(Class<?> cls, Map<String,Integer> index) {
+    public void ensureIndex(Class<?> cls, Map<String, Integer> index) {
         List<String> fields = getFields(cls);
-        for (String k:index.keySet()) {
+        for (String k : index.keySet()) {
             if (!fields.contains(k)) {
-                throw new IllegalArgumentException("Field unknown for type "+cls.getSimpleName()+": "+k);
+                throw new IllegalArgumentException("Field unknown for type " + cls.getSimpleName() + ": " + k);
             }
         }
         database.getCollection(config.getMapper().getCollectionName(cls)).ensureIndex(new BasicDBObject(index));
@@ -790,22 +854,23 @@ public class Morphium {
     /**
      * ensureIndex(CachedObject.class,"counter","-value");
      * Similar to sorting
+     *
      * @param cls
      * @param fldStr
      */
     public void ensureIndex(Class<?> cls, String... fldStr) {
-        Map<String,Integer> m=new HashMap<String,Integer>();
-        for (String f:fldStr) {
-            int idx=1;
+        Map<String, Integer> m = new HashMap<String, Integer>();
+        for (String f : fldStr) {
+            int idx = 1;
             if (f.startsWith("-")) {
-                idx=-1;
-                f=f.substring(1);
+                idx = -1;
+                f = f.substring(1);
             } else if (f.startsWith("+")) {
-                f=f.substring(1);
+                f = f.substring(1);
             }
-            m.put(f,idx);
+            m.put(f, idx);
         }
-        ensureIndex(cls,m);
+        ensureIndex(cls, m);
     }
 
 

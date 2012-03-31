@@ -12,9 +12,19 @@ import org.bson.types.ObjectId;
  */
 @NoCache
 @Entity
+@StoreLastAccess(lastAccessField = "last_access")
+
+//cration time will be stored in DB but not in Object!
+@StoreCreationTime(creationTimeField = "created")
+@StoreLastChange(lastChangeField = "changed")
 public class ComplexObject {
     @Id
     private ObjectId id;
+
+    private Long changed;
+
+    @Property(fieldName = "last_access")
+    private Long lastAccess;
 
     @Reference(fieldName = "reference")
     private UncachedObject ref;
@@ -29,6 +39,22 @@ public class ComplexObject {
 
     @UseIfnull
     private Integer nullValue;
+
+    public long getChanged() {
+        return changed;
+    }
+
+    public void setChanged(long changed) {
+        this.changed = changed;
+    }
+
+    public long getLastAccess() {
+        return lastAccess;
+    }
+
+    public void setLastAccess(long lastAccess) {
+        this.lastAccess = lastAccess;
+    }
 
     public ObjectId getId() {
         return id;

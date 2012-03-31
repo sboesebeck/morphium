@@ -202,7 +202,11 @@ public class ObjectMapperImpl implements ObjectMapper {
                     value = id;
                 } else if (fld.getType().isAnnotationPresent(Entity.class)) {
                     //entity! embedded
-                    value = unmarshall(fld.getType(), (DBObject) o.get(f));
+                    if (o.get(f)!=null) {
+                        value = unmarshall(fld.getType(), (DBObject) o.get(f));
+                    } else {
+                        value=null;
+                    }
                 } else if (fld.getType().isInstance(Map.class)) {
                     BasicDBObject map = (BasicDBObject) o.get(f);
                     value = map;
