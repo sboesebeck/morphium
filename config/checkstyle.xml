@@ -1,0 +1,59 @@
+<?xml version="1.0"?>
+
+<!DOCTYPE module PUBLIC
+        "-//Puppy Crawl//DTD Check Configuration 1.1//EN"
+        "http://www.puppycrawl.com/dtds/configuration_1_1.dtd">
+
+<module name="Checker">
+    <property name="localeLanguage" value="en"/>
+
+    <module name="FileTabCharacter">
+        <property name="fileExtensions" value="java,xml"/>
+    </module>
+    <module name="StrictDuplicateCode">
+        <property name="min" value="10"/>
+        <property name="fileExtensions" value="java"/>
+    </module>
+    <module name="TreeWalker">
+        <module name="RedundantImport"/>
+        <module name="UnusedImports"/>
+        <module name="NeedBraces"/>
+        <module name="RedundantThrows">
+            <property name="allowUnchecked" value="true"/>
+            <property name="allowSubclasses" value="true"/>
+        </module>
+        <module name="LineLength">
+            <property name="max" value="180"/>
+        </module>
+        <module name="JavadocMethod">
+            <property name="allowUndeclaredRTE" value="true"/>
+            <property name="allowMissingParamTags" value="true"/>
+            <property name="allowThrowsTagsForSubclasses" value="true"/>
+            <property name="scope" value="public"/>
+            <property name="allowMissingReturnTag" value="true"/>
+        </module>
+        <module name="NeedBraces"/>
+        <module name="AvoidNestedBlocks"/>
+        <module name="VisibilityModifier"/>
+        <module name="AvoidInlineConditionals"/>
+        <module name="CovariantEquals"/>
+        <module name="EqualsHashCode"/>
+        <module name="EmptyStatement"/>
+        <module name="HiddenField">
+            <property name="ignoreSetter" value="true"/>
+            <property name="ignoreConstructorParameter" value="true"/>
+        </module>
+        <module name="IllegalInstantiation">
+            <property name="classes"
+                      value="java.lang.Boolean,java.lang.Long,java.lang.Integer,java.lang.Double,java.lang.Float"/>
+        </module>
+        <module name="InnerAssignment"/>
+        <module name="SimplifyBooleanExpression"/>
+        <module name="SimplifyBooleanReturn"/>
+        <module name="StringLiteralEquality"/>
+        <module name="NoClone"/>
+        <module name="NoFinalizer"/>
+
+        <module name="UnusedImports"/>
+    </module>
+</module>
