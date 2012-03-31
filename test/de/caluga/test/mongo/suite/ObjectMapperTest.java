@@ -136,4 +136,23 @@ public class ObjectMapperTest extends MongoTest {
         assert (st.equals(st2)) : "Strings not equal?\n" + st + "\n" + st2;
 
     }
+
+    @Test
+    public void nullValueTests() {
+        ObjectMapperImpl om = new ObjectMapperImpl();
+
+        ComplexObject o=new ComplexObject();
+        o.setTrans("TRANSIENT");
+        DBObject obj=null;
+        try {
+            obj= om.marshall(o);
+        } catch(IllegalArgumentException e) {
+            //good, ein_text is null - should trigger this exception!
+        }
+        assert(obj==null):"NotNull constraint not enforced! "+obj.toString();
+        o.setEinText("Ein Text");
+        obj=om.marshall(o);
+        assert(!obj.containsField("trans")):"Transient field used?!?!?";
+        assert(obj.containsField("null_value")):"Null value not set";
+    }
 }

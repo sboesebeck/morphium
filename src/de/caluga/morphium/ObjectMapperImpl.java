@@ -112,17 +112,22 @@ public class ObjectMapperImpl implements ObjectMapper {
                         Reference r = fld.getAnnotation(Reference.class);
                         //reference handling...
                         //field should point to a certain type - store ObjectID only
-                        v = getId(value);
-                        if (v == null) {
-                            //not stored yet
-                            if (r.automaticStore()) {
-                                //TODO: this could cause an endless loop!
-                                Morphium.get().store(value);
-                            } else {
-                                throw new IllegalArgumentException("Reference to be stored, that is null!");
-                            }
+                        if (value == null) {
+                            //no reference to be stored...
+                            v = null;
+                        } else {
                             v = getId(value);
+                            if (v == null) {
+                                //not stored yet
+                                if (r.automaticStore()) {
+                                    //TODO: this could cause an endless loop!
+                                    Morphium.get().store(value);
+                                } else {
+                                    throw new IllegalArgumentException("Reference to be stored, that is null!");
+                                }
+                                v = getId(value);
 
+                            }
                         }
                     } else {
 
@@ -131,25 +136,38 @@ public class ObjectMapperImpl implements ObjectMapper {
                         //Store Entities recursively
                         //TODO: Fix recursion - this could cause a loop!
                         if (fld.getType().isAnnotationPresent(Entity.class)) {
-                            DBObject obj = marshall(value);
-                            obj.removeField("_id");  //Do not store ID embedded!
-                            v = obj;
+                            if (value != null) {
+                                DBObject obj = marshall(value);
+                                obj.removeField("_id");  //Do not store ID embedded!
+                                v = obj;
+                            }
                         } else {
                             v = value;
-                            if (v instanceof Map) {
-                                //create MongoDBObject-Map
-                                v = new BasicDBObject((Map) v);
-                            } else if (v instanceof List) {
-                                BasicDBList lst = new BasicDBList();
-                                lst.addAll((List) v);
-                                v = lst;
-                            } else if (v instanceof Iterable) {
-                                BasicDBList lst = new BasicDBList();
-                                for (Object i : (Iterable) v) {
-                                    lst.add(i);
+                            if (v != null) {
+                                if (v instanceof Map) {
+                                    //create MongoDBObject-Map
+                                    v = new BasicDBObject((Map) v);
+                                } else if (v instanceof List) {
+                                    BasicDBList lst = new BasicDBList();
+                                    lst.addAll((List) v);
+                                    v = lst;
+                                } else if (v instanceof Iterable) {
+                                    BasicDBList lst = new BasicDBList();
+                                    for (Object i : (Iterable) v) {
+                                        lst.add(i);
+                                    }
+                                    v = lst;
                                 }
-                                v = lst;
                             }
+                        }
+                    }
+                    if (v == null) {
+                        if (fld.isAnnotationPresent(NotNull.class)) {
+                            throw new IllegalArgumentException("Value is null - but must not (NotNull-Annotation to" + o.getClass().getSimpleName() + ")! Field: " + fName);
+                        }
+                        if (!fld.isAnnotationPresent(UseIfnull.class)) {
+                            //Do not put null-Values into dbo => not storing null-Values to db
+                            continue;
                         }
                     }
                     dbo.put(fName, v);
@@ -157,10 +175,7 @@ public class ObjectMapperImpl implements ObjectMapper {
 
             } catch (IllegalAccessException e) {
                 log.fatal("Illegal Access to field " + f);
-            } catch (Exception e) {
-                log.fatal("Unhandled Exception while accessing " + f, e);
             }
-
 
         }
         return dbo;

@@ -1,8 +1,6 @@
 package de.caluga.test.mongo.suite;
 
-import de.caluga.morphium.annotations.Entity;
-import de.caluga.morphium.annotations.Id;
-import de.caluga.morphium.annotations.Reference;
+import de.caluga.morphium.annotations.*;
 import de.caluga.morphium.annotations.caching.NoCache;
 import org.bson.types.ObjectId;
 
@@ -23,7 +21,14 @@ public class ComplexObject {
 
     private UncachedObject embed;
 
+    @NotNull
     private String einText;
+
+    @Transient
+    private String trans;
+
+    @UseIfnull
+    private Integer nullValue;
 
     public ObjectId getId() {
         return id;
@@ -57,13 +62,31 @@ public class ComplexObject {
         this.einText = einText;
     }
 
+    public String getTrans() {
+        return trans;
+    }
+
+    public void setTrans(String trans) {
+        this.trans = trans;
+    }
+
+    public Integer getNullValue() {
+        return nullValue;
+    }
+
+    public void setNullValue(Integer nullValue) {
+        this.nullValue = nullValue;
+    }
+
     @Override
     public String toString() {
         return "ComplexObject{" +
                 "id=" + id +
-                ", ref=" + (ref != null ? ref.getMongoId() : "null") +
-                ", embed={" + embed +
-                "}, einText='" + einText + '\'' +
+                ", ref=" + ref!=null?ref.getMongoId().toString():"null" +
+                ", embed=" + embed +
+                ", einText='" + einText + '\'' +
+                ", trans='" + trans + '\'' +
+                ", nullValue=" + nullValue +
                 '}';
     }
 }
