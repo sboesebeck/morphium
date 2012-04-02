@@ -23,9 +23,11 @@
             <distribution>repo</distribution>
         </license>
     </licenses>
+
     <scm>
-        <url>http://svn.apache.org/viewcvs.cgi/maven</url>
-        <connection>http://svn.apache.org/viewcvs.cgi/maven</connection>
+        <connection>scm:git:https://code.google.com/p/morphium</connection>
+        <developerConnection>scm:git:https://code.google.com/p/morphium</developerConnection>
+        <url>https://code.google.com/p/morphium</url>
     </scm>
 
     <developers>
@@ -146,7 +148,7 @@
     </dependencies>
 
     <distributionManagement>
-        <repository>
+<!--        <repository>
             <id>release</id>
             <url>https://oss.sonatype.org/service/local/staging/deploy/maven2</url>
         </repository>
@@ -154,6 +156,6 @@
             <id>snapshot</id>
             <url>https://oss.sonatype.org/content/repositories/snapshots/</url>
             <uniqueVersion>true</uniqueVersion>
-        </snapshotRepository>
+        </snapshotRepository> -->
     </distributionManagement>
 </project>
