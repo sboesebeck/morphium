@@ -48,7 +48,7 @@ public class ObjectMapperTest extends MongoTest {
         o.setValue("This \" is $ test");
         DBObject dbo = om.marshall(o);
         System.out.println("Marshalling was: " + dbo.toString());
-        assert (dbo.toString().equals("{ \"value\" : \"This \\\" is $ test\" , \"counter\" : 12345 , \"_id\" :  null }")) : "String creation failed?" + dbo.toString();
+        assert (dbo.toString().equals("{ \"value\" : \"This \\\" is $ test\" , \"counter\" : 12345}")) : "String creation failed?" + dbo.toString();
     }
 
     @Test
