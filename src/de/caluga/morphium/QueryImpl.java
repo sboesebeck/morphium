@@ -280,10 +280,8 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
 
     @Override
     public T get() {
-        Morphium.get().inc(type, StatisticKeys.READS);
         String ck = Morphium.get().getCacheKey(this);
         if (Morphium.get().isCached(type, ck)) {
-            Morphium.get().inc(type, StatisticKeys.CHITS);
             List<T> lst = Morphium.get().getFromCache(type, ck);
             if (lst == null || lst.isEmpty()) {
                 return null;
@@ -291,12 +289,11 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
                 return lst.get(0);
             }
         }
-        Morphium.get().inc(type, StatisticKeys.CMISS);
         DBObject ret = Morphium.get().getDatabase().getCollection(mapper.getCollectionName(type)).findOne(toQueryObject());
         if (ret != null) {
             T unmarshall = mapper.unmarshall(type, ret);
             Morphium.get().firePostLoadEvent(unmarshall);
-            updateLastAccess(ret, unmarshall);
+            updateLastAccess(ret,unmarshall);
             return unmarshall;
         }
         return null;
@@ -304,16 +301,13 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
 
     @Override
     public List<ObjectId> idList() {
-        Morphium.get().inc(type, StatisticKeys.READS);
         List<ObjectId> ret = new ArrayList<ObjectId>();
         String ck = Morphium.get().getCacheKey(this);
         ck += " idlist";
         if (Morphium.get().isCached(type, ck)) {
-            Morphium.get().inc(type, StatisticKeys.CHITS);
             //not nice...
             return (List<ObjectId>) Morphium.get().getFromCache(type, ck);
         }
-        Morphium.get().inc(type, StatisticKeys.CMISS);
         DBCursor query = Morphium.get().getDatabase().getCollection(mapper.getCollectionName(type)).find(toQueryObject(), new BasicDBObject("_id", 1)); //only get IDs
         if (order != null) {
             query.sort(new BasicDBObject(order));

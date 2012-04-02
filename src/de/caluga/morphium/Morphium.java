@@ -60,7 +60,7 @@ public class Morphium {
             new LinkedBlockingQueue<Runnable>());
     //Cache by Type, query String -> CacheElement (contains list etc)
     private Hashtable<Class<? extends Object>, Hashtable<String, CacheElement>> cache;
-    private volatile Hashtable<Class, Map<StatisticKeys, StatisticValue>> statsByType;
+    private final Map<StatisticKeys, StatisticValue> stats;
     private Map<Class<?>, Map<Class<? extends Annotation>, Method>> lifeCycleMethods;
     /**
      * String Representing current user - needs to be set by Application
@@ -80,15 +80,16 @@ public class Morphium {
      * @see MorphiumConfig
      */
     private Morphium() {
+        listeners = new Vector<MorphiumStorageListener>();
+        cache = new Hashtable<Class<? extends Object>, Hashtable<String, CacheElement>>();
+        stats = new Hashtable<StatisticKeys, StatisticValue>();
+        lifeCycleMethods = new Hashtable<Class<?>, Map<Class<? extends Annotation>, Method>>();
+        for (StatisticKeys k : StatisticKeys.values()) {
+            stats.put(k, new StatisticValue());
+        }
         if (config == null) {
             throw new RuntimeException("Morphium not configured yet!");
         }
-
-        listeners = new Vector<MorphiumStorageListener>();
-        cache = new Hashtable<Class<? extends Object>, Hashtable<String, CacheElement>>();
-        statsByType = new Hashtable<Class, Map<StatisticKeys, StatisticValue>>();
-        lifeCycleMethods = new Hashtable<Class<?>, Map<Class<? extends Annotation>, Method>>();
-
 
         //dummyUser.setGroupIds();
         MongoOptions o = new MongoOptions();
@@ -135,20 +136,6 @@ public class Morphium {
 
         logger.info("Initialization successful...");
 
-    }
-
-    public Map<StatisticKeys, StatisticValue> getTypeStats(Class cls) {
-        if (statsByType.get(cls) == null) {
-            initStatsFor(cls);
-        }
-        return statsByType.get(cls);
-    }
-
-    private void initStatsFor(Class cls) {
-        statsByType.put(cls, new Hashtable<StatisticKeys, StatisticValue>());
-        for (StatisticKeys k : StatisticKeys.values()) {
-            statsByType.get(cls).put(k, new StatisticValue());
-        }
     }
 
     public void addListener(MorphiumStorageListener lst) {
@@ -202,18 +189,9 @@ public class Morphium {
         cacheHousekeeper.start();
     }
 
-    /**
-     * inkrement a statistic counter
-     *
-     * @param k
-     */
-    protected void inc(Class type, final StatisticKeys k) {
-        //inc global stats
-        statsByType.get(Object.class).get(k).inc();
-        //inc type stats
-        getTypeStats(type).get(k).inc();
+    protected void inc(StatisticKeys k) {
+        stats.get(k).inc();
     }
-
 
     /**
      * set configuration for MongoDbLayer
@@ -424,12 +402,12 @@ public class Morphium {
         if (!type.isAnnotationPresent(Entity.class)) {
             throw new RuntimeException("Not an entity! Storing not possible!");
         }
-        inc(o.getClass(), StatisticKeys.WRITES);
+        inc(StatisticKeys.WRITES);
         firePreStoreEvent(o);
 
         DBObject marshall = config.getMapper().marshall(o);
 
-        if (config.getMapper().getId(o) == null) {
+        if (config.getMapper().getId(o)==null) {
             //new object - need to store creation time
             if (type.isAnnotationPresent(StoreCreationTime.class)) {
                 StoreCreationTime t = (StoreCreationTime) type.getAnnotation(StoreCreationTime.class);
@@ -486,6 +464,7 @@ public class Morphium {
                 marshall.put(ctf, config.getSecurityMgr().getCurrentUserId());
             }
         }
+
 
 
         database.getCollection(config.getMapper().getCollectionName(o.getClass())).save(marshall);
@@ -550,6 +529,7 @@ public class Morphium {
         }
 
 
+        inc(StatisticKeys.WRITES);
         List<? extends Object> lst = readAll(cls);
         for (Object r : lst) {
             deleteObject(r);
@@ -568,6 +548,7 @@ public class Morphium {
      * @return - list of all elements stored
      */
     public <T> List<T> readAll(Class<T> cls) {
+        inc(StatisticKeys.READS);
         Query<T> qu;
         qu = createQueryFor(cls);
         return qu.asList();
@@ -929,7 +910,7 @@ public class Morphium {
                         storeNoCache(o);
                     }
                 });
-                inc(o.getClass(), StatisticKeys.WRITES_CACHED);
+                inc(StatisticKeys.WRITES_CACHED);
 
             } else {
                 storeNoCache(o);
@@ -990,7 +971,7 @@ public class Morphium {
         database.getCollection(config.getMapper().getCollectionName(o.getClass())).remove(db);
 
         clearCachefor(o.getClass());
-        inc(o.getClass(), StatisticKeys.WRITES);
+        inc(StatisticKeys.WRITES);
         firePostRemoveEvent(o);
     }
 
@@ -1008,9 +989,87 @@ public class Morphium {
     /////
     ///
     public Map<String, Double> getStatistics() {
-        return new StatisticsMap((Hashtable<Class, Map<StatisticKeys, StatisticValue>>) statsByType, cache, writeBufferCount());
+        return new StatisticsMap();
     }
 
+    public enum StatisticKeys {
+
+        WRITES, WRITES_CACHED, READS, CHITS, CMISS, NO_CACHED_READS, CHITSPERC, CMISSPERC, CACHE_ENTRIES, WRITE_BUFFER_ENTRIES
+    }
+
+    public class StatisticValue {
+
+        private long value = 0;
+
+        public void inc() {
+            value++;
+        }
+
+        public void dec() {
+            value--;
+        }
+
+        public long get() {
+            return value;
+        }
+    }
+
+    private class StatisticsMap extends Hashtable<String, Double> {
+
+        /**
+         *
+         */
+        private static final long serialVersionUID = -2831335094438480701L;
+
+        @SuppressWarnings("rawtypes")
+        public StatisticsMap() {
+            for (StatisticKeys k : stats.keySet()) {
+                super.put(k.name(), (double) stats.get(k).get());
+            }
+            double entries = 0;
+            for (Class k : cache.keySet()) {
+                entries += cache.get(k).size();
+                super.put("X-Entries for: " + k.getName(), (double) cache.get(k).size());
+            }
+            super.put(StatisticKeys.CACHE_ENTRIES.name(), entries);
+
+            entries = 0;
+
+            super.put(StatisticKeys.WRITE_BUFFER_ENTRIES.name(), Double.valueOf((double) writeBufferCount()));
+            super.put(StatisticKeys.CHITSPERC.name(), ((double) stats.get(StatisticKeys.CHITS).get()) / (stats.get(StatisticKeys.READS).get() - stats.get(StatisticKeys.NO_CACHED_READS).get()) * 100.0);
+            super.put(StatisticKeys.CMISSPERC.name(), ((double) stats.get(StatisticKeys.CMISS).get()) / (stats.get(StatisticKeys.READS).get() - stats.get(StatisticKeys.NO_CACHED_READS).get()) * 100.0);
+        }
+
+        @Override
+        public synchronized Double put(String arg0, Double arg1) {
+            throw new RuntimeException("not allowed!");
+        }
+
+        @Override
+        public synchronized void putAll(@SuppressWarnings("rawtypes") Map arg0) {
+            throw new RuntimeException("not allowed");
+        }
+
+        @Override
+        public synchronized Double remove(Object arg0) {
+            throw new RuntimeException("not allowed");
+        }
+
+        @Override
+        public String toString() {
+            StringBuffer b = new StringBuffer();
+            String[] lst = keySet().toArray(new String[keySet().size()]);
+            Arrays.sort(lst);
+            for (String k : lst) {
+                b.append("- ");
+                b.append(k);
+                b.append("\t");
+                b.append(get(k));
+                b.append("\n");
+            }
+            return b.toString();
+        }
+    }
 
     public void close() {
         cacheHousekeeper.end();
