@@ -5,7 +5,7 @@
 package de.caluga.test.mongo.suite;
 
 import de.caluga.morphium.Morphium;
-import de.caluga.morphium.Morphium.StatisticKeys;
+import de.caluga.morphium.StatisticKeys;
 import de.caluga.morphium.Query;
 import org.apache.log4j.Logger;
 import org.junit.Test;

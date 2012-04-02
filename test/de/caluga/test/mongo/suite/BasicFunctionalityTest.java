@@ -6,6 +6,7 @@ package de.caluga.test.mongo.suite;
 
 import de.caluga.morphium.Morphium;
 import de.caluga.morphium.Query;
+import de.caluga.morphium.StatisticKeys;
 import org.apache.log4j.Logger;
 import org.junit.Test;
 
@@ -135,7 +136,7 @@ public class BasicFunctionalityTest extends MongoTest {
         }
         dur = System.currentTimeMillis() - start;
         log.info("Searching  took " + dur + " ms");
-        log.info("Cache Hits Percentage: " + Morphium.get().getStatistics().get(Morphium.StatisticKeys.CHITSPERC) + "%");
+        log.info("Cache Hits Percentage: " + Morphium.get().getStatistics().get(StatisticKeys.CHITSPERC) + "%");
     }
 
 

@@ -60,7 +60,7 @@ public class Morphium {
             new LinkedBlockingQueue<Runnable>());
     //Cache by Type, query String -> CacheElement (contains list etc)
     private Hashtable<Class<? extends Object>, Hashtable<String, CacheElement>> cache;
-    private volatile Map<Class<?>, Map<StatisticKeys, StatisticValue>> statsByType;
+    private volatile Hashtable<Class, Map<StatisticKeys, StatisticValue>> statsByType;
     private Map<Class<?>, Map<Class<? extends Annotation>, Method>> lifeCycleMethods;
     /**
      * String Representing current user - needs to be set by Application
@@ -86,7 +86,7 @@ public class Morphium {
 
         listeners = new Vector<MorphiumStorageListener>();
         cache = new Hashtable<Class<? extends Object>, Hashtable<String, CacheElement>>();
-        statsByType = new Hashtable<Class<?>, Map<StatisticKeys, StatisticValue>>();
+        statsByType = new Hashtable<Class, Map<StatisticKeys, StatisticValue>>();
         lifeCycleMethods = new Hashtable<Class<?>, Map<Class<? extends Annotation>, Method>>();
 
 
