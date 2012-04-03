@@ -150,7 +150,7 @@ public class ObjectMapperImpl implements ObjectMapper {
                             if (v != null) {
                                 if (v instanceof Map) {
                                     //create MongoDBObject-Map
-                                    BasicDBObject dbMap = createDbMap((Map) v);
+                                    BasicDBObject dbMap = createDBMap((Map) v);
                                     v = dbMap;
                                 } else if (v instanceof List) {
                                     BasicDBList lst = createDBList((List) v);
@@ -195,7 +195,7 @@ public class ObjectMapperImpl implements ObjectMapper {
             } else if (lo instanceof List) {
                 lst.add(createDBList((List) lo));
             } else if (lo instanceof Map) {
-                lst.add(createDbMap(((Map) lo)));
+                lst.add(createDBMap(((Map) lo)));
             } else {
                 lst.add(lo);
             }
@@ -203,20 +203,26 @@ public class ObjectMapperImpl implements ObjectMapper {
         return lst;
     }
 
-    private BasicDBObject createDbMap(Map v) {
+    private BasicDBObject createDBMap(Map v) {
         BasicDBObject dbMap = new BasicDBObject();
         for (Object k : ((Map) v).keySet()) {
             if (!(k instanceof String)) {
                 log.warn("Map in Mongodb needs to have String as keys - using toString");
                 k = k.toString();
+                if (((String) k).contains(".")) {
+                    log.warn(". not allowed as Key in Maps - converting to _");
+                    k = ((String) k).replaceAll("\\.", "_");
+                }
             }
             Object mval = ((Map) v).get(k);
-            if (mval.getClass().isAnnotationPresent(Entity.class)) {
-                mval = marshall(mval);
-            } else if (mval instanceof Map) {
-                mval = createDbMap((Map) mval);
-            } else if (mval instanceof List) {
-                mval = createDBList((List) mval);
+            if (mval != null) {
+                if (mval.getClass().isAnnotationPresent(Entity.class)) {
+                    mval = marshall(mval);
+                } else if (mval instanceof Map) {
+                    mval = createDBMap((Map) mval);
+                } else if (mval instanceof List) {
+                    mval = createDBList((List) mval);
+                }
             }
             dbMap.put((String) k, mval);
         }

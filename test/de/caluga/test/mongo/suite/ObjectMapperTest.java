@@ -7,9 +7,7 @@ import de.caluga.morphium.ObjectMapperImpl;
 import org.bson.types.ObjectId;
 import org.junit.Test;
 
-import java.util.ArrayList;
-import java.util.Date;
-import java.util.List;
+import java.util.*;
 
 /**
  * User: Stpehan Bösebeck
@@ -143,25 +141,25 @@ public class ObjectMapperTest extends MongoTest {
     public void nullValueTests() {
         ObjectMapperImpl om = new ObjectMapperImpl();
 
-        ComplexObject o=new ComplexObject();
+        ComplexObject o = new ComplexObject();
         o.setTrans("TRANSIENT");
-        DBObject obj=null;
+        DBObject obj = null;
         try {
-            obj= om.marshall(o);
-        } catch(IllegalArgumentException e) {
+            obj = om.marshall(o);
+        } catch (IllegalArgumentException e) {
             //good, ein_text is null - should trigger this exception!
         }
-        assert(obj==null):"NotNull constraint not enforced! "+obj.toString();
+        assert (obj == null) : "NotNull constraint not enforced! " + obj.toString();
         o.setEinText("Ein Text");
-        obj=om.marshall(o);
-        assert(!obj.containsField("trans")):"Transient field used?!?!?";
-        assert(obj.containsField("null_value")):"Null value not set";
+        obj = om.marshall(o);
+        assert (!obj.containsField("trans")) : "Transient field used?!?!?";
+        assert (obj.containsField("null_value")) : "Null value not set";
     }
 
     @Test
     public void listValueTest() {
-        MapListObject o=new MapListObject();
-        List lst=new ArrayList();
+        MapListObject o = new MapListObject();
+        List lst = new ArrayList();
         lst.add("A Value");
         lst.add(27.0);
         lst.add(new UncachedObject());
@@ -171,19 +169,52 @@ public class ObjectMapperTest extends MongoTest {
 
         ObjectMapperImpl om = new ObjectMapperImpl();
         DBObject marshall = om.marshall(o);
-        String m=marshall.toString();
+        String m = marshall.toString();
 
-        assert(m.equals("{ \"name\" : \"Simple List\" , \"list_value\" : [ \"A Value\" , 27.0 , { \"counter\" : 0 , \"class_name\" : \"de.caluga.test.mongo.suite.UncachedObject\"}]}")):"Marshall not ok: "+m;
+        assert (m.equals("{ \"name\" : \"Simple List\" , \"list_value\" : [ \"A Value\" , 27.0 , { \"counter\" : 0 , \"class_name\" : \"de.caluga.test.mongo.suite.UncachedObject\"}]}")) : "Marshall not ok: " + m;
 
-        MapListObject mo=om.unmarshall(MapListObject.class,marshall);
-        System.out.println("Mo: "+mo.getName());
-        System.out.println("lst: "+mo.getListValue());
-        assert(mo.getName().equals(o.getName())):"Names not equal?!?!?";
-        for (int i=0;i<lst.size();i++) {
+        MapListObject mo = om.unmarshall(MapListObject.class, marshall);
+        System.out.println("Mo: " + mo.getName());
+        System.out.println("lst: " + mo.getListValue());
+        assert (mo.getName().equals(o.getName())) : "Names not equal?!?!?";
+        for (int i = 0; i < lst.size(); i++) {
             Object listValueNew = mo.getListValue().get(i);
             Object listValueOrig = o.getListValue().get(i);
-            assert(listValueNew.getClass().equals(listValueOrig.getClass())):"Classes differ: "+listValueNew.getClass()+" - "+listValueOrig.getClass();
-            assert(listValueNew.equals(listValueOrig)):"Value not equals in list: "+ listValueNew +" vs. "+ listValueOrig;
+            assert (listValueNew.getClass().equals(listValueOrig.getClass())) : "Classes differ: " + listValueNew.getClass() + " - " + listValueOrig.getClass();
+            assert (listValueNew.equals(listValueOrig)) : "Value not equals in list: " + listValueNew + " vs. " + listValueOrig;
+        }
+
+    }
+
+    @Test
+    public void mapValueTest() {
+        MapListObject o = new MapListObject();
+        Map<String, Object> map = new HashMap<String, Object>();
+        map.put("a_string", "This is a string");
+        map.put("a primitive value", 42);
+        map.put("double", 42.0);
+        map.put("null", null);
+        map.put("Entity", new UncachedObject());
+        o.setMapValue(map);
+        o.setName("A map-value");
+
+        ObjectMapperImpl om = new ObjectMapperImpl();
+        DBObject marshall = om.marshall(o);
+        String m = marshall.toString();
+        System.out.println("Marshalled object: " + m);
+        assert (m.equals("{ \"name\" : \"A map-value\" , \"map_value\" : { \"a_string\" : \"This is a string\" , \"a primitive value\" : 42 , \"double\" : 42.0 , \"null\" :  null  , \"Entity\" : { \"counter\" : 0}}}")) : "Value not marshalled coorectly";
+
+        MapListObject mo = om.unmarshall(MapListObject.class, marshall);
+        assert (mo.getName().equals("A map-value")) : "Name error";
+        assert (mo.getMapValue() != null) : "map value is null????";
+        for (String k : mo.getMapValue().keySet()) {
+            Object v = mo.getMapValue().get(k);
+            if (v == null) {
+                assert (o.getMapValue().get(k) == null) : "v==null but original not?";
+            } else {
+                assert (o.getMapValue().get(k).getClass().equals(v.getClass())) : "Classes differ: " + o.getMapValue().get(k).getClass().getName() + " != " + v.getClass().getName();
+                assert (o.getMapValue().get(k).equals(v)) : "Value not equal, key: " + k;
+            }
         }
 
     }
