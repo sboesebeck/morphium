@@ -9,6 +9,7 @@ import org.bson.types.ObjectId;
 
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Field;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Vector;
@@ -95,7 +96,10 @@ public class ObjectMapperImpl implements ObjectMapper {
             return dbo;
         }
         List<String> flds = getFields(o.getClass());
-
+        Entity e = o.getClass().getAnnotation(Entity.class);
+        if (e.polymorph()) {
+            dbo.put("class_name", o.getClass().getName());
+        }
         for (String f : flds) {
             String fName = f;
             try {
@@ -146,10 +150,10 @@ public class ObjectMapperImpl implements ObjectMapper {
                             if (v != null) {
                                 if (v instanceof Map) {
                                     //create MongoDBObject-Map
-                                    v = new BasicDBObject((Map) v);
+                                    BasicDBObject dbMap = createDbMap((Map) v);
+                                    v = dbMap;
                                 } else if (v instanceof List) {
-                                    BasicDBList lst = new BasicDBList();
-                                    lst.addAll((List) v);
+                                    BasicDBList lst = createDBList((List) v);
                                     v = lst;
                                 } else if (v instanceof Iterable) {
                                     BasicDBList lst = new BasicDBList();
@@ -173,7 +177,7 @@ public class ObjectMapperImpl implements ObjectMapper {
                     dbo.put(fName, v);
                 }
 
-            } catch (IllegalAccessException e) {
+            } catch (IllegalAccessException exc) {
                 log.fatal("Illegal Access to field " + f);
             }
 
@@ -181,10 +185,57 @@ public class ObjectMapperImpl implements ObjectMapper {
         return dbo;
     }
 
+    private BasicDBList createDBList(List v) {
+        BasicDBList lst = new BasicDBList();
+        for (Object lo : ((List) v)) {
+            if (lo.getClass().isAnnotationPresent(Entity.class)) {
+                DBObject marshall = marshall(lo);
+                marshall.put("class_name", lo.getClass().getName());
+                lst.add(marshall);
+            } else if (lo instanceof List) {
+                lst.add(createDBList((List) lo));
+            } else if (lo instanceof Map) {
+                lst.add(createDbMap(((Map) lo)));
+            } else {
+                lst.add(lo);
+            }
+        }
+        return lst;
+    }
+
+    private BasicDBObject createDbMap(Map v) {
+        BasicDBObject dbMap = new BasicDBObject();
+        for (Object k : ((Map) v).keySet()) {
+            if (!(k instanceof String)) {
+                log.warn("Map in Mongodb needs to have String as keys - using toString");
+                k = k.toString();
+            }
+            Object mval = ((Map) v).get(k);
+            if (mval.getClass().isAnnotationPresent(Entity.class)) {
+                mval = marshall(mval);
+            } else if (mval instanceof Map) {
+                mval = createDbMap((Map) mval);
+            } else if (mval instanceof List) {
+                mval = createDBList((List) mval);
+            }
+            dbMap.put((String) k, mval);
+        }
+        return dbMap;
+    }
+
     @Override
     public <T> T unmarshall(Class<T> cls, DBObject o) {
         try {
+            if (o.get("class_name") != null) {
+                log.info("overriding cls - it's defined in dbObject");
+                try {
+                    cls = (Class<T>) Class.forName((String) o.get("class_name"));
+                } catch (ClassNotFoundException e) {
+                    throw new RuntimeException(e);
+                }
+            }
             T ret = cls.newInstance();
+
             List<String> flds = getFields(cls);
 
             for (String f : flds) {
@@ -202,17 +253,59 @@ public class ObjectMapperImpl implements ObjectMapper {
                     value = id;
                 } else if (fld.getType().isAnnotationPresent(Entity.class)) {
                     //entity! embedded
-                    if (o.get(f)!=null) {
+                    if (o.get(f) != null) {
                         value = unmarshall(fld.getType(), (DBObject) o.get(f));
                     } else {
-                        value=null;
+                        value = null;
                     }
-                } else if (fld.getType().isInstance(Map.class)) {
+                } else if (fld.getType().isAssignableFrom(Map.class)) {
                     BasicDBObject map = (BasicDBObject) o.get(f);
-                    value = map;
-                } else if (fld.getType().isInstance(List.class)) {
+                    if (map != null) {
+                        for (String n : map.keySet()) {
+                            //TODO: recurse?
+                            if (map.get(n) instanceof BasicDBObject) {
+                                if (((BasicDBObject) map.get(n)).containsField("class_name")) {
+                                    //Entity to map
+                                    try {
+                                        Class ecls = Class.forName(((BasicDBObject) map.get(n)).get("class_name").toString());
+                                        map.put(n, unmarshall(ecls, (DBObject) map.get(n)));
+                                    } catch (ClassNotFoundException e) {
+                                        throw new RuntimeException(e);
+                                    }
+                                }
+                            }
+                        }
+                        value = map;
+                    } else {
+                        value = null;
+                    }
+                } else if (fld.getType().isAssignableFrom(List.class)) {
+                    //TODO: recurse??
                     BasicDBList l = (BasicDBList) o.get(f);
-                    value = l;
+                    List lst = new ArrayList();
+                    if (l != null) {
+                        for (Object val : l) {
+                            if (val instanceof BasicDBObject) {
+                                if (((BasicDBObject) val).containsField("class_name")) {
+                                    //Entity to map!
+                                    try {
+                                        Class ecls = Class.forName(((BasicDBObject) val).get("class_name").toString());
+                                        lst.add(unmarshall(ecls, (DBObject) val));
+                                    } catch (ClassNotFoundException e) {
+                                        throw new RuntimeException(e);
+                                    }
+                                } else {
+                                    //Probably an "normal" map
+                                    lst.add(val);
+                                }
+                            } else {
+                                lst.add(val);
+                            }
+                        }
+                        value = lst;
+                    } else {
+                        value = l;
+                    }
                 } else {
                     value = o.get(f);
                 }
