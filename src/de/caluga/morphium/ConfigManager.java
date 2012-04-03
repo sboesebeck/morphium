@@ -112,8 +112,10 @@ public class ConfigManager {
     }
 
     private void store(String k, ConfigElement c) {
+
         Query q = Morphium.get().createQueryFor(ConfigElement.class);
         q.f("name").eq(k);
+        Morphium.get().setPrivileged();
         List<ConfigElement> lst = Morphium.get().find(q);
         if (lst.size() > 0) {
             c.setId(lst.get(0).getId()); //setting id to enforce update
@@ -146,7 +148,7 @@ public class ConfigManager {
         ConfigElement c = new ConfigElement();
         c.setName(k);
         Query<ConfigElement> q = Morphium.get().createQueryFor(ConfigElement.class);
-
+        Morphium.get().setPrivileged();
         List<ConfigElement> lst = Morphium.get().find(q);
 
         if (lst.size() > 1) {
@@ -197,6 +199,7 @@ public class ConfigManager {
             }
             e.setMapValue(v);
         }
+        Morphium.get().setPrivileged();
         Morphium.get().store(e);
     }
 

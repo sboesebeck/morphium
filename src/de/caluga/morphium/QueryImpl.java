@@ -6,6 +6,7 @@ import com.mongodb.DBCursor;
 import com.mongodb.DBObject;
 import de.caluga.morphium.annotations.Id;
 import de.caluga.morphium.annotations.StoreLastAccess;
+import de.caluga.morphium.secure.Permission;
 import org.bson.types.ObjectId;
 
 import java.lang.reflect.Field;
@@ -175,6 +176,9 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
 
     @Override
     public long countAll() {
+        if (Morphium.get().accessDenied(type, Permission.READ)) {
+            throw new RuntimeException("Access denied!");
+        }
         return Morphium.get().getDatabase().getCollection(mapper.getCollectionName(type)).count(toQueryObject());
     }
 
@@ -210,6 +214,10 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
 
     @Override
     public List<T> asList() {
+        if (Morphium.get().accessDenied(type, Permission.READ)) {
+            throw new RuntimeException("Access denied!");
+        }
+
         String ck = Morphium.get().getCacheKey(this);
         if (Morphium.get().isCached(type, ck)) {
             return Morphium.get().getFromCache(type, ck);
@@ -293,7 +301,7 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
         if (ret != null) {
             T unmarshall = mapper.unmarshall(type, ret);
             Morphium.get().firePostLoadEvent(unmarshall);
-            updateLastAccess(ret,unmarshall);
+            updateLastAccess(ret, unmarshall);
             return unmarshall;
         }
         return null;

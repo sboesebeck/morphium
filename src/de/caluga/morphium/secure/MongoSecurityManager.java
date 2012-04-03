@@ -38,10 +38,13 @@ public interface MongoSecurityManager {
      */
     public boolean checkAccess(String domain, Permission p) throws MongoSecurityException;
 
+    public boolean checkAccess(Class<?> cls, Permission p) throws MongoSecurityException;
+
 
     /**
      * depending on implementation, this might be an ObjectId or a login string or whatever
      * ATTENTION: needs to be compatible with @StoreCreationTime and @StoreLAstAccess etc.
+     *
      * @return
      */
     public Object getCurrentUserId();

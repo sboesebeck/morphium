@@ -69,6 +69,7 @@ public class Morphium {
     private CacheHousekeeper cacheHousekeeper;
 
     private Vector<MorphiumStorageListener> listeners;
+    private Vector<Thread> privileged;
 
 //    private boolean securityEnabled = false;
 
@@ -80,6 +81,7 @@ public class Morphium {
      * @see MorphiumConfig
      */
     private Morphium() {
+        privileged = new Vector<Thread>();
         listeners = new Vector<MorphiumStorageListener>();
         cache = new Hashtable<Class<? extends Object>, Hashtable<String, CacheElement>>();
         stats = new Hashtable<StatisticKeys, StatisticValue>();
@@ -180,6 +182,10 @@ public class Morphium {
 
         //atomar execution of this operand - no synchronization needed
         cache = cl;
+
+    }
+
+    protected void setPrivilegedThread(Thread thr) {
 
     }
 
@@ -407,7 +413,7 @@ public class Morphium {
 
         DBObject marshall = config.getMapper().marshall(o);
 
-        if (config.getMapper().getId(o)==null) {
+        if (config.getMapper().getId(o) == null) {
             //new object - need to store creation time
             if (type.isAnnotationPresent(StoreCreationTime.class)) {
                 StoreCreationTime t = (StoreCreationTime) type.getAnnotation(StoreCreationTime.class);
@@ -464,7 +470,6 @@ public class Morphium {
                 marshall.put(ctf, config.getSecurityMgr().getCurrentUserId());
             }
         }
-
 
 
         database.getCollection(config.getMapper().getCollectionName(o.getClass())).save(marshall);
@@ -1113,11 +1118,34 @@ public class Morphium {
         return config.getSecurityMgr();
     }
 
+    /**
+     * temporarily switch off security settings - needed by SecurityManagers
+     */
+    public void setPrivileged() {
+        privileged.add(Thread.currentThread());
+    }
+
     public boolean checkAccess(String domain, Permission p) throws MongoSecurityException {
+        if (privileged.contains(Thread.currentThread())) {
+            privileged.remove(Thread.currentThread());
+            return true;
+        }
         return getSecurityManager().checkAccess(domain, p);
     }
 
+    public boolean accessDenied(Class<?> cls, Permission p) throws MongoSecurityException {
+        if (privileged.contains(Thread.currentThread())) {
+            privileged.remove(Thread.currentThread());
+            return false;
+        }
+        return !getSecurityManager().checkAccess(cls, p);
+    }
+
     public boolean accessDenied(Object r, Permission p) throws MongoSecurityException {
+        if (privileged.contains(Thread.currentThread())) {
+            privileged.remove(Thread.currentThread());
+            return false;
+        }
         return !getSecurityManager().checkAccess(r, p);
     }
 

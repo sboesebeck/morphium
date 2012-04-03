@@ -4,7 +4,7 @@
 
     <groupId>de.caluga</groupId>
     <artifactId>morphium</artifactId>
-    <version>0.6</version>
+    <version>0.7</version>
     <packaging>jar</packaging>
     <parent>
         <groupId>org.sonatype.oss</groupId>
@@ -148,14 +148,14 @@
     </dependencies>
 
     <distributionManagement>
-<!--        <repository>
-            <id>release</id>
-            <url>https://oss.sonatype.org/service/local/staging/deploy/maven2</url>
-        </repository>
-        <snapshotRepository>
-            <id>snapshot</id>
-            <url>https://oss.sonatype.org/content/repositories/snapshots/</url>
-            <uniqueVersion>true</uniqueVersion>
-        </snapshotRepository> -->
+        <!--        <repository>
+           <id>release</id>
+           <url>https://oss.sonatype.org/service/local/staging/deploy/maven2</url>
+       </repository>
+       <snapshotRepository>
+           <id>snapshot</id>
+           <url>https://oss.sonatype.org/content/repositories/snapshots/</url>
+           <uniqueVersion>true</uniqueVersion>
+       </snapshotRepository> -->
     </distributionManagement>
 </project>

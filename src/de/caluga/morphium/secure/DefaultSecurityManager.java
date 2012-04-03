@@ -20,6 +20,11 @@ public class DefaultSecurityManager implements MongoSecurityManager {
     }
 
     @Override
+    public boolean checkAccess(Class<?> cls, Permission p) throws MongoSecurityException {
+        return true;
+    }
+
+    @Override
     public Object getCurrentUserId() {
         return "USER";
     }
