@@ -52,4 +52,26 @@ public class UncachedObject {
     public String toString() {
         return "Counter: " + counter + " Value: " + value + " MongoId: " + mongoId;
     }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+
+        UncachedObject that = (UncachedObject) o;
+
+        if (counter != that.counter) return false;
+        if (mongoId != null ? !mongoId.equals(that.mongoId) : that.mongoId != null) return false;
+        if (value != null ? !value.equals(that.value) : that.value != null) return false;
+
+        return true;
+    }
+
+    @Override
+    public int hashCode() {
+        int result = value != null ? value.hashCode() : 0;
+        result = 31 * result + counter;
+        result = 31 * result + (mongoId != null ? mongoId.hashCode() : 0);
+        return result;
+    }
 }
