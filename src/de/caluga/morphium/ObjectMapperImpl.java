@@ -217,7 +217,9 @@ public class ObjectMapperImpl implements ObjectMapper {
             Object mval = ((Map) v).get(k);
             if (mval != null) {
                 if (mval.getClass().isAnnotationPresent(Entity.class)) {
-                    mval = marshall(mval);
+                    DBObject obj = marshall(mval);
+                    obj.put("class_name",mval.getClass().getName());
+                    mval=obj;
                 } else if (mval instanceof Map) {
                     mval = createDBMap((Map) mval);
                 } else if (mval instanceof List) {
