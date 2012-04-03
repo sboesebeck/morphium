@@ -7,7 +7,9 @@ import de.caluga.morphium.ObjectMapperImpl;
 import org.bson.types.ObjectId;
 import org.junit.Test;
 
+import java.util.ArrayList;
 import java.util.Date;
+import java.util.List;
 
 /**
  * User: Stpehan Bösebeck
@@ -154,5 +156,35 @@ public class ObjectMapperTest extends MongoTest {
         obj=om.marshall(o);
         assert(!obj.containsField("trans")):"Transient field used?!?!?";
         assert(obj.containsField("null_value")):"Null value not set";
+    }
+
+    @Test
+    public void listValueTest() {
+        MapListObject o=new MapListObject();
+        List lst=new ArrayList();
+        lst.add("A Value");
+        lst.add(27.0);
+        lst.add(new UncachedObject());
+
+        o.setListValue(lst);
+        o.setName("Simple List");
+
+        ObjectMapperImpl om = new ObjectMapperImpl();
+        DBObject marshall = om.marshall(o);
+        String m=marshall.toString();
+
+        assert(m.equals("{ \"name\" : \"Simple List\" , \"list_value\" : [ \"A Value\" , 27.0 , { \"counter\" : 0 , \"class_name\" : \"de.caluga.test.mongo.suite.UncachedObject\"}]}")):"Marshall not ok: "+m;
+
+        MapListObject mo=om.unmarshall(MapListObject.class,marshall);
+        System.out.println("Mo: "+mo.getName());
+        System.out.println("lst: "+mo.getListValue());
+        assert(mo.getName().equals(o.getName())):"Names not equal?!?!?";
+        for (int i=0;i<lst.size();i++) {
+            Object listValueNew = mo.getListValue().get(i);
+            Object listValueOrig = o.getListValue().get(i);
+            assert(listValueNew.getClass().equals(listValueOrig.getClass())):"Classes differ: "+listValueNew.getClass()+" - "+listValueOrig.getClass();
+            assert(listValueNew.equals(listValueOrig)):"Value not equals in list: "+ listValueNew +" vs. "+ listValueOrig;
+        }
+
     }
 }
