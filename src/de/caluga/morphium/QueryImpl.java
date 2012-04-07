@@ -244,6 +244,7 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
 
             Morphium.get().firePostLoadEvent(unmarshall);
         }
+        Morphium.get().addToCache(ck, type, ret);
         return ret;
     }
 
@@ -298,12 +299,17 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
             }
         }
         DBObject ret = Morphium.get().getDatabase().getCollection(mapper.getCollectionName(type)).findOne(toQueryObject());
+        List<T> lst = new ArrayList<T>(1);
         if (ret != null) {
             T unmarshall = mapper.unmarshall(type, ret);
             Morphium.get().firePostLoadEvent(unmarshall);
             updateLastAccess(ret, unmarshall);
+
+            lst.add((T) ret);
+            Morphium.get().addToCache(ck, type, lst);
             return unmarshall;
         }
+        Morphium.get().addToCache(ck, type, lst);
         return null;
     }
 
@@ -332,6 +338,7 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
             DBObject o = it.next();
             ret.add((ObjectId) o.get("_id"));
         }
+        Morphium.get().addToCache(ck, type, ret);
         return ret;
     }
 
