@@ -9,10 +9,7 @@ import org.bson.types.ObjectId;
 
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Field;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
-import java.util.Vector;
+import java.util.*;
 
 /**
  * User: Stpehan Bösebeck
@@ -22,6 +19,7 @@ import java.util.Vector;
  */
 public class ObjectMapperImpl implements ObjectMapper {
     private static Logger log = Logger.getLogger(ObjectMapperImpl.class);
+    private static volatile Map<Class<?>, List<Field>> fieldCache = new Hashtable<Class<?>, List<Field>>();
 
     /**
      * converts a sql/javascript-Name to Java, e.g. converts document_id to
@@ -218,8 +216,8 @@ public class ObjectMapperImpl implements ObjectMapper {
             if (mval != null) {
                 if (mval.getClass().isAnnotationPresent(Entity.class)) {
                     DBObject obj = marshall(mval);
-                    obj.put("class_name",mval.getClass().getName());
-                    mval=obj;
+                    obj.put("class_name", mval.getClass().getName());
+                    mval = obj;
                 } else if (mval instanceof Map) {
                     mval = createDBMap((Map) mval);
                 } else if (mval instanceof List) {
@@ -358,6 +356,35 @@ public class ObjectMapperImpl implements ObjectMapper {
         }
     }
 
+    private List<Field> getAllFields(Class cls) {
+        if (fieldCache.containsKey(cls)) {
+            return fieldCache.get(cls);
+        }
+        List<Field> ret = new Vector<Field>();
+        Class sc = cls;
+        //getting class hierachy
+        List<Class> hierachy = new Vector<Class>();
+        while (!sc.equals(Object.class)) {
+            hierachy.add(sc);
+            sc = sc.getSuperclass();
+        }
+        for (Class c : cls.getInterfaces()) {
+            hierachy.add(c);
+        }
+        //now we have a list of all classed up to Object
+        //we need to run through it in the right order
+        //in order to allow Inheritance to "shadow" fields
+        for (int i = hierachy.size() - 1; i >= 0; i--) {
+            Class c = hierachy.get(i);
+            for (Field f : c.getDeclaredFields()) {
+                ret.add(f);
+            }
+        }
+
+        fieldCache.put(cls, ret);
+        return ret;
+    }
+
     @Override
     /**
      * get a list of valid fields of a given record as they are in the MongoDB
@@ -374,56 +401,44 @@ public class ObjectMapperImpl implements ObjectMapper {
         Entity entity = (Entity) sc.getAnnotation(Entity.class);
         boolean tcc = entity.translateCamelCase();
         //getting class hierachy
-        List<Class> hierachy = new Vector<Class>();
-        while (!sc.equals(Object.class)) {
-            hierachy.add(sc);
-            sc = sc.getSuperclass();
-        }
-        for (Class c : cls.getInterfaces()) {
-            hierachy.add(c);
-        }
-        //now we have a list of all classed up to Object
-        //we need to run through it in the right order
-        //in order to allow Inheritance to "shadow" fields
-        for (int i = hierachy.size() - 1; i >= 0; i--) {
-            Class c = hierachy.get(i);
-            for (Field f : c.getDeclaredFields()) {
-                if (annotations.length > 0) {
-                    boolean found = false;
-                    for (Class<? extends Annotation> a : annotations) {
-                        if (f.isAnnotationPresent(a)) {
-                            found = true;
-                            break;
-                        }
-                    }
-                    if (!found) {
-                        //no annotation found
-                        continue;
+        List<Field> fld = getAllFields(cls);
+        for (Field f : fld) {
+            if (annotations.length > 0) {
+                boolean found = false;
+                for (Class<? extends Annotation> a : annotations) {
+                    if (f.isAnnotationPresent(a)) {
+                        found = true;
+                        break;
                     }
                 }
-                if (f.isAnnotationPresent(Reference.class) && !".".equals(f.getAnnotation(Reference.class).fieldName())) {
-                    ret.add(f.getAnnotation(Reference.class).fieldName());
+                if (!found) {
+                    //no annotation found
                     continue;
-                }
-                if (f.isAnnotationPresent(Property.class) && !".".equals(f.getAnnotation(Property.class).fieldName())) {
-                    ret.add(f.getAnnotation(Property.class).fieldName());
-                    continue;
-                }
-                if (f.isAnnotationPresent(Id.class)) {
-                    ret.add(f.getName());
-                    continue;
-                }
-                if (f.isAnnotationPresent(Transient.class)) {
-                    continue;
-                }
-
-                if (tcc) {
-                    ret.add(convertCamelCase(f.getName()));
-                } else {
-                    ret.add(f.getName());
                 }
             }
+            if (f.isAnnotationPresent(Reference.class) && !".".equals(f.getAnnotation(Reference.class).fieldName())) {
+                ret.add(f.getAnnotation(Reference.class).fieldName());
+                continue;
+            }
+            if (f.isAnnotationPresent(Property.class) && !".".equals(f.getAnnotation(Property.class).fieldName())) {
+                ret.add(f.getAnnotation(Property.class).fieldName());
+                continue;
+            }
+            if (f.isAnnotationPresent(Id.class)) {
+                ret.add(f.getName());
+                continue;
+            }
+            if (f.isAnnotationPresent(Transient.class)) {
+                continue;
+            }
+
+            if (tcc) {
+                ret.add(convertCamelCase(f.getName()));
+            } else {
+                ret.add(f.getName());
+            }
         }
+
         return ret;
     }
 
@@ -437,53 +452,38 @@ public class ObjectMapperImpl implements ObjectMapper {
      * @return field, if found, null else
      */
     public Field getField(Class cls, String fld) {
-        List<String> ret = new Vector<String>();
-        Class sc = cls;
-        //getting class hierachy
-        List<Class> hierachy = new Vector<Class>();
-        while (!sc.equals(Object.class)) {
-            hierachy.add(sc);
-            sc = sc.getSuperclass();
-        }
-        for (Class c : cls.getInterfaces()) {
-            hierachy.add(c);
-        }
-        //now we have a list of all classed up to Object
-        //we need to run through it in the right order
-        //in order to allow Inheritance to "shadow" fields
-        for (int i = hierachy.size() - 1; i >= 0; i--) {
-            Class c = hierachy.get(i);
-            for (Field f : c.getDeclaredFields()) {
-                if (f.isAnnotationPresent(Property.class) && f.getAnnotation(Property.class).fieldName() != null && !".".equals(f.getAnnotation(Property.class).fieldName())) {
-                    if (f.getAnnotation(Property.class).fieldName().equals(fld)) {
-                        f.setAccessible(true);
-                        return f;
-                    }
-                }
-                if (f.isAnnotationPresent(Reference.class) && f.getAnnotation(Reference.class).fieldName() != null && !".".equals(f.getAnnotation(Reference.class).fieldName())) {
-                    if (f.getAnnotation(Reference.class).fieldName().equals(fld)) {
-                        f.setAccessible(true);
-                        return f;
-                    }
-                }
-                if (fld.equals("_id")) {
-                    if (f.isAnnotationPresent(Id.class)) {
-                        f.setAccessible(true);
-                        return f;
-                    }
-                }
-                if (f.getName().equals(fld)) {
+        List<Field> flds = getAllFields(cls);
+        for (Field f : flds) {
+            if (f.isAnnotationPresent(Property.class) && f.getAnnotation(Property.class).fieldName() != null && !".".equals(f.getAnnotation(Property.class).fieldName())) {
+                if (f.getAnnotation(Property.class).fieldName().equals(fld)) {
                     f.setAccessible(true);
                     return f;
                 }
-                if (convertCamelCase(f.getName()).equals(fld)) {
-                    f.setAccessible(true);
-                    return f;
-                }
-
-
             }
+            if (f.isAnnotationPresent(Reference.class) && f.getAnnotation(Reference.class).fieldName() != null && !".".equals(f.getAnnotation(Reference.class).fieldName())) {
+                if (f.getAnnotation(Reference.class).fieldName().equals(fld)) {
+                    f.setAccessible(true);
+                    return f;
+                }
+            }
+            if (fld.equals("_id")) {
+                if (f.isAnnotationPresent(Id.class)) {
+                    f.setAccessible(true);
+                    return f;
+                }
+            }
+            if (f.getName().equals(fld)) {
+                f.setAccessible(true);
+                return f;
+            }
+            if (convertCamelCase(f.getName()).equals(fld)) {
+                f.setAccessible(true);
+                return f;
+            }
+
+
         }
+
         return null;
     }
 
