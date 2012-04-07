@@ -424,10 +424,10 @@ public class ObjectMapperImpl implements ObjectMapper {
                 ret.add(f.getAnnotation(Property.class).fieldName());
                 continue;
             }
-            if (f.isAnnotationPresent(Id.class)) {
-                ret.add(f.getName());
-                continue;
-            }
+//            if (f.isAnnotationPresent(Id.class)) {
+//                ret.add(f.getName());
+//                continue;
+//            }
             if (f.isAnnotationPresent(Transient.class)) {
                 continue;
             }
@@ -452,6 +452,8 @@ public class ObjectMapperImpl implements ObjectMapper {
      * @return field, if found, null else
      */
     public Field getField(Class cls, String fld) {
+        Entity entity = (Entity) cls.getAnnotation(Entity.class);
+        boolean tcc = entity.translateCamelCase();
         List<Field> flds = getAllFields(cls);
         for (Field f : flds) {
             if (f.isAnnotationPresent(Property.class) && f.getAnnotation(Property.class).fieldName() != null && !".".equals(f.getAnnotation(Property.class).fieldName())) {
@@ -473,6 +475,9 @@ public class ObjectMapperImpl implements ObjectMapper {
                 }
             }
             if (f.getName().equals(fld)) {
+                if (tcc && !convertCamelCase(f.getName()).equals(fld)) {
+                    throw new IllegalArgumentException("Error camel casing! " + fld + " != " + convertCamelCase(f.getName()));
+                }
                 f.setAccessible(true);
                 return f;
             }
