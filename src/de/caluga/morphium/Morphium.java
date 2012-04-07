@@ -5,7 +5,10 @@
 package de.caluga.morphium;
 
 import com.mongodb.*;
-import de.caluga.morphium.annotations.*;
+import de.caluga.morphium.annotations.Entity;
+import de.caluga.morphium.annotations.Id;
+import de.caluga.morphium.annotations.StoreCreationTime;
+import de.caluga.morphium.annotations.StoreLastChange;
 import de.caluga.morphium.annotations.caching.Cache;
 import de.caluga.morphium.annotations.caching.NoCache;
 import de.caluga.morphium.annotations.lifecycle.*;
@@ -634,40 +637,7 @@ public class Morphium {
      * @return
      */
     public static final List<String> getFields(Class cls) {
-        List<String> ret = new Vector<String>();
-        Class sc = cls;
-        //getting class hierachy
-        List<Class> hierachy = new Vector<Class>();
-        while (!sc.equals(Object.class)) {
-            hierachy.add(sc);
-            sc = sc.getSuperclass();
-        }
-        for (Class c : cls.getInterfaces()) {
-            hierachy.add(c);
-        }
-        //now we have a list of all classed up to Object
-        //we need to run through it in the right order
-        //in order to allow Inheritance to "shadow" fields
-        for (int i = hierachy.size() - 1; i >= 0; i--) {
-            Class c = hierachy.get(i);
-            for (Field f : c.getDeclaredFields()) {
-                if (f.isAnnotationPresent(Property.class) && f.getAnnotation(Property.class).fieldName() != null && !".".equals(f.getAnnotation(Property.class).fieldName())) {
-                    ret.add(f.getAnnotation(Property.class).fieldName());
-                    continue;
-                }
-                if (f.isAnnotationPresent(Id.class)) {
-                    ret.add(f.getName());
-                    continue;
-                }
-                if (f.isAnnotationPresent(Transient.class)) {
-                    continue;
-                }
-
-
-                ret.add(f.getName());
-            }
-        }
-        return ret;
+        return config.getMapper().getFields(cls);
     }
 
     public static final Class getTypeOfField(Class cls, String fld) {
@@ -706,38 +676,7 @@ public class Morphium {
      * @return field, if found, null else
      */
     private static Field getField(Class cls, String fld) {
-        List<String> ret = new Vector<String>();
-        Class sc = cls;
-        //getting class hierachy
-        List<Class> hierachy = new Vector<Class>();
-        while (!sc.equals(Object.class)) {
-            hierachy.add(sc);
-            sc = sc.getSuperclass();
-        }
-        for (Class c : cls.getInterfaces()) {
-            hierachy.add(c);
-        }
-        //now we have a list of all classed up to Object
-        //we need to run through it in the right order
-        //in order to allow Inheritance to "shadow" fields
-        for (int i = hierachy.size() - 1; i >= 0; i--) {
-            Class c = hierachy.get(i);
-            for (Field f : c.getDeclaredFields()) {
-                if (f.isAnnotationPresent(Property.class) && f.getAnnotation(Property.class).fieldName() != null && !".".equals(f.getAnnotation(Property.class).fieldName())) {
-                    if (f.getAnnotation(Property.class).fieldName().equals(fld)) {
-                        f.setAccessible(true);
-                        return f;
-                    }
-                }
-                if (f.getName().equals(fld)) {
-                    f.setAccessible(true);
-                    return f;
-                }
-
-
-            }
-        }
-        return null;
+        return config.getMapper().getField(cls, fld);
     }
 
     public static void setValue(Object in, String fld, Object val) throws IllegalAccessException {
