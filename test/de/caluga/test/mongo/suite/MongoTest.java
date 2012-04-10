@@ -63,6 +63,7 @@ public class MongoTest {
 
     @org.junit.AfterClass
     public static void tearDownClass() throws Exception {
-//        Morphium.get().close();
+        System.out.println("Shutting down class");
+        Morphium.get().close();
     }
 }

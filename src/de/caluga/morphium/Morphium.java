@@ -18,13 +18,14 @@ import de.caluga.morphium.cache.CacheHousekeeper;
 import de.caluga.morphium.secure.MongoSecurityException;
 import de.caluga.morphium.secure.MongoSecurityManager;
 import de.caluga.morphium.secure.Permission;
+import net.sf.cglib.proxy.Enhancer;
+import net.sf.cglib.proxy.MethodInterceptor;
+import net.sf.cglib.proxy.MethodProxy;
 import org.apache.log4j.Logger;
 import org.bson.types.ObjectId;
 
 import java.lang.annotation.Annotation;
-import java.lang.reflect.Field;
-import java.lang.reflect.InvocationTargetException;
-import java.lang.reflect.Method;
+import java.lang.reflect.*;
 import java.util.*;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ThreadPoolExecutor;
@@ -106,6 +107,7 @@ public class Morphium {
         o.threadsAllowedToBlockForConnectionMultiplier = 5;
         o.safe = false;
 
+
         if (config.getAdr().isEmpty()) {
             throw new RuntimeException("Error - no server address specified!");
         }
@@ -137,6 +139,11 @@ public class Morphium {
         }
 
         database = mongo.getDB(config.getDatabase());
+        if (config.getMongoLogin()!=null) {
+            if (!database.authenticate(config.getMongoLogin(),config.getMongoPassword().toCharArray())) {
+                throw new RuntimeException("Authentication failed!");
+            }
+        }
         int cnt = database.getCollection("system.indexes").find().count(); //test connection
 
         logger.info("Initialization successful...");
@@ -236,7 +243,11 @@ public class Morphium {
         return writers.getQueue().size();
     }
 
-
+    /**
+     * create unique cache key for queries, also honoring skip & limit and sorting
+     * @param q
+     * @return
+     */
     public String getCacheKey(Query q) {
         StringBuffer b = new StringBuffer();
         b.append(q.toQueryObject().toString());
@@ -251,6 +262,115 @@ public class Morphium {
         return b.toString();
     }
 
+
+    private void storeNoCacheUsingFields(Object ent, String... fields) {
+        ObjectId id = getId(ent);
+        if (ent==null) return;
+        if (id==null) {
+            //new object - update not working
+            logger.warn("trying to partially update new object - storing it in full!");
+            storeNoCache(ent);
+            return;
+        }
+        Class<?> type=ent.getClass();
+        firePreStoreEvent(ent);
+        inc(StatisticKeys.WRITES);
+        DBObject find=new BasicDBObject();
+
+        find.put("_id", id);
+        DBObject update=new BasicDBObject();
+        for (String f:fields) {
+            try {
+                Object value = getValue(ent, f);
+                if (value.getClass().isAnnotationPresent(Entity.class)) {
+                    value=config.getMapper().marshall(value);
+                }
+                update.put(f, value);
+
+            } catch (IllegalAccessException e) {
+                throw new RuntimeException(e);
+            }
+        }
+
+        if (type.isAnnotationPresent(StoreLastChange.class)) {
+            StoreLastChange t = (StoreLastChange) type.getAnnotation(StoreLastChange.class);
+            String ctf = t.lastChangeField();
+            long now = System.currentTimeMillis();
+            Field f = getField(type, ctf);
+            if (f != null) {
+                try {
+                    f.set(ent, now);
+                } catch (IllegalAccessException e) {
+                    logger.error("Could not set modification time", e);
+
+                }
+            }
+            update.put(ctf, now);
+            if (t.storeLastChangeBy()) {
+                ctf = t.lastChangeField();
+                f = getField(type, ctf);
+                if (f != null) {
+                    try {
+                        f.set(ent, config.getSecurityMgr().getCurrentUserId());
+                    } catch (IllegalAccessException e) {
+                        logger.error("Could not set changed by", e);
+                    }
+                }
+                update.put(ctf, config.getSecurityMgr().getCurrentUserId());
+            }
+        }
+
+
+        update=new BasicDBObject("$set",update);
+        database.getCollection(config.getMapper().getCollectionName(ent.getClass())).findAndModify(find,update);
+        firePostStoreEvent(ent);
+    }
+
+    /**
+     * updating an enty in DB without sending the whole entity
+     * only transfers the fields to be changed / set
+     * @param ent
+     * @param fields
+     */
+    public void updateUsingFields(final Object ent,final String... fields) {
+        if (ent==null) return;
+        if (!ent.getClass().isAnnotationPresent(NoProtection.class)) {
+            if (getId(ent) == null) {
+                if (accessDenied(ent, Permission.INSERT)) {
+                    throw new SecurityException("Insert of new Object denied!");
+                }
+            } else {
+                if (accessDenied(ent, Permission.UPDATE)) {
+                    throw new SecurityException("Update of Object denied!");
+                }
+            }
+        }
+
+        if (ent.getClass().isAnnotationPresent(NoCache.class)) {
+            storeNoCacheUsingFields(ent, fields);
+            return;
+        }
+
+        Cache cc = ent.getClass().getAnnotation(Cache.class);
+        if (cc != null) {
+            if (cc.writeCache()) {
+                writers.execute(new Runnable() {
+                    @Override
+                    public void run() {
+                        storeNoCacheUsingFields(ent, fields);
+                    }
+                });
+                inc(StatisticKeys.WRITES_CACHED);
+
+            } else {
+                storeNoCacheUsingFields(ent, fields);
+            }
+        } else {
+            storeNoCacheUsingFields(ent, fields);
+        }
+
+
+    }
     /**
      * threadsafe Singleton implementation.
      *
@@ -411,12 +531,20 @@ public class Morphium {
         if (!type.isAnnotationPresent(Entity.class)) {
             throw new RuntimeException("Not an entity! Storing not possible!");
         }
+
+        ObjectId id = config.getMapper().getId(o);
+        if (o instanceof PartiallyUpdateable && id!=null) {
+            updateUsingFields(o, ((PartiallyUpdateable) o).getAlteredFields().toArray(new String[((PartiallyUpdateable) o).getAlteredFields().size()]));
+            return;
+        }
         inc(StatisticKeys.WRITES);
         firePreStoreEvent(o);
 
         DBObject marshall = config.getMapper().marshall(o);
+        boolean isNew=id==null;
 
-        if (config.getMapper().getId(o) == null) {
+        if (isNew) {
+
             //new object - need to store creation time
             if (type.isAnnotationPresent(StoreCreationTime.class)) {
                 StoreCreationTime t = (StoreCreationTime) type.getAnnotation(StoreCreationTime.class);
@@ -476,16 +604,25 @@ public class Morphium {
 
 
         database.getCollection(config.getMapper().getCollectionName(o.getClass())).save(marshall);
-        List<String> flds = config.getMapper().getFields(o.getClass(), Id.class);
-        if (flds == null) {
-            throw new RuntimeException("Object does not have an ID field!");
+        if (isNew) {
+            List<String> flds = config.getMapper().getFields(o.getClass(), Id.class);
+            if (flds == null) {
+                throw new RuntimeException("Object does not have an ID field!");
+            }
+            try {
+                //Setting new ID (if object was new created) to Entity
+                getField(o.getClass(), flds.get(0)).set(o, marshall.get("_id"));
+            } catch (IllegalAccessException e) {
+                throw new RuntimeException(e);
+            }
         }
-        try {
-            getField(o.getClass(), flds.get(0)).set(o, marshall.get("_id"));
-        } catch (IllegalAccessException e) {
-            throw new RuntimeException(e);
+
+        if (o.getClass().isAnnotationPresent(Cache.class)) {
+            if (o.getClass().getAnnotation(Cache.class).clearOnWrite()) {
+                clearCachefor(o.getClass());
+            }
         }
-        clearCachefor(o.getClass());
+
         firePostStoreEvent(o);
     }
 
@@ -828,6 +965,7 @@ public class Morphium {
             throw new RuntimeException("Lists need to be stored with storeList");
         }
 
+
         if (!o.getClass().isAnnotationPresent(NoProtection.class)) {
             if (getId(o) == null) {
                 if (accessDenied(o, Permission.INSERT)) {
@@ -1033,6 +1171,18 @@ public class Morphium {
 
     }
 
+    /**
+     * create a proxy object, implementing the ParitallyUpdateable Interface
+     * these objects will be updated in mongo by only changing altered fields
+     *
+     * @param o
+     * @param <T>
+     * @return
+     */
+    public <T> T createPartiallyUpdateableEntity(T o) {
+       return  (T) Enhancer.create(o.getClass(),new Class[]{PartiallyUpdateable.class},new PartiallyUpdateableInvocationHandler());
+    }
+
     protected <T> MongoField<T> createMongoField() {
         try {
             return (MongoField<T>) Class.forName(config.getFieldImplClass()).newInstance();
@@ -1042,6 +1192,37 @@ public class Morphium {
             throw new RuntimeException(e);
         } catch (ClassNotFoundException e) {
             throw new RuntimeException(e);
+        }
+    }
+
+    /**
+     * CGLib Interceptor to create a transparent Proxy for partially updateable Entities
+     */
+    private class PartiallyUpdateableInvocationHandler implements MethodInterceptor,PartiallyUpdateable {
+        private List<String> updateableFields;
+
+        public PartiallyUpdateableInvocationHandler() {
+            updateableFields=new Vector<String>();
+        }
+
+
+        @Override
+        public List<String> getAlteredFields() {
+            return updateableFields;
+        }
+
+        @Override
+        public Object intercept(Object o, Method method, Object[] objects, MethodProxy methodProxy) throws Throwable {
+            if (method.getName().startsWith("set")) {
+
+                String n = method.getName().substring(3);
+                n=n.substring(0,1).toLowerCase()+n.substring(1);
+                updateableFields.add(n);
+            }
+            if (method.getName().equals("getAlteredFields")) {
+                return getAlteredFields();
+            }
+            return methodProxy.invokeSuper(o, objects);
         }
     }
 

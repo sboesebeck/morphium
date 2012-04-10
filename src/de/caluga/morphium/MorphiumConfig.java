@@ -30,6 +30,10 @@ public class MorphiumConfig {
     private int globalCacheValidTime = 5000;
     private int writeCacheTimeout = 5000;
     private String database;
+    /**
+     * login credentials for MongoDB - if necessary. If null, don't authenticate
+     */
+    private String mongoLogin=null, mongoPassword=null;
     private int configManagerCacheTimeout = 1000 * 60 * 60; //one hour
     private List<ServerAddress> adr;
     private Map<String, Integer> validTimeByClassName;
@@ -59,8 +63,23 @@ public class MorphiumConfig {
         this.mapper = mapper;
     }
 
+    public String getMongoLogin() {
+        return mongoLogin;
+    }
 
-//    private boolean removePackage=true;
+    public void setMongoLogin(String mongoLogin) {
+        this.mongoLogin = mongoLogin;
+    }
+
+    public String getMongoPassword() {
+        return mongoPassword;
+    }
+
+    public void setMongoPassword(String mongoPassword) {
+        this.mongoPassword = mongoPassword;
+    }
+
+    //    private boolean removePackage=true;
 
 //    public boolean isRemovePackage() {
 //        return removePackage;
