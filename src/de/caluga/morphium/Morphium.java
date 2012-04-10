@@ -5,10 +5,7 @@
 package de.caluga.morphium;
 
 import com.mongodb.*;
-import de.caluga.morphium.annotations.Entity;
-import de.caluga.morphium.annotations.Id;
-import de.caluga.morphium.annotations.StoreCreationTime;
-import de.caluga.morphium.annotations.StoreLastChange;
+import de.caluga.morphium.annotations.*;
 import de.caluga.morphium.annotations.caching.Cache;
 import de.caluga.morphium.annotations.caching.NoCache;
 import de.caluga.morphium.annotations.lifecycle.*;
@@ -334,6 +331,7 @@ public class Morphium {
      */
     public void updateUsingFields(final Object ent,final String... fields) {
         if (ent==null) return;
+        if (fields.length==0) return; //not doing an update - no change
         if (!ent.getClass().isAnnotationPresent(NoProtection.class)) {
             if (getId(ent) == null) {
                 if (accessDenied(ent, Permission.INSERT)) {
@@ -1174,6 +1172,8 @@ public class Morphium {
     /**
      * create a proxy object, implementing the ParitallyUpdateable Interface
      * these objects will be updated in mongo by only changing altered fields
+     * <b>Attention:</b> the field name if determined by the setter name for now. That means, it does not honor the @Property-Annotation!!!
+     * To make sure, you take the correct field - use the UpdatingField-Annotation for the setters!
      *
      * @param o
      * @param <T>
@@ -1214,10 +1214,17 @@ public class Morphium {
         @Override
         public Object intercept(Object o, Method method, Object[] objects, MethodProxy methodProxy) throws Throwable {
             if (method.getName().startsWith("set")) {
-
-                String n = method.getName().substring(3);
-                n=n.substring(0,1).toLowerCase()+n.substring(1);
-                updateableFields.add(n);
+                if (method.isAnnotationPresent(UpdatingField.class)) {
+                    UpdatingField up=method.getAnnotation(UpdatingField.class);
+                    if (!getFields(o.getClass()).contains(up.value())) {
+                        throw new IllegalArgumentException("Field "+up.value()+" is not known to Type "+o.getClass().getName());
+                    }
+                    updateableFields.add(up.value());
+                } else {
+                    String n = method.getName().substring(3);
+                    n = n.substring(0, 1).toLowerCase() + n.substring(1);
+                    updateableFields.add(n);
+                }
             }
             if (method.getName().equals("getAlteredFields")) {
                 return getAlteredFields();

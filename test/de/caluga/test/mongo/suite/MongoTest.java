@@ -63,7 +63,7 @@ public class MongoTest {
 
     @org.junit.AfterClass
     public static void tearDownClass() throws Exception {
-        System.out.println("Shutting down class");
-        Morphium.get().close();
+        System.out.println("NOT Shutting down - might be reused!");
+//        Morphium.get().close();
     }
 }
