@@ -228,8 +228,9 @@ public class RecordTableModel<T> extends AbstractTableModel {
             if (row == 0) {
                 String txt = aValue.toString();
                 //Parsing
+                initialState.removeSearchForCol((String) initialState.getFieldsToShow().get(column));
                 if (txt.trim().equals("")) {
-                    initialState.removeSearchForCol((String) initialState.getFieldsToShow().get(column));
+                    //do nothing
                 } else {
                     Map<String, Object> obj = new HashMap<String, Object>();
 
@@ -272,7 +273,11 @@ public class RecordTableModel<T> extends AbstractTableModel {
             }
             row--;
         }
-//        Morphium.get().setValue(data.get(row), (String) initialState.getFieldsToShow().get(column), aValue);
+        try {
+            Morphium.get().setValue(data.get(row), (String) initialState.getFieldsToShow().get(column), aValue);
+        } catch (IllegalAccessException e) {
+            log.fatal("Error setting value",e);
+        }
     }
 
     private Object getNumberObject(String txt) throws HeadlessException {
