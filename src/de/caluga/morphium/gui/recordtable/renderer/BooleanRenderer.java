@@ -41,7 +41,13 @@ public class BooleanRenderer extends RecordTableColumnRenderer implements TableC
             //searcher
             bx = new JCheckBox();
             bx.setOpaque(true);
-            bx.setSelected((Boolean) val);
+            if (val instanceof Boolean) {
+                bx.setSelected((Boolean) val);
+            } else if (val == null) {
+                bx.setSelected(false);
+            } else {
+                bx.setSelected(val.toString().equalsIgnoreCase("true"));
+            }
             if (selected) {
                 bx.setBackground(arg0.getSelectionBackground());
                 bx.setForeground(arg0.getSelectionForeground());
