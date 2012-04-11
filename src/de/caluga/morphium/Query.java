@@ -183,4 +183,6 @@ public interface Query<T> extends Cloneable {
     public int getSkip();
 
     public Map<String, Integer> getOrder();
+
+    public Query<T> clone();
 }

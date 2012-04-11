@@ -141,7 +141,7 @@ public class RecordTableState<T> {
         if (initialSearch == null) {
             ret = Morphium.get().createQueryFor(type);
         } else {
-            ret = initialSearch;
+            ret = initialSearch.clone();
         }
         if (searchValues != null) {
             for (String s : searchValues.keySet()) {

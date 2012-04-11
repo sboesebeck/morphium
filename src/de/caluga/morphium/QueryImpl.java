@@ -344,4 +344,33 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
     }
 
 
+    public Query<T> clone() {
+        try {
+            QueryImpl<T> ret = (QueryImpl<T>) super.clone();
+            if (andExpr != null) {
+                ret.andExpr = new Vector<FilterExpression>();
+                ret.andExpr.addAll(andExpr);
+            }
+            if (norQueries != null) {
+                ret.norQueries = new Vector<Query<T>>();
+                ret.norQueries.addAll(norQueries);
+            }
+            if (notQuery != null) {
+                ret.notQuery = notQuery.clone();
+            }
+            if (order != null) {
+                ret.order = new Hashtable<String, Integer>();
+                ret.order.putAll(order);
+            }
+            if (orQueries != null) {
+                ret.orQueries = new Vector<Query<T>>();
+                ret.orQueries.addAll(orQueries);
+            }
+
+            return ret;
+        } catch (CloneNotSupportedException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
 }
