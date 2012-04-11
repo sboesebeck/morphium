@@ -223,15 +223,16 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
             return Morphium.get().getFromCache(type, ck);
         }
         DBCursor query = Morphium.get().getDatabase().getCollection(mapper.getCollectionName(type)).find(toQueryObject());
-        if (order != null) {
-            query.sort(new BasicDBObject(order));
-        }
         if (skip > 0) {
             query.skip(skip);
         }
         if (limit > 0) {
-            query.limit(0);
+            query.limit(limit);
         }
+        if (order != null) {
+            query.sort(new BasicDBObject(order));
+        }
+
         Iterator<DBObject> it = query.iterator();
         List<T> ret = new ArrayList<T>();
 
