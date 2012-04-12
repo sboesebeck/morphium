@@ -84,7 +84,7 @@ public class RecordTable<T> extends javax.swing.JPanel {
         rtable.setDefaultRenderer(Boolean.class, new BooleanRenderer(state));
 //       rtable.setDefaultRenderer(String.class, new StringRenderer());
         rtable.setDefaultEditor(String.class, new StringRenderer());
-        rtable.setDefaultEditor(int.class, new DefaultCellEditor(new JTextField()));
+//        rtable.setDefaultEditor(int.class, new DefaultCellEditor(new JTextField()));
 //       rtable.setDefaultRenderer(String.class,new StringRenderer());
 //       rtable.setDefaultRenderer(Number.class,new NumberRenderer());
 //       rtable.setDefaultRenderer(List.class,new ListRenderer());
