@@ -149,8 +149,8 @@ public class RecordTableState<T> {
 //                    String s1 = searchValues.get(s).toString();
                     //TODO: add Filter support
                     //TODO: make better type matching here
-                    logger.warn("Filter support missing! Type Mathing not complete yet!!!");
-                    Class fldType = Morphium.get().getTypeOfField(type, s);
+//                    logger.warn("Filter support missing! Type Mathing not complete yet!!!");
+//                    Class fldType = Morphium.get().getTypeOfField(type, s);
 
                     ret.f(s).eq(searchValues.get(s));
 

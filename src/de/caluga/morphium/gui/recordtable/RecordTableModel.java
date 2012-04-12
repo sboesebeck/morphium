@@ -171,8 +171,9 @@ public class RecordTableModel<T> extends AbstractTableModel {
             if (row == 0) {
                 if (initialState.isSearchable(col)) {
                     if ((initialState.getSearchValues().get((String) initialState.getFieldsToShow().get(col))) == null) {
-                        log.info("Search value for " + ((String) initialState.getFieldsToShow().get(col)) + " is null");
-                        return "";
+//                        log.info("Search value for " + ((String) initialState.getFieldsToShow().get(col)) + " is null");
+
+                        return null;
                     }
                     return (initialState.getSearchValues().get((String) initialState.getFieldsToShow().get(col))).toString().replaceAll(".\\*", "*").replaceAll("\\^", "").replaceAll("\\$", "")
                             .replaceAll("[{}:\"]", "")
@@ -266,7 +267,7 @@ public class RecordTableModel<T> extends AbstractTableModel {
                     initialState.setSearchValues(obj);
                 }
 
-                log.info("Setting search Value to " + initialState.getSearchValues().toString());
+//                log.info("Setting search Value to " + initialState.getSearchValues().toString());
                 updateModel();
                 fireTableDataChanged();
                 return;
