@@ -177,10 +177,9 @@ public class RecordTableModel<T> extends AbstractTableModel {
                     }
                     return (initialState.getSearchValues().get((String) initialState.getFieldsToShow().get(col))).toString().replaceAll(".\\*", "*").replaceAll("\\^", "").replaceAll("\\$", "")
                             .replaceAll("[{}:\"]", "")
-
                             .replaceAll(",", "");
                 } else {
-                    return ""; //not searchable
+                    return "-"; //not searchable
                 }
             }
             row--;
@@ -233,41 +232,9 @@ public class RecordTableModel<T> extends AbstractTableModel {
                 if (txt.trim().equals("")) {
                     //do nothing
                 } else {
-                    Map<String, Object> obj = new HashMap<String, Object>();
-
-                    Class type = initialState.getType();
-                    Class fldType = Morphium.get().getTypeOfField(type, (String) initialState.getFieldsToShow().get(column));
                     String fldName = (String) initialState.getFieldsToShow().get(column);
-                    if (fldType.equals(String.class)) {
-                        if (txt.contains("*")) {
-                            txt = txt.replaceAll("\\*", ".*");
-                            Pattern p = Pattern.compile("^" + txt + "$");
-                            obj.put(fldName, p);
-                        } else {
-                            obj.put(fldName, txt);
-                        }
-                    } else if (fldType.equals(Long.class) || fldType.equals(long.class)) {
-                        log.info("Type ist Long");
-                        obj.put(fldName, Long.valueOf(txt));
-                    } else if (fldType.equals(Integer.class) || fldType.equals(int.class)) {
-                        log.info("type is int");
-                        obj.put(fldName, Integer.valueOf(txt));
-                        log.info("Set value!" + Integer.getInteger(txt));
-                    } else if (fldType.equals(Double.class) || fldType.equals(double.class)) {
-                        obj.put(fldName, Double.valueOf(txt));
-                    } else if (fldType.equals(Boolean.class) || fldType.equals(boolean.class)) {
-                        obj.put(fldName, Boolean.valueOf(txt));
-                    } else {
-                        log.fatal("Unsupported type for searching");
-                        JOptionPane.showMessageDialog(null, "Feld " + fldName + " kann nicht durchsucht werden...");
-//                    } else {
-//                        
-//                        obj.put(fldName, txt);
-                    }
-                    initialState.setSearchValues(obj);
+                    initialState.addSearchValue(fldName,txt);
                 }
-
-//                log.info("Setting search Value to " + initialState.getSearchValues().toString());
                 updateModel();
                 fireTableDataChanged();
                 return;

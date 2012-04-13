@@ -8,11 +8,12 @@ import de.caluga.morphium.Morphium;
 import de.caluga.morphium.Query;
 import org.apache.log4j.Logger;
 
-import java.awt.*;
+import javax.swing.*;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.regex.Pattern;
 
 /**
  * @author stephan
@@ -27,7 +28,7 @@ public class RecordTableState<T> {
     //fields that can be searched
     private List<String> searchableFields;
     //values for fields to search
-    private Map<String, Object> searchValues;
+    private Map<String, String> searchValues;
 
     private Map<String, RecordTableColumnTypes> displayTypeForField;
     private Map<String, ColumnDataRenderer> rendererMap;
@@ -53,7 +54,7 @@ public class RecordTableState<T> {
         preCacheAll = true;
         paging = false;
         rendererMap = new HashMap<String, ColumnDataRenderer>();
-        menuItemList=new ArrayList<AbstractRecMenuItem>();
+        menuItemList = new ArrayList<AbstractRecMenuItem>();
     }
 
     public List<AbstractRecMenuItem> getMenuItemList() {
@@ -112,14 +113,21 @@ public class RecordTableState<T> {
         this.searchable = searchable;
     }
 
-    public Map<String, Object> getSearchValues() {
+    public Map<String, String> getSearchValues() {
         if (searchValues == null)
-            searchValues = new HashMap<String, Object>();
+            searchValues = new HashMap<String, String>();
         return searchValues;
     }
 
+    public void addSearchValue(String field, String value) {
+        if (this.searchValues == null) {
+            this.searchValues = new HashMap<String, String>();
 
-    public void setSearchValues(Map<String, Object> searchValues) {
+        }
+        this.searchValues.put(field,value);
+    }
+
+    public void setSearchValues(Map<String, String> searchValues) {
         if (this.searchValues == null) {
             this.searchValues = searchValues;
         } else {
@@ -151,17 +159,67 @@ public class RecordTableState<T> {
                     //TODO: make better type matching here
 //                    logger.warn("Filter support missing! Type Mathing not complete yet!!!");
 //                    Class fldType = Morphium.get().getTypeOfField(type, s);
+                    String fldName = s;
+                    Class type = getType();
+                    Class fldType = Morphium.get().getTypeOfField(type, fldName);
+                    String txt = searchValues.get(s);
 
-                    ret.f(s).eq(searchValues.get(s));
+                    if (fldType.equals(String.class)) {
 
+                        if (txt.contains("*")) {
+                            txt = txt.replaceAll("\\*", ".*");
+                            Pattern p = Pattern.compile("^" + txt + "$");
+                            if (txt.startsWith("!")) {
+                                ret.f(s).ne(p);
+                            } else {
+                                ret.f(s).eq(p);
+                            }
+                        } else if (txt.startsWith("!")) {
+                            ret.f(s).ne(txt);
+                        } else {
+                            ret.f(s).eq(txt);
+                        }
+                    } else if (fldType.equals(Long.class) || fldType.equals(long.class)) {
+                        addNumberQueryFor(ret,fldName,txt,Long.valueOf(txt.replaceAll("[!=<>]","")));
+                    } else if (fldType.equals(Integer.class) || fldType.equals(int.class)) {
+                       addNumberQueryFor(ret,fldName,txt,Integer.valueOf(txt.replaceAll("[!=<>]","")));
+                    } else if (fldType.equals(Double.class) || fldType.equals(double.class)) {
+                        addNumberQueryFor(ret,fldName,txt,Integer.valueOf(txt.replaceAll("[!=<>]","")));
+                    } else if (fldType.equals(Boolean.class) || fldType.equals(boolean.class)) {
+                        if (txt.equals("true")) {
+                            ret.f(fldName).eq(true);
+                        } else {
+                            ret.f(fldName).eq(false);
+                        }
+                    } else {
+                        JOptionPane.showMessageDialog(null, "Feld " + fldName + " kann nicht durchsucht werden...");
+                    }
                 }
             }
-        }
-        if (paging) {
-            ret = ret.skip(currentPage * pageLength).limit(pageLength);
+            if (paging) {
+                ret = ret.skip(currentPage * pageLength).limit(pageLength);
+            }
+
         }
         return ret;
     }
+
+    private void addNumberQueryFor(Query<T> ret, String fldName, String txt, Object value) {
+        if (txt.startsWith("!=")) {
+            ret.f(fldName).ne(value);
+        } else if (txt.startsWith(">=")) {
+            ret.f(fldName).gte(value);
+        } else if (txt.startsWith("<=")) {
+            ret.f(fldName).lte(value);
+        } else if (txt.startsWith(">")) {
+            ret.f(fldName).gt(value);
+        } else if (txt.startsWith("<")) {
+            ret.f(fldName).lt(value);
+        } else {
+            ret.f(fldName).eq(value);
+        }
+    }
+
 
 
     public boolean isEditable() {

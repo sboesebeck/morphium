@@ -14,6 +14,7 @@ import de.caluga.morphium.Morphium;
 import de.caluga.morphium.Query;
 import de.caluga.morphium.gui.recordedit.RecordEditDialog;
 import de.caluga.morphium.gui.recordtable.renderer.BooleanRenderer;
+import de.caluga.morphium.gui.recordtable.renderer.NumberRenderer;
 import de.caluga.morphium.gui.recordtable.renderer.StringRenderer;
 import de.caluga.morphium.secure.MongoSecurityException;
 import de.caluga.morphium.secure.Permission;
@@ -82,8 +83,13 @@ public class RecordTable<T> extends javax.swing.JPanel {
 
         rtable.setComponentPopupMenu(pop);
         rtable.setDefaultRenderer(Boolean.class, new BooleanRenderer(state));
-//       rtable.setDefaultRenderer(String.class, new StringRenderer());
-        rtable.setDefaultEditor(String.class, new StringRenderer());
+        rtable.setDefaultEditor(Boolean.class,new BooleanRenderer(state));
+//        rtable.setDefaultRenderer(String.class, new StringRenderer());
+//        rtable.setDefaultEditor(String.class, new StringRenderer());
+
+//        rtable.setDefaultRenderer(Long.class,new NumberRenderer(state));
+//        rtable.setDefaultEditor(Long.class,new NumberRenderer(state));
+
 //        rtable.setDefaultEditor(int.class, new DefaultCellEditor(new JTextField()));
 //       rtable.setDefaultRenderer(String.class,new StringRenderer());
 //       rtable.setDefaultRenderer(Number.class,new NumberRenderer());
@@ -119,8 +125,10 @@ public class RecordTable<T> extends javax.swing.JPanel {
                 } else {
                     log.info("Fire doublclick event");
                     final T selectedRecord = getSelectedRecord();
-                    for (DoubleClickListener dc : dcl) {
-                        dc.onDoubleClick(me, selectedRecord);
+                    if (selectedRecord != null) {
+                        for (DoubleClickListener dc : dcl) {
+                            dc.onDoubleClick(me, selectedRecord);
+                        }
                     }
                 }
             }
@@ -371,7 +379,7 @@ public class RecordTable<T> extends javax.swing.JPanel {
         return state.getSearchValues();
     }
 
-    public void setSearchValues(Map<String, Object> searchValues) {
+    public void setSearchValues(Map<String, String> searchValues) {
         state.setSearchValues(searchValues);
     }
 
