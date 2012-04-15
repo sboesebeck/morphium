@@ -6,9 +6,7 @@ package de.caluga.test.mongo.suite;
 
 import de.caluga.morphium.annotations.Entity;
 import de.caluga.morphium.annotations.Id;
-import de.caluga.morphium.annotations.PanelClass;
 import de.caluga.morphium.annotations.caching.Cache;
-import de.caluga.test.mongo.suite.gui.CachedObjectPanel;
 import org.bson.types.ObjectId;
 
 /**
@@ -16,7 +14,7 @@ import org.bson.types.ObjectId;
  */
 @Cache(clearOnWrite = true, maxEntries = 20000, overridable = false, readCache = true, writeCache = true, strategy = Cache.ClearStrategy.LRU, timeout = 1000)
 @Entity
-@PanelClass(CachedObjectPanel.class)
+
 public class CachedObject {
     private String value;
     private int counter;

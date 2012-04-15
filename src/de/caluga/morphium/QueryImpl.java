@@ -306,7 +306,7 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
             Morphium.get().firePostLoadEvent(unmarshall);
             updateLastAccess(ret, unmarshall);
 
-            lst.add((T) ret);
+            lst.add((T) unmarshall);
             Morphium.get().addToCache(ck, type, lst);
             return unmarshall;
         }
