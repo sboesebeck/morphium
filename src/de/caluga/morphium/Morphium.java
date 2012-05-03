@@ -52,8 +52,7 @@ public class Morphium {
      * @see MorphiumConfig
      */
     private final static Logger logger = Logger.getLogger(Morphium.class);
-    private static Morphium instance;
-    private static MorphiumConfig config;
+    private MorphiumConfig config;
     private Mongo mongo;
     private DB database;
     private ThreadPoolExecutor writers = new ThreadPoolExecutor(1, 1,
@@ -81,7 +80,11 @@ public class Morphium {
      *
      * @see MorphiumConfig
      */
-    private Morphium() {
+    public Morphium(MorphiumConfig cfg) {
+        if (cfg == null) {
+            throw new RuntimeException("Please specify configuration!");
+        }
+        config=cfg;
         privileged = new Vector<Thread>();
         listeners = new Vector<MorphiumStorageListener>();
         cache = new Hashtable<Class<? extends Object>, Hashtable<String, CacheElement>>();
@@ -90,9 +93,7 @@ public class Morphium {
         for (StatisticKeys k : StatisticKeys.values()) {
             stats.put(k, new StatisticValue());
         }
-        if (config == null) {
-            throw new RuntimeException("Morphium not configured yet!");
-        }
+
 
         //dummyUser.setGroupIds();
         MongoOptions o = new MongoOptions();
@@ -143,6 +144,8 @@ public class Morphium {
         }
         int cnt = database.getCollection("system.indexes").find().count(); //test connection
 
+        cacheHousekeeper = new CacheHousekeeper(this,5000, config.getGlobalCacheValidTime());
+        cacheHousekeeper.start();
         logger.info("Initialization successful...");
 
     }
@@ -196,45 +199,18 @@ public class Morphium {
 
     }
 
-    private void startThreads() {
-        ///FIX: Cachecleaning
-        cacheHousekeeper = new CacheHousekeeper(5000, config.getGlobalCacheValidTime());
-        cacheHousekeeper.start();
-    }
+
 
     protected void inc(StatisticKeys k) {
         stats.get(k).inc();
     }
 
-    /**
-     * set configuration for MongoDbLayer
-     *
-     * @param cfg
-     * @see MorphiumConfig
-     */
-    public static void setConfig(MorphiumConfig cfg) {
-        if (config != null) {
-            throw new RuntimeException("Morphium already configured!");
-        }
-        config = cfg;
-    }
 
     public String toJsonString(Object o) {
         return config.getMapper().marshall(o).toString();
     }
 
-    /**
-     * returns true, if layer was configured yet
-     *
-     * @return
-     */
-    public static boolean isConfigured() {
-        return config != null;
-    }
 
-    public static MorphiumConfig getConfig() {
-        return config;
-    }
 
     public int writeBufferCount() {
         return writers.getQueue().size();
@@ -369,26 +345,7 @@ public class Morphium {
 
 
     }
-    /**
-     * threadsafe Singleton implementation.
-     *
-     * @return Morphium instance
-     */
-    public static Morphium get() {
-        if (instance == null) {
-            if (config == null) {
-                throw new RuntimeException("MongoDbLayer not configured!");
-            }
-            synchronized (Morphium.class) {
-                if (instance == null) {
-                    instance = new Morphium();
-                    instance.startThreads();
-                    ConfigManager.get().setTimeout(config.getConfigManagerCacheTimeout());
-                }
-            }
-        }
-        return instance;
-    }
+
 
     public void callLifecycleMethod(Class<? extends Annotation> type, Object on) {
         if (on == null) return;
@@ -726,18 +683,7 @@ public class Morphium {
 //
 //    }
 
-    public static String createCamelCase(String n, boolean capitalize) {
-        n = n.toLowerCase();
-        String f[] = n.split("_");
-        String ret = f[0].substring(0, 1).toLowerCase() + f[0].substring(1);
-        for (int i = 1; i < f.length; i++) {
-            ret = ret + f[i].substring(0, 1).toUpperCase() + f[i].substring(1);
-        }
-        if (capitalize) {
-            ret = ret.substring(0, 1).toUpperCase() + ret.substring(1);
-        }
-        return ret;
-    }
+
 
     @SuppressWarnings("unchecked")
     public <T> List<T> findByField(Class<T> cls, String fld, Object val) {
@@ -747,9 +693,7 @@ public class Morphium {
 //        return createQueryFor(cls).field(fld).equal(val).asList();
     }
 
-    public static String createCamelCase(String n) {
-        return createCamelCase(n, false);
-    }
+
 
     /**
      * deletes all objects matching the given query
@@ -771,11 +715,11 @@ public class Morphium {
      * @param cls
      * @return
      */
-    public static final List<String> getFields(Class cls) {
+    public final List<String> getFields(Class cls) {
         return config.getMapper().getFields(cls);
     }
 
-    public static final Class getTypeOfField(Class cls, String fld) {
+    public final Class getTypeOfField(Class cls, String fld) {
         Field f = getField(cls, fld);
         if (f == null) return null;
         return f.getType();
@@ -810,11 +754,11 @@ public class Morphium {
      * @param fld - field name
      * @return field, if found, null else
      */
-    private static Field getField(Class cls, String fld) {
+    private Field getField(Class cls, String fld) {
         return config.getMapper().getField(cls, fld);
     }
 
-    public static void setValue(Object in, String fld, Object val) throws IllegalAccessException {
+    public void setValue(Object in, String fld, Object val) throws IllegalAccessException {
         Field f = getField(in.getClass(), fld);
         if (f == null) {
             throw new IllegalAccessException("Field " + fld + " not found");
@@ -822,7 +766,7 @@ public class Morphium {
         f.set(in, val);
     }
 
-    public static Object getValue(Object o, String fld) throws IllegalAccessException {
+    public Object getValue(Object o, String fld) throws IllegalAccessException {
         Field f = getField(o.getClass(), fld);
         if (f == null) {
             throw new IllegalAccessException("Field " + fld + " not found");
@@ -838,11 +782,11 @@ public class Morphium {
         return (String) getValue(o, fld);
     }
 
-    public static Date getDateValue(Object o, String fld) throws IllegalAccessException {
+    public Date getDateValue(Object o, String fld) throws IllegalAccessException {
         return (Date) getValue(o, fld);
     }
 
-    public static Double getDoubleValue(Object o, String fld) throws IllegalAccessException {
+    public Double getDoubleValue(Object o, String fld) throws IllegalAccessException {
         return (Double) getValue(o, fld);
     }
 
@@ -1167,6 +1111,23 @@ public class Morphium {
 
         mongo.close();
 
+    }
+
+    public String createCamelCase(String n, boolean capitalize) {
+        n = n.toLowerCase();
+        String f[] = n.split("_");
+        String ret = f[0].substring(0, 1).toLowerCase() + f[0].substring(1);
+        for (int i = 1; i < f.length; i++) {
+            ret = ret + f[i].substring(0, 1).toUpperCase() + f[i].substring(1);
+        }
+        if (capitalize) {
+            ret = ret.substring(0, 1).toUpperCase() + ret.substring(1);
+        }
+        return ret;
+    }
+
+    public String createCamelCase(String n) {
+        return createCamelCase(n, false);
     }
 
     /**

@@ -22,11 +22,13 @@ public class CacheHousekeeper extends Thread {
     private int gcTimeout;
     private boolean running = true;
     private Logger log = Logger.getLogger(CacheHousekeeper.class);
+    private Morphium morphium;
 
     @SuppressWarnings("unchecked")
-    public CacheHousekeeper(int houseKeepingTimeout, int globalCacheTimout) {
+    public CacheHousekeeper(Morphium m,int houseKeepingTimeout, int globalCacheTimout) {
         this.timeout = houseKeepingTimeout;
         gcTimeout = globalCacheTimout;
+        morphium=m;
         validTimeForClass = new Hashtable<Class<? extends Object>, Integer>();
         setDaemon(true);
 
@@ -75,7 +77,7 @@ public class CacheHousekeeper extends Thread {
         while (running) {
             try {
                 Hashtable<Class, Vector<String>> toDelete = new Hashtable<Class, Vector<String>>();
-                Hashtable<Class<? extends Object>, Hashtable<String, CacheElement>> cache = Morphium.get().cloneCache();
+                Hashtable<Class<? extends Object>, Hashtable<String, CacheElement>> cache = morphium.cloneCache();
                 for (Class<? extends Object> clz : cache.keySet()) {
                     Hashtable<String, CacheElement> ch = (Hashtable<String, CacheElement>) cache.get(clz).clone();
 
@@ -235,7 +237,7 @@ public class CacheHousekeeper extends Thread {
                         cache.get(cls).remove(k);
                     }
                 }
-                Morphium.get().setCache(cache);
+                morphium.setCache(cache);
 
 
             } catch (Throwable e) {

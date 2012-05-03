@@ -3,6 +3,7 @@ package de.caluga.test.mongo.suite;
 import com.mongodb.BasicDBObject;
 import com.mongodb.DBObject;
 import de.caluga.morphium.Morphium;
+import de.caluga.morphium.MorphiumSingleton;
 import de.caluga.morphium.ObjectMapperImpl;
 import org.bson.types.ObjectId;
 import org.junit.Test;
@@ -107,7 +108,7 @@ public class ObjectMapperTest extends MongoTest {
         UncachedObject o = new UncachedObject();
         o.setCounter(12345);
         o.setValue("Embedded value");
-        Morphium.get().store(o);
+        MorphiumSingleton.get().store(o);
 
         ComplexObject co = new ComplexObject();
         co.setEinText("Ein text");
@@ -118,7 +119,7 @@ public class ObjectMapperTest extends MongoTest {
         o.setCounter(12345);
         o.setValue("Referenced value");
 //        o.setMongoId(new ObjectId(new Date()));
-        Morphium.get().store(o);
+        MorphiumSingleton.get().store(o);
 
         co.setRef(o);
         co.setId(new ObjectId(new Date()));

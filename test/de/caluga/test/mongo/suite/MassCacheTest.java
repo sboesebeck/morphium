@@ -6,6 +6,7 @@ package de.caluga.test.mongo.suite;
 
 import de.caluga.morphium.Morphium;
 import de.caluga.morphium.Morphium.StatisticKeys;
+import de.caluga.morphium.MorphiumSingleton;
 import de.caluga.morphium.Query;
 import org.apache.log4j.Logger;
 import org.junit.Test;
@@ -38,7 +39,7 @@ public class MassCacheTest extends MongoTest {
                         CachedObject o = new CachedObject();
                         o.setCounter(j + 1);
                         o.setValue(getName() + " " + j);
-                        Morphium.get().store(o);
+                        MorphiumSingleton.get().store(o);
                     }
                 }
             };
@@ -71,9 +72,9 @@ public class MassCacheTest extends MongoTest {
 //                CachedObject o = new CachedObject();
 //                o.setCounter(j + 1);
 //                o.setValue("Writing thread " + i + " " + j);
-                Query<CachedObject> q = Morphium.get().createQueryFor(CachedObject.class);
+                Query<CachedObject> q = MorphiumSingleton.get().createQueryFor(CachedObject.class);
                 q.f("counter").eq(j + 1).f("value").eq("Writing thread " + i + " " + j);
-                List<CachedObject> lst = Morphium.get().find(q);
+                List<CachedObject> lst = MorphiumSingleton.get().find(q);
 
                 assert (lst != null && lst.size() > 0) : "List is null - Thread " + i + " Element " + (j + 1) + " not found";
 
@@ -88,7 +89,7 @@ public class MassCacheTest extends MongoTest {
     }
 
     private void printStats() {
-        final Map<String, Double> statistics = Morphium.get().getStatistics();
+        final Map<String, Double> statistics = MorphiumSingleton.get().getStatistics();
         for (String k : statistics.keySet()) {
             log.info(k + ": " + statistics.get(k));
         }
@@ -107,7 +108,7 @@ public class MassCacheTest extends MongoTest {
                         CachedObject o = new CachedObject();
                         o.setCounter(j + 1);
                         o.setValue(getName() + " " + j);
-                        Morphium.get().store(o);
+                        MorphiumSingleton.get().store(o);
                     }
                 }
             };
@@ -132,15 +133,15 @@ public class MassCacheTest extends MongoTest {
                         CachedObject o = new CachedObject();
                         o.setCounter(rnd + 1);
                         o.setValue("Writing thread " + trnd + " " + rnd);
-                        Query<CachedObject> q = Morphium.get().createQueryFor(CachedObject.class);
+                        Query<CachedObject> q = MorphiumSingleton.get().createQueryFor(CachedObject.class);
                         q.f("counter").eq(rnd + 1).f("value").eq("Writing thread " + trnd + " " + rnd);
-                        List<CachedObject> lst = Morphium.get().find(q);
+                        List<CachedObject> lst = MorphiumSingleton.get().find(q);
                         if (lst == null || lst.size() == 0) {
                             log.info("Not written yet: " + (rnd + 1) + " Thread: " + trnd);
                         } else {
                             o = lst.get(0);
                             o.setValue(o.getValue() + " altered by Thread " + getName());
-                            Morphium.get().store(o);
+                            MorphiumSingleton.get().store(o);
                         }
                     }
                 }
@@ -173,14 +174,14 @@ public class MassCacheTest extends MongoTest {
             CachedObject o = new CachedObject();
             o.setCounter(j + 1);
             o.setValue("Test " + j);
-            Morphium.get().store(o);
+            MorphiumSingleton.get().store(o);
         }
         waitForWrites();
         log.info("Done.");
 
         for (int j = 0; j < 3; j++) {
             for (int i = 0; i < NO_OBJECTS; i++) {
-                Query<CachedObject> q = Morphium.get().createQueryFor(CachedObject.class);
+                Query<CachedObject> q = MorphiumSingleton.get().createQueryFor(CachedObject.class);
                 q.f("value").eq("Test " + i);
                 List<CachedObject> lst = q.asList();
                 assert (lst != null) : "List is NULL????";
@@ -197,7 +198,7 @@ public class MassCacheTest extends MongoTest {
     private void waitForWrites() {
         log.info("Waiting for objects to be stored...");
 
-        while (Morphium.get().getStatistics().get(StatisticKeys.WRITE_BUFFER_ENTRIES.name()) > 0) {
+        while (MorphiumSingleton.get().getStatistics().get(StatisticKeys.WRITE_BUFFER_ENTRIES.name()) > 0) {
 //            log.info("...");
             try {
                 Thread.sleep(10);

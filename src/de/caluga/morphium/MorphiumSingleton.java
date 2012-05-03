@@ -1,0 +1,61 @@
+package de.caluga.morphium;
+
+/**
+ * User: Stephan Bösebeck
+ * Date: 03.05.12
+ * Time: 10:50
+ * <p/>
+ * TODO: Add documentation here
+ */
+public class MorphiumSingleton {
+    private static MorphiumConfig config;
+    private static Morphium instance;
+
+    /**
+     * set configuration for MongoDbLayer
+     *
+     * @param cfg
+     * @see MorphiumConfig
+     */
+    public static void setConfig(MorphiumConfig cfg) {
+        if (config != null) {
+            throw new RuntimeException("Morphium already configured!");
+        }
+        config = cfg;
+    }
+
+    /**
+     * returns true, if layer was configured yet
+     *
+     * @return
+     */
+    public static boolean isConfigured() {
+        return config != null;
+    }
+
+    public static MorphiumConfig getConfig() {
+        return config;
+    }
+
+
+    /**
+     * threadsafe Singleton implementation.
+     *
+     * @return Morphium instance
+     */
+    public static Morphium get() {
+        if (instance == null) {
+            if (config == null) {
+                throw new RuntimeException("MongoDbLayer not configured!");
+            }
+            synchronized (Morphium.class) {
+                if (instance == null) {
+                    instance = new Morphium(config);
+
+                    ConfigManager.get().setTimeout(config.getConfigManagerCacheTimeout());
+                }
+            }
+        }
+        return instance;
+    }
+}

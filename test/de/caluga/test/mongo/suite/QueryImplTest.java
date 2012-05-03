@@ -2,6 +2,7 @@ package de.caluga.test.mongo.suite;
 
 import com.mongodb.DBObject;
 import de.caluga.morphium.Morphium;
+import de.caluga.morphium.MorphiumSingleton;
 import de.caluga.morphium.Query;
 import org.junit.Test;
 
@@ -17,7 +18,7 @@ public class QueryImplTest extends MongoTest {
     @Test
     public void testQuery() {
 
-        Query<UncachedObject> q = Morphium.get().createQueryFor(UncachedObject.class);
+        Query<UncachedObject> q = MorphiumSingleton.get().createQueryFor(UncachedObject.class);
 
 
         q.or(q.q().f("counter").lte(15),
