@@ -195,6 +195,10 @@ public class Morphium {
         return fieldName;
     }
 
+    public ConfigManager getConfigManager() {
+        return config.getConfigManager();
+    }
+
     public void unset(Object toSet, String field) {
         if (toSet==null) throw new RuntimeException("Cannot update null!");
         if (getId(toSet)==null) {
