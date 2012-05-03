@@ -108,7 +108,7 @@ public class ComplexObject {
     public String toString() {
         return "ComplexObject{" +
                 "id=" + id +
-                ", ref=" + ref!=null?ref.getMongoId().toString():"null" +
+                ", ref=" + (ref!=null?ref.getMongoId().toString():"null") +
                 ", embed=" + embed +
                 ", einText='" + einText + '\'' +
                 ", trans='" + trans + '\'' +

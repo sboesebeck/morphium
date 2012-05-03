@@ -179,6 +179,142 @@ public class Morphium {
         return database;
     }
 
+    private String getFieldName(Class cls, String field) {
+        String fieldName=field;
+        Field f=getField(cls,field);
+        if (f.isAnnotationPresent(Property.class)) {
+            Property p=f.getAnnotation(Property.class);
+            if (p.fieldName()!=null || !p.fieldName().equals(".")) {
+                fieldName=p.fieldName();
+            }
+        }
+        Entity ent= (Entity) cls.getAnnotation(Entity.class);
+        if (ent.translateCamelCase()) {
+            fieldName=config.getMapper().convertCamelCase(fieldName);
+        }
+        return fieldName;
+    }
+
+    public void unset(Object toSet, String field) {
+        if (toSet==null) throw new RuntimeException("Cannot update null!");
+        if (getId(toSet)==null) {
+            logger.info("just storing object as it is new...");
+            store(toSet);
+        }
+        Class cls=toSet.getClass();
+        String coll=config.getMapper().getCollectionName(cls);
+        BasicDBObject query=new BasicDBObject();
+        query.put("_id",getId(toSet));
+        Field f=getField(cls, field);
+        if (f==null) {
+            throw new RuntimeException("Unknown field: "+field);
+        }
+        String fieldName=getFieldName(cls,field);
+
+        BasicDBObject update=new BasicDBObject("$unset",new BasicDBObject(fieldName,1));
+        database.getCollection(coll).update(query,update);
+
+        clearCacheIfNecessary(cls);
+        try {
+            f.set(toSet,null);
+        } catch (IllegalAccessException e) {
+            //May happen, if null is not allowed for example
+        }
+    }
+    public void set(Object toSet, String field, Object value) {
+        if (toSet==null) throw new RuntimeException("Cannot update null!");
+        if (getId(toSet)==null) {
+            logger.info("just storing object as it is new...");
+            store(toSet);
+        }
+        Class cls=toSet.getClass();
+        String coll=config.getMapper().getCollectionName(cls);
+        BasicDBObject query=new BasicDBObject();
+        query.put("_id",getId(toSet));
+        Field f=getField(cls, field);
+        if (f==null) {
+            throw new RuntimeException("Unknown field: "+field);
+        }
+        String fieldName=getFieldName(cls,field);
+
+        BasicDBObject update=new BasicDBObject("$set",new BasicDBObject(fieldName,value));
+        database.getCollection(coll).update(query,update);
+
+        clearCacheIfNecessary(cls);
+        try {
+            f.set(toSet,value);
+        } catch (IllegalAccessException e) {
+            throw new RuntimeException(e);
+        }
+
+    }
+
+    private void clearCacheIfNecessary(Class cls) {
+        if (cls.isAnnotationPresent(Cache.class)) {
+            Cache c= (Cache) cls.getAnnotation(Cache.class);
+            if (c.clearOnWrite()) {
+                clearCachefor(cls);
+            }
+        }
+    }
+
+    public void dec(Object toDec, String field, int amount) {
+        inc(toDec,field,-amount);
+    }
+
+    public void inc(Object toInc, String field, int amount) {
+        if (toInc==null) throw new RuntimeException("Cannot update null!");
+        if (getId(toInc)==null) {
+            logger.info("just storing object as it is new...");
+            store(toInc);
+        }
+        Class cls=toInc.getClass();
+        String coll=config.getMapper().getCollectionName(cls);
+        BasicDBObject query=new BasicDBObject();
+        query.put("_id",getId(toInc));
+        Field f=getField(cls, field);
+        if (f==null) {
+            throw new RuntimeException("Unknown field: "+field);
+        }
+        String fieldName=getFieldName(cls,field);
+
+        BasicDBObject update=new BasicDBObject("$inc",new BasicDBObject(fieldName,amount));
+        database.getCollection(coll).update(query,update);
+
+        clearCacheIfNecessary(cls);
+
+        //TODO: check inf necessary
+        if (f.getType().equals(Integer.class) || f.getType().equals(int.class)) {
+            try {
+                f.set(toInc,((Integer)f.get(toInc))+(int)amount);
+            } catch (IllegalAccessException e) {
+                throw new RuntimeException(e);
+            }
+        } else if (f.getType().equals(Double.class)|| f.getType().equals(double.class)) {
+            try {
+                f.set(toInc,((Double)f.get(toInc))+amount);
+            } catch (IllegalAccessException e) {
+                throw new RuntimeException(e);
+            }
+        } else if (f.getType().equals(Float.class)| f.getType().equals(float.class)) {
+            try {
+                f.set(toInc,((Float)f.get(toInc))+(float)amount);
+            } catch (IllegalAccessException e) {
+                throw new RuntimeException(e);
+            }
+        } else if (f.getType().equals(Long.class) || f.getType().equals(long.class)) {
+            try {
+                f.set(toInc,((Long)f.get(toInc))+(long)amount);
+            } catch (IllegalAccessException e) {
+                throw new RuntimeException(e);
+            }
+        } else {
+            logger.error("Could not set increased value - unsupported type "+cls.getName());
+        }
+
+
+    }
+
 
     /**
      * adds some list of objects to the cache manually...
@@ -1136,21 +1272,8 @@ public class Morphium {
 
 
 
-    public String createCamelCase(String n, boolean capitalize) {
-        n = n.toLowerCase();
-        String f[] = n.split("_");
-        String ret = f[0].substring(0, 1).toLowerCase() + f[0].substring(1);
-        for (int i = 1; i < f.length; i++) {
-            ret = ret + f[i].substring(0, 1).toUpperCase() + f[i].substring(1);
-        }
-        if (capitalize) {
-            ret = ret.substring(0, 1).toUpperCase() + ret.substring(1);
-        }
-        return ret;
-    }
-
     public String createCamelCase(String n) {
-        return createCamelCase(n, false);
+        return config.getMapper().createCamelCase(n, false);
     }
 
     /**

@@ -103,7 +103,7 @@ public class ObjectMapperTest extends MongoTest {
 
     @Test
     public void complexObjectTest() {
-        ObjectMapperImpl om = new ObjectMapperImpl(null);
+        ObjectMapperImpl om = new ObjectMapperImpl(MorphiumSingleton.get());
         UncachedObject o = new UncachedObject();
         o.setCounter(12345);
         o.setValue("Embedded value");
@@ -132,6 +132,7 @@ public class ObjectMapperTest extends MongoTest {
 
         co = om.unmarshall(ComplexObject.class, marshall);
         co.getEmbed().setMongoId(embedId);  //need to set ID manually, as it won't be stored!
+
         String st2 = co.toString();
         assert (st.equals(st2)) : "Strings not equal?\n" + st + "\n" + st2;
 
