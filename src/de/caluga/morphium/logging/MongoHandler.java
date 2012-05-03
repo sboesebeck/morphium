@@ -4,7 +4,7 @@
  */
 package de.caluga.morphium.logging;
 
-import de.caluga.morphium.Morphium;
+import de.caluga.morphium.MorphiumSingleton;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -18,7 +18,7 @@ public class MongoHandler extends Handler {
 
     @Override
     public void publish(LogRecord lr) {
-        if (!Morphium.isConfigured()) return;
+        if (!MorphiumSingleton.isConfigured()) return;
         Log l = new Log();
         l.setMessage(lr.getMessage());
         if (lr.getThrown() != null) {
@@ -47,7 +47,7 @@ public class MongoHandler extends Handler {
         l.setSequence(lr.getSequenceNumber());
         l.setSourceClass(lr.getSourceClassName());
         l.setSourceMethod(lr.getSourceMethodName());
-        Morphium.get().store(l);
+        MorphiumSingleton.get().store(l);
     }
 
     @Override

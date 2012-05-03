@@ -8,30 +8,16 @@ import java.util.Map;
 import java.util.Vector;
 
 
-public class ConfigManager {
+public class ConfigManager implements ShutdownListener{
     private static ConfigManager instance;
     private final Hashtable<String, ConfigElement> configCache;
     private final Hashtable<String, Long> addedAt;
     private int timeout = 1000 * 60 * 60; //one hour
     private boolean running = true;
     private static Logger log = Logger.getLogger(ConfigManager.class);
+    private Morphium morphium;
 
 
-    public static ConfigManager get() {
-        if (instance == null) {
-            synchronized (Morphium.class) {
-                if (instance == null) {
-                    try {
-                        instance = new ConfigManager();
-                    } catch (Throwable e) {
-                        log.warn("Error:" + e.getMessage(), e);
-                        instance = null;
-                    }
-                }
-            }
-        }
-        return instance;
-    }
 
     public void setTimeout(int t) {
         timeout = t;
@@ -49,9 +35,11 @@ public class ConfigManager {
         }
     }
 
-    private ConfigManager() {
+    public ConfigManager(Morphium m) {
         configCache = new Hashtable<String, ConfigElement>();
         addedAt = new Hashtable<String, Long>();
+        morphium=m;
+        morphium.addShutdownListener(this);
 
         Thread t = new Thread() {
             public void run() {
@@ -113,10 +101,10 @@ public class ConfigManager {
 
     private void store(String k, ConfigElement c) {
 
-        Query q = Morphium.get().createQueryFor(ConfigElement.class);
+        Query q = morphium.createQueryFor(ConfigElement.class);
         q.f("name").eq(k);
-        Morphium.get().setPrivileged();
-        List<ConfigElement> lst = Morphium.get().find(q);
+        morphium.setPrivileged();
+        List<ConfigElement> lst = morphium.find(q);
         if (lst.size() > 0) {
             c.setId(lst.get(0).getId()); //setting id to enforce update
         }
@@ -147,9 +135,9 @@ public class ConfigManager {
         }
         ConfigElement c = new ConfigElement();
         c.setName(k);
-        Query<ConfigElement> q = Morphium.get().createQueryFor(ConfigElement.class);
-        Morphium.get().setPrivileged();
-        List<ConfigElement> lst = Morphium.get().find(q);
+        Query<ConfigElement> q = morphium.createQueryFor(ConfigElement.class);
+        morphium.setPrivileged();
+        List<ConfigElement> lst = morphium.find(q);
 
         if (lst.size() > 1) {
             log.warn("WARNING: too many entries with name " + k + " taking 1st!");
@@ -199,8 +187,8 @@ public class ConfigManager {
             }
             e.setMapValue(v);
         }
-        Morphium.get().setPrivileged();
-        Morphium.get().store(e);
+        morphium.setPrivileged();
+        morphium.store(e);
     }
 
 
@@ -213,4 +201,8 @@ public class ConfigManager {
     }
 
 
+    @Override
+    public void onShutdown(Morphium m) {
+        end();
+    }
 }

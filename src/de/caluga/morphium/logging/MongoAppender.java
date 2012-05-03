@@ -1,6 +1,6 @@
 package de.caluga.morphium.logging;
 
-import de.caluga.morphium.Morphium;
+import de.caluga.morphium.MorphiumSingleton;
 import org.apache.log4j.Appender;
 import org.apache.log4j.Layout;
 import org.apache.log4j.Level;
@@ -46,7 +46,6 @@ public class MongoAppender implements Appender {
     @Override
     public void doAppend(LoggingEvent event) {
         Log l = new Log();
-        Level lv = event.getLevel();
         if (event.getMessage() != null)
             l.setMessage(event.getMessage().toString());
         if (event.getRenderedMessage() != null)
@@ -63,7 +62,7 @@ public class MongoAppender implements Appender {
             l.setCausedBy(t.getCause().getClass().getName() + "(" + t.getCause().getMessage() + ")");
             l.setExceptionStacktrace(Arrays.asList(thr.getThrowableStrRep()));
         }
-        Morphium.get().store(l);
+        MorphiumSingleton.get().store(l);
     }
 
     @Override

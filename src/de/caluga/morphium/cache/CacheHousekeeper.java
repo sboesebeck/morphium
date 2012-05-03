@@ -5,7 +5,6 @@
 package de.caluga.morphium.cache;
 
 import de.caluga.morphium.ConfigElement;
-import de.caluga.morphium.ConfigManager;
 import de.caluga.morphium.Morphium;
 import de.caluga.morphium.annotations.caching.Cache;
 import de.caluga.morphium.annotations.caching.Cache.ClearStrategy;
@@ -18,7 +17,7 @@ public class CacheHousekeeper extends Thread {
 
     private static final String MONGODBLAYER_CACHE = "mongodblayer.cache";
     private int timeout;
-    private Map<Class<? extends Object>, Integer> validTimeForClass;
+    private Map<Class<?>, Integer> validTimeForClass;
     private int gcTimeout;
     private boolean running = true;
     private Logger log = Logger.getLogger(CacheHousekeeper.class);
@@ -29,11 +28,11 @@ public class CacheHousekeeper extends Thread {
         this.timeout = houseKeepingTimeout;
         gcTimeout = globalCacheTimout;
         morphium=m;
-        validTimeForClass = new Hashtable<Class<? extends Object>, Integer>();
+        validTimeForClass = new Hashtable<Class<?>, Integer>();
         setDaemon(true);
 
         //Last use Configuration manager to read out cache configurations from Mongo!
-        Map<String, String> l = ConfigManager.get().getMapSetting(MONGODBLAYER_CACHE);
+        Map<String, String> l = m.getConfig().getConfigManager().getMapSetting(MONGODBLAYER_CACHE);
         if (l != null) {
             for (String k : l.keySet()) {
                 String v = l.get(k);
@@ -55,8 +54,8 @@ public class CacheHousekeeper extends Thread {
             ConfigElement e = new ConfigElement();
             e.setMapValue(new Hashtable<String, String>());
             e.setName(MONGODBLAYER_CACHE);
-//			ConfigManager.get().addSetting("mongodblayer.cache", new Hashtable<String,String>());
-            ConfigManager.get().storeSetting(e);
+//			morphium.getConfig().getConfigManager().addSetting("mongodblayer.cache", new Hashtable<String,String>());
+            morphium.getConfig().getConfigManager().storeSetting(e);
         }
     }
 
@@ -77,8 +76,8 @@ public class CacheHousekeeper extends Thread {
         while (running) {
             try {
                 Hashtable<Class, Vector<String>> toDelete = new Hashtable<Class, Vector<String>>();
-                Hashtable<Class<? extends Object>, Hashtable<String, CacheElement>> cache = morphium.cloneCache();
-                for (Class<? extends Object> clz : cache.keySet()) {
+                Hashtable<Class<?>, Hashtable<String, CacheElement>> cache = morphium.cloneCache();
+                for (Class<?> clz : cache.keySet()) {
                     Hashtable<String, CacheElement> ch = (Hashtable<String, CacheElement>) cache.get(clz).clone();
 
 
@@ -96,7 +95,7 @@ public class CacheHousekeeper extends Thread {
                             strategy = cacheSettings.strategy();
 
                             if (cacheSettings.overridable()) {
-                                ConfigElement setting = ConfigManager.get().getConfigElement(MONGODBLAYER_CACHE);
+                                ConfigElement setting = morphium.getConfig().getConfigManager().getConfigElement(MONGODBLAYER_CACHE);
                                 Map<String, String> map = setting.getMapValue();
                                 String v = null;
                                 if (map != null) {
@@ -110,7 +109,7 @@ public class CacheHousekeeper extends Thread {
                                     setting.getMapValue().put(clz.getName(), "" + time);
                                     setting.getMapValue().put(clz.getName() + "_max_entries", maxEntries + "");
                                     setting.getMapValue().put(clz.getName() + "_clear_strategy", strategy.name());
-                                    ConfigManager.get().storeSetting(setting);
+                                    morphium.getConfig().getConfigManager().storeSetting(setting);
                                 } else {
                                     try {
                                         time = Integer.parseInt(setting.getMapValue().get(clz.getName()));
@@ -123,14 +122,14 @@ public class CacheHousekeeper extends Thread {
                                     } catch (Exception e1) {
                                         Logger.getLogger("MongoDbLayer").warn("Max Entries could not be parsed for class " + clz.getName() + " Using " + maxEntries);
                                         setting.getMapValue().put(clz.getName() + "_max_entries", "" + maxEntries);
-                                        ConfigManager.get().storeSetting(setting);
+                                        morphium.getConfig().getConfigManager().storeSetting(setting);
                                     }
                                     try {
                                         strategy = ClearStrategy.valueOf(setting.getMapValue().get(clz.getName() + "_clear_strategy"));
                                     } catch (Exception e2) {
                                         Logger.getLogger("MongoDbLayer").warn("STrategycould not be parsed for class " + clz.getName() + " Using " + strategy.name());
                                         setting.getMapValue().put(clz.getName() + "_clear_strategy", strategy.name());
-                                        ConfigManager.get().storeSetting(setting);
+                                        morphium.getConfig().getConfigManager().storeSetting(setting);
                                     }
                                 }
                             }

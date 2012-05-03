@@ -37,4 +37,7 @@ public interface ObjectMapper {
     public Object getValue(Object o, String fld);
 
     public void setValue(Object o, Object value, String fld);
+
+    public Morphium getMorphium();
+    public void setMorphium(Morphium m);
 }

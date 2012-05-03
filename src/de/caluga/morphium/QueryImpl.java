@@ -15,9 +15,8 @@ import java.util.*;
 /**
  * User: Stpehan Bösebeck
  * Date: 26.03.12
- * Time: 15:14
+ * Time: 22:14
  * <p/>
- * TODO: Add documentation here
  */
 public class QueryImpl<T> implements Query<T>, Cloneable {
     private String where;
@@ -31,13 +30,20 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
     private int limit = 0, skip = 0;
     private Map<String, Integer> order;
 
-    public QueryImpl(Class<T> type, ObjectMapper map) {
-        this();
+    private Morphium morphium;
+    
+    public QueryImpl(Morphium m,Class<T> type, ObjectMapper map) {
+        this(m);
         this.type = type;
         mapper = map;
+        if (mapper.getMorphium()==null) {
+            mapper.setMorphium(m);
+        }
     }
 
-    public QueryImpl() {
+    public QueryImpl(Morphium m) {
+        morphium = m;
+        mapper=new ObjectMapperImpl(m);
         andExpr = new Vector<FilterExpression>();
         orQueries = new Vector<Query<T>>();
         norQueries = new Vector<Query<T>>();
@@ -50,7 +56,7 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
 
     @Override
     public Query<T> q() {
-        return new QueryImpl(type, mapper);
+        return new QueryImpl(morphium,type, mapper);
     }
 
     @Override
@@ -105,7 +111,7 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
         if (field.isAnnotationPresent(Id.class)) {
             f = "_id";
         }
-        MongoField<T> fld = Morphium.get().createMongoField(); //new MongoFieldImpl<T>();
+        MongoField<T> fld = morphium.createMongoField(); //new MongoFieldImpl<T>();
         fld.setFieldString(f);
         fld.setMapper(mapper);
         fld.setQuery(this);
@@ -176,10 +182,10 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
 
     @Override
     public long countAll() {
-        if (Morphium.get().accessDenied(type, Permission.READ)) {
+        if (morphium.accessDenied(type, Permission.READ)) {
             throw new RuntimeException("Access denied!");
         }
-        return Morphium.get().getDatabase().getCollection(mapper.getCollectionName(type)).count(toQueryObject());
+        return morphium.getDatabase().getCollection(mapper.getCollectionName(type)).count(toQueryObject());
     }
 
 
@@ -214,15 +220,15 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
 
     @Override
     public List<T> asList() {
-        if (Morphium.get().accessDenied(type, Permission.READ)) {
+        if (morphium.accessDenied(type, Permission.READ)) {
             throw new RuntimeException("Access denied!");
         }
 
-        String ck = Morphium.get().getCacheKey(this);
-        if (Morphium.get().isCached(type, ck)) {
-            return Morphium.get().getFromCache(type, ck);
+        String ck = morphium.getCacheKey(this);
+        if (morphium.isCached(type, ck)) {
+            return morphium.getFromCache(type, ck);
         }
-        DBCursor query = Morphium.get().getDatabase().getCollection(mapper.getCollectionName(type)).find(toQueryObject());
+        DBCursor query = morphium.getDatabase().getCollection(mapper.getCollectionName(type)).find(toQueryObject());
         if (skip > 0) {
             query.skip(skip);
         }
@@ -243,9 +249,9 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
 
             updateLastAccess(o, unmarshall);
 
-            Morphium.get().firePostLoadEvent(unmarshall);
+            morphium.firePostLoadEvent(unmarshall);
         }
-        Morphium.get().addToCache(ck, type, ret);
+        morphium.addToCache(ck, type, ret);
         return ret;
     }
 
@@ -265,13 +271,13 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
                     ctf = t.lastAccessUserField();
                     f = mapper.getField(type, ctf);
                     try {
-                        f.set(o, Morphium.getConfig().getSecurityMgr().getCurrentUserId());
+                        f.set(o, morphium.getConfig().getSecurityMgr().getCurrentUserId());
                     } catch (IllegalAccessException e) {
 //                    logger.error("Could not set changed by",e);
                     }
                 }
                 //Storing access timestamps
-                Morphium.get().store(unmarshall);
+                morphium.store(unmarshall);
             }
         }
     }
@@ -290,40 +296,40 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
 
     @Override
     public T get() {
-        String ck = Morphium.get().getCacheKey(this);
-        if (Morphium.get().isCached(type, ck)) {
-            List<T> lst = Morphium.get().getFromCache(type, ck);
+        String ck = morphium.getCacheKey(this);
+        if (morphium.isCached(type, ck)) {
+            List<T> lst = morphium.getFromCache(type, ck);
             if (lst == null || lst.isEmpty()) {
                 return null;
             } else {
                 return lst.get(0);
             }
         }
-        DBObject ret = Morphium.get().getDatabase().getCollection(mapper.getCollectionName(type)).findOne(toQueryObject());
+        DBObject ret = morphium.getDatabase().getCollection(mapper.getCollectionName(type)).findOne(toQueryObject());
         List<T> lst = new ArrayList<T>(1);
         if (ret != null) {
             T unmarshall = mapper.unmarshall(type, ret);
-            Morphium.get().firePostLoadEvent(unmarshall);
+            morphium.firePostLoadEvent(unmarshall);
             updateLastAccess(ret, unmarshall);
 
             lst.add((T) unmarshall);
-            Morphium.get().addToCache(ck, type, lst);
+            morphium.addToCache(ck, type, lst);
             return unmarshall;
         }
-        Morphium.get().addToCache(ck, type, lst);
+        morphium.addToCache(ck, type, lst);
         return null;
     }
 
     @Override
     public List<ObjectId> idList() {
         List<ObjectId> ret = new ArrayList<ObjectId>();
-        String ck = Morphium.get().getCacheKey(this);
+        String ck = morphium.getCacheKey(this);
         ck += " idlist";
-        if (Morphium.get().isCached(type, ck)) {
+        if (morphium.isCached(type, ck)) {
             //not nice...
-            return (List<ObjectId>) Morphium.get().getFromCache(type, ck);
+            return (List<ObjectId>) morphium.getFromCache(type, ck);
         }
-        DBCursor query = Morphium.get().getDatabase().getCollection(mapper.getCollectionName(type)).find(toQueryObject(), new BasicDBObject("_id", 1)); //only get IDs
+        DBCursor query = morphium.getDatabase().getCollection(mapper.getCollectionName(type)).find(toQueryObject(), new BasicDBObject("_id", 1)); //only get IDs
         if (order != null) {
             query.sort(new BasicDBObject(order));
         }
@@ -339,7 +345,7 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
             DBObject o = it.next();
             ret.add((ObjectId) o.get("_id"));
         }
-        Morphium.get().addToCache(ck, type, ret);
+        morphium.addToCache(ck, type, ret);
         return ret;
     }
 

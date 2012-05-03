@@ -22,7 +22,9 @@ import org.apache.log4j.Logger;
 import org.bson.types.ObjectId;
 
 import java.lang.annotation.Annotation;
-import java.lang.reflect.*;
+import java.lang.reflect.Field;
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
 import java.util.*;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ThreadPoolExecutor;
@@ -70,7 +72,11 @@ public class Morphium {
 
     private Vector<MorphiumStorageListener> listeners;
     private Vector<Thread> privileged;
+    private Vector<ShutdownListener> shutDownListeners;
 
+    public MorphiumConfig getConfig() {
+        return config;
+    }
 //    private boolean securityEnabled = false;
 
     /**
@@ -86,6 +92,7 @@ public class Morphium {
         }
         config=cfg;
         privileged = new Vector<Thread>();
+        shutDownListeners=new Vector<ShutdownListener>();
         listeners = new Vector<MorphiumStorageListener>();
         cache = new Hashtable<Class<? extends Object>, Hashtable<String, CacheElement>>();
         stats = new Hashtable<StatisticKeys, StatisticValue>();
@@ -144,8 +151,13 @@ public class Morphium {
         }
         int cnt = database.getCollection("system.indexes").find().count(); //test connection
 
+        if (config.getConfigManager()==null) {
+            config.setConfigManager(new ConfigManager(this));
+        }
         cacheHousekeeper = new CacheHousekeeper(this,5000, config.getGlobalCacheValidTime());
         cacheHousekeeper.start();
+
+
         logger.info("Initialization successful...");
 
     }
@@ -655,7 +667,7 @@ public class Morphium {
     }
 
     public <T> Query<T> createQueryFor(Class<T> type) {
-        return new QueryImpl<T>(type, config.getMapper());
+        return new QueryImpl<T>(this,type, config.getMapper());
     }
 
     public <T> List<T> find(Query<T> q) {
@@ -1095,9 +1107,18 @@ public class Morphium {
         }
     }
 
+    public void addShutdownListener(ShutdownListener l) {
+        shutDownListeners.add(l);
+    }
+    public void removeShutdownListener(ShutdownListener l) {
+        shutDownListeners.remove(l);
+    }
     public void close() {
         cacheHousekeeper.end();
-        ConfigManager.get().end();
+
+        for (ShutdownListener l:shutDownListeners) {
+            l.onShutdown(this);
+        }
         try {
             Thread.sleep(1000); //give it time to end ;-)
         } catch (Exception e) {
@@ -1112,6 +1133,8 @@ public class Morphium {
         mongo.close();
 
     }
+
+
 
     public String createCamelCase(String n, boolean capitalize) {
         n = n.toLowerCase();

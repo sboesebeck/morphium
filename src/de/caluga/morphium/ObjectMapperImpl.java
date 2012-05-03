@@ -14,13 +14,29 @@ import java.util.*;
 /**
  * User: Stpehan Bösebeck
  * Date: 26.03.12
- * Time: 11:26
+ * Time: 19:36
  * <p/>
  */
 public class ObjectMapperImpl implements ObjectMapper {
     private static Logger log = Logger.getLogger(ObjectMapperImpl.class);
     private static volatile Map<Class<?>, List<Field>> fieldCache = new Hashtable<Class<?>, List<Field>>();
+    public volatile Morphium morphium;
 
+    public Morphium getMorphium() {
+        return morphium;
+    }
+
+    public void setMorphium(Morphium morphium) {
+        this.morphium = morphium;
+    }
+
+    public ObjectMapperImpl(Morphium m) {
+        morphium=m;
+    }
+
+    public ObjectMapperImpl() {
+        this(null);
+    }
     /**
      * converts a sql/javascript-Name to Java, e.g. converts document_id to
      * documentId.
@@ -123,7 +139,11 @@ public class ObjectMapperImpl implements ObjectMapper {
                                 //not stored yet
                                 if (r.automaticStore()) {
                                     //TODO: this could cause an endless loop!
-                                    Morphium.get().store(value);
+                                    if (morphium==null) {
+                                        log.fatal("Could not store - no Morphium set!");
+                                    } else {
+                                        morphium.store(value);
+                                    }
                                 } else {
                                     throw new IllegalArgumentException("Reference to be stored, that is null!");
                                 }
@@ -250,9 +270,13 @@ public class ObjectMapperImpl implements ObjectMapper {
                 if (fld.isAnnotationPresent(Reference.class)) {
                     //A reference - only id stored
                     ObjectId id = (ObjectId) o.get(f);
-                    Query q = Morphium.get().createQueryFor(fld.getType());
-                    q.f("_id").eq(id);
-                    value = q.get();
+                    if (morphium==null) {
+                        log.fatal("Morphium not set - could not de-reference!");
+                    } else {
+                        Query q = morphium.createQueryFor(fld.getType());
+                        q.f("_id").eq(id);
+                        value = q.get();
+                    }
                 } else if (fld.isAnnotationPresent(Id.class)) {
                     ObjectId id = (ObjectId) o.get("_id");
 

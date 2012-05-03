@@ -1,6 +1,6 @@
 package de.caluga.test.mongo.suite;
 
-import de.caluga.morphium.Morphium;
+import de.caluga.morphium.MorphiumSingleton;
 import de.caluga.morphium.secure.MongoSecurityException;
 import de.caluga.morphium.secure.MongoSecurityManager;
 import de.caluga.morphium.secure.Permission;
@@ -27,15 +27,14 @@ public class SimpleSecurityManager implements MongoSecurityManager {
         List<Permission> lst = new ArrayList<Permission>();
         lst.add(Permission.READ);
         lst.add(Permission.INSERT);
-        acl.put((Morphium.getConfig().getMapper().getCollectionName(UncachedObject.class)), lst);
+        acl.put((MorphiumSingleton.getConfig().getMapper().getCollectionName(UncachedObject.class)), lst);
 
     }
 
 
     @Override
     public boolean checkAccess(Object obj, Permission p) throws MongoSecurityException {
-        if (obj == null) return false;
-        return checkAccess(Morphium.getConfig().getMapper().getCollectionName(obj.getClass()), p);
+        return obj != null && checkAccess(MorphiumSingleton.getConfig().getMapper().getCollectionName(obj.getClass()), p);
     }
 
     @Override
@@ -45,7 +44,7 @@ public class SimpleSecurityManager implements MongoSecurityManager {
 
     @Override
     public boolean checkAccess(Class<?> cls, Permission p) throws MongoSecurityException {
-        return checkAccess(Morphium.getConfig().getMapper().getCollectionName(cls), p);
+        return checkAccess(MorphiumSingleton.getConfig().getMapper().getCollectionName(cls), p);
     }
 
     @Override

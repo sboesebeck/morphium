@@ -4,7 +4,7 @@
  */
 package de.caluga.morphium.sync;
 
-import de.caluga.morphium.Morphium;
+import de.caluga.morphium.MorphiumSingleton;
 import de.caluga.morphium.Query;
 import de.caluga.morphium.StorageAdapter;
 import org.apache.log4j.Logger;
@@ -72,7 +72,7 @@ public class DatabaseSynchronizer extends Thread {
         listenerByType = new HashMap<Class<? extends Object>, LinkedList<SyncListener>>();
 
 
-        Morphium.get().addListener(new StorageAdapter() {
+        MorphiumSingleton.get().addListener(new StorageAdapter() {
 
             @Override
             public void postStore(Object r) {
@@ -85,7 +85,7 @@ public class DatabaseSynchronizer extends Thread {
                 d.setAction(ActionEnum.STORE.toString());
                 d.addAppId(id);
                 d.setDataType(r.getClass().getName());
-                Morphium.get().store(d);
+                MorphiumSingleton.get().store(d);
 
             }
 
@@ -99,14 +99,14 @@ public class DatabaseSynchronizer extends Thread {
                 d.setAction(ActionEnum.DELETE.toString());
                 d.addAppId(id);
                 d.setDataType(r.getClass().getName());
-                Morphium.get().store(d);
+                MorphiumSingleton.get().store(d);
             }
         });
         //ältere Einträge löschen, sollten unwichtig sein
 //
-        Query<DbSync> q = Morphium.get().createQueryFor(DbSync.class);
+        Query<DbSync> q = MorphiumSingleton.get().createQueryFor(DbSync.class);
         q.f("created").gte(System.currentTimeMillis() - 15000);
-        Morphium.get().delete(q);
+        MorphiumSingleton.get().delete(q);
 
         //start the Thread!
         start();
@@ -146,7 +146,7 @@ public class DatabaseSynchronizer extends Thread {
         while (running) {
             //nach einträgen suchen, die diese AppID noch nicht tragen
             //DbSync db = new DbSync();
-            Query<DbSync> dbq = Morphium.get().createQueryFor(DbSync.class);
+            Query<DbSync> dbq = MorphiumSingleton.get().createQueryFor(DbSync.class);
             //TODO: fix it
             //dbq.f("app_ids").hasThisOne(id);
 
@@ -159,14 +159,14 @@ public class DatabaseSynchronizer extends Thread {
                         String type = d.getDataType();
                         String action = d.getAction();
                         //Caches löschen
-                        Class<? extends Object> t = (Class<? extends Object>) Class.forName(d.getDataType());
-                        Morphium.get().clearCachefor(t);
+                        Class<? extends Object> t = (Class<?>) Class.forName(d.getDataType());
+                        MorphiumSingleton.get().clearCachefor(t);
 
                         //Selbst wenn die Transaktion fehl schlägt, kein Problem, dann
                         // wird der cache eben noch mal gelöscht
                         // so ist die Belastung für die Datenbank deutlich geringer
                         d.addAppId(id);
-                        Morphium.get().store(d);
+                        MorphiumSingleton.get().store(d);
 
                         fireSyncEvent(t, action);
                     } catch (ClassNotFoundException ex) {
@@ -185,7 +185,7 @@ public class DatabaseSynchronizer extends Thread {
         }
     }
 
-    private void fireSyncEvent(Class<? extends Object> type, String action) {
+    private void fireSyncEvent(Class<?> type, String action) {
         for (SyncListener l : listeners) {
             l.syncEvent(type, action);
         }

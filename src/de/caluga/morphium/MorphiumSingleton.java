@@ -50,9 +50,12 @@ public class MorphiumSingleton {
             }
             synchronized (Morphium.class) {
                 if (instance == null) {
+                    if (config.getConfigManager()==null) {
+
+                    }
                     instance = new Morphium(config);
 
-                    ConfigManager.get().setTimeout(config.getConfigManagerCacheTimeout());
+                    instance.getConfig().getConfigManager().setTimeout(config.getConfigManagerCacheTimeout());
                 }
             }
         }

@@ -38,6 +38,7 @@ public class MorphiumConfig {
     private List<ServerAddress> adr;
     private Map<String, Integer> validTimeByClassName;
 
+    private ConfigManager configManager;
     //securitysettings
 //    private Class<? extends Object> userClass, roleClass, aclClass;
     private String superUserLogin, superUserPassword; //THE superuser!
@@ -46,6 +47,14 @@ public class MorphiumConfig {
     private MongoSecurityManager securityMgr;
     private ObjectMapper mapper = new ObjectMapperImpl();
     private String fieldImplClass = "de.caluga.morphium.MongoFieldImpl";
+
+    public ConfigManager getConfigManager() {
+        return configManager;
+    }
+
+    public void setConfigManager(ConfigManager configManager) {
+        this.configManager = configManager;
+    }
 
     public String getFieldImplClass() {
         return fieldImplClass;

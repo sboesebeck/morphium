@@ -1,6 +1,6 @@
 package de.caluga.test.mongo.suite;
 
-import de.caluga.morphium.Morphium;
+import de.caluga.morphium.MorphiumSingleton;
 import de.caluga.morphium.Query;
 import org.junit.Test;
 
@@ -20,7 +20,7 @@ public class ComplexTest extends MongoTest {
         UncachedObject o = new UncachedObject();
         o.setCounter(111);
         o.setValue("Embedded object");
-        //Morphium.get().store(o);
+        //MorphiumSingleton.get().store(o);
 
         ComplexObject co = new ComplexObject();
         co.setEmbed(o);
@@ -28,16 +28,16 @@ public class ComplexTest extends MongoTest {
         UncachedObject ref = new UncachedObject();
         ref.setCounter(100);
         ref.setValue("The reference");
-        Morphium.get().store(ref);
+        MorphiumSingleton.get().store(ref);
 
         co.setRef(ref);
         co.setEinText("This is a very complex object");
-        Morphium.get().store(co);
+        MorphiumSingleton.get().store(co);
 
         //object stored!!!
 
         //now read it again...
-        Query<ComplexObject> q = Morphium.get().createQueryFor(ComplexObject.class);
+        Query<ComplexObject> q = MorphiumSingleton.get().createQueryFor(ComplexObject.class);
         ComplexObject co2 = q.getById(co.getId());
 
         log.info("Just loaded: " + co2.toString());
@@ -54,11 +54,10 @@ public class ComplexTest extends MongoTest {
         o.setTrans("Tansient");
         o.setNullValue(15);
 
-        Morphium.get().store(o);
+        MorphiumSingleton.get().store(o);
         assert (o.getChanged() != 0) : "Last change not set!?!?";
-        long change = o.getChanged();
 
-        Query<ComplexObject> q = Morphium.get().createQueryFor(ComplexObject.class).f("ein_text").eq("A test");
+        Query<ComplexObject> q = MorphiumSingleton.get().createQueryFor(ComplexObject.class).f("ein_text").eq("A test");
         o = q.get();
         assert (o.getLastAccess() != 0) : "Last access not set!";
         assert (o.getLastAccess() <= o.getChanged()) : "Timestamp lastAccess BEFORE creation?!?!?";
@@ -66,7 +65,7 @@ public class ComplexTest extends MongoTest {
         o.setEinText("A test2");
         o.setTrans("Tansient");
         o.setNullValue(18);
-        List<ComplexObject> lst = Morphium.get().readAll(ComplexObject.class);
+        List<ComplexObject> lst = MorphiumSingleton.get().readAll(ComplexObject.class);
         for (ComplexObject co : lst) {
             assert (co.getChanged() != 0) : "Last Access not set!";
 
