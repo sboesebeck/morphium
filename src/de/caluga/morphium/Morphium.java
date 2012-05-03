@@ -199,6 +199,41 @@ public class Morphium {
         return config.getConfigManager();
     }
 
+    /**
+     * search for objects similar to template concerning all given fields.
+     * If no fields are specified, all NON Null-Fields are taken into account
+     * if specified, field might also be null
+     * @param template
+     * @param fields
+     * @param <T>
+     * @return
+     */
+    public <T> List<T> findByTemplate(T template, String... fields) {
+        Class cls=template.getClass();
+        List<String> flds=new ArrayList<String>();
+        if (fields.length>0) {
+            flds.addAll(Arrays.asList(fields));
+        } else {
+            flds=getFields(cls);
+        }
+        Query<T> q=createQueryFor(cls);
+        for (String f:flds) {
+            try {
+                q.f(f).eq(getValue(template,f));
+            } catch (IllegalAccessException e) {
+                logger.error("Could not read field "+f+" of object "+cls.getName());
+            }
+        }
+        return q.asList();
+    }
+
+    /**
+     * Un-setting a value in an existing mongo collection entry - no reading necessary. Object is altered in place
+     * db.collection.update({"_id":toSet.id},{$unset:{field:1}}
+     * <b>attention</b>: this alteres the given object toSet in a similar way
+     * @param toSet: object to set the value in (or better - the corresponding entry in mongo)
+     * @param field: field to remove from document
+     */
     public void unset(Object toSet, String field) {
         if (toSet==null) throw new RuntimeException("Cannot update null!");
         if (getId(toSet)==null) {
@@ -225,6 +260,15 @@ public class Morphium {
             //May happen, if null is not allowed for example
         }
     }
+
+    /**
+     * setting a value in an existing mongo collection entry - no reading necessary. Object is altered in place
+     * db.collection.update({"_id":toSet.id},{$set:{field:value}}
+     * <b>attention</b>: this alteres the given object toSet in a similar way
+     * @param toSet: object to set the value in (or better - the corresponding entry in mongo)
+     * @param field: the field to change
+     * @param value: the value to set
+     */
     public void set(Object toSet, String field, Object value) {
         if (toSet==null) throw new RuntimeException("Cannot update null!");
         if (getId(toSet)==null) {
@@ -262,10 +306,22 @@ public class Morphium {
         }
     }
 
+    /**
+    * decreasing a value of a given object
+     * calles <code>inc(toDec,field,-amount);</code>
+     */
     public void dec(Object toDec, String field, int amount) {
         inc(toDec,field,-amount);
     }
 
+    /**
+     * Increases a value in an existing mongo collection entry - no reading necessary. Object is altered in place
+     * db.collection.update({"_id":toInc.id},{$inc:{field:amount}}
+     * <b>attention</b>: this alteres the given object toSet in a similar way
+     * @param toInc: object to set the value in (or better - the corresponding entry in mongo)
+     * @param field: the field to change
+     * @param amount: the value to set
+     */
     public void inc(Object toInc, String field, int amount) {
         if (toInc==null) throw new RuntimeException("Cannot update null!");
         if (getId(toInc)==null) {
