@@ -22,6 +22,11 @@ public class EnumTest extends MongoTest {
         ent=(EnumEntity)MorphiumSingleton.get().createQueryFor(EnumEntity.class).f("value").eq("ein Test").get();
         assert(ent.getTst()!=null):"Enum is null!";
         assert(ent.getTst().equals(TestEnum.TEST1)):"Enum error!";
+
+        ent=(EnumEntity)MorphiumSingleton.get().createQueryFor(EnumEntity.class).f("tst").eq(TestEnum.TEST1).get();
+        assert(ent.getTst()!=null):"Enum is null!";
+        assert(ent.getTst().equals(TestEnum.TEST1)):"Enum error!";
+
     }
 
 }

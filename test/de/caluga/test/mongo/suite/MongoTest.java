@@ -30,7 +30,7 @@ public class MongoTest {
             log.info("Uncached object prepared!");
             MorphiumSingleton.get().clearCollection(CachedObject.class);
             MorphiumSingleton.get().clearCollection(ComplexObject.class);
-            MorphiumSingleton.get().clearCollection(EnumTest.class);
+            MorphiumSingleton.get().clearCollection(EnumEntity.class);
 
             MorphiumSingleton.get().ensureIndex(UncachedObject.class,"counter","value");
             MorphiumSingleton.get().ensureIndex(CachedObject.class,"counter","value");

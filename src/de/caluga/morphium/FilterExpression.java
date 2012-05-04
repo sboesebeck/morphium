@@ -49,7 +49,11 @@ public class FilterExpression {
                 o.put(field, flt.dbObject());
             }
         } else {
-            o.put(field, value);
+            if (value.getClass().isEnum()) {
+                o.put(field,((Enum)value).name());
+            } else {
+                o.put(field, value);
+            }
         }
         return o;
     }
