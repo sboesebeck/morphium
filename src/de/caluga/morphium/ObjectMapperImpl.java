@@ -119,6 +119,10 @@ public class ObjectMapperImpl implements ObjectMapper {
             String fName = f;
             try {
                 Field fld = getField(o.getClass(), f);
+                //do not store static fields!
+                if (Modifier.isStatic(fld.getModifiers())) {
+                    continue;
+                }
                 if (fld.isAnnotationPresent(Id.class)) {
                     fName = "_id";
                 }
@@ -269,6 +273,11 @@ public class ObjectMapperImpl implements ObjectMapper {
 
             for (String f : flds) {
                 Field fld = getField(cls, f);
+                if (Modifier.isStatic(fld.getModifiers())) {
+                    //skip static fields
+                    continue;
+                }
+
                 Object value = null;
                 if (fld.isAnnotationPresent(Reference.class)) {
                     //A reference - only id stored
