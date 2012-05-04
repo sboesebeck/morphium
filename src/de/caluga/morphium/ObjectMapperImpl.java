@@ -180,6 +180,8 @@ public class ObjectMapperImpl implements ObjectMapper {
                                         lst.add(i);
                                     }
                                     v = lst;
+                                } else if (v.getClass().isEnum()) {
+                                    v=((Enum)v).name();
                                 }
                             }
                         }
@@ -336,6 +338,10 @@ public class ObjectMapperImpl implements ObjectMapper {
                         value = lst;
                     } else {
                         value = l;
+                    }
+                } else if (fld.getType().isEnum()) {
+                    if (o.get(f)!=null) {
+                        value=Enum.valueOf((Class<? extends Enum>) fld.getType(),(String)o.get(f));
                     }
                 } else {
                     value = o.get(f);
