@@ -133,9 +133,10 @@ public class ConfigManager implements ShutdownListener{
                 return configCache.get(k);
             }
         }
-        ConfigElement c = new ConfigElement();
-        c.setName(k);
+//        ConfigElement c = new ConfigElement();
+//        c.setName(k);
         Query<ConfigElement> q = morphium.createQueryFor(ConfigElement.class);
+        q=q.f("name").eq(k);
         morphium.setPrivileged();
         List<ConfigElement> lst = morphium.find(q);
 

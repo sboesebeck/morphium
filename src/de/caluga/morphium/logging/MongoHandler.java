@@ -18,7 +18,7 @@ public class MongoHandler extends Handler {
 
     @Override
     public void publish(LogRecord lr) {
-        if (!MorphiumSingleton.isConfigured()) return;
+        if (!MorphiumSingleton.isConfigured() || !MorphiumSingleton.isInitialized()) return;
         Log l = new Log();
         l.setMessage(lr.getMessage());
         if (lr.getThrown() != null) {

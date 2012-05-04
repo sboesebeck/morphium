@@ -45,6 +45,7 @@ public class MongoAppender implements Appender {
 
     @Override
     public void doAppend(LoggingEvent event) {
+        if (!MorphiumSingleton.isConfigured() || !MorphiumSingleton.isInitialized()) return;
         Log l = new Log();
         if (event.getMessage() != null)
             l.setMessage(event.getMessage().toString());

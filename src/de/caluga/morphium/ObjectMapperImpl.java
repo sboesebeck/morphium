@@ -9,6 +9,7 @@ import org.bson.types.ObjectId;
 
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Field;
+import java.lang.reflect.Modifier;
 import java.util.*;
 
 /**
@@ -531,11 +532,15 @@ public class ObjectMapperImpl implements ObjectMapper {
             return null;
         }
         try {
-            return getField(o.getClass(), fld).get(o);
+            Field f=getField(o.getClass(), fld);
+            if (!Modifier.isStatic(f.getModifiers())) {
+                return f.get(o);
+            }
         } catch (IllegalAccessException e) {
-            log.fatal("Illegal access to field " + fld + " of toype " + o.getClass().getSimpleName());
-            return null;
+            log.fatal("Illegal access to field " + fld + " of type " + o.getClass().getSimpleName());
+
         }
+        return null;
     }
 
     @Override
@@ -544,8 +549,24 @@ public class ObjectMapperImpl implements ObjectMapper {
             return;
         }
         try {
-            getField(o.getClass(), fld).set(o, value);
-        } catch (IllegalAccessException e) {
+            Field f= getField(o.getClass(), fld);
+            if (!Modifier.isStatic(f.getModifiers())) {
+                try {
+                    f.set(o, value);
+                } catch (Exception e) {
+                    if (value==null) {
+                        try {
+                            //try to set 0 instead
+                            f.set(o,0);
+                        } catch (Exception e1) {
+                            //Still not working? Maybe boolean?
+                            f.set(o,false);
+                        }
+                    }
+
+                }
+            }
+        } catch (Exception e) {
             log.fatal("Illegal access to field " + fld + " of toype " + o.getClass().getSimpleName());
             return;
         }
