@@ -431,6 +431,7 @@ public class ObjectMapperImpl implements ObjectMapper {
      * so, if you have a field Mapping, the mapped Property-name will be used
      * returns all fields, which have at least one of the given annotations
      * if no annotation is given, all fields are returned
+     * Does not take the @Aliases-annotation int account
      *
      * @param cls
      * @return
@@ -485,7 +486,7 @@ public class ObjectMapperImpl implements ObjectMapper {
     @Override
     /**
      * extended logic: Fld may be, the java field name, the name of the specified value in Property-Annotation or
-     * the translated underscored lowercase name (mongoId => mongo_id)
+     * the translated underscored lowercase name (mongoId => mongo_id) or a name specified in the Aliases-Annotation of this field
      *
      * @param cls - class to search
      * @param fld - field name
@@ -506,6 +507,16 @@ public class ObjectMapperImpl implements ObjectMapper {
                 if (f.getAnnotation(Reference.class).fieldName().equals(fld)) {
                     f.setAccessible(true);
                     return f;
+                }
+            }
+            if (f.isAnnotationPresent(Aliases.class)) {
+                Aliases aliases=f.getAnnotation(Aliases.class);
+                String[] v=aliases.value();
+                for (String field:v) {
+                    if (field.equals(fld)) {
+                        f.setAccessible(true);
+                        return f;
+                    }
                 }
             }
             if (fld.equals("_id")) {

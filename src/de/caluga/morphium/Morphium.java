@@ -193,6 +193,7 @@ public class Morphium {
             fieldName=config.getMapper().convertCamelCase(fieldName);
         }
         return fieldName;
+
     }
 
     public ConfigManager getConfigManager() {
