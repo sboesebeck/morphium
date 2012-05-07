@@ -179,22 +179,7 @@ public class Morphium {
         return database;
     }
 
-    private String getFieldName(Class cls, String field) {
-        String fieldName=field;
-        Field f=getField(cls,field);
-        if (f.isAnnotationPresent(Property.class)) {
-            Property p=f.getAnnotation(Property.class);
-            if (p.fieldName()!=null || !p.fieldName().equals(".")) {
-                fieldName=p.fieldName();
-            }
-        }
-        Entity ent= (Entity) cls.getAnnotation(Entity.class);
-        if (ent.translateCamelCase()) {
-            fieldName=config.getMapper().convertCamelCase(fieldName);
-        }
-        return fieldName;
 
-    }
 
     public ConfigManager getConfigManager() {
         return config.getConfigManager();
@@ -974,6 +959,9 @@ public class Morphium {
         return null;
     }
 
+    private String getFieldName(Class cls,String fld) {
+        return config.getMapper().getFieldName(cls,fld);
+    }
 
     /**
      * extended logic: Fld may be, the java field name, the name of the specified value in Property-Annotation or

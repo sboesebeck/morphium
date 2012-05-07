@@ -56,7 +56,7 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
 
     @Override
     public Query<T> q() {
-        return new QueryImpl(morphium,type, mapper);
+        return new QueryImpl<T>(morphium,type, mapper);
     }
 
     @Override
@@ -96,6 +96,7 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
     }
 
 
+
     @Override
     public MongoField f(String f) {
         String cf = f;
@@ -108,8 +109,11 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
         if (field == null) {
             throw new IllegalArgumentException("Unknown Field " + f);
         }
+
         if (field.isAnnotationPresent(Id.class)) {
             f = "_id";
+        } else {
+            f=mapper.getFieldName(type,f); //handling of aliases
         }
         MongoField<T> fld = morphium.createMongoField(); //new MongoFieldImpl<T>();
         fld.setFieldString(f);
@@ -120,10 +124,7 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
 
     @Override
     public void or(Query<T>... qs) {
-        for (Query<T> q : qs) {
-            orQueries.add(q);
-        }
-        return;
+        orQueries.addAll(Arrays.asList(qs));
     }
 
     private Query<T> getClone() {
@@ -133,15 +134,11 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
     @Override
     public void not(Query<T> q) {
         notQuery = q;
-        return;
     }
 
     @Override
     public void nor(Query<T>... qs) {
-        for (Query<T> q : qs) {
-            norQueries.add(q);
-        }
-        return;
+        norQueries.addAll(Arrays.asList(qs));
     }
 
     @Override

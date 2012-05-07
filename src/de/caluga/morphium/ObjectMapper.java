@@ -31,6 +31,7 @@ public interface ObjectMapper {
     public List<String> getFields(Class o, Class<? extends Annotation>... annotations);
 
     public Field getField(Class cls, String fld);
+    public String getFieldName(Class cls, String field);
 
     public boolean isEntity(Object o);
 

@@ -484,6 +484,27 @@ public class ObjectMapperImpl implements ObjectMapper {
     }
 
     @Override
+    public String getFieldName(Class cls, String field) {
+        Field f=getField(cls,field);
+
+        if (f.isAnnotationPresent(Property.class)) {
+            Property p=f.getAnnotation(Property.class);
+            if (p.fieldName()!=null || !p.fieldName().equals(".")) {
+                return p.fieldName();
+            }
+        }
+
+
+        String fieldName=f.getName();
+        Entity ent= (Entity) cls.getAnnotation(Entity.class);
+        if (ent.translateCamelCase()) {
+            fieldName=convertCamelCase(fieldName);
+        }
+        return fieldName;
+
+    }
+
+    @Override
     /**
      * extended logic: Fld may be, the java field name, the name of the specified value in Property-Annotation or
      * the translated underscored lowercase name (mongoId => mongo_id) or a name specified in the Aliases-Annotation of this field

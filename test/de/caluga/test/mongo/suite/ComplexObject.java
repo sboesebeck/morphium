@@ -7,7 +7,7 @@ import org.bson.types.ObjectId;
 /**
  * User: Stpehan Bösebeck
  * Date: 26.03.12
- * Time: 15:03
+ * Time: 18:03
  * <p/>
  */
 @NoCache
@@ -21,6 +21,7 @@ public class ComplexObject {
     @Id
     private ObjectId id;
 
+    @Aliases({"last_changed","lastChanged"})
     private Long changed;
 
     @Property(fieldName = "last_access")
