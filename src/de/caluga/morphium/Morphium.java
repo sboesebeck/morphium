@@ -314,6 +314,26 @@ public class Morphium {
         inc(toDec,field,-amount);
     }
 
+    public void set(Class<?> cls,Query<?> query, String field,Object val) {
+        String coll=config.getMapper().getCollectionName(cls);
+        String fieldName=getFieldName(cls,field);
+        BasicDBObject update=new BasicDBObject("$set",new BasicDBObject(fieldName,val));
+        database.getCollection(coll).update(query.toQueryObject(),update);
+        clearCacheIfNecessary(cls);
+    }
+
+    public void dec(Class<?> cls,Query<?> query, String field,int amount) {
+        inc(cls,query,field,-amount);
+    }
+
+    public void inc(Class<?> cls,Query<?> query, String field,int amount) {
+        String coll=config.getMapper().getCollectionName(cls);
+        String fieldName=getFieldName(cls,field);
+        BasicDBObject update=new BasicDBObject("$inc",new BasicDBObject(fieldName,amount));
+        database.getCollection(coll).update(query.toQueryObject(),update);
+        clearCacheIfNecessary(cls);
+    }
+
     /**
      * Increases a value in an existing mongo collection entry - no reading necessary. Object is altered in place
      * db.collection.update({"_id":toInc.id},{$inc:{field:amount}}
