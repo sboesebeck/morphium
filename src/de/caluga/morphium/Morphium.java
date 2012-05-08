@@ -247,6 +247,49 @@ public class Morphium {
         }
     }
 
+
+    private void clearCacheIfNecessary(Class cls) {
+        if (cls.isAnnotationPresent(Cache.class)) {
+            Cache c= (Cache) cls.getAnnotation(Cache.class);
+            if (c.clearOnWrite()) {
+                clearCachefor(cls);
+            }
+        }
+    }
+
+
+
+    public void set(Class<?> cls,Query<?> query, String field,Object val) {
+        set(cls,query,field,val,false,false);
+    }
+    public void set(Class<?> cls,Query<?> query, String field,Object val, boolean insertIfNotExist, boolean multiple) {
+        String coll=config.getMapper().getCollectionName(cls);
+        String fieldName=getFieldName(cls,field);
+        BasicDBObject update=new BasicDBObject("$set",new BasicDBObject(fieldName,val));
+        database.getCollection(coll).update(query.toQueryObject(),update,insertIfNotExist,multiple);
+        clearCacheIfNecessary(cls);
+    }
+
+    public void dec(Class<?> cls,Query<?> query, String field,int amount, boolean insertIfNotExist, boolean multiple) {
+        inc(cls,query,field,-amount,insertIfNotExist,multiple);
+    }
+    public void dec(Class<?> cls,Query<?> query, String field,int amount) {
+        inc(cls,query,field,-amount,false,false);
+    }
+
+    public void inc(Class<?> cls,Query<?> query, String field,int amount) {
+        inc(cls,query,field,amount);
+    }
+
+    public void inc(Class<?> cls,Query<?> query, String field,int amount, boolean insertIfNotExist, boolean multiple) {
+        String coll=config.getMapper().getCollectionName(cls);
+        String fieldName=getFieldName(cls,field);
+        BasicDBObject update=new BasicDBObject("$inc",new BasicDBObject(fieldName,amount));
+        database.getCollection(coll).update(query.toQueryObject(),update,insertIfNotExist,multiple);
+        clearCacheIfNecessary(cls);
+    }
+
+
     /**
      * setting a value in an existing mongo collection entry - no reading necessary. Object is altered in place
      * db.collection.update({"_id":toSet.id},{$set:{field:value}}
@@ -259,7 +302,7 @@ public class Morphium {
         if (toSet==null) throw new RuntimeException("Cannot update null!");
         if (getId(toSet)==null) {
             logger.info("just storing object as it is new...");
-            store(toSet);
+            storeNoCache(toSet);
         }
         Class cls=toSet.getClass();
         String coll=config.getMapper().getCollectionName(cls);
@@ -283,41 +326,12 @@ public class Morphium {
 
     }
 
-    private void clearCacheIfNecessary(Class cls) {
-        if (cls.isAnnotationPresent(Cache.class)) {
-            Cache c= (Cache) cls.getAnnotation(Cache.class);
-            if (c.clearOnWrite()) {
-                clearCachefor(cls);
-            }
-        }
-    }
-
     /**
-    * decreasing a value of a given object
+     * decreasing a value of a given object
      * calles <code>inc(toDec,field,-amount);</code>
      */
     public void dec(Object toDec, String field, int amount) {
         inc(toDec,field,-amount);
-    }
-
-    public void set(Class<?> cls,Query<?> query, String field,Object val) {
-        String coll=config.getMapper().getCollectionName(cls);
-        String fieldName=getFieldName(cls,field);
-        BasicDBObject update=new BasicDBObject("$set",new BasicDBObject(fieldName,val));
-        database.getCollection(coll).update(query.toQueryObject(),update);
-        clearCacheIfNecessary(cls);
-    }
-
-    public void dec(Class<?> cls,Query<?> query, String field,int amount) {
-        inc(cls,query,field,-amount);
-    }
-
-    public void inc(Class<?> cls,Query<?> query, String field,int amount) {
-        String coll=config.getMapper().getCollectionName(cls);
-        String fieldName=getFieldName(cls,field);
-        BasicDBObject update=new BasicDBObject("$inc",new BasicDBObject(fieldName,amount));
-        database.getCollection(coll).update(query.toQueryObject(),update);
-        clearCacheIfNecessary(cls);
     }
 
     /**
@@ -332,7 +346,7 @@ public class Morphium {
         if (toInc==null) throw new RuntimeException("Cannot update null!");
         if (getId(toInc)==null) {
             logger.info("just storing object as it is new...");
-            store(toInc);
+            storeNoCache(toInc);
         }
         Class cls=toInc.getClass();
         String coll=config.getMapper().getCollectionName(cls);
