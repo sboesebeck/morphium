@@ -489,7 +489,7 @@ public class ObjectMapperImpl implements ObjectMapper {
 
         if (f.isAnnotationPresent(Property.class)) {
             Property p=f.getAnnotation(Property.class);
-            if (p.fieldName()!=null || !p.fieldName().equals(".")) {
+            if (p.fieldName()!=null && !p.fieldName().equals(".")) {
                 return p.fieldName();
             }
         }
