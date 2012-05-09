@@ -3,6 +3,7 @@ package de.caluga.morphium;
 import com.mongodb.BasicDBList;
 import com.mongodb.BasicDBObject;
 import com.mongodb.DBObject;
+import com.mongodb.DBRef;
 import de.caluga.morphium.annotations.*;
 import org.apache.log4j.Logger;
 import org.bson.types.ObjectId;
@@ -279,7 +280,7 @@ public class ObjectMapperImpl implements ObjectMapper {
                 }
 
                 Object value = null;
-                if (fld.isAnnotationPresent(Reference.class)) {
+                if (!fld.getType().isAssignableFrom(Map.class)&& !fld.getType().isAssignableFrom(List.class) && fld.isAnnotationPresent(Reference.class)) {
                     //A reference - only id stored
                     ObjectId id = (ObjectId) o.get(f);
                     if (morphium==null) {
@@ -340,6 +341,8 @@ public class ObjectMapperImpl implements ObjectMapper {
                                     //Probably an "normal" map
                                     lst.add(val);
                                 }
+                            } else if (val instanceof DBRef) {
+                                //todo: implement something
                             } else {
                                 lst.add(val);
                             }
