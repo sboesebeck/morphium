@@ -343,6 +343,7 @@ public class ObjectMapperImpl implements ObjectMapper {
                                 }
                             } else if (val instanceof DBRef) {
                                 //todo: implement something
+                                lst.add(((DBRef)val).getId());
                             } else {
                                 lst.add(val);
                             }
