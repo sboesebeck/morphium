@@ -33,12 +33,13 @@ public class ObjectMapperImpl implements ObjectMapper {
     }
 
     public ObjectMapperImpl(Morphium m) {
-        morphium=m;
+        morphium = m;
     }
 
     public ObjectMapperImpl() {
         this(null);
     }
+
     /**
      * converts a sql/javascript-Name to Java, e.g. converts document_id to
      * documentId.
@@ -145,7 +146,7 @@ public class ObjectMapperImpl implements ObjectMapper {
                                 //not stored yet
                                 if (r.automaticStore()) {
                                     //TODO: this could cause an endless loop!
-                                    if (morphium==null) {
+                                    if (morphium == null) {
                                         log.fatal("Could not store - no Morphium set!");
                                     } else {
                                         morphium.store(value);
@@ -186,7 +187,7 @@ public class ObjectMapperImpl implements ObjectMapper {
                                     }
                                     v = lst;
                                 } else if (v.getClass().isEnum()) {
-                                    v=((Enum)v).name();
+                                    v = ((Enum) v).name();
                                 }
                             }
                         }
@@ -280,10 +281,10 @@ public class ObjectMapperImpl implements ObjectMapper {
                 }
 
                 Object value = null;
-                if (!fld.getType().isAssignableFrom(Map.class)&& !fld.getType().isAssignableFrom(List.class) && fld.isAnnotationPresent(Reference.class)) {
+                if (!fld.getType().isAssignableFrom(Map.class) && !fld.getType().isAssignableFrom(List.class) && fld.isAnnotationPresent(Reference.class)) {
                     //A reference - only id stored
                     ObjectId id = (ObjectId) o.get(f);
-                    if (morphium==null) {
+                    if (morphium == null) {
                         log.fatal("Morphium not set - could not de-reference!");
                     } else {
                         Query q = morphium.createQueryFor(fld.getType());
@@ -307,10 +308,15 @@ public class ObjectMapperImpl implements ObjectMapper {
                         for (String n : map.keySet()) {
                             //TODO: recurse?
                             if (map.get(n) instanceof BasicDBObject) {
-                                if (((BasicDBObject) map.get(n)).containsField("class_name")) {
-                                    //Entity to map
+                                Object val = map.get(n);
+                                if (((BasicDBObject) val).containsField("class_name") || ((BasicDBObject) val).containsField("className")) {
+                                    //Entity to map!
+                                    String cn = (String) ((BasicDBObject) val).get("class_name");
+                                    if (cn == null) {
+                                        cn = (String) ((BasicDBObject) val).get("className");
+                                    }
                                     try {
-                                        Class ecls = Class.forName(((BasicDBObject) map.get(n)).get("class_name").toString());
+                                        Class ecls = Class.forName(cn);
                                         map.put(n, unmarshall(ecls, (DBObject) map.get(n)));
                                     } catch (ClassNotFoundException e) {
                                         throw new RuntimeException(e);
@@ -329,10 +335,14 @@ public class ObjectMapperImpl implements ObjectMapper {
                     if (l != null) {
                         for (Object val : l) {
                             if (val instanceof BasicDBObject) {
-                                if (((BasicDBObject) val).containsField("class_name")) {
+                                if (((BasicDBObject) val).containsField("class_name") || ((BasicDBObject) val).containsField("className")) {
                                     //Entity to map!
+                                    String cn = (String) ((BasicDBObject) val).get("class_name");
+                                    if (cn == null) {
+                                        cn = (String) ((BasicDBObject) val).get("className");
+                                    }
                                     try {
-                                        Class ecls = Class.forName(((BasicDBObject) val).get("class_name").toString());
+                                        Class ecls = Class.forName(cn);
                                         lst.add(unmarshall(ecls, (DBObject) val));
                                     } catch (ClassNotFoundException e) {
                                         throw new RuntimeException(e);
@@ -343,7 +353,7 @@ public class ObjectMapperImpl implements ObjectMapper {
                                 }
                             } else if (val instanceof DBRef) {
                                 //todo: implement something
-                                lst.add(((DBRef)val).getId());
+                                lst.add(((DBRef) val).getId());
                             } else {
                                 lst.add(val);
                             }
@@ -353,8 +363,8 @@ public class ObjectMapperImpl implements ObjectMapper {
                         value = l;
                     }
                 } else if (fld.getType().isEnum()) {
-                    if (o.get(f)!=null) {
-                        value=Enum.valueOf((Class<? extends Enum>) fld.getType(),(String)o.get(f));
+                    if (o.get(f) != null) {
+                        value = Enum.valueOf((Class<? extends Enum>) fld.getType(), (String) o.get(f));
                     }
                 } else {
                     value = o.get(f);
@@ -489,20 +499,20 @@ public class ObjectMapperImpl implements ObjectMapper {
 
     @Override
     public String getFieldName(Class cls, String field) {
-        Field f=getField(cls,field);
+        Field f = getField(cls, field);
 
         if (f.isAnnotationPresent(Property.class)) {
-            Property p=f.getAnnotation(Property.class);
-            if (p.fieldName()!=null && !p.fieldName().equals(".")) {
+            Property p = f.getAnnotation(Property.class);
+            if (p.fieldName() != null && !p.fieldName().equals(".")) {
                 return p.fieldName();
             }
         }
 
 
-        String fieldName=f.getName();
-        Entity ent= (Entity) cls.getAnnotation(Entity.class);
+        String fieldName = f.getName();
+        Entity ent = (Entity) cls.getAnnotation(Entity.class);
         if (ent.translateCamelCase()) {
-            fieldName=convertCamelCase(fieldName);
+            fieldName = convertCamelCase(fieldName);
         }
         return fieldName;
 
@@ -535,9 +545,9 @@ public class ObjectMapperImpl implements ObjectMapper {
                 }
             }
             if (f.isAnnotationPresent(Aliases.class)) {
-                Aliases aliases=f.getAnnotation(Aliases.class);
-                String[] v=aliases.value();
-                for (String field:v) {
+                Aliases aliases = f.getAnnotation(Aliases.class);
+                String[] v = aliases.value();
+                for (String field : v) {
                     if (field.equals(fld)) {
                         f.setAccessible(true);
                         return f;
@@ -583,7 +593,7 @@ public class ObjectMapperImpl implements ObjectMapper {
             return null;
         }
         try {
-            Field f=getField(o.getClass(), fld);
+            Field f = getField(o.getClass(), fld);
             if (!Modifier.isStatic(f.getModifiers())) {
                 return f.get(o);
             }
@@ -600,18 +610,18 @@ public class ObjectMapperImpl implements ObjectMapper {
             return;
         }
         try {
-            Field f= getField(o.getClass(), fld);
+            Field f = getField(o.getClass(), fld);
             if (!Modifier.isStatic(f.getModifiers())) {
                 try {
                     f.set(o, value);
                 } catch (Exception e) {
-                    if (value==null) {
+                    if (value == null) {
                         try {
                             //try to set 0 instead
-                            f.set(o,0);
+                            f.set(o, 0);
                         } catch (Exception e1) {
                             //Still not working? Maybe boolean?
-                            f.set(o,false);
+                            f.set(o, false);
                         }
                     }
 
