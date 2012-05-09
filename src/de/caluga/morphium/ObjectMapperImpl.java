@@ -261,10 +261,14 @@ public class ObjectMapperImpl implements ObjectMapper {
     @Override
     public <T> T unmarshall(Class<T> cls, DBObject o) {
         try {
-            if (o.get("class_name") != null) {
+            if (o.get("class_name") != null || o.get("className")!=null) {
                 log.info("overriding cls - it's defined in dbObject");
                 try {
-                    cls = (Class<T>) Class.forName((String) o.get("class_name"));
+                    String cN=(String)o.get("class_name");
+                    if (cN==null) {
+                        cN = (String)o.get("className");
+                    }
+                    cls = (Class<T>) Class.forName(cN);
                 } catch (ClassNotFoundException e) {
                     throw new RuntimeException(e);
                 }
