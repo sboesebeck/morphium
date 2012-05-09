@@ -101,7 +101,7 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
     public MongoField f(String f) {
         String cf = f;
         if (f.contains(".")) {
-            //if there is a . only check first poart
+            //if there is a . only check first part
             cf = f.substring(0, f.indexOf("."));
             //TODO: check field name completely => person.name, check type Person for field name
         }
@@ -195,18 +195,18 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
                 lst.add(ex.toQueryObject());
             }
             o.put("$or", lst);
-        } else {
-            if (andExpr.size() == 1) {
+        }
+            if (andExpr.size() == 1 && orQueries.isEmpty()) {
                 return andExpr.get(0).dbObject();
             }
             if (andExpr.isEmpty()) {
                 return o;
             }
+
             for (FilterExpression ex : andExpr) {
                 lst.add(ex.dbObject());
             }
             o.put("$and", lst);
-        }
         return o;
     }
 

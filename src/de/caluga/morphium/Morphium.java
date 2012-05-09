@@ -257,16 +257,38 @@ public class Morphium {
         }
     }
 
-
+    private DBObject simplifyQueryObject(DBObject q) {
+        if (q.keySet().size()==1 && q.get("$and")!=null) {
+            BasicDBObject ret=new BasicDBObject();
+            BasicDBList lst=(BasicDBList)q.get("$and");
+            for (Object o:lst) {
+                if (o instanceof DBObject) {
+                    ret.putAll(((DBObject)o));
+                } else if (o instanceof Map) {
+                    ret.putAll(((Map)o));
+                } else {
+                    //something we cannot handle
+                    return q;
+                }
+            }
+        }
+        return q;
+    }
 
     public void set(Class<?> cls,Query<?> query, String field,Object val) {
         set(cls,query,field,val,false,false);
     }
+
+
     public void set(Class<?> cls,Query<?> query, String field,Object val, boolean insertIfNotExist, boolean multiple) {
         String coll=config.getMapper().getCollectionName(cls);
         String fieldName=getFieldName(cls,field);
         BasicDBObject update=new BasicDBObject("$set",new BasicDBObject(fieldName,val));
-        database.getCollection(coll).update(query.toQueryObject(),update,insertIfNotExist,multiple);
+        DBObject qobj=query.toQueryObject();
+        if (insertIfNotExist) {
+            qobj=simplifyQueryObject(qobj);
+        }
+        database.getCollection(coll).update(qobj,update,insertIfNotExist,multiple);
         clearCacheIfNecessary(cls);
     }
 
@@ -285,9 +307,14 @@ public class Morphium {
         String coll=config.getMapper().getCollectionName(cls);
         String fieldName=getFieldName(cls,field);
         BasicDBObject update=new BasicDBObject("$inc",new BasicDBObject(fieldName,amount));
-        database.getCollection(coll).update(query.toQueryObject(),update,insertIfNotExist,multiple);
+        DBObject qobj=query.toQueryObject();
+        if (insertIfNotExist) {
+            qobj=simplifyQueryObject(qobj);
+        }
+        database.getCollection(coll).update(qobj,update,insertIfNotExist,multiple);
         clearCacheIfNecessary(cls);
     }
+
 
 
     /**
