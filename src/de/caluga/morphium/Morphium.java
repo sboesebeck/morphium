@@ -271,6 +271,7 @@ public class Morphium {
                     return q;
                 }
             }
+            return ret;
         }
         return q;
     }
@@ -280,6 +281,44 @@ public class Morphium {
     }
 
 
+    /**
+     * will change an entry in mongodb-collection corresponding to given class object
+     * if query is too complex, upsert might not work!
+     * Upsert should consist of single and-queries, which will be used to generate the object to create, unless
+     * it already exists. look at Mongodb-query documentation as well
+     * @param cls - class or corresponding collection to take a look at
+     * @param query - query to specify which objects should be set
+     * @param values - map fieldName->Value, which values are to be set!
+     * @param insertIfNotExist - insert, if it does not exist (query needs to be simple!)
+     * @param multiple - update several documents, if false, only first hit will be updated
+     */
+    public void set(Class<?> cls,Query<?> query, Map<String,Object> values, boolean insertIfNotExist, boolean multiple) {
+        String coll=config.getMapper().getCollectionName(cls);
+        BasicDBObject toSet=new BasicDBObject();
+        for (String f:values.keySet()) {
+            String fieldName=getFieldName(cls,f);
+            toSet.put(fieldName,values.get(f));
+        }
+        DBObject qobj=query.toQueryObject();
+        if (insertIfNotExist) {
+            qobj=simplifyQueryObject(qobj);
+        }
+        BasicDBObject update=new BasicDBObject("$set",toSet);
+        database.getCollection(coll).update(qobj,update,insertIfNotExist,multiple);
+        clearCacheIfNecessary(cls);
+    }
+    /**
+     * will change an entry in mongodb-collection corresponding to given class object
+     * if query is too complex, upsert might not work!
+     * Upsert should consist of single and-queries, which will be used to generate the object to create, unless
+     * it already exists. look at Mongodb-query documentation as well
+     * @param cls - class or corresponding collection to take a look at
+     * @param query - query to specify which objects should be set
+     * @param field - field to set
+     * @param val - value to set
+     * @param insertIfNotExist - insert, if it does not exist (query needs to be simple!)
+     * @param multiple - update several documents, if false, only first hit will be updated
+     */
     public void set(Class<?> cls,Query<?> query, String field,Object val, boolean insertIfNotExist, boolean multiple) {
         String coll=config.getMapper().getCollectionName(cls);
         String fieldName=getFieldName(cls,field);
