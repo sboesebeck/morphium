@@ -154,7 +154,7 @@ public class ObjectMapperTest extends MongoTest {
         o.setEinText("Ein Text");
         obj = om.marshall(o);
         assert (!obj.containsField("trans")) : "Transient field used?!?!?";
-        assert (obj.containsField("null_value")) : "Null value not set";
+        assert (obj.containsField("nullValue")) : "Null value not set";
     }
 
     @Test
