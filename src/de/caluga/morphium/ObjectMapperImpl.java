@@ -414,7 +414,12 @@ public class ObjectMapperImpl implements ObjectMapper {
         }
     }
 
-    private List<Field> getAllFields(Class cls) {
+    /**
+     * return list of fields in class - including hierachy!!!
+     * @param cls
+     * @return
+     */
+    public List<Field> getAllFields(Class cls) {
         if (fieldCache.containsKey(cls)) {
             return fieldCache.get(cls);
         }

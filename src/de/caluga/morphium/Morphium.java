@@ -1124,7 +1124,8 @@ public class Morphium {
         if (!o.getClass().isAnnotationPresent(Entity.class)) {
             throw new RuntimeException("No Entitiy");
         }
-        for (Field f : o.getClass().getDeclaredFields()) {
+        List<Field> fieldList=config.getMapper().getAllFields(o.getClass());
+        for (Field f : fieldList) {
             if (f.isAnnotationPresent(Id.class)) {
                 try {
                     f.setAccessible(true);

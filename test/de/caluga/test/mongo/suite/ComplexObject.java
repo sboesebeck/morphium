@@ -11,7 +11,7 @@ import org.bson.types.ObjectId;
  * <p/>
  */
 @NoCache
-@Entity
+@Entity(translateCamelCase = false)
 @StoreLastAccess(lastAccessField = "last_access")
 
 //cration time will be stored in DB but not in Object!

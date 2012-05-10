@@ -41,4 +41,5 @@ public interface ObjectMapper {
 
     public Morphium getMorphium();
     public void setMorphium(Morphium m);
+    public List<Field> getAllFields(Class cls);
 }
