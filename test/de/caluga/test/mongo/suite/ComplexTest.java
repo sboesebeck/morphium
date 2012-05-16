@@ -74,4 +74,38 @@ public class ComplexTest extends MongoTest {
 
 
     }
+
+    @Test
+    public void testCopmplexQuery() {
+        for (int i = 1; i <= 100; i++) {
+            UncachedObject o = new UncachedObject();
+            o.setCounter(i);
+            o.setValue("Uncached " + i);
+            MorphiumSingleton.get().store(o);
+        }
+
+        Query<UncachedObject> q = MorphiumSingleton.get().createQueryFor(UncachedObject.class);
+        q.f("counter").lt(50).or(q.q().f("counter").eq(10),q.q().f("value").eq("Uncached 15"));
+        List<UncachedObject> lst=q.asList();
+        assert(lst.size()==2):"List size wrong: "+lst.size();
+        for (UncachedObject o:lst) {
+            assert(o.getCounter()<50 && (o.getCounter()==10 || o.getCounter() == 15)):"Counter wrong: "+o.getCounter();
+        }
+
+        q = MorphiumSingleton.get().createQueryFor(UncachedObject.class);
+        q.f("counter").lt(50).or(q.q().f("counter").eq(10),q.q().f("value").eq("Uncached 15"),q.q().f("counter").eq(52));
+        lst=q.asList();
+        assert(lst.size()==2):"List size wrong: "+lst.size();
+        for (UncachedObject o:lst) {
+            assert(o.getCounter()<50 && (o.getCounter()==10 || o.getCounter() == 15)):"Counter wrong: "+o.getCounter();
+        }
+
+        q = MorphiumSingleton.get().createQueryFor(UncachedObject.class);
+        q.f("counter").lt(50).f("counter").gt(10).or(q.q().f("counter").eq(22),q.q().f("value").eq("Uncached 15"),q.q().f("counter").gte(70));
+        lst=q.asList();
+        assert(lst.size()==2):"List size wrong: "+lst.size();
+        for (UncachedObject o:lst) {
+            assert(o.getCounter()<50 &&o.getCounter()>10 && (o.getCounter()==22 || o.getCounter() == 15)):"Counter wrong: "+o.getCounter();
+        }
+    }
 }

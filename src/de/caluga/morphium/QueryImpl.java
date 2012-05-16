@@ -190,23 +190,32 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
     public DBObject toQueryObject() {
         BasicDBObject o = new BasicDBObject();
         BasicDBList lst = new BasicDBList();
+
+        if (andExpr.size() == 1 && orQueries.isEmpty()) {
+            return andExpr.get(0).dbObject();
+        }
+        if (andExpr.isEmpty() && orQueries.isEmpty()) {
+            return o;
+        }
+
+        if (andExpr.size() > 0) {
+            for (FilterExpression ex : andExpr) {
+                lst.add(ex.dbObject());
+            }
+
+            o.put("$and", lst);
+            lst=new BasicDBList();
+        }
         if (orQueries.size() != 0) {
             for (Query<T> ex : orQueries) {
                 lst.add(ex.toQueryObject());
             }
-            o.put("$or", lst);
+            if (o.get("$and")!=null) {
+                ((BasicDBList)o.get("$and")).add(new BasicDBObject("$or", lst));
+            } else {
+                o.put("$or", lst);
+            }
         }
-            if (andExpr.size() == 1 && orQueries.isEmpty()) {
-                return andExpr.get(0).dbObject();
-            }
-            if (andExpr.isEmpty()) {
-                return o;
-            }
-
-            for (FilterExpression ex : andExpr) {
-                lst.add(ex.dbObject());
-            }
-            o.put("$and", lst);
         return o;
     }
 
