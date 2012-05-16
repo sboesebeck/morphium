@@ -31,19 +31,19 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
     private Map<String, Integer> order;
 
     private Morphium morphium;
-    
-    public QueryImpl(Morphium m,Class<T> type, ObjectMapper map) {
+
+    public QueryImpl(Morphium m, Class<T> type, ObjectMapper map) {
         this(m);
         this.type = type;
         mapper = map;
-        if (mapper.getMorphium()==null) {
+        if (mapper.getMorphium() == null) {
             mapper.setMorphium(m);
         }
     }
 
     public QueryImpl(Morphium m) {
         morphium = m;
-        mapper=new ObjectMapperImpl(m);
+        mapper = new ObjectMapperImpl(m);
         andExpr = new Vector<FilterExpression>();
         orQueries = new Vector<Query<T>>();
         norQueries = new Vector<Query<T>>();
@@ -56,7 +56,7 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
 
     @Override
     public Query<T> q() {
-        return new QueryImpl<T>(morphium,type, mapper);
+        return new QueryImpl<T>(morphium, type, mapper);
     }
 
     @Override
@@ -96,7 +96,6 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
     }
 
 
-
     @Override
     public MongoField f(String f) {
         String cf = f;
@@ -113,7 +112,7 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
         if (field.isAnnotationPresent(Id.class)) {
             f = "_id";
         } else {
-            f=mapper.getFieldName(type,f); //handling of aliases
+            f = mapper.getFieldName(type, f); //handling of aliases
         }
         MongoField<T> fld = morphium.createMongoField(); //new MongoFieldImpl<T>();
         fld.setFieldString(f);
@@ -194,7 +193,10 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
         if (andExpr.size() == 1 && orQueries.isEmpty()) {
             return andExpr.get(0).dbObject();
         }
-        if (andExpr.isEmpty() && orQueries.isEmpty()) {
+        if (andExpr.size() == 1 && orQueries.isEmpty()) {
+            return andExpr.get(0).dbObject();
+        }
+        if (andExpr.isEmpty()) {
             return o;
         }
 
@@ -311,7 +313,22 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
                 return lst.get(0);
             }
         }
-        DBObject ret = morphium.getDatabase().getCollection(mapper.getCollectionName(type)).findOne(toQueryObject());
+        BasicDBObject sort = new BasicDBObject();
+        if (order != null) {
+            sort.putAll(order);
+        }
+
+        DBCursor srch = morphium.getDatabase().getCollection(mapper.getCollectionName(type)).find(toQueryObject()).limit(1);
+        if (skip != 0) {
+            srch = srch.skip(skip);
+        }
+        if (sort.size() != 0) {
+            srch = srch.sort(sort);
+        }
+        if (srch.length() == 0) {
+            return null;
+        }
+        DBObject ret = srch.toArray(1).get(0);
         List<T> lst = new ArrayList<T>(1);
         if (ret != null) {
             T unmarshall = mapper.unmarshall(type, ret);
