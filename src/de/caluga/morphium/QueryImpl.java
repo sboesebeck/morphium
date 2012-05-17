@@ -196,7 +196,7 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
         if (andExpr.size() == 1 && orQueries.isEmpty()) {
             return andExpr.get(0).dbObject();
         }
-        if (andExpr.isEmpty()) {
+        if (andExpr.isEmpty() && orQueries.isEmpty()) {
             return o;
         }
 
