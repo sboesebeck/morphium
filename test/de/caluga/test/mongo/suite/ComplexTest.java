@@ -1,5 +1,6 @@
 package de.caluga.test.mongo.suite;
 
+import com.mongodb.BasicDBObject;
 import de.caluga.morphium.MorphiumSingleton;
 import de.caluga.morphium.Query;
 import org.junit.Test;
@@ -11,7 +12,7 @@ import java.util.List;
  * Date: 29.03.12
  * Time: 15:56
  * <p/>
- * TODO: Add documentation here
+ * testing compley queryies on Morphium
  */
 public class ComplexTest extends MongoTest {
 
@@ -85,27 +86,69 @@ public class ComplexTest extends MongoTest {
         }
 
         Query<UncachedObject> q = MorphiumSingleton.get().createQueryFor(UncachedObject.class);
-        q.f("counter").lt(50).or(q.q().f("counter").eq(10),q.q().f("value").eq("Uncached 15"));
-        List<UncachedObject> lst=q.asList();
-        assert(lst.size()==2):"List size wrong: "+lst.size();
-        for (UncachedObject o:lst) {
-            assert(o.getCounter()<50 && (o.getCounter()==10 || o.getCounter() == 15)):"Counter wrong: "+o.getCounter();
+        q.f("counter").lt(50).or(q.q().f("counter").eq(10), q.q().f("value").eq("Uncached 15"));
+        List<UncachedObject> lst = q.asList();
+        assert (lst.size() == 2) : "List size wrong: " + lst.size();
+        for (UncachedObject o : lst) {
+            assert (o.getCounter() < 50 && (o.getCounter() == 10 || o.getCounter() == 15)) : "Counter wrong: " + o.getCounter();
         }
 
         q = MorphiumSingleton.get().createQueryFor(UncachedObject.class);
-        q.f("counter").lt(50).or(q.q().f("counter").eq(10),q.q().f("value").eq("Uncached 15"),q.q().f("counter").eq(52));
-        lst=q.asList();
-        assert(lst.size()==2):"List size wrong: "+lst.size();
-        for (UncachedObject o:lst) {
-            assert(o.getCounter()<50 && (o.getCounter()==10 || o.getCounter() == 15)):"Counter wrong: "+o.getCounter();
+        q.f("counter").lt(50).or(q.q().f("counter").eq(10), q.q().f("value").eq("Uncached 15"), q.q().f("counter").eq(52));
+        lst = q.asList();
+        assert (lst.size() == 2) : "List size wrong: " + lst.size();
+        for (UncachedObject o : lst) {
+            assert (o.getCounter() < 50 && (o.getCounter() == 10 || o.getCounter() == 15)) : "Counter wrong: " + o.getCounter();
         }
 
         q = MorphiumSingleton.get().createQueryFor(UncachedObject.class);
-        q.f("counter").lt(50).f("counter").gt(10).or(q.q().f("counter").eq(22),q.q().f("value").eq("Uncached 15"),q.q().f("counter").gte(70));
-        lst=q.asList();
-        assert(lst.size()==2):"List size wrong: "+lst.size();
-        for (UncachedObject o:lst) {
-            assert(o.getCounter()<50 &&o.getCounter()>10 && (o.getCounter()==22 || o.getCounter() == 15)):"Counter wrong: "+o.getCounter();
+        q.f("counter").lt(50).f("counter").gt(10).or(q.q().f("counter").eq(22), q.q().f("value").eq("Uncached 15"), q.q().f("counter").gte(70));
+        lst = q.asList();
+        assert (lst.size() == 2) : "List size wrong: " + lst.size();
+        for (UncachedObject o : lst) {
+            assert (o.getCounter() < 50 && o.getCounter() > 10 && (o.getCounter() == 22 || o.getCounter() == 15)) : "Counter wrong: " + o.getCounter();
         }
     }
+
+
+    @Test
+    public void testNorQuery() {
+        for (int i = 1; i <= 100; i++) {
+            UncachedObject o = new UncachedObject();
+            o.setCounter(i);
+            o.setValue("Uncached " + i);
+            MorphiumSingleton.get().store(o);
+        }
+
+        Query<UncachedObject> q = MorphiumSingleton.get().createQueryFor(UncachedObject.class);
+        q.nor(q.q().f("counter").lt(90), q.q().f("counter").gt(95));
+        log.info("Query: " + q.toQueryObject().toString());
+        List<UncachedObject> lst = q.asList();
+        assert (lst.size() == 6) : "List size wrong: " + lst.size();
+        for (UncachedObject o : lst) {
+            assert (!(o.getCounter() < 90 || o.getCounter() > 95)) : "Counter wrong: " + o.getCounter();
+        }
+    }
+
+
+    @Test
+    public void complexQuery() {
+        for (int i = 1; i <= 100; i++) {
+            UncachedObject o = new UncachedObject();
+            o.setCounter(i);
+            o.setValue("Uncached " + i);
+            MorphiumSingleton.get().store(o);
+        }
+
+        BasicDBObject query = new BasicDBObject();
+        query = query.append("counter", new BasicDBObject("$lt", 10));
+        Query<UncachedObject> q = MorphiumSingleton.get().createQueryFor(UncachedObject.class);
+        List<UncachedObject> lst = q.complexQuery(query);
+        assert (lst != null && !lst.isEmpty()) : "Nothing found?";
+        for (UncachedObject o : lst) {
+            assert (o.getCounter() < 10) : "Wrong counter: " + o.getCounter();
+        }
+    }
+
+
 }

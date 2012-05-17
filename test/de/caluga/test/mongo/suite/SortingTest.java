@@ -39,7 +39,7 @@ public class SortingTest extends MongoTest {
 
         Query<UncachedObject> q = MorphiumSingleton.get().createQueryFor(UncachedObject.class);
         q = q.f("value").eq("Random value");
-        q = q.order("-counter");
+        q = q.sort("-counter");
 
         List<UncachedObject> lst = q.asList();
         int lastValue = 8888;
@@ -55,7 +55,7 @@ public class SortingTest extends MongoTest {
         q = q.f("value").eq("Random value");
         Map<String, Integer> order = new HashMap<String, Integer>();
         order.put("counter", -1);
-        q = q.order(order);
+        q = q.sort(order);
 
         lst = q.asList();
         lastValue = 8888;
@@ -75,7 +75,7 @@ public class SortingTest extends MongoTest {
 
         Query<UncachedObject> q = MorphiumSingleton.get().createQueryFor(UncachedObject.class);
         q = q.f("value").eq("Random value");
-        q = q.order("counter");
+        q = q.sort("counter");
 
         List<UncachedObject> lst = q.asList();
         int lastValue = -1;
@@ -91,7 +91,7 @@ public class SortingTest extends MongoTest {
         q = q.f("value").eq("Random value");
         Map<String, Integer> order = new HashMap<String, Integer>();
         order.put("counter", 1);
-        q = q.order(order);
+        q = q.sort(order);
 
         lst = q.asList();
         lastValue = -1;
@@ -111,7 +111,7 @@ public class SortingTest extends MongoTest {
 
         Query<UncachedObject> q = MorphiumSingleton.get().createQueryFor(UncachedObject.class);
         q = q.f("value").eq("Random value");
-        q = q.order("counter");
+        q = q.sort("counter");
         q.limit(1);
         List<UncachedObject> lst = q.asList();
         assert (lst.size() == 1) : "List sizer wrong: " + lst.size();
@@ -119,7 +119,7 @@ public class SortingTest extends MongoTest {
 
         q = MorphiumSingleton.get().createQueryFor(UncachedObject.class);
         q = q.f("value").eq("Random value");
-        q = q.order("-counter");
+        q = q.sort("-counter");
         UncachedObject uc = q.get();
         assert (uc != null) : "not found?!?";
         assert (uc.getCounter() == 7599) : "Highest value wrong, should be 7599, is " + uc.getCounter();

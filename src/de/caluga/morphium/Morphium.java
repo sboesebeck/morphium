@@ -90,9 +90,9 @@ public class Morphium {
         if (cfg == null) {
             throw new RuntimeException("Please specify configuration!");
         }
-        config=cfg;
+        config = cfg;
         privileged = new Vector<Thread>();
-        shutDownListeners=new Vector<ShutdownListener>();
+        shutDownListeners = new Vector<ShutdownListener>();
         listeners = new Vector<MorphiumStorageListener>();
         cache = new Hashtable<Class<? extends Object>, Hashtable<String, CacheElement>>();
         stats = new Hashtable<StatisticKeys, StatisticValue>();
@@ -144,17 +144,17 @@ public class Morphium {
         }
 
         database = mongo.getDB(config.getDatabase());
-        if (config.getMongoLogin()!=null) {
-            if (!database.authenticate(config.getMongoLogin(),config.getMongoPassword().toCharArray())) {
+        if (config.getMongoLogin() != null) {
+            if (!database.authenticate(config.getMongoLogin(), config.getMongoPassword().toCharArray())) {
                 throw new RuntimeException("Authentication failed!");
             }
         }
         int cnt = database.getCollection("system.indexes").find().count(); //test connection
 
-        if (config.getConfigManager()==null) {
+        if (config.getConfigManager() == null) {
             config.setConfigManager(new ConfigManager(this));
         }
-        cacheHousekeeper = new CacheHousekeeper(this,5000, config.getGlobalCacheValidTime());
+        cacheHousekeeper = new CacheHousekeeper(this, 5000, config.getGlobalCacheValidTime());
         cacheHousekeeper.start();
 
 
@@ -180,7 +180,6 @@ public class Morphium {
     }
 
 
-
     public ConfigManager getConfigManager() {
         return config.getConfigManager();
     }
@@ -189,25 +188,26 @@ public class Morphium {
      * search for objects similar to template concerning all given fields.
      * If no fields are specified, all NON Null-Fields are taken into account
      * if specified, field might also be null
+     *
      * @param template
      * @param fields
      * @param <T>
      * @return
      */
     public <T> List<T> findByTemplate(T template, String... fields) {
-        Class cls=template.getClass();
-        List<String> flds=new ArrayList<String>();
-        if (fields.length>0) {
+        Class cls = template.getClass();
+        List<String> flds = new ArrayList<String>();
+        if (fields.length > 0) {
             flds.addAll(Arrays.asList(fields));
         } else {
-            flds=getFields(cls);
+            flds = getFields(cls);
         }
-        Query<T> q=createQueryFor(cls);
-        for (String f:flds) {
+        Query<T> q = createQueryFor(cls);
+        for (String f : flds) {
             try {
-                q.f(f).eq(getValue(template,f));
+                q.f(f).eq(getValue(template, f));
             } catch (IllegalAccessException e) {
-                logger.error("Could not read field "+f+" of object "+cls.getName());
+                logger.error("Could not read field " + f + " of object " + cls.getName());
             }
         }
         return q.asList();
@@ -217,31 +217,32 @@ public class Morphium {
      * Un-setting a value in an existing mongo collection entry - no reading necessary. Object is altered in place
      * db.collection.update({"_id":toSet.id},{$unset:{field:1}}
      * <b>attention</b>: this alteres the given object toSet in a similar way
+     *
      * @param toSet: object to set the value in (or better - the corresponding entry in mongo)
      * @param field: field to remove from document
      */
     public void unset(Object toSet, String field) {
-        if (toSet==null) throw new RuntimeException("Cannot update null!");
-        if (getId(toSet)==null) {
+        if (toSet == null) throw new RuntimeException("Cannot update null!");
+        if (getId(toSet) == null) {
             logger.info("just storing object as it is new...");
             store(toSet);
         }
-        Class cls=toSet.getClass();
-        String coll=config.getMapper().getCollectionName(cls);
-        BasicDBObject query=new BasicDBObject();
-        query.put("_id",getId(toSet));
-        Field f=getField(cls, field);
-        if (f==null) {
-            throw new RuntimeException("Unknown field: "+field);
+        Class cls = toSet.getClass();
+        String coll = config.getMapper().getCollectionName(cls);
+        BasicDBObject query = new BasicDBObject();
+        query.put("_id", getId(toSet));
+        Field f = getField(cls, field);
+        if (f == null) {
+            throw new RuntimeException("Unknown field: " + field);
         }
-        String fieldName=getFieldName(cls,field);
+        String fieldName = getFieldName(cls, field);
 
-        BasicDBObject update=new BasicDBObject("$unset",new BasicDBObject(fieldName,1));
-        database.getCollection(coll).update(query,update);
+        BasicDBObject update = new BasicDBObject("$unset", new BasicDBObject(fieldName, 1));
+        database.getCollection(coll).update(query, update);
 
         clearCacheIfNecessary(cls);
         try {
-            f.set(toSet,null);
+            f.set(toSet, null);
         } catch (IllegalAccessException e) {
             //May happen, if null is not allowed for example
         }
@@ -250,7 +251,7 @@ public class Morphium {
 
     private void clearCacheIfNecessary(Class cls) {
         if (cls.isAnnotationPresent(Cache.class)) {
-            Cache c= (Cache) cls.getAnnotation(Cache.class);
+            Cache c = (Cache) cls.getAnnotation(Cache.class);
             if (c.clearOnWrite()) {
                 clearCachefor(cls);
             }
@@ -258,14 +259,14 @@ public class Morphium {
     }
 
     private DBObject simplifyQueryObject(DBObject q) {
-        if (q.keySet().size()==1 && q.get("$and")!=null) {
-            BasicDBObject ret=new BasicDBObject();
-            BasicDBList lst=(BasicDBList)q.get("$and");
-            for (Object o:lst) {
+        if (q.keySet().size() == 1 && q.get("$and") != null) {
+            BasicDBObject ret = new BasicDBObject();
+            BasicDBList lst = (BasicDBList) q.get("$and");
+            for (Object o : lst) {
                 if (o instanceof DBObject) {
-                    ret.putAll(((DBObject)o));
+                    ret.putAll(((DBObject) o));
                 } else if (o instanceof Map) {
-                    ret.putAll(((Map)o));
+                    ret.putAll(((Map) o));
                 } else {
                     //something we cannot handle
                     return q;
@@ -276,8 +277,8 @@ public class Morphium {
         return q;
     }
 
-    public void set(Class<?> cls,Query<?> query, String field,Object val) {
-        set(cls,query,field,val,false,false);
+    public void set(Class<?> cls, Query<?> query, String field, Object val) {
+        set(cls, query, field, val, false, false);
     }
 
 
@@ -286,106 +287,110 @@ public class Morphium {
      * if query is too complex, upsert might not work!
      * Upsert should consist of single and-queries, which will be used to generate the object to create, unless
      * it already exists. look at Mongodb-query documentation as well
-     * @param cls - class or corresponding collection to take a look at
-     * @param query - query to specify which objects should be set
-     * @param values - map fieldName->Value, which values are to be set!
+     *
+     * @param cls              - class or corresponding collection to take a look at
+     * @param query            - query to specify which objects should be set
+     * @param values           - map fieldName->Value, which values are to be set!
      * @param insertIfNotExist - insert, if it does not exist (query needs to be simple!)
-     * @param multiple - update several documents, if false, only first hit will be updated
+     * @param multiple         - update several documents, if false, only first hit will be updated
      */
-    public void set(Class<?> cls,Query<?> query, Map<String,Object> values, boolean insertIfNotExist, boolean multiple) {
-        String coll=config.getMapper().getCollectionName(cls);
-        BasicDBObject toSet=new BasicDBObject();
-        for (String f:values.keySet()) {
-            String fieldName=getFieldName(cls,f);
-            toSet.put(fieldName,values.get(f));
+    public void set(Class<?> cls, Query<?> query, Map<String, Object> values, boolean insertIfNotExist, boolean multiple) {
+        String coll = config.getMapper().getCollectionName(cls);
+        BasicDBObject toSet = new BasicDBObject();
+        for (String f : values.keySet()) {
+            String fieldName = getFieldName(cls, f);
+            toSet.put(fieldName, values.get(f));
         }
-        DBObject qobj=query.toQueryObject();
+        DBObject qobj = query.toQueryObject();
         if (insertIfNotExist) {
-            qobj=simplifyQueryObject(qobj);
+            qobj = simplifyQueryObject(qobj);
         }
-        BasicDBObject update=new BasicDBObject("$set",toSet);
-        database.getCollection(coll).update(qobj,update,insertIfNotExist,multiple);
+        BasicDBObject update = new BasicDBObject("$set", toSet);
+        database.getCollection(coll).update(qobj, update, insertIfNotExist, multiple);
         clearCacheIfNecessary(cls);
     }
+
     /**
      * will change an entry in mongodb-collection corresponding to given class object
      * if query is too complex, upsert might not work!
      * Upsert should consist of single and-queries, which will be used to generate the object to create, unless
      * it already exists. look at Mongodb-query documentation as well
-     * @param cls - class or corresponding collection to take a look at
-     * @param query - query to specify which objects should be set
-     * @param field - field to set
-     * @param val - value to set
+     *
+     * @param cls              - class or corresponding collection to take a look at
+     * @param query            - query to specify which objects should be set
+     * @param field            - field to set
+     * @param val              - value to set
      * @param insertIfNotExist - insert, if it does not exist (query needs to be simple!)
-     * @param multiple - update several documents, if false, only first hit will be updated
+     * @param multiple         - update several documents, if false, only first hit will be updated
      */
-    public void set(Class<?> cls,Query<?> query, String field,Object val, boolean insertIfNotExist, boolean multiple) {
-        String coll=config.getMapper().getCollectionName(cls);
-        String fieldName=getFieldName(cls,field);
-        BasicDBObject update=new BasicDBObject("$set",new BasicDBObject(fieldName,val));
-        DBObject qobj=query.toQueryObject();
+    public void set(Class<?> cls, Query<?> query, String field, Object val, boolean insertIfNotExist, boolean multiple) {
+        String coll = config.getMapper().getCollectionName(cls);
+        String fieldName = getFieldName(cls, field);
+        BasicDBObject update = new BasicDBObject("$set", new BasicDBObject(fieldName, val));
+        DBObject qobj = query.toQueryObject();
         if (insertIfNotExist) {
-            qobj=simplifyQueryObject(qobj);
+            qobj = simplifyQueryObject(qobj);
         }
-        database.getCollection(coll).update(qobj,update,insertIfNotExist,multiple);
+        database.getCollection(coll).update(qobj, update, insertIfNotExist, multiple);
         clearCacheIfNecessary(cls);
     }
 
-    public void dec(Class<?> cls,Query<?> query, String field,int amount, boolean insertIfNotExist, boolean multiple) {
-        inc(cls,query,field,-amount,insertIfNotExist,multiple);
-    }
-    public void dec(Class<?> cls,Query<?> query, String field,int amount) {
-        inc(cls,query,field,-amount,false,false);
+    public void dec(Class<?> cls, Query<?> query, String field, int amount, boolean insertIfNotExist, boolean multiple) {
+        inc(cls, query, field, -amount, insertIfNotExist, multiple);
     }
 
-    public void inc(Class<?> cls,Query<?> query, String field,int amount) {
-        inc(cls,query,field,amount,false,false);
+    public void dec(Class<?> cls, Query<?> query, String field, int amount) {
+        inc(cls, query, field, -amount, false, false);
     }
 
-    public void inc(Class<?> cls,Query<?> query, String field,int amount, boolean insertIfNotExist, boolean multiple) {
-        String coll=config.getMapper().getCollectionName(cls);
-        String fieldName=getFieldName(cls,field);
-        BasicDBObject update=new BasicDBObject("$inc",new BasicDBObject(fieldName,amount));
-        DBObject qobj=query.toQueryObject();
+    public void inc(Class<?> cls, Query<?> query, String field, int amount) {
+        inc(cls, query, field, amount, false, false);
+    }
+
+    public void inc(Class<?> cls, Query<?> query, String field, int amount, boolean insertIfNotExist, boolean multiple) {
+        String coll = config.getMapper().getCollectionName(cls);
+        String fieldName = getFieldName(cls, field);
+        BasicDBObject update = new BasicDBObject("$inc", new BasicDBObject(fieldName, amount));
+        DBObject qobj = query.toQueryObject();
         if (insertIfNotExist) {
-            qobj=simplifyQueryObject(qobj);
+            qobj = simplifyQueryObject(qobj);
         }
-        database.getCollection(coll).update(qobj,update,insertIfNotExist,multiple);
+        database.getCollection(coll).update(qobj, update, insertIfNotExist, multiple);
         clearCacheIfNecessary(cls);
     }
-
 
 
     /**
      * setting a value in an existing mongo collection entry - no reading necessary. Object is altered in place
      * db.collection.update({"_id":toSet.id},{$set:{field:value}}
      * <b>attention</b>: this alteres the given object toSet in a similar way
+     *
      * @param toSet: object to set the value in (or better - the corresponding entry in mongo)
      * @param field: the field to change
      * @param value: the value to set
      */
     public void set(Object toSet, String field, Object value) {
-        if (toSet==null) throw new RuntimeException("Cannot update null!");
-        if (getId(toSet)==null) {
+        if (toSet == null) throw new RuntimeException("Cannot update null!");
+        if (getId(toSet) == null) {
             logger.info("just storing object as it is new...");
             storeNoCache(toSet);
         }
-        Class cls=toSet.getClass();
-        String coll=config.getMapper().getCollectionName(cls);
-        BasicDBObject query=new BasicDBObject();
-        query.put("_id",getId(toSet));
-        Field f=getField(cls, field);
-        if (f==null) {
-            throw new RuntimeException("Unknown field: "+field);
+        Class cls = toSet.getClass();
+        String coll = config.getMapper().getCollectionName(cls);
+        BasicDBObject query = new BasicDBObject();
+        query.put("_id", getId(toSet));
+        Field f = getField(cls, field);
+        if (f == null) {
+            throw new RuntimeException("Unknown field: " + field);
         }
-        String fieldName=getFieldName(cls,field);
+        String fieldName = getFieldName(cls, field);
 
-        BasicDBObject update=new BasicDBObject("$set",new BasicDBObject(fieldName,value));
-        database.getCollection(coll).update(query,update);
+        BasicDBObject update = new BasicDBObject("$set", new BasicDBObject(fieldName, value));
+        database.getCollection(coll).update(query, update);
 
         clearCacheIfNecessary(cls);
         try {
-            f.set(toSet,value);
+            f.set(toSet, value);
         } catch (IllegalAccessException e) {
             throw new RuntimeException(e);
         }
@@ -397,65 +402,66 @@ public class Morphium {
      * calles <code>inc(toDec,field,-amount);</code>
      */
     public void dec(Object toDec, String field, int amount) {
-        inc(toDec,field,-amount);
+        inc(toDec, field, -amount);
     }
 
     /**
      * Increases a value in an existing mongo collection entry - no reading necessary. Object is altered in place
      * db.collection.update({"_id":toInc.id},{$inc:{field:amount}}
      * <b>attention</b>: this alteres the given object toSet in a similar way
-     * @param toInc: object to set the value in (or better - the corresponding entry in mongo)
-     * @param field: the field to change
+     *
+     * @param toInc:  object to set the value in (or better - the corresponding entry in mongo)
+     * @param field:  the field to change
      * @param amount: the value to set
      */
     public void inc(Object toInc, String field, int amount) {
-        if (toInc==null) throw new RuntimeException("Cannot update null!");
-        if (getId(toInc)==null) {
+        if (toInc == null) throw new RuntimeException("Cannot update null!");
+        if (getId(toInc) == null) {
             logger.info("just storing object as it is new...");
             storeNoCache(toInc);
         }
-        Class cls=toInc.getClass();
-        String coll=config.getMapper().getCollectionName(cls);
-        BasicDBObject query=new BasicDBObject();
-        query.put("_id",getId(toInc));
-        Field f=getField(cls, field);
-        if (f==null) {
-            throw new RuntimeException("Unknown field: "+field);
+        Class cls = toInc.getClass();
+        String coll = config.getMapper().getCollectionName(cls);
+        BasicDBObject query = new BasicDBObject();
+        query.put("_id", getId(toInc));
+        Field f = getField(cls, field);
+        if (f == null) {
+            throw new RuntimeException("Unknown field: " + field);
         }
-        String fieldName=getFieldName(cls,field);
+        String fieldName = getFieldName(cls, field);
 
-        BasicDBObject update=new BasicDBObject("$inc",new BasicDBObject(fieldName,amount));
-        database.getCollection(coll).update(query,update);
+        BasicDBObject update = new BasicDBObject("$inc", new BasicDBObject(fieldName, amount));
+        database.getCollection(coll).update(query, update);
 
         clearCacheIfNecessary(cls);
 
         //TODO: check inf necessary
         if (f.getType().equals(Integer.class) || f.getType().equals(int.class)) {
             try {
-                f.set(toInc,((Integer)f.get(toInc))+(int)amount);
+                f.set(toInc, ((Integer) f.get(toInc)) + (int) amount);
             } catch (IllegalAccessException e) {
                 throw new RuntimeException(e);
             }
-        } else if (f.getType().equals(Double.class)|| f.getType().equals(double.class)) {
+        } else if (f.getType().equals(Double.class) || f.getType().equals(double.class)) {
             try {
-                f.set(toInc,((Double)f.get(toInc))+amount);
+                f.set(toInc, ((Double) f.get(toInc)) + amount);
             } catch (IllegalAccessException e) {
                 throw new RuntimeException(e);
             }
-        } else if (f.getType().equals(Float.class)| f.getType().equals(float.class)) {
+        } else if (f.getType().equals(Float.class) | f.getType().equals(float.class)) {
             try {
-                f.set(toInc,((Float)f.get(toInc))+(float)amount);
+                f.set(toInc, ((Float) f.get(toInc)) + (float) amount);
             } catch (IllegalAccessException e) {
                 throw new RuntimeException(e);
             }
         } else if (f.getType().equals(Long.class) || f.getType().equals(long.class)) {
             try {
-                f.set(toInc,((Long)f.get(toInc))+(long)amount);
+                f.set(toInc, ((Long) f.get(toInc)) + (long) amount);
             } catch (IllegalAccessException e) {
                 throw new RuntimeException(e);
             }
         } else {
-            logger.error("Could not set increased value - unsupported type "+cls.getName());
+            logger.error("Could not set increased value - unsupported type " + cls.getName());
         }
 
 
@@ -494,7 +500,6 @@ public class Morphium {
     }
 
 
-
     protected void inc(StatisticKeys k) {
         stats.get(k).inc();
     }
@@ -505,52 +510,57 @@ public class Morphium {
     }
 
 
-
     public int writeBufferCount() {
         return writers.getQueue().size();
     }
 
+
+    public String getCacheKey(DBObject qo, Map<String, Integer> sort, int skip, int limit) {
+        StringBuffer b = new StringBuffer();
+        b.append(qo.toString());
+        b.append(" l:");
+        b.append(limit);
+        b.append(" s:");
+        b.append(skip);
+        if (sort != null) {
+            b.append(" sort:");
+            b.append(new BasicDBObject(sort).toString());
+        }
+        return b.toString();
+    }
+
     /**
      * create unique cache key for queries, also honoring skip & limit and sorting
+     *
      * @param q
      * @return
      */
     public String getCacheKey(Query q) {
-        StringBuffer b = new StringBuffer();
-        b.append(q.toQueryObject().toString());
-        b.append(" l:");
-        b.append(q.getLimit());
-        b.append(" s:");
-        b.append(q.getSkip());
-        if (q.getOrder() != null) {
-            b.append(" sort:");
-            b.append(new BasicDBObject(q.getOrder()).toString());
-        }
-        return b.toString();
+        return getCacheKey(q.toQueryObject(), q.getOrder(), q.getSkip(), q.getLimit());
     }
 
 
     private void storeNoCacheUsingFields(Object ent, String... fields) {
         ObjectId id = getId(ent);
-        if (ent==null) return;
-        if (id==null) {
+        if (ent == null) return;
+        if (id == null) {
             //new object - update not working
             logger.warn("trying to partially update new object - storing it in full!");
             storeNoCache(ent);
             return;
         }
-        Class<?> type=ent.getClass();
+        Class<?> type = ent.getClass();
         firePreStoreEvent(ent);
         inc(StatisticKeys.WRITES);
-        DBObject find=new BasicDBObject();
+        DBObject find = new BasicDBObject();
 
         find.put("_id", id);
-        DBObject update=new BasicDBObject();
-        for (String f:fields) {
+        DBObject update = new BasicDBObject();
+        for (String f : fields) {
             try {
                 Object value = getValue(ent, f);
                 if (value.getClass().isAnnotationPresent(Entity.class)) {
-                    value=config.getMapper().marshall(value);
+                    value = config.getMapper().marshall(value);
                 }
                 update.put(f, value);
 
@@ -588,20 +598,21 @@ public class Morphium {
         }
 
 
-        update=new BasicDBObject("$set",update);
-        database.getCollection(config.getMapper().getCollectionName(ent.getClass())).findAndModify(find,update);
+        update = new BasicDBObject("$set", update);
+        database.getCollection(config.getMapper().getCollectionName(ent.getClass())).findAndModify(find, update);
         firePostStoreEvent(ent);
     }
 
     /**
      * updating an enty in DB without sending the whole entity
      * only transfers the fields to be changed / set
+     *
      * @param ent
      * @param fields
      */
-    public void updateUsingFields(final Object ent,final String... fields) {
-        if (ent==null) return;
-        if (fields.length==0) return; //not doing an update - no change
+    public void updateUsingFields(final Object ent, final String... fields) {
+        if (ent == null) return;
+        if (fields.length == 0) return; //not doing an update - no change
         if (!ent.getClass().isAnnotationPresent(NoProtection.class)) {
             if (getId(ent) == null) {
                 if (accessDenied(ent, Permission.INSERT)) {
@@ -782,7 +793,7 @@ public class Morphium {
         }
 
         ObjectId id = config.getMapper().getId(o);
-        if (o instanceof PartiallyUpdateable && id!=null) {
+        if (o instanceof PartiallyUpdateable && id != null) {
             updateUsingFields(o, ((PartiallyUpdateable) o).getAlteredFields().toArray(new String[((PartiallyUpdateable) o).getAlteredFields().size()]));
             return;
         }
@@ -790,7 +801,7 @@ public class Morphium {
         firePreStoreEvent(o);
 
         DBObject marshall = config.getMapper().marshall(o);
-        boolean isNew=id==null;
+        boolean isNew = id == null;
 
         if (isNew) {
 
@@ -949,7 +960,7 @@ public class Morphium {
     }
 
     public <T> Query<T> createQueryFor(Class<T> type) {
-        return new QueryImpl<T>(this,type, config.getMapper());
+        return new QueryImpl<T>(this, type, config.getMapper());
     }
 
     public <T> List<T> find(Query<T> q) {
@@ -978,7 +989,6 @@ public class Morphium {
 //    }
 
 
-
     @SuppressWarnings("unchecked")
     public <T> List<T> findByField(Class<T> cls, String fld, Object val) {
         Query<T> q = createQueryFor(cls);
@@ -986,7 +996,6 @@ public class Morphium {
         return q.asList();
 //        return createQueryFor(cls).field(fld).equal(val).asList();
     }
-
 
 
     /**
@@ -1039,8 +1048,8 @@ public class Morphium {
         return null;
     }
 
-    private String getFieldName(Class cls,String fld) {
-        return config.getMapper().getFieldName(cls,fld);
+    private String getFieldName(Class cls, String fld) {
+        return config.getMapper().getFieldName(cls, fld);
     }
 
     /**
@@ -1124,7 +1133,7 @@ public class Morphium {
         if (!o.getClass().isAnnotationPresent(Entity.class)) {
             throw new RuntimeException("No Entitiy");
         }
-        List<Field> fieldList=config.getMapper().getAllFields(o.getClass());
+        List<Field> fieldList = config.getMapper().getAllFields(o.getClass());
         for (Field f : fieldList) {
             if (f.isAnnotationPresent(Id.class)) {
                 try {
@@ -1396,13 +1405,15 @@ public class Morphium {
     public void addShutdownListener(ShutdownListener l) {
         shutDownListeners.add(l);
     }
+
     public void removeShutdownListener(ShutdownListener l) {
         shutDownListeners.remove(l);
     }
+
     public void close() {
         cacheHousekeeper.end();
 
-        for (ShutdownListener l:shutDownListeners) {
+        for (ShutdownListener l : shutDownListeners) {
             l.onShutdown(this);
         }
         try {
@@ -1421,7 +1432,6 @@ public class Morphium {
     }
 
 
-
     public String createCamelCase(String n) {
         return config.getMapper().createCamelCase(n, false);
     }
@@ -1437,7 +1447,7 @@ public class Morphium {
      * @return
      */
     public <T> T createPartiallyUpdateableEntity(T o) {
-       return  (T) Enhancer.create(o.getClass(),new Class[]{PartiallyUpdateable.class},new PartiallyUpdateableInvocationHandler());
+        return (T) Enhancer.create(o.getClass(), new Class[]{PartiallyUpdateable.class}, new PartiallyUpdateableInvocationHandler());
     }
 
     protected <T> MongoField<T> createMongoField() {
@@ -1455,11 +1465,11 @@ public class Morphium {
     /**
      * CGLib Interceptor to create a transparent Proxy for partially updateable Entities
      */
-    private class PartiallyUpdateableInvocationHandler implements MethodInterceptor,PartiallyUpdateable {
+    private class PartiallyUpdateableInvocationHandler implements MethodInterceptor, PartiallyUpdateable {
         private List<String> updateableFields;
 
         public PartiallyUpdateableInvocationHandler() {
-            updateableFields=new Vector<String>();
+            updateableFields = new Vector<String>();
         }
 
 
@@ -1472,9 +1482,9 @@ public class Morphium {
         public Object intercept(Object o, Method method, Object[] objects, MethodProxy methodProxy) throws Throwable {
             if (method.getName().startsWith("set")) {
                 if (method.isAnnotationPresent(UpdatingField.class)) {
-                    UpdatingField up=method.getAnnotation(UpdatingField.class);
+                    UpdatingField up = method.getAnnotation(UpdatingField.class);
                     if (!getFields(o.getClass()).contains(up.value())) {
-                        throw new IllegalArgumentException("Field "+up.value()+" is not known to Type "+o.getClass().getName());
+                        throw new IllegalArgumentException("Field " + up.value() + " is not known to Type " + o.getClass().getName());
                     }
                     updateableFields.add(up.value());
                 } else {

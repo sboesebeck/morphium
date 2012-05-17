@@ -1,9 +1,6 @@
 package de.caluga.morphium;
 
-import com.mongodb.BasicDBList;
-import com.mongodb.BasicDBObject;
-import com.mongodb.DBCursor;
-import com.mongodb.DBObject;
+import com.mongodb.*;
 import de.caluga.morphium.annotations.Id;
 import de.caluga.morphium.annotations.StoreLastAccess;
 import de.caluga.morphium.secure.Permission;
@@ -24,7 +21,6 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
     private ObjectMapper mapper;
     private List<FilterExpression> andExpr;
     private List<Query<T>> orQueries;
-    private Query<T> notQuery;
     private List<Query<T>> norQueries;
 
     private int limit = 0, skip = 0;
@@ -57,6 +53,79 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
     @Override
     public Query<T> q() {
         return new QueryImpl<T>(morphium, type, mapper);
+    }
+
+    public List<T> complexQuery(DBObject query) {
+        return complexQuery(query, (String) null, 0, 0);
+    }
+
+    @Override
+    public List<T> complexQuery(DBObject query, String sort, int skip, int limit) {
+        Map<String, Integer> srt = new HashMap<String, Integer>();
+        if (sort != null) {
+            String[] tok = sort.split(",");
+            for (String t : tok) {
+                if (t.startsWith("-")) {
+                    srt.put(t.substring(1), -1);
+                } else if (t.startsWith("+")) {
+                    srt.put(t.substring(1), 1);
+                } else {
+                    srt.put(t, 1);
+                }
+            }
+        }
+        return complexQuery(query, srt, skip, limit);
+    }
+
+    @Override
+    public List<T> complexQuery(DBObject query, Map<String, Integer> sort, int skip, int limit) {
+        if (morphium.accessDenied(type, Permission.READ)) {
+            throw new RuntimeException("Access denied!");
+        }
+
+        String ck = morphium.getCacheKey(query, sort, skip, limit);
+        if (morphium.isCached(type, ck)) {
+            return morphium.getFromCache(type, ck);
+        }
+
+        DBCollection c = morphium.getDatabase().getCollection(morphium.getConfig().getMapper().getCollectionName(type));
+
+        DBCursor cursor = c.find(query);
+        if (sort != null) {
+            DBObject srt = new BasicDBObject();
+            srt.putAll(sort);
+            cursor.sort(srt);
+        }
+        if (skip > 0) {
+            cursor.skip(skip);
+        }
+        if (limit > 0) {
+            cursor.limit(limit);
+        }
+        List<T> ret = new ArrayList<T>();
+        while (cursor.hasNext()) {
+            ret.add(morphium.getConfig().getMapper().unmarshall(type, cursor.next()));
+        }
+        return ret;
+    }
+
+    @Override
+    public T complexQueryOne(DBObject query) {
+        return complexQueryOne(query, null, 0);
+    }
+
+    @Override
+    public T complexQueryOne(DBObject query, Map<String, Integer> sort, int skip) {
+        List<T> ret = complexQuery(query, sort, skip, 1);
+        if (ret != null && ret.isEmpty()) {
+            return ret.get(0);
+        }
+        return null;
+    }
+
+    @Override
+    public T complexQueryOne(DBObject query, Map<String, Integer> sort) {
+        return complexQueryOne(query, sort, 0);
     }
 
     @Override
@@ -95,6 +164,9 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
         return getClone();
     }
 
+    public MongoField f(Enum f) {
+        return f(f.name());
+    }
 
     @Override
     public MongoField f(String f) {
@@ -130,10 +202,6 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
         return (Query<T>) this;
     }
 
-    @Override
-    public void not(Query<T> q) {
-        notQuery = q;
-    }
 
     @Override
     public void nor(Query<T>... qs) {
@@ -153,13 +221,13 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
     }
 
     @Override
-    public Query<T> order(Map<String, Integer> n) {
+    public Query<T> sort(Map<String, Integer> n) {
         order = n;
         return this;
     }
 
     @Override
-    public Query<T> order(String... prefixedString) {
+    public Query<T> sort(String... prefixedString) {
         Map<String, Integer> m = new HashMap<String, Integer>();
         for (String i : prefixedString) {
             String fld = i;
@@ -173,7 +241,7 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
             }
             m.put(fld, val);
         }
-        return order(m);
+        return sort(m);
     }
 
     @Override
@@ -189,14 +257,15 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
     public DBObject toQueryObject() {
         BasicDBObject o = new BasicDBObject();
         BasicDBList lst = new BasicDBList();
+        boolean onlyAnd = orQueries.isEmpty() && norQueries.isEmpty();
+        if (andExpr.size() == 1 && onlyAnd) {
+            return andExpr.get(0).dbObject();
+        }
+        if (andExpr.size() == 1 && onlyAnd) {
+            return andExpr.get(0).dbObject();
+        }
 
-        if (andExpr.size() == 1 && orQueries.isEmpty()) {
-            return andExpr.get(0).dbObject();
-        }
-        if (andExpr.size() == 1 && orQueries.isEmpty()) {
-            return andExpr.get(0).dbObject();
-        }
-        if (andExpr.isEmpty() && orQueries.isEmpty()) {
+        if (andExpr.isEmpty() && onlyAnd) {
             return o;
         }
 
@@ -206,18 +275,31 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
             }
 
             o.put("$and", lst);
-            lst=new BasicDBList();
+            lst = new BasicDBList();
         }
         if (orQueries.size() != 0) {
             for (Query<T> ex : orQueries) {
                 lst.add(ex.toQueryObject());
             }
-            if (o.get("$and")!=null) {
-                ((BasicDBList)o.get("$and")).add(new BasicDBObject("$or", lst));
+            if (o.get("$and") != null) {
+                ((BasicDBList) o.get("$and")).add(new BasicDBObject("$or", lst));
             } else {
                 o.put("$or", lst);
             }
         }
+
+        if (norQueries.size() != 0) {
+            for (Query<T> ex : norQueries) {
+                lst.add(ex.toQueryObject());
+            }
+            if (o.get("$and") != null) {
+                ((BasicDBList) o.get("$and")).add(new BasicDBObject("$nor", lst));
+            } else {
+                o.put("$nor", lst);
+            }
+        }
+
+
         return o;
     }
 
@@ -384,9 +466,6 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
                 ret.norQueries = new Vector<Query<T>>();
                 ret.norQueries.addAll(norQueries);
             }
-            if (notQuery != null) {
-                ret.notQuery = notQuery.clone();
-            }
             if (order != null) {
                 ret.order = new Hashtable<String, Integer>();
                 ret.order.putAll(order);
@@ -402,4 +481,13 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
         }
     }
 
+    @Override
+    public Query<T> order(Map<String, Integer> n) {
+        return sort(n);
+    }
+
+    @Override
+    public Query<T> order(String... prefixedString) {
+        return sort(prefixedString);
+    }
 }

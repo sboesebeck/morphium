@@ -32,7 +32,7 @@ public class UpdateTest extends MongoTest {
 
         //inc without object - single update, no upsert
         q = MorphiumSingleton.get().createQueryFor(UncachedObject.class);
-        q = q.f("counter").gte(10).f("counter").lte(25).order("counter");
+        q = q.f("counter").gte(10).f("counter").lte(25).sort("counter");
         MorphiumSingleton.get().inc(UncachedObject.class, q, "counter", 100);
 
         uc = q.get();
@@ -70,7 +70,7 @@ public class UpdateTest extends MongoTest {
 
         //inc without object - single update, no upsert
         q = MorphiumSingleton.get().createQueryFor(UncachedObject.class);
-        q = q.f("counter").gte(40).f("counter").lte(55).order("counter");
+        q = q.f("counter").gte(40).f("counter").lte(55).sort("counter");
         MorphiumSingleton.get().dec(UncachedObject.class, q, "counter", 40);
 
         uc = q.get();

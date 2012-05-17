@@ -39,6 +39,15 @@ public interface Query<T> extends Cloneable {
      */
     public MongoField f(String f);
 
+
+    /**
+     * same as f(field.name())
+     *
+     * @param field
+     * @return
+     */
+    public MongoField f(Enum field);
+
     /**
      * concatenate those queries with or
      *
@@ -46,12 +55,6 @@ public interface Query<T> extends Cloneable {
      */
     public void or(Query<T>... q);
 
-    /**
-     * negate the query
-     *
-     * @param q
-     */
-    public void not(Query<T> q);
 
     /**
      * not or
@@ -82,13 +85,33 @@ public interface Query<T> extends Cloneable {
      * @param n
      * @return
      */
-    public Query<T> order(Map<String, Integer> n);
+    public Query<T> sort(Map<String, Integer> n);
 
     /**
      * set order by prefixing field names with - for reverse ordering (+ or nothing default)
      *
      * @param prefixedString
      * @return
+     */
+    public Query<T> sort(String... prefixedString);
+
+    /**
+     * set an order - Key: FieldName (java or Mongo-Name), Value: Integer: -1 reverse, 1 standard
+     * deprectaed, use sort instead (more like the maongodb-commands)... used for backward compatibility.
+     *
+     * @param n
+     * @return
+     * @deprecated
+     */
+    public Query<T> order(Map<String, Integer> n);
+
+    /**
+     * set order by prefixing field names with - for reverse ordering (+ or nothing default)
+     * deprectaed, use sort instead (more like the maongodb-commands)... used for backward compatibility.
+     *
+     * @param prefixedString
+     * @return
+     * @deprecated
      */
     public Query<T> order(String... prefixedString);
 
@@ -177,6 +200,33 @@ public interface Query<T> extends Cloneable {
      * @return
      */
     public Query<T> q();
+
+    public List<T> complexQuery(DBObject query);
+
+    /**
+     * just sends the given query to the MongoDBDriver and masrhalls objects as listed
+     * ignores all other query settings!!!!!
+     *
+     * @param query - query to be sent
+     * @param skip  - amount to skip
+     * @param limit - maximium number of results
+     * @return list of objects matching query
+     */
+    public List<T> complexQuery(DBObject query, Map<String, Integer> sort, int skip, int limit);
+
+    public List<T> complexQuery(DBObject query, String sort, int skip, int limit);
+
+    /**
+     * same as copmplexQuery(query,0,1).get(0);
+     *
+     * @param query
+     * @return
+     */
+    public T complexQueryOne(DBObject query);
+
+    public T complexQueryOne(DBObject query, Map<String, Integer> sort, int skip);
+
+    public T complexQueryOne(DBObject query, Map<String, Integer> sort);
 
     public int getLimit();
 
