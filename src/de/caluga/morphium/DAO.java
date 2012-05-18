@@ -19,12 +19,19 @@ public abstract class DAO<T> {
         return morphium.createQueryFor(type);
     }
 
-    public Object getValue(String field, T object) throws IllegalAccessException {
-        return morphium.getConfig().getMapper().getField(type, field).get(object);
+    public Object getValue(Enum field) throws IllegalAccessException {
+        return getValue(field.name());
+    }
+    public Object getValue(String field) throws IllegalAccessException {
+        return morphium.getConfig().getMapper().getField(type, field).get(this);
     }
 
-    public void setValue(String field, T object, Object value) throws IllegalAccessException {
-        morphium.getConfig().getMapper().getField(type, field).set(object, value);
+    public void setValue(Enum field, Object value) throws  IllegalAccessException {
+        setValue(field.name(),value);
+    }
+
+    public void setValue(String field, Object value) throws IllegalAccessException {
+        morphium.getConfig().getMapper().getField(type, field).set(this, value);
     }
 
     public boolean existsField(String field) {
