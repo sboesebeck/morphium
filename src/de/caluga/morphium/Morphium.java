@@ -1270,10 +1270,17 @@ public class Morphium {
                     }
                 }
             }
-            if (o.getClass().getAnnotation(NoCache.class) != null) {
-                storeDirect.add(o);
+
+            if (o.getClass().isAnnotationPresent(Cache.class)) {
+                Cache c=o.getClass().getAnnotation(Cache.class);
+                if (c.writeCache()) {
+                    storeInBg.add(o);
+                } else {
+                    storeDirect.add(o);
+                }
             } else {
-                storeInBg.add(o);
+                storeDirect.add(o);
+
             }
         }
 
