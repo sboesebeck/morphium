@@ -4,3 +4,5 @@ target/
 .idea/
 *.iml
 dist/
+
+upload_to_google.sh

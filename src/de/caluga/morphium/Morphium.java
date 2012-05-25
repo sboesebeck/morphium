@@ -213,6 +213,9 @@ public class Morphium {
         return q.asList();
     }
 
+    public void unset(Object toSet,Enum field) {
+        unset(toSet,field.name());
+    }
     /**
      * Un-setting a value in an existing mongo collection entry - no reading necessary. Object is altered in place
      * db.collection.update({"_id":toSet.id},{$unset:{field:1}}
@@ -277,6 +280,9 @@ public class Morphium {
         return q;
     }
 
+    public void set(Class<?> cls, Query<?> query, Enum field, Object val) {
+        set(cls,query,field.name(),val);
+    }
     public void set(Class<?> cls, Query<?> query, String field, Object val) {
         set(cls, query, field, val, false, false);
     }
@@ -335,6 +341,10 @@ public class Morphium {
         clearCacheIfNecessary(cls);
     }
 
+    public void dec(Class<?> cls, Query<?> query, Enum field, int amount, boolean insertIfNotExist, boolean multiple) {
+        dec(cls,query,field.name(),amount,insertIfNotExist,multiple);
+    }
+
     public void dec(Class<?> cls, Query<?> query, String field, int amount, boolean insertIfNotExist, boolean multiple) {
         inc(cls, query, field, -amount, insertIfNotExist, multiple);
     }
@@ -342,11 +352,21 @@ public class Morphium {
     public void dec(Class<?> cls, Query<?> query, String field, int amount) {
         inc(cls, query, field, -amount, false, false);
     }
+    public void dec(Class<?> cls, Query<?> query, Enum field, int amount) {
+        inc(cls, query, field, -amount, false, false);
+    }
 
     public void inc(Class<?> cls, Query<?> query, String field, int amount) {
         inc(cls, query, field, amount, false, false);
     }
 
+    public void inc(Class<?> cls, Query<?> query, Enum field, int amount) {
+        inc(cls, query, field, amount, false, false);
+    }
+
+    public void inc(Class<?> cls, Query<?> query, Enum field, int amount, boolean insertIfNotExist, boolean multiple) {
+        inc(cls,query,field.name(),amount,insertIfNotExist,multiple);
+    }
     public void inc(Class<?> cls, Query<?> query, String field, int amount, boolean insertIfNotExist, boolean multiple) {
         String coll = config.getMapper().getCollectionName(cls);
         String fieldName = getFieldName(cls, field);
