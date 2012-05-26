@@ -5,5 +5,3 @@ target/
 *.iml
 dist/
 
-upload_to_google.sh
-uploadToGoogle.sh
