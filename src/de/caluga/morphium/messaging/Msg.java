@@ -168,7 +168,7 @@ public class Msg {
         this.additional = additional;
     }
 
-    public Object getValue() {
+    public String getValue() {
         return value;
     }
 

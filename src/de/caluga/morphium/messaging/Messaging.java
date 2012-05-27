@@ -24,6 +24,7 @@ public class Messaging extends Thread {
     private boolean processMultiple = false;
 
     private List<MessageListener> listeners;
+    private Map<String, List<MessageListener>> listenerByName;
 
 
     public Messaging(Morphium m, int pause, boolean processMultiple) {
@@ -37,6 +38,7 @@ public class Messaging extends Thread {
         m.ensureIndex(Msg.class, Msg.Fields.timestamp);
 
         listeners = new Vector<MessageListener>();
+        listenerByName = new Hashtable<String, List<MessageListener>>();
         start();
     }
 
@@ -85,6 +87,13 @@ public class Messaging extends Thread {
                 for (MessageListener l : listeners) {
                     l.onMessage(msg);
                 }
+
+                if (listenerByName.get(msg.getName()) != null) {
+                    for (MessageListener l : listenerByName.get(msg.getName())) {
+                        l.onMessage(msg);
+                    }
+                }
+
                 if (msg.getType().equals(MsgType.SINGLE)) {
                     //removing it
                     morphium.deleteObject(msg);
@@ -103,11 +112,25 @@ public class Messaging extends Thread {
         }
     }
 
-    public String getMessagingId() {
+    public void addListenerForMessageNamed(String n, MessageListener l) {
+        if (listenerByName.get(n) == null) {
+            listenerByName.put(n, new ArrayList<MessageListener>());
+        }
+        listenerByName.get(n).add(l);
+    }
+
+    public void removeListenerForMessageNamed(String n, MessageListener l) {
+        if (listenerByName.get(n) == null) {
+            return;
+        }
+        listenerByName.get(n).remove(l);
+    }
+
+    public String getSenderId() {
         return id;
     }
 
-    public void setMessagingId(String id) {
+    public void setSenderId(String id) {
         this.id = id;
     }
 

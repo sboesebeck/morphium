@@ -21,6 +21,9 @@ import java.util.UUID;
 public class MessagingTest extends MongoTest {
     public boolean gotMessage = false;
 
+    public boolean gotMessage1 = false;
+    public boolean gotMessage2 = false;
+
     @Test
     public void testMsgLifecycle() throws Exception {
         Msg m = new Msg();
@@ -114,4 +117,40 @@ public class MessagingTest extends MongoTest {
         assert (MorphiumSingleton.get().readAll(Msg.class).size() == 0) : "Still messages left?!?!?";
 
     }
+
+
+    @Test
+    public void systemTest() throws Exception {
+
+        final Messaging m1 = new Messaging(MorphiumSingleton.get(), 500, true);
+        final Messaging m2 = new Messaging(MorphiumSingleton.get(), 500, true);
+        m1.addMessageListener(new MessageListener() {
+            @Override
+            public void onMessage(Msg m) {
+                gotMessage1 = true;
+                log.info("M1 got message " + m.toString());
+                assert (m.getSender().equals(m2.getSenderId())) : "Sender is not M2?!?!? m2_id: " + m2.getSenderId() + " - message sender: " + m.getSender();
+            }
+        });
+
+        m2.addMessageListener(new MessageListener() {
+            @Override
+            public void onMessage(Msg m) {
+                gotMessage2 = true;
+                log.info("M2 got message " + m.toString());
+                assert (m.getSender().equals(m1.getSenderId())) : "Sender is not M1?!?!? m1_id: " + m1.getSenderId() + " - message sender: " + m.getSender();
+            }
+        });
+
+        m1.queueMessage(new Msg("testmsg1", "The message from M1", "Value"));
+        Thread.sleep(1000);
+        assert (gotMessage2) : "Message not recieved yet?!?!?";
+        gotMessage2 = false;
+
+        m2.queueMessage(new Msg("testmsg2", "The message from M2", "Value"));
+        Thread.sleep(1000);
+        assert (gotMessage1) : "Message not recieved yet?!?!?";
+        gotMessage1 = false;
+    }
+
 }
