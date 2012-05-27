@@ -245,6 +245,16 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
     }
 
     @Override
+    public Query<T> sort(Enum... naturalOrder) {
+        Map<String, Integer> m = new HashMap<String, Integer>();
+        for (Enum i : naturalOrder) {
+            String fld = i.name();
+            m.put(fld, 1);
+        }
+        return sort(m);
+    }
+
+    @Override
     public long countAll() {
         if (morphium.accessDenied(type, Permission.READ)) {
             throw new RuntimeException("Access denied!");
@@ -257,7 +267,10 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
     public DBObject toQueryObject() {
         BasicDBObject o = new BasicDBObject();
         BasicDBList lst = new BasicDBList();
-        boolean onlyAnd = orQueries.isEmpty() && norQueries.isEmpty();
+        boolean onlyAnd = orQueries.isEmpty() && norQueries.isEmpty() && where == null;
+        if (where != null) {
+            o.put("$where", where);
+        }
         if (andExpr.size() == 1 && onlyAnd) {
             return andExpr.get(0).dbObject();
         }

@@ -213,9 +213,10 @@ public class Morphium {
         return q.asList();
     }
 
-    public void unset(Object toSet,Enum field) {
-        unset(toSet,field.name());
+    public void unset(Object toSet, Enum field) {
+        unset(toSet, field.name());
     }
+
     /**
      * Un-setting a value in an existing mongo collection entry - no reading necessary. Object is altered in place
      * db.collection.update({"_id":toSet.id},{$unset:{field:1}}
@@ -241,7 +242,12 @@ public class Morphium {
         String fieldName = getFieldName(cls, field);
 
         BasicDBObject update = new BasicDBObject("$unset", new BasicDBObject(fieldName, 1));
-        database.getCollection(coll).update(query, update);
+        WriteConcern wc = getWriteConcernForClass(toSet.getClass());
+        if (wc == null) {
+            database.getCollection(coll).update(query, update);
+        } else {
+            database.getCollection(coll).update(query, update, false, false, wc);
+        }
 
         clearCacheIfNecessary(cls);
         try {
@@ -281,8 +287,9 @@ public class Morphium {
     }
 
     public void set(Class<?> cls, Query<?> query, Enum field, Object val) {
-        set(cls,query,field.name(),val);
+        set(cls, query, field.name(), val);
     }
+
     public void set(Class<?> cls, Query<?> query, String field, Object val) {
         set(cls, query, field, val, false, false);
     }
@@ -312,7 +319,12 @@ public class Morphium {
             qobj = simplifyQueryObject(qobj);
         }
         BasicDBObject update = new BasicDBObject("$set", toSet);
-        database.getCollection(coll).update(qobj, update, insertIfNotExist, multiple);
+        WriteConcern wc = getWriteConcernForClass(cls);
+        if (wc == null) {
+            database.getCollection(coll).update(qobj, update, insertIfNotExist, multiple);
+        } else {
+            database.getCollection(coll).update(qobj, update, insertIfNotExist, multiple, wc);
+        }
         clearCacheIfNecessary(cls);
     }
 
@@ -337,12 +349,17 @@ public class Morphium {
         if (insertIfNotExist) {
             qobj = simplifyQueryObject(qobj);
         }
-        database.getCollection(coll).update(qobj, update, insertIfNotExist, multiple);
+        WriteConcern wc = getWriteConcernForClass(cls);
+        if (wc == null) {
+            database.getCollection(coll).update(qobj, update, insertIfNotExist, multiple);
+        } else {
+            database.getCollection(coll).update(qobj, update, insertIfNotExist, multiple, wc);
+        }
         clearCacheIfNecessary(cls);
     }
 
     public void dec(Class<?> cls, Query<?> query, Enum field, int amount, boolean insertIfNotExist, boolean multiple) {
-        dec(cls,query,field.name(),amount,insertIfNotExist,multiple);
+        dec(cls, query, field.name(), amount, insertIfNotExist, multiple);
     }
 
     public void dec(Class<?> cls, Query<?> query, String field, int amount, boolean insertIfNotExist, boolean multiple) {
@@ -352,6 +369,7 @@ public class Morphium {
     public void dec(Class<?> cls, Query<?> query, String field, int amount) {
         inc(cls, query, field, -amount, false, false);
     }
+
     public void dec(Class<?> cls, Query<?> query, Enum field, int amount) {
         inc(cls, query, field, -amount, false, false);
     }
@@ -365,8 +383,9 @@ public class Morphium {
     }
 
     public void inc(Class<?> cls, Query<?> query, Enum field, int amount, boolean insertIfNotExist, boolean multiple) {
-        inc(cls,query,field.name(),amount,insertIfNotExist,multiple);
+        inc(cls, query, field.name(), amount, insertIfNotExist, multiple);
     }
+
     public void inc(Class<?> cls, Query<?> query, String field, int amount, boolean insertIfNotExist, boolean multiple) {
         String coll = config.getMapper().getCollectionName(cls);
         String fieldName = getFieldName(cls, field);
@@ -375,7 +394,12 @@ public class Morphium {
         if (insertIfNotExist) {
             qobj = simplifyQueryObject(qobj);
         }
-        database.getCollection(coll).update(qobj, update, insertIfNotExist, multiple);
+        WriteConcern wc = getWriteConcernForClass(cls);
+        if (wc == null) {
+            database.getCollection(coll).update(qobj, update, insertIfNotExist, multiple);
+        } else {
+            database.getCollection(coll).update(qobj, update, insertIfNotExist, multiple, wc);
+        }
         clearCacheIfNecessary(cls);
     }
 
@@ -406,7 +430,12 @@ public class Morphium {
         String fieldName = getFieldName(cls, field);
 
         BasicDBObject update = new BasicDBObject("$set", new BasicDBObject(fieldName, value));
-        database.getCollection(coll).update(query, update);
+        WriteConcern wc = getWriteConcernForClass(toSet.getClass());
+        if (wc == null) {
+            database.getCollection(coll).update(query, update);
+        } else {
+            database.getCollection(coll).update(query, update, false, false, wc);
+        }
 
         clearCacheIfNecessary(cls);
         try {
@@ -451,7 +480,12 @@ public class Morphium {
         String fieldName = getFieldName(cls, field);
 
         BasicDBObject update = new BasicDBObject("$inc", new BasicDBObject(fieldName, amount));
-        database.getCollection(coll).update(query, update);
+        WriteConcern wc = getWriteConcernForClass(toInc.getClass());
+        if (wc == null) {
+            database.getCollection(coll).update(query, update);
+        } else {
+            database.getCollection(coll).update(query, update, false, false, wc);
+        }
 
         clearCacheIfNecessary(cls);
 
@@ -619,7 +653,9 @@ public class Morphium {
 
 
         update = new BasicDBObject("$set", update);
+        //no Writeconcern possible... :-(
         database.getCollection(config.getMapper().getCollectionName(ent.getClass())).findAndModify(find, update);
+
         firePostStoreEvent(ent);
     }
 
@@ -712,6 +748,23 @@ public class Morphium {
                 throw new RuntimeException(e);
             }
         }
+    }
+
+    public <T> T reread(T o) {
+        if (o == null) throw new RuntimeException("Cannot re read null!");
+        ObjectId id = getId(o);
+        List<String> flds = config.getMapper().getFields(o.getClass(), Id.class);
+        if (flds == null || flds.size() > 1) {
+            throw new RuntimeException("error finding ID ");
+        }
+
+        String fld = flds.get(0);
+
+        List<T> ret = (List<T>) findByField(o.getClass(), fld, id);
+        if (ret == null || ret.size() == 0) {
+            return null;
+        }
+        return ret.get(0);
     }
 
     private void firePreStoreEvent(Object o) {
@@ -882,8 +935,14 @@ public class Morphium {
             }
         }
 
+        WriteConcern wc = getWriteConcernForClass(o.getClass());
+        if (wc != null) {
 
-        database.getCollection(config.getMapper().getCollectionName(o.getClass())).save(marshall);
+            database.getCollection(config.getMapper().getCollectionName(o.getClass())).save(marshall, wc);
+        } else {
+
+            database.getCollection(config.getMapper().getCollectionName(o.getClass())).save(marshall);
+        }
         if (isNew) {
             List<String> flds = config.getMapper().getFields(o.getClass(), Id.class);
             if (flds == null) {
@@ -904,6 +963,12 @@ public class Morphium {
         }
 
         firePostStoreEvent(o);
+    }
+
+    private WriteConcern getWriteConcernForClass(Class<?> cls) {
+        WriteSafety safety = cls.getAnnotation(WriteSafety.class);
+        if (safety == null) return null;
+        return new WriteConcern(safety.level().getValue(), safety.timeout(), safety.waitForSync(), safety.waitForJournalCommit());
     }
 
     private void storeNoCacheList(List o) {
@@ -1026,7 +1091,12 @@ public class Morphium {
      */
     public <T> void delete(Query<T> q) {
         firePreRemoveEvent(q);
-        database.getCollection(config.getMapper().getCollectionName(q.getType())).remove(q.toQueryObject());
+        WriteConcern wc = getWriteConcernForClass(q.getType());
+        if (wc == null) {
+            database.getCollection(config.getMapper().getCollectionName(q.getType())).remove(q.toQueryObject());
+        } else {
+            database.getCollection(config.getMapper().getCollectionName(q.getType())).remove(q.toQueryObject(), wc);
+        }
         firePostRemoveEvent(q);
     }
 
@@ -1193,12 +1263,16 @@ public class Morphium {
 
     public void ensureIndex(Class<?> cls, Map<String, Integer> index) {
         List<String> fields = getFields(cls);
+
+        Map<String, Integer> idx = new HashMap<String, Integer>();
         for (String k : index.keySet()) {
-            if (!fields.contains(k)) {
+            if (!fields.contains(k) && !fields.contains(config.getMapper().convertCamelCase(k))) {
                 throw new IllegalArgumentException("Field unknown for type " + cls.getSimpleName() + ": " + k);
             }
+            String fn = config.getMapper().getFieldName(cls, k);
+            idx.put(fn, index.get(k));
         }
-        database.getCollection(config.getMapper().getCollectionName(cls)).ensureIndex(new BasicDBObject(index));
+        database.getCollection(config.getMapper().getCollectionName(cls)).ensureIndex(new BasicDBObject(idx));
     }
 
     /**
@@ -1219,6 +1293,15 @@ public class Morphium {
                 f = f.substring(1);
             }
             m.put(f, idx);
+        }
+        ensureIndex(cls, m);
+    }
+
+    public void ensureIndex(Class<?> cls, Enum... fldStr) {
+        Map<String, Integer> m = new HashMap<String, Integer>();
+        for (Enum e : fldStr) {
+            String f = e.name();
+            m.put(f, 1);
         }
         ensureIndex(cls, m);
     }
@@ -1292,7 +1375,7 @@ public class Morphium {
             }
 
             if (o.getClass().isAnnotationPresent(Cache.class)) {
-                Cache c=o.getClass().getAnnotation(Cache.class);
+                Cache c = o.getClass().getAnnotation(Cache.class);
                 if (c.writeCache()) {
                     storeInBg.add(o);
                 } else {
@@ -1326,7 +1409,12 @@ public class Morphium {
         ObjectId id = config.getMapper().getId(o);
         BasicDBObject db = new BasicDBObject();
         db.append("_id", id);
-        database.getCollection(config.getMapper().getCollectionName(o.getClass())).remove(db);
+        WriteConcern wc = getWriteConcernForClass(o.getClass());
+        if (wc == null) {
+            database.getCollection(config.getMapper().getCollectionName(o.getClass())).remove(db);
+        } else {
+            database.getCollection(config.getMapper().getCollectionName(o.getClass())).remove(db, wc);
+        }
 
         clearCachefor(o.getClass());
         inc(StatisticKeys.WRITES);

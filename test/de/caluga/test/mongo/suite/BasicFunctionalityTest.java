@@ -25,6 +25,26 @@ public class BasicFunctionalityTest extends MongoTest {
     }
 
     @Test
+    public void whereTest() throws Exception {
+
+        for (int i = 1; i <= NO_OBJECTS; i++) {
+            UncachedObject o = new UncachedObject();
+            o.setCounter(i);
+            o.setValue("Uncached " + i);
+            MorphiumSingleton.get().store(o);
+        }
+        Query<UncachedObject> q = MorphiumSingleton.get().createQueryFor(UncachedObject.class);
+        q.where("this.counter<10").f("counter").gt(5);
+        log.info(q.toQueryObject().toString());
+
+        List<UncachedObject> lst = q.asList();
+        for (UncachedObject o : lst) {
+            assert (o.getCounter() < 10 && o.getCounter() > 5) : "Counter is wrong: " + o.getCounter();
+        }
+
+    }
+
+    @Test
     public void orTest() {
         log.info("Storing Uncached objects...");
 
@@ -264,10 +284,10 @@ public class BasicFunctionalityTest extends MongoTest {
         MorphiumSingleton.get().storeList(tst);
         waitForWrites();
 
-        Object o=tst.get((int)(Math.random()*tst.size()));
+        Object o = tst.get((int) (Math.random() * tst.size()));
         if (o instanceof CachedObject) {
             log.info("Got a cached Object");
-            ((CachedObject)o).setValue("Updated!");
+            ((CachedObject) o).setValue("Updated!");
             MorphiumSingleton.get().updateUsingFields(o, "value");
             waitForWrites();
             try {
@@ -276,31 +296,31 @@ public class BasicFunctionalityTest extends MongoTest {
 
             }
             log.info("Cached object altered... look for it");
-            Query<CachedObject> c=MorphiumSingleton.get().createQueryFor(CachedObject.class);
-            CachedObject fnd= (CachedObject) c.f("_id").eq(((CachedObject) o).getId()).get();
-            assert(fnd.getValue().equals("Updated!")):"Value not changed? "+fnd.getValue();
+            Query<CachedObject> c = MorphiumSingleton.get().createQueryFor(CachedObject.class);
+            CachedObject fnd = (CachedObject) c.f("_id").eq(((CachedObject) o).getId()).get();
+            assert (fnd.getValue().equals("Updated!")) : "Value not changed? " + fnd.getValue();
 
         } else {
             log.info("Got a uncached Object");
-            ((UncachedObject)o).setValue("Updated!");
+            ((UncachedObject) o).setValue("Updated!");
             MorphiumSingleton.get().updateUsingFields(o, "value");
             log.info("uncached object altered... look for it");
-            Query<UncachedObject> c=MorphiumSingleton.get().createQueryFor(UncachedObject.class);
-            UncachedObject fnd= (UncachedObject) c.f("_id").eq(((UncachedObject) o).getMongoId()).get();
-            assert(fnd.getValue().equals("Updated!")):"Value not changed? "+fnd.getValue();
+            Query<UncachedObject> c = MorphiumSingleton.get().createQueryFor(UncachedObject.class);
+            UncachedObject fnd = (UncachedObject) c.f("_id").eq(((UncachedObject) o).getMongoId()).get();
+            assert (fnd.getValue().equals("Updated!")) : "Value not changed? " + fnd.getValue();
         }
 
 
-        UncachedObject uo=new UncachedObject();
-        uo=MorphiumSingleton.get().createPartiallyUpdateableEntity(uo);
-        assert(uo instanceof PartiallyUpdateable):"Created proxy incorrect";
+        UncachedObject uo = new UncachedObject();
+        uo = MorphiumSingleton.get().createPartiallyUpdateableEntity(uo);
+        assert (uo instanceof PartiallyUpdateable) : "Created proxy incorrect";
         uo.setValue("A TEST");
         List<String> alteredFields = ((PartiallyUpdateable) uo).getAlteredFields();
-        for (String f:alteredFields) {
-            log.info("Field altered: "+f);
+        for (String f : alteredFields) {
+            log.info("Field altered: " + f);
         }
 
-        assert(alteredFields.contains("value")):"Field not set?";
+        assert (alteredFields.contains("value")) : "Field not set?";
 
     }
 

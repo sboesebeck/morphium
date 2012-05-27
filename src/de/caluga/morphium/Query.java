@@ -95,6 +95,8 @@ public interface Query<T> extends Cloneable {
      */
     public Query<T> sort(String... prefixedString);
 
+    public Query<T> sort(Enum... naturalOrder);
+
     /**
      * set an order - Key: FieldName (java or Mongo-Name), Value: Integer: -1 reverse, 1 standard
      * deprectaed, use sort instead (more like the maongodb-commands)... used for backward compatibility.
