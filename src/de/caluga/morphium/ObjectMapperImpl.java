@@ -141,21 +141,30 @@ public class ObjectMapperImpl implements ObjectMapper {
                             //no reference to be stored...
                             v = null;
                         } else {
-                            v = getId(value);
-                            if (v == null) {
-                                //not stored yet
-                                if (r.automaticStore()) {
-                                    //TODO: this could cause an endless loop!
-                                    if (morphium == null) {
-                                        log.fatal("Could not store - no Morphium set!");
-                                    } else {
-                                        morphium.store(value);
-                                    }
-                                } else {
-                                    throw new IllegalArgumentException("Reference to be stored, that is null!");
+                            if (fld.getType().isAssignableFrom(List.class)) {
+                                //list of references....
+                                BasicDBList lst = new BasicDBList();
+                                for (Object rec : ((List) value)) {
+                                    lst.add(getId(rec));
                                 }
+                                value = lst;
+                            } else {
                                 v = getId(value);
+                                if (v == null) {
+                                    //not stored yet
+                                    if (r.automaticStore()) {
+                                        //TODO: this could cause an endless loop!
+                                        if (morphium == null) {
+                                            log.fatal("Could not store - no Morphium set!");
+                                        } else {
+                                            morphium.store(value);
+                                        }
+                                    } else {
+                                        throw new IllegalArgumentException("Reference to be stored, that is null!");
+                                    }
+                                    v = getId(value);
 
+                                }
                             }
                         }
                     } else {
@@ -261,14 +270,14 @@ public class ObjectMapperImpl implements ObjectMapper {
     @Override
     public <T> T unmarshall(Class<T> cls, DBObject o) {
         try {
-            if (o.get("class_name") != null || o.get("className")!=null) {
+            if (o.get("class_name") != null || o.get("className") != null) {
                 if (log.isDebugEnabled()) {
                     log.debug("overriding cls - it's defined in dbObject");
                 }
                 try {
-                    String cN=(String)o.get("class_name");
-                    if (cN==null) {
-                        cN = (String)o.get("className");
+                    String cN = (String) o.get("class_name");
+                    if (cN == null) {
+                        cN = (String) o.get("className");
                     }
                     cls = (Class<T>) Class.forName(cN);
                 } catch (ClassNotFoundException e) {
@@ -418,6 +427,7 @@ public class ObjectMapperImpl implements ObjectMapper {
 
     /**
      * return list of fields in class - including hierachy!!!
+     *
      * @param cls
      * @return
      */
@@ -465,7 +475,7 @@ public class ObjectMapperImpl implements ObjectMapper {
         List<String> ret = new Vector<String>();
         Class sc = cls;
         Entity entity = (Entity) sc.getAnnotation(Entity.class);
-        boolean tcc = entity.translateCamelCase();
+        boolean tcc = entity == null ? true : entity.translateCamelCase();
         //getting class hierachy
         List<Field> fld = getAllFields(cls);
         for (Field f : fld) {

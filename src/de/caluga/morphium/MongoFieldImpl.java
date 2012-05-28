@@ -57,15 +57,12 @@ public class MongoFieldImpl<T> implements MongoField<T> {
         if (val != null) {
             Class<?> cls = val.getClass();
             if (cls.isAnnotationPresent(Entity.class)) {
-                try {
-                    if (query.getType().getField(fldStr).isAnnotationPresent(Reference.class)) {
-                        //here - query value is an entity AND it is referenced by the query type
-                        //=> we need to compeare ID's
-                        val = mapper.getId(val);
-                    }
-                } catch (NoSuchFieldException e) {
-                    //fall back to normal operation
+                if (mapper.getField(query.getType(), fldStr).isAnnotationPresent(Reference.class)) {
+                    //here - query value is an entity AND it is referenced by the query type
+                    //=> we need to compeare ID's
+                    val = mapper.getId(val);
                 }
+
             }
         }
         fe.setValue(val);
