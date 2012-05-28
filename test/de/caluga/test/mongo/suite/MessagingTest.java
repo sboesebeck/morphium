@@ -96,7 +96,7 @@ public class MessagingTest extends MongoTest {
         });
         messaging.queueMessage(new Msg("Testmessage", MsgType.MULTI, "A message", "Additional stuff", "the value - for now", 5000));
 
-        Thread.sleep(5000);
+        Thread.sleep(1000);
         assert (!gotMessage) : "Message recieved from self?!?!?!";
         log.info("Dig not get own message - cool!");
 
@@ -106,14 +106,14 @@ public class MessagingTest extends MongoTest {
 
         MorphiumSingleton.get().store(m);
 
-        Thread.sleep(5000);
+        Thread.sleep(1000);
         assert (gotMessage) : "Message did not come?!?!?";
 
         gotMessage = false;
-        Thread.sleep(5000);
+        Thread.sleep(1000);
         assert (!gotMessage) : "Got message again?!?!?!";
 
-        Thread.sleep(3000);
+        Thread.sleep(5000);
         assert (MorphiumSingleton.get().readAll(Msg.class).size() == 0) : "Still messages left?!?!?";
 
     }

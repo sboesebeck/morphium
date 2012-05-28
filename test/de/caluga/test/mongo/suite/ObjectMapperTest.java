@@ -109,9 +109,16 @@ public class ObjectMapperTest extends MongoTest {
         o.setValue("Embedded value");
         MorphiumSingleton.get().store(o);
 
+        EmbeddedObject eo = new EmbeddedObject();
+        eo.setName("Embedded only");
+        eo.setValue("Value");
+        eo.setTest(System.currentTimeMillis());
+
         ComplexObject co = new ComplexObject();
         co.setEinText("Ein text");
-        co.setEmbed(o);
+        co.setEmbed(eo);
+
+        co.setEntityEmbeded(o);
         ObjectId embedId = o.getMongoId();
 
         o = new UncachedObject();
@@ -127,14 +134,14 @@ public class ObjectMapperTest extends MongoTest {
         DBObject marshall = om.marshall(co);
         System.out.println("Complex object: " + marshall.toString());
 
+
         //Unmarshalling stuff
-
-
         co = om.unmarshall(ComplexObject.class, marshall);
-        co.getEmbed().setMongoId(embedId);  //need to set ID manually, as it won't be stored!
-
+        assert (co.getEntityEmbeded().getMongoId() == null) : "Embeded entity got a mongoID?!?!?!";
+        co.getEntityEmbeded().setMongoId(embedId);  //need to set ID manually, as it won't be stored!
         String st2 = co.toString();
         assert (st.equals(st2)) : "Strings not equal?\n" + st + "\n" + st2;
+        assert (co.getEmbed() != null) : "Embedded value not found!";
 
     }
 

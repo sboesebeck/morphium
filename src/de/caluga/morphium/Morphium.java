@@ -859,7 +859,7 @@ public class Morphium {
 
     }
 
-    private void storeNoCache(Object o) {
+    public void storeNoCache(Object o) {
         Class type = o.getClass();
         if (!type.isAnnotationPresent(Entity.class)) {
             throw new RuntimeException("Not an entity! Storing not possible!");
@@ -971,7 +971,7 @@ public class Morphium {
         return new WriteConcern(safety.level().getValue(), safety.timeout(), safety.waitForSync(), safety.waitForJournalCommit());
     }
 
-    private void storeNoCacheList(List o) {
+    public void storeNoCacheList(List o) {
 
         if (!o.isEmpty()) {
             List<Class> clearCaches = new ArrayList<Class>();

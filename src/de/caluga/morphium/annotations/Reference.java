@@ -11,7 +11,9 @@ import static java.lang.annotation.ElementType.FIELD;
  * Date: 26.03.12
  * Time: 11:18
  * <p/>
- * TODO: Add documentation here
+ * Mark this field as a reference to annother mongo object
+ * In mongo only the id will be stored here
+ * if <code> automaticStore</code> is true (default), objects will be stored if not already done
  */
 
 

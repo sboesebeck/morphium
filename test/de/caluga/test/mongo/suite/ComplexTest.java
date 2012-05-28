@@ -23,8 +23,15 @@ public class ComplexTest extends MongoTest {
         o.setValue("Embedded object");
         //MorphiumSingleton.get().store(o);
 
+        EmbeddedObject eo = new EmbeddedObject();
+        eo.setName("Embedded object 1");
+        eo.setValue("A value");
+        eo.setTest(System.currentTimeMillis());
+
         ComplexObject co = new ComplexObject();
-        co.setEmbed(o);
+        co.setEmbed(eo);
+
+        co.setEntityEmbeded(o);
 
         UncachedObject ref = new UncachedObject();
         ref.setCounter(100);

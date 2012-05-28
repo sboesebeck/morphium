@@ -7,28 +7,23 @@ import java.lang.annotation.Target;
 import static java.lang.annotation.ElementType.TYPE;
 
 /**
- * User: Stpehan Bösebeck
- * Date: 26.03.12
- * Time: 11:14
+ * User: Stephan Bösebeck
+ * Date: 28.05.12
+ * Time: 16:43
  * <p/>
+ * Mark an object to be used only embedded in an other object. THIS MUST NOT BE USED TOGETHER WITH @Entity!!!!
  */
 @Target({TYPE})
 @Retention(RetentionPolicy.RUNTIME)
-public @interface Entity {
-    String collectionName() default ".";
-
+public @interface Embedded {
     boolean translateCamelCase() default true;
 
     /**
-     * use Full Qualified Name as collection name
-     *
-     * @return
-     */
-    boolean useFQN() default false;
-
-    /**
-     * several different objects of same type stored in one collection
+     * several different objects of same type stored in field
      * if set, className is  stored in object
+     *
+     * @return polymorph usage
      */
+
     boolean polymorph() default false;
 }

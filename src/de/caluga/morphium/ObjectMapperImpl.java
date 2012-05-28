@@ -114,9 +114,16 @@ public class ObjectMapperImpl implements ObjectMapper {
         }
         List<String> flds = getFields(o.getClass());
         Entity e = o.getClass().getAnnotation(Entity.class);
-        if (e.polymorph()) {
+        Embedded emb = o.getClass().getAnnotation(Embedded.class);
+
+        if (e != null && e.polymorph()) {
             dbo.put("class_name", o.getClass().getName());
         }
+
+        if (emb != null && emb.polymorph()) {
+            dbo.put("class_name", o.getClass().getName());
+        }
+
         for (String f : flds) {
             String fName = f;
             try {
@@ -145,9 +152,20 @@ public class ObjectMapperImpl implements ObjectMapper {
                                 //list of references....
                                 BasicDBList lst = new BasicDBList();
                                 for (Object rec : ((List) value)) {
-                                    lst.add(getId(rec));
+                                    ObjectId id = getId(rec);
+                                    if (id == null) {
+                                        if (r.automaticStore()) {
+                                            morphium.storeNoCache(rec);
+                                            id = getId(rec);
+                                        } else {
+                                            throw new IllegalArgumentException("Cannot store reference to unstored entity if automaticStore in @Reference is set to false!");
+                                        }
+                                    }
+                                    DBRef ref = new DBRef(morphium.getDatabase(), rec.getClass().getName(), id);
+
+                                    lst.add(ref);
                                 }
-                                value = lst;
+                                v = lst;
                             } else {
                                 v = getId(value);
                                 if (v == null) {
@@ -177,6 +195,11 @@ public class ObjectMapperImpl implements ObjectMapper {
                             if (value != null) {
                                 DBObject obj = marshall(value);
                                 obj.removeField("_id");  //Do not store ID embedded!
+                                v = obj;
+                            }
+                        } else if (fld.getType().isAnnotationPresent(Embedded.class)) {
+                            if (value != null) {
+                                DBObject obj = marshall(value);
                                 v = obj;
                             }
                         } else {
@@ -224,7 +247,7 @@ public class ObjectMapperImpl implements ObjectMapper {
     private BasicDBList createDBList(List v) {
         BasicDBList lst = new BasicDBList();
         for (Object lo : ((List) v)) {
-            if (lo.getClass().isAnnotationPresent(Entity.class)) {
+            if (lo.getClass().isAnnotationPresent(Entity.class) || lo.getClass().isAnnotationPresent(Embedded.class)) {
                 DBObject marshall = marshall(lo);
                 marshall.put("class_name", lo.getClass().getName());
                 lst.add(marshall);
@@ -310,7 +333,7 @@ public class ObjectMapperImpl implements ObjectMapper {
                     ObjectId id = (ObjectId) o.get("_id");
 
                     value = id;
-                } else if (fld.getType().isAnnotationPresent(Entity.class)) {
+                } else if (fld.getType().isAnnotationPresent(Entity.class) || fld.getType().isAnnotationPresent(Embedded.class)) {
                     //entity! embedded
                     if (o.get(f) != null) {
                         value = unmarshall(fld.getType(), (DBObject) o.get(f));
@@ -366,9 +389,22 @@ public class ObjectMapperImpl implements ObjectMapper {
                                     //Probably an "normal" map
                                     lst.add(val);
                                 }
+                            } else if (val instanceof ObjectId) {
+                                log.fatal("Cannot de-reference to unknown collection");
+
                             } else if (val instanceof DBRef) {
-                                //todo: implement something
-                                lst.add(((DBRef) val).getId());
+                                DBRef ref = (DBRef) val;
+                                try {
+                                    Class clz = Class.forName(ref.getRef());
+                                    ObjectId id = (ObjectId) ref.getId();
+                                    Query q = morphium.createQueryFor(clz);
+                                    List<String> idFlds = getFields(clz, Id.class);
+                                    q = q.f(idFlds.get(0)).eq(id);
+                                    lst.add(q.get());
+                                } catch (ClassNotFoundException e) {
+                                    throw new RuntimeException(e);
+                                }
+
                             } else {
                                 lst.add(val);
                             }
@@ -386,11 +422,15 @@ public class ObjectMapperImpl implements ObjectMapper {
                 }
                 setValue(ret, value, f);
             }
-            flds = getFields(cls, Id.class);
-            if (flds.isEmpty()) {
-                throw new RuntimeException("Error - class does not have an ID field!");
+
+            if (cls.isAnnotationPresent(Entity.class)) {
+                flds = getFields(cls, Id.class);
+                if (flds.isEmpty()) {
+                    throw new RuntimeException("Error - class does not have an ID field!");
+                }
+
+                getField(cls, flds.get(0)).set(ret, o.get("_id"));
             }
-            getField(cls, flds.get(0)).set(ret, o.get("_id"));
             return ret;
         } catch (InstantiationException e) {
             throw new RuntimeException(e);
@@ -475,7 +515,12 @@ public class ObjectMapperImpl implements ObjectMapper {
         List<String> ret = new Vector<String>();
         Class sc = cls;
         Entity entity = (Entity) sc.getAnnotation(Entity.class);
-        boolean tcc = entity == null ? true : entity.translateCamelCase();
+        Embedded embedded = (Embedded) sc.getAnnotation(Embedded.class);
+        if (embedded != null && entity != null) {
+            throw new IllegalArgumentException("Class " + cls.getName() + " does have both @Entity and @Embedded Annotations - not allowed!");
+        }
+
+        boolean tcc = entity == null ? embedded.translateCamelCase() : entity.translateCamelCase();
         //getting class hierachy
         List<Field> fld = getAllFields(cls);
         for (Field f : fld) {
@@ -532,9 +577,13 @@ public class ObjectMapperImpl implements ObjectMapper {
 
         String fieldName = f.getName();
         Entity ent = (Entity) cls.getAnnotation(Entity.class);
-        if (ent.translateCamelCase()) {
+        Embedded emb = (Embedded) cls.getAnnotation(Embedded.class);
+        if (ent != null && ent.translateCamelCase()) {
+            fieldName = convertCamelCase(fieldName);
+        } else if (emb != null && emb.translateCamelCase()) {
             fieldName = convertCamelCase(fieldName);
         }
+
         return fieldName;
 
     }
@@ -549,8 +598,6 @@ public class ObjectMapperImpl implements ObjectMapper {
      * @return field, if found, null else
      */
     public Field getField(Class cls, String fld) {
-        Entity entity = (Entity) cls.getAnnotation(Entity.class);
-        boolean tcc = entity.translateCamelCase();
         List<Field> flds = getAllFields(cls);
         for (Field f : flds) {
             if (f.isAnnotationPresent(Property.class) && f.getAnnotation(Property.class).fieldName() != null && !".".equals(f.getAnnotation(Property.class).fieldName())) {
@@ -582,9 +629,6 @@ public class ObjectMapperImpl implements ObjectMapper {
                 }
             }
             if (f.getName().equals(fld)) {
-//                if (tcc && !convertCamelCase(f.getName()).equals(fld)) {
-//                    throw new IllegalArgumentException("Error camel casing! " + fld + " != " + convertCamelCase(f.getName()));
-//                }
                 f.setAccessible(true);
                 return f;
             }
@@ -603,9 +647,9 @@ public class ObjectMapperImpl implements ObjectMapper {
     @Override
     public boolean isEntity(Object o) {
         if (o instanceof Class) {
-            return ((Class) o).isAnnotationPresent(Entity.class);
+            return ((Class) o).isAnnotationPresent(Entity.class) || ((Class) o).isAnnotationPresent(Embedded.class);
         }
-        return o.getClass().isAnnotationPresent(Entity.class);
+        return o.getClass().isAnnotationPresent(Entity.class) || o.getClass().isAnnotationPresent(Embedded.class);
     }
 
     @Override

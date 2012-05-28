@@ -21,7 +21,7 @@ public class ComplexObject {
     @Id
     private ObjectId id;
 
-    @Aliases({"last_changed","lastChanged"})
+    @Aliases({"last_changed", "lastChanged"})
     private Long changed;
 
     @Property(fieldName = "last_access")
@@ -30,7 +30,9 @@ public class ComplexObject {
     @Reference(fieldName = "reference")
     private UncachedObject ref;
 
-    private UncachedObject embed;
+    private EmbeddedObject embed;
+
+    private UncachedObject entityEmbeded;
 
     @NotNull
     private String einText;
@@ -40,6 +42,14 @@ public class ComplexObject {
 
     @UseIfnull
     private Integer nullValue;
+
+    public UncachedObject getEntityEmbeded() {
+        return entityEmbeded;
+    }
+
+    public void setEntityEmbeded(UncachedObject entityEmbeded) {
+        this.entityEmbeded = entityEmbeded;
+    }
 
     public long getChanged() {
         return changed;
@@ -73,11 +83,11 @@ public class ComplexObject {
         this.ref = ref;
     }
 
-    public UncachedObject getEmbed() {
+    public EmbeddedObject getEmbed() {
         return embed;
     }
 
-    public void setEmbed(UncachedObject embed) {
+    public void setEmbed(EmbeddedObject embed) {
         this.embed = embed;
     }
 
@@ -109,8 +119,8 @@ public class ComplexObject {
     public String toString() {
         return "ComplexObject{" +
                 "id=" + id +
-                ", ref=" + (ref!=null?ref.getMongoId().toString():"null") +
-                ", embed=" + embed +
+                ", ref=" + (ref != null ? ref.getMongoId().toString() : "null") +
+                ", entityEmbedded=" + entityEmbeded +
                 ", einText='" + einText + '\'' +
                 ", trans='" + trans + '\'' +
                 ", nullValue=" + nullValue +
