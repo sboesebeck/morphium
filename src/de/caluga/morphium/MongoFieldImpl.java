@@ -1,6 +1,8 @@
 package de.caluga.morphium;
 
 import com.mongodb.BasicDBList;
+import de.caluga.morphium.annotations.Entity;
+import de.caluga.morphium.annotations.Reference;
 
 import java.util.Collection;
 import java.util.regex.Pattern;
@@ -51,7 +53,21 @@ public class MongoFieldImpl<T> implements MongoField<T> {
 
     @Override
     public Query<T> eq(Object val) {
-
+        //checking for Ids in references...
+        if (val != null) {
+            Class<?> cls = val.getClass();
+            if (cls.isAnnotationPresent(Entity.class)) {
+                try {
+                    if (query.getType().getField(fldStr).isAnnotationPresent(Reference.class)) {
+                        //here - query value is an entity AND it is referenced by the query type
+                        //=> we need to compeare ID's
+                        val = mapper.getId(val);
+                    }
+                } catch (NoSuchFieldException e) {
+                    //fall back to normal operation
+                }
+            }
+        }
         fe.setValue(val);
         fe.setField(fldStr);
         query.addChild(fe);
