@@ -23,6 +23,8 @@ public class MessagingTest extends MongoTest {
 
     public boolean gotMessage1 = false;
     public boolean gotMessage2 = false;
+    public boolean gotMessage3 = false;
+    public boolean gotMessage4 = false;
 
     @Test
     public void testMsgLifecycle() throws Exception {
@@ -86,6 +88,7 @@ public class MessagingTest extends MongoTest {
         MorphiumSingleton.get().clearCollection(Msg.class);
 
         final Messaging messaging = new Messaging(MorphiumSingleton.get(), 500, true);
+        messaging.start();
 
         messaging.addMessageListener(new MessageListener() {
             @Override
@@ -124,6 +127,9 @@ public class MessagingTest extends MongoTest {
 
         final Messaging m1 = new Messaging(MorphiumSingleton.get(), 500, true);
         final Messaging m2 = new Messaging(MorphiumSingleton.get(), 500, true);
+        m1.start();
+        m2.start();
+
         m1.addMessageListener(new MessageListener() {
             @Override
             public void onMessage(Msg m) {
@@ -151,6 +157,73 @@ public class MessagingTest extends MongoTest {
         Thread.sleep(1000);
         assert (gotMessage1) : "Message not recieved yet?!?!?";
         gotMessage1 = false;
+    }
+
+    @Test
+    public void severalSystemsTest() throws Exception {
+
+        final Messaging m1 = new Messaging(MorphiumSingleton.get(), 100, true);
+        final Messaging m2 = new Messaging(MorphiumSingleton.get(), 100, true);
+        final Messaging m3 = new Messaging(MorphiumSingleton.get(), 100, true);
+        final Messaging m4 = new Messaging(MorphiumSingleton.get(), 100, true);
+
+        m1.start();
+        m2.start();
+        m3.start();
+        m4.start();
+
+        m1.addMessageListener(new MessageListener() {
+            @Override
+            public void onMessage(Msg m) {
+                gotMessage1 = true;
+                log.info("M1 got message " + m.toString());
+//                assert (m.getSender().equals(m2.getSenderId())) : "Sender is not M2?!?!? m2_id: " + m2.getSenderId() + " - message sender: " + m.getSender();
+            }
+        });
+
+        m2.addMessageListener(new MessageListener() {
+            @Override
+            public void onMessage(Msg m) {
+                gotMessage2 = true;
+                log.info("M2 got message " + m.toString());
+//                assert (m.getSender().equals(m1.getSenderId())) : "Sender is not M1?!?!? m1_id: " + m1.getSenderId() + " - message sender: " + m.getSender();
+            }
+        });
+
+        m3.addMessageListener(new MessageListener() {
+            @Override
+            public void onMessage(Msg m) {
+                gotMessage3 = true;
+                log.info("M3 got message " + m.toString());
+//                assert (m.getSender().equals(m1.getSenderId())) : "Sender is not M1?!?!? m1_id: " + m1.getSenderId() + " - message sender: " + m.getSender();
+            }
+        });
+
+        m4.addMessageListener(new MessageListener() {
+            @Override
+            public void onMessage(Msg m) {
+                gotMessage4 = true;
+                log.info("M4 got message " + m.toString());
+//                assert (m.getSender().equals(m1.getSenderId())) : "Sender is not M1?!?!? m1_id: " + m1.getSenderId() + " - message sender: " + m.getSender();
+            }
+        });
+
+        m1.queueMessage(new Msg("testmsg1", "The message from M1", "Value"));
+        Thread.sleep(5000);
+        assert (gotMessage2) : "Message not recieved yet by m2?!?!?";
+        assert (gotMessage3) : "Message not recieved yet by m3?!?!?";
+        assert (gotMessage4) : "Message not recieved yet by m4?!?!?";
+        gotMessage1 = false;
+        gotMessage2 = false;
+        gotMessage3 = false;
+        gotMessage4 = false;
+
+        m2.queueMessage(new Msg("testmsg2", "The message from M2", "Value"));
+        Thread.sleep(5000);
+        assert (gotMessage1) : "Message not recieved yet by m1?!?!?";
+        assert (gotMessage3) : "Message not recieved yet by m3?!?!?";
+        assert (gotMessage4) : "Message not recieved yet by m4?!?!?";
+
     }
 
 }

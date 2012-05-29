@@ -39,7 +39,7 @@ public class Messaging extends Thread {
 
         listeners = new Vector<MessageListener>();
         listenerByName = new Hashtable<String, List<MessageListener>>();
-        start();
+//        start();
     }
 
     public void run() {

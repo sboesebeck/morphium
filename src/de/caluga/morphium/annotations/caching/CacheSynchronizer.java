@@ -1,5 +1,6 @@
 package de.caluga.morphium.annotations.caching;
 
+import de.caluga.morphium.ConfigElement;
 import de.caluga.morphium.Morphium;
 import de.caluga.morphium.MorphiumStorageListener;
 import de.caluga.morphium.Query;
@@ -48,6 +49,11 @@ public class CacheSynchronizer implements MorphiumStorageListener, MessageListen
     }
 
     public void sendClearMessage(Class type, String reason) {
+        if (type.equals(ConfigElement.class)) {
+            Msg m = new Msg(MSG_NAME, MsgType.MULTI, reason, null, type.getName(), 30000);
+            messaging.queueMessage(m);
+            return;
+        }
         Cache c = (Cache) type.getAnnotation(Cache.class);
         if (c == null) return; //not clearing cache for non-cached objects
         if (c.readCache() && c.clearOnWrite()) {
@@ -125,6 +131,10 @@ public class CacheSynchronizer implements MorphiumStorageListener, MessageListen
                 log.debug("Got message from " + sender + " - Action: " + action + " Class: " + m.getValue());
             }
             Class cls = Class.forName(m.getValue());
+            if (cls.equals(ConfigElement.class)) {
+                morphium.getConfigManager().reinitSettings();
+                return;
+            }
             if (cls.isAnnotationPresent(Entity.class)) {
                 if (cls.isAnnotationPresent(Cache.class)) {
                     Cache c = (Cache) cls.getAnnotation(Cache.class);
