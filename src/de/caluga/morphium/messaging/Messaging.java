@@ -74,6 +74,7 @@ public class Messaging extends Thread {
 
             for (Msg msg : messagesList) {
                 msg = morphium.reread(msg); //make sure it's current version in DB
+                if (msg==null) continue; //was deleted
                 if (!msg.getLockedBy().equals(id)) {
                     //over-locked by someone else
                     continue;
