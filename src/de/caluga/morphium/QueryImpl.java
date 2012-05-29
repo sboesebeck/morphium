@@ -2,6 +2,8 @@ package de.caluga.morphium;
 
 import com.mongodb.*;
 import de.caluga.morphium.annotations.Id;
+import de.caluga.morphium.annotations.LastAccess;
+import de.caluga.morphium.annotations.LastAccessBy;
 import de.caluga.morphium.annotations.StoreLastAccess;
 import de.caluga.morphium.secure.Permission;
 import org.bson.types.ObjectId;
@@ -360,28 +362,30 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
 
     private void updateLastAccess(DBObject o, T unmarshall) {
         if (type.isAnnotationPresent(StoreLastAccess.class)) {
-            StoreLastAccess t = (StoreLastAccess) type.getAnnotation(StoreLastAccess.class);
-            String ctf = t.lastAccessField();
-            Field f = mapper.getField(type, ctf);
-            if (f != null) {
-                try {
-                    f.set(unmarshall, System.currentTimeMillis());
-                } catch (IllegalAccessException e) {
-                    System.out.println("Could not set modification time");
+            List<String> lst = mapper.getFields(type, LastAccess.class);
+            for (String ctf : lst) {
+                Field f = mapper.getField(type, ctf);
+                if (f != null) {
+                    try {
+                        f.set(unmarshall, System.currentTimeMillis());
+                    } catch (IllegalAccessException e) {
+                        System.out.println("Could not set modification time");
 
+                    }
                 }
-                if (t.logUser()) {
-                    ctf = t.lastAccessUserField();
-                    f = mapper.getField(type, ctf);
+            }
+            lst = mapper.getFields(type, LastAccessBy.class);
+            for (String ctf:lst) {
+                    Field f = mapper.getField(type, ctf);
                     try {
                         f.set(o, morphium.getConfig().getSecurityMgr().getCurrentUserId());
                     } catch (IllegalAccessException e) {
 //                    logger.error("Could not set changed by",e);
                     }
-                }
-                //Storing access timestamps
-                morphium.store(unmarshall);
+
             }
+            //Storing access timestamps
+            morphium.store(unmarshall);
         }
     }
 

@@ -12,19 +12,21 @@ import org.bson.types.ObjectId;
  */
 @NoCache
 @Entity(translateCamelCase = false)
-@StoreLastAccess(lastAccessField = "last_access")
+@StoreLastAccess()
 
 //cration time will be stored in DB but not in Object!
-@StoreCreationTime(creationTimeField = "created")
-@StoreLastChange(lastChangeField = "changed")
+@StoreCreationTime()
+@StoreLastChange()
 public class ComplexObject {
     @Id
     private ObjectId id;
 
     @Aliases({"last_changed", "lastChanged"})
+    @LastChange
     private Long changed;
 
     @Property(fieldName = "last_access")
+    @LastAccess
     private Long lastAccess;
 
     @Reference(fieldName = "reference")
