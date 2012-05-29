@@ -195,21 +195,4 @@ public class MassCacheTest extends MongoTest {
     }
 
 
-    private void waitForWrites() {
-        log.info("Waiting for objects to be stored...");
-
-        while (MorphiumSingleton.get().getStatistics().get(StatisticKeys.WRITE_BUFFER_ENTRIES.name()) > 0) {
-//            log.info("...");
-            try {
-                Thread.sleep(10);
-            } catch (InterruptedException ex) {
-                Logger.getLogger(BasicFunctionalityTest.class.getName()).fatal(ex);
-            }
-        }
-        try {
-            Thread.sleep(2000); //just to be really sure
-        } catch (InterruptedException e) {
-            throw new RuntimeException(e);
-        }
-    }
 }

@@ -68,4 +68,15 @@ public class MongoTest {
         System.out.println("NOT Shutting down - might be reused!");
 //        MorphiumSingleton.get().close();
     }
+
+    public void waitForWrites() {
+        while (MorphiumSingleton.get().writeBufferCount() > 0) {
+//            log.info("...");
+            try {
+                Thread.sleep(10);
+            } catch (InterruptedException ex) {
+                Logger.getLogger(BasicFunctionalityTest.class).fatal(ex);
+            }
+        }
+    }
 }

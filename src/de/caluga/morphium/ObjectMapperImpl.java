@@ -321,13 +321,24 @@ public class ObjectMapperImpl implements ObjectMapper {
                 Object value = null;
                 if (!fld.getType().isAssignableFrom(Map.class) && !fld.getType().isAssignableFrom(List.class) && fld.isAnnotationPresent(Reference.class)) {
                     //A reference - only id stored
-                    ObjectId id = (ObjectId) o.get(f);
+                    Reference reference = fld.getAnnotation(Reference.class);
                     if (morphium == null) {
                         log.fatal("Morphium not set - could not de-reference!");
                     } else {
-                        Query q = morphium.createQueryFor(fld.getType());
-                        q.f("_id").eq(id);
-                        value = q.get();
+                        ObjectId id = (ObjectId) o.get(f);
+                        if (reference.lazyLoading()) {
+                            Object obj = fld.getType().newInstance();
+                            List<String> lst = getFields(fld.getType(), Id.class);
+                            if (lst.size() == 0)
+                                throw new IllegalArgumentException("Referenced object does not have an ID? Is it an Entity?");
+                            Field idFld = getField(fld.getType(), lst.get(0));
+                            idFld.set(obj, id);
+                            value = morphium.createLazyLoadedEntity(obj);
+                        } else {
+                            Query q = morphium.createQueryFor(fld.getType());
+                            q.f("_id").eq(id);
+                            value = q.get();
+                        }
                     }
                 } else if (fld.isAnnotationPresent(Id.class)) {
                     ObjectId id = (ObjectId) o.get("_id");

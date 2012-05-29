@@ -1051,6 +1051,13 @@ public class Morphium {
     public <T> List<T> find(Query<T> q) {
         return q.asList();
     }
+
+    public <T> T findById(Class<T> type, ObjectId id) {
+        List<String> ls = config.getMapper().getFields(type, Id.class);
+        if (ls.size()==0) throw new RuntimeException("Cannot find by ID on non-Entity");
+
+        return (T) createQueryFor(type).f(ls.get(0)).eq(id).get();
+    }
 //    /**
 //     * returns a list of all elements for the given type, matching the given query
 //     * @param qu - the query to search
@@ -1565,6 +1572,11 @@ public class Morphium {
         return (T) Enhancer.create(o.getClass(), new Class[]{PartiallyUpdateable.class}, new PartiallyUpdateableInvocationHandler());
     }
 
+    public <T> T createLazyLoadedEntity(T o) {
+        ObjectId id=config.getMapper().getId(o);
+        return (T) Enhancer.create(o.getClass(), new Class[]{}, new LazyDeReferencingHandler(o.getClass(),id));
+    }
+
     protected <T> MongoField<T> createMongoField() {
         try {
             return (MongoField<T>) Class.forName(config.getFieldImplClass()).newInstance();
@@ -1613,6 +1625,36 @@ public class Morphium {
             }
             return methodProxy.invokeSuper(o, objects);
         }
+    }
+
+    // Lazy loading / DeReferencing of References
+    private class LazyDeReferencingHandler<T> implements MethodInterceptor {
+        private T deReferenced;
+        private Class<T> cls;
+        private ObjectId id;
+        public LazyDeReferencingHandler(Class type, ObjectId id) {
+            cls=type;
+            this.id=id;
+        }
+        @Override
+        public Object intercept(Object o, Method method, Object[] objects, MethodProxy methodProxy) throws Throwable {
+            if (deReferenced==null) {
+                if (logger.isDebugEnabled())
+                    logger.debug("DeReferencing due to first access");
+
+                if (id==null) {
+                    return methodProxy.invokeSuper(o, objects);
+                }
+                deReferenced=(T)findById(cls,id);
+
+            }
+            if (deReferenced!=null) {
+                return methodProxy.invoke(deReferenced, objects);
+            }
+            return methodProxy.invokeSuper(o,objects);
+           
+        }
+
     }
 
 
