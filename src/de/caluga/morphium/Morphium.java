@@ -625,29 +625,35 @@ public class Morphium {
 
         if (type.isAnnotationPresent(StoreLastChange.class)) {
             StoreLastChange t = (StoreLastChange) type.getAnnotation(StoreLastChange.class);
-            String ctf = t.lastChangeField();
-            long now = System.currentTimeMillis();
-            Field f = getField(type, ctf);
-            if (f != null) {
-                try {
-                    f.set(ent, now);
-                } catch (IllegalAccessException e) {
-                    logger.error("Could not set modification time", e);
+            List<String> lst = config.getMapper().getFields(ent.getClass(), LastChange.class);
 
-                }
-            }
-            update.put(ctf, now);
-            if (t.storeLastChangeBy()) {
-                ctf = t.lastChangeField();
-                f = getField(type, ctf);
+            long now = System.currentTimeMillis();
+            for (String ctf : lst) {
+                Field f = getField(type, ctf);
                 if (f != null) {
                     try {
-                        f.set(ent, config.getSecurityMgr().getCurrentUserId());
+                        f.set(ent, now);
                     } catch (IllegalAccessException e) {
-                        logger.error("Could not set changed by", e);
+                        logger.error("Could not set modification time", e);
+
                     }
                 }
-                update.put(ctf, config.getSecurityMgr().getCurrentUserId());
+                update.put(ctf, now);
+            }
+            lst = config.getMapper().getFields(ent.getClass(), LastChangeBy.class);
+            if (lst != null && lst.size() != 0) {
+                for (String ctf : lst) {
+
+                    Field f = getField(type, ctf);
+                    if (f != null) {
+                        try {
+                            f.set(ent, config.getSecurityMgr().getCurrentUserId());
+                        } catch (IllegalAccessException e) {
+                            logger.error("Could not set changed by", e);
+                        }
+                    }
+                    update.put(ctf, config.getSecurityMgr().getCurrentUserId());
+                }
             }
         }
 
@@ -880,58 +886,76 @@ public class Morphium {
 
             //new object - need to store creation time
             if (type.isAnnotationPresent(StoreCreationTime.class)) {
-                StoreCreationTime t = (StoreCreationTime) type.getAnnotation(StoreCreationTime.class);
-                String ctf = t.creationTimeField();
-                long now = System.currentTimeMillis();
-                Field f = getField(type, ctf);
-                if (f != null) {
-                    try {
-                        f.set(o, now);
-                    } catch (IllegalAccessException e) {
-                        logger.error("Could not set creation time", e);
+                List<String> lst = config.getMapper().getFields(type, CreationTime.class);
+                if (lst == null || lst.size() == 0) {
+                    logger.error("Unable to store creation time as @CreationTime is missing");
+                } else {
+                    long now = System.currentTimeMillis();
+                    for (String ctf : lst) {
+                        Field f = getField(type, ctf);
+                        if (f != null) {
+                            try {
+                                f.set(o, now);
+                            } catch (IllegalAccessException e) {
+                                logger.error("Could not set creation time", e);
 
-                    }
-                }
-                marshall.put(ctf, now);
-                if (t.storeCreatedBy()) {
-                    ctf = t.createdByField();
-                    f = getField(type, ctf);
-                    if (f != null) {
-                        try {
-                            f.set(o, config.getSecurityMgr().getCurrentUserId());
-                        } catch (IllegalAccessException e) {
-                            logger.error("Could not set created by", e);
+                            }
                         }
+                        marshall.put(ctf, now);
                     }
-                    marshall.put(ctf, config.getSecurityMgr().getCurrentUserId());
+
+                }
+                lst = config.getMapper().getFields(type, CreatedBy.class);
+                if (lst != null && lst.size() > 0) {
+                    for (String ctf : lst) {
+
+                        Field f = getField(type, ctf);
+                        if (f != null) {
+                            try {
+                                f.set(o, config.getSecurityMgr().getCurrentUserId());
+                            } catch (IllegalAccessException e) {
+                                logger.error("Could not set created by", e);
+                            }
+                        }
+                        marshall.put(ctf, config.getSecurityMgr().getCurrentUserId());
+                    }
                 }
             }
         }
         if (type.isAnnotationPresent(StoreLastChange.class)) {
-            StoreLastChange t = (StoreLastChange) type.getAnnotation(StoreLastChange.class);
-            String ctf = t.lastChangeField();
-            long now = System.currentTimeMillis();
-            Field f = getField(type, ctf);
-            if (f != null) {
-                try {
-                    f.set(o, now);
-                } catch (IllegalAccessException e) {
-                    logger.error("Could not set modification time", e);
+            List<String> lst = config.getMapper().getFields(type, LastChange.class);
+            if (lst != null && lst.size() > 0) {
+                for (String ctf : lst) {
+                    long now = System.currentTimeMillis();
+                    Field f = getField(type, ctf);
+                    if (f != null) {
+                        try {
+                            f.set(o, now);
+                        } catch (IllegalAccessException e) {
+                            logger.error("Could not set modification time", e);
 
-                }
-            }
-            marshall.put(ctf, now);
-            if (t.storeLastChangeBy()) {
-                ctf = t.lastChangeField();
-                f = getField(type, ctf);
-                if (f != null) {
-                    try {
-                        f.set(o, config.getSecurityMgr().getCurrentUserId());
-                    } catch (IllegalAccessException e) {
-                        logger.error("Could not set changed by", e);
+                        }
                     }
+                    marshall.put(ctf, now);
                 }
-                marshall.put(ctf, config.getSecurityMgr().getCurrentUserId());
+            } else {
+                logger.warn("Could not store last change - @LastChange missing!");
+            }
+
+            lst = config.getMapper().getFields(type, LastChangeBy.class);
+            if (lst != null && lst.size() > 0) {
+                for (String ctf : lst) {
+
+                    Field f = getField(type, ctf);
+                    if (f != null) {
+                        try {
+                            f.set(o, config.getSecurityMgr().getCurrentUserId());
+                        } catch (IllegalAccessException e) {
+                            logger.error("Could not set changed by", e);
+                        }
+                    }
+                    marshall.put(ctf, config.getSecurityMgr().getCurrentUserId());
+                }
             }
         }
 
@@ -1054,7 +1078,7 @@ public class Morphium {
 
     public <T> T findById(Class<T> type, ObjectId id) {
         List<String> ls = config.getMapper().getFields(type, Id.class);
-        if (ls.size()==0) throw new RuntimeException("Cannot find by ID on non-Entity");
+        if (ls.size() == 0) throw new RuntimeException("Cannot find by ID on non-Entity");
 
         return (T) createQueryFor(type).f(ls.get(0)).eq(id).get();
     }
@@ -1129,21 +1153,7 @@ public class Morphium {
         return cls.isAnnotationPresent(StoreLastChange.class);
     }
 
-    public String getLastChangeField(Class<? extends Object> cls) {
-        if (storesLastChange(cls)) {
-            StoreLastChange slc = cls.getAnnotation(StoreLastChange.class);
-            return slc.lastChangeField();
-        }
-        return null;
-    }
 
-    public String getLastChangeByField(Class<? extends Object> cls) {
-        if (storesLastChange(cls)) {
-            StoreLastChange slc = cls.getAnnotation(StoreLastChange.class);
-            return slc.storeLastChangeBy() ? slc.lastChangeByField() : null;
-        }
-        return null;
-    }
 
     private String getFieldName(Class cls, String fld) {
         return config.getMapper().getFieldName(cls, fld);
@@ -1573,8 +1583,8 @@ public class Morphium {
     }
 
     public <T> T createLazyLoadedEntity(T o) {
-        ObjectId id=config.getMapper().getId(o);
-        return (T) Enhancer.create(o.getClass(), new Class[]{}, new LazyDeReferencingHandler(o.getClass(),id));
+        ObjectId id = config.getMapper().getId(o);
+        return (T) Enhancer.create(o.getClass(), new Class[]{}, new LazyDeReferencingHandler(o.getClass(), id));
     }
 
     protected <T> MongoField<T> createMongoField() {
@@ -1632,27 +1642,29 @@ public class Morphium {
         private T deReferenced;
         private Class<T> cls;
         private ObjectId id;
+
         public LazyDeReferencingHandler(Class type, ObjectId id) {
-            cls=type;
-            this.id=id;
+            cls = type;
+            this.id = id;
         }
+
         @Override
         public Object intercept(Object o, Method method, Object[] objects, MethodProxy methodProxy) throws Throwable {
-            if (deReferenced==null) {
+            if (deReferenced == null) {
                 if (logger.isDebugEnabled())
                     logger.debug("DeReferencing due to first access");
 
-                if (id==null) {
+                if (id == null) {
                     return methodProxy.invokeSuper(o, objects);
                 }
-                deReferenced=(T)findById(cls,id);
+                deReferenced = (T) findById(cls, id);
 
             }
-            if (deReferenced!=null) {
+            if (deReferenced != null) {
                 return methodProxy.invoke(deReferenced, objects);
             }
-            return methodProxy.invokeSuper(o,objects);
-           
+            return methodProxy.invokeSuper(o, objects);
+
         }
 
     }

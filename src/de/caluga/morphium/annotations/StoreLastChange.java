@@ -12,9 +12,5 @@ import java.lang.annotation.Target;
 @Target({ElementType.TYPE})
 @Retention(RetentionPolicy.RUNTIME)
 public @interface StoreLastChange {
-    String lastChangeField();
 
-    boolean storeLastChangeBy() default false;
-
-    String lastChangeByField() default "last_change_by";
 }

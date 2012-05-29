@@ -12,9 +12,5 @@ import java.lang.annotation.Target;
 @Target({ElementType.TYPE})
 @Retention(RetentionPolicy.RUNTIME)
 public @interface StoreLastAccess {
-    String lastAccessField();
 
-    boolean logUser() default false;
-
-    String lastAccessUserField() default "last_access_by";
 }

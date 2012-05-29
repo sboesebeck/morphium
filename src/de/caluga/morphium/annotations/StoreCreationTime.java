@@ -12,9 +12,5 @@ import java.lang.annotation.Target;
 @Target({ElementType.TYPE})
 @Retention(RetentionPolicy.RUNTIME)
 public @interface StoreCreationTime {
-    String creationTimeField();
 
-    boolean storeCreatedBy() default false;
-
-    String createdByField() default "created_by";
 }
