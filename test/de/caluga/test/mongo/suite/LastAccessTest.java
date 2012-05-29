@@ -2,8 +2,10 @@ package de.caluga.test.mongo.suite;
 
 import de.caluga.morphium.Morphium;
 import de.caluga.morphium.MorphiumSingleton;
+import de.caluga.morphium.Query;
 import de.caluga.morphium.annotations.*;
 import de.caluga.morphium.annotations.caching.NoCache;
+import org.bson.types.ObjectId;
 import org.junit.Test;
 
 /**
@@ -25,7 +27,11 @@ public class LastAccessTest extends MongoTest{
         MorphiumSingleton.get().store(tst);
         assert(tst.getLastChange()>0):"No last change set?";
 
-        tst.getValue();
+        Query<TstObjLA> q=MorphiumSingleton.get().createQueryFor(TstObjLA.class);
+        tst=q.get();
+        assert(tst.getLastAccess()>0):"No last_access set?";
+
+        tst=q.asList().get(0);
         assert(tst.getLastAccess()>0):"No last_access set?";
     }
 
@@ -36,6 +42,9 @@ public class LastAccessTest extends MongoTest{
     @StoreLastChange
     @StoreCreationTime
     public static class TstObjLA {
+        @Id
+        private ObjectId id;
+
         @LastAccess
         private long lastAccess;
 
