@@ -72,6 +72,7 @@ public class Messaging extends Thread {
             q.sort(Msg.Fields.timestamp);
 
             List<Msg> messagesList = q.asList();
+            List<Msg> toStore=new ArrayList<Msg>();
 
             for (Msg msg : messagesList) {
                 msg = morphium.reread(msg); //make sure it's current version in DB
@@ -104,9 +105,10 @@ public class Messaging extends Thread {
                 msg.addProcessedId(id);
                 msg.setLockedBy(null);
                 msg.setLocked(0);
-                morphium.store(msg);
-            }
+                toStore.add(msg);
 
+            }
+            morphium.storeList(messagesList);
             try {
                 sleep(pause);
             } catch (InterruptedException e) {
