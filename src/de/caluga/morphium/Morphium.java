@@ -775,7 +775,9 @@ public class Morphium {
 
     private void firePreStoreEvent(Object o) {
         if (o == null) return;
-        for (MorphiumStorageListener l : listeners) {
+        //Avoid concurrent modification exception
+        List<MorphiumStorageListener> lst= (List<MorphiumStorageListener>) listeners.clone();
+        for (MorphiumStorageListener l : lst) {
             l.preStore(o);
         }
         callLifecycleMethod(PreStore.class, o);
@@ -783,7 +785,9 @@ public class Morphium {
     }
 
     private void firePostStoreEvent(Object o) {
-        for (MorphiumStorageListener l : listeners) {
+        //Avoid concurrent modification exception
+        List<MorphiumStorageListener> lst= (List<MorphiumStorageListener>) listeners.clone();
+        for (MorphiumStorageListener l : lst) {
             l.postStore(o);
         }
         callLifecycleMethod(PostStore.class, o);
@@ -792,27 +796,35 @@ public class Morphium {
     }
 
     private void firePreDropEvent(Class cls) {
-        for (MorphiumStorageListener l : listeners) {
+        //Avoid concurrent modification exception
+        List<MorphiumStorageListener> lst= (List<MorphiumStorageListener>) listeners.clone();
+        for (MorphiumStorageListener l : lst) {
             l.preDrop(cls);
         }
 
     }
 
     private void firePostDropEvent(Class cls) {
-        for (MorphiumStorageListener l : listeners) {
+        //Avoid concurrent modification exception
+        List<MorphiumStorageListener> lst= (List<MorphiumStorageListener>) listeners.clone();
+        for (MorphiumStorageListener l : lst) {
             l.postDrop(cls);
         }
     }
 
     private void firePostRemoveEvent(Object o) {
-        for (MorphiumStorageListener l : listeners) {
+        //Avoid concurrent modification exception
+        List<MorphiumStorageListener> lst= (List<MorphiumStorageListener>) listeners.clone();
+        for (MorphiumStorageListener l : lst) {
             l.postRemove(o);
         }
         callLifecycleMethod(PostRemove.class, o);
     }
 
     private void firePostRemoveEvent(Query q) {
-        for (MorphiumStorageListener l : listeners) {
+        //Avoid concurrent modification exception
+        List<MorphiumStorageListener> lst= (List<MorphiumStorageListener>) listeners.clone();
+        for (MorphiumStorageListener l : lst) {
             l.postRemove(q);
         }
         //TODO: FIX - Cannot call lifecycle method here
@@ -820,33 +832,41 @@ public class Morphium {
     }
 
     private void firePreRemoveEvent(Object o) {
-        for (MorphiumStorageListener l : listeners) {
+        //Avoid concurrent modification exception
+        List<MorphiumStorageListener> lst= (List<MorphiumStorageListener>) listeners.clone();
+        for (MorphiumStorageListener l : lst) {
             l.preDelete(o);
         }
         callLifecycleMethod(PreRemove.class, o);
     }
 
     private void firePreRemoveEvent(Query q) {
-        for (MorphiumStorageListener l : listeners) {
+        //Avoid concurrent modification exception
+        List<MorphiumStorageListener> lst= (List<MorphiumStorageListener>) listeners.clone();
+        for (MorphiumStorageListener l : lst) {
             l.preRemove(q);
         }
         //TODO: Fix - cannot call lifecycle method
     }
 
-    private void firePreListStoreEvent(List lst) {
-        for (MorphiumStorageListener l : listeners) {
-            l.preListStore(lst);
+    private void firePreListStoreEvent(List records) {
+        //Avoid concurrent modification exception
+        List<MorphiumStorageListener> lst= (List<MorphiumStorageListener>) listeners.clone();
+        for (MorphiumStorageListener l : lst) {
+            l.preListStore(records);
         }
-        for (Object o : lst) {
+        for (Object o : records) {
             callLifecycleMethod(PreStore.class, o);
         }
     }
 
-    private void firePostListStoreEvent(List lst) {
-        for (MorphiumStorageListener l : listeners) {
-            l.postListStore(lst);
+    private void firePostListStoreEvent(List records) {
+        //Avoid concurrent modification exception
+        List<MorphiumStorageListener> lst= (List<MorphiumStorageListener>) listeners.clone();
+        for (MorphiumStorageListener l : lst) {
+            l.postListStore(records);
         }
-        for (Object o : lst) {
+        for (Object o : records) {
             callLifecycleMethod(PostStore.class, o);
         }
 
@@ -858,7 +878,9 @@ public class Morphium {
      * @param o
      */
     protected void firePostLoadEvent(Object o) {
-        for (MorphiumStorageListener l : listeners) {
+        //Avoid concurrent modification exception
+        List<MorphiumStorageListener> lst= (List<MorphiumStorageListener>) listeners.clone();
+        for (MorphiumStorageListener l : lst) {
             l.postLoad(o);
         }
         callLifecycleMethod(PostLoad.class, o);
