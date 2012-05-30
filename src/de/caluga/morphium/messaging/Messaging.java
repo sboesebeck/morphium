@@ -52,9 +52,10 @@ public class Messaging extends Thread {
                 log.info("Deleting outdate messages: " + q.countAll());
             }
             morphium.delete(q);
-
+            q=q.q();
             //locking messages...
-            q = q.q().f(Msg.Fields.sender).ne(id).f(Msg.Fields.lockedBy).eq(null).f(Msg.Fields.lstOfIdsAlreadyProcessed).ne(id);
+            q.or(q.q().f(Msg.Fields.sender).ne(id).f(Msg.Fields.lockedBy).eq(null).f(Msg.Fields.lstOfIdsAlreadyProcessed).ne(id).f(Msg.Fields.to).eq(null),
+                    q.q().f(Msg.Fields.sender).ne(id).f(Msg.Fields.lockedBy).eq(null).f(Msg.Fields.lstOfIdsAlreadyProcessed).ne(id).f(Msg.Fields.to).eq(id));
             values.put("locked_by", id);
             values.put("locked", System.currentTimeMillis());
 //            morphium.set(Msg.class,q,Msg.Fields.lockedBy,id);

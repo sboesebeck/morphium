@@ -1,9 +1,6 @@
 package de.caluga.morphium.messaging;
 
-import de.caluga.morphium.annotations.Entity;
-import de.caluga.morphium.annotations.Id;
-import de.caluga.morphium.annotations.SafetyLevel;
-import de.caluga.morphium.annotations.WriteSafety;
+import de.caluga.morphium.annotations.*;
 import de.caluga.morphium.annotations.caching.Cache;
 import de.caluga.morphium.annotations.lifecycle.Lifecycle;
 import de.caluga.morphium.annotations.lifecycle.PreStore;
@@ -32,6 +29,8 @@ public class Msg {
         msgId,
         locked,
         type,
+        inAnswerTo,
+        to,
         msg,
         additional,
         value,
@@ -49,6 +48,8 @@ public class Msg {
     private MsgType type;
     private long ttl;
     private String sender;
+    private List<String> to;
+    private String inAnswerTo;
     //payload goes here
     private String name;
     private String msg;
@@ -60,8 +61,8 @@ public class Msg {
     public Msg() {
     }
 
-    public Msg(String name, String msg, String value) {
-        this(name, MsgType.SINGLE, msg, null, value, 30000);
+    public Msg( String name, String msg, String value) {
+        this( name, MsgType.SINGLE, msg, null, value, 30000);
     }
 
     public Msg(String name, MsgType t, String msg, String additional, String value, int ttl) {
@@ -71,6 +72,41 @@ public class Msg {
         this.value = value;
         this.type = t;
         this.ttl = ttl;
+    }
+
+    public void addRecipient(String id) {
+        if (to==null) {
+            to=new ArrayList<String>();
+
+        }
+        if (!to.contains(id)) {
+            to.add(id);
+        }
+    }
+
+    public void removeRecipient(String id) {
+        if (to==null) {
+            return;
+
+        } else {
+            to.remove(id);
+        }
+    }
+
+    public List<String> getTo() {
+        return to;
+    }
+
+    public void setTo(List<String> to) {
+        this.to = to;
+    }
+
+    public String getInAnswerTo() {
+        return inAnswerTo;
+    }
+
+    public void setInAnswerTo(String inAnswerTo) {
+        this.inAnswerTo = inAnswerTo;
     }
 
     public String getMsgId() {
@@ -212,5 +248,12 @@ public class Msg {
             ttl = 30000;
         }
         timestamp = System.currentTimeMillis();
+    }
+
+
+    public void sendAnswer(Messaging messaging, Msg m) {
+        m.setInAnswerTo(this.msgId);
+        m.addRecipient(this.getSender());
+        messaging.queueMessage(m);
     }
 }

@@ -241,6 +241,86 @@ public class MessagingTest extends MongoTest {
         assert(!m2.isAlive()):"M2 still running";
         assert(!m3.isAlive()):"M3 still running";
         assert(!m4.isAlive()):"M4 still running";
+
+
+    }
+
+    @Test
+    public void directedMessageTest() throws Exception {
+
+        final Messaging m1 = new Messaging(MorphiumSingleton.get(), 100, true);
+        final Messaging m2 = new Messaging(MorphiumSingleton.get(), 100, true);
+        final Messaging m3 = new Messaging(MorphiumSingleton.get(), 100, true);
+
+        m1.start();
+        m2.start();
+        m3.start();
+
+        m1.addMessageListener(new MessageListener() {
+            @Override
+            public void onMessage(Msg m) {
+                gotMessage1 = true;
+                assert(m.getTo()==null || m.getTo().contains(m1.getSenderId())):"wrongly received message?";
+                log.info("M1 got message " + m.toString());
+//                assert (m.getSender().equals(m2.getSenderId())) : "Sender is not M2?!?!? m2_id: " + m2.getSenderId() + " - message sender: " + m.getSender();
+            }
+        });
+
+        m2.addMessageListener(new MessageListener() {
+            @Override
+            public void onMessage(Msg m) {
+                gotMessage2 = true;
+                assert(m.getTo()==null || m.getTo().contains(m2.getSenderId())):"wrongly received message?";
+                log.info("M2 got message " + m.toString());
+//                assert (m.getSender().equals(m1.getSenderId())) : "Sender is not M1?!?!? m1_id: " + m1.getSenderId() + " - message sender: " + m.getSender();
+            }
+        });
+
+        m3.addMessageListener(new MessageListener() {
+            @Override
+            public void onMessage(Msg m) {
+                gotMessage3 = true;
+                assert(m.getTo()==null || m.getTo().contains(m3.getSenderId())):"wrongly received message?";
+                log.info("M3 got message " + m.toString());
+//                assert (m.getSender().equals(m1.getSenderId())) : "Sender is not M1?!?!? m1_id: " + m1.getSenderId() + " - message sender: " + m.getSender();
+            }
+        });
+
+        //sending message to all
+        log.info("Sending broadcast message");
+        m1.queueMessage(new Msg("testmsg1", "The message from M1", "Value"));
+        Thread.sleep(5000);
+        assert (gotMessage2) : "Message not recieved yet by m2?!?!?";
+        assert (gotMessage3) : "Message not recieved yet by m3?!?!?";
+        gotMessage1 = false;
+        gotMessage2 = false;
+        gotMessage3 = false;
+
+        Thread.sleep(1500);
+        assert (!gotMessage1) : "Message recieved again by m1?!?!?";
+        assert (!gotMessage2) : "Message not recieved again by m2?!?!?";
+        assert (!gotMessage3) : "Message not recieved again by m3?!?!?";
+
+        log.info("Sending direct message");
+        Msg m=new Msg("testmsg1", "The message from M1", "Value");
+        m.addRecipient(m2.getSenderId());
+        m1.queueMessage(m);
+        Thread.sleep(2000);
+        assert(gotMessage2):"Message not received by m2?";
+        assert (!gotMessage1) : "Message recieved by m1?!?!?";
+        assert (!gotMessage3) : "Message not recieved again by m3?!?!?";
+        gotMessage1 = false;
+        gotMessage2 = false;
+        gotMessage3 = false;
+        Thread.sleep(2000);
+        assert (!gotMessage1) : "Message recieved again by m1?!?!?";
+        assert (!gotMessage2) : "Message not recieved again by m2?!?!?";
+        assert (!gotMessage3) : "Message not recieved again by m3?!?!?";
+
+        m1.setRunning(false);
+        m2.setRunning(false);
+        m3.setRunning(false);
+        Thread.sleep(1000);
     }
 
 }
