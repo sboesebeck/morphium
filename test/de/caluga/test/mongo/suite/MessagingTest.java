@@ -43,6 +43,7 @@ public class MessagingTest extends MongoTest {
 
     @Test
     public void messageQueueTest() throws Exception {
+        MorphiumSingleton.get().clearCollection(Msg.class);
         String id = "meine ID";
 
 
@@ -126,7 +127,7 @@ public class MessagingTest extends MongoTest {
 
     @Test
     public void systemTest() throws Exception {
-
+        MorphiumSingleton.get().clearCollection(Msg.class);
         final Messaging m1 = new Messaging(MorphiumSingleton.get(), 500, true);
         final Messaging m2 = new Messaging(MorphiumSingleton.get(), 500, true);
         m1.start();
@@ -170,7 +171,7 @@ public class MessagingTest extends MongoTest {
 
     @Test
     public void severalSystemsTest() throws Exception {
-
+        MorphiumSingleton.get().clearCollection(Msg.class);
         final Messaging m1 = new Messaging(MorphiumSingleton.get(), 100, true);
         final Messaging m2 = new Messaging(MorphiumSingleton.get(), 100, true);
         final Messaging m3 = new Messaging(MorphiumSingleton.get(), 100, true);
@@ -247,7 +248,7 @@ public class MessagingTest extends MongoTest {
 
     @Test
     public void directedMessageTest() throws Exception {
-
+        MorphiumSingleton.get().clearCollection(Msg.class);
         final Messaging m1 = new Messaging(MorphiumSingleton.get(), 100, true);
         final Messaging m2 = new Messaging(MorphiumSingleton.get(), 100, true);
         final Messaging m3 = new Messaging(MorphiumSingleton.get(), 100, true);
