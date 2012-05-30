@@ -256,6 +256,10 @@ public class MessagingTest extends MongoTest {
         m2.start();
         m3.start();
 
+        log.info("m1 ID: "+m1.getSenderId());
+        log.info("m2 ID: "+m2.getSenderId());
+        log.info("m3 ID: "+m3.getSenderId());
+
         m1.addMessageListener(new MessageListener() {
             @Override
             public void onMessage(Msg m) {

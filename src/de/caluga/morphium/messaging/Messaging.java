@@ -108,7 +108,7 @@ public class Messaging extends Thread {
                 toStore.add(msg);
 
             }
-            morphium.storeList(messagesList);
+            morphium.storeList(toStore);
             try {
                 sleep(pause);
             } catch (InterruptedException e) {
