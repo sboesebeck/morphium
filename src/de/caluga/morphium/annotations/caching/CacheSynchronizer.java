@@ -139,7 +139,8 @@ public class CacheSynchronizer implements MorphiumStorageListener, MessageListen
             if (cls.isAnnotationPresent(Entity.class)) {
                 if (cls.isAnnotationPresent(Cache.class)) {
                     Cache c = (Cache) cls.getAnnotation(Cache.class);
-                    if (c.readCache() && c.clearOnWrite()) {
+                    if (c.readCache()) {
+                        //Really clearing cache, even if clear on write is set to false! => manual clearing?
                         morphium.clearCachefor(cls);
                     } else {
                         log.warn("trying to clear cache for uncached enitity or one where clearOnWrite is false");
