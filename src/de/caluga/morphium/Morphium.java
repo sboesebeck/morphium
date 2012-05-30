@@ -1040,6 +1040,15 @@ public class Morphium {
         return cache.get(type) != null && cache.get(type).get(k) != null && cache.get(type).get(k).getFound() != null;
     }
 
+    /**
+     * return object by from cache. Cache key usually is the string-representation of the search
+     * query.toQueryObject()
+     *
+     * @param type
+     * @param k
+     * @param <T>
+     * @return
+     */
     public <T> List<T> getFromCache(Class<T> type, String k) {
         if (cache.get(type) == null || cache.get(type).get(k) == null) return null;
         final CacheElement cacheElement = cache.get(type).get(k);
