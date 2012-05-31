@@ -9,6 +9,7 @@ import org.bson.types.ObjectId;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
 
 /**
  * User: Stephan Bösebeck
@@ -59,13 +60,15 @@ public class Msg {
     private long timestamp;
 
     public Msg() {
+        msgId= UUID.randomUUID().toString();
     }
 
     public Msg( String name, String msg, String value) {
         this( name, MsgType.SINGLE, msg, null, value, 30000);
     }
 
-    public Msg(String name, MsgType t, String msg, String additional, String value, int ttl) {
+    public Msg(String name, MsgType t, String msg, String additional, String value, long ttl) {
+        this();
         this.name = name;
         this.msg = msg;
         this.additional = additional;
@@ -216,7 +219,7 @@ public class Msg {
     public String toString() {
         return "Msg{" +
                 "id=" + id +
-                ", lstOfIdsAlreadyProcessed=" + lstOfIdsAlreadyProcessed +
+                ", inAnswerTo='" + inAnswerTo + '\'' +
                 ", msgId='" + msgId + '\'' +
                 ", lockedBy='" + lockedBy + '\'' +
                 ", locked=" + locked +
@@ -228,6 +231,8 @@ public class Msg {
                 ", additional='" + additional + '\'' +
                 ", value='" + value + '\'' +
                 ", timestamp=" + timestamp +
+                ", recipients='" + to + '\'' +
+                ", lstOfIdsAlreadyProcessed=" + lstOfIdsAlreadyProcessed +
                 '}';
     }
 
@@ -251,6 +256,12 @@ public class Msg {
     }
 
 
+    public Msg createAnswerMsg() {
+        Msg ret=new Msg(name,type, msg,additional, value,ttl);
+        ret.setInAnswerTo(msgId);
+        ret.addRecipient(sender);
+        return ret;
+    }
     public void sendAnswer(Messaging messaging, Msg m) {
         m.setInAnswerTo(this.msgId);
         m.addRecipient(this.getSender());

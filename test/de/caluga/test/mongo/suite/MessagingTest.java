@@ -26,6 +26,8 @@ public class MessagingTest extends MongoTest {
     public boolean gotMessage3 = false;
     public boolean gotMessage4 = false;
 
+    public String lastMsgId;
+
     @Test
     public void testMsgLifecycle() throws Exception {
         Msg m = new Msg();
@@ -348,4 +350,73 @@ public class MessagingTest extends MongoTest {
         Thread.sleep(1000);
     }
 
+    @Test
+    public void answeringTest() throws Exception {
+        gotMessage1=false;
+        gotMessage2=false;
+        gotMessage3=false;
+
+        MorphiumSingleton.get().clearCollection(Msg.class);
+        final Messaging m1 = new Messaging(MorphiumSingleton.get(), 100, true);
+        final Messaging m2 = new Messaging(MorphiumSingleton.get(), 100, true);
+        final Messaging onlyAnswers = new Messaging(MorphiumSingleton.get(), 100, true);
+
+        m1.start();
+        m2.start();
+        onlyAnswers.start();
+
+        log.info("m1 ID: "+m1.getSenderId());
+        log.info("m2 ID: " + m2.getSenderId());
+        log.info("onlyAnswers ID: " + onlyAnswers.getSenderId());
+
+        m1.addMessageListener(new MessageListener() {
+            @Override
+            public void onMessage(Msg m) {
+                gotMessage1 = true;
+                assert(m.getTo()==null || m.getTo().contains(m1.getSenderId())):"wrongly received message?";
+                assert(m.getInAnswerTo()==null):"M1 got an answer, but did not ask?";
+                log.info("M1 got message " + m.toString());
+                Msg answer=m.createAnswerMsg();
+                answer.setValue("This is the answer from m1");
+                m.sendAnswer(m1,answer);
+            }
+        });
+
+        m2.addMessageListener(new MessageListener() {
+            @Override
+            public void onMessage(Msg m) {
+                gotMessage2 = true;
+                assert(m.getTo()==null || m.getTo().contains(m2.getSenderId())):"wrongly received message?";
+                log.info("M2 got message " + m.toString());
+                assert(m.getInAnswerTo()==null):"M2 got an answer, but did not ask?";
+                Msg answer=m.createAnswerMsg();
+                answer.setValue("This is the answer from m2");
+                m.sendAnswer(m2,answer);
+            }
+        });
+
+        onlyAnswers.addMessageListener(new MessageListener() {
+            @Override
+            public void onMessage(Msg m) {
+                gotMessage3 = true;
+                assert (m.getTo() == null || m.getTo().contains(onlyAnswers.getSenderId())) : "wrongly received message?";
+                assert(m.getInAnswerTo() !=null):"was not an answer? "+m.toString();
+
+                log.info("M3 got answer " + m.toString());
+                assert(m.getInAnswerTo().equals(lastMsgId)):"Wrong answer????";
+//                assert (m.getSender().equals(m1.getSenderId())) : "Sender is not M1?!?!? m1_id: " + m1.getSenderId() + " - message sender: " + m.getSender();
+            }
+        });
+
+        Msg question=new Msg("QMsg","This is the message text","A question param");
+        lastMsgId=question.getMsgId();
+        onlyAnswers.queueMessage(question);
+
+        log.info("Send Message with id: "+question.getMsgId());
+        Thread.sleep(3000);
+        assert(gotMessage3):"no answer got back?";
+        assert(gotMessage1):"Question not received by m1";
+        assert(gotMessage2):"Question not received by m2";
+
+    }
 }
