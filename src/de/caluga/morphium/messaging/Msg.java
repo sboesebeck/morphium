@@ -7,9 +7,7 @@ import de.caluga.morphium.annotations.lifecycle.PreStore;
 import org.apache.log4j.Logger;
 import org.bson.types.ObjectId;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.UUID;
+import java.util.*;
 
 /**
  * User: Stephan Bösebeck
@@ -54,7 +52,8 @@ public class Msg {
     //payload goes here
     private String name;
     private String msg;
-    private String additional;
+    private List<String> additional;
+    private Map<String,Object> mapValue;
     private String value;
 
     private long timestamp;
@@ -64,14 +63,13 @@ public class Msg {
     }
 
     public Msg( String name, String msg, String value) {
-        this( name, MsgType.SINGLE, msg, null, value, 30000);
+        this( name, MsgType.SINGLE, msg,  value, 30000);
     }
 
-    public Msg(String name, MsgType t, String msg, String additional, String value, long ttl) {
+    public Msg(String name, MsgType t, String msg, String value, long ttl) {
         this();
         this.name = name;
         this.msg = msg;
-        this.additional = additional;
         this.value = value;
         this.type = t;
         this.ttl = ttl;
@@ -94,6 +92,26 @@ public class Msg {
         } else {
             to.remove(id);
         }
+    }
+
+    public void addValue(String key, Object value) {
+        if (mapValue==null) {
+            mapValue=new HashMap<String, Object>();
+        }
+        mapValue.put(key,value);
+    }
+
+    public void removeValue(String key) {
+        if (mapValue==null) return;
+        mapValue.remove(key);
+    }
+
+    public Map<String, Object> getMapValue() {
+        return mapValue;
+    }
+
+    public void setMapValue(Map<String, Object> mapValue) {
+        this.mapValue = mapValue;
     }
 
     public List<String> getTo() {
@@ -199,12 +217,24 @@ public class Msg {
         this.msg = msg;
     }
 
-    public String getAdditional() {
+    public List<String> getAdditional() {
         return additional;
     }
 
-    public void setAdditional(String additional) {
+    public void setAdditional(List<String> additional) {
         this.additional = additional;
+    }
+
+    public void addAdditional(String value) {
+        if (additional==null) {
+            additional=new ArrayList<String>();
+        }
+        additional.add(value);
+    }
+
+    public void removeAdditional(String value) {
+        if (additional==null) return;
+        additional.remove(value);
     }
 
     public String getValue() {
@@ -228,9 +258,10 @@ public class Msg {
                 ", sender='" + sender + '\'' +
                 ", name='" + name + '\'' +
                 ", msg='" + msg + '\'' +
-                ", additional='" + additional + '\'' +
                 ", value='" + value + '\'' +
                 ", timestamp=" + timestamp +
+                ", additional='" + additional + '\'' +
+                ", mapValue='" + mapValue + '\'' +
                 ", recipients='" + to + '\'' +
                 ", lstOfIdsAlreadyProcessed=" + lstOfIdsAlreadyProcessed +
                 '}';
@@ -257,7 +288,7 @@ public class Msg {
 
 
     public Msg createAnswerMsg() {
-        Msg ret=new Msg(name,type, msg,additional, value,ttl);
+        Msg ret=new Msg(name,type, msg, value,ttl);
         ret.setInAnswerTo(msgId);
         ret.addRecipient(sender);
         return ret;

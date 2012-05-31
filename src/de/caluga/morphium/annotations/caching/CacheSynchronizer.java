@@ -51,14 +51,14 @@ public class CacheSynchronizer implements MorphiumStorageListener, MessageListen
     public void sendClearMessage(Class type, String reason) {
         if (type.equals(Msg.class)) return;
         if (type.equals(ConfigElement.class)) {
-            Msg m = new Msg(MSG_NAME, MsgType.MULTI, reason, null, type.getName(), 30000);
+            Msg m = new Msg(MSG_NAME, MsgType.MULTI, reason,  type.getName(), 30000);
             messaging.queueMessage(m);
             return;
         }
         Cache c = (Cache) type.getAnnotation(Cache.class);
         if (c == null) return; //not clearing cache for non-cached objects
         if (c.readCache() && c.clearOnWrite() && c.autoSyncCache()) {
-            Msg m = new Msg(MSG_NAME, MsgType.MULTI, reason, null, type.getName(), 30000);
+            Msg m = new Msg(MSG_NAME, MsgType.MULTI, reason,  type.getName(), 30000);
             messaging.queueMessage(m);
         }
     }

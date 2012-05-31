@@ -8,6 +8,7 @@ import de.caluga.morphium.messaging.Msg;
 import de.caluga.morphium.messaging.MsgType;
 import org.junit.Test;
 
+import java.util.Date;
 import java.util.List;
 import java.util.UUID;
 
@@ -49,7 +50,7 @@ public class MessagingTest extends MongoTest {
         String id = "meine ID";
 
 
-        Msg m = new Msg("name", MsgType.SINGLE, "Msgid1", "additional", "value", 5000);
+        Msg m = new Msg("name", MsgType.SINGLE, "Msgid1", "value", 5000);
         m.setSender(id);
         MorphiumSingleton.get().store(m);
 
@@ -66,7 +67,7 @@ public class MessagingTest extends MongoTest {
         List<Msg> messagesList = q.asList();
         assert (messagesList.size() == 0) : "Got my own message?!?!?!" + messagesList.get(0).toString();
 
-        m = new Msg("name", MsgType.SINGLE, "msgid2", "additional", "value", 5000);
+        m = new Msg("name", MsgType.SINGLE, "msgid2", "value", 5000);
         m.setSender("sndId2");
         MorphiumSingleton.get().store(m);
 
@@ -100,13 +101,13 @@ public class MessagingTest extends MongoTest {
                 gotMessage = true;
             }
         });
-        messaging.queueMessage(new Msg("Testmessage", MsgType.MULTI, "A message", "Additional stuff", "the value - for now", 5000));
+        messaging.queueMessage(new Msg("Testmessage", MsgType.MULTI, "A message", "the value - for now", 5000));
 
         Thread.sleep(1000);
         assert (!gotMessage) : "Message recieved from self?!?!?!";
         log.info("Dig not get own message - cool!");
 
-        Msg m = new Msg("meine Message", MsgType.SINGLE, "The Message", "Additional message", "value is a string", 5000);
+        Msg m = new Msg("meine Message", MsgType.SINGLE, "The Message",  "value is a string", 5000);
         m.setMsgId(UUID.randomUUID().toString());
         m.setSender("Another sender");
 
@@ -378,6 +379,8 @@ public class MessagingTest extends MongoTest {
                 log.info("M1 got message " + m.toString());
                 Msg answer=m.createAnswerMsg();
                 answer.setValue("This is the answer from m1");
+                answer.addValue("something",new Date());
+                answer.addAdditional("String message from m1");
                 m.sendAnswer(m1,answer);
             }
         });
@@ -391,6 +394,8 @@ public class MessagingTest extends MongoTest {
                 assert(m.getInAnswerTo()==null):"M2 got an answer, but did not ask?";
                 Msg answer=m.createAnswerMsg();
                 answer.setValue("This is the answer from m2");
+                answer.addValue("when", System.currentTimeMillis());
+                answer.addAdditional("Additional Value von m2");
                 m.sendAnswer(m2,answer);
             }
         });
