@@ -13,4 +13,6 @@ public interface MessageListener {
     /**
      */
     public void onMessage(Msg m);
+
+    public void setMessaging(Messaging msg);
 }

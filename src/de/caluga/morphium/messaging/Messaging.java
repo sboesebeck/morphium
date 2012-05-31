@@ -52,7 +52,7 @@ public class Messaging extends Thread {
                 log.info("Deleting outdate messages: " + q.countAll());
             }
             morphium.delete(q);
-            q=q.q();
+            q = q.q();
             //locking messages...
             q.or(q.q().f(Msg.Fields.sender).ne(id).f(Msg.Fields.lockedBy).eq(null).f(Msg.Fields.lstOfIdsAlreadyProcessed).ne(id).f(Msg.Fields.to).eq(null),
                     q.q().f(Msg.Fields.sender).ne(id).f(Msg.Fields.lockedBy).eq(null).f(Msg.Fields.lstOfIdsAlreadyProcessed).ne(id).f(Msg.Fields.to).eq(id));
@@ -72,11 +72,11 @@ public class Messaging extends Thread {
             q.sort(Msg.Fields.timestamp);
 
             List<Msg> messagesList = q.asList();
-            List<Msg> toStore=new ArrayList<Msg>();
+            List<Msg> toStore = new ArrayList<Msg>();
 
             for (Msg msg : messagesList) {
                 msg = morphium.reread(msg); //make sure it's current version in DB
-                if (msg==null) continue; //was deleted
+                if (msg == null) continue; //was deleted
                 if (!msg.getLockedBy().equals(id)) {
                     //over-locked by someone else
                     continue;
@@ -121,13 +121,16 @@ public class Messaging extends Thread {
             listenerByName.put(n, new ArrayList<MessageListener>());
         }
         listenerByName.get(n).add(l);
+        l.setMessaging(this);
     }
 
     public void removeListenerForMessageNamed(String n, MessageListener l) {
+        l.setMessaging(null);
         if (listenerByName.get(n) == null) {
             return;
         }
         listenerByName.get(n).remove(l);
+
     }
 
     public String getSenderId() {
@@ -156,10 +159,12 @@ public class Messaging extends Thread {
 
     public void addMessageListener(MessageListener l) {
         listeners.add(l);
+        l.setMessaging(this);
     }
 
     public void removeMessageListener(MessageListener l) {
         listeners.remove(l);
+        l.setMessaging(null);
     }
 
     public void queueMessage(Msg m) {
