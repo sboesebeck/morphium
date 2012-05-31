@@ -45,74 +45,81 @@ public class Messaging extends Thread {
     public void run() {
         Map<String, Object> values = new HashMap<String, Object>();
         while (running) {
-            Query<Msg> q = morphium.createQueryFor(Msg.class);
-            //removing all outdated stuff
-            q = q.where("this.ttl<" + System.currentTimeMillis() + "-this.timestamp");
-            if (log.isDebugEnabled()) {
-                log.info("Deleting outdate messages: " + q.countAll());
-            }
-            morphium.delete(q);
-            q = q.q();
-            //locking messages...
-            q.or(q.q().f(Msg.Fields.sender).ne(id).f(Msg.Fields.lockedBy).eq(null).f(Msg.Fields.lstOfIdsAlreadyProcessed).ne(id).f(Msg.Fields.to).eq(null),
-                    q.q().f(Msg.Fields.sender).ne(id).f(Msg.Fields.lockedBy).eq(null).f(Msg.Fields.lstOfIdsAlreadyProcessed).ne(id).f(Msg.Fields.to).eq(id));
-            values.put("locked_by", id);
-            values.put("locked", System.currentTimeMillis());
-//            morphium.set(Msg.class,q,Msg.Fields.lockedBy,id);
-            morphium.set(Msg.class, q, values, false, processMultiple);
-            //give mongo time to really store
 
             try {
-                sleep(500);
-            } catch (InterruptedException e) {
-            }
-            //maybe others "overlocked" our message, but that's ok - we re read all messages...
-            q = q.q();
-            q = q.f(Msg.Fields.lockedBy).eq(id);
-            q.sort(Msg.Fields.timestamp);
-
-            List<Msg> messagesList = q.asList();
-            List<Msg> toStore = new ArrayList<Msg>();
-
-            for (Msg msg : messagesList) {
-                msg = morphium.reread(msg); //make sure it's current version in DB
-                if (msg == null) continue; //was deleted
-                if (!msg.getLockedBy().equals(id)) {
-                    //over-locked by someone else
-                    continue;
+                Query<Msg> q = morphium.createQueryFor(Msg.class);
+                //removing all outdated stuff
+                q = q.where("this.ttl<" + System.currentTimeMillis() + "-this.timestamp");
+                if (log.isDebugEnabled()) {
+                    log.info("Deleting outdate messages: " + q.countAll());
                 }
-                if (msg.getTtl() < System.currentTimeMillis() - msg.getTimestamp()) {
-                    //Delete outdated msg!
-                    log.warn("Found outdated message - deleting it!");
-                    morphium.deleteObject(msg);
-                    continue;
-                }
-                for (MessageListener l : listeners) {
-                    l.onMessage(msg);
-                }
+                morphium.delete(q);
+                q = q.q();
+                //locking messages...
+                q.or(q.q().f(Msg.Fields.sender).ne(id).f(Msg.Fields.lockedBy).eq(null).f(Msg.Fields.lstOfIdsAlreadyProcessed).ne(id).f(Msg.Fields.to).eq(null),
+                        q.q().f(Msg.Fields.sender).ne(id).f(Msg.Fields.lockedBy).eq(null).f(Msg.Fields.lstOfIdsAlreadyProcessed).ne(id).f(Msg.Fields.to).eq(id));
+                values.put("locked_by", id);
+                values.put("locked", System.currentTimeMillis());
+//            morphium.set(Msg.class,q,Msg.Fields.lockedBy,id);
+                morphium.set(Msg.class, q, values, false, processMultiple);
+                //give mongo time to really store
 
-                if (listenerByName.get(msg.getName()) != null) {
-                    for (MessageListener l : listenerByName.get(msg.getName())) {
+                try {
+                    sleep(500);
+                } catch (InterruptedException e) {
+                }
+                //maybe others "overlocked" our message, but that's ok - we re read all messages...
+                q = q.q();
+                q = q.f(Msg.Fields.lockedBy).eq(id);
+                q.sort(Msg.Fields.timestamp);
+
+                List<Msg> messagesList = q.asList();
+                List<Msg> toStore = new ArrayList<Msg>();
+
+                for (Msg msg : messagesList) {
+                    msg = morphium.reread(msg); //make sure it's current version in DB
+                    if (msg == null) continue; //was deleted
+                    if (!msg.getLockedBy().equals(id)) {
+                        //over-locked by someone else
+                        continue;
+                    }
+                    if (msg.getTtl() < System.currentTimeMillis() - msg.getTimestamp()) {
+                        //Delete outdated msg!
+                        log.warn("Found outdated message - deleting it!");
+                        morphium.deleteObject(msg);
+                        continue;
+                    }
+                    for (MessageListener l : listeners) {
                         l.onMessage(msg);
                     }
-                }
 
-                if (msg.getType().equals(MsgType.SINGLE)) {
-                    //removing it
-                    morphium.deleteObject(msg);
-                }
-                //updating it to be processed by others...
-                msg.addProcessedId(id);
-                msg.setLockedBy(null);
-                msg.setLocked(0);
-                toStore.add(msg);
+                    if (listenerByName.get(msg.getName()) != null) {
+                        for (MessageListener l : listenerByName.get(msg.getName())) {
+                            l.onMessage(msg);
+                        }
+                    }
 
+                    if (msg.getType().equals(MsgType.SINGLE)) {
+                        //removing it
+                        morphium.deleteObject(msg);
+                    }
+                    //updating it to be processed by others...
+                    msg.addProcessedId(id);
+                    msg.setLockedBy(null);
+                    msg.setLocked(0);
+                    toStore.add(msg);
+
+                }
+                morphium.storeList(toStore);
+            } catch (Throwable e) {
+                log.error("Unhandled exception " + e.getMessage(), e);
+            } finally {
+                try {
+                    sleep(pause);
+                } catch (InterruptedException e) {
+                }
             }
-            morphium.storeList(toStore);
-            try {
-                sleep(pause);
-            } catch (InterruptedException e) {
-            }
+
         }
     }
 
