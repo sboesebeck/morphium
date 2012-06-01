@@ -9,6 +9,7 @@ import org.apache.log4j.Logger;
 import org.bson.types.ObjectId;
 
 import java.lang.annotation.Annotation;
+import java.lang.reflect.Array;
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
 import java.util.*;
@@ -421,7 +422,11 @@ public class ObjectMapperImpl implements ObjectMapper {
                             }
                         }
                         if (fld.getType().isArray()) {
-                            value = lst.toArray();
+                            Object arr = Array.newInstance(fld.getType().getComponentType(), lst.size());
+                            for (int i = 0; i < lst.size(); i++) {
+                                Array.set(arr, i, lst.get(i));
+                            }
+                            value = arr;
                         } else {
                             value = lst;
                         }
