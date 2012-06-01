@@ -102,7 +102,7 @@ public class Messaging extends Thread {
                         }
                     } catch (Throwable t) {
 //                        msg.addAdditional("Processing of message failed by "+getSenderId()+": "+t.getMessage());
-                        log.error("Processinf failed", t);
+                        log.error("Processing failed", t);
                     }
 
                     if (msg.getType().equals(MsgType.SINGLE)) {

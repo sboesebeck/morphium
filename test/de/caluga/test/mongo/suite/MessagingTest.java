@@ -8,6 +8,7 @@ import de.caluga.morphium.messaging.Msg;
 import de.caluga.morphium.messaging.MsgType;
 import org.junit.Test;
 
+import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
 import java.util.UUID;
@@ -488,6 +489,68 @@ public class MessagingTest extends MongoTest {
         assert (gotMessage3) : "no answer got back?";
         assert (gotMessage1) : "Question not received by m1";
         assert (gotMessage2) : "Question not received by m2";
+        gotMessage1 = false;
+        gotMessage2 = false;
+        gotMessage3 = false;
+        Thread.sleep(2000);
+
+        assert (!gotMessage3 && !gotMessage1 && !gotMessage2) : "Message processing repeat?";
+
+        Query<Msg> q = MorphiumSingleton.get().createQueryFor(Msg.class);
+        long cnt = q.countAll();
+        for (int i = 0; i < 30; i++) {
+            System.out.println("Messages in queue: " + cnt);
+            Thread.sleep(1000);
+        }
+        assert (cnt == 0) : "Messages not processed yet?!?!?" + cnt;
+    }
+
+
+    @Test
+    public void massiveMessagingTest() throws Exception {
+        MorphiumSingleton.get().clearCollection(Msg.class);
+        List<Messaging> systems = new ArrayList<Messaging>();
+
+
+        MessageListener l = new MessageListener() {
+            Messaging msg;
+            List<String> ids = new ArrayList<String>();
+
+            @Override
+            public void onMessage(Msg m) {
+                assert (!ids.contains(m.getMsgId())) : "Re-getting message?!?!?";
+                ids.add(m.getMsgId());
+                assert (m.getTo() == null || m.getTo().contains(msg.getSenderId())) : "got message not for me?";
+                assert (!m.getSender().equals(msg.getSenderId())) : "Got message from myself?";
+            }
+
+            @Override
+            public void setMessaging(Messaging msg) {
+                this.msg = msg;
+            }
+        };
+
+        for (int i = 0; i < 10; i++) {
+            //creating messaging instances
+            Messaging m = new Messaging(MorphiumSingleton.get(), 100, true);
+            m.start();
+            systems.add(m);
+        }
+
+        for (int i = 0; i < 100; i++) {
+            int m = (int) Math.random() * systems.size();
+            Msg msg = new Msg("test" + i, MsgType.MULTI, "The message for msg " + i, "a value", 5000);
+            msg.addAdditional("Additional Value " + i);
+            systems.get(m).queueMessage(msg);
+        }
+
+        Query<Msg> q = MorphiumSingleton.get().createQueryFor(Msg.class);
+        long cnt = q.countAll();
+        for (int i = 0; i < 30; i++) {
+            System.out.println("Messages in queue: " + cnt);
+            Thread.sleep(1000);
+        }
+        assert (cnt == 0) : "Messages not processed yet?!?!?" + cnt;
 
     }
 }

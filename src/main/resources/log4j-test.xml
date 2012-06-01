@@ -41,6 +41,10 @@
         <level value="DEBUG"/>
     </logger>
 
+    <logger name="de.caluga.annotations">
+        <level value="DEBUG"/>
+    </logger>
+
 
     <!-- ======================= -->
     <!-- Setup the Root category -->
