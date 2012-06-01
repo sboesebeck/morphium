@@ -90,14 +90,19 @@ public class Messaging extends Thread {
                         morphium.deleteObject(msg);
                         continue;
                     }
-                    for (MessageListener l : listeners) {
-                        l.onMessage(msg);
-                    }
-
-                    if (listenerByName.get(msg.getName()) != null) {
-                        for (MessageListener l : listenerByName.get(msg.getName())) {
+                    try {
+                        for (MessageListener l : listeners) {
                             l.onMessage(msg);
                         }
+
+                        if (listenerByName.get(msg.getName()) != null) {
+                            for (MessageListener l : listenerByName.get(msg.getName())) {
+                                l.onMessage(msg);
+                            }
+                        }
+                    } catch (Throwable t) {
+//                        msg.addAdditional("Processing of message failed by "+getSenderId()+": "+t.getMessage());
+                        log.error("Processinf failed", t);
                     }
 
                     if (msg.getType().equals(MsgType.SINGLE)) {
