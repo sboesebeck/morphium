@@ -1061,7 +1061,7 @@ public class Morphium {
     }
 
     /**
-     * issues a delete command - no lifecycle methods calles
+     * issues a delete command - no lifecycle methods calles, no drop, keeps all indexec this way
      *
      * @param cls
      */
