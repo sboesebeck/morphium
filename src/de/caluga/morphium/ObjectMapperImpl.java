@@ -377,7 +377,7 @@ public class ObjectMapperImpl implements ObjectMapper {
                     } else {
                         value = null;
                     }
-                } else if (fld.getType().isAssignableFrom(List.class)) {
+                } else if (fld.getType().isAssignableFrom(List.class) || fld.getType().isArray()) {
                     //TODO: recurse??
                     BasicDBList l = (BasicDBList) o.get(f);
                     List lst = new ArrayList();
@@ -420,7 +420,11 @@ public class ObjectMapperImpl implements ObjectMapper {
                                 lst.add(val);
                             }
                         }
-                        value = lst;
+                        if (fld.getType().isArray()) {
+                            value = lst.toArray();
+                        } else {
+                            value = lst;
+                        }
                     } else {
                         value = l;
                     }
