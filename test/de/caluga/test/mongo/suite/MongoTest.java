@@ -6,6 +6,8 @@ import de.caluga.morphium.MorphiumSingleton;
 import de.caluga.morphium.secure.DefaultSecurityManager;
 import org.apache.log4j.Logger;
 
+import java.util.Map;
+
 
 /**
  * User: Stpehan Bösebeck
@@ -33,8 +35,15 @@ public class MongoTest {
 
             MorphiumSingleton.get().ensureIndex(UncachedObject.class, "counter", "value");
             MorphiumSingleton.get().ensureIndex(CachedObject.class, "counter", "value");
-//
 
+            Map<String, Double> stats = MorphiumSingleton.get().getStatistics();
+            Double ent = stats.get("X-Entries for: de.caluga.test.mongo.suite.CachedObject");
+            assert (ent == null || ent == 0) : "Still cache entries???";
+            ent = stats.get("X-Entries for: de.caluga.test.mongo.suite.UncachedObject");
+            assert (ent == null || ent == 0) : "Uncached Object cached?";
+
+            //make sure everything is really written to disk
+            Thread.sleep(1000);
             log.info("Preparation finished - ");
         } catch (Exception e) {
             log.fatal("Error during preparation!");

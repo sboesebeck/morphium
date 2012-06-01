@@ -13,6 +13,7 @@ import org.junit.Test;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 /**
  * @author stephan
@@ -190,8 +191,10 @@ public class BasicFunctionalityTest extends MongoTest {
             throw new RuntimeException(e);
         }
         randomCheck();
-        assert (MorphiumSingleton.get().getStatistics().get("X-Entries for: de.caluga.test.mongo.suite.UncachedObject") == null) : "Cached Uncached Object?!?!?!";
-        assert (MorphiumSingleton.get().getStatistics().get("X-Entries for: de.caluga.test.mongo.suite.CachedObject") > 0) : "No Cached Object cached?!?!?!";
+        Map<String, Double> statistics = MorphiumSingleton.get().getStatistics();
+        Double uc = statistics.get("X-Entries for: de.caluga.test.mongo.suite.UncachedObject");
+        assert (uc == null || uc == 0) : "Cached Uncached Object?!?!?!";
+        assert (statistics.get("X-Entries for: de.caluga.test.mongo.suite.CachedObject") > 0) : "No Cached Object cached?!?!?!";
 
     }
 
