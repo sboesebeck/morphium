@@ -62,7 +62,7 @@ public class Messaging extends Thread {
                 values.put("locked", System.currentTimeMillis());
 //            morphium.set(Msg.class,q,Msg.Fields.lockedBy,id);
                 //need to set upsert to true in order to INSERT fields as well ;-(
-                morphium.set(Msg.class, q, values, true, processMultiple);
+                morphium.set(Msg.class, q, values, false, processMultiple);
                 //give mongo time to really store
 
                 try {
@@ -178,6 +178,8 @@ public class Messaging extends Thread {
     public void queueMessage(Msg m) {
         m.setSender(id);
         m.addProcessedId(id);
+        m.setLockedBy(null);
+        m.setLocked(0);
         morphium.store(m);
     }
 

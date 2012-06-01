@@ -294,6 +294,13 @@ public class Morphium {
         set(cls, query, field, val, false, false);
     }
 
+    public void setEnum(Class<?> cls, Query<?> query, Map<Enum, Object> values, boolean insertIfNotExist, boolean multiple) {
+        HashMap<String, Object> toSet = new HashMap<String, Object>();
+        for (Enum k : values.keySet()) {
+            toSet.put(k.name(), values.get(k));
+        }
+        set(cls, query, toSet, insertIfNotExist, multiple);
+    }
 
     /**
      * will change an entry in mongodb-collection corresponding to given class object
