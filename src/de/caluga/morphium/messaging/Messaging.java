@@ -185,7 +185,15 @@ public class Messaging extends Thread {
         m.addProcessedId(id);
         m.setLockedBy(null);
         m.setLocked(0);
-        morphium.store(m);
+        morphium.storeInBackground(m);
+    }
+
+    public void storeMessage(Msg m) {
+        m.setSender(id);
+        m.addProcessedId(id);
+        m.setLockedBy(null);
+        m.setLocked(0);
+        morphium.storeInBackground(m);
     }
 
 }
