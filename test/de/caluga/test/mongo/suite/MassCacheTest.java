@@ -4,8 +4,6 @@
  */
 package de.caluga.test.mongo.suite;
 
-import de.caluga.morphium.Morphium;
-import de.caluga.morphium.Morphium.StatisticKeys;
 import de.caluga.morphium.MorphiumSingleton;
 import de.caluga.morphium.Query;
 import org.apache.log4j.Logger;
@@ -185,7 +183,7 @@ public class MassCacheTest extends MongoTest {
                 q.f("value").eq("Test " + i);
                 List<CachedObject> lst = q.asList();
                 assert (lst != null) : "List is NULL????";
-                assert (lst.size() > 0) : "Not found?!?!?";
+                assert (lst.size() > 0) : "Not found?!?!? Value: Test " + i;
                 assert (lst.get(0).getValue().equals("Test " + i)) : "Wrong value!";
                 log.info("found " + lst.size() + " elements for value: " + lst.get(0).getValue());
 

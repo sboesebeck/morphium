@@ -543,6 +543,7 @@ public class Morphium {
             return;
         }
 
+
         CacheElement e = new CacheElement(ret);
         e.setLru(System.currentTimeMillis());
         Hashtable<Class<? extends Object>, Hashtable<String, CacheElement>> cl = (Hashtable<Class<? extends Object>, Hashtable<String, CacheElement>>) cache.clone();
@@ -1103,7 +1104,7 @@ public class Morphium {
             deleteObject(r);
         }
 
-        clearCachefor(cls);
+        clearCacheIfNecessary(cls);
 
 
     }
@@ -1182,6 +1183,7 @@ public class Morphium {
         } else {
             database.getCollection(config.getMapper().getCollectionName(q.getType())).remove(q.toQueryObject(), wc);
         }
+        clearCacheIfNecessary(q.getType());
         firePostRemoveEvent(q);
     }
 
@@ -1271,6 +1273,7 @@ public class Morphium {
     }
 
     public void storeInBackground(final Object lst) {
+        inc(StatisticKeys.WRITES_CACHED);
         writers.execute(new Runnable() {
             @Override
             public void run() {

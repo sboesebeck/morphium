@@ -1,7 +1,6 @@
 package de.caluga.test.mongo.suite;
 
 import de.caluga.morphium.MongoDbMode;
-import de.caluga.morphium.Morphium;
 import de.caluga.morphium.MorphiumConfig;
 import de.caluga.morphium.MorphiumSingleton;
 import de.caluga.morphium.secure.DefaultSecurityManager;
@@ -32,10 +31,11 @@ public class MongoTest {
             MorphiumSingleton.get().clearCollection(ComplexObject.class);
             MorphiumSingleton.get().clearCollection(EnumEntity.class);
 
-            MorphiumSingleton.get().ensureIndex(UncachedObject.class,"counter","value");
-            MorphiumSingleton.get().ensureIndex(CachedObject.class,"counter","value");
+            MorphiumSingleton.get().ensureIndex(UncachedObject.class, "counter", "value");
+            MorphiumSingleton.get().ensureIndex(CachedObject.class, "counter", "value");
+//
 
-            log.info("Preparation finished");
+            log.info("Preparation finished - ");
         } catch (Exception e) {
             log.fatal("Error during preparation!");
             e.printStackTrace();

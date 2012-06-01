@@ -42,6 +42,9 @@ public class BasicFunctionalityTest extends MongoTest {
             assert (o.getCounter() < 10 && o.getCounter() > 5) : "Counter is wrong: " + o.getCounter();
         }
 
+        assert (MorphiumSingleton.get().getStatistics().get("X-Entries for: de.caluga.test.mongo.suite.UncachedObject") == null) : "Cached Uncached Object?!?!?!";
+
+
     }
 
     @Test
@@ -74,6 +77,7 @@ public class BasicFunctionalityTest extends MongoTest {
             MorphiumSingleton.get().store(uc);
         }
 
+        assert (MorphiumSingleton.get().getStatistics().get("X-Entries for: de.caluga.test.mongo.suite.UncachedObject") == null) : "Cached Uncached Object?!?!?!";
 
     }
 
@@ -97,6 +101,8 @@ public class BasicFunctionalityTest extends MongoTest {
         log.info("Searching for objects");
 
         checkUncached();
+        assert (MorphiumSingleton.get().getStatistics().get("X-Entries for: de.caluga.test.mongo.suite.UncachedObject") == null) : "Cached Uncached Object?!?!?!";
+
     }
 
     @Test
@@ -118,6 +124,8 @@ public class BasicFunctionalityTest extends MongoTest {
         assert (dur < NO_OBJECTS * 1.5) : "Storing took way too long";
 
         checkUncached();
+        assert (MorphiumSingleton.get().getStatistics().get("X-Entries for: de.caluga.test.mongo.suite.UncachedObject") == null) : "Cached Uncached Object?!?!?!";
+
     }
 
     private void checkUncached() {
@@ -143,7 +151,7 @@ public class BasicFunctionalityTest extends MongoTest {
         long start;
         long dur;
         start = System.currentTimeMillis();
-        for (int idx = 1; idx <= NO_OBJECTS * 1.5; idx++) {
+        for (int idx = 1; idx <= NO_OBJECTS * 3.5; idx++) {
             int i = (int) (Math.random() * (double) NO_OBJECTS);
             if (i == 0) i = 1;
             Query<CachedObject> q = MorphiumSingleton.get().createQueryFor(CachedObject.class);
@@ -182,6 +190,9 @@ public class BasicFunctionalityTest extends MongoTest {
             throw new RuntimeException(e);
         }
         randomCheck();
+        assert (MorphiumSingleton.get().getStatistics().get("X-Entries for: de.caluga.test.mongo.suite.UncachedObject") == null) : "Cached Uncached Object?!?!?!";
+        assert (MorphiumSingleton.get().getStatistics().get("X-Entries for: de.caluga.test.mongo.suite.CachedObject") > 0) : "No Cached Object cached?!?!?!";
+
     }
 
 

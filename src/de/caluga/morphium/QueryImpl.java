@@ -5,6 +5,7 @@ import de.caluga.morphium.annotations.Id;
 import de.caluga.morphium.annotations.LastAccess;
 import de.caluga.morphium.annotations.LastAccessBy;
 import de.caluga.morphium.annotations.StoreLastAccess;
+import de.caluga.morphium.annotations.caching.Cache;
 import de.caluga.morphium.secure.Permission;
 import org.bson.types.ObjectId;
 
@@ -261,6 +262,7 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
         if (morphium.accessDenied(type, Permission.READ)) {
             throw new RuntimeException("Access denied!");
         }
+        morphium.inc(Morphium.StatisticKeys.READS);
         return morphium.getDatabase().getCollection(mapper.getCollectionName(type)).count(toQueryObject());
     }
 
@@ -328,11 +330,22 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
         if (morphium.accessDenied(type, Permission.READ)) {
             throw new RuntimeException("Access denied!");
         }
+        morphium.inc(Morphium.StatisticKeys.READS);
+        Cache c = type.getAnnotation(Cache.class);
+        boolean useCache = c != null && c.readCache();
 
         String ck = morphium.getCacheKey(this);
-        if (morphium.isCached(type, ck)) {
-            return morphium.getFromCache(type, ck);
+        if (useCache) {
+            if (morphium.isCached(type, ck)) {
+                morphium.inc(Morphium.StatisticKeys.CHITS);
+                return morphium.getFromCache(type, ck);
+            }
+            morphium.inc(Morphium.StatisticKeys.CMISS);
+        } else {
+            morphium.inc(Morphium.StatisticKeys.NO_CACHED_READS);
+
         }
+
         DBCursor query = morphium.getDatabase().getCollection(mapper.getCollectionName(type)).find(toQueryObject());
         if (skip > 0) {
             query.skip(skip);
@@ -356,7 +369,11 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
 
             morphium.firePostLoadEvent(unmarshall);
         }
-        morphium.addToCache(ck, type, ret);
+
+
+        if (useCache) {
+            morphium.addToCache(ck, type, ret);
+        }
         return ret;
     }
 
@@ -375,13 +392,13 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
                 }
             }
             lst = mapper.getFields(type, LastAccessBy.class);
-            for (String ctf:lst) {
-                    Field f = mapper.getField(type, ctf);
-                    try {
-                        f.set(o, morphium.getConfig().getSecurityMgr().getCurrentUserId());
-                    } catch (IllegalAccessException e) {
+            for (String ctf : lst) {
+                Field f = mapper.getField(type, ctf);
+                try {
+                    f.set(o, morphium.getConfig().getSecurityMgr().getCurrentUserId());
+                } catch (IllegalAccessException e) {
 //                    logger.error("Could not set changed by",e);
-                    }
+                }
 
             }
             //Storing access timestamps
@@ -403,14 +420,24 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
 
     @Override
     public T get() {
+        Cache c = type.getAnnotation(Cache.class);
+        boolean readCache = c != null && c.readCache();
         String ck = morphium.getCacheKey(this);
-        if (morphium.isCached(type, ck)) {
-            List<T> lst = morphium.getFromCache(type, ck);
-            if (lst == null || lst.isEmpty()) {
-                return null;
-            } else {
-                return lst.get(0);
+        morphium.inc(Morphium.StatisticKeys.READS);
+        if (readCache) {
+            if (morphium.isCached(type, ck)) {
+                morphium.inc(Morphium.StatisticKeys.CHITS);
+                List<T> lst = morphium.getFromCache(type, ck);
+                if (lst == null || lst.isEmpty()) {
+                    return null;
+                } else {
+                    return lst.get(0);
+                }
+
             }
+            morphium.inc(Morphium.StatisticKeys.CMISS);
+        } else {
+            morphium.inc(Morphium.StatisticKeys.NO_CACHED_READS);
         }
         BasicDBObject sort = new BasicDBObject();
         if (order != null) {
@@ -435,21 +462,36 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
             updateLastAccess(ret, unmarshall);
 
             lst.add((T) unmarshall);
-            morphium.addToCache(ck, type, lst);
+            if (readCache) {
+                morphium.addToCache(ck, type, lst);
+            }
             return unmarshall;
         }
-        morphium.addToCache(ck, type, lst);
+
+        if (readCache) {
+            morphium.addToCache(ck, type, lst);
+        }
         return null;
     }
 
     @Override
     public List<ObjectId> idList() {
+        Cache c = type.getAnnotation(Cache.class);
+        boolean readCache = c != null && c.readCache();
         List<ObjectId> ret = new ArrayList<ObjectId>();
         String ck = morphium.getCacheKey(this);
         ck += " idlist";
-        if (morphium.isCached(type, ck)) {
-            //not nice...
-            return (List<ObjectId>) morphium.getFromCache(type, ck);
+        morphium.inc(Morphium.StatisticKeys.READS);
+        if (readCache) {
+
+            if (morphium.isCached(type, ck)) {
+                morphium.inc(Morphium.StatisticKeys.CHITS);
+                //casts are not nice... any idea how to change that?
+                return (List<ObjectId>) morphium.getFromCache(type, ck);
+            }
+            morphium.inc(Morphium.StatisticKeys.CMISS);
+        } else {
+            morphium.inc(Morphium.StatisticKeys.NO_CACHED_READS);
         }
         DBCursor query = morphium.getDatabase().getCollection(mapper.getCollectionName(type)).find(toQueryObject(), new BasicDBObject("_id", 1)); //only get IDs
         if (order != null) {
@@ -467,7 +509,9 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
             DBObject o = it.next();
             ret.add((ObjectId) o.get("_id"));
         }
-        morphium.addToCache(ck, type, ret);
+        if (readCache) {
+            morphium.addToCache(ck, type, ret);
+        }
         return ret;
     }
 
