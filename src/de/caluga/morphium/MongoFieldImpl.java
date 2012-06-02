@@ -4,6 +4,7 @@ import com.mongodb.BasicDBList;
 import com.mongodb.DBRef;
 import de.caluga.morphium.annotations.Entity;
 import de.caluga.morphium.annotations.Reference;
+import org.bson.types.ObjectId;
 
 import java.util.Collection;
 import java.util.regex.Pattern;
@@ -57,11 +58,17 @@ public class MongoFieldImpl<T> implements MongoField<T> {
         //checking for Ids in references...
         if (val != null) {
             Class<?> cls = val.getClass();
-            if (cls.isAnnotationPresent(Entity.class)) {
+            if (cls.isAnnotationPresent(Entity.class) || val instanceof ObjectId) {
                 if (mapper.getField(query.getType(), fldStr).isAnnotationPresent(Reference.class)) {
                     //here - query value is an entity AND it is referenced by the query type
                     //=> we need to compeare ID's
-                    DBRef ref = new DBRef(mapper.getMorphium().getDatabase(), cls.getName(), mapper.getId(val));
+                    ObjectId id = null;
+                    if (val instanceof ObjectId) {
+                        id = (ObjectId) val;
+                    } else {
+                        id = mapper.getId(val);
+                    }
+                    DBRef ref = new DBRef(mapper.getMorphium().getDatabase(), cls.getName(), id);
                     val = ref;
                 }
 
