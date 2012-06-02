@@ -6,6 +6,8 @@ import de.caluga.morphium.annotations.Reference;
 import de.caluga.morphium.annotations.caching.NoCache;
 import org.bson.types.ObjectId;
 
+import java.util.List;
+
 /**
  * User: Stephan Bösebeck
  * Date: 29.05.12
@@ -25,8 +27,19 @@ public class LazyLoadingObject {
     @Reference(lazyLoading = true)
     private CachedObject lazyCached;
 
+    @Reference(lazyLoading = true)
+    private List<UncachedObject> lazyLst;
+
 
     private String name;
+
+    public List<UncachedObject> getLazyLst() {
+        return lazyLst;
+    }
+
+    public void setLazyLst(List<UncachedObject> lazyLst) {
+        this.lazyLst = lazyLst;
+    }
 
     public ObjectId getId() {
         return id;

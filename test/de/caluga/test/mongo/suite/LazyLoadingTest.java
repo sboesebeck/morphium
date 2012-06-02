@@ -40,6 +40,16 @@ public class LazyLoadingTest extends MongoTest {
         lz.setName("Lazy");
         lz.setLazyCached(co);
         lz.setLazyUncached(o);
+
+        List<UncachedObject> lst = new ArrayList<UncachedObject>();
+        for (int i = 0; i < 10; i++) {
+            UncachedObject uc = new UncachedObject();
+            uc.setValue("Part of list");
+            uc.setCounter(i * 5 + 7);
+            lst.add(uc);
+        }
+        lz.setLazyLst(lst);
+
         MorphiumSingleton.get().store(lz);
 
         waitForWrites();
@@ -73,6 +83,13 @@ public class LazyLoadingTest extends MongoTest {
         assert (MorphiumSingleton.get().getStatistics().get(Morphium.StatisticKeys.CACHE_ENTRIES.name()) > crd) : "Not cached?";
         assert (rd2 > rd) : "No read?";
         log.info("Cache Entries:" + MorphiumSingleton.get().getStatistics().get(Morphium.StatisticKeys.CACHE_ENTRIES.name()));
+
+        assert (lzRead.getLazyLst().size() == lz.getLazyLst().size()) : "List sizes differ?!?!";
+        for (UncachedObject uc : lzRead.getLazyLst()) {
+            assert (uc.getClass().getName().contains("$EnhancerByCGLIB$")) : "Lazy list not lazy?";
+
+        }
+
 
     }
 

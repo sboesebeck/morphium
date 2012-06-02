@@ -422,14 +422,25 @@ public class ObjectMapperImpl implements ObjectMapper {
                                 log.fatal("Cannot de-reference to unknown collection");
 
                             } else if (val instanceof DBRef) {
-                                DBRef ref = (DBRef) val;
                                 try {
-                                    Class clz = Class.forName(ref.getRef());
+                                    DBRef ref = (DBRef) val;
                                     ObjectId id = (ObjectId) ref.getId();
-                                    Query q = morphium.createQueryFor(clz);
+                                    Class clz = Class.forName(ref.getRef());
                                     List<String> idFlds = getFields(clz, Id.class);
-                                    q = q.f(idFlds.get(0)).eq(id);
-                                    lst.add(q.get());
+                                    Reference reference = fld.getAnnotation(Reference.class);
+                                    if (reference != null && reference.lazyLoading()) {
+                                        Object obj = clz.newInstance();
+
+                                        if (idFlds.size() == 0)
+                                            throw new IllegalArgumentException("Referenced object does not have an ID? Is it an Entity?");
+                                        Field idFld = getField(clz, idFlds.get(0));
+                                        idFld.set(obj, id);
+                                        lst.add(morphium.createLazyLoadedEntity(obj));
+                                    } else {
+                                        Query q = morphium.createQueryFor(clz);
+                                        q = q.f(idFlds.get(0)).eq(id);
+                                        lst.add(q.get());
+                                    }
                                 } catch (ClassNotFoundException e) {
                                     throw new RuntimeException(e);
                                 }
@@ -557,6 +568,9 @@ public class ObjectMapperImpl implements ObjectMapper {
             throw new IllegalArgumentException("Class " + cls.getName() + " does have both @Entity and @Embedded Annotations - not allowed!");
         }
 
+        if (embedded == null && entity == null) {
+            throw new IllegalArgumentException("This class " + cls.getName() + " does not have @Entity or @Embedded set - illegal!");
+        }
         boolean tcc = entity == null ? embedded.translateCamelCase() : entity.translateCamelCase();
         //getting class hierachy
         List<Field> fld = getAllFields(cls);
