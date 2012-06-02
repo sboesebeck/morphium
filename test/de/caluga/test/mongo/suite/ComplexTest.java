@@ -62,6 +62,7 @@ public class ComplexTest extends MongoTest {
         o.setTrans("Tansient");
         o.setNullValue(15);
 
+        //And test for null-References!
         MorphiumSingleton.get().store(o);
         assert (o.getChanged() != 0) : "Last change not set!?!?";
 
@@ -157,5 +158,30 @@ public class ComplexTest extends MongoTest {
         }
     }
 
+
+    @Test
+    public void referenceQuery() throws Exception {
+
+        UncachedObject o = new UncachedObject();
+        o.setCounter(15);
+        o.setValue("Uncached " + 15);
+        MorphiumSingleton.get().store(o);
+
+
+        ComplexObject co = new ComplexObject();
+        co.setEinText("Text");
+        co.setRef(o);
+        co.setTrans("trans");
+
+        MorphiumSingleton.get().store(co);
+
+        Query<ComplexObject> qc = MorphiumSingleton.get().createQueryFor(ComplexObject.class);
+        qc.f("ref").eq(o);
+
+        ComplexObject fnd = qc.get();
+        assert (fnd != null) : "not found?!?!";
+        assert (fnd.getEinText().equals(co.getEinText())) : "Text different?";
+        assert (fnd.getRef().getCounter() == co.getRef().getCounter()) : "Reference broken?";
+    }
 
 }

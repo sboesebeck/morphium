@@ -1,6 +1,7 @@
 package de.caluga.morphium;
 
 import com.mongodb.BasicDBList;
+import com.mongodb.DBRef;
 import de.caluga.morphium.annotations.Entity;
 import de.caluga.morphium.annotations.Reference;
 
@@ -60,19 +61,21 @@ public class MongoFieldImpl<T> implements MongoField<T> {
                 if (mapper.getField(query.getType(), fldStr).isAnnotationPresent(Reference.class)) {
                     //here - query value is an entity AND it is referenced by the query type
                     //=> we need to compeare ID's
-                    val = mapper.getId(val);
+                    DBRef ref = new DBRef(mapper.getMorphium().getDatabase(), cls.getName(), mapper.getId(val));
+                    val = ref;
                 }
 
             }
         }
+
         fe.setValue(val);
-        fe.setField(fldStr);
+        fe.setField(mapper.getFieldName(query.getType(), fldStr));
         query.addChild(fe);
         return query;  //To change body of implemented methods use File | Settings | File Templates.
     }
 
     private void add(String op, Object value) {
-        fe.setField(fldStr);
+        fe.setField(mapper.getFieldName(query.getType(), fldStr));
         FilterExpression child = new FilterExpression();
         child.setField(op);
         child.setValue(value);

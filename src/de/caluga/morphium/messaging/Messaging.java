@@ -50,7 +50,7 @@ public class Messaging extends Thread {
                 Query<Msg> q = morphium.createQueryFor(Msg.class);
                 //removing all outdated stuff
                 q = q.where("this.ttl<" + System.currentTimeMillis() + "-this.timestamp");
-                if (log.isDebugEnabled()) {
+                if (log.isDebugEnabled() && q.countAll() > 0) {
                     log.info("Deleting outdate messages: " + q.countAll());
                 }
                 morphium.delete(q);

@@ -1713,6 +1713,9 @@ public class Morphium {
                 if (id == null) {
                     return methodProxy.invokeSuper(o, objects);
                 }
+                if (method.getName().equals("finalize")) {
+                    return methodProxy.invokeSuper(o, objects);
+                }
                 deReferenced = (T) findById(cls, id);
 
             }

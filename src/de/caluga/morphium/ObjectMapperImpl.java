@@ -167,9 +167,11 @@ public class ObjectMapperImpl implements ObjectMapper {
                                     lst.add(ref);
                                 }
                                 v = lst;
+                            } else if (fld.getType().isAssignableFrom(Map.class)) {
+                                throw new RuntimeException("Cannot store references in Maps!");
                             } else {
-                                v = getId(value);
-                                if (v == null) {
+
+                                if (getId(value) == null) {
                                     //not stored yet
                                     if (r.automaticStore()) {
                                         //TODO: this could cause an endless loop!
@@ -181,9 +183,11 @@ public class ObjectMapperImpl implements ObjectMapper {
                                     } else {
                                         throw new IllegalArgumentException("Reference to be stored, that is null!");
                                     }
-                                    v = getId(value);
+
 
                                 }
+                                DBRef ref = new DBRef(morphium.getDatabase(), value.getClass().getName(), getId(value));
+                                v = ref;
                             }
                         }
                     } else {
@@ -326,19 +330,28 @@ public class ObjectMapperImpl implements ObjectMapper {
                     if (morphium == null) {
                         log.fatal("Morphium not set - could not de-reference!");
                     } else {
-                        ObjectId id = (ObjectId) o.get(f);
-                        if (reference.lazyLoading()) {
-                            Object obj = fld.getType().newInstance();
-                            List<String> lst = getFields(fld.getType(), Id.class);
-                            if (lst.size() == 0)
-                                throw new IllegalArgumentException("Referenced object does not have an ID? Is it an Entity?");
-                            Field idFld = getField(fld.getType(), lst.get(0));
-                            idFld.set(obj, id);
-                            value = morphium.createLazyLoadedEntity(obj);
+                        DBRef ref = (DBRef) o.get(f);
+                        if (ref != null) {
+                            ObjectId id = (ObjectId) ref.getId();
+                            if (!ref.getRef().equals(fld.getType().getName())) {
+                                log.warn("Reference to different object?! - continuing anyway");
+
+                            }
+                            if (reference.lazyLoading()) {
+                                Object obj = fld.getType().newInstance();
+                                List<String> lst = getFields(fld.getType(), Id.class);
+                                if (lst.size() == 0)
+                                    throw new IllegalArgumentException("Referenced object does not have an ID? Is it an Entity?");
+                                Field idFld = getField(fld.getType(), lst.get(0));
+                                idFld.set(obj, id);
+                                value = morphium.createLazyLoadedEntity(obj);
+                            } else {
+                                Query q = morphium.createQueryFor(fld.getType());
+                                q.f("_id").eq(id);
+                                value = q.get();
+                            }
                         } else {
-                            Query q = morphium.createQueryFor(fld.getType());
-                            q.f("_id").eq(id);
-                            value = q.get();
+                            value = null;
                         }
                     }
                 } else if (fld.isAnnotationPresent(Id.class)) {
@@ -592,6 +605,16 @@ public class ObjectMapperImpl implements ObjectMapper {
             if (p.fieldName() != null && !p.fieldName().equals(".")) {
                 return p.fieldName();
             }
+        }
+
+        if (f.isAnnotationPresent(Reference.class)) {
+            Reference p = f.getAnnotation(Reference.class);
+            if (p.fieldName() != null && !p.fieldName().equals(".")) {
+                return p.fieldName();
+            }
+        }
+        if (f.isAnnotationPresent(Id.class)) {
+            return "_id";
         }
 
 

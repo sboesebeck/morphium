@@ -1,10 +1,11 @@
-package de.caluga.morphium.annotations.caching;
+package de.caluga.morphium.cache;
 
 import de.caluga.morphium.ConfigElement;
 import de.caluga.morphium.Morphium;
 import de.caluga.morphium.MorphiumStorageListener;
 import de.caluga.morphium.Query;
 import de.caluga.morphium.annotations.Entity;
+import de.caluga.morphium.annotations.caching.Cache;
 import de.caluga.morphium.messaging.MessageListener;
 import de.caluga.morphium.messaging.Messaging;
 import de.caluga.morphium.messaging.Msg;

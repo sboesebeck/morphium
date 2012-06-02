@@ -13,8 +13,6 @@ import org.bson.types.ObjectId;
 @NoCache
 @Entity(translateCamelCase = false)
 @StoreLastAccess()
-
-//cration time will be stored in DB but not in Object!
 @StoreCreationTime()
 @StoreLastChange()
 public class ComplexObject {
@@ -24,6 +22,8 @@ public class ComplexObject {
     @Aliases({"last_changed", "lastChanged"})
     @LastChange
     private Long changed;
+    @CreationTime
+    private Long created;
 
     @Property(fieldName = "last_access")
     @LastAccess
@@ -31,6 +31,9 @@ public class ComplexObject {
 
     @Reference(fieldName = "reference")
     private UncachedObject ref;
+
+    @Reference(fieldName = "cached_reference")
+    private CachedObject cRef;
 
     private EmbeddedObject embed;
 
@@ -44,6 +47,22 @@ public class ComplexObject {
 
     @UseIfnull
     private Integer nullValue;
+
+    public CachedObject getcRef() {
+        return cRef;
+    }
+
+    public void setcRef(CachedObject cRef) {
+        this.cRef = cRef;
+    }
+
+    public Long getCreated() {
+        return created;
+    }
+
+    public void setCreated(Long created) {
+        this.created = created;
+    }
 
     public UncachedObject getEntityEmbeded() {
         return entityEmbeded;
