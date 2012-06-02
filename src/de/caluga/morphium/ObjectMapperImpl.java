@@ -330,29 +330,33 @@ public class ObjectMapperImpl implements ObjectMapper {
                     if (morphium == null) {
                         log.fatal("Morphium not set - could not de-reference!");
                     } else {
-                        DBRef ref = (DBRef) o.get(f);
-                        if (ref != null) {
-                            ObjectId id = (ObjectId) ref.getId();
-                            if (!ref.getRef().equals(fld.getType().getName())) {
-                                log.warn("Reference to different object?! - continuing anyway");
-
-                            }
-                            if (reference.lazyLoading()) {
-                                Object obj = fld.getType().newInstance();
-                                List<String> lst = getFields(fld.getType(), Id.class);
-                                if (lst.size() == 0)
-                                    throw new IllegalArgumentException("Referenced object does not have an ID? Is it an Entity?");
-                                Field idFld = getField(fld.getType(), lst.get(0));
-                                idFld.set(obj, id);
-                                value = morphium.createLazyLoadedEntity(obj);
-                            } else {
-                                Query q = morphium.createQueryFor(fld.getType());
-                                q.f("_id").eq(id);
-                                value = q.get();
-                            }
+                        ObjectId id = null;
+                        if (o instanceof ObjectId) {
+                            id = (ObjectId) o;
                         } else {
-                            value = null;
+                            DBRef ref = (DBRef) o.get(f);
+                            if (ref != null) {
+                                id = (ObjectId) ref.getId();
+                                if (!ref.getRef().equals(fld.getType().getName())) {
+                                    log.warn("Reference to different object?! - continuing anyway");
+
+                                }
+                            }
                         }
+                        if (reference.lazyLoading()) {
+                            Object obj = fld.getType().newInstance();
+                            List<String> lst = getFields(fld.getType(), Id.class);
+                            if (lst.size() == 0)
+                                throw new IllegalArgumentException("Referenced object does not have an ID? Is it an Entity?");
+                            Field idFld = getField(fld.getType(), lst.get(0));
+                            idFld.set(obj, id);
+                            value = morphium.createLazyLoadedEntity(obj);
+                        } else {
+                            Query q = morphium.createQueryFor(fld.getType());
+                            q.f("_id").eq(id);
+                            value = q.get();
+                        }
+
                     }
                 } else if (fld.isAnnotationPresent(Id.class)) {
                     ObjectId id = (ObjectId) o.get("_id");
