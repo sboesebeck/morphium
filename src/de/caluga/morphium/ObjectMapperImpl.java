@@ -331,8 +331,8 @@ public class ObjectMapperImpl implements ObjectMapper {
                         log.fatal("Morphium not set - could not de-reference!");
                     } else {
                         ObjectId id = null;
-                        if (o instanceof ObjectId) {
-                            id = (ObjectId) o;
+                        if (o.get(f) instanceof ObjectId) {
+                            id = (ObjectId) o.get(f);
                         } else {
                             DBRef ref = (DBRef) o.get(f);
                             if (ref != null) {
