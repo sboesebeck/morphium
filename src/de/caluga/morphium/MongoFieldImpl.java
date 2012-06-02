@@ -1,7 +1,6 @@
 package de.caluga.morphium;
 
 import com.mongodb.BasicDBList;
-import com.mongodb.DBRef;
 import de.caluga.morphium.annotations.Entity;
 import de.caluga.morphium.annotations.Reference;
 import org.bson.types.ObjectId;
@@ -68,8 +67,7 @@ public class MongoFieldImpl<T> implements MongoField<T> {
                     } else {
                         id = mapper.getId(val);
                     }
-                    DBRef ref = new DBRef(mapper.getMorphium().getDatabase(), cls.getName(), id);
-                    val = ref;
+                   val=id;
                 }
 
             }

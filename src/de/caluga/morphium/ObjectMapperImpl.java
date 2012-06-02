@@ -178,7 +178,7 @@ public class ObjectMapperImpl implements ObjectMapper {
                                         if (morphium == null) {
                                             log.fatal("Could not store - no Morphium set!");
                                         } else {
-                                            morphium.store(value);
+                                            morphium.storeNoCache(value);
                                         }
                                     } else {
                                         throw new IllegalArgumentException("Reference to be stored, that is null!");
@@ -186,8 +186,8 @@ public class ObjectMapperImpl implements ObjectMapper {
 
 
                                 }
-                                DBRef ref = new DBRef(morphium.getDatabase(), value.getClass().getName(), getId(value));
-                                v = ref;
+                                //DBRef ref = new DBRef(morphium.getDatabase(), value.getClass().getName(), getId(value));
+                                v = getId(value);
                             }
                         }
                     } else {
