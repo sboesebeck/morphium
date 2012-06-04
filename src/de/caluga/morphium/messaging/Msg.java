@@ -2,6 +2,7 @@ package de.caluga.morphium.messaging;
 
 import de.caluga.morphium.annotations.*;
 import de.caluga.morphium.annotations.caching.Cache;
+import de.caluga.morphium.annotations.caching.NoCache;
 import de.caluga.morphium.annotations.lifecycle.Lifecycle;
 import de.caluga.morphium.annotations.lifecycle.PreStore;
 import org.apache.log4j.Logger;
@@ -17,9 +18,9 @@ import java.util.*;
  * TODO: Add documentation here
  */
 @Entity
-@Cache(readCache = false, writeCache = false, clearOnWrite = false)
+@NoCache
 //MAximumSecurity
-@WriteSafety(level = SafetyLevel.NORMAL, timeout = 3000, waitForJournalCommit = false, waitForSync = true)
+@WriteSafety(level = SafetyLevel.WAIT_FOR_SLAVES, timeout = 3000, waitForJournalCommit = true, waitForSync = true)
 @Lifecycle
 public class Msg {
     public static enum Fields {
