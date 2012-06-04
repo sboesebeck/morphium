@@ -19,7 +19,7 @@ import java.util.*;
 @Entity
 @Cache(readCache = false, writeCache = false, clearOnWrite = false)
 //MAximumSecurity
-@WriteSafety(level = SafetyLevel.WAIT_FOR_SLAVES, timeout = 3000, waitForJournalCommit = true, waitForSync = true)
+@WriteSafety(level = SafetyLevel.NORMAL, timeout = 3000, waitForJournalCommit = false, waitForSync = true)
 @Lifecycle
 public class Msg {
     public static enum Fields {

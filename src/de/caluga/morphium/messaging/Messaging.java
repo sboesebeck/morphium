@@ -65,10 +65,10 @@ public class Messaging extends Thread {
                 morphium.set(Msg.class, q, values, false, processMultiple);
                 //give mongo time to really store
 
-                try {
-                    sleep(500);
-                } catch (InterruptedException e) {
-                }
+//                try {
+//                    sleep(100);
+//                } catch (InterruptedException e) {
+//                }
                 //maybe others "overlocked" our message, but that's ok - we re read all messages...
                 q = q.q();
                 q = q.f(Msg.Fields.lockedBy).eq(id);
