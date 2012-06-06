@@ -516,35 +516,15 @@ public class MessagingTest extends MongoTest {
 
     @Test
     public void massiveMessagingTest() throws Exception {
-        int numberOfWorkers = 15;
-        int numberOfMessages = 500;
-        long ttl = 15000; //10 sec
+        int numberOfWorkers = 10;
+        int numberOfMessages = 200;
+        long ttl = 15000; //15 sec
 
 
         MorphiumSingleton.get().clearCollection(Msg.class);
         List<Messaging> systems = new ArrayList<Messaging>();
 
         final Map<String, Integer> processedMessages = new Hashtable<String, Integer>();
-//        MessageListener l = new MessageListener() {
-//            Messaging msg;
-//            List<String> ids = new Vector<String>();
-//
-//            @Override
-//            public void onMessage(Msg m) {
-//                assert (!ids.contains(msg.getSenderId()+"/"+m.getMsgId())) : "Re-getting message?!?!? "+m.getMsgId()+" MyId: "+msg.getSenderId();
-//                ids.add(msg.getSenderId()+"/"+m.getMsgId());
-//                assert (m.getTo() == null || m.getTo().contains(msg.getSenderId())) : "got message not for me?";
-//                assert (!m.getSender().equals(msg.getSenderId())) : "Got message from myself?";
-//                Integer pr=processedMessages.get(m.getMsgId());
-//                if (pr==null) pr=0;
-//                processedMessages.put(m.getMsgId(),pr+1);
-//            }
-//
-//            @Override
-//            public void setMessaging(Messaging msg) {
-//                this.msg = msg;
-//            }
-//        };
 
         for (int i = 0; i < numberOfWorkers; i++) {
             //creating messaging instances
@@ -561,10 +541,12 @@ public class MessagingTest extends MongoTest {
                     ids.add(msg.getSenderId() + "/" + m.getMsgId());
                     assert (m.getTo() == null || m.getTo().contains(msg.getSenderId())) : "got message not for me?";
                     assert (!m.getSender().equals(msg.getSenderId())) : "Got message from myself?";
-                    Integer pr = processedMessages.get(m.getMsgId());
-                    if (pr == null) pr = 0;
-                    processedMessages.put(m.getMsgId(), pr + 1);
-                    procCounter++;
+                    synchronized (processedMessages) {
+                        Integer pr = processedMessages.get(m.getMsgId());
+                        if (pr == null) pr = 0;
+                        processedMessages.put(m.getMsgId(), pr + 1);
+                        procCounter++;
+                    }
                 }
 
                 @Override
@@ -580,6 +562,7 @@ public class MessagingTest extends MongoTest {
             int m = (int) Math.random() * systems.size();
             Msg msg = new Msg("test" + i, MsgType.MULTI, "The message for msg " + i, "a value", ttl);
             msg.addAdditional("Additional Value " + i);
+            msg.setExclusive(false);
             systems.get(m).queueMessage(msg);
         }
 
@@ -636,4 +619,82 @@ public class MessagingTest extends MongoTest {
 
 
     }
+
+    @Test
+    public void broadcastTest() throws Exception {
+        MorphiumSingleton.get().clearCollection(Msg.class);
+        final Messaging m1 = new Messaging(MorphiumSingleton.get(), 1000, true);
+        final Messaging m2 = new Messaging(MorphiumSingleton.get(), 1000, true);
+        final Messaging m3 = new Messaging(MorphiumSingleton.get(), 1000, true);
+
+        m1.start();
+        m2.start();
+        m3.start();
+
+        log.info("m1 ID: " + m1.getSenderId());
+        log.info("m2 ID: " + m2.getSenderId());
+        log.info("m3 ID: " + m3.getSenderId());
+
+        m1.addMessageListener(new MessageListener() {
+            @Override
+            public void onMessage(Msg m) {
+                gotMessage1 = true;
+                assert (m.getTo() == null || m.getTo().contains(m1.getSenderId())) : "wrongly received message?";
+                log.info("M1 got message " + m.toString());
+//                assert (m.getSender().equals(m2.getSenderId())) : "Sender is not M2?!?!? m2_id: " + m2.getSenderId() + " - message sender: " + m.getSender();
+            }
+
+            @Override
+            public void setMessaging(Messaging msg) {
+                //To change body of implemented methods use File | Settings | File Templates.
+            }
+        });
+
+        m2.addMessageListener(new MessageListener() {
+            @Override
+            public void onMessage(Msg m) {
+                gotMessage2 = true;
+                assert (m.getTo() == null || m.getTo().contains(m2.getSenderId())) : "wrongly received message?";
+                log.info("M2 got message " + m.toString());
+//                assert (m.getSender().equals(m1.getSenderId())) : "Sender is not M1?!?!? m1_id: " + m1.getSenderId() + " - message sender: " + m.getSender();
+            }
+
+            @Override
+            public void setMessaging(Messaging msg) {
+                //To change body of implemented methods use File | Settings | File Templates.
+            }
+        });
+
+        m3.addMessageListener(new MessageListener() {
+            @Override
+            public void onMessage(Msg m) {
+                gotMessage3 = true;
+                assert (m.getTo() == null || m.getTo().contains(m3.getSenderId())) : "wrongly received message?";
+                log.info("M3 got message " + m.toString());
+//                assert (m.getSender().equals(m1.getSenderId())) : "Sender is not M1?!?!? m1_id: " + m1.getSenderId() + " - message sender: " + m.getSender();
+            }
+
+            @Override
+            public void setMessaging(Messaging msg) {
+                //To change body of implemented methods use File | Settings | File Templates.
+            }
+        });
+
+        Msg m = new Msg("test", "A message", "a value");
+        m.setExclusive(false);
+        m1.storeMessage(m);
+
+        Thread.sleep(1200);
+        assert (!gotMessage1) : "Got message again?";
+        assert (gotMessage2) : "m2 did not get msg?";
+        assert (gotMessage3) : "m3 did not get msg";
+        gotMessage2 = false;
+        gotMessage3 = false;
+        Thread.sleep(1200);
+        assert (!gotMessage1) : "Got message again?";
+        assert (!gotMessage2) : "m2 did get msg again?";
+        assert (!gotMessage3) : "m3 did get msg again?";
+    }
+
+
 }
