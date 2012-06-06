@@ -44,6 +44,9 @@ public class Messaging extends Thread {
     }
 
     public void run() {
+        if (log.isDebugEnabled()) {
+            log.info("Messaging " + id + " started");
+        }
         Map<String, Object> values = new HashMap<String, Object>();
         while (running) {
 
@@ -136,6 +139,9 @@ public class Messaging extends Thread {
                 }
             }
 
+        }
+        if (log.isDebugEnabled()) {
+            log.debug("Messaging " + id + " stopped!");
         }
     }
 

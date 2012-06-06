@@ -24,6 +24,8 @@ public class ListContainer {
     @Property
     private List<String> stringList;
 
+    private String name;
+
     @Property
     private List<Long> longList;
 
@@ -34,6 +36,14 @@ public class ListContainer {
 
     public ObjectId getId() {
         return id;
+    }
+
+    public String getName() {
+        return name;
+    }
+
+    public void setName(String name) {
+        this.name = name;
     }
 
     public void setId(ObjectId id) {

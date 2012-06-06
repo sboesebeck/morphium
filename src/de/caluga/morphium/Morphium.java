@@ -367,7 +367,7 @@ public class Morphium {
 
         WriteConcern wc = getWriteConcernForClass(cls);
         if (wc == null) {
-            database.getCollection(coll).update(qobj, set, insertIfNotExist, multiple);
+            database.getCollection(coll).update(qobj, update, insertIfNotExist, multiple);
         } else {
             database.getCollection(coll).update(qobj, update, insertIfNotExist, multiple, wc);
         }

@@ -138,6 +138,10 @@ public class MessagingTest extends MongoTest {
 
     @Test
     public void systemTest() throws Exception {
+        gotMessage1 = false;
+        gotMessage2 = false;
+        gotMessage3 = false;
+        gotMessage4 = false;
         MorphiumSingleton.get().clearCollection(Msg.class);
         final Messaging m1 = new Messaging(MorphiumSingleton.get(), 500, true);
         final Messaging m2 = new Messaging(MorphiumSingleton.get(), 500, true);
@@ -193,6 +197,11 @@ public class MessagingTest extends MongoTest {
     @Test
     public void severalSystemsTest() throws Exception {
         MorphiumSingleton.get().clearCollection(Msg.class);
+        gotMessage1 = false;
+        gotMessage2 = false;
+        gotMessage3 = false;
+        gotMessage4 = false;
+
         final Messaging m1 = new Messaging(MorphiumSingleton.get(), 100, true);
         final Messaging m2 = new Messaging(MorphiumSingleton.get(), 100, true);
         final Messaging m3 = new Messaging(MorphiumSingleton.get(), 100, true);
@@ -259,7 +268,7 @@ public class MessagingTest extends MongoTest {
             }
         });
 
-        m1.queueMessage(new Msg("testmsg1", "The message from M1", "Value"));
+        m1.storeMessage(new Msg("testmsg1", "The message from M1", "Value"));
         Thread.sleep(5000);
         assert (gotMessage2) : "Message not recieved yet by m2?!?!?";
         assert (gotMessage3) : "Message not recieved yet by m3?!?!?";
@@ -269,7 +278,7 @@ public class MessagingTest extends MongoTest {
         gotMessage3 = false;
         gotMessage4 = false;
 
-        m2.queueMessage(new Msg("testmsg2", "The message from M2", "Value"));
+        m2.storeMessage(new Msg("testmsg2", "The message from M2", "Value"));
         Thread.sleep(5000);
         assert (gotMessage1) : "Message not recieved yet by m1?!?!?";
         assert (gotMessage3) : "Message not recieved yet by m3?!?!?";
@@ -297,6 +306,10 @@ public class MessagingTest extends MongoTest {
         m1.start();
         m2.start();
         m3.start();
+        gotMessage1 = false;
+        gotMessage2 = false;
+        gotMessage3 = false;
+        gotMessage4 = false;
 
         log.info("m1 ID: " + m1.getSenderId());
         log.info("m2 ID: " + m2.getSenderId());
@@ -349,7 +362,7 @@ public class MessagingTest extends MongoTest {
 
         //sending message to all
         log.info("Sending broadcast message");
-        m1.queueMessage(new Msg("testmsg1", "The message from M1", "Value"));
+        m1.storeMessage(new Msg("testmsg1", "The message from M1", "Value"));
         Thread.sleep(5000);
         assert (gotMessage2) : "Message not recieved yet by m2?!?!?";
         assert (gotMessage3) : "Message not recieved yet by m3?!?!?";
@@ -365,7 +378,7 @@ public class MessagingTest extends MongoTest {
         log.info("Sending direct message");
         Msg m = new Msg("testmsg1", "The message from M1", "Value");
         m.addRecipient(m2.getSenderId());
-        m1.queueMessage(m);
+        m1.storeMessage(m);
         Thread.sleep(2000);
         assert (gotMessage2) : "Message not received by m2?";
         assert (!gotMessage1) : "Message recieved by m1?!?!?";
@@ -384,7 +397,7 @@ public class MessagingTest extends MongoTest {
         m = new Msg("testmsg1", "The message from M1", "Value");
         m.addRecipient(m2.getSenderId());
         m.addRecipient(m3.getSenderId());
-        m1.queueMessage(m);
+        m1.storeMessage(m);
         Thread.sleep(2000);
         assert (gotMessage2) : "Message not received by m2?";
         assert (!gotMessage1) : "Message recieved by m1?!?!?";
@@ -565,7 +578,7 @@ public class MessagingTest extends MongoTest {
             Msg msg = new Msg("test" + i, MsgType.MULTI, "The message for msg " + i, "a value", ttl);
             msg.addAdditional("Additional Value " + i);
             msg.setExclusive(false);
-            systems.get(m).queueMessage(msg);
+            systems.get(m).storeMessage(msg);
         }
 
         long dur = System.currentTimeMillis() - start;
@@ -628,6 +641,10 @@ public class MessagingTest extends MongoTest {
         final Messaging m1 = new Messaging(MorphiumSingleton.get(), 1000, true);
         final Messaging m2 = new Messaging(MorphiumSingleton.get(), 1000, true);
         final Messaging m3 = new Messaging(MorphiumSingleton.get(), 1000, true);
+        gotMessage1 = false;
+        gotMessage2 = false;
+        gotMessage3 = false;
+        gotMessage4 = false;
 
         m1.start();
         m2.start();
