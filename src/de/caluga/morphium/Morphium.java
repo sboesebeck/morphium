@@ -1209,6 +1209,14 @@ public class Morphium {
         return cls.isAnnotationPresent(StoreLastChange.class);
     }
 
+    public boolean storesLastAccess(Class<? extends Object> cls) {
+        return cls.isAnnotationPresent(StoreLastAccess.class);
+    }
+
+    public boolean storesCreation(Class<? extends Object> cls) {
+        return cls.isAnnotationPresent(StoreCreationTime.class);
+    }
+
 
     private String getFieldName(Class cls, String fld) {
         return config.getMapper().getFieldName(cls, fld);
@@ -1726,6 +1734,49 @@ public class Morphium {
 
         }
 
+    }
+
+    public String getLastChangeField(Class<?> cls) {
+        if (!cls.isAnnotationPresent(StoreLastChange.class)) return null;
+        List<String> lst = config.getMapper().getFields(cls, LastChange.class);
+        if (lst == null || lst.isEmpty()) return null;
+        return lst.get(0);
+    }
+
+    public String getLastChangeByField(Class<?> cls) {
+        if (!cls.isAnnotationPresent(StoreLastChange.class)) return null;
+        List<String> lst = config.getMapper().getFields(cls, LastChangeBy.class);
+        if (lst == null || lst.isEmpty()) return null;
+        return lst.get(0);
+    }
+
+    public String getLastAccessField(Class<?> cls) {
+        if (!cls.isAnnotationPresent(StoreLastAccess.class)) return null;
+        List<String> lst = config.getMapper().getFields(cls, LastAccess.class);
+        if (lst == null || lst.isEmpty()) return null;
+        return lst.get(0);
+    }
+
+    public String getLastAccessByField(Class<?> cls) {
+        if (!cls.isAnnotationPresent(StoreLastAccess.class)) return null;
+        List<String> lst = config.getMapper().getFields(cls, LastAccessBy.class);
+        if (lst == null || lst.isEmpty()) return null;
+        return lst.get(0);
+    }
+
+
+    public String getCreationTimeField(Class<?> cls) {
+        if (!cls.isAnnotationPresent(StoreCreationTime.class)) return null;
+        List<String> lst = config.getMapper().getFields(cls, CreationTime.class);
+        if (lst == null || lst.isEmpty()) return null;
+        return lst.get(0);
+    }
+
+    public String getCreatedByField(Class<?> cls) {
+        if (!cls.isAnnotationPresent(StoreCreationTime.class)) return null;
+        List<String> lst = config.getMapper().getFields(cls, CreatedBy.class);
+        if (lst == null || lst.isEmpty()) return null;
+        return lst.get(0);
     }
 
 
