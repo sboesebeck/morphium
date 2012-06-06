@@ -1,6 +1,7 @@
 package de.caluga.morphium.messaging;
 
 import de.caluga.morphium.Morphium;
+import de.caluga.morphium.MorphiumSingleton;
 import de.caluga.morphium.Query;
 import org.apache.log4j.Logger;
 
@@ -43,6 +44,9 @@ public class Messaging extends Thread {
     }
 
     public void run() {
+        if (log.isDebugEnabled()) {
+            log.info("Messaging " + id + " started");
+        }
         Map<String, Object> values = new HashMap<String, Object>();
         while (running) {
 
@@ -71,7 +75,8 @@ public class Messaging extends Thread {
 //                }
                 //maybe others "overlocked" our message, but that's ok - we re read all messages...
                 q = q.q();
-                q = q.f(Msg.Fields.lockedBy).eq(id);
+                q.or(q.q().f(Msg.Fields.lockedBy).eq(id), q.q().f(Msg.Fields.lockedBy).eq("ALL").f(Msg.Fields.lstOfIdsAlreadyProcessed).ne(id).f(Msg.Fields.to).eq(id),
+                        q.q().f(Msg.Fields.lockedBy).eq("ALL").f(Msg.Fields.lstOfIdsAlreadyProcessed).ne(id).f(Msg.Fields.to).eq(null));
                 q.sort(Msg.Fields.timestamp);
 
                 List<Msg> messagesList = q.asList();
@@ -80,7 +85,7 @@ public class Messaging extends Thread {
                 for (Msg msg : messagesList) {
                     msg = morphium.reread(msg); //make sure it's current version in DB
                     if (msg == null) continue; //was deleted
-                    if (!msg.getLockedBy().equals(id)) {
+                    if (!msg.getLockedBy().equals(id) && !msg.getLockedBy().equals("ALL")) {
                         //over-locked by someone else
                         continue;
                     }
@@ -110,10 +115,18 @@ public class Messaging extends Thread {
                         morphium.deleteObject(msg);
                     }
                     //updating it to be processed by others...
-                    msg.addProcessedId(id);
-                    msg.setLockedBy(null);
-                    msg.setLocked(0);
-                    toStore.add(msg);
+                    if (msg.getLockedBy().equals("ALL")) {
+                        Query<Msg> idq = MorphiumSingleton.get().createQueryFor(Msg.class);
+                        idq.f(Msg.Fields.msgId).eq(msg.getMsgId());
+
+                        MorphiumSingleton.get().push(idq, Msg.Fields.lstOfIdsAlreadyProcessed, id);
+                    } else {
+                        //Exclusive message
+                        msg.addProcessedId(id);
+                        msg.setLockedBy(null);
+                        msg.setLocked(0);
+                        toStore.add(msg);
+                    }
 
                 }
                 morphium.storeList(toStore);
@@ -126,6 +139,9 @@ public class Messaging extends Thread {
                 }
             }
 
+        }
+        if (log.isDebugEnabled()) {
+            log.debug("Messaging " + id + " stopped!");
         }
     }
 

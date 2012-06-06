@@ -108,4 +108,24 @@ public class UpdateTest extends MongoTest {
         assert (uc != null) : "Not found?!?!?";
         assert (uc.getValue().equals("unexistent")) : "Value wrong: " + uc.getValue();
     }
+
+    @Test
+    public void pushTest() throws Exception {
+        for (int i = 1; i <= 50; i++) {
+            ListContainer lc = new ListContainer();
+            lc.addLong(12 + i);
+            lc.addString("string");
+            lc.setName("LC" + i);
+            MorphiumSingleton.get().store(lc);
+        }
+
+        Query<ListContainer> lc = MorphiumSingleton.get().createQueryFor(ListContainer.class);
+        lc = lc.f("name").eq("LC15");
+        MorphiumSingleton.get().push(lc, "long_list", 12345l);
+        ListContainer cont = lc.get();
+        assert (cont.getLongList().contains(12345l)) : "No push?";
+
+    }
+
+
 }
