@@ -75,7 +75,8 @@ public class Messaging extends Thread {
 //                }
                 //maybe others "overlocked" our message, but that's ok - we re read all messages...
                 q = q.q();
-                q.or(q.q().f(Msg.Fields.lockedBy).eq(id), q.q().f(Msg.Fields.lockedBy).eq("ALL").f(Msg.Fields.lstOfIdsAlreadyProcessed).ne(id).f(Msg.Fields.to).eq(id),
+                q.or(q.q().f(Msg.Fields.lockedBy).eq(id),
+                        q.q().f(Msg.Fields.lockedBy).eq("ALL").f(Msg.Fields.lstOfIdsAlreadyProcessed).ne(id).f(Msg.Fields.to).eq(id),
                         q.q().f(Msg.Fields.lockedBy).eq("ALL").f(Msg.Fields.lstOfIdsAlreadyProcessed).ne(id).f(Msg.Fields.to).eq(null));
                 q.sort(Msg.Fields.timestamp);
 

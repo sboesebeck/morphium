@@ -68,7 +68,7 @@ public class Msg {
     }
 
     public Msg(String name, String msg, String value) {
-        this(name, MsgType.SINGLE, msg, value, 30000);
+        this(name, MsgType.MULTI, msg, value, 30000);
     }
 
     public Msg(String name, MsgType t, String msg, String value, long ttl) {
