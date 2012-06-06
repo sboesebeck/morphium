@@ -52,6 +52,7 @@ public class MessagingTest extends MongoTest {
 
         Msg m = new Msg("name", MsgType.SINGLE, "Msgid1", "value", 5000);
         m.setSender(id);
+        m.setExclusive(true);
         MorphiumSingleton.get().store(m);
 
         Query<Msg> q = MorphiumSingleton.get().createQueryFor(Msg.class);
@@ -69,6 +70,7 @@ public class MessagingTest extends MongoTest {
 
         m = new Msg("name", MsgType.SINGLE, "msgid2", "value", 5000);
         m.setSender("sndId2");
+        m.setExclusive(true);
         MorphiumSingleton.get().store(m);
 
         q = MorphiumSingleton.get().createQueryFor(Msg.class);
@@ -694,6 +696,11 @@ public class MessagingTest extends MongoTest {
         assert (!gotMessage1) : "Got message again?";
         assert (!gotMessage2) : "m2 did get msg again?";
         assert (!gotMessage3) : "m3 did get msg again?";
+
+        m1.setRunning(false);
+        m2.setRunning(false);
+        m3.setRunning(false);
+        Thread.sleep(1000);
     }
 
 

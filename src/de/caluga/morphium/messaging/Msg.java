@@ -88,7 +88,7 @@ public class Msg {
     }
 
     public void setExclusive(boolean exclusive) {
-        if (exclusive) lockedBy = "ALL";
+        if (!exclusive) lockedBy = "ALL";
         else lockedBy = null;
         this.exclusive = exclusive;
     }
