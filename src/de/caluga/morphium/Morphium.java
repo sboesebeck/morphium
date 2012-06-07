@@ -302,101 +302,6 @@ public class Morphium {
         set(cls, query, toSet, insertIfNotExist, multiple);
     }
 
-    public void push(Query<?> query, Enum field, Object value) {
-        pushPull(true, query, field.name(), value, false, true);
-    }
-
-    public void pull(Query<?> query, Enum field, Object value) {
-        pushPull(false, query, field.name(), value, false, true);
-    }
-
-    public void push(Query<?> query, String field, Object value) {
-        pushPull(true, query, field, value, false, true);
-    }
-
-    public void pull(Query<?> query, String field, Object value) {
-        pushPull(false, query, field, value, false, true);
-    }
-
-
-    public void push(Query<?> query, Enum field, Object value, boolean insertIfNotExist, boolean multiple) {
-        pushPull(true, query, field.name(), value, insertIfNotExist, multiple);
-    }
-
-    public void pull(Query<?> query, Enum field, Object value, boolean insertIfNotExist, boolean multiple) {
-        pushPull(false, query, field.name(), value, insertIfNotExist, multiple);
-    }
-
-    public void pushAll(Query<?> query, Enum field, List<Object> value, boolean insertIfNotExist, boolean multiple) {
-        pushPullAll(true, query, field.name(), value, insertIfNotExist, multiple);
-    }
-
-    public void pullAll(Query<?> query, Enum field, List<Object> value, boolean insertIfNotExist, boolean multiple) {
-        pushPullAll(false, query, field.name(), value, insertIfNotExist, multiple);
-    }
-
-
-    public void push(Query<?> query, String field, Object value, boolean insertIfNotExist, boolean multiple) {
-        pushPull(true, query, field, value, insertIfNotExist, multiple);
-    }
-
-    public void pull(Query<?> query, String field, Object value, boolean insertIfNotExist, boolean multiple) {
-        pushPull(false, query, field, value, insertIfNotExist, multiple);
-    }
-
-    public void pushAll(Query<?> query, String field, List<Object> value, boolean insertIfNotExist, boolean multiple) {
-        pushPullAll(true, query, field, value, insertIfNotExist, multiple);
-    }
-
-    public void pullAll(Query<?> query, String field, List<Object> value, boolean insertIfNotExist, boolean multiple) {
-        pushPull(false, query, field, value, insertIfNotExist, multiple);
-    }
-
-
-    private void pushPull(boolean push, Query<?> query, String field, Object value, boolean insertIfNotExist, boolean multiple) {
-        Class<?> cls = query.getType();
-        String coll = config.getMapper().getCollectionName(cls);
-
-        DBObject qobj = query.toQueryObject();
-        if (insertIfNotExist) {
-            qobj = simplifyQueryObject(qobj);
-        }
-        field = config.getMapper().getFieldName(cls, field);
-        BasicDBObject set = new BasicDBObject(field, value);
-        BasicDBObject update = new BasicDBObject(push ? "$push" : "$pull", set);
-
-        WriteConcern wc = getWriteConcernForClass(cls);
-        if (wc == null) {
-            database.getCollection(coll).update(qobj, update, insertIfNotExist, multiple);
-        } else {
-            database.getCollection(coll).update(qobj, update, insertIfNotExist, multiple, wc);
-        }
-        clearCacheIfNecessary(cls);
-    }
-
-    private void pushPullAll(boolean push, Query<?> query, String field, List<Object> value, boolean insertIfNotExist, boolean multiple) {
-        Class<?> cls = query.getType();
-        String coll = config.getMapper().getCollectionName(cls);
-
-        BasicDBList dbl = new BasicDBList();
-        dbl.addAll(value);
-
-        DBObject qobj = query.toQueryObject();
-        if (insertIfNotExist) {
-            qobj = simplifyQueryObject(qobj);
-        }
-        field = config.getMapper().getFieldName(cls, field);
-        BasicDBObject set = new BasicDBObject(field, value);
-        BasicDBObject update = new BasicDBObject(push ? "$pushAll" : "$pullAll", set);
-        WriteConcern wc = getWriteConcernForClass(cls);
-        if (wc == null) {
-            database.getCollection(coll).update(qobj, update, insertIfNotExist, multiple);
-        } else {
-            database.getCollection(coll).update(qobj, update, insertIfNotExist, multiple, wc);
-        }
-        clearCacheIfNecessary(cls);
-    }
-
     /**
      * will change an entry in mongodb-collection corresponding to given class object
      * if query is too complex, upsert might not work!
@@ -444,9 +349,20 @@ public class Morphium {
      * @param multiple         - update several documents, if false, only first hit will be updated
      */
     public void set(Class<?> cls, Query<?> query, String field, Object val, boolean insertIfNotExist, boolean multiple) {
-        Map<String, Object> map = new HashMap<String, Object>();
-        map.put(field, val);
-        set(cls, query, map, insertIfNotExist, multiple);
+        String coll = config.getMapper().getCollectionName(cls);
+        String fieldName = getFieldName(cls, field);
+        BasicDBObject update = new BasicDBObject("$set", new BasicDBObject(fieldName, val));
+        DBObject qobj = query.toQueryObject();
+        if (insertIfNotExist) {
+            qobj = simplifyQueryObject(qobj);
+        }
+        WriteConcern wc = getWriteConcernForClass(cls);
+        if (wc == null) {
+            database.getCollection(coll).update(qobj, update, insertIfNotExist, multiple);
+        } else {
+            database.getCollection(coll).update(qobj, update, insertIfNotExist, multiple, wc);
+        }
+        clearCacheIfNecessary(cls);
     }
 
     public void dec(Class<?> cls, Query<?> query, Enum field, int amount, boolean insertIfNotExist, boolean multiple) {
@@ -494,6 +410,10 @@ public class Morphium {
         clearCacheIfNecessary(cls);
     }
 
+
+    public void set(Object toSet, Enum field, Object value) {
+        set(toSet, field.name(), value);
+    }
 
     /**
      * setting a value in an existing mongo collection entry - no reading necessary. Object is altered in place
@@ -1244,8 +1164,37 @@ public class Morphium {
 //    }
 
 
+    /**
+     * does not set values in DB only in the entity
+     *
+     * @param toSetValueIn
+     */
+    public void setValueIn(Object toSetValueIn, String fld, Object value) {
+        config.getMapper().setValue(toSetValueIn, value, fld);
+    }
+
+    public void setValueIn(Object toSetValueIn, Enum fld, Object value) {
+        config.getMapper().setValue(toSetValueIn, value, fld.name());
+    }
+
+    public Object getValueOf(Object toGetValueFrom, String fld) {
+        return config.getMapper().getValue(toGetValueFrom, fld);
+    }
+
+    public Object getValueOf(Object toGetValueFrom, Enum fld) {
+        return config.getMapper().getValue(toGetValueFrom, fld.name());
+    }
+
+
     @SuppressWarnings("unchecked")
     public <T> List<T> findByField(Class<T> cls, String fld, Object val) {
+        Query<T> q = createQueryFor(cls);
+        q = q.f(fld).eq(val);
+        return q.asList();
+//        return createQueryFor(cls).field(fld).equal(val).asList();
+    }
+
+    public <T> List<T> findByField(Class<T> cls, Enum fld, Object val) {
         Query<T> q = createQueryFor(cls);
         q = q.f(fld).eq(val);
         return q.asList();
