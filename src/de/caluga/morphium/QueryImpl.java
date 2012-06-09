@@ -331,7 +331,7 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
             throw new RuntimeException("Access denied!");
         }
         morphium.inc(Morphium.StatisticKeys.READS);
-        Cache c = type.getAnnotation(Cache.class);
+        Cache c = morphium.getAnnotationFromHierarchy(type, Cache.class); //type.getAnnotation(Cache.class);
         boolean useCache = c != null && c.readCache();
 
         String ck = morphium.getCacheKey(this);
@@ -378,7 +378,7 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
     }
 
     private void updateLastAccess(DBObject o, T unmarshall) {
-        if (type.isAnnotationPresent(StoreLastAccess.class)) {
+        if (morphium.isAnnotationPresentInHierarchy(type, StoreLastAccess.class)) {
             List<String> lst = mapper.getFields(type, LastAccess.class);
             for (String ctf : lst) {
                 Field f = mapper.getField(type, ctf);
@@ -420,7 +420,7 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
 
     @Override
     public T get() {
-        Cache c = type.getAnnotation(Cache.class);
+        Cache c = morphium.getAnnotationFromHierarchy(type, Cache.class); //type.getAnnotation(Cache.class);
         boolean readCache = c != null && c.readCache();
         String ck = morphium.getCacheKey(this);
         morphium.inc(Morphium.StatisticKeys.READS);
@@ -476,7 +476,7 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
 
     @Override
     public List<ObjectId> idList() {
-        Cache c = type.getAnnotation(Cache.class);
+        Cache c = morphium.getAnnotationFromHierarchy(type, Cache.class);//type.getAnnotation(Cache.class);
         boolean readCache = c != null && c.readCache();
         List<ObjectId> ret = new ArrayList<ObjectId>();
         String ck = morphium.getCacheKey(this);

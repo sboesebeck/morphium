@@ -24,10 +24,10 @@ public class CacheHousekeeper extends Thread {
     private Morphium morphium;
 
     @SuppressWarnings("unchecked")
-    public CacheHousekeeper(Morphium m,int houseKeepingTimeout, int globalCacheTimout) {
+    public CacheHousekeeper(Morphium m, int houseKeepingTimeout, int globalCacheTimout) {
         this.timeout = houseKeepingTimeout;
         gcTimeout = globalCacheTimout;
-        morphium=m;
+        morphium = m;
         validTimeForClass = new Hashtable<Class<?>, Integer>();
         setDaemon(true);
 
@@ -82,8 +82,8 @@ public class CacheHousekeeper extends Thread {
 
 
                     int maxEntries = -1;
-                    Cache cacheSettings = clz.getAnnotation(Cache.class);
-                    NoCache noCache = clz.getAnnotation(NoCache.class);
+                    Cache cacheSettings = morphium.getAnnotationFromHierarchy(clz, Cache.class);//clz.getAnnotation(Cache.class);
+                    NoCache noCache = morphium.getAnnotationFromHierarchy(clz, NoCache.class);// clz.getAnnotation(NoCache.class);
                     int time = gcTimeout;
                     Hashtable<Long, List<String>> lruTime = new Hashtable<Long, List<String>>();
                     Hashtable<Long, List<String>> fifoTime = new Hashtable<Long, List<String>>();

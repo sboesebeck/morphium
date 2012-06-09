@@ -259,8 +259,8 @@ public class Morphium {
 
 
     private void clearCacheIfNecessary(Class cls) {
-        if (cls.isAnnotationPresent(Cache.class)) {
-            Cache c = (Cache) cls.getAnnotation(Cache.class);
+        Cache c = getAnnotationFromHierarchy(cls, Cache.class); //cls.getAnnotation(Cache.class);
+        if (c != null) {
             if (c.clearOnWrite()) {
                 clearCachefor(cls);
             }
@@ -286,20 +286,115 @@ public class Morphium {
         return q;
     }
 
-    public void set(Class<?> cls, Query<?> query, Enum field, Object val) {
-        set(cls, query, field.name(), val);
+    public void set(Query<?> query, Enum field, Object val) {
+        set(query, field.name(), val);
     }
 
-    public void set(Class<?> cls, Query<?> query, String field, Object val) {
-        set(cls, query, field, val, false, false);
+    public void set(Query<?> query, String field, Object val) {
+        set(query, field, val, false, false);
     }
 
-    public void setEnum(Class<?> cls, Query<?> query, Map<Enum, Object> values, boolean insertIfNotExist, boolean multiple) {
+    public void setEnum(Query<?> query, Map<Enum, Object> values, boolean insertIfNotExist, boolean multiple) {
         HashMap<String, Object> toSet = new HashMap<String, Object>();
         for (Enum k : values.keySet()) {
             toSet.put(k.name(), values.get(k));
         }
-        set(cls, query, toSet, insertIfNotExist, multiple);
+        set(query, toSet, insertIfNotExist, multiple);
+    }
+
+    public void push(Query<?> query, Enum field, Object value) {
+        pushPull(true, query, field.name(), value, false, true);
+    }
+
+    public void pull(Query<?> query, Enum field, Object value) {
+        pushPull(false, query, field.name(), value, false, true);
+    }
+
+    public void push(Query<?> query, String field, Object value) {
+        pushPull(true, query, field, value, false, true);
+    }
+
+    public void pull(Query<?> query, String field, Object value) {
+        pushPull(false, query, field, value, false, true);
+    }
+
+
+    public void push(Query<?> query, Enum field, Object value, boolean insertIfNotExist, boolean multiple) {
+        pushPull(true, query, field.name(), value, insertIfNotExist, multiple);
+    }
+
+    public void pull(Query<?> query, Enum field, Object value, boolean insertIfNotExist, boolean multiple) {
+        pushPull(false, query, field.name(), value, insertIfNotExist, multiple);
+    }
+
+    public void pushAll(Query<?> query, Enum field, List<Object> value, boolean insertIfNotExist, boolean multiple) {
+        pushPullAll(true, query, field.name(), value, insertIfNotExist, multiple);
+    }
+
+    public void pullAll(Query<?> query, Enum field, List<Object> value, boolean insertIfNotExist, boolean multiple) {
+        pushPullAll(false, query, field.name(), value, insertIfNotExist, multiple);
+    }
+
+
+    public void push(Query<?> query, String field, Object value, boolean insertIfNotExist, boolean multiple) {
+        pushPull(true, query, field, value, insertIfNotExist, multiple);
+    }
+
+    public void pull(Query<?> query, String field, Object value, boolean insertIfNotExist, boolean multiple) {
+        pushPull(false, query, field, value, insertIfNotExist, multiple);
+    }
+
+    public void pushAll(Query<?> query, String field, List<Object> value, boolean insertIfNotExist, boolean multiple) {
+        pushPullAll(true, query, field, value, insertIfNotExist, multiple);
+    }
+
+    public void pullAll(Query<?> query, String field, List<Object> value, boolean insertIfNotExist, boolean multiple) {
+        pushPull(false, query, field, value, insertIfNotExist, multiple);
+    }
+
+
+    private void pushPull(boolean push, Query<?> query, String field, Object value, boolean insertIfNotExist, boolean multiple) {
+        Class<?> cls = query.getType();
+        String coll = config.getMapper().getCollectionName(cls);
+
+        DBObject qobj = query.toQueryObject();
+        if (insertIfNotExist) {
+            qobj = simplifyQueryObject(qobj);
+        }
+        field = config.getMapper().getFieldName(cls, field);
+        BasicDBObject set = new BasicDBObject(field, value);
+        BasicDBObject update = new BasicDBObject(push ? "$push" : "$pull", set);
+
+        WriteConcern wc = getWriteConcernForClass(cls);
+        if (wc == null) {
+            database.getCollection(coll).update(qobj, update, insertIfNotExist, multiple);
+        } else {
+            database.getCollection(coll).update(qobj, update, insertIfNotExist, multiple, wc);
+        }
+        clearCacheIfNecessary(cls);
+    }
+
+    private void pushPullAll(boolean push, Query<?> query, String field, List<Object> value, boolean insertIfNotExist, boolean multiple) {
+        Class<?> cls = query.getType();
+        String coll = config.getMapper().getCollectionName(cls);
+
+        BasicDBList dbl = new BasicDBList();
+        dbl.addAll(value);
+
+        DBObject qobj = query.toQueryObject();
+        if (insertIfNotExist) {
+            qobj = simplifyQueryObject(qobj);
+        }
+        field = config.getMapper().getFieldName(cls, field);
+        BasicDBObject set = new BasicDBObject(field, value);
+        BasicDBObject update = new BasicDBObject(push ? "$pushAll" : "$pullAll", set);
+        WriteConcern wc = getWriteConcernForClass(cls);
+        if (wc == null) {
+            database.getCollection(coll).update(qobj, update, insertIfNotExist, multiple);
+        } else {
+            database.getCollection(coll).update(qobj, update, insertIfNotExist, multiple, wc);
+        }
+        clearCacheIfNecessary(cls);
     }
 
     /**
@@ -308,13 +403,13 @@ public class Morphium {
      * Upsert should consist of single and-queries, which will be used to generate the object to create, unless
      * it already exists. look at Mongodb-query documentation as well
      *
-     * @param cls              - class or corresponding collection to take a look at
      * @param query            - query to specify which objects should be set
      * @param values           - map fieldName->Value, which values are to be set!
      * @param insertIfNotExist - insert, if it does not exist (query needs to be simple!)
      * @param multiple         - update several documents, if false, only first hit will be updated
      */
-    public void set(Class<?> cls, Query<?> query, Map<String, Object> values, boolean insertIfNotExist, boolean multiple) {
+    public void set(Query<?> query, Map<String, Object> values, boolean insertIfNotExist, boolean multiple) {
+        Class<?> cls = query.getType();
         String coll = config.getMapper().getCollectionName(cls);
         BasicDBObject toSet = new BasicDBObject();
         for (String f : values.keySet()) {
@@ -341,59 +436,48 @@ public class Morphium {
      * Upsert should consist of single and-queries, which will be used to generate the object to create, unless
      * it already exists. look at Mongodb-query documentation as well
      *
-     * @param cls              - class or corresponding collection to take a look at
      * @param query            - query to specify which objects should be set
      * @param field            - field to set
      * @param val              - value to set
      * @param insertIfNotExist - insert, if it does not exist (query needs to be simple!)
      * @param multiple         - update several documents, if false, only first hit will be updated
      */
-    public void set(Class<?> cls, Query<?> query, String field, Object val, boolean insertIfNotExist, boolean multiple) {
-        String coll = config.getMapper().getCollectionName(cls);
-        String fieldName = getFieldName(cls, field);
-        BasicDBObject update = new BasicDBObject("$set", new BasicDBObject(fieldName, val));
-        DBObject qobj = query.toQueryObject();
-        if (insertIfNotExist) {
-            qobj = simplifyQueryObject(qobj);
-        }
-        WriteConcern wc = getWriteConcernForClass(cls);
-        if (wc == null) {
-            database.getCollection(coll).update(qobj, update, insertIfNotExist, multiple);
-        } else {
-            database.getCollection(coll).update(qobj, update, insertIfNotExist, multiple, wc);
-        }
-        clearCacheIfNecessary(cls);
+    public void set(Query<?> query, String field, Object val, boolean insertIfNotExist, boolean multiple) {
+        Map<String, Object> map = new HashMap<String, Object>();
+        map.put(field, val);
+        set(query, map, insertIfNotExist, multiple);
     }
 
-    public void dec(Class<?> cls, Query<?> query, Enum field, int amount, boolean insertIfNotExist, boolean multiple) {
-        dec(cls, query, field.name(), amount, insertIfNotExist, multiple);
+    public void dec(Query<?> query, Enum field, int amount, boolean insertIfNotExist, boolean multiple) {
+        dec(query, field.name(), amount, insertIfNotExist, multiple);
     }
 
-    public void dec(Class<?> cls, Query<?> query, String field, int amount, boolean insertIfNotExist, boolean multiple) {
-        inc(cls, query, field, -amount, insertIfNotExist, multiple);
+    public void dec(Query<?> query, String field, int amount, boolean insertIfNotExist, boolean multiple) {
+        inc(query, field, -amount, insertIfNotExist, multiple);
     }
 
-    public void dec(Class<?> cls, Query<?> query, String field, int amount) {
-        inc(cls, query, field, -amount, false, false);
+    public void dec(Query<?> query, String field, int amount) {
+        inc(query, field, -amount, false, false);
     }
 
-    public void dec(Class<?> cls, Query<?> query, Enum field, int amount) {
-        inc(cls, query, field, -amount, false, false);
+    public void dec(Query<?> query, Enum field, int amount) {
+        inc(query, field, -amount, false, false);
     }
 
-    public void inc(Class<?> cls, Query<?> query, String field, int amount) {
-        inc(cls, query, field, amount, false, false);
+    public void inc(Query<?> query, String field, int amount) {
+        inc(query, field, amount, false, false);
     }
 
-    public void inc(Class<?> cls, Query<?> query, Enum field, int amount) {
-        inc(cls, query, field, amount, false, false);
+    public void inc(Query<?> query, Enum field, int amount) {
+        inc(query, field, amount, false, false);
     }
 
-    public void inc(Class<?> cls, Query<?> query, Enum field, int amount, boolean insertIfNotExist, boolean multiple) {
-        inc(cls, query, field.name(), amount, insertIfNotExist, multiple);
+    public void inc(Query<?> query, Enum field, int amount, boolean insertIfNotExist, boolean multiple) {
+        inc(query, field.name(), amount, insertIfNotExist, multiple);
     }
 
-    public void inc(Class<?> cls, Query<?> query, String field, int amount, boolean insertIfNotExist, boolean multiple) {
+    public void inc(Query<?> query, String field, int amount, boolean insertIfNotExist, boolean multiple) {
+        Class<?> cls = query.getType();
         String coll = config.getMapper().getCollectionName(cls);
         String fieldName = getFieldName(cls, field);
         BasicDBObject update = new BasicDBObject("$inc", new BasicDBObject(fieldName, amount));
@@ -625,7 +709,7 @@ public class Morphium {
         for (String f : fields) {
             try {
                 Object value = getValue(ent, f);
-                if (value.getClass().isAnnotationPresent(Entity.class)) {
+                if (isAnnotationPresentInHierarchy(value.getClass(), Entity.class)) {
                     value = config.getMapper().marshall(value);
                 }
                 update.put(f, value);
@@ -635,8 +719,8 @@ public class Morphium {
             }
         }
 
-        if (type.isAnnotationPresent(StoreLastChange.class)) {
-            StoreLastChange t = (StoreLastChange) type.getAnnotation(StoreLastChange.class);
+        StoreLastChange t = getAnnotationFromHierarchy(type, StoreLastChange.class); //(StoreLastChange) type.getAnnotation(StoreLastChange.class);
+        if (t != null) {
             List<String> lst = config.getMapper().getFields(ent.getClass(), LastChange.class);
 
             long now = System.currentTimeMillis();
@@ -687,7 +771,7 @@ public class Morphium {
     public void updateUsingFields(final Object ent, final String... fields) {
         if (ent == null) return;
         if (fields.length == 0) return; //not doing an update - no change
-        if (!ent.getClass().isAnnotationPresent(NoProtection.class)) {
+        if (!isAnnotationPresentInHierarchy(ent.getClass(), NoProtection.class)) {
             if (getId(ent) == null) {
                 if (accessDenied(ent, Permission.INSERT)) {
                     throw new SecurityException("Insert of new Object denied!");
@@ -699,12 +783,12 @@ public class Morphium {
             }
         }
 
-        if (ent.getClass().isAnnotationPresent(NoCache.class)) {
+        if (isAnnotationPresentInHierarchy(ent.getClass(), NoCache.class)) {
             storeNoCacheUsingFields(ent, fields);
             return;
         }
 
-        Cache cc = ent.getClass().getAnnotation(Cache.class);
+        Cache cc = getAnnotationFromHierarchy(ent.getClass(), Cache.class); //ent.getClass().getAnnotation(Cache.class);
         if (cc != null) {
             if (cc.writeCache()) {
                 writers.execute(new Runnable() {
@@ -725,6 +809,42 @@ public class Morphium {
 
     }
 
+    /**
+     * returns annotations, even if in class hierarchy or
+     * lazyloading proxy
+     *
+     * @param cls
+     * @return
+     */
+    public <T extends Annotation> T getAnnotationFromHierarchy(Class<?> cls, Class<T> anCls) {
+        if (cls.getName().contains("$$EnhancerByCGLIB$$")) {
+            try {
+                cls = Class.forName(cls.getName().substring(0, cls.getName().indexOf("$$")));
+                return cls.getAnnotation(anCls);
+            } catch (Exception e) {
+                //TODO: Implement Handling
+                throw new RuntimeException(e);
+            }
+        }
+        if (cls.isAnnotationPresent(anCls)) {
+            return cls.getAnnotation(anCls);
+        }
+        //class hierarchy?
+        Class<?> z = cls;
+        while (!z.equals(Object.class)) {
+            if (z.isAnnotationPresent(anCls)) {
+                return z.getAnnotation(anCls);
+            }
+            z = z.getSuperclass();
+            if (z == null) break;
+        }
+        return null;
+    }
+
+    public <T extends Annotation> boolean isAnnotationPresentInHierarchy(Class<?> cls, Class<T> anCls) {
+        return getAnnotationFromHierarchy(cls, anCls) != null;
+    }
+
 
     public void callLifecycleMethod(Class<? extends Annotation> type, Object on) {
         if (on == null) return;
@@ -732,7 +852,7 @@ public class Morphium {
         //hashtabel - but for performance reasons, it's ok...
         Class<?> cls = on.getClass();
         //No Lifecycle annotation - no method calling
-        if (!cls.isAnnotationPresent(Lifecycle.class)) {
+        if (!isAnnotationPresentInHierarchy(cls, Lifecycle.class)) {//cls.isAnnotationPresent(Lifecycle.class)) {
             return;
         }
         //Already stored - should not change during runtime
@@ -901,7 +1021,7 @@ public class Morphium {
 
     public void storeNoCache(Object o) {
         Class type = o.getClass();
-        if (!type.isAnnotationPresent(Entity.class)) {
+        if (!isAnnotationPresentInHierarchy(type, Entity.class)) {
             throw new RuntimeException("Not an entity! Storing not possible!");
         }
 
@@ -919,7 +1039,7 @@ public class Morphium {
         if (isNew) {
 
             //new object - need to store creation time
-            if (type.isAnnotationPresent(StoreCreationTime.class)) {
+            if (isAnnotationPresentInHierarchy(type, StoreCreationTime.class)) {
                 List<String> lst = config.getMapper().getFields(type, CreationTime.class);
                 if (lst == null || lst.size() == 0) {
                     logger.error("Unable to store creation time as @CreationTime is missing");
@@ -956,7 +1076,7 @@ public class Morphium {
                 }
             }
         }
-        if (type.isAnnotationPresent(StoreLastChange.class)) {
+        if (isAnnotationPresentInHierarchy(type, StoreLastChange.class)) {
             List<String> lst = config.getMapper().getFields(type, LastChange.class);
             if (lst != null && lst.size() > 0) {
                 for (String ctf : lst) {
@@ -1014,8 +1134,9 @@ public class Morphium {
             }
         }
 
-        if (o.getClass().isAnnotationPresent(Cache.class)) {
-            if (o.getClass().getAnnotation(Cache.class).clearOnWrite()) {
+        Cache ch = getAnnotationFromHierarchy(o.getClass(), Cache.class);
+        if (ch != null) {
+            if (ch.clearOnWrite()) {
                 clearCachefor(o.getClass());
             }
         }
@@ -1024,7 +1145,7 @@ public class Morphium {
     }
 
     private WriteConcern getWriteConcernForClass(Class<?> cls) {
-        WriteSafety safety = cls.getAnnotation(WriteSafety.class);
+        WriteSafety safety = getAnnotationFromHierarchy(cls, WriteSafety.class);  // cls.getAnnotation(WriteSafety.class);
         if (safety == null) return null;
         return new WriteConcern(safety.level().getValue(), safety.timeout(), safety.waitForSync(), safety.waitForJournalCommit());
     }
@@ -1043,8 +1164,8 @@ public class Morphium {
 
 
     protected boolean isCached(Class<? extends Object> type, String k) {
-        if (type.isAnnotationPresent(Cache.class)) {
-            Cache c = type.getAnnotation(Cache.class);
+        Cache c = getAnnotationFromHierarchy(type, Cache.class); ///type.getAnnotation(Cache.class);
+        if (c != null) {
             if (!c.readCache()) return false;
         } else {
             return false;
@@ -1089,7 +1210,7 @@ public class Morphium {
      */
 
     public void deleteCollectionItems(Class<? extends Object> cls) {
-        if (!cls.isAnnotationPresent(NoProtection.class)) {
+        if (!isAnnotationPresentInHierarchy(cls, NoProtection.class)) { //cls.isAnnotationPresent(NoProtection.class)) {
             try {
                 if (accessDenied(cls.newInstance(), Permission.DROP)) {
                     throw new SecurityException("Drop of Collection denied!");
@@ -1239,15 +1360,15 @@ public class Morphium {
     }
 
     public boolean storesLastChange(Class<? extends Object> cls) {
-        return cls.isAnnotationPresent(StoreLastChange.class);
+        return isAnnotationPresentInHierarchy(cls, StoreLastChange.class);
     }
 
     public boolean storesLastAccess(Class<? extends Object> cls) {
-        return cls.isAnnotationPresent(StoreLastAccess.class);
+        return isAnnotationPresentInHierarchy(cls, StoreLastAccess.class);
     }
 
     public boolean storesCreation(Class<? extends Object> cls) {
-        return cls.isAnnotationPresent(StoreCreationTime.class);
+        return isAnnotationPresentInHierarchy(cls, StoreCreationTime.class);
     }
 
 
@@ -1334,7 +1455,7 @@ public class Morphium {
 
 
     public ObjectId getId(Object o) {
-        if (!o.getClass().isAnnotationPresent(Entity.class)) {
+        if (!isAnnotationPresentInHierarchy(o.getClass(), Entity.class)) {
             throw new RuntimeException("No Entitiy");
         }
         List<Field> fieldList = config.getMapper().getAllFields(o.getClass());
@@ -1354,7 +1475,7 @@ public class Morphium {
     }
 
     public void dropCollection(Class<? extends Object> cls) {
-        if (!cls.isAnnotationPresent(NoProtection.class)) {
+        if (!isAnnotationPresentInHierarchy(cls, NoProtection.class)) {
             try {
                 if (accessDenied(cls.newInstance(), Permission.DROP)) {
                     throw new SecurityException("Drop of Collection denied!");
@@ -1365,9 +1486,9 @@ public class Morphium {
                 Logger.getLogger(Morphium.class.getName()).fatal(ex);
             }
         }
-        if (cls.isAnnotationPresent(Entity.class)) {
+        if (isAnnotationPresentInHierarchy(cls, Entity.class)) {
             firePreDropEvent(cls);
-            Entity entity = cls.getAnnotation(Entity.class);
+            Entity entity = getAnnotationFromHierarchy(cls, Entity.class); //cls.getAnnotation(Entity.class);
             database.getCollection(config.getMapper().getCollectionName(cls)).drop();
             firePostDropEvent(cls);
         } else {
@@ -1432,7 +1553,7 @@ public class Morphium {
         }
 
 
-        if (!o.getClass().isAnnotationPresent(NoProtection.class)) {
+        if (!isAnnotationPresentInHierarchy(o.getClass(), NoProtection.class)) { //o.getClass().isAnnotationPresent(NoProtection.class)) {
             if (getId(o) == null) {
                 if (accessDenied(o, Permission.INSERT)) {
                     throw new SecurityException("Insert of new Object denied!");
@@ -1444,25 +1565,21 @@ public class Morphium {
             }
         }
 
-        if (o.getClass().isAnnotationPresent(NoCache.class)) {
+        Cache cc = getAnnotationFromHierarchy(o.getClass(), Cache.class);//o.getClass().getAnnotation(Cache.class);
+        if (cc == null || isAnnotationPresentInHierarchy(o.getClass(), NoCache.class)) {
             storeNoCache(o);
             return;
         }
 
-        Cache cc = o.getClass().getAnnotation(Cache.class);
-        if (cc != null) {
-            if (cc.writeCache()) {
-                writers.execute(new Runnable() {
-                    @Override
-                    public void run() {
-                        storeNoCache(o);
-                    }
-                });
-                inc(StatisticKeys.WRITES_CACHED);
+        if (cc.writeCache()) {
+            writers.execute(new Runnable() {
+                @Override
+                public void run() {
+                    storeNoCache(o);
+                }
+            });
+            inc(StatisticKeys.WRITES_CACHED);
 
-            } else {
-                storeNoCache(o);
-            }
         } else {
             storeNoCache(o);
         }
@@ -1476,7 +1593,7 @@ public class Morphium {
 
         //checking permission - might take some time ;-(
         for (T o : lst) {
-            if (!o.getClass().isAnnotationPresent(NoProtection.class)) {
+            if (!isAnnotationPresentInHierarchy(o.getClass(), NoProtection.class)) {
                 if (getId(o) == null) {
                     if (accessDenied(o, Permission.INSERT)) {
                         throw new SecurityException("Insert of new Object denied!");
@@ -1488,8 +1605,8 @@ public class Morphium {
                 }
             }
 
-            if (o.getClass().isAnnotationPresent(Cache.class)) {
-                Cache c = o.getClass().getAnnotation(Cache.class);
+            Cache c = getAnnotationFromHierarchy(o.getClass(), Cache.class);//o.getClass().getAnnotation(Cache.class);
+            if (c != null && !isAnnotationPresentInHierarchy(o.getClass(), NoCache.class)) {
                 if (c.writeCache()) {
                     storeInBg.add(o);
                 } else {
@@ -1513,7 +1630,7 @@ public class Morphium {
      * @param o
      */
     public <T> void deleteObject(T o) {
-        if (!o.getClass().isAnnotationPresent(NoProtection.class)) {
+        if (!isAnnotationPresentInHierarchy(o.getClass(), NoProtection.class)) {
             if (accessDenied(o, Permission.DELETE)) {
                 throw new SecurityException("Deletion of Object denied!");
             }
@@ -1747,6 +1864,13 @@ public class Morphium {
 
         @Override
         public Object intercept(Object o, Method method, Object[] objects, MethodProxy methodProxy) throws Throwable {
+//            if (method.getName().equals("getClass")) {
+//                return cls;
+//            }
+            if (method.getName().equals("__getType")) {
+                return cls;
+            }
+
             if (deReferenced == null) {
                 if (logger.isDebugEnabled())
                     logger.debug("DeReferencing due to first access");
@@ -1761,6 +1885,9 @@ public class Morphium {
 
             }
             if (deReferenced != null) {
+                if (method.getName().equals("__getDeref")) {
+                    return deReferenced;
+                }
                 return methodProxy.invoke(deReferenced, objects);
             }
             return methodProxy.invokeSuper(o, objects);
@@ -1770,28 +1897,28 @@ public class Morphium {
     }
 
     public String getLastChangeField(Class<?> cls) {
-        if (!cls.isAnnotationPresent(StoreLastChange.class)) return null;
+        if (!isAnnotationPresentInHierarchy(cls, StoreLastChange.class)) return null;
         List<String> lst = config.getMapper().getFields(cls, LastChange.class);
         if (lst == null || lst.isEmpty()) return null;
         return lst.get(0);
     }
 
     public String getLastChangeByField(Class<?> cls) {
-        if (!cls.isAnnotationPresent(StoreLastChange.class)) return null;
+        if (!isAnnotationPresentInHierarchy(cls, StoreLastChange.class)) return null;
         List<String> lst = config.getMapper().getFields(cls, LastChangeBy.class);
         if (lst == null || lst.isEmpty()) return null;
         return lst.get(0);
     }
 
     public String getLastAccessField(Class<?> cls) {
-        if (!cls.isAnnotationPresent(StoreLastAccess.class)) return null;
+        if (!isAnnotationPresentInHierarchy(cls, StoreLastAccess.class)) return null;
         List<String> lst = config.getMapper().getFields(cls, LastAccess.class);
         if (lst == null || lst.isEmpty()) return null;
         return lst.get(0);
     }
 
     public String getLastAccessByField(Class<?> cls) {
-        if (!cls.isAnnotationPresent(StoreLastAccess.class)) return null;
+        if (!isAnnotationPresentInHierarchy(cls, StoreLastAccess.class)) return null;
         List<String> lst = config.getMapper().getFields(cls, LastAccessBy.class);
         if (lst == null || lst.isEmpty()) return null;
         return lst.get(0);
@@ -1799,14 +1926,14 @@ public class Morphium {
 
 
     public String getCreationTimeField(Class<?> cls) {
-        if (!cls.isAnnotationPresent(StoreCreationTime.class)) return null;
+        if (!isAnnotationPresentInHierarchy(cls, StoreCreationTime.class)) return null;
         List<String> lst = config.getMapper().getFields(cls, CreationTime.class);
         if (lst == null || lst.isEmpty()) return null;
         return lst.get(0);
     }
 
     public String getCreatedByField(Class<?> cls) {
-        if (!cls.isAnnotationPresent(StoreCreationTime.class)) return null;
+        if (!isAnnotationPresentInHierarchy(cls, StoreCreationTime.class)) return null;
         List<String> lst = config.getMapper().getFields(cls, CreatedBy.class);
         if (lst == null || lst.isEmpty()) return null;
         return lst.get(0);

@@ -83,12 +83,13 @@ public class ObjectMapperImpl implements ObjectMapper {
 
     @Override
     public String getCollectionName(Class cls) {
-        if (!cls.isAnnotationPresent(Entity.class)) {
+        if (morphium == null) return null;
+        Entity p = morphium.getAnnotationFromHierarchy(cls, Entity.class); //(Entity) cls.getAnnotation(Entity.class);
+        if (p == null) {
             throw new IllegalArgumentException("No Entity " + cls.getSimpleName());
         }
         String name = cls.getSimpleName();
 
-        Entity p = (Entity) cls.getAnnotation(Entity.class);
         if (p.useFQN()) {
             name = cls.getName().replaceAll("\\.", "_");
         }
@@ -113,22 +114,23 @@ public class ObjectMapperImpl implements ObjectMapper {
         if (o == null) {
             return dbo;
         }
-        List<String> flds = getFields(o.getClass());
-        Entity e = o.getClass().getAnnotation(Entity.class);
-        Embedded emb = o.getClass().getAnnotation(Embedded.class);
+        Class<?> cls = getRealClass(o.getClass());
+        List<String> flds = getFields(cls);
+        Entity e = morphium.getAnnotationFromHierarchy(o.getClass(), Entity.class); //o.getClass().getAnnotation(Entity.class);
+        Embedded emb = morphium.getAnnotationFromHierarchy(o.getClass(), Embedded.class); //o.getClass().getAnnotation(Embedded.class);
 
         if (e != null && e.polymorph()) {
-            dbo.put("class_name", o.getClass().getName());
+            dbo.put("class_name", cls.getName());
         }
 
         if (emb != null && emb.polymorph()) {
-            dbo.put("class_name", o.getClass().getName());
+            dbo.put("class_name", cls.getName());
         }
 
         for (String f : flds) {
             String fName = f;
             try {
-                Field fld = getField(o.getClass(), f);
+                Field fld = getField(cls, f);
                 //do not store static fields!
                 if (Modifier.isStatic(fld.getModifiers())) {
                     continue;
@@ -162,7 +164,7 @@ public class ObjectMapperImpl implements ObjectMapper {
                                             throw new IllegalArgumentException("Cannot store reference to unstored entity if automaticStore in @Reference is set to false!");
                                         }
                                     }
-                                    DBRef ref = new DBRef(morphium.getDatabase(), rec.getClass().getName(), id);
+                                    DBRef ref = new DBRef(morphium.getDatabase(), getRealClass(rec.getClass()).getName(), id);
 
                                     lst.add(ref);
                                 }
@@ -196,13 +198,13 @@ public class ObjectMapperImpl implements ObjectMapper {
 
                         //Store Entities recursively
                         //TODO: Fix recursion - this could cause a loop!
-                        if (fld.getType().isAnnotationPresent(Entity.class)) {
+                        if (morphium.isAnnotationPresentInHierarchy(fld.getType(), Entity.class)) {
                             if (value != null) {
                                 DBObject obj = marshall(value);
                                 obj.removeField("_id");  //Do not store ID embedded!
                                 v = obj;
                             }
-                        } else if (fld.getType().isAnnotationPresent(Embedded.class)) {
+                        } else if (morphium.isAnnotationPresentInHierarchy(fld.getType(), Embedded.class)) {
                             if (value != null) {
                                 DBObject obj = marshall(value);
                                 v = obj;
@@ -252,7 +254,8 @@ public class ObjectMapperImpl implements ObjectMapper {
     private BasicDBList createDBList(List v) {
         BasicDBList lst = new BasicDBList();
         for (Object lo : ((List) v)) {
-            if (lo.getClass().isAnnotationPresent(Entity.class) || lo.getClass().isAnnotationPresent(Embedded.class)) {
+            if (morphium.isAnnotationPresentInHierarchy(lo.getClass(), Entity.class) ||
+                    morphium.isAnnotationPresentInHierarchy(lo.getClass(), Embedded.class)) {
                 DBObject marshall = marshall(lo);
                 marshall.put("class_name", lo.getClass().getName());
                 lst.add(marshall);
@@ -280,7 +283,7 @@ public class ObjectMapperImpl implements ObjectMapper {
             }
             Object mval = ((Map) v).get(k);
             if (mval != null) {
-                if (mval.getClass().isAnnotationPresent(Entity.class)) {
+                if (morphium.isAnnotationPresentInHierarchy(mval.getClass(), Entity.class)) {
                     DBObject obj = marshall(mval);
                     obj.put("class_name", mval.getClass().getName());
                     mval = obj;
@@ -362,7 +365,7 @@ public class ObjectMapperImpl implements ObjectMapper {
                     ObjectId id = (ObjectId) o.get("_id");
 
                     value = id;
-                } else if (fld.getType().isAnnotationPresent(Entity.class) || fld.getType().isAnnotationPresent(Embedded.class)) {
+                } else if (morphium.isAnnotationPresentInHierarchy(fld.getType(), Entity.class) || morphium.isAnnotationPresentInHierarchy(fld.getType(), Embedded.class)) {
                     //entity! embedded
                     if (o.get(f) != null) {
                         value = unmarshall(fld.getType(), (DBObject) o.get(f));
@@ -471,7 +474,7 @@ public class ObjectMapperImpl implements ObjectMapper {
                 setValue(ret, value, f);
             }
 
-            if (cls.isAnnotationPresent(Entity.class)) {
+            if (morphium.isAnnotationPresentInHierarchy(cls, Entity.class)) {
                 flds = getFields(cls, Id.class);
                 if (flds.isEmpty()) {
                     throw new RuntimeException("Error - class does not have an ID field!");
@@ -562,14 +565,15 @@ public class ObjectMapperImpl implements ObjectMapper {
     public List<String> getFields(Class cls, Class<? extends Annotation>... annotations) {
         List<String> ret = new Vector<String>();
         Class sc = cls;
-        Entity entity = (Entity) sc.getAnnotation(Entity.class);
-        Embedded embedded = (Embedded) sc.getAnnotation(Embedded.class);
+        sc = getRealClass(sc);
+        Entity entity = morphium.getAnnotationFromHierarchy(sc, Entity.class); //(Entity) sc.getAnnotation(Entity.class);
+        Embedded embedded = morphium.getAnnotationFromHierarchy(sc, Embedded.class);//(Embedded) sc.getAnnotation(Embedded.class);
         if (embedded != null && entity != null) {
-            throw new IllegalArgumentException("Class " + cls.getName() + " does have both @Entity and @Embedded Annotations - not allowed!");
+            log.warn("Class " + cls.getName() + " does have both @Entity and @Embedded Annotations - not allowed! Assuming @Entity is right");
         }
 
         if (embedded == null && entity == null) {
-            throw new IllegalArgumentException("This class " + cls.getName() + " does not have @Entity or @Embedded set - illegal!");
+            throw new IllegalArgumentException("This class " + cls.getName() + " does not have @Entity or @Embedded set, not even in hierachy - illegal!");
         }
         boolean tcc = entity == null ? embedded.translateCamelCase() : entity.translateCamelCase();
         //getting class hierachy
@@ -614,6 +618,19 @@ public class ObjectMapperImpl implements ObjectMapper {
         return ret;
     }
 
+    private Class getRealClass(Class sc) {
+        if (sc.getName().contains("$$EnhancerByCGLIB$$")) {
+
+            try {
+                sc = Class.forName(sc.getName().substring(0, sc.getName().indexOf("$$")));
+            } catch (Exception e) {
+                //TODO: Implement Handling
+                throw new RuntimeException(e);
+            }
+        }
+        return sc;
+    }
+
     @Override
     public String getFieldName(Class cls, String field) {
         Field f = getField(cls, field);
@@ -637,8 +654,8 @@ public class ObjectMapperImpl implements ObjectMapper {
 
 
         String fieldName = f.getName();
-        Entity ent = (Entity) cls.getAnnotation(Entity.class);
-        Embedded emb = (Embedded) cls.getAnnotation(Embedded.class);
+        Entity ent = morphium.getAnnotationFromHierarchy(cls, Entity.class); //(Entity) cls.getAnnotation(Entity.class);
+        Embedded emb = morphium.getAnnotationFromHierarchy(cls, Embedded.class);//(Embedded) cls.getAnnotation(Embedded.class);
         if (ent != null && ent.translateCamelCase()) {
             fieldName = convertCamelCase(fieldName);
         } else if (emb != null && emb.translateCamelCase()) {
@@ -707,10 +724,15 @@ public class ObjectMapperImpl implements ObjectMapper {
 
     @Override
     public boolean isEntity(Object o) {
+        Class cls = null;
+        if (o == null) return false;
+
         if (o instanceof Class) {
-            return ((Class) o).isAnnotationPresent(Entity.class) || ((Class) o).isAnnotationPresent(Embedded.class);
+            cls = (Class) o;
+        } else {
+            cls = o.getClass();
         }
-        return o.getClass().isAnnotationPresent(Entity.class) || o.getClass().isAnnotationPresent(Embedded.class);
+        return morphium.isAnnotationPresentInHierarchy(cls, Entity.class) || morphium.isAnnotationPresentInHierarchy(cls, Embedded.class);
     }
 
     @Override

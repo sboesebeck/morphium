@@ -57,7 +57,7 @@ public class MongoFieldImpl<T> implements MongoField<T> {
         //checking for Ids in references...
         if (val != null) {
             Class<?> cls = val.getClass();
-            if (cls.isAnnotationPresent(Entity.class) || val instanceof ObjectId) {
+            if (mapper.getMorphium().isAnnotationPresentInHierarchy(cls, Entity.class) || val instanceof ObjectId) {
                 if (mapper.getField(query.getType(), fldStr).isAnnotationPresent(Reference.class)) {
                     //here - query value is an entity AND it is referenced by the query type
                     //=> we need to compeare ID's
@@ -67,7 +67,7 @@ public class MongoFieldImpl<T> implements MongoField<T> {
                     } else {
                         id = mapper.getId(val);
                     }
-                   val=id;
+                    val = id;
                 }
 
             }

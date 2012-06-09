@@ -33,7 +33,7 @@ public class UpdateTest extends MongoTest {
         //inc without object - single update, no upsert
         q = MorphiumSingleton.get().createQueryFor(UncachedObject.class);
         q = q.f("counter").gte(10).f("counter").lte(25).sort("counter");
-        MorphiumSingleton.get().inc(UncachedObject.class, q, "counter", 100);
+        MorphiumSingleton.get().inc(q, "counter", 100);
 
         uc = q.get();
         assert (uc.getCounter() == 11) : "Counter is wrong: " + uc.getCounter();
@@ -41,7 +41,7 @@ public class UpdateTest extends MongoTest {
         //inc without object directly in DB - multiple update
         q = MorphiumSingleton.get().createQueryFor(UncachedObject.class);
         q = q.f("counter").gt(10).f("counter").lte(25);
-        MorphiumSingleton.get().inc(UncachedObject.class, q, "counter", 100, false, true);
+        MorphiumSingleton.get().inc(q, "counter", 100, false, true);
 
         q = MorphiumSingleton.get().createQueryFor(UncachedObject.class);
         q = q.f("counter").gt(110).f("counter").lte(125);
@@ -71,7 +71,7 @@ public class UpdateTest extends MongoTest {
         //inc without object - single update, no upsert
         q = MorphiumSingleton.get().createQueryFor(UncachedObject.class);
         q = q.f("counter").gte(40).f("counter").lte(55).sort("counter");
-        MorphiumSingleton.get().dec(UncachedObject.class, q, "counter", 40);
+        MorphiumSingleton.get().dec(q, "counter", 40);
 
         uc = q.get();
         assert (uc.getCounter() == 41) : "Counter is wrong: " + uc.getCounter();
@@ -79,7 +79,7 @@ public class UpdateTest extends MongoTest {
         //inc without object directly in DB - multiple update
         q = MorphiumSingleton.get().createQueryFor(UncachedObject.class);
         q = q.f("counter").gt(40).f("counter").lte(55);
-        MorphiumSingleton.get().dec(UncachedObject.class, q, "counter", 40, false, true);
+        MorphiumSingleton.get().dec(q, "counter", 40, false, true);
 
         q = MorphiumSingleton.get().createQueryFor(UncachedObject.class);
         q = q.f("counter").gt(0).f("counter").lte(55);
@@ -102,7 +102,7 @@ public class UpdateTest extends MongoTest {
 
         Query<UncachedObject> q = MorphiumSingleton.get().createQueryFor(UncachedObject.class);
         q = q.f("value").eq("unexistent");
-        MorphiumSingleton.get().set(UncachedObject.class, q, "counter", 999, true, false);
+        MorphiumSingleton.get().set(q, "counter", 999, true, false);
         UncachedObject uc = q.get(); //should now work
 
         assert (uc != null) : "Not found?!?!?";

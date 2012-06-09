@@ -19,7 +19,7 @@ import java.util.*;
 public class ObjectMapperTest extends MongoTest {
     @Test
     public void testCreateCamelCase() throws Exception {
-        ObjectMapperImpl om = new ObjectMapperImpl(null);
+        ObjectMapperImpl om = new ObjectMapperImpl(MorphiumSingleton.get());
         assert (om.createCamelCase("this_is_a_test", false).equals("thisIsATest")) : "Error camil case translation not working";
         assert (om.createCamelCase("a_test_this_is", true).equals("ATestThisIs")) : "Error - capitalized String wrong";
 
@@ -28,13 +28,13 @@ public class ObjectMapperTest extends MongoTest {
 
     @Test
     public void testConvertCamelCase() throws Exception {
-        ObjectMapperImpl om = new ObjectMapperImpl(null);
+        ObjectMapperImpl om = new ObjectMapperImpl(MorphiumSingleton.get());
         assert (om.convertCamelCase("thisIsATest").equals("this_is_a_test")) : "Conversion failed!";
     }
 
     @Test
     public void testGetCollectionName() throws Exception {
-        ObjectMapperImpl om = new ObjectMapperImpl(null);
+        ObjectMapperImpl om = new ObjectMapperImpl(MorphiumSingleton.get());
         assert (om.getCollectionName(CachedObject.class).equals("cached_object")) : "Cached object test failed";
         assert (om.getCollectionName(UncachedObject.class).equals("uncached_object")) : "Uncached object test failed";
 
@@ -42,7 +42,7 @@ public class ObjectMapperTest extends MongoTest {
 
     @Test
     public void testMarshall() throws Exception {
-        ObjectMapperImpl om = new ObjectMapperImpl(null);
+        ObjectMapperImpl om = new ObjectMapperImpl(MorphiumSingleton.get());
         UncachedObject o = new UncachedObject();
         o.setCounter(12345);
         o.setValue("This \" is $ test");
@@ -53,7 +53,7 @@ public class ObjectMapperTest extends MongoTest {
 
     @Test
     public void testUnmarshall() throws Exception {
-        ObjectMapperImpl om = new ObjectMapperImpl(null);
+        ObjectMapperImpl om = new ObjectMapperImpl(MorphiumSingleton.get());
         BasicDBObject dbo = new BasicDBObject();
         dbo.put("counter", 12345);
         dbo.put("value", "A test");
@@ -62,7 +62,7 @@ public class ObjectMapperTest extends MongoTest {
 
     @Test
     public void testGetId() throws Exception {
-        ObjectMapperImpl om = new ObjectMapperImpl(null);
+        ObjectMapperImpl om = new ObjectMapperImpl(MorphiumSingleton.get());
         UncachedObject o = new UncachedObject();
         o.setCounter(12345);
         o.setValue("This \" is $ test");
@@ -74,7 +74,7 @@ public class ObjectMapperTest extends MongoTest {
 
     @Test
     public void testIsEntity() throws Exception {
-        ObjectMapperImpl om = new ObjectMapperImpl(null);
+        ObjectMapperImpl om = new ObjectMapperImpl(MorphiumSingleton.get());
         assert (om.isEntity(UncachedObject.class)) : "Uncached Object no Entity?=!?=!?";
         assert (om.isEntity(new UncachedObject())) : "Uncached Object no Entity?=!?=!?";
         assert (!om.isEntity("")) : "String is an Entity?";
@@ -147,7 +147,7 @@ public class ObjectMapperTest extends MongoTest {
 
     @Test
     public void nullValueTests() {
-        ObjectMapperImpl om = new ObjectMapperImpl(null);
+        ObjectMapperImpl om = new ObjectMapperImpl(MorphiumSingleton.get());
 
         ComplexObject o = new ComplexObject();
         o.setTrans("TRANSIENT");
@@ -175,7 +175,7 @@ public class ObjectMapperTest extends MongoTest {
         o.setListValue(lst);
         o.setName("Simple List");
 
-        ObjectMapperImpl om = new ObjectMapperImpl(null);
+        ObjectMapperImpl om = new ObjectMapperImpl(MorphiumSingleton.get());
         DBObject marshall = om.marshall(o);
         String m = marshall.toString();
 
@@ -207,7 +207,7 @@ public class ObjectMapperTest extends MongoTest {
         o.setMapValue(map);
         o.setName("A map-value");
 
-        ObjectMapperImpl om = new ObjectMapperImpl(null);
+        ObjectMapperImpl om = new ObjectMapperImpl(MorphiumSingleton.get());
         DBObject marshall = om.marshall(o);
         String m = marshall.toString();
         System.out.println("Marshalled object: " + m);

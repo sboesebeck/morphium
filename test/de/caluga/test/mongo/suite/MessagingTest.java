@@ -59,7 +59,7 @@ public class MessagingTest extends MongoTest {
         MorphiumSingleton.get().delete(q);
         //locking messages...
         q = q.f(Msg.Fields.sender).ne(id).f(Msg.Fields.lockedBy).eq(null).f(Msg.Fields.lstOfIdsAlreadyProcessed).ne(id);
-        MorphiumSingleton.get().set(Msg.class, q, Msg.Fields.lockedBy, id);
+        MorphiumSingleton.get().set(q, Msg.Fields.lockedBy, id);
 
         q = q.q();
         q = q.f(Msg.Fields.lockedBy).eq(id);
@@ -76,7 +76,7 @@ public class MessagingTest extends MongoTest {
         q = MorphiumSingleton.get().createQueryFor(Msg.class);
         //locking messages...
         q = q.f(Msg.Fields.sender).ne(id).f(Msg.Fields.lockedBy).eq(null).f(Msg.Fields.lstOfIdsAlreadyProcessed).ne(id);
-        MorphiumSingleton.get().set(Msg.class, q, Msg.Fields.lockedBy, id);
+        MorphiumSingleton.get().set(q, Msg.Fields.lockedBy, id);
 
         q = q.q();
         q = q.f(Msg.Fields.lockedBy).eq(id);
@@ -532,7 +532,7 @@ public class MessagingTest extends MongoTest {
     @Test
     public void massiveMessagingTest() throws Exception {
         int numberOfWorkers = 10;
-        int numberOfMessages = 200;
+        int numberOfMessages = 100;
         long ttl = 15000; //15 sec
 
 

@@ -56,7 +56,7 @@ public class CacheSynchronizer implements MorphiumStorageListener, MessageListen
             messaging.queueMessage(m);
             return;
         }
-        Cache c = (Cache) type.getAnnotation(Cache.class);
+        Cache c = morphium.getAnnotationFromHierarchy(type, Cache.class); //(Cache) type.getAnnotation(Cache.class);
         if (c == null) return; //not clearing cache for non-cached objects
         if (c.readCache() && c.clearOnWrite() && c.autoSyncCache()) {
             Msg m = new Msg(MSG_NAME, MsgType.MULTI, reason, type.getName(), 30000);
@@ -137,9 +137,9 @@ public class CacheSynchronizer implements MorphiumStorageListener, MessageListen
                 morphium.getConfigManager().reinitSettings();
                 return;
             }
-            if (cls.isAnnotationPresent(Entity.class)) {
-                if (cls.isAnnotationPresent(Cache.class)) {
-                    Cache c = (Cache) cls.getAnnotation(Cache.class);
+            if (morphium.isAnnotationPresentInHierarchy(cls, Entity.class)) {
+                Cache c = morphium.getAnnotationFromHierarchy(cls, Cache.class); //cls.getAnnotation(Cache.class);
+                if (c != null) {
                     if (c.readCache()) {
                         //Really clearing cache, even if clear on write is set to false! => manual clearing?
                         morphium.clearCachefor(cls);
