@@ -132,6 +132,11 @@ public class CacheSynchronizer implements MorphiumStorageListener, MessageListen
                 String sender = m.getSender();
                 log.debug("Got message from " + sender + " - Action: " + action + " Class: " + m.getValue());
             }
+            if (m.getValue().equals("ALL")) {
+                log.info("Cache completely cleared");
+                morphium.resetCache();
+                return;
+            }
             Class cls = Class.forName(m.getValue());
             if (cls.equals(ConfigElement.class)) {
                 morphium.getConfigManager().reinitSettings();

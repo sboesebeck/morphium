@@ -1652,6 +1652,9 @@ public class Morphium {
         firePostRemoveEvent(o);
     }
 
+    public void resetCache() {
+        setCache(new Hashtable<Class<? extends Object>, Hashtable<String, CacheElement>>());
+    }
 
     public void setCache(Hashtable<Class<? extends Object>, Hashtable<String, CacheElement>> cache) {
         this.cache = cache;
