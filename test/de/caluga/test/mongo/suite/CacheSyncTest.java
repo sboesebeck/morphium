@@ -55,11 +55,11 @@ public class CacheSyncTest extends MongoTest {
             c = c.f("counter").eq(i);
             c.asList();
         }
-
+        System.out.println("Stats " + MorphiumSingleton.get().getStatistics().toString());
         assert (MorphiumSingleton.get().getStatistics().get(Morphium.StatisticKeys.CACHE_ENTRIES.name()) != null) : "Cache entries not set?";
         cs1.sendClearMessage("ALL", "test");
         Thread.sleep(1500);
-        assert (MorphiumSingleton.get().getStatistics().get(Morphium.StatisticKeys.CACHE_ENTRIES.name()) == null) : "Cache entries not set?";
+        assert (MorphiumSingleton.get().getStatistics().get(Morphium.StatisticKeys.CACHE_ENTRIES.name()) == 0) : "Cache entries not set?";
     }
 
 }
