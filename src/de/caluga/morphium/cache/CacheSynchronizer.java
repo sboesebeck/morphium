@@ -143,7 +143,8 @@ public class CacheSynchronizer implements MorphiumStorageListener, MessageListen
     }
 
     @Override
-    public void onMessage(Msg m) {
+    public Msg onMessage(Msg m) {
+        Msg answer = new Msg("clearCacheAnswer", "processed", messaging.getSenderId());
         try {
             if (log.isDebugEnabled()) {
                 String action = m.getMsg();
@@ -153,12 +154,14 @@ public class CacheSynchronizer implements MorphiumStorageListener, MessageListen
             if (m.getValue().equals("ALL")) {
                 log.info("Cache completely cleared");
                 morphium.resetCache();
-                return;
+                answer.setMsg("cache completely cleared");
+                return answer;
             }
             Class cls = Class.forName(m.getValue());
             if (cls.equals(ConfigElement.class)) {
                 morphium.getConfigManager().reinitSettings();
-                return;
+                answer.setMsg("config reread");
+                return answer;
             }
             if (morphium.isAnnotationPresentInHierarchy(cls, Entity.class)) {
                 Cache c = morphium.getAnnotationFromHierarchy(cls, Cache.class); //cls.getAnnotation(Cache.class);
@@ -166,17 +169,25 @@ public class CacheSynchronizer implements MorphiumStorageListener, MessageListen
                     if (c.readCache()) {
                         //Really clearing cache, even if clear on write is set to false! => manual clearing?
                         morphium.clearCachefor(cls);
+                        answer.setMsg("cache cleared for type: " + m.getValue());
                     } else {
                         log.warn("trying to clear cache for uncached enitity or one where clearOnWrite is false");
+                        answer.setMsg("type is uncached or clearOnWrite is false: " + m.getValue());
                     }
                 }
             } else {
                 log.warn("Trying to clear cache for none-Entity?????");
+                answer.setMsg("cannot clear cache for non-entyty type: " + m.getValue());
 
             }
         } catch (ClassNotFoundException e) {
             log.warn("Could not process message for class " + m.getValue() + " - not found!");
+            answer.setMsg("class not found: " + m.getValue());
+        } catch (Throwable t) {
+            log.error("Could not process message: ", t);
+            answer.setMsg("Error processing message: " + t.getMessage());
         }
+        return answer;
     }
 
     @Override

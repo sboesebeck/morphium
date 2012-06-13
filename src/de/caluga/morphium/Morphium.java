@@ -58,7 +58,7 @@ public class Morphium {
     private Mongo mongo;
     private DB database;
     private ThreadPoolExecutor writers = new ThreadPoolExecutor(1, 1,
-            0L, TimeUnit.MILLISECONDS,
+            1000L, TimeUnit.MILLISECONDS,
             new LinkedBlockingQueue<Runnable>());
     //Cache by Type, query String -> CacheElement (contains list etc)
     private Hashtable<Class<? extends Object>, Hashtable<String, CacheElement>> cache;

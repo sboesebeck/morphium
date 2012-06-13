@@ -11,8 +11,10 @@ public interface MessageListener {
 
 
     /**
+     * process message, send answer
+     * if null is returned, no answer is sent
      */
-    public void onMessage(Msg m);
+    public Msg onMessage(Msg m);
 
     public void setMessaging(Messaging msg);
 }

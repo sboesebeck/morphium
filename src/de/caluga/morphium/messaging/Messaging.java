@@ -21,6 +21,7 @@ public class Messaging extends Thread {
     private boolean running;
     private int pause = 5000;
     private String id;
+    private boolean autoAnswer = false;
 
     private boolean processMultiple = false;
 
@@ -98,12 +99,24 @@ public class Messaging extends Thread {
                     }
                     try {
                         for (MessageListener l : listeners) {
-                            l.onMessage(msg);
+                            Msg answer = l.onMessage(msg);
+                            if (autoAnswer && answer == null) {
+                                answer = new Msg(msg.getName(), "received", "");
+                            }
+                            if (answer != null) {
+                                msg.sendAnswer(this, answer);
+                            }
                         }
 
                         if (listenerByName.get(msg.getName()) != null) {
                             for (MessageListener l : listenerByName.get(msg.getName())) {
-                                l.onMessage(msg);
+                                Msg answer = l.onMessage(msg);
+                                if (autoAnswer && answer == null) {
+                                    answer = new Msg(msg.getName(), "received", "");
+                                }
+                                if (answer != null) {
+                                    msg.sendAnswer(this, answer);
+                                }
                             }
                         }
                     } catch (Throwable t) {
@@ -140,9 +153,14 @@ public class Messaging extends Thread {
                 }
             }
 
+
         }
         if (log.isDebugEnabled()) {
             log.debug("Messaging " + id + " stopped!");
+        }
+        if (!running) {
+            listeners.clear();
+            listenerByName.clear();
         }
     }
 
@@ -185,6 +203,7 @@ public class Messaging extends Thread {
 
     public void setRunning(boolean running) {
         this.running = running;
+
     }
 
     public void addMessageListener(MessageListener l) {
@@ -213,4 +232,11 @@ public class Messaging extends Thread {
         morphium.storeInBackground(m);
     }
 
+    public boolean isAutoAnswer() {
+        return autoAnswer;
+    }
+
+    public void setAutoAnswer(boolean autoAnswer) {
+        this.autoAnswer = autoAnswer;
+    }
 }

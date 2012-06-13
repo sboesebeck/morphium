@@ -31,10 +31,12 @@ public class CacheSyncTest extends MongoTest {
         waitForWrites();
         cnt = q.countAll();
         assert (cnt == 1) : "there should be one msg, there are " + cnt;
+        msg.setRunning(false);
     }
 
     @Test
     public void clearCacheTest() throws Exception {
+
         Messaging msg1 = new Messaging(MorphiumSingleton.get(), 100, true);
         msg1.start();
         Messaging msg2 = new Messaging(MorphiumSingleton.get(), 100, true);
@@ -60,6 +62,9 @@ public class CacheSyncTest extends MongoTest {
         cs1.sendClearMessage("ALL", "test");
         Thread.sleep(1500);
         assert (MorphiumSingleton.get().getStatistics().get(Morphium.StatisticKeys.CACHE_ENTRIES.name()) == 0) : "Cache entries not set?";
+        msg1.setRunning(false);
+        msg2.setRunning(false);
+
     }
 
 }
