@@ -220,11 +220,11 @@ public class ObjectMapperImpl implements ObjectMapper {
                                     BasicDBList lst = createDBList((List) v);
                                     v = lst;
                                 } else if (v instanceof Iterable) {
-                                    BasicDBList lst = new BasicDBList();
+                                    ArrayList lst = new ArrayList();
                                     for (Object i : (Iterable) v) {
                                         lst.add(i);
                                     }
-                                    v = lst;
+                                    v = createDBList(lst);
                                 } else if (v.getClass().isEnum()) {
                                     v = ((Enum) v).name();
                                 }
@@ -263,6 +263,9 @@ public class ObjectMapperImpl implements ObjectMapper {
                 lst.add(createDBList((List) lo));
             } else if (lo instanceof Map) {
                 lst.add(createDBMap(((Map) lo)));
+            } else if (lo instanceof Enum) {
+                //lst.add(((Enum)lo).name());
+                throw new IllegalArgumentException("List of enums not supported yet");
             } else {
                 lst.add(lo);
             }
