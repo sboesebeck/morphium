@@ -542,10 +542,10 @@ public class ObjectMapperImpl implements ObjectMapper {
                     //throw new RuntimeException(e);
                 }
             }
+            return id;
         } catch (IllegalAccessException e) {
             throw new RuntimeException(e);
         }
-        return null;
     }
 
     /**
