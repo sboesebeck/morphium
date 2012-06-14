@@ -297,6 +297,10 @@ public class ObjectMapperImpl implements ObjectMapper {
                     mval = createDBMap((Map) mval);
                 } else if (mval instanceof List) {
                     mval = createDBList((List) mval);
+                } else if (mval.getClass().isEnum()) {
+                    BasicDBObject obj = new BasicDBObject();
+                    obj.put("class_name", mval.getClass().getName());
+                    obj.put("name", ((Enum) mval).name());
                 }
             }
             dbMap.put((String) k, mval);
