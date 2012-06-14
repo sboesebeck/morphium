@@ -1455,23 +1455,7 @@ public class Morphium {
 
 
     public ObjectId getId(Object o) {
-        if (!isAnnotationPresentInHierarchy(o.getClass(), Entity.class)) {
-            throw new RuntimeException("No Entitiy");
-        }
-        List<Field> fieldList = config.getMapper().getAllFields(o.getClass());
-        for (Field f : fieldList) {
-            if (f.isAnnotationPresent(Id.class)) {
-                try {
-                    f.setAccessible(true);
-                    return (ObjectId) f.get(o);
-                } catch (IllegalArgumentException ex) {
-                    Logger.getLogger(Morphium.class.getName()).error(ex);
-                } catch (IllegalAccessException ex) {
-                    Logger.getLogger(Morphium.class.getName()).error(ex);
-                }
-            }
-        }
-        throw new RuntimeException("No ID-Field found");
+        return config.getMapper().getId(o);
     }
 
     public void dropCollection(Class<? extends Object> cls) {
@@ -1826,6 +1810,10 @@ public class Morphium {
             updateableFields = new Vector<String>();
         }
 
+        public Object __getDeref() {
+            //do nothing - will be intercepted
+            return null;
+        }
 
         @Override
         public List<String> getAlteredFields() {
@@ -1850,6 +1838,12 @@ public class Morphium {
             if (method.getName().equals("getAlteredFields")) {
                 return getAlteredFields();
             }
+            if (method.getName().equals("__getType")) {
+                return o.getClass();
+            }
+            if (method.getName().equals("__getDeref")) {
+                return o;
+            }
             return methodProxy.invokeSuper(o, objects);
         }
     }
@@ -1863,6 +1857,10 @@ public class Morphium {
         public LazyDeReferencingHandler(Class type, ObjectId id) {
             cls = type;
             this.id = id;
+        }
+
+        public Object __getDeref() {
+            return deReferenced;
         }
 
         @Override
@@ -1887,10 +1885,11 @@ public class Morphium {
                 deReferenced = (T) findById(cls, id);
 
             }
+            if (method.getName().equals("__getDeref")) {
+                return deReferenced;
+            }
             if (deReferenced != null) {
-                if (method.getName().equals("__getDeref")) {
-                    return deReferenced;
-                }
+
                 return methodProxy.invoke(deReferenced, objects);
             }
             return methodProxy.invokeSuper(o, objects);

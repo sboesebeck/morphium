@@ -3,6 +3,7 @@ package de.caluga.test.mongo.suite;
 import de.caluga.morphium.Morphium;
 import de.caluga.morphium.MorphiumSingleton;
 import de.caluga.morphium.Query;
+import org.bson.types.ObjectId;
 import org.junit.Test;
 
 import java.util.ArrayList;
@@ -16,6 +17,39 @@ import java.util.List;
  * TODO: Add documentation here
  */
 public class LazyLoadingTest extends MongoTest {
+
+    @Test
+    public void deRefTest() throws Exception {
+        MorphiumSingleton.get().clearCollection(LazyLoadingObject.class);
+        LazyLoadingObject lz = new LazyLoadingObject();
+        UncachedObject o = new UncachedObject();
+        o.setCounter(15);
+        o.setValue("A uncached value");
+        MorphiumSingleton.get().store(o);
+
+        CachedObject co = new CachedObject();
+        co.setCounter(22);
+        co.setValue("A cached Value");
+        MorphiumSingleton.get().store(co);
+
+        waitForWrites();
+
+        lz.setName("Lazy");
+        lz.setLazyCached(co);
+        lz.setLazyUncached(o);
+        MorphiumSingleton.get().store(lz);
+
+        waitForWrites();
+        Query<LazyLoadingObject> q = MorphiumSingleton.get().createQueryFor(LazyLoadingObject.class);
+        q = q.f("name").eq("Lazy");
+        LazyLoadingObject lzRead = q.get();
+        ObjectId id = MorphiumSingleton.get().getId(lzRead);
+        assert (id != null);
+
+        id = MorphiumSingleton.get().getId(lzRead.getLazyCached());
+        assert (id != null);
+
+    }
 
     @Test
     public void lazyLoadingTest() throws Exception {

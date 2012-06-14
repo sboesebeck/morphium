@@ -11,6 +11,7 @@ import org.bson.types.ObjectId;
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Array;
 import java.lang.reflect.Field;
+import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.util.*;
 
@@ -531,14 +532,16 @@ public class ObjectMapperImpl implements ObjectMapper {
                 throw new IllegalArgumentException("ID sould be of type ObjectId");
             }
             ObjectId id = (ObjectId) f.get(o);
-            if (id == null) {
+            if (id == null && o.getClass().getName().contains("$$EnhancerByCGLIB$$")) {
                 //not stored or Proxy?
                 try {
-                    Field deRef = o.getClass().getField("deReferenced");
-                    deRef.setAccessible(true);
-                    o = deRef.get(o);
-                    id = (ObjectId) f.get(o);
-                } catch (NoSuchFieldException e) {
+                    Field f1 = o.getClass().getDeclaredField("CGLIB$CALLBACK_0");
+                    f1.setAccessible(true);
+                    Object delegate = f1.get(o);
+                    Method m = delegate.getClass().getMethod("__getDeref");
+                    Object record = m.invoke(delegate);
+                    id = (ObjectId) f.get(record);
+                } catch (Exception e) {
                     //throw new RuntimeException(e);
                 }
             }
