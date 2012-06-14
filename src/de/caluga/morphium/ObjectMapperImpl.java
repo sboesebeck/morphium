@@ -530,10 +530,22 @@ public class ObjectMapperImpl implements ObjectMapper {
             if (!(f.getType().equals(ObjectId.class))) {
                 throw new IllegalArgumentException("ID sould be of type ObjectId");
             }
-            return (ObjectId) f.get(o);
+            ObjectId id = (ObjectId) f.get(o);
+            if (id == null) {
+                //not stored or Proxy?
+                try {
+                    Field deRef = o.getClass().getField("deReferenced");
+                    deRef.setAccessible(true);
+                    o = deRef.get(o);
+                    id = (ObjectId) f.get(o);
+                } catch (NoSuchFieldException e) {
+                    //throw new RuntimeException(e);
+                }
+            }
         } catch (IllegalAccessException e) {
             throw new RuntimeException(e);
         }
+        return null;
     }
 
     /**
