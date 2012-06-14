@@ -88,10 +88,10 @@ public class ObjectMapperImpl implements ObjectMapper {
         if (p == null) {
             throw new IllegalArgumentException("No Entity " + cls.getSimpleName());
         }
-        String name = cls.getSimpleName();
+        String name = getRealClass(cls).getSimpleName();
 
         if (p.useFQN()) {
-            name = cls.getName().replaceAll("\\.", "_");
+            name = getRealClass(cls).getName().replaceAll("\\.", "_");
         }
         if (!p.collectionName().equals(".")) {
             name = p.collectionName();
@@ -517,11 +517,12 @@ public class ObjectMapperImpl implements ObjectMapper {
         if (o == null) {
             throw new IllegalArgumentException("Object cannot be null");
         }
-        List<String> flds = getFields(o.getClass(), Id.class);
+        Class<?> cls = getRealClass(o.getClass());
+        List<String> flds = getFields(cls, Id.class);
         if (flds == null || flds.isEmpty()) {
             throw new IllegalArgumentException("Object has no id defined: " + o.getClass().getSimpleName());
         }
-        Field f = getField(o.getClass(), flds.get(0)); //first Id
+        Field f = getField(cls, flds.get(0)); //first Id
         if (f == null) {
             throw new IllegalArgumentException("Object ID field not found " + o.getClass().getSimpleName());
         }
@@ -538,10 +539,11 @@ public class ObjectMapperImpl implements ObjectMapper {
     /**
      * return list of fields in class - including hierachy!!!
      *
-     * @param cls
+     * @param clz
      * @return
      */
-    public List<Field> getAllFields(Class cls) {
+    public List<Field> getAllFields(Class clz) {
+        Class<?> cls = getRealClass(clz);
         if (fieldCache.containsKey(cls)) {
             return fieldCache.get(cls);
         }
@@ -651,7 +653,8 @@ public class ObjectMapperImpl implements ObjectMapper {
     }
 
     @Override
-    public String getFieldName(Class cls, String field) {
+    public String getFieldName(Class clz, String field) {
+        Class cls = getRealClass(clz);
         Field f = getField(cls, field);
 
         if (f.isAnnotationPresent(Property.class)) {
@@ -690,11 +693,12 @@ public class ObjectMapperImpl implements ObjectMapper {
      * extended logic: Fld may be, the java field name, the name of the specified value in Property-Annotation or
      * the translated underscored lowercase name (mongoId => mongo_id) or a name specified in the Aliases-Annotation of this field
      *
-     * @param cls - class to search
+     * @param clz - class to search
      * @param fld - field name
      * @return field, if found, null else
      */
-    public Field getField(Class cls, String fld) {
+    public Field getField(Class clz, String fld) {
+        Class cls = getRealClass(clz);
         List<Field> flds = getAllFields(cls);
         for (Field f : flds) {
             if (f.isAnnotationPresent(Property.class) && f.getAnnotation(Property.class).fieldName() != null && !".".equals(f.getAnnotation(Property.class).fieldName())) {

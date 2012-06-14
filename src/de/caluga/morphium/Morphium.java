@@ -820,7 +820,7 @@ public class Morphium {
         if (cls.getName().contains("$$EnhancerByCGLIB$$")) {
             try {
                 cls = Class.forName(cls.getName().substring(0, cls.getName().indexOf("$$")));
-                return cls.getAnnotation(anCls);
+//                return cls.getAnnotation(anCls);
             } catch (Exception e) {
                 //TODO: Implement Handling
                 throw new RuntimeException(e);
