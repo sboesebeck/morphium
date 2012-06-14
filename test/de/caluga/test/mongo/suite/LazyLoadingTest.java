@@ -45,8 +45,9 @@ public class LazyLoadingTest extends MongoTest {
         LazyLoadingObject lzRead = q.get();
         ObjectId id = MorphiumSingleton.get().getId(lzRead);
         assert (id != null);
-
-        id = MorphiumSingleton.get().getId(lzRead.getLazyCached());
+        co = lzRead.getLazyCached();
+        Thread.sleep(1000);
+        id = MorphiumSingleton.get().getId(co);
         assert (id != null);
 
     }

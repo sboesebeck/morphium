@@ -1780,7 +1780,7 @@ public class Morphium {
      * @return
      */
     public <T> T createPartiallyUpdateableEntity(T o) {
-        return (T) Enhancer.create(o.getClass(), new Class[]{PartiallyUpdateable.class}, new PartiallyUpdateableInvocationHandler());
+        return (T) Enhancer.create(o.getClass(), new Class[]{PartiallyUpdateable.class}, new PartiallyUpdateableInvocationHandler(o));
     }
 
     public <T> T createLazyLoadedEntity(T o) {
@@ -1803,16 +1803,18 @@ public class Morphium {
     /**
      * CGLib Interceptor to create a transparent Proxy for partially updateable Entities
      */
-    private class PartiallyUpdateableInvocationHandler implements MethodInterceptor, PartiallyUpdateable {
+    private class PartiallyUpdateableInvocationHandler<T> implements MethodInterceptor, PartiallyUpdateable {
         private List<String> updateableFields;
+        private T reference;
 
-        public PartiallyUpdateableInvocationHandler() {
+        public PartiallyUpdateableInvocationHandler(T o) {
             updateableFields = new Vector<String>();
+            reference = o;
         }
 
-        public Object __getDeref() {
+        public T __getDeref() {
             //do nothing - will be intercepted
-            return null;
+            return reference;
         }
 
         @Override
@@ -1859,7 +1861,11 @@ public class Morphium {
             this.id = id;
         }
 
-        public Object __getDeref() {
+        public T __getDeref() {
+            try {
+                dereference();
+            } catch (Throwable throwable) {
+            }
             return deReferenced;
         }
 
@@ -1871,20 +1877,11 @@ public class Morphium {
             if (method.getName().equals("__getType")) {
                 return cls;
             }
-
-            if (deReferenced == null) {
-                if (logger.isDebugEnabled())
-                    logger.debug("DeReferencing due to first access");
-
-                if (id == null) {
-                    return methodProxy.invokeSuper(o, objects);
-                }
-                if (method.getName().equals("finalize")) {
-                    return methodProxy.invokeSuper(o, objects);
-                }
-                deReferenced = (T) findById(cls, id);
-
+            if (method.getName().equals("finalize")) {
+                return methodProxy.invokeSuper(o, objects);
             }
+
+            if (dereference()) return methodProxy.invokeSuper(o, objects);
             if (method.getName().equals("__getDeref")) {
                 return deReferenced;
             }
@@ -1894,6 +1891,24 @@ public class Morphium {
             }
             return methodProxy.invokeSuper(o, objects);
 
+        }
+
+        private boolean dereference() throws Throwable {
+            MethodProxy methodProxy;
+            Object o;
+            Object[] objects;
+            if (deReferenced == null) {
+                if (logger.isDebugEnabled())
+                    logger.debug("DeReferencing due to first access");
+
+                if (id == null) {
+                    return true;
+                }
+
+                deReferenced = (T) findById(cls, id);
+
+            }
+            return false;
         }
 
     }

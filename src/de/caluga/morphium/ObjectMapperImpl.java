@@ -543,6 +543,7 @@ public class ObjectMapperImpl implements ObjectMapper {
                     id = (ObjectId) f.get(record);
                 } catch (Exception e) {
                     //throw new RuntimeException(e);
+                    log.error("Exception: ", e);
                 }
             }
             return id;
