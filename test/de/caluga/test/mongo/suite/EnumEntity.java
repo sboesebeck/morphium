@@ -5,6 +5,8 @@ import de.caluga.morphium.annotations.Id;
 import de.caluga.morphium.annotations.caching.NoCache;
 import org.bson.types.ObjectId;
 
+import java.util.List;
+
 /**
  * User: Stephan Bösebeck
  * Date: 04.05.12
@@ -19,6 +21,15 @@ public class EnumEntity {
 
     private TestEnum tst;
     private String value;
+    private List<TestEnum> tstLst;
+
+    public List<TestEnum> getTstLst() {
+        return tstLst;
+    }
+
+    public void setTstLst(List<TestEnum> tstLst) {
+        this.tstLst = tstLst;
+    }
 
     public String getValue() {
         return value;

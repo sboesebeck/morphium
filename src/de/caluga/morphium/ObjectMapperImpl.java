@@ -263,9 +263,12 @@ public class ObjectMapperImpl implements ObjectMapper {
                 lst.add(createDBList((List) lo));
             } else if (lo instanceof Map) {
                 lst.add(createDBMap(((Map) lo)));
-            } else if (lo instanceof Enum) {
-                //lst.add(((Enum)lo).name());
-                throw new IllegalArgumentException("List of enums not supported yet");
+            } else if (lo.getClass().isEnum()) {
+                BasicDBObject obj = new BasicDBObject();
+                obj.put("class_name", lo.getClass().getName());
+                obj.put("name", ((Enum) lo).name());
+                lst.add(obj);
+                //throw new IllegalArgumentException("List of enums not supported yet");
             } else {
                 lst.add(lo);
             }
@@ -318,6 +321,15 @@ public class ObjectMapperImpl implements ObjectMapper {
                     throw new RuntimeException(e);
                 }
             }
+            if (cls.isEnum()) {
+                T[] en = cls.getEnumConstants();
+                for (Enum e : ((Enum[]) en)) {
+                    if (e.name().equals(o.get("name"))) {
+                        return (T) e;
+                    }
+                }
+            }
+
             T ret = cls.newInstance();
 
             List<String> flds = getFields(cls);
