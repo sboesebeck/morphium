@@ -1783,9 +1783,8 @@ public class Morphium {
         return (T) Enhancer.create(o.getClass(), new Class[]{PartiallyUpdateable.class}, new PartiallyUpdateableInvocationHandler(o));
     }
 
-    public <T> T createLazyLoadedEntity(T o) {
-        ObjectId id = config.getMapper().getId(o);
-        return (T) Enhancer.create(o.getClass(), new Class[]{}, new LazyDeReferencingHandler(o.getClass(), id));
+    public <T> T createLazyLoadedEntity(Class<T> cls, ObjectId id) {
+        return (T) Enhancer.create(cls, new Class[]{}, new LazyDeReferencingHandler(cls, id));
     }
 
     protected <T> MongoField<T> createMongoField() {
@@ -1886,7 +1885,6 @@ public class Morphium {
                 return deReferenced;
             }
             if (deReferenced != null) {
-
                 return methodProxy.invoke(deReferenced, objects);
             }
             return methodProxy.invokeSuper(o, objects);
@@ -1894,9 +1892,7 @@ public class Morphium {
         }
 
         private boolean dereference() throws Throwable {
-            MethodProxy methodProxy;
-            Object o;
-            Object[] objects;
+
             if (deReferenced == null) {
                 if (logger.isDebugEnabled())
                     logger.debug("DeReferencing due to first access");

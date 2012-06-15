@@ -367,13 +367,10 @@ public class ObjectMapperImpl implements ObjectMapper {
                             }
                         }
                         if (reference.lazyLoading()) {
-                            Object obj = fld.getType().newInstance();
                             List<String> lst = getFields(fld.getType(), Id.class);
                             if (lst.size() == 0)
                                 throw new IllegalArgumentException("Referenced object does not have an ID? Is it an Entity?");
-                            Field idFld = getField(fld.getType(), lst.get(0));
-                            idFld.set(obj, id);
-                            value = morphium.createLazyLoadedEntity(obj);
+                            value = morphium.createLazyLoadedEntity(fld.getType(), id);
                         } else {
                             Query q = morphium.createQueryFor(fld.getType());
                             q.f("_id").eq(id);
@@ -452,13 +449,9 @@ public class ObjectMapperImpl implements ObjectMapper {
                                     List<String> idFlds = getFields(clz, Id.class);
                                     Reference reference = fld.getAnnotation(Reference.class);
                                     if (reference != null && reference.lazyLoading()) {
-                                        Object obj = clz.newInstance();
-
                                         if (idFlds.size() == 0)
                                             throw new IllegalArgumentException("Referenced object does not have an ID? Is it an Entity?");
-                                        Field idFld = getField(clz, idFlds.get(0));
-                                        idFld.set(obj, id);
-                                        lst.add(morphium.createLazyLoadedEntity(obj));
+                                        lst.add(morphium.createLazyLoadedEntity(clz, id));
                                     } else {
                                         Query q = morphium.createQueryFor(clz);
                                         q = q.f(idFlds.get(0)).eq(id);
@@ -501,6 +494,9 @@ public class ObjectMapperImpl implements ObjectMapper {
                 }
 
                 getField(cls, flds.get(0)).set(ret, o.get("_id"));
+            }
+            if (morphium.isAnnotationPresentInHierarchy(cls, PartialUpdate.class) || !cls.isInstance(PartiallyUpdateable.class)) {
+                return morphium.createPartiallyUpdateableEntity(ret);
             }
             return ret;
         } catch (InstantiationException e) {
