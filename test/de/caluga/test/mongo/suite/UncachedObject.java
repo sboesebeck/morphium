@@ -6,7 +6,7 @@ package de.caluga.test.mongo.suite;
 
 import de.caluga.morphium.annotations.Entity;
 import de.caluga.morphium.annotations.Id;
-import de.caluga.morphium.annotations.UpdatingField;
+import de.caluga.morphium.annotations.PartialUpdate;
 import de.caluga.morphium.annotations.caching.NoCache;
 import org.bson.types.ObjectId;
 
@@ -33,7 +33,7 @@ public class UncachedObject {
         this.counter = counter;
     }
 
-    @UpdatingField("value")
+    @PartialUpdate("value")
     public String getValue() {
         return value;
     }

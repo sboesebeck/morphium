@@ -1825,8 +1825,8 @@ public class Morphium {
         @Override
         public Object intercept(Object o, Method method, Object[] objects, MethodProxy methodProxy) throws Throwable {
             if (method.getName().startsWith("set")) {
-                if (method.isAnnotationPresent(UpdatingField.class)) {
-                    UpdatingField up = method.getAnnotation(UpdatingField.class);
+                if (method.isAnnotationPresent(PartialUpdate.class)) {
+                    PartialUpdate up = method.getAnnotation(PartialUpdate.class);
                     if (!getFields(o.getClass()).contains(up.value())) {
                         throw new IllegalArgumentException("Field " + up.value() + " is not known to Type " + o.getClass().getName());
                     }

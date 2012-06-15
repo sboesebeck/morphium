@@ -1,5 +1,6 @@
 package de.caluga.morphium.annotations;
 
+import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
@@ -14,8 +15,8 @@ import static java.lang.annotation.ElementType.METHOD;
  * used to tell morphium which field a setter does manipulate - needed for partially updates.
  * only necessary, if field name differs from setter... e.g. if setter is setTheValue and the field is called theValue, the annotation is not needed
  */
-@Target({METHOD})
+@Target(value = {METHOD, ElementType.TYPE})
 @Retention(RetentionPolicy.RUNTIME)
-public @interface UpdatingField {
-    String value();
+public @interface PartialUpdate {
+    String value() default ".";
 }
