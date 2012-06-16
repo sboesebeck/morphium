@@ -116,6 +116,7 @@ public class ObjectMapperImpl implements ObjectMapper {
             return dbo;
         }
         Class<?> cls = getRealClass(o.getClass());
+        o = getRealObject(o);
         List<String> flds = getFields(cls);
         Entity e = morphium.getAnnotationFromHierarchy(o.getClass(), Entity.class); //o.getClass().getAnnotation(Entity.class);
         Embedded emb = morphium.getAnnotationFromHierarchy(o.getClass(), Embedded.class); //o.getClass().getAnnotation(Embedded.class);
@@ -495,7 +496,7 @@ public class ObjectMapperImpl implements ObjectMapper {
 
                 getField(cls, flds.get(0)).set(ret, o.get("_id"));
             }
-            if (morphium.isAnnotationPresentInHierarchy(cls, PartialUpdate.class) || !cls.isInstance(PartiallyUpdateable.class)) {
+            if (morphium.isAnnotationPresentInHierarchy(cls, PartialUpdate.class) || cls.isInstance(PartiallyUpdateable.class)) {
                 return morphium.createPartiallyUpdateableEntity(ret);
             }
             return ret;
@@ -651,11 +652,12 @@ public class ObjectMapperImpl implements ObjectMapper {
         return ret;
     }
 
-    private Class getRealClass(Class sc) {
+    @Override
+    public <T> Class<T> getRealClass(Class<T> sc) {
         if (sc.getName().contains("$$EnhancerByCGLIB$$")) {
 
             try {
-                sc = Class.forName(sc.getName().substring(0, sc.getName().indexOf("$$")));
+                sc = (Class<T>) Class.forName(sc.getName().substring(0, sc.getName().indexOf("$$")));
             } catch (Exception e) {
                 //TODO: Implement Handling
                 throw new RuntimeException(e);
@@ -778,6 +780,7 @@ public class ObjectMapperImpl implements ObjectMapper {
         try {
             Field f = getField(o.getClass(), fld);
             if (!Modifier.isStatic(f.getModifiers())) {
+                o = getRealObject(o);
                 return f.get(o);
             }
         } catch (IllegalAccessException e) {
@@ -793,8 +796,9 @@ public class ObjectMapperImpl implements ObjectMapper {
             return;
         }
         try {
-            Field f = getField(o.getClass(), fld);
+            Field f = getField(getRealClass(o.getClass()), fld);
             if (!Modifier.isStatic(f.getModifiers())) {
+                o = getRealObject(o);
                 try {
                     f.set(o, value);
                 } catch (Exception e) {
@@ -814,5 +818,23 @@ public class ObjectMapperImpl implements ObjectMapper {
             log.fatal("Illegal access to field " + fld + " of toype " + o.getClass().getSimpleName());
             return;
         }
+    }
+
+    @Override
+    public <T> T getRealObject(T o) {
+        if (o.getClass().getName().contains("$$EnhancerByCGLIB$$")) {
+            //not stored or Proxy?
+            try {
+                Field f1 = o.getClass().getDeclaredField("CGLIB$CALLBACK_0");
+                f1.setAccessible(true);
+                Object delegate = f1.get(o);
+                Method m = delegate.getClass().getMethod("__getDeref");
+                o = (T) m.invoke(delegate);
+            } catch (Exception e) {
+                //throw new RuntimeException(e);
+                log.error("Exception: ", e);
+            }
+        }
+        return o;
     }
 }

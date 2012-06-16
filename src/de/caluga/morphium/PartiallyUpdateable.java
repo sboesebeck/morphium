@@ -10,4 +10,6 @@ import java.util.List;
  */
 public interface PartiallyUpdateable {
     public List<String> getAlteredFields();
+
+    public void clearAlteredFields();
 }

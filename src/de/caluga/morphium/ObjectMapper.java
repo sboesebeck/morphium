@@ -28,9 +28,26 @@ public interface ObjectMapper {
 
     public ObjectId getId(Object o);
 
+    /**
+     * de-Referencing class - handling for Lazy-Dereferencing und parital update
+     *
+     * @param o
+     * @return
+     */
+    public <T> T getRealObject(T o);
+
+    /**
+     * de-Referencing class - handling for Lazy-Dereferencing und parital update
+     *
+     * @param o
+     * @return
+     */
+    public <T> Class<T> getRealClass(Class<T> o);
+
     public List<String> getFields(Class o, Class<? extends Annotation>... annotations);
 
     public Field getField(Class cls, String fld);
+
     public String getFieldName(Class cls, String field);
 
     public boolean isEntity(Object o);
@@ -40,6 +57,8 @@ public interface ObjectMapper {
     public void setValue(Object o, Object value, String fld);
 
     public Morphium getMorphium();
+
     public void setMorphium(Morphium m);
+
     public List<Field> getAllFields(Class cls);
 }

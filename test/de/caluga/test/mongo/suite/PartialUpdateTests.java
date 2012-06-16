@@ -3,9 +3,13 @@ package de.caluga.test.mongo.suite;
 import de.caluga.morphium.MorphiumSingleton;
 import de.caluga.morphium.PartiallyUpdateable;
 import de.caluga.morphium.Query;
+import de.caluga.morphium.annotations.Entity;
+import de.caluga.morphium.annotations.Id;
+import de.caluga.morphium.annotations.PartialUpdate;
+import de.caluga.morphium.annotations.caching.Cache;
+import org.bson.types.ObjectId;
 import org.junit.Test;
 
-import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -23,55 +27,6 @@ public class PartialUpdateTests extends MongoTest {
      */
     @Test
     public void testPartialUpdates() {
-        List<Object> tst = new ArrayList<Object>();
-        int cached = 0;
-        int uncached = 0;
-        for (int i = 0; i < NO_OBJECTS; i++) {
-            if (Math.random() < 0.5) {
-                cached++;
-                CachedObject c = new CachedObject();
-                c.setValue("List Test!");
-                c.setCounter(11111);
-                tst.add(c);
-            } else {
-                uncached++;
-                UncachedObject uc = new UncachedObject();
-                uc.setValue("List Test uc");
-                uc.setCounter(22222);
-                tst.add(uc);
-            }
-        }
-        log.info("Writing " + cached + " Cached and " + uncached + " uncached objects!");
-        MorphiumSingleton.get().storeList(tst);
-        waitForWrites();
-
-        Object o = tst.get((int) (Math.random() * tst.size()));
-        if (o instanceof CachedObject) {
-            log.info("Got a cached Object");
-            ((CachedObject) o).setValue("Updated!");
-            MorphiumSingleton.get().updateUsingFields(o, "value");
-            waitForWrites();
-            try {
-                Thread.sleep(1000);
-            } catch (InterruptedException e) {
-
-            }
-            log.info("Cached object altered... look for it");
-            Query<CachedObject> c = MorphiumSingleton.get().createQueryFor(CachedObject.class);
-            CachedObject fnd = (CachedObject) c.f("_id").eq(((CachedObject) o).getId()).get();
-            assert (fnd.getValue().equals("Updated!")) : "Value not changed? " + fnd.getValue();
-
-        } else {
-            log.info("Got a uncached Object");
-            ((UncachedObject) o).setValue("Updated!");
-            MorphiumSingleton.get().updateUsingFields(o, "value");
-            log.info("uncached object altered... look for it");
-            Query<UncachedObject> c = MorphiumSingleton.get().createQueryFor(UncachedObject.class);
-            UncachedObject fnd = (UncachedObject) c.f("_id").eq(((UncachedObject) o).getMongoId()).get();
-            assert (fnd.getValue().equals("Updated!")) : "Value not changed? " + fnd.getValue();
-        }
-
-
         UncachedObject uo = new UncachedObject();
         uo = MorphiumSingleton.get().createPartiallyUpdateableEntity(uo);
         assert (uo instanceof PartiallyUpdateable) : "Created proxy incorrect";
@@ -83,6 +38,67 @@ public class PartialUpdateTests extends MongoTest {
 
         assert (alteredFields.contains("value")) : "Field not set?";
 
+    }
+
+    @Test
+    public void partialUpdateTest() throws Exception {
+        MorphiumSingleton.get().clearCollection(PartUpdTestObj.class);
+        PartUpdTestObj o = new PartUpdTestObj();
+        o.setName("1st");
+        o.setValue(5);
+        MorphiumSingleton.get().store(o);
+        waitForWrites();
+
+        Query<PartUpdTestObj> q = MorphiumSingleton.get().createQueryFor(PartUpdTestObj.class);
+        q = q.f("value").eq(5);
+        PartUpdTestObj po = q.get();
+        assert (po.getValue() == o.getValue()) : "Values different?";
+        assert (po.getName().equals(o.getName())) : "Names different?";
+        assert (po instanceof PartiallyUpdateable) : "No partial updateable?";
+        po.inc();
+        assert (((PartiallyUpdateable) po).getAlteredFields().contains("value")) : "Value not changed?";
+        MorphiumSingleton.get().store(po);
+
+        po.setName("neuer Name");
+        assert (!((PartiallyUpdateable) po).getAlteredFields().contains("value")) : "Value still in altered fields?";
+        assert (((PartiallyUpdateable) po).getAlteredFields().contains("name")) : "Name not changed?";
+        MorphiumSingleton.get().store(po);
+
+        po = (PartUpdTestObj) q.q().f("value").eq(6).get();
+        assert (po.getName().equals("neuer Name")) : "Name not changed?";
+    }
+
+
+    @Entity
+    @Cache
+    @PartialUpdate
+    public static class PartUpdTestObj {
+        private String name;
+        private int value;
+
+        @Id
+        private ObjectId id;
+
+        @PartialUpdate("value")
+        public void inc() {
+            value++;
+        }
+
+        public int getValue() {
+            return value;
+        }
+
+        public void setValue(int value) {
+            this.value = value;
+        }
+
+        public String getName() {
+            return name;
+        }
+
+        public void setName(String name) {
+            this.name = name;
+        }
     }
 
 

@@ -699,7 +699,6 @@ public class Morphium {
             storeNoCache(ent);
             return;
         }
-        Class<?> type = ent.getClass();
         firePreStoreEvent(ent);
         inc(StatisticKeys.WRITES);
         DBObject find = new BasicDBObject();
@@ -718,6 +717,7 @@ public class Morphium {
                 throw new RuntimeException(e);
             }
         }
+        Class<?> type = getRealClass(ent.getClass());
 
         StoreLastChange t = getAnnotationFromHierarchy(type, StoreLastChange.class); //(StoreLastChange) type.getAnnotation(StoreLastChange.class);
         if (t != null) {
@@ -755,9 +755,14 @@ public class Morphium {
 
 
         update = new BasicDBObject("$set", update);
-        //no Writeconcern possible... :-(
-        database.getCollection(config.getMapper().getCollectionName(ent.getClass())).findAndModify(find, update);
+        WriteConcern wc = getWriteConcernForClass(type);
+        if (wc != null) {
+            database.getCollection(config.getMapper().getCollectionName(ent.getClass())).update(find, update, false, false, wc);
+        } else {
+            database.getCollection(config.getMapper().getCollectionName(ent.getClass())).update(find, update, false, false);
+        }
 
+        clearCacheIfNecessary(getRealClass(ent.getClass()));
         firePostStoreEvent(ent);
     }
 
@@ -817,15 +822,7 @@ public class Morphium {
      * @return
      */
     public <T extends Annotation> T getAnnotationFromHierarchy(Class<?> cls, Class<T> anCls) {
-        if (cls.getName().contains("$$EnhancerByCGLIB$$")) {
-            try {
-                cls = Class.forName(cls.getName().substring(0, cls.getName().indexOf("$$")));
-//                return cls.getAnnotation(anCls);
-            } catch (Exception e) {
-                //TODO: Implement Handling
-                throw new RuntimeException(e);
-            }
-        }
+        cls = getRealClass(cls);
         if (cls.isAnnotationPresent(anCls)) {
             return cls.getAnnotation(anCls);
         }
@@ -839,6 +836,14 @@ public class Morphium {
             if (z == null) break;
         }
         return null;
+    }
+
+    private Class<?> getRealClass(Class<?> cls) {
+        return config.getMapper().getRealClass(cls);
+    }
+
+    private <T> T getRealObject(T o) {
+        return config.getMapper().getRealObject(o);
     }
 
     public <T extends Annotation> boolean isAnnotationPresentInHierarchy(Class<?> cls, Class<T> anCls) {
@@ -1020,17 +1025,21 @@ public class Morphium {
     }
 
     public void storeNoCache(Object o) {
-        Class type = o.getClass();
+        Class type = getRealClass(o.getClass());
         if (!isAnnotationPresentInHierarchy(type, Entity.class)) {
             throw new RuntimeException("Not an entity! Storing not possible!");
         }
-
-        ObjectId id = config.getMapper().getId(o);
-        if (o instanceof PartiallyUpdateable && id != null) {
-            updateUsingFields(o, ((PartiallyUpdateable) o).getAlteredFields().toArray(new String[((PartiallyUpdateable) o).getAlteredFields().size()]));
-            return;
-        }
         inc(StatisticKeys.WRITES);
+        ObjectId id = config.getMapper().getId(o);
+        if (isAnnotationPresentInHierarchy(type, PartialUpdate.class)) {
+            if ((o instanceof PartiallyUpdateable)) {
+                updateUsingFields(o, ((PartiallyUpdateable) o).getAlteredFields().toArray(new String[((PartiallyUpdateable) o).getAlteredFields().size()]));
+                ((PartiallyUpdateable) o).clearAlteredFields();
+
+                return;
+            }
+        }
+        o = getRealObject(o);
         firePreStoreEvent(o);
 
         DBObject marshall = config.getMapper().marshall(o);
@@ -1389,19 +1398,11 @@ public class Morphium {
     }
 
     public void setValue(Object in, String fld, Object val) throws IllegalAccessException {
-        Field f = getField(in.getClass(), fld);
-        if (f == null) {
-            throw new IllegalAccessException("Field " + fld + " not found");
-        }
-        f.set(in, val);
+        config.getMapper().setValue(in, val, fld);
     }
 
     public Object getValue(Object o, String fld) throws IllegalAccessException {
-        Field f = getField(o.getClass(), fld);
-        if (f == null) {
-            throw new IllegalAccessException("Field " + fld + " not found");
-        }
-        return f.get(o);
+        return config.getMapper().getValue(o, fld);
     }
 
     public Long getLongValue(Object o, String fld) throws IllegalAccessException {
@@ -1531,13 +1532,14 @@ public class Morphium {
      *
      * @param o - Object to store
      */
-    public void store(final Object o) {
+    public void store(Object o) {
         if (o instanceof List) {
             throw new RuntimeException("Lists need to be stored with storeList");
         }
 
 
-        if (!isAnnotationPresentInHierarchy(o.getClass(), NoProtection.class)) { //o.getClass().isAnnotationPresent(NoProtection.class)) {
+        Class<?> type = getRealClass(o.getClass());
+        if (!isAnnotationPresentInHierarchy(type, NoProtection.class)) { //o.getClass().isAnnotationPresent(NoProtection.class)) {
             if (getId(o) == null) {
                 if (accessDenied(o, Permission.INSERT)) {
                     throw new SecurityException("Insert of new Object denied!");
@@ -1549,17 +1551,17 @@ public class Morphium {
             }
         }
 
-        Cache cc = getAnnotationFromHierarchy(o.getClass(), Cache.class);//o.getClass().getAnnotation(Cache.class);
+        Cache cc = getAnnotationFromHierarchy(type, Cache.class);//o.getClass().getAnnotation(Cache.class);
         if (cc == null || isAnnotationPresentInHierarchy(o.getClass(), NoCache.class)) {
             storeNoCache(o);
             return;
         }
-
+        final Object fo = o;
         if (cc.writeCache()) {
             writers.execute(new Runnable() {
                 @Override
                 public void run() {
-                    storeNoCache(o);
+                    storeNoCache(fo);
                 }
             });
             inc(StatisticKeys.WRITES_CACHED);
@@ -1614,6 +1616,7 @@ public class Morphium {
      * @param o
      */
     public <T> void deleteObject(T o) {
+        o = getRealObject(o);
         if (!isAnnotationPresentInHierarchy(o.getClass(), NoProtection.class)) {
             if (accessDenied(o, Permission.DELETE)) {
                 throw new SecurityException("Deletion of Object denied!");
@@ -1822,10 +1825,15 @@ public class Morphium {
         }
 
         @Override
+        public void clearAlteredFields() {
+            updateableFields.clear();
+        }
+
+        @Override
         public Object intercept(Object o, Method method, Object[] objects, MethodProxy methodProxy) throws Throwable {
-            if (method.getName().startsWith("set")) {
-                if (method.isAnnotationPresent(PartialUpdate.class)) {
-                    PartialUpdate up = method.getAnnotation(PartialUpdate.class);
+            if (method.getName().startsWith("set") || method.isAnnotationPresent(PartialUpdate.class)) {
+                PartialUpdate up = method.getAnnotation(PartialUpdate.class);
+                if (up != null) {
                     if (!getFields(o.getClass()).contains(up.value())) {
                         throw new IllegalArgumentException("Field " + up.value() + " is not known to Type " + o.getClass().getName());
                     }
@@ -1839,13 +1847,18 @@ public class Morphium {
             if (method.getName().equals("getAlteredFields")) {
                 return getAlteredFields();
             }
+            if (method.getName().equals("clearAlteredFields")) {
+                clearAlteredFields();
+                return null;
+            }
             if (method.getName().equals("__getType")) {
-                return o.getClass();
+                return reference.getClass();
             }
             if (method.getName().equals("__getDeref")) {
-                return o;
+                return reference;
             }
-            return methodProxy.invokeSuper(o, objects);
+            return method.invoke(reference, objects);
+//            return methodProxy.invokeSuper(reference, objects);
         }
     }
 
@@ -1885,7 +1898,7 @@ public class Morphium {
                 return deReferenced;
             }
             if (deReferenced != null) {
-                return methodProxy.invoke(deReferenced, objects);
+                return method.invoke(deReferenced, objects);
             }
             return methodProxy.invokeSuper(o, objects);
 
@@ -1992,7 +2005,8 @@ public class Morphium {
             privileged.remove(Thread.currentThread());
             return false;
         }
-        return !getSecurityManager().checkAccess(r, p);
+
+        return !getSecurityManager().checkAccess(config.getMapper().getRealObject(r), p);
     }
 
 

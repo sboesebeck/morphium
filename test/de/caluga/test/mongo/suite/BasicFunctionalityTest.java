@@ -66,7 +66,7 @@ public class BasicFunctionalityTest extends MongoTest {
 
         UncachedObject uc = MorphiumSingleton.get().findById(UncachedObject.class, last.getMongoId());
         assert (uc != null) : "Not found?!?";
-        assert (uc.getCounter() == last.getCounter()) : "Different Object?";
+        assert (uc.getCounter() == last.getCounter()) : "Different Object? " + uc.getCounter() + " != " + last.getCounter();
 
     }
 
