@@ -1893,7 +1893,7 @@ public class Morphium {
                 return methodProxy.invokeSuper(o, objects);
             }
 
-            if (dereference()) return methodProxy.invokeSuper(o, objects);
+            dereference();
             if (method.getName().equals("__getDeref")) {
                 return deReferenced;
             }
@@ -1904,20 +1904,12 @@ public class Morphium {
 
         }
 
-        private boolean dereference() throws Throwable {
-
+        private void dereference() throws Throwable {
             if (deReferenced == null) {
                 if (logger.isDebugEnabled())
                     logger.debug("DeReferencing due to first access");
-
-                if (id == null) {
-                    return true;
-                }
-
                 deReferenced = (T) findById(cls, id);
-
             }
-            return false;
         }
 
     }
