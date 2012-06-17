@@ -367,15 +367,19 @@ public class ObjectMapperImpl implements ObjectMapper {
                                 }
                             }
                         }
-                        if (reference.lazyLoading()) {
-                            List<String> lst = getFields(fld.getType(), Id.class);
-                            if (lst.size() == 0)
-                                throw new IllegalArgumentException("Referenced object does not have an ID? Is it an Entity?");
-                            value = morphium.createLazyLoadedEntity(fld.getType(), id);
+                        if (id != null) {
+                            if (reference.lazyLoading()) {
+                                List<String> lst = getFields(fld.getType(), Id.class);
+                                if (lst.size() == 0)
+                                    throw new IllegalArgumentException("Referenced object does not have an ID? Is it an Entity?");
+                                value = morphium.createLazyLoadedEntity(fld.getType(), id);
+                            } else {
+                                Query q = morphium.createQueryFor(fld.getType());
+                                q.f("_id").eq(id);
+                                value = q.get();
+                            }
                         } else {
-                            Query q = morphium.createQueryFor(fld.getType());
-                            q.f("_id").eq(id);
-                            value = q.get();
+                            value = null;
                         }
 
                     }
@@ -528,22 +532,14 @@ public class ObjectMapperImpl implements ObjectMapper {
             if (!(f.getType().equals(ObjectId.class))) {
                 throw new IllegalArgumentException("ID sould be of type ObjectId");
             }
-            ObjectId id = (ObjectId) f.get(o);
-            if (id == null && o.getClass().getName().contains("$$EnhancerByCGLIB$$")) {
-                //not stored or Proxy?
-                try {
-                    Field f1 = o.getClass().getDeclaredField("CGLIB$CALLBACK_0");
-                    f1.setAccessible(true);
-                    Object delegate = f1.get(o);
-                    Method m = delegate.getClass().getMethod("__getDeref");
-                    Object record = m.invoke(delegate);
-                    id = (ObjectId) f.get(record);
-                } catch (Exception e) {
-                    //throw new RuntimeException(e);
-                    log.error("Exception: ", e);
-                }
+            o = getRealObject(o);
+            if (o != null) {
+                return (ObjectId) f.get(o);
+            } else {
+                log.warn("Illegal reference?");
             }
-            return id;
+
+            return null;
         } catch (IllegalAccessException e) {
             throw new RuntimeException(e);
         }
@@ -765,9 +761,9 @@ public class ObjectMapperImpl implements ObjectMapper {
         if (o == null) return false;
 
         if (o instanceof Class) {
-            cls = (Class) o;
+            cls = getRealClass((Class) o);
         } else {
-            cls = o.getClass();
+            cls = getRealClass(o.getClass());
         }
         return morphium.isAnnotationPresentInHierarchy(cls, Entity.class) || morphium.isAnnotationPresentInHierarchy(cls, Embedded.class);
     }

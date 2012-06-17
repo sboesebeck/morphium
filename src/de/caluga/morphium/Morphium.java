@@ -1040,6 +1040,10 @@ public class Morphium {
             }
         }
         o = getRealObject(o);
+        if (o == null) {
+            logger.warn("Illegal Reference? - cannot store Lazy-Loaded / Partial Update Proxy without delegate!");
+            return;
+        }
         firePreStoreEvent(o);
 
         DBObject marshall = config.getMapper().marshall(o);
