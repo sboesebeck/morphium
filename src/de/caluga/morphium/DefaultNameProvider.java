@@ -8,8 +8,6 @@ package de.caluga.morphium;
  * TODO: Add documentation here
  */
 public final class DefaultNameProvider implements NameProvider {
-    public static final DefaultNameProvider def = new DefaultNameProvider();
-
     @Override
     public String getCollectionName(Class<?> type, ObjectMapper om, boolean translateCamelCase, boolean useFQN, String specifiedName, Morphium morphium) {
 
