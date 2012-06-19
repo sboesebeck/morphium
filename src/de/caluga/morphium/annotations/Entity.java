@@ -1,5 +1,8 @@
 package de.caluga.morphium.annotations;
 
+import de.caluga.morphium.DefaultNameProvider;
+import de.caluga.morphium.NameProvider;
+
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
@@ -31,4 +34,6 @@ public @interface Entity {
      * if set, className is  stored in object
      */
     boolean polymorph() default false;
+
+    Class<? extends NameProvider> nameProvider() default DefaultNameProvider.class;
 }

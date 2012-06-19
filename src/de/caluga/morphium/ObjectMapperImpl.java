@@ -25,6 +25,7 @@ public class ObjectMapperImpl implements ObjectMapper {
     private static Logger log = Logger.getLogger(ObjectMapperImpl.class);
     private static volatile Map<Class<?>, List<Field>> fieldCache = new Hashtable<Class<?>, List<Field>>();
     public volatile Morphium morphium;
+    private volatile Hashtable<Class<?>, NameProvider> nameProviders;
 
     public Morphium getMorphium() {
         return morphium;
@@ -36,6 +37,7 @@ public class ObjectMapperImpl implements ObjectMapper {
 
     public ObjectMapperImpl(Morphium m) {
         morphium = m;
+        nameProviders = new Hashtable<Class<?>, NameProvider>();
     }
 
     public ObjectMapperImpl() {
@@ -82,6 +84,18 @@ public class ObjectMapperImpl implements ObjectMapper {
     }
 
 
+    private NameProvider getNameProviderForClass(Class<?> cls, Entity p) throws IllegalAccessException, InstantiationException {
+        if (p == null) {
+            throw new IllegalArgumentException("No Entity " + cls.getSimpleName());
+        }
+
+        if (nameProviders.get(cls) == null) {
+            NameProvider np = p.nameProvider().newInstance();
+            nameProviders.put(cls, np);
+        }
+        return nameProviders.get(cls);
+    }
+
     @Override
     public String getCollectionName(Class cls) {
         if (morphium == null) return null;
@@ -89,19 +103,17 @@ public class ObjectMapperImpl implements ObjectMapper {
         if (p == null) {
             throw new IllegalArgumentException("No Entity " + cls.getSimpleName());
         }
-        String name = getRealClass(cls).getSimpleName();
-
-        if (p.useFQN()) {
-            name = getRealClass(cls).getName().replaceAll("\\.", "_");
+        try {
+            cls = getRealClass(cls);
+            NameProvider np = getNameProviderForClass(cls, p);
+            return np.getCollectionName(cls, this, p.translateCamelCase(), p.useFQN(), p.collectionName().equals(".") ? null : p.collectionName(), morphium);
+        } catch (InstantiationException e) {
+            log.error("Could not instanciate NameProvider: " + p.nameProvider().getName(), e);
+            throw new RuntimeException("Could not Instaciate NameProvider", e);
+        } catch (IllegalAccessException e) {
+            log.error("Illegal Access during instanciation of NameProvider: " + p.nameProvider().getName(), e);
+            throw new RuntimeException("Illegal Access during instanciation", e);
         }
-        if (!p.collectionName().equals(".")) {
-            name = p.collectionName();
-        } else {
-            if (p.translateCamelCase()) {
-                name = convertCamelCase(name);
-            }
-        }
-        return name;
     }
 
     @Override
@@ -309,6 +321,7 @@ public class ObjectMapperImpl implements ObjectMapper {
         }
         return dbMap;
     }
+
 
     @Override
     public <T> T unmarshall(Class<T> cls, DBObject o) {

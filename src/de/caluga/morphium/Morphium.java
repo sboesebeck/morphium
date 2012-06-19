@@ -21,6 +21,7 @@ import net.sf.cglib.proxy.MethodProxy;
 import org.apache.log4j.Logger;
 import org.bson.types.ObjectId;
 
+import java.io.Serializable;
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
@@ -144,6 +145,9 @@ public class Morphium {
         }
 
         database = mongo.getDB(config.getDatabase());
+        if (config.isSlaveOk()) {
+            mongo.setReadPreference(ReadPreference.SECONDARY);
+        }
         if (config.getMongoLogin() != null) {
             if (!database.authenticate(config.getMongoLogin(), config.getMongoPassword().toCharArray())) {
                 throw new RuntimeException("Authentication failed!");
@@ -1787,11 +1791,11 @@ public class Morphium {
      * @return
      */
     public <T> T createPartiallyUpdateableEntity(T o) {
-        return (T) Enhancer.create(o.getClass(), new Class[]{PartiallyUpdateable.class}, new PartiallyUpdateableInvocationHandler(o));
+        return (T) Enhancer.create(o.getClass(), new Class[]{PartiallyUpdateable.class, Serializable.class}, new PartiallyUpdateableInvocationHandler(o));
     }
 
     public <T> T createLazyLoadedEntity(Class<T> cls, ObjectId id) {
-        return (T) Enhancer.create(cls, new Class[]{}, new LazyDeReferencingHandler(cls, id));
+        return (T) Enhancer.create(cls, new Class[]{Serializable.class}, new LazyDeReferencingHandler(cls, id));
     }
 
     protected <T> MongoField<T> createMongoField() {
@@ -1809,7 +1813,7 @@ public class Morphium {
     /**
      * CGLib Interceptor to create a transparent Proxy for partially updateable Entities
      */
-    private class PartiallyUpdateableInvocationHandler<T> implements MethodInterceptor, PartiallyUpdateable {
+    private class PartiallyUpdateableInvocationHandler<T> implements MethodInterceptor, PartiallyUpdateable, Serializable {
         private List<String> updateableFields;
         private T reference;
 
@@ -1867,7 +1871,7 @@ public class Morphium {
     }
 
     // Lazy loading / DeReferencing of References
-    private class LazyDeReferencingHandler<T> implements MethodInterceptor {
+    private class LazyDeReferencingHandler<T> implements MethodInterceptor, Serializable {
         private T deReferenced;
         private Class<T> cls;
         private ObjectId id;
