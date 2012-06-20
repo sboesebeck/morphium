@@ -233,8 +233,11 @@ public class Morphium {
             List<Annotation> lst = getAllAnnotationsFromHierachy(type, Index.class);
             for (Annotation a : lst) {
                 Index i = (Index) a;
-                if (i.fields().length > 0) {
-                    ensureIndex(type, i.fields());
+                if (i.value().length > 0) {
+                    for (String idx : i.value()) {
+                        String[] idxStr = idx.replaceAll(" +", "").split(",");
+                        ensureIndex(type, idxStr);
+                    }
                 }
             }
 

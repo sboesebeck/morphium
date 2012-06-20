@@ -23,10 +23,10 @@ import java.lang.annotation.Target;
  * }
  * </code>
  * or, if necessary, at the class level, defining combined indices
+ * unfortunately, the indices have to be specified each as a string
  * <code>
  * @Entity
- * @Index(fields={"-timestamp","name"})
- * @Index(fields={"timestamp","-name"}) public class MyClass {
+ * @Index({"-timestamp,name","timestamp,-name"}) public class MyClass {
  * private long timestamp;
  * private String name;
  * }
@@ -38,5 +38,5 @@ import java.lang.annotation.Target;
 public @interface Index {
     boolean decrement() default false;
 
-    String[] fields() default {};
+    String[] value() default {};
 }

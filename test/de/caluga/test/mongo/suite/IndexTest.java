@@ -28,6 +28,7 @@ public class IndexTest extends MongoTest {
         List<DBObject> idx = MorphiumSingleton.get().getDatabase().getCollection("indexed_object").getIndexInfo();
         boolean foundId = false;
         boolean foundTimerName = false;
+        boolean foundTimerName2 = true;
         boolean foundTimer = false;
         boolean foundName = false;
 
@@ -40,16 +41,18 @@ public class IndexTest extends MongoTest {
                 foundName = true;
             } else if (key.get("timer") != null && key.get("timer").equals(-1) && key.get("name") == null) {
                 foundTimer = true;
+            } else if (key.get("timer") != null && key.get("timer").equals(-1) && key.get("name") != null && key.get("name").equals(-1)) {
+                foundTimerName2 = true;
             } else if (key.get("timer") != null && key.get("timer").equals(1) && key.get("name") != null && key.get("name").equals(-1)) {
                 foundTimerName = true;
             }
         }
-        log.info("Found indices id:" + foundId + " timer: " + foundTimer + " TimerName: " + foundTimerName + " name: " + foundName);
-        assert (foundId && foundTimer && foundTimerName && foundName);
+        log.info("Found indices id:" + foundId + " timer: " + foundTimer + " TimerName: " + foundTimerName + " name: " + foundName + " TimerName2: " + foundTimerName2);
+        assert (foundId && foundTimer && foundTimerName && foundName && foundTimerName2);
     }
 
     @Entity
-    @Index(fields = {"-name", "timer"})
+    @Index({"-name, timer", "-name, -timer"})
     public static class IndexedObject {
         @Property
         @Index(decrement = true)
