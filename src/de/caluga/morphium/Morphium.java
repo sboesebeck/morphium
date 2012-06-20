@@ -222,6 +222,37 @@ public class Morphium {
     }
 
     /**
+     * can be called for autmatic index ensurance. Attention: might cause heavy load on mongo
+     * will be called automatically if a new collection is created
+     *
+     * @param type
+     */
+    public void ensureIndicesFor(Class type) {
+        if (isAnnotationPresentInHierarchy(type, Index.class)) {
+            //type must be marked as to be indexed
+            List<Annotation> lst = getAllAnnotationsFromHierachy(type, Index.class);
+            for (Annotation a : lst) {
+                Index i = (Index) a;
+                if (i.fields().length > 0) {
+                    ensureIndex(type, i.fields());
+                }
+            }
+
+            List<String> flds = config.getMapper().getFields(type, Index.class);
+            if (flds != null && flds.size() > 0) {
+                for (String f : flds) {
+                    Index i = config.getMapper().getField(type, f).getAnnotation(Index.class);
+                    if (i.decrement()) {
+                        ensureIndex(type, "-" + f);
+                    } else {
+                        ensureIndex(type, f);
+                    }
+                }
+            }
+        }
+    }
+
+    /**
      * Un-setting a value in an existing mongo collection entry - no reading necessary. Object is altered in place
      * db.collection.update({"_id":toSet.id},{$unset:{field:1}}
      * <b>attention</b>: this alteres the given object toSet in a similar way
@@ -247,6 +278,9 @@ public class Morphium {
 
         BasicDBObject update = new BasicDBObject("$unset", new BasicDBObject(fieldName, 1));
         WriteConcern wc = getWriteConcernForClass(toSet.getClass());
+        if (!database.collectionExists(coll)) {
+            ensureIndicesFor(cls);
+        }
         if (wc == null) {
             database.getCollection(coll).update(query, update);
         } else {
@@ -369,6 +403,9 @@ public class Morphium {
         BasicDBObject set = new BasicDBObject(field, value);
         BasicDBObject update = new BasicDBObject(push ? "$push" : "$pull", set);
 
+        if (!database.collectionExists(coll) && insertIfNotExist) {
+            ensureIndicesFor(cls);
+        }
         WriteConcern wc = getWriteConcernForClass(cls);
         if (wc == null) {
             database.getCollection(coll).update(qobj, update, insertIfNotExist, multiple);
@@ -392,6 +429,9 @@ public class Morphium {
         field = config.getMapper().getFieldName(cls, field);
         BasicDBObject set = new BasicDBObject(field, value);
         BasicDBObject update = new BasicDBObject(push ? "$pushAll" : "$pullAll", set);
+        if (!database.collectionExists(coll) && insertIfNotExist) {
+            ensureIndicesFor(cls);
+        }
         WriteConcern wc = getWriteConcernForClass(cls);
         if (wc == null) {
             database.getCollection(coll).update(qobj, update, insertIfNotExist, multiple);
@@ -424,6 +464,11 @@ public class Morphium {
         if (insertIfNotExist) {
             qobj = simplifyQueryObject(qobj);
         }
+
+        if (insertIfNotExist && !database.collectionExists(coll)) {
+            ensureIndicesFor(cls);
+        }
+
         BasicDBObject update = new BasicDBObject("$set", toSet);
         WriteConcern wc = getWriteConcernForClass(cls);
         if (wc == null) {
@@ -489,6 +534,9 @@ public class Morphium {
         if (insertIfNotExist) {
             qobj = simplifyQueryObject(qobj);
         }
+        if (insertIfNotExist && !database.collectionExists(coll)) {
+            ensureIndicesFor(cls);
+        }
         WriteConcern wc = getWriteConcernForClass(cls);
         if (wc == null) {
             database.getCollection(coll).update(qobj, update, insertIfNotExist, multiple);
@@ -529,6 +577,8 @@ public class Morphium {
         String fieldName = getFieldName(cls, field);
 
         BasicDBObject update = new BasicDBObject("$set", new BasicDBObject(fieldName, value));
+
+
         WriteConcern wc = getWriteConcernForClass(toSet.getClass());
         if (wc == null) {
             database.getCollection(coll).update(query, update);
@@ -816,6 +866,32 @@ public class Morphium {
         }
 
 
+    }
+
+    public List<Annotation> getAllAnnotationsFromHierachy(Class<?> cls, Class<? extends Annotation>... anCls) {
+        cls = getRealClass(cls);
+        List<Annotation> ret = new ArrayList<Annotation>();
+        Class<?> z = cls;
+        while (!z.equals(Object.class)) {
+            if (z.getAnnotations() != null && z.getAnnotations().length != 0) {
+                if (anCls.length == 0) {
+                    ret.addAll(Arrays.asList(z.getAnnotations()));
+                } else {
+                    for (Annotation a : z.getAnnotations()) {
+                        for (Class<? extends Annotation> ac : anCls) {
+                            if (a.annotationType().equals(ac)) {
+                                ret.add(a);
+                            }
+                        }
+                    }
+                }
+            }
+            z = z.getSuperclass();
+
+            if (z == null) break;
+        }
+
+        return ret;
     }
 
     /**
@@ -1129,14 +1205,17 @@ public class Morphium {
                 }
             }
         }
+        String coll = config.getMapper().getCollectionName(type);
+        if (!database.collectionExists(coll)) {
+            ensureIndicesFor(type);
+        }
 
-        WriteConcern wc = getWriteConcernForClass(o.getClass());
+        WriteConcern wc = getWriteConcernForClass(type);
         if (wc != null) {
-
-            database.getCollection(config.getMapper().getCollectionName(o.getClass())).save(marshall, wc);
+            database.getCollection(coll).save(marshall, wc);
         } else {
 
-            database.getCollection(config.getMapper().getCollectionName(o.getClass())).save(marshall);
+            database.getCollection(coll).save(marshall);
         }
         if (isNew) {
             List<String> flds = config.getMapper().getFields(o.getClass(), Id.class);
