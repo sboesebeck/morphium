@@ -13,10 +13,7 @@ import org.apache.log4j.xml.DOMConfigurator;
 import java.io.IOException;
 import java.net.URL;
 import java.net.UnknownHostException;
-import java.util.Hashtable;
-import java.util.List;
-import java.util.Map;
-import java.util.Vector;
+import java.util.*;
 
 /**
  * Stores the configuration for the MongoDBLayer.
@@ -52,7 +49,7 @@ public class MorphiumConfig {
 
     private MongoSecurityManager securityMgr;
     private ObjectMapper mapper = new ObjectMapperImpl();
-    private String fieldImplClass = "de.caluga.morphium.MongoFieldImpl";
+    private Class fieldImplClass = de.caluga.morphium.MongoFieldImpl.class;
 
     public ConfigManager getConfigManager() {
         return configManager;
@@ -78,11 +75,11 @@ public class MorphiumConfig {
         this.connectionTimeout = connectionTimeout;
     }
 
-    public String getFieldImplClass() {
+    public Class<? extends MongoField> getFieldImplClass() {
         return fieldImplClass;
     }
 
-    public void setFieldImplClass(String fieldImplClass) {
+    public void setFieldImplClass(Class<? extends MongoField> fieldImplClass) {
         this.fieldImplClass = fieldImplClass;
     }
 
@@ -327,5 +324,148 @@ public class MorphiumConfig {
 
     public long getValidTime() {
         return globalCacheValidTime;
+    }
+
+    @Override
+    public String toString() {
+        return "MorphiumConfig{" +
+                "mode=" + mode +
+                ", maxConnections=" + maxConnections +
+                ", housekeepingTimeout=" + housekeepingTimeout +
+                ", globalCacheValidTime=" + globalCacheValidTime +
+                ", writeCacheTimeout=" + writeCacheTimeout +
+                ", database='" + database + '\'' +
+                ", connectionTimeout=" + connectionTimeout +
+                ", socketTimeout=" + socketTimeout +
+                ", socketKeepAlive=" + socketKeepAlive +
+                ", slaveOk=" + slaveOk +
+                ", mongoLogin='" + mongoLogin + '\'' +
+                ", mongoPassword='" + mongoPassword + '\'' +
+                ", configManagerCacheTimeout=" + configManagerCacheTimeout +
+                ", adr=" + adr +
+                ", validTimeByClassName=" + validTimeByClassName +
+                ", configManager=" + configManager +
+                ", superUserLogin='" + superUserLogin + '\'' +
+                ", superUserPassword='" + superUserPassword + '\'' +
+                ", adminGroupName='" + adminGroupName + '\'' +
+                ", securityMgr=" + securityMgr +
+                ", mapper=" + mapper +
+                ", fieldImplClass='" + fieldImplClass + '\'' +
+                '}';
+    }
+
+    public Properties getProperties() {
+        Properties p = new Properties();
+        fillProperties(p, "morphium");
+        return p;
+    }
+
+    public void fillProperties(Properties p, String prefix) {
+        if (prefix == null) prefix = "";
+        if (!prefix.isEmpty()) {
+            if (!prefix.endsWith(".")) {
+                prefix = prefix + ".";
+            }
+        }
+        p.setProperty(prefix + "mode", mode.name());
+        p.setProperty(prefix + "maxConnections", "" + maxConnections);
+        p.setProperty(prefix + "housekeepingTimeout", "" + housekeepingTimeout);
+        p.setProperty(prefix + "globalCacheValidTime", "" + globalCacheValidTime);
+        p.setProperty(prefix + "writeCacheTimeout", "" + writeCacheTimeout);
+        p.setProperty(prefix + "database", database);
+        p.setProperty(prefix + "connectionTimeout", "" + connectionTimeout);
+        p.setProperty(prefix + "socketTimeout", "" + socketTimeout);
+        p.setProperty(prefix + "socketKeepAlive", "" + socketKeepAlive);
+        p.setProperty(prefix + "slaveOk", "" + slaveOk);
+        p.setProperty(prefix + "mongoLogin", mongoLogin);
+        p.setProperty(prefix + "mongoPassword", mongoPassword);
+        p.setProperty(prefix + "configManagerCacheTimeout", "" + configManagerCacheTimeout);
+
+        String a = "";
+        for (ServerAddress s : adr) {
+            if (!a.isEmpty())
+                a += ",";
+            a += s.getHost() + ":" + s.getPort();
+        }
+        p.setProperty(prefix + "adr", a);
+        p.setProperty(prefix + "configManagerClass", configManager.getClass().getName());
+        p.setProperty(prefix + "superUserLogin", superUserLogin);
+        p.setProperty(prefix + "superUserPassword", superUserPassword);
+        p.setProperty(prefix + "adminGroupName", adminGroupName);
+        p.setProperty(prefix + "fieldImplClass", fieldImplClass.getName());
+        p.setProperty(prefix + "mapperClass", mapper.getClass().getName());
+        p.setProperty(prefix + "securityManagerClass", securityMgr.getClass().getName());
+    }
+
+    public void initFromProperty(Properties p) {
+        initFromProperty(p, "");
+    }
+
+    public void initFromProperty(Properties p, String prefix) {
+        if (prefix == null) prefix = "";
+        if (!prefix.isEmpty()) {
+            if (!prefix.endsWith(".")) {
+                prefix = prefix + ".";
+            }
+        }
+
+        String fieldImplClassStr = p.getProperty(prefix + "fieldImplClass", MongoFieldImpl.class.getName());
+        try {
+            fieldImplClass = Class.forName(fieldImplClassStr);
+        } catch (ClassNotFoundException e) {
+        }
+
+        String mapperCls = p.getProperty(prefix + "mapperClass", ObjectMapperImpl.class.getName());
+        try {
+            mapper = (ObjectMapper) Class.forName(mapperCls).newInstance();
+        } catch (Exception e) {
+        }
+        String securityMgrCls = p.getProperty(prefix + "securityManagerClass", DefaultSecurityManager.class.getName());
+        try {
+            securityMgr = (MongoSecurityManager) Class.forName(securityMgrCls).newInstance();
+        } catch (Exception e) {
+        }
+        adminGroupName = p.getProperty(prefix + "adminGroupName");
+        superUserLogin = p.getProperty(prefix + "superUserLogin");
+        superUserPassword = p.getProperty(prefix + "superUserPassword");
+        String configMgrCls = p.getProperty(prefix + "configManagerClass", ConfigManagerImpl.class.getName());
+        try {
+            configManager = (ConfigManager) Class.forName(configMgrCls).newInstance();
+        } catch (Exception e) {
+            System.out.println("could not instanciate Config Manager: ");
+            e.printStackTrace();
+        }
+        String srv = p.getProperty(prefix + "servers", "localhost:27017");
+        String[] sp = srv.split(",");
+        adr = new ArrayList<ServerAddress>();
+        for (String s : sp) {
+            String[] a = s.split(":");
+            try {
+                if (a.length == 1) {
+                    adr.add(new ServerAddress(a[0]));
+                } else {
+                    int port = Integer.valueOf(a[1]);
+                    ServerAddress adr = new ServerAddress(a[0], port);
+                }
+            } catch (Exception e) {
+                System.err.println("Could not add Host: " + s);
+            }
+        }
+        if (adr.isEmpty()) {
+            throw new IllegalArgumentException("No valid host specified!");
+        }
+        configManagerCacheTimeout = Integer.valueOf(p.getProperty(prefix + "configManagerCacheTimeout", "60000"));
+        mongoPassword = p.getProperty(prefix + "password");
+        mongoLogin = p.getProperty(prefix + "login");
+        slaveOk = p.getProperty(prefix + "slaveOk", "true").equalsIgnoreCase("true");
+        socketKeepAlive = p.getProperty(prefix + "socketKeepAlive", "true").equalsIgnoreCase("true");
+        socketTimeout = Integer.valueOf(p.getProperty(prefix + "socketTimeout", "0"));
+        database = p.getProperty(prefix + "database", "morphium");
+        connectionTimeout = Integer.valueOf(p.getProperty(prefix + "connectionTimeout", "0"));
+        writeCacheTimeout = Integer.valueOf(p.getProperty(prefix + "writeCacheTimeout", "5000"));
+        globalCacheValidTime = Integer.valueOf(p.getProperty(prefix + "globalCacheValidTime", "10000"));
+        mode = MongoDbMode.valueOf(p.getProperty(prefix + "mode", "SINGLE"));
+        housekeepingTimeout = Integer.valueOf(p.getProperty(prefix + "housekeepingTimeout", "5000"));
+        maxConnections = Integer.valueOf(p.getProperty(prefix + "maxConnections", "100"));
     }
 }

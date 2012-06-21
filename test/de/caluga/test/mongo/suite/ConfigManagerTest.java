@@ -1,7 +1,6 @@
 package de.caluga.test.mongo.suite;
 
 import de.caluga.morphium.ConfigManager;
-import de.caluga.morphium.Morphium;
 import de.caluga.morphium.MorphiumSingleton;
 import org.junit.Test;
 
@@ -17,49 +16,49 @@ import java.util.Map;
  * <p/>
  * TODO: Add documentation here
  */
-public class ConfigManagerTest extends MongoTest{
+public class ConfigManagerTest extends MongoTest {
     @Test
     public void storeConfig() throws Exception {
-        ConfigManager cfg=MorphiumSingleton.get().getConfigManager();
+        ConfigManager cfg = MorphiumSingleton.get().getConfigManager();
         cfg.addSetting("test", "Test Value");
-        cfg.addSetting("test2","Test Value");
+        cfg.addSetting("test2", "Test Value");
 
         String set = cfg.getSetting("test");
-        assert(set.equals("Test Value")):"Value wrong";
+        assert (set.equals("Test Value")) : "Value wrong";
 
         cfg.addSetting("test", "Test Value2");
         cfg.addSetting("test", "Test Value3");
 
         set = cfg.getSetting("test");
-        assert(set.equals("Test Value3")):"Value wrong";
+        assert (set.equals("Test Value3")) : "Value wrong";
 
     }
 
 
     @Test
     public void mapConfigTest() throws Exception {
-        ConfigManager cfg=MorphiumSingleton.get().getConfigManager();
-        Map<String,String> tst=new HashMap<String,String>();
-        tst.put("k1","v1");
+        ConfigManager cfg = MorphiumSingleton.get().getConfigManager();
+        Map<String, String> tst = new HashMap<String, String>();
+        tst.put("k1", "v1");
         tst.put("k2", "v2");
-        cfg.addSetting("mtest",tst);
+        cfg.addSetting("mtest", tst);
 
-        Map<String,String>  set = cfg.getMapSetting("mtest");
-        assert(set.get("k1").equals("v1")):"K1 not stored";
+        Map<String, String> set = cfg.getMapSetting("mtest");
+        assert (set.get("k1").equals("v1")) : "K1 not stored";
     }
 
 
     @Test
     public void listConfigTest() throws Exception {
-        ConfigManager cfg=MorphiumSingleton.get().getConfigManager();
-        List<String> tst=new ArrayList<String>();
+        ConfigManager cfg = MorphiumSingleton.get().getConfigManager();
+        List<String> tst = new ArrayList<String>();
         tst.add("V1");
         tst.add("v2");
         tst.add("and another test");
 
-        cfg.addSetting("ltest",tst);
+        cfg.addSetting("ltest", tst);
 
-        List<String>  set = cfg.getListSetting("ltest");
-        assert(set.size()==3 && set.get(0).equals("V1") && set.get(1).equals("v2")):"List not stored correctly";
+        List<String> set = cfg.getListSetting("ltest");
+        assert (set.size() == 3 && set.get(0).equals("V1") && set.get(1).equals("v2")) : "List not stored correctly";
     }
 }

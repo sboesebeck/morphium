@@ -157,11 +157,11 @@ public class Morphium {
         int cnt = database.getCollection("system.indexes").find().count(); //test connection
 
         if (config.getConfigManager() == null) {
-            config.setConfigManager(new ConfigManager(this));
+            config.setConfigManager(new ConfigManagerImpl());
         }
         cacheHousekeeper = new CacheHousekeeper(this, 5000, config.getGlobalCacheValidTime());
         cacheHousekeeper.start();
-
+        config.getConfigManager().startCleanupThread();
 
         logger.info("Initialization successful...");
 
@@ -1883,12 +1883,10 @@ public class Morphium {
 
     protected <T> MongoField<T> createMongoField() {
         try {
-            return (MongoField<T>) Class.forName(config.getFieldImplClass()).newInstance();
+            return (MongoField<T>) config.getFieldImplClass().newInstance();
         } catch (InstantiationException e) {
             throw new RuntimeException(e);
         } catch (IllegalAccessException e) {
-            throw new RuntimeException(e);
-        } catch (ClassNotFoundException e) {
             throw new RuntimeException(e);
         }
     }
