@@ -107,9 +107,10 @@ public class Morphium {
         MongoOptions o = new MongoOptions();
         o.autoConnectRetry = true;
         o.fsync = true;
-        o.connectTimeout = 2500;
+        o.socketTimeout = config.getSocketTimeout();
+        o.connectTimeout = config.getConnectionTimeout();
         o.connectionsPerHost = config.getMaxConnections();
-        o.socketKeepAlive = true;
+        o.socketKeepAlive = config.isSocketKeepAlive();
         o.threadsAllowedToBlockForConnectionMultiplier = 5;
         o.safe = false;
 

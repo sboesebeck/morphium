@@ -31,6 +31,10 @@ public class MorphiumConfig {
     private int writeCacheTimeout = 5000;
     private String database;
 
+    private int connectionTimeout = 0;
+    private int socketTimeout = 0;
+    private boolean socketKeepAlive = true;
+
     private boolean slaveOk = true;
     /**
      * login credentials for MongoDB - if necessary. If null, don't authenticate
@@ -58,12 +62,36 @@ public class MorphiumConfig {
         this.configManager = configManager;
     }
 
+    public int getConnectionTimeout() {
+        return connectionTimeout;
+    }
+
+    public int getSocketTimeout() {
+        return socketTimeout;
+    }
+
+    public void setSocketTimeout(int socketTimeout) {
+        this.socketTimeout = socketTimeout;
+    }
+
+    public void setConnectionTimeout(int connectionTimeout) {
+        this.connectionTimeout = connectionTimeout;
+    }
+
     public String getFieldImplClass() {
         return fieldImplClass;
     }
 
     public void setFieldImplClass(String fieldImplClass) {
         this.fieldImplClass = fieldImplClass;
+    }
+
+    public boolean isSocketKeepAlive() {
+        return socketKeepAlive;
+    }
+
+    public void setSocketKeepAlive(boolean socketKeepAlive) {
+        this.socketKeepAlive = socketKeepAlive;
     }
 
     public ObjectMapper getMapper() {
