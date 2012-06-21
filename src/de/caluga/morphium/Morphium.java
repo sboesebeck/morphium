@@ -159,6 +159,7 @@ public class Morphium {
         if (config.getConfigManager() == null) {
             config.setConfigManager(new ConfigManagerImpl());
         }
+        config.getConfigManager().setMorphium(this);
         cacheHousekeeper = new CacheHousekeeper(this, 5000, config.getGlobalCacheValidTime());
         cacheHousekeeper.start();
         config.getConfigManager().startCleanupThread();
