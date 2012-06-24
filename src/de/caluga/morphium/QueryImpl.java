@@ -231,7 +231,7 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
 
     @Override
     public Query<T> sort(String... prefixedString) {
-        Map<String, Integer> m = new HashMap<String, Integer>();
+        Map<String, Integer> m = new LinkedHashMap<String, java.lang.Integer>();
         for (String i : prefixedString) {
             String fld = i;
             int val = 1;
@@ -249,7 +249,7 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
 
     @Override
     public Query<T> sort(Enum... naturalOrder) {
-        Map<String, Integer> m = new HashMap<String, Integer>();
+        Map<String, Integer> m = new LinkedHashMap<String, java.lang.Integer>();
         for (Enum i : naturalOrder) {
             String fld = i.name();
             m.put(fld, 1);
@@ -354,7 +354,11 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
             query.limit(limit);
         }
         if (order != null) {
-            query.sort(new BasicDBObject(order));
+            BasicDBObject srt = new BasicDBObject();
+            for (String k : order.keySet()) {
+                srt.append(k, order.get(k));
+            }
+            query.sort(new BasicDBObject(srt));
         }
 
         Iterator<DBObject> it = query.iterator();
@@ -439,18 +443,19 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
         } else {
             morphium.inc(Morphium.StatisticKeys.NO_CACHED_READS);
         }
-        BasicDBObject sort = new BasicDBObject();
-        if (order != null) {
-            sort.putAll(order);
-        }
 
-        DBCursor srch = morphium.getDatabase().getCollection(mapper.getCollectionName(type)).find(toQueryObject()).limit(1);
+        DBCursor srch = morphium.getDatabase().getCollection(mapper.getCollectionName(type)).find(toQueryObject());
         if (skip != 0) {
             srch = srch.skip(skip);
         }
-        if (sort.size() != 0) {
-            srch = srch.sort(sort);
+        if (order != null) {
+            BasicDBObject srt = new BasicDBObject();
+            for (String k : order.keySet()) {
+                srt.append(k, order.get(k));
+            }
+            srch.sort(new BasicDBObject(srt));
         }
+        srch.limit(1);
         if (srch.length() == 0) {
             return null;
         }

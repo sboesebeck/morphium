@@ -25,6 +25,25 @@ public class BasicFunctionalityTest extends MongoTest {
     }
 
     @Test
+    public void sortTest() throws Exception {
+        for (int i = 1; i <= NO_OBJECTS; i++) {
+            UncachedObject o = new UncachedObject();
+            o.setCounter(i);
+            o.setValue("Uncached " + i % 2);
+            MorphiumSingleton.get().store(o);
+        }
+        Query<UncachedObject> q = MorphiumSingleton.get().createQueryFor(UncachedObject.class);
+        q = q.f("counter").gt(0).sort("-counter", "value");
+        List<UncachedObject> lst = q.asList();
+        assert (!lst.get(0).getValue().equals(lst.get(1).getValue()));
+
+        q = q.q().f("counter").gt(0).sort("value", "-counter");
+        List<UncachedObject> lst2 = q.asList();
+        assert (lst2.get(0).getValue().equals(lst2.get(1).getValue()));
+        log.info("Sorted");
+    }
+
+    @Test
     public void whereTest() throws Exception {
 
         for (int i = 1; i <= NO_OBJECTS; i++) {
