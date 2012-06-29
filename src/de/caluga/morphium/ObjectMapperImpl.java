@@ -434,55 +434,10 @@ public class ObjectMapperImpl implements ObjectMapper {
                         value = null;
                     }
                 } else if (fld.getType().isAssignableFrom(List.class) || fld.getType().isArray()) {
-                    //TODO: recurse??
                     BasicDBList l = (BasicDBList) o.get(f);
                     List lst = new ArrayList();
                     if (l != null) {
-                        for (Object val : l) {
-                            if (val instanceof BasicDBObject) {
-                                if (((BasicDBObject) val).containsField("class_name") || ((BasicDBObject) val).containsField("className")) {
-                                    //Entity to map!
-                                    String cn = (String) ((BasicDBObject) val).get("class_name");
-                                    if (cn == null) {
-                                        cn = (String) ((BasicDBObject) val).get("className");
-                                    }
-                                    try {
-                                        Class ecls = Class.forName(cn);
-                                        lst.add(unmarshall(ecls, (DBObject) val));
-                                    } catch (ClassNotFoundException e) {
-                                        throw new RuntimeException(e);
-                                    }
-                                } else {
-                                    //Probably an "normal" map
-                                    lst.add(val);
-                                }
-                            } else if (val instanceof ObjectId) {
-                                log.fatal("Cannot de-reference to unknown collection");
-
-                            } else if (val instanceof DBRef) {
-                                try {
-                                    DBRef ref = (DBRef) val;
-                                    ObjectId id = (ObjectId) ref.getId();
-                                    Class clz = Class.forName(ref.getRef());
-                                    List<String> idFlds = getFields(clz, Id.class);
-                                    Reference reference = fld.getAnnotation(Reference.class);
-                                    if (reference != null && reference.lazyLoading()) {
-                                        if (idFlds.size() == 0)
-                                            throw new IllegalArgumentException("Referenced object does not have an ID? Is it an Entity?");
-                                        lst.add(morphium.createLazyLoadedEntity(clz, id));
-                                    } else {
-                                        Query q = morphium.createQueryFor(clz);
-                                        q = q.f(idFlds.get(0)).eq(id);
-                                        lst.add(q.get());
-                                    }
-                                } catch (ClassNotFoundException e) {
-                                    throw new RuntimeException(e);
-                                }
-
-                            } else {
-                                lst.add(val);
-                            }
-                        }
+                        fillList(fld, l, lst);
                         if (fld.getType().isArray()) {
                             Object arr = Array.newInstance(fld.getType().getComponentType(), lst.size());
                             for (int i = 0; i < lst.size(); i++) {
@@ -525,6 +480,60 @@ public class ObjectMapperImpl implements ObjectMapper {
 
         //recursively fill class
 
+    }
+
+    private void fillList(Field forField, BasicDBList fromDB, List toFillIn) {
+        for (Object val : fromDB) {
+            if (val instanceof BasicDBObject) {
+                if (((BasicDBObject) val).containsField("class_name") || ((BasicDBObject) val).containsField("className")) {
+                    //Entity to map!
+                    String cn = (String) ((BasicDBObject) val).get("class_name");
+                    if (cn == null) {
+                        cn = (String) ((BasicDBObject) val).get("className");
+                    }
+                    try {
+                        Class ecls = Class.forName(cn);
+                        toFillIn.add(unmarshall(ecls, (DBObject) val));
+                    } catch (ClassNotFoundException e) {
+                        throw new RuntimeException(e);
+                    }
+                } else {
+                    //Probably an "normal" map
+                    toFillIn.add(val);
+                }
+            } else if (val instanceof ObjectId) {
+                log.fatal("Cannot de-reference to unknown collection");
+
+            } else if (val instanceof BasicDBList) {
+                //one list once more
+                ArrayList lt = new ArrayList();
+                fillList(null, (BasicDBList) val, lt);
+                toFillIn.add(lt);
+            } else if (val instanceof DBRef) {
+                try {
+                    DBRef ref = (DBRef) val;
+                    ObjectId id = (ObjectId) ref.getId();
+                    Class clz = Class.forName(ref.getRef());
+                    List<String> idFlds = getFields(clz, Id.class);
+                    Reference reference = forField != null ? forField.getAnnotation(Reference.class) : null;
+
+                    if (reference != null && reference.lazyLoading()) {
+                        if (idFlds.size() == 0)
+                            throw new IllegalArgumentException("Referenced object does not have an ID? Is it an Entity?");
+                        toFillIn.add(morphium.createLazyLoadedEntity(clz, id));
+                    } else {
+                        Query q = morphium.createQueryFor(clz);
+                        q = q.f(idFlds.get(0)).eq(id);
+                        toFillIn.add(q.get());
+                    }
+                } catch (ClassNotFoundException e) {
+                    throw new RuntimeException(e);
+                }
+
+            } else {
+                toFillIn.add(val);
+            }
+        }
     }
 
     @Override
