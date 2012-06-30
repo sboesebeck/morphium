@@ -11,8 +11,10 @@ import de.caluga.morphium.messaging.Messaging;
 import de.caluga.morphium.messaging.Msg;
 import de.caluga.morphium.messaging.MsgType;
 import org.apache.log4j.Logger;
+import org.bson.types.ObjectId;
 
 import java.util.ArrayList;
+import java.util.Hashtable;
 import java.util.List;
 
 /**
@@ -38,7 +40,8 @@ public class CacheSynchronizer implements MorphiumStorageListener, MessageListen
     private Messaging messaging;
     private Morphium morphium;
 
-    public static final String MSG_NAME = "cacheSync";
+    public static final String CACHE_SYNC_TYPE = "cacheSyncType";
+    public static final String CACHE_SYNC_RECORD = "cacheSyncRecord";
 
     public CacheSynchronizer(Messaging msg, Morphium morphium) {
         messaging = msg;
@@ -46,7 +49,51 @@ public class CacheSynchronizer implements MorphiumStorageListener, MessageListen
 
         morphium.addListener(this);
 
-        messaging.addListenerForMessageNamed(MSG_NAME, this);
+        messaging.addListenerForMessageNamed(CACHE_SYNC_TYPE, this);
+        messaging.addListenerForMessageNamed(CACHE_SYNC_RECORD, this);
+
+    }
+
+
+    public void sendClearMessage(List<?> recLst, String reason) {
+        //sort by type :-(
+        Hashtable<Class<?>, List<String>> sorted = new Hashtable<Class<?>, List<String>>();
+        for (Object r : recLst) {
+            if (sorted.get(r.getClass()) == null) {
+                sorted.put(r.getClass(), new ArrayList<String>());
+            }
+            sorted.get(r.getClass()).add(morphium.getId(r).toString());
+        }
+
+        //running through
+        for (Class type : sorted.keySet()) {
+            Cache c = morphium.getAnnotationFromHierarchy(type, Cache.class);
+            if (type.equals(ConfigElement.class) || (c != null && c.readCache() && c.clearOnWrite() && c.autoSyncCache())) {
+                if (c.autoSyncCacheById()) {
+                    Msg m = new Msg(CACHE_SYNC_RECORD, MsgType.MULTI, reason, type.getName(), 30000);
+                    m.setAdditional(sorted.get(type));
+                    messaging.queueMessage(m);
+                } else {
+                    sendClearMessage(type, reason);
+                }
+            }
+        }
+    }
+
+
+    public void sendClearMessage(Object record, String reason) {
+        if (record.equals(Msg.class)) return;
+        Msg m = new Msg(CACHE_SYNC_RECORD, MsgType.MULTI, reason, record.getClass().getName(), 30000);
+        m.addAdditional(morphium.getId(record).toString());
+        if (record.equals(ConfigElement.class)) {
+            messaging.queueMessage(m);
+            return;
+        }
+        Cache c = morphium.getAnnotationFromHierarchy(record.getClass(), Cache.class); //(Cache) type.getAnnotation(Cache.class);
+        if (c == null) return; //not clearing cache for non-cached objects
+        if (c.readCache() && c.clearOnWrite() && c.autoSyncCache()) {
+            messaging.queueMessage(m);
+        }
     }
 
     /**
@@ -58,7 +105,7 @@ public class CacheSynchronizer implements MorphiumStorageListener, MessageListen
     public void sendClearMessage(Class type, String reason) {
         if (type.equals(Msg.class)) return;
         if (type.equals(ConfigElement.class)) {
-            Msg m = new Msg(MSG_NAME, MsgType.MULTI, reason, type.getName(), 30000);
+            Msg m = new Msg(CACHE_SYNC_TYPE, MsgType.MULTI, reason, type.getName(), 30000);
             messaging.queueMessage(m);
             return;
         }
@@ -69,6 +116,7 @@ public class CacheSynchronizer implements MorphiumStorageListener, MessageListen
         }
     }
 
+
     /**
      * always sends message
      *
@@ -77,7 +125,7 @@ public class CacheSynchronizer implements MorphiumStorageListener, MessageListen
      */
 
     public void sendClearMessage(String type, String reason) {
-        Msg m = new Msg(MSG_NAME, MsgType.MULTI, reason, type, 30000);
+        Msg m = new Msg(CACHE_SYNC_TYPE, MsgType.MULTI, reason, type, 30000);
         messaging.queueMessage(m);
     }
 
@@ -89,7 +137,7 @@ public class CacheSynchronizer implements MorphiumStorageListener, MessageListen
 
     @Override
     public void postStore(Object r) {
-        sendClearMessage(r.getClass(), "store");
+        sendClearMessage(r, "store");
     }
 
     @Override
@@ -113,15 +161,16 @@ public class CacheSynchronizer implements MorphiumStorageListener, MessageListen
 
     @Override
     public void postListStore(List lst) {
-        List<Class> toClear = new ArrayList<Class>();
-        for (Object o : lst) {
-            if (!toClear.contains(o.getClass())) {
-                toClear.add(o.getClass());
-            }
-        }
-        for (Class c : toClear) {
-            sendClearMessage(c, "store");
-        }
+//        List<Class> toClear = new ArrayList<Class>();
+//        for (Object o : lst) {
+//            if (!toClear.contains(o.getClass())) {
+//                toClear.add(o.getClass());
+//            }
+//        }
+//        for (Class c : toClear) {
+//            sendClearMessage(c, "store");
+//        }
+        sendClearMessage(lst, "list store");
     }
 
     @Override
@@ -143,6 +192,16 @@ public class CacheSynchronizer implements MorphiumStorageListener, MessageListen
     }
 
     @Override
+    public void preUpdate(Class cls, Enum updateType) {
+        //ignore
+    }
+
+    @Override
+    public void postUpdate(Class cls, Enum updateType) {
+        sendClearMessage(cls, "Update: " + updateType.name());
+    }
+
+    @Override
     public Msg onMessage(Msg m) {
         Msg answer = new Msg("clearCacheAnswer", "processed", messaging.getSenderId());
         try {
@@ -151,33 +210,61 @@ public class CacheSynchronizer implements MorphiumStorageListener, MessageListen
                 String sender = m.getSender();
                 log.debug("Got message from " + sender + " - Action: " + action + " Class: " + m.getValue());
             }
-            if (m.getValue().equals("ALL")) {
-                log.info("Cache completely cleared");
-                morphium.resetCache();
-                answer.setMsg("cache completely cleared");
-                return answer;
-            }
-            Class cls = Class.forName(m.getValue());
-            if (cls.equals(ConfigElement.class)) {
-                morphium.getConfigManager().reinitSettings();
-                answer.setMsg("config reread");
-                return answer;
-            }
-            if (morphium.isAnnotationPresentInHierarchy(cls, Entity.class)) {
-                Cache c = morphium.getAnnotationFromHierarchy(cls, Cache.class); //cls.getAnnotation(Cache.class);
-                if (c != null) {
-                    if (c.readCache()) {
-                        //Really clearing cache, even if clear on write is set to false! => manual clearing?
-                        morphium.clearCachefor(cls);
-                        answer.setMsg("cache cleared for type: " + m.getValue());
-                    } else {
-                        log.warn("trying to clear cache for uncached enitity or one where clearOnWrite is false");
-                        answer.setMsg("type is uncached or clearOnWrite is false: " + m.getValue());
+            if (m.getName().equals(CACHE_SYNC_TYPE)) {
+                if (m.getValue().equals("ALL")) {
+                    log.info("Cache completely cleared");
+                    morphium.resetCache();
+                    answer.setMsg("cache completely cleared");
+                    return answer;
+                }
+                Class cls = Class.forName(m.getValue());
+                if (cls.equals(ConfigElement.class)) {
+                    morphium.getConfigManager().reinitSettings();
+                    answer.setMsg("config reread");
+                    return answer;
+                }
+                if (morphium.isAnnotationPresentInHierarchy(cls, Entity.class)) {
+                    Cache c = morphium.getAnnotationFromHierarchy(cls, Cache.class); //cls.getAnnotation(Cache.class);
+                    if (c != null) {
+                        if (c.readCache()) {
+                            //Really clearing cache, even if clear on write is set to false! => manual clearing?
+                            morphium.clearCachefor(cls);
+                            answer.setMsg("cache cleared for type: " + m.getValue());
+                        } else {
+                            log.warn("trying to clear cache for uncached enitity or one where clearOnWrite is false");
+                            answer.setMsg("type is uncached or clearOnWrite is false: " + m.getValue());
+                        }
                     }
+                } else {
+                    log.warn("Trying to clear cache for none-Entity?????");
+                    answer.setMsg("cannot clear cache for non-entyty type: " + m.getValue());
+
                 }
             } else {
-                log.warn("Trying to clear cache for none-Entity?????");
-                answer.setMsg("cannot clear cache for non-entyty type: " + m.getValue());
+                //must be CACHE_SYNC_RECORD
+                Class cls = Class.forName(m.getValue());
+                if (morphium.isAnnotationPresentInHierarchy(cls, Entity.class)) {
+                    Cache c = morphium.getAnnotationFromHierarchy(cls, Cache.class); //cls.getAnnotation(Cache.class);
+                    if (c != null) {
+                        if (c.readCache()) {
+                            Hashtable<Class<? extends Object>, Hashtable<ObjectId, Object>> idCache = morphium.cloneIdCache();
+                            for (String a : m.getAdditional()) {
+                                ObjectId id = new ObjectId(a);
+                                if (idCache.get(cls) != null) {
+                                    if (idCache.get(cls).get(id) != null) {
+                                        morphium.reread(idCache.get(cls).get(id));
+                                        //Object is updated in place!
+                                    }
+                                }
+                            }
+                            answer.setMsg("cache cleared for type: " + m.getValue());
+
+                        } else {
+                            log.warn("trying to clear cache for uncached enitity or one where clearOnWrite is false");
+                            answer.setMsg("type is uncached or clearOnWrite is false: " + m.getValue());
+                        }
+                    }
+                }
 
             }
         } catch (ClassNotFoundException e) {

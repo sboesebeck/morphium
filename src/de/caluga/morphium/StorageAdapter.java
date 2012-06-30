@@ -56,5 +56,13 @@ public class StorageAdapter<T> implements MorphiumStorageListener<T> {
     public void postLoad(T o) {
     }
 
+    @Override
+    public void preUpdate(Class<T> cls, Enum updateType) {
+    }
+
+    @Override
+    public void postUpdate(Class<T> cls, Enum updateType) {
+    }
+
 
 }

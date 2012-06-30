@@ -11,6 +11,9 @@ import java.util.List;
  *         These listeners will be informed about Storing _any_ object in morphium!
  */
 public interface MorphiumStorageListener<T> {
+    public enum UpdateTypes {
+        SET, UNSET, PUSH, PULL, INC, DEC;
+    }
 
     public void preStore(T r);
 
@@ -33,5 +36,9 @@ public interface MorphiumStorageListener<T> {
     public void postRemove(Query<T> q);
 
     public void postLoad(T o);
+
+    public void preUpdate(Class<T> cls, Enum updateType);
+
+    public void postUpdate(Class<T> cls, Enum updateType);
 
 }

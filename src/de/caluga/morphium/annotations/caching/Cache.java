@@ -43,7 +43,10 @@ public @interface Cache {
 
     /**
      * if cache synchronizer is used, tell it to synchronize the cache for this type
+     *
      * @return
      */
     boolean autoSyncCache() default false;
+
+    boolean autoSyncCacheById() default false;
 }

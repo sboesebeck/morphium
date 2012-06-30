@@ -10,6 +10,7 @@ import de.caluga.morphium.annotations.caching.Cache;
 import de.caluga.morphium.annotations.caching.Cache.ClearStrategy;
 import de.caluga.morphium.annotations.caching.NoCache;
 import org.apache.log4j.Logger;
+import org.bson.types.ObjectId;
 
 import java.util.*;
 
@@ -231,12 +232,22 @@ public class CacheHousekeeper extends Thread {
 
                 }
 
+                Hashtable<Class<? extends Object>, Hashtable<ObjectId, Object>> idCacheClone = morphium.cloneIdCache();
                 for (Class cls : toDelete.keySet()) {
+                    boolean inIdCache = idCacheClone.get(cls) != null;
+
                     for (String k : toDelete.get(cls)) {
+                        if (inIdCache) {
+                            //remove objects from id cache
+                            for (Object f : cache.get(cls).get(k).getFound()) {
+                                idCacheClone.remove(cls).remove(morphium.getId(f));
+                            }
+                        }
                         cache.get(cls).remove(k);
                     }
                 }
                 morphium.setCache(cache);
+                morphium.setIdCache(idCacheClone);
 
 
             } catch (Throwable e) {

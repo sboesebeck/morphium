@@ -387,9 +387,9 @@ public class ObjectMapperImpl implements ObjectMapper {
                                     throw new IllegalArgumentException("Referenced object does not have an ID? Is it an Entity?");
                                 value = morphium.createLazyLoadedEntity(fld.getType(), id);
                             } else {
-                                Query q = morphium.createQueryFor(fld.getType());
-                                q.f("_id").eq(id);
-                                value = q.get();
+//                                Query q = morphium.createQueryFor(fld.getType());
+//                                q.f("_id").eq(id);
+                                value = morphium.findById(fld.getType(), id);
                             }
                         } else {
                             value = null;

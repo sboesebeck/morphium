@@ -63,6 +63,7 @@ public class Morphium {
             new LinkedBlockingQueue<Runnable>());
     //Cache by Type, query String -> CacheElement (contains list etc)
     private Hashtable<Class<? extends Object>, Hashtable<String, CacheElement>> cache;
+    private Hashtable<Class<? extends Object>, Hashtable<ObjectId, Object>> idCache;
     private final Map<StatisticKeys, StatisticValue> stats;
     private Map<Class<?>, Map<Class<? extends Annotation>, Method>> lifeCycleMethods;
     /**
@@ -96,6 +97,8 @@ public class Morphium {
         shutDownListeners = new Vector<ShutdownListener>();
         listeners = new Vector<MorphiumStorageListener>();
         cache = new Hashtable<Class<? extends Object>, Hashtable<String, CacheElement>>();
+        idCache = new Hashtable<Class<? extends Object>, Hashtable<ObjectId, Object>>();
+
         stats = new Hashtable<StatisticKeys, StatisticValue>();
         lifeCycleMethods = new Hashtable<Class<?>, Map<Class<? extends Annotation>, Method>>();
         for (StatisticKeys k : StatisticKeys.values()) {
@@ -272,6 +275,8 @@ public class Morphium {
             store(toSet);
         }
         Class cls = toSet.getClass();
+        firePreUpdateEvent(getRealClass(cls), MorphiumStorageListener.UpdateTypes.UNSET);
+
         String coll = config.getMapper().getCollectionName(cls);
         BasicDBObject query = new BasicDBObject();
         query.put("_id", getId(toSet));
@@ -298,6 +303,8 @@ public class Morphium {
         } catch (IllegalAccessException e) {
             //May happen, if null is not allowed for example
         }
+        firePostUpdateEvent(getRealClass(cls), MorphiumStorageListener.UpdateTypes.UNSET);
+
     }
 
 
@@ -398,6 +405,8 @@ public class Morphium {
 
     private void pushPull(boolean push, Query<?> query, String field, Object value, boolean insertIfNotExist, boolean multiple) {
         Class<?> cls = query.getType();
+        firePreUpdateEvent(getRealClass(cls), push ? MorphiumStorageListener.UpdateTypes.PUSH : MorphiumStorageListener.UpdateTypes.PULL);
+
         String coll = config.getMapper().getCollectionName(cls);
 
         DBObject qobj = query.toQueryObject();
@@ -418,11 +427,14 @@ public class Morphium {
             database.getCollection(coll).update(qobj, update, insertIfNotExist, multiple, wc);
         }
         clearCacheIfNecessary(cls);
+        firePostUpdateEvent(getRealClass(cls), push ? MorphiumStorageListener.UpdateTypes.PUSH : MorphiumStorageListener.UpdateTypes.PULL);
+
     }
 
     private void pushPullAll(boolean push, Query<?> query, String field, List<Object> value, boolean insertIfNotExist, boolean multiple) {
         Class<?> cls = query.getType();
         String coll = config.getMapper().getCollectionName(cls);
+        firePreUpdateEvent(getRealClass(cls), push ? MorphiumStorageListener.UpdateTypes.PUSH : MorphiumStorageListener.UpdateTypes.PULL);
 
         BasicDBList dbl = new BasicDBList();
         dbl.addAll(value);
@@ -444,6 +456,7 @@ public class Morphium {
             database.getCollection(coll).update(qobj, update, insertIfNotExist, multiple, wc);
         }
         clearCacheIfNecessary(cls);
+        firePostUpdateEvent(getRealClass(cls), push ? MorphiumStorageListener.UpdateTypes.PUSH : MorphiumStorageListener.UpdateTypes.PULL);
     }
 
     /**
@@ -460,6 +473,7 @@ public class Morphium {
     public void set(Query<?> query, Map<String, Object> values, boolean insertIfNotExist, boolean multiple) {
         Class<?> cls = query.getType();
         String coll = config.getMapper().getCollectionName(cls);
+        firePreUpdateEvent(getRealClass(cls), MorphiumStorageListener.UpdateTypes.SET);
         BasicDBObject toSet = new BasicDBObject();
         for (String f : values.keySet()) {
             String fieldName = getFieldName(cls, f);
@@ -482,6 +496,7 @@ public class Morphium {
             database.getCollection(coll).update(qobj, update, insertIfNotExist, multiple, wc);
         }
         clearCacheIfNecessary(cls);
+        firePostUpdateEvent(getRealClass(cls), MorphiumStorageListener.UpdateTypes.SET);
     }
 
     /**
@@ -532,6 +547,7 @@ public class Morphium {
 
     public void inc(Query<?> query, String field, int amount, boolean insertIfNotExist, boolean multiple) {
         Class<?> cls = query.getType();
+        firePreUpdateEvent(getRealClass(cls), MorphiumStorageListener.UpdateTypes.INC);
         String coll = config.getMapper().getCollectionName(cls);
         String fieldName = getFieldName(cls, field);
         BasicDBObject update = new BasicDBObject("$inc", new BasicDBObject(fieldName, amount));
@@ -549,6 +565,7 @@ public class Morphium {
             database.getCollection(coll).update(qobj, update, insertIfNotExist, multiple, wc);
         }
         clearCacheIfNecessary(cls);
+        firePostUpdateEvent(getRealClass(cls), MorphiumStorageListener.UpdateTypes.INC);
     }
 
 
@@ -572,6 +589,7 @@ public class Morphium {
             storeNoCache(toSet);
         }
         Class cls = toSet.getClass();
+        firePreUpdateEvent(getRealClass(cls), MorphiumStorageListener.UpdateTypes.SET);
         String coll = config.getMapper().getCollectionName(cls);
         BasicDBObject query = new BasicDBObject();
         query.put("_id", getId(toSet));
@@ -597,6 +615,7 @@ public class Morphium {
         } catch (IllegalAccessException e) {
             throw new RuntimeException(e);
         }
+        firePostUpdateEvent(getRealClass(cls), MorphiumStorageListener.UpdateTypes.SET);
 
     }
 
@@ -624,6 +643,7 @@ public class Morphium {
             storeNoCache(toInc);
         }
         Class cls = toInc.getClass();
+        firePreUpdateEvent(getRealClass(cls), MorphiumStorageListener.UpdateTypes.INC);
         String coll = config.getMapper().getCollectionName(cls);
         BasicDBObject query = new BasicDBObject();
         query.put("_id", getId(toInc));
@@ -671,10 +691,14 @@ public class Morphium {
         } else {
             logger.error("Could not set increased value - unsupported type " + cls.getName());
         }
+        firePostUpdateEvent(getRealClass(cls), MorphiumStorageListener.UpdateTypes.INC);
 
 
     }
 
+    public void setIdCache(Hashtable<Class<? extends Object>, Hashtable<ObjectId, Object>> c) {
+        idCache = c;
+    }
 
     /**
      * adds some list of objects to the cache manually...
@@ -689,7 +713,17 @@ public class Morphium {
         if (k == null) {
             return;
         }
-
+        if (ret != null) {
+            //copy from idCache
+            Hashtable<Class<? extends Object>, Hashtable<ObjectId, Object>> idCacheClone = cloneIdCache();
+            for (T record : ret) {
+                if (idCacheClone.get(type) == null) {
+                    idCacheClone.put(type, new Hashtable<ObjectId, Object>());
+                }
+                idCacheClone.get(type).put(config.getMapper().getId(record), record);
+            }
+            setIdCache(idCacheClone);
+        }
 
         CacheElement e = new CacheElement(ret);
         e.setLru(System.currentTimeMillis());
@@ -978,21 +1012,34 @@ public class Morphium {
         }
     }
 
+    /**
+     * careful this actually changes the
+     *
+     * @param o
+     * @param <T>
+     * @return
+     */
     public <T> T reread(T o) {
         if (o == null) throw new RuntimeException("Cannot re read null!");
         ObjectId id = getId(o);
-        List<String> flds = config.getMapper().getFields(o.getClass(), Id.class);
-        if (flds == null || flds.size() > 1) {
-            throw new RuntimeException("error finding ID ");
-        }
-
-        String fld = flds.get(0);
-
-        List<T> ret = (List<T>) findByField(o.getClass(), fld, id);
-        if (ret == null || ret.size() == 0) {
+        if (id == null) {
             return null;
         }
-        return ret.get(0);
+        DBCollection col = database.getCollection(getConfig().getMapper().getCollectionName(o.getClass()));
+        BasicDBObject srch = new BasicDBObject("_id", id);
+        DBCursor crs = col.find(srch).limit(1);
+        DBObject dbo = crs.next();
+        Object fromDb = getConfig().getMapper().unmarshall(o.getClass(), dbo);
+        List<String> flds = getFields(o.getClass());
+        for (String f : flds) {
+            Field fld = getConfig().getMapper().getField(o.getClass(), f);
+            try {
+                fld.set(o, fld.get(fromDb));
+            } catch (IllegalAccessException e) {
+                logger.error("Could not set Value: " + fld);
+            }
+        }
+        return o;
     }
 
     private void firePreStoreEvent(Object o) {
@@ -1031,6 +1078,20 @@ public class Morphium {
         List<MorphiumStorageListener> lst = (List<MorphiumStorageListener>) listeners.clone();
         for (MorphiumStorageListener l : lst) {
             l.postDrop(cls);
+        }
+    }
+
+    private void firePostUpdateEvent(Class cls, MorphiumStorageListener.UpdateTypes t) {
+        List<MorphiumStorageListener> lst = (List<MorphiumStorageListener>) listeners.clone();
+        for (MorphiumStorageListener l : lst) {
+            l.postUpdate(cls, t);
+        }
+    }
+
+    private void firePreUpdateEvent(Class cls, MorphiumStorageListener.UpdateTypes t) {
+        List<MorphiumStorageListener> lst = (List<MorphiumStorageListener>) listeners.clone();
+        for (MorphiumStorageListener l : lst) {
+            l.preUpdate(cls, t);
         }
     }
 
@@ -1294,6 +1355,10 @@ public class Morphium {
         return (Hashtable<Class<? extends Object>, Hashtable<String, CacheElement>>) cache.clone();
     }
 
+    public Hashtable<Class<? extends Object>, Hashtable<ObjectId, Object>> cloneIdCache() {
+        return (Hashtable<Class<? extends Object>, Hashtable<ObjectId, Object>>) idCache.clone();
+    }
+
     /**
      * issues a delete command - no lifecycle methods calles, no drop, keeps all indexec this way
      *
@@ -1357,7 +1422,16 @@ public class Morphium {
         return q.asList();
     }
 
+    private <T> T getFromIDCache(Class<T> type, ObjectId id) {
+        if (idCache.get(type) != null) {
+            return (T) idCache.get(type).get(id);
+        }
+        return null;
+    }
+
     public <T> T findById(Class<T> type, ObjectId id) {
+        T ret = getFromIDCache(type, id);
+        if (ret != null) return ret;
         List<String> ls = config.getMapper().getFields(type, Id.class);
         if (ls.size() == 0) throw new RuntimeException("Cannot find by ID on non-Entity");
 
@@ -1523,6 +1597,9 @@ public class Morphium {
     public void clearCachefor(Class<? extends Object> cls) {
         if (cache.get(cls) != null) {
             cache.get(cls).clear();
+        }
+        if (idCache.get(cls) != null) {
+            idCache.get(cls).clear();
         }
         //clearCacheFor(cls);
     }
