@@ -7,6 +7,7 @@ import de.caluga.morphium.annotations.caching.Cache;
 import de.caluga.morphium.cache.CacheSynchronizer;
 import de.caluga.morphium.messaging.Messaging;
 import de.caluga.morphium.messaging.Msg;
+import org.bson.types.ObjectId;
 import org.junit.Test;
 
 /**
@@ -34,6 +35,30 @@ public class CacheSyncTest extends MongoTest {
         assert (cnt == 1) : "there should be one msg, there are " + cnt;
         msg.setRunning(false);
         cs.detach();
+    }
+
+    @Test
+    public void removeFromCacheTest() throws Exception {
+        for (int i = 0; i < 100; i++) {
+            CachedObject o = new CachedObject();
+            o.setCounter(i);
+            o.setValue("a value");
+            MorphiumSingleton.get().store(o);
+        }
+        waitForWrites();
+        for (int i = 0; i < 100; i++) {
+            Query<CachedObject> c = MorphiumSingleton.get().createQueryFor(CachedObject.class);
+            c = c.f("counter").eq(i);
+            c.asList();
+        }
+        assert (MorphiumSingleton.get().getStatistics().get(Morphium.StatisticKeys.CACHE_ENTRIES.name()) != null) : "Cache entries not set?";
+        assert (MorphiumSingleton.get().getStatistics().get(Morphium.StatisticKeys.CACHE_ENTRIES.name()) == 100) : "Cache entries not set?";
+        Query<CachedObject> c = MorphiumSingleton.get().createQueryFor(CachedObject.class);
+        c = c.f("counter").eq(10);
+        ObjectId id = c.get().getId();
+        MorphiumSingleton.get().removeEntryFromCache(CachedObject.class, id);
+        assert (MorphiumSingleton.get().getStatistics().get(Morphium.StatisticKeys.CACHE_ENTRIES.name()) == 99) : "Cache entries not set?";
+
     }
 
     @Test
