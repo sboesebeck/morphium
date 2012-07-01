@@ -80,7 +80,7 @@ public class CacheSynchronizer implements MorphiumStorageListener<Object>, Messa
 //    }
 
 
-    public void sendClearMessage(Object record, String reason) {
+    public void sendClearMessage(Object record, String reason, boolean isNew) {
         long start = System.currentTimeMillis();
         if (record.equals(Msg.class)) return;
         Msg m = new Msg(CACHE_SYNC_RECORD, MsgType.MULTI, reason, record.getClass().getName(), 30000);
@@ -92,8 +92,9 @@ public class CacheSynchronizer implements MorphiumStorageListener<Object>, Messa
         Cache c = morphium.getAnnotationFromHierarchy(record.getClass(), Cache.class); //(Cache) type.getAnnotation(Cache.class);
         if (c == null) return; //not clearing cache for non-cached objects
         if (c.readCache() && c.clearOnWrite()) {
-            if (c.syncCache().equals(Cache.SyncCacheStrategy.UPDATE_ENTRY)) {
-                messaging.queueMessage(m);
+            if (c.syncCache().equals(Cache.SyncCacheStrategy.UPDATE_ENTRY) || c.syncCache().equals(Cache.SyncCacheStrategy.REMOVE_ENTRY_FROM_TYPE_CACHE)) {
+                if (!isNew)
+                    messaging.queueMessage(m);
             } else if (c.syncCache().equals(Cache.SyncCacheStrategy.CLEAR_TYPE_CACHE)) {
                 m.setName(CACHE_SYNC_TYPE);
                 messaging.queueMessage(m);
@@ -151,7 +152,7 @@ public class CacheSynchronizer implements MorphiumStorageListener<Object>, Messa
 
     @Override
     public void postStore(Object r, boolean isNew) {
-        if (!isNew) sendClearMessage(r, "store");
+        sendClearMessage(r, "store", isNew);
     }
 
     @Override
@@ -266,11 +267,17 @@ public class CacheSynchronizer implements MorphiumStorageListener<Object>, Messa
                                 ObjectId id = new ObjectId(a);
                                 if (idCache.get(cls) != null) {
                                     if (idCache.get(cls).get(id) != null) {
-                                        morphium.reread(idCache.get(cls).get(id));
                                         //Object is updated in place!
+                                        if (c.syncCache().equals(Cache.SyncCacheStrategy.REMOVE_ENTRY_FROM_TYPE_CACHE)) {
+                                            morphium.removeEntryFromCache(cls, id);
+                                        } else {
+                                            morphium.reread(idCache.get(cls).get(id));
+
+                                        }
                                     }
                                 }
                             }
+                            morphium.setIdCache(idCache);
                             answer.setMsg("cache cleared for type: " + m.getValue());
 
                         } else {

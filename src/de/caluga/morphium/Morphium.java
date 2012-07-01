@@ -1041,6 +1041,8 @@ public class Morphium {
                 logger.error("Could not set Value: " + fld);
             }
         }
+
+
         return o;
     }
 
@@ -1900,6 +1902,32 @@ public class Morphium {
     ///
     public Map<String, Double> getStatistics() {
         return new StatisticsMap();
+    }
+
+    public void removeEntryFromCache(Class cls, ObjectId id) {
+        Hashtable<Class<? extends Object>, Hashtable<String, CacheElement>> c = cloneCache();
+        Hashtable<Class<? extends Object>, Hashtable<ObjectId, Object>> idc = cloneIdCache();
+        idc.get(cls).remove(id);
+
+        ArrayList<String> toRemove = new ArrayList<String>();
+        for (String key : c.get(cls).keySet()) {
+
+            for (Object el : c.get(cls).get(key).getFound()) {
+                ObjectId lid = config.getMapper().getId(el);
+                if (lid == null) {
+                    logger.error("Null id in CACHE?");
+                    toRemove.add(key);
+                }
+                if (lid.equals(id)) {
+                    toRemove.add(key);
+                }
+            }
+        }
+        for (String k : toRemove) {
+            c.get(cls).remove(k);
+        }
+        setCache(c);
+        setIdCache(idc);
     }
 
     public enum StatisticKeys {

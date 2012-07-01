@@ -27,7 +27,7 @@ import static java.lang.annotation.ElementType.TYPE;
 public @interface Cache {
     enum ClearStrategy {LRU, FIFO, RANDOM}
 
-    enum SyncCacheStrategy {NONE, CLEAR_TYPE_CACHE, UPDATE_ENTRY}
+    enum SyncCacheStrategy {NONE, CLEAR_TYPE_CACHE, REMOVE_ENTRY_FROM_TYPE_CACHE, UPDATE_ENTRY}
 
     int timeout() default 60000;
 
