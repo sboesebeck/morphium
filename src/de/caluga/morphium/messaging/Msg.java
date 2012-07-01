@@ -7,7 +7,10 @@ import de.caluga.morphium.annotations.lifecycle.PreStore;
 import org.apache.log4j.Logger;
 import org.bson.types.ObjectId;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 /**
  * User: Stephan Bösebeck
@@ -21,10 +24,10 @@ import java.util.*;
 //MAximumSecurity
 @WriteSafety(level = SafetyLevel.WAIT_FOR_SLAVES, timeout = 3000, waitForJournalCommit = true, waitForSync = true)
 @Lifecycle
-@Index({"sender,locked_by,lst_of_ids_already_procceed,to,-timestamp", "locked_by,lst_of_ids_already_procceed,to,timestamp"})
+@Index({"sender,locked_by,processed_by,to,-timestamp", "locked_by,processed_by,to,timestamp"})
 public class Msg {
     public static enum Fields {
-        lstOfIdsAlreadyProcessed,
+        processedBy,
         lockedBy,
         msgId,
         locked,
@@ -39,12 +42,10 @@ public class Msg {
         ttl
     }
 
+    @Index
+    private List<String> processedBy;
     @Id
-    private ObjectId id;
-    @Index
-    private List<String> lstOfIdsAlreadyProcessed;
-    @Index
-    private String msgId;
+    private ObjectId msgId;
     @Index
     private String lockedBy;
     @Index
@@ -53,7 +54,7 @@ public class Msg {
     private long ttl;
     private String sender;
     private List<String> to;
-    private String inAnswerTo;
+    private ObjectId inAnswerTo;
     //payload goes here
     private String name;
     private String msg;
@@ -67,7 +68,7 @@ public class Msg {
     private Boolean exclusive = null;
 
     public Msg() {
-        msgId = UUID.randomUUID().toString();
+        // msgId = UUID.randomUUID().toString();
         lockedBy = "ALL";
         exclusive = false;
     }
@@ -145,19 +146,19 @@ public class Msg {
         this.to = to;
     }
 
-    public String getInAnswerTo() {
+    public ObjectId getInAnswerTo() {
         return inAnswerTo;
     }
 
-    public void setInAnswerTo(String inAnswerTo) {
+    public void setInAnswerTo(ObjectId inAnswerTo) {
         this.inAnswerTo = inAnswerTo;
     }
 
-    public String getMsgId() {
+    public ObjectId getMsgId() {
         return msgId;
     }
 
-    public void setMsgId(String msgId) {
+    public void setMsgId(ObjectId msgId) {
         this.msgId = msgId;
     }
 
@@ -177,19 +178,19 @@ public class Msg {
         this.timestamp = timestamp;
     }
 
-    public List<String> getLstOfIdsAlreadyProcessed() {
-        return lstOfIdsAlreadyProcessed;
+    public List<String> getProcessedBy() {
+        return processedBy;
     }
 
-    public void setLstOfIdsAlreadyProcessed(List<String> lstOfIdsAlreadyProcessed) {
-        this.lstOfIdsAlreadyProcessed = lstOfIdsAlreadyProcessed;
+    public void setProcessedBy(List<String> processedBy) {
+        this.processedBy = processedBy;
     }
 
     public void addProcessedId(String id) {
-        if (lstOfIdsAlreadyProcessed == null) {
-            lstOfIdsAlreadyProcessed = new ArrayList<String>();
+        if (processedBy == null) {
+            processedBy = new ArrayList<String>();
         }
-        lstOfIdsAlreadyProcessed.add(id);
+        processedBy.add(id);
     }
 
     public String getLockedBy() {
@@ -271,7 +272,6 @@ public class Msg {
     @Override
     public String toString() {
         return "Msg{" +
-                "id=" + id +
                 ", inAnswerTo='" + inAnswerTo + '\'' +
                 ", msgId='" + msgId + '\'' +
                 ", lockedBy='" + lockedBy + '\'' +
@@ -286,7 +286,7 @@ public class Msg {
                 ", additional='" + additional + '\'' +
                 ", mapValue='" + mapValue + '\'' +
                 ", recipients='" + to + '\'' +
-                ", lstOfIdsAlreadyProcessed=" + lstOfIdsAlreadyProcessed +
+                ", processedBy=" + processedBy +
                 '}';
     }
 

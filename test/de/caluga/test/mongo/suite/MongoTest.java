@@ -29,11 +29,10 @@ public class MongoTest {
         try {
             log.info("Preparing collections...");
             MorphiumSingleton.get().clearCollection(UncachedObject.class);
-            log.info("Uncached object prepared!");
             MorphiumSingleton.get().clearCollection(CachedObject.class);
             MorphiumSingleton.get().clearCollection(ComplexObject.class);
             MorphiumSingleton.get().clearCollection(EnumEntity.class);
-
+            MorphiumSingleton.get().dropCollection(Msg.class);
             MorphiumSingleton.get().ensureIndex(UncachedObject.class, "counter", "value");
             MorphiumSingleton.get().ensureIndex(CachedObject.class, "counter", "value");
 
@@ -44,7 +43,7 @@ public class MongoTest {
             assert (ent == null || ent == 0) : "Uncached Object cached?";
 
             //make sure everything is really written to disk
-            Thread.sleep(1000);
+            Thread.sleep(500);
             log.info("Preparation finished - ");
         } catch (Exception e) {
             log.fatal("Error during preparation!");

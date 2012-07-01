@@ -6,8 +6,7 @@ import de.caluga.morphium.Query;
 import org.apache.log4j.Logger;
 
 import java.util.*;
-import java.util.concurrent.LinkedBlockingQueue;
-import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -31,9 +30,8 @@ public class Messaging extends Thread {
     private List<MessageListener> listeners;
     private Map<String, List<MessageListener>> listenerByName;
 
-    private ThreadPoolExecutor writers = new ThreadPoolExecutor(500, 1000,
-            10000L, TimeUnit.MILLISECONDS,
-            new LinkedBlockingQueue<Runnable>());
+    private volatile Vector<Msg> writeBuffer = new Vector<Msg>();
+    private ScheduledThreadPoolExecutor writer = new ScheduledThreadPoolExecutor(1);
 
     public Messaging(Morphium m, int pause, boolean processMultiple) {
         morphium = m;
@@ -42,13 +40,19 @@ public class Messaging extends Thread {
         this.processMultiple = processMultiple;
         id = UUID.randomUUID().toString();
         m.ensureIndex(Msg.class, Msg.Fields.lockedBy, Msg.Fields.timestamp);
-        m.ensureIndex(Msg.class, Msg.Fields.lockedBy, Msg.Fields.lstOfIdsAlreadyProcessed);
+        m.ensureIndex(Msg.class, Msg.Fields.lockedBy, Msg.Fields.processedBy);
         m.ensureIndex(Msg.class, Msg.Fields.timestamp);
 
         listeners = new Vector<MessageListener>();
         listenerByName = new Hashtable<String, List<MessageListener>>();
-        writers.setCorePoolSize(m.getConfig().getMaxConnections() / 2);
-        writers.setMaximumPoolSize(m.getConfig().getMaxConnections());
+        writer.scheduleAtFixedRate(new Runnable() {
+            @Override
+            public void run() {
+                Vector<Msg> wb = writeBuffer;
+                writeBuffer = new Vector<Msg>();
+                morphium.storeList(wb);
+            }
+        }, 500, pause, TimeUnit.MILLISECONDS);
     }
 
     public void run() {
@@ -68,24 +72,15 @@ public class Messaging extends Thread {
                 morphium.delete(q);
                 q = q.q();
                 //locking messages...
-                q.or(q.q().f(Msg.Fields.sender).ne(id).f(Msg.Fields.lockedBy).eq(null).f(Msg.Fields.lstOfIdsAlreadyProcessed).ne(id).f(Msg.Fields.to).eq(null),
-                        q.q().f(Msg.Fields.sender).ne(id).f(Msg.Fields.lockedBy).eq(null).f(Msg.Fields.lstOfIdsAlreadyProcessed).ne(id).f(Msg.Fields.to).eq(id));
+                q.or(q.q().f(Msg.Fields.sender).ne(id).f(Msg.Fields.lockedBy).eq(null).f(Msg.Fields.processedBy).ne(id).f(Msg.Fields.to).eq(null),
+                        q.q().f(Msg.Fields.sender).ne(id).f(Msg.Fields.lockedBy).eq(null).f(Msg.Fields.processedBy).ne(id).f(Msg.Fields.to).eq(id));
                 values.put("locked_by", id);
                 values.put("locked", System.currentTimeMillis());
-//            morphium.set(Msg.class,q,Msg.Fields.lockedBy,id);
-                //need to set upsert to true in order to INSERT fields as well ;-(
                 morphium.set(q, values, false, processMultiple);
-                //give mongo time to really store
-
-//                try {
-//                    sleep(100);
-//                } catch (InterruptedException e) {
-//                }
-                //maybe others "overlocked" our message, but that's ok - we re read all messages...
                 q = q.q();
                 q.or(q.q().f(Msg.Fields.lockedBy).eq(id),
-                        q.q().f(Msg.Fields.lockedBy).eq("ALL").f(Msg.Fields.lstOfIdsAlreadyProcessed).ne(id).f(Msg.Fields.to).eq(id),
-                        q.q().f(Msg.Fields.lockedBy).eq("ALL").f(Msg.Fields.lstOfIdsAlreadyProcessed).ne(id).f(Msg.Fields.to).eq(null));
+                        q.q().f(Msg.Fields.lockedBy).eq("ALL").f(Msg.Fields.processedBy).ne(id).f(Msg.Fields.to).eq(id),
+                        q.q().f(Msg.Fields.lockedBy).eq("ALL").f(Msg.Fields.processedBy).ne(id).f(Msg.Fields.to).eq(null));
                 q.sort(Msg.Fields.timestamp);
 
                 List<Msg> messagesList = q.asList();
@@ -140,7 +135,7 @@ public class Messaging extends Thread {
                         Query<Msg> idq = MorphiumSingleton.get().createQueryFor(Msg.class);
                         idq.f(Msg.Fields.msgId).eq(msg.getMsgId());
 
-                        MorphiumSingleton.get().push(idq, Msg.Fields.lstOfIdsAlreadyProcessed, id);
+                        MorphiumSingleton.get().push(idq, Msg.Fields.processedBy, id);
                     } else {
                         //Exclusive message
                         msg.addProcessedId(id);
@@ -228,12 +223,7 @@ public class Messaging extends Thread {
         m.addProcessedId(id);
         m.setLockedBy(null);
         m.setLocked(0);
-        writers.execute(new Runnable() {
-            @Override
-            public void run() {
-                storeMessage(m);
-            }
-        });
+        writeBuffer.add(m);
     }
 
     public void storeMessage(Msg m) {

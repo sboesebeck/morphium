@@ -6,6 +6,7 @@ import de.caluga.morphium.messaging.MessageListener;
 import de.caluga.morphium.messaging.Messaging;
 import de.caluga.morphium.messaging.Msg;
 import de.caluga.morphium.messaging.MsgType;
+import org.bson.types.ObjectId;
 import org.junit.Test;
 
 import java.util.*;
@@ -25,7 +26,7 @@ public class MessagingTest extends MongoTest {
     public boolean gotMessage3 = false;
     public boolean gotMessage4 = false;
 
-    public String lastMsgId;
+    public ObjectId lastMsgId;
 
     public int procCounter = 0;
 
@@ -33,7 +34,7 @@ public class MessagingTest extends MongoTest {
     public void testMsgLifecycle() throws Exception {
         Msg m = new Msg();
         m.setSender("Meine wunderbare ID " + System.currentTimeMillis());
-        m.setMsgId("My wonderful id");
+        m.setMsgId(new ObjectId());
         m.setName("A name");
         MorphiumSingleton.get().store(m);
         Thread.sleep(5000);
@@ -58,7 +59,7 @@ public class MessagingTest extends MongoTest {
         Query<Msg> q = MorphiumSingleton.get().createQueryFor(Msg.class);
         MorphiumSingleton.get().delete(q);
         //locking messages...
-        q = q.f(Msg.Fields.sender).ne(id).f(Msg.Fields.lockedBy).eq(null).f(Msg.Fields.lstOfIdsAlreadyProcessed).ne(id);
+        q = q.f(Msg.Fields.sender).ne(id).f(Msg.Fields.lockedBy).eq(null).f(Msg.Fields.processedBy).ne(id);
         MorphiumSingleton.get().set(q, Msg.Fields.lockedBy, id);
 
         q = q.q();
@@ -75,7 +76,7 @@ public class MessagingTest extends MongoTest {
 
         q = MorphiumSingleton.get().createQueryFor(Msg.class);
         //locking messages...
-        q = q.f(Msg.Fields.sender).ne(id).f(Msg.Fields.lockedBy).eq(null).f(Msg.Fields.lstOfIdsAlreadyProcessed).ne(id);
+        q = q.f(Msg.Fields.sender).ne(id).f(Msg.Fields.lockedBy).eq(null).f(Msg.Fields.processedBy).ne(id);
         MorphiumSingleton.get().set(q, Msg.Fields.lockedBy, id);
 
         q = q.q();
@@ -118,7 +119,7 @@ public class MessagingTest extends MongoTest {
         log.info("Dig not get own message - cool!");
 
         Msg m = new Msg("meine Message", MsgType.SINGLE, "The Message", "value is a string", 5000);
-        m.setMsgId(UUID.randomUUID().toString());
+        m.setMsgId(new ObjectId());
         m.setSender("Another sender");
 
         MorphiumSingleton.get().store(m);
@@ -551,7 +552,7 @@ public class MessagingTest extends MongoTest {
         MorphiumSingleton.get().clearCollection(Msg.class);
         List<Messaging> systems = new ArrayList<Messaging>();
 
-        final Map<String, Integer> processedMessages = new Hashtable<String, Integer>();
+        final Map<ObjectId, Integer> processedMessages = new Hashtable<ObjectId, Integer>();
 
         for (int i = 0; i < numberOfWorkers; i++) {
             //creating messaging instances
@@ -618,7 +619,7 @@ public class MessagingTest extends MongoTest {
         log.info("done");
 
         assert (processedMessages.size() == numberOfMessages) : "sent " + numberOfMessages + " messages, but only " + processedMessages.size() + " were recieved?";
-        for (String id : processedMessages.keySet()) {
+        for (ObjectId id : processedMessages.keySet()) {
             assert (processedMessages.get(id) == numberOfWorkers - 1) : "Message " + id + " was not recieved by all " + (numberOfWorkers - 1) + " other workers? only by " + processedMessages.get(id);
         }
         assert (procCounter == numberOfMessages * (numberOfWorkers - 1)) : "Still processing messages?!?!?";
