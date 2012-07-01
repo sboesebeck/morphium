@@ -37,7 +37,9 @@ public class MassCacheTest extends MongoTest {
                         CachedObject o = new CachedObject();
                         o.setCounter(j + 1);
                         o.setValue(getName() + " " + j);
+                        log.info("Storing...");
                         MorphiumSingleton.get().store(o);
+                        log.info("Stored object..." + getId() + " / " + getName());
                     }
                 }
             };

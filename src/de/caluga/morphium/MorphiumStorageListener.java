@@ -4,8 +4,6 @@
  */
 package de.caluga.morphium;
 
-import java.util.List;
-
 /**
  * @author stephan
  *         These listeners will be informed about Storing _any_ object in morphium!
@@ -15,9 +13,9 @@ public interface MorphiumStorageListener<T> {
         SET, UNSET, PUSH, PULL, INC, DEC;
     }
 
-    public void preStore(T r);
+    public void preStore(T r, boolean isNew);
 
-    public void postStore(T r);
+    public void postStore(T r, boolean isNew);
 
     public void postRemove(T r);
 
@@ -26,10 +24,6 @@ public interface MorphiumStorageListener<T> {
     public void postDrop(Class<T> cls);
 
     public void preDrop(Class<T> cls);
-
-    public void postListStore(List<T> lst);
-
-    public void preListStore(List<T> lst);
 
     public void preRemove(Query<T> q);
 

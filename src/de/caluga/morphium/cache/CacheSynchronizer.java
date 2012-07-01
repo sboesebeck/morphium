@@ -13,9 +13,7 @@ import de.caluga.morphium.messaging.MsgType;
 import org.apache.log4j.Logger;
 import org.bson.types.ObjectId;
 
-import java.util.ArrayList;
 import java.util.Hashtable;
-import java.util.List;
 
 /**
  * User: Stephan Bösebeck
@@ -34,7 +32,7 @@ import java.util.List;
  * <li> Msg.ttl == 30 sec - shoule be enought time for the message to be processed by all nodes</li>
  * </ul>
  */
-public class CacheSynchronizer implements MorphiumStorageListener, MessageListener {
+public class CacheSynchronizer implements MorphiumStorageListener<Object>, MessageListener {
     private static final Logger log = Logger.getLogger(CacheSynchronizer.class);
 
     private Messaging messaging;
@@ -55,33 +53,35 @@ public class CacheSynchronizer implements MorphiumStorageListener, MessageListen
     }
 
 
-    public void sendClearMessage(List<?> recLst, String reason) {
-        //sort by type :-(
-        Hashtable<Class<?>, List<String>> sorted = new Hashtable<Class<?>, List<String>>();
-        for (Object r : recLst) {
-            if (sorted.get(r.getClass()) == null) {
-                sorted.put(r.getClass(), new ArrayList<String>());
-            }
-            sorted.get(r.getClass()).add(morphium.getId(r).toString());
-        }
-
-        //running through
-        for (Class type : sorted.keySet()) {
-            Cache c = morphium.getAnnotationFromHierarchy(type, Cache.class);
-            if (type.equals(ConfigElement.class) || (c != null && c.readCache() && c.clearOnWrite() && c.autoSyncCache())) {
-                if (c.autoSyncCacheById()) {
-                    Msg m = new Msg(CACHE_SYNC_RECORD, MsgType.MULTI, reason, type.getName(), 30000);
-                    m.setAdditional(sorted.get(type));
-                    messaging.queueMessage(m);
-                } else {
-                    sendClearMessage(type, reason);
-                }
-            }
-        }
-    }
+//    public void sendClearMessage(List<?> recLst, Map<Object,Boolean> isNew, String reason) {
+//        //sort by type :-(
+//        Hashtable<Class<?>, List<String>> sorted = new Hashtable<Class<?>, List<String>>();
+//        for (Object r : recLst) {
+//            if (isNew.get(r)) continue;
+//            if (sorted.get(r.getClass()) == null) {
+//                sorted.put(r.getClass(), new ArrayList<String>());
+//            }
+//            sorted.get(r.getClass()).add(morphium.getId(r).toString());
+//        }
+//
+//        //running through
+//        for (Class type : sorted.keySet()) {
+//            Cache c = morphium.getAnnotationFromHierarchy(type, Cache.class);
+//            if (type.equals(ConfigElement.class) || (c != null && c.readCache())) {
+//                if (c.syncCache().equals(Cache.SyncCacheStrategy.UPDATE_ENTRY)) {
+//                    Msg m = new Msg(CACHE_SYNC_RECORD, MsgType.MULTI, reason, type.getName(), 30000);
+//                    m.setAdditional(sorted.get(type));
+//                    messaging.queueMessage(m);
+//                } else if (c.syncCache().equals(Cache.SyncCacheStrategy.CLEAR_TYPE_CACHE)) {
+//                    sendClearMessage(type, reason);
+//                }
+//            }
+//        }
+//    }
 
 
     public void sendClearMessage(Object record, String reason) {
+        long start = System.currentTimeMillis();
         if (record.equals(Msg.class)) return;
         Msg m = new Msg(CACHE_SYNC_RECORD, MsgType.MULTI, reason, record.getClass().getName(), 30000);
         m.addAdditional(morphium.getId(record).toString());
@@ -91,9 +91,16 @@ public class CacheSynchronizer implements MorphiumStorageListener, MessageListen
         }
         Cache c = morphium.getAnnotationFromHierarchy(record.getClass(), Cache.class); //(Cache) type.getAnnotation(Cache.class);
         if (c == null) return; //not clearing cache for non-cached objects
-        if (c.readCache() && c.clearOnWrite() && c.autoSyncCache()) {
-            messaging.queueMessage(m);
+        if (c.readCache() && c.clearOnWrite()) {
+            if (c.syncCache().equals(Cache.SyncCacheStrategy.UPDATE_ENTRY)) {
+                messaging.queueMessage(m);
+            } else if (c.syncCache().equals(Cache.SyncCacheStrategy.CLEAR_TYPE_CACHE)) {
+                m.setName(CACHE_SYNC_TYPE);
+                messaging.queueMessage(m);
+            }
         }
+        long dur = System.currentTimeMillis() - start;
+//        log.info("Queueing cache sync message took "+dur+" ms");
     }
 
     /**
@@ -111,11 +118,18 @@ public class CacheSynchronizer implements MorphiumStorageListener, MessageListen
         }
         Cache c = morphium.getAnnotationFromHierarchy(type, Cache.class); //(Cache) type.getAnnotation(Cache.class);
         if (c == null) return; //not clearing cache for non-cached objects
-        if (c.readCache() && c.clearOnWrite() && c.autoSyncCache()) {
-            sendClearMessage(type.getName(), reason);
+        if (c.readCache() && c.clearOnWrite()) {
+            if (!c.syncCache().equals(Cache.SyncCacheStrategy.NONE)) {
+                sendClearMessage(type.getName(), reason);
+            }
         }
     }
 
+    public void detach() {
+        morphium.removeListener(this);
+        messaging.removeListenerForMessageNamed(CACHE_SYNC_TYPE, this);
+        messaging.removeListenerForMessageNamed(CACHE_SYNC_RECORD, this);
+    }
 
     /**
      * always sends message
@@ -131,13 +145,13 @@ public class CacheSynchronizer implements MorphiumStorageListener, MessageListen
 
 
     @Override
-    public void preStore(Object r) {
+    public void preStore(Object r, boolean isNew) {
         //ignore
     }
 
     @Override
-    public void postStore(Object r) {
-        sendClearMessage(r, "store");
+    public void postStore(Object r, boolean isNew) {
+        if (!isNew) sendClearMessage(r, "store");
     }
 
     @Override
@@ -159,23 +173,23 @@ public class CacheSynchronizer implements MorphiumStorageListener, MessageListen
     public void preDrop(Class cls) {
     }
 
-    @Override
-    public void postListStore(List lst) {
-//        List<Class> toClear = new ArrayList<Class>();
-//        for (Object o : lst) {
-//            if (!toClear.contains(o.getClass())) {
-//                toClear.add(o.getClass());
-//            }
-//        }
-//        for (Class c : toClear) {
-//            sendClearMessage(c, "store");
-//        }
-        sendClearMessage(lst, "list store");
-    }
-
-    @Override
-    public void preListStore(List lst) {
-    }
+//    @Override
+//    public void postListStore(List<Object> lst, Map<Object, Boolean> isNew) {
+////        List<Class> toClear = new ArrayList<Class>();
+////        for (Object o : lst) {
+////            if (!toClear.contains(o.getClass())) {
+////                toClear.add(o.getClass());
+////            }
+////        }
+////        for (Class c : toClear) {
+////            sendClearMessage(c, "store");
+////        }
+//        sendClearMessage(lst, isNew,"list store");
+//    }
+//
+//    @Override
+//    public void preListStore(List<Object> lst, Map<Object,Boolean> isNew) {
+//    }
 
     @Override
     public void preRemove(Query q) {
@@ -208,7 +222,7 @@ public class CacheSynchronizer implements MorphiumStorageListener, MessageListen
             if (log.isDebugEnabled()) {
                 String action = m.getMsg();
                 String sender = m.getSender();
-                log.debug("Got message from " + sender + " - Action: " + action + " Class: " + m.getValue());
+                log.debug("Got message " + m.getName() + " from " + sender + " - Action: " + action + " Class: " + m.getValue());
             }
             if (m.getName().equals(CACHE_SYNC_TYPE)) {
                 if (m.getValue().equals("ALL")) {

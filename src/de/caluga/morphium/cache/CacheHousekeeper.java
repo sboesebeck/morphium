@@ -240,7 +240,7 @@ public class CacheHousekeeper extends Thread {
                         if (inIdCache) {
                             //remove objects from id cache
                             for (Object f : cache.get(cls).get(k).getFound()) {
-                                idCacheClone.remove(cls).remove(morphium.getId(f));
+                                idCacheClone.get(cls).remove(morphium.getId(f));
                             }
                         }
                         cache.get(cls).remove(k);

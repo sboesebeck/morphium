@@ -6,6 +6,9 @@ import de.caluga.morphium.Query;
 import org.apache.log4j.Logger;
 
 import java.util.*;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 
 /**
  * User: Stephan Bösebeck
@@ -28,6 +31,9 @@ public class Messaging extends Thread {
     private List<MessageListener> listeners;
     private Map<String, List<MessageListener>> listenerByName;
 
+    private ThreadPoolExecutor writers = new ThreadPoolExecutor(500, 1000,
+            10000L, TimeUnit.MILLISECONDS,
+            new LinkedBlockingQueue<Runnable>());
 
     public Messaging(Morphium m, int pause, boolean processMultiple) {
         morphium = m;
@@ -41,7 +47,8 @@ public class Messaging extends Thread {
 
         listeners = new Vector<MessageListener>();
         listenerByName = new Hashtable<String, List<MessageListener>>();
-//        start();
+        writers.setCorePoolSize(m.getConfig().getMaxConnections() / 2);
+        writers.setMaximumPoolSize(m.getConfig().getMaxConnections());
     }
 
     public void run() {
@@ -216,12 +223,17 @@ public class Messaging extends Thread {
         l.setMessaging(null);
     }
 
-    public void queueMessage(Msg m) {
+    public void queueMessage(final Msg m) {
         m.setSender(id);
         m.addProcessedId(id);
         m.setLockedBy(null);
         m.setLocked(0);
-        morphium.storeInBackground(m);
+        writers.execute(new Runnable() {
+            @Override
+            public void run() {
+                storeMessage(m);
+            }
+        });
     }
 
     public void storeMessage(Msg m) {
@@ -229,7 +241,7 @@ public class Messaging extends Thread {
         m.addProcessedId(id);
         m.setLockedBy(null);
         m.setLocked(0);
-        morphium.storeInBackground(m);
+        morphium.storeNoCache(m);
     }
 
     public boolean isAutoAnswer() {

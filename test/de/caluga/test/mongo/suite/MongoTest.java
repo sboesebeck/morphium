@@ -81,8 +81,11 @@ public class MongoTest {
     }
 
     public void waitForWrites() {
+        int count = 0;
         while (MorphiumSingleton.get().writeBufferCount() > 0) {
-//            log.info("...");
+            count++;
+            if (count % 200 == 0)
+                log.info("still " + MorphiumSingleton.get().writeBufferCount() + " writers active");
             try {
                 Thread.sleep(10);
             } catch (InterruptedException ex) {

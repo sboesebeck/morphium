@@ -38,11 +38,11 @@
     </logger>
 
     <logger name="de.caluga.morphium.messaging">
-        <level value="DEBUG"/>
+        <level value="INFO"/>
     </logger>
 
     <logger name="de.caluga.morphium.Morphium">
-        <level value="INFO"/>
+        <level value="WARN"/>
     </logger>
 
     <logger name="de.caluga.med">

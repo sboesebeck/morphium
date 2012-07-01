@@ -4,19 +4,17 @@
  */
 package de.caluga.morphium;
 
-import java.util.List;
-
 /**
  * @author stephan
  */
 public class StorageAdapter<T> implements MorphiumStorageListener<T> {
 
     @Override
-    public void preStore(T r) {
+    public void preStore(T r, boolean isNew) {
     }
 
     @Override
-    public void postStore(T r) {
+    public void postStore(T r, boolean isNew) {
     }
 
     @Override
@@ -35,14 +33,14 @@ public class StorageAdapter<T> implements MorphiumStorageListener<T> {
     public void preDrop(Class<T> cls) {
     }
 
-    @Override
-    public void postListStore(List<T> lst) {
-
-    }
-
-    @Override
-    public void preListStore(List<T> lst) {
-    }
+//    @Override
+//    public void postListStore(List<T> lst,Map<Object,Boolean> isNew) {
+//
+//    }
+//
+//    @Override
+//    public void preListStore(List<T> lst, Map<Object,Boolean> isNew) {
+//    }
 
     @Override
     public void preRemove(Query<T> q) {

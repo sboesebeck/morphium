@@ -58,8 +58,8 @@ public class Morphium {
     private MorphiumConfig config;
     private Mongo mongo;
     private DB database;
-    private ThreadPoolExecutor writers = new ThreadPoolExecutor(1, 1,
-            1000L, TimeUnit.MILLISECONDS,
+    private ThreadPoolExecutor writers = new ThreadPoolExecutor(100, 1000,
+            10000L, TimeUnit.MILLISECONDS,
             new LinkedBlockingQueue<Runnable>());
     //Cache by Type, query String -> CacheElement (contains list etc)
     private Hashtable<Class<? extends Object>, Hashtable<String, CacheElement>> cache;
@@ -117,6 +117,8 @@ public class Morphium {
         o.threadsAllowedToBlockForConnectionMultiplier = 5;
         o.safe = false;
 
+        writers.setCorePoolSize(config.getMaxConnections() / 2);
+        writers.setMaximumPoolSize(config.getMaxConnections());
 
         if (config.getAdr().isEmpty()) {
             throw new RuntimeException("Error - no server address specified!");
@@ -792,7 +794,7 @@ public class Morphium {
             storeNoCache(ent);
             return;
         }
-        firePreStoreEvent(ent);
+        firePreStoreEvent(ent, false);
         inc(StatisticKeys.WRITES);
         DBObject find = new BasicDBObject();
 
@@ -856,7 +858,7 @@ public class Morphium {
         }
 
         clearCacheIfNecessary(getRealClass(ent.getClass()));
-        firePostStoreEvent(ent);
+        firePostStoreEvent(ent, false);
     }
 
     /**
@@ -1042,22 +1044,22 @@ public class Morphium {
         return o;
     }
 
-    private void firePreStoreEvent(Object o) {
+    private void firePreStoreEvent(Object o, boolean isNew) {
         if (o == null) return;
         //Avoid concurrent modification exception
         List<MorphiumStorageListener> lst = (List<MorphiumStorageListener>) listeners.clone();
         for (MorphiumStorageListener l : lst) {
-            l.preStore(o);
+            l.preStore(o, isNew);
         }
         callLifecycleMethod(PreStore.class, o);
 
     }
 
-    private void firePostStoreEvent(Object o) {
+    private void firePostStoreEvent(Object o, boolean isNew) {
         //Avoid concurrent modification exception
         List<MorphiumStorageListener> lst = (List<MorphiumStorageListener>) listeners.clone();
         for (MorphiumStorageListener l : lst) {
-            l.postStore(o);
+            l.postStore(o, isNew);
         }
         callLifecycleMethod(PostStore.class, o);
         //existing object  => store last Access, if needed
@@ -1132,28 +1134,28 @@ public class Morphium {
         //TODO: Fix - cannot call lifecycle method
     }
 
-    private void firePreListStoreEvent(List records) {
-        //Avoid concurrent modification exception
-        List<MorphiumStorageListener> lst = (List<MorphiumStorageListener>) listeners.clone();
-        for (MorphiumStorageListener l : lst) {
-            l.preListStore(records);
-        }
-        for (Object o : records) {
-            callLifecycleMethod(PreStore.class, o);
-        }
-    }
+//    private void firePreListStoreEvent(List records, Map<Object,Boolean> isNew) {
+//        //Avoid concurrent modification exception
+//        List<MorphiumStorageListener> lst = (List<MorphiumStorageListener>) listeners.clone();
+//        for (MorphiumStorageListener l : lst) {
+//            l.preListStore(records,isNew);
+//        }
+//        for (Object o : records) {
+//            callLifecycleMethod(PreStore.class, o);
+//        }
+//    }
 
-    private void firePostListStoreEvent(List records) {
-        //Avoid concurrent modification exception
-        List<MorphiumStorageListener> lst = (List<MorphiumStorageListener>) listeners.clone();
-        for (MorphiumStorageListener l : lst) {
-            l.postListStore(records);
-        }
-        for (Object o : records) {
-            callLifecycleMethod(PostStore.class, o);
-        }
-
-    }
+//    private void firePostListStoreEvent(List records, Map<Object,Boolean> isNew) {
+//        //Avoid concurrent modification exception
+//        List<MorphiumStorageListener> lst = (List<MorphiumStorageListener>) listeners.clone();
+//        for (MorphiumStorageListener l : lst) {
+//            l.postListStore(records,isNew);
+//        }
+//        for (Object o : records) {
+//            callLifecycleMethod(PostStore.class, o);
+//        }
+//
+//    }
 
     /**
      * will be called by query after unmarshalling
@@ -1171,6 +1173,7 @@ public class Morphium {
     }
 
     public void storeNoCache(Object o) {
+        long start = System.currentTimeMillis();
         Class type = getRealClass(o.getClass());
         if (!isAnnotationPresentInHierarchy(type, Entity.class)) {
             throw new RuntimeException("Not an entity! Storing not possible!");
@@ -1190,13 +1193,12 @@ public class Morphium {
             logger.warn("Illegal Reference? - cannot store Lazy-Loaded / Partial Update Proxy without delegate!");
             return;
         }
-        firePreStoreEvent(o);
-
-        DBObject marshall = config.getMapper().marshall(o);
         boolean isNew = id == null;
+        firePreStoreEvent(o, isNew);
+        long dur = System.currentTimeMillis() - start;
+        DBObject marshall = config.getMapper().marshall(o);
 
         if (isNew) {
-
             //new object - need to store creation time
             if (isAnnotationPresentInHierarchy(type, StoreCreationTime.class)) {
                 List<String> lst = config.getMapper().getFields(type, CreationTime.class);
@@ -1271,8 +1273,11 @@ public class Morphium {
                 }
             }
         }
+
         String coll = config.getMapper().getCollectionName(type);
         if (!database.collectionExists(coll)) {
+            if (logger.isDebugEnabled())
+                logger.debug("Collection does not exist - ensuring indices");
             ensureIndicesFor(type);
         }
 
@@ -1282,6 +1287,14 @@ public class Morphium {
         } else {
 
             database.getCollection(coll).save(marshall);
+        }
+        dur = System.currentTimeMillis() - start;
+        if (logger.isDebugEnabled()) {
+            String n = "";
+            if (isNew) {
+                n = "NEW ";
+            }
+            logger.debug(n + "stored " + type.getSimpleName() + " after " + dur + " ms length:" + marshall.toString().length());
         }
         if (isNew) {
             List<String> flds = config.getMapper().getFields(o.getClass(), Id.class);
@@ -1303,7 +1316,7 @@ public class Morphium {
             }
         }
 
-        firePostStoreEvent(o);
+        firePostStoreEvent(o, isNew);
     }
 
     private WriteConcern getWriteConcernForClass(Class<?> cls) {
@@ -1312,15 +1325,76 @@ public class Morphium {
         return new WriteConcern(safety.level().getValue(), safety.timeout(), safety.waitForSync(), safety.waitForJournalCommit());
     }
 
-    public void storeNoCacheList(List o) {
+    public void storeNoCacheList(List lst) {
 
-        if (!o.isEmpty()) {
-            List<Class> clearCaches = new ArrayList<Class>();
-            firePreListStoreEvent(o);
-            for (Object c : o) {
-                storeNoCache(c);
+        if (!lst.isEmpty()) {
+            HashMap<Class, List<Object>> sorted = new HashMap<Class, List<Object>>();
+            HashMap<Object, Boolean> isNew = new HashMap<Object, Boolean>();
+            for (Object o : lst) {
+                Class type = getRealClass(o.getClass());
+                if (!isAnnotationPresentInHierarchy(type, Entity.class)) {
+                    logger.error("Not an entity! Storing not possible! Even not in list!");
+                    continue;
+                }
+                inc(StatisticKeys.WRITES);
+                ObjectId id = config.getMapper().getId(o);
+                if (isAnnotationPresentInHierarchy(type, PartialUpdate.class)) {
+                    //not part of list, acutally...
+                    if ((o instanceof PartiallyUpdateable)) {
+                        updateUsingFields(o, ((PartiallyUpdateable) o).getAlteredFields().toArray(new String[((PartiallyUpdateable) o).getAlteredFields().size()]));
+                        ((PartiallyUpdateable) o).clearAlteredFields();
+                        continue;
+                    }
+                }
+                o = getRealObject(o);
+                if (o == null) {
+                    logger.warn("Illegal Reference? - cannot store Lazy-Loaded / Partial Update Proxy without delegate!");
+                    return;
+                }
+
+                if (sorted.get(o.getClass()) == null) {
+                    sorted.put(o.getClass(), new ArrayList<Object>());
+                }
+                sorted.get(o.getClass()).add(o);
+                if (getId(o) == null) {
+                    isNew.put(o, true);
+                } else {
+                    isNew.put(o, false);
+                }
+                firePreStoreEvent(o, isNew.get(o));
             }
-            firePostListStoreEvent(o);
+
+//            firePreListStoreEvent(lst,isNew);
+            for (Class c : sorted.keySet()) {
+                ArrayList<DBObject> dbLst = new ArrayList<DBObject>();
+                //bulk insert... check if something already exists
+                WriteConcern wc = getWriteConcernForClass(c);
+                for (Object record : sorted.get(c)) {
+                    if (isNew.get(record)) {
+                        dbLst.add(config.getMapper().marshall(record));
+                    } else {
+                        if (wc == null) {
+                            database.getCollection(getConfig().getMapper().getCollectionName(c)).save(config.getMapper().marshall(record));
+                        } else {
+                            database.getCollection(getConfig().getMapper().getCollectionName(c)).save(config.getMapper().marshall(record), wc);
+                        }
+                        firePostStoreEvent(record, isNew.get(record));
+                    }
+
+                }
+
+                if (wc == null) {
+                    database.getCollection(getConfig().getMapper().getCollectionName(c)).insert(dbLst);
+                } else {
+                    database.getCollection(getConfig().getMapper().getCollectionName(c)).insert(dbLst, wc);
+                }
+                for (Object record : sorted.get(c)) {
+                    if (isNew.get(record)) {
+                        firePostStoreEvent(record, isNew.get(record));
+                    }
+                }
+            }
+//            firePostListStoreEvent(lst,isNew);
         }
     }
 

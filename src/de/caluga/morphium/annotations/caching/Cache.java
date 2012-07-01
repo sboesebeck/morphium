@@ -27,6 +27,8 @@ import static java.lang.annotation.ElementType.TYPE;
 public @interface Cache {
     enum ClearStrategy {LRU, FIFO, RANDOM}
 
+    enum SyncCacheStrategy {NONE, CLEAR_TYPE_CACHE, UPDATE_ENTRY}
+
     int timeout() default 60000;
 
     boolean overridable() default true;
@@ -41,12 +43,6 @@ public @interface Cache {
 
     boolean readCache() default true;
 
-    /**
-     * if cache synchronizer is used, tell it to synchronize the cache for this type
-     *
-     * @return
-     */
-    boolean autoSyncCache() default false;
+    SyncCacheStrategy syncCache() default SyncCacheStrategy.NONE;
 
-    boolean autoSyncCacheById() default false;
 }

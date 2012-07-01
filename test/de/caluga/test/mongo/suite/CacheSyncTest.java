@@ -3,6 +3,7 @@ package de.caluga.test.mongo.suite;
 import de.caluga.morphium.Morphium;
 import de.caluga.morphium.MorphiumSingleton;
 import de.caluga.morphium.Query;
+import de.caluga.morphium.annotations.caching.Cache;
 import de.caluga.morphium.cache.CacheSynchronizer;
 import de.caluga.morphium.messaging.Messaging;
 import de.caluga.morphium.messaging.Msg;
@@ -32,6 +33,7 @@ public class CacheSyncTest extends MongoTest {
         cnt = q.countAll();
         assert (cnt == 1) : "there should be one msg, there are " + cnt;
         msg.setRunning(false);
+        cs.detach();
     }
 
     @Test
@@ -64,6 +66,74 @@ public class CacheSyncTest extends MongoTest {
         assert (MorphiumSingleton.get().getStatistics().get(Morphium.StatisticKeys.CACHE_ENTRIES.name()) == 0) : "Cache entries not set?";
         msg1.setRunning(false);
         msg2.setRunning(false);
+        cs1.detach();
+        cs2.detach();
+    }
+
+    @Test
+    public void idCacheTest() throws Exception {
+        long start = System.currentTimeMillis();
+        for (int i = 0; i < 1000; i++) {
+            IdCachedObject o = new IdCachedObject();
+            o.setCounter(i);
+            o.setValue("a value");
+            MorphiumSingleton.get().store(o);
+        }
+        waitForWrites();
+        long dur = System.currentTimeMillis() - start;
+        log.info("Storing without synchronizer: " + dur + " ms");
+
+        start = System.currentTimeMillis();
+        for (int i = 0; i < 1000; i++) {
+            Query<IdCachedObject> q = MorphiumSingleton.get().createQueryFor(IdCachedObject.class);
+            IdCachedObject obj = (IdCachedObject) q.f("counter").eq(i).get();
+            obj.setCounter(i + 1000);
+            MorphiumSingleton.get().store(obj);
+        }
+        waitForWrites();
+        dur = System.currentTimeMillis() - start;
+        log.info("Updating without synchronizer: " + dur + " ms");
+
+
+        MorphiumSingleton.get().dropCollection(IdCachedObject.class);
+        Messaging msg1 = new Messaging(MorphiumSingleton.get(), 100, true);
+        msg1.start();
+
+        CacheSynchronizer cs1 = new CacheSynchronizer(msg1, MorphiumSingleton.get());
+        start = System.currentTimeMillis();
+        for (int i = 0; i < 100; i++) {
+            IdCachedObject o = new IdCachedObject();
+            o.setCounter(i);
+            o.setValue("a value");
+            MorphiumSingleton.get().store(o);
+        }
+        waitForWrites();
+        dur = System.currentTimeMillis() - start;
+        log.info("Storing with synchronizer: " + dur + " ms");
+
+
+        start = System.currentTimeMillis();
+        for (int i = 0; i < 100; i++) {
+            Query<IdCachedObject> q = MorphiumSingleton.get().createQueryFor(IdCachedObject.class);
+            IdCachedObject obj = (IdCachedObject) q.f("counter").eq(i).get();
+            obj.setCounter(i + 2000);
+            MorphiumSingleton.get().store(obj);
+        }
+        dur = System.currentTimeMillis() - start;
+        log.info("Updates queued... " + dur + "ms");
+        waitForWrites();
+        dur = System.currentTimeMillis() - start;
+        log.info("Updating with synchronizer: " + dur + " ms");
+
+
+        msg1.setRunning(false);
+        cs1.detach();
+
+    }
+
+
+    @Cache(readCache = true, writeCache = true, syncCache = Cache.SyncCacheStrategy.UPDATE_ENTRY)
+    public static class IdCachedObject extends CachedObject {
 
     }
 

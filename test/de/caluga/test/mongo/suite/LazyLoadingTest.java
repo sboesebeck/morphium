@@ -154,8 +154,9 @@ public class LazyLoadingTest extends MongoTest {
             lz.setName("Lazy " + i);
             lz.setLazyCached(co);
             lz.setLazyUncached(o);
+            log.info("Storing...");
             MorphiumSingleton.get().store(lz);
-
+            log.info("Stored object " + i + "/" + 200);
 
         }
         waitForWrites();

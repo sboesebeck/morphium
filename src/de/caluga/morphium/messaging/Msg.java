@@ -21,6 +21,7 @@ import java.util.*;
 //MAximumSecurity
 @WriteSafety(level = SafetyLevel.WAIT_FOR_SLAVES, timeout = 3000, waitForJournalCommit = true, waitForSync = true)
 @Lifecycle
+@Index({"sender,locked_by,lst_of_ids_already_procceed,to,-timestamp", "locked_by,lst_of_ids_already_procceed,to,timestamp"})
 public class Msg {
     public static enum Fields {
         lstOfIdsAlreadyProcessed,
@@ -40,9 +41,13 @@ public class Msg {
 
     @Id
     private ObjectId id;
+    @Index
     private List<String> lstOfIdsAlreadyProcessed;
+    @Index
     private String msgId;
+    @Index
     private String lockedBy;
+    @Index
     private long locked;
     private MsgType type;
     private long ttl;
@@ -55,7 +60,7 @@ public class Msg {
     private List<String> additional;
     private Map<String, Object> mapValue;
     private String value;
-
+    @Index
     private long timestamp;
 
     @Transient
