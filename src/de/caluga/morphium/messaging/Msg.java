@@ -272,8 +272,8 @@ public class Msg {
     @Override
     public String toString() {
         return "Msg{" +
+                " msgId='" + msgId + '\'' +
                 ", inAnswerTo='" + inAnswerTo + '\'' +
-                ", msgId='" + msgId + '\'' +
                 ", lockedBy='" + lockedBy + '\'' +
                 ", locked=" + locked +
                 ", type=" + type +

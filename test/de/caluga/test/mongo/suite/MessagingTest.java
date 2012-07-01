@@ -496,7 +496,8 @@ public class MessagingTest extends MongoTest {
                 assert (m.getInAnswerTo() != null) : "was not an answer? " + m.toString();
 
                 log.info("M3 got answer " + m.toString());
-                assert (m.getInAnswerTo().equals(lastMsgId)) : "Wrong answer????";
+                assert (lastMsgId != null) : "Last message == null?";
+                assert (m.getInAnswerTo().equals(lastMsgId)) : "Wrong answer????" + lastMsgId.toString() + " != " + m.getInAnswerTo().toString();
 //                assert (m.getSender().equals(m1.getSenderId())) : "Sender is not M1?!?!? m1_id: " + m1.getSenderId() + " - message sender: " + m.getSender();
                 return null;
             }
@@ -508,6 +509,7 @@ public class MessagingTest extends MongoTest {
         });
 
         Msg question = new Msg("QMsg", "This is the message text", "A question param");
+        question.setMsgId(new ObjectId());
         lastMsgId = question.getMsgId();
         onlyAnswers.storeMessage(question);
 
