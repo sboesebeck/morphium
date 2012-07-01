@@ -1,11 +1,14 @@
 package de.caluga.morphium;
 
 import com.mongodb.BasicDBList;
+import com.mongodb.DBRef;
 import de.caluga.morphium.annotations.Entity;
 import de.caluga.morphium.annotations.Reference;
 import org.bson.types.ObjectId;
 
+import java.lang.reflect.Field;
 import java.util.Collection;
+import java.util.List;
 import java.util.regex.Pattern;
 
 /**
@@ -58,16 +61,27 @@ public class MongoFieldImpl<T> implements MongoField<T> {
         if (val != null) {
             Class<?> cls = val.getClass();
             if (mapper.getMorphium().isAnnotationPresentInHierarchy(cls, Entity.class) || val instanceof ObjectId) {
-                if (mapper.getField(query.getType(), fldStr).isAnnotationPresent(Reference.class)) {
-                    //here - query value is an entity AND it is referenced by the query type
-                    //=> we need to compeare ID's
+                Field field = mapper.getField(query.getType(), fldStr);
+                if (field.isAnnotationPresent(Reference.class)) {
                     ObjectId id = null;
                     if (val instanceof ObjectId) {
                         id = (ObjectId) val;
                     } else {
                         id = mapper.getId(val);
                     }
-                    val = id;
+                    if (field.getType().isAssignableFrom(List.class)) {
+                        //list of references, this should be part of
+                        //
+                        //need to compare DBRefs
+                        DBRef ref = new DBRef(null, val.getClass().getName(), id);
+                        val = ref;
+                    } else {
+                        //Reference
+                        //here - query value is an entity AND it is referenced by the query type
+                        //=> we need to compeare ID's
+
+                        val = id;
+                    }
                 }
 
             }

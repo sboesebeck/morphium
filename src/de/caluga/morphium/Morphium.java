@@ -1030,19 +1030,23 @@ public class Morphium {
         DBCollection col = database.getCollection(getConfig().getMapper().getCollectionName(o.getClass()));
         BasicDBObject srch = new BasicDBObject("_id", id);
         DBCursor crs = col.find(srch).limit(1);
-        DBObject dbo = crs.next();
-        Object fromDb = getConfig().getMapper().unmarshall(o.getClass(), dbo);
-        List<String> flds = getFields(o.getClass());
-        for (String f : flds) {
-            Field fld = getConfig().getMapper().getField(o.getClass(), f);
-            try {
-                fld.set(o, fld.get(fromDb));
-            } catch (IllegalAccessException e) {
-                logger.error("Could not set Value: " + fld);
+        if (crs.hasNext()) {
+            DBObject dbo = crs.next();
+            Object fromDb = getConfig().getMapper().unmarshall(o.getClass(), dbo);
+            List<String> flds = getFields(o.getClass());
+            for (String f : flds) {
+                Field fld = getConfig().getMapper().getField(o.getClass(), f);
+                try {
+                    fld.set(o, fld.get(fromDb));
+                } catch (IllegalAccessException e) {
+                    logger.error("Could not set Value: " + fld);
+                }
             }
+
+        } else {
+            logger.info("Did not find object with id " + id);
+            return null;
         }
-
-
         return o;
     }
 
