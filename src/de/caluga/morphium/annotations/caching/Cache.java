@@ -31,7 +31,7 @@ public @interface Cache {
 
     int timeout() default 60000;
 
-    boolean overridable() default true;
+    boolean overridable() default false;
 
     boolean clearOnWrite() default true;
 
