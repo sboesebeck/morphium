@@ -83,8 +83,11 @@ public class CacheSynchronizer implements MorphiumStorageListener<Object>, Messa
     public void sendClearMessage(Object record, String reason, boolean isNew) {
         long start = System.currentTimeMillis();
         if (record.equals(Msg.class)) return;
+        ObjectId id = morphium.getId(record);
+
         Msg m = new Msg(CACHE_SYNC_RECORD, MsgType.MULTI, reason, record.getClass().getName(), 30000);
-        m.addAdditional(morphium.getId(record).toString());
+        if (id != null)
+            m.addAdditional(id.toString());
         if (record.equals(ConfigElement.class)) {
             messaging.queueMessage(m);
             return;
