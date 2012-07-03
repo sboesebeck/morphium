@@ -41,6 +41,15 @@ public class NameProviderTest extends MongoTest {
         assert (col.getCount() == 100) : "Error - did not store??" + col.getCount();
     }
 
+
+    @Test
+    public void overrideNameProviderTest() throws Exception {
+        MorphiumSingleton.get().clearCollection(UncachedObject.class);
+        MorphiumSingleton.get().getConfig().getMapper().setNameProviderForClass(UncachedObject.class, new MyNp());
+        String col = MorphiumSingleton.get().getConfig().getMapper().getCollectionName(UncachedObject.class);
+        assert (col.equals("UncachedObject_Test")) : "Error - name is wrong: " + col;
+    }
+
     public static class MyNp implements NameProvider {
         public MyNp() {
         }

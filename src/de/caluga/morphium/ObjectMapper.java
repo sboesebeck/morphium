@@ -61,4 +61,20 @@ public interface ObjectMapper {
     public void setMorphium(Morphium m);
 
     public List<Field> getAllFields(Class cls);
+
+    /**
+     * get current name provider for class
+     *
+     * @param cls
+     * @return configured name provider in @Entity or currently set one
+     */
+    public NameProvider getNameProviderForClass(Class<?> cls);
+
+    /**
+     * override settings vor name Provider from @Entity
+     *
+     * @param cls
+     * @param np  the name Provider to use
+     */
+    public void setNameProviderForClass(Class<?> cls, NameProvider np);
 }

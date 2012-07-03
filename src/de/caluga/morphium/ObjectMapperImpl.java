@@ -83,6 +83,28 @@ public class ObjectMapperImpl implements ObjectMapper {
         return b.toString();
     }
 
+    /**
+     * override nameprovider in runtime!
+     *
+     * @param cls
+     * @param np
+     */
+    public void setNameProviderForClass(Class<?> cls, NameProvider np) {
+        nameProviders.put(cls, np);
+    }
+
+    public NameProvider getNameProviderForClass(Class<?> cls) {
+        Entity e = morphium.getAnnotationFromHierarchy(cls, Entity.class);
+        if (e == null) {
+            throw new IllegalArgumentException("no entity annotation found");
+        }
+        try {
+            return getNameProviderForClass(cls, e);
+        } catch (Exception ex) {
+            log.error("Error getting nameProvider", ex);
+            throw new IllegalArgumentException("could not get name provicer", ex);
+        }
+    }
 
     private NameProvider getNameProviderForClass(Class<?> cls, Entity p) throws IllegalAccessException, InstantiationException {
         if (p == null) {
