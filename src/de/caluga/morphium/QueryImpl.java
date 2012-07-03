@@ -42,7 +42,7 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
 
     public QueryImpl(Morphium m) {
         morphium = m;
-        mapper = new ObjectMapperImpl(m);
+        mapper = m.getConfig().getMapper();
         andExpr = new Vector<FilterExpression>();
         orQueries = new Vector<Query<T>>();
         norQueries = new Vector<Query<T>>();

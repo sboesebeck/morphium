@@ -168,7 +168,11 @@ public class Morphium {
         cacheHousekeeper = new CacheHousekeeper(this, 5000, config.getGlobalCacheValidTime());
         cacheHousekeeper.start();
         config.getConfigManager().startCleanupThread();
-
+        if (config.getMapper() == null) {
+            config.setMapper(new ObjectMapperImpl(this));
+        } else {
+            config.getMapper().setMorphium(this);
+        }
         logger.info("Initialization successful...");
 
     }
