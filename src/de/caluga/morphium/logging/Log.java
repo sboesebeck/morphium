@@ -14,7 +14,7 @@ import java.util.List;
 /**
  * @author stephan
  */
-@Cache(clearOnWrite = false, maxEntries = 0, overridable = false, readCache = false, writeCache = true)
+@Cache(clearOnWrite = false, maxEntries = 0, readCache = false, writeCache = true)
 @Entity
 public class Log {
     @Id

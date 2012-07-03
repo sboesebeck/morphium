@@ -13,7 +13,7 @@ import org.bson.types.ObjectId;
 /**
  * @author stephan
  */
-@Cache(clearOnWrite = true, maxEntries = 20000, overridable = false, readCache = true, writeCache = true, strategy = Cache.ClearStrategy.LRU, syncCache = Cache.SyncCacheStrategy.CLEAR_TYPE_CACHE, timeout = 5000)
+@Cache(clearOnWrite = true, maxEntries = 20000, readCache = true, writeCache = true, strategy = Cache.ClearStrategy.LRU, syncCache = Cache.SyncCacheStrategy.CLEAR_TYPE_CACHE, timeout = 5000)
 @Entity
 
 public class CachedObject {

@@ -4,7 +4,6 @@
  */
 package de.caluga.morphium.cache;
 
-import de.caluga.morphium.ConfigElement;
 import de.caluga.morphium.Morphium;
 import de.caluga.morphium.annotations.caching.Cache;
 import de.caluga.morphium.annotations.caching.Cache.ClearStrategy;
@@ -33,31 +32,31 @@ public class CacheHousekeeper extends Thread {
         setDaemon(true);
 
         //Last use Configuration manager to read out cache configurations from Mongo!
-        Map<String, String> l = m.getConfig().getConfigManager().getMapSetting(MONGODBLAYER_CACHE);
-        if (l != null) {
-            for (String k : l.keySet()) {
-                String v = l.get(k);
-                if (k.endsWith("_max_entries")) {
-                    continue;
-                }
-                if (k.endsWith("_clear_strategy")) {
-                    continue;
-                }
-                try {
-                    Class<? extends Object> clz = Class.forName(k);
-                    Integer tm = Integer.parseInt(v);
-                    validTimeForClass.put(clz, tm);
-                } catch (Exception e) {
-                    log.error("Error", e);
-                }
-            }
-        } else {
-            ConfigElement e = new ConfigElement();
-            e.setMapValue(new Hashtable<String, String>());
-            e.setName(MONGODBLAYER_CACHE);
-//			morphium.getConfig().getConfigManager().addSetting("mongodblayer.cache", new Hashtable<String,String>());
-            morphium.getConfig().getConfigManager().storeSetting(e);
-        }
+//        Map<String, String> l = m.getConfig().getConfigManager().getMapSetting(MONGODBLAYER_CACHE);
+//        if (l != null) {
+//            for (String k : l.keySet()) {
+//                String v = l.get(k);
+//                if (k.endsWith("_max_entries")) {
+//                    continue;
+//                }
+//                if (k.endsWith("_clear_strategy")) {
+//                    continue;
+//                }
+//                try {
+//                    Class<? extends Object> clz = Class.forName(k);
+//                    Integer tm = Integer.parseInt(v);
+//                    validTimeForClass.put(clz, tm);
+//                } catch (Exception e) {
+//                    log.error("Error", e);
+//                }
+//            }
+//        } else {
+//            ConfigElement e = new ConfigElement();
+//            e.setMapValue(new Hashtable<String, String>());
+//            e.setName(MONGODBLAYER_CACHE);
+////			morphium.getConfig().getConfigManager().addSetting("mongodblayer.cache", new Hashtable<String,String>());
+//            morphium.getConfig().getConfigManager().storeSetting(e);
+//        }
     }
 
     public void setValidCacheTime(Class<? extends Object> cls, int timeout) {
@@ -95,45 +94,45 @@ public class CacheHousekeeper extends Thread {
                             maxEntries = cacheSettings.maxEntries();
                             strategy = cacheSettings.strategy();
 
-                            if (cacheSettings.overridable()) {
-                                ConfigElement setting = morphium.getConfig().getConfigManager().getConfigElement(MONGODBLAYER_CACHE);
-                                Map<String, String> map = setting.getMapValue();
-                                String v = null;
-                                if (map != null) {
-                                    v = map.get(clz.getName());
-                                }
-                                if (v == null) {
-                                    if (map == null) {
-                                        map = new Hashtable<String, String>();
-                                        setting.setMapValue(map);
-                                    }
-                                    setting.getMapValue().put(clz.getName(), "" + time);
-                                    setting.getMapValue().put(clz.getName() + "_max_entries", maxEntries + "");
-                                    setting.getMapValue().put(clz.getName() + "_clear_strategy", strategy.name());
-                                    morphium.getConfig().getConfigManager().storeSetting(setting);
-                                } else {
-                                    try {
-                                        time = Integer.parseInt(setting.getMapValue().get(clz.getName()));
-
-                                    } catch (Exception e1) {
-                                        Logger.getLogger("MongoDbLayer").warn("Timout could not be parsed for class " + clz.getName());
-                                    }
-                                    try {
-                                        maxEntries = Integer.parseInt(setting.getMapValue().get(clz.getName() + "_max_entries"));
-                                    } catch (Exception e1) {
-                                        Logger.getLogger("MongoDbLayer").warn("Max Entries could not be parsed for class " + clz.getName() + " Using " + maxEntries);
-                                        setting.getMapValue().put(clz.getName() + "_max_entries", "" + maxEntries);
-                                        morphium.getConfig().getConfigManager().storeSetting(setting);
-                                    }
-                                    try {
-                                        strategy = ClearStrategy.valueOf(setting.getMapValue().get(clz.getName() + "_clear_strategy"));
-                                    } catch (Exception e2) {
-                                        Logger.getLogger("MongoDbLayer").warn("STrategycould not be parsed for class " + clz.getName() + " Using " + strategy.name());
-                                        setting.getMapValue().put(clz.getName() + "_clear_strategy", strategy.name());
-                                        morphium.getConfig().getConfigManager().storeSetting(setting);
-                                    }
-                                }
-                            }
+//                            if (cacheSettings.overridable()) {
+//                                ConfigElement setting = morphium.getConfig().getConfigManager().getConfigElement(MONGODBLAYER_CACHE);
+//                                Map<String, String> map = setting.getMapValue();
+//                                String v = null;
+//                                if (map != null) {
+//                                    v = map.get(clz.getName());
+//                                }
+//                                if (v == null) {
+//                                    if (map == null) {
+//                                        map = new Hashtable<String, String>();
+//                                        setting.setMapValue(map);
+//                                    }
+//                                    setting.getMapValue().put(clz.getName(), "" + time);
+//                                    setting.getMapValue().put(clz.getName() + "_max_entries", maxEntries + "");
+//                                    setting.getMapValue().put(clz.getName() + "_clear_strategy", strategy.name());
+//                                    morphium.getConfig().getConfigManager().storeSetting(setting);
+//                                } else {
+//                                    try {
+//                                        time = Integer.parseInt(setting.getMapValue().get(clz.getName()));
+//
+//                                    } catch (Exception e1) {
+//                                        Logger.getLogger("MongoDbLayer").warn("Timout could not be parsed for class " + clz.getName());
+//                                    }
+//                                    try {
+//                                        maxEntries = Integer.parseInt(setting.getMapValue().get(clz.getName() + "_max_entries"));
+//                                    } catch (Exception e1) {
+//                                        Logger.getLogger("MongoDbLayer").warn("Max Entries could not be parsed for class " + clz.getName() + " Using " + maxEntries);
+//                                        setting.getMapValue().put(clz.getName() + "_max_entries", "" + maxEntries);
+//                                        morphium.getConfig().getConfigManager().storeSetting(setting);
+//                                    }
+//                                    try {
+//                                        strategy = ClearStrategy.valueOf(setting.getMapValue().get(clz.getName() + "_clear_strategy"));
+//                                    } catch (Exception e2) {
+//                                        Logger.getLogger("MongoDbLayer").warn("STrategycould not be parsed for class " + clz.getName() + " Using " + strategy.name());
+//                                        setting.getMapValue().put(clz.getName() + "_clear_strategy", strategy.name());
+//                                        morphium.getConfig().getConfigManager().storeSetting(setting);
+//                                    }
+//                                }
+//                            }
                             if (validTimeForClass.get(clz) == null) {
                                 validTimeForClass.put(clz, time);
                             }
