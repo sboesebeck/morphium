@@ -41,6 +41,14 @@ public class BasicFunctionalityTest extends MongoTest {
         List<UncachedObject> lst2 = q.asList();
         assert (lst2.get(0).getValue().equals(lst2.get(1).getValue()));
         log.info("Sorted");
+
+        q = MorphiumSingleton.get().createQueryFor(UncachedObject.class);
+        q = q.f("counter").gt(0).limit(5).sort("-counter");
+        int st = q.asList().size();
+        q = MorphiumSingleton.get().createQueryFor(UncachedObject.class);
+        q = q.f("counter").gt(0).sort("-counter").limit(5);
+        assert (st == q.asList().size()) : "List length differ?";
+
     }
 
     @Test

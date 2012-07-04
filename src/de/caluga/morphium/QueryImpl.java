@@ -223,6 +223,12 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
         return this;
     }
 
+    /**
+     * this does not check for existence of the Field! Key in the map can be any text
+     *
+     * @param n
+     * @return
+     */
     @Override
     public Query<T> sort(Map<String, Integer> n) {
         order = n;
@@ -242,6 +248,9 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
                 fld = i.substring(1);
                 val = 1;
             }
+            if (!fld.contains(".")) {
+                fld = mapper.getFieldName(type, fld);
+            }
             m.put(fld, val);
         }
         return sort(m);
@@ -251,7 +260,7 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
     public Query<T> sort(Enum... naturalOrder) {
         Map<String, Integer> m = new LinkedHashMap<String, java.lang.Integer>();
         for (Enum i : naturalOrder) {
-            String fld = i.name();
+            String fld = mapper.getFieldName(type, i.name());
             m.put(fld, 1);
         }
         return sort(m);
