@@ -4,9 +4,9 @@
  */
 package de.caluga.test.mongo.suite;
 
-import de.caluga.morphium.Morphium;
 import de.caluga.morphium.MorphiumSingleton;
 import de.caluga.morphium.Query;
+import de.caluga.morphium.StatisticKeys;
 import org.apache.log4j.Logger;
 import org.junit.Test;
 
@@ -215,7 +215,7 @@ public class BasicFunctionalityTest extends MongoTest {
         }
         dur = System.currentTimeMillis() - start;
         log.info("Searching  took " + dur + " ms");
-        log.info("Cache Hits Percentage: " + MorphiumSingleton.get().getStatistics().get(Morphium.StatisticKeys.CHITSPERC) + "%");
+        log.info("Cache Hits Percentage: " + MorphiumSingleton.get().getStatistics().get(StatisticKeys.CHITSPERC) + "%");
     }
 
 
@@ -275,7 +275,7 @@ public class BasicFunctionalityTest extends MongoTest {
         }
 
         q = MorphiumSingleton.get().createQueryFor(CachedObject.class);
-        q = q.f("counter").gt(5).order("counter,-value");
+        q = q.f("counter").gt(5).sort("counter,-value");
         t = q.toString();
         q = MorphiumSingleton.get().createQueryFor(CachedObject.class);
         q = q.f("counter").gt(5);

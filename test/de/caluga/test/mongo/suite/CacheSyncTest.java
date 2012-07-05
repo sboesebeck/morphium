@@ -1,8 +1,8 @@
 package de.caluga.test.mongo.suite;
 
-import de.caluga.morphium.Morphium;
 import de.caluga.morphium.MorphiumSingleton;
 import de.caluga.morphium.Query;
+import de.caluga.morphium.StatisticKeys;
 import de.caluga.morphium.annotations.caching.Cache;
 import de.caluga.morphium.cache.CacheSynchronizer;
 import de.caluga.morphium.messaging.Messaging;
@@ -51,13 +51,13 @@ public class CacheSyncTest extends MongoTest {
             c = c.f("counter").eq(i);
             c.asList();
         }
-        assert (MorphiumSingleton.get().getStatistics().get(Morphium.StatisticKeys.CACHE_ENTRIES.name()) != null) : "Cache entries not set?";
-        assert (MorphiumSingleton.get().getStatistics().get(Morphium.StatisticKeys.CACHE_ENTRIES.name()) == 100) : "Cache entries not set?";
+        assert (MorphiumSingleton.get().getStatistics().get(StatisticKeys.CACHE_ENTRIES.name()) != null) : "Cache entries not set?";
+        assert (MorphiumSingleton.get().getStatistics().get(StatisticKeys.CACHE_ENTRIES.name()) == 100) : "Cache entries not set?";
         Query<CachedObject> c = MorphiumSingleton.get().createQueryFor(CachedObject.class);
         c = c.f("counter").eq(10);
         ObjectId id = c.get().getId();
         MorphiumSingleton.get().removeEntryFromCache(CachedObject.class, id);
-        assert (MorphiumSingleton.get().getStatistics().get(Morphium.StatisticKeys.CACHE_ENTRIES.name()) == 99) : "Cache entries not set?";
+        assert (MorphiumSingleton.get().getStatistics().get(StatisticKeys.CACHE_ENTRIES.name()) == 99) : "Cache entries not set?";
 
     }
 
@@ -85,10 +85,10 @@ public class CacheSyncTest extends MongoTest {
             c.asList();
         }
         System.out.println("Stats " + MorphiumSingleton.get().getStatistics().toString());
-        assert (MorphiumSingleton.get().getStatistics().get(Morphium.StatisticKeys.CACHE_ENTRIES.name()) != null) : "Cache entries not set?";
+        assert (MorphiumSingleton.get().getStatistics().get(StatisticKeys.CACHE_ENTRIES.name()) != null) : "Cache entries not set?";
         cs1.sendClearMessage("ALL", "test");
         Thread.sleep(1500);
-        assert (MorphiumSingleton.get().getStatistics().get(Morphium.StatisticKeys.CACHE_ENTRIES.name()) == 0) : "Cache entries not set?";
+        assert (MorphiumSingleton.get().getStatistics().get(StatisticKeys.CACHE_ENTRIES.name()) == 0) : "Cache entries not set?";
         msg1.setRunning(false);
         msg2.setRunning(false);
         cs1.detach();

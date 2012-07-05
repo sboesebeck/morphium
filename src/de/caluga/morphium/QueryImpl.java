@@ -271,7 +271,7 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
         if (morphium.accessDenied(type, Permission.READ)) {
             throw new RuntimeException("Access denied!");
         }
-        morphium.inc(Morphium.StatisticKeys.READS);
+        morphium.inc(StatisticKeys.READS);
         return morphium.getDatabase().getCollection(mapper.getCollectionName(type)).count(toQueryObject());
     }
 
@@ -339,19 +339,19 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
         if (morphium.accessDenied(type, Permission.READ)) {
             throw new RuntimeException("Access denied!");
         }
-        morphium.inc(Morphium.StatisticKeys.READS);
+        morphium.inc(StatisticKeys.READS);
         Cache c = morphium.getAnnotationFromHierarchy(type, Cache.class); //type.getAnnotation(Cache.class);
         boolean useCache = c != null && c.readCache();
 
         String ck = morphium.getCacheKey(this);
         if (useCache) {
             if (morphium.isCached(type, ck)) {
-                morphium.inc(Morphium.StatisticKeys.CHITS);
+                morphium.inc(StatisticKeys.CHITS);
                 return morphium.getFromCache(type, ck);
             }
-            morphium.inc(Morphium.StatisticKeys.CMISS);
+            morphium.inc(StatisticKeys.CMISS);
         } else {
-            morphium.inc(Morphium.StatisticKeys.NO_CACHED_READS);
+            morphium.inc(StatisticKeys.NO_CACHED_READS);
 
         }
 
@@ -436,10 +436,10 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
         Cache c = morphium.getAnnotationFromHierarchy(type, Cache.class); //type.getAnnotation(Cache.class);
         boolean readCache = c != null && c.readCache();
         String ck = morphium.getCacheKey(this);
-        morphium.inc(Morphium.StatisticKeys.READS);
+        morphium.inc(StatisticKeys.READS);
         if (readCache) {
             if (morphium.isCached(type, ck)) {
-                morphium.inc(Morphium.StatisticKeys.CHITS);
+                morphium.inc(StatisticKeys.CHITS);
                 List<T> lst = morphium.getFromCache(type, ck);
                 if (lst == null || lst.isEmpty()) {
                     return null;
@@ -448,9 +448,9 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
                 }
 
             }
-            morphium.inc(Morphium.StatisticKeys.CMISS);
+            morphium.inc(StatisticKeys.CMISS);
         } else {
-            morphium.inc(Morphium.StatisticKeys.NO_CACHED_READS);
+            morphium.inc(StatisticKeys.NO_CACHED_READS);
         }
 
         DBCursor srch = morphium.getDatabase().getCollection(mapper.getCollectionName(type)).find(toQueryObject());
@@ -495,17 +495,17 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
         List<ObjectId> ret = new ArrayList<ObjectId>();
         String ck = morphium.getCacheKey(this);
         ck += " idlist";
-        morphium.inc(Morphium.StatisticKeys.READS);
+        morphium.inc(StatisticKeys.READS);
         if (readCache) {
 
             if (morphium.isCached(type, ck)) {
-                morphium.inc(Morphium.StatisticKeys.CHITS);
+                morphium.inc(StatisticKeys.CHITS);
                 //casts are not nice... any idea how to change that?
                 return (List<ObjectId>) morphium.getFromCache(type, ck);
             }
-            morphium.inc(Morphium.StatisticKeys.CMISS);
+            morphium.inc(StatisticKeys.CMISS);
         } else {
-            morphium.inc(Morphium.StatisticKeys.NO_CACHED_READS);
+            morphium.inc(StatisticKeys.NO_CACHED_READS);
         }
         DBCursor query = morphium.getDatabase().getCollection(mapper.getCollectionName(type)).find(toQueryObject(), new BasicDBObject("_id", 1)); //only get IDs
         if (order != null) {

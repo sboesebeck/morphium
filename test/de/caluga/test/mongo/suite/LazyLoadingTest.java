@@ -1,8 +1,8 @@
 package de.caluga.test.mongo.suite;
 
-import de.caluga.morphium.Morphium;
 import de.caluga.morphium.MorphiumSingleton;
 import de.caluga.morphium.Query;
+import de.caluga.morphium.StatisticKeys;
 import org.bson.types.ObjectId;
 import org.junit.Test;
 
@@ -98,7 +98,7 @@ public class LazyLoadingTest extends MongoTest {
         assert (lzRead != null) : "Not found????";
         log.info("LZRead: " + lzRead.getClass().getName());
         assert (!lzRead.getClass().getName().contains("$EnhancerByCGLIB$")) : "Lazy loader in Root-Object?";
-        Double rd = MorphiumSingleton.get().getStatistics().get(Morphium.StatisticKeys.READS.name());
+        Double rd = MorphiumSingleton.get().getStatistics().get(StatisticKeys.READS.name());
         if (rd == null) rd = 0.0;
         //Field f=MorphiumSingleton.get().getConfig().getMapper().getField(LazyLoadingObject.class,"lazy_uncached");
 
@@ -107,17 +107,17 @@ public class LazyLoadingTest extends MongoTest {
         assert (lzRead.getLazyUncached().getClass().getName().contains("$EnhancerByCGLIB$")) : "Not lazy loader?";
 
         assert (cnt == o.getCounter()) : "Counter not equal";
-        double rd2 = MorphiumSingleton.get().getStatistics().get(Morphium.StatisticKeys.READS.name());
+        double rd2 = MorphiumSingleton.get().getStatistics().get(StatisticKeys.READS.name());
         assert (rd2 > rd) : "No read?";
 
-        rd = MorphiumSingleton.get().getStatistics().get(Morphium.StatisticKeys.READS.name());
-        double crd = MorphiumSingleton.get().getStatistics().get(Morphium.StatisticKeys.CACHE_ENTRIES.name());
+        rd = MorphiumSingleton.get().getStatistics().get(StatisticKeys.READS.name());
+        double crd = MorphiumSingleton.get().getStatistics().get(StatisticKeys.CACHE_ENTRIES.name());
         cnt = lzRead.getLazyCached().getCounter();
         assert (cnt == co.getCounter()) : "Counter (cached) not equal";
-        rd2 = MorphiumSingleton.get().getStatistics().get(Morphium.StatisticKeys.READS.name());
-        assert (MorphiumSingleton.get().getStatistics().get(Morphium.StatisticKeys.CACHE_ENTRIES.name()) > crd) : "Not cached?";
+        rd2 = MorphiumSingleton.get().getStatistics().get(StatisticKeys.READS.name());
+        assert (MorphiumSingleton.get().getStatistics().get(StatisticKeys.CACHE_ENTRIES.name()) > crd) : "Not cached?";
         assert (rd2 > rd) : "No read?";
-        log.info("Cache Entries:" + MorphiumSingleton.get().getStatistics().get(Morphium.StatisticKeys.CACHE_ENTRIES.name()));
+        log.info("Cache Entries:" + MorphiumSingleton.get().getStatistics().get(StatisticKeys.CACHE_ENTRIES.name()));
 
         assert (lzRead.getLazyLst().size() == lz.getLazyLst().size()) : "List sizes differ?!?!";
         for (UncachedObject uc : lzRead.getLazyLst()) {

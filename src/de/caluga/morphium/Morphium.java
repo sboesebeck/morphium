@@ -16,8 +16,6 @@ import de.caluga.morphium.secure.MongoSecurityException;
 import de.caluga.morphium.secure.MongoSecurityManager;
 import de.caluga.morphium.secure.Permission;
 import net.sf.cglib.proxy.Enhancer;
-import net.sf.cglib.proxy.MethodInterceptor;
-import net.sf.cglib.proxy.MethodProxy;
 import org.apache.log4j.Logger;
 import org.bson.types.ObjectId;
 
@@ -36,7 +34,7 @@ import java.util.concurrent.TimeUnit;
  *
  * @author stephan
  */
-public class Morphium {
+public final class Morphium {
 
     /**
      * singleton is usually not a good idea in j2ee-Context, but as we did it on
@@ -1905,7 +1903,7 @@ public class Morphium {
     /////
     ///
     public Map<String, Double> getStatistics() {
-        return new StatisticsMap();
+        return new Statistics(this);
     }
 
     public void removeEntryFromCache(Class cls, ObjectId id) {
@@ -1934,84 +1932,10 @@ public class Morphium {
         setIdCache(idc);
     }
 
-    public enum StatisticKeys {
-
-        WRITES, WRITES_CACHED, READS, CHITS, CMISS, NO_CACHED_READS, CHITSPERC, CMISSPERC, CACHE_ENTRIES, WRITE_BUFFER_ENTRIES
+    public Map<StatisticKeys, StatisticValue> getStats() {
+        return stats;
     }
 
-    public static class StatisticValue {
-
-        private long value = 0;
-
-        public void inc() {
-            value++;
-        }
-
-        public void dec() {
-            value--;
-        }
-
-        public long get() {
-            return value;
-        }
-    }
-
-    private class StatisticsMap extends Hashtable<String, Double> {
-
-        /**
-         *
-         */
-        private static final long serialVersionUID = -2831335094438480701L;
-
-        @SuppressWarnings("rawtypes")
-        public StatisticsMap() {
-            for (StatisticKeys k : stats.keySet()) {
-                super.put(k.name(), (double) stats.get(k).get());
-            }
-            double entries = 0;
-            for (Class k : cache.keySet()) {
-                entries += cache.get(k).size();
-                super.put("X-Entries for: " + k.getName(), (double) cache.get(k).size());
-            }
-            super.put(StatisticKeys.CACHE_ENTRIES.name(), entries);
-
-            entries = 0;
-
-            super.put(StatisticKeys.WRITE_BUFFER_ENTRIES.name(), Double.valueOf((double) writeBufferCount()));
-            super.put(StatisticKeys.CHITSPERC.name(), ((double) stats.get(StatisticKeys.CHITS).get()) / (stats.get(StatisticKeys.READS).get() - stats.get(StatisticKeys.NO_CACHED_READS).get()) * 100.0);
-            super.put(StatisticKeys.CMISSPERC.name(), ((double) stats.get(StatisticKeys.CMISS).get()) / (stats.get(StatisticKeys.READS).get() - stats.get(StatisticKeys.NO_CACHED_READS).get()) * 100.0);
-        }
-
-        @Override
-        public synchronized Double put(String arg0, Double arg1) {
-            throw new RuntimeException("not allowed!");
-        }
-
-        @Override
-        public synchronized void putAll(@SuppressWarnings("rawtypes") Map arg0) {
-            throw new RuntimeException("not allowed");
-        }
-
-        @Override
-        public synchronized Double remove(Object arg0) {
-            throw new RuntimeException("not allowed");
-        }
-
-        @Override
-        public String toString() {
-            StringBuffer b = new StringBuffer();
-            String[] lst = keySet().toArray(new String[keySet().size()]);
-            Arrays.sort(lst);
-            for (String k : lst) {
-                b.append("- ");
-                b.append(k);
-                b.append("\t");
-                b.append(get(k));
-                b.append("\n");
-            }
-            return b.toString();
-        }
-    }
 
     public void addShutdownListener(ShutdownListener l) {
         shutDownListeners.add(l);
@@ -2058,11 +1982,11 @@ public class Morphium {
      * @return
      */
     public <T> T createPartiallyUpdateableEntity(T o) {
-        return (T) Enhancer.create(o.getClass(), new Class[]{PartiallyUpdateable.class, Serializable.class}, new PartiallyUpdateableInvocationHandler(o));
+        return (T) Enhancer.create(o.getClass(), new Class[]{PartiallyUpdateable.class, Serializable.class}, new PartiallyUpdateableProxy(this, o));
     }
 
     public <T> T createLazyLoadedEntity(Class<T> cls, ObjectId id) {
-        return (T) Enhancer.create(cls, new Class[]{Serializable.class}, new LazyDeReferencingHandler(cls, id));
+        return (T) Enhancer.create(cls, new Class[]{Serializable.class}, new LazyDeReferencingProxy(this, cls, id));
     }
 
     protected <T> MongoField<T> createMongoField() {
@@ -2073,118 +1997,6 @@ public class Morphium {
         } catch (IllegalAccessException e) {
             throw new RuntimeException(e);
         }
-    }
-
-    /**
-     * CGLib Interceptor to create a transparent Proxy for partially updateable Entities
-     */
-    private class PartiallyUpdateableInvocationHandler<T> implements MethodInterceptor, PartiallyUpdateable, Serializable {
-        private List<String> updateableFields;
-        private T reference;
-
-        public PartiallyUpdateableInvocationHandler(T o) {
-            updateableFields = new Vector<String>();
-            reference = o;
-        }
-
-        public T __getDeref() {
-            //do nothing - will be intercepted
-            return reference;
-        }
-
-        @Override
-        public List<String> getAlteredFields() {
-            return updateableFields;
-        }
-
-        @Override
-        public void clearAlteredFields() {
-            updateableFields.clear();
-        }
-
-        @Override
-        public Object intercept(Object o, Method method, Object[] objects, MethodProxy methodProxy) throws Throwable {
-            if (method.getName().startsWith("set") || method.isAnnotationPresent(PartialUpdate.class)) {
-                PartialUpdate up = method.getAnnotation(PartialUpdate.class);
-                if (up != null) {
-                    if (!getFields(o.getClass()).contains(up.value())) {
-                        throw new IllegalArgumentException("Field " + up.value() + " is not known to Type " + o.getClass().getName());
-                    }
-                    updateableFields.add(up.value());
-                } else {
-                    String n = method.getName().substring(3);
-                    n = n.substring(0, 1).toLowerCase() + n.substring(1);
-                    updateableFields.add(n);
-                }
-            }
-            if (method.getName().equals("getAlteredFields")) {
-                return getAlteredFields();
-            }
-            if (method.getName().equals("clearAlteredFields")) {
-                clearAlteredFields();
-                return null;
-            }
-            if (method.getName().equals("__getType")) {
-                return reference.getClass();
-            }
-            if (method.getName().equals("__getDeref")) {
-                return reference;
-            }
-            return method.invoke(reference, objects);
-//            return methodProxy.invokeSuper(reference, objects);
-        }
-    }
-
-    // Lazy loading / DeReferencing of References
-    private class LazyDeReferencingHandler<T> implements MethodInterceptor, Serializable {
-        private T deReferenced;
-        private Class<T> cls;
-        private ObjectId id;
-
-        public LazyDeReferencingHandler(Class type, ObjectId id) {
-            cls = type;
-            this.id = id;
-        }
-
-        public T __getDeref() {
-            try {
-                dereference();
-            } catch (Throwable throwable) {
-            }
-            return deReferenced;
-        }
-
-        @Override
-        public Object intercept(Object o, Method method, Object[] objects, MethodProxy methodProxy) throws Throwable {
-//            if (method.getName().equals("getClass")) {
-//                return cls;
-//            }
-            if (method.getName().equals("__getType")) {
-                return cls;
-            }
-            if (method.getName().equals("finalize")) {
-                return methodProxy.invokeSuper(o, objects);
-            }
-
-            dereference();
-            if (method.getName().equals("__getDeref")) {
-                return deReferenced;
-            }
-            if (deReferenced != null) {
-                return method.invoke(deReferenced, objects);
-            }
-            return methodProxy.invokeSuper(o, objects);
-
-        }
-
-        private void dereference() throws Throwable {
-            if (deReferenced == null) {
-                if (logger.isDebugEnabled())
-                    logger.debug("DeReferencing due to first access");
-                deReferenced = (T) findById(cls, id);
-            }
-        }
-
     }
 
     public String getLastChangeField(Class<?> cls) {
