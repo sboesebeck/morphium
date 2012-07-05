@@ -159,7 +159,7 @@ public class Morphium {
                 throw new RuntimeException("Authentication failed!");
             }
         }
-        int cnt = database.getCollection("system.indexes").find().count(); //test connection
+//        int cnt = database.getCollection("system.indexes").find().count(); //test connection
 
         if (config.getConfigManager() == null) {
             config.setConfigManager(new ConfigManagerImpl());
@@ -352,8 +352,8 @@ public class Morphium {
 
     public void setEnum(Query<?> query, Map<Enum, Object> values, boolean insertIfNotExist, boolean multiple) {
         HashMap<String, Object> toSet = new HashMap<String, Object>();
-        for (Enum k : values.keySet()) {
-            toSet.put(k.name(), values.get(k));
+        for (Map.Entry<Enum, Object> est : values.entrySet()) {
+            toSet.put(est.getKey().name(), values.get(est.getValue()));
         }
         set(query, toSet, insertIfNotExist, multiple);
     }
@@ -423,6 +423,11 @@ public class Morphium {
         BasicDBObject set = new BasicDBObject(field, value);
         BasicDBObject update = new BasicDBObject(push ? "$push" : "$pull", set);
 
+        pushIt(push, insertIfNotExist, multiple, cls, coll, qobj, update);
+
+    }
+
+    private void pushIt(boolean push, boolean insertIfNotExist, boolean multiple, Class<?> cls, String coll, DBObject qobj, BasicDBObject update) {
         if (!database.collectionExists(coll) && insertIfNotExist) {
             ensureIndicesFor(cls);
         }
@@ -434,7 +439,6 @@ public class Morphium {
         }
         clearCacheIfNecessary(cls);
         firePostUpdateEvent(getRealClass(cls), push ? MorphiumStorageListener.UpdateTypes.PUSH : MorphiumStorageListener.UpdateTypes.PULL);
-
     }
 
     private void pushPullAll(boolean push, Query<?> query, String field, List<Object> value, boolean insertIfNotExist, boolean multiple) {
@@ -452,17 +456,7 @@ public class Morphium {
         field = config.getMapper().getFieldName(cls, field);
         BasicDBObject set = new BasicDBObject(field, value);
         BasicDBObject update = new BasicDBObject(push ? "$pushAll" : "$pullAll", set);
-        if (!database.collectionExists(coll) && insertIfNotExist) {
-            ensureIndicesFor(cls);
-        }
-        WriteConcern wc = getWriteConcernForClass(cls);
-        if (wc == null) {
-            database.getCollection(coll).update(qobj, update, insertIfNotExist, multiple);
-        } else {
-            database.getCollection(coll).update(qobj, update, insertIfNotExist, multiple, wc);
-        }
-        clearCacheIfNecessary(cls);
-        firePostUpdateEvent(getRealClass(cls), push ? MorphiumStorageListener.UpdateTypes.PUSH : MorphiumStorageListener.UpdateTypes.PULL);
+        pushIt(push, insertIfNotExist, multiple, cls, coll, qobj, update);
     }
 
     /**
@@ -481,9 +475,9 @@ public class Morphium {
         String coll = config.getMapper().getCollectionName(cls);
         firePreUpdateEvent(getRealClass(cls), MorphiumStorageListener.UpdateTypes.SET);
         BasicDBObject toSet = new BasicDBObject();
-        for (String f : values.keySet()) {
-            String fieldName = getFieldName(cls, f);
-            toSet.put(fieldName, values.get(f));
+        for (Map.Entry<String, Object> ef : values.entrySet()) {
+            String fieldName = getFieldName(cls, ef.getKey());
+            toSet.put(fieldName, ef.getValue());
         }
         DBObject qobj = query.toQueryObject();
         if (insertIfNotExist) {
@@ -682,7 +676,7 @@ public class Morphium {
             } catch (IllegalAccessException e) {
                 throw new RuntimeException(e);
             }
-        } else if (f.getType().equals(Float.class) | f.getType().equals(float.class)) {
+        } else if (f.getType().equals(Float.class) || f.getType().equals(float.class)) {
             try {
                 f.set(toInc, ((Float) f.get(toInc)) + (float) amount);
             } catch (IllegalAccessException e) {
@@ -1375,11 +1369,12 @@ public class Morphium {
             }
 
 //            firePreListStoreEvent(lst,isNew);
-            for (Class c : sorted.keySet()) {
+            for (Map.Entry<Class, List<Object>> es : sorted.entrySet()) {
+                Class c = es.getKey();
                 ArrayList<DBObject> dbLst = new ArrayList<DBObject>();
                 //bulk insert... check if something already exists
                 WriteConcern wc = getWriteConcernForClass(c);
-                for (Object record : sorted.get(c)) {
+                for (Object record : es.getValue()) {
                     if (isNew.get(record)) {
                         dbLst.add(config.getMapper().marshall(record));
                     } else {
@@ -1398,7 +1393,7 @@ public class Morphium {
                 } else {
                     database.getCollection(getConfig().getMapper().getCollectionName(c)).insert(dbLst, wc);
                 }
-                for (Object record : sorted.get(c)) {
+                for (Object record : es.getValue()) {
                     if (isNew.get(record)) {
                         firePostStoreEvent(record, isNew.get(record));
                     }
@@ -1726,7 +1721,7 @@ public class Morphium {
         }
         if (isAnnotationPresentInHierarchy(cls, Entity.class)) {
             firePreDropEvent(cls);
-            Entity entity = getAnnotationFromHierarchy(cls, Entity.class); //cls.getAnnotation(Entity.class);
+//            Entity entity = getAnnotationFromHierarchy(cls, Entity.class); //cls.getAnnotation(Entity.class);
             database.getCollection(config.getMapper().getCollectionName(cls)).drop();
             firePostDropEvent(cls);
         } else {
@@ -1738,12 +1733,13 @@ public class Morphium {
         List<String> fields = getFields(cls);
 
         Map<String, Integer> idx = new HashMap<String, Integer>();
-        for (String k : index.keySet()) {
+        for (Map.Entry<String, Integer> es : index.entrySet()) {
+            String k = es.getKey();
             if (!fields.contains(k) && !fields.contains(config.getMapper().convertCamelCase(k))) {
                 throw new IllegalArgumentException("Field unknown for type " + cls.getSimpleName() + ": " + k);
             }
             String fn = config.getMapper().getFieldName(cls, k);
-            idx.put(fn, index.get(k));
+            idx.put(fn, es.getValue());
         }
         database.getCollection(config.getMapper().getCollectionName(cls)).ensureIndex(new BasicDBObject(idx));
     }
@@ -1943,7 +1939,7 @@ public class Morphium {
         WRITES, WRITES_CACHED, READS, CHITS, CMISS, NO_CACHED_READS, CHITSPERC, CMISSPERC, CACHE_ENTRIES, WRITE_BUFFER_ENTRIES
     }
 
-    public class StatisticValue {
+    public static class StatisticValue {
 
         private long value = 0;
 

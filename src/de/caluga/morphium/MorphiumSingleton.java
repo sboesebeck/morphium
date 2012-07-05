@@ -32,9 +32,11 @@ public class MorphiumSingleton {
     public static boolean isConfigured() {
         return config != null;
     }
+
     public static boolean isInitialized() {
-        return instance!=null;
+        return instance != null;
     }
+
     public static MorphiumConfig getConfig() {
         return config;
     }
@@ -52,7 +54,7 @@ public class MorphiumSingleton {
             }
             synchronized (Morphium.class) {
                 if (instance == null) {
-                    if (config.getConfigManager()==null) {
+                    if (config.getConfigManager() == null) {
 
                     }
                     instance = new Morphium(config);

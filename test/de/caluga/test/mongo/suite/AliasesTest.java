@@ -4,7 +4,6 @@ import de.caluga.morphium.MorphiumSingleton;
 import de.caluga.morphium.Query;
 import org.junit.Test;
 
-import javax.swing.text.LayeredHighlighter;
 import java.util.Date;
 
 /**
@@ -13,12 +12,12 @@ import java.util.Date;
  * Time: 18:02
  * <p/>
  */
-public class AliasesTest extends MongoTest{
+public class AliasesTest extends MongoTest {
     @Test
     public void aliasTest() throws Exception {
-        Query<ComplexObject> q=MorphiumSingleton.get().createQueryFor(ComplexObject.class).f("last_changed").eq(new Date());
-        assert(q!=null):"Null Query?!?!?";
-        assert(q.toQueryObject().toString().startsWith("{ \"changed\" :")):"Wrong query: "+q.toQueryObject().toString();
+        Query<ComplexObject> q = MorphiumSingleton.get().createQueryFor(ComplexObject.class).f("last_changed").eq(new Date());
+        assert (q != null) : "Null Query?!?!?";
+        assert (q.toQueryObject().toString().startsWith("{ \"changed\" :")) : "Wrong query: " + q.toQueryObject().toString();
         log.info("All ok");
     }
 }

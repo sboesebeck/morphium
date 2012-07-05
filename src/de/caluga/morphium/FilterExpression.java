@@ -50,7 +50,7 @@ public class FilterExpression {
             }
         } else {
             if (value != null && value.getClass().isEnum()) {
-                o.put(field,((Enum)value).name());
+                o.put(field, ((Enum) value).name());
             } else {
                 o.put(field, value);
             }

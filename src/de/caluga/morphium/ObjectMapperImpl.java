@@ -55,10 +55,14 @@ public class ObjectMapperImpl implements ObjectMapper {
     public String createCamelCase(String n, boolean capitalize) {
         n = n.toLowerCase();
         String f[] = n.split("_");
-        String ret = f[0].substring(0, 1).toLowerCase() + f[0].substring(1);
+        StringBuilder sb = new StringBuilder(f[0].substring(0, 1).toLowerCase());
+        //String ret =
+        sb.append(f[0].substring(1));
         for (int i = 1; i < f.length; i++) {
-            ret = ret + f[i].substring(0, 1).toUpperCase() + f[i].substring(1);
+            sb.append(f[i].substring(0, 1).toUpperCase());
+            sb.append(f[i].substring(1));
         }
+        String ret = sb.toString();
         if (capitalize) {
             ret = ret.substring(0, 1).toUpperCase() + ret.substring(1);
         }
@@ -150,8 +154,14 @@ public class ObjectMapperImpl implements ObjectMapper {
             return dbo;
         }
         Class<?> cls = getRealClass(o.getClass());
+        if (cls == null) {
+            throw new IllegalArgumentException("No real class?");
+        }
         o = getRealObject(o);
         List<String> flds = getFields(cls);
+        if (flds == null) {
+            throw new IllegalArgumentException("Fields not found? " + cls.getName());
+        }
         Entity e = morphium.getAnnotationFromHierarchy(o.getClass(), Entity.class); //o.getClass().getAnnotation(Entity.class);
         Embedded emb = morphium.getAnnotationFromHierarchy(o.getClass(), Embedded.class); //o.getClass().getAnnotation(Embedded.class);
 
@@ -167,6 +177,10 @@ public class ObjectMapperImpl implements ObjectMapper {
             String fName = f;
             try {
                 Field fld = getField(cls, f);
+                if (fld == null) {
+                    log.error("Field not found");
+                    continue;
+                }
                 //do not store static fields!
                 if (Modifier.isStatic(fld.getModifiers())) {
                     continue;
@@ -174,110 +188,106 @@ public class ObjectMapperImpl implements ObjectMapper {
                 if (fld.isAnnotationPresent(Id.class)) {
                     fName = "_id";
                 }
-                if (fld == null) {
-                    log.error("Field not found " + f);
-                } else {
-                    Object v = null;
-                    Object value = fld.get(o);
-                    if (fld.isAnnotationPresent(Reference.class)) {
-                        Reference r = fld.getAnnotation(Reference.class);
-                        //reference handling...
-                        //field should point to a certain type - store ObjectID only
-                        if (value == null) {
-                            //no reference to be stored...
-                            v = null;
-                        } else {
-                            if (fld.getType().isAssignableFrom(List.class)) {
-                                //list of references....
-                                BasicDBList lst = new BasicDBList();
-                                for (Object rec : ((List) value)) {
-                                    ObjectId id = getId(rec);
-                                    if (id == null) {
-                                        if (r.automaticStore()) {
-                                            morphium.storeNoCache(rec);
-                                            id = getId(rec);
-                                        } else {
-                                            throw new IllegalArgumentException("Cannot store reference to unstored entity if automaticStore in @Reference is set to false!");
-                                        }
-                                    }
-                                    DBRef ref = new DBRef(morphium.getDatabase(), getRealClass(rec.getClass()).getName(), id);
-
-                                    lst.add(ref);
-                                }
-                                v = lst;
-                            } else if (fld.getType().isAssignableFrom(Map.class)) {
-                                throw new RuntimeException("Cannot store references in Maps!");
-                            } else {
-
-                                if (getId(value) == null) {
-                                    //not stored yet
+                Object v = null;
+                Object value = fld.get(o);
+                if (fld.isAnnotationPresent(Reference.class)) {
+                    Reference r = fld.getAnnotation(Reference.class);
+                    //reference handling...
+                    //field should point to a certain type - store ObjectID only
+                    if (value == null) {
+                        //no reference to be stored...
+                        v = null;
+                    } else {
+                        if (fld.getType().isAssignableFrom(List.class)) {
+                            //list of references....
+                            BasicDBList lst = new BasicDBList();
+                            for (Object rec : ((List) value)) {
+                                ObjectId id = getId(rec);
+                                if (id == null) {
                                     if (r.automaticStore()) {
-                                        //TODO: this could cause an endless loop!
-                                        if (morphium == null) {
-                                            log.fatal("Could not store - no Morphium set!");
-                                        } else {
-                                            morphium.storeNoCache(value);
-                                        }
+                                        morphium.storeNoCache(rec);
+                                        id = getId(rec);
                                     } else {
-                                        throw new IllegalArgumentException("Reference to be stored, that is null!");
+                                        throw new IllegalArgumentException("Cannot store reference to unstored entity if automaticStore in @Reference is set to false!");
                                     }
-
-
                                 }
-                                //DBRef ref = new DBRef(morphium.getDatabase(), value.getClass().getName(), getId(value));
-                                v = getId(value);
+                                DBRef ref = new DBRef(morphium.getDatabase(), getRealClass(rec.getClass()).getName(), id);
+
+                                lst.add(ref);
                             }
+                            v = lst;
+                        } else if (fld.getType().isAssignableFrom(Map.class)) {
+                            throw new RuntimeException("Cannot store references in Maps!");
+                        } else {
+
+                            if (getId(value) == null) {
+                                //not stored yet
+                                if (r.automaticStore()) {
+                                    //TODO: this could cause an endless loop!
+                                    if (morphium == null) {
+                                        log.fatal("Could not store - no Morphium set!");
+                                    } else {
+                                        morphium.storeNoCache(value);
+                                    }
+                                } else {
+                                    throw new IllegalArgumentException("Reference to be stored, that is null!");
+                                }
+
+
+                            }
+                            //DBRef ref = new DBRef(morphium.getDatabase(), value.getClass().getName(), getId(value));
+                            v = getId(value);
+                        }
+                    }
+                } else {
+
+                    //check, what type field has
+
+                    //Store Entities recursively
+                    //TODO: Fix recursion - this could cause a loop!
+                    if (morphium.isAnnotationPresentInHierarchy(fld.getType(), Entity.class)) {
+                        if (value != null) {
+                            DBObject obj = marshall(value);
+                            obj.removeField("_id");  //Do not store ID embedded!
+                            v = obj;
+                        }
+                    } else if (morphium.isAnnotationPresentInHierarchy(fld.getType(), Embedded.class)) {
+                        if (value != null) {
+                            DBObject obj = marshall(value);
+                            v = obj;
                         }
                     } else {
-
-                        //check, what type field has
-
-                        //Store Entities recursively
-                        //TODO: Fix recursion - this could cause a loop!
-                        if (morphium.isAnnotationPresentInHierarchy(fld.getType(), Entity.class)) {
-                            if (value != null) {
-                                DBObject obj = marshall(value);
-                                obj.removeField("_id");  //Do not store ID embedded!
-                                v = obj;
-                            }
-                        } else if (morphium.isAnnotationPresentInHierarchy(fld.getType(), Embedded.class)) {
-                            if (value != null) {
-                                DBObject obj = marshall(value);
-                                v = obj;
-                            }
-                        } else {
-                            v = value;
-                            if (v != null) {
-                                if (v instanceof Map) {
-                                    //create MongoDBObject-Map
-                                    BasicDBObject dbMap = createDBMap((Map) v);
-                                    v = dbMap;
-                                } else if (v instanceof List) {
-                                    BasicDBList lst = createDBList((List) v);
-                                    v = lst;
-                                } else if (v instanceof Iterable) {
-                                    ArrayList lst = new ArrayList();
-                                    for (Object i : (Iterable) v) {
-                                        lst.add(i);
-                                    }
-                                    v = createDBList(lst);
-                                } else if (v.getClass().isEnum()) {
-                                    v = ((Enum) v).name();
+                        v = value;
+                        if (v != null) {
+                            if (v instanceof Map) {
+                                //create MongoDBObject-Map
+                                BasicDBObject dbMap = createDBMap((Map) v);
+                                v = dbMap;
+                            } else if (v instanceof List) {
+                                BasicDBList lst = createDBList((List) v);
+                                v = lst;
+                            } else if (v instanceof Iterable) {
+                                ArrayList lst = new ArrayList();
+                                for (Object i : (Iterable) v) {
+                                    lst.add(i);
                                 }
+                                v = createDBList(lst);
+                            } else if (v.getClass().isEnum()) {
+                                v = ((Enum) v).name();
                             }
                         }
                     }
-                    if (v == null) {
-                        if (fld.isAnnotationPresent(NotNull.class)) {
-                            throw new IllegalArgumentException("Value is null - but must not (NotNull-Annotation to" + o.getClass().getSimpleName() + ")! Field: " + fName);
-                        }
-                        if (!fld.isAnnotationPresent(UseIfnull.class)) {
-                            //Do not put null-Values into dbo => not storing null-Values to db
-                            continue;
-                        }
-                    }
-                    dbo.put(fName, v);
                 }
+                if (v == null) {
+                    if (fld.isAnnotationPresent(NotNull.class)) {
+                        throw new IllegalArgumentException("Value is null - but must not (NotNull-Annotation to" + o.getClass().getSimpleName() + ")! Field: " + fName);
+                    }
+                    if (!fld.isAnnotationPresent(UseIfnull.class)) {
+                        //Do not put null-Values into dbo => not storing null-Values to db
+                        continue;
+                    }
+                }
+                dbo.put(fName, v);
 
             } catch (IllegalAccessException exc) {
                 log.fatal("Illegal Access to field " + f);
@@ -314,7 +324,8 @@ public class ObjectMapperImpl implements ObjectMapper {
 
     private BasicDBObject createDBMap(Map v) {
         BasicDBObject dbMap = new BasicDBObject();
-        for (Object k : ((Map) v).keySet()) {
+        for (Map.Entry<Object, Object> es : ((Map<Object, Object>) v).entrySet()) {
+            Object k = es.getKey();
             if (!(k instanceof String)) {
                 log.warn("Map in Mongodb needs to have String as keys - using toString");
                 k = k.toString();
@@ -323,7 +334,7 @@ public class ObjectMapperImpl implements ObjectMapper {
                     k = ((String) k).replaceAll("\\.", "_");
                 }
             }
-            Object mval = ((Map) v).get(k);
+            Object mval = es.getValue(); // ((Map) v).get(k);
             if (mval != null) {
                 if (morphium.isAnnotationPresentInHierarchy(mval.getClass(), Entity.class)) {
                     DBObject obj = marshall(mval);
@@ -854,7 +865,7 @@ public class ObjectMapperImpl implements ObjectMapper {
 
                 }
             }
-        } catch (Exception e) {
+        } catch (IllegalAccessException e) {
             log.fatal("Illegal access to field " + fld + " of toype " + o.getClass().getSimpleName());
             return;
         }

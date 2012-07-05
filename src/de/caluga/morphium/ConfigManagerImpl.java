@@ -174,6 +174,15 @@ public class ConfigManagerImpl implements ConfigManager {
             return null;
         }
         ConfigElement e = lst.get(0);
+        updateLocal(e);
+        synchronized (addedAt) {
+            configCache.put(k, e);
+            addedAt.put(k, System.currentTimeMillis());
+        }
+        return e;
+    }
+
+    private void updateLocal(ConfigElement e) {
         if (e.getMapValue() != null) {
             Hashtable<String, String> v = new Hashtable<String, String>();
             for (String key : e.getMapValue().keySet()) {
@@ -182,11 +191,6 @@ public class ConfigManagerImpl implements ConfigManager {
             }
             e.setMapValue(v);
         }
-        synchronized (addedAt) {
-            configCache.put(k, e);
-            addedAt.put(k, System.currentTimeMillis());
-        }
-        return e;
     }
 
     @Override
@@ -210,14 +214,7 @@ public class ConfigManagerImpl implements ConfigManager {
 
     @Override
     public void storeSetting(ConfigElement e) {
-        if (e.getMapValue() != null) {
-            Hashtable<String, String> v = new Hashtable<String, String>();
-            for (String key : e.getMapValue().keySet()) {
-                String rkey = key.replaceAll("\\.", "%");
-                v.put(rkey, e.getMapValue().get(key));
-            }
-            e.setMapValue(v);
-        }
+        updateLocal(e);
         morphium.setPrivileged();
         morphium.store(e);
     }

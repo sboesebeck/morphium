@@ -77,8 +77,9 @@ public class CacheHousekeeper extends Thread {
             try {
                 Hashtable<Class, Vector<String>> toDelete = new Hashtable<Class, Vector<String>>();
                 Hashtable<Class<?>, Hashtable<String, CacheElement>> cache = morphium.cloneCache();
-                for (Class<?> clz : cache.keySet()) {
-                    Hashtable<String, CacheElement> ch = (Hashtable<String, CacheElement>) cache.get(clz).clone();
+                for (Map.Entry<Class<?>, Hashtable<String, CacheElement>> es : cache.entrySet()) {
+                    Class<?> clz = es.getKey();
+                    Hashtable<String, CacheElement> ch = (Hashtable<String, CacheElement>) es.getValue().clone();
 
 
                     int maxEntries = -1;
@@ -143,8 +144,9 @@ public class CacheHousekeeper extends Thread {
                     }
 
                     int del = 0;
-                    for (String k : ch.keySet()) {
-                        CacheElement e = ch.get(k);
+                    for (Map.Entry<String, CacheElement> est : ch.entrySet()) {
+                        String k = est.getKey();
+                        CacheElement e = est.getValue(); //ch.get(k);
 
                         if (e == null || e.getFound() == null || System.currentTimeMillis() - e.getCreated() > time) {
                             if (toDelete.get(clz) == null) {
@@ -232,10 +234,12 @@ public class CacheHousekeeper extends Thread {
                 }
 
                 Hashtable<Class<? extends Object>, Hashtable<ObjectId, Object>> idCacheClone = morphium.cloneIdCache();
-                for (Class cls : toDelete.keySet()) {
+                for (Map.Entry<Class, Vector<String>> et : toDelete.entrySet()) {
+                    Class cls = et.getKey();
+
                     boolean inIdCache = idCacheClone.get(cls) != null;
 
-                    for (String k : toDelete.get(cls)) {
+                    for (String k : et.getValue()) {
                         if (inIdCache) {
                             //remove objects from id cache
                             for (Object f : cache.get(cls).get(k).getFound()) {

@@ -20,7 +20,7 @@ public class MapListObject {
     @Id
     private ObjectId id;
     private String name;
-    private Map<String,Object> mapValue;
+    private Map<String, Object> mapValue;
     private List<Object> listValue;
 
     public String getName() {

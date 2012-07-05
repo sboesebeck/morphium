@@ -23,5 +23,6 @@ public @interface Reference {
     String fieldName() default ".";
 
     boolean automaticStore() default true;
+
     boolean lazyLoading() default false;
 }

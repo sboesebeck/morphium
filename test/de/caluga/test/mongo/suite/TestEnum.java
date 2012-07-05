@@ -8,5 +8,5 @@ package de.caluga.test.mongo.suite;
  * TODO: Add documentation here
  */
 public enum TestEnum {
-    TEST1,TEST2,VALUE,NOCH_EIN_TEST;
+    TEST1, TEST2, VALUE, NOCH_EIN_TEST;
 }

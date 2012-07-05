@@ -20,14 +20,15 @@ public abstract class DAO<T> {
     }
 
     public Object getValue(Enum field, T obj) throws IllegalAccessException {
-        return getValue(field.name(),obj);
+        return getValue(field.name(), obj);
     }
-    public Object getValue(String field,T obj) throws IllegalAccessException {
+
+    public Object getValue(String field, T obj) throws IllegalAccessException {
         return morphium.getConfig().getMapper().getField(type, field).get(obj);
     }
 
-    public void setValue(Enum field, Object value, T obj) throws  IllegalAccessException {
-        setValue(field.name(),value, obj);
+    public void setValue(Enum field, Object value, T obj) throws IllegalAccessException {
+        setValue(field.name(), value, obj);
     }
 
     public void setValue(String field, Object value, T obj) throws IllegalAccessException {

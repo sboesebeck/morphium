@@ -3,7 +3,6 @@ package de.caluga.morphium.logging;
 import de.caluga.morphium.MorphiumSingleton;
 import org.apache.log4j.Appender;
 import org.apache.log4j.Layout;
-import org.apache.log4j.Level;
 import org.apache.log4j.spi.ErrorHandler;
 import org.apache.log4j.spi.Filter;
 import org.apache.log4j.spi.LoggingEvent;

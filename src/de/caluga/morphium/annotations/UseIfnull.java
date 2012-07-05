@@ -13,6 +13,7 @@ import java.lang.annotation.Target;
  * Mark this field to be used in marshalling, even if it's values are NULL!
  * Usually, null-values are skipped, but for sharding and some other special things, it might be necessary
  * to always have a field stored.
+ *
  * @author stephan
  */
 @Target({ElementType.FIELD})

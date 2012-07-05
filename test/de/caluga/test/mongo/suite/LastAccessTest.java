@@ -1,6 +1,5 @@
 package de.caluga.test.mongo.suite;
 
-import de.caluga.morphium.Morphium;
 import de.caluga.morphium.MorphiumSingleton;
 import de.caluga.morphium.Query;
 import de.caluga.morphium.annotations.*;
@@ -15,24 +14,24 @@ import org.junit.Test;
  * <p/>
  * TODO: Add documentation here
  */
-public class LastAccessTest extends MongoTest{
+public class LastAccessTest extends MongoTest {
     @Test
     public void createdTest() throws Exception {
-        TstObjLA tst=new TstObjLA();
+        TstObjLA tst = new TstObjLA();
         tst.setValue("A value");
         MorphiumSingleton.get().store(tst);
-        assert(tst.getCreationTime()>0):"No creation time set?!?!?!";
+        assert (tst.getCreationTime() > 0) : "No creation time set?!?!?!";
 
         tst.setValue("Annother value");
         MorphiumSingleton.get().store(tst);
-        assert(tst.getLastChange()>0):"No last change set?";
+        assert (tst.getLastChange() > 0) : "No last change set?";
 
-        Query<TstObjLA> q=MorphiumSingleton.get().createQueryFor(TstObjLA.class);
-        tst=q.get();
-        assert(tst.getLastAccess()>0):"No last_access set?";
+        Query<TstObjLA> q = MorphiumSingleton.get().createQueryFor(TstObjLA.class);
+        tst = q.get();
+        assert (tst.getLastAccess() > 0) : "No last_access set?";
 
-        tst=q.asList().get(0);
-        assert(tst.getLastAccess()>0):"No last_access set?";
+        tst = q.asList().get(0);
+        assert (tst.getLastAccess() > 0) : "No last_access set?";
     }
 
 
