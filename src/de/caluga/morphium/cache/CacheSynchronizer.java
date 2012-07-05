@@ -103,7 +103,7 @@ public class CacheSynchronizer implements MorphiumStorageListener<Object>, Messa
                 messaging.queueMessage(m);
             }
         }
-        long dur = System.currentTimeMillis() - start;
+//        long dur = System.currentTimeMillis() - start;
 //        log.info("Queueing cache sync message took "+dur+" ms");
     }
 

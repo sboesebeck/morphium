@@ -9,7 +9,7 @@ package de.caluga.morphium;
  */
 public class MorphiumSingleton {
     private static MorphiumConfig config;
-    private static Morphium instance;
+    private static volatile Morphium instance;
 
     /**
      * set configuration for MongoDbLayer
@@ -55,7 +55,7 @@ public class MorphiumSingleton {
             synchronized (Morphium.class) {
                 if (instance == null) {
                     if (config.getConfigManager() == null) {
-
+                        throw new RuntimeException("Error - no config Manager set!");
                     }
                     instance = new Morphium(config);
 

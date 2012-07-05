@@ -445,10 +445,11 @@ public class MorphiumConfig {
                     adr.add(new ServerAddress(a[0]));
                 } else {
                     int port = Integer.valueOf(a[1]);
-                    ServerAddress adr = new ServerAddress(a[0], port);
+//                    ServerAddress adr = new ServerAddress(a[0], port);
                 }
             } catch (Exception e) {
                 System.err.println("Could not add Host: " + s);
+                throw new RuntimeException("Could not add host " + s, e);
             }
         }
         if (adr.isEmpty()) {
