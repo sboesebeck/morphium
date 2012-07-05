@@ -31,7 +31,6 @@ public class Messaging extends Thread {
     private Map<String, List<MessageListener>> listenerByName;
 
     private volatile Vector<Msg> writeBuffer = new Vector<Msg>();
-    private ScheduledThreadPoolExecutor writer = new ScheduledThreadPoolExecutor(1);
 
     public Messaging(Morphium m, int pause, boolean processMultiple) {
         morphium = m;
@@ -45,6 +44,7 @@ public class Messaging extends Thread {
 
         listeners = new Vector<MessageListener>();
         listenerByName = new Hashtable<String, List<MessageListener>>();
+        ScheduledThreadPoolExecutor writer = new ScheduledThreadPoolExecutor(1);
         writer.scheduleAtFixedRate(new Runnable() {
             @Override
             public void run() {

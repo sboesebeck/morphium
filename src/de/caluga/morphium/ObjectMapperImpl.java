@@ -253,19 +253,16 @@ public class ObjectMapperImpl implements ObjectMapper {
                         }
                     } else if (morphium.isAnnotationPresentInHierarchy(fld.getType(), Embedded.class)) {
                         if (value != null) {
-                            DBObject obj = marshall(value);
-                            v = obj;
+                            v = marshall(value);
                         }
                     } else {
                         v = value;
                         if (v != null) {
                             if (v instanceof Map) {
                                 //create MongoDBObject-Map
-                                BasicDBObject dbMap = createDBMap((Map) v);
-                                v = dbMap;
+                                v = createDBMap((Map) v);
                             } else if (v instanceof List) {
-                                BasicDBList lst = createDBList((List) v);
-                                v = lst;
+                                v = createDBList((List) v);
                             } else if (v instanceof Iterable) {
                                 ArrayList lst = new ArrayList();
                                 for (Object i : (Iterable) v) {
@@ -430,9 +427,7 @@ public class ObjectMapperImpl implements ObjectMapper {
 
                     }
                 } else if (fld.isAnnotationPresent(Id.class)) {
-                    ObjectId id = (ObjectId) o.get("_id");
-
-                    value = id;
+                    value = (ObjectId) o.get("_id");
                 } else if (morphium.isAnnotationPresentInHierarchy(fld.getType(), Entity.class) || morphium.isAnnotationPresentInHierarchy(fld.getType(), Embedded.class)) {
                     //entity! embedded
                     if (o.get(f) != null) {

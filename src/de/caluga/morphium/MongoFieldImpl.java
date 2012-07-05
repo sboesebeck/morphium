@@ -73,8 +73,7 @@ public class MongoFieldImpl<T> implements MongoField<T> {
                         //list of references, this should be part of
                         //
                         //need to compare DBRefs
-                        DBRef ref = new DBRef(null, val.getClass().getName(), id);
-                        val = ref;
+                        val = new DBRef(null, val.getClass().getName(), id);
                     } else {
                         //Reference
                         //here - query value is an entity AND it is referenced by the query type

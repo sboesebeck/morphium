@@ -530,7 +530,7 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
     }
 
 
-    public Query<T> clone() {
+    public Query<T> clone() throws CloneNotSupportedException {
         try {
             QueryImpl<T> ret = (QueryImpl<T>) super.clone();
             if (andExpr != null) {

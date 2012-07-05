@@ -32,7 +32,7 @@ public abstract class DAO<T> {
     }
 
     public void setValue(String field, Object value, T obj) throws IllegalAccessException {
-        morphium.getConfig().getMapper().getField(type, field).set(this, value);
+        morphium.getConfig().getMapper().getField(type, field).set(obj, value);
     }
 
     public boolean existsField(String field) {

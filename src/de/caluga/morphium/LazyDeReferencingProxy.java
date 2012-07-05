@@ -54,7 +54,7 @@ public class LazyDeReferencingProxy<T> implements MethodInterceptor, Serializabl
 
     }
 
-    private void dereference() throws Throwable {
+    private void dereference() {
         if (deReferenced == null) {
             if (log.isDebugEnabled())
                 log.debug("DeReferencing due to first access");

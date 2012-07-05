@@ -219,7 +219,7 @@ public final class Morphium {
         for (String f : flds) {
             try {
                 q.f(f).eq(getValue(template, f));
-            } catch (IllegalAccessException e) {
+            } catch (Exception e) {
                 logger.error("Could not read field " + f + " of object " + cls.getName());
             }
         }
@@ -804,7 +804,7 @@ public final class Morphium {
                 }
                 update.put(f, value);
 
-            } catch (IllegalAccessException e) {
+            } catch (Exception e) {
                 throw new RuntimeException(e);
             }
         }
@@ -1640,27 +1640,27 @@ public final class Morphium {
         return config.getMapper().getField(cls, fld);
     }
 
-    public void setValue(Object in, String fld, Object val) throws IllegalAccessException {
+    public void setValue(Object in, String fld, Object val) {
         config.getMapper().setValue(in, val, fld);
     }
 
-    public Object getValue(Object o, String fld) throws IllegalAccessException {
+    public Object getValue(Object o, String fld) {
         return config.getMapper().getValue(o, fld);
     }
 
-    public Long getLongValue(Object o, String fld) throws IllegalAccessException {
+    public Long getLongValue(Object o, String fld) {
         return (Long) getValue(o, fld);
     }
 
-    public String getStringValue(Object o, String fld) throws IllegalAccessException {
+    public String getStringValue(Object o, String fld) {
         return (String) getValue(o, fld);
     }
 
-    public Date getDateValue(Object o, String fld) throws IllegalAccessException {
+    public Date getDateValue(Object o, String fld) {
         return (Date) getValue(o, fld);
     }
 
-    public Double getDoubleValue(Object o, String fld) throws IllegalAccessException {
+    public Double getDoubleValue(Object o, String fld) {
         return (Double) getValue(o, fld);
     }
 

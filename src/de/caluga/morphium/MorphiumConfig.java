@@ -279,7 +279,7 @@ public class MorphiumConfig {
         this(db, mode, maxConnections, globalCacheValidTime, housekeepingTimeout, mgr, Thread.currentThread().getContextClassLoader().getResource(resourceName));
     }
 
-    public MorphiumConfig(String db, MongoDbMode mode, int maxConnections, int globalCacheValidTime, int housekeepingTimeout, MongoSecurityManager mgr, URL loggingConfigResource) throws IOException {
+    public MorphiumConfig(String db, MongoDbMode mode, int maxConnections, int globalCacheValidTime, int housekeepingTimeout, MongoSecurityManager mgr, URL loggingConfigResource) {
 
         securityMgr = mgr;
         if (securityMgr == null) {

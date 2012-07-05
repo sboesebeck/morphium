@@ -236,5 +236,5 @@ public interface Query<T> extends Cloneable {
 
     public Map<String, Integer> getOrder();
 
-    public Query<T> clone();
+    public Query<T> clone() throws CloneNotSupportedException;
 }
