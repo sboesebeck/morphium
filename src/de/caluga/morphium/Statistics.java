@@ -61,11 +61,11 @@ public class Statistics extends Hashtable<String, Double> {
     @Override
     public String toString() {
         StringBuffer b = new StringBuffer();
-        String[] lst = morphium.getStats().keySet().toArray(new String[morphium.getStats().keySet().size()]);
+        StatisticKeys[] lst = morphium.getStats().keySet().toArray(new StatisticKeys[morphium.getStats().keySet().size()]);
         Arrays.sort(lst);
-        for (String k : lst) {
+        for (StatisticKeys k : lst) {
             b.append("- ");
-            b.append(k);
+            b.append(k.toString());
             b.append("\t");
             b.append(morphium.getStats().get(k));
             b.append("\n");

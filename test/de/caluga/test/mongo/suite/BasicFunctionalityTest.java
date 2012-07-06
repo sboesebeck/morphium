@@ -275,7 +275,7 @@ public class BasicFunctionalityTest extends MongoTest {
         }
 
         q = MorphiumSingleton.get().createQueryFor(CachedObject.class);
-        q = q.f("counter").gt(5).sort("counter,-value");
+        q = q.f("counter").gt(5).sort("counter", "-value");
         t = q.toString();
         q = MorphiumSingleton.get().createQueryFor(CachedObject.class);
         q = q.f("counter").gt(5);
