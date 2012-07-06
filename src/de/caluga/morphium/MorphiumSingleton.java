@@ -55,7 +55,7 @@ public class MorphiumSingleton {
             synchronized (Morphium.class) {
                 if (instance == null) {
                     if (config.getConfigManager() == null) {
-                        throw new RuntimeException("Error - no config Manager set!");
+                        config.setConfigManager(new ConfigManagerImpl());
                     }
                     instance = new Morphium(config);
 
