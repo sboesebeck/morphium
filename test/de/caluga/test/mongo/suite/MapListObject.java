@@ -21,6 +21,7 @@ public class MapListObject {
     private ObjectId id;
     private String name;
     private Map<String, Object> mapValue;
+    private Map<String, List<Integer>> mapListValue;
     private List<Object> listValue;
 
     public String getName() {
@@ -45,5 +46,21 @@ public class MapListObject {
 
     public void setListValue(List<Object> listValue) {
         this.listValue = listValue;
+    }
+
+    public Map<String, List<Integer>> getMapListValue() {
+        return mapListValue;
+    }
+
+    public void setMapListValue(Map<String, List<Integer>> mapListValue) {
+        this.mapListValue = mapListValue;
+    }
+
+    public ObjectId getId() {
+        return id;
+    }
+
+    public void setId(ObjectId id) {
+        this.id = id;
     }
 }

@@ -454,6 +454,7 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
         }
 
         DBCursor srch = morphium.getDatabase().getCollection(mapper.getCollectionName(type)).find(toQueryObject());
+        srch.limit(1);
         if (skip != 0) {
             srch = srch.skip(skip);
         }
@@ -464,7 +465,7 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
             }
             srch.sort(new BasicDBObject(srt));
         }
-        srch.limit(1);
+
         if (srch.length() == 0) {
             return null;
         }

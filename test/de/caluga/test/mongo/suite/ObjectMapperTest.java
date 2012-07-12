@@ -195,6 +195,7 @@ public class ObjectMapperTest extends MongoTest {
 
     }
 
+
     @Test
     public void mapValueTest() {
         MapListObject o = new MapListObject();

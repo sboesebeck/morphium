@@ -7,6 +7,8 @@ import de.caluga.morphium.messaging.Msg;
 import de.caluga.morphium.secure.DefaultSecurityManager;
 import org.apache.log4j.Logger;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 
 
@@ -21,6 +23,17 @@ public class MongoTest {
 
     public MongoTest() {
         log = Logger.getLogger(getClass().getName());
+    }
+
+    public void createUncachedObjects(int amount) {
+        List<UncachedObject> lst = new ArrayList<UncachedObject>();
+        for (int i = 0; i < amount; i++) {
+            UncachedObject uc = new UncachedObject();
+            uc.setCounter(i + 1);
+            uc.setValue("v");
+            lst.add(uc);
+        }
+        MorphiumSingleton.get().storeList(lst);
     }
 
     @org.junit.Before

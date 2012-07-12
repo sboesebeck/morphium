@@ -1011,7 +1011,7 @@ public final class Morphium {
     }
 
     /**
-     * careful this actually changes the
+     * careful this actually changes the parameter o!
      *
      * @param o
      * @param <T>

@@ -333,7 +333,7 @@ public class ObjectMapperImpl implements ObjectMapper {
             }
             Object mval = es.getValue(); // ((Map) v).get(k);
             if (mval != null) {
-                if (morphium.isAnnotationPresentInHierarchy(mval.getClass(), Entity.class)) {
+                if (morphium.isAnnotationPresentInHierarchy(mval.getClass(), Entity.class) || morphium.isAnnotationPresentInHierarchy(mval.getClass(), Embedded.class)) {
                     DBObject obj = marshall(mval);
                     obj.put("class_name", mval.getClass().getName());
                     mval = obj;
