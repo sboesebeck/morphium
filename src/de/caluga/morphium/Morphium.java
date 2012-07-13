@@ -1506,6 +1506,58 @@ public final class Morphium {
         return null;
     }
 
+
+    public List<Object> distinct(Enum key, Class c) {
+        return distinct(key.name(), c);
+    }
+
+    /**
+     * returns a distinct list of values of the given collection
+     * Attention: these values are not unmarshalled, you might get MongoDBObjects
+     */
+    public List<Object> distinct(Enum key, Query q) {
+        return distinct(key.name(), q);
+    }
+
+    /**
+     * returns a distinct list of values of the given collection
+     * Attention: these values are not unmarshalled, you might get MongoDBObjects
+     */
+    public List<Object> distinct(String key, Query q) {
+        return database.getCollection(config.getMapper().getCollectionName(q.getType())).distinct(key, q.toQueryObject());
+    }
+
+    public List<Object> distinct(String key, Class cls) {
+        return database.getCollection(config.getMapper().getCollectionName(cls)).distinct(key, new BasicDBObject());
+    }
+
+    public DBObject group(Query q, Map<String, Object> initial, String jsReduce, String jsFinalize, String... keys) {
+        BasicDBObject k = new BasicDBObject();
+        BasicDBObject ini = new BasicDBObject();
+        ini.putAll(initial);
+        for (String ks : keys) {
+            if (ks.startsWith("-")) {
+                k.append(ks.substring(1), "false");
+            } else if (ks.startsWith("+")) {
+                k.append(ks.substring(1), "true");
+            } else {
+                k.append(ks, "true");
+            }
+        }
+        if (!jsReduce.trim().startsWith("function(")) {
+            jsReduce = "function (obj,data) { " + jsReduce + " }";
+        }
+        if (jsFinalize == null) {
+            jsFinalize = "";
+        }
+        if (!jsFinalize.trim().startsWith("function(")) {
+            jsFinalize = "function (data) {" + jsFinalize + "}";
+        }
+        GroupCommand cmd = new GroupCommand(database.getCollection(config.getMapper().getCollectionName(q.getType())),
+                k, q.toQueryObject(), ini, jsReduce, jsFinalize);
+        return database.getCollection(config.getMapper().getCollectionName(q.getType())).group(cmd);
+    }
+
     public <T> T findById(Class<T> type, ObjectId id) {
         T ret = getFromIDCache(type, id);
         if (ret != null) return ret;

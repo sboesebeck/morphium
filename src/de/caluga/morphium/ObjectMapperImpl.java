@@ -437,30 +437,7 @@ public class ObjectMapperImpl implements ObjectMapper {
                     }
                 } else if (fld.getType().isAssignableFrom(Map.class)) {
                     BasicDBObject map = (BasicDBObject) o.get(f);
-                    if (map != null) {
-                        for (String n : map.keySet()) {
-                            //TODO: recurse?
-                            if (map.get(n) instanceof BasicDBObject) {
-                                Object val = map.get(n);
-                                if (((BasicDBObject) val).containsField("class_name") || ((BasicDBObject) val).containsField("className")) {
-                                    //Entity to map!
-                                    String cn = (String) ((BasicDBObject) val).get("class_name");
-                                    if (cn == null) {
-                                        cn = (String) ((BasicDBObject) val).get("className");
-                                    }
-                                    try {
-                                        Class ecls = Class.forName(cn);
-                                        map.put(n, unmarshall(ecls, (DBObject) map.get(n)));
-                                    } catch (ClassNotFoundException e) {
-                                        throw new RuntimeException(e);
-                                    }
-                                }
-                            }
-                        }
-                        value = map;
-                    } else {
-                        value = null;
-                    }
+                    value = createMap(map);
                 } else if (fld.getType().isAssignableFrom(List.class) || fld.getType().isArray()) {
                     BasicDBList l = (BasicDBList) o.get(f);
                     List lst = new ArrayList();
@@ -508,6 +485,69 @@ public class ObjectMapperImpl implements ObjectMapper {
 
         //recursively fill class
 
+    }
+
+    private Object createMap(BasicDBObject map) {
+        Object value;
+        if (map != null) {
+            for (String n : map.keySet()) {
+
+                if (map.get(n) instanceof BasicDBObject) {
+                    Object val = map.get(n);
+                    if (((BasicDBObject) val).containsField("class_name") || ((BasicDBObject) val).containsField("className")) {
+                        //Entity to map!
+                        String cn = (String) ((BasicDBObject) val).get("class_name");
+                        if (cn == null) {
+                            cn = (String) ((BasicDBObject) val).get("className");
+                        }
+                        try {
+                            Class ecls = Class.forName(cn);
+                            map.put(n, unmarshall(ecls, (DBObject) map.get(n)));
+                        } catch (ClassNotFoundException e) {
+                            throw new RuntimeException(e);
+                        }
+                    } else {
+                        //maybe a map of maps? --> recurse
+                        map.put(n, createMap((BasicDBObject) val));
+                    }
+                } else if (map.get(n) instanceof BasicDBList) {
+                    BasicDBList lst = (BasicDBList) map.get(n);
+                    List mapValue = createList(lst);
+                    map.put(n, mapValue);
+                }
+            }
+            value = map;
+        } else {
+            value = null;
+        }
+        return value;
+    }
+
+    private List createList(BasicDBList lst) {
+        List mapValue = new ArrayList();
+        for (Object li : lst) {
+            if (li instanceof BasicDBObject) {
+                if (((BasicDBObject) li).containsField("class_name") || ((BasicDBObject) li).containsField("className")) {
+                    String cn = (String) ((BasicDBObject) li).get("class_name");
+                    if (cn == null) {
+                        cn = (String) ((BasicDBObject) li).get("className");
+                    }
+                    try {
+                        Class ecls = Class.forName(cn);
+                        mapValue.add(unmarshall(ecls, (DBObject) li));
+                    } catch (ClassNotFoundException e) {
+                        throw new RuntimeException(e);
+                    }
+                } else {
+                    mapValue.add(createMap((BasicDBObject) li));
+                }
+            } else if (li instanceof BasicDBList) {
+                mapValue.add(createList((BasicDBList) li));
+            } else {
+                mapValue.add(li);
+            }
+        }
+        return mapValue;
     }
 
     private void fillList(Field forField, BasicDBList fromDB, List toFillIn) {
