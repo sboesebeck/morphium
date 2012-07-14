@@ -4,6 +4,8 @@ import de.caluga.morphium.MorphiumSingleton;
 import de.caluga.morphium.Query;
 import de.caluga.morphium.StatisticKeys;
 import de.caluga.morphium.annotations.caching.Cache;
+import de.caluga.morphium.cache.CacheSyncListener;
+import de.caluga.morphium.cache.CacheSyncVetoException;
 import de.caluga.morphium.cache.CacheSynchronizer;
 import de.caluga.morphium.messaging.Messaging;
 import de.caluga.morphium.messaging.Msg;
@@ -18,6 +20,11 @@ import org.junit.Test;
  * TODO: Add documentation here
  */
 public class CacheSyncTest extends MongoTest {
+    private boolean preSendClear = false;
+    private boolean postSendClear = false;
+    private boolean preClear = false;
+    private boolean postclear = false;
+
     @Test
     public void sendClearMsgTest() throws Exception {
         Messaging msg = new Messaging(MorphiumSingleton.get(), 100, true);
@@ -28,7 +35,7 @@ public class CacheSyncTest extends MongoTest {
         long cnt = q.countAll();
         assert (cnt == 0) : "Already a message?!?!" + cnt;
 
-        cs.sendClearMessage(CachedObject.class.getName(), "test");
+        cs.sendClearMessage(CachedObject.class, "test");
         Thread.sleep(5000);
         waitForWrites();
         cnt = q.countAll();
@@ -86,7 +93,7 @@ public class CacheSyncTest extends MongoTest {
         }
         System.out.println("Stats " + MorphiumSingleton.get().getStatistics().toString());
         assert (MorphiumSingleton.get().getStatistics().get(StatisticKeys.CACHE_ENTRIES.name()) != null) : "Cache entries not set?";
-        cs1.sendClearMessage("ALL", "test");
+        cs1.sendClearAllMessage("test");
         Thread.sleep(1500);
         assert (MorphiumSingleton.get().getStatistics().get(StatisticKeys.CACHE_ENTRIES.name()) == 0) : "Cache entries not set?";
         msg1.setRunning(false);
@@ -160,6 +167,75 @@ public class CacheSyncTest extends MongoTest {
     @Cache(readCache = true, writeCache = true, syncCache = Cache.SyncCacheStrategy.UPDATE_ENTRY)
     public static class IdCachedObject extends CachedObject {
 
+    }
+
+    @Test
+    public void testListeners() {
+        MorphiumSingleton.get().dropCollection(IdCachedObject.class);
+        Messaging msg1 = new Messaging(MorphiumSingleton.get(), 100, true);
+        msg1.start();
+        Messaging msg2 = new Messaging(MorphiumSingleton.get(), 100, true);
+        msg2.start();
+
+
+        CacheSynchronizer cs1 = new CacheSynchronizer(msg1, MorphiumSingleton.get());
+        cs1.addSyncListener(new CacheSyncListener() {
+            @Override
+            public void preClear(Class cls, Msg m) throws CacheSyncVetoException {
+            }
+
+            @Override
+            public void postClear(Class cls, Msg m) {
+            }
+
+            @Override
+            public void preSendClearMsg(Class cls, Msg m) throws CacheSyncVetoException {
+                preSendClear = true;
+            }
+
+            @Override
+            public void postSendClearMsg(Class cls, Msg m) {
+                postSendClear = true;
+            }
+        });
+
+        CacheSynchronizer cs2 = new CacheSynchronizer(msg2, MorphiumSingleton.get());
+        cs2.addSyncListener(new CacheSyncListener() {
+            @Override
+            public void preClear(Class cls, Msg m) throws CacheSyncVetoException {
+                preClear = true;
+            }
+
+            @Override
+            public void postClear(Class cls, Msg m) {
+                postclear = true;
+            }
+
+            @Override
+            public void preSendClearMsg(Class cls, Msg m) throws CacheSyncVetoException {
+            }
+
+            @Override
+            public void postSendClearMsg(Class cls, Msg m) {
+            }
+        });
+
+        MorphiumSingleton.get().store(new CachedObject());
+        waitForWrites();
+        try {
+            Thread.sleep(1500);
+        } catch (InterruptedException e) {
+            throw new RuntimeException(e);
+        }
+        assert (preClear);
+        assert (postclear);
+        assert (preSendClear);
+        assert (postSendClear);
+
+        msg1.setRunning(false);
+        msg2.setRunning(false);
+        cs1.detach();
+        cs2.detach();
     }
 
 }
