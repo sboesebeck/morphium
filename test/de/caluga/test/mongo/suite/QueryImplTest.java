@@ -57,4 +57,31 @@ public class QueryImplTest extends MongoTest {
 
         System.out.println("Query: " + str);
     }
+
+    @Test
+    public void testOrder() {
+        Query<UncachedObject> q = MorphiumSingleton.get().createQueryFor(UncachedObject.class);
+        q = q.f("counter").lt(1000).f("value").eq("test");
+        String str = q.toQueryObject().toString();
+        log.info("Query1: " + str);
+        q = q.q();
+        q = q.f("value").eq("test").f("counter").lt(1000);
+        String str2 = q.toQueryObject().toString();
+        log.info("Query2: " + str2);
+        assert (!str.equals(str2));
+
+        q = q.q();
+        q = q.f("value").eq("test").f("counter").lt(1000).f("counter").gt(10);
+        str = q.toQueryObject().toString();
+        log.info("2nd Query1: " + str);
+
+        q = q.q();
+        q = q.f("counter").gt(10).f("value").eq("test").f("counter").lt(1000);
+        str = q.toQueryObject().toString();
+        log.info("2nd Query2: " + str);
+
+        assert (!str.equals(str2));
+
+
+    }
 }
