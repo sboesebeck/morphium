@@ -60,4 +60,46 @@ public class ListTests extends MongoTest {
         }
 
     }
+
+    @Test
+    public void nullValueListTest() throws Exception {
+        ListContainer lst = new ListContainer();
+        int count = 2;
+
+        for (int i = 0; i < count; i++) {
+            EmbeddedObject eo = new EmbeddedObject();
+            eo.setName("Embedded");
+            eo.setValue("" + i);
+            eo.setTest(i);
+            lst.addEmbedded(eo);
+        }
+        lst.addEmbedded(null);
+
+        for (int i = 0; i < count; i++) {
+            UncachedObject uc = new UncachedObject();
+            uc.setCounter(i);
+            uc.setValue("A value - uncached!");
+            //references should be stored automatically...
+            lst.addRef(uc);
+        }
+        lst.addRef(null);
+
+
+        for (int i = 0; i < count; i++) {
+            lst.addLong(i);
+        }
+
+        for (int i = 0; i < count; i++) {
+            lst.addString("Value " + i);
+        }
+        lst.addString(null);
+
+        MorphiumSingleton.get().store(lst);
+
+        ListContainer lst2 = (ListContainer) MorphiumSingleton.get().createQueryFor(ListContainer.class).f("id").eq(lst.getId()).get();
+        assert (lst2.getStringList().get(count) == null);
+        assert (lst2.getRefList().get(count) == null);
+        assert (lst2.getEmbeddedObjectList().get(count) == null);
+
+    }
 }

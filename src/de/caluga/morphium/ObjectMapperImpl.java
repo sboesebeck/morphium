@@ -202,18 +202,21 @@ public class ObjectMapperImpl implements ObjectMapper {
                             //list of references....
                             BasicDBList lst = new BasicDBList();
                             for (Object rec : ((List) value)) {
-                                ObjectId id = getId(rec);
-                                if (id == null) {
-                                    if (r.automaticStore()) {
-                                        morphium.storeNoCache(rec);
-                                        id = getId(rec);
-                                    } else {
-                                        throw new IllegalArgumentException("Cannot store reference to unstored entity if automaticStore in @Reference is set to false!");
+                                if (rec != null) {
+                                    ObjectId id = getId(rec);
+                                    if (id == null) {
+                                        if (r.automaticStore()) {
+                                            morphium.storeNoCache(rec);
+                                            id = getId(rec);
+                                        } else {
+                                            throw new IllegalArgumentException("Cannot store reference to unstored entity if automaticStore in @Reference is set to false!");
+                                        }
                                     }
+                                    DBRef ref = new DBRef(morphium.getDatabase(), getRealClass(rec.getClass()).getName(), id);
+                                    lst.add(ref);
+                                } else {
+                                    lst.add(null);
                                 }
-                                DBRef ref = new DBRef(morphium.getDatabase(), getRealClass(rec.getClass()).getName(), id);
-
-                                lst.add(ref);
                             }
                             v = lst;
                         } else if (fld.getType().isAssignableFrom(Map.class)) {
@@ -297,23 +300,27 @@ public class ObjectMapperImpl implements ObjectMapper {
     private BasicDBList createDBList(List v) {
         BasicDBList lst = new BasicDBList();
         for (Object lo : ((List) v)) {
-            if (morphium.isAnnotationPresentInHierarchy(lo.getClass(), Entity.class) ||
-                    morphium.isAnnotationPresentInHierarchy(lo.getClass(), Embedded.class)) {
-                DBObject marshall = marshall(lo);
-                marshall.put("class_name", lo.getClass().getName());
-                lst.add(marshall);
-            } else if (lo instanceof List) {
-                lst.add(createDBList((List) lo));
-            } else if (lo instanceof Map) {
-                lst.add(createDBMap(((Map) lo)));
-            } else if (lo.getClass().isEnum()) {
-                BasicDBObject obj = new BasicDBObject();
-                obj.put("class_name", lo.getClass().getName());
-                obj.put("name", ((Enum) lo).name());
-                lst.add(obj);
-                //throw new IllegalArgumentException("List of enums not supported yet");
+            if (lo != null) {
+                if (morphium.isAnnotationPresentInHierarchy(lo.getClass(), Entity.class) ||
+                        morphium.isAnnotationPresentInHierarchy(lo.getClass(), Embedded.class)) {
+                    DBObject marshall = marshall(lo);
+                    marshall.put("class_name", lo.getClass().getName());
+                    lst.add(marshall);
+                } else if (lo instanceof List) {
+                    lst.add(createDBList((List) lo));
+                } else if (lo instanceof Map) {
+                    lst.add(createDBMap(((Map) lo)));
+                } else if (lo.getClass().isEnum()) {
+                    BasicDBObject obj = new BasicDBObject();
+                    obj.put("class_name", lo.getClass().getName());
+                    obj.put("name", ((Enum) lo).name());
+                    lst.add(obj);
+                    //throw new IllegalArgumentException("List of enums not supported yet");
+                } else {
+                    lst.add(lo);
+                }
             } else {
-                lst.add(lo);
+                lst.add(null);
             }
         }
         return lst;
