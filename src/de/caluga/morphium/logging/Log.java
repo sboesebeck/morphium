@@ -6,6 +6,7 @@ package de.caluga.morphium.logging;
 
 import de.caluga.morphium.annotations.Entity;
 import de.caluga.morphium.annotations.Id;
+import de.caluga.morphium.annotations.Index;
 import de.caluga.morphium.annotations.caching.Cache;
 import org.bson.types.ObjectId;
 
@@ -16,9 +17,11 @@ import java.util.List;
  */
 @Cache(clearOnWrite = false, maxEntries = 0, readCache = false, writeCache = true)
 @Entity
+@Index({"timestamp,level", "level,timestamp"})
 public class Log {
     @Id
     private ObjectId id;
+    @Index
     private String level;
     private long sequence;
     private String message;
@@ -27,10 +30,12 @@ public class Log {
     private String exceptionMessage;
     private List<String> exceptionStacktrace;
     private String causedBy;
+    @Index
     private String sourceClass;
     private String sourceMethod;
     private String threadName;
     private int threadId;
+    @Index
     private long timestamp;
 
     public ObjectId getId() {
