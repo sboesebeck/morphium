@@ -1,10 +1,8 @@
 package de.caluga.morphium;
 
-import de.caluga.morphium.annotations.Entity;
-import de.caluga.morphium.annotations.Index;
-import de.caluga.morphium.annotations.SafetyLevel;
-import de.caluga.morphium.annotations.WriteSafety;
+import de.caluga.morphium.annotations.*;
 import de.caluga.morphium.annotations.caching.NoCache;
+import org.bson.types.ObjectId;
 
 /**
  * User: Stephan Bösebeck
@@ -14,11 +12,15 @@ import de.caluga.morphium.annotations.caching.NoCache;
  */
 @Entity
 @NoCache
-@Index
+@Index({"name,locked_by"})
 @WriteSafety(waitForJournalCommit = true, waitForSync = true, level = SafetyLevel.WAIT_FOR_SLAVES)
 public class Sequence {
+    @Id
+    private ObjectId id;
+    @Index
     private String name;
     private Long currentValue;
+    @Index
     private String lockedBy;
 
 
