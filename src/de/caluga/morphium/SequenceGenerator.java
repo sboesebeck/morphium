@@ -109,7 +109,7 @@ public class SequenceGenerator {
             log.error("sequence name / locked by not unique??? - using first");
         }
 
-        Map<String, Object> values = new HashMap<String, Object>();
+//        Map<String, Object> values = new HashMap<String, Object>();
         morphium.inc(seq, Sequence.PROPERTYNAME_CURRENT_VALUE, inc);
 
         Sequence s = seq.get();
