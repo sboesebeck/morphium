@@ -1782,7 +1782,7 @@ public final class Morphium {
     public void ensureIndex(Class<?> cls, Map<String, Integer> index) {
         List<String> fields = getFields(cls);
 
-        Map<String, Integer> idx = new HashMap<String, Integer>();
+        Map<String, Integer> idx = new LinkedHashMap<String, Integer>();
         for (Map.Entry<String, Integer> es : index.entrySet()) {
             String k = es.getKey();
             if (!fields.contains(k) && !fields.contains(config.getMapper().convertCamelCase(k))) {
@@ -1802,7 +1802,7 @@ public final class Morphium {
      * @param fldStr
      */
     public void ensureIndex(Class<?> cls, String... fldStr) {
-        Map<String, Integer> m = new HashMap<String, Integer>();
+        Map<String, Integer> m = new LinkedHashMap<String, Integer>();
         for (String f : fldStr) {
             int idx = 1;
             if (f.startsWith("-")) {
@@ -1817,7 +1817,7 @@ public final class Morphium {
     }
 
     public void ensureIndex(Class<?> cls, Enum... fldStr) {
-        Map<String, Integer> m = new HashMap<String, Integer>();
+        Map<String, Integer> m = new LinkedHashMap<String, Integer>();
         for (Enum e : fldStr) {
             String f = e.name();
             m.put(f, 1);
