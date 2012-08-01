@@ -43,5 +43,6 @@ public class ProfilingTester extends MongoTest {
         MorphiumSingleton.get().createQueryFor(UncachedObject.class).get();
         assert (readAccess);
         assert (readTime > -1);
+        MorphiumSingleton.get().removeProfilingListener(pl);
     }
 }
