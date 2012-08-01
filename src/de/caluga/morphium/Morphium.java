@@ -1357,7 +1357,7 @@ public final class Morphium {
         for (ProfilingListener l : profilingListeners) {
             try {
                 l.writeAccess(type, data, time, isNew, wt);
-            } catch (Exception e) {
+            } catch (Throwable e) {
                 logger.error("Error during profiling: ", e);
             }
         }
@@ -1367,7 +1367,7 @@ public final class Morphium {
         for (ProfilingListener l : profilingListeners) {
             try {
                 l.readAccess(q, time, t);
-            } catch (Exception e) {
+            } catch (Throwable e) {
                 logger.error("Error during profiling", e);
             }
         }
