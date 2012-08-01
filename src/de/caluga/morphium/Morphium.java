@@ -71,6 +71,7 @@ public final class Morphium {
     private CacheHousekeeper cacheHousekeeper;
 
     private Vector<MorphiumStorageListener> listeners;
+    private Vector<ProfilingListener> profilingListeners;
     private Vector<Thread> privileged;
     private Vector<ShutdownListener> shutDownListeners;
 
@@ -94,6 +95,7 @@ public final class Morphium {
         privileged = new Vector<Thread>();
         shutDownListeners = new Vector<ShutdownListener>();
         listeners = new Vector<MorphiumStorageListener>();
+        profilingListeners = new Vector<ProfilingListener>();
         cache = new Hashtable<Class<? extends Object>, Hashtable<String, CacheElement>>();
         idCache = new Hashtable<Class<? extends Object>, Hashtable<ObjectId, Object>>();
 
@@ -295,12 +297,14 @@ public final class Morphium {
         if (!database.collectionExists(coll)) {
             ensureIndicesFor(cls);
         }
+        long start = System.currentTimeMillis();
         if (wc == null) {
             database.getCollection(coll).update(query, update);
         } else {
             database.getCollection(coll).update(query, update, false, false, wc);
         }
-
+        long dur = System.currentTimeMillis() - start;
+        fireProfilingWriteEvent(toSet.getClass(), update, dur, false, WriteAccessType.SINGLE_UPDATE);
         clearCacheIfNecessary(cls);
         try {
             f.set(toSet, null);
@@ -430,11 +434,14 @@ public final class Morphium {
             ensureIndicesFor(cls);
         }
         WriteConcern wc = getWriteConcernForClass(cls);
+        long start = System.currentTimeMillis();
         if (wc == null) {
             database.getCollection(coll).update(qobj, update, insertIfNotExist, multiple);
         } else {
             database.getCollection(coll).update(qobj, update, insertIfNotExist, multiple, wc);
         }
+        long dur = System.currentTimeMillis() - start;
+        fireProfilingWriteEvent(cls, update, dur, insertIfNotExist, multiple ? WriteAccessType.BULK_UPDATE : WriteAccessType.SINGLE_UPDATE);
         clearCacheIfNecessary(cls);
         firePostUpdateEvent(getRealClass(cls), push ? MorphiumStorageListener.UpdateTypes.PUSH : MorphiumStorageListener.UpdateTypes.PULL);
     }
@@ -488,11 +495,14 @@ public final class Morphium {
 
         BasicDBObject update = new BasicDBObject("$set", toSet);
         WriteConcern wc = getWriteConcernForClass(cls);
+        long start = System.currentTimeMillis();
         if (wc == null) {
             database.getCollection(coll).update(qobj, update, insertIfNotExist, multiple);
         } else {
             database.getCollection(coll).update(qobj, update, insertIfNotExist, multiple, wc);
         }
+        long dur = System.currentTimeMillis() - start;
+        fireProfilingWriteEvent(cls, update, dur, insertIfNotExist, multiple ? WriteAccessType.BULK_UPDATE : WriteAccessType.SINGLE_UPDATE);
         clearCacheIfNecessary(cls);
         firePostUpdateEvent(getRealClass(cls), MorphiumStorageListener.UpdateTypes.SET);
     }
@@ -557,11 +567,14 @@ public final class Morphium {
             ensureIndicesFor(cls);
         }
         WriteConcern wc = getWriteConcernForClass(cls);
+        long start = System.currentTimeMillis();
         if (wc == null) {
             database.getCollection(coll).update(qobj, update, insertIfNotExist, multiple);
         } else {
             database.getCollection(coll).update(qobj, update, insertIfNotExist, multiple, wc);
         }
+        long dur = System.currentTimeMillis() - start;
+        fireProfilingWriteEvent(cls, update, dur, insertIfNotExist, multiple ? WriteAccessType.BULK_UPDATE : WriteAccessType.SINGLE_UPDATE);
         clearCacheIfNecessary(cls);
         firePostUpdateEvent(getRealClass(cls), MorphiumStorageListener.UpdateTypes.INC);
     }
@@ -601,12 +614,14 @@ public final class Morphium {
 
 
         WriteConcern wc = getWriteConcernForClass(toSet.getClass());
+        long start = System.currentTimeMillis();
         if (wc == null) {
             database.getCollection(coll).update(query, update);
         } else {
             database.getCollection(coll).update(query, update, false, false, wc);
         }
-
+        long dur = System.currentTimeMillis() - start;
+        fireProfilingWriteEvent(cls, update, dur, false, WriteAccessType.SINGLE_UPDATE);
         clearCacheIfNecessary(cls);
         try {
             f.set(toSet, value);
@@ -847,12 +862,14 @@ public final class Morphium {
 
         update = new BasicDBObject("$set", update);
         WriteConcern wc = getWriteConcernForClass(type);
+        long start = System.currentTimeMillis();
         if (wc != null) {
             database.getCollection(config.getMapper().getCollectionName(ent.getClass())).update(find, update, false, false, wc);
         } else {
             database.getCollection(config.getMapper().getCollectionName(ent.getClass())).update(find, update, false, false);
         }
-
+        long dur = System.currentTimeMillis() - start;
+        fireProfilingWriteEvent(ent.getClass(), update, dur, false, WriteAccessType.SINGLE_UPDATE);
         clearCacheIfNecessary(getRealClass(ent.getClass()));
         firePostStoreEvent(ent, false);
     }
@@ -1291,6 +1308,7 @@ public final class Morphium {
             database.getCollection(coll).save(marshall);
         }
         dur = System.currentTimeMillis() - start;
+        fireProfilingWriteEvent(o.getClass(), marshall, dur, true, WriteAccessType.SINGLE_INSERT);
         if (logger.isDebugEnabled()) {
             String n = "";
             if (isNew) {
@@ -1325,6 +1343,34 @@ public final class Morphium {
         WriteSafety safety = getAnnotationFromHierarchy(cls, WriteSafety.class);  // cls.getAnnotation(WriteSafety.class);
         if (safety == null) return null;
         return new WriteConcern(safety.level().getValue(), safety.timeout(), safety.waitForSync(), safety.waitForJournalCommit());
+    }
+
+    public void addProfilingListener(ProfilingListener l) {
+        profilingListeners.add(l);
+    }
+
+    public void removeProfilingListener(ProfilingListener l) {
+        profilingListeners.remove(l);
+    }
+
+    private void fireProfilingWriteEvent(Class type, Object data, long time, boolean isNew, WriteAccessType wt) {
+        for (ProfilingListener l : profilingListeners) {
+            try {
+                l.writeAccess(type, data, time, isNew, wt);
+            } catch (Exception e) {
+                logger.error("Error during profiling: ", e);
+            }
+        }
+    }
+
+    public void fireProfilingReadEvent(Query q, long time, ReadAccessType t) {
+        for (ProfilingListener l : profilingListeners) {
+            try {
+                l.readAccess(q, time, t);
+            } catch (Exception e) {
+                logger.error("Error during profiling", e);
+            }
+        }
     }
 
     public void storeNoCacheList(List lst) {
@@ -1372,25 +1418,34 @@ public final class Morphium {
                 ArrayList<DBObject> dbLst = new ArrayList<DBObject>();
                 //bulk insert... check if something already exists
                 WriteConcern wc = getWriteConcernForClass(c);
+                DBCollection collection = database.getCollection(getConfig().getMapper().getCollectionName(c));
                 for (Object record : es.getValue()) {
+                    DBObject marshall = config.getMapper().marshall(record);
                     if (isNew.get(record)) {
-                        dbLst.add(config.getMapper().marshall(record));
+                        dbLst.add(marshall);
                     } else {
+                        //single update
+                        long start = System.currentTimeMillis();
                         if (wc == null) {
-                            database.getCollection(getConfig().getMapper().getCollectionName(c)).save(config.getMapper().marshall(record));
+                            collection.save(marshall);
                         } else {
-                            database.getCollection(getConfig().getMapper().getCollectionName(c)).save(config.getMapper().marshall(record), wc);
+                            collection.save(marshall, wc);
                         }
+                        long dur = System.currentTimeMillis() - start;
+                        fireProfilingWriteEvent(c, marshall, dur, false, WriteAccessType.SINGLE_INSERT);
                         firePostStoreEvent(record, isNew.get(record));
                     }
 
                 }
-
+                long start = System.currentTimeMillis();
                 if (wc == null) {
-                    database.getCollection(getConfig().getMapper().getCollectionName(c)).insert(dbLst);
+                    collection.insert(dbLst);
                 } else {
-                    database.getCollection(getConfig().getMapper().getCollectionName(c)).insert(dbLst, wc);
+                    collection.insert(dbLst, wc);
                 }
+                long dur = System.currentTimeMillis() - start;
+                //bulk insert
+                fireProfilingWriteEvent(c, dbLst, dur, true, WriteAccessType.BULK_INSERT);
                 for (Object record : es.getValue()) {
                     if (isNew.get(record)) {
                         firePostStoreEvent(record, isNew.get(record));
@@ -1636,11 +1691,14 @@ public final class Morphium {
     public <T> void delete(Query<T> q) {
         firePreRemoveEvent(q);
         WriteConcern wc = getWriteConcernForClass(q.getType());
+        long start = System.currentTimeMillis();
         if (wc == null) {
             database.getCollection(config.getMapper().getCollectionName(q.getType())).remove(q.toQueryObject());
         } else {
             database.getCollection(config.getMapper().getCollectionName(q.getType())).remove(q.toQueryObject(), wc);
         }
+        long dur = System.currentTimeMillis() - start;
+        fireProfilingWriteEvent(q.getType(), q.toQueryObject(), dur, false, WriteAccessType.BULK_DELETE);
         clearCacheIfNecessary(q.getType());
         firePostRemoveEvent(q);
     }
@@ -1771,8 +1829,11 @@ public final class Morphium {
         }
         if (isAnnotationPresentInHierarchy(cls, Entity.class)) {
             firePreDropEvent(cls);
+            long start = System.currentTimeMillis();
 //            Entity entity = getAnnotationFromHierarchy(cls, Entity.class); //cls.getAnnotation(Entity.class);
             database.getCollection(config.getMapper().getCollectionName(cls)).drop();
+            long dur = System.currentTimeMillis() - start;
+            fireProfilingWriteEvent(cls, null, dur, false, WriteAccessType.DROP);
             firePostDropEvent(cls);
         } else {
             throw new RuntimeException("No entity class: " + cls.getName());
@@ -1791,7 +1852,10 @@ public final class Morphium {
             String fn = config.getMapper().getFieldName(cls, k);
             idx.put(fn, es.getValue());
         }
+        long start = System.currentTimeMillis();
         database.getCollection(config.getMapper().getCollectionName(cls)).ensureIndex(new BasicDBObject(idx));
+        long dur = System.currentTimeMillis() - start;
+        fireProfilingWriteEvent(cls, new BasicDBObject(idx), dur, false, WriteAccessType.ENSURE_INDEX);
     }
 
     /**
@@ -1927,12 +1991,15 @@ public final class Morphium {
         BasicDBObject db = new BasicDBObject();
         db.append("_id", id);
         WriteConcern wc = getWriteConcernForClass(o.getClass());
+
+        long start = System.currentTimeMillis();
         if (wc == null) {
             database.getCollection(config.getMapper().getCollectionName(o.getClass())).remove(db);
         } else {
             database.getCollection(config.getMapper().getCollectionName(o.getClass())).remove(db, wc);
         }
-
+        long dur = System.currentTimeMillis() - start;
+        fireProfilingWriteEvent(o.getClass(), o, dur, false, WriteAccessType.SINGLE_DELETE);
         clearCachefor(o.getClass());
         inc(StatisticKeys.WRITES);
         firePostRemoveEvent(o);

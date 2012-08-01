@@ -90,7 +90,7 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
         if (morphium.isCached(type, ck)) {
             return morphium.getFromCache(type, ck);
         }
-
+        long start = System.currentTimeMillis();
         DBCollection c = morphium.getDatabase().getCollection(morphium.getConfig().getMapper().getCollectionName(type));
 
         DBCursor cursor = c.find(query);
@@ -106,9 +106,11 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
             cursor.limit(limit);
         }
         List<T> ret = new ArrayList<T>();
+
         while (cursor.hasNext()) {
             ret.add(morphium.getConfig().getMapper().unmarshall(type, cursor.next()));
         }
+        morphium.fireProfilingReadEvent(this, System.currentTimeMillis() - start, ReadAccessType.AS_LIST);
         return ret;
     }
 
@@ -272,7 +274,11 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
             throw new RuntimeException("Access denied!");
         }
         morphium.inc(StatisticKeys.READS);
-        return morphium.getDatabase().getCollection(mapper.getCollectionName(type)).count(toQueryObject());
+
+        long start = System.currentTimeMillis();
+        long ret = morphium.getDatabase().getCollection(mapper.getCollectionName(type)).count(toQueryObject());
+        morphium.fireProfilingReadEvent(this, System.currentTimeMillis() - start, ReadAccessType.COUNT);
+        return ret;
     }
 
 
@@ -354,7 +360,7 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
             morphium.inc(StatisticKeys.NO_CACHED_READS);
 
         }
-
+        long start = System.currentTimeMillis();
         DBCursor query = morphium.getDatabase().getCollection(mapper.getCollectionName(type)).find(toQueryObject());
         if (skip > 0) {
             query.skip(skip);
@@ -373,6 +379,7 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
         Iterator<DBObject> it = query.iterator();
         List<T> ret = new ArrayList<T>();
 
+        morphium.fireProfilingReadEvent(this, System.currentTimeMillis() - start, ReadAccessType.AS_LIST);
         while (it.hasNext()) {
             DBObject o = it.next();
             T unmarshall = mapper.unmarshall(type, o);
@@ -452,7 +459,7 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
         } else {
             morphium.inc(StatisticKeys.NO_CACHED_READS);
         }
-
+        long start = System.currentTimeMillis();
         DBCursor srch = morphium.getDatabase().getCollection(mapper.getCollectionName(type)).find(toQueryObject());
         srch.limit(1);
         if (skip != 0) {
@@ -469,8 +476,12 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
         if (srch.length() == 0) {
             return null;
         }
+
         DBObject ret = srch.toArray(1).get(0);
         List<T> lst = new ArrayList<T>(1);
+        long dur = System.currentTimeMillis() - start;
+        morphium.fireProfilingReadEvent(this, dur, ReadAccessType.GET);
+
         if (ret != null) {
             T unmarshall = mapper.unmarshall(type, ret);
             morphium.firePostLoadEvent(unmarshall);
@@ -508,6 +519,7 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
         } else {
             morphium.inc(StatisticKeys.NO_CACHED_READS);
         }
+        long start = System.currentTimeMillis();
         DBCursor query = morphium.getDatabase().getCollection(mapper.getCollectionName(type)).find(toQueryObject(), new BasicDBObject("_id", 1)); //only get IDs
         if (order != null) {
             query.sort(new BasicDBObject(order));
@@ -524,6 +536,8 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
             DBObject o = it.next();
             ret.add((ObjectId) o.get("_id"));
         }
+        long dur = System.currentTimeMillis() - start;
+        morphium.fireProfilingReadEvent(this, dur, ReadAccessType.ID_LIST);
         if (readCache) {
             morphium.addToCache(ck, type, ret);
         }
