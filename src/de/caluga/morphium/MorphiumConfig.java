@@ -293,7 +293,9 @@ public class MorphiumConfig {
         this.globalCacheValidTime = globalCacheValidTime;
         this.housekeepingTimeout = housekeepingTimeout;
 //        LogManager.getLogManager().readConfiguration(logPropInput);
-        DOMConfigurator.configure(loggingConfigResource);
+		if (loggingConfigResource != null) {
+	        DOMConfigurator.configure(loggingConfigResource);
+		}
 
 
     }
