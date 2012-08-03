@@ -146,7 +146,7 @@ public class BasicFunctionalityTest extends MongoTest {
         }
         long dur = System.currentTimeMillis() - start;
         log.info("Storing single took " + dur + " ms");
-        assert (dur < NO_OBJECTS * 1.5) : "Storing took way too long";
+        assert (dur < NO_OBJECTS * 2.5) : "Storing took way too long";
 
         log.info("Searching for objects");
 
