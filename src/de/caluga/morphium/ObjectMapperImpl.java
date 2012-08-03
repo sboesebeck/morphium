@@ -762,6 +762,11 @@ public class ObjectMapperImpl implements ObjectMapper {
     @Override
     public String getFieldName(Class clz, String field) {
         Class cls = getRealClass(clz);
+        if (field.contains(".")) {
+            //searching for a sub-element?
+            //no check possible
+            return field;
+        }
         Field f = getField(cls, field);
         if (f == null) throw new RuntimeException("Field not found " + field + " in cls: " + clz.getName());
         if (f.isAnnotationPresent(Property.class)) {

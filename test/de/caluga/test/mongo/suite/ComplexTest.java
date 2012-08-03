@@ -184,4 +184,34 @@ public class ComplexTest extends MongoTest {
         assert (fnd.getRef().getCounter() == co.getRef().getCounter()) : "Reference broken?";
     }
 
+    @Test
+    public void searchForSubObj() throws Exception {
+        UncachedObject o = new UncachedObject();
+        o.setCounter(15);
+        o.setValue("Uncached " + 15);
+        MorphiumSingleton.get().store(o);
+
+
+        ComplexObject co = new ComplexObject();
+        co.setEinText("Text");
+        co.setRef(o);
+        co.setTrans("trans");
+
+        EmbeddedObject eo = new EmbeddedObject();
+        eo.setName("embedded1");
+        eo.setValue("154");
+
+        co.setEmbed(eo);
+
+        MorphiumSingleton.get().store(co);
+
+        waitForWrites();
+        Query<ComplexObject> qc = MorphiumSingleton.get().createQueryFor(ComplexObject.class);
+        co = (ComplexObject) qc.f("embed.name").eq("embedded1").get();
+        assert (co != null);
+        assert (co.getEmbed() != null);
+        assert (co.getEmbed().getName().equals("embedded1"));
+        assert (co.getEinText().equals("Text"));
+    }
+
 }
