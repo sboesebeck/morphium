@@ -2082,7 +2082,7 @@ public final class Morphium {
         config = null;
 
         mongo.close();
-
+        MorphiumSingleton.reset();
     }
 
 

@@ -41,6 +41,11 @@ public class MorphiumSingleton {
         return config;
     }
 
+    public static void reset() {
+        config = null;
+        instance = null;
+    }
+
 
     /**
      * threadsafe Singleton implementation.
