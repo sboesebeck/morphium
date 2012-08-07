@@ -272,7 +272,7 @@ public class MorphiumConfig {
     }
 
     public MorphiumConfig(String db, MongoDbMode mode, int maxConnections, int globalCacheValidTime, int housekeepingTimeout, MongoSecurityManager mgr) throws IOException {
-        this(db, mode, maxConnections, globalCacheValidTime, housekeepingTimeout, mgr, Thread.currentThread().getContextClassLoader().getResource("log4j.xml"));
+        this(db, mode, maxConnections, globalCacheValidTime, housekeepingTimeout, mgr, Thread.currentThread().getContextClassLoader().getResource("morphium-log4j.xml"));
     }
 
     public MorphiumConfig(String db, MongoDbMode mode, int maxConnections, int globalCacheValidTime, int housekeepingTimeout, MongoSecurityManager mgr, String resourceName) throws IOException {
@@ -293,9 +293,9 @@ public class MorphiumConfig {
         this.globalCacheValidTime = globalCacheValidTime;
         this.housekeepingTimeout = housekeepingTimeout;
 //        LogManager.getLogManager().readConfiguration(logPropInput);
-		if (loggingConfigResource != null) {
-	        DOMConfigurator.configure(loggingConfigResource);
-		}
+        if (loggingConfigResource != null) {
+            DOMConfigurator.configure(loggingConfigResource);
+        }
 
 
     }
