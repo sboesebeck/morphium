@@ -1342,7 +1342,13 @@ public final class Morphium {
     private WriteConcern getWriteConcernForClass(Class<?> cls) {
         WriteSafety safety = getAnnotationFromHierarchy(cls, WriteSafety.class);  // cls.getAnnotation(WriteSafety.class);
         if (safety == null) return null;
-        return new WriteConcern(safety.level().getValue(), safety.timeout(), safety.waitForSync(), safety.waitForJournalCommit());
+        boolean fsync = safety.waitForSync();
+        boolean j = safety.waitForJournalCommit();
+
+        if (j && fsync) {
+            fsync = false;
+        }
+        return new WriteConcern(safety.level().getValue(), safety.timeout(), fsync, j);
     }
 
     public void addProfilingListener(ProfilingListener l) {

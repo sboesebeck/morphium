@@ -59,13 +59,15 @@ public class CacheSyncTest extends MongoTest {
             c.asList();
         }
         assert (MorphiumSingleton.get().getStatistics().get(StatisticKeys.CACHE_ENTRIES.name()) != null) : "Cache entries not set?";
-        assert (MorphiumSingleton.get().getStatistics().get(StatisticKeys.CACHE_ENTRIES.name()) == 100) : "Cache entries not set?";
+        assert (MorphiumSingleton.get().getStatistics().get(StatisticKeys.CACHE_ENTRIES.name()) >= 99) : "Cache entries not set? " + MorphiumSingleton.get().getStatistics().get(StatisticKeys.CACHE_ENTRIES.name());
         Query<CachedObject> c = MorphiumSingleton.get().createQueryFor(CachedObject.class);
         c = c.f("counter").eq(10);
         ObjectId id = c.get().getId();
+        Double cnt = MorphiumSingleton.get().getStatistics().get(StatisticKeys.CACHE_ENTRIES.name());
         MorphiumSingleton.get().removeEntryFromCache(CachedObject.class, id);
-        assert (MorphiumSingleton.get().getStatistics().get(StatisticKeys.CACHE_ENTRIES.name()) == 99) : "Cache entries not set?";
-
+        Double cnt2 = MorphiumSingleton.get().getStatistics().get(StatisticKeys.CACHE_ENTRIES.name());
+        assert (MorphiumSingleton.get().getStatistics().get(StatisticKeys.CACHE_ENTRIES.name()) <= cnt - 1) : "Cache entries not set?";
+        log.info("Count 1: " + cnt + " ---> " + cnt2);
     }
 
     @Test

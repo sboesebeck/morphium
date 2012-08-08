@@ -22,7 +22,7 @@ import java.util.Map;
 @Entity
 @NoCache
 //MAximumSecurity
-@WriteSafety(level = SafetyLevel.WAIT_FOR_SLAVES, timeout = 3000, waitForJournalCommit = true, waitForSync = true)
+@WriteSafety(level = SafetyLevel.BASIC, timeout = 3000, waitForJournalCommit = true, waitForSync = true)
 @Lifecycle
 @Index({"sender,locked_by,processed_by,to,-timestamp", "locked_by,processed_by,to,timestamp"})
 public class Msg {
