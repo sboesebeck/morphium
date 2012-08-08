@@ -7,6 +7,6 @@ echo "uploading jar..."
 python ./googlecode_upload.py -p morphium -s "Morphium V$version" -u $name -w $pw -l "Featured" target/morphium-$version.jar
 echo "done... uploading uploading sources..."
 python ./googlecode_upload.py -p morphium -s "Morphium V$version - Sources" -u $name -w $pw -l "Featured" target/morphium-$version-sources.jar
-#echo "done... uploading uploading docs..."
-#python ./googlecode_upload.py -p morphium -s "Morphium V$version - JavaDoc" -u $name -w $pw -l "Featured" target/morphium-$version-javadoc.jar
+echo "done... uploading uploading docs..."
+python ./googlecode_upload.py -p morphium -s "Morphium V$version - JavaDoc" -u $name -w $pw -l "Featured" target/morphium-$version-javadoc.jar
 echo 'All done!'
