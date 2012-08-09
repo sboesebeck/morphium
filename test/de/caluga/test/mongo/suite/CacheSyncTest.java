@@ -109,7 +109,7 @@ public class CacheSyncTest extends MongoTest {
     @Test
     public void idCacheTest() throws Exception {
         long start = System.currentTimeMillis();
-        for (int i = 0; i < 1000; i++) {
+        for (int i = 0; i < 100; i++) {
             IdCachedObject o = new IdCachedObject();
             o.setCounter(i);
             o.setValue("a value");
@@ -120,7 +120,7 @@ public class CacheSyncTest extends MongoTest {
         log.info("Storing without synchronizer: " + dur + " ms");
 
         start = System.currentTimeMillis();
-        for (int i = 0; i < 1000; i++) {
+        for (int i = 0; i < 100; i++) {
             Query<IdCachedObject> q = MorphiumSingleton.get().createQueryFor(IdCachedObject.class);
             IdCachedObject obj = (IdCachedObject) q.f("counter").eq(i).get();
             obj.setCounter(i + 1000);
