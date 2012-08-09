@@ -1,8 +1,6 @@
 package de.caluga.test.mongo.suite;
 
-import de.caluga.morphium.annotations.Entity;
-import de.caluga.morphium.annotations.Id;
-import de.caluga.morphium.annotations.Reference;
+import de.caluga.morphium.annotations.*;
 import de.caluga.morphium.annotations.caching.NoCache;
 import org.bson.types.ObjectId;
 
@@ -17,6 +15,7 @@ import java.util.List;
  */
 @Entity
 @NoCache
+@WriteSafety(waitForJournalCommit = true, level = SafetyLevel.WAIT_FOR_ALL_SLAVES)
 public class LazyLoadingObject {
     @Id
     private ObjectId id;

@@ -1348,7 +1348,15 @@ public final class Morphium {
         if (j && fsync) {
             fsync = false;
         }
-        return new WriteConcern(safety.level().getValue(), safety.timeout(), fsync, j);
+        int w = safety.level().getValue();
+        if (!getConfig().getMode().equals(MongoDbMode.REPLICASET) && w > 1) {
+            w = 1;
+        }
+        if (getConfig().getMode().equals(MongoDbMode.REPLICASET) && w > 2) {
+            //Wait for all slaves
+            w = getConfig().getAdr().size();
+        }
+        return new WriteConcern(w, safety.timeout(), fsync, j);
     }
 
     public void addProfilingListener(ProfilingListener l) {
@@ -1833,6 +1841,14 @@ public final class Morphium {
                 Logger.getLogger(Morphium.class.getName()).fatal(ex);
             }
         }
+
+        if (config.getMode() == MongoDbMode.REPLICASET && config.getAdr().size() > 1) {
+            //replicaset
+            logger.warn("Cannot drop collection for class " + cls.getSimpleName() + " as we're in a clustered environment (Driver 2.8.0)");
+            clearCollection(cls);
+            return;
+        }
+
         if (isAnnotationPresentInHierarchy(cls, Entity.class)) {
             firePreDropEvent(cls);
             long start = System.currentTimeMillis();

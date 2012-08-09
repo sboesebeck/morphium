@@ -4,10 +4,7 @@
  */
 package de.caluga.test.mongo.suite;
 
-import de.caluga.morphium.annotations.Entity;
-import de.caluga.morphium.annotations.Id;
-import de.caluga.morphium.annotations.Index;
-import de.caluga.morphium.annotations.PartialUpdate;
+import de.caluga.morphium.annotations.*;
 import de.caluga.morphium.annotations.caching.NoCache;
 import org.bson.types.ObjectId;
 
@@ -16,6 +13,7 @@ import org.bson.types.ObjectId;
  */
 @NoCache
 @Entity
+@WriteSafety(waitForJournalCommit = false, waitForSync = false, level = SafetyLevel.WAIT_FOR_SLAVE)
 public class UncachedObject {
     @Index
     private String value;

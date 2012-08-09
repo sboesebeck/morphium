@@ -18,7 +18,7 @@ import java.util.Map;
  * @author stephan
  */
 public class BasicFunctionalityTest extends MongoTest {
-    public static final int NO_OBJECTS = 1000;
+    public static final int NO_OBJECTS = 100;
     private final static Logger log = Logger.getLogger(BasicFunctionalityTest.class);
 
     public BasicFunctionalityTest() {
@@ -146,7 +146,7 @@ public class BasicFunctionalityTest extends MongoTest {
         }
         long dur = System.currentTimeMillis() - start;
         log.info("Storing single took " + dur + " ms");
-        assert (dur < NO_OBJECTS * 2.5) : "Storing took way too long";
+        assert (dur < NO_OBJECTS * 5) : "Storing took way too long";
 
         log.info("Searching for objects");
 

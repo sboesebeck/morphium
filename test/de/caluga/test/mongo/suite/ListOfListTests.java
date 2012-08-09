@@ -3,6 +3,8 @@ package de.caluga.test.mongo.suite;
 import de.caluga.morphium.MorphiumSingleton;
 import de.caluga.morphium.annotations.Entity;
 import de.caluga.morphium.annotations.Id;
+import de.caluga.morphium.annotations.SafetyLevel;
+import de.caluga.morphium.annotations.WriteSafety;
 import org.bson.types.ObjectId;
 import org.junit.Test;
 
@@ -50,6 +52,7 @@ public class ListOfListTests extends MongoTest {
 
 
     @Entity
+    @WriteSafety(level = SafetyLevel.WAIT_FOR_SLAVE)
     public static class LoLType {
         @Id
         private ObjectId id;

@@ -3,9 +3,7 @@ package de.caluga.test.mongo.suite;
 import de.caluga.morphium.MorphiumSingleton;
 import de.caluga.morphium.PartiallyUpdateable;
 import de.caluga.morphium.Query;
-import de.caluga.morphium.annotations.Entity;
-import de.caluga.morphium.annotations.Id;
-import de.caluga.morphium.annotations.PartialUpdate;
+import de.caluga.morphium.annotations.*;
 import de.caluga.morphium.annotations.caching.Cache;
 import org.bson.types.ObjectId;
 import org.junit.Test;
@@ -72,6 +70,7 @@ public class PartialUpdateTests extends MongoTest {
     @Entity
     @Cache
     @PartialUpdate
+    @WriteSafety(level = SafetyLevel.WAIT_FOR_SLAVE)
     public static class PartUpdTestObj {
         private String name;
         private int value;

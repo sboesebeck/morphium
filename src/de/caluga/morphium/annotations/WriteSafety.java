@@ -21,7 +21,7 @@ import static java.lang.annotation.ElementType.TYPE;
  * <li>{@code IGNORE_ERRORS} None, no checking is done</li>
  * <li>{@code NORMAL} None, network socket errors raised</li>
  * <li>{@code BASIC} Checks server for errors as well as network socket errors raised</li>
- * <li>{@code WAIT_FOR_SLAVES} Checks servers (at lease 2) for errors as well as network socket errors raised</li>
+ * <li>{@code WAIT_FOR_SLAVE} Checks servers (at lease 2) for errors as well as network socket errors raised</li>
  * </ul>
  */
 @Target({TYPE})

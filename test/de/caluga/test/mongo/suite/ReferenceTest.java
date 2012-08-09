@@ -2,10 +2,7 @@ package de.caluga.test.mongo.suite;
 
 import de.caluga.morphium.MorphiumSingleton;
 import de.caluga.morphium.Query;
-import de.caluga.morphium.annotations.Entity;
-import de.caluga.morphium.annotations.Id;
-import de.caluga.morphium.annotations.Reference;
-import de.caluga.morphium.annotations.WriteSafety;
+import de.caluga.morphium.annotations.*;
 import de.caluga.morphium.annotations.caching.NoCache;
 import org.bson.types.ObjectId;
 import org.junit.Test;
@@ -92,7 +89,7 @@ public class ReferenceTest extends MongoTest {
 
 
     @Entity
-    @WriteSafety(waitForSync = true, waitForJournalCommit = true)
+    @WriteSafety(waitForSync = true, waitForJournalCommit = true, level = SafetyLevel.WAIT_FOR_SLAVE)
     @NoCache
     public static class ReferenceContainer {
         @Id

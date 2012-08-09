@@ -3,6 +3,8 @@ package de.caluga.test.mongo.suite;
 import de.caluga.morphium.MorphiumSingleton;
 import de.caluga.morphium.Query;
 import de.caluga.morphium.StatisticKeys;
+import de.caluga.morphium.annotations.SafetyLevel;
+import de.caluga.morphium.annotations.WriteSafety;
 import de.caluga.morphium.annotations.caching.Cache;
 import de.caluga.morphium.cache.CacheSyncListener;
 import de.caluga.morphium.cache.CacheSyncVetoException;
@@ -129,7 +131,7 @@ public class CacheSyncTest extends MongoTest {
         log.info("Updating without synchronizer: " + dur + " ms");
 
 
-        MorphiumSingleton.get().dropCollection(IdCachedObject.class);
+        MorphiumSingleton.get().clearCollection(IdCachedObject.class);
         Messaging msg1 = new Messaging(MorphiumSingleton.get(), 100, true);
         msg1.start();
 
@@ -167,6 +169,7 @@ public class CacheSyncTest extends MongoTest {
 
 
     @Cache(readCache = true, writeCache = true, syncCache = Cache.SyncCacheStrategy.UPDATE_ENTRY)
+    @WriteSafety(waitForJournalCommit = true, level = SafetyLevel.WAIT_FOR_ALL_SLAVES)
     public static class IdCachedObject extends CachedObject {
 
     }

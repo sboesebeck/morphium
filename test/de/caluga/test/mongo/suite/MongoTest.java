@@ -45,7 +45,7 @@ public class MongoTest {
             MorphiumSingleton.get().clearCollection(CachedObject.class);
             MorphiumSingleton.get().clearCollection(ComplexObject.class);
             MorphiumSingleton.get().clearCollection(EnumEntity.class);
-            MorphiumSingleton.get().dropCollection(Msg.class);
+            MorphiumSingleton.get().clearCollection(Msg.class);
             MorphiumSingleton.get().ensureIndex(UncachedObject.class, "counter", "value");
             MorphiumSingleton.get().ensureIndex(CachedObject.class, "counter", "value");
 
@@ -78,9 +78,12 @@ public class MongoTest {
     @org.junit.BeforeClass
     public static void setUpClass() throws Exception {
         if (!MorphiumSingleton.isConfigured()) {
-            MorphiumConfig cfg = new MorphiumConfig("morphium_test", MongoDbMode.SINGLE, 5, 50000, 5000, new DefaultSecurityManager(), "morphium-log4j-test.xml");
+            MorphiumConfig cfg = new MorphiumConfig("morphium_test", MongoDbMode.REPLICASET, 5, 50000, 5000, new DefaultSecurityManager(), "morphium-log4j-test.xml");
             cfg.addAddress("localhost", 27017);
+            cfg.addAddress("localhost", 27018);
+            cfg.addAddress("localhost", 27019);
             cfg.setWriteCacheTimeout(100);
+            cfg.setSlaveOk(true);
             MorphiumSingleton.setConfig(cfg);
             MorphiumSingleton.get();
         }

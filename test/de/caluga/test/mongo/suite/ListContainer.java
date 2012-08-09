@@ -1,9 +1,6 @@
 package de.caluga.test.mongo.suite;
 
-import de.caluga.morphium.annotations.Entity;
-import de.caluga.morphium.annotations.Id;
-import de.caluga.morphium.annotations.Property;
-import de.caluga.morphium.annotations.Reference;
+import de.caluga.morphium.annotations.*;
 import org.bson.types.ObjectId;
 
 import java.util.ArrayList;
@@ -17,6 +14,7 @@ import java.util.List;
  * TODO: Add documentation here
  */
 @Entity
+@WriteSafety(level = SafetyLevel.WAIT_FOR_SLAVE)
 public class ListContainer {
     @Id
     ObjectId id;

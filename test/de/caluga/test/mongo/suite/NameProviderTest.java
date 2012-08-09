@@ -7,6 +7,8 @@ import de.caluga.morphium.NameProvider;
 import de.caluga.morphium.ObjectMapper;
 import de.caluga.morphium.annotations.Entity;
 import de.caluga.morphium.annotations.Id;
+import de.caluga.morphium.annotations.SafetyLevel;
+import de.caluga.morphium.annotations.WriteSafety;
 import org.bson.types.ObjectId;
 import org.junit.Test;
 
@@ -61,6 +63,7 @@ public class NameProviderTest extends MongoTest {
     }
 
     @Entity(nameProvider = MyNp.class)
+    @WriteSafety(level = SafetyLevel.WAIT_FOR_SLAVE)
     public static class LogObject {
         private String msg;
         private int level;

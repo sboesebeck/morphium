@@ -8,7 +8,7 @@ package de.caluga.morphium.annotations;
  * TODO: Add documentation here
  */
 public enum SafetyLevel {
-    IGNORE_ERROR(-1), NORMAL(0), BASIC(1), WAIT_FOR_SLAVES(2);
+    IGNORE_ERROR(-1), NORMAL(0), BASIC(1), WAIT_FOR_SLAVE(2), WAIT_FOR_ALL_SLAVES(3);
 
     int value;
 

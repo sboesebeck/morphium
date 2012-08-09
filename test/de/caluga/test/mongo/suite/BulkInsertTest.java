@@ -17,7 +17,7 @@ import java.util.List;
 public class BulkInsertTest extends MongoTest {
     @Test
     public void bulkInsert() throws Exception {
-        MorphiumSingleton.get().dropCollection(UncachedObject.class);
+        MorphiumSingleton.get().clearCollection(UncachedObject.class);
         log.info("Start storing single");
         long start = System.currentTimeMillis();
         for (int i = 0; i < 1000; i++) {
@@ -28,7 +28,7 @@ public class BulkInsertTest extends MongoTest {
         }
         long dur = System.currentTimeMillis() - start;
         log.info("storing objects one by one took " + dur + " ms");
-        MorphiumSingleton.get().dropCollection(UncachedObject.class);
+        MorphiumSingleton.get().clearCollection(UncachedObject.class);
 
         log.info("Start storing ist");
         List<UncachedObject> lst = new ArrayList<UncachedObject>();

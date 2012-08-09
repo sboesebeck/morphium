@@ -2,6 +2,8 @@ package de.caluga.test.mongo.suite;
 
 import de.caluga.morphium.annotations.Entity;
 import de.caluga.morphium.annotations.Id;
+import de.caluga.morphium.annotations.SafetyLevel;
+import de.caluga.morphium.annotations.WriteSafety;
 import de.caluga.morphium.annotations.caching.NoCache;
 import org.bson.types.ObjectId;
 
@@ -15,6 +17,7 @@ import java.util.List;
  */
 @Entity
 @NoCache
+@WriteSafety(level = SafetyLevel.WAIT_FOR_ALL_SLAVES, waitForJournalCommit = true)
 public class EnumEntity {
     @Id
     private ObjectId id;

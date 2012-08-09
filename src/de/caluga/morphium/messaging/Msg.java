@@ -17,12 +17,12 @@ import java.util.Map;
  * Date: 26.05.12
  * Time: 15:45
  * <p/>
- * TODO: Add documentation here
+ * Message class - used by Morphium's own messaging system
  */
 @Entity
 @NoCache
 //MAximumSecurity
-@WriteSafety(level = SafetyLevel.BASIC, timeout = 3000, waitForJournalCommit = true, waitForSync = true)
+@WriteSafety(level = SafetyLevel.WAIT_FOR_ALL_SLAVES, timeout = 3000, waitForJournalCommit = true, waitForSync = true)
 @Lifecycle
 @Index({"sender,locked_by,processed_by,to,-timestamp", "locked_by,processed_by,to,timestamp"})
 public class Msg {

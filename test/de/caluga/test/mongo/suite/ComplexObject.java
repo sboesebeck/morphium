@@ -15,6 +15,7 @@ import org.bson.types.ObjectId;
 @StoreLastAccess()
 @StoreCreationTime()
 @StoreLastChange()
+@WriteSafety(level = SafetyLevel.WAIT_FOR_SLAVE)
 public class ComplexObject {
     @Id
     private ObjectId id;
