@@ -14,7 +14,7 @@ import java.util.List;
  * TODO: Add documentation here
  */
 @Entity
-@WriteSafety(level = SafetyLevel.WAIT_FOR_SLAVE)
+@WriteSafety(level = SafetyLevel.WAIT_FOR_ALL_SLAVES)
 public class ListContainer {
     @Id
     ObjectId id;

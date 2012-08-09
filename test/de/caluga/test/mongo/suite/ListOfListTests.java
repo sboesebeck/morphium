@@ -52,7 +52,7 @@ public class ListOfListTests extends MongoTest {
 
 
     @Entity
-    @WriteSafety(level = SafetyLevel.WAIT_FOR_SLAVE)
+    @WriteSafety(level = SafetyLevel.WAIT_FOR_ALL_SLAVES)
     public static class LoLType {
         @Id
         private ObjectId id;

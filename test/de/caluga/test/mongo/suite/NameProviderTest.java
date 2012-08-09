@@ -63,7 +63,7 @@ public class NameProviderTest extends MongoTest {
     }
 
     @Entity(nameProvider = MyNp.class)
-    @WriteSafety(level = SafetyLevel.WAIT_FOR_SLAVE)
+    @WriteSafety(level = SafetyLevel.WAIT_FOR_ALL_SLAVES)
     public static class LogObject {
         private String msg;
         private int level;

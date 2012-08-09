@@ -18,7 +18,7 @@ import java.util.Map;
  */
 @Entity
 @NoCache
-@WriteSafety(level = SafetyLevel.WAIT_FOR_SLAVE)
+@WriteSafety(level = SafetyLevel.WAIT_FOR_ALL_SLAVES)
 public class MapListObject {
     @Id
     private ObjectId id;

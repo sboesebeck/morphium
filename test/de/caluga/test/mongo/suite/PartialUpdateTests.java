@@ -70,7 +70,7 @@ public class PartialUpdateTests extends MongoTest {
     @Entity
     @Cache
     @PartialUpdate
-    @WriteSafety(level = SafetyLevel.WAIT_FOR_SLAVE)
+    @WriteSafety(level = SafetyLevel.WAIT_FOR_ALL_SLAVES)
     public static class PartUpdTestObj {
         private String name;
         private int value;

@@ -89,7 +89,7 @@ public class ReferenceTest extends MongoTest {
 
 
     @Entity
-    @WriteSafety(waitForSync = true, waitForJournalCommit = true, level = SafetyLevel.WAIT_FOR_SLAVE)
+    @WriteSafety(waitForSync = true, waitForJournalCommit = true, level = SafetyLevel.WAIT_FOR_ALL_SLAVES)
     @NoCache
     public static class ReferenceContainer {
         @Id
