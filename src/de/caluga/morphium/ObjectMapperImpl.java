@@ -908,6 +908,8 @@ public class ObjectMapperImpl implements ObjectMapper {
                             //Still not working? Maybe boolean?
                             f.set(o, false);
                         }
+                    } else {
+                        throw new RuntimeException("could not set field " + fld + ": Field has type " + f.getType().toString() + " got type " + value.getClass().toString());
                     }
 
                 }
