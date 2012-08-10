@@ -6,6 +6,7 @@ package de.caluga.morphium;
 
 import com.mongodb.*;
 import de.caluga.morphium.annotations.*;
+import de.caluga.morphium.annotations.ReadPreference;
 import de.caluga.morphium.annotations.caching.Cache;
 import de.caluga.morphium.annotations.caching.NoCache;
 import de.caluga.morphium.annotations.lifecycle.*;
@@ -152,7 +153,7 @@ public final class Morphium {
 
         database = mongo.getDB(config.getDatabase());
         if (config.isSlaveOk()) {
-            mongo.setReadPreference(ReadPreference.SECONDARY);
+            mongo.setReadPreference(com.mongodb.ReadPreference.SECONDARY);
         }
         if (config.getMongoLogin() != null) {
             if (!database.authenticate(config.getMongoLogin(), config.getMongoPassword().toCharArray())) {
@@ -1339,6 +1340,28 @@ public final class Morphium {
         firePostStoreEvent(o, isNew);
     }
 
+    public ReplicaSetStatus getReplicaSetStatus() {
+        if (config.getMode().equals(MongoDbMode.REPLICASET)) {
+            CommandResult res = getMongo().getDB("admin").command("replSetGetStatus");
+            ReplicaSetStatus status = getConfig().getMapper().unmarshall(ReplicaSetStatus.class, res);
+            //de-referencing list
+            List lst = status.getMembers();
+            List<ReplicaSetNode> members = new ArrayList<ReplicaSetNode>();
+            for (Object l : lst) {
+                DBObject o = (DBObject) l;
+                ReplicaSetNode n = getConfig().getMapper().unmarshall(ReplicaSetNode.class, o);
+                members.add(n);
+            }
+            status.setMembers(members);
+            return status;
+        }
+        return null;
+    }
+
+    public boolean isReplicaSet() {
+        return config.getMode().equals(MongoDbMode.REPLICASET);
+    }
+
     private WriteConcern getWriteConcernForClass(Class<?> cls) {
         WriteSafety safety = getAnnotationFromHierarchy(cls, WriteSafety.class);  // cls.getAnnotation(WriteSafety.class);
         if (safety == null) return null;
@@ -1349,14 +1372,24 @@ public final class Morphium {
             fsync = false;
         }
         int w = safety.level().getValue();
-        if (!getConfig().getMode().equals(MongoDbMode.REPLICASET) && w > 1) {
+        if (!isReplicaSet() && w > 1) {
             w = 1;
         }
-        if (getConfig().getMode().equals(MongoDbMode.REPLICASET) && w > 2) {
-            //Wait for all slaves
-            w = getConfig().getAdr().size();
+        int timeout = safety.timeout();
+        if (isReplicaSet() && w > 2) {
+            ReplicaSetStatus s = getReplicaSetStatus();
+            int activeNodes = s.getActiveNodes();
+            if (s == null || activeNodes == 0) {
+                return null;
+            }
+            if (timeout == 0) {
+                logger.warn("Not waiting for all slaves without timeout - could cause deadlock. Setting to connectionTimeout value");
+                timeout = getConfig().getConnectionTimeout();
+            }
+            //Wait for all active slaves
+            w = activeNodes;
         }
-        return new WriteConcern(w, safety.timeout(), fsync, j);
+        return new WriteConcern(w, timeout, fsync, j);
     }
 
     public void addProfilingListener(ProfilingListener l) {
@@ -1597,7 +1630,22 @@ public final class Morphium {
     }
 
     public List<Object> distinct(String key, Class cls) {
-        return database.getCollection(config.getMapper().getCollectionName(cls)).distinct(key, new BasicDBObject());
+        DBCollection collection = database.getCollection(config.getMapper().getCollectionName(cls));
+        setReadPreference(collection, cls);
+        return collection.distinct(key, new BasicDBObject());
+    }
+
+    private void setReadPreference(DBCollection c, Class type) {
+        ReadPreference pr = getAnnotationFromHierarchy(type, ReadPreference.class);
+        if (pr != null) {
+            if (pr.equals(ReadPreferenceLevel.MASTER_ONLY)) {
+                c.setReadPreference(com.mongodb.ReadPreference.PRIMARY);
+            } else {
+                c.setReadPreference(com.mongodb.ReadPreference.SECONDARY);
+            }
+        } else {
+            c.setReadPreference(null);
+        }
     }
 
     public DBObject group(Query q, Map<String, Object> initial, String jsReduce, String jsFinalize, String... keys) {

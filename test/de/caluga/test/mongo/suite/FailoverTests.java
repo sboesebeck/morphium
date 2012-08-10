@@ -4,6 +4,7 @@ import de.caluga.morphium.MongoDbMode;
 import de.caluga.morphium.Morphium;
 import de.caluga.morphium.MorphiumConfig;
 import de.caluga.morphium.Query;
+import de.caluga.morphium.annotations.Embedded;
 import de.caluga.morphium.secure.DefaultSecurityManager;
 import org.apache.log4j.Logger;
 import org.junit.Test;
@@ -48,6 +49,7 @@ public class FailoverTests {
             return;
         }
         morphium.clearCollection(UncachedObject.class);
+
         //Writer-Thread
         WriterThread wt = new WriterThread(morphium);
         wt.start();
@@ -87,6 +89,7 @@ public class FailoverTests {
     }
 
 
+    @Embedded
     public class WriterThread extends Thread {
         private boolean running = true;
         private int i = 0;
