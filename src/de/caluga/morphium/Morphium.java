@@ -1050,6 +1050,9 @@ public final class Morphium {
             List<String> flds = getFields(o.getClass());
             for (String f : flds) {
                 Field fld = getConfig().getMapper().getField(o.getClass(), f);
+                if (java.lang.reflect.Modifier.isStatic(fld.getModifiers())) {
+                    continue;
+                }
                 try {
                     fld.set(o, fld.get(fromDb));
                 } catch (IllegalAccessException e) {
