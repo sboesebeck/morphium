@@ -13,6 +13,8 @@ import java.lang.reflect.Array;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
+import java.text.ParseException;
+import java.text.SimpleDateFormat;
 import java.util.*;
 
 /**
@@ -909,7 +911,87 @@ public class ObjectMapperImpl implements ObjectMapper {
                             f.set(o, false);
                         }
                     } else {
-                        throw new RuntimeException("could not set field " + fld + ": Field has type " + f.getType().toString() + " got type " + value.getClass().toString());
+                        //Doing some type conversions... lots of :-(
+                        if (value instanceof Double) {
+                            //maybe some kind of Default???
+                            Double d=(Double)value;
+                            if (f.getType().equals(Integer.class) || f.getType().equals(int.class)) {
+                                f.set(o,d.intValue());
+                            } else  if (f.getType().equals(Long.class) || f.getType().equals(long.class)) {
+                                f.set(o,d.longValue());
+                            } else  if (f.getType().equals(Date.class)) {
+                                //Fucking date / timestamp mixup
+                                f.set(o,new Date(d.longValue()));
+                            } else  if (f.getType().equals(Float.class) || f.getType().equals(float.class)) {
+                                f.set(o,d.floatValue());
+
+                            } else {
+                                throw new RuntimeException("could not set field " + fld + ": Field has type " + f.getType().toString() + " got type " + value.getClass().toString());
+                            }
+                        } else if (value instanceof String) {
+                            //String->Number conversion necessary????
+                            try {
+                                String s=(String) value;
+                                if (f.getType().equals(Long.class) || f.getType().equals(long.class)) {
+                                    f.set(o,Long.parseLong(s));
+                                } else  if (f.getType().equals(Integer.class) || f.getType().equals(int.class)) {
+                                    f.set(o,Integer.parseInt(s));
+                                } else  if (f.getType().equals(Double.class) || f.getType().equals(double.class)) {
+                                    f.set(o,Double.parseDouble(s));
+                                } else  if (f.getType().equals(Date.class)) {
+                                    //Fucking date / timestamp mixup
+                                    if (s.length()==8) {
+                                        //probably time-string 20120812
+                                        SimpleDateFormat df=new SimpleDateFormat("yyyyMMdd");
+                                        f.set(o, df.parse(s));
+                                    } else if (s.indexOf("-")>0) {
+                                        //maybe a date-String?
+                                        SimpleDateFormat df=new SimpleDateFormat("yyyy-MM-dd");
+                                        f.set(o, df.parse(s));
+                                     } else if (s.indexOf(".")>0) {
+                                        //maybe a date-String?
+                                        SimpleDateFormat df=new SimpleDateFormat("dd.MM.yyyy");
+                                        f.set(o, df.parse(s));
+                                    } else {
+                                        f.set(o,new Date(Long.parseLong(s)));
+                                    }
+                                } else  if (f.getType().equals(Float.class) || f.getType().equals(float.class)) {
+                                    f.set(o,Float.parseFloat(s));
+                                } else {
+                                    throw new RuntimeException("could not set field " + fld + ": Field has type " + f.getType().toString() + " got type " + value.getClass().toString());
+                                }
+                            } catch (ParseException e1) {
+                                throw new RuntimeException(e1);
+                            }
+                        } else if (value instanceof Integer) {
+                            Integer i=(Integer)value;
+                            if (f.getType().equals(Long.class) || f.getType().equals(long.class)) {
+                                f.set(o,i.intValue());
+                            } else  if (f.getType().equals(Double.class) || f.getType().equals(double.class)) {
+                                f.set(o,i.doubleValue());
+                            } else  if (f.getType().equals(Date.class)) {
+                                //Fucking date / timestamp mixup
+                                f.set(o,new Date(i.longValue()));
+                            } else  if (f.getType().equals(Float.class) || f.getType().equals(float.class)) {
+                                f.set(o,i.floatValue());
+                            } else {
+                                throw new RuntimeException("could not set field " + fld + ": Field has type " + f.getType().toString() + " got type " + value.getClass().toString());
+                            }
+                        } else if (value instanceof Long) {
+                            Long l=(Long)value;
+                            if (f.getType().equals(Integer.class) || f.getType().equals(int.class)) {
+                                f.set(o,l.intValue());
+                            } else  if (f.getType().equals(Double.class) || f.getType().equals(double.class)) {
+                                f.set(o,l.doubleValue());
+                            } else  if (f.getType().equals(Date.class)) {
+                                //Fucking date / timestamp mixup
+                                f.set(o,new Date(l.longValue()));
+                            } else  if (f.getType().equals(Float.class) || f.getType().equals(float.class)) {
+                                f.set(o,l.floatValue());
+                            } else {
+                                throw new RuntimeException("could not set field " + fld + ": Field has type " + f.getType().toString() + " got type " + value.getClass().toString());
+                            }
+                        }
                     }
 
                 }
