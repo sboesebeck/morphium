@@ -188,9 +188,12 @@ public class ObjectMapperImpl implements ObjectMapper {
                     continue;
                 }
                 AdditionalData ad = fld.getAnnotation(AdditionalData.class);
-                if (ad != null && !ad.readOnly()) {
-                    //storing additional data
-                    dbo.putAll((Map<String, Object>) fld.get(o));
+                if (ad != null) {
+                    if (!ad.readOnly()) {
+                        //storing additional data
+                        dbo.putAll((Map<String, Object>) fld.get(o));
+                    }
+                    //additional data is usually transient
                     continue;
                 }
                 if (fld.isAnnotationPresent(Id.class)) {
