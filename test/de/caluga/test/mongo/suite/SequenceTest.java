@@ -5,6 +5,7 @@ import de.caluga.morphium.Sequence;
 import de.caluga.morphium.SequenceGenerator;
 import org.junit.Test;
 
+import java.util.Collections;
 import java.util.Vector;
 
 /**
@@ -62,6 +63,42 @@ public class SequenceTest extends MongoTest {
             long v = g.getCurrentValue();
             long v2 = g.getNextValue();
             assert (v2 == v + g.getInc()) : "incremented wrong?";
+        }
+        log.info("done");
+    }
+
+    @Test
+    public void massiveParallelSingleSequenceTest() throws Exception {
+        MorphiumSingleton.get().dropCollection(Sequence.class);
+        final SequenceGenerator sg1 = new SequenceGenerator(MorphiumSingleton.get(), "tstseq", 1, 0);
+        Vector<Thread> thr = new Vector<Thread>();
+        final Vector<Long> data = new Vector<Long>();
+        for (int i = 0; i < 10; i++) {
+            Thread t = new Thread() {
+                public void run() {
+                    for (int i = 0; i < 100; i++) {
+                        long nv = sg1.getNextValue();
+                        assert (!data.contains(Long.valueOf(nv))) : "Value already stored? Value: " + nv;
+                        data.add(Long.valueOf(nv));
+                        try {
+                            sleep(10);
+                        } catch (InterruptedException e) {
+                        }
+                    }
+                }
+            };
+            t.start();
+            thr.add(t);
+        }
+        log.info("Waiting for threads to finish");
+        for (Thread t : thr) {
+            t.join();
+        }
+        long last = -1;
+        Collections.sort(data);
+        for (Long l : data) {
+            assert (last == l - 1);
+            last = l;
         }
         log.info("done");
     }

@@ -40,7 +40,7 @@ public class SequenceGenerator {
         this.morphium = mrph;
         id = UUID.randomUUID().toString();
 
-        if (!morphium.getDatabase().collectionExists(morphium.getConfig().getMapper().getCollectionName(Sequence.class))) {
+        if (!morphium.getDatabase().collectionExists(morphium.getConfig().getMapper().getCollectionName(Sequence.class)) || morphium.createQueryFor(Sequence.class).f(Sequence.PROPERTYNAME_NAME).eq(name).countAll() == 0) {
             //sequence does not exist yet
             Query<Sequence> seq = morphium.createQueryFor(Sequence.class);
             seq.f(Sequence.PROPERTYNAME_NAME).eq(name);
@@ -67,7 +67,7 @@ public class SequenceGenerator {
         return getNextValue(0);
     }
 
-    private long getNextValue(int recLevel) {
+    private synchronized long getNextValue(int recLevel) {
         if (recLevel > 10) {
             log.error("Could not get lock on Sequence " + name);
             throw new RuntimeException("Getting lock on sequence " + name + " failed!");
@@ -75,14 +75,8 @@ public class SequenceGenerator {
         Query<Sequence> seq = morphium.createQueryFor(Sequence.class);
         seq = seq.f(Sequence.PROPERTYNAME_NAME).eq(name);
         if (seq.countAll() == 0) {
-            //new sequence
-            seq = morphium.createQueryFor(Sequence.class);
-            seq.f(Sequence.PROPERTYNAME_NAME).eq(name);
-
-            Map<String, Object> values = new HashMap<String, Object>();
-            values.put("locked_by", id);
-            values.put("current_value", startValue - inc);
-            morphium.set(seq, values, true, false);
+            log.error("Sequence vanished?");
+            throw new RuntimeException("Sequence vanished");
         } else {
             seq = morphium.createQueryFor(Sequence.class);
             seq.f(Sequence.PROPERTYNAME_NAME).eq(name).f(Sequence.PROPERTYNAME_LOCKED_BY).eq(null);
@@ -96,9 +90,9 @@ public class SequenceGenerator {
 
         if (seq.countAll() == 0) {
             //locking failed... wait a moment, try again
-            if (log.isDebugEnabled()) {
-                log.debug("Locking failed - recursing");
-            }
+//            if (log.isDebugEnabled()) {
+            log.warn("Locking failed - recursing");
+//            }
             try {
                 Thread.sleep(100);
             } catch (InterruptedException e) {
@@ -113,6 +107,14 @@ public class SequenceGenerator {
         morphium.inc(seq, Sequence.PROPERTYNAME_CURRENT_VALUE, inc);
 
         Sequence s = seq.get();
+        if (s == null) {
+            log.error("locked Sequence not found anymore?");
+            seq = MorphiumSingleton.get().createQueryFor(Sequence.class).f(Sequence.PROPERTYNAME_NAME).eq(name);
+            for (Sequence sq : seq.asList()) {
+                log.error("Sequence: " + sq.toString());
+            }
+            return -1;
+        }
         s.setLockedBy(null);
         morphium.store(s);
 

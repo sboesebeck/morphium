@@ -60,4 +60,14 @@ public class Sequence {
     public void setLockedBy(String lockedBy) {
         this.lockedBy = lockedBy;
     }
+
+    @Override
+    public String toString() {
+        return "Sequence{" +
+                "id=" + id +
+                ", name='" + name + '\'' +
+                ", currentValue=" + currentValue +
+                ", lockedBy='" + lockedBy + '\'' +
+                '}';
+    }
 }
