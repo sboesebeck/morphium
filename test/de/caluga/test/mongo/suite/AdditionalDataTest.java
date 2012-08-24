@@ -1,5 +1,6 @@
 package de.caluga.test.mongo.suite;
 
+import com.mongodb.WriteConcern;
 import de.caluga.morphium.MorphiumSingleton;
 import de.caluga.morphium.annotations.AdditionalData;
 import org.junit.Test;
@@ -18,6 +19,10 @@ public class AdditionalDataTest extends MongoTest {
 
     @Test
     public void additionalData() throws Exception {
+        WriteConcern w = MorphiumSingleton.get().getWriteConcernForClass(AddDat.class);
+//        assert(w.getW()>1);
+//        assert(w.getWtimeout()>1000);
+        System.out.println("W: " + w.toString());
         AddDat d = new AddDat();
         d.setCounter(999);
         Map<String, Object> additional = new HashMap<String, Object>();
@@ -29,7 +34,6 @@ public class AdditionalDataTest extends MongoTest {
         d.setAdditionals(additional);
         MorphiumSingleton.get().store(d);
         System.out.println("Stored some additional data!");
-        Thread.sleep(1000);
 
         AddDat d2 = MorphiumSingleton.get().findById(AddDat.class, d.getMongoId());
         assert (d2.additionals != null);

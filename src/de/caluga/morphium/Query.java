@@ -1,6 +1,7 @@
 package de.caluga.morphium;
 
 import com.mongodb.DBObject;
+import de.caluga.morphium.annotations.ReadPreferenceLevel;
 import org.bson.types.ObjectId;
 
 import java.util.List;
@@ -237,4 +238,8 @@ public interface Query<T> extends Cloneable {
     public Map<String, Integer> getOrder();
 
     public Query<T> clone() throws CloneNotSupportedException;
+
+    public ReadPreferenceLevel getReadPreferenceLevel();
+
+    public void setReadPreferenceLevel(ReadPreferenceLevel readPreferenceLevel);
 }

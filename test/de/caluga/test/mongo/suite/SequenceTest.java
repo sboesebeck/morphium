@@ -55,8 +55,8 @@ public class SequenceTest extends MongoTest {
         }
 
         log.info("getting values...");
-        for (int i = 0; i < 100; i++) {
-            log.info("" + i + "/100");
+        for (int i = 0; i < 500; i++) {
+            log.info("" + i + "/500");
             int r = (int) (Math.random() * gens.size());
             SequenceGenerator g = gens.get(r);
             long v = g.getCurrentValue();

@@ -1,6 +1,7 @@
-package de.caluga.morphium;
+package de.caluga.morphium.replicaset;
 
 import de.caluga.morphium.annotations.Embedded;
+import de.caluga.morphium.annotations.Property;
 import org.bson.types.BSONTimestamp;
 
 import java.util.Date;
@@ -17,10 +18,14 @@ public class ReplicaSetNode {
     private String name;
     private double health;
     private int state;
+    @Property(fieldName = "stateStr")
     private String stateStr;
     private long uptime;
     private BSONTimestamp optime;
+    @Property(fieldName = "optimeDate")
     private Date optimeDate;
+
+    @Property(fieldName = "lastHeartbeat")
     private Date lastHeartbeat;
     private int pingMs;
 
@@ -94,5 +99,20 @@ public class ReplicaSetNode {
 
     public void setPingMs(int pingMs) {
         this.pingMs = pingMs;
+    }
+
+    @Override
+    public String toString() {
+        return "  ReplicaSetNode{" +
+                "name='" + name + '\'' +
+                ", health=" + health +
+                ", state=" + state +
+                ", stateStr='" + stateStr + '\'' +
+                ", uptime=" + uptime +
+                ", optime=" + optime +
+                ", optimeDate=" + optimeDate +
+                ", lastHeartbeat=" + lastHeartbeat +
+                ", pingMs=" + pingMs +
+                '}';
     }
 }

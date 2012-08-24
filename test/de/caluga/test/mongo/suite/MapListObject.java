@@ -18,7 +18,7 @@ import java.util.Map;
  */
 @Entity
 @NoCache
-@WriteSafety(level = SafetyLevel.WAIT_FOR_ALL_SLAVES)
+@WriteSafety(level = SafetyLevel.WAIT_FOR_ALL_SLAVES, waitForSync = true)
 public class MapListObject {
     @Id
     private ObjectId id;

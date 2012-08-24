@@ -4,6 +4,7 @@ import de.caluga.morphium.MorphiumSingleton;
 import de.caluga.morphium.Query;
 import de.caluga.morphium.annotations.Entity;
 import de.caluga.morphium.annotations.Id;
+import de.caluga.morphium.annotations.ReadPreferenceLevel;
 import de.caluga.morphium.annotations.caching.NoCache;
 import de.caluga.morphium.annotations.lifecycle.*;
 import org.bson.types.ObjectId;
@@ -33,6 +34,7 @@ public class LifecycleTest extends MongoTest {
         assert (postStore) : "Something went wrong: poststore";
 
         Query<LfTestObj> q = MorphiumSingleton.get().createQueryFor(LfTestObj.class);
+        q.setReadPreferenceLevel(ReadPreferenceLevel.MASTER_ONLY);
         q.f("value").eq("Ein Test");
         obj = q.get(); //should trigger
 

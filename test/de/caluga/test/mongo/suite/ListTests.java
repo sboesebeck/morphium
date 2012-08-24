@@ -1,6 +1,8 @@
 package de.caluga.test.mongo.suite;
 
 import de.caluga.morphium.MorphiumSingleton;
+import de.caluga.morphium.Query;
+import de.caluga.morphium.annotations.ReadPreferenceLevel;
 import org.junit.Test;
 
 /**
@@ -43,7 +45,9 @@ public class ListTests extends MongoTest {
 
         MorphiumSingleton.get().store(lst);
 
-        ListContainer lst2 = (ListContainer) MorphiumSingleton.get().createQueryFor(ListContainer.class).f("id").eq(lst.getId()).get();
+        Query<ListContainer> q = MorphiumSingleton.get().createQueryFor(ListContainer.class).f("id").eq(lst.getId());
+        q.setReadPreferenceLevel(ReadPreferenceLevel.MASTER_ONLY);
+        ListContainer lst2 = q.get();
         assert (lst2 != null) : "Error - not found?";
 
         assert (lst2.getEmbeddedObjectList() != null) : "Embedded list null?";
@@ -96,7 +100,9 @@ public class ListTests extends MongoTest {
 
         MorphiumSingleton.get().store(lst);
 
-        ListContainer lst2 = (ListContainer) MorphiumSingleton.get().createQueryFor(ListContainer.class).f("id").eq(lst.getId()).get();
+        Query q = MorphiumSingleton.get().createQueryFor(ListContainer.class).f("id").eq(lst.getId());
+        q.setReadPreferenceLevel(ReadPreferenceLevel.MASTER_ONLY);
+        ListContainer lst2 = (ListContainer) q.get();
         assert (lst2.getStringList().get(count) == null);
         assert (lst2.getRefList().get(count) == null);
         assert (lst2.getEmbeddedObjectList().get(count) == null);

@@ -951,7 +951,25 @@ public class ObjectMapperImpl implements ObjectMapper {
                                 f.set(o, new Date(d.longValue()));
                             } else if (f.getType().equals(Float.class) || f.getType().equals(float.class)) {
                                 f.set(o, d.floatValue());
-
+                            } else if (f.getType().equals(String.class)) {
+                                f.set(o, d.toString());
+                            } else {
+                                throw new RuntimeException("could not set field " + fld + ": Field has type " + f.getType().toString() + " got type " + value.getClass().toString());
+                            }
+                        } else if (value instanceof Float) {
+                            //maybe some kind of Default???
+                            Float d = (Float) value;
+                            if (f.getType().equals(Integer.class) || f.getType().equals(int.class)) {
+                                f.set(o, d.intValue());
+                            } else if (f.getType().equals(Long.class) || f.getType().equals(long.class)) {
+                                f.set(o, d.longValue());
+                            } else if (f.getType().equals(Date.class)) {
+                                //Fucking date / timestamp mixup
+                                f.set(o, new Date(d.longValue()));
+                            } else if (f.getType().equals(Float.class) || f.getType().equals(float.class)) {
+                                f.set(o, d.floatValue());
+                            } else if (f.getType().equals(String.class)) {
+                                f.set(o, d.toString());
                             } else {
                                 throw new RuntimeException("could not set field " + fld + ": Field has type " + f.getType().toString() + " got type " + value.getClass().toString());
                             }
@@ -999,6 +1017,8 @@ public class ObjectMapperImpl implements ObjectMapper {
                             } else if (f.getType().equals(Date.class)) {
                                 //Fucking date / timestamp mixup
                                 f.set(o, new Date(i.longValue()));
+                            } else if (f.getType().equals(String.class)) {
+                                f.set(o, i.toString());
                             } else if (f.getType().equals(Float.class) || f.getType().equals(float.class)) {
                                 f.set(o, i.floatValue());
                             } else {
@@ -1015,6 +1035,8 @@ public class ObjectMapperImpl implements ObjectMapper {
                                 f.set(o, new Date(l.longValue()));
                             } else if (f.getType().equals(Float.class) || f.getType().equals(float.class)) {
                                 f.set(o, l.floatValue());
+                            } else if (f.getType().equals(String.class)) {
+                                f.set(o, l.toString());
                             } else {
                                 throw new RuntimeException("could not set field " + fld + ": Field has type " + f.getType().toString() + " got type " + value.getClass().toString());
                             }

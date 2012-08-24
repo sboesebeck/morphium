@@ -4,6 +4,7 @@ import de.caluga.morphium.MorphiumSingleton;
 import de.caluga.morphium.Query;
 import org.junit.Test;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -17,31 +18,39 @@ import java.util.Map;
  */
 public class SortingTest extends MongoTest {
     private void prepare() {
+        log.info("Writing 5000 random elements...");
+        List<UncachedObject> lst = new ArrayList<UncachedObject>(5000);
         for (int i = 0; i < 5000; i++) {
             UncachedObject uc = new UncachedObject();
             uc.setValue("Random value");
             uc.setCounter((int) (Math.random() * 6000));
-            MorphiumSingleton.get().store(uc);
+            lst.add(uc);
         }
+
         UncachedObject uc = new UncachedObject();
         uc.setValue("Random value");
         uc.setCounter(-1);
-        MorphiumSingleton.get().store(uc);
+        lst.add(uc);
         uc = new UncachedObject();
         uc.setValue("Random value");
         uc.setCounter(7599);
-        MorphiumSingleton.get().store(uc);
+        lst.add(uc);
+        log.info("Sending bulk write...");
+        MorphiumSingleton.get().storeList(lst);
+        log.info("Wrote it...");
     }
 
     @Test
     public void sortTestDescending() throws Exception {
         prepare();
-
+        log.info("Sorting objects...");
         Query<UncachedObject> q = MorphiumSingleton.get().createQueryFor(UncachedObject.class);
         q = q.f("value").eq("Random value");
         q = q.sort("-counter");
-
+        long start = System.currentTimeMillis();
         List<UncachedObject> lst = q.asList();
+        long dur = System.currentTimeMillis() - start;
+        log.info("Got list in: " + dur + "ms");
         int lastValue = 8888;
 
         for (UncachedObject u : lst) {

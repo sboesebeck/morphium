@@ -1,8 +1,10 @@
 package de.caluga.test.mongo.suite;
 
 import de.caluga.morphium.MorphiumSingleton;
+import de.caluga.morphium.Query;
 import de.caluga.morphium.annotations.Entity;
 import de.caluga.morphium.annotations.Id;
+import de.caluga.morphium.annotations.ReadPreferenceLevel;
 import de.caluga.morphium.annotations.caching.NoCache;
 import org.bson.types.ObjectId;
 import org.junit.Test;
@@ -60,7 +62,9 @@ public class ArrayTest extends MongoTest {
         obj.setStringArr(new String[]{"test", "string", "array"});
         MorphiumSingleton.get().store(obj);
 
-        obj = MorphiumSingleton.get().readAll(ArrayTestObj.class).get(0);
+        Query<ArrayTestObj> q = MorphiumSingleton.get().createQueryFor(ArrayTestObj.class);
+        q.setReadPreferenceLevel(ReadPreferenceLevel.MASTER_ONLY);
+        obj = q.get();
         assert (obj.getIntArr() != null && obj.getIntArr().length != 0) : "No ints found";
         assert (obj.getStringArr() != null && obj.getStringArr().length > 0) : "No strings found";
     }

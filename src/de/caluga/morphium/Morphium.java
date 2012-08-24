@@ -13,6 +13,9 @@ import de.caluga.morphium.annotations.lifecycle.*;
 import de.caluga.morphium.annotations.security.NoProtection;
 import de.caluga.morphium.cache.CacheElement;
 import de.caluga.morphium.cache.CacheHousekeeper;
+import de.caluga.morphium.replicaset.ConfNode;
+import de.caluga.morphium.replicaset.ReplicaSetConf;
+import de.caluga.morphium.replicaset.ReplicaSetNode;
 import de.caluga.morphium.secure.MongoSecurityException;
 import de.caluga.morphium.secure.MongoSecurityManager;
 import de.caluga.morphium.secure.Permission;
@@ -75,6 +78,7 @@ public final class Morphium {
     private Vector<ProfilingListener> profilingListeners;
     private Vector<Thread> privileged;
     private Vector<ShutdownListener> shutDownListeners;
+
 
     public MorphiumConfig getConfig() {
         return config;
@@ -1343,20 +1347,57 @@ public final class Morphium {
         firePostStoreEvent(o, isNew);
     }
 
-    public ReplicaSetStatus getReplicaSetStatus() {
+    /**
+     * same as retReplicaSetStatus(false);
+     *
+     * @return
+     */
+    public de.caluga.morphium.replicaset.ReplicaSetStatus getReplicaSetStatus() {
+        return getReplicaSetStatus(false);
+    }
+
+    /**
+     * get the current replicaset status - issues the replSetGetStatus command to mongo
+     * if full==true, also the configuration is read. This method is called with full==false for every write in
+     * case a Replicaset is configured to find out the current number of active nodes
+     *
+     * @param full
+     * @return
+     */
+    public de.caluga.morphium.replicaset.ReplicaSetStatus getReplicaSetStatus(boolean full) {
         if (config.getMode().equals(MongoDbMode.REPLICASET)) {
-            CommandResult res = getMongo().getDB("admin").command("replSetGetStatus");
-            ReplicaSetStatus status = getConfig().getMapper().unmarshall(ReplicaSetStatus.class, res);
-            //de-referencing list
-            List lst = status.getMembers();
-            List<ReplicaSetNode> members = new ArrayList<ReplicaSetNode>();
-            for (Object l : lst) {
-                DBObject o = (DBObject) l;
-                ReplicaSetNode n = getConfig().getMapper().unmarshall(ReplicaSetNode.class, o);
-                members.add(n);
+            try {
+                CommandResult res = getMongo().getDB("admin").command("replSetGetStatus");
+                de.caluga.morphium.replicaset.ReplicaSetStatus status = getConfig().getMapper().unmarshall(de.caluga.morphium.replicaset.ReplicaSetStatus.class, res);
+                if (full) {
+                    DBCursor rpl = getMongo().getDB("local").getCollection("system.replset").find();
+                    DBObject stat = rpl.next(); //should only be one, i think
+                    ReplicaSetConf cfg = getConfig().getMapper().unmarshall(ReplicaSetConf.class, stat);
+                    List<Object> mem = cfg.getMemberList();
+                    List<ConfNode> cmembers = new ArrayList<ConfNode>();
+
+                    for (Object o : mem) {
+                        DBObject dbo = (DBObject) o;
+                        ConfNode cn = getConfig().getMapper().unmarshall(ConfNode.class, dbo);
+                        cmembers.add(cn);
+                    }
+                    cfg.setMembers(cmembers);
+                    status.setConfig(cfg);
+                }
+                //de-referencing list
+                List lst = status.getMembers();
+                List<ReplicaSetNode> members = new ArrayList<ReplicaSetNode>();
+                for (Object l : lst) {
+                    DBObject o = (DBObject) l;
+                    ReplicaSetNode n = getConfig().getMapper().unmarshall(ReplicaSetNode.class, o);
+                    members.add(n);
+                }
+                status.setMembers(members);
+
+                return status;
+            } catch (Exception e) {
+                logger.error("Could not get Replicaset status", e);
             }
-            status.setMembers(members);
-            return status;
         }
         return null;
     }
@@ -1365,7 +1406,7 @@ public final class Morphium {
         return config.getMode().equals(MongoDbMode.REPLICASET);
     }
 
-    private WriteConcern getWriteConcernForClass(Class<?> cls) {
+    public WriteConcern getWriteConcernForClass(Class<?> cls) {
         WriteSafety safety = getAnnotationFromHierarchy(cls, WriteSafety.class);  // cls.getAnnotation(WriteSafety.class);
         if (safety == null) return null;
         boolean fsync = safety.waitForSync();
@@ -1380,18 +1421,38 @@ public final class Morphium {
         }
         int timeout = safety.timeout();
         if (isReplicaSet() && w > 2) {
-            ReplicaSetStatus s = getReplicaSetStatus();
-            int activeNodes = s.getActiveNodes();
-            if (s == null || activeNodes == 0) {
+            de.caluga.morphium.replicaset.ReplicaSetStatus s = getReplicaSetStatus();
+            if (s == null || s.getActiveNodes() == 0) {
+                logger.warn("ReplicaSet status is null or no node active! Assuming default write concern");
                 return null;
             }
+            int activeNodes = s.getActiveNodes();
             if (timeout == 0) {
-                logger.warn("Not waiting for all slaves without timeout - could cause deadlock. Setting to connectionTimeout value");
-                timeout = getConfig().getConnectionTimeout();
+                if (getConfig().getConnectionTimeout() == 0) {
+                    if (logger.isDebugEnabled())
+                        logger.debug("Not waiting for all slaves withoug timeout - unfortunately no connection timeout set in config - setting to 10s, Type: " + cls.getSimpleName());
+                    timeout = 10000;
+                } else {
+                    if (logger.isDebugEnabled())
+                        logger.debug("Not waiting for all slaves without timeout - could cause deadlock. Setting to connectionTimeout value, Type: " + cls.getSimpleName());
+                    timeout = getConfig().getConnectionTimeout();
+                }
             }
             //Wait for all active slaves
             w = activeNodes;
         }
+//        if (w==0) {
+//            return WriteConcern.NONE;
+//        }
+//        if(w==1) {
+//            return WriteConcern.FSYNC_SAFE;
+//        }
+//        if (w==2) {
+//            return WriteConcern.JOURNAL_SAFE;
+//        }
+//        if (w==3) {
+//            return WriteConcern.REPLICAS_SAFE;
+//        }
         return new WriteConcern(w, timeout, fsync, j);
     }
 
