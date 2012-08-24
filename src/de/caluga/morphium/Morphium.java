@@ -1954,12 +1954,12 @@ public final class Morphium {
             }
         }
 
-//        if (config.getMode() == MongoDbMode.REPLICASET && config.getAdr().size() > 1) {
-//            //replicaset
-//            logger.warn("Cannot drop collection for class " + cls.getSimpleName() + " as we're in a clustered environment (Driver 2.8.0)");
-//            clearCollection(cls);
-//            return;
-//        }
+        if (config.getMode() == MongoDbMode.REPLICASET && config.getAdr().size() > 1) {
+            //replicaset
+            logger.warn("Cannot drop collection for class " + cls.getSimpleName() + " as we're in a clustered environment (Driver 2.8.0)");
+            clearCollection(cls);
+            return;
+        }
 
         if (isAnnotationPresentInHierarchy(cls, Entity.class)) {
             firePreDropEvent(cls);
