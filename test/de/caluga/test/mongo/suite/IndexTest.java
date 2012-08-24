@@ -20,7 +20,7 @@ import java.util.List;
 public class IndexTest extends MongoTest {
     @Test
     public void indexOnNewCollTest() throws Exception {
-        MorphiumSingleton.get().clearCollection(IndexedObject.class);
+        MorphiumSingleton.get().dropCollection(IndexedObject.class);
         IndexedObject obj = new IndexedObject("test", 101);
         MorphiumSingleton.get().store(obj);
 
