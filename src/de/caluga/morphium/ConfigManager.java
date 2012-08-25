@@ -39,4 +39,8 @@ public interface ConfigManager extends ShutdownListener {
     public void setMorphium(Morphium m);
 
     public void startCleanupThread();
+
+    public List<String> getSettings();
+
+    public List<String> getSettings(String regex);
 }

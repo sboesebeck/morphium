@@ -2,10 +2,7 @@ package de.caluga.morphium;
 
 import org.apache.log4j.Logger;
 
-import java.util.Hashtable;
-import java.util.List;
-import java.util.Map;
-import java.util.Vector;
+import java.util.*;
 
 
 public class ConfigManagerImpl implements ConfigManager {
@@ -48,6 +45,7 @@ public class ConfigManagerImpl implements ConfigManager {
 
     }
 
+
     public void startCleanupThread() {
         Thread t = new Thread() {
             public void run() {
@@ -79,6 +77,30 @@ public class ConfigManagerImpl implements ConfigManager {
         };
         t.setDaemon(true);
         t.start();
+    }
+
+    @Override
+    public List<String> getSettings() {
+        return getSettings(null);
+    }
+
+    @Override
+    public List<String> getSettings(String regex) {
+        Query<ConfigElement> q = morphium.createQueryFor(ConfigElement.class);
+        if (regex != null) {
+            q.f("name").matches(regex);
+        }
+        List<String> ret = new ArrayList<String>();
+        List<ConfigElement> el = q.asList();
+        for (ConfigElement e : el) {
+            ret.add(e.getName());
+            if (configCache.containsKey(e.getName())) {
+                continue;
+            }
+            configCache.put(e.getName(), e);
+            addedAt.put(e.getName(), System.currentTimeMillis());
+        }
+        return ret;
     }
 
     public boolean isRunning() {
