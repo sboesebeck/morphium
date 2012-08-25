@@ -594,6 +594,10 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
                 ret.orQueries = new Vector<Query<T>>();
                 ret.orQueries.addAll(orQueries);
             }
+            if (readPreferenceLevel != null) {
+                ret.readPreferenceLevel = readPreferenceLevel;
+            }
+
 
             return ret;
         } catch (CloneNotSupportedException e) {
