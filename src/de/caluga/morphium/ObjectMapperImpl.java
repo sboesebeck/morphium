@@ -929,6 +929,16 @@ public class ObjectMapperImpl implements ObjectMapper {
                 try {
                     f.set(o, value);
                 } catch (Exception e) {
+                    if (value != null) {
+                        if (log.isDebugEnabled()) {
+                            log.debug("Setting of value (" + value.getClass().getSimpleName() + ") failed for field " + f.getName() + "- trying type-conversion");
+                        }
+                    } else {
+                        if (log.isDebugEnabled()) {
+                            log.debug("Setting of value (nulltype) failed for field " + f.getName() + "- not trying type conversion for primitive type");
+                        }
+                        return;
+                    }
                     if (value == null) {
                         try {
                             //try to set 0 instead
@@ -951,6 +961,8 @@ public class ObjectMapperImpl implements ObjectMapper {
                                 f.set(o, new Date(d.longValue()));
                             } else if (f.getType().equals(Float.class) || f.getType().equals(float.class)) {
                                 f.set(o, d.floatValue());
+                            } else if (f.getType().equals(Boolean.class) || f.getType().equals(boolean.class)) {
+                                f.set(o, d == 1.0);
                             } else if (f.getType().equals(String.class)) {
                                 f.set(o, d.toString());
                             } else {
@@ -968,6 +980,8 @@ public class ObjectMapperImpl implements ObjectMapper {
                                 f.set(o, new Date(d.longValue()));
                             } else if (f.getType().equals(Float.class) || f.getType().equals(float.class)) {
                                 f.set(o, d.floatValue());
+                            } else if (f.getType().equals(Boolean.class) || f.getType().equals(boolean.class)) {
+                                f.set(o, d == 1.0f);
                             } else if (f.getType().equals(String.class)) {
                                 f.set(o, d.toString());
                             } else {
@@ -1000,6 +1014,8 @@ public class ObjectMapperImpl implements ObjectMapper {
                                     } else {
                                         f.set(o, new Date(Long.parseLong(s)));
                                     }
+                                } else if (f.getType().equals(Boolean.class) || f.getType().equals(boolean.class)) {
+                                    f.set(o, s.equalsIgnoreCase("true"));
                                 } else if (f.getType().equals(Float.class) || f.getType().equals(float.class)) {
                                     f.set(o, Float.parseFloat(s));
                                 } else {
@@ -1021,6 +1037,8 @@ public class ObjectMapperImpl implements ObjectMapper {
                                 f.set(o, i.toString());
                             } else if (f.getType().equals(Float.class) || f.getType().equals(float.class)) {
                                 f.set(o, i.floatValue());
+                            } else if (f.getType().equals(Boolean.class) || f.getType().equals(boolean.class)) {
+                                f.set(o, i == 1);
                             } else {
                                 throw new RuntimeException("could not set field " + fld + ": Field has type " + f.getType().toString() + " got type " + value.getClass().toString());
                             }
@@ -1035,11 +1053,27 @@ public class ObjectMapperImpl implements ObjectMapper {
                                 f.set(o, new Date(l.longValue()));
                             } else if (f.getType().equals(Float.class) || f.getType().equals(float.class)) {
                                 f.set(o, l.floatValue());
+                            } else if (f.getType().equals(Boolean.class) || f.getType().equals(boolean.class)) {
+                                f.set(o, l == 1l);
                             } else if (f.getType().equals(String.class)) {
                                 f.set(o, l.toString());
                             } else {
                                 throw new RuntimeException("could not set field " + fld + ": Field has type " + f.getType().toString() + " got type " + value.getClass().toString());
                             }
+                        } else if (value instanceof Boolean) {
+                            Boolean b = (Boolean) value;
+                            if (f.getType().equals(Integer.class) || f.getType().equals(int.class)) {
+                                f.set(o, b ? 1 : 0);
+                            } else if (f.getType().equals(Double.class) || f.getType().equals(double.class)) {
+                                f.set(o, b ? 1.0 : 0.0);
+                            } else if (f.getType().equals(Float.class) || f.getType().equals(float.class)) {
+                                f.set(o, b ? 1.0f : 0.0f);
+                            } else if (f.getType().equals(String.class)) {
+                                f.set(o, b ? "true" : "false");
+                            } else {
+                                throw new RuntimeException("could not set field " + fld + ": Field has type " + f.getType().toString() + " got type " + value.getClass().toString());
+                            }
+
                         }
                     }
 
