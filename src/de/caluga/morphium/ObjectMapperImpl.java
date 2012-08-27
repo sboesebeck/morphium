@@ -933,16 +933,7 @@ public class ObjectMapperImpl implements ObjectMapper {
                 } catch (Exception e) {
 
                     if (value == null) {
-                        if (log.isDebugEnabled()) {
-                            log.debug("Setting of value (nulltype) failed for field " + f.getName() + "- not trying type conversion for primitive type");
-                        }
-                        try {
-                            //try to set 0 instead
-                            f.set(o, 0);
-                        } catch (Exception e1) {
-                            //Still not working? Maybe boolean?
-                            f.set(o, false);
-                        }
+                        return;
                     } else {
                         if (log.isDebugEnabled()) {
                             log.debug("Setting of value (" + value.getClass().getSimpleName() + ") failed for field " + f.getName() + "- trying type-conversion");
