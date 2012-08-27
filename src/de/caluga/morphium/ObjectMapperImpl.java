@@ -283,6 +283,8 @@ public class ObjectMapperImpl implements ObjectMapper {
                                     lst.add(i);
                                 }
                                 v = createDBList(lst);
+                            } else if (v.getClass().equals(GregorianCalendar.class)) {
+                                v = ((GregorianCalendar) v).getTime();
                             } else if (v.getClass().isEnum()) {
                                 v = ((Enum) v).name();
                             }
@@ -929,17 +931,11 @@ public class ObjectMapperImpl implements ObjectMapper {
                 try {
                     f.set(o, value);
                 } catch (Exception e) {
-                    if (value != null) {
-                        if (log.isDebugEnabled()) {
-                            log.debug("Setting of value (" + value.getClass().getSimpleName() + ") failed for field " + f.getName() + "- trying type-conversion");
-                        }
-                    } else {
+
+                    if (value == null) {
                         if (log.isDebugEnabled()) {
                             log.debug("Setting of value (nulltype) failed for field " + f.getName() + "- not trying type conversion for primitive type");
                         }
-                        return;
-                    }
-                    if (value == null) {
                         try {
                             //try to set 0 instead
                             f.set(o, 0);
@@ -948,6 +944,9 @@ public class ObjectMapperImpl implements ObjectMapper {
                             f.set(o, false);
                         }
                     } else {
+                        if (log.isDebugEnabled()) {
+                            log.debug("Setting of value (" + value.getClass().getSimpleName() + ") failed for field " + f.getName() + "- trying type-conversion");
+                        }
                         //Doing some type conversions... lots of :-(
                         if (value instanceof Double) {
                             //maybe some kind of Default???
@@ -986,6 +985,19 @@ public class ObjectMapperImpl implements ObjectMapper {
                                 f.set(o, d.toString());
                             } else {
                                 throw new RuntimeException("could not set field " + fld + ": Field has type " + f.getType().toString() + " got type " + value.getClass().toString());
+                            }
+                        } else if (value instanceof Date) {
+                            //Date/String mess-up?
+                            Date d = (Date) value;
+                            if (f.getType().equals(Long.class) || f.getType().equals(long.class)) {
+                                f.set(o, d.getTime());
+                            } else if (f.getType().equals(GregorianCalendar.class)) {
+                                GregorianCalendar cal = new GregorianCalendar();
+                                cal.setTimeInMillis(d.getTime());
+                                f.set(o, cal);
+                            } else if (f.getType().equals(String.class)) {
+                                SimpleDateFormat df = new SimpleDateFormat("yyyyMMdd");
+                                f.set(o, df.format(d));
                             }
                         } else if (value instanceof String) {
                             //String->Number conversion necessary????
