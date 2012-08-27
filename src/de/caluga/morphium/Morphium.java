@@ -1965,7 +1965,10 @@ public final class Morphium {
             firePreDropEvent(cls);
             long start = System.currentTimeMillis();
 //            Entity entity = getAnnotationFromHierarchy(cls, Entity.class); //cls.getAnnotation(Entity.class);
-            database.getCollection(config.getMapper().getCollectionName(cls)).drop();
+
+            DBCollection coll = database.getCollection(config.getMapper().getCollectionName(cls));
+//            coll.setReadPreference(com.mongodb.ReadPreference.PRIMARY);
+            coll.drop();
             long dur = System.currentTimeMillis() - start;
             fireProfilingWriteEvent(cls, null, dur, false, WriteAccessType.DROP);
             firePostDropEvent(cls);
