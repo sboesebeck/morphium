@@ -35,22 +35,22 @@ public class WhereTest extends MongoTest {
 
         MongoOptions o = new MongoOptions();
         o.autoConnectRetry = true;
-        o.fsync = true;
-        o.socketTimeout = 10000;
-        o.connectTimeout = 5000;
+        o.fsync = false;
+        o.socketTimeout = 15000;
+        o.connectTimeout = 15000;
         o.connectionsPerHost = 10;
-        o.socketKeepAlive = true;
+        o.socketKeepAlive = false;
         o.threadsAllowedToBlockForConnectionMultiplier = 5;
         o.safe = false;
 //        o.w=3;
 
         List<ServerAddress> adr = new ArrayList<ServerAddress>();
-        adr.add(new ServerAddress("localhost", 27017));
-        adr.add(new ServerAddress("localhost", 27018));
-        adr.add(new ServerAddress("localhost", 27019));
+        adr.add(new ServerAddress("mongo1", 27017));
+        adr.add(new ServerAddress("mongo2", 27017));
+        adr.add(new ServerAddress("mongo3", 27017));
 
         Mongo mongo = new Mongo(adr, o);
-        mongo.setReadPreference(com.mongodb.ReadPreference.SECONDARY);
+        mongo.setReadPreference(ReadPreference.PRIMARY);
 
         ReplicaSetStatus s = MorphiumSingleton.get().getReplicaSetStatus(true);
         System.out.println("Active nodes: " + s.getActiveNodes());
@@ -62,8 +62,8 @@ public class WhereTest extends MongoTest {
 
 
         DBCollection coll = db.getCollection("test");
-        coll.setReadPreference(com.mongodb.ReadPreference.SECONDARY);
-        WriteConcern w = new WriteConcern(4, 10000, false, true);
+        coll.setReadPreference(ReadPreference.PRIMARY);
+        WriteConcern w = new WriteConcern(4, 2000, false, false);
         coll.save(obj, w);
 
     }

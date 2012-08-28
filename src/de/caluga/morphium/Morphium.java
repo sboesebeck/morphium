@@ -1407,6 +1407,7 @@ public final class Morphium {
     }
 
     public WriteConcern getWriteConcernForClass(Class<?> cls) {
+        if (logger.isDebugEnabled()) logger.debug("returning write concern for " + cls.getSimpleName());
         WriteSafety safety = getAnnotationFromHierarchy(cls, WriteSafety.class);  // cls.getAnnotation(WriteSafety.class);
         if (safety == null) return null;
         boolean fsync = safety.waitForSync();
@@ -1426,6 +1427,7 @@ public final class Morphium {
                 logger.warn("ReplicaSet status is null or no node active! Assuming default write concern");
                 return null;
             }
+            if (logger.isDebugEnabled()) logger.debug("Active nodes now: " + s.getActiveNodes());
             int activeNodes = s.getActiveNodes();
             if (timeout == 0) {
                 if (getConfig().getConnectionTimeout() == 0) {

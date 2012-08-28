@@ -1,7 +1,9 @@
 package de.caluga.morphium;
 
 import org.apache.log4j.Logger;
+import org.bson.types.ObjectId;
 
+import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
@@ -42,14 +44,21 @@ public class SequenceGenerator {
 
         if (!morphium.getDatabase().collectionExists(morphium.getConfig().getMapper().getCollectionName(Sequence.class)) || morphium.createQueryFor(Sequence.class).f(Sequence.PROPERTYNAME_NAME).eq(name).countAll() == 0) {
             //sequence does not exist yet
-            Query<Sequence> seq = morphium.createQueryFor(Sequence.class);
-            seq.f(Sequence.PROPERTYNAME_NAME).eq(name);
+            if (log.isDebugEnabled()) log.debug("Sequence does not exist yet... inserting");
+//            Query<Sequence> seq = morphium.createQueryFor(Sequence.class);
+//            seq.f(Sequence.PROPERTYNAME_NAME).eq(name);
+//
+//            Map<String, Object> values = new HashMap<String, Object>();
+//            values.put("locked_by", null);
+//            values.put("current_value", startValue - inc);
+//            morphium.set(seq, values, true, false);
+//            morphium.ensureIndicesFor(Sequence.class);
 
-            Map<String, Object> values = new HashMap<String, Object>();
-            values.put("locked_by", null);
-            values.put("current_value", startValue - inc);
-            morphium.set(seq, values, true, false);
-            morphium.ensureIndicesFor(Sequence.class);
+            Sequence s = new Sequence();
+            s.setCurrentValue(startValue - inc);
+            s.setName(name);
+            s.setId(new ObjectId(new Date(0l), name.hashCode()));
+            morphium.storeNoCache(s);
             //inserted
         }
     }
@@ -84,6 +93,9 @@ public class SequenceGenerator {
             Map<String, Object> values = new HashMap<String, Object>();
             values.put("locked_by", id);
             morphium.set(seq, values, false, false);
+            if (log.isDebugEnabled()) {
+                log.debug("loced sequence entry");
+            }
         }
         seq = morphium.createQueryFor(Sequence.class);
         seq.f(Sequence.PROPERTYNAME_NAME).eq(name).f(Sequence.PROPERTYNAME_LOCKED_BY).eq(id);
@@ -102,10 +114,13 @@ public class SequenceGenerator {
         if (seq.countAll() > 1) {
             log.error("sequence name / locked by not unique??? - using first");
         }
+        if (log.isDebugEnabled()) {
+            log.debug("Found it!");
+        }
 
 //        Map<String, Object> values = new HashMap<String, Object>();
         morphium.inc(seq, Sequence.PROPERTYNAME_CURRENT_VALUE, inc);
-
+        if (log.isDebugEnabled()) log.debug("increased it");
         Sequence s = seq.get();
         if (s == null) {
             log.error("locked Sequence not found anymore?");
@@ -117,6 +132,7 @@ public class SequenceGenerator {
         }
         s.setLockedBy(null);
         morphium.store(s);
+        if (log.isDebugEnabled()) log.debug("unlocked it");
 
         return s.getCurrentValue();
 
