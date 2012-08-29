@@ -62,10 +62,10 @@ public class WhereTest extends MongoTest {
         DB db = mongo.getDB("test");
 
 
-        DBCollection coll = db.getCollection("test");
-        coll.setReadPreference(ReadPreference.PRIMARY);
-        WriteConcern w = new WriteConcern(4, 2000, false, false);
-        coll.save(obj, w);
+//        DBCollection coll = db.getCollection("test");
+//        coll.setReadPreference(ReadPreference.PRIMARY);
+//        WriteConcern w = new WriteConcern(4, 2000, false, false);
+//        coll.save(obj, w);
 
     }
 

@@ -1441,7 +1441,8 @@ public final class Morphium {
                 }
             }
             //Wait for all active slaves
-            w = activeNodes;
+            //TODO: REMOVE -1 as soon as bug in Mongodb is fixed
+            w = activeNodes - 1;
         }
 //        if (w==0) {
 //            return WriteConcern.NONE;
