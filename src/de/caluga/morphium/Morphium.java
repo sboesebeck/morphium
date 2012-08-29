@@ -19,6 +19,7 @@ import de.caluga.morphium.replicaset.ReplicaSetNode;
 import de.caluga.morphium.secure.MongoSecurityException;
 import de.caluga.morphium.secure.MongoSecurityManager;
 import de.caluga.morphium.secure.Permission;
+import de.caluga.morphium.validation.JavaxValidationStorageListener;
 import net.sf.cglib.proxy.Enhancer;
 import org.apache.log4j.Logger;
 import org.bson.types.ObjectId;
@@ -74,7 +75,7 @@ public final class Morphium {
     private String currentUser;
     private CacheHousekeeper cacheHousekeeper;
 
-    private Vector<MorphiumStorageListener> listeners;
+    private List<MorphiumStorageListener> listeners;
     private Vector<ProfilingListener> profilingListeners;
     private Vector<Thread> privileged;
     private Vector<ShutdownListener> shutDownListeners;
@@ -99,7 +100,7 @@ public final class Morphium {
         config = cfg;
         privileged = new Vector<Thread>();
         shutDownListeners = new Vector<ShutdownListener>();
-        listeners = new Vector<MorphiumStorageListener>();
+        listeners = new ArrayList<MorphiumStorageListener>();
         profilingListeners = new Vector<ProfilingListener>();
         cache = new Hashtable<Class<? extends Object>, Hashtable<String, CacheElement>>();
         idCache = new Hashtable<Class<? extends Object>, Hashtable<ObjectId, Object>>();
@@ -178,16 +179,42 @@ public final class Morphium {
         } else {
             config.getMapper().setMorphium(this);
         }
+
+        // enable/disable javax.validation support
+        if (hasValidationSupport()) {
+            logger.info("Adding javax.validation Support...");
+            addListener(new JavaxValidationStorageListener());
+        }
+
         logger.info("Initialization successful...");
 
     }
 
+    /**
+     * Checks if javax.validation is available and enables validation support.
+     * @return
+     */
+    private boolean hasValidationSupport() {
+        try {
+            Class c = getClass().getClassLoader().loadClass("javax.validation.ValidatorFactory");
+        } catch (ClassNotFoundException cnf) {
+            return false;
+        }
+        return true;
+    }
+
     public void addListener(MorphiumStorageListener lst) {
-        listeners.add(lst);
+        List<MorphiumStorageListener> newList = new ArrayList<MorphiumStorageListener>();
+        newList.addAll(listeners);
+        newList.add(lst);
+        listeners = newList;
     }
 
     public void removeListener(MorphiumStorageListener lst) {
-        listeners.remove(lst);
+        List<MorphiumStorageListener> newList = new ArrayList<MorphiumStorageListener>();
+        newList.addAll(listeners);
+        newList.remove(lst);
+        listeners = newList;
     }
 
 
@@ -1073,9 +1100,7 @@ public final class Morphium {
 
     private void firePreStoreEvent(Object o, boolean isNew) {
         if (o == null) return;
-        //Avoid concurrent modification exception
-        List<MorphiumStorageListener> lst = (List<MorphiumStorageListener>) listeners.clone();
-        for (MorphiumStorageListener l : lst) {
+        for (MorphiumStorageListener l : listeners) {
             l.preStore(o, isNew);
         }
         callLifecycleMethod(PreStore.class, o);
@@ -1083,9 +1108,7 @@ public final class Morphium {
     }
 
     private void firePostStoreEvent(Object o, boolean isNew) {
-        //Avoid concurrent modification exception
-        List<MorphiumStorageListener> lst = (List<MorphiumStorageListener>) listeners.clone();
-        for (MorphiumStorageListener l : lst) {
+        for (MorphiumStorageListener l : listeners) {
             l.postStore(o, isNew);
         }
         callLifecycleMethod(PostStore.class, o);
@@ -1094,95 +1117,57 @@ public final class Morphium {
     }
 
     private void firePreDropEvent(Class cls) {
-        //Avoid concurrent modification exception
-        List<MorphiumStorageListener> lst = (List<MorphiumStorageListener>) listeners.clone();
-        for (MorphiumStorageListener l : lst) {
+        for (MorphiumStorageListener l : listeners) {
             l.preDrop(cls);
         }
 
     }
 
     private void firePostDropEvent(Class cls) {
-        //Avoid concurrent modification exception
-        List<MorphiumStorageListener> lst = (List<MorphiumStorageListener>) listeners.clone();
-        for (MorphiumStorageListener l : lst) {
+        for (MorphiumStorageListener l : listeners) {
             l.postDrop(cls);
         }
     }
 
     private void firePostUpdateEvent(Class cls, MorphiumStorageListener.UpdateTypes t) {
-        List<MorphiumStorageListener> lst = (List<MorphiumStorageListener>) listeners.clone();
-        for (MorphiumStorageListener l : lst) {
+        for (MorphiumStorageListener l : listeners) {
             l.postUpdate(cls, t);
         }
     }
 
     private void firePreUpdateEvent(Class cls, MorphiumStorageListener.UpdateTypes t) {
-        List<MorphiumStorageListener> lst = (List<MorphiumStorageListener>) listeners.clone();
-        for (MorphiumStorageListener l : lst) {
+        for (MorphiumStorageListener l : listeners) {
             l.preUpdate(cls, t);
         }
     }
 
     private void firePostRemoveEvent(Object o) {
-        //Avoid concurrent modification exception
-        List<MorphiumStorageListener> lst = (List<MorphiumStorageListener>) listeners.clone();
-        for (MorphiumStorageListener l : lst) {
+        for (MorphiumStorageListener l : listeners) {
             l.postRemove(o);
         }
         callLifecycleMethod(PostRemove.class, o);
     }
 
     private void firePostRemoveEvent(Query q) {
-        //Avoid concurrent modification exception
-        List<MorphiumStorageListener> lst = (List<MorphiumStorageListener>) listeners.clone();
-        for (MorphiumStorageListener l : lst) {
+        for (MorphiumStorageListener l : listeners) {
             l.postRemove(q);
         }
         //TODO: FIX - Cannot call lifecycle method here
-
     }
 
     private void firePreRemoveEvent(Object o) {
-        //Avoid concurrent modification exception
-        List<MorphiumStorageListener> lst = (List<MorphiumStorageListener>) listeners.clone();
-        for (MorphiumStorageListener l : lst) {
+        for (MorphiumStorageListener l : listeners) {
             l.preDelete(o);
         }
         callLifecycleMethod(PreRemove.class, o);
     }
 
     private void firePreRemoveEvent(Query q) {
-        //Avoid concurrent modification exception
-        List<MorphiumStorageListener> lst = (List<MorphiumStorageListener>) listeners.clone();
-        for (MorphiumStorageListener l : lst) {
+        for (MorphiumStorageListener l : listeners) {
             l.preRemove(q);
         }
         //TODO: Fix - cannot call lifecycle method
     }
-
-//    private void firePreListStoreEvent(List records, Map<Object,Boolean> isNew) {
-//        //Avoid concurrent modification exception
-//        List<MorphiumStorageListener> lst = (List<MorphiumStorageListener>) listeners.clone();
-//        for (MorphiumStorageListener l : lst) {
-//            l.preListStore(records,isNew);
-//        }
-//        for (Object o : records) {
-//            callLifecycleMethod(PreStore.class, o);
-//        }
-//    }
-
-//    private void firePostListStoreEvent(List records, Map<Object,Boolean> isNew) {
-//        //Avoid concurrent modification exception
-//        List<MorphiumStorageListener> lst = (List<MorphiumStorageListener>) listeners.clone();
-//        for (MorphiumStorageListener l : lst) {
-//            l.postListStore(records,isNew);
-//        }
-//        for (Object o : records) {
-//            callLifecycleMethod(PostStore.class, o);
-//        }
-//
-//    }
 
     /**
      * will be called by query after unmarshalling
@@ -1190,15 +1175,16 @@ public final class Morphium {
      * @param o
      */
     protected void firePostLoadEvent(Object o) {
-        //Avoid concurrent modification exception
-        List<MorphiumStorageListener> lst = (List<MorphiumStorageListener>) listeners.clone();
-        for (MorphiumStorageListener l : lst) {
+        for (MorphiumStorageListener l : listeners) {
             l.postLoad(o);
         }
         callLifecycleMethod(PostLoad.class, o);
-
     }
 
+    /**
+     *
+     * @param o
+     */
     public void storeNoCache(Object o) {
         long start = System.currentTimeMillis();
         Class type = getRealClass(o.getClass());

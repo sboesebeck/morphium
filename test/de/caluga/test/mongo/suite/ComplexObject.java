@@ -40,7 +40,6 @@ public class ComplexObject {
 
     private UncachedObject entityEmbeded;
 
-    @NotNull
     private String einText;
 
     @Transient

@@ -292,9 +292,6 @@ public class ObjectMapperImpl implements ObjectMapper {
                     }
                 }
                 if (v == null) {
-                    if (fld.isAnnotationPresent(NotNull.class)) {
-                        throw new IllegalArgumentException("Value is null - but must not (NotNull-Annotation to" + o.getClass().getSimpleName() + ")! Field: " + fName);
-                    }
                     if (!fld.isAnnotationPresent(UseIfnull.class)) {
                         //Do not put null-Values into dbo => not storing null-Values to db
                         continue;
