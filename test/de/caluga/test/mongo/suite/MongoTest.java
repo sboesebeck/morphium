@@ -79,12 +79,12 @@ public class MongoTest {
     public static void setUpClass() throws Exception {
         if (!MorphiumSingleton.isConfigured()) {
             MorphiumConfig cfg = new MorphiumConfig("morphium_test", MongoDbMode.REPLICASET, 5, 50000, 5000, new DefaultSecurityManager(), "morphium-log4j-test.xml");
-//            cfg.addAddress("localhost", 27017);
-//            cfg.addAddress("localhost", 27018);
-//            cfg.addAddress("localhost", 27019);
-            cfg.addAddress("mongo1", 27017);
-            cfg.addAddress("mongo2", 27017);
-            cfg.addAddress("mongo3", 27017);
+            cfg.addAddress("localhost", 27017);
+            cfg.addAddress("localhost", 27018);
+            cfg.addAddress("localhost", 27019);
+//            cfg.addAddress("mongo1", 27017);
+//            cfg.addAddress("mongo2", 27017);
+//            cfg.addAddress("mongo3", 27017);
             cfg.setWriteCacheTimeout(100);
             cfg.setConnectionTimeout(10000);
             cfg.setSlaveOk(true);

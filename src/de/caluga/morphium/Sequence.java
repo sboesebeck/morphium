@@ -13,7 +13,8 @@ import org.bson.types.ObjectId;
 @Entity
 @NoCache
 @Index({"name,locked_by"})
-@WriteSafety(waitForJournalCommit = true, waitForSync = true, timeout = 10000, level = SafetyLevel.WAIT_FOR_ALL_SLAVES)
+@WriteSafety(waitForJournalCommit = true, waitForSync = true, timeout = 10000, level = SafetyLevel.WAIT_FOR_SLAVE)
+@ReadPreference(ReadPreferenceLevel.MASTER_ONLY)
 public class Sequence {
     @Id
     private ObjectId id;

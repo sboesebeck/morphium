@@ -44,6 +44,7 @@ public class WhereTest extends MongoTest {
         o.safe = false;
 //        o.w=3;
 
+
         List<ServerAddress> adr = new ArrayList<ServerAddress>();
         adr.add(new ServerAddress("mongo1", 27017));
         adr.add(new ServerAddress("mongo2", 27017));
