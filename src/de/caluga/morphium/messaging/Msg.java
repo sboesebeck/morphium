@@ -17,11 +17,13 @@ import java.util.Map;
  * Date: 26.05.12
  * Time: 15:45
  * <p/>
- * Message class - used by Morphium's own messaging system
+ * Message class - used by Morphium's own messaging system<br>
+ * </br>
+ * Reads from any node, as this produces lots of reads! All Writes will block until <b>all nodes</b> have confirmed the
+ * write!
  */
 @Entity
 @NoCache
-//MAximumSecurity
 @WriteSafety(level = SafetyLevel.WAIT_FOR_ALL_SLAVES, timeout = 30000, waitForJournalCommit = true, waitForSync = true)
 @ReadPreference(ReadPreferenceLevel.ALL_NODES)
 @Lifecycle

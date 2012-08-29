@@ -155,13 +155,10 @@ public class ObjectMapperTest extends MongoTest {
         try {
             obj = om.marshall(o);
         } catch (IllegalArgumentException e) {
-            //good, ein_text is null - should trigger this exception!
         }
-        assert (obj == null) : "NotNull constraint not enforced! " + obj.toString();
         o.setEinText("Ein Text");
         obj = om.marshall(o);
         assert (!obj.containsField("trans")) : "Transient field used?!?!?";
-        assert (obj.containsField("nullValue")) : "Null value not set";
     }
 
     @Test

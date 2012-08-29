@@ -13,7 +13,16 @@ import java.util.UUID;
  * Date: 24.07.12
  * Time: 21:36
  * <p/>
- * TODO: Add documentation here
+ * Generate a new unique sequence number. Uses Sequence to store the current value. Process is as follows:
+ * <ul>
+ * <li>lock the entry in sequence collection with my own UUID (rather unique) using atomar $set operation</li>
+ * <li>read my locked entries (should only be one). If one is found, I have a valid lock. If not found, somebody
+ * locked over. Wait a while and try again
+ * </li>
+ * <li>increase the number by one (or the given increment) on the locked element, get this value</li>
+ * <li>remove the lock (atomar using $set)</li>
+ * <li>return current value</li>
+ * </ul>
  */
 public class SequenceGenerator {
     private int inc;
