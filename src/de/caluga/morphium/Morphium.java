@@ -192,6 +192,7 @@ public final class Morphium {
 
     /**
      * Checks if javax.validation is available and enables validation support.
+     *
      * @return
      */
     private boolean hasValidationSupport() {
@@ -1182,7 +1183,6 @@ public final class Morphium {
     }
 
     /**
-     *
      * @param o
      */
     public void storeNoCache(Object o) {
@@ -1427,8 +1427,7 @@ public final class Morphium {
                 }
             }
             //Wait for all active slaves
-            //TODO: REMOVE -1 as soon as bug in Mongodb is fixed
-            w = activeNodes - 1;
+            w = activeNodes;
         }
 //        if (w==0) {
 //            return WriteConcern.NONE;

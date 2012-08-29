@@ -45,6 +45,10 @@
         <level value="WARN"/>
     </logger>
 
+    <logger name="de.caluga.morphium.SequenceGenerator">
+        <level value="INFO"/>
+    </logger>
+
     <logger name="de.caluga.med">
         <level value="DEBUG"/>
     </logger>
