@@ -49,6 +49,11 @@
         <level value="INFO"/>
     </logger>
 
+    <logger name="de.caluga.morphium.WriterImpl">
+        <level value="INFO"/>
+    </logger>
+
+
     <logger name="de.caluga.med">
         <level value="DEBUG"/>
     </logger>

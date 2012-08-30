@@ -1,8 +1,8 @@
 package de.caluga.test.mongo.suite;
 
 import de.caluga.morphium.MorphiumSingleton;
-import de.caluga.morphium.Query;
 import de.caluga.morphium.StatisticKeys;
+import de.caluga.morphium.query.Query;
 import org.bson.types.ObjectId;
 import org.junit.Test;
 

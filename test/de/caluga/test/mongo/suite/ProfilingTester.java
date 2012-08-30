@@ -1,6 +1,10 @@
 package de.caluga.test.mongo.suite;
 
-import de.caluga.morphium.*;
+import de.caluga.morphium.MorphiumSingleton;
+import de.caluga.morphium.ProfilingListener;
+import de.caluga.morphium.ReadAccessType;
+import de.caluga.morphium.WriteAccessType;
+import de.caluga.morphium.query.Query;
 import org.junit.Test;
 
 /**

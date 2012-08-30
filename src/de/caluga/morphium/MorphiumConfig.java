@@ -6,6 +6,9 @@ package de.caluga.morphium;
  */
 
 import com.mongodb.ServerAddress;
+import de.caluga.morphium.annotations.ReadPreferenceLevel;
+import de.caluga.morphium.query.MongoField;
+import de.caluga.morphium.query.MongoFieldImpl;
 import de.caluga.morphium.secure.DefaultSecurityManager;
 import de.caluga.morphium.secure.MongoSecurityManager;
 import org.apache.log4j.xml.DOMConfigurator;
@@ -27,12 +30,12 @@ public class MorphiumConfig {
     private int globalCacheValidTime = 5000;
     private int writeCacheTimeout = 5000;
     private String database;
+    private Writer writer = new WriterImpl();
 
     private int connectionTimeout = 0;
     private int socketTimeout = 0;
     private boolean socketKeepAlive = true;
 
-    private boolean slaveOk = true;
     /**
      * login credentials for MongoDB - if necessary. If null, don't authenticate
      */
@@ -49,7 +52,18 @@ public class MorphiumConfig {
 
     private MongoSecurityManager securityMgr;
     private ObjectMapper mapper = new ObjectMapperImpl();
-    private Class fieldImplClass = de.caluga.morphium.MongoFieldImpl.class;
+    private Class fieldImplClass = MongoFieldImpl.class;
+
+    private ReadPreferenceLevel defaultReadPreference;
+
+
+    public Writer getWriter() {
+        return writer;
+    }
+
+    public void setWriter(Writer writer) {
+        this.writer = writer;
+    }
 
     public ConfigManager getConfigManager() {
         return configManager;
@@ -125,15 +139,6 @@ public class MorphiumConfig {
 //        this.removePackage = removePackage;
 //    }
 
-
-    public boolean isSlaveOk() {
-        return slaveOk;
-    }
-
-    public void setSlaveOk(boolean slaveOk) {
-        this.slaveOk = slaveOk;
-    }
-
     public MongoSecurityManager getSecurityMgr() {
         return securityMgr;
     }
@@ -142,6 +147,13 @@ public class MorphiumConfig {
         this.securityMgr = securityMgr;
     }
 
+    public ReadPreferenceLevel getDefaultReadPreference() {
+        return defaultReadPreference;
+    }
+
+    public void setDefaultReadPreference(ReadPreferenceLevel defaultReadPreference) {
+        this.defaultReadPreference = defaultReadPreference;
+    }
 
     public String getAdminGroupName() {
         return adminGroupName;
@@ -340,7 +352,7 @@ public class MorphiumConfig {
                 ", connectionTimeout=" + connectionTimeout +
                 ", socketTimeout=" + socketTimeout +
                 ", socketKeepAlive=" + socketKeepAlive +
-                ", slaveOk=" + slaveOk +
+                ", slaveOk=" + defaultReadPreference.toString() +
                 ", mongoLogin='" + mongoLogin + '\'' +
                 ", mongoPassword='" + mongoPassword + '\'' +
                 ", configManagerCacheTimeout=" + configManagerCacheTimeout +
@@ -378,7 +390,7 @@ public class MorphiumConfig {
         p.setProperty(prefix + "connectionTimeout", "" + connectionTimeout);
         p.setProperty(prefix + "socketTimeout", "" + socketTimeout);
         p.setProperty(prefix + "socketKeepAlive", "" + socketKeepAlive);
-        p.setProperty(prefix + "slaveOk", "" + slaveOk);
+        p.setProperty(prefix + "readPreferenceLevel", "" + defaultReadPreference.name());
         p.setProperty(prefix + "mongoLogin", mongoLogin);
         p.setProperty(prefix + "mongoPassword", mongoPassword);
         p.setProperty(prefix + "configManagerCacheTimeout", "" + configManagerCacheTimeout);
@@ -460,7 +472,7 @@ public class MorphiumConfig {
         configManagerCacheTimeout = Integer.valueOf(p.getProperty(prefix + "configManagerCacheTimeout", "60000"));
         mongoPassword = p.getProperty(prefix + "password");
         mongoLogin = p.getProperty(prefix + "login");
-        slaveOk = p.getProperty(prefix + "slaveOk", "true").equalsIgnoreCase("true");
+        defaultReadPreference = ReadPreferenceLevel.valueOf(p.getProperty(prefix + "readPreferenceLevel", "NEAREST"));
         socketKeepAlive = p.getProperty(prefix + "socketKeepAlive", "true").equalsIgnoreCase("true");
         socketTimeout = Integer.valueOf(p.getProperty(prefix + "socketTimeout", "0"));
         database = p.getProperty(prefix + "database", "morphium");

@@ -14,7 +14,7 @@ import org.bson.types.ObjectId;
 @NoCache
 @Entity
 @WriteSafety(waitForJournalCommit = false, waitForSync = true, timeout = 5010, level = SafetyLevel.WAIT_FOR_ALL_SLAVES)
-@ReadPreference(ReadPreferenceLevel.ALL_NODES)
+@DefaultReadPreference(ReadPreferenceLevel.NEAREST)
 public class UncachedObject {
     @Index
     private String value;

@@ -3,6 +3,7 @@ package de.caluga.test.mongo.suite;
 import de.caluga.morphium.MongoDbMode;
 import de.caluga.morphium.MorphiumConfig;
 import de.caluga.morphium.MorphiumSingleton;
+import de.caluga.morphium.annotations.ReadPreferenceLevel;
 import de.caluga.morphium.messaging.Msg;
 import de.caluga.morphium.secure.DefaultSecurityManager;
 import org.apache.log4j.Logger;
@@ -87,7 +88,7 @@ public class MongoTest {
 //            cfg.addAddress("mongo3", 27017);
             cfg.setWriteCacheTimeout(100);
             cfg.setConnectionTimeout(10000);
-            cfg.setSlaveOk(true);
+            cfg.setDefaultReadPreference(ReadPreferenceLevel.NEAREST);
             MorphiumSingleton.setConfig(cfg);
             MorphiumSingleton.get();
         }

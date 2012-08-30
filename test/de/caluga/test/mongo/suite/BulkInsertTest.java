@@ -1,8 +1,8 @@
 package de.caluga.test.mongo.suite;
 
 import de.caluga.morphium.MorphiumSingleton;
-import de.caluga.morphium.Query;
 import de.caluga.morphium.annotations.ReadPreferenceLevel;
+import de.caluga.morphium.query.Query;
 import org.junit.Test;
 
 import java.util.ArrayList;
@@ -45,7 +45,7 @@ public class BulkInsertTest extends MongoTest {
         assert (MorphiumSingleton.get().writeBufferCount() == 0) : "WriteBufferCount not 0!?";
         log.info("storing objects one by one took " + dur + " ms");
         Query<UncachedObject> q = MorphiumSingleton.get().createQueryFor(UncachedObject.class);
-        q.setReadPreferenceLevel(ReadPreferenceLevel.MASTER_ONLY);
+        q.setReadPreferenceLevel(ReadPreferenceLevel.PRIMARY);
         assert (q.countAll() == 1000) : "Assert not all stored yet????";
 
     }

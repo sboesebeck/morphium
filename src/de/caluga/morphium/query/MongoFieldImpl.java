@@ -1,7 +1,10 @@
-package de.caluga.morphium;
+package de.caluga.morphium.query;
 
 import com.mongodb.BasicDBList;
 import com.mongodb.DBRef;
+import de.caluga.morphium.FilterExpression;
+import de.caluga.morphium.MongoType;
+import de.caluga.morphium.ObjectMapper;
 import de.caluga.morphium.annotations.Entity;
 import de.caluga.morphium.annotations.Reference;
 import org.bson.types.ObjectId;

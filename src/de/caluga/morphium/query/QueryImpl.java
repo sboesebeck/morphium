@@ -1,8 +1,8 @@
-package de.caluga.morphium;
+package de.caluga.morphium.query;
 
 import com.mongodb.*;
+import de.caluga.morphium.*;
 import de.caluga.morphium.annotations.*;
-import de.caluga.morphium.annotations.ReadPreference;
 import de.caluga.morphium.annotations.caching.Cache;
 import de.caluga.morphium.secure.Permission;
 import org.bson.types.ObjectId;
@@ -24,6 +24,7 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
     private List<Query<T>> orQueries;
     private List<Query<T>> norQueries;
     private ReadPreferenceLevel readPreferenceLevel;
+    private ReadPreference readPreference;
 
     private int limit = 0, skip = 0;
     private Map<String, Integer> order;
@@ -53,14 +54,16 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
 
     public void setReadPreferenceLevel(ReadPreferenceLevel readPreferenceLevel) {
         this.readPreferenceLevel = readPreferenceLevel;
+        readPreference = readPreferenceLevel.getPref();
     }
 
     @Override
     public void setType(Class<T> type) {
         this.type = type;
-        ReadPreference pr = morphium.getAnnotationFromHierarchy(type, ReadPreference.class);
+        DefaultReadPreference pr = morphium.getAnnotationFromHierarchy(type, DefaultReadPreference.class);
         if (pr != null) {
-            readPreferenceLevel = pr.value();
+            setReadPreferenceLevel(pr.value());
+
         }
     }
 
@@ -103,7 +106,7 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
         }
         long start = System.currentTimeMillis();
         DBCollection c = morphium.getDatabase().getCollection(morphium.getConfig().getMapper().getCollectionName(type));
-        setReadPreference(c);
+        setReadPreferenceFor(c);
         DBCursor cursor = c.find(query);
         if (sort != null) {
             DBObject srt = new BasicDBObject();
@@ -288,22 +291,32 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
 
         long start = System.currentTimeMillis();
         DBCollection collection = morphium.getDatabase().getCollection(mapper.getCollectionName(type));
-        setReadPreference(collection);
+        setReadPreferenceFor(collection);
         long ret = collection.count(toQueryObject());
         morphium.fireProfilingReadEvent(this, System.currentTimeMillis() - start, ReadAccessType.COUNT);
         return ret;
     }
 
-    private void setReadPreference(DBCollection c) {
-        if (readPreferenceLevel != null) {
-            if (readPreferenceLevel.equals(ReadPreferenceLevel.MASTER_ONLY)) {
-                c.setReadPreference(com.mongodb.ReadPreference.PRIMARY);
-            } else {
-                c.setReadPreference(com.mongodb.ReadPreference.SECONDARY);
-            }
+    private void setReadPreferenceFor(DBCollection c) {
+        if (readPreference != null) {
+            c.setReadPreference(readPreference);
         } else {
             c.setReadPreference(null);
         }
+    }
+
+    /**
+     * retrun mongo's readPreference
+     *
+     * @return
+     */
+    public ReadPreference getReadPreference() {
+        return readPreference;
+    }
+
+    public void setReadPreference(ReadPreference readPreference) {
+        this.readPreference = readPreference;
+        readPreferenceLevel = null;
     }
 
     @Override
@@ -386,7 +399,7 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
         }
         long start = System.currentTimeMillis();
         DBCollection collection = morphium.getDatabase().getCollection(mapper.getCollectionName(type));
-        setReadPreference(collection);
+        setReadPreferenceFor(collection);
         DBCursor query = collection.find(toQueryObject());
         if (skip > 0) {
             query.skip(skip);
@@ -487,7 +500,7 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
         }
         long start = System.currentTimeMillis();
         DBCollection coll = morphium.getDatabase().getCollection(mapper.getCollectionName(type));
-        setReadPreference(coll);
+        setReadPreferenceFor(coll);
         DBCursor srch = coll.find(toQueryObject());
         srch.limit(1);
         if (skip != 0) {
@@ -549,7 +562,7 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
         }
         long start = System.currentTimeMillis();
         DBCollection collection = morphium.getDatabase().getCollection(mapper.getCollectionName(type));
-        setReadPreference(collection);
+        setReadPreferenceFor(collection);
         DBCursor query = collection.find(toQueryObject(), new BasicDBObject("_id", 1)); //only get IDs
         if (order != null) {
             query.sort(new BasicDBObject(order));
@@ -596,6 +609,9 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
             }
             if (readPreferenceLevel != null) {
                 ret.readPreferenceLevel = readPreferenceLevel;
+            }
+            if (readPreference != null) {
+                ret.readPreference = readPreference;
             }
 
 

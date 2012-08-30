@@ -15,6 +15,6 @@ import static java.lang.annotation.ElementType.TYPE;
  */
 @Target({TYPE})
 @Retention(RetentionPolicy.RUNTIME)
-public @interface ReadPreference {
-    ReadPreferenceLevel value() default ReadPreferenceLevel.ALL_NODES;
+public @interface DefaultReadPreference {
+    ReadPreferenceLevel value() default ReadPreferenceLevel.NEAREST;
 }

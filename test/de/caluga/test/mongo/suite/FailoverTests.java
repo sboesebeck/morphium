@@ -3,8 +3,9 @@ package de.caluga.test.mongo.suite;
 import de.caluga.morphium.MongoDbMode;
 import de.caluga.morphium.Morphium;
 import de.caluga.morphium.MorphiumConfig;
-import de.caluga.morphium.Query;
 import de.caluga.morphium.annotations.Embedded;
+import de.caluga.morphium.annotations.ReadPreferenceLevel;
+import de.caluga.morphium.query.Query;
 import de.caluga.morphium.secure.DefaultSecurityManager;
 import org.apache.log4j.Logger;
 import org.junit.Test;
@@ -31,7 +32,7 @@ public class FailoverTests {
         cfg.addAddress("localhost", 27018);
         cfg.addAddress("localhost", 27019);
         cfg.setWriteCacheTimeout(100);
-        cfg.setSlaveOk(true);
+        cfg.setDefaultReadPreference(ReadPreferenceLevel.NEAREST);
         return cfg;
     }
 

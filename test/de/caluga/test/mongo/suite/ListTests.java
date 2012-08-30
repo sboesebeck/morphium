@@ -1,8 +1,8 @@
 package de.caluga.test.mongo.suite;
 
 import de.caluga.morphium.MorphiumSingleton;
-import de.caluga.morphium.Query;
 import de.caluga.morphium.annotations.ReadPreferenceLevel;
+import de.caluga.morphium.query.Query;
 import org.junit.Test;
 
 /**
@@ -46,7 +46,7 @@ public class ListTests extends MongoTest {
         MorphiumSingleton.get().store(lst);
 
         Query<ListContainer> q = MorphiumSingleton.get().createQueryFor(ListContainer.class).f("id").eq(lst.getId());
-        q.setReadPreferenceLevel(ReadPreferenceLevel.MASTER_ONLY);
+        q.setReadPreferenceLevel(ReadPreferenceLevel.PRIMARY);
         ListContainer lst2 = q.get();
         assert (lst2 != null) : "Error - not found?";
 
@@ -101,7 +101,7 @@ public class ListTests extends MongoTest {
         MorphiumSingleton.get().store(lst);
 
         Query q = MorphiumSingleton.get().createQueryFor(ListContainer.class).f("id").eq(lst.getId());
-        q.setReadPreferenceLevel(ReadPreferenceLevel.MASTER_ONLY);
+        q.setReadPreferenceLevel(ReadPreferenceLevel.PRIMARY);
         ListContainer lst2 = (ListContainer) q.get();
         assert (lst2.getStringList().get(count) == null);
         assert (lst2.getRefList().get(count) == null);

@@ -1,11 +1,11 @@
 package de.caluga.test.mongo.suite;
 
 import de.caluga.morphium.MorphiumSingleton;
-import de.caluga.morphium.Query;
+import de.caluga.morphium.annotations.DefaultReadPreference;
 import de.caluga.morphium.annotations.Embedded;
 import de.caluga.morphium.annotations.Index;
-import de.caluga.morphium.annotations.ReadPreference;
 import de.caluga.morphium.annotations.ReadPreferenceLevel;
+import de.caluga.morphium.query.Query;
 import org.junit.Test;
 
 import java.util.ArrayList;
@@ -187,7 +187,7 @@ public class MapListTest extends MongoTest {
         MorphiumSingleton.get().store(o);
 
         Query<CMapListObject> q = MorphiumSingleton.get().createQueryFor(CMapListObject.class).f("id").eq(o.getId());
-        q.setReadPreferenceLevel(ReadPreferenceLevel.MASTER_ONLY);
+        q.setReadPreferenceLevel(ReadPreferenceLevel.PRIMARY);
         CMapListObject ml = q.get();
         assert (ml.getMap4().get("m1").get(1).getTest().equals("fasel"));
         assert (ml.getMap4().get("m1").get(1).getValue() == 42);
@@ -368,7 +368,7 @@ public class MapListTest extends MongoTest {
         }
     }
 
-    @ReadPreference(ReadPreferenceLevel.MASTER_ONLY)
+    @DefaultReadPreference(ReadPreferenceLevel.PRIMARY)
     public static class CMapListObject extends MapListObject {
         private Map<String, List<EmbObj>> map1;
         private Map<String, EmbObj> map2;

@@ -25,7 +25,7 @@ import java.util.Map;
 @Entity
 @NoCache
 @WriteSafety(level = SafetyLevel.WAIT_FOR_ALL_SLAVES, timeout = 30000, waitForJournalCommit = true, waitForSync = true)
-@ReadPreference(ReadPreferenceLevel.ALL_NODES)
+@DefaultReadPreference(ReadPreferenceLevel.NEAREST)
 @Lifecycle
 @Index({"sender,locked_by,processed_by,to,-timestamp", "locked_by,processed_by,to,timestamp"})
 public class Msg {

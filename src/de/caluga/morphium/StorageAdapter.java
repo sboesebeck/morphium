@@ -4,6 +4,8 @@
  */
 package de.caluga.morphium;
 
+import de.caluga.morphium.query.Query;
+
 /**
  * @author stephan
  */

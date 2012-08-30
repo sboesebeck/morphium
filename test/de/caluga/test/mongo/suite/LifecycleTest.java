@@ -1,12 +1,12 @@
 package de.caluga.test.mongo.suite;
 
 import de.caluga.morphium.MorphiumSingleton;
-import de.caluga.morphium.Query;
 import de.caluga.morphium.annotations.Entity;
 import de.caluga.morphium.annotations.Id;
 import de.caluga.morphium.annotations.ReadPreferenceLevel;
 import de.caluga.morphium.annotations.caching.NoCache;
 import de.caluga.morphium.annotations.lifecycle.*;
+import de.caluga.morphium.query.Query;
 import org.bson.types.ObjectId;
 import org.junit.Test;
 
@@ -34,13 +34,13 @@ public class LifecycleTest extends MongoTest {
         assert (postStore) : "Something went wrong: poststore";
 
         Query<LfTestObj> q = MorphiumSingleton.get().createQueryFor(LfTestObj.class);
-        q.setReadPreferenceLevel(ReadPreferenceLevel.MASTER_ONLY);
+        q.setReadPreferenceLevel(ReadPreferenceLevel.PRIMARY);
         q.f("value").eq("Ein Test");
         obj = q.get(); //should trigger
 
         assert (postLoad) : "Something went wrong: postload";
 
-        MorphiumSingleton.get().deleteObject(obj);
+        MorphiumSingleton.get().delete(obj);
         assert (preRemove) : "Pre remove not called";
         assert (postRemove) : "Post remove not called";
     }

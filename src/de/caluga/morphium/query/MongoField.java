@@ -1,4 +1,7 @@
-package de.caluga.morphium;
+package de.caluga.morphium.query;
+
+import de.caluga.morphium.MongoType;
+import de.caluga.morphium.ObjectMapper;
 
 import java.util.Collection;
 import java.util.regex.Pattern;

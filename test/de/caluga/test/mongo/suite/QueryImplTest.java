@@ -2,7 +2,7 @@ package de.caluga.test.mongo.suite;
 
 import com.mongodb.DBObject;
 import de.caluga.morphium.MorphiumSingleton;
-import de.caluga.morphium.Query;
+import de.caluga.morphium.query.Query;
 import org.junit.Test;
 
 /**

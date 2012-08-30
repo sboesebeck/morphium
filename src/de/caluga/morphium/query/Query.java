@@ -1,6 +1,8 @@
-package de.caluga.morphium;
+package de.caluga.morphium.query;
 
 import com.mongodb.DBObject;
+import de.caluga.morphium.FilterExpression;
+import de.caluga.morphium.ObjectMapper;
 import de.caluga.morphium.annotations.ReadPreferenceLevel;
 import org.bson.types.ObjectId;
 

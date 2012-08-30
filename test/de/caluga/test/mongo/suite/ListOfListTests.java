@@ -50,7 +50,7 @@ public class ListOfListTests extends MongoTest {
 
     @Entity
     @WriteSafety(level = SafetyLevel.WAIT_FOR_ALL_SLAVES)
-    @ReadPreference(ReadPreferenceLevel.MASTER_ONLY)
+    @DefaultReadPreference(ReadPreferenceLevel.PRIMARY)
     public static class LoLType {
         @Id
         private ObjectId id;

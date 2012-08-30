@@ -1,7 +1,6 @@
 package de.caluga.test.mongo.suite;
 
 import de.caluga.morphium.MorphiumSingleton;
-import de.caluga.morphium.Query;
 import de.caluga.morphium.StatisticKeys;
 import de.caluga.morphium.annotations.SafetyLevel;
 import de.caluga.morphium.annotations.WriteSafety;
@@ -11,6 +10,7 @@ import de.caluga.morphium.cache.CacheSyncVetoException;
 import de.caluga.morphium.cache.CacheSynchronizer;
 import de.caluga.morphium.messaging.Messaging;
 import de.caluga.morphium.messaging.Msg;
+import de.caluga.morphium.query.Query;
 import org.bson.types.ObjectId;
 import org.junit.Test;
 

@@ -4,6 +4,8 @@
  */
 package de.caluga.morphium;
 
+import de.caluga.morphium.query.Query;
+
 /**
  * @author stephan
  *         These listeners will be informed about Storing _any_ object in morphium!

@@ -1,5 +1,7 @@
 package de.caluga.morphium;
 
+import de.caluga.morphium.query.Query;
+
 /**
  * User: Stephan Bösebeck
  * Date: 17.05.12

@@ -1,7 +1,7 @@
 package de.caluga.test.mongo.suite;
 
 import de.caluga.morphium.MorphiumSingleton;
-import de.caluga.morphium.Query;
+import de.caluga.morphium.query.Query;
 import org.junit.Test;
 
 import java.util.ArrayList;

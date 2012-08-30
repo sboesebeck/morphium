@@ -2,9 +2,9 @@ package de.caluga.test.mongo.suite;
 
 import de.caluga.morphium.MorphiumSingleton;
 import de.caluga.morphium.PartiallyUpdateable;
-import de.caluga.morphium.Query;
 import de.caluga.morphium.annotations.*;
 import de.caluga.morphium.annotations.caching.Cache;
+import de.caluga.morphium.query.Query;
 import org.bson.types.ObjectId;
 import org.junit.Test;
 
@@ -61,7 +61,7 @@ public class PartialUpdateTests extends MongoTest {
         assert (!((PartiallyUpdateable) po).getAlteredFields().contains("value")) : "Value still in altered fields?";
         assert (((PartiallyUpdateable) po).getAlteredFields().contains("name")) : "Name not changed?";
         MorphiumSingleton.get().store(po);
-        q.setReadPreferenceLevel(ReadPreferenceLevel.MASTER_ONLY);
+        q.setReadPreferenceLevel(ReadPreferenceLevel.PRIMARY);
         po = (PartUpdTestObj) q.q().f("value").eq(6).get();
         assert (po.getName().equals("neuer Name")) : "Name not changed?";
     }

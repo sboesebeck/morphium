@@ -2,7 +2,7 @@ package de.caluga.morphium.messaging;
 
 import de.caluga.morphium.Morphium;
 import de.caluga.morphium.MorphiumSingleton;
-import de.caluga.morphium.Query;
+import de.caluga.morphium.query.Query;
 import org.apache.log4j.Logger;
 
 import java.util.*;
@@ -100,7 +100,7 @@ public class Messaging extends Thread {
                     if (msg.getTtl() < System.currentTimeMillis() - msg.getTimestamp()) {
                         //Delete outdated msg!
                         log.warn("Found outdated message - deleting it!");
-                        morphium.deleteObject(msg);
+                        morphium.delete(msg);
                         continue;
                     }
                     try {
@@ -132,7 +132,7 @@ public class Messaging extends Thread {
 
                     if (msg.getType().equals(MsgType.SINGLE)) {
                         //removing it
-                        morphium.deleteObject(msg);
+                        morphium.delete(msg);
                     }
                     //updating it to be processed by others...
                     if (msg.getLockedBy().equals("ALL")) {

@@ -1,8 +1,8 @@
 package de.caluga.test.mongo.suite;
 
 import de.caluga.morphium.MorphiumSingleton;
-import de.caluga.morphium.Query;
 import de.caluga.morphium.annotations.ReadPreferenceLevel;
+import de.caluga.morphium.query.Query;
 import org.junit.Test;
 
 /**
@@ -20,7 +20,7 @@ public class WhereTest extends MongoTest {
 
         Query<UncachedObject> q = MorphiumSingleton.get().createQueryFor(UncachedObject.class);
         q = q.where("rs.slaveOk(); db.uncached_object.count({count:{$lt:10}}) > 0 && db.uncached_object.find({ _id: this._id }).count()>0");
-        q.setReadPreferenceLevel(ReadPreferenceLevel.ALL_NODES);
+        q.setReadPreferenceLevel(ReadPreferenceLevel.NEAREST);
         q.get();
 
     }

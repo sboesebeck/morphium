@@ -1,5 +1,6 @@
 package de.caluga.morphium;
 
+import de.caluga.morphium.query.Query;
 import org.apache.log4j.Logger;
 
 import java.util.*;

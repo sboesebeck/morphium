@@ -1,8 +1,6 @@
 package de.caluga.test.mongo.suite;
 
-import com.mongodb.BasicDBObject;
 import de.caluga.morphium.MorphiumSingleton;
-import de.caluga.morphium.Query;
 import junit.framework.Assert;
 import org.junit.Test;
 

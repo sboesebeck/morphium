@@ -1,7 +1,7 @@
 package de.caluga.morphium.validation;
 
 import de.caluga.morphium.MorphiumStorageListener;
-import de.caluga.morphium.Query;
+import de.caluga.morphium.query.Query;
 
 import javax.validation.*;
 import java.util.HashSet;

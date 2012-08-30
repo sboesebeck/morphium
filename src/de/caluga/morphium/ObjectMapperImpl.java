@@ -5,6 +5,7 @@ import com.mongodb.BasicDBObject;
 import com.mongodb.DBObject;
 import com.mongodb.DBRef;
 import de.caluga.morphium.annotations.*;
+import de.caluga.morphium.query.Query;
 import org.apache.log4j.Logger;
 import org.bson.types.ObjectId;
 
