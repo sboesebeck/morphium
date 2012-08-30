@@ -1882,6 +1882,49 @@ public final class Morphium {
         }
     }
 
+    public String getLastChangeField(Class<?> cls) {
+        if (!isAnnotationPresentInHierarchy(cls, StoreLastChange.class)) return null;
+        List<String> lst = config.getMapper().getFields(cls, LastChange.class);
+        if (lst == null || lst.isEmpty()) return null;
+        return lst.get(0);
+    }
+
+    public String getLastChangeByField(Class<?> cls) {
+        if (!isAnnotationPresentInHierarchy(cls, StoreLastChange.class)) return null;
+        List<String> lst = config.getMapper().getFields(cls, LastChangeBy.class);
+        if (lst == null || lst.isEmpty()) return null;
+        return lst.get(0);
+    }
+
+    public String getLastAccessField(Class<?> cls) {
+        if (!isAnnotationPresentInHierarchy(cls, StoreLastAccess.class)) return null;
+        List<String> lst = config.getMapper().getFields(cls, LastAccess.class);
+        if (lst == null || lst.isEmpty()) return null;
+        return lst.get(0);
+    }
+
+    public String getLastAccessByField(Class<?> cls) {
+        if (!isAnnotationPresentInHierarchy(cls, StoreLastAccess.class)) return null;
+        List<String> lst = config.getMapper().getFields(cls, LastAccessBy.class);
+        if (lst == null || lst.isEmpty()) return null;
+        return lst.get(0);
+    }
+
+
+    public String getCreationTimeField(Class<?> cls) {
+        if (!isAnnotationPresentInHierarchy(cls, StoreCreationTime.class)) return null;
+        List<String> lst = config.getMapper().getFields(cls, CreationTime.class);
+        if (lst == null || lst.isEmpty()) return null;
+        return lst.get(0);
+    }
+
+    public String getCreatedByField(Class<?> cls) {
+        if (!isAnnotationPresentInHierarchy(cls, StoreCreationTime.class)) return null;
+        List<String> lst = config.getMapper().getFields(cls, CreatedBy.class);
+        if (lst == null || lst.isEmpty()) return null;
+        return lst.get(0);
+    }
+
 
     //////////////////////////////////////////////////////
     ////////// SecuritySettings
