@@ -1,7 +1,10 @@
 package de.caluga.morphium.query;
 
 import com.mongodb.*;
-import de.caluga.morphium.*;
+import de.caluga.morphium.FilterExpression;
+import de.caluga.morphium.Morphium;
+import de.caluga.morphium.ReadAccessType;
+import de.caluga.morphium.StatisticKeys;
 import de.caluga.morphium.annotations.*;
 import de.caluga.morphium.annotations.caching.Cache;
 import de.caluga.morphium.secure.Permission;
@@ -19,7 +22,6 @@ import java.util.*;
 public class QueryImpl<T> implements Query<T>, Cloneable {
     private String where;
     private Class<T> type;
-    private ObjectMapper mapper;
     private List<FilterExpression> andExpr;
     private List<Query<T>> orQueries;
     private List<Query<T>> norQueries;
@@ -31,21 +33,35 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
 
     private Morphium morphium;
 
-    public QueryImpl(Morphium m, Class<T> type, ObjectMapper map) {
-        this(m);
-        setType(type);
-        mapper = map;
-        if (mapper.getMorphium() == null) {
-            mapper.setMorphium(m);
-        }
+    public QueryImpl() {
+
     }
 
-    public QueryImpl(Morphium m) {
+    public QueryImpl(Morphium m, Class<T> type) {
+        this(m);
+        setType(type);
+    }
+
+    @Override
+    public String getWhere() {
+        return where;
+    }
+
+    @Override
+    public Morphium getMorphium() {
+        return morphium;
+    }
+
+    @Override
+    public void setMorphium(Morphium m) {
         morphium = m;
-        mapper = m.getConfig().getMapper();
         andExpr = new Vector<FilterExpression>();
         orQueries = new Vector<Query<T>>();
         norQueries = new Vector<Query<T>>();
+    }
+
+    public QueryImpl(Morphium m) {
+        setMorphium(m);
     }
 
     public ReadPreferenceLevel getReadPreferenceLevel() {
@@ -69,7 +85,8 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
 
     @Override
     public Query<T> q() {
-        return new QueryImpl<T>(morphium, type, mapper);
+        Query<T> q = new QueryImpl<T>(morphium, type);
+        return q;
     }
 
     public List<T> complexQuery(DBObject query) {
@@ -163,16 +180,6 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
     }
 
     @Override
-    public ObjectMapper getMapper() {
-        return mapper;
-    }
-
-    @Override
-    public void setMapper(ObjectMapper mapper) {
-        this.mapper = mapper;
-    }
-
-    @Override
     public void addChild(FilterExpression ex) {
         andExpr.add(ex);
     }
@@ -195,7 +202,7 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
             cf = f.substring(0, f.indexOf("."));
             //TODO: check field name completely => person.name, check type Person for field name
         }
-        Field field = mapper.getField(type, cf);
+        Field field = morphium.getMapper().getField(type, cf);
         if (field == null) {
             throw new IllegalArgumentException("Unknown Field " + f);
         }
@@ -203,11 +210,11 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
         if (field.isAnnotationPresent(Id.class)) {
             f = "_id";
         } else {
-            f = mapper.getFieldName(type, f); //handling of aliases
+            f = morphium.getMapper().getFieldName(type, f); //handling of aliases
         }
         MongoField<T> fld = morphium.createMongoField(); //new MongoFieldImpl<T>();
         fld.setFieldString(f);
-        fld.setMapper(mapper);
+        fld.setMapper(morphium.getMapper());
         fld.setQuery(this);
         return fld;
     }
@@ -265,7 +272,7 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
                 val = 1;
             }
             if (!fld.contains(".")) {
-                fld = mapper.getFieldName(type, fld);
+                fld = morphium.getMapper().getFieldName(type, fld);
             }
             m.put(fld, val);
         }
@@ -276,7 +283,7 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
     public Query<T> sort(Enum... naturalOrder) {
         Map<String, Integer> m = new LinkedHashMap<String, java.lang.Integer>();
         for (Enum i : naturalOrder) {
-            String fld = mapper.getFieldName(type, i.name());
+            String fld = morphium.getMapper().getFieldName(type, i.name());
             m.put(fld, 1);
         }
         return sort(m);
@@ -290,7 +297,7 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
         morphium.inc(StatisticKeys.READS);
 
         long start = System.currentTimeMillis();
-        DBCollection collection = morphium.getDatabase().getCollection(mapper.getCollectionName(type));
+        DBCollection collection = morphium.getDatabase().getCollection(morphium.getMapper().getCollectionName(type));
         setReadPreferenceFor(collection);
         long ret = collection.count(toQueryObject());
         morphium.fireProfilingReadEvent(this, System.currentTimeMillis() - start, ReadAccessType.COUNT);
@@ -398,7 +405,7 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
 
         }
         long start = System.currentTimeMillis();
-        DBCollection collection = morphium.getDatabase().getCollection(mapper.getCollectionName(type));
+        DBCollection collection = morphium.getDatabase().getCollection(morphium.getMapper().getCollectionName(type));
         setReadPreferenceFor(collection);
         DBCursor query = collection.find(toQueryObject());
         if (skip > 0) {
@@ -421,7 +428,7 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
         morphium.fireProfilingReadEvent(this, System.currentTimeMillis() - start, ReadAccessType.AS_LIST);
         while (it.hasNext()) {
             DBObject o = it.next();
-            T unmarshall = mapper.unmarshall(type, o);
+            T unmarshall = morphium.getMapper().unmarshall(type, o);
             ret.add(unmarshall);
 
             updateLastAccess(o, unmarshall);
@@ -438,9 +445,9 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
 
     private void updateLastAccess(DBObject o, T unmarshall) {
         if (morphium.isAnnotationPresentInHierarchy(type, StoreLastAccess.class)) {
-            List<String> lst = mapper.getFields(type, LastAccess.class);
+            List<String> lst = morphium.getMapper().getFields(type, LastAccess.class);
             for (String ctf : lst) {
-                Field f = mapper.getField(type, ctf);
+                Field f = morphium.getMapper().getField(type, ctf);
                 if (f != null) {
                     try {
                         f.set(unmarshall, System.currentTimeMillis());
@@ -450,9 +457,9 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
                     }
                 }
             }
-            lst = mapper.getFields(type, LastAccessBy.class);
+            lst = morphium.getMapper().getFields(type, LastAccessBy.class);
             for (String ctf : lst) {
-                Field f = mapper.getField(type, ctf);
+                Field f = morphium.getMapper().getField(type, ctf);
                 try {
                     f.set(o, morphium.getConfig().getSecurityMgr().getCurrentUserId());
                 } catch (IllegalAccessException e) {
@@ -467,7 +474,7 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
 
     @Override
     public T getById(ObjectId id) {
-        List<String> flds = mapper.getFields(type, Id.class);
+        List<String> flds = morphium.getMapper().getFields(type, Id.class);
         if (flds == null || flds.isEmpty()) {
             throw new RuntimeException("Type does not have an ID-Field? " + type.getSimpleName());
         }
@@ -499,7 +506,7 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
             morphium.inc(StatisticKeys.NO_CACHED_READS);
         }
         long start = System.currentTimeMillis();
-        DBCollection coll = morphium.getDatabase().getCollection(mapper.getCollectionName(type));
+        DBCollection coll = morphium.getDatabase().getCollection(morphium.getMapper().getCollectionName(type));
         setReadPreferenceFor(coll);
         DBCursor srch = coll.find(toQueryObject());
         srch.limit(1);
@@ -524,7 +531,7 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
         morphium.fireProfilingReadEvent(this, dur, ReadAccessType.GET);
 
         if (ret != null) {
-            T unmarshall = mapper.unmarshall(type, ret);
+            T unmarshall = morphium.getMapper().unmarshall(type, ret);
             morphium.firePostLoadEvent(unmarshall);
             updateLastAccess(ret, unmarshall);
 
@@ -561,7 +568,7 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
             morphium.inc(StatisticKeys.NO_CACHED_READS);
         }
         long start = System.currentTimeMillis();
-        DBCollection collection = morphium.getDatabase().getCollection(mapper.getCollectionName(type));
+        DBCollection collection = morphium.getDatabase().getCollection(morphium.getMapper().getCollectionName(type));
         setReadPreferenceFor(collection);
         DBCursor query = collection.find(toQueryObject(), new BasicDBObject("_id", 1)); //only get IDs
         if (order != null) {

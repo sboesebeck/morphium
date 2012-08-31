@@ -1,8 +1,11 @@
 package de.caluga.morphium.aggregation;
 
+import com.mongodb.BasicDBObject;
 import com.mongodb.DBObject;
+import de.caluga.morphium.Morphium;
 import de.caluga.morphium.query.Query;
 
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -12,27 +15,47 @@ import java.util.Map;
  * <p/>
  * TODO: Add documentation here
  */
-public interface Aggregator<T> {
+public interface Aggregator<T, R> {
 
-    public Aggregator project(Map<String, String> m);  //field -> other field, field -> 0,1
+    public void setMorphium(Morphium m);
 
-    public Aggregator project(String... m);    //field:1
+    public Morphium getMorphium();
 
-    public Aggregator project(DBObject m);    //custom
+    public void setSearchType(Class<T> type);
 
-    public Aggregator match(Query<T> q);
+    public Class<T> getSearchType();
 
-    public Aggregator limit(int num);
+    public void setResultType(Class<R> type);
 
-    public Aggregator skip(int num);
+    public Class<R> getResultType();
 
-    public Aggregator unwind(String listField);
-    //Grouping is complex...
+    public Aggregator<T, R> project(Map<String, Object> m);  //field -> other field, field -> 0,1
 
+    public Aggregator<T, R> project(String... m);    //field:1
 
-    public Aggregator<T> sort(String... prefixed);
+    public Aggregator<T, R> project(BasicDBObject m);    //custom
 
-    public Aggregator<T> sort(Map<String, Integer> sort);
+    public Aggregator<T, R> match(Query<T> q);
+
+    public Aggregator<T, R> limit(int num);
+
+    public Aggregator<T, R> skip(int num);
+
+    public Aggregator<T, R> unwind(String listField);
+
+    public Aggregator<T, R> sort(String... prefixed);
+
+    public Aggregator<T, R> sort(Map<String, Integer> sort);
+
+    public Group<T, R> group(Map<String, String> idSubObject);
+
+    public Group<T, R> group(String id);
+
+    public List<DBObject> toAggregationList();
+
+    public void addOperator(DBObject o);
+
+    public List<R> aggregate();
 
 
 }

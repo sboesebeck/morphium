@@ -5,6 +5,7 @@
 package de.caluga.morphium;
 
 import com.mongodb.*;
+import de.caluga.morphium.aggregation.Aggregator;
 import de.caluga.morphium.annotations.*;
 import de.caluga.morphium.annotations.caching.Cache;
 import de.caluga.morphium.annotations.caching.NoCache;
@@ -14,7 +15,6 @@ import de.caluga.morphium.cache.CacheElement;
 import de.caluga.morphium.cache.CacheHousekeeper;
 import de.caluga.morphium.query.MongoField;
 import de.caluga.morphium.query.Query;
-import de.caluga.morphium.query.QueryImpl;
 import de.caluga.morphium.replicaset.ConfNode;
 import de.caluga.morphium.replicaset.ReplicaSetConf;
 import de.caluga.morphium.replicaset.ReplicaSetNode;
@@ -81,7 +81,6 @@ public final class Morphium {
     private Vector<ProfilingListener> profilingListeners;
     private Vector<Thread> privileged;
     private Vector<ShutdownListener> shutDownListeners;
-
 
     public MorphiumConfig getConfig() {
         return config;
@@ -1271,7 +1270,9 @@ public final class Morphium {
     }
 
     public <T> Query<T> createQueryFor(Class<T> type) {
-        return new QueryImpl<T>(this, type, config.getMapper());
+        Query<T> q = config.getQueryFact().createQuery(this, type);
+        q.setMorphium(this);
+        return q;
     }
 
     public <T> List<T> find(Query<T> q) {
@@ -1852,6 +1853,26 @@ public final class Morphium {
         }
         return true;
 
+    }
+
+    public <T, R> Aggregator<T, R> createAggregator(Class<T> type, Class<R> resultType) {
+        Aggregator<T, R> aggregator = config.getAggregatorFactory().createAggregator(type, resultType);
+        aggregator.setMorphium(this);
+        return aggregator;
+    }
+
+    public <T, R> List<R> aggregate(Aggregator<T, R> a) {
+        DBCollection coll = database.getCollection(config.getMapper().getCollectionName(a.getSearchType()));
+        List<DBObject> agList = a.toAggregationList();
+        DBObject first = agList.get(0);
+        agList.remove(0);
+        AggregationOutput resp = coll.aggregate(first, agList.toArray(new DBObject[agList.size()]));
+
+        List<R> ret = new ArrayList<R>();
+        for (DBObject o : resp.results()) {
+            ret.add(getMapper().unmarshall(a.getResultType(), o));
+        }
+        return ret;
     }
 
     /**

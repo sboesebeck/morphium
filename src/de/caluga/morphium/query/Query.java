@@ -2,7 +2,7 @@ package de.caluga.morphium.query;
 
 import com.mongodb.DBObject;
 import de.caluga.morphium.FilterExpression;
-import de.caluga.morphium.ObjectMapper;
+import de.caluga.morphium.Morphium;
 import de.caluga.morphium.annotations.ReadPreferenceLevel;
 import org.bson.types.ObjectId;
 
@@ -179,20 +179,6 @@ public interface Query<T> extends Cloneable {
     public List<ObjectId> idList();
 
     /**
-     * set the object Mapper this query object should use. By default this is set by Morphium-Class
-     *
-     * @param mapper
-     */
-    void setMapper(ObjectMapper mapper);
-
-    /**
-     * get the current mapper implmenentation
-     *
-     * @return
-     */
-    public ObjectMapper getMapper();
-
-    /**
      * what type to use
      *
      * @param type
@@ -244,4 +230,10 @@ public interface Query<T> extends Cloneable {
     public ReadPreferenceLevel getReadPreferenceLevel();
 
     public void setReadPreferenceLevel(ReadPreferenceLevel readPreferenceLevel);
+
+    public String getWhere();
+
+    public Morphium getMorphium();
+
+    public void setMorphium(Morphium m);
 }

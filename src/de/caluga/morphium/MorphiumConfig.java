@@ -6,9 +6,12 @@ package de.caluga.morphium;
  */
 
 import com.mongodb.ServerAddress;
+import de.caluga.morphium.aggregation.Aggregator;
+import de.caluga.morphium.aggregation.AggregatorFactory;
+import de.caluga.morphium.aggregation.AggregatorFactoryImpl;
+import de.caluga.morphium.aggregation.AggregatorImpl;
 import de.caluga.morphium.annotations.ReadPreferenceLevel;
-import de.caluga.morphium.query.MongoField;
-import de.caluga.morphium.query.MongoFieldImpl;
+import de.caluga.morphium.query.*;
 import de.caluga.morphium.secure.DefaultSecurityManager;
 import de.caluga.morphium.secure.MongoSecurityManager;
 import org.apache.log4j.xml.DOMConfigurator;
@@ -36,6 +39,12 @@ public class MorphiumConfig {
     private int socketTimeout = 0;
     private boolean socketKeepAlive = true;
 
+    private Class<? extends Query> queryClass;
+    private Class<? extends Aggregator> aggregatorClass;
+
+    private QueryFactory queryFact;
+    private AggregatorFactory aggregatorFactory;
+
     /**
      * login credentials for MongoDB - if necessary. If null, don't authenticate
      */
@@ -56,6 +65,49 @@ public class MorphiumConfig {
 
     private ReadPreferenceLevel defaultReadPreference;
 
+    public Class<? extends Query> getQueryClass() {
+        if (queryClass == null) {
+            queryClass = QueryImpl.class;
+        }
+        return queryClass;
+    }
+
+    public void setQueryClass(Class<Query> queryClass) {
+        this.queryClass = queryClass;
+    }
+
+    public QueryFactory getQueryFact() {
+        if (queryFact == null) {
+            queryFact = new QueryFactoryImpl(getQueryClass());
+        }
+        return queryFact;
+    }
+
+    public void setQueryFact(QueryFactory queryFact) {
+        this.queryFact = queryFact;
+    }
+
+    public AggregatorFactory getAggregatorFactory() {
+        if (aggregatorFactory == null) {
+            aggregatorFactory = new AggregatorFactoryImpl(getAggregatorClass());
+        }
+        return aggregatorFactory;
+    }
+
+    public void setAggregatorFactory(AggregatorFactory aggregatorFactory) {
+        this.aggregatorFactory = aggregatorFactory;
+    }
+
+    public Class<? extends Aggregator> getAggregatorClass() {
+        if (aggregatorClass == null) {
+            aggregatorClass = AggregatorImpl.class;
+        }
+        return aggregatorClass;
+    }
+
+    public void setAggregatorClass(Class<? extends Aggregator> aggregatorClass) {
+        this.aggregatorClass = aggregatorClass;
+    }
 
     public Writer getWriter() {
         return writer;
