@@ -114,8 +114,11 @@ public class AggregatorImpl<T, R> implements Aggregator<T, R> {
                 fld = i.substring(1);
                 val = 1;
             }
-            if (!fld.contains(".")) {
-                fld = morphium.getMapper().getFieldName(type, fld);
+            if (i.startsWith("$")) {
+                fld = fld.substring(1);
+                if (!fld.contains(".")) {
+                    fld = morphium.getMapper().getFieldName(type, fld);
+                }
             }
             m.put(fld, val);
         }
@@ -128,6 +131,11 @@ public class AggregatorImpl<T, R> implements Aggregator<T, R> {
         DBObject o = new BasicDBObject("$sort", new BasicDBObject(sort));
         params.add(o);
         return this;
+    }
+
+    @Override
+    public Group<T, R> group(BasicDBObject id) {
+        return new Group<T, R>(this, id);
     }
 
     @Override

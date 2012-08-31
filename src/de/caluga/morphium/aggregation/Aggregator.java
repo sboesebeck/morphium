@@ -47,6 +47,8 @@ public interface Aggregator<T, R> {
 
     public Aggregator<T, R> sort(Map<String, Integer> sort);
 
+    public Group<T, R> group(BasicDBObject id);
+
     public Group<T, R> group(Map<String, String> idSubObject);
 
     public Group<T, R> group(String id);

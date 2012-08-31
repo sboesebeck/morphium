@@ -30,6 +30,11 @@ public class Group<T, R> {
         this.id = new BasicDBObject("_id", id);
     }
 
+    public Group(Aggregator<T, R> ag, BasicDBObject id) {
+        aggregator = ag;
+        this.id = new BasicDBObject("_id", new BasicDBObject(id));
+    }
+
     public Group<T, R> addToSet(BasicDBObject param) {
         BasicDBObject o = new BasicDBObject("$addToSet", param);
         operators.add(o);
