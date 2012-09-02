@@ -1745,7 +1745,7 @@ public final class Morphium {
 
         Cache cc = getAnnotationFromHierarchy(o.getClass(), Cache.class);//o.getClass().getAnnotation(Cache.class);
         if (cc == null || isAnnotationPresentInHierarchy(o.getClass(), NoCache.class) || !cc.writeCache()) {
-            config.getWriter().store(o);
+            config.getWriter().delete(o);
             firePostRemoveEvent(o);
             return;
         }
