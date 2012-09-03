@@ -423,6 +423,10 @@ public class WriterImpl implements Writer {
             delete((List) o);
             return;
         }
+        if (o instanceof Query) {
+            delete((Query) o);
+            return;
+        }
         ObjectId id = morphium.getMapper().getId(o);
         BasicDBObject db = new BasicDBObject();
         db.append("_id", id);

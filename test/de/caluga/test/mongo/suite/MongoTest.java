@@ -37,6 +37,18 @@ public class MongoTest {
         MorphiumSingleton.get().storeList(lst);
     }
 
+    public void createCachedObjects(int amount) {
+        List<CachedObject> lst = new ArrayList<CachedObject>();
+        for (int i = 0; i < amount; i++) {
+            CachedObject uc = new CachedObject();
+            uc.setCounter(i + 1);
+            uc.setValue("v");
+            lst.add(uc);
+        }
+        MorphiumSingleton.get().storeList(lst);
+    }
+
+
     @org.junit.Before
     public void setUp() throws Exception {
 
