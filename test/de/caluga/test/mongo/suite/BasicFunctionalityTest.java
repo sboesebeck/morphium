@@ -171,8 +171,6 @@ public class BasicFunctionalityTest extends MongoTest {
         MorphiumSingleton.get().storeList(lst);
         long dur = System.currentTimeMillis() - start;
         log.info("Storing a list  took " + dur + " ms");
-        assert (dur < NO_OBJECTS * 1.5) : "Storing took way too long";
-
         checkUncached();
         assert (MorphiumSingleton.get().getStatistics().get("X-Entries for: de.caluga.test.mongo.suite.UncachedObject") == null) : "Cached Uncached Object?!?!?!";
 

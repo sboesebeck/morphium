@@ -53,6 +53,12 @@ public class DeleteTest extends MongoTest {
         CachedObject u = MorphiumSingleton.get().createQueryFor(CachedObject.class).get();
         MorphiumSingleton.get().delete(u);
         waitForWrites();
+
+        while (MorphiumSingleton.get().getStatistics().get("X-Entries for: de.caluga.test.mongo.suite.CachedObject").intValue() != 0) {
+            log.info("Waiting for cache to be cleared");
+            Thread.sleep(250);
+        }
+
         c = MorphiumSingleton.get().createQueryFor(CachedObject.class).countAll();
         assert (c == 9);
         List<CachedObject> lst = MorphiumSingleton.get().createQueryFor(CachedObject.class).asList();
