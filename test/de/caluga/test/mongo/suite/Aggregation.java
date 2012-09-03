@@ -37,6 +37,7 @@ public class Aggregation extends MongoTest {
         a = a.limit(15);
         //group by - in dem Fall ALL, könnte auch beliebig sein
         a = a.group("all").avg("schnitt", "$counter").sum("summe", "$counter").sum("anz", 1).last("letzter", "$counter").first("erster", "$counter").end();
+        a = a.group("a2").avg("schnitt", "$counter").sum("summe", "$counter").sum("anz", 1).last("letzter", "$counter").first("erster", "$counter").end();
         //ergebnis projezieren
         a = a.project(new BasicDBObject("summe", 1).append("anzahl", "$anz").append("schnitt", 1).append("last", "$letzter").append("first", "$erster"));
 
@@ -45,12 +46,14 @@ public class Aggregation extends MongoTest {
             log.info("Object: " + o.toString());
         }
         List<Aggregate> lst = a.aggregate();
-        assert (lst.size() == 1);
+        assert (lst.size() == 1):"Size wrong: "+lst.size();
         log.info("Summe:   " + lst.get(0).getSumme());
         log.info("Schnitt: " + lst.get(0).getSchnitt());
         log.info("Last:    " + lst.get(0).getLast());
         log.info("First:   " + lst.get(0).getFirst());
         log.info("Anzahl:  " + lst.get(0).getAnzahl());
+
+
         assert (lst.get(0).getAnzahl() == 15);
 
     }
