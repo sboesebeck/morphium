@@ -1,0 +1,1 @@
+mvn gpg:sign-and-deploy-file -DpomFile=pom.xml -Dfile=target/morphium-1.5.1.jar -Durl=https://oss.sonatype.org/service/local/staging/deploy/maven2/ -DrepositoryId=sonatype-nexus-staging -Dgpg.passphrase=PWD
