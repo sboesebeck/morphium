@@ -124,7 +124,20 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
         long start = System.currentTimeMillis();
         DBCollection c = morphium.getDatabase().getCollection(morphium.getConfig().getMapper().getCollectionName(type));
         setReadPreferenceFor(c);
-        DBCursor cursor = c.find(query);
+        List<Field> fldlst = morphium.getMapper().getAllFields(type);
+        BasicDBObject lst = new BasicDBObject();
+        lst.put("_id", 1);
+        for (Field f : fldlst) {
+            if (f.isAnnotationPresent(AdditionalData.class)) {
+                //to enable additional data
+                lst = new BasicDBObject();
+                break;
+            }
+            String n = morphium.getMapper().getFieldName(type, f.getName());
+            lst.put(n, 1);
+        }
+
+        DBCursor cursor = c.find(query, lst);
         if (sort != null) {
             DBObject srt = new BasicDBObject();
             srt.putAll(sort);
@@ -407,7 +420,21 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
         long start = System.currentTimeMillis();
         DBCollection collection = morphium.getDatabase().getCollection(morphium.getMapper().getCollectionName(type));
         setReadPreferenceFor(collection);
-        DBCursor query = collection.find(toQueryObject());
+
+        List<Field> fldlst = morphium.getMapper().getAllFields(type);
+        BasicDBObject lst = new BasicDBObject();
+        lst.put("_id", 1);
+        for (Field f : fldlst) {
+            if (f.isAnnotationPresent(AdditionalData.class)) {
+                //to enable additional data
+                lst = new BasicDBObject();
+                break;
+            }
+            String n = morphium.getMapper().getFieldName(type, f.getName());
+            lst.put(n, 1);
+        }
+
+        DBCursor query = collection.find(toQueryObject(), lst);
         if (skip > 0) {
             query.skip(skip);
         }
@@ -508,7 +535,20 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
         long start = System.currentTimeMillis();
         DBCollection coll = morphium.getDatabase().getCollection(morphium.getMapper().getCollectionName(type));
         setReadPreferenceFor(coll);
-        DBCursor srch = coll.find(toQueryObject());
+        List<Field> fldlst = morphium.getMapper().getAllFields(type);
+        BasicDBObject fl = new BasicDBObject();
+        fl.put("_id", 1);
+        for (Field f : fldlst) {
+            if (f.isAnnotationPresent(AdditionalData.class)) {
+                //to enable additional data
+                fl = new BasicDBObject();
+                break;
+            }
+            String n = morphium.getMapper().getFieldName(type, f.getName());
+            fl.put(n, 1);
+        }
+
+        DBCursor srch = coll.find(toQueryObject(), fl);
         srch.limit(1);
         if (skip != 0) {
             srch = srch.skip(skip);
