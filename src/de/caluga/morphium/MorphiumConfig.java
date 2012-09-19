@@ -46,6 +46,15 @@ public class MorphiumConfig {
     private AggregatorFactory aggregatorFactory;
 
     /**
+     * unfortunately it seems there is a bug with mongodb in clustered environment
+     * it happens, when writing to all slaves and waiting for it.
+     * This is rather annoying, then every time there is a timeout-exception.
+     * Workaround is: don't wait for all slaves, just one node and have SlaveOk==false (only primary!)
+     * this increases the load on the primary, but works at least :-/
+     */
+    private boolean timeoutBugWorkAroundEnabled = false;
+
+    /**
      * login credentials for MongoDB - if necessary. If null, don't authenticate
      */
     private String mongoLogin = null, mongoPassword = null;
@@ -64,6 +73,14 @@ public class MorphiumConfig {
     private Class fieldImplClass = MongoFieldImpl.class;
 
     private ReadPreferenceLevel defaultReadPreference;
+
+    public boolean isTimeoutBugWorkAroundEnabled() {
+        return timeoutBugWorkAroundEnabled;
+    }
+
+    public void setTimeoutBugWorkAroundEnabled(boolean timeoutBugWorkAroundEnabled) {
+        this.timeoutBugWorkAroundEnabled = timeoutBugWorkAroundEnabled;
+    }
 
     public Class<? extends Query> getQueryClass() {
         if (queryClass == null) {
@@ -104,6 +121,7 @@ public class MorphiumConfig {
         }
         return aggregatorClass;
     }
+
 
     public void setAggregatorClass(Class<? extends Aggregator> aggregatorClass) {
         this.aggregatorClass = aggregatorClass;
@@ -521,10 +539,14 @@ public class MorphiumConfig {
         if (adr.isEmpty()) {
             throw new IllegalArgumentException("No valid host specified!");
         }
+        timeoutBugWorkAroundEnabled = p.getProperty(prefix + "timeoutBugWorkaroundEnabled", "false").equals("true");
         configManagerCacheTimeout = Integer.valueOf(p.getProperty(prefix + "configManagerCacheTimeout", "60000"));
         mongoPassword = p.getProperty(prefix + "password");
         mongoLogin = p.getProperty(prefix + "login");
         defaultReadPreference = ReadPreferenceLevel.valueOf(p.getProperty(prefix + "readPreferenceLevel", "NEAREST"));
+        if (timeoutBugWorkAroundEnabled) {
+            defaultReadPreference = ReadPreferenceLevel.PRIMARY;
+        }
         socketKeepAlive = p.getProperty(prefix + "socketKeepAlive", "true").equalsIgnoreCase("true");
         socketTimeout = Integer.valueOf(p.getProperty(prefix + "socketTimeout", "0"));
         database = p.getProperty(prefix + "database", "morphium");

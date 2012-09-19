@@ -158,8 +158,12 @@ public final class Morphium {
         }
 
         database = mongo.getDB(config.getDatabase());
-        if (config.getDefaultReadPreference() != null) {
-            mongo.setReadPreference(config.getDefaultReadPreference().getPref());
+        if (config.isTimeoutBugWorkAroundEnabled()) {
+            mongo.setReadPreference(ReadPreference.primary());
+        } else {
+            if (config.getDefaultReadPreference() != null) {
+                mongo.setReadPreference(config.getDefaultReadPreference().getPref());
+            }
         }
         if (config.getMongoLogin() != null) {
             if (!database.authenticate(config.getMongoLogin(), config.getMongoPassword().toCharArray())) {
@@ -1094,7 +1098,7 @@ public final class Morphium {
             fsync = false;
         }
         int w = safety.level().getValue();
-        if (!isReplicaSet() && w > 1) {
+        if (!isReplicaSet() && w > 1 || config.isTimeoutBugWorkAroundEnabled()) {
             w = 1;
         }
         int timeout = safety.timeout();

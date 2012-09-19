@@ -92,6 +92,7 @@ public class MongoTest {
     public static void setUpClass() throws Exception {
         if (!MorphiumSingleton.isConfigured()) {
             MorphiumConfig cfg = new MorphiumConfig("morphium_test", MongoDbMode.REPLICASET, 5, 50000, 5000, new DefaultSecurityManager(), "morphium-log4j-test.xml");
+            cfg.setTimeoutBugWorkAroundEnabled(true);
             cfg.addAddress("localhost", 27017);
             cfg.addAddress("localhost", 27018);
             cfg.addAddress("localhost", 27019);
