@@ -8,7 +8,6 @@ import de.caluga.morphium.StatisticKeys;
 import de.caluga.morphium.annotations.*;
 import de.caluga.morphium.annotations.caching.Cache;
 import de.caluga.morphium.secure.Permission;
-import org.apache.log4j.Logger;
 import org.bson.types.ObjectId;
 
 import java.lang.reflect.Field;
@@ -71,7 +70,7 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
 
     public void setReadPreferenceLevel(ReadPreferenceLevel readPreferenceLevel) {
         if (morphium.getConfig().isTimeoutBugWorkAroundEnabled() && !readPreferenceLevel.getPref().equals(ReadPreference.primary())) {
-            Logger.getLogger(QueryImpl.class).warn("Not setting read Preference level in bug-workaround-mode! Using default");
+//            Logger.getLogger(QueryImpl.class).warn("Not setting read Preference level in bug-workaround-mode! Using default");
             readPreferenceLevel = ReadPreferenceLevel.PRIMARY;
             readPreference = ReadPreference.primary();
             return;
