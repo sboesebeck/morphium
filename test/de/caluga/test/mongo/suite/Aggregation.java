@@ -61,7 +61,7 @@ public class Aggregation extends MongoTest {
     @Test
     public void aggregationTestcompare() throws Exception {
         log.info("Preparing data");
-        createUncachedObjects(100000);
+        createUncachedObjects(10000);
         log.info("done... starting");
         long start = System.currentTimeMillis();
         Query<UncachedObject> q = MorphiumSingleton.get().createQueryFor(UncachedObject.class);

@@ -61,7 +61,7 @@ public class MongoTest {
             MorphiumSingleton.get().clearCollection(Msg.class);
             MorphiumSingleton.get().ensureIndex(UncachedObject.class, "counter", "value");
             MorphiumSingleton.get().ensureIndex(CachedObject.class, "counter", "value");
-
+            Thread.sleep(1000);
             Map<String, Double> stats = MorphiumSingleton.get().getStatistics();
             Double ent = stats.get("X-Entries for: de.caluga.test.mongo.suite.CachedObject");
             assert (ent == null || ent == 0) : "Still cache entries???";
@@ -92,7 +92,7 @@ public class MongoTest {
     public static void setUpClass() throws Exception {
         if (!MorphiumSingleton.isConfigured()) {
             MorphiumConfig cfg = new MorphiumConfig("morphium_test", MongoDbMode.REPLICASET, 5, 50000, 5000, new DefaultSecurityManager(), "morphium-log4j-test.xml");
-            cfg.setTimeoutBugWorkAroundEnabled(true);
+//            cfg.setTimeoutBugWorkAroundEnabled(true);
             cfg.addAddress("localhost", 27017);
             cfg.addAddress("localhost", 27018);
             cfg.addAddress("localhost", 27019);
@@ -102,6 +102,7 @@ public class MongoTest {
             cfg.setWriteCacheTimeout(100);
             cfg.setConnectionTimeout(10000);
             cfg.setDefaultReadPreference(ReadPreferenceLevel.NEAREST);
+            cfg.setTimeoutBugWorkAroundEnabled(false);
             MorphiumSingleton.setConfig(cfg);
             MorphiumSingleton.get();
         }
