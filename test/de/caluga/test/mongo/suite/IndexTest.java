@@ -23,12 +23,14 @@ public class IndexTest extends MongoTest {
         MorphiumSingleton.get().dropCollection(IndexedObject.class);
         IndexedObject obj = new IndexedObject("test", 101);
         MorphiumSingleton.get().store(obj);
+        //waiting for indices to be created
+        Thread.sleep(5000);
 
         //index should now be available
         List<DBObject> idx = MorphiumSingleton.get().getDatabase().getCollection("indexed_object").getIndexInfo();
         boolean foundId = false;
         boolean foundTimerName = false;
-        boolean foundTimerName2 = true;
+        boolean foundTimerName2 = false;
         boolean foundTimer = false;
         boolean foundName = false;
 
