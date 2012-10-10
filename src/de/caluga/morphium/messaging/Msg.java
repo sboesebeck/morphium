@@ -24,7 +24,9 @@ import java.util.Map;
  */
 @Entity
 @NoCache
-@WriteSafety(level = SafetyLevel.WAIT_FOR_ALL_SLAVES, timeout = 30000, waitForJournalCommit = true, waitForSync = true)
+//timeout <0 - setting relative to replication lag
+//timeout == 0 - wait forever
+@WriteSafety(level = SafetyLevel.WAIT_FOR_ALL_SLAVES, timeout = 0, waitForJournalCommit = true, waitForSync = true)
 @DefaultReadPreference(ReadPreferenceLevel.NEAREST)
 @Lifecycle
 @Index({"sender,locked_by,processed_by,to,-timestamp", "locked_by,processed_by,to,timestamp"})

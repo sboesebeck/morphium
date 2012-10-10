@@ -21,6 +21,10 @@ public class IndexTest extends MongoTest {
     @Test
     public void indexOnNewCollTest() throws Exception {
         MorphiumSingleton.get().dropCollection(IndexedObject.class);
+        while (MorphiumSingleton.get().getDatabase().collectionExists(MorphiumSingleton.get().getMapper().getCollectionName(IndexedObject.class))) {
+            log.info("Collection still exists... waiting");
+            Thread.sleep(100);
+        }
         IndexedObject obj = new IndexedObject("test", 101);
         MorphiumSingleton.get().store(obj);
         //waiting for indices to be created

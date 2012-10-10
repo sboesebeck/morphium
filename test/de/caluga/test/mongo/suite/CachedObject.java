@@ -13,7 +13,7 @@ import org.bson.types.ObjectId;
  */
 @Cache(clearOnWrite = true, maxEntries = 20000, readCache = true, writeCache = true, strategy = Cache.ClearStrategy.LRU, syncCache = Cache.SyncCacheStrategy.CLEAR_TYPE_CACHE, timeout = 5000)
 @Entity
-@WriteSafety(level = SafetyLevel.WAIT_FOR_ALL_SLAVES, waitForJournalCommit = true)
+@WriteSafety(level = SafetyLevel.WAIT_FOR_ALL_SLAVES, timeout=0,waitForJournalCommit = true)
 public class CachedObject {
     @Index
     private String value;

@@ -1110,19 +1110,54 @@ public final class Morphium {
             }
             if (logger.isDebugEnabled()) logger.debug("Active nodes now: " + s.getActiveNodes());
             int activeNodes = s.getActiveNodes();
-            if (timeout == 0) {
-                if (getConfig().getConnectionTimeout() == 0) {
-                    if (logger.isDebugEnabled())
-                        logger.debug("Not waiting for all slaves withoug timeout - unfortunately no connection timeout set in config - setting to 10s, Type: " + cls.getSimpleName());
-                    timeout = 10000;
-                } else {
-                    if (logger.isDebugEnabled())
-                        logger.debug("Not waiting for all slaves without timeout - could cause deadlock. Setting to connectionTimeout value, Type: " + cls.getSimpleName());
-                    timeout = getConfig().getConnectionTimeout();
+
+            int masterOpTime=0;
+            int maxReplLag=0;
+            for (ReplicaSetNode node:s.getMembers()) {
+                if (node.getState()==1) {
+                    //Master
+                    masterOpTime=node.getOptime().getTime();
                 }
+            }
+            for (ReplicaSetNode node:s.getMembers()) {
+                if (node.getState()==2) {
+                    //Master
+                    int tm=node.getOptime().getTime()-masterOpTime;
+                    if (maxReplLag<tm) {
+                        maxReplLag=tm;
+                    }
+                }
+            }
+            if (timeout < 0) {
+                //set timeout to replication lag * 3 - just to be sure
+                if (logger.isDebugEnabled()) {
+                    logger.debug("Setting timeout to replication lag*3");
+                }
+                if (maxReplLag<0) {
+                    maxReplLag=-maxReplLag;
+                }
+                if (maxReplLag==0) maxReplLag=1;
+                timeout=maxReplLag*3000;
+                if (maxReplLag > 10) {
+                    logger.warn("Warning: replication lag too high! timeout set to "+timeout+"ms - replication Lag is "+maxReplLag+"s - write should take place in Background!");
+                }
+
+//                if (getConfig().getConnectionTimeout() == 0) {
+//                    if (logger.isDebugEnabled())
+//                        logger.debug("Not waiting for all slaves withoug timeout - unfortunately no connection timeout set in config - setting to 10s, Type: " + cls.getSimpleName());
+//                    timeout = 10000;
+//                } else {
+//                    if (logger.isDebugEnabled())
+//                        logger.debug("Not waiting for all slaves without timeout - could cause deadlock. Setting to connectionTimeout value, Type: " + cls.getSimpleName());
+//                    timeout = getConfig().getConnectionTimeout();
+//                }
             }
             //Wait for all active slaves
             w = activeNodes;
+            if(timeout > 0 && timeout < maxReplLag*1000) {
+                logger.warn("Timeout is set smaller than replication lag - increasing to replication_lag time * 3");
+                timeout=maxReplLag*3000;
+            }
         }
 //        if (w==0) {
 //            return WriteConcern.NONE;
@@ -1136,6 +1171,7 @@ public final class Morphium {
 //        if (w==3) {
 //            return WriteConcern.REPLICAS_SAFE;
 //        }
+
         if (w == -99) {
             return new WriteConcern("majority", timeout, fsync, j);
         }

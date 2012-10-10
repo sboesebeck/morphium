@@ -15,7 +15,7 @@ import static java.lang.annotation.ElementType.TYPE;
  * <p/>
  * </br>
  * WaitForSync: wait for the write to be synced to disk
- * timeout: set a timeout in ms for the operation - if set to 0, unlimited (default)
+ * timeout: set a timeout in ms for the operation - if set to 0, unlimited (default). If set to negative value, wait relative to replication lag
  * level: set the safety level:
  * <ul>
  * <li>{@code IGNORE_ERRORS} None, no checking is done</li>
