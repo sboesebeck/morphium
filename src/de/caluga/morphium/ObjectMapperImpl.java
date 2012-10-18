@@ -210,7 +210,7 @@ public class ObjectMapperImpl implements ObjectMapper {
                         //no reference to be stored...
                         v = null;
                     } else {
-                        if (fld.getType().isAssignableFrom(List.class)) {
+                        if (List.class.isAssignableFrom(fld.getType())) {
                             //list of references....
                             BasicDBList lst = new BasicDBList();
                             for (Object rec : ((List) value)) {
@@ -231,7 +231,7 @@ public class ObjectMapperImpl implements ObjectMapper {
                                 }
                             }
                             v = lst;
-                        } else if (fld.getType().isAssignableFrom(Map.class)) {
+                        } else if (Map.class.isAssignableFrom(fld.getType())) {
                             throw new RuntimeException("Cannot store references in Maps!");
                         } else {
 
@@ -402,15 +402,17 @@ public class ObjectMapperImpl implements ObjectMapper {
             List<String> flds = getFields(cls);
 
             for (String f : flds) {
+                Object valueFromDb = o.get(f);
                 Field fld = getField(cls, f);
                 if (Modifier.isStatic(fld.getModifiers())) {
                     //skip static fields
                     continue;
                 }
 
+
                 if (fld.isAnnotationPresent(AdditionalData.class)) {
                     //this field should store all data that is not put to fields
-                    if (!fld.getType().isAssignableFrom(Map.class)) {
+                    if (!Map.class.isAssignableFrom(fld.getType())) {
                         log.error("Could not unmarshall additional data into fld of type " + fld.getType().toString());
                         continue;
                     }
@@ -425,19 +427,21 @@ public class ObjectMapperImpl implements ObjectMapper {
                     fld.set(ret, data);
                     continue;
                 }
-
+                if (valueFromDb == null) {
+                    continue;
+                }
                 Object value = null;
-                if (!fld.getType().isAssignableFrom(Map.class) && !fld.getType().isAssignableFrom(List.class) && fld.isAnnotationPresent(Reference.class)) {
+                if (!Map.class.isAssignableFrom(fld.getType()) && !List.class.isAssignableFrom(fld.getType()) && fld.isAnnotationPresent(Reference.class)) {
                     //A reference - only id stored
                     Reference reference = fld.getAnnotation(Reference.class);
                     if (morphium == null) {
                         log.fatal("Morphium not set - could not de-reference!");
                     } else {
                         ObjectId id = null;
-                        if (o.get(f) instanceof ObjectId) {
-                            id = (ObjectId) o.get(f);
+                        if (valueFromDb instanceof ObjectId) {
+                            id = (ObjectId) valueFromDb;
                         } else {
-                            DBRef ref = (DBRef) o.get(f);
+                            DBRef ref = (DBRef) valueFromDb;
                             if (ref != null) {
                                 id = (ObjectId) ref.getId();
                                 if (!ref.getRef().equals(fld.getType().getName())) {
@@ -466,16 +470,12 @@ public class ObjectMapperImpl implements ObjectMapper {
                     value = (ObjectId) o.get("_id");
                 } else if (morphium.isAnnotationPresentInHierarchy(fld.getType(), Entity.class) || morphium.isAnnotationPresentInHierarchy(fld.getType(), Embedded.class)) {
                     //entity! embedded
-                    if (o.get(f) != null) {
-                        value = unmarshall(fld.getType(), (DBObject) o.get(f));
-                    } else {
-                        value = null;
-                    }
-                } else if (fld.getType().isAssignableFrom(Map.class)) {
-                    BasicDBObject map = (BasicDBObject) o.get(f);
+                    value = unmarshall(fld.getType(), (DBObject) valueFromDb);
+                } else if (Map.class.isAssignableFrom(fld.getType())) {
+                    BasicDBObject map = (BasicDBObject) valueFromDb;
                     value = createMap(map);
-                } else if (fld.getType().isAssignableFrom(List.class) || fld.getType().isArray()) {
-                    BasicDBList l = (BasicDBList) o.get(f);
+                } else if (List.class.isAssignableFrom(fld.getType()) || fld.getType().isArray()) {
+                    BasicDBList l = (BasicDBList) valueFromDb;
                     List lst = new ArrayList();
                     if (l != null) {
                         fillList(fld, l, lst);
@@ -492,11 +492,9 @@ public class ObjectMapperImpl implements ObjectMapper {
                         value = l;
                     }
                 } else if (fld.getType().isEnum()) {
-                    if (o.get(f) != null) {
-                        value = Enum.valueOf((Class<? extends Enum>) fld.getType(), (String) o.get(f));
-                    }
+                    value = Enum.valueOf((Class<? extends Enum>) fld.getType(), (String) valueFromDb);
                 } else {
-                    value = o.get(f);
+                    value = valueFromDb;
                 }
                 setValue(ret, value, f);
             }

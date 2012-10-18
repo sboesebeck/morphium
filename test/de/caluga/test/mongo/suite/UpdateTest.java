@@ -4,6 +4,7 @@ import de.caluga.morphium.MorphiumSingleton;
 import de.caluga.morphium.query.Query;
 import org.junit.Test;
 
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -111,6 +112,7 @@ public class UpdateTest extends MongoTest {
 
     @Test
     public void pushTest() throws Exception {
+        MorphiumSingleton.get().dropCollection(ListContainer.class);
         for (int i = 1; i <= 50; i++) {
             ListContainer lc = new ListContainer();
             lc.addLong(12 + i);
@@ -127,5 +129,75 @@ public class UpdateTest extends MongoTest {
 
     }
 
+
+    @Test
+    public void pushEntityTest() throws Exception {
+        MorphiumSingleton.get().dropCollection(ListContainer.class);
+
+        for (int i = 1; i <= 50; i++) {
+            ListContainer lc = new ListContainer();
+            lc.addLong(12 + i);
+            lc.addString("string");
+            lc.setName("LC" + i);
+            MorphiumSingleton.get().store(lc);
+        }
+        Query<ListContainer> lc = MorphiumSingleton.get().createQueryFor(ListContainer.class);
+        lc = lc.f("name").eq("LC15");
+        EmbeddedObject em = new EmbeddedObject();
+        em.setValue("emb Value");
+        em.setTest(1);
+        MorphiumSingleton.get().push(lc, "embedded_object_list", em);
+        em = new EmbeddedObject();
+        em.setValue("emb Value 2");
+        em.setTest(2);
+        MorphiumSingleton.get().push(lc, "embedded_object_list", em);
+        waitForWrites();
+
+        ListContainer lc2 = lc.get();
+        assert (lc2.getEmbeddedObjectList() != null);
+        assert (lc2.getEmbeddedObjectList().size() == 2);
+        assert (lc2.getEmbeddedObjectList().get(0).getTest() == 1l);
+    }
+
+    @Test
+    public void pushEntityListTest() throws Exception {
+        MorphiumSingleton.get().dropCollection(ListContainer.class);
+
+        for (int i = 1; i <= 50; i++) {
+            ListContainer lc = new ListContainer();
+            lc.addLong(12 + i);
+            lc.addString("string");
+            lc.setName("LC" + i);
+            MorphiumSingleton.get().store(lc);
+        }
+
+        List<EmbeddedObject> obj = new ArrayList<EmbeddedObject>();
+
+        Query<ListContainer> lc = MorphiumSingleton.get().createQueryFor(ListContainer.class);
+        lc = lc.f("name").eq("LC15");
+        EmbeddedObject em = new EmbeddedObject();
+        em.setValue("emb Value");
+        em.setTest(1);
+        obj.add(em);
+
+        em = new EmbeddedObject();
+        em.setValue("emb Value 2");
+        em.setTest(2);
+        obj.add(em);
+
+        em = new EmbeddedObject();
+        em.setValue("emb Value 3");
+        em.setTest(3);
+        obj.add(em);
+
+
+        MorphiumSingleton.get().pushAll(lc, "embedded_object_list", obj, false, true);
+        waitForWrites();
+
+        ListContainer lc2 = lc.get();
+        assert (lc2.getEmbeddedObjectList() != null);
+        assert (lc2.getEmbeddedObjectList().size() == 3);
+        assert (lc2.getEmbeddedObjectList().get(0).getTest() == 1l);
+    }
 
 }

@@ -453,7 +453,7 @@ public final class Morphium {
         });
     }
 
-    public void pushAll(final Query<?> query, final String field, final List<Object> value, final boolean insertIfNotExist, final boolean multiple) {
+    public void pushAll(final Query<?> query, final String field, final List<?> value, final boolean insertIfNotExist, final boolean multiple) {
         if (query == null || field == null) throw new RuntimeException("Cannot update null!");
 
         if (accessDenied(query.getType(), Permission.UPDATE)) {
@@ -1111,20 +1111,20 @@ public final class Morphium {
             if (logger.isDebugEnabled()) logger.debug("Active nodes now: " + s.getActiveNodes());
             int activeNodes = s.getActiveNodes();
 
-            int masterOpTime=0;
-            int maxReplLag=0;
-            for (ReplicaSetNode node:s.getMembers()) {
-                if (node.getState()==1) {
+            int masterOpTime = 0;
+            int maxReplLag = 0;
+            for (ReplicaSetNode node : s.getMembers()) {
+                if (node.getState() == 1) {
                     //Master
-                    masterOpTime=node.getOptime().getTime();
+                    masterOpTime = node.getOptime().getTime();
                 }
             }
-            for (ReplicaSetNode node:s.getMembers()) {
-                if (node.getState()==2) {
+            for (ReplicaSetNode node : s.getMembers()) {
+                if (node.getState() == 2) {
                     //Master
-                    int tm=node.getOptime().getTime()-masterOpTime;
-                    if (maxReplLag<tm) {
-                        maxReplLag=tm;
+                    int tm = node.getOptime().getTime() - masterOpTime;
+                    if (maxReplLag < tm) {
+                        maxReplLag = tm;
                     }
                 }
             }
@@ -1133,13 +1133,13 @@ public final class Morphium {
                 if (logger.isDebugEnabled()) {
                     logger.debug("Setting timeout to replication lag*3");
                 }
-                if (maxReplLag<0) {
-                    maxReplLag=-maxReplLag;
+                if (maxReplLag < 0) {
+                    maxReplLag = -maxReplLag;
                 }
-                if (maxReplLag==0) maxReplLag=1;
-                timeout=maxReplLag*3000;
+                if (maxReplLag == 0) maxReplLag = 1;
+                timeout = maxReplLag * 3000;
                 if (maxReplLag > 10) {
-                    logger.warn("Warning: replication lag too high! timeout set to "+timeout+"ms - replication Lag is "+maxReplLag+"s - write should take place in Background!");
+                    logger.warn("Warning: replication lag too high! timeout set to " + timeout + "ms - replication Lag is " + maxReplLag + "s - write should take place in Background!");
                 }
 
 //                if (getConfig().getConnectionTimeout() == 0) {
@@ -1154,9 +1154,9 @@ public final class Morphium {
             }
             //Wait for all active slaves
             w = activeNodes;
-            if(timeout > 0 && timeout < maxReplLag*1000) {
+            if (timeout > 0 && timeout < maxReplLag * 1000) {
                 logger.warn("Timeout is set smaller than replication lag - increasing to replication_lag time * 3");
-                timeout=maxReplLag*3000;
+                timeout = maxReplLag * 3000;
             }
         }
 //        if (w==0) {

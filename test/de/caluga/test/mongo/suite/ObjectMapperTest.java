@@ -225,4 +225,179 @@ public class ObjectMapperTest extends MongoTest {
         }
 
     }
+
+    @Test
+    public void objectMapperSpeedTest() {
+        UncachedObject o = new UncachedObject();
+        o.setCounter(42);
+        o.setValue("The meaning of life");
+        o.setMongoId(new ObjectId(new Date()));
+        DBObject marshall = null;
+        ObjectMapperImpl om = new ObjectMapperImpl(MorphiumSingleton.get());
+        long start = System.currentTimeMillis();
+        for (int i = 0; i < 25000; i++) {
+            marshall = om.marshall(o);
+        }
+        long dur = System.currentTimeMillis() - start;
+
+        log.info("Mapping of UncachedObject 25000 times took " + dur + "ms");
+        assert (dur < 1000);
+        start = System.currentTimeMillis();
+        for (int i = 0; i < 25000; i++) {
+            UncachedObject uc = om.unmarshall(UncachedObject.class, marshall);
+        }
+        dur = System.currentTimeMillis() - start;
+        log.info("De-Marshalling of UncachedObject 25000 times took " + dur + "ms");
+        assert (dur < 1000);
+
+    }
+
+    @Test
+    public void objectMapperSpeedTestCachedObject() {
+        CachedObject o = new CachedObject();
+        o.setCounter(42);
+        o.setValue("The meaning of life");
+        o.setId(new ObjectId(new Date()));
+        DBObject marshall = null;
+        ObjectMapperImpl om = new ObjectMapperImpl(MorphiumSingleton.get());
+        long start = System.currentTimeMillis();
+        for (int i = 0; i < 25000; i++) {
+            marshall = om.marshall(o);
+        }
+        long dur = System.currentTimeMillis() - start;
+
+        log.info("Mapping of CachedObject 25000 times took " + dur + "ms");
+        assert (dur < 1000);
+        start = System.currentTimeMillis();
+        for (int i = 0; i < 25000; i++) {
+            CachedObject c = om.unmarshall(CachedObject.class, marshall);
+        }
+        dur = System.currentTimeMillis() - start;
+        log.info("De-Marshalling of CachedObject 25000 times took " + dur + "ms");
+        assert (dur < 1000);
+
+    }
+
+
+    @Test
+    public void objectMapperSpeedTestComplexObjectNoRef() {
+        ComplexObject o = new ComplexObject();
+        EmbeddedObject em = new EmbeddedObject();
+        em.setName("Embedded1");
+        em.setValue("test");
+        em.setTest(424242);
+        o.setId(new ObjectId(new Date()));
+        o.setEmbed(em);
+        o.setChanged(System.currentTimeMillis());
+        o.setCreated(System.currentTimeMillis());
+//        o.setcRef();
+        o.setEinText("Text");
+        o.setEntityEmbeded(new UncachedObject());
+        o.setNullValue(23);
+//        o.setRef();
+        o.setTrans("Trans");
+        DBObject marshall = null;
+        ObjectMapperImpl om = new ObjectMapperImpl(MorphiumSingleton.get());
+        long start = System.currentTimeMillis();
+        for (int i = 0; i < 25000; i++) {
+            marshall = om.marshall(o);
+        }
+        long dur = System.currentTimeMillis() - start;
+
+        log.info("Mapping of ComplexObject 25000 times took " + dur + "ms");
+        assert (dur < 2000);
+        start = System.currentTimeMillis();
+        for (int i = 0; i < 25000; i++) {
+            ComplexObject co = om.unmarshall(ComplexObject.class, marshall);
+        }
+        dur = System.currentTimeMillis() - start;
+        log.info("De-Marshalling of ComplexObject 25000 times took " + dur + "ms");
+        assert (dur < 5000);
+
+    }
+
+
+    @Test
+    public void objectMapperSpeedTestComplexObjectNoCachedRef() {
+        ComplexObject o = new ComplexObject();
+        EmbeddedObject em = new EmbeddedObject();
+        em.setName("Embedded1");
+        em.setValue("test");
+        em.setTest(424242);
+        o.setId(new ObjectId(new Date()));
+        o.setEmbed(em);
+        o.setChanged(System.currentTimeMillis());
+        o.setCreated(System.currentTimeMillis());
+//        o.setcRef();
+        o.setEinText("Text");
+//        o.setEntityEmbeded(new UncachedObject());
+        o.setNullValue(23);
+        o.setTrans("Trans");
+        UncachedObject uc = new UncachedObject();
+        uc.setCounter(42);
+        uc.setValue("test");
+        MorphiumSingleton.get().store(uc);
+        o.setRef(uc);
+        DBObject marshall = null;
+        ObjectMapperImpl om = new ObjectMapperImpl(MorphiumSingleton.get());
+        long start = System.currentTimeMillis();
+        for (int i = 0; i < 25000; i++) {
+            marshall = om.marshall(o);
+        }
+        long dur = System.currentTimeMillis() - start;
+
+        log.info("Mapping of ComplexObject 25000 with uncached references times took " + dur + "ms");
+        assert (dur < 2000);
+        start = System.currentTimeMillis();
+        for (int i = 0; i < 25000; i++) {
+            ComplexObject co = om.unmarshall(ComplexObject.class, marshall);
+        }
+        dur = System.currentTimeMillis() - start;
+        log.info("De-Marshalling of ComplexObject with uncached references 25000 times took " + dur + "ms");
+        assert (dur < 10000);
+
+    }
+
+
+    @Test
+    public void objectMapperSpeedTestComplexObjectCachedRef() {
+        ComplexObject o = new ComplexObject();
+        EmbeddedObject em = new EmbeddedObject();
+        em.setName("Embedded1");
+        em.setValue("test");
+        em.setTest(424242);
+        o.setId(new ObjectId(new Date()));
+        o.setEmbed(em);
+        o.setChanged(System.currentTimeMillis());
+        o.setCreated(System.currentTimeMillis());
+//        o.setcRef();
+        o.setEinText("Text");
+//        o.setEntityEmbeded(new UncachedObject());
+        o.setNullValue(23);
+        o.setTrans("Trans");
+        CachedObject cc = new CachedObject();
+        cc.setCounter(42);
+        cc.setValue("test");
+        MorphiumSingleton.get().store(cc);
+        waitForWrites();
+        o.setcRef(cc);
+        DBObject marshall = null;
+        ObjectMapperImpl om = new ObjectMapperImpl(MorphiumSingleton.get());
+        long start = System.currentTimeMillis();
+        for (int i = 0; i < 25000; i++) {
+            marshall = om.marshall(o);
+        }
+        long dur = System.currentTimeMillis() - start;
+
+        log.info("Mapping of ComplexObject 25000 with uncached references times took " + dur + "ms");
+        assert (dur < 2000);
+        start = System.currentTimeMillis();
+        for (int i = 0; i < 25000; i++) {
+            ComplexObject co = om.unmarshall(ComplexObject.class, marshall);
+        }
+        dur = System.currentTimeMillis() - start;
+        log.info("De-Marshalling of ComplexObject with cached references 25000 times took " + dur + "ms");
+        assert (dur < 5000);
+
+    }
 }

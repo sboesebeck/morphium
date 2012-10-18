@@ -85,7 +85,7 @@ public interface Writer {
 
     void pushPull(boolean push, Query<?> query, String field, Object value, boolean insertIfNotExist, boolean multiple);
 
-    void pushPullAll(boolean push, Query<?> query, String field, List<Object> value, boolean insertIfNotExist, boolean multiple);
+    void pushPullAll(boolean push, Query<?> query, String field, List<?> value, boolean insertIfNotExist, boolean multiple);
 
     /**
      * Un-setting a value in an existing mongo collection entry - no reading necessary. Object is altered in place
