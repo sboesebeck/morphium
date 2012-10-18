@@ -1,6 +1,7 @@
 package de.caluga.test.mongo.suite;
 
 import de.caluga.morphium.annotations.*;
+import de.caluga.morphium.annotations.caching.NoCache;
 import org.bson.types.ObjectId;
 
 import java.util.ArrayList;
@@ -15,6 +16,7 @@ import java.util.List;
  */
 @Entity
 @WriteSafety(level = SafetyLevel.WAIT_FOR_ALL_SLAVES)
+@NoCache
 public class ListContainer {
     @Id
     ObjectId id;

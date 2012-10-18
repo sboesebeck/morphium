@@ -279,6 +279,7 @@ public class WriterImpl implements Writer {
     public void set(Object toSet, String field, Object value) {
         Class cls = toSet.getClass();
         morphium.firePreUpdateEvent(morphium.getRealClass(cls), MorphiumStorageListener.UpdateTypes.SET);
+        value = marshallIfNecessary(value);
         String coll = morphium.getMapper().getCollectionName(cls);
         BasicDBObject query = new BasicDBObject();
         query.put("_id", morphium.getId(toSet));
@@ -289,7 +290,6 @@ public class WriterImpl implements Writer {
         String fieldName = morphium.getFieldName(cls, field);
 
         BasicDBObject update = new BasicDBObject("$set", new BasicDBObject(fieldName, value));
-
 
         WriteConcern wc = morphium.getWriteConcernForClass(toSet.getClass());
         long start = System.currentTimeMillis();
@@ -556,7 +556,7 @@ public class WriterImpl implements Writer {
         BasicDBObject toSet = new BasicDBObject();
         for (Map.Entry<String, Object> ef : values.entrySet()) {
             String fieldName = morphium.getFieldName(cls, ef.getKey());
-            toSet.put(fieldName, ef.getValue());
+            toSet.put(fieldName, marshallIfNecessary(ef.getValue()));
         }
         DBObject qobj = query.toQueryObject();
         if (insertIfNotExist) {
@@ -643,12 +643,56 @@ public class WriterImpl implements Writer {
         if (insertIfNotExist) {
             qobj = morphium.simplifyQueryObject(qobj);
         }
+        value = marshallIfNecessary(value);
+
         field = morphium.getMapper().getFieldName(cls, field);
         BasicDBObject set = new BasicDBObject(field, value);
         BasicDBObject update = new BasicDBObject(push ? "$push" : "$pull", set);
 
         pushIt(push, insertIfNotExist, multiple, cls, coll, qobj, update);
 
+    }
+
+    private Object marshallIfNecessary(Object value) {
+        if (value != null) {
+            if (morphium.isAnnotationPresentInHierarchy(value.getClass(), Entity.class)
+                    || morphium.isAnnotationPresentInHierarchy(value.getClass(), Embedded.class)) {
+                //need to marshall...
+                DBObject marshall = morphium.getMapper().marshall(value);
+                marshall.put("class_name", morphium.getRealClass(value.getClass()).getName());
+                value = marshall;
+            } else if (List.class.isAssignableFrom(value.getClass())) {
+                List lst = new ArrayList();
+                for (Object o : (List) value) {
+                    if (morphium.isAnnotationPresentInHierarchy(o.getClass(), Embedded.class) ||
+                            morphium.isAnnotationPresentInHierarchy(o.getClass(), Entity.class)
+                            ) {
+                        DBObject marshall = morphium.getMapper().marshall(o);
+                        marshall.put("class_name", morphium.getRealClass(o.getClass()).getName());
+
+                        lst.add(marshall);
+                    } else {
+                        lst.add(o);
+                    }
+                }
+                value = lst;
+            } else if (Map.class.isAssignableFrom(value.getClass())) {
+                for (Object e : ((Map) value).entrySet()) {
+                    Map.Entry en = (Map.Entry) e;
+                    if (!String.class.isAssignableFrom(((Map.Entry) e).getKey().getClass())) {
+                        throw new IllegalArgumentException("Can't push maps with Key not of type String!");
+                    }
+                    if (morphium.isAnnotationPresentInHierarchy(en.getValue().getClass(), Entity.class) ||
+                            morphium.isAnnotationPresentInHierarchy(en.getValue().getClass(), Embedded.class)
+                            ) {
+                        DBObject marshall = morphium.getMapper().marshall(en.getValue());
+                        marshall.put("class_name", morphium.getRealClass(en.getValue().getClass()).getName());
+                        ((Map) value).put(en.getKey(), marshall);
+                    }
+                }
+            }
+        }
+        return value;
     }
 
 
@@ -670,11 +714,15 @@ public class WriterImpl implements Writer {
     }
 
     @Override
-    public void pushPullAll(boolean push, Query<?> query, String field, List<Object> value, boolean insertIfNotExist, boolean multiple) {
+    public void pushPullAll(boolean push, Query<?> query, String field, List<?> value, boolean insertIfNotExist, boolean multiple) {
         Class<?> cls = query.getType();
         String coll = morphium.getMapper().getCollectionName(cls);
         morphium.firePreUpdateEvent(morphium.getRealClass(cls), push ? MorphiumStorageListener.UpdateTypes.PUSH : MorphiumStorageListener.UpdateTypes.PULL);
-
+        List lst = new ArrayList();
+        for (Object o : value) {
+            lst.add(marshallIfNecessary(o));
+        }
+        value = lst;
         BasicDBList dbl = new BasicDBList();
         dbl.addAll(value);
 
