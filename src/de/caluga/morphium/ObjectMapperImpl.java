@@ -1026,7 +1026,7 @@ public class ObjectMapperImpl implements ObjectMapper {
                         } else if (value instanceof Integer) {
                             Integer i = (Integer) value;
                             if (f.getType().equals(Long.class) || f.getType().equals(long.class)) {
-                                f.set(o, i.intValue());
+                                f.set(o, i.longValue());
                             } else if (f.getType().equals(Double.class) || f.getType().equals(double.class)) {
                                 f.set(o, i.doubleValue());
                             } else if (f.getType().equals(Date.class)) {
