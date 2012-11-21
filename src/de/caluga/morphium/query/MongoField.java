@@ -1,10 +1,10 @@
 package de.caluga.morphium.query;
 
-import de.caluga.morphium.MongoType;
-import de.caluga.morphium.ObjectMapper;
-
 import java.util.Collection;
 import java.util.regex.Pattern;
+
+import de.caluga.morphium.MongoType;
+import de.caluga.morphium.ObjectMapper;
 
 /**
  * User: Stpehan Bösebeck
@@ -43,6 +43,8 @@ public interface MongoField<T> {
     public Query<T> nin(Collection<?> vals);
 
     public Query<T> near(double x, double y);
+
+    public Query<T> near(double x, double y, double maxDistance);
 
     public Query<T> getQuery();
 

@@ -1,18 +1,21 @@
 package de.caluga.morphium.query;
 
+import java.lang.reflect.Field;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.List;
+import java.util.regex.Pattern;
+
+import org.bson.types.ObjectId;
+
 import com.mongodb.BasicDBList;
 import com.mongodb.DBRef;
+
 import de.caluga.morphium.FilterExpression;
 import de.caluga.morphium.MongoType;
 import de.caluga.morphium.ObjectMapper;
 import de.caluga.morphium.annotations.Entity;
 import de.caluga.morphium.annotations.Reference;
-import org.bson.types.ObjectId;
-
-import java.lang.reflect.Field;
-import java.util.Collection;
-import java.util.List;
-import java.util.regex.Pattern;
 
 /**
  * User: Stpehan Bösebeck
@@ -60,7 +63,7 @@ public class MongoFieldImpl<T> implements MongoField<T> {
 
     @Override
     public Query<T> eq(Object val) {
-        //checking for Ids in references...
+        // checking for Ids in references...
         if (val != null) {
             Class<?> cls = val.getClass();
             if (mapper.getMorphium().isAnnotationPresentInHierarchy(cls, Entity.class) || val instanceof ObjectId) {
@@ -69,18 +72,20 @@ public class MongoFieldImpl<T> implements MongoField<T> {
                     ObjectId id = null;
                     if (val instanceof ObjectId) {
                         id = (ObjectId) val;
-                    } else {
+                    }
+                    else {
                         id = mapper.getId(val);
                     }
                     if (field.getType().isAssignableFrom(List.class)) {
-                        //list of references, this should be part of
+                        // list of references, this should be part of
                         //
-                        //need to compare DBRefs
+                        // need to compare DBRefs
                         val = new DBRef(null, val.getClass().getName(), id);
-                    } else {
-                        //Reference
-                        //here - query value is an entity AND it is referenced by the query type
-                        //=> we need to compeare ID's
+                    }
+                    else {
+                        // Reference
+                        // here - query value is an entity AND it is referenced by the query type
+                        // => we need to compeare ID's
 
                         val = id;
                     }
@@ -92,7 +97,7 @@ public class MongoFieldImpl<T> implements MongoField<T> {
         fe.setValue(val);
         fe.setField(mapper.getFieldName(query.getType(), fldStr));
         query.addChild(fe);
-        return query;  //To change body of implemented methods use File | Settings | File Templates.
+        return query;  // To change body of implemented methods use File | Settings | File Templates.
     }
 
     private void add(String op, Object value) {
@@ -101,6 +106,13 @@ public class MongoFieldImpl<T> implements MongoField<T> {
         child.setField(op);
         child.setValue(value);
         fe.addChild(child);
+
+        query.addChild(fe);
+    }
+
+    private void add(List<FilterExpression> expressionList) {
+        fe.setField(mapper.getFieldName(query.getType(), fldStr));
+        fe.setChildren(expressionList);
         query.addChild(fe);
     }
 
@@ -157,7 +169,7 @@ public class MongoFieldImpl<T> implements MongoField<T> {
 
     @Override
     public Query<T> matches(Pattern p) {
-        //$regex : 'acme.*corp', $options: 'i'
+        // $regex : 'acme.*corp', $options: 'i'
         add("$regex", p.toString());
         return query;
     }
@@ -198,6 +210,27 @@ public class MongoFieldImpl<T> implements MongoField<T> {
         return query;
     }
 
+    @Override
+    public Query<T> near(double x, double y, double maxDistance) {
+        BasicDBList location = new BasicDBList();
+        location.add(x);
+        location.add(y);
+
+        List<FilterExpression> expressionList = new ArrayList<FilterExpression>();
+
+        FilterExpression nearExpression = new FilterExpression();
+        nearExpression.setField("$near");
+        nearExpression.setValue(location);
+        expressionList.add(nearExpression);
+
+        FilterExpression maxDistanceExpression = new FilterExpression();
+        maxDistanceExpression.setField("$maxDistance");
+        maxDistanceExpression.setValue(maxDistance);
+        expressionList.add(maxDistanceExpression);
+
+        add(expressionList);
+        return query;
+    }
 
     @Override
     public Query<T> getQuery() {
@@ -208,6 +241,5 @@ public class MongoFieldImpl<T> implements MongoField<T> {
     public void setQuery(Query<T> q) {
         query = q;
     }
-
 
 }

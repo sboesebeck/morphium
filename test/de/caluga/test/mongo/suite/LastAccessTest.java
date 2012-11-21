@@ -37,6 +37,7 @@ public class LastAccessTest extends MongoTest {
 
     @Entity
     @NoCache
+    @WriteSafety(level = SafetyLevel.MAJORITY)
     @StoreLastAccess
     @StoreLastChange
     @StoreCreationTime
