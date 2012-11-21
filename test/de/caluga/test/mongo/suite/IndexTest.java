@@ -9,6 +9,7 @@ import de.caluga.morphium.annotations.Property;
 import org.bson.types.ObjectId;
 import org.junit.Test;
 
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -37,6 +38,7 @@ public class IndexTest extends MongoTest {
         boolean foundTimerName2 = false;
         boolean foundTimer = false;
         boolean foundName = false;
+        boolean foundLst=false;
 
         for (DBObject i : idx) {
             System.out.println(i.toString());
@@ -47,6 +49,8 @@ public class IndexTest extends MongoTest {
                 foundName = true;
             } else if (key.get("timer") != null && key.get("timer").equals(-1) && key.get("name") == null) {
                 foundTimer = true;
+            } else if (key.get("lst") != null) {
+                foundLst=true;
             } else if (key.get("timer") != null && key.get("timer").equals(-1) && key.get("name") != null && key.get("name").equals(-1)) {
                 foundTimerName2 = true;
             } else if (key.get("timer") != null && key.get("timer").equals(1) && key.get("name") != null && key.get("name").equals(-1)) {
@@ -54,11 +58,11 @@ public class IndexTest extends MongoTest {
             }
         }
         log.info("Found indices id:" + foundId + " timer: " + foundTimer + " TimerName: " + foundTimerName + " name: " + foundName + " TimerName2: " + foundTimerName2);
-        assert (foundId && foundTimer && foundTimerName && foundName && foundTimerName2);
+        assert (foundId && foundTimer && foundTimerName && foundName && foundTimerName2 && foundLst);
     }
 
     @Entity
-    @Index({"-name, timer", "-name, -timer"})
+    @Index({"-name, timer", "-name, -timer","lst:2d"})
     public static class IndexedObject {
         @Property
         @Index(decrement = true)
@@ -66,6 +70,9 @@ public class IndexTest extends MongoTest {
 
         @Index
         private String name;
+
+        //Index defined up
+        private List<Integer> lst;
 
         @Id
         ObjectId id;
@@ -100,6 +107,21 @@ public class IndexTest extends MongoTest {
 
         public void setId(ObjectId id) {
             this.id = id;
+        }
+
+        public void addLst(Integer i) {
+            if (lst==null) {
+                lst=new ArrayList<Integer>();
+            }
+            lst.add(i);
+        }
+
+        public List<Integer> getLst() {
+            return lst;
+        }
+
+        public void setLst(List<Integer> lst) {
+            this.lst = lst;
         }
     }
 }
