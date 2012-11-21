@@ -1604,11 +1604,11 @@ public final class Morphium {
         }
     }
 
-    public void ensureIndex(Class<?> cls, Map<String, Integer> index) {
+    public void ensureIndex(Class<?> cls, Map<String, Object> index) {
         List<String> fields = getFields(cls);
 
-        Map<String, Integer> idx = new LinkedHashMap<String, Integer>();
-        for (Map.Entry<String, Integer> es : index.entrySet()) {
+        Map<String, Object> idx = new LinkedHashMap<String, Object>();
+        for (Map.Entry<String, Object> es : index.entrySet()) {
             String k = es.getKey();
             if (!fields.contains(k) && !fields.contains(config.getMapper().convertCamelCase(k))) {
                 throw new IllegalArgumentException("Field unknown for type " + cls.getSimpleName() + ": " + k);
@@ -1617,35 +1617,43 @@ public final class Morphium {
             idx.put(fn, es.getValue());
         }
         long start = System.currentTimeMillis();
-        database.getCollection(config.getMapper().getCollectionName(cls)).ensureIndex(new BasicDBObject(idx));
+        BasicDBObject keys = new BasicDBObject(idx);
+        database.getCollection(config.getMapper().getCollectionName(cls)).ensureIndex(keys);
         long dur = System.currentTimeMillis() - start;
-        fireProfilingWriteEvent(cls, new BasicDBObject(idx), dur, false, WriteAccessType.ENSURE_INDEX);
+        fireProfilingWriteEvent(cls, keys, dur, false, WriteAccessType.ENSURE_INDEX);
     }
 
     /**
      * ensureIndex(CachedObject.class,"counter","-value");
+     * ensureIndex(CachedObject.class,"counter:2d","-value);
      * Similar to sorting
      *
      * @param cls
      * @param fldStr
      */
     public void ensureIndex(Class<?> cls, String... fldStr) {
-        Map<String, Integer> m = new LinkedHashMap<String, Integer>();
+        Map<String, Object> m = new LinkedHashMap<String, Object>();
         for (String f : fldStr) {
             int idx = 1;
-            if (f.startsWith("-")) {
-                idx = -1;
-                f = f.substring(1);
-            } else if (f.startsWith("+")) {
-                f = f.substring(1);
+            if (f.contains(":")) {
+                //explicitly defined index
+                String fs[]=f.split(":");
+                m.put(fs[0],fs[1]);
+            } else {
+                if (f.startsWith("-")) {
+                    idx = -1;
+                    f = f.substring(1);
+                } else if (f.startsWith("+")) {
+                    f = f.substring(1);
+                }
+                m.put(f, idx);
             }
-            m.put(f, idx);
         }
         ensureIndex(cls, m);
     }
 
     public void ensureIndex(Class<?> cls, Enum... fldStr) {
-        Map<String, Integer> m = new LinkedHashMap<String, Integer>();
+        Map<String, Object> m = new LinkedHashMap<String, Object>();
         for (Enum e : fldStr) {
             String f = e.name();
             m.put(f, 1);
