@@ -230,7 +230,13 @@ public class WriterImpl implements Writer {
                 ArrayList<DBObject> dbLst = new ArrayList<DBObject>();
                 //bulk insert... check if something already exists
                 WriteConcern wc = morphium.getWriteConcernForClass(c);
-                DBCollection collection = morphium.getDatabase().getCollection(morphium.getMapper().getCollectionName(c));
+                String coll = morphium.getMapper().getCollectionName(c);
+                DBCollection collection = morphium.getDatabase().getCollection(coll);
+                if (!morphium.getDatabase().collectionExists(coll)) {
+                    if (logger.isDebugEnabled())
+                        logger.debug("Collection does not exist - ensuring indices");
+                    morphium.ensureIndicesFor(c);
+                }
                 for (Object record : es.getValue()) {
                     DBObject marshall = morphium.getMapper().marshall(record);
                     if (isNew.get(record)) {
