@@ -88,6 +88,21 @@ public class IteratorTest extends MongoTest {
 
     }
 
+    @Test
+    public void expectedBehaviorTest() throws Exception {
+        createUncachedObjects(100);
+        Query<UncachedObject> qu = MorphiumSingleton.get().createQueryFor(UncachedObject.class).sort("-counter");
+        for (UncachedObject u : qu.asIterable()) {
+            UncachedObject uc = new UncachedObject();
+            uc.setCounter(u.getCounter() + 1);
+            uc.setValue("WRONG!");
+            MorphiumSingleton.get().store(uc);
+            waitForWrites();
+            log.info("Current Counter: " + u.getCounter() + " and Value: " + u.getValue());
+        }
+    }
+
+
     private Query<UncachedObject> getUncachedObjectQuery() {
         Query<UncachedObject> qu = MorphiumSingleton.get().createQueryFor(UncachedObject.class);
         qu = qu.f("counter").lte(1000);
