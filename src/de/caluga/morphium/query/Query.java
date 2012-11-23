@@ -155,6 +155,17 @@ public interface Query<T> extends Cloneable {
      */
     public List<T> asList();
 
+    /**
+     * create an iterator / iterable for this query, default windowSize (10)
+     */
+    public MorphiumIterator<T> asIterable();
+
+
+    /**
+     * create an iterator / iterable for this query, sets window size (how many objects should be read from DB)
+     */
+    public MorphiumIterator<T> asIterable(int windowSize);
+
 
     /**
      * get only 1 result (first one in result list)

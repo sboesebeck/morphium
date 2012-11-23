@@ -70,9 +70,10 @@ public class MorphiumConfig {
 
     private MongoSecurityManager securityMgr;
     private ObjectMapper mapper = new ObjectMapperImpl();
-    private Class fieldImplClass = MongoFieldImpl.class;
+    private Class<? extends MongoField> fieldImplClass = MongoFieldImpl.class;
 
     private ReadPreferenceLevel defaultReadPreference;
+    private Class<? extends MorphiumIterator> iteratorClass;
 
     public boolean isTimeoutBugWorkAroundEnabled() {
         return timeoutBugWorkAroundEnabled;
@@ -163,9 +164,6 @@ public class MorphiumConfig {
         return fieldImplClass;
     }
 
-    public void setFieldImplClass(Class<? extends MongoField> fieldImplClass) {
-        this.fieldImplClass = fieldImplClass;
-    }
 
     public boolean isSocketKeepAlive() {
         return socketKeepAlive;
@@ -495,7 +493,7 @@ public class MorphiumConfig {
 
         String fieldImplClassStr = p.getProperty(prefix + "fieldImplClass", MongoFieldImpl.class.getName());
         try {
-            fieldImplClass = Class.forName(fieldImplClassStr);
+            fieldImplClass = (Class<? extends MongoField>) Class.forName(fieldImplClassStr);
         } catch (ClassNotFoundException e) {
         }
 
@@ -557,4 +555,20 @@ public class MorphiumConfig {
         housekeepingTimeout = Integer.valueOf(p.getProperty(prefix + "housekeepingTimeout", "5000"));
         maxConnections = Integer.valueOf(p.getProperty(prefix + "maxConnections", "100"));
     }
+
+    public Class<? extends MorphiumIterator> getIteratorClass() {
+        if (iteratorClass == null) {
+            iteratorClass = MorphiumIteratorImpl.class;
+        }
+        return iteratorClass;
+    }
+
+    public void setIteratorClass(Class<? extends MorphiumIterator> iteratorClass) {
+        this.iteratorClass = iteratorClass;
+    }
+
+    public void setFieldImplClass(Class<? extends MongoField> fieldImplClass) {
+        this.fieldImplClass = fieldImplClass;
+    }
+
 }

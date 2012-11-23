@@ -8,6 +8,7 @@ import de.caluga.morphium.StatisticKeys;
 import de.caluga.morphium.annotations.*;
 import de.caluga.morphium.annotations.caching.Cache;
 import de.caluga.morphium.secure.Permission;
+import org.apache.log4j.Logger;
 import org.bson.types.ObjectId;
 
 import java.lang.reflect.Field;
@@ -32,6 +33,7 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
     private Map<String, Integer> order;
 
     private Morphium morphium;
+    private static Logger log = Logger.getLogger(Query.class);
 
     public QueryImpl() {
 
@@ -474,6 +476,28 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
             morphium.addToCache(ck, type, ret);
         }
         return ret;
+    }
+
+    @Override
+    public MorphiumIterator<T> asIterable() {
+        return asIterable(10);
+    }
+
+    @Override
+    public MorphiumIterator<T> asIterable(int windowSize) {
+        try {
+            if (log.isDebugEnabled()) {
+                log.debug("creating iterable for query - windowsize " + windowSize);
+            }
+            MorphiumIterator<T> it = morphium.getConfig().getIteratorClass().newInstance();
+            it.setQuery(this);
+            it.setWindowSize(windowSize);
+            return it;
+        } catch (InstantiationException e) {
+            throw new RuntimeException(e);
+        } catch (IllegalAccessException e) {
+            throw new RuntimeException(e);
+        }
     }
 
     private void updateLastAccess(DBObject o, T unmarshall) {
