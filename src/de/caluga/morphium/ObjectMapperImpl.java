@@ -372,7 +372,7 @@ public class ObjectMapperImpl implements ObjectMapper {
 
 
     @Override
-    public <T> T unmarshall(Class<T> cls, DBObject o) {
+    public <T> T unmarshall(Class<? extends T> cls, DBObject o) {
         try {
             if (o.get("class_name") != null || o.get("className") != null) {
                 if (log.isDebugEnabled()) {
@@ -383,7 +383,7 @@ public class ObjectMapperImpl implements ObjectMapper {
                     if (cN == null) {
                         cN = (String) o.get("className");
                     }
-                    cls = (Class<T>) Class.forName(cN);
+                    cls = (Class<? extends T>) Class.forName(cN);
                 } catch (ClassNotFoundException e) {
                     throw new RuntimeException(e);
                 }
@@ -773,11 +773,11 @@ public class ObjectMapperImpl implements ObjectMapper {
     }
 
     @Override
-    public <T> Class<T> getRealClass(Class<T> sc) {
+    public <T> Class<? extends T> getRealClass(Class<? extends T> sc) {
         if (sc.getName().contains("$$EnhancerByCGLIB$$")) {
 
             try {
-                sc = (Class<T>) Class.forName(sc.getName().substring(0, sc.getName().indexOf("$$")));
+                sc = (Class<? extends T>) Class.forName(sc.getName().substring(0, sc.getName().indexOf("$$")));
             } catch (Exception e) {
                 //TODO: Implement Handling
                 throw new RuntimeException(e);

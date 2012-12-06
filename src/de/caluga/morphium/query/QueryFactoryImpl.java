@@ -27,9 +27,9 @@ public class QueryFactoryImpl implements QueryFactory {
     }
 
     @Override
-    public <T> Query<T> createQuery(Morphium m, Class<T> type) {
+    public <T> Query<T> createQuery(Morphium m, Class<? extends T> type) {
         try {
-            Query<T> q = (Query<T>) queryImpl.newInstance();
+            Query<T> q = queryImpl.newInstance();
             q.setMorphium(m);
             q.setType(type);
             return q;

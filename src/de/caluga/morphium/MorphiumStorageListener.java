@@ -23,9 +23,9 @@ public interface MorphiumStorageListener<T> {
 
     public void preDelete(T r);
 
-    public void postDrop(Class<T> cls);
+    public void postDrop(Class<? extends T> cls);
 
-    public void preDrop(Class<T> cls);
+    public void preDrop(Class<? extends T> cls);
 
     public void preRemove(Query<T> q);
 
@@ -33,8 +33,8 @@ public interface MorphiumStorageListener<T> {
 
     public void postLoad(T o);
 
-    public void preUpdate(Class<T> cls, Enum updateType);
+    public void preUpdate(Class<? extends T> cls, Enum updateType);
 
-    public void postUpdate(Class<T> cls, Enum updateType);
+    public void postUpdate(Class<? extends T> cls, Enum updateType);
 
 }

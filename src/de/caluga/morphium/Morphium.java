@@ -829,7 +829,7 @@ public final class Morphium {
      * @param cls
      * @return
      */
-    public <T extends Annotation> T getAnnotationFromHierarchy(Class<?> cls, Class<T> anCls) {
+    public <T extends Annotation> T getAnnotationFromHierarchy(Class<?> cls, Class<? extends T> anCls) {
         cls = getRealClass(cls);
         if (cls.isAnnotationPresent(anCls)) {
             return cls.getAnnotation(anCls);
@@ -858,7 +858,7 @@ public final class Morphium {
         return config.getMapper().getRealObject(o);
     }
 
-    public <T extends Annotation> boolean isAnnotationPresentInHierarchy(Class<?> cls, Class<T> anCls) {
+    public <T extends Annotation> boolean isAnnotationPresentInHierarchy(Class<?> cls, Class<? extends T> anCls) {
         return getAnnotationFromHierarchy(cls, anCls) != null;
     }
 
@@ -1226,7 +1226,7 @@ public final class Morphium {
      * @param <T>
      * @return
      */
-    public <T> List<T> getFromCache(Class<T> type, String k) {
+    public <T> List<T> getFromCache(Class<? extends T> type, String k) {
         if (cache.get(type) == null || cache.get(type).get(k) == null) return null;
         final CacheElement cacheElement = cache.get(type).get(k);
         cacheElement.setLru(System.currentTimeMillis());
@@ -1302,14 +1302,14 @@ public final class Morphium {
      * @param <T> - Type
      * @return - list of all elements stored
      */
-    public <T> List<T> readAll(Class<T> cls) {
+    public <T> List<T> readAll(Class<? extends T> cls) {
         inc(StatisticKeys.READS);
         Query<T> qu;
         qu = createQueryFor(cls);
         return qu.asList();
     }
 
-    public <T> Query<T> createQueryFor(Class<T> type) {
+    public <T> Query<T> createQueryFor(Class<? extends T> type) {
         Query<T> q = config.getQueryFact().createQuery(this, type);
         q.setMorphium(this);
         return q;
@@ -1319,7 +1319,7 @@ public final class Morphium {
         return q.asList();
     }
 
-    private <T> T getFromIDCache(Class<T> type, ObjectId id) {
+    private <T> T getFromIDCache(Class<? extends T> type, ObjectId id) {
         if (idCache.get(type) != null) {
             return (T) idCache.get(type).get(id);
         }
@@ -1389,7 +1389,7 @@ public final class Morphium {
         return database.getCollection(config.getMapper().getCollectionName(q.getType())).group(cmd);
     }
 
-    public <T> T findById(Class<T> type, ObjectId id) {
+    public <T> T findById(Class<? extends T> type, ObjectId id) {
         T ret = getFromIDCache(type, id);
         if (ret != null) return ret;
         List<String> ls = config.getMapper().getFields(type, Id.class);
@@ -1443,14 +1443,14 @@ public final class Morphium {
 
 
     @SuppressWarnings("unchecked")
-    public <T> List<T> findByField(Class<T> cls, String fld, Object val) {
+    public <T> List<T> findByField(Class<? extends T> cls, String fld, Object val) {
         Query<T> q = createQueryFor(cls);
         q = q.f(fld).eq(val);
         return q.asList();
 //        return createQueryFor(cls).field(fld).equal(val).asList();
     }
 
-    public <T> List<T> findByField(Class<T> cls, Enum fld, Object val) {
+    public <T> List<T> findByField(Class<? extends T> cls, Enum fld, Object val) {
         Query<T> q = createQueryFor(cls);
         q = q.f(fld).eq(val);
         return q.asList();
@@ -1465,11 +1465,11 @@ public final class Morphium {
      * @param cls
      * @return
      */
-    public final List<String> getFields(Class cls) {
+    public final List<String> getFields(Class<?> cls) {
         return config.getMapper().getFields(cls);
     }
 
-    public final Class getTypeOfField(Class cls, String fld) {
+    public final Class getTypeOfField(Class<?> cls, String fld) {
         Field f = getField(cls, fld);
         if (f == null) return null;
         return f.getType();
@@ -1501,7 +1501,7 @@ public final class Morphium {
     }
 
 
-    public String getFieldName(Class cls, String fld) {
+    public String getFieldName(Class<?> cls, String fld) {
         return config.getMapper().getFieldName(cls, fld);
     }
 
@@ -1916,7 +1916,7 @@ public final class Morphium {
 
     }
 
-    public <T, R> Aggregator<T, R> createAggregator(Class<T> type, Class<R> resultType) {
+    public <T, R> Aggregator<T, R> createAggregator(Class<? extends T> type, Class<? extends R> resultType) {
         Aggregator<T, R> aggregator = config.getAggregatorFactory().createAggregator(type, resultType);
         aggregator.setMorphium(this);
         return aggregator;
@@ -1950,7 +1950,7 @@ public final class Morphium {
         return (T) Enhancer.create(o.getClass(), new Class[]{PartiallyUpdateable.class, Serializable.class}, new PartiallyUpdateableProxy(this, o));
     }
 
-    public <T> T createLazyLoadedEntity(Class<T> cls, ObjectId id) {
+    public <T> T createLazyLoadedEntity(Class<? extends T> cls, ObjectId id) {
         return (T) Enhancer.create(cls, new Class[]{Serializable.class}, new LazyDeReferencingProxy(this, cls, id));
     }
 

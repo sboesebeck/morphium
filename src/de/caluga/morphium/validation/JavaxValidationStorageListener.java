@@ -43,11 +43,11 @@ public class JavaxValidationStorageListener implements MorphiumStorageListener<O
     }
 
     @Override
-    public void postDrop(Class<Object> cls) {
+    public void postDrop(Class<?> cls) {
     }
 
     @Override
-    public void preDrop(Class<Object> cls) {
+    public void preDrop(Class<?> cls) {
     }
 
     @Override
@@ -63,10 +63,10 @@ public class JavaxValidationStorageListener implements MorphiumStorageListener<O
     }
 
     @Override
-    public void preUpdate(Class<Object> cls, Enum updateType) {
+    public void preUpdate(Class<?> cls, Enum updateType) {
     }
 
     @Override
-    public void postUpdate(Class<Object> cls, Enum updateType) {
+    public void postUpdate(Class<?> cls, Enum updateType) {
     }
 }

@@ -11,7 +11,7 @@ public interface AggregatorFactory {
 
     public void setAggregatorClass(Class<? extends Aggregator> AggregatorImpl);
 
-    public <T, R> Aggregator<T, R> createAggregator(Class<T> type, Class<R> resultType);
+    public <T, R> Aggregator<T, R> createAggregator(Class<? extends T> type, Class<? extends R> resultType);
 }
 
 

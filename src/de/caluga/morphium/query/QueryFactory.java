@@ -10,7 +10,7 @@ import de.caluga.morphium.Morphium;
  * crate query for a certain type
  */
 public interface QueryFactory {
-    public <T> Query<T> createQuery(Morphium m, Class<T> type);
+    public <T> Query<T> createQuery(Morphium m, Class<? extends T> type);
 
     public Class<? extends Query> getQueryImpl();
 

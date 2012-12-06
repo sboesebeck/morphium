@@ -28,11 +28,11 @@ public class StorageAdapter<T> implements MorphiumStorageListener<T> {
     }
 
     @Override
-    public void postDrop(Class<T> cls) {
+    public void postDrop(Class<? extends T> cls) {
     }
 
     @Override
-    public void preDrop(Class<T> cls) {
+    public void preDrop(Class<? extends T> cls) {
     }
 
 //    @Override
@@ -57,11 +57,11 @@ public class StorageAdapter<T> implements MorphiumStorageListener<T> {
     }
 
     @Override
-    public void preUpdate(Class<T> cls, Enum updateType) {
+    public void preUpdate(Class<? extends T> cls, Enum updateType) {
     }
 
     @Override
-    public void postUpdate(Class<T> cls, Enum updateType) {
+    public void postUpdate(Class<? extends T> cls, Enum updateType) {
     }
 
 
