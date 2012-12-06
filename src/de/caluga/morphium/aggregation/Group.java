@@ -12,7 +12,7 @@ import java.util.Map;
  * Date: 31.08.12
  * Time: 08:48
  * <p/>
- * TODO: Add documentation here
+ * Aggregator-Group
  */
 public class Group<T, R> {
     private Aggregator<T, R> aggregator;

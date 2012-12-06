@@ -211,12 +211,12 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
         return getClone();
     }
 
-    public MongoField f(Enum f) {
+    public MongoField<T> f(Enum f) {
         return f(f.name());
     }
 
     @Override
-    public MongoField f(String f) {
+    public MongoField<T> f(String f) {
         String cf = f;
         if (f.contains(".")) {
             //if there is a . only check first part
@@ -246,7 +246,12 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
     }
 
     private Query<T> getClone() {
-        return (Query<T>) this;
+        try {
+            return clone();
+        } catch (CloneNotSupportedException e) {
+            log.error("Clone not supported?!?!?!");
+            throw new RuntimeException(e);
+        }
     }
 
 
@@ -501,7 +506,7 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
     }
 
     private void updateLastAccess(DBObject o, T unmarshall) {
-        if (morphium.isAnnotationPresentInHierarchy(type, StoreLastAccess.class)) {
+        if (morphium.isAnnotationPresentInHierarchy(type, LastAccess.class)) {
             List<String> lst = morphium.getMapper().getFields(type, LastAccess.class);
             for (String ctf : lst) {
                 Field f = morphium.getMapper().getField(type, ctf);

@@ -11,7 +11,6 @@ import java.util.List;
  * Date: 07.09.12
  * Time: 08:00
  * <p/>
- * TODO: Add documentation here
  */
 public class SubDocumentTests extends MongoTest {
 

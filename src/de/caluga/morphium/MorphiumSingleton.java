@@ -5,7 +5,7 @@ package de.caluga.morphium;
  * Date: 03.05.12
  * Time: 10:50
  * <p/>
- * TODO: Add documentation here
+ * Should not be used, actually - As Singletons are not always useful.
  */
 public class MorphiumSingleton {
     private static MorphiumConfig config;

@@ -18,7 +18,6 @@ import java.util.List;
  * Date: 31.08.12
  * Time: 10:59
  * <p/>
- * TODO: Add documentation here
  */
 public class Aggregation extends MongoTest {
     @Test

@@ -11,7 +11,6 @@ import java.util.List;
  * Date: 29.05.12
  * Time: 00:03
  * <p/>
- * TODO: Add documentation here
  */
 @Entity
 @NoCache

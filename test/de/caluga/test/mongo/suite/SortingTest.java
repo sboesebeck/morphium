@@ -14,7 +14,6 @@ import java.util.Map;
  * Date: 11.05.12
  * Time: 23:18
  * <p/>
- * TODO: Add documentation here
  */
 public class SortingTest extends MongoTest {
     private void prepare() {

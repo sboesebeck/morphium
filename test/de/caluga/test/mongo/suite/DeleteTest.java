@@ -10,7 +10,6 @@ import java.util.List;
  * Date: 03.09.12
  * Time: 08:18
  * <p/>
- * TODO: Add documentation here
  */
 public class DeleteTest extends MongoTest {
 

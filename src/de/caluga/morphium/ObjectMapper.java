@@ -12,7 +12,7 @@ import java.util.List;
  * Date: 26.03.12
  * Time: 11:24
  * <p/>
- * TODO: Add documentation here
+ * Maps objects to Mongo
  */
 public interface ObjectMapper {
 

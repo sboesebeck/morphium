@@ -8,7 +8,14 @@ import java.util.List;
  * Date: 23.11.12
  * Time: 11:35
  * <p/>
- * TODO: Add documentation here
+ * iterator, makes paging through huge collections a lot easier. Default Window (~page) size is 10.<p/>
+ * This iterator only reads as many objects from mongo as specified in window-size. It can be used like a
+ * normal java iterator:
+ * <code>
+ * for (Object o:query.asIterable()) {
+ * //do something here
+ * };
+ * </code>
  */
 public interface MorphiumIterator<T> extends Iterable<T>, Iterator<T> {
     public void setWindowSize(int sz);

@@ -13,7 +13,6 @@ import java.util.List;
  * Date: 01.07.12
  * Time: 11:34
  * <p/>
- * TODO: Add documentation here
  */
 public class BulkInsertTest extends MongoTest {
     @Test

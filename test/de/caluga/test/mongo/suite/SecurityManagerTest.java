@@ -9,7 +9,6 @@ import org.junit.Test;
  * Date: 03.04.12
  * Time: 22:30
  * <p/>
- * TODO: Add documentation here
  */
 public class SecurityManagerTest extends MongoTest {
 

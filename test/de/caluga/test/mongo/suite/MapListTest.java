@@ -18,7 +18,6 @@ import java.util.Map;
  * Date: 12.07.12
  * Time: 16:20
  * <p/>
- * TODO: Add documentation here
  */
 public class MapListTest extends MongoTest {
     @Test

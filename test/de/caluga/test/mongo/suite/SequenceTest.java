@@ -13,7 +13,6 @@ import java.util.Vector;
  * Date: 25.07.12
  * Time: 08:09
  * <p/>
- * TODO: Add documentation here
  */
 public class SequenceTest extends MongoTest {
     @Test

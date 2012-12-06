@@ -12,7 +12,6 @@ import org.junit.Test;
  * Date: 24.08.12
  * Time: 11:39
  * <p/>
- * TODO: Add documentation here
  */
 public class ReplicaSetStatusTest extends MongoTest {
     private static Logger log = Logger.getLogger(ReplicaSetStatusTest.class);

@@ -14,7 +14,6 @@ import java.util.List;
  * Date: 29.05.12
  * Time: 00:02
  * <p/>
- * TODO: Add documentation here
  */
 public class LazyLoadingTest extends MongoTest {
 

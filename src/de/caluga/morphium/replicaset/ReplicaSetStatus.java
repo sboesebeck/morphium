@@ -12,7 +12,7 @@ import java.util.List;
  * Date: 10.08.12
  * Time: 15:05
  * <p/>
- * TODO: Add documentation here
+ * Replicaset Status
  */
 @Embedded
 public class ReplicaSetStatus {

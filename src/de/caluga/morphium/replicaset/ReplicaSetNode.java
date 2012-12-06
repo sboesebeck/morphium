@@ -11,7 +11,7 @@ import java.util.Date;
  * Date: 10.08.12
  * Time: 15:06
  * <p/>
- * TODO: Add documentation here
+ * Mongo Replicaset Node
  */
 @Embedded
 public class ReplicaSetNode {

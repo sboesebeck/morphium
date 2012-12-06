@@ -7,7 +7,7 @@ import de.caluga.morphium.query.Query;
  * Date: 01.08.12
  * Time: 09:46
  * <p/>
- * TODO: Add documentation here
+ * Listener for profiling
  */
 public interface ProfilingListener {
     public void readAccess(Query query, long time, ReadAccessType t);

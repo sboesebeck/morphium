@@ -18,7 +18,9 @@ import java.util.Map;
  * Date: 30.08.12
  * Time: 14:38
  * <p/>
- * TODO: Add documentation here
+ * default writer implementation
+ *
+ * @see Writer
  */
 public class WriterImpl implements Writer {
     private static Logger logger = Logger.getLogger(WriterImpl.class);
@@ -65,7 +67,7 @@ public class WriterImpl implements Writer {
 
         if (isNew) {
             //new object - need to store creation time
-            if (morphium.isAnnotationPresentInHierarchy(type, StoreCreationTime.class)) {
+            if (morphium.isAnnotationPresentInHierarchy(type, CreationTime.class)) {
                 List<String> lst = morphium.getMapper().getFields(type, CreationTime.class);
                 if (lst == null || lst.size() == 0) {
                     logger.error("Unable to store creation time as @CreationTime is missing");
@@ -102,7 +104,7 @@ public class WriterImpl implements Writer {
                 }
             }
         }
-        if (morphium.isAnnotationPresentInHierarchy(type, StoreLastChange.class)) {
+        if (morphium.isAnnotationPresentInHierarchy(type, LastChange.class)) {
             List<String> lst = morphium.getMapper().getFields(type, LastChange.class);
             if (lst != null && lst.size() > 0) {
                 for (String ctf : lst) {
@@ -345,7 +347,7 @@ public class WriterImpl implements Writer {
         }
         Class<?> type = morphium.getRealClass(ent.getClass());
 
-        StoreLastChange t = morphium.getAnnotationFromHierarchy(type, StoreLastChange.class); //(StoreLastChange) type.getAnnotation(StoreLastChange.class);
+        LastChange t = morphium.getAnnotationFromHierarchy(type, LastChange.class); //(StoreLastChange) type.getAnnotation(StoreLastChange.class);
         if (t != null) {
             List<String> lst = morphium.getMapper().getFields(ent.getClass(), LastChange.class);
 

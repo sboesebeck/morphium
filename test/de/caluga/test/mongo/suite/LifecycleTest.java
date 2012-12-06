@@ -15,7 +15,6 @@ import org.junit.Test;
  * Date: 29.03.12
  * Time: 22:59
  * <p/>
- * TODO: Add documentation here
  */
 public class LifecycleTest extends MongoTest {
     private static boolean preStore = false;

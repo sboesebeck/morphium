@@ -12,7 +12,6 @@ import java.util.List;
  * Date: 28.05.12
  * Time: 17:18
  * <p/>
- * TODO: Add documentation here
  */
 @Entity
 @WriteSafety(level = SafetyLevel.WAIT_FOR_ALL_SLAVES)

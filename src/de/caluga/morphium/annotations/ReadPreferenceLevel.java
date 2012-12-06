@@ -7,7 +7,7 @@ import com.mongodb.ReadPreference;
  * Date: 30.08.12
  * Time: 13:54
  * <p/>
- * TODO: Add documentation here
+ * Define the read preference level for this type. Read from PRimary only or allow to read from secondaries.
  */
 public enum ReadPreferenceLevel {
     PRIMARY(ReadPreference.primary()), PRIMARY_PREFERRED(ReadPreference.primaryPreferred()),

@@ -11,7 +11,9 @@ import static java.lang.annotation.ElementType.FIELD;
  * Date: 29.05.12
  * Time: 15:31
  * <p/>
- * TODO: Add documentation here
+ * Define the field to hold the created by string. Usually a user id provided by the security manager
+ *
+ * @see de.caluga.morphium.secure.MongoSecurityManager
  */
 @Target({FIELD})
 @Retention(RetentionPolicy.RUNTIME)

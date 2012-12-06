@@ -5,7 +5,6 @@ package de.caluga.morphium.aggregation;
  * Date: 31.08.12
  * Time: 11:13
  * <p/>
- * TODO: Add documentation here
  */
 public class AggregatorFactoryImpl implements AggregatorFactory {
     private Class<? extends Aggregator> aggregatorClass;

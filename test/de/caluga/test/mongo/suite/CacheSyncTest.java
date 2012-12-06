@@ -19,7 +19,6 @@ import org.junit.Test;
  * Date: 12.06.12
  * Time: 16:40
  * <p/>
- * TODO: Add documentation here
  */
 public class CacheSyncTest extends MongoTest {
     private boolean preSendClear = false;

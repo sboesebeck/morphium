@@ -14,7 +14,6 @@ import java.util.*;
  * Date: 26.03.12
  * Time: 14:04
  * <p/>
- * TODO: Add documentation here
  */
 public class ObjectMapperTest extends MongoTest {
     @Test

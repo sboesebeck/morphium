@@ -16,7 +16,6 @@ import java.util.*;
  * Date: 26.05.12
  * Time: 17:34
  * <p/>
- * TODO: Add documentation here
  */
 public class MessagingTest extends MongoTest {
     public boolean gotMessage = false;

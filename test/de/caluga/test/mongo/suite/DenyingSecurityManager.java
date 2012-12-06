@@ -9,7 +9,6 @@ import de.caluga.morphium.secure.Permission;
  * Date: 03.04.12
  * Time: 22:31
  * <p/>
- * TODO: Add documentation here
  */
 public class DenyingSecurityManager implements MongoSecurityManager {
     @Override

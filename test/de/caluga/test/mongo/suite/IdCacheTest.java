@@ -12,7 +12,6 @@ import java.util.List;
  * Date: 30.06.12
  * Time: 13:58
  * <p/>
- * TODO: Add documentation here
  */
 public class IdCacheTest extends MongoTest {
 

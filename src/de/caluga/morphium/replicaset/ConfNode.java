@@ -8,7 +8,7 @@ import de.caluga.morphium.annotations.Property;
  * Date: 24.08.12
  * Time: 11:33
  * <p/>
- * TODO: Add documentation here
+ * Representation of a ReplicaseConfigNode
  */
 @Embedded
 public class ConfNode {
