@@ -5,7 +5,7 @@ package de.caluga.morphium;
  * Date: 05.07.12
  * Time: 13:22
  * <p/>
- * TODO: Add documentation here
+ * Statistics
  */
 
 public class StatisticValue {

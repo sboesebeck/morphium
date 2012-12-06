@@ -14,7 +14,6 @@ import java.util.Map;
  * Date: 04.05.12
  * Time: 12:05
  * <p/>
- * TODO: Add documentation here
  */
 public class ConfigManagerTest extends MongoTest {
     @Test

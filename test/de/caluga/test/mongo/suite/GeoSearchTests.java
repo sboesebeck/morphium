@@ -15,7 +15,6 @@ import java.util.List;
  * Date: 22.11.12
  * Time: 08:30
  * <p/>
- * TODO: Add documentation here
  */
 public class GeoSearchTests extends MongoTest {
 

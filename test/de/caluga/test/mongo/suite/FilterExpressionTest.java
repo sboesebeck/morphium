@@ -15,7 +15,6 @@ import java.util.Set;
  * Date: 21.11.12
  * Time: 20:17
  * <p/>
- * TODO: Add documentation here
  */
 public class FilterExpressionTest {
 

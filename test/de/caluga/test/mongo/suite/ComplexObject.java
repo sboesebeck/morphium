@@ -12,9 +12,9 @@ import org.bson.types.ObjectId;
  */
 @NoCache
 @Entity(translateCamelCase = false)
-@StoreLastAccess()
-@StoreCreationTime()
-@StoreLastChange()
+@LastAccess()
+@CreationTime()
+@LastChange()
 @WriteSafety(level = SafetyLevel.WAIT_FOR_ALL_SLAVES)
 public class ComplexObject {
     @Id

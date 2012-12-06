@@ -12,7 +12,6 @@ import org.junit.Test;
  * Date: 01.08.12
  * Time: 11:11
  * <p/>
- * TODO: Add documentation here
  */
 public class ProfilingTester extends MongoTest {
     private boolean readAccess = false, writeAccess = false;

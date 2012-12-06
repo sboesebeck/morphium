@@ -40,7 +40,7 @@ public interface Query<T> extends Cloneable {
      * @param f
      * @return
      */
-    public MongoField f(String f);
+    public MongoField<T> f(String f);
 
 
     /**
@@ -49,7 +49,7 @@ public interface Query<T> extends Cloneable {
      * @param field
      * @return
      */
-    public MongoField f(Enum field);
+    public MongoField<T> f(Enum field);
 
     /**
      * concatenate those queries with or

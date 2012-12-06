@@ -14,7 +14,7 @@ import java.util.concurrent.TimeUnit;
  * Date: 26.05.12
  * Time: 15:48
  * <p/>
- * TODO: Add documentation here
+ * Messaging implements a simple, threadsafe and messaging api. Used for cache synchronization.
  */
 public class Messaging extends Thread {
     private static Logger log = Logger.getLogger(Messaging.class);

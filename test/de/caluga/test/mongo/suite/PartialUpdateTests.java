@@ -15,7 +15,6 @@ import java.util.List;
  * Date: 14.06.12
  * Time: 22:38
  * <p/>
- * TODO: Add documentation here
  */
 public class PartialUpdateTests extends MongoTest {
     public static final int NO_OBJECTS = 100;

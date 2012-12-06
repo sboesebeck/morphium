@@ -5,7 +5,7 @@ package de.caluga.morphium;
  * Date: 19.06.12
  * Time: 12:00
  * <p/>
- * TODO: Add documentation here
+ * Name Providers define the name of a given collection. Can be set in config for any type
  */
 public final class DefaultNameProvider implements NameProvider {
     @Override

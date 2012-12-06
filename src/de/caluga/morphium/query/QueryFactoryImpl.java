@@ -7,7 +7,7 @@ import de.caluga.morphium.Morphium;
  * Date: 31.08.12
  * Time: 11:03
  * <p/>
- * TODO: Add documentation here
+ * default implementation of the query factory. Override for own use and set it to MorphiumConfig
  */
 public class QueryFactoryImpl implements QueryFactory {
     private Class<? extends Query> queryImpl;

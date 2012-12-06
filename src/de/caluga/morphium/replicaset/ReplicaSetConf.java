@@ -10,7 +10,7 @@ import java.util.List;
  * Date: 24.08.12
  * Time: 11:31
  * <p/>
- * TODO: Add documentation here
+ * ReplicasetConf
  */
 @Embedded
 public class ReplicaSetConf {

@@ -10,7 +10,9 @@ import java.util.Map;
  * Date: 30.08.12
  * Time: 14:39
  * <p/>
- * TODO: Add documentation here
+ * Interface for all morphium write accesses. Override for own use and set to MorphiumConfig
+ *
+ * @see MorphiumConfig
  */
 public interface Writer {
     /**

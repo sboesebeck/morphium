@@ -17,7 +17,6 @@ import javax.swing.*;
  * Date: 09.08.12
  * Time: 09:35
  * <p/>
- * TODO: Add documentation here
  */
 public class FailoverTests {
     private static Logger log = Logger.getLogger(FailoverTests.class);

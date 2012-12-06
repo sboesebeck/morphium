@@ -7,7 +7,7 @@ import de.caluga.morphium.Morphium;
  * Date: 31.08.12
  * Time: 11:08
  * <p/>
- * TODO: Add documentation here
+ * crate query for a certain type
  */
 public interface QueryFactory {
     public <T> Query<T> createQuery(Morphium m, Class<T> type);

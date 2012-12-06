@@ -11,7 +11,6 @@ import java.util.List;
  * Date: 04.05.12
  * Time: 12:44
  * <p/>
- * TODO: Add documentation here
  */
 public class EnumTest extends MongoTest {
 

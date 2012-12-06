@@ -13,7 +13,6 @@ import java.util.List;
  * Date: 13.07.12
  * Time: 08:53
  * <p/>
- * TODO: Add documentation here
  */
 public class DistinctGroupTest extends MongoTest {
     @Test

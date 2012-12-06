@@ -1,17 +1,17 @@
 package de.caluga.morphium.query;
 
-import java.util.Collection;
-import java.util.regex.Pattern;
-
 import de.caluga.morphium.MongoType;
 import de.caluga.morphium.ObjectMapper;
+
+import java.util.Collection;
+import java.util.regex.Pattern;
 
 /**
  * User: Stpehan Bösebeck
  * Date: 26.03.12
  * Time: 11:30
  * <p/>
- * TODO: Add documentation here
+ * Representation of a field in a query
  */
 public interface MongoField<T> {
     public Query<T> eq(Object val);

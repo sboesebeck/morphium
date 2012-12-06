@@ -7,7 +7,6 @@ import de.caluga.morphium.annotations.Embedded;
  * Date: 28.05.12
  * Time: 16:54
  * <p/>
- * TODO: Add documentation here
  */
 @Embedded
 public class EmbeddedObject {

@@ -8,7 +8,6 @@ import org.junit.Test;
  * Date: 10.05.12
  * Time: 13:05
  * <p/>
- * TODO: Add documentation here
  */
 public class CollectionMappingTest extends MongoTest {
     @Test

@@ -13,7 +13,8 @@ import java.util.Map;
  * Date: 30.08.12
  * Time: 16:23
  * <p/>
- * TODO: Add documentation here
+ * Aggregator Framework:
+ * represents the aggregator of Mongo 2.2.x.
  */
 public interface Aggregator<T, R> {
 

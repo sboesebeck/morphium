@@ -5,7 +5,6 @@ package de.caluga.test.mongo.suite;
  * Date: 04.05.12
  * Time: 12:45
  * <p/>
- * TODO: Add documentation here
  */
 public enum TestEnum {
     TEST1, TEST2, VALUE, NOCH_EIN_TEST;

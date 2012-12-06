@@ -5,7 +5,6 @@ package de.caluga.morphium.cache;
  * Date: 14.07.12
  * Time: 17:27
  * <p/>
- * TODO: Add documentation here
  */
 public class CacheSyncVetoException extends Exception {
     public CacheSyncVetoException() {

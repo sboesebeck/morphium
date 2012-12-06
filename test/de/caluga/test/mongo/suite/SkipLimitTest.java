@@ -10,7 +10,6 @@ import java.util.List;
  * Date: 12.07.12
  * Time: 16:46
  * <p/>
- * TODO: Add documentation here
  */
 public class SkipLimitTest extends MongoTest {
     @Test

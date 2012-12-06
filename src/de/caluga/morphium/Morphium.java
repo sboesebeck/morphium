@@ -67,8 +67,8 @@ public final class Morphium {
             10000L, TimeUnit.MILLISECONDS,
             new LinkedBlockingQueue<Runnable>());
     //Cache by Type, query String -> CacheElement (contains list etc)
-    private Hashtable<Class<? extends Object>, Hashtable<String, CacheElement>> cache;
-    private Hashtable<Class<? extends Object>, Hashtable<ObjectId, Object>> idCache;
+    private Hashtable<Class<?>, Hashtable<String, CacheElement>> cache;
+    private Hashtable<Class<?>, Hashtable<ObjectId, Object>> idCache;
     private final Map<StatisticKeys, StatisticValue> stats;
     private Map<Class<?>, Map<Class<? extends Annotation>, Method>> lifeCycleMethods;
     /**
@@ -103,8 +103,8 @@ public final class Morphium {
         shutDownListeners = new Vector<ShutdownListener>();
         listeners = new ArrayList<MorphiumStorageListener>();
         profilingListeners = new Vector<ProfilingListener>();
-        cache = new Hashtable<Class<? extends Object>, Hashtable<String, CacheElement>>();
-        idCache = new Hashtable<Class<? extends Object>, Hashtable<ObjectId, Object>>();
+        cache = new Hashtable<Class<?>, Hashtable<String, CacheElement>>();
+        idCache = new Hashtable<Class<?>, Hashtable<ObjectId, Object>>();
 
         stats = new Hashtable<StatisticKeys, StatisticValue>();
         lifeCycleMethods = new Hashtable<Class<?>, Map<Class<? extends Annotation>, Method>>();
@@ -666,7 +666,7 @@ public final class Morphium {
     }
 
 
-    public void setIdCache(Hashtable<Class<? extends Object>, Hashtable<ObjectId, Object>> c) {
+    public void setIdCache(Hashtable<Class<?>, Hashtable<ObjectId, Object>> c) {
         idCache = c;
     }
 
@@ -679,13 +679,13 @@ public final class Morphium {
      * @param ret  - list of results
      * @param <T>  - Type of record
      */
-    public <T extends Object> void addToCache(String k, Class<? extends Object> type, List<T> ret) {
+    public <T extends Object> void addToCache(String k, Class<?> type, List<T> ret) {
         if (k == null) {
             return;
         }
         if (ret != null) {
             //copy from idCache
-            Hashtable<Class<? extends Object>, Hashtable<ObjectId, Object>> idCacheClone = cloneIdCache();
+            Hashtable<Class<?>, Hashtable<ObjectId, Object>> idCacheClone = cloneIdCache();
             for (T record : ret) {
                 if (idCacheClone.get(type) == null) {
                     idCacheClone.put(type, new Hashtable<ObjectId, Object>());
@@ -697,7 +697,7 @@ public final class Morphium {
 
         CacheElement e = new CacheElement(ret);
         e.setLru(System.currentTimeMillis());
-        Hashtable<Class<? extends Object>, Hashtable<String, CacheElement>> cl = (Hashtable<Class<? extends Object>, Hashtable<String, CacheElement>>) cache.clone();
+        Hashtable<Class<?>, Hashtable<String, CacheElement>> cl = (Hashtable<Class<?>, Hashtable<String, CacheElement>>) cache.clone();
         if (cl.get(type) == null) {
             cl.put(type, new Hashtable<String, CacheElement>());
         }
@@ -1207,7 +1207,7 @@ public final class Morphium {
     }
 
 
-    public boolean isCached(Class<? extends Object> type, String k) {
+    public boolean isCached(Class<?> type, String k) {
         Cache c = getAnnotationFromHierarchy(type, Cache.class); ///type.getAnnotation(Cache.class);
         if (c != null) {
             if (!c.readCache()) return false;
@@ -1233,12 +1233,12 @@ public final class Morphium {
         return cacheElement.getFound();
     }
 
-    public Hashtable<Class<? extends Object>, Hashtable<String, CacheElement>> cloneCache() {
-        return (Hashtable<Class<? extends Object>, Hashtable<String, CacheElement>>) cache.clone();
+    public Hashtable<Class<?>, Hashtable<String, CacheElement>> cloneCache() {
+        return (Hashtable<Class<?>, Hashtable<String, CacheElement>>) cache.clone();
     }
 
-    public Hashtable<Class<? extends Object>, Hashtable<ObjectId, Object>> cloneIdCache() {
-        return (Hashtable<Class<? extends Object>, Hashtable<ObjectId, Object>>) idCache.clone();
+    public Hashtable<Class<?>, Hashtable<ObjectId, Object>> cloneIdCache() {
+        return (Hashtable<Class<?>, Hashtable<ObjectId, Object>>) idCache.clone();
     }
 
     /**
@@ -1246,7 +1246,7 @@ public final class Morphium {
      *
      * @param cls
      */
-    public void clearCollection(Class<? extends Object> cls) {
+    public void clearCollection(Class<?> cls) {
         if (!isAnnotationPresentInHierarchy(cls, NoProtection.class)) { //cls.isAnnotationPresent(NoProtection.class)) {
             try {
                 if (accessDenied(cls.newInstance(), Permission.DROP)) {
@@ -1270,7 +1270,7 @@ public final class Morphium {
      * @param cls
      */
 
-    public void clearCollectionOneByOne(Class<? extends Object> cls) {
+    public void clearCollectionOneByOne(Class<?> cls) {
         if (!isAnnotationPresentInHierarchy(cls, NoProtection.class)) { //cls.isAnnotationPresent(NoProtection.class)) {
             try {
                 if (accessDenied(cls.newInstance(), Permission.DROP)) {
@@ -1285,7 +1285,7 @@ public final class Morphium {
 
 
         inc(StatisticKeys.WRITES);
-        List<? extends Object> lst = readAll(cls);
+        List<?> lst = readAll(cls);
         for (Object r : lst) {
             delete(r);
         }
@@ -1475,16 +1475,29 @@ public final class Morphium {
         return f.getType();
     }
 
-    public boolean storesLastChange(Class<? extends Object> cls) {
-        return isAnnotationPresentInHierarchy(cls, StoreLastChange.class);
+    public boolean storesLastChange(Class<?> cls) {
+        return isAnnotationPresentInHierarchy(cls, LastChange.class);
     }
 
-    public boolean storesLastAccess(Class<? extends Object> cls) {
-        return isAnnotationPresentInHierarchy(cls, StoreLastAccess.class);
+    public boolean storesLastChangeBy(Class<?> cls) {
+        return isAnnotationPresentInHierarchy(cls, LastChangeBy.class);
     }
 
-    public boolean storesCreation(Class<? extends Object> cls) {
-        return isAnnotationPresentInHierarchy(cls, StoreCreationTime.class);
+
+    public boolean storesLastAccess(Class<?> cls) {
+        return isAnnotationPresentInHierarchy(cls, LastAccess.class);
+    }
+
+    public boolean storesLastAccessBy(Class<?> cls) {
+        return isAnnotationPresentInHierarchy(cls, LastAccessBy.class);
+    }
+
+    public boolean storesCreation(Class<?> cls) {
+        return isAnnotationPresentInHierarchy(cls, CreationTime.class);
+    }
+
+    public boolean storesCreatedBy(Class<?> cls) {
+        return isAnnotationPresentInHierarchy(cls, CreatedBy.class);
     }
 
 
@@ -1536,7 +1549,7 @@ public final class Morphium {
      *
      * @param cls
      */
-    public void clearCachefor(Class<? extends Object> cls) {
+    public void clearCachefor(Class<?> cls) {
         if (cache.get(cls) != null) {
             cache.get(cls).clear();
         }
@@ -1568,7 +1581,7 @@ public final class Morphium {
         return config.getMapper().getId(o);
     }
 
-    public void dropCollection(Class<? extends Object> cls) {
+    public void dropCollection(Class<?> cls) {
         if (!isAnnotationPresentInHierarchy(cls, NoProtection.class)) {
             try {
                 if (accessDenied(cls.newInstance(), Permission.DROP)) {
@@ -1637,8 +1650,8 @@ public final class Morphium {
             int idx = 1;
             if (f.contains(":")) {
                 //explicitly defined index
-                String fs[]=f.split(":");
-                m.put(fs[0],fs[1]);
+                String fs[] = f.split(":");
+                m.put(fs[0], fs[1]);
             } else {
                 if (f.startsWith("-")) {
                     idx = -1;
@@ -1809,10 +1822,10 @@ public final class Morphium {
     }
 
     public void resetCache() {
-        setCache(new Hashtable<Class<? extends Object>, Hashtable<String, CacheElement>>());
+        setCache(new Hashtable<Class<?>, Hashtable<String, CacheElement>>());
     }
 
-    public void setCache(Hashtable<Class<? extends Object>, Hashtable<String, CacheElement>> cache) {
+    public void setCache(Hashtable<Class<?>, Hashtable<String, CacheElement>> cache) {
         this.cache = cache;
     }
 
@@ -1829,8 +1842,8 @@ public final class Morphium {
     }
 
     public void removeEntryFromCache(Class cls, ObjectId id) {
-        Hashtable<Class<? extends Object>, Hashtable<String, CacheElement>> c = cloneCache();
-        Hashtable<Class<? extends Object>, Hashtable<ObjectId, Object>> idc = cloneIdCache();
+        Hashtable<Class<?>, Hashtable<String, CacheElement>> c = cloneCache();
+        Hashtable<Class<?>, Hashtable<ObjectId, Object>> idc = cloneIdCache();
         idc.get(cls).remove(id);
 
         ArrayList<String> toRemove = new ArrayList<String>();
@@ -1952,28 +1965,28 @@ public final class Morphium {
     }
 
     public String getLastChangeField(Class<?> cls) {
-        if (!isAnnotationPresentInHierarchy(cls, StoreLastChange.class)) return null;
+        if (!storesLastChange(cls)) return null;
         List<String> lst = config.getMapper().getFields(cls, LastChange.class);
         if (lst == null || lst.isEmpty()) return null;
         return lst.get(0);
     }
 
     public String getLastChangeByField(Class<?> cls) {
-        if (!isAnnotationPresentInHierarchy(cls, StoreLastChange.class)) return null;
+        if (!storesLastChangeBy(cls)) return null;
         List<String> lst = config.getMapper().getFields(cls, LastChangeBy.class);
         if (lst == null || lst.isEmpty()) return null;
         return lst.get(0);
     }
 
     public String getLastAccessField(Class<?> cls) {
-        if (!isAnnotationPresentInHierarchy(cls, StoreLastAccess.class)) return null;
+        if (!storesLastAccess(cls)) return null;
         List<String> lst = config.getMapper().getFields(cls, LastAccess.class);
         if (lst == null || lst.isEmpty()) return null;
         return lst.get(0);
     }
 
     public String getLastAccessByField(Class<?> cls) {
-        if (!isAnnotationPresentInHierarchy(cls, StoreLastAccess.class)) return null;
+        if (!storesLastAccessBy(cls)) return null;
         List<String> lst = config.getMapper().getFields(cls, LastAccessBy.class);
         if (lst == null || lst.isEmpty()) return null;
         return lst.get(0);
@@ -1981,14 +1994,14 @@ public final class Morphium {
 
 
     public String getCreationTimeField(Class<?> cls) {
-        if (!isAnnotationPresentInHierarchy(cls, StoreCreationTime.class)) return null;
+        if (!storesCreation(cls)) return null;
         List<String> lst = config.getMapper().getFields(cls, CreationTime.class);
         if (lst == null || lst.isEmpty()) return null;
         return lst.get(0);
     }
 
     public String getCreatedByField(Class<?> cls) {
-        if (!isAnnotationPresentInHierarchy(cls, StoreCreationTime.class)) return null;
+        if (!storesCreatedBy(cls)) return null;
         List<String> lst = config.getMapper().getFields(cls, CreatedBy.class);
         if (lst == null || lst.isEmpty()) return null;
         return lst.get(0);

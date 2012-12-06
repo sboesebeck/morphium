@@ -15,7 +15,6 @@ import java.util.List;
  * Date: 03.06.12
  * Time: 00:33
  * <p/>
- * TODO: Add documentation here
  */
 public class ReferenceTest extends MongoTest {
 

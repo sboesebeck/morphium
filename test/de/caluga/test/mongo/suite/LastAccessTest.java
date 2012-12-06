@@ -12,7 +12,6 @@ import org.junit.Test;
  * Date: 29.05.12
  * Time: 15:54
  * <p/>
- * TODO: Add documentation here
  */
 public class LastAccessTest extends MongoTest {
     @Test
@@ -38,9 +37,9 @@ public class LastAccessTest extends MongoTest {
     @Entity
     @NoCache
     @WriteSafety(level = SafetyLevel.MAJORITY)
-    @StoreLastAccess
-    @StoreLastChange
-    @StoreCreationTime
+    @LastAccess
+    @LastChange
+    @CreationTime
     public static class TstObjLA {
         @Id
         private ObjectId id;

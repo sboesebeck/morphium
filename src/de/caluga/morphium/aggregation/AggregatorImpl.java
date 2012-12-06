@@ -12,7 +12,6 @@ import java.util.*;
  * Date: 30.08.12
  * Time: 16:24
  * <p/>
- * TODO: Add documentation here
  */
 public class AggregatorImpl<T, R> implements Aggregator<T, R> {
     private Class<T> type;

@@ -13,7 +13,6 @@ import java.util.Map;
  * Date: 22.08.12
  * Time: 15:54
  * <p/>
- * TODO: Add documentation here
  */
 public class AdditionalDataTest extends MongoTest {
 

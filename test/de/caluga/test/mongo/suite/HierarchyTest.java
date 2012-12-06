@@ -9,7 +9,6 @@ import org.junit.Test;
  * Date: 10.06.12
  * Time: 00:02
  * <p/>
- * TODO: Add documentation here
  */
 public class HierarchyTest extends MongoTest {
 

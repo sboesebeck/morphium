@@ -5,7 +5,7 @@ package de.caluga.morphium.messaging;
  * Date: 26.05.12
  * Time: 15:47
  * <p/>
- * TODO: Add documentation here
+ * type of message to sent, SINGLE: single recipient, MULTI: all
  */
 public enum MsgType {
     SINGLE, MULTI;

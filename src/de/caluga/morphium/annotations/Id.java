@@ -11,7 +11,7 @@ import static java.lang.annotation.ElementType.FIELD;
  * Date: 26.03.12
  * Time: 13:11
  * <p/>
- * TODO: Add documentation here
+ * Specify the ID fiel - needs to be of type ObjectId. is mandatory!
  */
 @Target({FIELD})
 @Retention(RetentionPolicy.RUNTIME)

@@ -5,7 +5,7 @@ package de.caluga.morphium;
  * Date: 01.08.12
  * Time: 11:05
  * <p/>
- * TODO: Add documentation here
+ * PRofiling read access types
  */
 public enum ReadAccessType {
     GET, AS_LIST, ID_LIST, COUNT;

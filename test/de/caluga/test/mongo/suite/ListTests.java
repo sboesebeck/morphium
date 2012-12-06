@@ -10,7 +10,6 @@ import org.junit.Test;
  * Date: 28.05.12
  * Time: 17:17
  * <p/>
- * TODO: Add documentation here
  */
 public class ListTests extends MongoTest {
 

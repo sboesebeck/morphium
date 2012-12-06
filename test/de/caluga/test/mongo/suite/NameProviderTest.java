@@ -17,7 +17,6 @@ import org.junit.Test;
  * Date: 19.06.12
  * Time: 11:53
  * <p/>
- * TODO: Add documentation here
  */
 public class NameProviderTest extends MongoTest {
     @Test

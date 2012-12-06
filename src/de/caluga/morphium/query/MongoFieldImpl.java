@@ -1,28 +1,28 @@
 package de.caluga.morphium.query;
 
+import com.mongodb.BasicDBList;
+import com.mongodb.DBRef;
+import de.caluga.morphium.FilterExpression;
+import de.caluga.morphium.MongoType;
+import de.caluga.morphium.ObjectMapper;
+import de.caluga.morphium.annotations.Entity;
+import de.caluga.morphium.annotations.Reference;
+import org.bson.types.ObjectId;
+
 import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.regex.Pattern;
 
-import org.bson.types.ObjectId;
-
-import com.mongodb.BasicDBList;
-import com.mongodb.DBRef;
-
-import de.caluga.morphium.FilterExpression;
-import de.caluga.morphium.MongoType;
-import de.caluga.morphium.ObjectMapper;
-import de.caluga.morphium.annotations.Entity;
-import de.caluga.morphium.annotations.Reference;
-
 /**
  * User: Stpehan Bösebeck
  * Date: 26.03.12
  * Time: 15:18
  * <p/>
- * TODO: Add documentation here
+ * default implementation of a MongoField
+ *
+ * @see MongoField
  */
 public class MongoFieldImpl<T> implements MongoField<T> {
     private Query<T> query;
@@ -72,8 +72,7 @@ public class MongoFieldImpl<T> implements MongoField<T> {
                     ObjectId id = null;
                     if (val instanceof ObjectId) {
                         id = (ObjectId) val;
-                    }
-                    else {
+                    } else {
                         id = mapper.getId(val);
                     }
                     if (field.getType().isAssignableFrom(List.class)) {
@@ -81,8 +80,7 @@ public class MongoFieldImpl<T> implements MongoField<T> {
                         //
                         // need to compare DBRefs
                         val = new DBRef(null, val.getClass().getName(), id);
-                    }
-                    else {
+                    } else {
                         // Reference
                         // here - query value is an entity AND it is referenced by the query type
                         // => we need to compeare ID's

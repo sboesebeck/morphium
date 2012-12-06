@@ -11,7 +11,9 @@ import static java.lang.annotation.ElementType.TYPE;
  * Date: 10.08.12
  * Time: 12:55
  * <p/>
- * TODO: Add documentation here
+ * Set the default read preference level for this type. It can be changed by query, if necessary
+ *
+ * @see de.caluga.morphium.Morphium
  */
 @Target({TYPE})
 @Retention(RetentionPolicy.RUNTIME)

@@ -14,7 +14,6 @@ import org.junit.Test;
  * Date: 01.06.12
  * Time: 15:27
  * <p/>
- * TODO: Add documentation here
  */
 public class ArrayTest extends MongoTest {
 

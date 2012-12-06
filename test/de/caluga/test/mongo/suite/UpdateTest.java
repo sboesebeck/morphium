@@ -12,7 +12,6 @@ import java.util.List;
  * Date: 09.05.12
  * Time: 10:46
  * <p/>
- * TODO: Add documentation here
  */
 public class UpdateTest extends MongoTest {
     @Test

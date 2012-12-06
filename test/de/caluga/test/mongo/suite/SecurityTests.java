@@ -12,7 +12,6 @@ import org.junit.Test;
  * Date: 29.08.12
  * Time: 13:58
  * <p/>
- * TODO: Add documentation here
  */
 public class SecurityTests extends MongoTest {
 

@@ -5,7 +5,6 @@ package de.caluga.morphium.messaging;
  * Date: 26.05.12
  * Time: 17:19
  * <p/>
- * TODO: Add documentation here
  */
 public interface MessageListener {
 
