@@ -12,12 +12,12 @@ public class LazyDeReferencingProxy<T> implements MethodInterceptor, Serializabl
     private static final long serialVersionUID = 3777709000906217075L;
     private transient final Morphium morphium;
     private T deReferenced;
-    private Class<T> cls;
+    private Class<? extends T> cls;
     private ObjectId id;
 
     private final static Logger log = Logger.getLogger(LazyDeReferencingProxy.class);
 
-    public LazyDeReferencingProxy(Morphium m, Class<T> type, ObjectId id) {
+    public LazyDeReferencingProxy(Morphium m, Class<? extends T> type, ObjectId id) {
         cls = type;
         this.id = id;
         morphium = m;

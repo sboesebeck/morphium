@@ -22,7 +22,7 @@ import java.util.*;
  */
 public class QueryImpl<T> implements Query<T>, Cloneable {
     private String where;
-    private Class<T> type;
+    private Class<? extends T> type;
     private List<FilterExpression> andExpr;
     private List<Query<T>> orQueries;
     private List<Query<T>> norQueries;
@@ -39,7 +39,7 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
 
     }
 
-    public QueryImpl(Morphium m, Class<T> type) {
+    public QueryImpl(Morphium m, Class<? extends T> type) {
         this(m);
         setType(type);
     }
@@ -82,7 +82,7 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
     }
 
     @Override
-    public void setType(Class<T> type) {
+    public void setType(Class<? extends T> type) {
         this.type = type;
         DefaultReadPreference pr = morphium.getAnnotationFromHierarchy(type, DefaultReadPreference.class);
         if (pr != null) {
@@ -406,7 +406,7 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
     }
 
     @Override
-    public Class<T> getType() {
+    public Class<? extends T> getType() {
         return type;
     }
 

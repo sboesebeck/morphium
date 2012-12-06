@@ -22,13 +22,13 @@ public interface Aggregator<T, R> {
 
     public Morphium getMorphium();
 
-    public void setSearchType(Class<T> type);
+    public void setSearchType(Class<? extends T> type);
 
-    public Class<T> getSearchType();
+    public Class<? extends T> getSearchType();
 
-    public void setResultType(Class<R> type);
+    public void setResultType(Class<? extends R> type);
 
-    public Class<R> getResultType();
+    public Class<? extends R> getResultType();
 
     public Aggregator<T, R> project(Map<String, Object> m);  //field -> other field, field -> 0,1
 

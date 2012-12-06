@@ -146,7 +146,7 @@ public interface Query<T> extends Cloneable {
      *
      * @return
      */
-    public Class<T> getType();
+    public Class<? extends T> getType();
 
     /**
      * the result as list
@@ -194,7 +194,7 @@ public interface Query<T> extends Cloneable {
      *
      * @param type
      */
-    public void setType(Class<T> type);
+    public void setType(Class<? extends T> type);
 
     /**
      * create a new empty query for the same type using the same mapper as this

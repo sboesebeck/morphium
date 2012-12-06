@@ -10,9 +10,9 @@ import de.caluga.morphium.query.Query;
  */
 public abstract class DAO<T> {
     private Morphium morphium;
-    private Class<T> type;
+    private Class<? extends T> type;
 
-    public DAO(Morphium m, Class<T> type) {
+    public DAO(Morphium m, Class<? extends T> type) {
         this.type = type;
         morphium = m;
     }

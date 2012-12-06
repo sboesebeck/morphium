@@ -14,10 +14,10 @@ import java.util.*;
  * <p/>
  */
 public class AggregatorImpl<T, R> implements Aggregator<T, R> {
-    private Class<T> type;
+    private Class<? extends T> type;
     private List<DBObject> params = new ArrayList<DBObject>();
     private Morphium morphium;
-    private Class<R> rType;
+    private Class<? extends R> rType;
 
     @Override
     public void setMorphium(Morphium m) {
@@ -30,22 +30,22 @@ public class AggregatorImpl<T, R> implements Aggregator<T, R> {
     }
 
     @Override
-    public void setSearchType(Class<T> type) {
+    public void setSearchType(Class<? extends T> type) {
         this.type = type;
     }
 
     @Override
-    public Class<T> getSearchType() {
+    public Class<? extends T> getSearchType() {
         return type;
     }
 
     @Override
-    public void setResultType(Class<R> type) {
+    public void setResultType(Class<? extends R> type) {
         rType = type;
     }
 
     @Override
-    public Class<R> getResultType() {
+    public Class<? extends R> getResultType() {
         return rType;
     }
 

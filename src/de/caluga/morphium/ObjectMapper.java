@@ -24,7 +24,7 @@ public interface ObjectMapper {
 
     public DBObject marshall(Object o);
 
-    public <T> T unmarshall(Class<T> cls, DBObject o);
+    public <T> T unmarshall(Class<? extends T> cls, DBObject o);
 
     public ObjectId getId(Object o);
 
@@ -42,7 +42,7 @@ public interface ObjectMapper {
      * @param o
      * @return
      */
-    public <T> Class<T> getRealClass(Class<T> o);
+    public <T> Class<? extends T> getRealClass(Class<? extends T> o);
 
     public List<String> getFields(Class o, Class<? extends Annotation>... annotations);
 
