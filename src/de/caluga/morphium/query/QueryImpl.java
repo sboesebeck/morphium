@@ -208,7 +208,7 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
     @Override
     public Query<T> where(String wh) {
         where = wh;
-        return getClone();
+        return this;
     }
 
     public MongoField<T> f(Enum f) {
@@ -694,6 +694,9 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
             }
             if (readPreference != null) {
                 ret.readPreference = readPreference;
+            }
+            if (where != null) {
+                ret.where = where;
             }
 
 
