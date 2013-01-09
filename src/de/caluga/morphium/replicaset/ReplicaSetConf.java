@@ -12,6 +12,7 @@ import java.util.List;
  * <p/>
  * ReplicasetConf
  */
+@SuppressWarnings("UnusedDeclaration")
 @Embedded
 public class ReplicaSetConf {
     //{ "_id" : "hi1", "version" : 15, "members" : [ 	{ 	"_id" : 0, 	"host" : "mongo1.holidayinsider.com:27017", 	"priority" : 5 }, 	{ 	"_id" : 1, 	"host" : "mongo2.holidayinsider.com:27017", 	"priority" : 3 }, 	{ 	"_id" : 3, 	"host" : "mongo3.holidayinsider.com:27017", 	"priority" : 2 }, 	{ 	"_id" : 4, 	"host" : "mongo4.holidayinsider.com:27017", 	"priority" : 0 }, 	{ 	"_id" : 5, 	"host" : "mongo3.holidayinsider.com:27018", 	"arbiterOnly" : true } ] }

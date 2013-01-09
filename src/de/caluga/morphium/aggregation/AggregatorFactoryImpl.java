@@ -23,6 +23,7 @@ public class AggregatorFactoryImpl implements AggregatorFactory {
         this.aggregatorClass = AggregatorImpl;
     }
 
+    @SuppressWarnings("unchecked")
     @Override
     public <T, R> Aggregator<T, R> createAggregator(Class<? extends T> type, Class<? extends R> resultType) {
         try {

@@ -33,6 +33,7 @@ import java.util.Vector;
  * <li> Msg.ttl == 30 sec - shoule be enought time for the message to be processed by all nodes</li>
  * </ul>
  */
+@SuppressWarnings("UnusedDeclaration")
 public class CacheSynchronizer implements MorphiumStorageListener<Object>, MessageListener {
     private static final Logger log = Logger.getLogger(CacheSynchronizer.class);
 
@@ -171,8 +172,8 @@ public class CacheSynchronizer implements MorphiumStorageListener<Object>, Messa
     /**
      * sends message if necessary
      *
-     * @param type
-     * @param reason
+     * @param type   - type
+     * @param reason - reason
      */
     public void sendClearMessage(Class type, String reason) {
         if (type.equals(Msg.class)) return;
@@ -358,7 +359,7 @@ public class CacheSynchronizer implements MorphiumStorageListener<Object>, Messa
                         if (c.readCache()) {
                             try {
                                 firePreClearEvent(cls, m);
-                                Hashtable<Class<? extends Object>, Hashtable<ObjectId, Object>> idCache = morphium.cloneIdCache();
+                                Hashtable<Class<?>, Hashtable<ObjectId, Object>> idCache = morphium.cloneIdCache();
                                 for (String a : m.getAdditional()) {
                                     ObjectId id = new ObjectId(a);
                                     if (idCache.get(cls) != null) {
@@ -401,6 +402,6 @@ public class CacheSynchronizer implements MorphiumStorageListener<Object>, Messa
 
     @Override
     public void setMessaging(Messaging msg) {
-        //To change body of implemented methods use File | Settings | File Templates.
+        messaging = msg;
     }
 }

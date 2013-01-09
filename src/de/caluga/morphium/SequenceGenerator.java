@@ -25,6 +25,8 @@ import java.util.UUID;
  * <li>return current value</li>
  * </ul>
  */
+
+@SuppressWarnings("UnusedDeclaration")
 public class SequenceGenerator {
     private int inc;
     private long startValue;
@@ -74,7 +76,7 @@ public class SequenceGenerator {
     }
 
     public long getCurrentValue() {
-        Sequence s = (Sequence) morphium.createQueryFor(Sequence.class).f("name").eq(name).get();
+        Sequence s = morphium.createQueryFor(Sequence.class).f("name").eq(name).get();
         if (s == null || s.getCurrentValue() == null) {
             //new sequence - get default
             return getNextValue(1);
@@ -117,7 +119,7 @@ public class SequenceGenerator {
 //            }
             try {
                 Thread.sleep(100);
-            } catch (InterruptedException e) {
+            } catch (InterruptedException ignored) {
             }
             return getNextValue(recLevel + 1);
         }

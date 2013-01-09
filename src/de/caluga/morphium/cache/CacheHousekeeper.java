@@ -13,6 +13,7 @@ import org.bson.types.ObjectId;
 
 import java.util.*;
 
+@SuppressWarnings("UnusedDeclaration")
 public class CacheHousekeeper extends Thread {
 
     private static final String MONGODBLAYER_CACHE = "mongodblayer.cache";
@@ -59,11 +60,11 @@ public class CacheHousekeeper extends Thread {
 //        }
     }
 
-    public void setValidCacheTime(Class<? extends Object> cls, int timeout) {
+    public void setValidCacheTime(Class<?> cls, int timeout) {
         validTimeForClass.put(cls, timeout);
     }
 
-    public Integer getValidCacheTime(Class<? extends Object> cls) {
+    public Integer getValidCacheTime(Class<?> cls) {
         return validTimeForClass.get(cls);
     }
 
@@ -72,6 +73,7 @@ public class CacheHousekeeper extends Thread {
 
     }
 
+    @SuppressWarnings({"unchecked", "ConstantConditions"})
     public void run() {
         while (running) {
             try {
@@ -168,8 +170,8 @@ public class CacheHousekeeper extends Thread {
                     }
                     cache.put(clz, ch);
                     if (maxEntries > 0 && cache.get(clz).size() - del > maxEntries) {
-                        Long[] array = new Long[]{};
-                        int idx = 0;
+                        Long[] array;
+                        int idx;
                         switch (strategy) {
                             case LRU:
                                 array = lruTime.keySet().toArray(new Long[lruTime.keySet().size()]);
@@ -233,7 +235,7 @@ public class CacheHousekeeper extends Thread {
 
                 }
 
-                Hashtable<Class<? extends Object>, Hashtable<ObjectId, Object>> idCacheClone = morphium.cloneIdCache();
+                Hashtable<Class<?>, Hashtable<ObjectId, Object>> idCacheClone = morphium.cloneIdCache();
                 for (Map.Entry<Class, Vector<String>> et : toDelete.entrySet()) {
                     Class cls = et.getKey();
 

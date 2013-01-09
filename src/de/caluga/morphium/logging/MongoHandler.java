@@ -14,6 +14,7 @@ import java.util.logging.LogRecord;
 /**
  * @author stephan
  */
+@SuppressWarnings("ThrowableResultOfMethodCallIgnored")
 public class MongoHandler extends Handler {
 
     @Override

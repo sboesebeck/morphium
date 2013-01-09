@@ -23,8 +23,8 @@ public interface MongoSecurityManager {
      * Additional Permissions (maybe used by Application):
      * EXECUTE, SHOW,
      *
-     * @param obj
-     * @param p
+     * @param obj objhect
+     * @param p   -
      * @return true if access is granted, false otherwise - can throw SecurityException with additional Information if necessary.
      */
     public boolean checkAccess(Object obj, Permission p) throws MongoSecurityException;
@@ -32,9 +32,9 @@ public interface MongoSecurityManager {
     /**
      * more flexible access for security. Domain may be any string, or classname
      *
-     * @param domain
-     * @param p
-     * @return
+     * @param domain domain string
+     * @param p      -
+     * @return true / false
      */
     public boolean checkAccess(String domain, Permission p) throws MongoSecurityException;
 
@@ -45,7 +45,7 @@ public interface MongoSecurityManager {
      * depending on implementation, this might be an ObjectId or a login string or whatever
      * ATTENTION: needs to be compatible with @StoreCreationTime and @StoreLAstAccess etc.
      *
-     * @return
+     * @return object representing user
      */
     public Object getCurrentUserId();
 

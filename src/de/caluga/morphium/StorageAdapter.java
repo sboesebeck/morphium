@@ -9,6 +9,7 @@ import de.caluga.morphium.query.Query;
 /**
  * @author stephan
  */
+@SuppressWarnings("UnusedDeclaration")
 public class StorageAdapter<T> implements MorphiumStorageListener<T> {
 
     @Override

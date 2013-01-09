@@ -60,7 +60,7 @@ public class AggregatorImpl<T, R> implements Aggregator<T, R> {
     public Aggregator<T, R> project(String... m) {
         Map<String, Object> map = new HashMap<String, Object>();
         for (String sm : m) {
-            map.put(sm, Integer.valueOf(1));
+            map.put(sm, 1);
         }
         return project(map);
     }
@@ -94,7 +94,7 @@ public class AggregatorImpl<T, R> implements Aggregator<T, R> {
     }
 
     @Override
-    public Aggregator unwind(String listField) {
+    public Aggregator<T, R> unwind(String listField) {
         DBObject o = new BasicDBObject("$unwind", listField);
         params.add(o);
         return this;

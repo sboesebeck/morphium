@@ -74,7 +74,7 @@ public class MorphiumIteratorImpl<T> implements MorphiumIterator<T> {
     public void setQuery(Query<T> q) {
         try {
             theQuery = q.clone();
-        } catch (CloneNotSupportedException e) {
+        } catch (CloneNotSupportedException ignored) {
         }
         count = theQuery.countAll();
     }

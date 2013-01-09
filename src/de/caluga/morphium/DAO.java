@@ -8,6 +8,7 @@ import de.caluga.morphium.query.Query;
  * Time: 15:06
  * <p/>
  */
+@SuppressWarnings("UnusedDeclaration")
 public abstract class DAO<T> {
     private Morphium morphium;
     private Class<? extends T> type;

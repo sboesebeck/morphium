@@ -6,6 +6,7 @@ package de.caluga.morphium.aggregation;
  * Time: 11:07
  * <p/>
  */
+@SuppressWarnings("UnusedDeclaration")
 public interface AggregatorFactory {
     public Class<? extends Aggregator> getAggregatorClass();
 

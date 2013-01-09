@@ -8,5 +8,5 @@ package de.caluga.morphium.messaging;
  * type of message to sent, SINGLE: single recipient, MULTI: all
  */
 public enum MsgType {
-    SINGLE, MULTI;
+    SINGLE, MULTI
 }

@@ -18,31 +18,31 @@ public interface Writer {
     /**
      * Stores the object, should be an entity
      *
-     * @param o
+     * @param o - entity
      */
     public void store(Object o);
 
     /**
      * stores the given list of objects, should be entities or embedded
      *
-     * @param lst
+     * @param lst - to store
      */
     public void store(List lst);
 
     /**
      * update an object using fields specified
      *
-     * @param ent
-     * @param fields
+     * @param ent    entity
+     * @param fields - fields
      */
     public void storeUsingFields(Object ent, String... fields);
 
     /**
      * changes an object in DB
      *
-     * @param toSet
-     * @param field
-     * @param value
+     * @param toSet entity to set values in
+     * @param field field
+     * @param value value to set
      */
     void set(Object toSet, String field, Object value);
 
@@ -81,7 +81,7 @@ public interface Writer {
     /**
      * deletes all objects matching the given query
      *
-     * @param q
+     * @param q the query
      */
     void delete(Query q);
 

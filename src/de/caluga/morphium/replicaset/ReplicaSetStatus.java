@@ -14,6 +14,7 @@ import java.util.List;
  * <p/>
  * Replicaset Status
  */
+@SuppressWarnings("UnusedDeclaration")
 @Embedded
 public class ReplicaSetStatus {
     private static Logger log = Logger.getLogger(ReplicaSetStatus.class);

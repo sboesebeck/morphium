@@ -41,6 +41,8 @@ import java.util.concurrent.TimeUnit;
  *
  * @author stephan
  */
+
+@SuppressWarnings("UnusedDeclaration")
 public final class Morphium {
 
     /**
@@ -74,7 +76,7 @@ public final class Morphium {
     /**
      * String Representing current user - needs to be set by Application
      */
-    private String currentUser;
+//    private String currentUser;
     private CacheHousekeeper cacheHousekeeper;
 
     private List<MorphiumStorageListener> listeners;
@@ -202,11 +204,14 @@ public final class Morphium {
     /**
      * Checks if javax.validation is available and enables validation support.
      *
-     * @return
+     * @return true, if validation is supported
      */
+
+    @SuppressWarnings("UnusedDeclaration")
     private boolean hasValidationSupport() {
         try {
             Class c = getClass().getClassLoader().loadClass("javax.validation.ValidatorFactory");
+
         } catch (ClassNotFoundException cnf) {
             return false;
         }
@@ -246,11 +251,12 @@ public final class Morphium {
      * If no fields are specified, all NON Null-Fields are taken into account
      * if specified, field might also be null
      *
-     * @param template
-     * @param fields
-     * @param <T>
-     * @return
+     * @param template - what to search for
+     * @param fields   - fields to use for searching
+     * @param <T>      - type
+     * @return result of search
      */
+    @SuppressWarnings({"unchecked", "UnusedDeclaration"})
     public <T> List<T> findByTemplate(T template, String... fields) {
         Class cls = template.getClass();
         List<String> flds = new ArrayList<String>();
@@ -259,7 +265,7 @@ public final class Morphium {
         } else {
             flds = getFields(cls);
         }
-        Query<T> q = createQueryFor(cls);
+        Query<T> q = createQueryFor((Class<T>) cls);
         for (String f : flds) {
             try {
                 q.f(f).eq(getValue(template, f));
@@ -270,6 +276,7 @@ public final class Morphium {
         return q.asList();
     }
 
+    @SuppressWarnings({"unchecked", "UnusedDeclaration"})
     public void unset(Object toSet, Enum field) {
         unset(toSet, field.name());
     }
@@ -302,8 +309,9 @@ public final class Morphium {
      * can be called for autmatic index ensurance. Attention: might cause heavy load on mongo
      * will be called automatically if a new collection is created
      *
-     * @param type
+     * @param type type to ensure indices for
      */
+    @SuppressWarnings("unchecked")
     public void ensureIndicesFor(Class type) {
         if (isAnnotationPresentInHierarchy(type, Index.class)) {
             //type must be marked as to be indexed
@@ -369,6 +377,7 @@ public final class Morphium {
         set(query, field, val, false, false);
     }
 
+    @SuppressWarnings({"unchecked", "UnusedDeclaration", "SuspiciousMethodCalls"})
     public void setEnum(Query<?> query, Map<Enum, Object> values, boolean insertIfNotExist, boolean multiple) {
         HashMap<String, Object> toSet = new HashMap<String, Object>();
         for (Map.Entry<Enum, Object> est : values.entrySet()) {
@@ -381,6 +390,7 @@ public final class Morphium {
         push(query, field, value, false, true);
     }
 
+    @SuppressWarnings({"unchecked", "UnusedDeclaration"})
     public void pull(Query<?> query, Enum field, Object value) {
         pull(query, field.name(), value, false, true);
     }
@@ -398,14 +408,17 @@ public final class Morphium {
         push(query, field.name(), value, insertIfNotExist, multiple);
     }
 
+    @SuppressWarnings({"unchecked", "UnusedDeclaration"})
     public void pull(Query<?> query, Enum field, Object value, boolean insertIfNotExist, boolean multiple) {
         pull(query, field.name(), value, insertIfNotExist, multiple);
     }
 
+    @SuppressWarnings({"unchecked", "UnusedDeclaration"})
     public void pushAll(Query<?> query, Enum field, List<Object> value, boolean insertIfNotExist, boolean multiple) {
         push(query, field.name(), value, insertIfNotExist, multiple);
     }
 
+    @SuppressWarnings({"unchecked", "UnusedDeclaration"})
     public void pullAll(Query<?> query, Enum field, List<Object> value, boolean insertIfNotExist, boolean multiple) {
         pull(query, field.name(), value, insertIfNotExist, multiple);
     }
@@ -475,6 +488,7 @@ public final class Morphium {
 
     }
 
+    @SuppressWarnings({"unchecked", "UnusedDeclaration"})
     public void pullAll(Query<?> query, String field, List<Object> value, boolean insertIfNotExist, boolean multiple) {
         pull(query, field, value, insertIfNotExist, multiple);
     }
@@ -520,7 +534,7 @@ public final class Morphium {
         });
     }
 
-
+    @SuppressWarnings({"unchecked", "UnusedDeclaration"})
     public void dec(Query<?> query, Enum field, int amount, boolean insertIfNotExist, boolean multiple) {
         dec(query, field.name(), amount, insertIfNotExist, multiple);
     }
@@ -533,6 +547,7 @@ public final class Morphium {
         inc(query, field, -amount, false, false);
     }
 
+    @SuppressWarnings({"unchecked", "UnusedDeclaration"})
     public void dec(Query<?> query, Enum field, int amount) {
         inc(query, field, -amount, false, false);
     }
@@ -541,6 +556,7 @@ public final class Morphium {
         inc(query, field, amount, false, false);
     }
 
+    @SuppressWarnings({"unchecked", "UnusedDeclaration"})
     public void inc(Query<?> query, Enum field, int amount) {
         inc(query, field, amount, false, false);
     }
@@ -679,7 +695,8 @@ public final class Morphium {
      * @param ret  - list of results
      * @param <T>  - Type of record
      */
-    public <T extends Object> void addToCache(String k, Class<?> type, List<T> ret) {
+    @SuppressWarnings("unchecked")
+    public <T> void addToCache(String k, Class<?> type, List<T> ret) {
         if (k == null) {
             return;
         }
@@ -695,7 +712,7 @@ public final class Morphium {
             setIdCache(idCacheClone);
         }
 
-        CacheElement e = new CacheElement(ret);
+        CacheElement<T> e = new CacheElement<T>(ret);
         e.setLru(System.currentTimeMillis());
         Hashtable<Class<?>, Hashtable<String, CacheElement>> cl = (Hashtable<Class<?>, Hashtable<String, CacheElement>>) cache.clone();
         if (cl.get(type) == null) {
@@ -708,6 +725,7 @@ public final class Morphium {
 
     }
 
+    @SuppressWarnings({"unchecked", "UnusedDeclaration"})
     public void setPrivilegedThread(Thread thr) {
 
     }
@@ -717,7 +735,7 @@ public final class Morphium {
         stats.get(k).inc();
     }
 
-
+    @SuppressWarnings({"unchecked", "UnusedDeclaration"})
     public String toJsonString(Object o) {
         return config.getMapper().marshall(o).toString();
     }
@@ -728,6 +746,7 @@ public final class Morphium {
     }
 
 
+    @SuppressWarnings("StringBufferMayBeStringBuilder")
     public String getCacheKey(DBObject qo, Map<String, Integer> sort, int skip, int limit) {
         StringBuffer b = new StringBuffer();
         b.append(qo.toString());
@@ -745,8 +764,8 @@ public final class Morphium {
     /**
      * create unique cache key for queries, also honoring skip & limit and sorting
      *
-     * @param q
-     * @return
+     * @param q the query
+     * @return the resulting cache key
      */
     public String getCacheKey(Query q) {
         return getCacheKey(q.toQueryObject(), q.getOrder(), q.getSkip(), q.getLimit());
@@ -757,8 +776,8 @@ public final class Morphium {
      * updating an enty in DB without sending the whole entity
      * only transfers the fields to be changed / set
      *
-     * @param ent
-     * @param fields
+     * @param ent    - entity to update
+     * @param fields - fields to use
      */
     public void updateUsingFields(final Object ent, final String... fields) {
         if (ent == null) return;
@@ -826,8 +845,8 @@ public final class Morphium {
      * returns annotations, even if in class hierarchy or
      * lazyloading proxy
      *
-     * @param cls
-     * @return
+     * @param cls class
+     * @return the Annotation
      */
     public <T extends Annotation> T getAnnotationFromHierarchy(Class<?> cls, Class<? extends T> anCls) {
         cls = getRealClass(cls);
@@ -908,9 +927,9 @@ public final class Morphium {
     /**
      * careful this actually changes the parameter o!
      *
-     * @param o
-     * @param <T>
-     * @return
+     * @param o   - object to read
+     * @param <T> - tpye of the object
+     * @return -  entity
      */
     public <T> T reread(T o) {
         if (o == null) throw new RuntimeException("Cannot re read null!");
@@ -944,6 +963,7 @@ public final class Morphium {
         return o;
     }
 
+    @SuppressWarnings("unchecked")
     public void firePreStoreEvent(Object o, boolean isNew) {
         if (o == null) return;
         for (MorphiumStorageListener l : listeners) {
@@ -953,6 +973,7 @@ public final class Morphium {
 
     }
 
+    @SuppressWarnings("unchecked")
     public void firePostStoreEvent(Object o, boolean isNew) {
         for (MorphiumStorageListener l : listeners) {
             l.postStore(o, isNew);
@@ -962,6 +983,7 @@ public final class Morphium {
 
     }
 
+    @SuppressWarnings("unchecked")
     public void firePreDropEvent(Class cls) {
         for (MorphiumStorageListener l : listeners) {
             l.preDrop(cls);
@@ -969,24 +991,29 @@ public final class Morphium {
 
     }
 
+
+    @SuppressWarnings("unchecked")
     public void firePostDropEvent(Class cls) {
         for (MorphiumStorageListener l : listeners) {
             l.postDrop(cls);
         }
     }
 
+    @SuppressWarnings("unchecked")
     public void firePostUpdateEvent(Class cls, MorphiumStorageListener.UpdateTypes t) {
         for (MorphiumStorageListener l : listeners) {
             l.postUpdate(cls, t);
         }
     }
 
+    @SuppressWarnings("unchecked")
     public void firePreUpdateEvent(Class cls, MorphiumStorageListener.UpdateTypes t) {
         for (MorphiumStorageListener l : listeners) {
             l.preUpdate(cls, t);
         }
     }
 
+    @SuppressWarnings("unchecked")
     public void firePostRemoveEvent(Object o) {
         for (MorphiumStorageListener l : listeners) {
             l.postRemove(o);
@@ -994,6 +1021,7 @@ public final class Morphium {
         callLifecycleMethod(PostRemove.class, o);
     }
 
+    @SuppressWarnings("unchecked")
     public void firePostRemoveEvent(Query q) {
         for (MorphiumStorageListener l : listeners) {
             l.postRemove(q);
@@ -1001,6 +1029,7 @@ public final class Morphium {
         //TODO: FIX - Cannot call lifecycle method here
     }
 
+    @SuppressWarnings("unchecked")
     public void firePreRemoveEvent(Object o) {
         for (MorphiumStorageListener l : listeners) {
             l.preDelete(o);
@@ -1008,6 +1037,7 @@ public final class Morphium {
         callLifecycleMethod(PreRemove.class, o);
     }
 
+    @SuppressWarnings("unchecked")
     public void firePreRemoveEvent(Query q) {
         for (MorphiumStorageListener l : listeners) {
             l.preRemove(q);
@@ -1018,8 +1048,9 @@ public final class Morphium {
     /**
      * will be called by query after unmarshalling
      *
-     * @param o
+     * @param o - entitiy
      */
+    @SuppressWarnings("unchecked")
     public void firePostLoadEvent(Object o) {
         for (MorphiumStorageListener l : listeners) {
             l.postLoad(o);
@@ -1031,7 +1062,7 @@ public final class Morphium {
     /**
      * same as retReplicaSetStatus(false);
      *
-     * @return
+     * @return replica set status
      */
     public de.caluga.morphium.replicaset.ReplicaSetStatus getReplicaSetStatus() {
         return getReplicaSetStatus(false);
@@ -1042,9 +1073,10 @@ public final class Morphium {
      * if full==true, also the configuration is read. This method is called with full==false for every write in
      * case a Replicaset is configured to find out the current number of active nodes
      *
-     * @param full
-     * @return
+     * @param full - if true- return full status
+     * @return status
      */
+    @SuppressWarnings("unchecked")
     public de.caluga.morphium.replicaset.ReplicaSetStatus getReplicaSetStatus(boolean full) {
         if (config.getMode().equals(MongoDbMode.REPLICASET)) {
             try {
@@ -1087,11 +1119,12 @@ public final class Morphium {
         return config.getMode().equals(MongoDbMode.REPLICASET);
     }
 
+    @SuppressWarnings("ConstantConditions")
     public WriteConcern getWriteConcernForClass(Class<?> cls) {
         if (logger.isDebugEnabled()) logger.debug("returning write concern for " + cls.getSimpleName());
         WriteSafety safety = getAnnotationFromHierarchy(cls, WriteSafety.class);  // cls.getAnnotation(WriteSafety.class);
         if (safety == null) return null;
-        boolean fsync = safety.waitForSync();
+        @SuppressWarnings("deprecation") boolean fsync = safety.waitForSync();
         boolean j = safety.waitForJournalCommit();
 
         if (j && fsync) {
@@ -1221,11 +1254,12 @@ public final class Morphium {
      * return object by from cache. Cache key usually is the string-representation of the search
      * query.toQueryObject()
      *
-     * @param type
-     * @param k
-     * @param <T>
-     * @return
+     * @param type - type
+     * @param k    - cache key
+     * @param <T>  - type param
+     * @return resulting list
      */
+    @SuppressWarnings("unchecked")
     public <T> List<T> getFromCache(Class<? extends T> type, String k) {
         if (cache.get(type) == null || cache.get(type).get(k) == null) return null;
         final CacheElement cacheElement = cache.get(type).get(k);
@@ -1233,10 +1267,12 @@ public final class Morphium {
         return cacheElement.getFound();
     }
 
+    @SuppressWarnings("unchecked")
     public Hashtable<Class<?>, Hashtable<String, CacheElement>> cloneCache() {
         return (Hashtable<Class<?>, Hashtable<String, CacheElement>>) cache.clone();
     }
 
+    @SuppressWarnings("unchecked")
     public Hashtable<Class<?>, Hashtable<ObjectId, Object>> cloneIdCache() {
         return (Hashtable<Class<?>, Hashtable<ObjectId, Object>>) idCache.clone();
     }
@@ -1244,8 +1280,9 @@ public final class Morphium {
     /**
      * issues a delete command - no lifecycle methods calles, no drop, keeps all indexec this way
      *
-     * @param cls
+     * @param cls - class
      */
+    @SuppressWarnings("unchecked")
     public void clearCollection(Class<?> cls) {
         if (!isAnnotationPresentInHierarchy(cls, NoProtection.class)) { //cls.isAnnotationPresent(NoProtection.class)) {
             try {
@@ -1267,7 +1304,7 @@ public final class Morphium {
      * clears every single object in collection - reads ALL objects to do so
      * this way Lifecycle methods can be called!
      *
-     * @param cls
+     * @param cls -class
      */
 
     public void clearCollectionOneByOne(Class<?> cls) {
@@ -1319,6 +1356,7 @@ public final class Morphium {
         return q.asList();
     }
 
+    @SuppressWarnings("unchecked")
     private <T> T getFromIDCache(Class<? extends T> type, ObjectId id) {
         if (idCache.get(type) != null) {
             return (T) idCache.get(type).get(id);
@@ -1343,10 +1381,12 @@ public final class Morphium {
      * returns a distinct list of values of the given collection
      * Attention: these values are not unmarshalled, you might get MongoDBObjects
      */
+    @SuppressWarnings("unchecked")
     public List<Object> distinct(String key, Query q) {
         return database.getCollection(config.getMapper().getCollectionName(q.getType())).distinct(key, q.toQueryObject());
     }
 
+    @SuppressWarnings("unchecked")
     public List<Object> distinct(String key, Class cls) {
         DBCollection collection = database.getCollection(config.getMapper().getCollectionName(cls));
         setReadPreference(collection, cls);
@@ -1389,13 +1429,14 @@ public final class Morphium {
         return database.getCollection(config.getMapper().getCollectionName(q.getType())).group(cmd);
     }
 
+    @SuppressWarnings("unchecked")
     public <T> T findById(Class<? extends T> type, ObjectId id) {
         T ret = getFromIDCache(type, id);
         if (ret != null) return ret;
         List<String> ls = config.getMapper().getFields(type, Id.class);
         if (ls.size() == 0) throw new RuntimeException("Cannot find by ID on non-Entity");
 
-        return (T) createQueryFor(type).f(ls.get(0)).eq(id).get();
+        return createQueryFor(type).f(ls.get(0)).eq(id).get();
     }
 //    /**
 //     * returns a list of all elements for the given type, matching the given query
@@ -1423,7 +1464,7 @@ public final class Morphium {
     /**
      * does not set values in DB only in the entity
      *
-     * @param toSetValueIn
+     * @param toSetValueIn - where to set the value
      */
     public void setValueIn(Object toSetValueIn, String fld, Object value) {
         config.getMapper().setValue(toSetValueIn, value, fld);
@@ -1462,9 +1503,10 @@ public final class Morphium {
      * get a list of valid fields of a given record as they are in the MongoDB
      * so, if you have a field Mapping, the mapped Property-name will be used
      *
-     * @param cls
-     * @return
+     * @param cls - class
+     * @return return list of fields
      */
+    @SuppressWarnings("unchecked")
     public final List<String> getFields(Class<?> cls) {
         return config.getMapper().getFields(cls);
     }
@@ -1547,7 +1589,7 @@ public final class Morphium {
      * Erase cache entries for the given type. is being called after every store
      * depending on cache settings!
      *
-     * @param cls
+     * @param cls - class
      */
     public void clearCachefor(Class<?> cls) {
         if (cache.get(cls) != null) {
@@ -1641,8 +1683,8 @@ public final class Morphium {
      * ensureIndex(CachedObject.class,"counter:2d","-value);
      * Similar to sorting
      *
-     * @param cls
-     * @param fldStr
+     * @param cls    - class
+     * @param fldStr - fields
      */
     public void ensureIndex(Class<?> cls, String... fldStr) {
         Map<String, Object> m = new LinkedHashMap<String, Object>();
@@ -1789,7 +1831,7 @@ public final class Morphium {
     /**
      * deletes a single object from morphium backend. Clears cache
      *
-     * @param o
+     * @param o - entity
      */
     public void delete(Object o) {
         if (o instanceof Query) {
@@ -1841,6 +1883,7 @@ public final class Morphium {
         return new Statistics(this);
     }
 
+    @SuppressWarnings("unchecked")
     public void removeEntryFromCache(Class cls, ObjectId id) {
         Hashtable<Class<?>, Hashtable<String, CacheElement>> c = cloneCache();
         Hashtable<Class<?>, Hashtable<ObjectId, Object>> idc = cloneIdCache();
@@ -1855,7 +1898,7 @@ public final class Morphium {
                     logger.error("Null id in CACHE?");
                     toRemove.add(key);
                 }
-                if (lid.equals(id)) {
+                if (lid != null && lid.equals(id)) {
                     toRemove.add(key);
                 }
             }
@@ -1909,10 +1952,7 @@ public final class Morphium {
 
     public boolean isWriteCached(Class<?> cls) {
         Cache c = getAnnotationFromHierarchy(cls, Cache.class);
-        if (isAnnotationPresentInHierarchy(cls, NoCache.class) || c == null || !c.writeCache()) {
-            return false;
-        }
-        return true;
+        return !(isAnnotationPresentInHierarchy(cls, NoCache.class) || c == null || !c.writeCache());
 
     }
 
@@ -1942,18 +1982,21 @@ public final class Morphium {
      * <b>Attention:</b> the field name if determined by the setter name for now. That means, it does not honor the @Property-Annotation!!!
      * To make sure, you take the correct field - use the UpdatingField-Annotation for the setters!
      *
-     * @param o
-     * @param <T>
-     * @return
+     * @param o   - entity
+     * @param <T> - type
+     * @return Type
      */
+    @SuppressWarnings("unchecked")
     public <T> T createPartiallyUpdateableEntity(T o) {
         return (T) Enhancer.create(o.getClass(), new Class[]{PartiallyUpdateable.class, Serializable.class}, new PartiallyUpdateableProxy(this, o));
     }
 
+    @SuppressWarnings("unchecked")
     public <T> T createLazyLoadedEntity(Class<? extends T> cls, ObjectId id) {
         return (T) Enhancer.create(cls, new Class[]{Serializable.class}, new LazyDeReferencingProxy(this, cls, id));
     }
 
+    @SuppressWarnings("unchecked")
     public <T> MongoField<T> createMongoField() {
         try {
             return (MongoField<T>) config.getFieldImplClass().newInstance();
@@ -1964,6 +2007,7 @@ public final class Morphium {
         }
     }
 
+    @SuppressWarnings("unchecked")
     public String getLastChangeField(Class<?> cls) {
         if (!storesLastChange(cls)) return null;
         List<String> lst = config.getMapper().getFields(cls, LastChange.class);
@@ -1971,6 +2015,7 @@ public final class Morphium {
         return lst.get(0);
     }
 
+    @SuppressWarnings("unchecked")
     public String getLastChangeByField(Class<?> cls) {
         if (!storesLastChangeBy(cls)) return null;
         List<String> lst = config.getMapper().getFields(cls, LastChangeBy.class);
@@ -1978,6 +2023,7 @@ public final class Morphium {
         return lst.get(0);
     }
 
+    @SuppressWarnings("unchecked")
     public String getLastAccessField(Class<?> cls) {
         if (!storesLastAccess(cls)) return null;
         List<String> lst = config.getMapper().getFields(cls, LastAccess.class);
@@ -1985,6 +2031,7 @@ public final class Morphium {
         return lst.get(0);
     }
 
+    @SuppressWarnings("unchecked")
     public String getLastAccessByField(Class<?> cls) {
         if (!storesLastAccessBy(cls)) return null;
         List<String> lst = config.getMapper().getFields(cls, LastAccessBy.class);
@@ -1992,7 +2039,7 @@ public final class Morphium {
         return lst.get(0);
     }
 
-
+    @SuppressWarnings("unchecked")
     public String getCreationTimeField(Class<?> cls) {
         if (!storesCreation(cls)) return null;
         List<String> lst = config.getMapper().getFields(cls, CreationTime.class);
@@ -2000,6 +2047,7 @@ public final class Morphium {
         return lst.get(0);
     }
 
+    @SuppressWarnings("unchecked")
     public String getCreatedByField(Class<?> cls) {
         if (!storesCreatedBy(cls)) return null;
         List<String> lst = config.getMapper().getFields(cls, CreatedBy.class);
