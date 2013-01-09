@@ -9,6 +9,7 @@ import java.util.List;
 /**
  * @author stephan
  */
+@SuppressWarnings("UnusedDeclaration")
 public class CacheElement<T> {
 
     private long created;

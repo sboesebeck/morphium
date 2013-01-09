@@ -7,6 +7,8 @@ package de.caluga.morphium;
 /**
  * @author stephan
  */
+
+@SuppressWarnings("UnusedDeclaration")
 public interface UserContext {
     public String getCurrentUserId();
 

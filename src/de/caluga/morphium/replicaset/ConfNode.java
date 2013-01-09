@@ -10,6 +10,7 @@ import de.caluga.morphium.annotations.Property;
  * <p/>
  * Representation of a ReplicaseConfigNode
  */
+@SuppressWarnings("UnusedDeclaration")
 @Embedded
 public class ConfNode {
     @Property(fieldName = "_id")

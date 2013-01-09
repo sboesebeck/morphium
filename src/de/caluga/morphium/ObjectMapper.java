@@ -31,16 +31,16 @@ public interface ObjectMapper {
     /**
      * de-Referencing class - handling for Lazy-Dereferencing und parital update
      *
-     * @param o
-     * @return
+     * @param o - the object to check (might be a proxy)=
+     * @return - the real object
      */
     public <T> T getRealObject(T o);
 
     /**
      * de-Referencing class - handling for Lazy-Dereferencing und parital update
      *
-     * @param o
-     * @return
+     * @param o - class to look for
+     * @return real class
      */
     public <T> Class<? extends T> getRealClass(Class<? extends T> o);
 
@@ -65,15 +65,16 @@ public interface ObjectMapper {
     /**
      * get current name provider for class
      *
-     * @param cls
+     * @param cls - class
      * @return configured name provider in @Entity or currently set one
      */
+    @SuppressWarnings("UnusedDeclaration")
     public NameProvider getNameProviderForClass(Class<?> cls);
 
     /**
      * override settings vor name Provider from @Entity
      *
-     * @param cls
+     * @param cls - class
      * @param np  the name Provider to use
      */
     public void setNameProviderForClass(Class<?> cls, NameProvider np);

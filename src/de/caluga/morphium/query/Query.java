@@ -25,20 +25,21 @@ import java.util.Map;
  * </code>
  * AND is the default!
  */
+@SuppressWarnings("UnusedDeclaration")
 public interface Query<T> extends Cloneable {
     /**
      * set the where string for this query - where-String needs to be valid java script! Errors will only be shown in MongoD-Log!
      *
-     * @param wh
-     * @return
+     * @param wh where string
+     * @return where wuery
      */
     public Query<T> where(String wh);
 
     /**
      * Get a field. F may be the name as it is in mongo db or the variable name in java...
      *
-     * @param f
-     * @return
+     * @param f field
+     * @return the field implementation
      */
     public MongoField<T> f(String f);
 
@@ -46,15 +47,15 @@ public interface Query<T> extends Cloneable {
     /**
      * same as f(field.name())
      *
-     * @param field
-     * @return
+     * @param field field
+     * @return mongo field
      */
     public MongoField<T> f(Enum field);
 
     /**
      * concatenate those queries with or
      *
-     * @param q
+     * @param q query
      */
     public void or(Query<T>... q);
 
@@ -62,39 +63,39 @@ public interface Query<T> extends Cloneable {
     /**
      * not or
      *
-     * @param q
+     * @param q query
      */
     public void nor(Query<T>... q);
 
     /**
      * limit the number of entries in result
      *
-     * @param i
-     * @return
+     * @param i - limit
+     * @return the query
      */
     public Query<T> limit(int i);
 
     /**
      * skip the first entries in result
      *
-     * @param i
-     * @return
+     * @param i skip
+     * @return the query
      */
     public Query<T> skip(int i);
 
     /**
      * set an order - Key: FieldName (java or Mongo-Name), Value: Integer: -1 reverse, 1 standard
      *
-     * @param n
-     * @return
+     * @param n - sort
+     * @return the query
      */
     public Query<T> sort(Map<String, Integer> n);
 
     /**
      * set order by prefixing field names with - for reverse ordering (+ or nothing default)
      *
-     * @param prefixedString
-     * @return
+     * @param prefixedString sort
+     * @return the query
      */
     public Query<T> sort(String... prefixedString);
 
@@ -104,8 +105,8 @@ public interface Query<T> extends Cloneable {
      * set an order - Key: FieldName (java or Mongo-Name), Value: Integer: -1 reverse, 1 standard
      * deprectaed, use sort instead (more like the maongodb-commands)... used for backward compatibility.
      *
-     * @param n
-     * @return
+     * @param n -
+     * @return the query
      * @deprecated
      */
     public Query<T> order(Map<String, Integer> n);
@@ -114,8 +115,8 @@ public interface Query<T> extends Cloneable {
      * set order by prefixing field names with - for reverse ordering (+ or nothing default)
      * deprectaed, use sort instead (more like the maongodb-commands)... used for backward compatibility.
      *
-     * @param prefixedString
-     * @return
+     * @param prefixedString sort
+     * @return the query
      * @deprecated
      */
     public Query<T> order(String... prefixedString);
@@ -123,35 +124,35 @@ public interface Query<T> extends Cloneable {
     /**
      * count all results in query - does not take limit or skip into account
      *
-     * @return
+     * @return number
      */
     public long countAll();  //not taking limit and skip into account!
 
     /**
      * needed for creation of the query representation tree
      *
-     * @param e
+     * @param e expression
      */
     public void addChild(FilterExpression e);
 
     /**
      * create a db object from this query and all of it's child nodes
      *
-     * @return
+     * @return query object
      */
     public DBObject toQueryObject();
 
     /**
      * what type this query is for
      *
-     * @return
+     * @return class
      */
     public Class<? extends T> getType();
 
     /**
      * the result as list
      *
-     * @return
+     * @return list
      */
     public List<T> asList();
 
@@ -170,7 +171,7 @@ public interface Query<T> extends Cloneable {
     /**
      * get only 1 result (first one in result list)
      *
-     * @return
+     * @return entity
      */
     public T get();
 
@@ -185,21 +186,21 @@ public interface Query<T> extends Cloneable {
     /**
      * only return the IDs of objects (useful if objects are really large)
      *
-     * @return
+     * @return list
      */
     public List<ObjectId> idList();
 
     /**
      * what type to use
      *
-     * @param type
+     * @param type type
      */
     public void setType(Class<? extends T> type);
 
     /**
      * create a new empty query for the same type using the same mapper as this
      *
-     * @return
+     * @return query
      */
     public Query<T> q();
 
@@ -221,8 +222,8 @@ public interface Query<T> extends Cloneable {
     /**
      * same as copmplexQuery(query,0,1).get(0);
      *
-     * @param query
-     * @return
+     * @param query - query
+     * @return type
      */
     public T complexQueryOne(DBObject query);
 

@@ -5,7 +5,7 @@ import org.apache.log4j.Logger;
 
 import java.util.*;
 
-
+@SuppressWarnings("UnusedDeclaration")
 public class ConfigManagerImpl implements ConfigManager {
     private static ConfigManager instance;
     private final Hashtable<String, ConfigElement> configCache;

@@ -26,6 +26,7 @@ import java.util.*;
  *
  * @author stephan
  */
+@SuppressWarnings("UnusedDeclaration")
 public class MorphiumConfig {
 
     private MongoDbMode mode;
@@ -341,7 +342,7 @@ public class MorphiumConfig {
     /**
      * for future use - set Global Caching time
      *
-     * @return
+     * @return the global cache valid time
      */
     public int getGlobalCacheValidTime() {
         return globalCacheValidTime;
@@ -483,6 +484,7 @@ public class MorphiumConfig {
         initFromProperty(p, "");
     }
 
+    @SuppressWarnings({"ConstantConditions", "unchecked"})
     public void initFromProperty(Properties p, String prefix) {
         if (prefix == null) prefix = "";
         if (!prefix.isEmpty()) {
@@ -494,18 +496,18 @@ public class MorphiumConfig {
         String fieldImplClassStr = p.getProperty(prefix + "fieldImplClass", MongoFieldImpl.class.getName());
         try {
             fieldImplClass = (Class<? extends MongoField>) Class.forName(fieldImplClassStr);
-        } catch (ClassNotFoundException e) {
+        } catch (ClassNotFoundException ignored) {
         }
 
         String mapperCls = p.getProperty(prefix + "mapperClass", ObjectMapperImpl.class.getName());
         try {
             mapper = (ObjectMapper) Class.forName(mapperCls).newInstance();
-        } catch (Exception e) {
+        } catch (Exception ignored) {
         }
         String securityMgrCls = p.getProperty(prefix + "securityManagerClass", DefaultSecurityManager.class.getName());
         try {
             securityMgr = (MongoSecurityManager) Class.forName(securityMgrCls).newInstance();
-        } catch (Exception e) {
+        } catch (Exception ignored) {
         }
         adminGroupName = p.getProperty(prefix + "adminGroupName");
         superUserLogin = p.getProperty(prefix + "superUserLogin");

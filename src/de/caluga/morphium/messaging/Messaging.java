@@ -16,6 +16,7 @@ import java.util.concurrent.TimeUnit;
  * <p/>
  * Messaging implements a simple, threadsafe and messaging api. Used for cache synchronization.
  */
+@SuppressWarnings({"ConstantConditions", "unchecked", "UnusedDeclaration"})
 public class Messaging extends Thread {
     private static Logger log = Logger.getLogger(Messaging.class);
 
@@ -155,7 +156,7 @@ public class Messaging extends Thread {
             } finally {
                 try {
                     sleep(pause);
-                } catch (InterruptedException e) {
+                } catch (InterruptedException ignored) {
                 }
             }
 

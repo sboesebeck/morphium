@@ -22,6 +22,7 @@ import java.util.Map;
  *
  * @see Writer
  */
+@SuppressWarnings({"ConstantConditions", "unchecked"})
 public class WriterImpl implements Writer {
     private static Logger logger = Logger.getLogger(WriterImpl.class);
     private Morphium morphium;
@@ -33,7 +34,7 @@ public class WriterImpl implements Writer {
 
 
     /**
-     * @param o
+     * @param o - object to store
      */
     @Override
     public void store(Object o) {
@@ -62,7 +63,7 @@ public class WriterImpl implements Writer {
         }
         boolean isNew = id == null;
         morphium.firePreStoreEvent(o, isNew);
-        long dur = System.currentTimeMillis() - start;
+
         DBObject marshall = morphium.getMapper().marshall(o);
 
         if (isNew) {
@@ -155,7 +156,7 @@ public class WriterImpl implements Writer {
 
             morphium.getDatabase().getCollection(coll).save(marshall);
         }
-        dur = System.currentTimeMillis() - start;
+        long dur = System.currentTimeMillis() - start;
         morphium.fireProfilingWriteEvent(o.getClass(), marshall, dur, true, WriteAccessType.SINGLE_INSERT);
         if (logger.isDebugEnabled()) {
             String n = "";
@@ -199,7 +200,7 @@ public class WriterImpl implements Writer {
                     continue;
                 }
                 morphium.inc(StatisticKeys.WRITES);
-                ObjectId id = morphium.getMapper().getId(o);
+//                ObjectId id = morphium.getMapper().getId(o);
                 if (morphium.isAnnotationPresentInHierarchy(type, PartialUpdate.class)) {
                     //not part of list, acutally...
                     if ((o instanceof PartiallyUpdateable)) {
@@ -279,9 +280,9 @@ public class WriterImpl implements Writer {
     /**
      * changes an object in DB
      *
-     * @param toSet
-     * @param field
-     * @param value
+     * @param toSet - entity
+     * @param field - field to set
+     * @param value - value to set field to
      */
     @Override
     public void set(Object toSet, String field, Object value) {
@@ -407,7 +408,7 @@ public class WriterImpl implements Writer {
     /**
      * deletes all objects matching the given query
      *
-     * @param q
+     * @param q - query
      */
     @Override
     public void delete(Query q) {
@@ -488,7 +489,7 @@ public class WriterImpl implements Writer {
 
         if (f.getType().equals(Integer.class) || f.getType().equals(int.class)) {
             try {
-                f.set(toInc, ((Integer) f.get(toInc)) + (int) amount);
+                f.set(toInc, ((Integer) f.get(toInc)) + amount);
             } catch (IllegalAccessException e) {
                 throw new RuntimeException(e);
             }
@@ -731,8 +732,8 @@ public class WriterImpl implements Writer {
             lst.add(marshallIfNecessary(o));
         }
         value = lst;
-        BasicDBList dbl = new BasicDBList();
-        dbl.addAll(value);
+//        BasicDBList dbl = new BasicDBList();
+//        dbl.addAll(value);
 
         DBObject qobj = query.toQueryObject();
         if (insertIfNotExist) {

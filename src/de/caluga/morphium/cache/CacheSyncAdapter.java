@@ -8,6 +8,7 @@ import de.caluga.morphium.messaging.Msg;
  * Time: 18:19
  * <p/>
  */
+@SuppressWarnings("UnusedDeclaration")
 public class CacheSyncAdapter implements CacheSyncListener {
     @Override
     public void preClear(Class cls, Msg m) throws CacheSyncVetoException {

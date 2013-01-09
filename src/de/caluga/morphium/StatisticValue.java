@@ -8,6 +8,7 @@ package de.caluga.morphium;
  * Statistics
  */
 
+@SuppressWarnings("UnusedDeclaration")
 public class StatisticValue {
 
     private long value = 0;

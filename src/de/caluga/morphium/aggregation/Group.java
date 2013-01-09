@@ -14,6 +14,7 @@ import java.util.Map;
  * <p/>
  * Aggregator-Group
  */
+@SuppressWarnings("UnusedDeclaration")
 public class Group<T, R> {
     private Aggregator<T, R> aggregator;
     private BasicDBObject id;

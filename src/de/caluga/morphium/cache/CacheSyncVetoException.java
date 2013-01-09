@@ -6,6 +6,8 @@ package de.caluga.morphium.cache;
  * Time: 17:27
  * <p/>
  */
+
+@SuppressWarnings("UnusedDeclaration")
 public class CacheSyncVetoException extends Exception {
     public CacheSyncVetoException() {
         super();

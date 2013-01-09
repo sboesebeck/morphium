@@ -13,6 +13,7 @@ import java.util.Date;
  * <p/>
  * Mongo Replicaset Node
  */
+@SuppressWarnings("UnusedDeclaration")
 @Embedded
 public class ReplicaSetNode {
     private String name;

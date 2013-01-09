@@ -42,6 +42,7 @@ public class MongoAppender implements Appender {
 
     }
 
+    @SuppressWarnings("ThrowableResultOfMethodCallIgnored")
     @Override
     public void doAppend(LoggingEvent event) {
         if (!MorphiumSingleton.isConfigured() || !MorphiumSingleton.isInitialized()) return;

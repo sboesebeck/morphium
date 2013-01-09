@@ -24,6 +24,7 @@ import java.util.regex.Pattern;
  *
  * @see MongoField
  */
+@SuppressWarnings("UnusedDeclaration")
 public class MongoFieldImpl<T> implements MongoField<T> {
     private Query<T> query;
     private ObjectMapper mapper;
@@ -69,7 +70,7 @@ public class MongoFieldImpl<T> implements MongoField<T> {
             if (mapper.getMorphium().isAnnotationPresentInHierarchy(cls, Entity.class) || val instanceof ObjectId) {
                 Field field = mapper.getField(query.getType(), fldStr);
                 if (field.isAnnotationPresent(Reference.class)) {
-                    ObjectId id = null;
+                    ObjectId id;
                     if (val instanceof ObjectId) {
                         id = (ObjectId) val;
                     } else {

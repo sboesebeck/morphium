@@ -17,6 +17,7 @@ import java.util.List;
  * };
  * </code>
  */
+@SuppressWarnings("UnusedDeclaration")
 public interface MorphiumIterator<T> extends Iterable<T>, Iterator<T> {
     public void setWindowSize(int sz);
 
@@ -29,14 +30,14 @@ public interface MorphiumIterator<T> extends Iterable<T>, Iterator<T> {
     /**
      * retruns the number of elements now in buffer. Max windowsize
      *
-     * @return
+     * @return list
      */
     public int getCurrentBufferSize();
 
     /**
      * get the current buffer. Maximum length is specified windowsize
      *
-     * @return
+     * @return list
      */
     public List<T> getCurrentBuffer();
 
@@ -44,28 +45,28 @@ public interface MorphiumIterator<T> extends Iterable<T>, Iterator<T> {
      * how many elements are to be processed.
      * Attention: this count is not updated. It shows how many elements are there at the beginning of the interation!
      *
-     * @return
+     * @return count
      */
     public long getCount();
 
     /**
      * returns current cursor position
      *
-     * @return
+     * @return int
      */
     public int getCursor();
 
     /**
      * move the cursor position ahead
      *
-     * @param jump
+     * @param jump number of elements to jump
      */
     public void ahead(int jump);
 
     /**
      * get back some positions
      *
-     * @param jump
+     * @param jump number of elements to jump back
      */
     public void back(int jump);
 
