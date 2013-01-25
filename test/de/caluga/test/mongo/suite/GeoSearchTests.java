@@ -44,6 +44,31 @@ public class GeoSearchTests extends MongoTest {
     }
 
     @Test
+    public void nearSphereTest() throws Exception {
+        MorphiumSingleton.get().dropCollection(Place.class);
+        ArrayList<Place> toStore = new ArrayList<Place>();
+//        MorphiumSingleton.get().ensureIndicesFor(Place.class);
+        for (int i = 0; i < 1000; i++) {
+            Place p = new Place();
+            List<Double> pos = new ArrayList<Double>();
+            pos.add((Math.random() * 6) - 3);
+            pos.add((Math.random() * 6) - 3);
+            p.setName("P" + i);
+            p.setPosition(pos);
+            toStore.add(p);
+        }
+        MorphiumSingleton.get().storeList(toStore);
+
+        Query<Place> q = MorphiumSingleton.get().createQueryFor(Place.class).f("position").nearSphere(0, 0);
+        long cnt = q.countAll();
+        log.info("Found " + cnt + " places around 0,0 ");
+        List<Place> lst = q.asList();
+        for (Place p : lst) {
+            log.info("Position: " + p.getPosition().get(0) + " / " + p.getPosition().get(1));
+        }
+    }
+
+    @Test
     public void boxTest() throws Exception {
         MorphiumSingleton.get().dropCollection(Place.class);
         ArrayList<Place> toStore = new ArrayList<Place>();
@@ -63,6 +88,32 @@ public class GeoSearchTests extends MongoTest {
         log.info("Query: " + q.toQueryObject().toString());
         long cnt = q.countAll();
         log.info("Found " + cnt + " places around 0,0 -> (10,10)");
+        List<Place> lst = q.asList();
+        for (Place p : lst) {
+            log.info("Position: " + p.getPosition().get(0) + " / " + p.getPosition().get(1));
+        }
+    }
+
+    @Test
+    public void centerSphereTest() throws Exception {
+        MorphiumSingleton.get().dropCollection(Place.class);
+        ArrayList<Place> toStore = new ArrayList<Place>();
+//        MorphiumSingleton.get().ensureIndicesFor(Place.class);
+        for (int i = 0; i < 1000; i++) {
+            Place p = new Place();
+            List<Double> pos = new ArrayList<Double>();
+            pos.add((Math.random() * Math.PI) - Math.PI / 2);
+            pos.add((Math.random() * Math.PI) - Math.PI / 2);
+            p.setName("P" + i);
+            p.setPosition(pos);
+            toStore.add(p);
+        }
+        MorphiumSingleton.get().storeList(toStore);
+
+        Query<Place> q = MorphiumSingleton.get().createQueryFor(Place.class).f("position").centerSphere(0, 0, 0.01);
+        log.info("Query: " + q.toQueryObject().toString());
+        long cnt = q.countAll();
+        log.info("Found " + cnt + " places around 0,0 -> 0.01 rad");
         List<Place> lst = q.asList();
         for (Place p : lst) {
             log.info("Position: " + p.getPosition().get(0) + " / " + p.getPosition().get(1));
