@@ -75,6 +75,38 @@ public class BasicFunctionalityTest extends MongoTest {
     }
 
     @Test
+    public void existsTest() throws Exception {
+        for (int i = 1; i <= 10; i++) {
+            UncachedObject o = new UncachedObject();
+            o.setCounter(i);
+            o.setValue("Uncached " + i);
+            MorphiumSingleton.get().store(o);
+        }
+        Query<UncachedObject> q = MorphiumSingleton.get().createQueryFor(UncachedObject.class);
+        q = q.f("counter").exists().f("value").eq("Uncached 1");
+        long c = q.countAll();
+        assert (c == 1);
+
+        UncachedObject o = q.get();
+        assert (o.getCounter() == 1);
+    }
+
+    @Test
+    public void notExistsTest() throws Exception {
+        for (int i = 1; i <= 10; i++) {
+            UncachedObject o = new UncachedObject();
+            o.setCounter(i);
+            o.setValue("Uncached " + i);
+            MorphiumSingleton.get().store(o);
+        }
+        Query<UncachedObject> q = MorphiumSingleton.get().createQueryFor(UncachedObject.class);
+        q = q.f("counter").notExists().f("value").eq("Uncached 1");
+        long c = q.countAll();
+        assert (c == 0);
+    }
+
+
+    @Test
     public void idTest() throws Exception {
         log.info("Storing Uncached objects...");
 
