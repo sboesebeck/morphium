@@ -40,6 +40,10 @@ public class MorphiumConfig {
     private int socketTimeout = 0;
     private boolean socketKeepAlive = true;
 
+    private int maxWaitTime = 0;
+    private boolean autoreconnect = true;
+    private int maxAutoReconnectTime = 0;
+
     private Class<? extends Query> queryClass;
     private Class<? extends Aggregator> aggregatorClass;
 
@@ -165,6 +169,29 @@ public class MorphiumConfig {
         return fieldImplClass;
     }
 
+    public int getMaxWaitTime() {
+        return maxWaitTime;
+    }
+
+    public void setMaxWaitTime(int maxWaitTime) {
+        this.maxWaitTime = maxWaitTime;
+    }
+
+    public boolean isAutoreconnect() {
+        return autoreconnect;
+    }
+
+    public void setAutoreconnect(boolean autoreconnect) {
+        this.autoreconnect = autoreconnect;
+    }
+
+    public int getMaxAutoReconnectTime() {
+        return maxAutoReconnectTime;
+    }
+
+    public void setMaxAutoReconnectTime(int maxAutoReconnectTime) {
+        this.maxAutoReconnectTime = maxAutoReconnectTime;
+    }
 
     public boolean isSocketKeepAlive() {
         return socketKeepAlive;

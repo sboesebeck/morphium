@@ -117,14 +117,17 @@ public final class Morphium {
 
         //dummyUser.setGroupIds();
         MongoOptions o = new MongoOptions();
-        o.autoConnectRetry = true;
+        o.autoConnectRetry = config.isAutoreconnect();
+        o.safe = true;
         o.fsync = true;
         o.socketTimeout = config.getSocketTimeout();
         o.connectTimeout = config.getConnectionTimeout();
         o.connectionsPerHost = config.getMaxConnections();
         o.socketKeepAlive = config.isSocketKeepAlive();
         o.threadsAllowedToBlockForConnectionMultiplier = 5;
-        o.safe = false;
+        o.setMaxAutoConnectRetryTime(config.getMaxAutoReconnectTime());
+        o.setMaxWaitTime(config.getMaxWaitTime());
+
 
         writers.setCorePoolSize(config.getMaxConnections() / 2);
         writers.setMaximumPoolSize(config.getMaxConnections());
