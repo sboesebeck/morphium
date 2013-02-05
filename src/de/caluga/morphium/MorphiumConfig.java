@@ -14,6 +14,8 @@ import de.caluga.morphium.annotations.ReadPreferenceLevel;
 import de.caluga.morphium.query.*;
 import de.caluga.morphium.secure.DefaultSecurityManager;
 import de.caluga.morphium.secure.MongoSecurityManager;
+import org.apache.log4j.LogManager;
+import org.apache.log4j.Logger;
 import org.apache.log4j.xml.DOMConfigurator;
 
 import java.io.IOException;
@@ -225,16 +227,6 @@ public class MorphiumConfig {
         this.mongoPassword = mongoPassword;
     }
 
-    //    private boolean removePackage=true;
-
-//    public boolean isRemovePackage() {
-//        return removePackage;
-//    }
-//
-//    public void setRemovePackage(boolean removePackage) {
-//        this.removePackage = removePackage;
-//    }
-
     public MongoSecurityManager getSecurityMgr() {
         return securityMgr;
     }
@@ -274,30 +266,6 @@ public class MorphiumConfig {
     public void setSuperUserPassword(String superUserPassword) {
         this.superUserPassword = superUserPassword;
     }
-
-//    public Class<? extends Object> getAclClass() {
-//        return aclClass;
-//    }
-//
-//    public void setAclClass(Class<? extends Object> aclClass) {
-//        this.aclClass = aclClass;
-//    }
-//
-//    public Class<? extends Object> getRoleClass() {
-//        return roleClass;
-//    }
-//
-//    public void setRoleClass(Class<? extends Object> roleClass) {
-//        this.roleClass = roleClass;
-//    }
-//
-//    public Class<? extends Object> getUserClass() {
-//        return userClass;
-//    }
-//
-//    public void setUserClass(Class<? extends Object> userClass) {
-//        this.userClass = userClass;
-//    }
 
     public int getConfigManagerCacheTimeout() {
         return configManagerCacheTimeout;
@@ -400,12 +368,31 @@ public class MorphiumConfig {
         this.maxConnections = maxConnections;
         this.globalCacheValidTime = globalCacheValidTime;
         this.housekeepingTimeout = housekeepingTimeout;
-//        LogManager.getLogManager().readConfiguration(logPropInput);
-        if (loggingConfigResource != null) {
+
+        if (loggingConfigResource != null && !isLoggingConfigured()) {
             DOMConfigurator.configure(loggingConfigResource);
         }
 
 
+    }
+
+    /**
+     * Returns true if it appears that log4j have been previously configured.
+     * http://wiki.apache.org/logging-log4j/UsefulCode
+     */
+    private static boolean isLoggingConfigured() {
+        Enumeration appenders = Logger.getRootLogger().getAllAppenders();
+        if (appenders.hasMoreElements()) {
+            return true;
+        } else {
+            Enumeration loggers = LogManager.getCurrentLoggers() ;
+            while (loggers.hasMoreElements()) {
+                Logger c = (Logger) loggers.nextElement();
+                if (c.getAllAppenders().hasMoreElements())
+                    return true;
+            }
+        }
+        return false;
     }
 
     public String getDatabase() {
