@@ -93,6 +93,8 @@ public class MongoTest {
         if (!MorphiumSingleton.isConfigured()) {
             MorphiumConfig cfg = new MorphiumConfig("morphium_test", MongoDbMode.REPLICASET, 5, 50000, 5000, new DefaultSecurityManager(), "morphium-log4j-test.xml");
 //            cfg.setTimeoutBugWorkAroundEnabled(true);
+
+
             cfg.addAddress("localhost", 27017);
             cfg.addAddress("localhost", 27018);
             cfg.addAddress("localhost", 27019);
@@ -101,6 +103,9 @@ public class MongoTest {
 //            cfg.addAddress("mongo3", 27017);
             cfg.setWriteCacheTimeout(100);
             cfg.setConnectionTimeout(10000);
+            cfg.setMaxWaitTime(1000);
+            cfg.setAutoreconnect(true);
+            cfg.setMaxAutoReconnectTime(5000);
             cfg.setDefaultReadPreference(ReadPreferenceLevel.NEAREST);
             cfg.setTimeoutBugWorkAroundEnabled(false);
             MorphiumSingleton.setConfig(cfg);

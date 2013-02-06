@@ -42,7 +42,7 @@ public class MorphiumConfig {
     private int socketTimeout = 0;
     private boolean socketKeepAlive = true;
 
-    private int maxWaitTime = 0;
+    private int maxWaitTime = 120000;
     private boolean autoreconnect = true;
     private int maxAutoReconnectTime = 0;
 
@@ -385,7 +385,7 @@ public class MorphiumConfig {
         if (appenders.hasMoreElements()) {
             return true;
         } else {
-            Enumeration loggers = LogManager.getCurrentLoggers() ;
+            Enumeration loggers = LogManager.getCurrentLoggers();
             while (loggers.hasMoreElements()) {
                 Logger c = (Logger) loggers.nextElement();
                 if (c.getAllAppenders().hasMoreElements())

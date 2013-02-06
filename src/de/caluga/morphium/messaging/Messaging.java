@@ -180,7 +180,7 @@ public class Messaging extends Thread {
     }
 
     public void removeListenerForMessageNamed(String n, MessageListener l) {
-        l.setMessaging(null);
+//        l.setMessaging(null);
         if (listenerByName.get(n) == null) {
             return;
         }
