@@ -25,7 +25,7 @@ public class ReplicaSetStatusTest extends MongoTest {
 
         ReplicaSetStatus stat = MorphiumSingleton.get().getReplicaSetStatus(true);
         log.info("Stat \n" + stat.toString());
-        assert (stat.getActiveNodes() == 3);
+        assert (stat.getActiveNodes() > 1);
     }
 
     @Test
