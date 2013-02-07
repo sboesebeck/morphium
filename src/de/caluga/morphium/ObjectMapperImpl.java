@@ -24,6 +24,7 @@ import java.util.*;
  * Time: 19:36
  * <p/>
  */
+@SuppressWarnings({"ConstantConditions", "MismatchedQueryAndUpdateOfCollection", "unchecked", "MismatchedReadAndWriteOfArray"})
 public class ObjectMapperImpl implements ObjectMapper {
     private static Logger log = Logger.getLogger(ObjectMapperImpl.class);
     private static volatile Map<Class<?>, List<Field>> fieldCache = new Hashtable<Class<?>, List<Field>>();
@@ -51,9 +52,9 @@ public class ObjectMapperImpl implements ObjectMapper {
      * converts a sql/javascript-Name to Java, e.g. converts document_id to
      * documentId.
      *
-     * @param n
+     * @param n          - string to convert
      * @param capitalize : if true, first letter will be capitalized
-     * @return
+     * @return the translated name (capitalized or camel_case => camelCase)
      */
     public String createCamelCase(String n, boolean capitalize) {
         n = n.toLowerCase();
@@ -75,9 +76,10 @@ public class ObjectMapperImpl implements ObjectMapper {
     /**
      * turns documentId into document_id
      *
-     * @param n
-     * @return
+     * @param n - string to convert
+     * @return converted string (camelCase becomes camel_case)
      */
+    @SuppressWarnings("StringBufferMayBeStringBuilder")
     public String convertCamelCase(String n) {
         StringBuffer b = new StringBuffer();
         for (int i = 0; i < n.length() - 1; i++) {
@@ -93,8 +95,8 @@ public class ObjectMapperImpl implements ObjectMapper {
     /**
      * override nameprovider in runtime!
      *
-     * @param cls
-     * @param np
+     * @param cls - class to use
+     * @param np  - the NameProvider for that class
      */
     public void setNameProviderForClass(Class<?> cls, NameProvider np) {
         nameProviders.put(cls, np);
@@ -125,6 +127,7 @@ public class ObjectMapperImpl implements ObjectMapper {
         return nameProviders.get(cls);
     }
 
+    @SuppressWarnings("unchecked")
     @Override
     public String getCollectionName(Class cls) {
         if (morphium == null) return null;
@@ -145,6 +148,7 @@ public class ObjectMapperImpl implements ObjectMapper {
         }
     }
 
+    @SuppressWarnings("unchecked")
     @Override
     public DBObject marshall(Object o) {
         //recursively map object ot mongo-Object...
@@ -310,7 +314,7 @@ public class ObjectMapperImpl implements ObjectMapper {
 
     private BasicDBList createDBList(List v) {
         BasicDBList lst = new BasicDBList();
-        for (Object lo : ((List) v)) {
+        for (Object lo : v) {
             if (lo != null) {
                 if (morphium.isAnnotationPresentInHierarchy(lo.getClass(), Entity.class) ||
                         morphium.isAnnotationPresentInHierarchy(lo.getClass(), Embedded.class)) {
@@ -337,6 +341,7 @@ public class ObjectMapperImpl implements ObjectMapper {
         return lst;
     }
 
+    @SuppressWarnings("unchecked")
     private BasicDBObject createDBMap(Map v) {
         BasicDBObject dbMap = new BasicDBObject();
         for (Map.Entry<Object, Object> es : ((Map<Object, Object>) v).entrySet()) {
@@ -371,6 +376,7 @@ public class ObjectMapperImpl implements ObjectMapper {
     }
 
 
+    @SuppressWarnings("unchecked")
     @Override
     public <T> T unmarshall(Class<? extends T> cls, DBObject o) {
         try {
@@ -467,7 +473,7 @@ public class ObjectMapperImpl implements ObjectMapper {
 
                     }
                 } else if (fld.isAnnotationPresent(Id.class)) {
-                    value = (ObjectId) o.get("_id");
+                    value = o.get("_id");
                 } else if (morphium.isAnnotationPresentInHierarchy(fld.getType(), Entity.class) || morphium.isAnnotationPresentInHierarchy(fld.getType(), Embedded.class)) {
                     //entity! embedded
                     value = unmarshall(fld.getType(), (DBObject) valueFromDb);
@@ -584,6 +590,7 @@ public class ObjectMapperImpl implements ObjectMapper {
         return mapValue;
     }
 
+    @SuppressWarnings({"unchecked", "ConstantConditions"})
     private void fillList(Field forField, BasicDBList fromDB, List toFillIn) {
         for (Object val : fromDB) {
             if (val instanceof BasicDBObject) {
@@ -604,7 +611,8 @@ public class ObjectMapperImpl implements ObjectMapper {
                     toFillIn.add(val);
                 }
             } else if (val instanceof ObjectId) {
-                log.fatal("Cannot de-reference to unknown collection");
+                log.warn("Cannot de-reference to unknown collection - trying to add ObjectId only");
+                toFillIn.add(val);
 
             } else if (val instanceof BasicDBList) {
                 //one list once more
@@ -672,8 +680,8 @@ public class ObjectMapperImpl implements ObjectMapper {
     /**
      * return list of fields in class - including hierachy!!!
      *
-     * @param clz
-     * @return
+     * @param clz class to get all fields for
+     * @return list of fields in that class
      */
     public List<Field> getAllFields(Class clz) {
         Class<?> cls = getRealClass(clz);
@@ -688,17 +696,13 @@ public class ObjectMapperImpl implements ObjectMapper {
             hierachy.add(sc);
             sc = sc.getSuperclass();
         }
-        for (Class c : cls.getInterfaces()) {
-            hierachy.add(c);
-        }
+        Collections.addAll(hierachy, cls.getInterfaces());
         //now we have a list of all classed up to Object
         //we need to run through it in the right order
         //in order to allow Inheritance to "shadow" fields
         for (int i = hierachy.size() - 1; i >= 0; i--) {
             Class c = hierachy.get(i);
-            for (Field f : c.getDeclaredFields()) {
-                ret.add(f);
-            }
+            Collections.addAll(ret, c.getDeclaredFields());
         }
 
         fieldCache.put(cls, ret);
@@ -886,7 +890,7 @@ public class ObjectMapperImpl implements ObjectMapper {
 
     @Override
     public boolean isEntity(Object o) {
-        Class cls = null;
+        Class cls;
         if (o == null) return false;
 
         if (o instanceof Class) {
@@ -928,9 +932,7 @@ public class ObjectMapperImpl implements ObjectMapper {
                     f.set(o, value);
                 } catch (Exception e) {
 
-                    if (value == null) {
-                        return;
-                    } else {
+                    if (value != null) {
                         if (log.isDebugEnabled()) {
                             log.debug("Setting of value (" + value.getClass().getSimpleName() + ") failed for field " + f.getName() + "- trying type-conversion");
                         }
@@ -965,7 +967,7 @@ public class ObjectMapperImpl implements ObjectMapper {
                                 //Fucking date / timestamp mixup
                                 f.set(o, new Date(d.longValue()));
                             } else if (f.getType().equals(Float.class) || f.getType().equals(float.class)) {
-                                f.set(o, d.floatValue());
+                                f.set(o, d);
                             } else if (f.getType().equals(Boolean.class) || f.getType().equals(boolean.class)) {
                                 f.set(o, d == 1.0f);
                             } else if (f.getType().equals(String.class)) {
@@ -1049,7 +1051,7 @@ public class ObjectMapperImpl implements ObjectMapper {
                                 f.set(o, l.doubleValue());
                             } else if (f.getType().equals(Date.class)) {
                                 //Fucking date / timestamp mixup
-                                f.set(o, new Date(l.longValue()));
+                                f.set(o, new Date(l));
                             } else if (f.getType().equals(Float.class) || f.getType().equals(float.class)) {
                                 f.set(o, l.floatValue());
                             } else if (f.getType().equals(Boolean.class) || f.getType().equals(boolean.class)) {
@@ -1080,7 +1082,6 @@ public class ObjectMapperImpl implements ObjectMapper {
             }
         } catch (IllegalAccessException e) {
             log.fatal("Illegal access to field " + fld + " of toype " + o.getClass().getSimpleName());
-            return;
         }
     }
 
