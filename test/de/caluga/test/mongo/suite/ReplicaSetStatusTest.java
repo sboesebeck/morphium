@@ -1,7 +1,6 @@
 package de.caluga.test.mongo.suite;
 
 import com.mongodb.WriteConcern;
-import de.caluga.morphium.MongoDbMode;
 import de.caluga.morphium.MorphiumSingleton;
 import de.caluga.morphium.replicaset.ReplicaSetStatus;
 import org.apache.log4j.Logger;
@@ -18,7 +17,7 @@ public class ReplicaSetStatusTest extends MongoTest {
 
     @Test
     public void testReplicaSetStatus() throws Exception {
-        if (!MorphiumSingleton.get().getConfig().getMode().equals(MongoDbMode.REPLICASET)) {
+        if (!MorphiumSingleton.get().isReplicaSet()) {
             log.warn("Not testing replicaset-status - not configured as such!");
             return;
         }

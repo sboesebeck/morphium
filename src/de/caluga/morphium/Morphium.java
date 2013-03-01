@@ -135,33 +135,34 @@ public final class Morphium {
         if (config.getAdr().isEmpty()) {
             throw new RuntimeException("Error - no server address specified!");
         }
-        switch (config.getMode()) {
-            case REPLICASET:
-                if (config.getAdr().size() < 2) {
-
-                    throw new RuntimeException("at least 2 Server Adresses needed for MongoDB in ReplicaSet Mode!");
-                }
-                mongo = new Mongo(config.getAdr(), o);
-                break;
-            case PAIRED:
-                throw new RuntimeException("PAIRED Mode not available anymore!!!!");
-//                if (config.getAdr().size() != 2) {
-//                    morphia = null;
-//                    dataStore = null;
-//                    throw new RuntimeException("2 Server Adresses needed for MongoDB in Paired Mode!");
-//                }
+//        switch (config.getMode()) {
+//            case REPLICASET:
+//                if (config.getAdr().size() < 2) {
 //
-//                morphium = new Mongo(config.getAdr().get(0), config.getAdr().get(1), o);
+//                    throw new RuntimeException("at least 2 Server Adresses needed for MongoDB in ReplicaSet Mode!");
+//                }
+//                mongo = new Mongo(config.getAdr(), o);
 //                break;
-            case SINGLE:
-            default:
-                if (config.getAdr().size() > 1) {
-//                    Logger.getLogger(Morphium.class.getName()).warning("WARNING: ignoring additional server Adresses only using 1st!");
-                }
-                mongo = new Mongo(config.getAdr().get(0), o);
-                break;
-        }
-
+//            case PAIRED:
+//                throw new RuntimeException("PAIRED Mode not available anymore!!!!");
+////                if (config.getAdr().size() != 2) {
+////                    morphia = null;
+////                    dataStore = null;
+////                    throw new RuntimeException("2 Server Adresses needed for MongoDB in Paired Mode!");
+////                }
+////
+////                morphium = new Mongo(config.getAdr().get(0), config.getAdr().get(1), o);
+////                break;
+//            case SINGLE:
+//            default:
+//                if (config.getAdr().size() > 1) {
+//                    throw new RuntimeException
+////                    Logger.getLogger(Morphium.class.getName()).warning("WARNING: ignoring additional server Adresses only using 1st!");
+//                }
+//                mongo = new Mongo(config.getAdr().get(0), o);
+//                break;
+//        }
+        mongo = new Mongo(config.getAdr(), o);
         database = mongo.getDB(config.getDatabase());
         if (config.isTimeoutBugWorkAroundEnabled()) {
             mongo.setReadPreference(ReadPreference.primary());
@@ -1081,7 +1082,7 @@ public final class Morphium {
      */
     @SuppressWarnings("unchecked")
     public de.caluga.morphium.replicaset.ReplicaSetStatus getReplicaSetStatus(boolean full) {
-        if (config.getMode().equals(MongoDbMode.REPLICASET)) {
+        if (config.getAdr().size() > 1) {
             try {
                 CommandResult res = getMongo().getDB("admin").command("replSetGetStatus");
                 de.caluga.morphium.replicaset.ReplicaSetStatus status = getConfig().getMapper().unmarshall(de.caluga.morphium.replicaset.ReplicaSetStatus.class, res);
@@ -1119,7 +1120,7 @@ public final class Morphium {
     }
 
     public boolean isReplicaSet() {
-        return config.getMode().equals(MongoDbMode.REPLICASET);
+        return config.getAdr().size() > 1;
     }
 
     @SuppressWarnings("ConstantConditions")

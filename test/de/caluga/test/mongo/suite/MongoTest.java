@@ -1,6 +1,5 @@
 package de.caluga.test.mongo.suite;
 
-import de.caluga.morphium.MongoDbMode;
 import de.caluga.morphium.MorphiumConfig;
 import de.caluga.morphium.MorphiumSingleton;
 import de.caluga.morphium.annotations.ReadPreferenceLevel;
@@ -91,7 +90,7 @@ public class MongoTest {
     @org.junit.BeforeClass
     public static void setUpClass() throws Exception {
         if (!MorphiumSingleton.isConfigured()) {
-            MorphiumConfig cfg = new MorphiumConfig("morphium_test", MongoDbMode.REPLICASET, 5, 50000, 5000, new DefaultSecurityManager(), "morphium-log4j-test.xml");
+            MorphiumConfig cfg = new MorphiumConfig("morphium_test", 5, 50000, 5000, new DefaultSecurityManager(), "morphium-log4j-test.xml");
 //            cfg.setTimeoutBugWorkAroundEnabled(true);
 
 
