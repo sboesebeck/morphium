@@ -31,7 +31,7 @@ import java.util.*;
 @SuppressWarnings("UnusedDeclaration")
 public class MorphiumConfig {
 
-    private MongoDbMode mode;
+    //    private MongoDbMode mode;
     private int maxConnections, housekeepingTimeout;
     private int globalCacheValidTime = 5000;
     private int writeCacheTimeout = 5000;
@@ -275,10 +275,6 @@ public class MorphiumConfig {
         this.configManagerCacheTimeout = configManagerCacheTimeout;
     }
 
-    public void setMode(MongoDbMode mode) {
-        this.mode = mode;
-    }
-
     public int getWriteCacheTimeout() {
         return writeCacheTimeout;
     }
@@ -307,9 +303,6 @@ public class MorphiumConfig {
         this.globalCacheValidTime = globalCacheValidTime;
     }
 
-    public MongoDbMode getMode() {
-        return mode;
-    }
 
     public List<ServerAddress> getAdr() {
         return adr;
@@ -343,19 +336,19 @@ public class MorphiumConfig {
         return globalCacheValidTime;
     }
 
-    public MorphiumConfig(String db, MongoDbMode mode, int maxConnections, int globalCacheValidTime, int housekeepingTimeout) throws IOException {
-        this(db, mode, maxConnections, globalCacheValidTime, housekeepingTimeout, new DefaultSecurityManager());
+    public MorphiumConfig(String db, int maxConnections, int globalCacheValidTime, int housekeepingTimeout) throws IOException {
+        this(db, maxConnections, globalCacheValidTime, housekeepingTimeout, new DefaultSecurityManager());
     }
 
-    public MorphiumConfig(String db, MongoDbMode mode, int maxConnections, int globalCacheValidTime, int housekeepingTimeout, MongoSecurityManager mgr) throws IOException {
-        this(db, mode, maxConnections, globalCacheValidTime, housekeepingTimeout, mgr, Thread.currentThread().getContextClassLoader().getResource("morphium-log4j.xml"));
+    public MorphiumConfig(String db, int maxConnections, int globalCacheValidTime, int housekeepingTimeout, MongoSecurityManager mgr) throws IOException {
+        this(db, maxConnections, globalCacheValidTime, housekeepingTimeout, mgr, Thread.currentThread().getContextClassLoader().getResource("morphium-log4j.xml"));
     }
 
-    public MorphiumConfig(String db, MongoDbMode mode, int maxConnections, int globalCacheValidTime, int housekeepingTimeout, MongoSecurityManager mgr, String resourceName) throws IOException {
-        this(db, mode, maxConnections, globalCacheValidTime, housekeepingTimeout, mgr, Thread.currentThread().getContextClassLoader().getResource(resourceName));
+    public MorphiumConfig(String db, int maxConnections, int globalCacheValidTime, int housekeepingTimeout, MongoSecurityManager mgr, String resourceName) throws IOException {
+        this(db, maxConnections, globalCacheValidTime, housekeepingTimeout, mgr, Thread.currentThread().getContextClassLoader().getResource(resourceName));
     }
 
-    public MorphiumConfig(String db, MongoDbMode mode, int maxConnections, int globalCacheValidTime, int housekeepingTimeout, MongoSecurityManager mgr, URL loggingConfigResource) {
+    public MorphiumConfig(String db, int maxConnections, int globalCacheValidTime, int housekeepingTimeout, MongoSecurityManager mgr, URL loggingConfigResource) {
 
         securityMgr = mgr;
         if (securityMgr == null) {
@@ -364,7 +357,6 @@ public class MorphiumConfig {
         validTimeByClassName = new Hashtable<String, Integer>();
         database = db;
         adr = new Vector<ServerAddress>();
-        this.mode = mode;
         this.maxConnections = maxConnections;
         this.globalCacheValidTime = globalCacheValidTime;
         this.housekeepingTimeout = housekeepingTimeout;
@@ -426,8 +418,7 @@ public class MorphiumConfig {
     @Override
     public String toString() {
         return "MorphiumConfig{" +
-                "mode=" + mode +
-                ", maxConnections=" + maxConnections +
+                " maxConnections=" + maxConnections +
                 ", housekeepingTimeout=" + housekeepingTimeout +
                 ", globalCacheValidTime=" + globalCacheValidTime +
                 ", writeCacheTimeout=" + writeCacheTimeout +
@@ -464,7 +455,6 @@ public class MorphiumConfig {
                 prefix = prefix + ".";
             }
         }
-        p.setProperty(prefix + "mode", mode.name());
         p.setProperty(prefix + "maxConnections", "" + maxConnections);
         p.setProperty(prefix + "housekeepingTimeout", "" + housekeepingTimeout);
         p.setProperty(prefix + "globalCacheValidTime", "" + globalCacheValidTime);
@@ -567,7 +557,6 @@ public class MorphiumConfig {
         connectionTimeout = Integer.valueOf(p.getProperty(prefix + "connectionTimeout", "0"));
         writeCacheTimeout = Integer.valueOf(p.getProperty(prefix + "writeCacheTimeout", "5000"));
         globalCacheValidTime = Integer.valueOf(p.getProperty(prefix + "globalCacheValidTime", "10000"));
-        mode = MongoDbMode.valueOf(p.getProperty(prefix + "mode", "SINGLE"));
         housekeepingTimeout = Integer.valueOf(p.getProperty(prefix + "housekeepingTimeout", "5000"));
         maxConnections = Integer.valueOf(p.getProperty(prefix + "maxConnections", "100"));
     }
