@@ -43,6 +43,23 @@ public class SequenceTest extends MongoTest {
         assert (v == 4);
     }
 
+    @Test
+    public void errorLockedSequenceTest() throws Exception {
+        MorphiumSingleton.get().dropCollection(Sequence.class);
+        SequenceGenerator sg = new SequenceGenerator(MorphiumSingleton.get(), "test", 1, 1);
+        sg.getNextValue(); //initializing
+
+        Sequence s = MorphiumSingleton.get().createQueryFor(Sequence.class).f("name").eq("test").get();
+        s.setLockedBy("noone");
+        MorphiumSingleton.get().store(s);
+        waitForWrites();
+        //now sequence is blocked by someone else... waiting 30s
+        long v = sg.getNextValue();
+        log.info("Got next Value: " + v);
+        assert (v == 2);
+
+
+    }
 
     @Test
     public void massiveMultiSequenceTest() throws Exception {

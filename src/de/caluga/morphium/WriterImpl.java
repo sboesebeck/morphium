@@ -1,6 +1,9 @@
 package de.caluga.morphium;
 
-import com.mongodb.*;
+import com.mongodb.BasicDBObject;
+import com.mongodb.DBCollection;
+import com.mongodb.DBObject;
+import com.mongodb.WriteConcern;
 import de.caluga.morphium.annotations.*;
 import de.caluga.morphium.annotations.caching.Cache;
 import de.caluga.morphium.query.Query;
@@ -94,13 +97,7 @@ public class WriterImpl implements Writer {
 
                         Field f = morphium.getField(type, ctf);
                         if (f != null) {
-                            try {
-                                f.set(o, morphium.getSecurityManager().getCurrentUserId());
-                            } catch (IllegalAccessException e) {
-                                logger.error("Could not set created by", e);
-                            }
                         }
-                        marshall.put(ctf, morphium.getSecurityManager().getCurrentUserId());
                     }
                 }
             }
@@ -131,13 +128,7 @@ public class WriterImpl implements Writer {
 
                     Field f = morphium.getField(type, ctf);
                     if (f != null) {
-                        try {
-                            f.set(o, morphium.getSecurityManager().getCurrentUserId());
-                        } catch (IllegalAccessException e) {
-                            logger.error("Could not set changed by", e);
-                        }
                     }
-                    marshall.put(ctf, morphium.getSecurityManager().getCurrentUserId());
                 }
             }
         }
@@ -370,14 +361,7 @@ public class WriterImpl implements Writer {
                 for (String ctf : lst) {
 
                     Field f = morphium.getField(type, ctf);
-                    if (f != null) {
-                        try {
-                            f.set(ent, morphium.getSecurityManager().getCurrentUserId());
-                        } catch (IllegalAccessException e) {
-                            logger.error("Could not set changed by", e);
-                        }
-                    }
-                    update.put(ctf, morphium.getSecurityManager().getCurrentUserId());
+
                 }
             }
         }

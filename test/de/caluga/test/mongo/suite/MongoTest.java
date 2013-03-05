@@ -4,7 +4,6 @@ import de.caluga.morphium.MorphiumConfig;
 import de.caluga.morphium.MorphiumSingleton;
 import de.caluga.morphium.annotations.ReadPreferenceLevel;
 import de.caluga.morphium.messaging.Msg;
-import de.caluga.morphium.secure.DefaultSecurityManager;
 import org.apache.log4j.Logger;
 
 import java.util.ArrayList;
@@ -90,7 +89,7 @@ public class MongoTest {
     @org.junit.BeforeClass
     public static void setUpClass() throws Exception {
         if (!MorphiumSingleton.isConfigured()) {
-            MorphiumConfig cfg = new MorphiumConfig("morphium_test", 5, 50000, 5000, new DefaultSecurityManager(), "morphium-log4j-test.xml");
+            MorphiumConfig cfg = new MorphiumConfig("morphium_test", 5, 50000, 5000, "morphium-log4j-test.xml");
 //            cfg.setTimeoutBugWorkAroundEnabled(true);
 
 

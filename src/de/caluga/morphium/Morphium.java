@@ -10,7 +10,6 @@ import de.caluga.morphium.annotations.*;
 import de.caluga.morphium.annotations.caching.Cache;
 import de.caluga.morphium.annotations.caching.NoCache;
 import de.caluga.morphium.annotations.lifecycle.*;
-import de.caluga.morphium.annotations.security.NoProtection;
 import de.caluga.morphium.cache.CacheElement;
 import de.caluga.morphium.cache.CacheHousekeeper;
 import de.caluga.morphium.query.MongoField;
@@ -18,9 +17,6 @@ import de.caluga.morphium.query.Query;
 import de.caluga.morphium.replicaset.ConfNode;
 import de.caluga.morphium.replicaset.ReplicaSetConf;
 import de.caluga.morphium.replicaset.ReplicaSetNode;
-import de.caluga.morphium.secure.MongoSecurityException;
-import de.caluga.morphium.secure.MongoSecurityManager;
-import de.caluga.morphium.secure.Permission;
 import de.caluga.morphium.validation.JavaxValidationStorageListener;
 import net.sf.cglib.proxy.Enhancer;
 import org.apache.log4j.Logger;
@@ -114,69 +110,38 @@ public final class Morphium {
             stats.put(k, new StatisticValue());
         }
 
-
-        //dummyUser.setGroupIds();
         MongoOptions o = new MongoOptions();
-        o.autoConnectRetry = config.isAutoreconnect();
-        o.safe = true;
-        o.fsync = true;
-        o.socketTimeout = config.getSocketTimeout();
-        o.connectTimeout = config.getConnectionTimeout();
-        o.connectionsPerHost = config.getMaxConnections();
-        o.socketKeepAlive = config.isSocketKeepAlive();
-        o.threadsAllowedToBlockForConnectionMultiplier = 5;
+        o.setAutoConnectRetry(config.isAutoreconnect());
+        o.setSafe(config.isSafeMode());
+        o.setFsync(config.isGlobalFsync());
+        o.setSocketTimeout(config.getSocketTimeout());
+        o.setConnectTimeout(config.getConnectionTimeout());
+        o.setConnectionsPerHost(config.getMaxConnections());
+        o.setSocketKeepAlive(config.isSocketKeepAlive());
+        o.setThreadsAllowedToBlockForConnectionMultiplier(config.getBlockingThreadsMultiplier());
+        o.setJ(config.isGlobalJ());
+        o.setW(config.getGlobalW());
+        o.setWtimeout(config.getWriteTimeout());
         o.setMaxAutoConnectRetryTime(config.getMaxAutoReconnectTime());
         o.setMaxWaitTime(config.getMaxWaitTime());
 
 
         writers.setCorePoolSize(config.getMaxConnections() / 2);
-        writers.setMaximumPoolSize(config.getMaxConnections());
+        writers.setMaximumPoolSize(config.getMaxConnections() + 1);
 
         if (config.getAdr().isEmpty()) {
             throw new RuntimeException("Error - no server address specified!");
         }
-//        switch (config.getMode()) {
-//            case REPLICASET:
-//                if (config.getAdr().size() < 2) {
-//
-//                    throw new RuntimeException("at least 2 Server Adresses needed for MongoDB in ReplicaSet Mode!");
-//                }
-//                mongo = new Mongo(config.getAdr(), o);
-//                break;
-//            case PAIRED:
-//                throw new RuntimeException("PAIRED Mode not available anymore!!!!");
-////                if (config.getAdr().size() != 2) {
-////                    morphia = null;
-////                    dataStore = null;
-////                    throw new RuntimeException("2 Server Adresses needed for MongoDB in Paired Mode!");
-////                }
-////
-////                morphium = new Mongo(config.getAdr().get(0), config.getAdr().get(1), o);
-////                break;
-//            case SINGLE:
-//            default:
-//                if (config.getAdr().size() > 1) {
-//                    throw new RuntimeException
-////                    Logger.getLogger(Morphium.class.getName()).warning("WARNING: ignoring additional server Adresses only using 1st!");
-//                }
-//                mongo = new Mongo(config.getAdr().get(0), o);
-//                break;
-//        }
         mongo = new Mongo(config.getAdr(), o);
         database = mongo.getDB(config.getDatabase());
-        if (config.isTimeoutBugWorkAroundEnabled()) {
-            mongo.setReadPreference(ReadPreference.primary());
-        } else {
-            if (config.getDefaultReadPreference() != null) {
-                mongo.setReadPreference(config.getDefaultReadPreference().getPref());
-            }
+        if (config.getDefaultReadPreference() != null) {
+            mongo.setReadPreference(config.getDefaultReadPreference().getPref());
         }
         if (config.getMongoLogin() != null) {
             if (!database.authenticate(config.getMongoLogin(), config.getMongoPassword().toCharArray())) {
                 throw new RuntimeException("Authentication failed!");
             }
         }
-//        int cnt = database.getCollection("system.indexes").find().count(); //test connection
 
         if (config.getConfigManager() == null) {
             config.setConfigManager(new ConfigManagerImpl());
@@ -288,11 +253,6 @@ public final class Morphium {
     public void unset(final Object toSet, final String field) {
         if (toSet == null) throw new RuntimeException("Cannot update null!");
 
-        if (!isAnnotationPresentInHierarchy(toSet.getClass(), NoProtection.class)) {
-            if (accessDenied(toSet.getClass(), Permission.UPDATE)) {
-                throw new SecurityException("Update of Object denied!");
-            }
-        }
         firePreUpdateEvent(toSet.getClass(), MorphiumStorageListener.UpdateTypes.UNSET);
         Cache c = getAnnotationFromHierarchy(toSet.getClass(), Cache.class);
         if (isAnnotationPresentInHierarchy(toSet.getClass(), NoCache.class) || c == null || !c.writeCache()) {
@@ -431,9 +391,6 @@ public final class Morphium {
     public void push(final Query<?> query, final String field, final Object value, final boolean insertIfNotExist, final boolean multiple) {
         if (query == null || field == null) throw new RuntimeException("Cannot update null!");
 
-        if (accessDenied(query.getType(), Permission.UPDATE)) {
-            throw new SecurityException("Update of Object denied!");
-        }
         firePreUpdateEvent(query.getType(), MorphiumStorageListener.UpdateTypes.PUSH);
         if (!isWriteCached(query.getType())) {
             config.getWriter().pushPull(true, query, field, value, insertIfNotExist, multiple);
@@ -452,9 +409,6 @@ public final class Morphium {
     public void pull(final Query<?> query, final String field, final Object value, final boolean insertIfNotExist, final boolean multiple) {
         if (query == null || field == null) throw new RuntimeException("Cannot update null!");
 
-        if (accessDenied(query.getType(), Permission.UPDATE)) {
-            throw new SecurityException("Update of Object denied!");
-        }
         firePreUpdateEvent(query.getType(), MorphiumStorageListener.UpdateTypes.PULL);
         if (!isWriteCached(query.getType())) {
             config.getWriter().pushPull(false, query, field, value, insertIfNotExist, multiple);
@@ -473,9 +427,6 @@ public final class Morphium {
     public void pushAll(final Query<?> query, final String field, final List<?> value, final boolean insertIfNotExist, final boolean multiple) {
         if (query == null || field == null) throw new RuntimeException("Cannot update null!");
 
-        if (accessDenied(query.getType(), Permission.UPDATE)) {
-            throw new SecurityException("Update of Object denied!");
-        }
         firePreUpdateEvent(query.getType(), MorphiumStorageListener.UpdateTypes.PUSH);
         if (!isWriteCached(query.getType())) {
             config.getWriter().pushPullAll(true, query, field, value, insertIfNotExist, multiple);
@@ -519,9 +470,6 @@ public final class Morphium {
     public void set(final Query<?> query, final Map<String, Object> map, final boolean insertIfNotExist, final boolean multiple) {
         if (query == null) throw new RuntimeException("Cannot update null!");
 
-        if (accessDenied(query.getType(), Permission.UPDATE)) {
-            throw new SecurityException("Update of Object denied!");
-        }
         firePreUpdateEvent(query.getType(), MorphiumStorageListener.UpdateTypes.SET);
         Cache c = getAnnotationFromHierarchy(query.getType(), Cache.class);
         if (isAnnotationPresentInHierarchy(query.getType(), NoCache.class) || c == null || !c.writeCache()) {
@@ -572,11 +520,6 @@ public final class Morphium {
     public void inc(final Query<?> query, final String name, final int amount, final boolean insertIfNotExist, final boolean multiple) {
         if (query == null) throw new RuntimeException("Cannot update null!");
 
-        if (!isAnnotationPresentInHierarchy(query.getType(), NoProtection.class)) {
-            if (accessDenied(query.getType(), Permission.UPDATE)) {
-                throw new SecurityException("Update of Object denied!");
-            }
-        }
         firePreUpdateEvent(query.getType(), MorphiumStorageListener.UpdateTypes.INC);
         Cache c = getAnnotationFromHierarchy(query.getType(), Cache.class);
         if (isAnnotationPresentInHierarchy(query.getType(), NoCache.class) || c == null || !c.writeCache()) {
@@ -610,17 +553,6 @@ public final class Morphium {
     public void set(final Object toSet, final String field, final Object value) {
         if (toSet == null) throw new RuntimeException("Cannot update null!");
 
-        if (!isAnnotationPresentInHierarchy(toSet.getClass(), NoProtection.class)) {
-            if (getId(toSet) == null) {
-                if (accessDenied(toSet, Permission.INSERT)) {
-                    throw new SecurityException("Insert of new Object denied!");
-                }
-            } else {
-                if (accessDenied(toSet, Permission.UPDATE)) {
-                    throw new SecurityException("Update of Object denied!");
-                }
-            }
-        }
         if (getId(toSet) == null) {
             logger.info("just storing object as it is new...");
             store(toSet);
@@ -653,17 +585,6 @@ public final class Morphium {
     public void inc(final Object toSet, final String field, final int i) {
         if (toSet == null) throw new RuntimeException("Cannot update null!");
 
-        if (!isAnnotationPresentInHierarchy(toSet.getClass(), NoProtection.class)) {
-            if (getId(toSet) == null) {
-                if (accessDenied(toSet, Permission.INSERT)) {
-                    throw new SecurityException("Insert of new Object denied!");
-                }
-            } else {
-                if (accessDenied(toSet, Permission.UPDATE)) {
-                    throw new SecurityException("Update of Object denied!");
-                }
-            }
-        }
         if (getId(toSet) == null) {
             logger.info("just storing object as it is new...");
             store(toSet);
@@ -786,17 +707,6 @@ public final class Morphium {
     public void updateUsingFields(final Object ent, final String... fields) {
         if (ent == null) return;
         if (fields.length == 0) return; //not doing an update - no change
-        if (!isAnnotationPresentInHierarchy(ent.getClass(), NoProtection.class)) {
-            if (getId(ent) == null) {
-                if (accessDenied(ent, Permission.INSERT)) {
-                    throw new SecurityException("Insert of new Object denied!");
-                }
-            } else {
-                if (accessDenied(ent, Permission.UPDATE)) {
-                    throw new SecurityException("Update of Object denied!");
-                }
-            }
-        }
 
         if (isAnnotationPresentInHierarchy(ent.getClass(), NoCache.class)) {
             config.getWriter().storeUsingFields(ent, fields);
@@ -1135,7 +1045,7 @@ public final class Morphium {
             fsync = false;
         }
         int w = safety.level().getValue();
-        if (!isReplicaSet() && w > 1 || config.isTimeoutBugWorkAroundEnabled()) {
+        if (!isReplicaSet() && w > 1) {
             w = 1;
         }
         int timeout = safety.timeout();
@@ -1288,17 +1198,6 @@ public final class Morphium {
      */
     @SuppressWarnings("unchecked")
     public void clearCollection(Class<?> cls) {
-        if (!isAnnotationPresentInHierarchy(cls, NoProtection.class)) { //cls.isAnnotationPresent(NoProtection.class)) {
-            try {
-                if (accessDenied(cls.newInstance(), Permission.DROP)) {
-                    throw new SecurityException("Drop / clear of Collection denied!");
-                }
-            } catch (InstantiationException ex) {
-                Logger.getLogger(Morphium.class).error(ex);
-            } catch (IllegalAccessException ex) {
-                Logger.getLogger(Morphium.class).error(ex);
-            }
-        }
         firePreDropEvent(cls);
         delete(createQueryFor(cls));
         firePostDropEvent(cls);
@@ -1312,19 +1211,6 @@ public final class Morphium {
      */
 
     public void clearCollectionOneByOne(Class<?> cls) {
-        if (!isAnnotationPresentInHierarchy(cls, NoProtection.class)) { //cls.isAnnotationPresent(NoProtection.class)) {
-            try {
-                if (accessDenied(cls.newInstance(), Permission.DROP)) {
-                    throw new SecurityException("Drop / clear of Collection denied!");
-                }
-            } catch (InstantiationException ex) {
-                Logger.getLogger(Morphium.class).error(ex);
-            } catch (IllegalAccessException ex) {
-                Logger.getLogger(Morphium.class).error(ex);
-            }
-        }
-
-
         inc(StatisticKeys.WRITES);
         List<?> lst = readAll(cls);
         for (Object r : lst) {
@@ -1628,25 +1514,6 @@ public final class Morphium {
     }
 
     public void dropCollection(Class<?> cls) {
-        if (!isAnnotationPresentInHierarchy(cls, NoProtection.class)) {
-            try {
-                if (accessDenied(cls.newInstance(), Permission.DROP)) {
-                    throw new SecurityException("Drop of Collection denied!");
-                }
-            } catch (InstantiationException ex) {
-                Logger.getLogger(Morphium.class.getName()).fatal(ex);
-            } catch (IllegalAccessException ex) {
-                Logger.getLogger(Morphium.class.getName()).fatal(ex);
-            }
-        }
-
-//        if (config.getMode() == MongoDbMode.REPLICASET && config.getAdr().size() > 1) {
-//            //replicaset
-//            logger.warn("Cannot drop collection for class " + cls.getSimpleName() + " as we're in a clustered environment (Driver 2.8.0)");
-//            clearCollection(cls);
-//            return;
-//        }
-
         if (isAnnotationPresentInHierarchy(cls, Entity.class)) {
             firePreDropEvent(cls);
             long start = System.currentTimeMillis();
@@ -1733,17 +1600,6 @@ public final class Morphium {
 
         Class<?> type = getRealClass(o.getClass());
         final boolean isNew = getId(o) == null;
-        if (!isAnnotationPresentInHierarchy(type, NoProtection.class)) { //o.getClass().isAnnotationPresent(NoProtection.class)) {
-            if (isNew) {
-                if (accessDenied(o, Permission.INSERT)) {
-                    throw new SecurityException("Insert of new Object denied!");
-                }
-            } else {
-                if (accessDenied(o, Permission.UPDATE)) {
-                    throw new SecurityException("Update of Object denied!");
-                }
-            }
-        }
         firePreStoreEvent(o, isNew);
         Cache cc = getAnnotationFromHierarchy(type, Cache.class);//o.getClass().getAnnotation(Cache.class);
         if (cc == null || isAnnotationPresentInHierarchy(o.getClass(), NoCache.class) || !cc.writeCache()) {
@@ -1771,16 +1627,6 @@ public final class Morphium {
 
         //checking permission - might take some time ;-(
         for (T o : lst) {
-            if (getId(o) == null) {
-                if (accessDenied(o, Permission.INSERT)) {
-                    throw new SecurityException("Insert of new Object denied!");
-                }
-            } else {
-                if (accessDenied(o, Permission.UPDATE)) {
-                    throw new SecurityException("Update of Object denied!");
-                }
-            }
-
             Cache c = getAnnotationFromHierarchy(o.getClass(), Cache.class);//o.getClass().getAnnotation(Cache.class);
             if (isAnnotationPresentInHierarchy(o.getClass(), NoCache.class) || c == null || !c.writeCache()) {
                 storeDirect.add(o);
@@ -1804,11 +1650,6 @@ public final class Morphium {
     }
 
     public void delete(Query o) {
-        if (!isAnnotationPresentInHierarchy(o.getClass(), NoProtection.class)) {
-            if (accessDenied(o, Permission.DELETE)) {
-                throw new SecurityException("Deletion of Object denied!");
-            }
-        }
         callLifecycleMethod(PreRemove.class, o);
         firePreRemoveEvent(o);
 
@@ -1843,11 +1684,6 @@ public final class Morphium {
             return;
         }
         o = getRealObject(o);
-        if (!isAnnotationPresentInHierarchy(o.getClass(), NoProtection.class)) {
-            if (accessDenied(o, Permission.DELETE)) {
-                throw new SecurityException("Deletion of Object denied!");
-            }
-        }
         firePreRemoveEvent(o);
 
         Cache cc = getAnnotationFromHierarchy(o.getClass(), Cache.class);//o.getClass().getAnnotation(Cache.class);
@@ -2057,56 +1893,6 @@ public final class Morphium {
         List<String> lst = config.getMapper().getFields(cls, CreatedBy.class);
         if (lst == null || lst.isEmpty()) return null;
         return lst.get(0);
-    }
-
-
-    //////////////////////////////////////////////////////
-    ////////// SecuritySettings
-    ///////
-    /////
-    ////
-    ///
-    //
-    public MongoSecurityManager getSecurityManager() {
-        return config.getSecurityMgr();
-    }
-
-    /**
-     * temporarily switch off security settings - needed by SecurityManagers
-     */
-    public void setPrivileged() {
-        privileged.add(Thread.currentThread());
-    }
-
-    public boolean checkAccess(String domain, Permission p) throws MongoSecurityException {
-        if (privileged.contains(Thread.currentThread())) {
-            privileged.remove(Thread.currentThread());
-            return true;
-        }
-        return getSecurityManager().checkAccess(domain, p);
-    }
-
-    public boolean accessDenied(Class<?> cls, Permission p) throws MongoSecurityException {
-        if (isAnnotationPresentInHierarchy(cls, NoProtection.class)) {
-            return false;
-        }
-        if (privileged.contains(Thread.currentThread())) {
-            privileged.remove(Thread.currentThread());
-            return false;
-        }
-        return !getSecurityManager().checkAccess(cls, p);
-    }
-
-    public boolean accessDenied(Object r, Permission p) throws MongoSecurityException {
-        if (isAnnotationPresentInHierarchy(r.getClass(), NoProtection.class)) {
-            return false;
-        }
-        if (privileged.contains(Thread.currentThread())) {
-            privileged.remove(Thread.currentThread());
-            return false;
-        }
-
-        return !getSecurityManager().checkAccess(config.getMapper().getRealObject(r), p);
     }
 
 

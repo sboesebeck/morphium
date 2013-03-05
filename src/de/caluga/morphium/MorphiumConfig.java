@@ -12,8 +12,6 @@ import de.caluga.morphium.aggregation.AggregatorFactoryImpl;
 import de.caluga.morphium.aggregation.AggregatorImpl;
 import de.caluga.morphium.annotations.ReadPreferenceLevel;
 import de.caluga.morphium.query.*;
-import de.caluga.morphium.secure.DefaultSecurityManager;
-import de.caluga.morphium.secure.MongoSecurityManager;
 import org.apache.log4j.LogManager;
 import org.apache.log4j.Logger;
 import org.apache.log4j.xml.DOMConfigurator;
@@ -41,10 +39,18 @@ public class MorphiumConfig {
     private int connectionTimeout = 0;
     private int socketTimeout = 0;
     private boolean socketKeepAlive = true;
+    private boolean safeMode = false;
+    private boolean globalFsync = false;
+    private boolean globalJ = false;
+    private int writeTimeout = 0;
+
+    private int globalW = 1; //number of writes
+
 
     private int maxWaitTime = 120000;
     private boolean autoreconnect = true;
     private int maxAutoReconnectTime = 0;
+    private int blockingThreadsMultiplier = 5;
 
     private Class<? extends Query> queryClass;
     private Class<? extends Aggregator> aggregatorClass;
@@ -52,14 +58,6 @@ public class MorphiumConfig {
     private QueryFactory queryFact;
     private AggregatorFactory aggregatorFactory;
 
-    /**
-     * unfortunately it seems there is a bug with mongodb in clustered environment
-     * it happens, when writing to all slaves and waiting for it.
-     * This is rather annoying, then every time there is a timeout-exception.
-     * Workaround is: don't wait for all slaves, just one node and have SlaveOk==false (only primary!)
-     * this increases the load on the primary, but works at least :-/
-     */
-    private boolean timeoutBugWorkAroundEnabled = false;
 
     /**
      * login credentials for MongoDB - if necessary. If null, don't authenticate
@@ -75,19 +73,34 @@ public class MorphiumConfig {
     private String superUserLogin, superUserPassword; //THE superuser!
     private String adminGroupName; //Admin group - superusers except the superuserAdmin
 
-    private MongoSecurityManager securityMgr;
     private ObjectMapper mapper = new ObjectMapperImpl();
     private Class<? extends MongoField> fieldImplClass = MongoFieldImpl.class;
 
     private ReadPreferenceLevel defaultReadPreference;
     private Class<? extends MorphiumIterator> iteratorClass;
 
-    public boolean isTimeoutBugWorkAroundEnabled() {
-        return timeoutBugWorkAroundEnabled;
+    public int getWriteTimeout() {
+        return writeTimeout;
     }
 
-    public void setTimeoutBugWorkAroundEnabled(boolean timeoutBugWorkAroundEnabled) {
-        this.timeoutBugWorkAroundEnabled = timeoutBugWorkAroundEnabled;
+    public void setWriteTimeout(int writeTimeout) {
+        this.writeTimeout = writeTimeout;
+    }
+
+    public int getGlobalW() {
+        return globalW;
+    }
+
+    public void setGlobalW(int globalW) {
+        this.globalW = globalW;
+    }
+
+    public boolean isGlobalJ() {
+        return globalJ;
+    }
+
+    public void setGlobalJ(boolean globalJ) {
+        this.globalJ = globalJ;
     }
 
     public Class<? extends Query> getQueryClass() {
@@ -130,9 +143,32 @@ public class MorphiumConfig {
         return aggregatorClass;
     }
 
+    public boolean isGlobalFsync() {
+        return globalFsync;
+    }
+
+    public void setGlobalFsync(boolean globalFsync) {
+        this.globalFsync = globalFsync;
+    }
+
+    public boolean isSafeMode() {
+        return safeMode;
+    }
+
+    public void setSafeMode(boolean safeMode) {
+        this.safeMode = safeMode;
+    }
 
     public void setAggregatorClass(Class<? extends Aggregator> aggregatorClass) {
         this.aggregatorClass = aggregatorClass;
+    }
+
+    public int getBlockingThreadsMultiplier() {
+        return blockingThreadsMultiplier;
+    }
+
+    public void setBlockingThreadsMultiplier(int blockingThreadsMultiplier) {
+        this.blockingThreadsMultiplier = blockingThreadsMultiplier;
     }
 
     public Writer getWriter() {
@@ -225,14 +261,6 @@ public class MorphiumConfig {
 
     public void setMongoPassword(String mongoPassword) {
         this.mongoPassword = mongoPassword;
-    }
-
-    public MongoSecurityManager getSecurityMgr() {
-        return securityMgr;
-    }
-
-    public void setSecurityMgr(MongoSecurityManager securityMgr) {
-        this.securityMgr = securityMgr;
     }
 
     public ReadPreferenceLevel getDefaultReadPreference() {
@@ -337,23 +365,16 @@ public class MorphiumConfig {
     }
 
     public MorphiumConfig(String db, int maxConnections, int globalCacheValidTime, int housekeepingTimeout) throws IOException {
-        this(db, maxConnections, globalCacheValidTime, housekeepingTimeout, new DefaultSecurityManager());
+        this(db, maxConnections, globalCacheValidTime, housekeepingTimeout, Thread.currentThread().getContextClassLoader().getResource("morphium-log4j.xml"));
     }
 
-    public MorphiumConfig(String db, int maxConnections, int globalCacheValidTime, int housekeepingTimeout, MongoSecurityManager mgr) throws IOException {
-        this(db, maxConnections, globalCacheValidTime, housekeepingTimeout, mgr, Thread.currentThread().getContextClassLoader().getResource("morphium-log4j.xml"));
+    public MorphiumConfig(String db, int maxConnections, int globalCacheValidTime, int housekeepingTimeout, String resourceName) throws IOException {
+        this(db, maxConnections, globalCacheValidTime, housekeepingTimeout, Thread.currentThread().getContextClassLoader().getResource(resourceName));
     }
 
-    public MorphiumConfig(String db, int maxConnections, int globalCacheValidTime, int housekeepingTimeout, MongoSecurityManager mgr, String resourceName) throws IOException {
-        this(db, maxConnections, globalCacheValidTime, housekeepingTimeout, mgr, Thread.currentThread().getContextClassLoader().getResource(resourceName));
-    }
+    public MorphiumConfig(String db, int maxConnections, int globalCacheValidTime, int housekeepingTimeout, URL loggingConfigResource) {
 
-    public MorphiumConfig(String db, int maxConnections, int globalCacheValidTime, int housekeepingTimeout, MongoSecurityManager mgr, URL loggingConfigResource) {
 
-        securityMgr = mgr;
-        if (securityMgr == null) {
-            securityMgr = new DefaultSecurityManager();
-        }
         validTimeByClassName = new Hashtable<String, Integer>();
         database = db;
         adr = new Vector<ServerAddress>();
@@ -436,7 +457,6 @@ public class MorphiumConfig {
                 ", superUserLogin='" + superUserLogin + '\'' +
                 ", superUserPassword='" + superUserPassword + '\'' +
                 ", adminGroupName='" + adminGroupName + '\'' +
-                ", securityMgr=" + securityMgr +
                 ", mapper=" + mapper +
                 ", fieldImplClass='" + fieldImplClass + '\'' +
                 '}';
@@ -481,7 +501,6 @@ public class MorphiumConfig {
         p.setProperty(prefix + "adminGroupName", adminGroupName);
         p.setProperty(prefix + "fieldImplClass", fieldImplClass.getName());
         p.setProperty(prefix + "mapperClass", mapper.getClass().getName());
-        p.setProperty(prefix + "securityManagerClass", securityMgr.getClass().getName());
     }
 
     public void initFromProperty(Properties p) {
@@ -506,11 +525,6 @@ public class MorphiumConfig {
         String mapperCls = p.getProperty(prefix + "mapperClass", ObjectMapperImpl.class.getName());
         try {
             mapper = (ObjectMapper) Class.forName(mapperCls).newInstance();
-        } catch (Exception ignored) {
-        }
-        String securityMgrCls = p.getProperty(prefix + "securityManagerClass", DefaultSecurityManager.class.getName());
-        try {
-            securityMgr = (MongoSecurityManager) Class.forName(securityMgrCls).newInstance();
         } catch (Exception ignored) {
         }
         adminGroupName = p.getProperty(prefix + "adminGroupName");
@@ -543,14 +557,10 @@ public class MorphiumConfig {
         if (adr.isEmpty()) {
             throw new IllegalArgumentException("No valid host specified!");
         }
-        timeoutBugWorkAroundEnabled = p.getProperty(prefix + "timeoutBugWorkaroundEnabled", "false").equals("true");
         configManagerCacheTimeout = Integer.valueOf(p.getProperty(prefix + "configManagerCacheTimeout", "60000"));
         mongoPassword = p.getProperty(prefix + "password");
         mongoLogin = p.getProperty(prefix + "login");
         defaultReadPreference = ReadPreferenceLevel.valueOf(p.getProperty(prefix + "readPreferenceLevel", "NEAREST"));
-        if (timeoutBugWorkAroundEnabled) {
-            defaultReadPreference = ReadPreferenceLevel.PRIMARY;
-        }
         socketKeepAlive = p.getProperty(prefix + "socketKeepAlive", "true").equalsIgnoreCase("true");
         socketTimeout = Integer.valueOf(p.getProperty(prefix + "socketTimeout", "0"));
         database = p.getProperty(prefix + "database", "morphium");

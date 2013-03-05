@@ -7,7 +7,6 @@ import de.caluga.morphium.ReadAccessType;
 import de.caluga.morphium.StatisticKeys;
 import de.caluga.morphium.annotations.*;
 import de.caluga.morphium.annotations.caching.Cache;
-import de.caluga.morphium.secure.Permission;
 import org.apache.log4j.Logger;
 import org.bson.types.ObjectId;
 
@@ -121,10 +120,6 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
 
     @Override
     public List<T> complexQuery(DBObject query, Map<String, Integer> sort, int skip, int limit) {
-        if (morphium.accessDenied(type, Permission.READ)) {
-            throw new RuntimeException("Access denied!");
-        }
-
         String ck = morphium.getCacheKey(query, sort, skip, limit);
         if (morphium.isCached(type, ck)) {
             return morphium.getFromCache(type, ck);
@@ -317,9 +312,6 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
 
     @Override
     public long countAll() {
-        if (morphium.accessDenied(type, Permission.READ)) {
-            throw new RuntimeException("Access denied!");
-        }
         morphium.inc(StatisticKeys.READS);
 
         long start = System.currentTimeMillis();
@@ -412,9 +404,6 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
 
     @Override
     public List<T> asList() {
-        if (morphium.accessDenied(type, Permission.READ)) {
-            throw new RuntimeException("Access denied!");
-        }
         morphium.inc(StatisticKeys.READS);
         Cache c = morphium.getAnnotationFromHierarchy(type, Cache.class); //type.getAnnotation(Cache.class);
         boolean useCache = c != null && c.readCache();
@@ -519,16 +508,7 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
                     }
                 }
             }
-            lst = morphium.getMapper().getFields(type, LastAccessBy.class);
-            for (String ctf : lst) {
-                Field f = morphium.getMapper().getField(type, ctf);
-                try {
-                    f.set(o, morphium.getConfig().getSecurityMgr().getCurrentUserId());
-                } catch (IllegalAccessException e) {
-//                    logger.error("Could not set changed by",e);
-                }
 
-            }
             //Storing access timestamps
             morphium.store(unmarshall);
         }

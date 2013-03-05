@@ -151,7 +151,6 @@ public class ConfigManagerImpl implements ConfigManager {
 
         Query q = morphium.createQueryFor(ConfigElement.class);
         q.f("name").eq(k);
-        morphium.setPrivileged();
         List<ConfigElement> lst = morphium.find(q);
         if (lst.size() > 0) {
             c.setId(lst.get(0).getId()); //setting id to enforce update
@@ -187,7 +186,6 @@ public class ConfigManagerImpl implements ConfigManager {
 //        c.setName(k);
         Query<ConfigElement> q = morphium.createQueryFor(ConfigElement.class);
         q = q.f("name").eq(k);
-        morphium.setPrivileged();
         List<ConfigElement> lst = morphium.find(q);
 
         if (lst.size() > 1) {
@@ -238,7 +236,6 @@ public class ConfigManagerImpl implements ConfigManager {
     @Override
     public void storeSetting(ConfigElement e) {
         updateLocal(e);
-        morphium.setPrivileged();
         morphium.store(e);
     }
 

@@ -5,7 +5,6 @@ import de.caluga.morphium.MorphiumConfig;
 import de.caluga.morphium.annotations.Embedded;
 import de.caluga.morphium.annotations.ReadPreferenceLevel;
 import de.caluga.morphium.query.Query;
-import de.caluga.morphium.secure.DefaultSecurityManager;
 import org.apache.log4j.Logger;
 import org.junit.Test;
 
@@ -25,7 +24,7 @@ public class FailoverTests {
     private boolean read = true;
 
     public MorphiumConfig getCfg() throws Exception {
-        MorphiumConfig cfg = new MorphiumConfig("morphium_test", 5, 50000, 5000, new DefaultSecurityManager(), "morphium-log4j-test.xml");
+        MorphiumConfig cfg = new MorphiumConfig("morphium_test", 5, 50000, 5000, "morphium-log4j-test.xml");
         cfg.addAddress("localhost", 27017);
         cfg.addAddress("localhost", 27018);
         cfg.addAddress("localhost", 27019);
