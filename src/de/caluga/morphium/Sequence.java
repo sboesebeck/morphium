@@ -27,20 +27,16 @@ public class Sequence {
     private Long currentValue;
     @Index
     private String lockedBy;
+    private long lockedAt;
 
 
-    /**
-     * Property name constant for {@code lockedBy}.
-     */
-    public static final String PROPERTYNAME_LOCKED_BY = "lockedBy";
-    /**
-     * Property name constant for {@code name}.
-     */
-    public static final String PROPERTYNAME_NAME = "name";
-    /**
-     * Property name constant for {@code currentValue}.
-     */
-    public static final String PROPERTYNAME_CURRENT_VALUE = "currentValue";
+    public long getLockedAt() {
+        return lockedAt;
+    }
+
+    public void setLockedAt(long lockedAt) {
+        this.lockedAt = lockedAt;
+    }
 
     public String getName() {
         return name;
