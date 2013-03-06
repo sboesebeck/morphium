@@ -22,10 +22,63 @@ public class UncachedObject {
     @Index
     private int counter;
 
+    private byte[] binaryData;
+    private int[] intData;
+    private long[] longData;
+    private float[] floatData;
+    private double[] doubleData;
+    private boolean[] boolData;
 
-    private
     @Id
     ObjectId mongoId;
+
+    public double[] getDoubleData() {
+        return doubleData;
+    }
+
+    public void setDoubleData(double[] doubleData) {
+        this.doubleData = doubleData;
+    }
+
+    public int[] getIntData() {
+        return intData;
+    }
+
+    public void setIntData(int[] intData) {
+        this.intData = intData;
+    }
+
+    public long[] getLongData() {
+        return longData;
+    }
+
+    public void setLongData(long[] longData) {
+        this.longData = longData;
+    }
+
+    public float[] getFloatData() {
+        return floatData;
+    }
+
+    public void setFloatData(float[] floatData) {
+        this.floatData = floatData;
+    }
+
+    public boolean[] getBoolData() {
+        return boolData;
+    }
+
+    public void setBoolData(boolean[] boolData) {
+        this.boolData = boolData;
+    }
+
+    public byte[] getBinaryData() {
+        return binaryData;
+    }
+
+    public void setBinaryData(byte[] binaryData) {
+        this.binaryData = binaryData;
+    }
 
     public int getCounter() {
         return counter;

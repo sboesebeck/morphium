@@ -481,21 +481,47 @@ public class ObjectMapperImpl implements ObjectMapper {
                     BasicDBObject map = (BasicDBObject) valueFromDb;
                     value = createMap(map);
                 } else if (Collection.class.isAssignableFrom(fld.getType()) || fld.getType().isArray()) {
-                    BasicDBList l = (BasicDBList) valueFromDb;
-                    List lst = new ArrayList();
-                    if (l != null) {
-                        fillList(fld, l, lst);
-                        if (fld.getType().isArray()) {
-                            Object arr = Array.newInstance(fld.getType().getComponentType(), lst.size());
-                            for (int i = 0; i < lst.size(); i++) {
-                                Array.set(arr, i, lst.get(i));
-                            }
-                            value = arr;
-                        } else {
-                            value = lst;
-                        }
+                    if (fld.getType().equals(byte[].class)) {
+                        //binary data
+                        if (log.isDebugEnabled())
+                            log.debug("Reading in binary data object");
+                        value = valueFromDb;
+
                     } else {
-                        value = l;
+                        BasicDBList l = (BasicDBList) valueFromDb;
+                        List lst = new ArrayList();
+                        if (l != null) {
+                            fillList(fld, l, lst);
+                            if (fld.getType().isArray()) {
+                                Object arr = Array.newInstance(fld.getType().getComponentType(), lst.size());
+                                for (int i = 0; i < lst.size(); i++) {
+                                    if (fld.getType().getComponentType().isPrimitive()) {
+                                        if (fld.getType().getComponentType().equals(int.class)) {
+                                            Array.set(arr, i, ((Integer) lst.get(i)).intValue());
+                                        } else if (fld.getType().getComponentType().equals(long.class)) {
+                                            Array.set(arr, i, ((Long) lst.get(i)).longValue());
+                                        } else if (fld.getType().getComponentType().equals(float.class)) {
+                                            //Driver sends doubles instead of floats
+                                            Array.set(arr, i, ((Double) lst.get(i)).floatValue());
+
+                                        } else if (fld.getType().getComponentType().equals(double.class)) {
+                                            Array.set(arr, i, ((Double) lst.get(i)).doubleValue());
+
+                                        } else if (fld.getType().getComponentType().equals(boolean.class)) {
+                                            Array.set(arr, i, ((Boolean) lst.get(i)).booleanValue());
+
+                                        }
+                                    } else {
+                                        Array.set(arr, i, lst.get(i));
+                                    }
+                                }
+                                value = arr;
+                            } else {
+                                value = lst;
+                            }
+                        } else {
+                            value = l;
+                        }
                     }
                 } else if (fld.getType().isEnum()) {
                     value = Enum.valueOf((Class<? extends Enum>) fld.getType(), (String) valueFromDb);
