@@ -881,7 +881,7 @@ public final class Morphium {
     public void firePreStoreEvent(Object o, boolean isNew) {
         if (o == null) return;
         for (MorphiumStorageListener l : listeners) {
-            l.preStore(o, isNew);
+            l.preStore(this, o, isNew);
         }
         callLifecycleMethod(PreStore.class, o);
 
@@ -890,7 +890,7 @@ public final class Morphium {
     @SuppressWarnings("unchecked")
     public void firePostStoreEvent(Object o, boolean isNew) {
         for (MorphiumStorageListener l : listeners) {
-            l.postStore(o, isNew);
+            l.postStore(this, o, isNew);
         }
         callLifecycleMethod(PostStore.class, o);
         //existing object  => store last Access, if needed
@@ -900,7 +900,7 @@ public final class Morphium {
     @SuppressWarnings("unchecked")
     public void firePreDropEvent(Class cls) {
         for (MorphiumStorageListener l : listeners) {
-            l.preDrop(cls);
+            l.preDrop(this, cls);
         }
 
     }
@@ -909,28 +909,28 @@ public final class Morphium {
     @SuppressWarnings("unchecked")
     public void firePostDropEvent(Class cls) {
         for (MorphiumStorageListener l : listeners) {
-            l.postDrop(cls);
+            l.postDrop(this, cls);
         }
     }
 
     @SuppressWarnings("unchecked")
     public void firePostUpdateEvent(Class cls, MorphiumStorageListener.UpdateTypes t) {
         for (MorphiumStorageListener l : listeners) {
-            l.postUpdate(cls, t);
+            l.postUpdate(this, cls, t);
         }
     }
 
     @SuppressWarnings("unchecked")
     public void firePreUpdateEvent(Class cls, MorphiumStorageListener.UpdateTypes t) {
         for (MorphiumStorageListener l : listeners) {
-            l.preUpdate(cls, t);
+            l.preUpdate(this, cls, t);
         }
     }
 
     @SuppressWarnings("unchecked")
     public void firePostRemoveEvent(Object o) {
         for (MorphiumStorageListener l : listeners) {
-            l.postRemove(o);
+            l.postRemove(this, o);
         }
         callLifecycleMethod(PostRemove.class, o);
     }
@@ -938,7 +938,7 @@ public final class Morphium {
     @SuppressWarnings("unchecked")
     public void firePostRemoveEvent(Query q) {
         for (MorphiumStorageListener l : listeners) {
-            l.postRemove(q);
+            l.postRemove(this, q);
         }
         //TODO: FIX - Cannot call lifecycle method here
     }
@@ -946,7 +946,7 @@ public final class Morphium {
     @SuppressWarnings("unchecked")
     public void firePreRemoveEvent(Object o) {
         for (MorphiumStorageListener l : listeners) {
-            l.preDelete(o);
+            l.preDelete(this, o);
         }
         callLifecycleMethod(PreRemove.class, o);
     }
@@ -954,7 +954,7 @@ public final class Morphium {
     @SuppressWarnings("unchecked")
     public void firePreRemoveEvent(Query q) {
         for (MorphiumStorageListener l : listeners) {
-            l.preRemove(q);
+            l.preRemove(this, q);
         }
         //TODO: Fix - cannot call lifecycle method
     }
@@ -967,7 +967,7 @@ public final class Morphium {
     @SuppressWarnings("unchecked")
     public void firePostLoadEvent(Object o) {
         for (MorphiumStorageListener l : listeners) {
-            l.postLoad(o);
+            l.postLoad(this, o);
         }
         callLifecycleMethod(PostLoad.class, o);
     }

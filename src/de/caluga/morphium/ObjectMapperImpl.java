@@ -214,10 +214,10 @@ public class ObjectMapperImpl implements ObjectMapper {
                         //no reference to be stored...
                         v = null;
                     } else {
-                        if (List.class.isAssignableFrom(fld.getType())) {
+                        if (Collection.class.isAssignableFrom(fld.getType())) {
                             //list of references....
                             BasicDBList lst = new BasicDBList();
-                            for (Object rec : ((List) value)) {
+                            for (Object rec : ((Collection) value)) {
                                 if (rec != null) {
                                     ObjectId id = getId(rec);
                                     if (id == null) {
@@ -437,7 +437,7 @@ public class ObjectMapperImpl implements ObjectMapper {
                     continue;
                 }
                 Object value = null;
-                if (!Map.class.isAssignableFrom(fld.getType()) && !List.class.isAssignableFrom(fld.getType()) && fld.isAnnotationPresent(Reference.class)) {
+                if (!Map.class.isAssignableFrom(fld.getType()) && !Collection.class.isAssignableFrom(fld.getType()) && fld.isAnnotationPresent(Reference.class)) {
                     //A reference - only id stored
                     Reference reference = fld.getAnnotation(Reference.class);
                     if (morphium == null) {
@@ -480,7 +480,7 @@ public class ObjectMapperImpl implements ObjectMapper {
                 } else if (Map.class.isAssignableFrom(fld.getType())) {
                     BasicDBObject map = (BasicDBObject) valueFromDb;
                     value = createMap(map);
-                } else if (List.class.isAssignableFrom(fld.getType()) || fld.getType().isArray()) {
+                } else if (Collection.class.isAssignableFrom(fld.getType()) || fld.getType().isArray()) {
                     BasicDBList l = (BasicDBList) valueFromDb;
                     List lst = new ArrayList();
                     if (l != null) {
