@@ -14,6 +14,7 @@ import java.util.*;
  * User: martinstolz
  * Date: 29.08.12
  */
+@SuppressWarnings({"ConstantConditions", "unchecked"})
 public class JavaxValidationStorageListener extends MorphiumStorageAdapter<Object> {
 
     private Validator validator;
