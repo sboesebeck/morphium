@@ -31,7 +31,6 @@ public class JavaxValidationStorageListener extends MorphiumStorageAdapter<Objec
             return;
         }
         Set<ConstraintViolation<Object>> violations = validator.validate(r);
-
         List<String> flds = m.getFields(r.getClass());
         for (String f : flds) {
             Field field = m.getField(r.getClass(), f);
@@ -39,6 +38,7 @@ public class JavaxValidationStorageListener extends MorphiumStorageAdapter<Objec
                     m.isAnnotationPresentInHierarchy(field.getType(), Entity.class)) {
                 //also check it
                 try {
+                    if (field.get(r) == null) continue;
                     Set<ConstraintViolation<Object>> v = validator.validate(field.get(r));
                     violations.addAll(v);
                 } catch (IllegalAccessException e) {

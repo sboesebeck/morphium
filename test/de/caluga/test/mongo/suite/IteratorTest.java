@@ -97,6 +97,7 @@ public class IteratorTest extends MongoTest {
             uc.setValue("WRONG!");
             MorphiumSingleton.get().store(uc);
             waitForWrites();
+            //Will write out some Wrong!-Values... this is expected and GOOD!
             log.info("Current Counter: " + u.getCounter() + " and Value: " + u.getValue());
         }
     }
