@@ -107,7 +107,7 @@ public class Messaging extends Thread {
                     }
                     try {
                         for (MessageListener l : listeners) {
-                            Msg answer = l.onMessage(msg);
+                            Msg answer = l.onMessage(this, msg);
                             if (autoAnswer && answer == null) {
                                 answer = new Msg(msg.getName(), "received", "");
                             }
@@ -118,7 +118,7 @@ public class Messaging extends Thread {
 
                         if (listenerByName.get(msg.getName()) != null) {
                             for (MessageListener l : listenerByName.get(msg.getName())) {
-                                Msg answer = l.onMessage(msg);
+                                Msg answer = l.onMessage(this, msg);
                                 if (autoAnswer && answer == null) {
                                     answer = new Msg(msg.getName(), "received", "");
                                 }
@@ -178,7 +178,6 @@ public class Messaging extends Thread {
             listenerByName.put(n, new ArrayList<MessageListener>());
         }
         listenerByName.get(n).add(l);
-        l.setMessaging(this);
     }
 
     public void removeListenerForMessageNamed(String n, MessageListener l) {
@@ -217,12 +216,10 @@ public class Messaging extends Thread {
 
     public void addMessageListener(MessageListener l) {
         listeners.add(l);
-        l.setMessaging(this);
     }
 
     public void removeMessageListener(MessageListener l) {
         listeners.remove(l);
-        l.setMessaging(null);
     }
 
     public void queueMessage(final Msg m) {

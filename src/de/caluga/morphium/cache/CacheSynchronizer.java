@@ -47,6 +47,10 @@ public class CacheSynchronizer extends MorphiumStorageAdapter<Object> implements
     private Hashtable<Class<?>, Vector<CacheSyncListener>> listenerForType = new Hashtable<Class<?>, Vector<CacheSyncListener>>();
     private boolean attached;
 
+    /**
+     * @param msg      - primary messaging, will attach to and send messages over
+     * @param morphium - the underlying morphium instance
+     */
     public CacheSynchronizer(Messaging msg, Morphium morphium) {
         messaging = msg;
         this.morphium = morphium;
@@ -275,7 +279,7 @@ public class CacheSynchronizer extends MorphiumStorageAdapter<Object> implements
     }
 
     @Override
-    public Msg onMessage(Msg m) {
+    public Msg onMessage(Messaging msg, Msg m) {
         Msg answer = new Msg("clearCacheAnswer", "processed", messaging.getSenderId());
         try {
             if (log.isDebugEnabled()) {
@@ -382,8 +386,4 @@ public class CacheSynchronizer extends MorphiumStorageAdapter<Object> implements
     }
 
 
-    @Override
-    public void setMessaging(Messaging msg) {
-        messaging = msg;
-    }
 }
