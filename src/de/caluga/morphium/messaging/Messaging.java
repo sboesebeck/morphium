@@ -32,6 +32,7 @@ public class Messaging extends Thread {
     private Map<String, List<MessageListener>> listenerByName;
 
     private volatile Vector<Msg> writeBuffer = new Vector<Msg>();
+    private final ScheduledThreadPoolExecutor writer;
 
     public Messaging(Morphium m, int pause, boolean processMultiple) {
         morphium = m;
@@ -49,7 +50,7 @@ public class Messaging extends Thread {
 
         listeners = new Vector<MessageListener>();
         listenerByName = new Hashtable<String, List<MessageListener>>();
-        ScheduledThreadPoolExecutor writer = new ScheduledThreadPoolExecutor(1);
+        writer = new ScheduledThreadPoolExecutor(1);
         writer.scheduleAtFixedRate(new Runnable() {
             @Override
             public void run() {
@@ -62,7 +63,7 @@ public class Messaging extends Thread {
 
     public void run() {
         if (log.isDebugEnabled()) {
-            log.info("Messaging " + id + " started");
+            log.debug("Messaging " + id + " started");
         }
         Map<String, Object> values = new HashMap<String, Object>();
         while (running) {
@@ -168,6 +169,7 @@ public class Messaging extends Thread {
         if (!running) {
             listeners.clear();
             listenerByName.clear();
+            writer.shutdown();
         }
     }
 
@@ -224,6 +226,9 @@ public class Messaging extends Thread {
     }
 
     public void queueMessage(final Msg m) {
+        if (log.isDebugEnabled()) {
+            log.debug("Queueing message " + m.getMsg());
+        }
         m.setSender(id);
         m.addProcessedId(id);
         m.setLockedBy(null);

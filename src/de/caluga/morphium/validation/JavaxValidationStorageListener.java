@@ -48,11 +48,16 @@ public class JavaxValidationStorageListener extends MorphiumStorageAdapter<Objec
                 //list handling
                 try {
                     Collection<Object> lst = (List<Object>) field.get(r);
-                    for (Object o : lst) {
-                        try {
-                            preStore(m, o, isNew);
-                        } catch (ConstraintViolationException e) {
-                            violations.addAll((Set<ConstraintViolation<Object>>) e.getConstraintViolations());
+                    if (lst != null) {
+                        for (Object o : lst) {
+                            try {
+                                preStore(m, o, isNew);
+                            } catch (ConstraintViolationException e) {
+                                Set<ConstraintViolation<?>> constraintViolations = e.getConstraintViolations();
+                                for (ConstraintViolation v : constraintViolations) {
+                                    violations.add(v);
+                                }
+                            }
                         }
                     }
 
@@ -64,11 +69,16 @@ public class JavaxValidationStorageListener extends MorphiumStorageAdapter<Objec
                 //just checking values
                 try {
                     Map map = (Map) field.get(r);
-                    for (Object val : map.values()) {
-                        try {
-                            preStore(m, val, isNew);
-                        } catch (ConstraintViolationException e) {
-                            violations.addAll((Set<ConstraintViolation<Object>>) e.getConstraintViolations());
+                    if (map != null) {
+                        for (Object val : map.values()) {
+                            try {
+                                preStore(m, val, isNew);
+                            } catch (ConstraintViolationException e) {
+                                Set<ConstraintViolation<?>> constraintViolations = e.getConstraintViolations();
+                                for (ConstraintViolation v : constraintViolations) {
+                                    violations.add(v);
+                                }
+                            }
                         }
                     }
                 } catch (IllegalAccessException e) {

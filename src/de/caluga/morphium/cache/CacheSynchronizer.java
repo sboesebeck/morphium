@@ -2,7 +2,7 @@ package de.caluga.morphium.cache;
 
 import de.caluga.morphium.ConfigElement;
 import de.caluga.morphium.Morphium;
-import de.caluga.morphium.MorphiumStorageListener;
+import de.caluga.morphium.MorphiumStorageAdapter;
 import de.caluga.morphium.annotations.Entity;
 import de.caluga.morphium.annotations.caching.Cache;
 import de.caluga.morphium.messaging.MessageListener;
@@ -34,7 +34,7 @@ import java.util.Vector;
  * </ul>
  */
 @SuppressWarnings("UnusedDeclaration")
-public class CacheSynchronizer implements MorphiumStorageListener<Object>, MessageListener {
+public class CacheSynchronizer extends MorphiumStorageAdapter<Object> implements MessageListener {
     private static final Logger log = Logger.getLogger(CacheSynchronizer.class);
 
     private Messaging messaging;
@@ -45,6 +45,7 @@ public class CacheSynchronizer implements MorphiumStorageListener<Object>, Messa
 
     private Vector<CacheSyncListener> listeners = new Vector<CacheSyncListener>();
     private Hashtable<Class<?>, Vector<CacheSyncListener>> listenerForType = new Hashtable<Class<?>, Vector<CacheSyncListener>>();
+    private boolean attached;
 
     public CacheSynchronizer(Messaging msg, Morphium morphium) {
         messaging = msg;
@@ -54,6 +55,7 @@ public class CacheSynchronizer implements MorphiumStorageListener<Object>, Messa
 
         messaging.addListenerForMessageNamed(CACHE_SYNC_TYPE, this);
         messaging.addListenerForMessageNamed(CACHE_SYNC_RECORD, this);
+        attached = true;
 
     }
 
@@ -205,9 +207,14 @@ public class CacheSynchronizer implements MorphiumStorageListener<Object>, Messa
     }
 
     public void detach() {
+        attached = false;
         morphium.removeListener(this);
         messaging.removeListenerForMessageNamed(CACHE_SYNC_TYPE, this);
         messaging.removeListenerForMessageNamed(CACHE_SYNC_RECORD, this);
+    }
+
+    public boolean isAttached() {
+        return attached;
     }
 
     public void sendClearAllMessage(String reason) {
@@ -221,33 +228,20 @@ public class CacheSynchronizer implements MorphiumStorageListener<Object>, Messa
         }
     }
 
-    @Override
-    public void preStore(Object r, boolean isNew) {
-        //ignore
-    }
 
     @Override
-    public void postStore(Object r, boolean isNew) {
+    public void postStore(Morphium m, Object r, boolean isNew) {
         sendClearMessage(r, "store", isNew);
     }
 
-    @Override
-    public void postRemove(Object r) {
-        sendClearMessage(r.getClass(), "remove");
-    }
 
     @Override
-    public void preDelete(Object r) {
-        //ignore
-    }
-
-    @Override
-    public void postDrop(Class cls) {
+    public void postDrop(Morphium m, Class cls) {
         sendClearMessage(cls, "drop");
     }
 
     @Override
-    public void preDrop(Class cls) {
+    public void preDrop(Morphium m, Class cls) {
     }
 
 //    @Override
@@ -268,27 +262,15 @@ public class CacheSynchronizer implements MorphiumStorageListener<Object>, Messa
 //    public void preListStore(List<Object> lst, Map<Object,Boolean> isNew) {
 //    }
 
-    @Override
-    public void preRemove(Query q) {
-    }
 
     @Override
-    public void postRemove(Query q) {
+    public void postRemove(Morphium m, Query q) {
         sendClearMessage(q.getType(), "remove");
     }
 
-    @Override
-    public void postLoad(Object o) {
-        //ignore
-    }
 
     @Override
-    public void preUpdate(Class cls, Enum updateType) {
-        //ignore
-    }
-
-    @Override
-    public void postUpdate(Class cls, Enum updateType) {
+    public void postUpdate(Morphium m, Class cls, Enum updateType) {
         sendClearMessage(cls, "Update: " + updateType.name());
     }
 

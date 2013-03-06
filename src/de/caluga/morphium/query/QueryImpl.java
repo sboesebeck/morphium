@@ -70,12 +70,6 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
     }
 
     public void setReadPreferenceLevel(ReadPreferenceLevel readPreferenceLevel) {
-        if (morphium.getConfig().isTimeoutBugWorkAroundEnabled() && !readPreferenceLevel.getPref().equals(ReadPreference.primary())) {
-//            Logger.getLogger(QueryImpl.class).warn("Not setting read Preference level in bug-workaround-mode! Using default");
-            readPreferenceLevel = ReadPreferenceLevel.PRIMARY;
-            readPreference = ReadPreference.primary();
-            return;
-        }
         this.readPreferenceLevel = readPreferenceLevel;
         readPreference = readPreferenceLevel.getPref();
     }
