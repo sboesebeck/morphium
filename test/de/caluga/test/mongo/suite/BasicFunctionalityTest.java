@@ -52,6 +52,83 @@ public class BasicFunctionalityTest extends MongoTest {
     }
 
     @Test
+    public void arrayOfPrimitivesTest() throws Exception {
+        UncachedObject o = new UncachedObject();
+        int[] binaryData = new int[100];
+        for (int i = 0; i < binaryData.length; i++) {
+            binaryData[i] = i;
+        }
+        o.setIntData(binaryData);
+
+        long[] longData = new long[100];
+        for (int i = 0; i < longData.length; i++) {
+            longData[i] = i;
+        }
+        o.setLongData(longData);
+
+        float[] floatData = new float[100];
+        for (int i = 0; i < floatData.length; i++) {
+            floatData[i] = (float) (i / 100.0);
+        }
+        o.setFloatData(floatData);
+
+        double[] doubleData = new double[100];
+        for (int i = 0; i < doubleData.length; i++) {
+            doubleData[i] = (float) (i / 100.0);
+        }
+        o.setDoubleData(doubleData);
+
+        boolean[] bd = new boolean[100];
+        for (int i = 0; i < bd.length; i++) {
+            bd[i] = i % 2 == 0;
+        }
+        o.setBoolData(bd);
+
+        MorphiumSingleton.get().store(o);
+
+        Thread.sleep(1000);
+        MorphiumSingleton.get().reread(o);
+
+        for (int i = 0; i < o.getIntData().length; i++) {
+            assert (o.getIntData()[i] == binaryData[i]);
+        }
+
+        for (int i = 0; i < o.getLongData().length; i++) {
+            assert (o.getLongData()[i] == longData[i]);
+        }
+        for (int i = 0; i < o.getFloatData().length; i++) {
+            assert (o.getFloatData()[i] == floatData[i]);
+        }
+
+        for (int i = 0; i < o.getDoubleData().length; i++) {
+            assert (o.getDoubleData()[i] == doubleData[i]);
+        }
+
+        for (int i = 0; i < o.getBoolData().length; i++) {
+            assert (o.getBoolData()[i] == bd[i]);
+        }
+
+
+    }
+
+    @Test
+    public void binaryDataTest() throws Exception {
+        UncachedObject o = new UncachedObject();
+        byte[] binaryData = new byte[100];
+        for (int i = 0; i < binaryData.length; i++) {
+            binaryData[i] = (byte) i;
+        }
+        o.setBinaryData(binaryData);
+        MorphiumSingleton.get().store(o);
+
+        Thread.sleep(1000);
+        MorphiumSingleton.get().reread(o);
+        for (int i = 0; i < o.getBinaryData().length; i++) {
+            assert (o.getBinaryData()[i] == binaryData[i]);
+        }
+    }
+
+    @Test
     public void whereTest() throws Exception {
 
         for (int i = 1; i <= NO_OBJECTS; i++) {
