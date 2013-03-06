@@ -1,7 +1,10 @@
 package de.caluga.test.mongo.suite;
 
 import de.caluga.morphium.MorphiumSingleton;
+import de.caluga.morphium.annotations.Entity;
+import de.caluga.morphium.annotations.Id;
 import junit.framework.Assert;
+import org.bson.types.ObjectId;
 import org.junit.Test;
 
 import javax.validation.ConstraintViolationException;
@@ -78,6 +81,22 @@ public class ValidationTest extends MongoTest {
 
     }
 
+    @Test(expected = ConstraintViolationException.class)
+    public void testEmbeddedObjectsValidationErrors() {
+        ValidationTestObject o = getValidObject();
+        o.setWhereever("nix");
+        ListValidationTestObject lst = new ListValidationTestObject();
+        List<ValidationTestObject> obj = new ArrayList<ValidationTestObject>();
+        obj.add(o);
+        obj.add(getValidObject());
+        obj.add(getValidObject());
+
+        lst.setLst(obj);
+
+        MorphiumSingleton.get().store(lst);
+
+    }
+
     private ValidationTestObject getValidObject() {
         ValidationTestObject o = new ValidationTestObject();
         o.setAnotherInt(123);
@@ -95,6 +114,22 @@ public class ValidationTest extends MongoTest {
         o.setWhereever("münchen");
 
         return o;
+    }
+
+
+    @Entity
+    public class ListValidationTestObject {
+        private List<ValidationTestObject> lst;
+        @Id
+        private ObjectId id;
+
+        public List<ValidationTestObject> getLst() {
+            return lst;
+        }
+
+        public void setLst(List<ValidationTestObject> lst) {
+            this.lst = lst;
+        }
     }
 
 }

@@ -37,7 +37,7 @@ public class CacheSyncTest extends MongoTest {
         assert (cnt == 0) : "Already a message?!?!" + cnt;
 
         cs.sendClearMessage(CachedObject.class, "test");
-        Thread.sleep(5000);
+        Thread.sleep(2000);
         waitForWrites();
         cnt = q.countAll();
         assert (cnt == 1) : "there should be one msg, there are " + cnt;
@@ -174,15 +174,15 @@ public class CacheSyncTest extends MongoTest {
     }
 
     @Test
-    public void testListeners() {
+    public void testListeners() throws Exception {
         MorphiumSingleton.get().dropCollection(IdCachedObject.class);
-        Messaging msg1 = new Messaging(MorphiumSingleton.get(), 100, true);
+        final Messaging msg1 = new Messaging(MorphiumSingleton.get(), 100, true);
         msg1.start();
-        Messaging msg2 = new Messaging(MorphiumSingleton.get(), 100, true);
+        final Messaging msg2 = new Messaging(MorphiumSingleton.get(), 100, true);
         msg2.start();
 
 
-        CacheSynchronizer cs1 = new CacheSynchronizer(msg1, MorphiumSingleton.get());
+        final CacheSynchronizer cs1 = new CacheSynchronizer(msg1, MorphiumSingleton.get());
         cs1.addSyncListener(new CacheSyncListener() {
             @Override
             public void preClear(Class cls, Msg m) throws CacheSyncVetoException {
@@ -194,24 +194,28 @@ public class CacheSyncTest extends MongoTest {
 
             @Override
             public void preSendClearMsg(Class cls, Msg m) throws CacheSyncVetoException {
+                log.info("in preSendClearMsg");
                 preSendClear = true;
             }
 
             @Override
             public void postSendClearMsg(Class cls, Msg m) {
+                log.info("in postSendClearMsg");
                 postSendClear = true;
             }
         });
 
-        CacheSynchronizer cs2 = new CacheSynchronizer(msg2, MorphiumSingleton.get());
+        final CacheSynchronizer cs2 = new CacheSynchronizer(msg2, MorphiumSingleton.get());
         cs2.addSyncListener(new CacheSyncListener() {
             @Override
             public void preClear(Class cls, Msg m) throws CacheSyncVetoException {
+                log.info("in preClear");
                 preClear = true;
             }
 
             @Override
             public void postClear(Class cls, Msg m) {
+                log.info("In postClear");
                 postclear = true;
             }
 
@@ -224,22 +228,34 @@ public class CacheSyncTest extends MongoTest {
             }
         });
 
-        MorphiumSingleton.get().store(new CachedObject());
-        waitForWrites();
-        try {
-            Thread.sleep(1500);
-        } catch (InterruptedException e) {
-            throw new RuntimeException(e);
+
+        new Thread() {
+            public void run() {
+                MorphiumSingleton.get().store(new CachedObject());
+                waitForWrites();
+                try {
+                    Thread.sleep(2500);
+                } catch (InterruptedException e) {
+                    throw new RuntimeException(e);
+                }
+
+                msg1.setRunning(false);
+                msg2.setRunning(false);
+                cs1.detach();
+                cs2.detach();
+
+            }
+        }.start();
+
+        while (cs1.isAttached()) {
+            log.info("still attached - waiting");
+            Thread.sleep(500);
         }
         assert (preClear);
         assert (postclear);
         assert (preSendClear);
         assert (postSendClear);
 
-        msg1.setRunning(false);
-        msg2.setRunning(false);
-        cs1.detach();
-        cs2.detach();
     }
 
 }

@@ -105,7 +105,6 @@ public class MongoTest {
             cfg.setAutoreconnect(true);
             cfg.setMaxAutoReconnectTime(5000);
             cfg.setDefaultReadPreference(ReadPreferenceLevel.NEAREST);
-            cfg.setTimeoutBugWorkAroundEnabled(false);
             MorphiumSingleton.setConfig(cfg);
             MorphiumSingleton.get();
         }
