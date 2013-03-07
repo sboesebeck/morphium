@@ -1,5 +1,6 @@
 package de.caluga.morphium.validation;
 
+import de.caluga.morphium.AnnotationAndReflectionHelper;
 import de.caluga.morphium.Morphium;
 import de.caluga.morphium.MorphiumStorageAdapter;
 import de.caluga.morphium.annotations.Embedded;
@@ -18,6 +19,7 @@ import java.util.*;
 public class JavaxValidationStorageListener extends MorphiumStorageAdapter<Object> {
 
     private Validator validator;
+    private AnnotationAndReflectionHelper annotationHelper = new AnnotationAndReflectionHelper();
 
     public JavaxValidationStorageListener() {
         ValidatorFactory factory = Validation.buildDefaultValidatorFactory();
@@ -27,15 +29,15 @@ public class JavaxValidationStorageListener extends MorphiumStorageAdapter<Objec
     @Override
     public void preStore(Morphium m, Object r, boolean isNew) {
         if (r == null) return;
-        if (!m.isAnnotationPresentInHierarchy(r.getClass(), Entity.class) && !m.isAnnotationPresentInHierarchy(r.getClass(), Embedded.class)) {
+        if (!annotationHelper.isAnnotationPresentInHierarchy(r.getClass(), Entity.class) && !annotationHelper.isAnnotationPresentInHierarchy(r.getClass(), Embedded.class)) {
             return;
         }
         Set<ConstraintViolation<Object>> violations = validator.validate(r);
         List<String> flds = m.getFields(r.getClass());
         for (String f : flds) {
             Field field = m.getField(r.getClass(), f);
-            if (m.isAnnotationPresentInHierarchy(field.getType(), Embedded.class) ||
-                    m.isAnnotationPresentInHierarchy(field.getType(), Entity.class)) {
+            if (annotationHelper.isAnnotationPresentInHierarchy(field.getType(), Embedded.class) ||
+                    annotationHelper.isAnnotationPresentInHierarchy(field.getType(), Entity.class)) {
                 //also check it
                 try {
                     if (field.get(r) == null) continue;

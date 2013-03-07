@@ -1,5 +1,6 @@
 package de.caluga.morphium.cache;
 
+import de.caluga.morphium.AnnotationAndReflectionHelper;
 import de.caluga.morphium.ConfigElement;
 import de.caluga.morphium.Morphium;
 import de.caluga.morphium.MorphiumStorageAdapter;
@@ -46,6 +47,7 @@ public class CacheSynchronizer extends MorphiumStorageAdapter<Object> implements
     private Vector<CacheSyncListener> listeners = new Vector<CacheSyncListener>();
     private Hashtable<Class<?>, Vector<CacheSyncListener>> listenerForType = new Hashtable<Class<?>, Vector<CacheSyncListener>>();
     private boolean attached;
+    private AnnotationAndReflectionHelper annotationHelper = new AnnotationAndReflectionHelper();
 
     /**
      * @param msg      - primary messaging, will attach to and send messages over
@@ -146,7 +148,7 @@ public class CacheSynchronizer extends MorphiumStorageAdapter<Object> implements
             messaging.queueMessage(m);
             return;
         }
-        Cache c = morphium.getAnnotationFromHierarchy(record.getClass(), Cache.class); //(Cache) type.getAnnotation(Cache.class);
+        Cache c = annotationHelper.getAnnotationFromHierarchy(record.getClass(), Cache.class); //(Cache) type.getAnnotation(Cache.class);
         if (c == null) return; //not clearing cache for non-cached objects
         if (c.readCache() && c.clearOnWrite()) {
             if (c.syncCache().equals(Cache.SyncCacheStrategy.UPDATE_ENTRY) || c.syncCache().equals(Cache.SyncCacheStrategy.REMOVE_ENTRY_FROM_TYPE_CACHE)) {
@@ -195,7 +197,7 @@ public class CacheSynchronizer extends MorphiumStorageAdapter<Object> implements
 
             return;
         }
-        Cache c = morphium.getAnnotationFromHierarchy(type, Cache.class); //(Cache) type.getAnnotation(Cache.class);
+        Cache c = annotationHelper.getAnnotationFromHierarchy(type, Cache.class); //(Cache) type.getAnnotation(Cache.class);
         if (c == null) return; //not clearing cache for non-cached objects
         if (c.readCache() && c.clearOnWrite()) {
             if (!c.syncCache().equals(Cache.SyncCacheStrategy.NONE)) {
@@ -292,7 +294,7 @@ public class CacheSynchronizer extends MorphiumStorageAdapter<Object> implements
 
                     try {
                         firePreClearEvent(null, m);
-                        morphium.resetCache();
+                        morphium.getCache().resetCache();
                         firePostClearEvent(null, m);
                         answer.setMsg("cache completely cleared");
                         log.info("Cache completely cleared");
@@ -313,8 +315,8 @@ public class CacheSynchronizer extends MorphiumStorageAdapter<Object> implements
                     }
                     return answer;
                 }
-                if (morphium.isAnnotationPresentInHierarchy(cls, Entity.class)) {
-                    Cache c = morphium.getAnnotationFromHierarchy(cls, Cache.class); //cls.getAnnotation(Cache.class);
+                if (annotationHelper.isAnnotationPresentInHierarchy(cls, Entity.class)) {
+                    Cache c = annotationHelper.getAnnotationFromHierarchy(cls, Cache.class); //cls.getAnnotation(Cache.class);
                     if (c != null) {
                         if (c.readCache()) {
                             try {
@@ -339,20 +341,20 @@ public class CacheSynchronizer extends MorphiumStorageAdapter<Object> implements
             } else {
                 //must be CACHE_SYNC_RECORD
                 Class cls = Class.forName(m.getValue());
-                if (morphium.isAnnotationPresentInHierarchy(cls, Entity.class)) {
-                    Cache c = morphium.getAnnotationFromHierarchy(cls, Cache.class); //cls.getAnnotation(Cache.class);
+                if (annotationHelper.isAnnotationPresentInHierarchy(cls, Entity.class)) {
+                    Cache c = annotationHelper.getAnnotationFromHierarchy(cls, Cache.class); //cls.getAnnotation(Cache.class);
                     if (c != null) {
                         if (c.readCache()) {
                             try {
                                 firePreClearEvent(cls, m);
-                                Hashtable<Class<?>, Hashtable<ObjectId, Object>> idCache = morphium.cloneIdCache();
+                                Hashtable<Class<?>, Hashtable<ObjectId, Object>> idCache = morphium.getCache().cloneIdCache();
                                 for (String a : m.getAdditional()) {
                                     ObjectId id = new ObjectId(a);
                                     if (idCache.get(cls) != null) {
                                         if (idCache.get(cls).get(id) != null) {
                                             //Object is updated in place!
                                             if (c.syncCache().equals(Cache.SyncCacheStrategy.REMOVE_ENTRY_FROM_TYPE_CACHE)) {
-                                                morphium.removeEntryFromCache(cls, id);
+                                                morphium.getCache().removeEntryFromCache(cls, id);
                                             } else {
                                                 morphium.reread(idCache.get(cls).get(id));
 
@@ -360,7 +362,7 @@ public class CacheSynchronizer extends MorphiumStorageAdapter<Object> implements
                                         }
                                     }
                                 }
-                                morphium.setIdCache(idCache);
+                                morphium.getCache().setIdCache(idCache);
                                 answer.setMsg("cache cleared for type: " + m.getValue());
                                 firePostClearEvent(cls, m);
                             } catch (CacheSyncVetoException e) {

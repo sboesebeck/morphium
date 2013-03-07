@@ -1,6 +1,7 @@
 package de.caluga.test.mongo.suite;
 
-import de.caluga.morphium.MorphiumSingleton;
+import de.caluga.morphium.AnnotationAndReflectionHelper;
+import de.caluga.morphium.ObjectMapperImpl;
 import de.caluga.morphium.annotations.Entity;
 import org.junit.Test;
 
@@ -26,8 +27,8 @@ public class HierarchyTest extends MongoTest {
 
     @Test
     public void testHierarchy() throws Exception {
-        assert (MorphiumSingleton.get().isAnnotationPresentInHierarchy(SubClass.class, Entity.class)) : "hierarchy not found";
-        String n = MorphiumSingleton.get().getConfig().getMapper().getCollectionName(de.caluga.test.mongo.suite.HierarchyTest.SubClass.class);
+        assert (new AnnotationAndReflectionHelper().isAnnotationPresentInHierarchy(SubClass.class, Entity.class)) : "hierarchy not found";
+        String n = new ObjectMapperImpl().getCollectionName(de.caluga.test.mongo.suite.HierarchyTest.SubClass.class);
         assert (!n.equals("uncached_object")) : "Wrong collection name!";
     }
 

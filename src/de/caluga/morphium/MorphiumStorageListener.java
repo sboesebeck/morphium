@@ -12,29 +12,29 @@ import de.caluga.morphium.query.Query;
  */
 public interface MorphiumStorageListener<T> {
     public enum UpdateTypes {
-        SET, UNSET, PUSH, PULL, INC, DEC;
+        SET, UNSET, PUSH, PULL, INC, DEC,
     }
 
-    public void preStore(Morphium m, T r, boolean isNew);
+    public void preStore(Morphium m, T r, boolean isNew) throws MorphiumAccessVetoException;
 
-    public void postStore(Morphium m, T r, boolean isNew);
+    public void postStore(Morphium m, T r, boolean isNew) throws MorphiumAccessVetoException;
 
-    public void postRemove(Morphium m, T r);
+    public void postRemove(Morphium m, T r) throws MorphiumAccessVetoException;
 
-    public void preDelete(Morphium m, T r);
+    public void preDelete(Morphium m, T r) throws MorphiumAccessVetoException;
 
-    public void postDrop(Morphium m, Class<? extends T> cls);
+    public void postDrop(Morphium m, Class<? extends T> cls) throws MorphiumAccessVetoException;
 
-    public void preDrop(Morphium m, Class<? extends T> cls);
+    public void preDrop(Morphium m, Class<? extends T> cls) throws MorphiumAccessVetoException;
 
-    public void preRemove(Morphium m, Query<T> q);
+    public void preRemove(Morphium m, Query<T> q) throws MorphiumAccessVetoException;
 
-    public void postRemove(Morphium m, Query<T> q);
+    public void postRemove(Morphium m, Query<T> q) throws MorphiumAccessVetoException;
 
-    public void postLoad(Morphium m, T o);
+    public void postLoad(Morphium m, T o) throws MorphiumAccessVetoException;
 
-    public void preUpdate(Morphium m, Class<? extends T> cls, Enum updateType);
+    public void preUpdate(Morphium m, Class<? extends T> cls, Enum updateType) throws MorphiumAccessVetoException;
 
-    public void postUpdate(Morphium m, Class<? extends T> cls, Enum updateType);
+    public void postUpdate(Morphium m, Class<? extends T> cls, Enum updateType) throws MorphiumAccessVetoException;
 
 }

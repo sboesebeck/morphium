@@ -3,6 +3,7 @@ package de.caluga.morphium.query;
 import com.mongodb.BasicDBList;
 import com.mongodb.BasicDBObject;
 import com.mongodb.DBRef;
+import de.caluga.morphium.AnnotationAndReflectionHelper;
 import de.caluga.morphium.FilterExpression;
 import de.caluga.morphium.MongoType;
 import de.caluga.morphium.ObjectMapper;
@@ -32,6 +33,7 @@ public class MongoFieldImpl<T> implements MongoField<T> {
     private String fldStr;
 
     private FilterExpression fe;
+    private AnnotationAndReflectionHelper annotationHelper = new AnnotationAndReflectionHelper();
 
     public MongoFieldImpl() {
     }
@@ -74,14 +76,14 @@ public class MongoFieldImpl<T> implements MongoField<T> {
         // checking for Ids in references...
         if (val != null) {
             Class<?> cls = val.getClass();
-            if (mapper.getMorphium().isAnnotationPresentInHierarchy(cls, Entity.class) || val instanceof ObjectId) {
-                Field field = mapper.getField(query.getType(), fldStr);
+            if (annotationHelper.isAnnotationPresentInHierarchy(cls, Entity.class) || val instanceof ObjectId) {
+                Field field = annotationHelper.getField(query.getType(), fldStr);
                 if (field.isAnnotationPresent(Reference.class)) {
                     ObjectId id;
                     if (val instanceof ObjectId) {
                         id = (ObjectId) val;
                     } else {
-                        id = mapper.getId(val);
+                        id = annotationHelper.getId(val);
                     }
                     if (field.getType().isAssignableFrom(List.class)) {
                         // list of references, this should be part of
@@ -101,13 +103,13 @@ public class MongoFieldImpl<T> implements MongoField<T> {
         }
 
         fe.setValue(val);
-        fe.setField(mapper.getFieldName(query.getType(), fldStr));
+        fe.setField(annotationHelper.getFieldName(query.getType(), fldStr));
         query.addChild(fe);
         return query;  // To change body of implemented methods use File | Settings | File Templates.
     }
 
     private void add(String op, Object value) {
-        fe.setField(mapper.getFieldName(query.getType(), fldStr));
+        fe.setField(annotationHelper.getFieldName(query.getType(), fldStr));
         FilterExpression child = new FilterExpression();
         child.setField(op);
         child.setValue(value);
@@ -117,7 +119,7 @@ public class MongoFieldImpl<T> implements MongoField<T> {
     }
 
     private void add(List<FilterExpression> expressionList) {
-        fe.setField(mapper.getFieldName(query.getType(), fldStr));
+        fe.setField(annotationHelper.getFieldName(query.getType(), fldStr));
         fe.setChildren(expressionList);
         query.addChild(fe);
     }

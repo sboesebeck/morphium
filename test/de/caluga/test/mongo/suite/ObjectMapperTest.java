@@ -2,6 +2,7 @@ package de.caluga.test.mongo.suite;
 
 import com.mongodb.BasicDBObject;
 import com.mongodb.DBObject;
+import de.caluga.morphium.AnnotationAndReflectionHelper;
 import de.caluga.morphium.MorphiumSingleton;
 import de.caluga.morphium.ObjectMapperImpl;
 import org.bson.types.ObjectId;
@@ -18,7 +19,7 @@ import java.util.*;
 public class ObjectMapperTest extends MongoTest {
     @Test
     public void testCreateCamelCase() throws Exception {
-        ObjectMapperImpl om = new ObjectMapperImpl(MorphiumSingleton.get());
+        AnnotationAndReflectionHelper om = new AnnotationAndReflectionHelper();
         assert (om.createCamelCase("this_is_a_test", false).equals("thisIsATest")) : "Error camil case translation not working";
         assert (om.createCamelCase("a_test_this_is", true).equals("ATestThisIs")) : "Error - capitalized String wrong";
 
@@ -27,7 +28,7 @@ public class ObjectMapperTest extends MongoTest {
 
     @Test
     public void testConvertCamelCase() throws Exception {
-        ObjectMapperImpl om = new ObjectMapperImpl(MorphiumSingleton.get());
+        AnnotationAndReflectionHelper om = new AnnotationAndReflectionHelper();
         assert (om.convertCamelCase("thisIsATest").equals("this_is_a_test")) : "Conversion failed!";
     }
 
@@ -62,18 +63,19 @@ public class ObjectMapperTest extends MongoTest {
     @Test
     public void testGetId() throws Exception {
         ObjectMapperImpl om = new ObjectMapperImpl(MorphiumSingleton.get());
+        AnnotationAndReflectionHelper an = new AnnotationAndReflectionHelper();
         UncachedObject o = new UncachedObject();
         o.setCounter(12345);
         o.setValue("This \" is $ test");
         o.setMongoId(new ObjectId(new Date()));
-        ObjectId id = om.getId(o);
+        ObjectId id = an.getId(o);
         assert (id.equals(o.getMongoId())) : "IDs not equal!";
     }
 
 
     @Test
     public void testIsEntity() throws Exception {
-        ObjectMapperImpl om = new ObjectMapperImpl(MorphiumSingleton.get());
+        AnnotationAndReflectionHelper om = new AnnotationAndReflectionHelper();
         assert (om.isEntity(UncachedObject.class)) : "Uncached Object no Entity?=!?=!?";
         assert (om.isEntity(new UncachedObject())) : "Uncached Object no Entity?=!?=!?";
         assert (!om.isEntity("")) : "String is an Entity?";
@@ -81,17 +83,17 @@ public class ObjectMapperTest extends MongoTest {
 
     @Test
     public void testGetValue() throws Exception {
-        ObjectMapperImpl om = new ObjectMapperImpl(null);
+        AnnotationAndReflectionHelper an = new AnnotationAndReflectionHelper();
         UncachedObject o = new UncachedObject();
         o.setCounter(12345);
         o.setValue("This \" is $ test");
-        assert (om.getValue(o, "counter").equals(12345)) : "Value not ok!";
+        assert (an.getValue(o, "counter").equals(12345)) : "Value not ok!";
 
     }
 
     @Test
     public void testSetValue() throws Exception {
-        ObjectMapperImpl om = new ObjectMapperImpl(null);
+        AnnotationAndReflectionHelper om = new AnnotationAndReflectionHelper();
         UncachedObject o = new UncachedObject();
         o.setCounter(12345);
         om.setValue(o, "A test", "value");

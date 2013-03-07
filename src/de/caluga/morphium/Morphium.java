@@ -10,8 +10,8 @@ import de.caluga.morphium.annotations.*;
 import de.caluga.morphium.annotations.caching.Cache;
 import de.caluga.morphium.annotations.caching.NoCache;
 import de.caluga.morphium.annotations.lifecycle.*;
-import de.caluga.morphium.cache.CacheElement;
 import de.caluga.morphium.cache.CacheHousekeeper;
+import de.caluga.morphium.cache.MorphiumCache;
 import de.caluga.morphium.query.MongoField;
 import de.caluga.morphium.query.Query;
 import de.caluga.morphium.replicaset.ConfNode;
@@ -65,8 +65,7 @@ public final class Morphium {
             10000L, TimeUnit.MILLISECONDS,
             new LinkedBlockingQueue<Runnable>());
     //Cache by Type, query String -> CacheElement (contains list etc)
-    private Hashtable<Class<?>, Hashtable<String, CacheElement>> cache;
-    private Hashtable<Class<?>, Hashtable<ObjectId, Object>> idCache;
+
     private final Map<StatisticKeys, StatisticValue> stats;
     private Map<Class<?>, Map<Class<? extends Annotation>, Method>> lifeCycleMethods;
     /**
@@ -79,6 +78,9 @@ public final class Morphium {
     private Vector<ProfilingListener> profilingListeners;
     private Vector<Thread> privileged;
     private Vector<ShutdownListener> shutDownListeners;
+
+    private AnnotationAndReflectionHelper annotationHelper = new AnnotationAndReflectionHelper();
+    private MorphiumCache cache;
 
     public MorphiumConfig getConfig() {
         return config;
@@ -101,8 +103,7 @@ public final class Morphium {
         shutDownListeners = new Vector<ShutdownListener>();
         listeners = new ArrayList<MorphiumStorageListener>();
         profilingListeners = new Vector<ProfilingListener>();
-        cache = new Hashtable<Class<?>, Hashtable<String, CacheElement>>();
-        idCache = new Hashtable<Class<?>, Hashtable<ObjectId, Object>>();
+
 
         stats = new Hashtable<StatisticKeys, StatisticValue>();
         lifeCycleMethods = new Hashtable<Class<?>, Map<Class<? extends Annotation>, Method>>();
@@ -150,15 +151,12 @@ public final class Morphium {
         cacheHousekeeper = new CacheHousekeeper(this, 5000, config.getGlobalCacheValidTime());
         cacheHousekeeper.start();
         config.getConfigManager().startCleanupThread();
-        if (config.getMapper() == null) {
-            config.setMapper(new ObjectMapperImpl(this));
-        } else {
-            config.getMapper().setMorphium(this);
-        }
         if (config.getWriter() == null) {
             config.setWriter(new WriterImpl());
         }
         config.getWriter().setMorphium(this);
+
+        cache = config.getCache();
 
         // enable/disable javax.validation support
         if (hasValidationSupport()) {
@@ -168,6 +166,10 @@ public final class Morphium {
 
         logger.info("Initialization successful...");
 
+    }
+
+    public MorphiumCache getCache() {
+        return config.getCache();
     }
 
     /**
@@ -254,8 +256,8 @@ public final class Morphium {
         if (toSet == null) throw new RuntimeException("Cannot update null!");
 
         firePreUpdateEvent(toSet.getClass(), MorphiumStorageListener.UpdateTypes.UNSET);
-        Cache c = getAnnotationFromHierarchy(toSet.getClass(), Cache.class);
-        if (isAnnotationPresentInHierarchy(toSet.getClass(), NoCache.class) || c == null || !c.writeCache()) {
+        Cache c = annotationHelper.getAnnotationFromHierarchy(toSet.getClass(), Cache.class);
+        if (annotationHelper.isAnnotationPresentInHierarchy(toSet.getClass(), NoCache.class) || c == null || !c.writeCache()) {
             config.getWriter().unset(toSet, field);
             firePostUpdateEvent(toSet.getClass(), MorphiumStorageListener.UpdateTypes.UNSET);
             return;
@@ -277,7 +279,7 @@ public final class Morphium {
      */
     @SuppressWarnings("unchecked")
     public void ensureIndicesFor(Class type) {
-        if (isAnnotationPresentInHierarchy(type, Index.class)) {
+        if (annotationHelper.isAnnotationPresentInHierarchy(type, Index.class)) {
             //type must be marked as to be indexed
             List<Annotation> lst = getAllAnnotationsFromHierachy(type, Index.class);
             for (Annotation a : lst) {
@@ -290,10 +292,10 @@ public final class Morphium {
                 }
             }
 
-            List<String> flds = config.getMapper().getFields(type, Index.class);
+            List<String> flds = annotationHelper.getFields(type, Index.class);
             if (flds != null && flds.size() > 0) {
                 for (String f : flds) {
-                    Index i = config.getMapper().getField(type, f).getAnnotation(Index.class);
+                    Index i = annotationHelper.getField(type, f).getAnnotation(Index.class);
                     if (i.decrement()) {
                         ensureIndex(type, "-" + f);
                     } else {
@@ -304,15 +306,6 @@ public final class Morphium {
         }
     }
 
-
-    public void clearCacheIfNecessary(Class cls) {
-        Cache c = getAnnotationFromHierarchy(cls, Cache.class); //cls.getAnnotation(Cache.class);
-        if (c != null) {
-            if (c.clearOnWrite()) {
-                clearCachefor(cls);
-            }
-        }
-    }
 
     public DBObject simplifyQueryObject(DBObject q) {
         if (q.keySet().size() == 1 && q.get("$and") != null) {
@@ -392,7 +385,7 @@ public final class Morphium {
         if (query == null || field == null) throw new RuntimeException("Cannot update null!");
 
         firePreUpdateEvent(query.getType(), MorphiumStorageListener.UpdateTypes.PUSH);
-        if (!isWriteCached(query.getType())) {
+        if (!annotationHelper.isWriteCached(query.getType())) {
             config.getWriter().pushPull(true, query, field, value, insertIfNotExist, multiple);
             firePostUpdateEvent(query.getType(), MorphiumStorageListener.UpdateTypes.PUSH);
             return;
@@ -410,7 +403,7 @@ public final class Morphium {
         if (query == null || field == null) throw new RuntimeException("Cannot update null!");
 
         firePreUpdateEvent(query.getType(), MorphiumStorageListener.UpdateTypes.PULL);
-        if (!isWriteCached(query.getType())) {
+        if (!annotationHelper.isWriteCached(query.getType())) {
             config.getWriter().pushPull(false, query, field, value, insertIfNotExist, multiple);
             firePostUpdateEvent(query.getType(), MorphiumStorageListener.UpdateTypes.PULL);
             return;
@@ -428,7 +421,7 @@ public final class Morphium {
         if (query == null || field == null) throw new RuntimeException("Cannot update null!");
 
         firePreUpdateEvent(query.getType(), MorphiumStorageListener.UpdateTypes.PUSH);
-        if (!isWriteCached(query.getType())) {
+        if (!annotationHelper.isWriteCached(query.getType())) {
             config.getWriter().pushPullAll(true, query, field, value, insertIfNotExist, multiple);
             firePostUpdateEvent(query.getType(), MorphiumStorageListener.UpdateTypes.PUSH);
             return;
@@ -471,8 +464,8 @@ public final class Morphium {
         if (query == null) throw new RuntimeException("Cannot update null!");
 
         firePreUpdateEvent(query.getType(), MorphiumStorageListener.UpdateTypes.SET);
-        Cache c = getAnnotationFromHierarchy(query.getType(), Cache.class);
-        if (isAnnotationPresentInHierarchy(query.getType(), NoCache.class) || c == null || !c.writeCache()) {
+        Cache c = annotationHelper.getAnnotationFromHierarchy(query.getType(), Cache.class);
+        if (annotationHelper.isAnnotationPresentInHierarchy(query.getType(), NoCache.class) || c == null || !c.writeCache()) {
             config.getWriter().set(query, map, insertIfNotExist, multiple);
             firePostUpdateEvent(query.getType(), MorphiumStorageListener.UpdateTypes.SET);
             return;
@@ -521,8 +514,8 @@ public final class Morphium {
         if (query == null) throw new RuntimeException("Cannot update null!");
 
         firePreUpdateEvent(query.getType(), MorphiumStorageListener.UpdateTypes.INC);
-        Cache c = getAnnotationFromHierarchy(query.getType(), Cache.class);
-        if (isAnnotationPresentInHierarchy(query.getType(), NoCache.class) || c == null || !c.writeCache()) {
+        Cache c = annotationHelper.getAnnotationFromHierarchy(query.getType(), Cache.class);
+        if (annotationHelper.isAnnotationPresentInHierarchy(query.getType(), NoCache.class) || c == null || !c.writeCache()) {
             config.getWriter().inc(query, name, amount, insertIfNotExist, multiple);
             firePostUpdateEvent(query.getType(), MorphiumStorageListener.UpdateTypes.INC);
             return;
@@ -559,8 +552,8 @@ public final class Morphium {
             return;
         }
         firePreUpdateEvent(toSet.getClass(), MorphiumStorageListener.UpdateTypes.SET);
-        Cache c = getAnnotationFromHierarchy(toSet.getClass(), Cache.class);
-        if (isAnnotationPresentInHierarchy(toSet.getClass(), NoCache.class) || c == null || !c.writeCache()) {
+        Cache c = annotationHelper.getAnnotationFromHierarchy(toSet.getClass(), Cache.class);
+        if (annotationHelper.isAnnotationPresentInHierarchy(toSet.getClass(), NoCache.class) || c == null || !c.writeCache()) {
             config.getWriter().set(toSet, field, value);
             firePostUpdateEvent(toSet.getClass(), MorphiumStorageListener.UpdateTypes.SET);
             return;
@@ -591,8 +584,8 @@ public final class Morphium {
             return;
         }
         firePreUpdateEvent(toSet.getClass(), MorphiumStorageListener.UpdateTypes.INC);
-        Cache c = getAnnotationFromHierarchy(toSet.getClass(), Cache.class);
-        if (isAnnotationPresentInHierarchy(toSet.getClass(), NoCache.class) || c == null || !c.writeCache()) {
+        Cache c = annotationHelper.getAnnotationFromHierarchy(toSet.getClass(), Cache.class);
+        if (annotationHelper.isAnnotationPresentInHierarchy(toSet.getClass(), NoCache.class) || c == null || !c.writeCache()) {
             config.getWriter().inc(toSet, field, i);
             firePostUpdateEvent(toSet.getClass(), MorphiumStorageListener.UpdateTypes.INC);
             return;
@@ -604,55 +597,6 @@ public final class Morphium {
                 firePostUpdateEvent(toSet.getClass(), MorphiumStorageListener.UpdateTypes.INC);
             }
         });
-    }
-
-
-    public void setIdCache(Hashtable<Class<?>, Hashtable<ObjectId, Object>> c) {
-        idCache = c;
-    }
-
-    /**
-     * adds some list of objects to the cache manually...
-     * is being used internally, and should be used with care
-     *
-     * @param k    - Key, usually the mongodb query string
-     * @param type - class type
-     * @param ret  - list of results
-     * @param <T>  - Type of record
-     */
-    @SuppressWarnings("unchecked")
-    public <T> void addToCache(String k, Class<?> type, List<T> ret) {
-        if (k == null) {
-            return;
-        }
-        if (ret != null) {
-            //copy from idCache
-            Hashtable<Class<?>, Hashtable<ObjectId, Object>> idCacheClone = cloneIdCache();
-            for (T record : ret) {
-                if (idCacheClone.get(type) == null) {
-                    idCacheClone.put(type, new Hashtable<ObjectId, Object>());
-                }
-                idCacheClone.get(type).put(config.getMapper().getId(record), record);
-            }
-            setIdCache(idCacheClone);
-        }
-
-        CacheElement<T> e = new CacheElement<T>(ret);
-        e.setLru(System.currentTimeMillis());
-        Hashtable<Class<?>, Hashtable<String, CacheElement>> cl = (Hashtable<Class<?>, Hashtable<String, CacheElement>>) cache.clone();
-        if (cl.get(type) == null) {
-            cl.put(type, new Hashtable<String, CacheElement>());
-        }
-        cl.get(type).put(k, e);
-
-        //atomar execution of this operand - no synchronization needed
-        cache = cl;
-
-    }
-
-    @SuppressWarnings({"unchecked", "UnusedDeclaration"})
-    public void setPrivilegedThread(Thread thr) {
-
     }
 
 
@@ -671,32 +615,6 @@ public final class Morphium {
     }
 
 
-    @SuppressWarnings("StringBufferMayBeStringBuilder")
-    public String getCacheKey(DBObject qo, Map<String, Integer> sort, int skip, int limit) {
-        StringBuffer b = new StringBuffer();
-        b.append(qo.toString());
-        b.append(" l:");
-        b.append(limit);
-        b.append(" s:");
-        b.append(skip);
-        if (sort != null) {
-            b.append(" sort:");
-            b.append(new BasicDBObject(sort).toString());
-        }
-        return b.toString();
-    }
-
-    /**
-     * create unique cache key for queries, also honoring skip & limit and sorting
-     *
-     * @param q the query
-     * @return the resulting cache key
-     */
-    public String getCacheKey(Query q) {
-        return getCacheKey(q.toQueryObject(), q.getOrder(), q.getSkip(), q.getLimit());
-    }
-
-
     /**
      * updating an enty in DB without sending the whole entity
      * only transfers the fields to be changed / set
@@ -708,14 +626,14 @@ public final class Morphium {
         if (ent == null) return;
         if (fields.length == 0) return; //not doing an update - no change
 
-        if (isAnnotationPresentInHierarchy(ent.getClass(), NoCache.class)) {
+        if (annotationHelper.isAnnotationPresentInHierarchy(ent.getClass(), NoCache.class)) {
             config.getWriter().storeUsingFields(ent, fields);
             return;
         }
 
         firePreUpdateEvent(ent.getClass(), MorphiumStorageListener.UpdateTypes.SET);
-        Cache c = getAnnotationFromHierarchy(ent.getClass(), Cache.class);
-        if (isAnnotationPresentInHierarchy(ent.getClass(), NoCache.class) || c == null || !c.writeCache()) {
+        Cache c = annotationHelper.getAnnotationFromHierarchy(ent.getClass(), Cache.class);
+        if (annotationHelper.isAnnotationPresentInHierarchy(ent.getClass(), NoCache.class) || c == null || !c.writeCache()) {
             config.getWriter().storeUsingFields(ent, fields);
             firePostUpdateEvent(ent.getClass(), MorphiumStorageListener.UpdateTypes.SET);
             return;
@@ -730,7 +648,7 @@ public final class Morphium {
     }
 
     public List<Annotation> getAllAnnotationsFromHierachy(Class<?> cls, Class<? extends Annotation>... anCls) {
-        cls = getRealClass(cls);
+        cls = annotationHelper.getRealClass(cls);
         List<Annotation> ret = new ArrayList<Annotation>();
         Class<?> z = cls;
         while (!z.equals(Object.class)) {
@@ -755,44 +673,9 @@ public final class Morphium {
         return ret;
     }
 
-    /**
-     * returns annotations, even if in class hierarchy or
-     * lazyloading proxy
-     *
-     * @param cls class
-     * @return the Annotation
-     */
-    public <T extends Annotation> T getAnnotationFromHierarchy(Class<?> cls, Class<? extends T> anCls) {
-        cls = getRealClass(cls);
-        if (cls.isAnnotationPresent(anCls)) {
-            return cls.getAnnotation(anCls);
-        }
-        //class hierarchy?
-        Class<?> z = cls;
-        while (!z.equals(Object.class)) {
-            if (z.isAnnotationPresent(anCls)) {
-                return z.getAnnotation(anCls);
-            }
-            z = z.getSuperclass();
-            if (z == null) break;
-        }
-        return null;
-    }
 
     public ObjectMapper getMapper() {
         return config.getMapper();
-    }
-
-    Class<?> getRealClass(Class<?> cls) {
-        return config.getMapper().getRealClass(cls);
-    }
-
-    <T> T getRealObject(T o) {
-        return config.getMapper().getRealObject(o);
-    }
-
-    public <T extends Annotation> boolean isAnnotationPresentInHierarchy(Class<?> cls, Class<? extends T> anCls) {
-        return getAnnotationFromHierarchy(cls, anCls) != null;
     }
 
 
@@ -802,7 +685,7 @@ public final class Morphium {
         //hashtabel - but for performance reasons, it's ok...
         Class<?> cls = on.getClass();
         //No Lifecycle annotation - no method calling
-        if (!isAnnotationPresentInHierarchy(cls, Lifecycle.class)) {//cls.isAnnotationPresent(Lifecycle.class)) {
+        if (!annotationHelper.isAnnotationPresentInHierarchy(cls, Lifecycle.class)) {//cls.isAnnotationPresent(Lifecycle.class)) {
             return;
         }
         //Already stored - should not change during runtime
@@ -859,7 +742,7 @@ public final class Morphium {
             Object fromDb = getConfig().getMapper().unmarshall(o.getClass(), dbo);
             List<String> flds = getFields(o.getClass());
             for (String f : flds) {
-                Field fld = getConfig().getMapper().getField(o.getClass(), f);
+                Field fld = annotationHelper.getField(o.getClass(), f);
                 if (java.lang.reflect.Modifier.isStatic(fld.getModifiers())) {
                     continue;
                 }
@@ -1036,7 +919,7 @@ public final class Morphium {
     @SuppressWarnings("ConstantConditions")
     public WriteConcern getWriteConcernForClass(Class<?> cls) {
         if (logger.isDebugEnabled()) logger.debug("returning write concern for " + cls.getSimpleName());
-        WriteSafety safety = getAnnotationFromHierarchy(cls, WriteSafety.class);  // cls.getAnnotation(WriteSafety.class);
+        WriteSafety safety = annotationHelper.getAnnotationFromHierarchy(cls, WriteSafety.class);  // cls.getAnnotation(WriteSafety.class);
         if (safety == null) return null;
         @SuppressWarnings("deprecation") boolean fsync = safety.waitForSync();
         boolean j = safety.waitForJournalCommit();
@@ -1154,43 +1037,6 @@ public final class Morphium {
     }
 
 
-    public boolean isCached(Class<?> type, String k) {
-        Cache c = getAnnotationFromHierarchy(type, Cache.class); ///type.getAnnotation(Cache.class);
-        if (c != null) {
-            if (!c.readCache()) return false;
-        } else {
-            return false;
-        }
-        return cache.get(type) != null && cache.get(type).get(k) != null && cache.get(type).get(k).getFound() != null;
-    }
-
-    /**
-     * return object by from cache. Cache key usually is the string-representation of the search
-     * query.toQueryObject()
-     *
-     * @param type - type
-     * @param k    - cache key
-     * @param <T>  - type param
-     * @return resulting list
-     */
-    @SuppressWarnings("unchecked")
-    public <T> List<T> getFromCache(Class<? extends T> type, String k) {
-        if (cache.get(type) == null || cache.get(type).get(k) == null) return null;
-        final CacheElement cacheElement = cache.get(type).get(k);
-        cacheElement.setLru(System.currentTimeMillis());
-        return cacheElement.getFound();
-    }
-
-    @SuppressWarnings("unchecked")
-    public Hashtable<Class<?>, Hashtable<String, CacheElement>> cloneCache() {
-        return (Hashtable<Class<?>, Hashtable<String, CacheElement>>) cache.clone();
-    }
-
-    @SuppressWarnings("unchecked")
-    public Hashtable<Class<?>, Hashtable<ObjectId, Object>> cloneIdCache() {
-        return (Hashtable<Class<?>, Hashtable<ObjectId, Object>>) idCache.clone();
-    }
-
     /**
      * issues a delete command - no lifecycle methods calles, no drop, keeps all indexec this way
      *
@@ -1217,7 +1063,7 @@ public final class Morphium {
             delete(r);
         }
 
-        clearCacheIfNecessary(cls);
+        cache.clearCacheIfNecessary(cls);
 
 
     }
@@ -1244,14 +1090,6 @@ public final class Morphium {
 
     public <T> List<T> find(Query<T> q) {
         return q.asList();
-    }
-
-    @SuppressWarnings("unchecked")
-    private <T> T getFromIDCache(Class<? extends T> type, ObjectId id) {
-        if (idCache.get(type) != null) {
-            return (T) idCache.get(type).get(id);
-        }
-        return null;
     }
 
 
@@ -1284,7 +1122,7 @@ public final class Morphium {
     }
 
     private void setReadPreference(DBCollection c, Class type) {
-        DefaultReadPreference pr = getAnnotationFromHierarchy(type, DefaultReadPreference.class);
+        DefaultReadPreference pr = annotationHelper.getAnnotationFromHierarchy(type, DefaultReadPreference.class);
         if (pr != null) {
             c.setReadPreference(pr.value().getPref());
         } else {
@@ -1321,9 +1159,9 @@ public final class Morphium {
 
     @SuppressWarnings("unchecked")
     public <T> T findById(Class<? extends T> type, ObjectId id) {
-        T ret = getFromIDCache(type, id);
+        T ret = cache.getFromIDCache(type, id);
         if (ret != null) return ret;
-        List<String> ls = config.getMapper().getFields(type, Id.class);
+        List<String> ls = annotationHelper.getFields(type, Id.class);
         if (ls.size() == 0) throw new RuntimeException("Cannot find by ID on non-Entity");
 
         return createQueryFor(type).f(ls.get(0)).eq(id).get();
@@ -1351,28 +1189,6 @@ public final class Morphium {
 //    }
 
 
-    /**
-     * does not set values in DB only in the entity
-     *
-     * @param toSetValueIn - where to set the value
-     */
-    public void setValueIn(Object toSetValueIn, String fld, Object value) {
-        config.getMapper().setValue(toSetValueIn, value, fld);
-    }
-
-    public void setValueIn(Object toSetValueIn, Enum fld, Object value) {
-        config.getMapper().setValue(toSetValueIn, value, fld.name());
-    }
-
-    public Object getValueOf(Object toGetValueFrom, String fld) {
-        return config.getMapper().getValue(toGetValueFrom, fld);
-    }
-
-    public Object getValueOf(Object toGetValueFrom, Enum fld) {
-        return config.getMapper().getValue(toGetValueFrom, fld.name());
-    }
-
-
     @SuppressWarnings("unchecked")
     public <T> List<T> findByField(Class<? extends T> cls, String fld, Object val) {
         Query<T> q = createQueryFor(cls);
@@ -1398,7 +1214,7 @@ public final class Morphium {
      */
     @SuppressWarnings("unchecked")
     public final List<String> getFields(Class<?> cls) {
-        return config.getMapper().getFields(cls);
+        return annotationHelper.getFields(cls);
     }
 
     public final Class getTypeOfField(Class<?> cls, String fld) {
@@ -1408,33 +1224,33 @@ public final class Morphium {
     }
 
     public boolean storesLastChange(Class<?> cls) {
-        return isAnnotationPresentInHierarchy(cls, LastChange.class);
+        return annotationHelper.isAnnotationPresentInHierarchy(cls, LastChange.class);
     }
 
     public boolean storesLastChangeBy(Class<?> cls) {
-        return isAnnotationPresentInHierarchy(cls, LastChangeBy.class);
+        return annotationHelper.isAnnotationPresentInHierarchy(cls, LastChangeBy.class);
     }
 
 
     public boolean storesLastAccess(Class<?> cls) {
-        return isAnnotationPresentInHierarchy(cls, LastAccess.class);
+        return annotationHelper.isAnnotationPresentInHierarchy(cls, LastAccess.class);
     }
 
     public boolean storesLastAccessBy(Class<?> cls) {
-        return isAnnotationPresentInHierarchy(cls, LastAccessBy.class);
+        return annotationHelper.isAnnotationPresentInHierarchy(cls, LastAccessBy.class);
     }
 
     public boolean storesCreation(Class<?> cls) {
-        return isAnnotationPresentInHierarchy(cls, CreationTime.class);
+        return annotationHelper.isAnnotationPresentInHierarchy(cls, CreationTime.class);
     }
 
     public boolean storesCreatedBy(Class<?> cls) {
-        return isAnnotationPresentInHierarchy(cls, CreatedBy.class);
+        return annotationHelper.isAnnotationPresentInHierarchy(cls, CreatedBy.class);
     }
 
 
     public String getFieldName(Class<?> cls, String fld) {
-        return config.getMapper().getFieldName(cls, fld);
+        return annotationHelper.getFieldName(cls, fld);
     }
 
 
@@ -1447,15 +1263,15 @@ public final class Morphium {
      * @return field, if found, null else
      */
     public Field getField(Class cls, String fld) {
-        return config.getMapper().getField(cls, fld);
+        return annotationHelper.getField(cls, fld);
     }
 
     public void setValue(Object in, String fld, Object val) {
-        config.getMapper().setValue(in, val, fld);
+        annotationHelper.setValue(in, val, fld);
     }
 
     public Object getValue(Object o, String fld) {
-        return config.getMapper().getValue(o, fld);
+        return annotationHelper.getValue(o, fld);
     }
 
     public Long getLongValue(Object o, String fld) {
@@ -1482,13 +1298,7 @@ public final class Morphium {
      * @param cls - class
      */
     public void clearCachefor(Class<?> cls) {
-        if (cache.get(cls) != null) {
-            cache.get(cls).clear();
-        }
-        if (idCache.get(cls) != null) {
-            idCache.get(cls).clear();
-        }
-        //clearCacheFor(cls);
+        cache.clearCachefor(cls);
     }
 
     public void storeNoCache(Object lst) {
@@ -1510,14 +1320,14 @@ public final class Morphium {
 
 
     public ObjectId getId(Object o) {
-        return config.getMapper().getId(o);
+        return annotationHelper.getId(o);
     }
 
     public void dropCollection(Class<?> cls) {
-        if (isAnnotationPresentInHierarchy(cls, Entity.class)) {
+        if (annotationHelper.isAnnotationPresentInHierarchy(cls, Entity.class)) {
             firePreDropEvent(cls);
             long start = System.currentTimeMillis();
-//            Entity entity = getAnnotationFromHierarchy(cls, Entity.class); //cls.getAnnotation(Entity.class);
+//            Entity entity = annotationHelper.getAnnotationFromHierarchy(cls, Entity.class); //cls.getAnnotation(Entity.class);
 
             DBCollection coll = database.getCollection(config.getMapper().getCollectionName(cls));
 //            coll.setReadPreference(com.mongodb.ReadPreference.PRIMARY);
@@ -1536,10 +1346,10 @@ public final class Morphium {
         Map<String, Object> idx = new LinkedHashMap<String, Object>();
         for (Map.Entry<String, Object> es : index.entrySet()) {
             String k = es.getKey();
-            if (!fields.contains(k) && !fields.contains(config.getMapper().convertCamelCase(k))) {
+            if (!fields.contains(k) && !fields.contains(annotationHelper.convertCamelCase(k))) {
                 throw new IllegalArgumentException("Field unknown for type " + cls.getSimpleName() + ": " + k);
             }
-            String fn = config.getMapper().getFieldName(cls, k);
+            String fn = annotationHelper.getFieldName(cls, k);
             idx.put(fn, es.getValue());
         }
         long start = System.currentTimeMillis();
@@ -1598,11 +1408,11 @@ public final class Morphium {
             throw new RuntimeException("Lists need to be stored with storeList");
         }
 
-        Class<?> type = getRealClass(o.getClass());
+        Class<?> type = annotationHelper.getRealClass(o.getClass());
         final boolean isNew = getId(o) == null;
         firePreStoreEvent(o, isNew);
-        Cache cc = getAnnotationFromHierarchy(type, Cache.class);//o.getClass().getAnnotation(Cache.class);
-        if (cc == null || isAnnotationPresentInHierarchy(o.getClass(), NoCache.class) || !cc.writeCache()) {
+        Cache cc = annotationHelper.getAnnotationFromHierarchy(type, Cache.class);//o.getClass().getAnnotation(Cache.class);
+        if (cc == null || annotationHelper.isAnnotationPresentInHierarchy(o.getClass(), NoCache.class) || !cc.writeCache()) {
             config.getWriter().store(o);
             firePostStoreEvent(o, isNew);
             return;
@@ -1627,8 +1437,8 @@ public final class Morphium {
 
         //checking permission - might take some time ;-(
         for (T o : lst) {
-            Cache c = getAnnotationFromHierarchy(o.getClass(), Cache.class);//o.getClass().getAnnotation(Cache.class);
-            if (isAnnotationPresentInHierarchy(o.getClass(), NoCache.class) || c == null || !c.writeCache()) {
+            Cache c = annotationHelper.getAnnotationFromHierarchy(o.getClass(), Cache.class);//o.getClass().getAnnotation(Cache.class);
+            if (annotationHelper.isAnnotationPresentInHierarchy(o.getClass(), NoCache.class) || c == null || !c.writeCache()) {
                 storeDirect.add(o);
             } else {
                 storeDirect.add(o);
@@ -1653,8 +1463,8 @@ public final class Morphium {
         callLifecycleMethod(PreRemove.class, o);
         firePreRemoveEvent(o);
 
-        Cache cc = getAnnotationFromHierarchy(o.getType(), Cache.class);//o.getClass().getAnnotation(Cache.class);
-        if (cc == null || isAnnotationPresentInHierarchy(o.getType(), NoCache.class) || !cc.writeCache()) {
+        Cache cc = annotationHelper.getAnnotationFromHierarchy(o.getType(), Cache.class);//o.getClass().getAnnotation(Cache.class);
+        if (cc == null || annotationHelper.isAnnotationPresentInHierarchy(o.getType(), NoCache.class) || !cc.writeCache()) {
             config.getWriter().delete(o);
             callLifecycleMethod(PostRemove.class, o);
             firePostRemoveEvent(o);
@@ -1683,11 +1493,11 @@ public final class Morphium {
             delete((Query) o);
             return;
         }
-        o = getRealObject(o);
+        o = annotationHelper.getRealObject(o);
         firePreRemoveEvent(o);
 
-        Cache cc = getAnnotationFromHierarchy(o.getClass(), Cache.class);//o.getClass().getAnnotation(Cache.class);
-        if (cc == null || isAnnotationPresentInHierarchy(o.getClass(), NoCache.class) || !cc.writeCache()) {
+        Cache cc = annotationHelper.getAnnotationFromHierarchy(o.getClass(), Cache.class);//o.getClass().getAnnotation(Cache.class);
+        if (cc == null || annotationHelper.isAnnotationPresentInHierarchy(o.getClass(), NoCache.class) || !cc.writeCache()) {
             config.getWriter().delete(o);
             firePostRemoveEvent(o);
             return;
@@ -1703,14 +1513,6 @@ public final class Morphium {
         inc(StatisticKeys.WRITES_CACHED);
     }
 
-    public void resetCache() {
-        setCache(new Hashtable<Class<?>, Hashtable<String, CacheElement>>());
-    }
-
-    public void setCache(Hashtable<Class<?>, Hashtable<String, CacheElement>> cache) {
-        this.cache = cache;
-    }
-
 
     //////////////////////////////////////////////////////////////////////
     //////////////////////////////////////////////////
@@ -1723,32 +1525,6 @@ public final class Morphium {
         return new Statistics(this);
     }
 
-    @SuppressWarnings("unchecked")
-    public void removeEntryFromCache(Class cls, ObjectId id) {
-        Hashtable<Class<?>, Hashtable<String, CacheElement>> c = cloneCache();
-        Hashtable<Class<?>, Hashtable<ObjectId, Object>> idc = cloneIdCache();
-        idc.get(cls).remove(id);
-
-        ArrayList<String> toRemove = new ArrayList<String>();
-        for (String key : c.get(cls).keySet()) {
-
-            for (Object el : c.get(cls).get(key).getFound()) {
-                ObjectId lid = config.getMapper().getId(el);
-                if (lid == null) {
-                    logger.error("Null id in CACHE?");
-                    toRemove.add(key);
-                }
-                if (lid != null && lid.equals(id)) {
-                    toRemove.add(key);
-                }
-            }
-        }
-        for (String k : toRemove) {
-            c.get(cls).remove(k);
-        }
-        setCache(c);
-        setIdCache(idc);
-    }
 
     public Map<StatisticKeys, StatisticValue> getStats() {
         return stats;
@@ -1786,15 +1562,9 @@ public final class Morphium {
 
 
     public String createCamelCase(String n) {
-        return config.getMapper().createCamelCase(n, false);
+        return annotationHelper.createCamelCase(n, false);
     }
 
-
-    public boolean isWriteCached(Class<?> cls) {
-        Cache c = getAnnotationFromHierarchy(cls, Cache.class);
-        return !(isAnnotationPresentInHierarchy(cls, NoCache.class) || c == null || !c.writeCache());
-
-    }
 
     public <T, R> Aggregator<T, R> createAggregator(Class<? extends T> type, Class<? extends R> resultType) {
         Aggregator<T, R> aggregator = config.getAggregatorFactory().createAggregator(type, resultType);
@@ -1850,7 +1620,7 @@ public final class Morphium {
     @SuppressWarnings("unchecked")
     public String getLastChangeField(Class<?> cls) {
         if (!storesLastChange(cls)) return null;
-        List<String> lst = config.getMapper().getFields(cls, LastChange.class);
+        List<String> lst = annotationHelper.getFields(cls, LastChange.class);
         if (lst == null || lst.isEmpty()) return null;
         return lst.get(0);
     }
@@ -1858,7 +1628,7 @@ public final class Morphium {
     @SuppressWarnings("unchecked")
     public String getLastChangeByField(Class<?> cls) {
         if (!storesLastChangeBy(cls)) return null;
-        List<String> lst = config.getMapper().getFields(cls, LastChangeBy.class);
+        List<String> lst = annotationHelper.getFields(cls, LastChangeBy.class);
         if (lst == null || lst.isEmpty()) return null;
         return lst.get(0);
     }
@@ -1866,7 +1636,7 @@ public final class Morphium {
     @SuppressWarnings("unchecked")
     public String getLastAccessField(Class<?> cls) {
         if (!storesLastAccess(cls)) return null;
-        List<String> lst = config.getMapper().getFields(cls, LastAccess.class);
+        List<String> lst = annotationHelper.getFields(cls, LastAccess.class);
         if (lst == null || lst.isEmpty()) return null;
         return lst.get(0);
     }
@@ -1874,7 +1644,7 @@ public final class Morphium {
     @SuppressWarnings("unchecked")
     public String getLastAccessByField(Class<?> cls) {
         if (!storesLastAccessBy(cls)) return null;
-        List<String> lst = config.getMapper().getFields(cls, LastAccessBy.class);
+        List<String> lst = annotationHelper.getFields(cls, LastAccessBy.class);
         if (lst == null || lst.isEmpty()) return null;
         return lst.get(0);
     }
@@ -1882,7 +1652,7 @@ public final class Morphium {
     @SuppressWarnings("unchecked")
     public String getCreationTimeField(Class<?> cls) {
         if (!storesCreation(cls)) return null;
-        List<String> lst = config.getMapper().getFields(cls, CreationTime.class);
+        List<String> lst = annotationHelper.getFields(cls, CreationTime.class);
         if (lst == null || lst.isEmpty()) return null;
         return lst.get(0);
     }
@@ -1890,7 +1660,7 @@ public final class Morphium {
     @SuppressWarnings("unchecked")
     public String getCreatedByField(Class<?> cls) {
         if (!storesCreatedBy(cls)) return null;
-        List<String> lst = config.getMapper().getFields(cls, CreatedBy.class);
+        List<String> lst = annotationHelper.getFields(cls, CreatedBy.class);
         if (lst == null || lst.isEmpty()) return null;
         return lst.get(0);
     }

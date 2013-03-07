@@ -11,6 +11,8 @@ import de.caluga.morphium.aggregation.AggregatorFactory;
 import de.caluga.morphium.aggregation.AggregatorFactoryImpl;
 import de.caluga.morphium.aggregation.AggregatorImpl;
 import de.caluga.morphium.annotations.ReadPreferenceLevel;
+import de.caluga.morphium.cache.MorphiumCache;
+import de.caluga.morphium.cache.MorphiumCacheImpl;
 import de.caluga.morphium.query.*;
 import org.apache.log4j.LogManager;
 import org.apache.log4j.Logger;
@@ -57,6 +59,7 @@ public class MorphiumConfig {
 
     private QueryFactory queryFact;
     private AggregatorFactory aggregatorFactory;
+    private MorphiumCache cache;
 
 
     /**
@@ -78,6 +81,18 @@ public class MorphiumConfig {
 
     private ReadPreferenceLevel defaultReadPreference;
     private Class<? extends MorphiumIterator> iteratorClass;
+
+
+    public MorphiumCache getCache() {
+        if (cache == null) {
+            cache = new MorphiumCacheImpl();
+        }
+        return cache;
+    }
+
+    public void setCache(MorphiumCache cache) {
+        this.cache = cache;
+    }
 
     public int getWriteTimeout() {
         return writeTimeout;
@@ -241,10 +256,6 @@ public class MorphiumConfig {
 
     public ObjectMapper getMapper() {
         return mapper;
-    }
-
-    public void setMapper(ObjectMapper mapper) {
-        this.mapper = mapper;
     }
 
     public String getMongoLogin() {
