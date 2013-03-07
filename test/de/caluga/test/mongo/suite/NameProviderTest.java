@@ -1,10 +1,7 @@
 package de.caluga.test.mongo.suite;
 
 import com.mongodb.DBCollection;
-import de.caluga.morphium.Morphium;
-import de.caluga.morphium.MorphiumSingleton;
-import de.caluga.morphium.NameProvider;
-import de.caluga.morphium.ObjectMapper;
+import de.caluga.morphium.*;
 import de.caluga.morphium.annotations.Entity;
 import de.caluga.morphium.annotations.Id;
 import de.caluga.morphium.annotations.SafetyLevel;
@@ -21,7 +18,7 @@ import org.junit.Test;
 public class NameProviderTest extends MongoTest {
     @Test
     public void testNameProvider() throws Exception {
-        String colName = MorphiumSingleton.get().getConfig().getMapper().getCollectionName(LogObject.class);
+        String colName = MorphiumSingleton.get().getMapper().getCollectionName(LogObject.class);
         assert (colName.endsWith("_Test"));
     }
 
@@ -36,7 +33,7 @@ public class NameProviderTest extends MongoTest {
             MorphiumSingleton.get().store(lo);
         }
         waitForWrites();
-        String colName = MorphiumSingleton.get().getConfig().getMapper().getCollectionName(LogObject.class);
+        String colName = MorphiumSingleton.get().getMapper().getCollectionName(LogObject.class);
         assert (colName.endsWith("_Test"));
         DBCollection col = MorphiumSingleton.get().getDatabase().getCollection(colName);
         assert (col.getCount() == 100) : "Error - did not store??" + col.getCount();
@@ -46,9 +43,10 @@ public class NameProviderTest extends MongoTest {
     @Test
     public void overrideNameProviderTest() throws Exception {
         MorphiumSingleton.get().clearCollection(UncachedObject.class);
-        MorphiumSingleton.get().getConfig().getMapper().setNameProviderForClass(UncachedObject.class, new MyNp());
-        String col = MorphiumSingleton.get().getConfig().getMapper().getCollectionName(UncachedObject.class);
+        MorphiumSingleton.get().getMapper().setNameProviderForClass(UncachedObject.class, new MyNp());
+        String col = MorphiumSingleton.get().getMapper().getCollectionName(UncachedObject.class);
         assert (col.equals("UncachedObject_Test")) : "Error - name is wrong: " + col;
+        MorphiumSingleton.get().getMapper().setNameProviderForClass(UncachedObject.class, new DefaultNameProvider());
     }
 
     public static class MyNp implements NameProvider {

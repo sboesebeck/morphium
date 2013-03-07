@@ -24,6 +24,11 @@ public class AggregatorImpl<T, R> implements Aggregator<T, R> {
     @Override
     public void setMorphium(Morphium m) {
         morphium = m;
+        if (m != null) {
+            ah = m.getARHelper();
+        } else {
+            ah = new AnnotationAndReflectionHelper();
+        }
     }
 
     @Override

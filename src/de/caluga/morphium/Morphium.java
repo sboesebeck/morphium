@@ -76,11 +76,11 @@ public final class Morphium {
 
     private List<MorphiumStorageListener> listeners;
     private Vector<ProfilingListener> profilingListeners;
-    private Vector<Thread> privileged;
     private Vector<ShutdownListener> shutDownListeners;
 
     private AnnotationAndReflectionHelper annotationHelper = new AnnotationAndReflectionHelper();
     private MorphiumCache cache;
+    private ObjectMapper objectMapper;
 
     public MorphiumConfig getConfig() {
         return config;
@@ -99,7 +99,6 @@ public final class Morphium {
             throw new RuntimeException("Please specify configuration!");
         }
         config = cfg;
-        privileged = new Vector<Thread>();
         shutDownListeners = new Vector<ShutdownListener>();
         listeners = new ArrayList<MorphiumStorageListener>();
         profilingListeners = new Vector<ProfilingListener>();
@@ -162,6 +161,14 @@ public final class Morphium {
         if (hasValidationSupport()) {
             logger.info("Adding javax.validation Support...");
             addListener(new JavaxValidationStorageListener());
+        }
+        try {
+            objectMapper = config.getOmClass().newInstance();
+            objectMapper.setMorphium(this);
+        } catch (InstantiationException e) {
+            throw new RuntimeException(e);
+        } catch (IllegalAccessException e) {
+            throw new RuntimeException(e);
         }
 
         logger.info("Initialization successful...");
@@ -234,12 +241,12 @@ public final class Morphium {
         if (fields.length > 0) {
             flds.addAll(Arrays.asList(fields));
         } else {
-            flds = getFields(cls);
+            flds = annotationHelper.getFields(cls);
         }
         Query<T> q = createQueryFor((Class<T>) cls);
         for (String f : flds) {
             try {
-                q.f(f).eq(getValue(template, f));
+                q.f(f).eq(annotationHelper.getValue(template, f));
             } catch (Exception e) {
                 logger.error("Could not read field " + f + " of object " + cls.getName());
             }
@@ -606,7 +613,7 @@ public final class Morphium {
 
     @SuppressWarnings({"unchecked", "UnusedDeclaration"})
     public String toJsonString(Object o) {
-        return config.getMapper().marshall(o).toString();
+        return objectMapper.marshall(o).toString();
     }
 
 
@@ -675,7 +682,11 @@ public final class Morphium {
 
 
     public ObjectMapper getMapper() {
-        return config.getMapper();
+        return objectMapper;
+    }
+
+    public AnnotationAndReflectionHelper getARHelper() {
+        return annotationHelper;
     }
 
 
@@ -734,13 +745,13 @@ public final class Morphium {
         if (id == null) {
             return null;
         }
-        DBCollection col = database.getCollection(getConfig().getMapper().getCollectionName(o.getClass()));
+        DBCollection col = database.getCollection(objectMapper.getCollectionName(o.getClass()));
         BasicDBObject srch = new BasicDBObject("_id", id);
         DBCursor crs = col.find(srch).limit(1);
         if (crs.hasNext()) {
             DBObject dbo = crs.next();
-            Object fromDb = getConfig().getMapper().unmarshall(o.getClass(), dbo);
-            List<String> flds = getFields(o.getClass());
+            Object fromDb = objectMapper.unmarshall(o.getClass(), dbo);
+            List<String> flds = annotationHelper.getFields(o.getClass());
             for (String f : flds) {
                 Field fld = annotationHelper.getField(o.getClass(), f);
                 if (java.lang.reflect.Modifier.isStatic(fld.getModifiers())) {
@@ -878,17 +889,17 @@ public final class Morphium {
         if (config.getAdr().size() > 1) {
             try {
                 CommandResult res = getMongo().getDB("admin").command("replSetGetStatus");
-                de.caluga.morphium.replicaset.ReplicaSetStatus status = getConfig().getMapper().unmarshall(de.caluga.morphium.replicaset.ReplicaSetStatus.class, res);
+                de.caluga.morphium.replicaset.ReplicaSetStatus status = objectMapper.unmarshall(de.caluga.morphium.replicaset.ReplicaSetStatus.class, res);
                 if (full) {
                     DBCursor rpl = getMongo().getDB("local").getCollection("system.replset").find();
                     DBObject stat = rpl.next(); //should only be one, i think
-                    ReplicaSetConf cfg = getConfig().getMapper().unmarshall(ReplicaSetConf.class, stat);
+                    ReplicaSetConf cfg = objectMapper.unmarshall(ReplicaSetConf.class, stat);
                     List<Object> mem = cfg.getMemberList();
                     List<ConfNode> cmembers = new ArrayList<ConfNode>();
 
                     for (Object o : mem) {
                         DBObject dbo = (DBObject) o;
-                        ConfNode cn = getConfig().getMapper().unmarshall(ConfNode.class, dbo);
+                        ConfNode cn = objectMapper.unmarshall(ConfNode.class, dbo);
                         cmembers.add(cn);
                     }
                     cfg.setMembers(cmembers);
@@ -899,7 +910,7 @@ public final class Morphium {
                 List<ReplicaSetNode> members = new ArrayList<ReplicaSetNode>();
                 for (Object l : lst) {
                     DBObject o = (DBObject) l;
-                    ReplicaSetNode n = getConfig().getMapper().unmarshall(ReplicaSetNode.class, o);
+                    ReplicaSetNode n = objectMapper.unmarshall(ReplicaSetNode.class, o);
                     members.add(n);
                 }
                 status.setMembers(members);
@@ -1111,12 +1122,12 @@ public final class Morphium {
      */
     @SuppressWarnings("unchecked")
     public List<Object> distinct(String key, Query q) {
-        return database.getCollection(config.getMapper().getCollectionName(q.getType())).distinct(key, q.toQueryObject());
+        return database.getCollection(objectMapper.getCollectionName(q.getType())).distinct(key, q.toQueryObject());
     }
 
     @SuppressWarnings("unchecked")
     public List<Object> distinct(String key, Class cls) {
-        DBCollection collection = database.getCollection(config.getMapper().getCollectionName(cls));
+        DBCollection collection = database.getCollection(objectMapper.getCollectionName(cls));
         setReadPreference(collection, cls);
         return collection.distinct(key, new BasicDBObject());
     }
@@ -1152,9 +1163,9 @@ public final class Morphium {
         if (!jsFinalize.trim().startsWith("function(")) {
             jsFinalize = "function (data) {" + jsFinalize + "}";
         }
-        GroupCommand cmd = new GroupCommand(database.getCollection(config.getMapper().getCollectionName(q.getType())),
+        GroupCommand cmd = new GroupCommand(database.getCollection(objectMapper.getCollectionName(q.getType())),
                 k, q.toQueryObject(), ini, jsReduce, jsFinalize);
-        return database.getCollection(config.getMapper().getCollectionName(q.getType())).group(cmd);
+        return database.getCollection(objectMapper.getCollectionName(q.getType())).group(cmd);
     }
 
     @SuppressWarnings("unchecked")
@@ -1206,92 +1217,6 @@ public final class Morphium {
 
 
     /**
-     * get a list of valid fields of a given record as they are in the MongoDB
-     * so, if you have a field Mapping, the mapped Property-name will be used
-     *
-     * @param cls - class
-     * @return return list of fields
-     */
-    @SuppressWarnings("unchecked")
-    public final List<String> getFields(Class<?> cls) {
-        return annotationHelper.getFields(cls);
-    }
-
-    public final Class getTypeOfField(Class<?> cls, String fld) {
-        Field f = getField(cls, fld);
-        if (f == null) return null;
-        return f.getType();
-    }
-
-    public boolean storesLastChange(Class<?> cls) {
-        return annotationHelper.isAnnotationPresentInHierarchy(cls, LastChange.class);
-    }
-
-    public boolean storesLastChangeBy(Class<?> cls) {
-        return annotationHelper.isAnnotationPresentInHierarchy(cls, LastChangeBy.class);
-    }
-
-
-    public boolean storesLastAccess(Class<?> cls) {
-        return annotationHelper.isAnnotationPresentInHierarchy(cls, LastAccess.class);
-    }
-
-    public boolean storesLastAccessBy(Class<?> cls) {
-        return annotationHelper.isAnnotationPresentInHierarchy(cls, LastAccessBy.class);
-    }
-
-    public boolean storesCreation(Class<?> cls) {
-        return annotationHelper.isAnnotationPresentInHierarchy(cls, CreationTime.class);
-    }
-
-    public boolean storesCreatedBy(Class<?> cls) {
-        return annotationHelper.isAnnotationPresentInHierarchy(cls, CreatedBy.class);
-    }
-
-
-    public String getFieldName(Class<?> cls, String fld) {
-        return annotationHelper.getFieldName(cls, fld);
-    }
-
-
-    /**
-     * extended logic: Fld may be, the java field name, the name of the specified value in Property-Annotation or
-     * the translated underscored lowercase name (mongoId => mongo_id)
-     *
-     * @param cls - class to search
-     * @param fld - field name
-     * @return field, if found, null else
-     */
-    public Field getField(Class cls, String fld) {
-        return annotationHelper.getField(cls, fld);
-    }
-
-    public void setValue(Object in, String fld, Object val) {
-        annotationHelper.setValue(in, val, fld);
-    }
-
-    public Object getValue(Object o, String fld) {
-        return annotationHelper.getValue(o, fld);
-    }
-
-    public Long getLongValue(Object o, String fld) {
-        return (Long) getValue(o, fld);
-    }
-
-    public String getStringValue(Object o, String fld) {
-        return (String) getValue(o, fld);
-    }
-
-    public Date getDateValue(Object o, String fld) {
-        return (Date) getValue(o, fld);
-    }
-
-    public Double getDoubleValue(Object o, String fld) {
-        return (Double) getValue(o, fld);
-    }
-
-
-    /**
      * Erase cache entries for the given type. is being called after every store
      * depending on cache settings!
      *
@@ -1329,7 +1254,7 @@ public final class Morphium {
             long start = System.currentTimeMillis();
 //            Entity entity = annotationHelper.getAnnotationFromHierarchy(cls, Entity.class); //cls.getAnnotation(Entity.class);
 
-            DBCollection coll = database.getCollection(config.getMapper().getCollectionName(cls));
+            DBCollection coll = database.getCollection(objectMapper.getCollectionName(cls));
 //            coll.setReadPreference(com.mongodb.ReadPreference.PRIMARY);
             coll.drop();
             long dur = System.currentTimeMillis() - start;
@@ -1341,7 +1266,7 @@ public final class Morphium {
     }
 
     public void ensureIndex(Class<?> cls, Map<String, Object> index) {
-        List<String> fields = getFields(cls);
+        List<String> fields = annotationHelper.getFields(cls);
 
         Map<String, Object> idx = new LinkedHashMap<String, Object>();
         for (Map.Entry<String, Object> es : index.entrySet()) {
@@ -1354,7 +1279,7 @@ public final class Morphium {
         }
         long start = System.currentTimeMillis();
         BasicDBObject keys = new BasicDBObject(idx);
-        database.getCollection(config.getMapper().getCollectionName(cls)).ensureIndex(keys);
+        database.getCollection(objectMapper.getCollectionName(cls)).ensureIndex(keys);
         long dur = System.currentTimeMillis() - start;
         fireProfilingWriteEvent(cls, keys, dur, false, WriteAccessType.ENSURE_INDEX);
     }
@@ -1573,7 +1498,7 @@ public final class Morphium {
     }
 
     public <T, R> List<R> aggregate(Aggregator<T, R> a) {
-        DBCollection coll = database.getCollection(config.getMapper().getCollectionName(a.getSearchType()));
+        DBCollection coll = database.getCollection(objectMapper.getCollectionName(a.getSearchType()));
         List<DBObject> agList = a.toAggregationList();
         DBObject first = agList.get(0);
         agList.remove(0);
@@ -1615,54 +1540,6 @@ public final class Morphium {
         } catch (IllegalAccessException e) {
             throw new RuntimeException(e);
         }
-    }
-
-    @SuppressWarnings("unchecked")
-    public String getLastChangeField(Class<?> cls) {
-        if (!storesLastChange(cls)) return null;
-        List<String> lst = annotationHelper.getFields(cls, LastChange.class);
-        if (lst == null || lst.isEmpty()) return null;
-        return lst.get(0);
-    }
-
-    @SuppressWarnings("unchecked")
-    public String getLastChangeByField(Class<?> cls) {
-        if (!storesLastChangeBy(cls)) return null;
-        List<String> lst = annotationHelper.getFields(cls, LastChangeBy.class);
-        if (lst == null || lst.isEmpty()) return null;
-        return lst.get(0);
-    }
-
-    @SuppressWarnings("unchecked")
-    public String getLastAccessField(Class<?> cls) {
-        if (!storesLastAccess(cls)) return null;
-        List<String> lst = annotationHelper.getFields(cls, LastAccess.class);
-        if (lst == null || lst.isEmpty()) return null;
-        return lst.get(0);
-    }
-
-    @SuppressWarnings("unchecked")
-    public String getLastAccessByField(Class<?> cls) {
-        if (!storesLastAccessBy(cls)) return null;
-        List<String> lst = annotationHelper.getFields(cls, LastAccessBy.class);
-        if (lst == null || lst.isEmpty()) return null;
-        return lst.get(0);
-    }
-
-    @SuppressWarnings("unchecked")
-    public String getCreationTimeField(Class<?> cls) {
-        if (!storesCreation(cls)) return null;
-        List<String> lst = annotationHelper.getFields(cls, CreationTime.class);
-        if (lst == null || lst.isEmpty()) return null;
-        return lst.get(0);
-    }
-
-    @SuppressWarnings("unchecked")
-    public String getCreatedByField(Class<?> cls) {
-        if (!storesCreatedBy(cls)) return null;
-        List<String> lst = annotationHelper.getFields(cls, CreatedBy.class);
-        if (lst == null || lst.isEmpty()) return null;
-        return lst.get(0);
     }
 
 

@@ -12,9 +12,9 @@ import org.junit.Test;
 public class CollectionMappingTest extends MongoTest {
     @Test
     public void collectionMappingTest() throws Exception {
-        String n = MorphiumSingleton.get().getConfig().getMapper().getCollectionName(CachedObject.class);
+        String n = MorphiumSingleton.get().getMapper().getCollectionName(CachedObject.class);
         assert (n.equals("cached_object")) : "Collection wrong";
-        n = MorphiumSingleton.get().getConfig().getMapper().getCollectionName(ComplexObject.class);
+        n = MorphiumSingleton.get().getMapper().getCollectionName(ComplexObject.class);
         assert (n.equals("ComplexObject")) : "Collection wrong";
 
     }

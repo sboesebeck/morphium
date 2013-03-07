@@ -24,13 +24,14 @@ public class CacheHousekeeper extends Thread {
     private boolean running = true;
     private Logger log = Logger.getLogger(CacheHousekeeper.class);
     private Morphium morphium;
-    private AnnotationAndReflectionHelper annotationHelper = new AnnotationAndReflectionHelper();
+    private AnnotationAndReflectionHelper annotationHelper;
 
     @SuppressWarnings("unchecked")
     public CacheHousekeeper(Morphium m, int houseKeepingTimeout, int globalCacheTimout) {
         this.timeout = houseKeepingTimeout;
         gcTimeout = globalCacheTimout;
         morphium = m;
+        annotationHelper = m.getARHelper();
         validTimeForClass = new Hashtable<Class<?>, Integer>();
         setDaemon(true);
 

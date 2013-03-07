@@ -23,26 +23,29 @@ import java.util.*;
 @SuppressWarnings({"ConstantConditions", "MismatchedQueryAndUpdateOfCollection", "unchecked", "MismatchedReadAndWriteOfArray"})
 public class ObjectMapperImpl implements ObjectMapper {
     private static Logger log = Logger.getLogger(ObjectMapperImpl.class);
-    private static volatile Map<Class<?>, List<Field>> fieldCache = new Hashtable<Class<?>, List<Field>>();
-    public volatile Morphium morphium;
     private volatile Hashtable<Class<?>, NameProvider> nameProviders;
     private volatile AnnotationAndReflectionHelper annotationHelper = new AnnotationAndReflectionHelper();
+    private Morphium morphium;
 
-    public Morphium getMorphium() {
-        return morphium;
-    }
+    public ObjectMapperImpl() {
 
-    public void setMorphium(Morphium morphium) {
-        this.morphium = morphium;
-    }
-
-    public ObjectMapperImpl(Morphium m) {
-        morphium = m;
         nameProviders = new Hashtable<Class<?>, NameProvider>();
     }
 
-    public ObjectMapperImpl() {
-        this(null);
+    /**
+     * will automatically be called after instanciation by Morphium
+     * also gets the AnnotationAndReflectionHelper from this object (to make use of the caches)
+     *
+     * @param m - the Morphium instance
+     */
+    @Override
+    public void setMorphium(Morphium m) {
+        morphium = m;
+        if (m != null) {
+            annotationHelper = m.getARHelper();
+        } else {
+            annotationHelper = new AnnotationAndReflectionHelper();
+        }
     }
 
 
@@ -175,11 +178,17 @@ public class ObjectMapperImpl implements ObjectMapper {
                                     ObjectId id = annotationHelper.getId(rec);
                                     if (id == null) {
                                         if (r.automaticStore()) {
+                                            if (morphium == null) {
+                                                throw new RuntimeException("Could not automagically store references as morphium is not set!");
+                                            }
                                             morphium.storeNoCache(rec);
                                             id = annotationHelper.getId(rec);
                                         } else {
                                             throw new IllegalArgumentException("Cannot store reference to unstored entity if automaticStore in @Reference is set to false!");
                                         }
+                                    }
+                                    if (morphium == null) {
+                                        throw new RuntimeException("cannot set dbRef - morphium is not set");
                                     }
                                     DBRef ref = new DBRef(morphium.getDatabase(), annotationHelper.getRealClass(rec.getClass()).getName(), id);
                                     lst.add(ref);

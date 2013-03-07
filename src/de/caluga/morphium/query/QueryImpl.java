@@ -54,6 +54,11 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
     @Override
     public void setMorphium(Morphium m) {
         morphium = m;
+        if (m == null) {
+            annotationHelper = new AnnotationAndReflectionHelper();
+        } else {
+            annotationHelper = m.getARHelper();
+        }
         andExpr = new Vector<FilterExpression>();
         orQueries = new Vector<Query<T>>();
         norQueries = new Vector<Query<T>>();
@@ -117,7 +122,7 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
             return morphium.getCache().getFromCache(type, ck);
         }
         long start = System.currentTimeMillis();
-        DBCollection c = morphium.getDatabase().getCollection(morphium.getConfig().getMapper().getCollectionName(type));
+        DBCollection c = morphium.getDatabase().getCollection(morphium.getMapper().getCollectionName(type));
         setReadPreferenceFor(c);
         List<Field> fldlst = annotationHelper.getAllFields(type);
         BasicDBObject lst = new BasicDBObject();
@@ -147,7 +152,7 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
         List<T> ret = new ArrayList<T>();
 
         while (cursor.hasNext()) {
-            ret.add(morphium.getConfig().getMapper().unmarshall(type, cursor.next()));
+            ret.add(morphium.getMapper().unmarshall(type, cursor.next()));
         }
         morphium.fireProfilingReadEvent(this, System.currentTimeMillis() - start, ReadAccessType.AS_LIST);
         return ret;

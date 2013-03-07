@@ -19,7 +19,6 @@ import java.util.*;
 public class JavaxValidationStorageListener extends MorphiumStorageAdapter<Object> {
 
     private Validator validator;
-    private AnnotationAndReflectionHelper annotationHelper = new AnnotationAndReflectionHelper();
 
     public JavaxValidationStorageListener() {
         ValidatorFactory factory = Validation.buildDefaultValidatorFactory();
@@ -29,13 +28,14 @@ public class JavaxValidationStorageListener extends MorphiumStorageAdapter<Objec
     @Override
     public void preStore(Morphium m, Object r, boolean isNew) {
         if (r == null) return;
+        AnnotationAndReflectionHelper annotationHelper = m.getARHelper();
         if (!annotationHelper.isAnnotationPresentInHierarchy(r.getClass(), Entity.class) && !annotationHelper.isAnnotationPresentInHierarchy(r.getClass(), Embedded.class)) {
             return;
         }
         Set<ConstraintViolation<Object>> violations = validator.validate(r);
-        List<String> flds = m.getFields(r.getClass());
+        List<String> flds = annotationHelper.getFields(r.getClass());
         for (String f : flds) {
-            Field field = m.getField(r.getClass(), f);
+            Field field = annotationHelper.getField(r.getClass(), f);
             if (annotationHelper.isAnnotationPresentInHierarchy(field.getType(), Embedded.class) ||
                     annotationHelper.isAnnotationPresentInHierarchy(field.getType(), Entity.class)) {
                 //also check it

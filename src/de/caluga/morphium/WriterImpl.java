@@ -34,6 +34,11 @@ public class WriterImpl implements Writer {
     @Override
     public void setMorphium(Morphium m) {
         morphium = m;
+        if (m != null) {
+            annotationHelper = morphium.getARHelper();
+        } else {
+            annotationHelper = new AnnotationAndReflectionHelper();
+        }
     }
 
 
@@ -79,7 +84,7 @@ public class WriterImpl implements Writer {
                 } else {
                     long now = System.currentTimeMillis();
                     for (String ctf : lst) {
-                        Field f = morphium.getField(type, ctf);
+                        Field f = annotationHelper.getField(type, ctf);
                         if (f != null) {
                             try {
                                 f.set(o, now);
@@ -96,7 +101,7 @@ public class WriterImpl implements Writer {
                 if (lst != null && lst.size() > 0) {
                     for (String ctf : lst) {
 
-                        Field f = morphium.getField(type, ctf);
+                        Field f = annotationHelper.getField(type, ctf);
                         if (f != null) {
                         }
                     }
@@ -108,7 +113,7 @@ public class WriterImpl implements Writer {
             if (lst != null && lst.size() > 0) {
                 for (String ctf : lst) {
                     long now = System.currentTimeMillis();
-                    Field f = morphium.getField(type, ctf);
+                    Field f = annotationHelper.getField(type, ctf);
                     if (f != null) {
                         try {
                             f.set(o, now);
@@ -127,7 +132,7 @@ public class WriterImpl implements Writer {
             if (lst != null && lst.size() > 0) {
                 for (String ctf : lst) {
 
-                    Field f = morphium.getField(type, ctf);
+                    Field f = annotationHelper.getField(type, ctf);
                     if (f != null) {
                     }
                 }
@@ -164,7 +169,7 @@ public class WriterImpl implements Writer {
             }
             try {
                 //Setting new ID (if object was new created) to Entity
-                morphium.getField(o.getClass(), flds.get(0)).set(o, marshall.get("_id"));
+                annotationHelper.getField(o.getClass(), flds.get(0)).set(o, marshall.get("_id"));
             } catch (IllegalAccessException e) {
                 throw new RuntimeException(e);
             }
@@ -284,11 +289,11 @@ public class WriterImpl implements Writer {
         String coll = morphium.getMapper().getCollectionName(cls);
         BasicDBObject query = new BasicDBObject();
         query.put("_id", morphium.getId(toSet));
-        Field f = morphium.getField(cls, field);
+        Field f = annotationHelper.getField(cls, field);
         if (f == null) {
             throw new RuntimeException("Unknown field: " + field);
         }
-        String fieldName = morphium.getFieldName(cls, field);
+        String fieldName = annotationHelper.getFieldName(cls, field);
 
         BasicDBObject update = new BasicDBObject("$set", new BasicDBObject(fieldName, value));
 
@@ -328,7 +333,7 @@ public class WriterImpl implements Writer {
         DBObject update = new BasicDBObject();
         for (String f : fields) {
             try {
-                Object value = morphium.getValue(ent, f);
+                Object value = annotationHelper.getValue(ent, f);
                 if (annotationHelper.isAnnotationPresentInHierarchy(value.getClass(), Entity.class)) {
                     value = morphium.getMapper().marshall(value);
                 }
@@ -346,7 +351,7 @@ public class WriterImpl implements Writer {
 
             long now = System.currentTimeMillis();
             for (String ctf : lst) {
-                Field f = morphium.getField(type, ctf);
+                Field f = annotationHelper.getField(type, ctf);
                 if (f != null) {
                     try {
                         f.set(ent, now);
@@ -361,7 +366,7 @@ public class WriterImpl implements Writer {
             if (lst != null && lst.size() != 0) {
                 for (String ctf : lst) {
 
-                    Field f = morphium.getField(type, ctf);
+                    Field f = annotationHelper.getField(type, ctf);
 
                 }
             }
@@ -456,11 +461,11 @@ public class WriterImpl implements Writer {
         String coll = morphium.getMapper().getCollectionName(cls);
         BasicDBObject query = new BasicDBObject();
         query.put("_id", morphium.getId(toInc));
-        Field f = morphium.getField(cls, field);
+        Field f = annotationHelper.getField(cls, field);
         if (f == null) {
             throw new RuntimeException("Unknown field: " + field);
         }
-        String fieldName = morphium.getFieldName(cls, field);
+        String fieldName = annotationHelper.getFieldName(cls, field);
 
         BasicDBObject update = new BasicDBObject("$inc", new BasicDBObject(fieldName, amount));
         WriteConcern wc = morphium.getWriteConcernForClass(toInc.getClass());
@@ -509,7 +514,7 @@ public class WriterImpl implements Writer {
         Class<?> cls = query.getType();
         morphium.firePreUpdateEvent(annotationHelper.getRealClass(cls), MorphiumStorageListener.UpdateTypes.INC);
         String coll = morphium.getMapper().getCollectionName(cls);
-        String fieldName = morphium.getFieldName(cls, field);
+        String fieldName = annotationHelper.getFieldName(cls, field);
         BasicDBObject update = new BasicDBObject("$inc", new BasicDBObject(fieldName, amount));
         DBObject qobj = query.toQueryObject();
         if (insertIfNotExist) {
@@ -549,7 +554,7 @@ public class WriterImpl implements Writer {
         morphium.firePreUpdateEvent(annotationHelper.getRealClass(cls), MorphiumStorageListener.UpdateTypes.SET);
         BasicDBObject toSet = new BasicDBObject();
         for (Map.Entry<String, Object> ef : values.entrySet()) {
-            String fieldName = morphium.getFieldName(cls, ef.getKey());
+            String fieldName = annotationHelper.getFieldName(cls, ef.getKey());
             toSet.put(fieldName, marshallIfNecessary(ef.getValue()));
         }
         DBObject qobj = query.toQueryObject();
@@ -596,11 +601,11 @@ public class WriterImpl implements Writer {
         String coll = morphium.getMapper().getCollectionName(cls);
         BasicDBObject query = new BasicDBObject();
         query.put("_id", morphium.getId(toSet));
-        Field f = morphium.getField(cls, field);
+        Field f = annotationHelper.getField(cls, field);
         if (f == null) {
             throw new RuntimeException("Unknown field: " + field);
         }
-        String fieldName = morphium.getFieldName(cls, field);
+        String fieldName = annotationHelper.getFieldName(cls, field);
 
         BasicDBObject update = new BasicDBObject("$unset", new BasicDBObject(fieldName, 1));
         WriteConcern wc = morphium.getWriteConcernForClass(toSet.getClass());
