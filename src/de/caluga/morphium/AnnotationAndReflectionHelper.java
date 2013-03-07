@@ -583,4 +583,86 @@ public class AnnotationAndReflectionHelper {
         }
         return o;
     }
+
+    public final Class getTypeOfField(Class<?> cls, String fld) {
+        Field f = getField(cls, fld);
+        if (f == null) return null;
+        return f.getType();
+    }
+
+    public boolean storesLastChange(Class<?> cls) {
+        return isAnnotationPresentInHierarchy(cls, LastChange.class);
+    }
+
+    public boolean storesLastChangeBy(Class<?> cls) {
+        return isAnnotationPresentInHierarchy(cls, LastChangeBy.class);
+    }
+
+
+    public boolean storesLastAccess(Class<?> cls) {
+        return isAnnotationPresentInHierarchy(cls, LastAccess.class);
+    }
+
+    public boolean storesLastAccessBy(Class<?> cls) {
+        return isAnnotationPresentInHierarchy(cls, LastAccessBy.class);
+    }
+
+    public boolean storesCreation(Class<?> cls) {
+        return isAnnotationPresentInHierarchy(cls, CreationTime.class);
+    }
+
+    public boolean storesCreatedBy(Class<?> cls) {
+        return isAnnotationPresentInHierarchy(cls, CreatedBy.class);
+    }
+
+    public Long getLongValue(Object o, String fld) {
+        return (Long) getValue(o, fld);
+    }
+
+    public String getStringValue(Object o, String fld) {
+        return (String) getValue(o, fld);
+    }
+
+    public Date getDateValue(Object o, String fld) {
+        return (Date) getValue(o, fld);
+    }
+
+    public Double getDoubleValue(Object o, String fld) {
+        return (Double) getValue(o, fld);
+    }
+
+
+    @SuppressWarnings("unchecked")
+    public String getLastChangeField(Class<?> cls) {
+        if (!storesLastChange(cls)) return null;
+        List<String> lst = getFields(cls, LastChange.class);
+        if (lst == null || lst.isEmpty()) return null;
+        return lst.get(0);
+    }
+
+    @SuppressWarnings("unchecked")
+    public String getLastChangeByField(Class<?> cls) {
+        if (!storesLastChangeBy(cls)) return null;
+        List<String> lst = getFields(cls, LastChangeBy.class);
+        if (lst == null || lst.isEmpty()) return null;
+        return lst.get(0);
+    }
+
+    @SuppressWarnings("unchecked")
+    public String getLastAccessField(Class<?> cls) {
+        if (!storesLastAccess(cls)) return null;
+        List<String> lst = getFields(cls, LastAccess.class);
+        if (lst == null || lst.isEmpty()) return null;
+        return lst.get(0);
+    }
+
+
+    @SuppressWarnings("unchecked")
+    public String getCreationTimeField(Class<?> cls) {
+        if (!storesCreation(cls)) return null;
+        List<String> lst = getFields(cls, CreationTime.class);
+        if (lst == null || lst.isEmpty()) return null;
+        return lst.get(0);
+    }
+
 }

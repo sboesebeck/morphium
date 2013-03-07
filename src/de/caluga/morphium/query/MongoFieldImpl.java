@@ -33,6 +33,7 @@ public class MongoFieldImpl<T> implements MongoField<T> {
     private String fldStr;
 
     private FilterExpression fe;
+    //TODO: get instance from morphium - for memory consumption and caching purpose
     private AnnotationAndReflectionHelper annotationHelper = new AnnotationAndReflectionHelper();
 
     public MongoFieldImpl() {

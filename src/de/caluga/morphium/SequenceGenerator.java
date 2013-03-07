@@ -54,7 +54,7 @@ public class SequenceGenerator {
         this.morphium = mrph;
         id = UUID.randomUUID().toString();
 
-        if (!morphium.getDatabase().collectionExists(morphium.getConfig().getMapper().getCollectionName(Sequence.class)) || morphium.createQueryFor(Sequence.class).f("name").eq(name).countAll() == 0) {
+        if (!morphium.getDatabase().collectionExists(morphium.getMapper().getCollectionName(Sequence.class)) || morphium.createQueryFor(Sequence.class).f("name").eq(name).countAll() == 0) {
             //sequence does not exist yet
             if (log.isDebugEnabled()) log.debug("Sequence does not exist yet... inserting");
 //            Query<Sequence> seq = morphium.createQueryFor(Sequence.class);

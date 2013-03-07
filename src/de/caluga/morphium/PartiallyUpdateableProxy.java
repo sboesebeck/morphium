@@ -12,6 +12,7 @@ import java.util.Vector;
 public class PartiallyUpdateableProxy<T> implements MethodInterceptor, PartiallyUpdateable, Serializable {
     private static final long serialVersionUID = -1277417045334974980L;
     private transient final Morphium morphium;
+    private AnnotationAndReflectionHelper ah;
 
     private List<String> updateableFields;
     private T reference;
@@ -20,6 +21,7 @@ public class PartiallyUpdateableProxy<T> implements MethodInterceptor, Partially
         updateableFields = new Vector<String>();
         reference = o;
         morphium = m;
+        ah = morphium.getARHelper();
     }
 
     public T __getDeref() {
@@ -42,7 +44,7 @@ public class PartiallyUpdateableProxy<T> implements MethodInterceptor, Partially
         if (method.getName().startsWith("set") || method.isAnnotationPresent(PartialUpdate.class)) {
             PartialUpdate up = method.getAnnotation(PartialUpdate.class);
             if (up != null) {
-                if (!morphium.getFields(o.getClass()).contains(up.value())) {
+                if (!ah.getFields(o.getClass()).contains(up.value())) {
                     throw new IllegalArgumentException("Field " + up.value() + " is not known to Type " + o.getClass().getName());
                 }
                 updateableFields.add(up.value());

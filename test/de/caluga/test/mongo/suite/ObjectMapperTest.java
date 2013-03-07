@@ -34,15 +34,33 @@ public class ObjectMapperTest extends MongoTest {
 
     @Test
     public void testGetCollectionName() throws Exception {
-        ObjectMapperImpl om = new ObjectMapperImpl(MorphiumSingleton.get());
+        ObjectMapperImpl om = (ObjectMapperImpl) MorphiumSingleton.get().getMapper();
         assert (om.getCollectionName(CachedObject.class).equals("cached_object")) : "Cached object test failed";
         assert (om.getCollectionName(UncachedObject.class).equals("uncached_object")) : "Uncached object test failed";
 
     }
 
+
+    @Test
+    public void massiveParallelGetCollectionNameTest() throws Exception {
+
+        for (int i = 0; i < 100; i++) {
+            new Thread() {
+                public void run() {
+                    ObjectMapperImpl om = (ObjectMapperImpl) MorphiumSingleton.get().getMapper();
+                    assert (om.getCollectionName(CachedObject.class).equals("cached_object")) : "Cached object test failed";
+                    yield();
+                    assert (om.getCollectionName(UncachedObject.class).equals("uncached_object")) : "Uncached object test failed";
+                    yield();
+                    assert (om.getCollectionName(ComplexObject.class).equals("ComplexObject")) : "complex object test failed";
+                }
+            }.start();
+        }
+    }
+
     @Test
     public void testMarshall() throws Exception {
-        ObjectMapperImpl om = new ObjectMapperImpl(MorphiumSingleton.get());
+        ObjectMapperImpl om = (ObjectMapperImpl) MorphiumSingleton.get().getMapper();
         UncachedObject o = new UncachedObject();
         o.setCounter(12345);
         o.setValue("This \" is $ test");
@@ -53,7 +71,7 @@ public class ObjectMapperTest extends MongoTest {
 
     @Test
     public void testUnmarshall() throws Exception {
-        ObjectMapperImpl om = new ObjectMapperImpl(MorphiumSingleton.get());
+        ObjectMapperImpl om = (ObjectMapperImpl) MorphiumSingleton.get().getMapper();
         BasicDBObject dbo = new BasicDBObject();
         dbo.put("counter", 12345);
         dbo.put("value", "A test");
@@ -62,7 +80,7 @@ public class ObjectMapperTest extends MongoTest {
 
     @Test
     public void testGetId() throws Exception {
-        ObjectMapperImpl om = new ObjectMapperImpl(MorphiumSingleton.get());
+        ObjectMapperImpl om = (ObjectMapperImpl) MorphiumSingleton.get().getMapper();
         AnnotationAndReflectionHelper an = new AnnotationAndReflectionHelper();
         UncachedObject o = new UncachedObject();
         o.setCounter(12345);
@@ -104,7 +122,7 @@ public class ObjectMapperTest extends MongoTest {
 
     @Test
     public void complexObjectTest() {
-        ObjectMapperImpl om = new ObjectMapperImpl(MorphiumSingleton.get());
+        ObjectMapperImpl om = (ObjectMapperImpl) MorphiumSingleton.get().getMapper();
         UncachedObject o = new UncachedObject();
         o.setCounter(12345);
         o.setValue("Embedded value");
@@ -148,7 +166,7 @@ public class ObjectMapperTest extends MongoTest {
 
     @Test
     public void nullValueTests() {
-        ObjectMapperImpl om = new ObjectMapperImpl(MorphiumSingleton.get());
+        ObjectMapperImpl om = (ObjectMapperImpl) MorphiumSingleton.get().getMapper();
 
         ComplexObject o = new ComplexObject();
         o.setTrans("TRANSIENT");
@@ -173,7 +191,7 @@ public class ObjectMapperTest extends MongoTest {
         o.setListValue(lst);
         o.setName("Simple List");
 
-        ObjectMapperImpl om = new ObjectMapperImpl(MorphiumSingleton.get());
+        ObjectMapperImpl om = (ObjectMapperImpl) MorphiumSingleton.get().getMapper();
         DBObject marshall = om.marshall(o);
         String m = marshall.toString();
 
@@ -206,7 +224,7 @@ public class ObjectMapperTest extends MongoTest {
         o.setMapValue(map);
         o.setName("A map-value");
 
-        ObjectMapperImpl om = new ObjectMapperImpl(MorphiumSingleton.get());
+        ObjectMapperImpl om = (ObjectMapperImpl) MorphiumSingleton.get().getMapper();
         DBObject marshall = om.marshall(o);
         String m = marshall.toString();
         System.out.println("Marshalled object: " + m);
@@ -234,7 +252,7 @@ public class ObjectMapperTest extends MongoTest {
         o.setValue("The meaning of life");
         o.setMongoId(new ObjectId(new Date()));
         DBObject marshall = null;
-        ObjectMapperImpl om = new ObjectMapperImpl(MorphiumSingleton.get());
+        ObjectMapperImpl om = (ObjectMapperImpl) MorphiumSingleton.get().getMapper();
         long start = System.currentTimeMillis();
         for (int i = 0; i < 25000; i++) {
             marshall = om.marshall(o);
@@ -260,7 +278,7 @@ public class ObjectMapperTest extends MongoTest {
         o.setValue("The meaning of life");
         o.setId(new ObjectId(new Date()));
         DBObject marshall = null;
-        ObjectMapperImpl om = new ObjectMapperImpl(MorphiumSingleton.get());
+        ObjectMapperImpl om = (ObjectMapperImpl) MorphiumSingleton.get().getMapper();
         long start = System.currentTimeMillis();
         for (int i = 0; i < 25000; i++) {
             marshall = om.marshall(o);
@@ -298,7 +316,7 @@ public class ObjectMapperTest extends MongoTest {
 //        o.setRef();
         o.setTrans("Trans");
         DBObject marshall = null;
-        ObjectMapperImpl om = new ObjectMapperImpl(MorphiumSingleton.get());
+        ObjectMapperImpl om = (ObjectMapperImpl) MorphiumSingleton.get().getMapper();
         long start = System.currentTimeMillis();
         for (int i = 0; i < 25000; i++) {
             marshall = om.marshall(o);
@@ -340,7 +358,7 @@ public class ObjectMapperTest extends MongoTest {
         MorphiumSingleton.get().store(uc);
         o.setRef(uc);
         DBObject marshall = null;
-        ObjectMapperImpl om = new ObjectMapperImpl(MorphiumSingleton.get());
+        ObjectMapperImpl om = (ObjectMapperImpl) MorphiumSingleton.get().getMapper();
         long start = System.currentTimeMillis();
         for (int i = 0; i < 25000; i++) {
             marshall = om.marshall(o);
@@ -387,7 +405,7 @@ public class ObjectMapperTest extends MongoTest {
         waitForWrites();
         o.setcRef(cc);
         DBObject marshall = null;
-        ObjectMapperImpl om = new ObjectMapperImpl(MorphiumSingleton.get());
+        ObjectMapperImpl om = (ObjectMapperImpl) MorphiumSingleton.get().getMapper();
         long start = System.currentTimeMillis();
         for (int i = 0; i < 25000; i++) {
             marshall = om.marshall(o);

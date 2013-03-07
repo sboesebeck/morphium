@@ -76,7 +76,7 @@ public class MorphiumConfig {
     private String superUserLogin, superUserPassword; //THE superuser!
     private String adminGroupName; //Admin group - superusers except the superuserAdmin
 
-    private ObjectMapper mapper = new ObjectMapperImpl();
+    private Class<? extends ObjectMapper> omClass = ObjectMapperImpl.class;
     private Class<? extends MongoField> fieldImplClass = MongoFieldImpl.class;
 
     private ReadPreferenceLevel defaultReadPreference;
@@ -92,6 +92,15 @@ public class MorphiumConfig {
 
     public void setCache(MorphiumCache cache) {
         this.cache = cache;
+    }
+
+
+    public Class<? extends ObjectMapper> getOmClass() {
+        return omClass;
+    }
+
+    public void setOmClass(Class<? extends ObjectMapper> omClass) {
+        this.omClass = omClass;
     }
 
     public int getWriteTimeout() {
@@ -254,9 +263,6 @@ public class MorphiumConfig {
         this.socketKeepAlive = socketKeepAlive;
     }
 
-    public ObjectMapper getMapper() {
-        return mapper;
-    }
 
     public String getMongoLogin() {
         return mongoLogin;
@@ -468,7 +474,7 @@ public class MorphiumConfig {
                 ", superUserLogin='" + superUserLogin + '\'' +
                 ", superUserPassword='" + superUserPassword + '\'' +
                 ", adminGroupName='" + adminGroupName + '\'' +
-                ", mapper=" + mapper +
+                ", mapperClass=" + omClass.toString() +
                 ", fieldImplClass='" + fieldImplClass + '\'' +
                 '}';
     }
@@ -511,7 +517,7 @@ public class MorphiumConfig {
         p.setProperty(prefix + "superUserPassword", superUserPassword);
         p.setProperty(prefix + "adminGroupName", adminGroupName);
         p.setProperty(prefix + "fieldImplClass", fieldImplClass.getName());
-        p.setProperty(prefix + "mapperClass", mapper.getClass().getName());
+        p.setProperty(prefix + "mapperClass", omClass.getName());
     }
 
     public void initFromProperty(Properties p) {
@@ -535,8 +541,10 @@ public class MorphiumConfig {
 
         String mapperCls = p.getProperty(prefix + "mapperClass", ObjectMapperImpl.class.getName());
         try {
-            mapper = (ObjectMapper) Class.forName(mapperCls).newInstance();
+            omClass = (Class<? extends ObjectMapper>) Class.forName(mapperCls);
         } catch (Exception ignored) {
+            System.out.println("could not read object mapper class " + mapperCls);
+            omClass = ObjectMapperImpl.class;
         }
         adminGroupName = p.getProperty(prefix + "adminGroupName");
         superUserLogin = p.getProperty(prefix + "superUserLogin");

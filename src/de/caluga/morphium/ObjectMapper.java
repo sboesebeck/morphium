@@ -33,4 +33,6 @@ public interface ObjectMapper {
      * @param np  the name Provider to use
      */
     public void setNameProviderForClass(Class<?> cls, NameProvider np);
+
+    void setMorphium(Morphium m);
 }

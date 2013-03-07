@@ -47,7 +47,7 @@ public class CacheSynchronizer extends MorphiumStorageAdapter<Object> implements
     private Vector<CacheSyncListener> listeners = new Vector<CacheSyncListener>();
     private Hashtable<Class<?>, Vector<CacheSyncListener>> listenerForType = new Hashtable<Class<?>, Vector<CacheSyncListener>>();
     private boolean attached;
-    private AnnotationAndReflectionHelper annotationHelper = new AnnotationAndReflectionHelper();
+    private AnnotationAndReflectionHelper annotationHelper;
 
     /**
      * @param msg      - primary messaging, will attach to and send messages over
@@ -56,7 +56,7 @@ public class CacheSynchronizer extends MorphiumStorageAdapter<Object> implements
     public CacheSynchronizer(Messaging msg, Morphium morphium) {
         messaging = msg;
         this.morphium = morphium;
-
+        annotationHelper = morphium.getARHelper();
         morphium.addListener(this);
 
         messaging.addListenerForMessageNamed(CACHE_SYNC_TYPE, this);
