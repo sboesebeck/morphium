@@ -4,6 +4,7 @@
  */
 package de.caluga.morphium.cache;
 
+import de.caluga.morphium.AnnotationAndReflectionHelper;
 import de.caluga.morphium.Morphium;
 import de.caluga.morphium.annotations.caching.Cache;
 import de.caluga.morphium.annotations.caching.Cache.ClearStrategy;
@@ -23,6 +24,7 @@ public class CacheHousekeeper extends Thread {
     private boolean running = true;
     private Logger log = Logger.getLogger(CacheHousekeeper.class);
     private Morphium morphium;
+    private AnnotationAndReflectionHelper annotationHelper = new AnnotationAndReflectionHelper();
 
     @SuppressWarnings("unchecked")
     public CacheHousekeeper(Morphium m, int houseKeepingTimeout, int globalCacheTimout) {
@@ -78,15 +80,15 @@ public class CacheHousekeeper extends Thread {
         while (running) {
             try {
                 Hashtable<Class, Vector<String>> toDelete = new Hashtable<Class, Vector<String>>();
-                Hashtable<Class<?>, Hashtable<String, CacheElement>> cache = morphium.cloneCache();
+                Hashtable<Class<?>, Hashtable<String, CacheElement>> cache = morphium.getCache().cloneCache();
                 for (Map.Entry<Class<?>, Hashtable<String, CacheElement>> es : cache.entrySet()) {
                     Class<?> clz = es.getKey();
                     Hashtable<String, CacheElement> ch = (Hashtable<String, CacheElement>) es.getValue().clone();
 
 
                     int maxEntries = -1;
-                    Cache cacheSettings = morphium.getAnnotationFromHierarchy(clz, Cache.class);//clz.getAnnotation(Cache.class);
-                    NoCache noCache = morphium.getAnnotationFromHierarchy(clz, NoCache.class);// clz.getAnnotation(NoCache.class);
+                    Cache cacheSettings = annotationHelper.getAnnotationFromHierarchy(clz, Cache.class);//clz.getAnnotation(Cache.class);
+                    NoCache noCache = annotationHelper.getAnnotationFromHierarchy(clz, NoCache.class);// clz.getAnnotation(NoCache.class);
                     int time = gcTimeout;
                     Hashtable<Long, List<String>> lruTime = new Hashtable<Long, List<String>>();
                     Hashtable<Long, List<String>> fifoTime = new Hashtable<Long, List<String>>();
@@ -235,7 +237,7 @@ public class CacheHousekeeper extends Thread {
 
                 }
 
-                Hashtable<Class<?>, Hashtable<ObjectId, Object>> idCacheClone = morphium.cloneIdCache();
+                Hashtable<Class<?>, Hashtable<ObjectId, Object>> idCacheClone = morphium.getCache().cloneIdCache();
                 for (Map.Entry<Class, Vector<String>> et : toDelete.entrySet()) {
                     Class cls = et.getKey();
 
@@ -251,8 +253,8 @@ public class CacheHousekeeper extends Thread {
                         cache.get(cls).remove(k);
                     }
                 }
-                morphium.setCache(cache);
-                morphium.setIdCache(idCacheClone);
+                morphium.getCache().setCache(cache);
+                morphium.getCache().setIdCache(idCacheClone);
 
 
             } catch (Throwable e) {

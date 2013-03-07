@@ -12,6 +12,7 @@ import de.caluga.morphium.query.Query;
 public abstract class DAO<T> {
     private Morphium morphium;
     private Class<? extends T> type;
+    private AnnotationAndReflectionHelper ah = new AnnotationAndReflectionHelper();
 
     public DAO(Morphium m, Class<? extends T> type) {
         this.type = type;
@@ -27,7 +28,7 @@ public abstract class DAO<T> {
     }
 
     public Object getValue(String field, T obj) throws IllegalAccessException {
-        return morphium.getConfig().getMapper().getField(type, field).get(obj);
+        return ah.getField(type, field).get(obj);
     }
 
     public void setValue(Enum field, Object value, T obj) throws IllegalAccessException {
@@ -35,11 +36,11 @@ public abstract class DAO<T> {
     }
 
     public void setValue(String field, Object value, T obj) throws IllegalAccessException {
-        morphium.getConfig().getMapper().getField(type, field).set(obj, value);
+        ah.getField(type, field).set(obj, value);
     }
 
     public boolean existsField(String field) {
-        return morphium.getConfig().getMapper().getField(type, field) != null;
+        return ah.getField(type, field) != null;
     }
 
 }

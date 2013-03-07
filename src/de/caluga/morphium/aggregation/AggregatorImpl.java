@@ -2,6 +2,7 @@ package de.caluga.morphium.aggregation;
 
 import com.mongodb.BasicDBObject;
 import com.mongodb.DBObject;
+import de.caluga.morphium.AnnotationAndReflectionHelper;
 import de.caluga.morphium.Morphium;
 import de.caluga.morphium.query.Query;
 
@@ -18,6 +19,7 @@ public class AggregatorImpl<T, R> implements Aggregator<T, R> {
     private List<DBObject> params = new ArrayList<DBObject>();
     private Morphium morphium;
     private Class<? extends R> rType;
+    private AnnotationAndReflectionHelper ah = new AnnotationAndReflectionHelper();
 
     @Override
     public void setMorphium(Morphium m) {
@@ -116,7 +118,7 @@ public class AggregatorImpl<T, R> implements Aggregator<T, R> {
             if (i.startsWith("$")) {
                 fld = fld.substring(1);
                 if (!fld.contains(".")) {
-                    fld = morphium.getMapper().getFieldName(type, fld);
+                    fld = ah.getFieldName(type, fld);
                 }
             }
             m.put(fld, val);
