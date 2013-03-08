@@ -57,15 +57,21 @@ public interface Query<T> extends Cloneable {
      *
      * @param q query
      */
-    public void or(Query<T>... q);
+    public Query<T> or(Query<T>... q);
 
+    /**
+     * concatenate those queries with or
+     *
+     * @param q query
+     */
+    public Query<T> or(List<Query<T>> q);
 
     /**
      * not or
      *
      * @param q query
      */
-    public void nor(Query<T>... q);
+    public Query<T> nor(Query<T>... q);
 
     /**
      * limit the number of entries in result

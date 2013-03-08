@@ -233,8 +233,16 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
     }
 
     @Override
-    public void or(Query<T>... qs) {
+    public Query<T> or(Query<T>... qs) {
         orQueries.addAll(Arrays.asList(qs));
+        return this;
+    }
+
+
+    @Override
+    public Query<T> or(List<Query<T>> qs) {
+        orQueries.addAll(qs);
+        return this;
     }
 
     private Query<T> getClone() {
@@ -248,8 +256,9 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
 
 
     @Override
-    public void nor(Query<T>... qs) {
+    public Query<T> nor(Query<T>... qs) {
         norQueries.addAll(Arrays.asList(qs));
+        return this;
     }
 
     @Override

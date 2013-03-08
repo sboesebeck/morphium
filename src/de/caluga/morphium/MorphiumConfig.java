@@ -14,6 +14,8 @@ import de.caluga.morphium.annotations.ReadPreferenceLevel;
 import de.caluga.morphium.cache.MorphiumCache;
 import de.caluga.morphium.cache.MorphiumCacheImpl;
 import de.caluga.morphium.query.*;
+import de.caluga.morphium.writer.Writer;
+import de.caluga.morphium.writer.WriterImpl;
 import org.apache.log4j.LogManager;
 import org.apache.log4j.Logger;
 import org.apache.log4j.xml.DOMConfigurator;
