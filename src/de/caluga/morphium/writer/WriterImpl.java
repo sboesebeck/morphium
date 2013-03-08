@@ -56,6 +56,7 @@ public class WriterImpl implements Writer {
     public <T> void store(final T obj, final AsyncOperationCallback<T> callback) {
         if (obj instanceof List) {
             store((List) obj, callback);
+            return;
         }
         Runnable r = new Runnable() {
             public void run() {
@@ -332,7 +333,8 @@ public class WriterImpl implements Writer {
                     } catch (IllegalAccessException e) {
                         throw new RuntimeException(e);
                     }
-                    callback.onOperationSucceeded(AsyncOperationType.SET, null, System.currentTimeMillis() - start, null, toSet, field, v);
+                    if (callback != null)
+                        callback.onOperationSucceeded(AsyncOperationType.SET, null, System.currentTimeMillis() - start, null, toSet, field, v);
                 } catch (Exception e) {
                     if (callback == null) throw new RuntimeException(e);
                     callback.onOperationError(AsyncOperationType.SET, null, System.currentTimeMillis() - start, e.getMessage(), e, toSet, field, v);
@@ -417,7 +419,8 @@ public class WriterImpl implements Writer {
                     morphium.fireProfilingWriteEvent(ent.getClass(), update, dur, false, WriteAccessType.SINGLE_UPDATE);
                     morphium.getCache().clearCacheIfNecessary(annotationHelper.getRealClass(ent.getClass()));
                     morphium.firePostStoreEvent(ent, false);
-                    callback.onOperationSucceeded(AsyncOperationType.UPDATE, null, System.currentTimeMillis() - start, null, ent, fields);
+                    if (callback != null)
+                        callback.onOperationSucceeded(AsyncOperationType.UPDATE, null, System.currentTimeMillis() - start, null, ent, fields);
                 } catch (Exception e) {
                     if (callback == null) throw new RuntimeException(e);
                     callback.onOperationError(AsyncOperationType.UPDATE, null, System.currentTimeMillis() - start, e.getMessage(), e, ent, fields);
@@ -452,7 +455,8 @@ public class WriterImpl implements Writer {
                         orQuery = orQuery.or(sortedMap.get(cls));
                         delete(orQuery, (AsyncOperationCallback<T>) null); //sync call
                     }
-                    callback.onOperationSucceeded(AsyncOperationType.REMOVE, null, System.currentTimeMillis() - start, null, null, lst);
+                    if (callback != null)
+                        callback.onOperationSucceeded(AsyncOperationType.REMOVE, null, System.currentTimeMillis() - start, null, null, lst);
                 } catch (Exception e) {
                     if (callback == null) throw new RuntimeException(e);
                     callback.onOperationError(AsyncOperationType.REMOVE, null, System.currentTimeMillis() - start, e.getMessage(), e, null, lst);
@@ -485,7 +489,8 @@ public class WriterImpl implements Writer {
                     morphium.fireProfilingWriteEvent(q.getType(), q.toQueryObject(), dur, false, WriteAccessType.BULK_DELETE);
                     morphium.getCache().clearCacheIfNecessary(q.getType());
                     morphium.firePostRemoveEvent(q);
-                    callback.onOperationSucceeded(AsyncOperationType.REMOVE, q, System.currentTimeMillis() - start, null, null);
+                    if (callback != null)
+                        callback.onOperationSucceeded(AsyncOperationType.REMOVE, q, System.currentTimeMillis() - start, null, null);
                 } catch (Exception e) {
                     if (callback == null) throw new RuntimeException(e);
                     callback.onOperationError(AsyncOperationType.REMOVE, q, System.currentTimeMillis() - start, e.getMessage(), e, null);
@@ -527,7 +532,8 @@ public class WriterImpl implements Writer {
                     morphium.clearCachefor(o.getClass());
                     morphium.inc(StatisticKeys.WRITES);
                     morphium.firePostRemoveEvent(o);
-                    callback.onOperationSucceeded(AsyncOperationType.REMOVE, null, System.currentTimeMillis() - start, null, o);
+                    if (callback != null)
+                        callback.onOperationSucceeded(AsyncOperationType.REMOVE, null, System.currentTimeMillis() - start, null, o);
                 } catch (Exception e) {
                     if (callback == null) throw new RuntimeException(e);
                     callback.onOperationError(AsyncOperationType.REMOVE, null, System.currentTimeMillis() - start, e.getMessage(), e, o);
@@ -604,7 +610,8 @@ public class WriterImpl implements Writer {
                     }
                     morphium.firePostUpdateEvent(annotationHelper.getRealClass(cls), MorphiumStorageListener.UpdateTypes.INC);
                     morphium.fireProfilingWriteEvent(toInc.getClass(), toInc, System.currentTimeMillis() - start, false, WriteAccessType.SINGLE_UPDATE);
-                    callback.onOperationSucceeded(AsyncOperationType.INC, null, System.currentTimeMillis() - start, null, toInc, field, amount);
+                    if (callback != null)
+                        callback.onOperationSucceeded(AsyncOperationType.INC, null, System.currentTimeMillis() - start, null, toInc, field, amount);
                 } catch (RuntimeException e) {
                     if (callback == null) throw new RuntimeException(e);
                     callback.onOperationError(AsyncOperationType.INC, null, System.currentTimeMillis() - start, e.getMessage(), e, toInc, field, amount);
@@ -647,7 +654,8 @@ public class WriterImpl implements Writer {
                     morphium.fireProfilingWriteEvent(cls, update, dur, insertIfNotExist, multiple ? WriteAccessType.BULK_UPDATE : WriteAccessType.SINGLE_UPDATE);
                     morphium.getCache().clearCacheIfNecessary(cls);
                     morphium.firePostUpdateEvent(annotationHelper.getRealClass(cls), MorphiumStorageListener.UpdateTypes.INC);
-                    callback.onOperationSucceeded(AsyncOperationType.INC, query, System.currentTimeMillis() - start, null, null, field, amount);
+                    if (callback != null)
+                        callback.onOperationSucceeded(AsyncOperationType.INC, query, System.currentTimeMillis() - start, null, null, field, amount);
                 } catch (RuntimeException e) {
                     if (callback == null) throw new RuntimeException(e);
                     callback.onOperationError(AsyncOperationType.INC, query, System.currentTimeMillis() - start, e.getMessage(), e, null, field, amount);
@@ -704,14 +712,15 @@ public class WriterImpl implements Writer {
                     morphium.fireProfilingWriteEvent(cls, update, dur, insertIfNotExist, multiple ? WriteAccessType.BULK_UPDATE : WriteAccessType.SINGLE_UPDATE);
                     morphium.getCache().clearCacheIfNecessary(cls);
                     morphium.firePostUpdateEvent(annotationHelper.getRealClass(cls), MorphiumStorageListener.UpdateTypes.SET);
-                    callback.onOperationSucceeded(AsyncOperationType.SET, query, System.currentTimeMillis() - start, null, null, values, insertIfNotExist, multiple);
+                    if (callback != null)
+                        callback.onOperationSucceeded(AsyncOperationType.SET, query, System.currentTimeMillis() - start, null, null, values, insertIfNotExist, multiple);
                 } catch (RuntimeException e) {
                     if (callback == null) throw new RuntimeException(e);
                     callback.onOperationError(AsyncOperationType.SET, query, System.currentTimeMillis() - start, e.getMessage(), e, null, values, insertIfNotExist, multiple);
                 }
             }
         };
-
+        submitAndBlockIfNecessary(callback, r);
     }
 
     /**
@@ -768,7 +777,8 @@ public class WriterImpl implements Writer {
                         //May happen, if null is not allowed for example
                     }
                     morphium.firePostUpdateEvent(annotationHelper.getRealClass(cls), MorphiumStorageListener.UpdateTypes.UNSET);
-                    callback.onOperationSucceeded(AsyncOperationType.UNSET, null, System.currentTimeMillis() - start, null, toSet, field);
+                    if (callback != null)
+                        callback.onOperationSucceeded(AsyncOperationType.UNSET, null, System.currentTimeMillis() - start, null, toSet, field);
                 } catch (RuntimeException e) {
                     if (callback == null) throw new RuntimeException(e);
                     callback.onOperationError(AsyncOperationType.UNSET, null, System.currentTimeMillis() - start, e.getMessage(), e, toSet, field);
@@ -797,13 +807,14 @@ public class WriterImpl implements Writer {
                 Object v = marshallIfNecessary(value);
 
                 String fieldName = annotationHelper.getFieldName(cls, field);
-                BasicDBObject set = new BasicDBObject(field, value);
+                BasicDBObject set = new BasicDBObject(fieldName, v);
                 BasicDBObject update = new BasicDBObject(push ? "$push" : "$pull", set);
                 long start = System.currentTimeMillis();
 
                 try {
                     pushIt(push, insertIfNotExist, multiple, cls, coll, qobj, update);
-                    callback.onOperationSucceeded(AsyncOperationType.PUSH, query, System.currentTimeMillis() - start, null, null, field, value, insertIfNotExist, multiple);
+                    if (callback != null)
+                        callback.onOperationSucceeded(AsyncOperationType.PUSH, query, System.currentTimeMillis() - start, null, null, field, value, insertIfNotExist, multiple);
                 } catch (RuntimeException e) {
                     if (callback == null) throw new RuntimeException(e);
                     callback.onOperationError(AsyncOperationType.PUSH, query, System.currentTimeMillis() - start, e.getMessage(), e, null, field, value, insertIfNotExist, multiple);
@@ -898,7 +909,17 @@ public class WriterImpl implements Writer {
                     field = annotationHelper.getFieldName(cls, field);
                     BasicDBObject set = new BasicDBObject(field, value);
                     BasicDBObject update = new BasicDBObject(push ? "$pushAll" : "$pullAll", set);
-                    callback.onOperationSucceeded(push ? AsyncOperationType.PUSH : AsyncOperationType.PULL, query, System.currentTimeMillis() - start, null, null, field, value, insertIfNotExist, multiple);
+                    WriteConcern wc = morphium.getWriteConcernForClass(cls);
+                    if (wc == null) {
+                        morphium.getDatabase().getCollection(coll).update(qobj, update, insertIfNotExist, multiple);
+                    } else {
+                        morphium.getDatabase().getCollection(coll).update(qobj, update, insertIfNotExist, multiple, wc);
+                    }
+                    long dur = System.currentTimeMillis() - start;
+                    morphium.fireProfilingWriteEvent(cls, update, dur, insertIfNotExist, multiple ? WriteAccessType.BULK_UPDATE : WriteAccessType.SINGLE_UPDATE);
+                    morphium.getCache().clearCacheIfNecessary(cls);
+                    if (callback != null)
+                        callback.onOperationSucceeded(push ? AsyncOperationType.PUSH : AsyncOperationType.PULL, query, System.currentTimeMillis() - start, null, null, field, value, insertIfNotExist, multiple);
                 } catch (RuntimeException e) {
                     if (callback == null) throw new RuntimeException(e);
                     callback.onOperationError(push ? AsyncOperationType.PUSH : AsyncOperationType.PULL, query, System.currentTimeMillis() - start, e.getMessage(), e, null, field, value, insertIfNotExist, multiple);
