@@ -467,12 +467,8 @@ public class AnnotationAndReflectionHelper {
         if (o == null) {
             throw new IllegalArgumentException("Object cannot be null");
         }
-        Class<?> cls = getRealClass(o.getClass());
-        List<String> flds = getFields(cls, Id.class);
-        if (flds == null || flds.isEmpty()) {
-            throw new IllegalArgumentException("Object has no id defined: " + o.getClass().getSimpleName());
-        }
-        Field f = getField(cls, flds.get(0)); //first Id
+
+        Field f = getIdField(o);
         if (f == null) {
             throw new IllegalArgumentException("Object ID field not found " + o.getClass().getSimpleName());
         }
@@ -491,6 +487,24 @@ public class AnnotationAndReflectionHelper {
         } catch (IllegalAccessException e) {
             throw new RuntimeException(e);
         }
+    }
+
+    public String getIdFieldName(Object o) {
+        Class<?> cls = getRealClass(o.getClass());
+        List<String> flds = getFields(cls, Id.class);
+        if (flds == null || flds.isEmpty()) {
+            throw new IllegalArgumentException("Object has no id defined: " + o.getClass().getSimpleName());
+        }
+        return flds.get(0);
+    }
+
+    public Field getIdField(Object o) {
+        Class<?> cls = getRealClass(o.getClass());
+        List<String> flds = getFields(cls, Id.class);
+        if (flds == null || flds.isEmpty()) {
+            throw new IllegalArgumentException("Object has no id defined: " + o.getClass().getSimpleName());
+        }
+        return getField(cls, flds.get(0));
     }
 
     /**
@@ -594,26 +608,15 @@ public class AnnotationAndReflectionHelper {
         return isAnnotationPresentInHierarchy(cls, LastChange.class);
     }
 
-    public boolean storesLastChangeBy(Class<?> cls) {
-        return isAnnotationPresentInHierarchy(cls, LastChangeBy.class);
-    }
-
 
     public boolean storesLastAccess(Class<?> cls) {
         return isAnnotationPresentInHierarchy(cls, LastAccess.class);
-    }
-
-    public boolean storesLastAccessBy(Class<?> cls) {
-        return isAnnotationPresentInHierarchy(cls, LastAccessBy.class);
     }
 
     public boolean storesCreation(Class<?> cls) {
         return isAnnotationPresentInHierarchy(cls, CreationTime.class);
     }
 
-    public boolean storesCreatedBy(Class<?> cls) {
-        return isAnnotationPresentInHierarchy(cls, CreatedBy.class);
-    }
 
     public Long getLongValue(Object o, String fld) {
         return (Long) getValue(o, fld);
@@ -640,13 +643,6 @@ public class AnnotationAndReflectionHelper {
         return lst.get(0);
     }
 
-    @SuppressWarnings("unchecked")
-    public String getLastChangeByField(Class<?> cls) {
-        if (!storesLastChangeBy(cls)) return null;
-        List<String> lst = getFields(cls, LastChangeBy.class);
-        if (lst == null || lst.isEmpty()) return null;
-        return lst.get(0);
-    }
 
     @SuppressWarnings("unchecked")
     public String getLastAccessField(Class<?> cls) {

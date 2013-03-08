@@ -1,5 +1,7 @@
-package de.caluga.morphium;
+package de.caluga.morphium.writer;
 
+import de.caluga.morphium.Morphium;
+import de.caluga.morphium.async.AsyncOperationCallback;
 import de.caluga.morphium.query.Query;
 
 import java.util.List;
@@ -12,7 +14,7 @@ import java.util.Map;
  * <p/>
  * Interface for all morphium write accesses. Override for own use and set to MorphiumConfig
  *
- * @see MorphiumConfig
+ * @see de.caluga.morphium.MorphiumConfig
  */
 public interface Writer {
     /**
@@ -20,14 +22,14 @@ public interface Writer {
      *
      * @param o - entity
      */
-    public void store(Object o);
+    public <T> void store(T o, AsyncOperationCallback<T> callback);
 
     /**
      * stores the given list of objects, should be entities or embedded
      *
      * @param lst - to store
      */
-    public void store(List lst);
+    public <T> void store(List<T> lst, AsyncOperationCallback<T> callback);
 
     /**
      * update an object using fields specified
@@ -35,7 +37,7 @@ public interface Writer {
      * @param ent    entity
      * @param fields - fields
      */
-    public void storeUsingFields(Object ent, String... fields);
+    public <T> void storeUsingFields(T ent, AsyncOperationCallback<T> callback, String... fields);
 
     /**
      * changes an object in DB
@@ -44,7 +46,7 @@ public interface Writer {
      * @param field field
      * @param value value to set
      */
-    void set(Object toSet, String field, Object value);
+    public <T> void set(T toSet, String field, Object value, AsyncOperationCallback<T> callback);
 
     /**
      * will change an entry in mongodb-collection corresponding to given class object
@@ -57,9 +59,9 @@ public interface Writer {
      * @param insertIfNotExist - insert, if it does not exist (query needs to be simple!)
      * @param multiple         - update several documents, if false, only first hit will be updated
      */
-    void set(Query<?> query, Map<String, Object> values, boolean insertIfNotExist, boolean multiple);
+    public <T> void set(Query<T> query, Map<String, Object> values, boolean insertIfNotExist, boolean multiple, AsyncOperationCallback<T> callback);
 
-    void inc(Query<?> query, String field, int amount, boolean insertIfNotExist, boolean multiple);
+    public <T> void inc(Query<T> query, String field, int amount, boolean insertIfNotExist, boolean multiple, AsyncOperationCallback<T> callback);
 
     /**
      * Increases a value in an existing mongo collection entry - no reading necessary. Object is altered in place
@@ -70,24 +72,24 @@ public interface Writer {
      * @param field:  the field to change
      * @param amount: the value to set
      */
-    void inc(Object toInc, String field, int amount);
+    public <T> void inc(T toInc, String field, int amount, AsyncOperationCallback<T> callback);
 
-    void setMorphium(Morphium m);
+    public void setMorphium(Morphium m);
 
-    void delete(List lst);
+    public <T> void delete(List<T> lst, AsyncOperationCallback<T> callback);
 
-    void delete(Object o);
+    public <T> void delete(T o, AsyncOperationCallback<T> callback);
 
     /**
      * deletes all objects matching the given query
      *
      * @param q the query
      */
-    void delete(Query q);
+    public <T> void delete(Query<T> q, AsyncOperationCallback<T> callback);
 
-    void pushPull(boolean push, Query<?> query, String field, Object value, boolean insertIfNotExist, boolean multiple);
+    public <T> void pushPull(boolean push, Query<T> query, String field, Object value, boolean insertIfNotExist, boolean multiple, AsyncOperationCallback<T> callback);
 
-    void pushPullAll(boolean push, Query<?> query, String field, List<?> value, boolean insertIfNotExist, boolean multiple);
+    public <T> void pushPullAll(boolean push, Query<T> query, String field, List<?> value, boolean insertIfNotExist, boolean multiple, AsyncOperationCallback<T> callback);
 
     /**
      * Un-setting a value in an existing mongo collection entry - no reading necessary. Object is altered in place
@@ -97,5 +99,6 @@ public interface Writer {
      * @param toSet: object to set the value in (or better - the corresponding entry in mongo)
      * @param field: field to remove from document
      */
-    void unset(Object toSet, String field);
+    public <T> void unset(T toSet, String field, AsyncOperationCallback<T> callback);
+
 }

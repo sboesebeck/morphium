@@ -10,6 +10,7 @@ import de.caluga.morphium.annotations.*;
 import de.caluga.morphium.annotations.caching.Cache;
 import de.caluga.morphium.annotations.caching.NoCache;
 import de.caluga.morphium.annotations.lifecycle.*;
+import de.caluga.morphium.async.AsyncOperationCallback;
 import de.caluga.morphium.cache.CacheHousekeeper;
 import de.caluga.morphium.cache.MorphiumCache;
 import de.caluga.morphium.query.MongoField;
@@ -18,6 +19,7 @@ import de.caluga.morphium.replicaset.ConfNode;
 import de.caluga.morphium.replicaset.ReplicaSetConf;
 import de.caluga.morphium.replicaset.ReplicaSetNode;
 import de.caluga.morphium.validation.JavaxValidationStorageListener;
+import de.caluga.morphium.writer.WriterImpl;
 import net.sf.cglib.proxy.Enhancer;
 import org.apache.log4j.Logger;
 import org.bson.types.ObjectId;
@@ -265,14 +267,14 @@ public final class Morphium {
         firePreUpdateEvent(toSet.getClass(), MorphiumStorageListener.UpdateTypes.UNSET);
         Cache c = annotationHelper.getAnnotationFromHierarchy(toSet.getClass(), Cache.class);
         if (annotationHelper.isAnnotationPresentInHierarchy(toSet.getClass(), NoCache.class) || c == null || !c.writeCache()) {
-            config.getWriter().unset(toSet, field);
+            config.getWriter().unset(toSet, field, null);
             firePostUpdateEvent(toSet.getClass(), MorphiumStorageListener.UpdateTypes.UNSET);
             return;
         }
         writers.execute(new Runnable() {
             @Override
             public void run() {
-                config.getWriter().unset(toSet, field);
+                config.getWriter().unset(toSet, field, null);
                 firePostUpdateEvent(toSet.getClass(), MorphiumStorageListener.UpdateTypes.UNSET);
             }
         });
@@ -393,14 +395,14 @@ public final class Morphium {
 
         firePreUpdateEvent(query.getType(), MorphiumStorageListener.UpdateTypes.PUSH);
         if (!annotationHelper.isWriteCached(query.getType())) {
-            config.getWriter().pushPull(true, query, field, value, insertIfNotExist, multiple);
+            config.getWriter().pushPull(true, query, field, value, insertIfNotExist, multiple, null);
             firePostUpdateEvent(query.getType(), MorphiumStorageListener.UpdateTypes.PUSH);
             return;
         }
         writers.execute(new Runnable() {
             @Override
             public void run() {
-                config.getWriter().pushPull(true, query, field, value, insertIfNotExist, multiple);
+                config.getWriter().pushPull(true, query, field, value, insertIfNotExist, multiple, null);
                 firePostUpdateEvent(query.getType(), MorphiumStorageListener.UpdateTypes.PUSH);
             }
         });
@@ -411,14 +413,14 @@ public final class Morphium {
 
         firePreUpdateEvent(query.getType(), MorphiumStorageListener.UpdateTypes.PULL);
         if (!annotationHelper.isWriteCached(query.getType())) {
-            config.getWriter().pushPull(false, query, field, value, insertIfNotExist, multiple);
+            config.getWriter().pushPull(false, query, field, value, insertIfNotExist, multiple, null);
             firePostUpdateEvent(query.getType(), MorphiumStorageListener.UpdateTypes.PULL);
             return;
         }
         writers.execute(new Runnable() {
             @Override
             public void run() {
-                config.getWriter().pushPull(false, query, field, value, insertIfNotExist, multiple);
+                config.getWriter().pushPull(false, query, field, value, insertIfNotExist, multiple, null);
                 firePostUpdateEvent(query.getType(), MorphiumStorageListener.UpdateTypes.PULL);
             }
         });
@@ -429,14 +431,14 @@ public final class Morphium {
 
         firePreUpdateEvent(query.getType(), MorphiumStorageListener.UpdateTypes.PUSH);
         if (!annotationHelper.isWriteCached(query.getType())) {
-            config.getWriter().pushPullAll(true, query, field, value, insertIfNotExist, multiple);
+            config.getWriter().pushPullAll(true, query, field, value, insertIfNotExist, multiple, null);
             firePostUpdateEvent(query.getType(), MorphiumStorageListener.UpdateTypes.PUSH);
             return;
         }
         writers.execute(new Runnable() {
             @Override
             public void run() {
-                config.getWriter().pushPullAll(true, query, field, value, insertIfNotExist, multiple);
+                config.getWriter().pushPullAll(true, query, field, value, insertIfNotExist, multiple, null);
                 firePostUpdateEvent(query.getType(), MorphiumStorageListener.UpdateTypes.PUSH);
             }
         });
@@ -473,14 +475,14 @@ public final class Morphium {
         firePreUpdateEvent(query.getType(), MorphiumStorageListener.UpdateTypes.SET);
         Cache c = annotationHelper.getAnnotationFromHierarchy(query.getType(), Cache.class);
         if (annotationHelper.isAnnotationPresentInHierarchy(query.getType(), NoCache.class) || c == null || !c.writeCache()) {
-            config.getWriter().set(query, map, insertIfNotExist, multiple);
+            config.getWriter().set(query, map, insertIfNotExist, multiple, null);
             firePostUpdateEvent(query.getType(), MorphiumStorageListener.UpdateTypes.SET);
             return;
         }
         writers.execute(new Runnable() {
             @Override
             public void run() {
-                config.getWriter().set(query, map, insertIfNotExist, multiple);
+                config.getWriter().set(query, map, insertIfNotExist, multiple, null);
                 firePostUpdateEvent(query.getType(), MorphiumStorageListener.UpdateTypes.SET);
             }
         });
@@ -523,14 +525,14 @@ public final class Morphium {
         firePreUpdateEvent(query.getType(), MorphiumStorageListener.UpdateTypes.INC);
         Cache c = annotationHelper.getAnnotationFromHierarchy(query.getType(), Cache.class);
         if (annotationHelper.isAnnotationPresentInHierarchy(query.getType(), NoCache.class) || c == null || !c.writeCache()) {
-            config.getWriter().inc(query, name, amount, insertIfNotExist, multiple);
+            config.getWriter().inc(query, name, amount, insertIfNotExist, multiple, null);
             firePostUpdateEvent(query.getType(), MorphiumStorageListener.UpdateTypes.INC);
             return;
         }
         writers.execute(new Runnable() {
             @Override
             public void run() {
-                config.getWriter().inc(query, name, amount, insertIfNotExist, multiple);
+                config.getWriter().inc(query, name, amount, insertIfNotExist, multiple, null);
                 firePostUpdateEvent(query.getType(), MorphiumStorageListener.UpdateTypes.INC);
             }
         });
@@ -561,14 +563,14 @@ public final class Morphium {
         firePreUpdateEvent(toSet.getClass(), MorphiumStorageListener.UpdateTypes.SET);
         Cache c = annotationHelper.getAnnotationFromHierarchy(toSet.getClass(), Cache.class);
         if (annotationHelper.isAnnotationPresentInHierarchy(toSet.getClass(), NoCache.class) || c == null || !c.writeCache()) {
-            config.getWriter().set(toSet, field, value);
+            config.getWriter().set(toSet, field, value, null);
             firePostUpdateEvent(toSet.getClass(), MorphiumStorageListener.UpdateTypes.SET);
             return;
         }
         writers.execute(new Runnable() {
             @Override
             public void run() {
-                config.getWriter().set(toSet, field, value);
+                config.getWriter().set(toSet, field, value, null);
                 firePostUpdateEvent(toSet.getClass(), MorphiumStorageListener.UpdateTypes.SET);
             }
         });
@@ -593,14 +595,14 @@ public final class Morphium {
         firePreUpdateEvent(toSet.getClass(), MorphiumStorageListener.UpdateTypes.INC);
         Cache c = annotationHelper.getAnnotationFromHierarchy(toSet.getClass(), Cache.class);
         if (annotationHelper.isAnnotationPresentInHierarchy(toSet.getClass(), NoCache.class) || c == null || !c.writeCache()) {
-            config.getWriter().inc(toSet, field, i);
+            config.getWriter().inc(toSet, field, i, null);
             firePostUpdateEvent(toSet.getClass(), MorphiumStorageListener.UpdateTypes.INC);
             return;
         }
         writers.execute(new Runnable() {
             @Override
             public void run() {
-                config.getWriter().set(toSet, field, i);
+                config.getWriter().set(toSet, field, i, null);
                 firePostUpdateEvent(toSet.getClass(), MorphiumStorageListener.UpdateTypes.INC);
             }
         });
@@ -634,21 +636,21 @@ public final class Morphium {
         if (fields.length == 0) return; //not doing an update - no change
 
         if (annotationHelper.isAnnotationPresentInHierarchy(ent.getClass(), NoCache.class)) {
-            config.getWriter().storeUsingFields(ent, fields);
+            config.getWriter().storeUsingFields(ent, null, fields);
             return;
         }
 
         firePreUpdateEvent(ent.getClass(), MorphiumStorageListener.UpdateTypes.SET);
         Cache c = annotationHelper.getAnnotationFromHierarchy(ent.getClass(), Cache.class);
         if (annotationHelper.isAnnotationPresentInHierarchy(ent.getClass(), NoCache.class) || c == null || !c.writeCache()) {
-            config.getWriter().storeUsingFields(ent, fields);
+            config.getWriter().storeUsingFields(ent, null, fields);
             firePostUpdateEvent(ent.getClass(), MorphiumStorageListener.UpdateTypes.SET);
             return;
         }
         writers.execute(new Runnable() {
             @Override
             public void run() {
-                config.getWriter().storeUsingFields(ent, fields);
+                config.getWriter().storeUsingFields(ent, null, fields);
                 firePostUpdateEvent(ent.getClass(), MorphiumStorageListener.UpdateTypes.SET);
             }
         });
@@ -1227,7 +1229,7 @@ public final class Morphium {
     }
 
     public void storeNoCache(Object lst) {
-        config.getWriter().store(lst);
+        config.getWriter().store(lst, null);
     }
 
     public void storeInBackground(final Object lst) {
@@ -1237,7 +1239,7 @@ public final class Morphium {
             public void run() {
                 boolean isNew = getId(lst) == null;
                 firePreStoreEvent(lst, isNew);
-                config.getWriter().store(lst);
+                config.getWriter().store(lst, null);
                 firePostStoreEvent(lst, isNew);
             }
         });
@@ -1338,7 +1340,7 @@ public final class Morphium {
         firePreStoreEvent(o, isNew);
         Cache cc = annotationHelper.getAnnotationFromHierarchy(type, Cache.class);//o.getClass().getAnnotation(Cache.class);
         if (cc == null || annotationHelper.isAnnotationPresentInHierarchy(o.getClass(), NoCache.class) || !cc.writeCache()) {
-            config.getWriter().store(o);
+            config.getWriter().store(o, null);
             firePostStoreEvent(o, isNew);
             return;
         }
@@ -1346,7 +1348,7 @@ public final class Morphium {
         writers.execute(new Runnable() {
             @Override
             public void run() {
-                config.getWriter().store(fo);
+                config.getWriter().store(fo, null);
                 firePostStoreEvent(fo, isNew);
             }
         });
@@ -1374,32 +1376,32 @@ public final class Morphium {
             @Override
             public void run() {
                 callLifecycleMethod(PreStore.class, storeInBg);
-                config.getWriter().store(storeInBg);
+                config.getWriter().store(storeInBg, (AsyncOperationCallback<List<T>>) null);
                 callLifecycleMethod(PostStore.class, storeInBg);
             }
         });
         callLifecycleMethod(PreStore.class, storeDirect);
-        config.getWriter().store(storeDirect);
+        config.getWriter().store(storeDirect, (AsyncOperationCallback<List<T>>) null);
         callLifecycleMethod(PostStore.class, storeDirect);
 
     }
 
-    public void delete(Query o) {
+    public <T> void delete(Query<T> o) {
         callLifecycleMethod(PreRemove.class, o);
         firePreRemoveEvent(o);
 
         Cache cc = annotationHelper.getAnnotationFromHierarchy(o.getType(), Cache.class);//o.getClass().getAnnotation(Cache.class);
         if (cc == null || annotationHelper.isAnnotationPresentInHierarchy(o.getType(), NoCache.class) || !cc.writeCache()) {
-            config.getWriter().delete(o);
+            config.getWriter().delete(o, (AsyncOperationCallback<T>) null);
             callLifecycleMethod(PostRemove.class, o);
             firePostRemoveEvent(o);
             return;
         }
-        final Query fo = o;
+        final Query<T> fo = o;
         writers.execute(new Runnable() {
             @Override
             public void run() {
-                config.getWriter().delete(fo);
+                config.getWriter().delete(fo, (AsyncOperationCallback<T>) null);
                 firePostRemoveEvent(fo);
 
             }
@@ -1423,7 +1425,7 @@ public final class Morphium {
 
         Cache cc = annotationHelper.getAnnotationFromHierarchy(o.getClass(), Cache.class);//o.getClass().getAnnotation(Cache.class);
         if (cc == null || annotationHelper.isAnnotationPresentInHierarchy(o.getClass(), NoCache.class) || !cc.writeCache()) {
-            config.getWriter().delete(o);
+            config.getWriter().delete(o, null);
             firePostRemoveEvent(o);
             return;
         }
@@ -1431,7 +1433,7 @@ public final class Morphium {
         writers.execute(new Runnable() {
             @Override
             public void run() {
-                config.getWriter().delete(fo);
+                config.getWriter().delete(fo, null);
                 firePostRemoveEvent(fo);
             }
         });
