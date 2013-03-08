@@ -98,7 +98,7 @@ public class CacheSyncTest extends MongoTest {
         assert (MorphiumSingleton.get().getStatistics().get(StatisticKeys.CACHE_ENTRIES.name()) != null) : "Cache entries not set?";
         cs1.sendClearAllMessage("test");
         Thread.sleep(1500);
-        assert (MorphiumSingleton.get().getStatistics().get(StatisticKeys.CACHE_ENTRIES.name()) == 0) : "Cache entries not set?";
+        assert (MorphiumSingleton.get().getStatistics().get(StatisticKeys.CACHE_ENTRIES.name()) == 0) : "Cache entries set? Entries: " + MorphiumSingleton.get().getStatistics().get(StatisticKeys.CACHE_ENTRIES.name());
         msg1.setRunning(false);
         msg2.setRunning(false);
         cs1.detach();

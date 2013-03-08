@@ -192,10 +192,10 @@ public class UpdateTest extends MongoTest {
 
         MorphiumSingleton.get().pushAll(lc, "embedded_object_list", obj, false, true);
         waitForWrites();
-
+        Thread.sleep(2500);
         ListContainer lc2 = lc.get();
         assert (lc2.getEmbeddedObjectList() != null);
-        assert (lc2.getEmbeddedObjectList().size() == 3);
+        assert (lc2.getEmbeddedObjectList().size() == 3) : "Size wrong should be 3 is " + lc2.getEmbeddedObjectList().size();
         assert (lc2.getEmbeddedObjectList().get(0).getTest() == 1l);
     }
 
