@@ -54,7 +54,7 @@ public class MorphiumConfig {
 
 
     private int maxWaitTime = 120000;
-    private int writeBufferTime = 10000;
+    private int writeBufferTime = 1000;
     private boolean autoreconnect = true;
     private int maxAutoReconnectTime = 0;
     private int blockingThreadsMultiplier = 5;

@@ -59,7 +59,7 @@ public class MongoTest {
             MorphiumSingleton.get().clearCollection(Msg.class);
             MorphiumSingleton.get().ensureIndex(UncachedObject.class, "counter", "value");
             MorphiumSingleton.get().ensureIndex(CachedObject.class, "counter", "value");
-            Thread.sleep(1000);
+//            Thread.sleep(1000);
             Map<String, Double> stats = MorphiumSingleton.get().getStatistics();
             Double ent = stats.get("X-Entries for: de.caluga.test.mongo.suite.CachedObject");
             assert (ent == null || ent == 0) : "Still cache entries???";
