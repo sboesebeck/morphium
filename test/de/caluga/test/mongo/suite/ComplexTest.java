@@ -43,6 +43,7 @@ public class ComplexTest extends MongoTest {
         MorphiumSingleton.get().store(co);
 
         //object stored!!!
+        waitForWrites();
 
         //now read it again...
         Query<ComplexObject> q = MorphiumSingleton.get().createQueryFor(ComplexObject.class);

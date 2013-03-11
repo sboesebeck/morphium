@@ -39,8 +39,6 @@ public @interface Cache {
 
     ClearStrategy strategy() default ClearStrategy.FIFO;
 
-    boolean writeCache() default false;
-
     boolean readCache() default true;
 
     SyncCacheStrategy syncCache() default SyncCacheStrategy.NONE;

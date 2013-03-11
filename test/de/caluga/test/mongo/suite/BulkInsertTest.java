@@ -41,7 +41,7 @@ public class BulkInsertTest extends MongoTest {
         }
         MorphiumSingleton.get().storeList(lst);
         dur = System.currentTimeMillis() - start;
-        assert (MorphiumSingleton.get().writeBufferCount() == 0) : "WriteBufferCount not 0!?";
+        assert (MorphiumSingleton.get().getWriteBufferCount() == 0) : "WriteBufferCount not 0!?";
         log.info("storing objects one by one took " + dur + " ms");
         Query<UncachedObject> q = MorphiumSingleton.get().createQueryFor(UncachedObject.class);
         q.setReadPreferenceLevel(ReadPreferenceLevel.PRIMARY);

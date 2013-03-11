@@ -66,9 +66,8 @@ public class MongoTest {
             ent = stats.get("X-Entries for: de.caluga.test.mongo.suite.UncachedObject");
             assert (ent == null || ent == 0) : "Uncached Object cached?";
 
-            //make sure everything is really written to disk
-            Thread.sleep(500);
-            log.info("Preparation finished - ");
+            waitForWrites();
+            log.info("Preparation finished");
         } catch (Exception e) {
             log.fatal("Error during preparation!");
             e.printStackTrace();
@@ -82,6 +81,7 @@ public class MongoTest {
         MorphiumSingleton.get().clearCollection(UncachedObject.class);
         MorphiumSingleton.get().clearCollection(CachedObject.class);
         MorphiumSingleton.get().clearCollection(Msg.class);
+        waitForWrites();
         log.info("done...");
     }
 
@@ -89,7 +89,7 @@ public class MongoTest {
     @org.junit.BeforeClass
     public static void setUpClass() throws Exception {
         if (!MorphiumSingleton.isConfigured()) {
-            MorphiumConfig cfg = new MorphiumConfig("morphium_test", 5, 50000, 5000, "morphium-log4j-test.xml");
+            MorphiumConfig cfg = new MorphiumConfig("morphium_test", 55, 50000, 5000, "morphium-log4j-test.xml");
 //            cfg.setTimeoutBugWorkAroundEnabled(true);
 
 
@@ -118,10 +118,10 @@ public class MongoTest {
 
     public void waitForWrites() {
         int count = 0;
-        while (MorphiumSingleton.get().writeBufferCount() > 0) {
+        while (MorphiumSingleton.get().getWriteBufferCount() > 0) {
             count++;
-            if (count % 200 == 0)
-                log.info("still " + MorphiumSingleton.get().writeBufferCount() + " writers active");
+            if (count % 100 == 0)
+                log.info("still " + MorphiumSingleton.get().getWriteBufferCount() + " writers active (" + MorphiumSingleton.get().getBufferedWriterBuffercount() + " + " + MorphiumSingleton.get().getWriterBufferCount() + ")");
             try {
                 Thread.sleep(10);
             } catch (InterruptedException ex) {
