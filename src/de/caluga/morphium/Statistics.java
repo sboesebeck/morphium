@@ -28,7 +28,7 @@ public class Statistics extends Hashtable<String, Double> {
         super.put(StatisticKeys.CACHE_ENTRIES.name(), entries);
 
 
-        super.put(StatisticKeys.WRITE_BUFFER_ENTRIES.name(), (double) morphium.writeBufferCount());
+        super.put(StatisticKeys.WRITE_BUFFER_ENTRIES.name(), (double) morphium.getWriteBufferCount());
         super.put(StatisticKeys.CHITSPERC.name(), ((double) morphium.getStats().get(StatisticKeys.CHITS).get()) / (morphium.getStats().get(StatisticKeys.READS).get() - morphium.getStats().get(StatisticKeys.NO_CACHED_READS).get()) * 100.0);
         super.put(StatisticKeys.CMISSPERC.name(), ((double) morphium.getStats().get(StatisticKeys.CMISS).get()) / (morphium.getStats().get(StatisticKeys.READS).get() - morphium.getStats().get(StatisticKeys.NO_CACHED_READS).get()) * 100.0);
     }

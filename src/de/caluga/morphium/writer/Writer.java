@@ -48,6 +48,8 @@ public interface Writer {
      */
     public <T> void set(T toSet, String field, Object value, AsyncOperationCallback<T> callback);
 
+    public <T> void set(T toSet, String field, Object value, boolean insertIfNotExists, boolean multiple, AsyncOperationCallback<T> callback);
+
     /**
      * will change an entry in mongodb-collection corresponding to given class object
      * if query is too complex, upsert might not work!
@@ -101,4 +103,13 @@ public interface Writer {
      */
     public <T> void unset(T toSet, String field, AsyncOperationCallback<T> callback);
 
+    public <T> void dropCollection(Class<T> cls, AsyncOperationCallback<T> callback);
+
+    public <T> void ensureIndex(Class<T> cls, Map<String, Object> index, AsyncOperationCallback<T> callback);
+
+    public <T> void ensureIndex(Class<T> cls, AsyncOperationCallback<T> callback, String... fldStr);
+
+    public <T> void ensureIndex(Class<T> cls, AsyncOperationCallback<T> callback, Enum... fldStr);
+
+    public int writeBufferCount();
 }

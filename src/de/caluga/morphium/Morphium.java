@@ -6,7 +6,10 @@ package de.caluga.morphium;
 
 import com.mongodb.*;
 import de.caluga.morphium.aggregation.Aggregator;
-import de.caluga.morphium.annotations.*;
+import de.caluga.morphium.annotations.DefaultReadPreference;
+import de.caluga.morphium.annotations.Id;
+import de.caluga.morphium.annotations.Index;
+import de.caluga.morphium.annotations.WriteSafety;
 import de.caluga.morphium.annotations.caching.Cache;
 import de.caluga.morphium.annotations.caching.NoCache;
 import de.caluga.morphium.annotations.lifecycle.*;
@@ -19,6 +22,8 @@ import de.caluga.morphium.replicaset.ConfNode;
 import de.caluga.morphium.replicaset.ReplicaSetConf;
 import de.caluga.morphium.replicaset.ReplicaSetNode;
 import de.caluga.morphium.validation.JavaxValidationStorageListener;
+import de.caluga.morphium.writer.BufferedWriterImpl;
+import de.caluga.morphium.writer.Writer;
 import de.caluga.morphium.writer.WriterImpl;
 import net.sf.cglib.proxy.Enhancer;
 import org.apache.log4j.Logger;
@@ -27,12 +32,7 @@ import org.bson.types.ObjectId;
 import java.io.Serializable;
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Field;
-import java.lang.reflect.InvocationTargetException;
-import java.lang.reflect.Method;
 import java.util.*;
-import java.util.concurrent.LinkedBlockingQueue;
-import java.util.concurrent.ThreadPoolExecutor;
-import java.util.concurrent.TimeUnit;
 
 /**
  * This is the single access point for accessing MongoDB. This should
@@ -63,13 +63,11 @@ public final class Morphium {
     private MorphiumConfig config;
     private Mongo mongo;
     private DB database;
-    private ThreadPoolExecutor writers = new ThreadPoolExecutor(10, 50,
-            10000L, TimeUnit.MILLISECONDS,
-            new LinkedBlockingQueue<Runnable>());
+
     //Cache by Type, query String -> CacheElement (contains list etc)
 
     private final Map<StatisticKeys, StatisticValue> stats;
-    private Map<Class<?>, Map<Class<? extends Annotation>, Method>> lifeCycleMethods;
+
     /**
      * String Representing current user - needs to be set by Application
      */
@@ -107,7 +105,7 @@ public final class Morphium {
 
 
         stats = new Hashtable<StatisticKeys, StatisticValue>();
-        lifeCycleMethods = new Hashtable<Class<?>, Map<Class<? extends Annotation>, Method>>();
+
         for (StatisticKeys k : StatisticKeys.values()) {
             stats.put(k, new StatisticValue());
         }
@@ -126,10 +124,6 @@ public final class Morphium {
         o.setWtimeout(config.getWriteTimeout());
         o.setMaxAutoConnectRetryTime(config.getMaxAutoReconnectTime());
         o.setMaxWaitTime(config.getMaxWaitTime());
-
-
-        writers.setCorePoolSize(config.getMaxConnections() / 2);
-        writers.setMaximumPoolSize(config.getMaxConnections() + 1);
 
         if (config.getAdr().isEmpty()) {
             throw new RuntimeException("Error - no server address specified!");
@@ -155,7 +149,11 @@ public final class Morphium {
         if (config.getWriter() == null) {
             config.setWriter(new WriterImpl());
         }
+        if (config.getBufferedWriter() == null) {
+            config.setBufferedWriter(new BufferedWriterImpl());
+        }
         config.getWriter().setMorphium(this);
+        config.getBufferedWriter().setMorphium(this);
 
         cache = config.getCache();
 
@@ -257,27 +255,24 @@ public final class Morphium {
     }
 
     @SuppressWarnings({"unchecked", "UnusedDeclaration"})
-    public void unset(Object toSet, Enum field) {
-        unset(toSet, field.name());
+    public <T> void unset(T toSet, Enum field) {
+        unset(toSet, field.name(), null);
     }
 
-    public void unset(final Object toSet, final String field) {
+    public <T> void unset(final T toSet, final String field) {
+        unset(toSet, field, null);
+    }
+
+    public <T> void unset(final T toSet, final String field, final AsyncOperationCallback<T> callback) {
         if (toSet == null) throw new RuntimeException("Cannot update null!");
 
         firePreUpdateEvent(toSet.getClass(), MorphiumStorageListener.UpdateTypes.UNSET);
         Cache c = annotationHelper.getAnnotationFromHierarchy(toSet.getClass(), Cache.class);
-        if (annotationHelper.isAnnotationPresentInHierarchy(toSet.getClass(), NoCache.class) || c == null || !c.writeCache()) {
-            config.getWriter().unset(toSet, field, null);
-            firePostUpdateEvent(toSet.getClass(), MorphiumStorageListener.UpdateTypes.UNSET);
-            return;
+        Writer wr = config.getWriter();
+        if (annotationHelper.isBufferedWrite(toSet.getClass())) {
+            config.getBufferedWriter();
         }
-        writers.execute(new Runnable() {
-            @Override
-            public void run() {
-                config.getWriter().unset(toSet, field, null);
-                firePostUpdateEvent(toSet.getClass(), MorphiumStorageListener.UpdateTypes.UNSET);
-            }
-        });
+        wr.unset(toSet, field, callback);
     }
 
     /**
@@ -290,7 +285,7 @@ public final class Morphium {
     public void ensureIndicesFor(Class type) {
         if (annotationHelper.isAnnotationPresentInHierarchy(type, Index.class)) {
             //type must be marked as to be indexed
-            List<Annotation> lst = getAllAnnotationsFromHierachy(type, Index.class);
+            List<Annotation> lst = annotationHelper.getAllAnnotationsFromHierachy(type, Index.class);
             for (Annotation a : lst) {
                 Index i = (Index) a;
                 if (i.value().length > 0) {
@@ -336,14 +331,13 @@ public final class Morphium {
     }
 
     public void set(Query<?> query, Enum field, Object val) {
-        set(query, field.name(), val);
+        getWriterForClass(query.getType()).set(query, field.name(), val, null);
     }
 
     public void set(Query<?> query, String field, Object val) {
-        set(query, field, val, false, false);
+        getWriterForClass(query.getType()).set(query, field, val, false, false, null);
     }
 
-    @SuppressWarnings({"unchecked", "UnusedDeclaration", "SuspiciousMethodCalls"})
     public void setEnum(Query<?> query, Map<Enum, Object> values, boolean insertIfNotExist, boolean multiple) {
         HashMap<String, Object> toSet = new HashMap<String, Object>();
         for (Map.Entry<Enum, Object> est : values.entrySet()) {
@@ -390,58 +384,76 @@ public final class Morphium {
     }
 
 
-    public void push(final Query<?> query, final String field, final Object value, final boolean insertIfNotExist, final boolean multiple) {
+    public <T> void push(final Query<T> query, final String field, final Object value, final boolean insertIfNotExist, final boolean multiple) {
+        push(query, toString(), value, insertIfNotExist, multiple, null);
+    }
+
+    /**
+     * asynchronous call to callback
+     *
+     * @param query            - the query
+     * @param field            - field to push values to
+     * @param value            - value to push
+     * @param insertIfNotExist - insert object, if it does not exist
+     * @param multiple         - more than one
+     * @param callback         - will be called, when operation succeeds - synchronous call, if null
+     * @param <T>              - the type
+     */
+    public <T> void push(final Query<T> query, final String field, final Object value, final boolean insertIfNotExist, final boolean multiple, final AsyncOperationCallback<T> callback) {
         if (query == null || field == null) throw new RuntimeException("Cannot update null!");
 
         firePreUpdateEvent(query.getType(), MorphiumStorageListener.UpdateTypes.PUSH);
-        if (!annotationHelper.isWriteCached(query.getType())) {
-            config.getWriter().pushPull(true, query, field, value, insertIfNotExist, multiple, null);
-            firePostUpdateEvent(query.getType(), MorphiumStorageListener.UpdateTypes.PUSH);
-            return;
+        Writer wr = config.getWriter();
+        if (annotationHelper.isBufferedWrite(query.getType())) {
+            wr = config.getBufferedWriter();
         }
-        writers.execute(new Runnable() {
-            @Override
-            public void run() {
-                config.getWriter().pushPull(true, query, field, value, insertIfNotExist, multiple, null);
-                firePostUpdateEvent(query.getType(), MorphiumStorageListener.UpdateTypes.PUSH);
-            }
-        });
+        wr.pushPull(true, query, field, value, insertIfNotExist, multiple, null);
+
     }
 
-    public void pull(final Query<?> query, final String field, final Object value, final boolean insertIfNotExist, final boolean multiple) {
+    public <T> void pull(final Query<T> query, final String field, final Object value, final boolean insertIfNotExist, final boolean multiple) {
+        pull(query, field, value, insertIfNotExist, multiple, null);
+    }
+
+    /**
+     * Asynchronous call to pulll
+     *
+     * @param query            - query
+     * @param field            - field to pull
+     * @param value            - value to pull from field
+     * @param insertIfNotExist - insert document unless it exists
+     * @param multiple         - more than one
+     * @param callback         -callback to call when operation succeeds - synchronous call, if null
+     * @param <T>              - type
+     */
+    public <T> void pull(final Query<T> query, final String field, final Object value, final boolean insertIfNotExist, final boolean multiple, final AsyncOperationCallback<T> callback) {
         if (query == null || field == null) throw new RuntimeException("Cannot update null!");
 
         firePreUpdateEvent(query.getType(), MorphiumStorageListener.UpdateTypes.PULL);
-        if (!annotationHelper.isWriteCached(query.getType())) {
-            config.getWriter().pushPull(false, query, field, value, insertIfNotExist, multiple, null);
-            firePostUpdateEvent(query.getType(), MorphiumStorageListener.UpdateTypes.PULL);
-            return;
+        Writer wr = config.getWriter();
+        if (annotationHelper.isBufferedWrite(query.getType())) {
+            wr = config.getBufferedWriter();
+
         }
-        writers.execute(new Runnable() {
-            @Override
-            public void run() {
-                config.getWriter().pushPull(false, query, field, value, insertIfNotExist, multiple, null);
-                firePostUpdateEvent(query.getType(), MorphiumStorageListener.UpdateTypes.PULL);
-            }
-        });
+        wr.pushPull(false, query, field, value, insertIfNotExist, multiple, callback);
     }
 
     public void pushAll(final Query<?> query, final String field, final List<?> value, final boolean insertIfNotExist, final boolean multiple) {
+        pushAll(query, field, value, insertIfNotExist, multiple, null);
+    }
+
+    public <T> void pushAll(final Query<T> query, final String field, final List<?> value, final boolean insertIfNotExist, final boolean multiple, final AsyncOperationCallback<T> callback) {
         if (query == null || field == null) throw new RuntimeException("Cannot update null!");
 
         firePreUpdateEvent(query.getType(), MorphiumStorageListener.UpdateTypes.PUSH);
-        if (!annotationHelper.isWriteCached(query.getType())) {
-            config.getWriter().pushPullAll(true, query, field, value, insertIfNotExist, multiple, null);
-            firePostUpdateEvent(query.getType(), MorphiumStorageListener.UpdateTypes.PUSH);
-            return;
+        Writer wr;
+        if (!annotationHelper.isBufferedWrite(query.getType())) {
+            wr = config.getWriter();
+        } else {
+            wr = config.getBufferedWriter();
         }
-        writers.execute(new Runnable() {
-            @Override
-            public void run() {
-                config.getWriter().pushPullAll(true, query, field, value, insertIfNotExist, multiple, null);
-                firePostUpdateEvent(query.getType(), MorphiumStorageListener.UpdateTypes.PUSH);
-            }
-        });
+        wr.pushPullAll(true, query, field, value, insertIfNotExist, multiple, callback);
+
 
     }
 
@@ -464,28 +476,24 @@ public final class Morphium {
      * @param multiple         - update several documents, if false, only first hit will be updated
      */
     public void set(Query<?> query, String field, Object val, boolean insertIfNotExist, boolean multiple) {
+        set(query, field, val, insertIfNotExist, multiple, null);
+    }
+
+    public <T> void set(Query<T> query, String field, Object val, boolean insertIfNotExist, boolean multiple, AsyncOperationCallback<T> callback) {
         Map<String, Object> map = new HashMap<String, Object>();
         map.put(field, val);
-        set(query, map, insertIfNotExist, multiple);
+        set(query, map, insertIfNotExist, multiple, callback);
     }
 
     public void set(final Query<?> query, final Map<String, Object> map, final boolean insertIfNotExist, final boolean multiple) {
+        set(query, map, insertIfNotExist, multiple, null);
+    }
+
+    public <T> void set(final Query<T> query, final Map<String, Object> map, final boolean insertIfNotExist, final boolean multiple, AsyncOperationCallback<T> callback) {
         if (query == null) throw new RuntimeException("Cannot update null!");
 
         firePreUpdateEvent(query.getType(), MorphiumStorageListener.UpdateTypes.SET);
-        Cache c = annotationHelper.getAnnotationFromHierarchy(query.getType(), Cache.class);
-        if (annotationHelper.isAnnotationPresentInHierarchy(query.getType(), NoCache.class) || c == null || !c.writeCache()) {
-            config.getWriter().set(query, map, insertIfNotExist, multiple, null);
-            firePostUpdateEvent(query.getType(), MorphiumStorageListener.UpdateTypes.SET);
-            return;
-        }
-        writers.execute(new Runnable() {
-            @Override
-            public void run() {
-                config.getWriter().set(query, map, insertIfNotExist, multiple, null);
-                firePostUpdateEvent(query.getType(), MorphiumStorageListener.UpdateTypes.SET);
-            }
-        });
+        getWriterForClass(query.getType()).set(query, map, insertIfNotExist, multiple, callback);
     }
 
     @SuppressWarnings({"unchecked", "UnusedDeclaration"})
@@ -520,27 +528,24 @@ public final class Morphium {
     }
 
     public void inc(final Query<?> query, final String name, final int amount, final boolean insertIfNotExist, final boolean multiple) {
+        inc(query, name, amount, insertIfNotExist, multiple, null);
+    }
+
+    public <T> void inc(final Query<T> query, final String name, final int amount, final boolean insertIfNotExist, final boolean multiple, final AsyncOperationCallback<T> callback) {
         if (query == null) throw new RuntimeException("Cannot update null!");
 
         firePreUpdateEvent(query.getType(), MorphiumStorageListener.UpdateTypes.INC);
-        Cache c = annotationHelper.getAnnotationFromHierarchy(query.getType(), Cache.class);
-        if (annotationHelper.isAnnotationPresentInHierarchy(query.getType(), NoCache.class) || c == null || !c.writeCache()) {
-            config.getWriter().inc(query, name, amount, insertIfNotExist, multiple, null);
-            firePostUpdateEvent(query.getType(), MorphiumStorageListener.UpdateTypes.INC);
-            return;
-        }
-        writers.execute(new Runnable() {
-            @Override
-            public void run() {
-                config.getWriter().inc(query, name, amount, insertIfNotExist, multiple, null);
-                firePostUpdateEvent(query.getType(), MorphiumStorageListener.UpdateTypes.INC);
-            }
-        });
+        getWriterForClass(query.getType()).inc(query, name, amount, insertIfNotExist, multiple, callback);
+
     }
 
 
+    public <T> void set(T toSet, Enum field, Object value, AsyncOperationCallback<T> callback) {
+        set(toSet, field.name(), value, callback);
+    }
+
     public void set(Object toSet, Enum field, Object value) {
-        set(toSet, field.name(), value);
+        set(toSet, field.name(), value, null);
     }
 
     /**
@@ -553,6 +558,10 @@ public final class Morphium {
      * @param value: the value to set
      */
     public void set(final Object toSet, final String field, final Object value) {
+        set(toSet, field, value, null);
+    }
+
+    public <T> void set(final T toSet, final String field, final Object value, final AsyncOperationCallback<T> callback) {
         if (toSet == null) throw new RuntimeException("Cannot update null!");
 
         if (getId(toSet) == null) {
@@ -560,20 +569,17 @@ public final class Morphium {
             store(toSet);
             return;
         }
-        firePreUpdateEvent(toSet.getClass(), MorphiumStorageListener.UpdateTypes.SET);
-        Cache c = annotationHelper.getAnnotationFromHierarchy(toSet.getClass(), Cache.class);
-        if (annotationHelper.isAnnotationPresentInHierarchy(toSet.getClass(), NoCache.class) || c == null || !c.writeCache()) {
-            config.getWriter().set(toSet, field, value, null);
-            firePostUpdateEvent(toSet.getClass(), MorphiumStorageListener.UpdateTypes.SET);
-            return;
+        getWriterForClass(toSet.getClass()).set(toSet, field, value, callback);
+
+    }
+
+
+    public Writer getWriterForClass(Class<?> cls) {
+        if (annotationHelper.isBufferedWrite(cls)) {
+            return config.getBufferedWriter();
+        } else {
+            return config.getWriter();
         }
-        writers.execute(new Runnable() {
-            @Override
-            public void run() {
-                config.getWriter().set(toSet, field, value, null);
-                firePostUpdateEvent(toSet.getClass(), MorphiumStorageListener.UpdateTypes.SET);
-            }
-        });
     }
 
     /**
@@ -585,6 +591,10 @@ public final class Morphium {
     }
 
     public void inc(final Object toSet, final String field, final int i) {
+        inc(toSet, field, i, null);
+    }
+
+    public <T> void inc(final T toSet, final String field, final int i, final AsyncOperationCallback<T> callback) {
         if (toSet == null) throw new RuntimeException("Cannot update null!");
 
         if (getId(toSet) == null) {
@@ -592,22 +602,8 @@ public final class Morphium {
             store(toSet);
             return;
         }
-        firePreUpdateEvent(toSet.getClass(), MorphiumStorageListener.UpdateTypes.INC);
-        Cache c = annotationHelper.getAnnotationFromHierarchy(toSet.getClass(), Cache.class);
-        if (annotationHelper.isAnnotationPresentInHierarchy(toSet.getClass(), NoCache.class) || c == null || !c.writeCache()) {
-            config.getWriter().inc(toSet, field, i, null);
-            firePostUpdateEvent(toSet.getClass(), MorphiumStorageListener.UpdateTypes.INC);
-            return;
-        }
-        writers.execute(new Runnable() {
-            @Override
-            public void run() {
-                config.getWriter().set(toSet, field, i, null);
-                firePostUpdateEvent(toSet.getClass(), MorphiumStorageListener.UpdateTypes.INC);
-            }
-        });
+        getWriterForClass(toSet.getClass()).set(toSet, field, i, callback);
     }
-
 
     public void inc(StatisticKeys k) {
         stats.get(k).inc();
@@ -619,11 +615,6 @@ public final class Morphium {
     }
 
 
-    public int writeBufferCount() {
-        return writers.getQueue().size();
-    }
-
-
     /**
      * updating an enty in DB without sending the whole entity
      * only transfers the fields to be changed / set
@@ -632,6 +623,10 @@ public final class Morphium {
      * @param fields - fields to use
      */
     public void updateUsingFields(final Object ent, final String... fields) {
+
+    }
+
+    public <T> void updateUsingFields(final T ent, AsyncOperationCallback<T> callback, final String... fields) {
         if (ent == null) return;
         if (fields.length == 0) return; //not doing an update - no change
 
@@ -640,46 +635,7 @@ public final class Morphium {
             return;
         }
 
-        firePreUpdateEvent(ent.getClass(), MorphiumStorageListener.UpdateTypes.SET);
-        Cache c = annotationHelper.getAnnotationFromHierarchy(ent.getClass(), Cache.class);
-        if (annotationHelper.isAnnotationPresentInHierarchy(ent.getClass(), NoCache.class) || c == null || !c.writeCache()) {
-            config.getWriter().storeUsingFields(ent, null, fields);
-            firePostUpdateEvent(ent.getClass(), MorphiumStorageListener.UpdateTypes.SET);
-            return;
-        }
-        writers.execute(new Runnable() {
-            @Override
-            public void run() {
-                config.getWriter().storeUsingFields(ent, null, fields);
-                firePostUpdateEvent(ent.getClass(), MorphiumStorageListener.UpdateTypes.SET);
-            }
-        });
-    }
-
-    public List<Annotation> getAllAnnotationsFromHierachy(Class<?> cls, Class<? extends Annotation>... anCls) {
-        cls = annotationHelper.getRealClass(cls);
-        List<Annotation> ret = new ArrayList<Annotation>();
-        Class<?> z = cls;
-        while (!z.equals(Object.class)) {
-            if (z.getAnnotations() != null && z.getAnnotations().length != 0) {
-                if (anCls.length == 0) {
-                    ret.addAll(Arrays.asList(z.getAnnotations()));
-                } else {
-                    for (Annotation a : z.getAnnotations()) {
-                        for (Class<? extends Annotation> ac : anCls) {
-                            if (a.annotationType().equals(ac)) {
-                                ret.add(a);
-                            }
-                        }
-                    }
-                }
-            }
-            z = z.getSuperclass();
-
-            if (z == null) break;
-        }
-
-        return ret;
+        getWriterForClass(ent.getClass()).storeUsingFields(ent, null, fields);
     }
 
 
@@ -691,48 +647,6 @@ public final class Morphium {
         return annotationHelper;
     }
 
-
-    public void callLifecycleMethod(Class<? extends Annotation> type, Object on) {
-        if (on == null) return;
-        //No synchronized block - might cause the methods to be put twice into the
-        //hashtabel - but for performance reasons, it's ok...
-        Class<?> cls = on.getClass();
-        //No Lifecycle annotation - no method calling
-        if (!annotationHelper.isAnnotationPresentInHierarchy(cls, Lifecycle.class)) {//cls.isAnnotationPresent(Lifecycle.class)) {
-            return;
-        }
-        //Already stored - should not change during runtime
-        if (lifeCycleMethods.get(cls) != null) {
-            if (lifeCycleMethods.get(cls).get(type) != null) {
-                try {
-                    lifeCycleMethods.get(cls).get(type).invoke(on);
-                } catch (IllegalAccessException e) {
-                    throw new RuntimeException(e);
-                } catch (InvocationTargetException e) {
-                    throw new RuntimeException(e);
-                }
-            }
-            return;
-        }
-
-        Map<Class<? extends Annotation>, Method> methods = new HashMap<Class<? extends Annotation>, Method>();
-        //Methods must be public
-        for (Method m : cls.getMethods()) {
-            for (Annotation a : m.getAnnotations()) {
-                methods.put(a.annotationType(), m);
-            }
-        }
-        lifeCycleMethods.put(cls, methods);
-        if (methods.get(type) != null) {
-            try {
-                methods.get(type).invoke(on);
-            } catch (IllegalAccessException e) {
-                throw new RuntimeException(e);
-            } catch (InvocationTargetException e) {
-                throw new RuntimeException(e);
-            }
-        }
-    }
 
     /**
      * careful this actually changes the parameter o!
@@ -779,7 +693,7 @@ public final class Morphium {
         for (MorphiumStorageListener l : listeners) {
             l.preStore(this, o, isNew);
         }
-        callLifecycleMethod(PreStore.class, o);
+        annotationHelper.callLifecycleMethod(PreStore.class, o);
 
     }
 
@@ -788,7 +702,7 @@ public final class Morphium {
         for (MorphiumStorageListener l : listeners) {
             l.postStore(this, o, isNew);
         }
-        callLifecycleMethod(PostStore.class, o);
+        annotationHelper.callLifecycleMethod(PostStore.class, o);
         //existing object  => store last Access, if needed
 
     }
@@ -828,7 +742,7 @@ public final class Morphium {
         for (MorphiumStorageListener l : listeners) {
             l.postRemove(this, o);
         }
-        callLifecycleMethod(PostRemove.class, o);
+        annotationHelper.callLifecycleMethod(PostRemove.class, o);
     }
 
     @SuppressWarnings("unchecked")
@@ -844,7 +758,7 @@ public final class Morphium {
         for (MorphiumStorageListener l : listeners) {
             l.preDelete(this, o);
         }
-        callLifecycleMethod(PreRemove.class, o);
+        annotationHelper.callLifecycleMethod(PreRemove.class, o);
     }
 
     @SuppressWarnings("unchecked")
@@ -865,7 +779,7 @@ public final class Morphium {
         for (MorphiumStorageListener l : listeners) {
             l.postLoad(this, o);
         }
-        callLifecycleMethod(PostLoad.class, o);
+        annotationHelper.callLifecycleMethod(PostLoad.class, o);
     }
 
 
@@ -995,8 +909,9 @@ public final class Morphium {
 //                    timeout = getConfig().getConnectionTimeout();
 //                }
             }
-            //Wait for all active slaves
-            w = activeNodes;
+            //Wait for all active slaves (-1 for the timeout bug)
+            //TODO: remove -1 or think of something different
+            w = activeNodes - 1;
             if (timeout > 0 && timeout < maxReplLag * 1000) {
                 logger.warn("Timeout is set smaller than replication lag - increasing to replication_lag time * 3");
                 timeout = maxReplLag * 3000;
@@ -1228,21 +1143,21 @@ public final class Morphium {
         cache.clearCachefor(cls);
     }
 
-    public void storeNoCache(Object lst) {
-        config.getWriter().store(lst, null);
+    public <T> void storeNoCache(T lst) {
+        storeNoCache(lst, null);
     }
 
-    public void storeInBackground(final Object lst) {
-        inc(StatisticKeys.WRITES_CACHED);
-        writers.execute(new Runnable() {
-            @Override
-            public void run() {
-                boolean isNew = getId(lst) == null;
-                firePreStoreEvent(lst, isNew);
-                config.getWriter().store(lst, null);
-                firePostStoreEvent(lst, isNew);
-            }
-        });
+    public <T> void storeNoCache(T lst, AsyncOperationCallback<T> callback) {
+        config.getWriter().store(lst, callback);
+    }
+
+    public <T> void storeInBackground(final T lst) {
+        storeInBackground(lst, null);
+    }
+
+    public <T> void storeInBackground(final T lst, final AsyncOperationCallback<T> callback) {
+
+        config.getBufferedWriter().store(lst, callback);
     }
 
 
@@ -1250,40 +1165,20 @@ public final class Morphium {
         return annotationHelper.getId(o);
     }
 
-    public void dropCollection(Class<?> cls) {
-        if (annotationHelper.isAnnotationPresentInHierarchy(cls, Entity.class)) {
-            firePreDropEvent(cls);
-            long start = System.currentTimeMillis();
-//            Entity entity = annotationHelper.getAnnotationFromHierarchy(cls, Entity.class); //cls.getAnnotation(Entity.class);
+    public <T> void dropCollection(Class<T> cls, AsyncOperationCallback<T> callback) {
+        getWriterForClass(cls).dropCollection(cls, callback);
+    }
 
-            DBCollection coll = database.getCollection(objectMapper.getCollectionName(cls));
-//            coll.setReadPreference(com.mongodb.ReadPreference.PRIMARY);
-            coll.drop();
-            long dur = System.currentTimeMillis() - start;
-            fireProfilingWriteEvent(cls, null, dur, false, WriteAccessType.DROP);
-            firePostDropEvent(cls);
-        } else {
-            throw new RuntimeException("No entity class: " + cls.getName());
-        }
+    public void dropCollection(Class<?> cls) {
+        getWriterForClass(cls).dropCollection(cls, null);
+    }
+
+    public <T> void ensureIndex(Class<T> cls, Map<String, Object> index, AsyncOperationCallback<T> callback) {
+        getWriterForClass(cls).ensureIndex(cls, index, callback);
     }
 
     public void ensureIndex(Class<?> cls, Map<String, Object> index) {
-        List<String> fields = annotationHelper.getFields(cls);
-
-        Map<String, Object> idx = new LinkedHashMap<String, Object>();
-        for (Map.Entry<String, Object> es : index.entrySet()) {
-            String k = es.getKey();
-            if (!fields.contains(k) && !fields.contains(annotationHelper.convertCamelCase(k))) {
-                throw new IllegalArgumentException("Field unknown for type " + cls.getSimpleName() + ": " + k);
-            }
-            String fn = annotationHelper.getFieldName(cls, k);
-            idx.put(fn, es.getValue());
-        }
-        long start = System.currentTimeMillis();
-        BasicDBObject keys = new BasicDBObject(idx);
-        database.getCollection(objectMapper.getCollectionName(cls)).ensureIndex(keys);
-        long dur = System.currentTimeMillis() - start;
-        fireProfilingWriteEvent(cls, keys, dur, false, WriteAccessType.ENSURE_INDEX);
+        getWriterForClass(cls).ensureIndex(cls, index, null);
     }
 
     /**
@@ -1294,34 +1189,20 @@ public final class Morphium {
      * @param cls    - class
      * @param fldStr - fields
      */
+    public <T> void ensureIndex(Class<T> cls, AsyncOperationCallback<T> callback, String... fldStr) {
+        getWriterForClass(cls).ensureIndex(cls, callback, fldStr);
+    }
+
     public void ensureIndex(Class<?> cls, String... fldStr) {
-        Map<String, Object> m = new LinkedHashMap<String, Object>();
-        for (String f : fldStr) {
-            int idx = 1;
-            if (f.contains(":")) {
-                //explicitly defined index
-                String fs[] = f.split(":");
-                m.put(fs[0], fs[1]);
-            } else {
-                if (f.startsWith("-")) {
-                    idx = -1;
-                    f = f.substring(1);
-                } else if (f.startsWith("+")) {
-                    f = f.substring(1);
-                }
-                m.put(f, idx);
-            }
-        }
-        ensureIndex(cls, m);
+        getWriterForClass(cls).ensureIndex(cls, null, fldStr);
+    }
+
+    public <T> void ensureIndex(Class<T> cls, AsyncOperationCallback<T> callback, Enum... fldStr) {
+        getWriterForClass(cls).ensureIndex(cls, callback, fldStr);
     }
 
     public void ensureIndex(Class<?> cls, Enum... fldStr) {
-        Map<String, Object> m = new LinkedHashMap<String, Object>();
-        for (Enum e : fldStr) {
-            String f = e.name();
-            m.put(f, 1);
-        }
-        ensureIndex(cls, m);
+        getWriterForClass(cls).ensureIndex(cls, null, fldStr);
     }
 
 
@@ -1330,84 +1211,47 @@ public final class Morphium {
      *
      * @param o - Object to store
      */
-    public void store(Object o) {
+    public <T> void store(T o) {
+        store(o, null);
+    }
+
+    public <T> void store(T o, final AsyncOperationCallback<T> callback) {
         if (o instanceof List) {
             throw new RuntimeException("Lists need to be stored with storeList");
         }
 
-        Class<?> type = annotationHelper.getRealClass(o.getClass());
-        final boolean isNew = getId(o) == null;
-        firePreStoreEvent(o, isNew);
-        Cache cc = annotationHelper.getAnnotationFromHierarchy(type, Cache.class);//o.getClass().getAnnotation(Cache.class);
-        if (cc == null || annotationHelper.isAnnotationPresentInHierarchy(o.getClass(), NoCache.class) || !cc.writeCache()) {
-            config.getWriter().store(o, null);
-            firePostStoreEvent(o, isNew);
-            return;
-        }
-        final Object fo = o;
-        writers.execute(new Runnable() {
-            @Override
-            public void run() {
-                config.getWriter().store(fo, null);
-                firePostStoreEvent(fo, isNew);
-            }
-        });
-        inc(StatisticKeys.WRITES_CACHED);
-
+        getWriterForClass(o.getClass()).store(o, callback);
     }
 
 
     public <T> void storeList(List<T> lst) {
-        //have to sort list - might have different objects 
+        storeList(lst, null);
+    }
+
+    public <T> void storeList(List<T> lst, final AsyncOperationCallback<T> callback) {
+        //have to sort list - might have different objects
         List<T> storeDirect = new ArrayList<T>();
         final List<T> storeInBg = new ArrayList<T>();
 
         //checking permission - might take some time ;-(
         for (T o : lst) {
-            Cache c = annotationHelper.getAnnotationFromHierarchy(o.getClass(), Cache.class);//o.getClass().getAnnotation(Cache.class);
-            if (annotationHelper.isAnnotationPresentInHierarchy(o.getClass(), NoCache.class) || c == null || !c.writeCache()) {
+            if (annotationHelper.isBufferedWrite(o.getClass())) {
                 storeDirect.add(o);
             } else {
                 storeDirect.add(o);
-
             }
         }
-        writers.execute(new Runnable() {
-            @Override
-            public void run() {
-                callLifecycleMethod(PreStore.class, storeInBg);
-                config.getWriter().store(storeInBg, (AsyncOperationCallback<List<T>>) null);
-                callLifecycleMethod(PostStore.class, storeInBg);
-            }
-        });
-        callLifecycleMethod(PreStore.class, storeDirect);
-        config.getWriter().store(storeDirect, (AsyncOperationCallback<List<T>>) null);
-        callLifecycleMethod(PostStore.class, storeDirect);
-
+        config.getBufferedWriter().store(storeInBg, callback);
+        config.getWriter().store(storeDirect, callback);
     }
 
+
     public <T> void delete(Query<T> o) {
-        callLifecycleMethod(PreRemove.class, o);
-        firePreRemoveEvent(o);
+        delete(o, (AsyncOperationCallback<Query<T>>) null);
+    }
 
-        Cache cc = annotationHelper.getAnnotationFromHierarchy(o.getType(), Cache.class);//o.getClass().getAnnotation(Cache.class);
-        if (cc == null || annotationHelper.isAnnotationPresentInHierarchy(o.getType(), NoCache.class) || !cc.writeCache()) {
-            config.getWriter().delete(o, (AsyncOperationCallback<T>) null);
-            callLifecycleMethod(PostRemove.class, o);
-            firePostRemoveEvent(o);
-            return;
-        }
-        final Query<T> fo = o;
-        writers.execute(new Runnable() {
-            @Override
-            public void run() {
-                config.getWriter().delete(fo, (AsyncOperationCallback<T>) null);
-                firePostRemoveEvent(fo);
-
-            }
-        });
-        inc(StatisticKeys.WRITES_CACHED);
-        firePostRemoveEvent(o);
+    public <T> void delete(Query<T> o, final AsyncOperationCallback<T> callback) {
+        getWriterForClass(o.getType()).delete(o, (AsyncOperationCallback<T>) callback);
     }
 
     /**
@@ -1416,28 +1260,11 @@ public final class Morphium {
      * @param o - entity
      */
     public void delete(Object o) {
-        if (o instanceof Query) {
-            delete((Query) o);
-            return;
-        }
-        o = annotationHelper.getRealObject(o);
-        firePreRemoveEvent(o);
+        delete(o, null);
+    }
 
-        Cache cc = annotationHelper.getAnnotationFromHierarchy(o.getClass(), Cache.class);//o.getClass().getAnnotation(Cache.class);
-        if (cc == null || annotationHelper.isAnnotationPresentInHierarchy(o.getClass(), NoCache.class) || !cc.writeCache()) {
-            config.getWriter().delete(o, null);
-            firePostRemoveEvent(o);
-            return;
-        }
-        final Object fo = o;
-        writers.execute(new Runnable() {
-            @Override
-            public void run() {
-                config.getWriter().delete(fo, null);
-                firePostRemoveEvent(fo);
-            }
-        });
-        inc(StatisticKeys.WRITES_CACHED);
+    public <T> void delete(final T lo, final AsyncOperationCallback<T> callback) {
+        getWriterForClass(lo.getClass()).delete(lo, callback);
     }
 
 
@@ -1493,6 +1320,10 @@ public final class Morphium {
     }
 
 
+    /////////////////
+    //// AGGREGATOR Support
+    ///
+
     public <T, R> Aggregator<T, R> createAggregator(Class<? extends T> type, Class<? extends R> resultType) {
         Aggregator<T, R> aggregator = config.getAggregatorFactory().createAggregator(type, resultType);
         aggregator.setMorphium(this);
@@ -1545,4 +1376,15 @@ public final class Morphium {
     }
 
 
+    public int getWriteBufferCount() {
+        return config.getBufferedWriter().writeBufferCount() + config.getWriter().writeBufferCount();
+    }
+
+    public int getBufferedWriterBuffercount() {
+        return config.getBufferedWriter().writeBufferCount();
+    }
+
+    public int getWriterBufferCount() {
+        return config.getWriter().writeBufferCount();
+    }
 }

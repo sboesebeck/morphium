@@ -14,12 +14,10 @@ import org.apache.log4j.Logger;
 import org.bson.types.ObjectId;
 
 import java.lang.reflect.Field;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
+import java.util.*;
+import java.util.concurrent.SynchronousQueue;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 
 /**
  * User: Stephan Bösebeck
@@ -36,13 +34,16 @@ public class WriterImpl implements Writer {
     private Morphium morphium;
     private AnnotationAndReflectionHelper annotationHelper = new AnnotationAndReflectionHelper();
 
-    private ExecutorService executor = Executors.newCachedThreadPool();
+    private ThreadPoolExecutor executor = new ThreadPoolExecutor(0, Integer.MAX_VALUE,
+            60L, TimeUnit.SECONDS,
+            new SynchronousQueue<Runnable>());
 
     @Override
     public void setMorphium(Morphium m) {
         morphium = m;
         if (m != null) {
             annotationHelper = morphium.getARHelper();
+            executor.setCorePoolSize(m.getConfig().getMaxConnections() / 2);
         } else {
             annotationHelper = new AnnotationAndReflectionHelper();
         }
@@ -298,6 +299,10 @@ public class WriterImpl implements Writer {
      */
     @Override
     public <T> void set(final T toSet, final String field, final Object v, final AsyncOperationCallback<T> callback) {
+        set(toSet, field, v, false, false, callback);
+    }
+
+    public <T> void set(final T toSet, final String field, final Object v, final boolean insertIfNotExist, final boolean multiple, final AsyncOperationCallback<T> callback) {
         Runnable r = new Runnable() {
             @Override
             public void run() {
@@ -321,9 +326,9 @@ public class WriterImpl implements Writer {
 
                 try {
                     if (wc == null) {
-                        morphium.getDatabase().getCollection(coll).update(query, update);
+                        morphium.getDatabase().getCollection(coll).update(query, update, insertIfNotExist, multiple);
                     } else {
-                        morphium.getDatabase().getCollection(coll).update(query, update, false, false, wc);
+                        morphium.getDatabase().getCollection(coll).update(query, update, insertIfNotExist, multiple, wc);
                     }
                     long dur = System.currentTimeMillis() - start;
                     morphium.fireProfilingWriteEvent(cls, update, dur, false, WriteAccessType.SINGLE_UPDATE);
@@ -813,6 +818,7 @@ public class WriterImpl implements Writer {
 
                 try {
                     pushIt(push, insertIfNotExist, multiple, cls, coll, qobj, update);
+                    morphium.firePostUpdateEvent(query.getType(), MorphiumStorageListener.UpdateTypes.PUSH);
                     if (callback != null)
                         callback.onOperationSucceeded(AsyncOperationType.PUSH, query, System.currentTimeMillis() - start, null, null, field, value, insertIfNotExist, multiple);
                 } catch (RuntimeException e) {
@@ -918,6 +924,7 @@ public class WriterImpl implements Writer {
                     long dur = System.currentTimeMillis() - start;
                     morphium.fireProfilingWriteEvent(cls, update, dur, insertIfNotExist, multiple ? WriteAccessType.BULK_UPDATE : WriteAccessType.SINGLE_UPDATE);
                     morphium.getCache().clearCacheIfNecessary(cls);
+                    morphium.firePostUpdateEvent(query.getType(), MorphiumStorageListener.UpdateTypes.PUSH);
                     if (callback != null)
                         callback.onOperationSucceeded(push ? AsyncOperationType.PUSH : AsyncOperationType.PULL, query, System.currentTimeMillis() - start, null, null, field, value, insertIfNotExist, multiple);
                 } catch (RuntimeException e) {
@@ -930,4 +937,96 @@ public class WriterImpl implements Writer {
         submitAndBlockIfNecessary(callback, r);
     }
 
+
+    @Override
+    public <T> void dropCollection(final Class<T> cls, AsyncOperationCallback<T> callback) {
+        if (annotationHelper.isAnnotationPresentInHierarchy(cls, Entity.class)) {
+            Runnable r = new Runnable() {
+                public void run() {
+                    morphium.firePreDropEvent(cls);
+                    long start = System.currentTimeMillis();
+
+                    DBCollection coll = morphium.getDatabase().getCollection(morphium.getMapper().getCollectionName(cls));
+//            coll.setReadPreference(com.mongodb.ReadPreference.PRIMARY);
+                    coll.drop();
+                    long dur = System.currentTimeMillis() - start;
+                    morphium.fireProfilingWriteEvent(cls, null, dur, false, WriteAccessType.DROP);
+                    morphium.firePostDropEvent(cls);
+                }
+            };
+            submitAndBlockIfNecessary(callback, r);
+        } else {
+            throw new RuntimeException("No entity class: " + cls.getName());
+        }
+    }
+
+    @Override
+    public <T> void ensureIndex(final Class<T> cls, final Map<String, Object> index, AsyncOperationCallback<T> callback) {
+        Runnable r = new Runnable() {
+            public void run() {
+                List<String> fields = annotationHelper.getFields(cls);
+
+                Map<String, Object> idx = new LinkedHashMap<String, Object>();
+                for (Map.Entry<String, Object> es : index.entrySet()) {
+                    String k = es.getKey();
+                    if (!fields.contains(k) && !fields.contains(annotationHelper.convertCamelCase(k))) {
+                        throw new IllegalArgumentException("Field unknown for type " + cls.getSimpleName() + ": " + k);
+                    }
+                    String fn = annotationHelper.getFieldName(cls, k);
+                    idx.put(fn, es.getValue());
+                }
+                long start = System.currentTimeMillis();
+                BasicDBObject keys = new BasicDBObject(idx);
+                morphium.getDatabase().getCollection(morphium.getMapper().getCollectionName(cls)).ensureIndex(keys);
+                long dur = System.currentTimeMillis() - start;
+                morphium.fireProfilingWriteEvent(cls, keys, dur, false, WriteAccessType.ENSURE_INDEX);
+            }
+        };
+        submitAndBlockIfNecessary(callback, r);
+    }
+
+    /**
+     * ensureIndex(CachedObject.class,"counter","-value");
+     * ensureIndex(CachedObject.class,"counter:2d","-value);
+     * Similar to sorting
+     *
+     * @param cls    - class
+     * @param fldStr - fields
+     */
+    @Override
+    public <T> void ensureIndex(Class<T> cls, AsyncOperationCallback<T> callback, String... fldStr) {
+        Map<String, Object> m = new LinkedHashMap<String, Object>();
+        for (String f : fldStr) {
+            int idx = 1;
+            if (f.contains(":")) {
+                //explicitly defined index
+                String fs[] = f.split(":");
+                m.put(fs[0], fs[1]);
+            } else {
+                if (f.startsWith("-")) {
+                    idx = -1;
+                    f = f.substring(1);
+                } else if (f.startsWith("+")) {
+                    f = f.substring(1);
+                }
+                m.put(f, idx);
+            }
+        }
+        ensureIndex(cls, m, callback);
+    }
+
+    @Override
+    public <T> void ensureIndex(Class<T> cls, AsyncOperationCallback<T> callback, Enum... fldStr) {
+        Map<String, Object> m = new LinkedHashMap<String, Object>();
+        for (Enum e : fldStr) {
+            String f = e.name();
+            m.put(f, 1);
+        }
+        ensureIndex(cls, m, callback);
+    }
+
+    @Override
+    public int writeBufferCount() {
+        return executor.getActiveCount();
+    }
 }

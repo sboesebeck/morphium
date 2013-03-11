@@ -1,13 +1,14 @@
 package de.caluga.morphium;
 
 import de.caluga.morphium.annotations.*;
-import de.caluga.morphium.annotations.caching.Cache;
-import de.caluga.morphium.annotations.caching.NoCache;
+import de.caluga.morphium.annotations.caching.WriteBuffer;
+import de.caluga.morphium.annotations.lifecycle.Lifecycle;
 import org.apache.log4j.Logger;
 import org.bson.types.ObjectId;
 
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Field;
+import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.text.ParseException;
@@ -28,10 +29,10 @@ public class AnnotationAndReflectionHelper {
     private Map<Class<?>, Class<?>> realClassCache = new Hashtable<Class<?>, Class<?>>();
     private Map<Class<?>, List<Field>> fieldListCache = new Hashtable<Class<?>, List<Field>>();
     private Map<String, List<String>> fieldAnnotationListCache = new HashMap<String, List<String>>();
-
+    private Map<Class<?>, Map<Class<? extends Annotation>, Method>> lifeCycleMethods;
 
     public AnnotationAndReflectionHelper() {
-
+        lifeCycleMethods = new Hashtable<Class<?>, Map<Class<? extends Annotation>, Method>>();
     }
 
     public <T extends Annotation> boolean isAnnotationPresentInHierarchy(Class<?> cls, Class<? extends T> anCls) {
@@ -56,9 +57,9 @@ public class AnnotationAndReflectionHelper {
         return sc;
     }
 
-    public boolean isWriteCached(Class<?> cls) {
-        Cache c = getAnnotationFromHierarchy(cls, Cache.class);
-        return !(isAnnotationPresentInHierarchy(cls, NoCache.class) || c == null || !c.writeCache());
+    public boolean isBufferedWrite(Class<?> cls) {
+        WriteBuffer wb = getAnnotationFromHierarchy(cls, WriteBuffer.class);
+        return wb != null && wb.value();
     }
 
     /**
@@ -634,6 +635,32 @@ public class AnnotationAndReflectionHelper {
         return (Double) getValue(o, fld);
     }
 
+    public List<Annotation> getAllAnnotationsFromHierachy(Class<?> cls, Class<? extends Annotation>... anCls) {
+        cls = getRealClass(cls);
+        List<Annotation> ret = new ArrayList<Annotation>();
+        Class<?> z = cls;
+        while (!z.equals(Object.class)) {
+            if (z.getAnnotations() != null && z.getAnnotations().length != 0) {
+                if (anCls.length == 0) {
+                    ret.addAll(Arrays.asList(z.getAnnotations()));
+                } else {
+                    for (Annotation a : z.getAnnotations()) {
+                        for (Class<? extends Annotation> ac : anCls) {
+                            if (a.annotationType().equals(ac)) {
+                                ret.add(a);
+                            }
+                        }
+                    }
+                }
+            }
+            z = z.getSuperclass();
+
+            if (z == null) break;
+        }
+
+        return ret;
+    }
+
 
     @SuppressWarnings("unchecked")
     public String getLastChangeField(Class<?> cls) {
@@ -659,6 +686,49 @@ public class AnnotationAndReflectionHelper {
         List<String> lst = getFields(cls, CreationTime.class);
         if (lst == null || lst.isEmpty()) return null;
         return lst.get(0);
+    }
+
+
+    public void callLifecycleMethod(Class<? extends Annotation> type, Object on) {
+        if (on == null) return;
+        //No synchronized block - might cause the methods to be put twice into the
+        //hashtabel - but for performance reasons, it's ok...
+        Class<?> cls = on.getClass();
+        //No Lifecycle annotation - no method calling
+        if (!isAnnotationPresentInHierarchy(cls, Lifecycle.class)) {//cls.isAnnotationPresent(Lifecycle.class)) {
+            return;
+        }
+        //Already stored - should not change during runtime
+        if (lifeCycleMethods.get(cls) != null) {
+            if (lifeCycleMethods.get(cls).get(type) != null) {
+                try {
+                    lifeCycleMethods.get(cls).get(type).invoke(on);
+                } catch (IllegalAccessException e) {
+                    throw new RuntimeException(e);
+                } catch (InvocationTargetException e) {
+                    throw new RuntimeException(e);
+                }
+            }
+            return;
+        }
+
+        Map<Class<? extends Annotation>, Method> methods = new HashMap<Class<? extends Annotation>, Method>();
+        //Methods must be public
+        for (Method m : cls.getMethods()) {
+            for (Annotation a : m.getAnnotations()) {
+                methods.put(a.annotationType(), m);
+            }
+        }
+        lifeCycleMethods.put(cls, methods);
+        if (methods.get(type) != null) {
+            try {
+                methods.get(type).invoke(on);
+            } catch (IllegalAccessException e) {
+                throw new RuntimeException(e);
+            } catch (InvocationTargetException e) {
+                throw new RuntimeException(e);
+            }
+        }
     }
 
 }

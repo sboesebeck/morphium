@@ -14,6 +14,7 @@ import de.caluga.morphium.annotations.ReadPreferenceLevel;
 import de.caluga.morphium.cache.MorphiumCache;
 import de.caluga.morphium.cache.MorphiumCacheImpl;
 import de.caluga.morphium.query.*;
+import de.caluga.morphium.writer.BufferedWriterImpl;
 import de.caluga.morphium.writer.Writer;
 import de.caluga.morphium.writer.WriterImpl;
 import org.apache.log4j.LogManager;
@@ -39,6 +40,7 @@ public class MorphiumConfig {
     private int writeCacheTimeout = 5000;
     private String database;
     private Writer writer = new WriterImpl();
+    private Writer bufferedWriter = new BufferedWriterImpl();
 
     private int connectionTimeout = 0;
     private int socketTimeout = 0;
@@ -52,6 +54,7 @@ public class MorphiumConfig {
 
 
     private int maxWaitTime = 120000;
+    private int writeBufferTime = 10000;
     private boolean autoreconnect = true;
     private int maxAutoReconnectTime = 0;
     private int blockingThreadsMultiplier = 5;
@@ -96,6 +99,13 @@ public class MorphiumConfig {
         this.cache = cache;
     }
 
+    public int getWriteBufferTime() {
+        return writeBufferTime;
+    }
+
+    public void setWriteBufferTime(int writeBufferTime) {
+        this.writeBufferTime = writeBufferTime;
+    }
 
     public Class<? extends ObjectMapper> getOmClass() {
         return omClass;
@@ -195,6 +205,14 @@ public class MorphiumConfig {
 
     public void setBlockingThreadsMultiplier(int blockingThreadsMultiplier) {
         this.blockingThreadsMultiplier = blockingThreadsMultiplier;
+    }
+
+    public Writer getBufferedWriter() {
+        return bufferedWriter;
+    }
+
+    public void setBufferedWriter(Writer bufferedWriter) {
+        this.bufferedWriter = bufferedWriter;
     }
 
     public Writer getWriter() {

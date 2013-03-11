@@ -5,6 +5,7 @@ import de.caluga.morphium.StatisticKeys;
 import de.caluga.morphium.annotations.SafetyLevel;
 import de.caluga.morphium.annotations.WriteSafety;
 import de.caluga.morphium.annotations.caching.Cache;
+import de.caluga.morphium.annotations.caching.WriteBuffer;
 import de.caluga.morphium.cache.CacheSyncListener;
 import de.caluga.morphium.cache.CacheSyncVetoException;
 import de.caluga.morphium.cache.CacheSynchronizer;
@@ -167,7 +168,8 @@ public class CacheSyncTest extends MongoTest {
     }
 
 
-    @Cache(readCache = true, writeCache = true, syncCache = Cache.SyncCacheStrategy.UPDATE_ENTRY)
+    @Cache(readCache = true, syncCache = Cache.SyncCacheStrategy.UPDATE_ENTRY)
+    @WriteBuffer
     @WriteSafety(waitForJournalCommit = true, level = SafetyLevel.WAIT_FOR_ALL_SLAVES)
     public static class IdCachedObject extends CachedObject {
 
