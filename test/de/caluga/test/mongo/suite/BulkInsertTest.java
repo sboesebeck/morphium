@@ -2,6 +2,8 @@ package de.caluga.test.mongo.suite;
 
 import de.caluga.morphium.MorphiumSingleton;
 import de.caluga.morphium.annotations.ReadPreferenceLevel;
+import de.caluga.morphium.async.AsyncOperationCallback;
+import de.caluga.morphium.async.AsyncOperationType;
 import de.caluga.morphium.query.Query;
 import org.junit.Test;
 
@@ -15,12 +17,15 @@ import java.util.List;
  * <p/>
  */
 public class BulkInsertTest extends MongoTest {
+    private boolean asyncSuccess = true;
+    private boolean asyncCall = false;
+
     @Test
     public void bulkInsert() throws Exception {
         MorphiumSingleton.get().clearCollection(UncachedObject.class);
         log.info("Start storing single");
         long start = System.currentTimeMillis();
-        for (int i = 0; i < 1000; i++) {
+        for (int i = 0; i < 100; i++) {
             UncachedObject uc = new UncachedObject();
             uc.setCounter(i + 1);
             uc.setValue("nix " + i);
@@ -29,8 +34,58 @@ public class BulkInsertTest extends MongoTest {
         long dur = System.currentTimeMillis() - start;
         log.info("storing objects one by one took " + dur + " ms");
         MorphiumSingleton.get().clearCollection(UncachedObject.class);
+        log.info("Start storing list");
+        List<UncachedObject> lst = new ArrayList<UncachedObject>();
+        start = System.currentTimeMillis();
+        for (int i = 0; i < 100; i++) {
+            UncachedObject uc = new UncachedObject();
+            uc.setCounter(i + 1);
+            uc.setValue("nix " + i);
+            lst.add(uc);
+        }
+        log.info("List prepared...");
+        MorphiumSingleton.get().storeList(lst);
+        dur = System.currentTimeMillis() - start;
+        if ((MorphiumSingleton.get().getWriteBufferCount() != 0)) {
+            throw new AssertionError("WriteBufferCount not 0!? Buffered:" + MorphiumSingleton.get().getBufferedWriterBufferCount());
+        }
+        log.info("storing objects one by one took " + dur + " ms");
+        Query<UncachedObject> q = MorphiumSingleton.get().createQueryFor(UncachedObject.class);
+        q.setReadPreferenceLevel(ReadPreferenceLevel.PRIMARY);
+        assert (q.countAll() == 100) : "Assert not all stored yet????";
 
-        log.info("Start storing ist");
+    }
+
+    @Test
+    public void bulkInsertAsync() throws Exception {
+        MorphiumSingleton.get().clearCollection(UncachedObject.class);
+        log.info("Start storing single");
+        long start = System.currentTimeMillis();
+        for (int i = 0; i < 100; i++) {
+            UncachedObject uc = new UncachedObject();
+            uc.setCounter(i + 1);
+            uc.setValue("nix " + i);
+            MorphiumSingleton.get().store(uc, new AsyncOperationCallback<UncachedObject>() {
+                @Override
+                public void onOperationSucceeded(AsyncOperationType type, Query<UncachedObject> q, long duration, List<UncachedObject> result, UncachedObject entity, Object... param) {
+                    asyncCall = true;
+                }
+
+                @Override
+                public void onOperationError(AsyncOperationType type, Query<UncachedObject> q, long duration, String error, Throwable t, UncachedObject entity, Object... param) {
+                    asyncSuccess = false;
+                }
+            });
+        }
+        waitForWrites();
+        long dur = System.currentTimeMillis() - start;
+        log.info("storing objects one by one async took " + dur + " ms");
+        assert (asyncSuccess);
+        assert (asyncCall);
+
+        MorphiumSingleton.get().clearCollection(UncachedObject.class);
+
+        log.info("Start storing list");
         List<UncachedObject> lst = new ArrayList<UncachedObject>();
         start = System.currentTimeMillis();
         for (int i = 0; i < 1000; i++) {
@@ -41,12 +96,11 @@ public class BulkInsertTest extends MongoTest {
         }
         MorphiumSingleton.get().storeList(lst);
         dur = System.currentTimeMillis() - start;
-        assert (MorphiumSingleton.get().getWriteBufferCount() == 0) : "WriteBufferCount not 0!?";
+        assert (MorphiumSingleton.get().getWriteBufferCount() == 0) : "WriteBufferCount not 0!? Buffered:" + MorphiumSingleton.get().getBufferedWriterBufferCount();
         log.info("storing objects one by one took " + dur + " ms");
         Query<UncachedObject> q = MorphiumSingleton.get().createQueryFor(UncachedObject.class);
         q.setReadPreferenceLevel(ReadPreferenceLevel.PRIMARY);
         assert (q.countAll() == 1000) : "Assert not all stored yet????";
 
     }
-
 }

@@ -135,7 +135,7 @@ public class LazyLoadingTest extends MongoTest {
         MorphiumSingleton.get().delete(q);
 
         log.info("Creating lots of lazyobjects");
-        int numberOfObjects = 200;
+        int numberOfObjects = 20;
         for (int i = 0; i < numberOfObjects; i++) {
             LazyLoadingObject lz = new LazyLoadingObject();
             UncachedObject o = new UncachedObject();
@@ -155,7 +155,7 @@ public class LazyLoadingTest extends MongoTest {
             lz.setLazyUncached(o);
             log.info("Storing...");
             MorphiumSingleton.get().store(lz);
-            log.info("Stored object " + i + "/" + 200);
+            log.info("Stored object " + i + "/" + 20);
 
         }
         waitForWrites();
