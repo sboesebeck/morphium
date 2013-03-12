@@ -40,13 +40,13 @@ public interface Writer {
     public <T> void storeUsingFields(T ent, AsyncOperationCallback<T> callback, String... fields);
 
     /**
-     * changes an object in DB
+     * changes an object in DB AND in Memory...
+     * the Object toSet WILL be modified!
      *
-     * @param toSet entity to set values in
+     * @param toSet entity to set values in both in mongo and in memory
      * @param field field
      * @param value value to set
      */
-    public <T> void set(T toSet, String field, Object value, AsyncOperationCallback<T> callback);
 
     public <T> void set(T toSet, String field, Object value, boolean insertIfNotExists, boolean multiple, AsyncOperationCallback<T> callback);
 
@@ -62,6 +62,7 @@ public interface Writer {
      * @param multiple         - update several documents, if false, only first hit will be updated
      */
     public <T> void set(Query<T> query, Map<String, Object> values, boolean insertIfNotExist, boolean multiple, AsyncOperationCallback<T> callback);
+
 
     public <T> void inc(Query<T> query, String field, int amount, boolean insertIfNotExist, boolean multiple, AsyncOperationCallback<T> callback);
 
@@ -106,10 +107,6 @@ public interface Writer {
     public <T> void dropCollection(Class<T> cls, AsyncOperationCallback<T> callback);
 
     public <T> void ensureIndex(Class<T> cls, Map<String, Object> index, AsyncOperationCallback<T> callback);
-
-    public <T> void ensureIndex(Class<T> cls, AsyncOperationCallback<T> callback, String... fldStr);
-
-    public <T> void ensureIndex(Class<T> cls, AsyncOperationCallback<T> callback, Enum... fldStr);
 
     public int writeBufferCount();
 }

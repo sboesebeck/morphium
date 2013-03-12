@@ -37,8 +37,12 @@
         <level value="DEBUG"/>
     </logger>
 
-    <logger name="de.caluga.morphium.messaging">
+    <logger name="de.caluga.morphium.writer">
         <level value="DEBUG"/>
+    </logger>
+
+    <logger name="de.caluga.morphium.messaging">
+        <level value="WARN"/>
     </logger>
 
     <logger name="de.caluga.morphium.Morphium">

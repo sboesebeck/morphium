@@ -152,6 +152,9 @@ public class Messaging extends Thread {
 
                 }
                 morphium.storeList(toStore);
+                while (morphium.getWriteBufferCount() > 0) {
+                    Thread.sleep(100);
+                }
             } catch (Throwable e) {
                 log.error("Unhandled exception " + e.getMessage(), e);
             } finally {

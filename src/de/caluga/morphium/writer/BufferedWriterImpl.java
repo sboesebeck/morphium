@@ -6,6 +6,7 @@ import de.caluga.morphium.StatisticKeys;
 import de.caluga.morphium.async.AsyncOperationCallback;
 import de.caluga.morphium.async.AsyncOperationType;
 import de.caluga.morphium.query.Query;
+import org.apache.log4j.Logger;
 
 import java.util.List;
 import java.util.Map;
@@ -27,6 +28,7 @@ public class BufferedWriterImpl implements Writer {
     private List<WriteBufferEntry> writeBuffer = new Vector<WriteBufferEntry>(); //synced
     private final Thread housekeeping;
     private boolean running = true;
+    private Logger logger = Logger.getLogger(BufferedWriterImpl.class);
 
 
     public BufferedWriterImpl() {
@@ -42,6 +44,16 @@ public class BufferedWriterImpl implements Writer {
                     }
                     //queueing all ops in queue
                     for (WriteBufferEntry entry : localBuffer) {
+                        while (directWriter.writeBufferCount() > morphium.getConfig().getMaxConnections() * morphium.getConfig().getBlockingThreadsMultiplier() * 0.9) {
+                            try {
+
+                                if (logger.isDebugEnabled()) {
+                                    logger.debug("have to wait - maximum connection limit almost reached");
+                                }
+                                sleep(500); //wait for threads to finish
+                            } catch (InterruptedException e) {
+                            }
+                        }
                         entry.getToRun().run();
                     }
                     localBuffer = null; //let GC finish the work
@@ -111,11 +123,6 @@ public class BufferedWriterImpl implements Writer {
     }
 
     @Override
-    public <T> void set(final T toSet, final String field, final Object value, AsyncOperationCallback<T> c) {
-        set(toSet, field, value, false, false, c);
-    }
-
-    @Override
     public <T> void set(final T toSet, final String field, final Object value, final boolean insertIfNotExists, final boolean multiple, AsyncOperationCallback<T> c) {
         if (c == null) {
             c = new AsyncOpAdapter<T>();
@@ -129,6 +136,7 @@ public class BufferedWriterImpl implements Writer {
             }
         });
     }
+
 
     @Override
     public <T> void set(final Query<T> query, final Map<String, Object> values, final boolean insertIfNotExist, final boolean multiple, AsyncOperationCallback<T> c) {
@@ -161,19 +169,10 @@ public class BufferedWriterImpl implements Writer {
     }
 
     @Override
-    public <T> void inc(final T toInc, final String field, final int amount, AsyncOperationCallback<T> c) {
-        if (c == null) {
-            c = new AsyncOpAdapter<T>();
-        }
-        final AsyncOperationCallback<T> callback = c;
-        morphium.inc(StatisticKeys.WRITES_CACHED);
-        addToWriteQueue(new Runnable() {
-            @Override
-            public void run() {
-                directWriter.inc(toInc, field, amount, callback);
-            }
-        });
+    public <T> void inc(T toInc, String field, int amount, AsyncOperationCallback<T> callback) {
+        //To change body of implemented methods use File | Settings | File Templates.
     }
+
 
     @Override
     public void setMorphium(Morphium m) {
@@ -302,35 +301,6 @@ public class BufferedWriterImpl implements Writer {
         });
     }
 
-    @Override
-    public <T> void ensureIndex(final Class<T> cls, AsyncOperationCallback<T> c, final String... fldStr) {
-        if (c == null) {
-            c = new AsyncOpAdapter<T>();
-        }
-        final AsyncOperationCallback<T> callback = c;
-        morphium.inc(StatisticKeys.WRITES_CACHED);
-        addToWriteQueue(new Runnable() {
-            @Override
-            public void run() {
-                directWriter.ensureIndex(cls, callback, fldStr);
-            }
-        });
-    }
-
-    @Override
-    public <T> void ensureIndex(final Class<T> cls, AsyncOperationCallback<T> c, final Enum... fldStr) {
-        if (c == null) {
-            c = new AsyncOpAdapter<T>();
-        }
-        final AsyncOperationCallback<T> callback = c;
-        morphium.inc(StatisticKeys.WRITES_CACHED);
-        addToWriteQueue(new Runnable() {
-            @Override
-            public void run() {
-                directWriter.ensureIndex(cls, callback, fldStr);
-            }
-        });
-    }
 
     @Override
     public int writeBufferCount() {

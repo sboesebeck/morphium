@@ -334,17 +334,17 @@ public class MessagingTest extends MongoTest {
         //sending message to all
         log.info("Sending broadcast message");
         m1.storeMessage(new Msg("testmsg1", "The message from M1", "Value"));
-        Thread.sleep(5000);
+        Thread.sleep(1000);
         assert (gotMessage2) : "Message not recieved yet by m2?!?!?";
         assert (gotMessage3) : "Message not recieved yet by m3?!?!?";
         gotMessage1 = false;
         gotMessage2 = false;
         gotMessage3 = false;
-
-        Thread.sleep(1500);
+        waitForWrites();
+        Thread.sleep(2500);
         assert (!gotMessage1) : "Message recieved again by m1?!?!?";
-        assert (!gotMessage2) : "Message not recieved again by m2?!?!?";
-        assert (!gotMessage3) : "Message not recieved again by m3?!?!?";
+        assert (!gotMessage2) : "Message recieved again by m2?!?!?";
+        assert (!gotMessage3) : "Message recieved again by m3?!?!?";
 
         log.info("Sending direct message");
         Msg m = new Msg("testmsg1", "The message from M1", "Value");
