@@ -972,9 +972,7 @@ public final class Morphium {
      */
     @SuppressWarnings("unchecked")
     public void clearCollection(Class<?> cls) {
-        firePreDropEvent(cls);
         delete(createQueryFor(cls));
-        firePostDropEvent(cls);
     }
 
     /**
@@ -1236,7 +1234,7 @@ public final class Morphium {
         //checking permission - might take some time ;-(
         for (T o : lst) {
             if (annotationHelper.isBufferedWrite(o.getClass())) {
-                storeDirect.add(o);
+                storeInBg.add(o);
             } else {
                 storeDirect.add(o);
             }
@@ -1247,11 +1245,11 @@ public final class Morphium {
 
 
     public <T> void delete(Query<T> o) {
-        delete(o, (AsyncOperationCallback<Query<T>>) null);
+        getWriterForClass(o.getType()).delete(o, (AsyncOperationCallback<T>) null);
     }
 
     public <T> void delete(Query<T> o, final AsyncOperationCallback<T> callback) {
-        getWriterForClass(o.getType()).delete(o, (AsyncOperationCallback<T>) callback);
+        getWriterForClass(o.getType()).delete(o, callback);
     }
 
     /**
@@ -1260,7 +1258,7 @@ public final class Morphium {
      * @param o - entity
      */
     public void delete(Object o) {
-        delete(o, null);
+        getWriterForClass(o.getClass()).delete(o, null);
     }
 
     public <T> void delete(final T lo, final AsyncOperationCallback<T> callback) {
@@ -1380,7 +1378,7 @@ public final class Morphium {
         return config.getBufferedWriter().writeBufferCount() + config.getWriter().writeBufferCount();
     }
 
-    public int getBufferedWriterBuffercount() {
+    public int getBufferedWriterBufferCount() {
         return config.getBufferedWriter().writeBufferCount();
     }
 

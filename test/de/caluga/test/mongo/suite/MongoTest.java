@@ -107,6 +107,42 @@ public class MongoTest {
             cfg.setDefaultReadPreference(ReadPreferenceLevel.NEAREST);
             MorphiumSingleton.setConfig(cfg);
             MorphiumSingleton.get();
+
+//            MorphiumSingleton.get().addListener(new MorphiumStorageAdapter() {
+//                @Override
+//                public void preStore(Morphium m, Object r, boolean isNew) {
+//                    if (m.getARHelper().isBufferedWrite(r.getClass())) {
+//                        Logger.getLogger(MongoTest.class).info("Buffered store of "+r.getClass());
+//                    }
+//                }
+//
+//                @Override
+//                public void preDelete(Morphium m, Object r) {
+//                     if (m.getARHelper().isBufferedWrite(r.getClass())) {
+//                        Logger.getLogger(MongoTest.class).info("Buffered delete of "+r.getClass());
+//                    }
+//                }
+//
+//                @Override
+//                public void preRemove(Morphium m, Query q) {
+//                    if (m.getARHelper().isBufferedWrite(q.getType())) {
+//                        Logger.getLogger(MongoTest.class).info("Buffered remove of "+q.getType(),new Exception());
+//                    }
+//                }
+//
+//                @Override
+//                public void preDrop(Morphium m, Class cls) {
+//                    if (m.getARHelper().isBufferedWrite(cls)) {//                        Logger.getLogger(MongoTest.class).info("Buffered drop of "+cls);
+//                    }
+//                }
+//
+//                @Override
+//                public void preUpdate(Morphium m, Class cls, Enum updateType) {
+//                    if (m.getARHelper().isBufferedWrite(cls)) {
+//                        Logger.getLogger(MongoTest.class).info("Buffered update of "+cls);
+//                    }
+//                }
+//            });
         }
     }
 
@@ -121,7 +157,7 @@ public class MongoTest {
         while (MorphiumSingleton.get().getWriteBufferCount() > 0) {
             count++;
             if (count % 100 == 0)
-                log.info("still " + MorphiumSingleton.get().getWriteBufferCount() + " writers active (" + MorphiumSingleton.get().getBufferedWriterBuffercount() + " + " + MorphiumSingleton.get().getWriterBufferCount() + ")");
+                log.info("still " + MorphiumSingleton.get().getWriteBufferCount() + " writers active (" + MorphiumSingleton.get().getBufferedWriterBufferCount() + " + " + MorphiumSingleton.get().getWriterBufferCount() + ")");
             try {
                 Thread.sleep(10);
             } catch (InterruptedException ex) {

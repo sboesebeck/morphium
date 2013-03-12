@@ -78,6 +78,10 @@ public class BufferedWriterImpl implements Writer {
 
     @Override
     public <T> void store(final List<T> lst, AsyncOperationCallback<T> c) {
+        if (lst == null || lst.size() == 0) {
+//            TODO: c.onOperationSucceeded();
+            return;
+        }
         if (c == null) {
             c = new AsyncOpAdapter<T>();
         }
