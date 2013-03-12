@@ -24,7 +24,7 @@ public class MassCacheTest extends MongoTest {
     private static final Logger log = Logger.getLogger(MassCacheTest.class);
 
     @Test
-    public void massiveParallelWritingTest() {
+    public void massiveParallelWritingTest() throws InterruptedException {
 
         log.info("\nMassive parallel writing - single creating objects");
         long start = System.currentTimeMillis();
@@ -64,7 +64,7 @@ public class MassCacheTest extends MongoTest {
 
         dur = System.currentTimeMillis() - start;
         log.info("Writing took " + dur + " ms");
-
+        Thread.sleep(2500);
         log.info("Checking consistency");
         start = System.currentTimeMillis();
         for (int i = 0; i < WRITING_THREADS; i++) {

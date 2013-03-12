@@ -13,6 +13,7 @@ import de.caluga.morphium.query.Query;
 import org.apache.log4j.Logger;
 import org.bson.types.ObjectId;
 
+import javax.validation.ConstraintViolationException;
 import java.lang.reflect.Field;
 import java.util.*;
 import java.util.concurrent.SynchronousQueue;
@@ -64,7 +65,7 @@ public class WriterImpl implements Writer {
                 long start = System.currentTimeMillis();
 
                 try {
-                    Object o = obj;
+                    T o = obj;
                     Class type = annotationHelper.getRealClass(o.getClass());
                     if (!annotationHelper.isAnnotationPresentInHierarchy(type, Entity.class)) {
                         throw new RuntimeException("Not an entity: " + type.getSimpleName() + " Storing not possible!");
@@ -73,7 +74,7 @@ public class WriterImpl implements Writer {
                     ObjectId id = annotationHelper.getId(o);
                     if (annotationHelper.isAnnotationPresentInHierarchy(type, PartialUpdate.class)) {
                         if ((o instanceof PartiallyUpdateable)) {
-                            morphium.updateUsingFields(o, ((PartiallyUpdateable) o).getAlteredFields().toArray(new String[((PartiallyUpdateable) o).getAlteredFields().size()]));
+                            storeUsingFields(o, callback, ((PartiallyUpdateable) o).getAlteredFields().toArray(new String[((PartiallyUpdateable) o).getAlteredFields().size()]));
                             ((PartiallyUpdateable) o).clearAlteredFields();
 
                             return;
@@ -182,6 +183,8 @@ public class WriterImpl implements Writer {
                     morphium.firePostStoreEvent(o, isNew);
                     if (callback != null)
                         callback.onOperationSucceeded(AsyncOperationType.WRITE, null, System.currentTimeMillis() - start, null, obj);
+                } catch (ConstraintViolationException cve) {
+                    throw (cve);
                 } catch (Exception e) {
                     if (callback == null) throw new RuntimeException(e);
                     callback.onOperationError(AsyncOperationType.WRITE, null, System.currentTimeMillis() - start, e.getMessage(), e, obj);
@@ -280,6 +283,8 @@ public class WriterImpl implements Writer {
                         }
                         if (callback != null)
                             callback.onOperationSucceeded(AsyncOperationType.WRITE, null, System.currentTimeMillis() - allStart, null, null, lst);
+                    } catch (ConstraintViolationException cve) {
+                        throw (cve);
                     } catch (Exception e) {
                         if (callback == null) throw new RuntimeException(e);
                         callback.onOperationError(AsyncOperationType.WRITE, null, System.currentTimeMillis() - allStart, e.getMessage(), e, null, lst);
@@ -290,17 +295,6 @@ public class WriterImpl implements Writer {
         }
     }
 
-    /**
-     * changes an object in DB
-     *
-     * @param toSet - entity
-     * @param field - field to set
-     * @param v     - value to set field to
-     */
-    @Override
-    public <T> void set(final T toSet, final String field, final Object v, final AsyncOperationCallback<T> callback) {
-        set(toSet, field, v, false, false, callback);
-    }
 
     public <T> void set(final T toSet, final String field, final Object v, final boolean insertIfNotExist, final boolean multiple, final AsyncOperationCallback<T> callback) {
         Runnable r = new Runnable() {
@@ -349,6 +343,7 @@ public class WriterImpl implements Writer {
         };
         submitAndBlockIfNecessary(callback, r);
     }
+
 
     private <T> void submitAndBlockIfNecessary(AsyncOperationCallback<T> callback, Runnable r) {
         if (callback == null) {
@@ -521,6 +516,7 @@ public class WriterImpl implements Writer {
             @Override
             public void run() {
                 ObjectId id = annotationHelper.getId(o);
+                morphium.firePreRemoveEvent(o);
                 BasicDBObject db = new BasicDBObject();
                 db.append("_id", id);
                 WriteConcern wc = morphium.getWriteConcernForClass(o.getClass());
@@ -670,6 +666,7 @@ public class WriterImpl implements Writer {
         };
         submitAndBlockIfNecessary(callback, r);
     }
+
 
     /**
      * will change an entry in mongodb-collection corresponding to given class object
@@ -983,46 +980,6 @@ public class WriterImpl implements Writer {
             }
         };
         submitAndBlockIfNecessary(callback, r);
-    }
-
-    /**
-     * ensureIndex(CachedObject.class,"counter","-value");
-     * ensureIndex(CachedObject.class,"counter:2d","-value);
-     * Similar to sorting
-     *
-     * @param cls    - class
-     * @param fldStr - fields
-     */
-    @Override
-    public <T> void ensureIndex(Class<T> cls, AsyncOperationCallback<T> callback, String... fldStr) {
-        Map<String, Object> m = new LinkedHashMap<String, Object>();
-        for (String f : fldStr) {
-            int idx = 1;
-            if (f.contains(":")) {
-                //explicitly defined index
-                String fs[] = f.split(":");
-                m.put(fs[0], fs[1]);
-            } else {
-                if (f.startsWith("-")) {
-                    idx = -1;
-                    f = f.substring(1);
-                } else if (f.startsWith("+")) {
-                    f = f.substring(1);
-                }
-                m.put(f, idx);
-            }
-        }
-        ensureIndex(cls, m, callback);
-    }
-
-    @Override
-    public <T> void ensureIndex(Class<T> cls, AsyncOperationCallback<T> callback, Enum... fldStr) {
-        Map<String, Object> m = new LinkedHashMap<String, Object>();
-        for (Enum e : fldStr) {
-            String f = e.name();
-            m.put(f, 1);
-        }
-        ensureIndex(cls, m, callback);
     }
 
     @Override

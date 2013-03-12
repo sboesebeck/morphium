@@ -22,6 +22,8 @@ public class LifecycleTest extends MongoTest {
     private static boolean preRemove = false;
     private static boolean postRemove = false;
     private static boolean postLoad = false;
+    private static boolean preUpdate = false;
+    private static boolean postUpdate = false;
 
 
     @Test
@@ -39,9 +41,13 @@ public class LifecycleTest extends MongoTest {
 
         assert (postLoad) : "Something went wrong: postload";
 
+        MorphiumSingleton.get().set(q, "value", "test beendet");
+        assert (preUpdate);
+        assert (postUpdate);
         MorphiumSingleton.get().delete(obj);
         assert (preRemove) : "Pre remove not called";
         assert (postRemove) : "Post remove not called";
+
     }
 
     @Entity
@@ -97,6 +103,16 @@ public class LifecycleTest extends MongoTest {
             System.out.println("Object was deleted!");
             postRemove = true;
             id = null;
+        }
+
+        @PostUpdate
+        public void postUpdate() {
+            postUpdate = true;
+        }
+
+        @PreUpdate
+        public void preUpdate() {
+            preUpdate = true;
         }
     }
 }

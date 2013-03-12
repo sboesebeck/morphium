@@ -25,6 +25,7 @@ public class IdCacheTest extends MongoTest {
         }
 
         waitForWrites();
+        Thread.sleep(2000);
 
         Query<CachedObject> q = MorphiumSingleton.get().createQueryFor(CachedObject.class);
         q = q.f("counter").lt(30);

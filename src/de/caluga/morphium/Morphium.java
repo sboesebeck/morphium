@@ -330,12 +330,24 @@ public final class Morphium {
         return q;
     }
 
-    public void set(Query<?> query, Enum field, Object val) {
-        getWriterForClass(query.getType()).set(query, field.name(), val, null);
+    public <T> void set(Query<T> query, Enum field, Object val) {
+        set(query, field, val, (AsyncOperationCallback<T>) null);
     }
 
-    public void set(Query<?> query, String field, Object val) {
-        getWriterForClass(query.getType()).set(query, field, val, false, false, null);
+    public <T> void set(Query<T> query, Enum field, Object val, AsyncOperationCallback<T> callback) {
+        Map<String, Object> toSet = new HashMap<String, Object>();
+        toSet.put(field.name(), val);
+        getWriterForClass(query.getType()).set(query, toSet, false, false, callback);
+    }
+
+    public <T> void set(Query<T> query, String field, Object val) {
+        set(query, field, val, (AsyncOperationCallback<T>) null);
+    }
+
+    public <T> void set(Query<T> query, String field, Object val, AsyncOperationCallback<T> callback) {
+        Map<String, Object> toSet = new HashMap<String, Object>();
+        toSet.put(field, val);
+        getWriterForClass(query.getType()).set(query, toSet, false, false, callback);
     }
 
     public void setEnum(Query<?> query, Map<Enum, Object> values, boolean insertIfNotExist, boolean multiple) {
@@ -385,7 +397,7 @@ public final class Morphium {
 
 
     public <T> void push(final Query<T> query, final String field, final Object value, final boolean insertIfNotExist, final boolean multiple) {
-        push(query, toString(), value, insertIfNotExist, multiple, null);
+        push(query, field, value, insertIfNotExist, multiple, null);
     }
 
     /**
@@ -403,11 +415,7 @@ public final class Morphium {
         if (query == null || field == null) throw new RuntimeException("Cannot update null!");
 
         firePreUpdateEvent(query.getType(), MorphiumStorageListener.UpdateTypes.PUSH);
-        Writer wr = config.getWriter();
-        if (annotationHelper.isBufferedWrite(query.getType())) {
-            wr = config.getBufferedWriter();
-        }
-        wr.pushPull(true, query, field, value, insertIfNotExist, multiple, null);
+        getWriterForClass(query.getType()).pushPull(true, query, field, value, insertIfNotExist, multiple, null);
 
     }
 
@@ -475,8 +483,8 @@ public final class Morphium {
      * @param insertIfNotExist - insert, if it does not exist (query needs to be simple!)
      * @param multiple         - update several documents, if false, only first hit will be updated
      */
-    public void set(Query<?> query, String field, Object val, boolean insertIfNotExist, boolean multiple) {
-        set(query, field, val, insertIfNotExist, multiple, null);
+    public <T> void set(Query<T> query, String field, Object val, boolean insertIfNotExist, boolean multiple) {
+        set(query, field, val, insertIfNotExist, multiple, (AsyncOperationCallback<T>) null);
     }
 
     public <T> void set(Query<T> query, String field, Object val, boolean insertIfNotExist, boolean multiple, AsyncOperationCallback<T> callback) {
@@ -491,8 +499,6 @@ public final class Morphium {
 
     public <T> void set(final Query<T> query, final Map<String, Object> map, final boolean insertIfNotExist, final boolean multiple, AsyncOperationCallback<T> callback) {
         if (query == null) throw new RuntimeException("Cannot update null!");
-
-        firePreUpdateEvent(query.getType(), MorphiumStorageListener.UpdateTypes.SET);
         getWriterForClass(query.getType()).set(query, map, insertIfNotExist, multiple, callback);
     }
 
@@ -561,7 +567,7 @@ public final class Morphium {
         set(toSet, field, value, null);
     }
 
-    public <T> void set(final T toSet, final String field, final Object value, final AsyncOperationCallback<T> callback) {
+    public <T> void set(final T toSet, final String field, final Object value, boolean insertIfNotExists, boolean multiple, AsyncOperationCallback<T> callback) {
         if (toSet == null) throw new RuntimeException("Cannot update null!");
 
         if (getId(toSet) == null) {
@@ -569,7 +575,11 @@ public final class Morphium {
             store(toSet);
             return;
         }
-        getWriterForClass(toSet.getClass()).set(toSet, field, value, callback);
+        getWriterForClass(toSet.getClass()).set(toSet, field, value, insertIfNotExists, multiple, callback);
+    }
+
+    public <T> void set(final T toSet, final String field, final Object value, final AsyncOperationCallback<T> callback) {
+        set(toSet, field, value, false, false, callback);
 
     }
 
@@ -602,7 +612,7 @@ public final class Morphium {
             store(toSet);
             return;
         }
-        getWriterForClass(toSet.getClass()).set(toSet, field, i, callback);
+        getWriterForClass(toSet.getClass()).inc(toSet, field, i, callback);
     }
 
     public void inc(StatisticKeys k) {
@@ -911,7 +921,7 @@ public final class Morphium {
             }
             //Wait for all active slaves (-1 for the timeout bug)
             //TODO: remove -1 or think of something different
-            w = activeNodes - 1;
+            w = activeNodes;
             if (timeout > 0 && timeout < maxReplLag * 1000) {
                 logger.warn("Timeout is set smaller than replication lag - increasing to replication_lag time * 3");
                 timeout = maxReplLag * 3000;
@@ -1187,20 +1197,43 @@ public final class Morphium {
      * @param cls    - class
      * @param fldStr - fields
      */
+    public <T> void ensureIndex(Class<T> cls, AsyncOperationCallback<T> callback, Enum... fldStr) {
+        Map<String, Object> m = new LinkedHashMap<String, Object>();
+        for (Enum e : fldStr) {
+            String f = e.name();
+            m.put(f, 1);
+        }
+        getWriterForClass(cls).ensureIndex(cls, m, callback);
+    }
+
     public <T> void ensureIndex(Class<T> cls, AsyncOperationCallback<T> callback, String... fldStr) {
-        getWriterForClass(cls).ensureIndex(cls, callback, fldStr);
+        Map<String, Object> m = new LinkedHashMap<String, Object>();
+        for (String f : fldStr) {
+            int idx = 1;
+            if (f.contains(":")) {
+                //explicitly defined index
+                String fs[] = f.split(":");
+                m.put(fs[0], fs[1]);
+            } else {
+                if (f.startsWith("-")) {
+                    idx = -1;
+                    f = f.substring(1);
+                } else if (f.startsWith("+")) {
+                    f = f.substring(1);
+                }
+                m.put(f, idx);
+            }
+        }
+        getWriterForClass(cls).ensureIndex(cls, m, callback);
     }
 
     public void ensureIndex(Class<?> cls, String... fldStr) {
-        getWriterForClass(cls).ensureIndex(cls, null, fldStr);
+        ensureIndex(cls, null, fldStr);
     }
 
-    public <T> void ensureIndex(Class<T> cls, AsyncOperationCallback<T> callback, Enum... fldStr) {
-        getWriterForClass(cls).ensureIndex(cls, callback, fldStr);
-    }
 
     public void ensureIndex(Class<?> cls, Enum... fldStr) {
-        getWriterForClass(cls).ensureIndex(cls, null, fldStr);
+        ensureIndex(cls, null, fldStr);
     }
 
 

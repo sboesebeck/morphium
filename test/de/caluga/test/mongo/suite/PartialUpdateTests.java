@@ -60,6 +60,7 @@ public class PartialUpdateTests extends MongoTest {
         assert (!((PartiallyUpdateable) po).getAlteredFields().contains("value")) : "Value still in altered fields?";
         assert (((PartiallyUpdateable) po).getAlteredFields().contains("name")) : "Name not changed?";
         MorphiumSingleton.get().store(po);
+        waitForWrites();
         q.setReadPreferenceLevel(ReadPreferenceLevel.PRIMARY);
         po = (PartUpdTestObj) q.q().f("value").eq(6).get();
         assert (po.getName().equals("neuer Name")) : "Name not changed?";
