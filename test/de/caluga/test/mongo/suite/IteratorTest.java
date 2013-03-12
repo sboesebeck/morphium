@@ -75,6 +75,22 @@ public class IteratorTest extends MongoTest {
     }
 
     @Test
+    public void iteratorLimitTest() throws Exception {
+        createUncachedObjects(17);
+
+        Query<UncachedObject> qu = getUncachedObjectQuery();
+        qu.limit(10);
+
+        MorphiumIterator<UncachedObject> it = qu.asIterable(3);
+        int count = 0;
+        while (it.hasNext()) {
+            count++;
+            it.next();
+        }
+        assert (count == 10) : "Count wrong: " + count;
+    }
+
+    @Test
     public void iterableTest() throws Exception {
         createUncachedObjects(100);
         Query<UncachedObject> qu = getUncachedObjectQuery();

@@ -22,6 +22,7 @@ public class MorphiumIteratorImpl<T> implements MorphiumIterator<T> {
     private long count = 0;
 
     private Logger log = Logger.getLogger(MorphiumIterator.class);
+    private long limit;
 
     @Override
     public Iterator<T> iterator() {
@@ -30,12 +31,12 @@ public class MorphiumIteratorImpl<T> implements MorphiumIterator<T> {
 
     @Override
     public boolean hasNext() {
-        return cursor < count;
+        return (cursor < count) && (cursor < limit);
     }
 
     @Override
     public T next() {
-        if (cursor > count) {
+        if (cursor > count || cursor > limit) {
             return null;
         }
         int idx = cursor % windowSize;
@@ -43,6 +44,8 @@ public class MorphiumIteratorImpl<T> implements MorphiumIterator<T> {
             theQuery.skip(cursor);
             if (count - cursor < windowSize) {
                 theQuery.limit((int) (count - cursor));
+            } else if (limit - cursor < windowSize) {
+                theQuery.limit((int) (limit - cursor));
             } else {
                 theQuery.limit(windowSize);
             }
@@ -77,6 +80,10 @@ public class MorphiumIteratorImpl<T> implements MorphiumIterator<T> {
         } catch (CloneNotSupportedException ignored) {
         }
         count = theQuery.countAll();
+        limit = theQuery.getLimit();
+        if (limit <= 0) {
+            limit = count;
+        }
     }
 
     @Override
