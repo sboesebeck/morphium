@@ -41,7 +41,7 @@ import java.util.*;
  */
 
 @SuppressWarnings("UnusedDeclaration")
-public final class Morphium {
+public final class Morphium implements Writer {
 
     /**
      * singleton is usually not a good idea in j2ee-Context, but as we did it on
@@ -263,6 +263,7 @@ public final class Morphium {
         unset(toSet, field, null);
     }
 
+    @Override
     public <T> void unset(final T toSet, final String field, final AsyncOperationCallback<T> callback) {
         if (toSet == null) throw new RuntimeException("Cannot update null!");
 
@@ -615,6 +616,26 @@ public final class Morphium {
         getWriterForClass(toSet.getClass()).inc(toSet, field, i, callback);
     }
 
+    @Override
+    public void setMorphium(Morphium m) {
+        throw new RuntimeException("Does not make sense");
+    }
+
+    @Override
+    public <T> void delete(List<T> lst, AsyncOperationCallback<T> callback) {
+        ArrayList<T> directDel = new ArrayList<T>();
+        ArrayList<T> bufferedDel = new ArrayList<T>();
+        for (T o : lst) {
+            if (annotationHelper.isBufferedWrite(o.getClass())) {
+                bufferedDel.add(o);
+            } else {
+                directDel.add(o);
+            }
+        }
+        config.getBufferedWriter().delete(bufferedDel, callback);
+        config.getWriter().delete(directDel, callback);
+    }
+
     public void inc(StatisticKeys k) {
         stats.get(k).inc();
     }
@@ -633,7 +654,7 @@ public final class Morphium {
      * @param fields - fields to use
      */
     public void updateUsingFields(final Object ent, final String... fields) {
-
+        updateUsingFields(ent, null, fields);
     }
 
     public <T> void updateUsingFields(final T ent, AsyncOperationCallback<T> callback, final String... fields) {
@@ -641,11 +662,11 @@ public final class Morphium {
         if (fields.length == 0) return; //not doing an update - no change
 
         if (annotationHelper.isAnnotationPresentInHierarchy(ent.getClass(), NoCache.class)) {
-            config.getWriter().storeUsingFields(ent, null, fields);
+            config.getWriter().updateUsingFields(ent, null, fields);
             return;
         }
 
-        getWriterForClass(ent.getClass()).storeUsingFields(ent, null, fields);
+        getWriterForClass(ent.getClass()).updateUsingFields(ent, null, fields);
     }
 
 
@@ -1130,14 +1151,10 @@ public final class Morphium {
         Query<T> q = createQueryFor(cls);
         q = q.f(fld).eq(val);
         return q.asList();
-//        return createQueryFor(cls).field(fld).equal(val).asList();
     }
 
     public <T> List<T> findByField(Class<? extends T> cls, Enum fld, Object val) {
-        Query<T> q = createQueryFor(cls);
-        q = q.f(fld).eq(val);
-        return q.asList();
-//        return createQueryFor(cls).field(fld).equal(val).asList();
+        return findByField(cls, fld.name(), val);
     }
 
 
@@ -1183,6 +1200,11 @@ public final class Morphium {
 
     public <T> void ensureIndex(Class<T> cls, Map<String, Object> index, AsyncOperationCallback<T> callback) {
         getWriterForClass(cls).ensureIndex(cls, index, callback);
+    }
+
+    @Override
+    public int writeBufferCount() {
+        return config.getWriter().writeBufferCount() + config.getBufferedWriter().writeBufferCount();
     }
 
     public void ensureIndex(Class<?> cls, Map<String, Object> index) {
@@ -1254,6 +1276,11 @@ public final class Morphium {
         getWriterForClass(o.getClass()).store(o, callback);
     }
 
+    @Override
+    public <T> void store(List<T> lst, AsyncOperationCallback<T> callback) {
+        storeList(lst, callback);
+    }
+
 
     public <T> void storeList(List<T> lst) {
         storeList(lst, null);
@@ -1283,6 +1310,20 @@ public final class Morphium {
 
     public <T> void delete(Query<T> o, final AsyncOperationCallback<T> callback) {
         getWriterForClass(o.getType()).delete(o, callback);
+    }
+
+    @Override
+    public <T> void pushPull(boolean push, Query<T> query, String field, Object value, boolean insertIfNotExist, boolean multiple, AsyncOperationCallback<T> callback) {
+        getWriterForClass(query.getType()).pushPull(push, query, field, value, insertIfNotExist, multiple, callback);
+    }
+
+    @Override
+    public <T> void pushPullAll(boolean push, Query<T> query, String field, List<?> value, boolean insertIfNotExist, boolean multiple, AsyncOperationCallback<T> callback) {
+        getWriterForClass(query.getType()).pushPullAll(push, query, field, value, insertIfNotExist, multiple, callback);
+    }
+
+    public <T> void pullAll(Query<T> query, String field, List<?> value, boolean insertIfNotExist, boolean multiple, AsyncOperationCallback<T> callback) {
+        getWriterForClass(query.getType()).pushPullAll(false, query, field, value, insertIfNotExist, multiple, callback);
     }
 
     /**
