@@ -108,7 +108,7 @@ public class BufferedWriterImpl implements Writer {
     }
 
     @Override
-    public <T> void storeUsingFields(final T ent, AsyncOperationCallback<T> c, final String... fields) {
+    public <T> void updateUsingFields(final T ent, AsyncOperationCallback<T> c, final String... fields) {
         if (c == null) {
             c = new AsyncOpAdapter<T>();
         }
@@ -117,7 +117,7 @@ public class BufferedWriterImpl implements Writer {
         addToWriteQueue(new Runnable() {
             @Override
             public void run() {
-                directWriter.storeUsingFields(ent, callback, fields);
+                directWriter.updateUsingFields(ent, callback, fields);
             }
         });
     }

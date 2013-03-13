@@ -4,10 +4,12 @@ import com.mongodb.DBObject;
 import de.caluga.morphium.FilterExpression;
 import de.caluga.morphium.Morphium;
 import de.caluga.morphium.annotations.ReadPreferenceLevel;
+import de.caluga.morphium.async.AsyncOperationCallback;
 import org.bson.types.ObjectId;
 
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ThreadPoolExecutor;
 
 /**
  * User: Stpehan Bösebeck
@@ -134,6 +136,8 @@ public interface Query<T> extends Cloneable {
      */
     public long countAll();  //not taking limit and skip into account!
 
+    public void countAll(AsyncOperationCallback<Long> callback);
+
     /**
      * needed for creation of the query representation tree
      *
@@ -162,6 +166,8 @@ public interface Query<T> extends Cloneable {
      */
     public List<T> asList();
 
+    public void asList(AsyncOperationCallback<T> callback);
+
     /**
      * create an iterator / iterable for this query, default windowSize (10)
      */
@@ -181,13 +187,8 @@ public interface Query<T> extends Cloneable {
      */
     public T get();
 
-    /**
-     * returns one object that matches to id
-     *
-     * @param id - should be the Unique ID
-     * @return - the object, if found, null otherwise
-     */
-    public T getById(ObjectId id);
+    public void get(AsyncOperationCallback<T> callback);
+
 
     /**
      * only return the IDs of objects (useful if objects are really large)
@@ -195,6 +196,8 @@ public interface Query<T> extends Cloneable {
      * @return list
      */
     public List<ObjectId> idList();
+
+    public void idList(AsyncOperationCallback<T> callback);
 
     /**
      * what type to use
@@ -254,4 +257,6 @@ public interface Query<T> extends Cloneable {
     public Morphium getMorphium();
 
     public void setMorphium(Morphium m);
+
+    void setExecutor(ThreadPoolExecutor executor);
 }

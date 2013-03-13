@@ -74,7 +74,7 @@ public class WriterImpl implements Writer {
                     ObjectId id = annotationHelper.getId(o);
                     if (annotationHelper.isAnnotationPresentInHierarchy(type, PartialUpdate.class)) {
                         if ((o instanceof PartiallyUpdateable)) {
-                            storeUsingFields(o, callback, ((PartiallyUpdateable) o).getAlteredFields().toArray(new String[((PartiallyUpdateable) o).getAlteredFields().size()]));
+                            updateUsingFields(o, callback, ((PartiallyUpdateable) o).getAlteredFields().toArray(new String[((PartiallyUpdateable) o).getAlteredFields().size()]));
                             ((PartiallyUpdateable) o).clearAlteredFields();
 
                             return;
@@ -354,7 +354,7 @@ public class WriterImpl implements Writer {
     }
 
     @Override
-    public <T> void storeUsingFields(final T ent, final AsyncOperationCallback<T> callback, final String... fields) {
+    public <T> void updateUsingFields(final T ent, final AsyncOperationCallback<T> callback, final String... fields) {
         if (ent == null) return;
         Runnable r = new Runnable() {
             @Override

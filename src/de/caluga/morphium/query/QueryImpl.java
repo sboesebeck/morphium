@@ -4,11 +4,15 @@ import com.mongodb.*;
 import de.caluga.morphium.*;
 import de.caluga.morphium.annotations.*;
 import de.caluga.morphium.annotations.caching.Cache;
+import de.caluga.morphium.async.AsyncOperationCallback;
 import org.apache.log4j.Logger;
 import org.bson.types.ObjectId;
 
 import java.lang.reflect.Field;
 import java.util.*;
+import java.util.concurrent.SynchronousQueue;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 
 /**
  * User: Stpehan Bösebeck
@@ -31,14 +35,30 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
     private Morphium morphium;
     private static Logger log = Logger.getLogger(Query.class);
     private AnnotationAndReflectionHelper annotationHelper = new AnnotationAndReflectionHelper();
+    private ThreadPoolExecutor executor;
 
     public QueryImpl() {
 
     }
 
-    public QueryImpl(Morphium m, Class<? extends T> type) {
+    public QueryImpl(Morphium m, Class<? extends T> type, ThreadPoolExecutor executor) {
         this(m);
         setType(type);
+        this.executor = executor;
+    }
+
+    public ThreadPoolExecutor getExecutor() {
+        if (executor == null) {
+            executor = new ThreadPoolExecutor(0, Integer.MAX_VALUE,
+                    60L, TimeUnit.SECONDS,
+                    new SynchronousQueue<Runnable>());
+        }
+        return executor;
+    }
+
+    @Override
+    public void setExecutor(ThreadPoolExecutor executor) {
+        this.executor = executor;
     }
 
     @Override
@@ -89,7 +109,7 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
 
     @Override
     public Query<T> q() {
-        Query<T> q = new QueryImpl<T>(morphium, type);
+        Query<T> q = new QueryImpl<T>(morphium, type, executor);
         return q;
     }
 
@@ -317,15 +337,28 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
     }
 
     @Override
-    public long countAll() {
-        morphium.inc(StatisticKeys.READS);
+    public void countAll(AsyncOperationCallback<Long> c) {
+        Runnable r = new Runnable() {
+            @Override
+            public void run() {
+                morphium.inc(StatisticKeys.READS);
 
-        long start = System.currentTimeMillis();
-        DBCollection collection = morphium.getDatabase().getCollection(morphium.getMapper().getCollectionName(type));
-        setReadPreferenceFor(collection);
-        long ret = collection.count(toQueryObject());
-        morphium.fireProfilingReadEvent(this, System.currentTimeMillis() - start, ReadAccessType.COUNT);
-        return ret;
+                long start = System.currentTimeMillis();
+                DBCollection collection = morphium.getDatabase().getCollection(morphium.getMapper().getCollectionName(type));
+                setReadPreferenceFor(collection);
+                long ret = collection.count(toQueryObject());
+                morphium.fireProfilingReadEvent(QueryImpl.this, System.currentTimeMillis() - start, ReadAccessType.COUNT);
+
+            }
+        };
+        if (callback == null) {
+            r.run();
+        } else {
+            final AsyncOperationCallback<Long> callback = c;
+            executor.submit(r);
+
+        }
+
     }
 
     private void setReadPreferenceFor(DBCollection c) {

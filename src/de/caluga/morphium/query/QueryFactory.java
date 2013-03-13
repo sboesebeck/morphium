@@ -2,6 +2,8 @@ package de.caluga.morphium.query;
 
 import de.caluga.morphium.Morphium;
 
+import java.util.concurrent.ThreadPoolExecutor;
+
 /**
  * User: Stephan Bösebeck
  * Date: 31.08.12
@@ -15,4 +17,8 @@ public interface QueryFactory {
     public Class<? extends Query> getQueryImpl();
 
     public void setQueryImpl(Class<? extends Query> queryImpl);
+
+    void setExecutor(ThreadPoolExecutor ex);
+
+    ThreadPoolExecutor getExecutor();
 }

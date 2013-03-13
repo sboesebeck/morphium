@@ -37,7 +37,7 @@ public interface Writer {
      * @param ent    entity
      * @param fields - fields
      */
-    public <T> void storeUsingFields(T ent, AsyncOperationCallback<T> callback, String... fields);
+    public <T> void updateUsingFields(T ent, AsyncOperationCallback<T> callback, String... fields);
 
     /**
      * changes an object in DB AND in Memory...
