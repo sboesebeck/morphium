@@ -111,7 +111,8 @@ public class CacheSyncTest extends MongoTest {
     @Test
     public void idCacheTest() throws Exception {
         MorphiumSingleton.get().dropCollection(IdCachedObject.class);
-
+        waitForWrites();
+        Thread.sleep(2000);
         long start = System.currentTimeMillis();
         for (int i = 0; i < 100; i++) {
             IdCachedObject o = new IdCachedObject();
@@ -151,7 +152,7 @@ public class CacheSyncTest extends MongoTest {
         dur = System.currentTimeMillis() - start;
         log.info("Storing with synchronizer: " + dur + " ms");
 
-        Thread.sleep(1000);
+        Thread.sleep(2000);
         start = System.currentTimeMillis();
         for (int i = 0; i < 100; i++) {
             Query<IdCachedObject> q = MorphiumSingleton.get().createQueryFor(IdCachedObject.class);
