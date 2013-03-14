@@ -367,7 +367,7 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
             }
         };
 
-        executor.submit(r);
+        getExecutor().submit(r);
 
     }
 
@@ -478,7 +478,7 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
                 }
             }
         };
-        executor.submit(r);
+        getExecutor().submit(r);
     }
 
     @Override
@@ -610,7 +610,7 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
                 }
             }
         };
-        executor.submit(c);
+        getExecutor().submit(c);
     }
 
     @Override
@@ -642,7 +642,7 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
                 }
             }
         };
-        executor.submit(r);
+        getExecutor().submit(r);
     }
 
     @Override
@@ -738,7 +738,7 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
             }
         };
 
-        executor.submit(r);
+        getExecutor().submit(r);
     }
 
     @Override
