@@ -27,6 +27,7 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
     private List<Query<T>> norQueries;
     private ReadPreferenceLevel readPreferenceLevel;
     private ReadPreference readPreference;
+    private boolean additionalDataPresent = false;
 
     private int limit = 0, skip = 0;
     private Map<String, Integer> order;
@@ -80,8 +81,9 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
         DefaultReadPreference pr = morphium.getAnnotationFromHierarchy(type, DefaultReadPreference.class);
         if (pr != null) {
             setReadPreferenceLevel(pr.value());
-
         }
+        List<String> fields = morphium.getMapper().getFields(type, AdditionalData.class);
+        additionalDataPresent = fields != null && fields.size() != 0;
     }
 
     @Override
@@ -211,9 +213,17 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
             //if there is a . only check first part
             cf = f.substring(0, f.indexOf("."));
             //TODO: check field name completely => person.name, check type Person for field name
+        } else if (additionalDataPresent) {
+            log.debug("Additional data is available, not checking field");
+            MongoField<T> fld = morphium.createMongoField(); //new MongoFieldImpl<T>();
+            fld.setFieldString(f);
+            fld.setMapper(morphium.getMapper());
+            fld.setQuery(this);
+            return fld;
         }
         Field field = morphium.getMapper().getField(type, cf);
         if (field == null) {
+
             throw new IllegalArgumentException("Unknown Field " + f);
         }
 
