@@ -33,7 +33,6 @@ public class AdditionalDataTest extends MongoTest {
         d.setAdditionals(additional);
         MorphiumSingleton.get().store(d);
         System.out.println("Stored some additional data!");
-
         AddDat d2 = MorphiumSingleton.get().findById(AddDat.class, d.getMongoId());
         assert (d2.additionals != null);
         assert (d2.additionals.get("102-92-93").equals(new Integer(3234)));
