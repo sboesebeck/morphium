@@ -30,9 +30,11 @@ public class AnnotationAndReflectionHelper {
     private Map<Class<?>, List<Field>> fieldListCache = new Hashtable<Class<?>, List<Field>>();
     private Map<String, List<String>> fieldAnnotationListCache = new HashMap<String, List<String>>();
     private Map<Class<?>, Map<Class<? extends Annotation>, Method>> lifeCycleMethods;
+    private Map<Class<?>, Boolean> hasAdditionalData;
 
     public AnnotationAndReflectionHelper() {
         lifeCycleMethods = new Hashtable<Class<?>, Map<Class<? extends Annotation>, Method>>();
+        hasAdditionalData = new Hashtable<Class<?>, Boolean>();
     }
 
     public <T extends Annotation> boolean isAnnotationPresentInHierarchy(Class<?> cls, Class<? extends T> anCls) {
@@ -86,12 +88,23 @@ public class AnnotationAndReflectionHelper {
         return null;
     }
 
+    public boolean hasAdditionalData(Class clz) {
+        if (hasAdditionalData.get(clz) == null) {
+            List<String> lst = getFields(clz, AdditionalData.class);
+            hasAdditionalData.put(clz, (lst != null && lst.size() > 0));
+        }
+
+        return hasAdditionalData.get(clz);
+    }
 
     public String getFieldName(Class clz, String field) {
         Class cls = getRealClass(clz);
         if (field.contains(".")) {
             //searching for a sub-element?
             //no check possible
+            return field;
+        }
+        if (hasAdditionalData(clz)) {
             return field;
         }
         Field f = getField(cls, field);

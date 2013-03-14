@@ -9,13 +9,9 @@ import de.caluga.morphium.query.Query;
 import org.apache.log4j.Logger;
 import org.bson.types.ObjectId;
 
-import java.lang.annotation.Annotation;
 import java.lang.reflect.Array;
 import java.lang.reflect.Field;
-import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
-import java.text.ParseException;
-import java.text.SimpleDateFormat;
 import java.util.*;
 
 /**
@@ -27,70 +23,31 @@ import java.util.*;
 @SuppressWarnings({"ConstantConditions", "MismatchedQueryAndUpdateOfCollection", "unchecked", "MismatchedReadAndWriteOfArray"})
 public class ObjectMapperImpl implements ObjectMapper {
     private static Logger log = Logger.getLogger(ObjectMapperImpl.class);
-    private static volatile Map<Class<?>, List<Field>> fieldCache = new Hashtable<Class<?>, List<Field>>();
-    public volatile Morphium morphium;
     private volatile Hashtable<Class<?>, NameProvider> nameProviders;
+    private volatile AnnotationAndReflectionHelper annotationHelper = new AnnotationAndReflectionHelper();
+    private Morphium morphium;
 
-    public Morphium getMorphium() {
-        return morphium;
-    }
+    public ObjectMapperImpl() {
 
-    public void setMorphium(Morphium morphium) {
-        this.morphium = morphium;
-    }
-
-    public ObjectMapperImpl(Morphium m) {
-        morphium = m;
         nameProviders = new Hashtable<Class<?>, NameProvider>();
     }
 
-    public ObjectMapperImpl() {
-        this(null);
+    /**
+     * will automatically be called after instanciation by Morphium
+     * also gets the AnnotationAndReflectionHelper from this object (to make use of the caches)
+     *
+     * @param m - the Morphium instance
+     */
+    @Override
+    public void setMorphium(Morphium m) {
+        morphium = m;
+        if (m != null) {
+            annotationHelper = m.getARHelper();
+        } else {
+            annotationHelper = new AnnotationAndReflectionHelper();
+        }
     }
 
-    /**
-     * converts a sql/javascript-Name to Java, e.g. converts document_id to
-     * documentId.
-     *
-     * @param n          - string to convert
-     * @param capitalize : if true, first letter will be capitalized
-     * @return the translated name (capitalized or camel_case => camelCase)
-     */
-    public String createCamelCase(String n, boolean capitalize) {
-        n = n.toLowerCase();
-        String f[] = n.split("_");
-        StringBuilder sb = new StringBuilder(f[0].substring(0, 1).toLowerCase());
-        //String ret =
-        sb.append(f[0].substring(1));
-        for (int i = 1; i < f.length; i++) {
-            sb.append(f[i].substring(0, 1).toUpperCase());
-            sb.append(f[i].substring(1));
-        }
-        String ret = sb.toString();
-        if (capitalize) {
-            ret = ret.substring(0, 1).toUpperCase() + ret.substring(1);
-        }
-        return ret;
-    }
-
-    /**
-     * turns documentId into document_id
-     *
-     * @param n - string to convert
-     * @return converted string (camelCase becomes camel_case)
-     */
-    @SuppressWarnings("StringBufferMayBeStringBuilder")
-    public String convertCamelCase(String n) {
-        StringBuffer b = new StringBuffer();
-        for (int i = 0; i < n.length() - 1; i++) {
-            if (Character.isUpperCase(n.charAt(i)) && i > 0) {
-                b.append("_");
-            }
-            b.append(n.substring(i, i + 1).toLowerCase());
-        }
-        b.append(n.substring(n.length() - 1));
-        return b.toString();
-    }
 
     /**
      * override nameprovider in runtime!
@@ -103,7 +60,7 @@ public class ObjectMapperImpl implements ObjectMapper {
     }
 
     public NameProvider getNameProviderForClass(Class<?> cls) {
-        Entity e = morphium.getAnnotationFromHierarchy(cls, Entity.class);
+        Entity e = annotationHelper.getAnnotationFromHierarchy(cls, Entity.class);
         if (e == null) {
             throw new IllegalArgumentException("no entity annotation found");
         }
@@ -130,13 +87,12 @@ public class ObjectMapperImpl implements ObjectMapper {
     @SuppressWarnings("unchecked")
     @Override
     public String getCollectionName(Class cls) {
-        if (morphium == null) return null;
-        Entity p = morphium.getAnnotationFromHierarchy(cls, Entity.class); //(Entity) cls.getAnnotation(Entity.class);
+        Entity p = annotationHelper.getAnnotationFromHierarchy(cls, Entity.class); //(Entity) cls.getAnnotation(Entity.class);
         if (p == null) {
             throw new IllegalArgumentException("No Entity " + cls.getSimpleName());
         }
         try {
-            cls = getRealClass(cls);
+            cls = annotationHelper.getRealClass(cls);
             NameProvider np = getNameProviderForClass(cls, p);
             return np.getCollectionName(cls, this, p.translateCamelCase(), p.useFQN(), p.collectionName().equals(".") ? null : p.collectionName(), morphium);
         } catch (InstantiationException e) {
@@ -152,7 +108,7 @@ public class ObjectMapperImpl implements ObjectMapper {
     @Override
     public DBObject marshall(Object o) {
         //recursively map object ot mongo-Object...
-        if (!isEntity(o)) {
+        if (!annotationHelper.isEntity(o)) {
             throw new IllegalArgumentException("Object is no entity: " + o.getClass().getSimpleName());
         }
 
@@ -160,17 +116,17 @@ public class ObjectMapperImpl implements ObjectMapper {
         if (o == null) {
             return dbo;
         }
-        Class<?> cls = getRealClass(o.getClass());
+        Class<?> cls = annotationHelper.getRealClass(o.getClass());
         if (cls == null) {
             throw new IllegalArgumentException("No real class?");
         }
-        o = getRealObject(o);
-        List<String> flds = getFields(cls);
+        o = annotationHelper.getRealObject(o);
+        List<String> flds = annotationHelper.getFields(cls);
         if (flds == null) {
             throw new IllegalArgumentException("Fields not found? " + cls.getName());
         }
-        Entity e = morphium.getAnnotationFromHierarchy(o.getClass(), Entity.class); //o.getClass().getAnnotation(Entity.class);
-        Embedded emb = morphium.getAnnotationFromHierarchy(o.getClass(), Embedded.class); //o.getClass().getAnnotation(Embedded.class);
+        Entity e = annotationHelper.getAnnotationFromHierarchy(o.getClass(), Entity.class); //o.getClass().getAnnotation(Entity.class);
+        Embedded emb = annotationHelper.getAnnotationFromHierarchy(o.getClass(), Embedded.class); //o.getClass().getAnnotation(Embedded.class);
 
         if (e != null && e.polymorph()) {
             dbo.put("class_name", cls.getName());
@@ -183,7 +139,7 @@ public class ObjectMapperImpl implements ObjectMapper {
         for (String f : flds) {
             String fName = f;
             try {
-                Field fld = getField(cls, f);
+                Field fld = annotationHelper.getField(cls, f);
                 if (fld == null) {
                     log.error("Field not found");
                     continue;
@@ -219,16 +175,22 @@ public class ObjectMapperImpl implements ObjectMapper {
                             BasicDBList lst = new BasicDBList();
                             for (Object rec : ((Collection) value)) {
                                 if (rec != null) {
-                                    ObjectId id = getId(rec);
+                                    ObjectId id = annotationHelper.getId(rec);
                                     if (id == null) {
                                         if (r.automaticStore()) {
+                                            if (morphium == null) {
+                                                throw new RuntimeException("Could not automagically store references as morphium is not set!");
+                                            }
                                             morphium.storeNoCache(rec);
-                                            id = getId(rec);
+                                            id = annotationHelper.getId(rec);
                                         } else {
                                             throw new IllegalArgumentException("Cannot store reference to unstored entity if automaticStore in @Reference is set to false!");
                                         }
                                     }
-                                    DBRef ref = new DBRef(morphium.getDatabase(), getRealClass(rec.getClass()).getName(), id);
+                                    if (morphium == null) {
+                                        throw new RuntimeException("cannot set dbRef - morphium is not set");
+                                    }
+                                    DBRef ref = new DBRef(morphium.getDatabase(), annotationHelper.getRealClass(rec.getClass()).getName(), id);
                                     lst.add(ref);
                                 } else {
                                     lst.add(null);
@@ -239,7 +201,7 @@ public class ObjectMapperImpl implements ObjectMapper {
                             throw new RuntimeException("Cannot store references in Maps!");
                         } else {
 
-                            if (getId(value) == null) {
+                            if (annotationHelper.getId(value) == null) {
                                 //not stored yet
                                 if (r.automaticStore()) {
                                     //TODO: this could cause an endless loop!
@@ -255,7 +217,7 @@ public class ObjectMapperImpl implements ObjectMapper {
 
                             }
                             //DBRef ref = new DBRef(morphium.getDatabase(), value.getClass().getName(), getId(value));
-                            v = getId(value);
+                            v = annotationHelper.getId(value);
                         }
                     }
                 } else {
@@ -264,13 +226,13 @@ public class ObjectMapperImpl implements ObjectMapper {
 
                     //Store Entities recursively
                     //TODO: Fix recursion - this could cause a loop!
-                    if (morphium.isAnnotationPresentInHierarchy(fld.getType(), Entity.class)) {
+                    if (annotationHelper.isAnnotationPresentInHierarchy(fld.getType(), Entity.class)) {
                         if (value != null) {
                             DBObject obj = marshall(value);
                             obj.removeField("_id");  //Do not store ID embedded!
                             v = obj;
                         }
-                    } else if (morphium.isAnnotationPresentInHierarchy(fld.getType(), Embedded.class)) {
+                    } else if (annotationHelper.isAnnotationPresentInHierarchy(fld.getType(), Embedded.class)) {
                         if (value != null) {
                             v = marshall(value);
                         }
@@ -316,8 +278,8 @@ public class ObjectMapperImpl implements ObjectMapper {
         BasicDBList lst = new BasicDBList();
         for (Object lo : v) {
             if (lo != null) {
-                if (morphium.isAnnotationPresentInHierarchy(lo.getClass(), Entity.class) ||
-                        morphium.isAnnotationPresentInHierarchy(lo.getClass(), Embedded.class)) {
+                if (annotationHelper.isAnnotationPresentInHierarchy(lo.getClass(), Entity.class) ||
+                        annotationHelper.isAnnotationPresentInHierarchy(lo.getClass(), Embedded.class)) {
                     DBObject marshall = marshall(lo);
                     marshall.put("class_name", lo.getClass().getName());
                     lst.add(marshall);
@@ -356,7 +318,7 @@ public class ObjectMapperImpl implements ObjectMapper {
             }
             Object mval = es.getValue(); // ((Map) v).get(k);
             if (mval != null) {
-                if (morphium.isAnnotationPresentInHierarchy(mval.getClass(), Entity.class) || morphium.isAnnotationPresentInHierarchy(mval.getClass(), Embedded.class)) {
+                if (annotationHelper.isAnnotationPresentInHierarchy(mval.getClass(), Entity.class) || annotationHelper.isAnnotationPresentInHierarchy(mval.getClass(), Embedded.class)) {
                     DBObject obj = marshall(mval);
                     obj.put("class_name", mval.getClass().getName());
                     mval = obj;
@@ -405,11 +367,11 @@ public class ObjectMapperImpl implements ObjectMapper {
 
             T ret = cls.newInstance();
 
-            List<String> flds = getFields(cls);
+            List<String> flds = annotationHelper.getFields(cls);
 
             for (String f : flds) {
                 Object valueFromDb = o.get(f);
-                Field fld = getField(cls, f);
+                Field fld = annotationHelper.getField(cls, f);
                 if (Modifier.isStatic(fld.getModifiers())) {
                     //skip static fields
                     continue;
@@ -458,7 +420,7 @@ public class ObjectMapperImpl implements ObjectMapper {
                         }
                         if (id != null) {
                             if (reference.lazyLoading()) {
-                                List<String> lst = getFields(fld.getType(), Id.class);
+                                List<String> lst = annotationHelper.getFields(fld.getType(), Id.class);
                                 if (lst.size() == 0)
                                     throw new IllegalArgumentException("Referenced object does not have an ID? Is it an Entity?");
                                 value = morphium.createLazyLoadedEntity(fld.getType(), id);
@@ -474,46 +436,72 @@ public class ObjectMapperImpl implements ObjectMapper {
                     }
                 } else if (fld.isAnnotationPresent(Id.class)) {
                     value = o.get("_id");
-                } else if (morphium.isAnnotationPresentInHierarchy(fld.getType(), Entity.class) || morphium.isAnnotationPresentInHierarchy(fld.getType(), Embedded.class)) {
+                } else if (annotationHelper.isAnnotationPresentInHierarchy(fld.getType(), Entity.class) || annotationHelper.isAnnotationPresentInHierarchy(fld.getType(), Embedded.class)) {
                     //entity! embedded
                     value = unmarshall(fld.getType(), (DBObject) valueFromDb);
                 } else if (Map.class.isAssignableFrom(fld.getType())) {
                     BasicDBObject map = (BasicDBObject) valueFromDb;
                     value = createMap(map);
                 } else if (Collection.class.isAssignableFrom(fld.getType()) || fld.getType().isArray()) {
-                    BasicDBList l = (BasicDBList) valueFromDb;
-                    List lst = new ArrayList();
-                    if (l != null) {
-                        fillList(fld, l, lst);
-                        if (fld.getType().isArray()) {
-                            Object arr = Array.newInstance(fld.getType().getComponentType(), lst.size());
-                            for (int i = 0; i < lst.size(); i++) {
-                                Array.set(arr, i, lst.get(i));
-                            }
-                            value = arr;
-                        } else {
-                            value = lst;
-                        }
+                    if (fld.getType().equals(byte[].class)) {
+                        //binary data
+                        if (log.isDebugEnabled())
+                            log.debug("Reading in binary data object");
+                        value = valueFromDb;
+
                     } else {
-                        value = l;
+                        BasicDBList l = (BasicDBList) valueFromDb;
+                        List lst = new ArrayList();
+                        if (l != null) {
+                            fillList(fld, l, lst);
+                            if (fld.getType().isArray()) {
+                                Object arr = Array.newInstance(fld.getType().getComponentType(), lst.size());
+                                for (int i = 0; i < lst.size(); i++) {
+                                    if (fld.getType().getComponentType().isPrimitive()) {
+                                        if (fld.getType().getComponentType().equals(int.class)) {
+                                            Array.set(arr, i, ((Integer) lst.get(i)).intValue());
+                                        } else if (fld.getType().getComponentType().equals(long.class)) {
+                                            Array.set(arr, i, ((Long) lst.get(i)).longValue());
+                                        } else if (fld.getType().getComponentType().equals(float.class)) {
+                                            //Driver sends doubles instead of floats
+                                            Array.set(arr, i, ((Double) lst.get(i)).floatValue());
+
+                                        } else if (fld.getType().getComponentType().equals(double.class)) {
+                                            Array.set(arr, i, ((Double) lst.get(i)).doubleValue());
+
+                                        } else if (fld.getType().getComponentType().equals(boolean.class)) {
+                                            Array.set(arr, i, ((Boolean) lst.get(i)).booleanValue());
+
+                                        }
+                                    } else {
+                                        Array.set(arr, i, lst.get(i));
+                                    }
+                                }
+                                value = arr;
+                            } else {
+                                value = lst;
+                            }
+                        } else {
+                            value = l;
+                        }
                     }
                 } else if (fld.getType().isEnum()) {
                     value = Enum.valueOf((Class<? extends Enum>) fld.getType(), (String) valueFromDb);
                 } else {
                     value = valueFromDb;
                 }
-                setValue(ret, value, f);
+                annotationHelper.setValue(ret, value, f);
             }
 
-            if (morphium.isAnnotationPresentInHierarchy(cls, Entity.class)) {
-                flds = getFields(cls, Id.class);
+            if (annotationHelper.isAnnotationPresentInHierarchy(cls, Entity.class)) {
+                flds = annotationHelper.getFields(cls, Id.class);
                 if (flds.isEmpty()) {
                     throw new RuntimeException("Error - class does not have an ID field!");
                 }
 
-                getField(cls, flds.get(0)).set(ret, o.get("_id"));
+                annotationHelper.getField(cls, flds.get(0)).set(ret, o.get("_id"));
             }
-            if (morphium.isAnnotationPresentInHierarchy(cls, PartialUpdate.class) || cls.isInstance(PartiallyUpdateable.class)) {
+            if (annotationHelper.isAnnotationPresentInHierarchy(cls, PartialUpdate.class) || cls.isInstance(PartiallyUpdateable.class)) {
                 return morphium.createPartiallyUpdateableEntity(ret);
             }
             return ret;
@@ -624,7 +612,7 @@ public class ObjectMapperImpl implements ObjectMapper {
                     DBRef ref = (DBRef) val;
                     ObjectId id = (ObjectId) ref.getId();
                     Class clz = Class.forName(ref.getRef());
-                    List<String> idFlds = getFields(clz, Id.class);
+                    List<String> idFlds = annotationHelper.getFields(clz, Id.class);
                     Reference reference = forField != null ? forField.getAnnotation(Reference.class) : null;
 
                     if (reference != null && reference.lazyLoading()) {
@@ -646,460 +634,4 @@ public class ObjectMapperImpl implements ObjectMapper {
         }
     }
 
-    @Override
-    public ObjectId getId(Object o) {
-        if (o == null) {
-            throw new IllegalArgumentException("Object cannot be null");
-        }
-        Class<?> cls = getRealClass(o.getClass());
-        List<String> flds = getFields(cls, Id.class);
-        if (flds == null || flds.isEmpty()) {
-            throw new IllegalArgumentException("Object has no id defined: " + o.getClass().getSimpleName());
-        }
-        Field f = getField(cls, flds.get(0)); //first Id
-        if (f == null) {
-            throw new IllegalArgumentException("Object ID field not found " + o.getClass().getSimpleName());
-        }
-        try {
-            if (!(f.getType().equals(ObjectId.class))) {
-                throw new IllegalArgumentException("ID sould be of type ObjectId");
-            }
-            o = getRealObject(o);
-            if (o != null) {
-                return (ObjectId) f.get(o);
-            } else {
-                log.warn("Illegal reference?");
-            }
-
-            return null;
-        } catch (IllegalAccessException e) {
-            throw new RuntimeException(e);
-        }
-    }
-
-    /**
-     * return list of fields in class - including hierachy!!!
-     *
-     * @param clz class to get all fields for
-     * @return list of fields in that class
-     */
-    public List<Field> getAllFields(Class clz) {
-        Class<?> cls = getRealClass(clz);
-        if (fieldCache.containsKey(cls)) {
-            return fieldCache.get(cls);
-        }
-        List<Field> ret = new Vector<Field>();
-        Class sc = cls;
-        //getting class hierachy
-        List<Class> hierachy = new Vector<Class>();
-        while (!sc.equals(Object.class)) {
-            hierachy.add(sc);
-            sc = sc.getSuperclass();
-        }
-        Collections.addAll(hierachy, cls.getInterfaces());
-        //now we have a list of all classed up to Object
-        //we need to run through it in the right order
-        //in order to allow Inheritance to "shadow" fields
-        for (int i = hierachy.size() - 1; i >= 0; i--) {
-            Class c = hierachy.get(i);
-            Collections.addAll(ret, c.getDeclaredFields());
-        }
-
-        fieldCache.put(cls, ret);
-        return ret;
-    }
-
-    @Override
-    /**
-     * get a list of valid fields of a given record as they are in the MongoDB
-     * so, if you have a field Mapping, the mapped Property-name will be used
-     * returns all fields, which have at least one of the given annotations
-     * if no annotation is given, all fields are returned
-     * Does not take the @Aliases-annotation int account
-     *
-     * @param cls
-     * @return
-     */
-    public List<String> getFields(Class cls, Class<? extends Annotation>... annotations) {
-        List<String> ret = new Vector<String>();
-        Class sc = cls;
-        sc = getRealClass(sc);
-        Entity entity = morphium.getAnnotationFromHierarchy(sc, Entity.class); //(Entity) sc.getAnnotation(Entity.class);
-        Embedded embedded = morphium.getAnnotationFromHierarchy(sc, Embedded.class);//(Embedded) sc.getAnnotation(Embedded.class);
-        if (embedded != null && entity != null) {
-            log.warn("Class " + cls.getName() + " does have both @Entity and @Embedded Annotations - not allowed! Assuming @Entity is right");
-        }
-
-        if (embedded == null && entity == null) {
-            throw new IllegalArgumentException("This class " + cls.getName() + " does not have @Entity or @Embedded set, not even in hierachy - illegal!");
-        }
-        boolean tcc = entity == null ? embedded.translateCamelCase() : entity.translateCamelCase();
-        //getting class hierachy
-        List<Field> fld = getAllFields(cls);
-        for (Field f : fld) {
-            if (annotations.length > 0) {
-                boolean found = false;
-                for (Class<? extends Annotation> a : annotations) {
-                    if (f.isAnnotationPresent(a)) {
-                        found = true;
-                        break;
-                    }
-                }
-                if (!found) {
-                    //no annotation found
-                    continue;
-                }
-            }
-            if (f.isAnnotationPresent(Reference.class) && !".".equals(f.getAnnotation(Reference.class).fieldName())) {
-                ret.add(f.getAnnotation(Reference.class).fieldName());
-                continue;
-            }
-            if (f.isAnnotationPresent(Property.class) && !".".equals(f.getAnnotation(Property.class).fieldName())) {
-                ret.add(f.getAnnotation(Property.class).fieldName());
-                continue;
-            }
-//            if (f.isAnnotationPresent(Id.class)) {
-//                ret.add(f.getName());
-//                continue;
-//            }
-            if (f.isAnnotationPresent(Transient.class)) {
-                continue;
-            }
-
-            if (tcc) {
-                ret.add(convertCamelCase(f.getName()));
-            } else {
-                ret.add(f.getName());
-            }
-        }
-
-        return ret;
-    }
-
-    @Override
-    public <T> Class<? extends T> getRealClass(Class<? extends T> sc) {
-        if (sc.getName().contains("$$EnhancerByCGLIB$$")) {
-
-            try {
-                sc = (Class<? extends T>) Class.forName(sc.getName().substring(0, sc.getName().indexOf("$$")));
-            } catch (Exception e) {
-                //TODO: Implement Handling
-                throw new RuntimeException(e);
-            }
-        }
-        return sc;
-    }
-
-    @Override
-    public String getFieldName(Class clz, String field) {
-        Class cls = getRealClass(clz);
-        if (field.contains(".")) {
-            //searching for a sub-element?
-            //no check possible
-            return field;
-        }
-        Field f = getField(cls, field);
-        if (f == null) throw new RuntimeException("Field not found " + field + " in cls: " + clz.getName());
-        if (f.isAnnotationPresent(Property.class)) {
-            Property p = f.getAnnotation(Property.class);
-            if (p.fieldName() != null && !p.fieldName().equals(".")) {
-                return p.fieldName();
-            }
-        }
-
-        if (f.isAnnotationPresent(Reference.class)) {
-            Reference p = f.getAnnotation(Reference.class);
-            if (p.fieldName() != null && !p.fieldName().equals(".")) {
-                return p.fieldName();
-            }
-        }
-        if (f.isAnnotationPresent(Id.class)) {
-            return "_id";
-        }
-
-
-        String fieldName = f.getName();
-        Entity ent = morphium.getAnnotationFromHierarchy(cls, Entity.class); //(Entity) cls.getAnnotation(Entity.class);
-        Embedded emb = morphium.getAnnotationFromHierarchy(cls, Embedded.class);//(Embedded) cls.getAnnotation(Embedded.class);
-        if (ent != null && ent.translateCamelCase()) {
-            fieldName = convertCamelCase(fieldName);
-        } else if (emb != null && emb.translateCamelCase()) {
-            fieldName = convertCamelCase(fieldName);
-        }
-
-        return fieldName;
-
-    }
-
-    @Override
-    /**
-     * extended logic: Fld may be, the java field name, the name of the specified value in Property-Annotation or
-     * the translated underscored lowercase name (mongoId => mongo_id) or a name specified in the Aliases-Annotation of this field
-     *
-     * @param clz - class to search
-     * @param fld - field name
-     * @return field, if found, null else
-     */
-    public Field getField(Class clz, String fld) {
-        Class cls = getRealClass(clz);
-        List<Field> flds = getAllFields(cls);
-        for (Field f : flds) {
-            if (f.isAnnotationPresent(Property.class) && f.getAnnotation(Property.class).fieldName() != null && !".".equals(f.getAnnotation(Property.class).fieldName())) {
-                if (f.getAnnotation(Property.class).fieldName().equals(fld)) {
-                    f.setAccessible(true);
-                    return f;
-                }
-            }
-            if (f.isAnnotationPresent(Reference.class) && f.getAnnotation(Reference.class).fieldName() != null && !".".equals(f.getAnnotation(Reference.class).fieldName())) {
-                if (f.getAnnotation(Reference.class).fieldName().equals(fld)) {
-                    f.setAccessible(true);
-                    return f;
-                }
-            }
-            if (f.isAnnotationPresent(Aliases.class)) {
-                Aliases aliases = f.getAnnotation(Aliases.class);
-                String[] v = aliases.value();
-                for (String field : v) {
-                    if (field.equals(fld)) {
-                        f.setAccessible(true);
-                        return f;
-                    }
-                }
-            }
-            if (fld.equals("_id")) {
-                if (f.isAnnotationPresent(Id.class)) {
-                    f.setAccessible(true);
-                    return f;
-                }
-            }
-            if (f.getName().equals(fld)) {
-                f.setAccessible(true);
-                return f;
-            }
-            if (convertCamelCase(f.getName()).equals(fld)) {
-                f.setAccessible(true);
-                return f;
-            }
-
-
-        }
-
-        return null;
-    }
-
-
-    @Override
-    public boolean isEntity(Object o) {
-        Class cls;
-        if (o == null) return false;
-
-        if (o instanceof Class) {
-            cls = getRealClass((Class) o);
-        } else {
-            cls = getRealClass(o.getClass());
-        }
-        return morphium.isAnnotationPresentInHierarchy(cls, Entity.class) || morphium.isAnnotationPresentInHierarchy(cls, Embedded.class);
-    }
-
-    @Override
-    public Object getValue(Object o, String fld) {
-        if (o == null) {
-            return null;
-        }
-        try {
-            Field f = getField(o.getClass(), fld);
-            if (!Modifier.isStatic(f.getModifiers())) {
-                o = getRealObject(o);
-                return f.get(o);
-            }
-        } catch (IllegalAccessException e) {
-            log.fatal("Illegal access to field " + fld + " of type " + o.getClass().getSimpleName());
-
-        }
-        return null;
-    }
-
-    @Override
-    public void setValue(Object o, Object value, String fld) {
-        if (o == null) {
-            return;
-        }
-        try {
-            Field f = getField(getRealClass(o.getClass()), fld);
-            if (!Modifier.isStatic(f.getModifiers())) {
-                o = getRealObject(o);
-                try {
-                    f.set(o, value);
-                } catch (Exception e) {
-
-                    if (value != null) {
-                        if (log.isDebugEnabled()) {
-                            log.debug("Setting of value (" + value.getClass().getSimpleName() + ") failed for field " + f.getName() + "- trying type-conversion");
-                        }
-                        //Doing some type conversions... lots of :-(
-                        if (value instanceof Double) {
-                            //maybe some kind of Default???
-                            Double d = (Double) value;
-                            if (f.getType().equals(Integer.class) || f.getType().equals(int.class)) {
-                                f.set(o, d.intValue());
-                            } else if (f.getType().equals(Long.class) || f.getType().equals(long.class)) {
-                                f.set(o, d.longValue());
-                            } else if (f.getType().equals(Date.class)) {
-                                //Fucking date / timestamp mixup
-                                f.set(o, new Date(d.longValue()));
-                            } else if (f.getType().equals(Float.class) || f.getType().equals(float.class)) {
-                                f.set(o, d.floatValue());
-                            } else if (f.getType().equals(Boolean.class) || f.getType().equals(boolean.class)) {
-                                f.set(o, d == 1.0);
-                            } else if (f.getType().equals(String.class)) {
-                                f.set(o, d.toString());
-                            } else {
-                                throw new RuntimeException("could not set field " + fld + ": Field has type " + f.getType().toString() + " got type " + value.getClass().toString());
-                            }
-                        } else if (value instanceof Float) {
-                            //maybe some kind of Default???
-                            Float d = (Float) value;
-                            if (f.getType().equals(Integer.class) || f.getType().equals(int.class)) {
-                                f.set(o, d.intValue());
-                            } else if (f.getType().equals(Long.class) || f.getType().equals(long.class)) {
-                                f.set(o, d.longValue());
-                            } else if (f.getType().equals(Date.class)) {
-                                //Fucking date / timestamp mixup
-                                f.set(o, new Date(d.longValue()));
-                            } else if (f.getType().equals(Float.class) || f.getType().equals(float.class)) {
-                                f.set(o, d);
-                            } else if (f.getType().equals(Boolean.class) || f.getType().equals(boolean.class)) {
-                                f.set(o, d == 1.0f);
-                            } else if (f.getType().equals(String.class)) {
-                                f.set(o, d.toString());
-                            } else {
-                                throw new RuntimeException("could not set field " + fld + ": Field has type " + f.getType().toString() + " got type " + value.getClass().toString());
-                            }
-                        } else if (value instanceof Date) {
-                            //Date/String mess-up?
-                            Date d = (Date) value;
-                            if (f.getType().equals(Long.class) || f.getType().equals(long.class)) {
-                                f.set(o, d.getTime());
-                            } else if (f.getType().equals(GregorianCalendar.class)) {
-                                GregorianCalendar cal = new GregorianCalendar();
-                                cal.setTimeInMillis(d.getTime());
-                                f.set(o, cal);
-                            } else if (f.getType().equals(String.class)) {
-                                SimpleDateFormat df = new SimpleDateFormat("yyyyMMdd");
-                                f.set(o, df.format(d));
-                            }
-                        } else if (value instanceof String) {
-                            //String->Number conversion necessary????
-                            try {
-                                String s = (String) value;
-                                if (f.getType().equals(Long.class) || f.getType().equals(long.class)) {
-                                    f.set(o, Long.parseLong(s));
-                                } else if (f.getType().equals(Integer.class) || f.getType().equals(int.class)) {
-                                    f.set(o, Integer.parseInt(s));
-                                } else if (f.getType().equals(Double.class) || f.getType().equals(double.class)) {
-                                    f.set(o, Double.parseDouble(s));
-                                } else if (f.getType().equals(Date.class)) {
-                                    //Fucking date / timestamp mixup
-                                    if (s.length() == 8) {
-                                        //probably time-string 20120812
-                                        SimpleDateFormat df = new SimpleDateFormat("yyyyMMdd");
-                                        f.set(o, df.parse(s));
-                                    } else if (s.indexOf("-") > 0) {
-                                        //maybe a date-String?
-                                        SimpleDateFormat df = new SimpleDateFormat("yyyy-MM-dd");
-                                        f.set(o, df.parse(s));
-                                    } else if (s.indexOf(".") > 0) {
-                                        //maybe a date-String?
-                                        SimpleDateFormat df = new SimpleDateFormat("dd.MM.yyyy");
-                                        f.set(o, df.parse(s));
-                                    } else {
-                                        f.set(o, new Date(Long.parseLong(s)));
-                                    }
-                                } else if (f.getType().equals(Boolean.class) || f.getType().equals(boolean.class)) {
-                                    f.set(o, s.equalsIgnoreCase("true"));
-                                } else if (f.getType().equals(Float.class) || f.getType().equals(float.class)) {
-                                    f.set(o, Float.parseFloat(s));
-                                } else {
-                                    throw new RuntimeException("could not set field " + fld + ": Field has type " + f.getType().toString() + " got type " + value.getClass().toString());
-                                }
-                            } catch (ParseException e1) {
-                                throw new RuntimeException(e1);
-                            }
-                        } else if (value instanceof Integer) {
-                            Integer i = (Integer) value;
-                            if (f.getType().equals(Long.class) || f.getType().equals(long.class)) {
-                                f.set(o, i.longValue());
-                            } else if (f.getType().equals(Double.class) || f.getType().equals(double.class)) {
-                                f.set(o, i.doubleValue());
-                            } else if (f.getType().equals(Date.class)) {
-                                //Fucking date / timestamp mixup
-                                f.set(o, new Date(i.longValue()));
-                            } else if (f.getType().equals(String.class)) {
-                                f.set(o, i.toString());
-                            } else if (f.getType().equals(Float.class) || f.getType().equals(float.class)) {
-                                f.set(o, i.floatValue());
-                            } else if (f.getType().equals(Boolean.class) || f.getType().equals(boolean.class)) {
-                                f.set(o, i == 1);
-                            } else {
-                                throw new RuntimeException("could not set field " + fld + ": Field has type " + f.getType().toString() + " got type " + value.getClass().toString());
-                            }
-                        } else if (value instanceof Long) {
-                            Long l = (Long) value;
-                            if (f.getType().equals(Integer.class) || f.getType().equals(int.class)) {
-                                f.set(o, l.intValue());
-                            } else if (f.getType().equals(Double.class) || f.getType().equals(double.class)) {
-                                f.set(o, l.doubleValue());
-                            } else if (f.getType().equals(Date.class)) {
-                                //Fucking date / timestamp mixup
-                                f.set(o, new Date(l));
-                            } else if (f.getType().equals(Float.class) || f.getType().equals(float.class)) {
-                                f.set(o, l.floatValue());
-                            } else if (f.getType().equals(Boolean.class) || f.getType().equals(boolean.class)) {
-                                f.set(o, l == 1l);
-                            } else if (f.getType().equals(String.class)) {
-                                f.set(o, l.toString());
-                            } else {
-                                throw new RuntimeException("could not set field " + fld + ": Field has type " + f.getType().toString() + " got type " + value.getClass().toString());
-                            }
-                        } else if (value instanceof Boolean) {
-                            Boolean b = (Boolean) value;
-                            if (f.getType().equals(Integer.class) || f.getType().equals(int.class)) {
-                                f.set(o, b ? 1 : 0);
-                            } else if (f.getType().equals(Double.class) || f.getType().equals(double.class)) {
-                                f.set(o, b ? 1.0 : 0.0);
-                            } else if (f.getType().equals(Float.class) || f.getType().equals(float.class)) {
-                                f.set(o, b ? 1.0f : 0.0f);
-                            } else if (f.getType().equals(String.class)) {
-                                f.set(o, b ? "true" : "false");
-                            } else {
-                                throw new RuntimeException("could not set field " + fld + ": Field has type " + f.getType().toString() + " got type " + value.getClass().toString());
-                            }
-
-                        }
-                    }
-
-                }
-            }
-        } catch (IllegalAccessException e) {
-            log.fatal("Illegal access to field " + fld + " of toype " + o.getClass().getSimpleName());
-        }
-    }
-
-    @Override
-    public <T> T getRealObject(T o) {
-        if (o.getClass().getName().contains("$$EnhancerByCGLIB$$")) {
-            //not stored or Proxy?
-            try {
-                Field f1 = o.getClass().getDeclaredField("CGLIB$CALLBACK_0");
-                f1.setAccessible(true);
-                Object delegate = f1.get(o);
-                Method m = delegate.getClass().getMethod("__getDeref");
-                o = (T) m.invoke(delegate);
-            } catch (Exception e) {
-                //throw new RuntimeException(e);
-                log.error("Exception: ", e);
-            }
-        }
-        return o;
-    }
 }

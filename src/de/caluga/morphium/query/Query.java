@@ -136,7 +136,7 @@ public interface Query<T> extends Cloneable {
      */
     public long countAll();  //not taking limit and skip into account!
 
-    public void countAll(AsyncOperationCallback<Long> callback);
+    public void countAll(AsyncOperationCallback<T> callback);
 
     /**
      * needed for creation of the query representation tree
@@ -259,4 +259,8 @@ public interface Query<T> extends Cloneable {
     public void setMorphium(Morphium m);
 
     void setExecutor(ThreadPoolExecutor executor);
+
+    void getById(ObjectId id, AsyncOperationCallback<T> callback);
+
+    T getById(ObjectId id);
 }
