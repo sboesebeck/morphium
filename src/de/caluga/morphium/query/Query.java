@@ -258,9 +258,12 @@ public interface Query<T> extends Cloneable {
 
     public void setMorphium(Morphium m);
 
-    void setExecutor(ThreadPoolExecutor executor);
+    public void setExecutor(ThreadPoolExecutor executor);
 
-    void getById(ObjectId id, AsyncOperationCallback<T> callback);
+    public void getById(ObjectId id, AsyncOperationCallback<T> callback);
 
-    T getById(ObjectId id);
+    public T getById(ObjectId id);
+
+    public int getNumberOfPendingRequests();
+
 }

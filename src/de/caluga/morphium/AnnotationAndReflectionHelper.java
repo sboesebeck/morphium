@@ -104,10 +104,11 @@ public class AnnotationAndReflectionHelper {
             //no check possible
             return field;
         }
-        if (hasAdditionalData(clz)) {
+
+        Field f = getField(cls, field);
+        if (f == null && hasAdditionalData(clz)) {
             return field;
         }
-        Field f = getField(cls, field);
         if (f == null) throw new RuntimeException("Field not found " + field + " in cls: " + clz.getName());
         if (f.isAnnotationPresent(Property.class)) {
             Property p = f.getAnnotation(Property.class);

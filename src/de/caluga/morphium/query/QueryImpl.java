@@ -831,4 +831,9 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
     public Query<T> order(String... prefixedString) {
         return sort(prefixedString);
     }
+
+    @Override
+    public int getNumberOfPendingRequests() {
+        return getExecutor().getActiveCount();
+    }
 }

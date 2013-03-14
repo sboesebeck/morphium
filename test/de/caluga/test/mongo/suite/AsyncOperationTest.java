@@ -17,8 +17,11 @@ import java.util.List;
  */
 @SuppressWarnings("AssertWithSideEffects")
 public class AsyncOperationTest extends MongoTest {
+    private boolean asyncCall = false;
+
     @Test
     public void asyncStoreTest() throws Exception {
+        asyncCall = false;
         super.createCachedObjects(1000);
         waitForWrites();
         log.info("Uncached object preparation");
@@ -44,6 +47,7 @@ public class AsyncOperationTest extends MongoTest {
             @Override
             public void onOperationSucceeded(AsyncOperationType type, Query<UncachedObject> q, long duration, List<UncachedObject> result, UncachedObject entity, Object... param) {
                 log.info("Objects updated");
+                asyncCall = true;
 
             }
 
@@ -56,24 +60,67 @@ public class AsyncOperationTest extends MongoTest {
         waitForWrites();
 
         assert MorphiumSingleton.get().createQueryFor(UncachedObject.class).f("counter").eq(0).countAll() > 0;
+        assert (asyncCall);
     }
 
 
     @Test
     public void asyncReadTest() throws Exception {
+        asyncCall = false;
         createUncachedObjects(100);
         Query<UncachedObject> q = MorphiumSingleton.get().createQueryFor(UncachedObject.class);
         q = q.f("counter").lt(1000);
         q.asList(new AsyncOperationCallback<UncachedObject>() {
             @Override
             public void onOperationSucceeded(AsyncOperationType type, Query<UncachedObject> q, long duration, List<UncachedObject> result, UncachedObject entity, Object... param) {
-                log.info("got answer");
+                log.info("got read answer");
+                assert (result != null) : "Error";
+                assert (result.size() == 100) : "Error";
+                asyncCall = true;
             }
 
             @Override
             public void onOperationError(AsyncOperationType type, Query<UncachedObject> q, long duration, String error, Throwable t, UncachedObject entity, Object... param) {
+                assert false;
             }
         });
+        Thread.sleep(500); //waiting for thread to become active
+        int count = 0;
+        while (q.getNumberOfPendingRequests() > 0) {
+            count++;
+//            assert(count<10);
+            System.out.println("Still waiting...");
+            Thread.sleep(1000);
+        }
+        assert (asyncCall);
+    }
 
+    @Test
+    public void asyncCountTest() throws Exception {
+        asyncCall = false;
+        createUncachedObjects(100);
+        Query<UncachedObject> q = MorphiumSingleton.get().createQueryFor(UncachedObject.class);
+        q = q.f("counter").lt(1000);
+        q.countAll(new AsyncOperationCallback<UncachedObject>() {
+            @Override
+            public void onOperationSucceeded(AsyncOperationType type, Query<UncachedObject> q, long duration, List<UncachedObject> result, UncachedObject entity, Object... param) {
+                assert (param != null && param[0] != null);
+                assert (param[0].equals(Long.valueOf(100)));
+                asyncCall = true;
+            }
+
+            @Override
+            public void onOperationError(AsyncOperationType type, Query<UncachedObject> q, long duration, String error, Throwable t, UncachedObject entity, Object... param) {
+                //To change body of implemented methods use File | Settings | File Templates.
+            }
+        });
+        Thread.sleep(500); //waiting for thread to become active
+        int count = 0;
+        while (q.getNumberOfPendingRequests() > 0) {
+            count++;
+            assert (count < 10);
+            Thread.sleep(1000);
+        }
+        assert (asyncCall);
     }
 }
