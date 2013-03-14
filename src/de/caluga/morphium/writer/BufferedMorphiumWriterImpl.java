@@ -45,6 +45,11 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter {
                     }
 
                     for (Class<?> clz : localBuffer) {
+                        synchronized (opLog) {
+                            if (opLog.get(clz) == null || opLog.get(clz).size() == 0) {
+                                continue;
+                            }
+                        }
                         WriteBuffer wb = annotationHelper.getAnnotationFromHierarchy(clz, WriteBuffer.class);
                         //can't be null
                         if (wb.timeout() == -1 && wb.size() > 0 && opLog.get(clz).size() < wb.size()) {
@@ -117,7 +122,7 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter {
                     logger.warn("directly writing data... due to strategy setting");
                     r.run();
                     waitForWriters();
-                    break;
+                    return;
                 case WRITE_OLD:
                     synchronized (opLog) {
                         Collections.sort(opLog.get(type), new Comparator<WriteBufferEntry>() {
@@ -150,9 +155,9 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter {
                     }
                     return;
             }
-            opLog.get(type).add(wb);
 
         }
+        opLog.get(type).add(wb);
 
     }
 
@@ -174,7 +179,8 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter {
     @Override
     public <T> void store(final List<T> lst, AsyncOperationCallback<T> c) {
         if (lst == null || lst.size() == 0) {
-            c.onOperationSucceeded(AsyncOperationType.WRITE, null, 0, lst, null);
+            if (c != null)
+                c.onOperationSucceeded(AsyncOperationType.WRITE, null, 0, lst, null);
             return;
         }
         if (c == null) {
@@ -399,7 +405,13 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter {
 
     @Override
     public int writeBufferCount() {
-        return opLog.size();
+        int cnt = 0;
+        synchronized (opLog) {
+            for (List<WriteBufferEntry> lst : opLog.values()) {
+                cnt += lst.size();
+            }
+        }
+        return cnt;
     }
 
 
