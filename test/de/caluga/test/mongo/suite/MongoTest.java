@@ -164,5 +164,10 @@ public class MongoTest {
                 Logger.getLogger(BasicFunctionalityTest.class).fatal(ex);
             }
         }
+        //waiting for it to be persisted
+        try {
+            Thread.sleep(500);
+        } catch (InterruptedException e) {
+        }
     }
 }
