@@ -52,7 +52,7 @@ public class QueryFactoryImpl implements QueryFactory {
             Query<T> q = queryImpl.newInstance();
             q.setMorphium(m);
             q.setType(type);
-            q.setExecutor(executor);
+            q.setExecutor(getExecutor());
 
             return q;
         } catch (InstantiationException e) {
