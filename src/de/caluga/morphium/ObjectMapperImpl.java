@@ -799,7 +799,15 @@ public class ObjectMapperImpl implements ObjectMapper {
             return field;
         }
         Field f = getField(cls, field);
-        if (f == null) throw new RuntimeException("Field not found " + field + " in cls: " + clz.getName());
+        if (f == null) {
+            List<String> fields = getFields(clz, AdditionalData.class);
+            if (fields != null && fields.size() > 0) {
+                if (log.isDebugEnabled()) log.debug("Additional data present, not checking field");
+                return field;
+            }
+            throw new RuntimeException("Field not found " + field + " in cls: " + clz.getName());
+
+        }
         if (f.isAnnotationPresent(Property.class)) {
             Property p = f.getAnnotation(Property.class);
             if (p.fieldName() != null && !p.fieldName().equals(".")) {
