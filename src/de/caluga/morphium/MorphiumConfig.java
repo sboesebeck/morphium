@@ -14,9 +14,9 @@ import de.caluga.morphium.annotations.ReadPreferenceLevel;
 import de.caluga.morphium.cache.MorphiumCache;
 import de.caluga.morphium.cache.MorphiumCacheImpl;
 import de.caluga.morphium.query.*;
-import de.caluga.morphium.writer.BufferedWriterImpl;
-import de.caluga.morphium.writer.Writer;
-import de.caluga.morphium.writer.WriterImpl;
+import de.caluga.morphium.writer.BufferedMorphiumWriterImpl;
+import de.caluga.morphium.writer.MorphiumWriter;
+import de.caluga.morphium.writer.MorphiumWriterImpl;
 import org.apache.log4j.LogManager;
 import org.apache.log4j.Logger;
 import org.apache.log4j.xml.DOMConfigurator;
@@ -39,8 +39,8 @@ public class MorphiumConfig {
     private int globalCacheValidTime = 5000;
     private int writeCacheTimeout = 5000;
     private String database;
-    private Writer writer = new WriterImpl();
-    private Writer bufferedWriter = new BufferedWriterImpl();
+    private MorphiumWriter writer = new MorphiumWriterImpl();
+    private MorphiumWriter bufferedWriter = new BufferedMorphiumWriterImpl();
 
     private int connectionTimeout = 0;
     private int socketTimeout = 0;
@@ -55,6 +55,7 @@ public class MorphiumConfig {
 
     private int maxWaitTime = 120000;
     private int writeBufferTime = 1000;
+    private int writeBufferTimeGranularity = 100;
     private boolean autoreconnect = true;
     private int maxAutoReconnectTime = 0;
     private int blockingThreadsMultiplier = 5;
@@ -87,6 +88,13 @@ public class MorphiumConfig {
     private ReadPreferenceLevel defaultReadPreference;
     private Class<? extends MorphiumIterator> iteratorClass;
 
+    public int getWriteBufferTimeGranularity() {
+        return writeBufferTimeGranularity;
+    }
+
+    public void setWriteBufferTimeGranularity(int writeBufferTimeGranularity) {
+        this.writeBufferTimeGranularity = writeBufferTimeGranularity;
+    }
 
     public MorphiumCache getCache() {
         if (cache == null) {
@@ -207,19 +215,19 @@ public class MorphiumConfig {
         this.blockingThreadsMultiplier = blockingThreadsMultiplier;
     }
 
-    public Writer getBufferedWriter() {
+    public MorphiumWriter getBufferedWriter() {
         return bufferedWriter;
     }
 
-    public void setBufferedWriter(Writer bufferedWriter) {
+    public void setBufferedWriter(MorphiumWriter bufferedWriter) {
         this.bufferedWriter = bufferedWriter;
     }
 
-    public Writer getWriter() {
+    public MorphiumWriter getWriter() {
         return writer;
     }
 
-    public void setWriter(Writer writer) {
+    public void setWriter(MorphiumWriter writer) {
         this.writer = writer;
     }
 

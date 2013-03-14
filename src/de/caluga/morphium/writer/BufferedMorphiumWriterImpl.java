@@ -3,14 +3,13 @@ package de.caluga.morphium.writer;
 import de.caluga.morphium.AnnotationAndReflectionHelper;
 import de.caluga.morphium.Morphium;
 import de.caluga.morphium.StatisticKeys;
+import de.caluga.morphium.annotations.caching.WriteBuffer;
 import de.caluga.morphium.async.AsyncOperationCallback;
 import de.caluga.morphium.async.AsyncOperationType;
 import de.caluga.morphium.query.Query;
 import org.apache.log4j.Logger;
 
-import java.util.List;
-import java.util.Map;
-import java.util.Vector;
+import java.util.*;
 
 /**
  * User: Stephan Bösebeck
@@ -19,58 +18,142 @@ import java.util.Vector;
  * <p/>
  * TODO: Add documentation here
  */
-@SuppressWarnings("EmptyCatchBlock")
-public class BufferedWriterImpl implements Writer {
+@SuppressWarnings({"EmptyCatchBlock", "SynchronizeOnNonFinalField"})
+public class BufferedMorphiumWriterImpl implements MorphiumWriter {
 
     private Morphium morphium;
     private AnnotationAndReflectionHelper annotationHelper = new AnnotationAndReflectionHelper();
-    private Writer directWriter;
-    private List<WriteBufferEntry> writeBuffer = new Vector<WriteBufferEntry>(); //synced
+    private MorphiumWriter directWriter;
+    private Map<Class<?>, List<WriteBufferEntry>> opLog = new Hashtable<Class<?>, List<WriteBufferEntry>>(); //synced
+    private Map<Class<?>, Long> lastRun = new Hashtable<Class<?>, Long>();
     private final Thread housekeeping;
     private boolean running = true;
-    private Logger logger = Logger.getLogger(BufferedWriterImpl.class);
+    private Logger logger = Logger.getLogger(BufferedMorphiumWriterImpl.class);
 
 
-    public BufferedWriterImpl() {
+    public BufferedMorphiumWriterImpl() {
         housekeeping = new Thread() {
             @SuppressWarnings("SynchronizeOnNonFinalField")
             public void run() {
                 while (running) {
                     //processing and clearing write cache...
-                    List<WriteBufferEntry> localBuffer;
-                    synchronized (writeBuffer) {
-                        localBuffer = writeBuffer;
-                        writeBuffer = new Vector<WriteBufferEntry>();
-                    }
-                    //queueing all ops in queue
-                    for (WriteBufferEntry entry : localBuffer) {
-                        while (directWriter.writeBufferCount() > morphium.getConfig().getMaxConnections() * morphium.getConfig().getBlockingThreadsMultiplier() * 0.9) {
-                            try {
-
-                                if (logger.isDebugEnabled()) {
-                                    logger.debug("have to wait - maximum connection limit almost reached");
-                                }
-                                sleep(500); //wait for threads to finish
-                            } catch (InterruptedException e) {
-                            }
+                    List<Class<?>> localBuffer = new ArrayList<Class<?>>();
+                    synchronized (opLog) {
+                        for (Class<?> clz : opLog.keySet()) {
+                            localBuffer.add(clz);
                         }
-                        entry.getToRun().run();
                     }
-                    localBuffer = null; //let GC finish the work
+
+                    for (Class<?> clz : localBuffer) {
+                        WriteBuffer wb = annotationHelper.getAnnotationFromHierarchy(clz, WriteBuffer.class);
+                        //can't be null
+                        if (wb.timeout() == -1 && wb.size() > 0 && opLog.get(clz).size() < wb.size()) {
+                            continue; //wait for buffer to be filled
+                        }
+                        long timeout = morphium.getConfig().getWriteBufferTime();
+                        if (wb.timeout() != 0) {
+                            timeout = wb.timeout();
+                        }
+                        if (lastRun.get(clz) != null && System.currentTimeMillis() - lastRun.get(clz) < timeout) {
+                            //timeout not reached....
+                            continue;
+                        }
+                        lastRun.put(clz, System.currentTimeMillis());
+                        //neither buffer size reached, or time is up => queue writes
+                        List<WriteBufferEntry> localQueue;
+                        synchronized (opLog) {
+                            localQueue = opLog.get(clz);
+                            opLog.put(clz, new Vector<WriteBufferEntry>());
+                        }
+                        //queueing all ops in queue
+                        for (WriteBufferEntry entry : localQueue) {
+                            waitForWriters();
+                            entry.getToRun().run();
+                        }
+                        localQueue = null; //let GC finish the work
+                    }
+
                     try {
-                        Thread.sleep(morphium.getConfig().getWriteBufferTime());
+                        Thread.sleep(morphium.getConfig().getWriteBufferTimeGranularity());
                     } catch (Exception e) {
                     }
                 }
             }
+
+
         };
         housekeeping.setDaemon(true);
         housekeeping.start();
     }
 
-    public void addToWriteQueue(Runnable r) {
+    private void waitForWriters() {
+        while (directWriter.writeBufferCount() > morphium.getConfig().getMaxConnections() * morphium.getConfig().getBlockingThreadsMultiplier() * 0.9) {
+            try {
+
+                if (logger.isDebugEnabled()) {
+                    logger.debug("have to wait - maximum connection limit almost reached");
+                }
+                Thread.sleep(500); //wait for threads to finish
+            } catch (InterruptedException e) {
+            }
+        }
+    }
+
+    public void addToWriteQueue(Class<?> type, Runnable r) {
         WriteBufferEntry wb = new WriteBufferEntry(r, System.currentTimeMillis());
-        writeBuffer.add(wb);
+        if (opLog.get(type) == null) {
+            opLog.put(type, new Vector<WriteBufferEntry>());
+        }
+        WriteBuffer w = annotationHelper.getAnnotationFromHierarchy(type, WriteBuffer.class);
+        if (w.size() > 0 && opLog.get(type).size() > w.size()) {
+            logger.warn("WARNING: Write buffer maximum exceeded: " + opLog.get(type).size() + " entries now, max is " + w.size());
+            switch (w.strategy()) {
+                case JUST_WARN:
+                    break;
+                case IGNORE_NEW:
+                    logger.warn("ignoring new incoming...");
+                    return;
+                case WRITE_NEW:
+                    logger.warn("directly writing data... due to strategy setting");
+                    r.run();
+                    waitForWriters();
+                    break;
+                case WRITE_OLD:
+                    synchronized (opLog) {
+                        Collections.sort(opLog.get(type), new Comparator<WriteBufferEntry>() {
+                            @Override
+                            public int compare(WriteBufferEntry o1, WriteBufferEntry o2) {
+                                return Long.valueOf(o1.getTimestamp()).compareTo(o2.getTimestamp());
+                            }
+                        });
+
+                        for (int i = 0; i < opLog.get(type).size() - w.size(); i++) {
+                            opLog.get(type).get(i).getToRun().run();
+                            opLog.get(type).remove(i);
+                            waitForWriters();
+                        }
+                    }
+                    return;
+                case DEL_OLD:
+                    synchronized (opLog) {
+                        Collections.sort(opLog.get(type), new Comparator<WriteBufferEntry>() {
+                            @Override
+                            public int compare(WriteBufferEntry o1, WriteBufferEntry o2) {
+                                return Long.valueOf(o1.getTimestamp()).compareTo(o2.getTimestamp());
+                            }
+                        });
+
+                        for (int i = 0; i < opLog.get(type).size() - w.size(); i++) {
+                            opLog.get(type).get(i).getToRun().run();
+                            opLog.get(type).remove(i);
+                        }
+                    }
+                    return;
+            }
+            opLog.get(type).add(wb);
+
+        }
+
     }
 
     @Override
@@ -80,7 +163,7 @@ public class BufferedWriterImpl implements Writer {
         }
         final AsyncOperationCallback<T> callback = c;
         morphium.inc(StatisticKeys.WRITES_CACHED);
-        addToWriteQueue(new Runnable() {
+        addToWriteQueue(o.getClass(), new Runnable() {
             @Override
             public void run() {
                 directWriter.store(o, callback);
@@ -91,7 +174,7 @@ public class BufferedWriterImpl implements Writer {
     @Override
     public <T> void store(final List<T> lst, AsyncOperationCallback<T> c) {
         if (lst == null || lst.size() == 0) {
-//            TODO: c.onOperationSucceeded();
+            c.onOperationSucceeded(AsyncOperationType.WRITE, null, 0, lst, null);
             return;
         }
         if (c == null) {
@@ -99,7 +182,9 @@ public class BufferedWriterImpl implements Writer {
         }
         final AsyncOperationCallback<T> callback = c;
         morphium.inc(StatisticKeys.WRITES_CACHED);
-        addToWriteQueue(new Runnable() {
+
+        //TODO: think of something more accurate
+        addToWriteQueue(lst.get(0).getClass(), new Runnable() {
             @Override
             public void run() {
                 directWriter.store(lst, callback);
@@ -114,7 +199,7 @@ public class BufferedWriterImpl implements Writer {
         }
         final AsyncOperationCallback<T> callback = c;
         morphium.inc(StatisticKeys.WRITES_CACHED);
-        addToWriteQueue(new Runnable() {
+        addToWriteQueue(ent.getClass(), new Runnable() {
             @Override
             public void run() {
                 directWriter.updateUsingFields(ent, callback, fields);
@@ -129,7 +214,7 @@ public class BufferedWriterImpl implements Writer {
         }
         final AsyncOperationCallback<T> callback = c;
         morphium.inc(StatisticKeys.WRITES_CACHED);
-        addToWriteQueue(new Runnable() {
+        addToWriteQueue(toSet.getClass(), new Runnable() {
             @Override
             public void run() {
                 directWriter.set(toSet, field, value, insertIfNotExists, multiple, callback);
@@ -145,7 +230,7 @@ public class BufferedWriterImpl implements Writer {
         }
         final AsyncOperationCallback<T> callback = c;
         morphium.inc(StatisticKeys.WRITES_CACHED);
-        addToWriteQueue(new Runnable() {
+        addToWriteQueue(query.getType(), new Runnable() {
             @Override
             public void run() {
                 directWriter.set(query, values, insertIfNotExist, multiple, callback);
@@ -160,7 +245,7 @@ public class BufferedWriterImpl implements Writer {
         }
         final AsyncOperationCallback<T> callback = c;
         morphium.inc(StatisticKeys.WRITES_CACHED);
-        addToWriteQueue(new Runnable() {
+        addToWriteQueue(query.getType(), new Runnable() {
             @Override
             public void run() {
                 directWriter.inc(query, field, amount, insertIfNotExist, multiple, callback);
@@ -169,8 +254,18 @@ public class BufferedWriterImpl implements Writer {
     }
 
     @Override
-    public <T> void inc(T toInc, String field, int amount, AsyncOperationCallback<T> callback) {
-        //To change body of implemented methods use File | Settings | File Templates.
+    public <T> void inc(final T toInc, final String field, final int amount, AsyncOperationCallback<T> c) {
+        if (c == null) {
+            c = new AsyncOpAdapter<T>();
+        }
+        final AsyncOperationCallback<T> callback = c;
+        morphium.inc(StatisticKeys.WRITES_CACHED);
+        addToWriteQueue(toInc.getClass(), new Runnable() {
+            @Override
+            public void run() {
+                directWriter.inc(toInc, field, amount, callback);
+            }
+        });
     }
 
 
@@ -188,7 +283,7 @@ public class BufferedWriterImpl implements Writer {
         }
         final AsyncOperationCallback<T> callback = c;
         morphium.inc(StatisticKeys.WRITES_CACHED);
-        addToWriteQueue(new Runnable() {
+        addToWriteQueue(lst.get(0).getClass(), new Runnable() {
             @Override
             public void run() {
                 directWriter.delete(lst, callback);
@@ -203,7 +298,7 @@ public class BufferedWriterImpl implements Writer {
         }
         final AsyncOperationCallback<T> callback = c;
         morphium.inc(StatisticKeys.WRITES_CACHED);
-        addToWriteQueue(new Runnable() {
+        addToWriteQueue(o.getClass(), new Runnable() {
             @Override
             public void run() {
                 directWriter.delete(o, callback);
@@ -218,7 +313,7 @@ public class BufferedWriterImpl implements Writer {
         }
         final AsyncOperationCallback<T> callback = c;
         morphium.inc(StatisticKeys.WRITES_CACHED);
-        addToWriteQueue(new Runnable() {
+        addToWriteQueue(q.getType(), new Runnable() {
             @Override
             public void run() {
                 directWriter.delete(q, callback);
@@ -233,7 +328,7 @@ public class BufferedWriterImpl implements Writer {
         }
         final AsyncOperationCallback<T> callback = c;
         morphium.inc(StatisticKeys.WRITES_CACHED);
-        addToWriteQueue(new Runnable() {
+        addToWriteQueue(query.getType(), new Runnable() {
             @Override
             public void run() {
                 directWriter.pushPull(push, query, field, value, insertIfNotExist, multiple, callback);
@@ -248,7 +343,7 @@ public class BufferedWriterImpl implements Writer {
         }
         final AsyncOperationCallback<T> callback = c;
         morphium.inc(StatisticKeys.WRITES_CACHED);
-        addToWriteQueue(new Runnable() {
+        addToWriteQueue(query.getType(), new Runnable() {
             @Override
             public void run() {
                 directWriter.pushPullAll(push, query, field, value, insertIfNotExist, multiple, callback);
@@ -263,7 +358,7 @@ public class BufferedWriterImpl implements Writer {
         }
         final AsyncOperationCallback<T> callback = c;
         morphium.inc(StatisticKeys.WRITES_CACHED);
-        addToWriteQueue(new Runnable() {
+        addToWriteQueue(toSet.getClass(), new Runnable() {
             @Override
             public void run() {
                 directWriter.unset(toSet, field, callback);
@@ -278,7 +373,7 @@ public class BufferedWriterImpl implements Writer {
         }
         final AsyncOperationCallback<T> callback = c;
         morphium.inc(StatisticKeys.WRITES_CACHED);
-        addToWriteQueue(new Runnable() {
+        addToWriteQueue(cls, new Runnable() {
             @Override
             public void run() {
                 directWriter.dropCollection(cls, callback);
@@ -293,7 +388,7 @@ public class BufferedWriterImpl implements Writer {
         }
         final AsyncOperationCallback<T> callback = c;
         morphium.inc(StatisticKeys.WRITES_CACHED);
-        addToWriteQueue(new Runnable() {
+        addToWriteQueue(cls, new Runnable() {
             @Override
             public void run() {
                 directWriter.ensureIndex(cls, index, callback);
@@ -304,7 +399,7 @@ public class BufferedWriterImpl implements Writer {
 
     @Override
     public int writeBufferCount() {
-        return writeBuffer.size();
+        return opLog.size();
     }
 
 

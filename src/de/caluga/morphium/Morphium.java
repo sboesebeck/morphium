@@ -22,9 +22,9 @@ import de.caluga.morphium.replicaset.ConfNode;
 import de.caluga.morphium.replicaset.ReplicaSetConf;
 import de.caluga.morphium.replicaset.ReplicaSetNode;
 import de.caluga.morphium.validation.JavaxValidationStorageListener;
-import de.caluga.morphium.writer.BufferedWriterImpl;
-import de.caluga.morphium.writer.Writer;
-import de.caluga.morphium.writer.WriterImpl;
+import de.caluga.morphium.writer.BufferedMorphiumWriterImpl;
+import de.caluga.morphium.writer.MorphiumWriter;
+import de.caluga.morphium.writer.MorphiumWriterImpl;
 import net.sf.cglib.proxy.Enhancer;
 import org.apache.log4j.Logger;
 import org.bson.types.ObjectId;
@@ -41,7 +41,7 @@ import java.util.*;
  */
 
 @SuppressWarnings("UnusedDeclaration")
-public final class Morphium implements Writer {
+public final class Morphium implements MorphiumWriter {
 
     /**
      * singleton is usually not a good idea in j2ee-Context, but as we did it on
@@ -147,10 +147,10 @@ public final class Morphium implements Writer {
         cacheHousekeeper.start();
         config.getConfigManager().startCleanupThread();
         if (config.getWriter() == null) {
-            config.setWriter(new WriterImpl());
+            config.setWriter(new MorphiumWriterImpl());
         }
         if (config.getBufferedWriter() == null) {
-            config.setBufferedWriter(new BufferedWriterImpl());
+            config.setBufferedWriter(new BufferedMorphiumWriterImpl());
         }
         config.getWriter().setMorphium(this);
         config.getBufferedWriter().setMorphium(this);
@@ -269,7 +269,7 @@ public final class Morphium implements Writer {
 
         firePreUpdateEvent(toSet.getClass(), MorphiumStorageListener.UpdateTypes.UNSET);
         Cache c = annotationHelper.getAnnotationFromHierarchy(toSet.getClass(), Cache.class);
-        Writer wr = config.getWriter();
+        MorphiumWriter wr = config.getWriter();
         if (annotationHelper.isBufferedWrite(toSet.getClass())) {
             config.getBufferedWriter();
         }
@@ -439,7 +439,7 @@ public final class Morphium implements Writer {
         if (query == null || field == null) throw new RuntimeException("Cannot update null!");
 
         firePreUpdateEvent(query.getType(), MorphiumStorageListener.UpdateTypes.PULL);
-        Writer wr = config.getWriter();
+        MorphiumWriter wr = config.getWriter();
         if (annotationHelper.isBufferedWrite(query.getType())) {
             wr = config.getBufferedWriter();
 
@@ -455,7 +455,7 @@ public final class Morphium implements Writer {
         if (query == null || field == null) throw new RuntimeException("Cannot update null!");
 
         firePreUpdateEvent(query.getType(), MorphiumStorageListener.UpdateTypes.PUSH);
-        Writer wr;
+        MorphiumWriter wr;
         if (!annotationHelper.isBufferedWrite(query.getType())) {
             wr = config.getWriter();
         } else {
@@ -576,7 +576,9 @@ public final class Morphium implements Writer {
             store(toSet);
             return;
         }
+        annotationHelper.callLifecycleMethod(PreUpdate.class, toSet);
         getWriterForClass(toSet.getClass()).set(toSet, field, value, insertIfNotExists, multiple, callback);
+        annotationHelper.callLifecycleMethod(PostUpdate.class, toSet);
     }
 
     public <T> void set(final T toSet, final String field, final Object value, final AsyncOperationCallback<T> callback) {
@@ -585,7 +587,7 @@ public final class Morphium implements Writer {
     }
 
 
-    public Writer getWriterForClass(Class<?> cls) {
+    public MorphiumWriter getWriterForClass(Class<?> cls) {
         if (annotationHelper.isBufferedWrite(cls)) {
             return config.getBufferedWriter();
         } else {

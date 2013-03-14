@@ -16,7 +16,7 @@ import java.util.Map;
  *
  * @see de.caluga.morphium.MorphiumConfig
  */
-public interface Writer {
+public interface MorphiumWriter {
     /**
      * Stores the object, should be an entity
      *
