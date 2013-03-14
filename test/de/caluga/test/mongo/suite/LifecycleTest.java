@@ -41,12 +41,19 @@ public class LifecycleTest extends MongoTest {
 
         assert (postLoad) : "Something went wrong: postload";
 
-        MorphiumSingleton.get().set(q, "value", "test beendet");
+        MorphiumSingleton.get().set(obj, "value", "test beendet");
+        waitForWrites();
         assert (preUpdate);
         assert (postUpdate);
         MorphiumSingleton.get().delete(obj);
         assert (preRemove) : "Pre remove not called";
         assert (postRemove) : "Post remove not called";
+
+        preUpdate = false;
+        postUpdate = false;
+        MorphiumSingleton.get().set(q, "value", "a test - lifecycle won't be called");
+        assert (!preUpdate);
+        assert (!postUpdate);
 
     }
 

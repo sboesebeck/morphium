@@ -27,11 +27,11 @@ import java.util.concurrent.TimeUnit;
  * <p/>
  * default writer implementation
  *
- * @see Writer
+ * @see MorphiumWriter
  */
 @SuppressWarnings({"ConstantConditions", "unchecked"})
-public class WriterImpl implements Writer {
-    private static Logger logger = Logger.getLogger(WriterImpl.class);
+public class MorphiumWriterImpl implements MorphiumWriter {
+    private static Logger logger = Logger.getLogger(MorphiumWriterImpl.class);
     private Morphium morphium;
     private AnnotationAndReflectionHelper annotationHelper = new AnnotationAndReflectionHelper();
 

@@ -17,12 +17,30 @@ import static java.lang.annotation.ElementType.TYPE;
 @Target({TYPE})
 @Retention(RetentionPolicy.RUNTIME)
 public @interface WriteBuffer {
-    enum STRATEGY {WRITE, DEL, JUST_WARN,}
+    /**
+     * what to do when max buffer entries is reached
+     * WRITE_NEW: write newest entry (synchronous and not add to buffer)
+     * WRITE_OLD: write some old entries (and remove from buffer)
+     * DEL_OLD: delete old entries from buffer
+     * IGNORE_NEW: just ignore incoming
+     * JUST_WARN: increase buffer and warn about it
+     */
+    enum STRATEGY {
+        WRITE_NEW, WRITE_OLD, IGNORE_NEW, DEL_OLD, JUST_WARN,
+    }
+
+    STRATEGY strategy() default STRATEGY.JUST_WARN;
 
     boolean value() default true;
 
-    int size() default 0; //max size of write Buffer entries,0 means unlimited. STRATEGY is meaningless here
+    int size() default 0; //max size of write Buffer entries,0 means unlimited. STRATEGY is meaningless then
 
-    int timeout() default 0;  //use default from morphium, -1 wait till buffer is full, if STRATEGY==DEL && timeout ==-1 nothing will be written!
+    /**
+     * if 0 - use default timeout set in Morphium / morphiumConfig
+     * if -1: wait till buffer is full - does not make sense to use with DEL-Strategy
+     *
+     * @return
+     */
+    int timeout() default 0;  //use default from morphium, -1 wait till buffer is full
     // timeout==-1 and size ==0 is not allowed
 }

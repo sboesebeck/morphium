@@ -53,7 +53,7 @@
         <level value="INFO"/>
     </logger>
 
-    <logger name="de.caluga.morphium.writer.WriterImpl">
+    <logger name="de.caluga.morphium.writer.MorphiumWriterImpl">
         <level value="INFO"/>
     </logger>
 

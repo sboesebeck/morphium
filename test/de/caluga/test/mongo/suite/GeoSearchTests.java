@@ -3,6 +3,7 @@ package de.caluga.test.mongo.suite;
 import de.caluga.morphium.MorphiumSingleton;
 import de.caluga.morphium.annotations.*;
 import de.caluga.morphium.annotations.caching.NoCache;
+import de.caluga.morphium.annotations.caching.WriteBuffer;
 import de.caluga.morphium.query.Query;
 import org.bson.types.ObjectId;
 import org.junit.Test;
@@ -174,7 +175,9 @@ public class GeoSearchTests extends MongoTest {
 
     @Index("position:2d")
     @NoCache
+    @WriteBuffer(false)
     @WriteSafety(level = SafetyLevel.MAJORITY)
+    @DefaultReadPreference(ReadPreferenceLevel.PRIMARY)
     @Entity
     public static class Place {
         @Id

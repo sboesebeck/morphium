@@ -10,6 +10,10 @@ import java.lang.annotation.Target;
 
 import static java.lang.annotation.ElementType.METHOD;
 
+/**
+ * will be called, before a single object is updated (this obect to be exact)
+ * Unfortuately, it can't be called when a query based update is executed
+ */
 @Target({METHOD})
 @Retention(RetentionPolicy.RUNTIME)
 public @interface PreUpdate {

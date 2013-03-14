@@ -10,6 +10,10 @@ import java.lang.annotation.Target;
 
 import static java.lang.annotation.ElementType.METHOD;
 
+/**
+ * will be called, after this object was updated by a direct call to update
+ * won't be called, when updates are done query based.
+ */
 @Target({METHOD})
 @Retention(RetentionPolicy.RUNTIME)
 public @interface PostUpdate {
