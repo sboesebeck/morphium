@@ -13,7 +13,6 @@ import de.caluga.morphium.query.Query;
 import org.apache.log4j.Logger;
 import org.bson.types.ObjectId;
 
-import javax.validation.ConstraintViolationException;
 import java.lang.reflect.Field;
 import java.util.*;
 import java.util.concurrent.SynchronousQueue;
@@ -185,9 +184,10 @@ public class MorphiumWriterImpl implements MorphiumWriter {
                     morphium.firePostStoreEvent(o, isNew);
                     if (callback != null)
                         callback.onOperationSucceeded(AsyncOperationType.WRITE, null, System.currentTimeMillis() - start, null, obj);
-                } catch (ConstraintViolationException cve) {
-                    throw (cve);
                 } catch (Exception e) {
+                    if (e instanceof RuntimeException) {
+                        throw (RuntimeException) e;
+                    }
                     if (callback == null) throw new RuntimeException(e);
                     callback.onOperationError(AsyncOperationType.WRITE, null, System.currentTimeMillis() - start, e.getMessage(), e, obj);
                 }
@@ -285,9 +285,10 @@ public class MorphiumWriterImpl implements MorphiumWriter {
                         }
                         if (callback != null)
                             callback.onOperationSucceeded(AsyncOperationType.WRITE, null, System.currentTimeMillis() - allStart, null, null, lst);
-                    } catch (ConstraintViolationException cve) {
-                        throw (cve);
                     } catch (Exception e) {
+                        if (e instanceof RuntimeException) {
+                            throw (RuntimeException) e;
+                        }
                         if (callback == null) throw new RuntimeException(e);
                         callback.onOperationError(AsyncOperationType.WRITE, null, System.currentTimeMillis() - allStart, e.getMessage(), e, null, lst);
                     }
