@@ -33,6 +33,11 @@ public class Statistics extends Hashtable<String, Double> {
         super.put(StatisticKeys.CMISSPERC.name(), ((double) morphium.getStats().get(StatisticKeys.CMISS).get()) / (morphium.getStats().get(StatisticKeys.READS).get() - morphium.getStats().get(StatisticKeys.NO_CACHED_READS).get()) * 100.0);
     }
 
+
+    public synchronized Double get(Enum key) {
+        return get(key.name());
+    }
+
     @Override
     public synchronized Double put(String arg0, Double arg1) {
         throw new RuntimeException("not allowed!");

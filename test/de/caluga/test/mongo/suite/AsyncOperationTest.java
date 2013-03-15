@@ -84,11 +84,11 @@ public class AsyncOperationTest extends MongoTest {
                 assert false;
             }
         });
-        Thread.sleep(500); //waiting for thread to become active
+        waitForAsyncOperationToStart(1000000);
         int count = 0;
         while (q.getNumberOfPendingRequests() > 0) {
             count++;
-//            assert(count<10);
+            assert (count < 10);
             System.out.println("Still waiting...");
             Thread.sleep(1000);
         }
@@ -114,7 +114,8 @@ public class AsyncOperationTest extends MongoTest {
                 //To change body of implemented methods use File | Settings | File Templates.
             }
         });
-        Thread.sleep(500); //waiting for thread to become active
+        //waiting for thread to become active
+        waitForAsyncOperationToStart(1000000);
         int count = 0;
         while (q.getNumberOfPendingRequests() > 0) {
             count++;
