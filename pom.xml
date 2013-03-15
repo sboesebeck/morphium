@@ -4,7 +4,7 @@
 
     <groupId>de.caluga</groupId>
     <artifactId>morphium</artifactId>
-    <version>1.9.99</version>
+    <version>2.0.0</version>
     <packaging>jar</packaging>
     <parent>
         <groupId>org.sonatype.oss</groupId>
