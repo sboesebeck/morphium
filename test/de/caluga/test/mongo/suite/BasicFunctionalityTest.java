@@ -86,7 +86,7 @@ public class BasicFunctionalityTest extends MongoTest {
 
         MorphiumSingleton.get().store(o);
 
-        Thread.sleep(1000);
+
         MorphiumSingleton.get().reread(o);
 
         for (int i = 0; i < o.getIntData().length; i++) {
@@ -121,7 +121,8 @@ public class BasicFunctionalityTest extends MongoTest {
         o.setBinaryData(binaryData);
         MorphiumSingleton.get().store(o);
 
-        Thread.sleep(1000);
+        waitForAsyncOperationToStart(1000000);
+        waitForWrites();
         MorphiumSingleton.get().reread(o);
         for (int i = 0; i < o.getBinaryData().length; i++) {
             assert (o.getBinaryData()[i] == binaryData[i]);
@@ -322,7 +323,7 @@ public class BasicFunctionalityTest extends MongoTest {
         }
         dur = System.currentTimeMillis() - start;
         log.info("Searching  took " + dur + " ms");
-        log.info("Cache Hits Percentage: " + MorphiumSingleton.get().getStatistics().get(StatisticKeys.CHITSPERC) + "%");
+        log.info("Cache Hits Percentage: " + MorphiumSingleton.get().getStatistics().get(StatisticKeys.CHITSPERC.name()) + "%");
     }
 
 
@@ -336,16 +337,13 @@ public class BasicFunctionalityTest extends MongoTest {
             o.setValue("Cached " + i);
             MorphiumSingleton.get().store(o);
         }
+
         long dur = System.currentTimeMillis() - start;
         log.info("Storing (in Cache) single took " + dur + " ms");
+        waitForAsyncOperationToStart(1000000);
         waitForWrites();
         dur = System.currentTimeMillis() - start;
         log.info("Storing took " + dur + " ms overall");
-        try {
-            Thread.sleep(1000);
-        } catch (InterruptedException e) {
-            throw new RuntimeException(e);
-        }
         randomCheck();
         Map<String, Double> statistics = MorphiumSingleton.get().getStatistics();
         Double uc = statistics.get("X-Entries for: de.caluga.test.mongo.suite.UncachedObject");
@@ -413,13 +411,14 @@ public class BasicFunctionalityTest extends MongoTest {
         log.info("Writing " + cached + " Cached and " + uncached + " uncached objects!");
 
         MorphiumSingleton.get().storeList(tst);
+        waitForAsyncOperationToStart(1000000);
         waitForWrites();
         //Still waiting - storing lists is not shown in number of write buffer entries
-        try {
-            Thread.sleep(2000);
-        } catch (InterruptedException e) {
-            throw new RuntimeException(e);
-        }
+//        try {
+//            Thread.sleep(2000);
+//        } catch (InterruptedException e) {
+//            throw new RuntimeException(e);
+//        }
         Query<UncachedObject> qu = MorphiumSingleton.get().createQueryFor(UncachedObject.class);
         assert (qu.countAll() == uncached) : "Difference in object count for cached objects. Wrote " + uncached + " found: " + qu.countAll();
         Query<CachedObject> q = MorphiumSingleton.get().createQueryFor(CachedObject.class);

@@ -25,7 +25,8 @@ import java.util.concurrent.TimeUnit;
  * Date: 30.08.12
  * Time: 14:38
  * <p/>
- * default writer implementation
+ * default writer implementation - uses a ThreadPoolExecutor for execution of asynchornous calls
+ * maximum Threads are limited to 0.9* MaxConnections configured in MorphiumConfig
  *
  * @see MorphiumWriter
  */
@@ -45,6 +46,7 @@ public class MorphiumWriterImpl implements MorphiumWriter {
         if (m != null) {
             annotationHelper = morphium.getARHelper();
             executor.setCorePoolSize(m.getConfig().getMaxConnections() / 2);
+            executor.setMaximumPoolSize((int) (m.getConfig().getMaxConnections() * 0.9));
         } else {
             annotationHelper = new AnnotationAndReflectionHelper();
         }

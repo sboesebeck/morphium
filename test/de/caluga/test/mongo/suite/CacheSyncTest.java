@@ -111,6 +111,7 @@ public class CacheSyncTest extends MongoTest {
     @Test
     public void idCacheTest() throws Exception {
         MorphiumSingleton.get().dropCollection(IdCachedObject.class);
+        waitForAsyncOperationToStart(1000000);
         waitForWrites();
         Thread.sleep(2000);
         long start = System.currentTimeMillis();
@@ -120,6 +121,7 @@ public class CacheSyncTest extends MongoTest {
             o.setValue("a value");
             MorphiumSingleton.get().store(o);
         }
+        waitForWriteToStart(1000000);
         waitForWrites();
         long dur = System.currentTimeMillis() - start;
         log.info("Storing without synchronizer: " + dur + " ms");
@@ -131,6 +133,7 @@ public class CacheSyncTest extends MongoTest {
             obj.setCounter(i + 1000);
             MorphiumSingleton.get().store(obj);
         }
+        waitForWriteToStart(1000000);
         waitForWrites();
         dur = System.currentTimeMillis() - start;
         log.info("Updating without synchronizer: " + dur + " ms");
@@ -171,6 +174,16 @@ public class CacheSyncTest extends MongoTest {
         msg1.setRunning(false);
         cs1.detach();
 
+    }
+
+    private void waitForWriteToStart(int max) {
+        int cnt = 0;
+        while (MorphiumSingleton.get().getWriteBufferCount() == 0) {
+            //wait for things to get started...
+            Thread.yield();
+            cnt++;
+            if (cnt > max) return;
+        }
     }
 
 

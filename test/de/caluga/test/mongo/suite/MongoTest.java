@@ -24,6 +24,15 @@ public class MongoTest {
         log = Logger.getLogger(getClass().getName());
     }
 
+    public boolean waitForAsyncOperationToStart(int maxWaits) {
+        int cnt = 0;
+        while (MorphiumSingleton.get().getWriteBufferCount() == 0) {
+            Thread.yield();
+            if (cnt++ > maxWaits) return false;
+        }
+        return true;
+    }
+
     public void createUncachedObjects(int amount) {
         List<UncachedObject> lst = new ArrayList<UncachedObject>();
         for (int i = 0; i < amount; i++) {

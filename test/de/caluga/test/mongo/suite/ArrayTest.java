@@ -54,7 +54,6 @@ public class ArrayTest extends MongoTest {
     @Test
     public void testArrays() throws Exception {
         MorphiumSingleton.get().clearCollection(ArrayTestObj.class);
-        Thread.sleep(500);
         ArrayTestObj obj = new ArrayTestObj();
         obj.setName("Name");
         obj.setIntArr(new int[]{1, 5, 3, 2});
