@@ -117,11 +117,11 @@ public class MessagingTest extends MongoTest {
 
         MorphiumSingleton.get().store(m);
 
-        Thread.sleep(1000);
+        Thread.sleep(5000);
         assert (gotMessage) : "Message did not come?!?!?";
 
         gotMessage = false;
-        Thread.sleep(1000);
+        Thread.sleep(5000);
         assert (!gotMessage) : "Got message again?!?!?!";
 
         Thread.sleep(5000);

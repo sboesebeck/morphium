@@ -837,7 +837,14 @@ public final class Morphium implements MorphiumWriter {
     public de.caluga.morphium.replicaset.ReplicaSetStatus getReplicaSetStatus(boolean full) {
         if (config.getAdr().size() > 1) {
             try {
-                CommandResult res = getMongo().getDB("admin").command("replSetGetStatus");
+                DB adminDB = getMongo().getDB("admin");
+                if (config.getMongoAdminUser() != null) {
+                    if (!adminDB.authenticate(config.getMongoAdminUser(), config.getMongoAdminPwd().toCharArray())) {
+                        logger.error("Authentication for admin db failed!");
+                        return null;
+                    }
+                }
+                CommandResult res = adminDB.command("replSetGetStatus");
                 de.caluga.morphium.replicaset.ReplicaSetStatus status = objectMapper.unmarshall(de.caluga.morphium.replicaset.ReplicaSetStatus.class, res);
                 if (full) {
                     DBCursor rpl = getMongo().getDB("local").getCollection("system.replset").find();

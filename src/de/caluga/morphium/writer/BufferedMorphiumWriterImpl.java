@@ -10,6 +10,7 @@ import de.caluga.morphium.query.Query;
 import org.apache.log4j.Logger;
 
 import java.util.*;
+import java.util.concurrent.RejectedExecutionException;
 
 /**
  * User: Stephan Bösebeck
@@ -36,46 +37,57 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter {
             @SuppressWarnings("SynchronizeOnNonFinalField")
             public void run() {
                 while (running) {
-                    //processing and clearing write cache...
-                    List<Class<?>> localBuffer = new ArrayList<Class<?>>();
-                    synchronized (opLog) {
-                        for (Class<?> clz : opLog.keySet()) {
-                            localBuffer.add(clz);
-                        }
-                    }
-
-                    for (Class<?> clz : localBuffer) {
+                    try {
+                        //processing and clearing write cache...
+                        List<Class<?>> localBuffer = new ArrayList<Class<?>>();
                         synchronized (opLog) {
-                            if (opLog.get(clz) == null || opLog.get(clz).size() == 0) {
-                                continue;
+                            for (Class<?> clz : opLog.keySet()) {
+                                localBuffer.add(clz);
                             }
                         }
-                        WriteBuffer wb = annotationHelper.getAnnotationFromHierarchy(clz, WriteBuffer.class);
-                        //can't be null
-                        if (wb.timeout() == -1 && wb.size() > 0 && opLog.get(clz).size() < wb.size()) {
-                            continue; //wait for buffer to be filled
+
+                        for (Class<?> clz : localBuffer) {
+                            synchronized (opLog) {
+                                if (opLog.get(clz) == null || opLog.get(clz).size() == 0) {
+                                    continue;
+                                }
+                            }
+                            WriteBuffer wb = annotationHelper.getAnnotationFromHierarchy(clz, WriteBuffer.class);
+                            //can't be null
+                            if (wb.timeout() == -1 && wb.size() > 0 && opLog.get(clz).size() < wb.size()) {
+                                continue; //wait for buffer to be filled
+                            }
+                            long timeout = morphium.getConfig().getWriteBufferTime();
+                            if (wb.timeout() != 0) {
+                                timeout = wb.timeout();
+                            }
+                            if (lastRun.get(clz) != null && System.currentTimeMillis() - lastRun.get(clz) < timeout) {
+                                //timeout not reached....
+                                continue;
+                            }
+                            lastRun.put(clz, System.currentTimeMillis());
+                            //neither buffer size reached, or time is up => queue writes
+                            List<WriteBufferEntry> localQueue;
+                            synchronized (opLog) {
+                                localQueue = opLog.get(clz);
+                                opLog.put(clz, new Vector<WriteBufferEntry>());
+                            }
+                            //queueing all ops in queue
+                            for (WriteBufferEntry entry : localQueue) {
+                                waitForWriters();
+                                try {
+                                    entry.getToRun().run();
+                                } catch (RejectedExecutionException e) {
+                                    logger.info("too much load - add write to next run");
+                                    opLog.get(clz).add(entry);
+                                } catch (Exception e) {
+                                    logger.error("could not write", e);
+                                }
+                            }
+                            localQueue = null; //let GC finish the work
                         }
-                        long timeout = morphium.getConfig().getWriteBufferTime();
-                        if (wb.timeout() != 0) {
-                            timeout = wb.timeout();
-                        }
-                        if (lastRun.get(clz) != null && System.currentTimeMillis() - lastRun.get(clz) < timeout) {
-                            //timeout not reached....
-                            continue;
-                        }
-                        lastRun.put(clz, System.currentTimeMillis());
-                        //neither buffer size reached, or time is up => queue writes
-                        List<WriteBufferEntry> localQueue;
-                        synchronized (opLog) {
-                            localQueue = opLog.get(clz);
-                            opLog.put(clz, new Vector<WriteBufferEntry>());
-                        }
-                        //queueing all ops in queue
-                        for (WriteBufferEntry entry : localQueue) {
-                            waitForWriters();
-                            entry.getToRun().run();
-                        }
-                        localQueue = null; //let GC finish the work
+                    } catch (Exception e) {
+                        logger.info("Got exception during write buffer handling!", e);
                     }
 
                     try {
@@ -92,7 +104,7 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter {
     }
 
     private void waitForWriters() {
-        while (directWriter.writeBufferCount() > morphium.getConfig().getMaxConnections() * morphium.getConfig().getBlockingThreadsMultiplier() * 0.9) {
+        while (directWriter.writeBufferCount() > morphium.getConfig().getMaxConnections() * morphium.getConfig().getBlockingThreadsMultiplier() * 0.9 - 1) {
             try {
 
                 if (logger.isDebugEnabled()) {

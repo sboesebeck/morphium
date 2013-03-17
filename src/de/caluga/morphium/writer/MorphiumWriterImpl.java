@@ -45,7 +45,7 @@ public class MorphiumWriterImpl implements MorphiumWriter {
         if (m != null) {
             annotationHelper = morphium.getARHelper();
             executor.setCorePoolSize(m.getConfig().getMaxConnections() / 2);
-            executor.setMaximumPoolSize((int) (m.getConfig().getMaxConnections() * 0.9));
+            executor.setMaximumPoolSize((int) (m.getConfig().getMaxConnections() * m.getConfig().getBlockingThreadsMultiplier() * 0.9));
         } else {
             annotationHelper = new AnnotationAndReflectionHelper();
         }
@@ -352,6 +352,17 @@ public class MorphiumWriterImpl implements MorphiumWriter {
         if (callback == null) {
             r.run();
         } else {
+            while (writeBufferCount() >= morphium.getConfig().getMaxConnections() * morphium.getConfig().getBlockingThreadsMultiplier() * 0.9 - 1) {
+                if (logger.isDebugEnabled()) {
+                    logger.debug("Have to wait for queue to be more empty - active threads now: " + writeBufferCount());
+                }
+                try {
+                    Thread.sleep(100);
+                } catch (InterruptedException e) {
+                    //TODO: Implement Handling
+                    throw new RuntimeException(e);
+                }
+            }
             executor.submit(r);
         }
     }
