@@ -486,6 +486,9 @@ public class MorphiumConfig {
                 ", slaveOk=" + defaultReadPreference.toString() +
                 ", mongoLogin='" + mongoLogin + '\'' +
                 ", mongoPassword='" + mongoPassword + '\'' +
+                ", mongoAdminUser='" + mongoAdminUser + '\'' +
+                ", mongoAdminPassword='" + mongoAdminPwd + '\'' +
+
                 ", configManagerCacheTimeout=" + configManagerCacheTimeout +
                 ", adr=" + adr +
                 ", validTimeByClassName=" + validTimeByClassName +
