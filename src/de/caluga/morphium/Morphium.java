@@ -994,7 +994,11 @@ public final class Morphium {
     public de.caluga.morphium.replicaset.ReplicaSetStatus getReplicaSetStatus(boolean full) {
         if (config.getAdr().size() > 1) {
             try {
-                CommandResult res = getMongo().getDB("admin").command("replSetGetStatus");
+                DB adminDB = getMongo().getDB("admin");
+                if (config.getMongoAdminUser() != null) {
+                    adminDB.authenticate(config.getMongoAdminUser(), config.getMongoAdminPwd().toCharArray());
+                }
+                CommandResult res = adminDB.command("replSetGetStatus");
                 de.caluga.morphium.replicaset.ReplicaSetStatus status = getConfig().getMapper().unmarshall(de.caluga.morphium.replicaset.ReplicaSetStatus.class, res);
                 if (full) {
                     DBCursor rpl = getMongo().getDB("local").getCollection("system.replset").find();

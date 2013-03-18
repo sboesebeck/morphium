@@ -70,7 +70,7 @@ public class MorphiumConfig {
     private ConfigManager configManager;
     //securitysettings
 //    private Class<? extends Object> userClass, roleClass, aclClass;
-    private String superUserLogin, superUserPassword; //THE superuser!
+    private String mongoAdminUser, mongoAdminPwd; //THE superuser!
     private String adminGroupName; //Admin group - superusers except the superuserAdmin
 
     private ObjectMapper mapper = new ObjectMapperImpl();
@@ -271,28 +271,20 @@ public class MorphiumConfig {
         this.defaultReadPreference = defaultReadPreference;
     }
 
-    public String getAdminGroupName() {
-        return adminGroupName;
+    public String getMongoAdminUser() {
+        return mongoAdminUser;
     }
 
-    public void setAdminGroupName(String adminGroupName) {
-        this.adminGroupName = adminGroupName;
+    public void setMongoAdminUser(String mongoAdminUser) {
+        this.mongoAdminUser = mongoAdminUser;
     }
 
-    public String getSuperUserLogin() {
-        return superUserLogin;
+    public String getMongoAdminPwd() {
+        return mongoAdminPwd;
     }
 
-    public void setSuperUserLogin(String superUserLogin) {
-        this.superUserLogin = superUserLogin;
-    }
-
-    public String getSuperUserPassword() {
-        return superUserPassword;
-    }
-
-    public void setSuperUserPassword(String superUserPassword) {
-        this.superUserPassword = superUserPassword;
+    public void setMongoAdminPwd(String mongoAdminPwd) {
+        this.mongoAdminPwd = mongoAdminPwd;
     }
 
     public int getConfigManagerCacheTimeout() {
@@ -454,8 +446,6 @@ public class MorphiumConfig {
                 ", adr=" + adr +
                 ", validTimeByClassName=" + validTimeByClassName +
                 ", configManager=" + configManager +
-                ", superUserLogin='" + superUserLogin + '\'' +
-                ", superUserPassword='" + superUserPassword + '\'' +
                 ", adminGroupName='" + adminGroupName + '\'' +
                 ", mapper=" + mapper +
                 ", fieldImplClass='" + fieldImplClass + '\'' +
@@ -496,9 +486,8 @@ public class MorphiumConfig {
         }
         p.setProperty(prefix + "adr", a);
         p.setProperty(prefix + "configManagerClass", configManager.getClass().getName());
-        p.setProperty(prefix + "superUserLogin", superUserLogin);
-        p.setProperty(prefix + "superUserPassword", superUserPassword);
         p.setProperty(prefix + "adminGroupName", adminGroupName);
+
         p.setProperty(prefix + "fieldImplClass", fieldImplClass.getName());
         p.setProperty(prefix + "mapperClass", mapper.getClass().getName());
     }
@@ -528,8 +517,6 @@ public class MorphiumConfig {
         } catch (Exception ignored) {
         }
         adminGroupName = p.getProperty(prefix + "adminGroupName");
-        superUserLogin = p.getProperty(prefix + "superUserLogin");
-        superUserPassword = p.getProperty(prefix + "superUserPassword");
         String configMgrCls = p.getProperty(prefix + "configManagerClass", ConfigManagerImpl.class.getName());
         try {
             configManager = (ConfigManager) Class.forName(configMgrCls).newInstance();
