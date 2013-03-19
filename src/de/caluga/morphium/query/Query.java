@@ -110,26 +110,6 @@ public interface Query<T> extends Cloneable {
     public Query<T> sort(Enum... naturalOrder);
 
     /**
-     * set an order - Key: FieldName (java or Mongo-Name), Value: Integer: -1 reverse, 1 standard
-     * deprectaed, use sort instead (more like the maongodb-commands)... used for backward compatibility.
-     *
-     * @param n -
-     * @return the query
-     * @deprecated
-     */
-    public Query<T> order(Map<String, Integer> n);
-
-    /**
-     * set order by prefixing field names with - for reverse ordering (+ or nothing default)
-     * deprectaed, use sort instead (more like the maongodb-commands)... used for backward compatibility.
-     *
-     * @param prefixedString sort
-     * @return the query
-     * @deprecated
-     */
-    public Query<T> order(String... prefixedString);
-
-    /**
      * count all results in query - does not take limit or skip into account
      *
      * @return number
@@ -244,7 +224,7 @@ public interface Query<T> extends Cloneable {
 
     public int getSkip();
 
-    public Map<String, Integer> getOrder();
+    public Map<String, Integer> getSort();
 
     public Query<T> clone() throws CloneNotSupportedException;
 
