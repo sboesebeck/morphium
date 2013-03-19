@@ -190,7 +190,7 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
     @Override
     public T complexQueryOne(DBObject query, Map<String, Integer> sort, int skip) {
         List<T> ret = complexQuery(query, sort, skip, 1);
-        if (ret != null && ret.isEmpty()) {
+        if (ret != null && !ret.isEmpty()) {
             return ret.get(0);
         }
         return null;
