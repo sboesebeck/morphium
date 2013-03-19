@@ -1015,7 +1015,7 @@ public class MorphiumWriterImpl implements MorphiumWriter {
     }
 
     @Override
-    public <T> void ensureIndex(final Class<T> cls, final String collection, final Map<String, Object> index, AsyncOperationCallback<T> callback) {
+    public <T> void ensureIndex(final Class<T> cls, final String collection, final Map<String, Object> index, final Map<String, Object> options, AsyncOperationCallback<T> callback) {
         Runnable r = new Runnable() {
             public void run() {
                 List<String> fields = annotationHelper.getFields(cls);
@@ -1033,7 +1033,12 @@ public class MorphiumWriterImpl implements MorphiumWriter {
                 BasicDBObject keys = new BasicDBObject(idx);
                 String coll = collection;
                 if (coll == null) coll = morphium.getMapper().getCollectionName(cls);
-                morphium.getDatabase().getCollection(coll).ensureIndex(keys);
+                if (options == null) {
+                    morphium.getDatabase().getCollection(coll).ensureIndex(keys);
+                } else {
+                    BasicDBObject opts = new BasicDBObject(options);
+                    morphium.getDatabase().getCollection(coll).ensureIndex(keys, opts);
+                }
                 long dur = System.currentTimeMillis() - start;
                 morphium.fireProfilingWriteEvent(cls, keys, dur, false, WriteAccessType.ENSURE_INDEX);
             }

@@ -289,34 +289,54 @@ public final class Morphium implements MorphiumWriter {
      * @param type type to ensure indices for
      */
     @SuppressWarnings("unchecked")
-    public void ensureIndicesFor(Class type) {
+    public <T> void ensureIndicesFor(Class<T> type) {
+        ensureIndicesFor(type, null);
+    }
+
+    public <T> void ensureIndicesFor(Class<T> type, AsyncOperationCallback<T> callback) {
         if (annotationHelper.isAnnotationPresentInHierarchy(type, Index.class)) {
             //type must be marked as to be indexed
             List<Annotation> lst = annotationHelper.getAllAnnotationsFromHierachy(type, Index.class);
             for (Annotation a : lst) {
                 Index i = (Index) a;
                 if (i.value().length > 0) {
-                    for (String idx : i.value()) {
-                        String[] idxStr = idx.replaceAll(" +", "").split(",");
-                        ensureIndex(type, idxStr);
+                    List<Map<String, Object>> options = null;
+                    if (i.options().length > 0) {
+                        //options set
+                        options = createIndexMapFrom(i.options());
+                    }
+                    List<Map<String, Object>> idx = createIndexMapFrom(i.value());
+                    int cnt = 0;
+                    for (Map<String, Object> m : idx) {
+                        Map<String, Object> optionsMap = null;
+                        if (options != null && options.size() > cnt) {
+                            optionsMap = options.get(cnt);
+                        }
+                        getWriterForClass(type).ensureIndex(type, getMapper().getCollectionName(type), m, optionsMap, callback);
                     }
                 }
             }
 
             List<String> flds = annotationHelper.getFields(type, Index.class);
             if (flds != null && flds.size() > 0) {
+
                 for (String f : flds) {
                     Index i = annotationHelper.getField(type, f).getAnnotation(Index.class);
+                    Map<String, Object> idx = new LinkedHashMap<String, Object>();
                     if (i.decrement()) {
-                        ensureIndex(type, "-" + f);
+                        idx.put(f, -1);
                     } else {
-                        ensureIndex(type, f);
+                        idx.put(f, 1);
                     }
+                    Map<String, Object> optionsMap = null;
+                    if (createIndexMapFrom(i.options()) != null) {
+                        optionsMap = createIndexMapFrom(i.options()).get(0);
+                    }
+                    getWriterForClass(type).ensureIndex(type, getMapper().getCollectionName(type), idx, optionsMap, callback);
                 }
             }
         }
     }
-
 
     public DBObject simplifyQueryObject(DBObject q) {
         if (q.keySet().size() == 1 && q.get("$and") != null) {
@@ -1245,8 +1265,12 @@ public final class Morphium implements MorphiumWriter {
         ensureIndex(cls, getMapper().getCollectionName(cls), index, callback);
     }
 
+    public <T> void ensureIndex(Class<T> cls, String collection, Map<String, Object> index, Map<String, Object> options, AsyncOperationCallback<T> callback) {
+        getWriterForClass(cls).ensureIndex(cls, collection, index, options, callback);
+    }
+
     public <T> void ensureIndex(Class<T> cls, String collection, Map<String, Object> index, AsyncOperationCallback<T> callback) {
-        getWriterForClass(cls).ensureIndex(cls, collection, index, callback);
+        getWriterForClass(cls).ensureIndex(cls, collection, index, null, callback);
     }
 
     @Override
@@ -1256,11 +1280,15 @@ public final class Morphium implements MorphiumWriter {
 
 
     public void ensureIndex(Class<?> cls, Map<String, Object> index) {
-        getWriterForClass(cls).ensureIndex(cls, getMapper().getCollectionName(cls), index, null);
+        getWriterForClass(cls).ensureIndex(cls, getMapper().getCollectionName(cls), index, null, null);
+    }
+
+    public void ensureIndex(Class<?> cls, String collection, Map<String, Object> index, Map<String, Object> options) {
+        getWriterForClass(cls).ensureIndex(cls, collection, index, options, null);
     }
 
     public void ensureIndex(Class<?> cls, String collection, Map<String, Object> index) {
-        getWriterForClass(cls).ensureIndex(cls, collection, index, null);
+        getWriterForClass(cls).ensureIndex(cls, collection, index, null, null);
     }
 
     /**
@@ -1281,7 +1309,7 @@ public final class Morphium implements MorphiumWriter {
             String f = e.name();
             m.put(f, 1);
         }
-        getWriterForClass(cls).ensureIndex(cls, collection, m, callback);
+        getWriterForClass(cls).ensureIndex(cls, collection, m, null, callback);
     }
 
     public <T> void ensureIndex(Class<T> cls, AsyncOperationCallback<T> callback, String... fldStr) {
@@ -1289,24 +1317,35 @@ public final class Morphium implements MorphiumWriter {
     }
 
     public <T> void ensureIndex(Class<T> cls, String collection, AsyncOperationCallback<T> callback, String... fldStr) {
-        Map<String, Object> m = new LinkedHashMap<String, Object>();
+        List<Map<String, Object>> m = createIndexMapFrom(fldStr);
+        for (Map<String, Object> idx : m) {
+            getWriterForClass(cls).ensureIndex(cls, collection, idx, null, callback);
+        }
+    }
+
+    private List<Map<String, Object>> createIndexMapFrom(String[] fldStr) {
+        if (fldStr.length == 0) return null;
+        List<Map<String, Object>> lst = new ArrayList<Map<String, Object>>();
+
+
         for (String f : fldStr) {
-            int idx = 1;
-            if (f.contains(":")) {
-                //explicitly defined index
-                String fs[] = f.split(":");
-                m.put(fs[0], fs[1]);
-            } else {
-                if (f.startsWith("-")) {
-                    idx = -1;
-                    f = f.substring(1);
-                } else if (f.startsWith("+")) {
-                    f = f.substring(1);
+            Map<String, Object> m = new LinkedHashMap<String, Object>();
+            for (String idx : f.split(",")) {
+                if (idx.contains(":")) {
+                    String i[] = idx.split(":");
+                    m.put(i[0], i[1]);
+                } else {
+                    if (idx.startsWith("-")) {
+                        m.put(idx.substring(1), -1);
+                    } else {
+                        idx = idx.replaceAll("^\\+", "");
+                        m.put(idx, 1);
+                    }
                 }
-                m.put(f, idx);
+                lst.add(m);
             }
         }
-        getWriterForClass(cls).ensureIndex(cls, collection, m, callback);
+        return lst;
     }
 
     public void ensureIndex(Class<?> cls, String... fldStr) {

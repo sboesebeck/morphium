@@ -253,5 +253,30 @@ public interface Query<T> extends Cloneable {
      */
     public void setCollectionName(String n);
 
-    String getCollectionName();
+    public String getCollectionName();
+
+    public List<T> textSearch(String... texts);
+
+    public List<T> textSearch(TextSearchLanguages lang, String... texts);
+
+    public enum TextSearchLanguages {
+        danish,
+        dutch,
+        english,
+        finnish,
+        french,
+        german,
+        hungarian,
+        italian,
+        norwegian,
+        portuguese,
+        romanian,
+        russian,
+        spanish,
+        swedish,
+        turkish,
+        mongo_default,
+        none,
+
+    }
 }
