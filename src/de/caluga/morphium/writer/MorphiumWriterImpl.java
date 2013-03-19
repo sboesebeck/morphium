@@ -14,6 +14,7 @@ import org.apache.log4j.Logger;
 import org.bson.types.ObjectId;
 
 import java.lang.reflect.Field;
+import java.lang.reflect.Method;
 import java.util.*;
 import java.util.concurrent.SynchronousQueue;
 import java.util.concurrent.ThreadPoolExecutor;
@@ -186,6 +187,35 @@ public class MorphiumWriterImpl implements MorphiumWriter {
                         callback.onOperationSucceeded(AsyncOperationType.WRITE, null, System.currentTimeMillis() - start, null, obj);
                 } catch (Exception e) {
                     if (e instanceof RuntimeException) {
+                        if (e.getClass().getName().equals("javax.validation.ConstraintViolationException")) {
+                            //using reflection to get fields etc... in order to remove strong dependency
+                            try {
+                                Method m = e.getClass().getMethod("getConstraintViolations");
+
+                                Set violations = (Set) m.invoke(e);
+                                for (Object v : violations) {
+                                    m = v.getClass().getMethod("getMessage");
+                                    String msg = (String) m.invoke(v);
+                                    m = v.getClass().getMethod("getRootBean");
+                                    Object bean = m.invoke(v);
+                                    String s = morphium.toJsonString(bean);
+                                    String type = bean.getClass().getName();
+                                    m = v.getClass().getMethod("getInvalidValue");
+                                    Object invalidValue = m.invoke(v);
+                                    m = v.getClass().getMethod("getPropertyPath");
+                                    Iterable<?> pth = (Iterable) m.invoke(v);
+                                    String path = "";
+                                    for (Object p : pth) {
+                                        m = p.getClass().getMethod("getName");
+                                        String name = (String) m.invoke(p);
+                                        path = path + "." + name;
+                                    }
+                                    logger.error("Validation of " + type + " failed: " + msg + " - Invalid Value: " + invalidValue + " for path: " + path + "\n Tried to store: " + s);
+                                }
+                            } catch (Exception e1) {
+                                logger.fatal("Could not get more information about validation error ", e1);
+                            }
+                        }
                         throw (RuntimeException) e;
                     }
                     if (callback == null) throw new RuntimeException(e);
