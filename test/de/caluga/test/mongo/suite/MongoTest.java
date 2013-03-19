@@ -112,12 +112,12 @@ public class MongoTest {
             cfg.setConnectionTimeout(10000);
             cfg.setMaxWaitTime(1000);
             cfg.setAutoreconnect(true);
-            cfg.setMongoLogin("morphium");
-            cfg.setMongoPassword("tst");
+//            cfg.setMongoLogin("morphium");
+//            cfg.setMongoPassword("tst");
 
             //necessary for Replicaset Status to work
-            cfg.setMongoAdminUser("admin");
-            cfg.setMongoAdminPwd("admin");
+//            cfg.setMongoAdminUser("admin");
+//            cfg.setMongoAdminPwd("admin");
 
             cfg.setMaxAutoReconnectTime(5000);
             cfg.setDefaultReadPreference(ReadPreferenceLevel.NEAREST);
