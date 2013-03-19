@@ -378,7 +378,7 @@ public class MorphiumWriterImpl implements MorphiumWriter {
     }
 
 
-    private <T> void submitAndBlockIfNecessary(AsyncOperationCallback<T> callback, Runnable r) {
+    public <T> void submitAndBlockIfNecessary(AsyncOperationCallback<T> callback, Runnable r) {
         if (callback == null) {
             r.run();
         } else {

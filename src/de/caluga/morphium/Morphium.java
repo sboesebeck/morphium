@@ -154,6 +154,7 @@ public final class Morphium implements MorphiumWriter {
         }
         config.getWriter().setMorphium(this);
         config.getBufferedWriter().setMorphium(this);
+        config.getAsyncWriter().setMorphium(this);
 
         cache = config.getCache();
 
@@ -590,6 +591,8 @@ public final class Morphium implements MorphiumWriter {
     public MorphiumWriter getWriterForClass(Class<?> cls) {
         if (annotationHelper.isBufferedWrite(cls)) {
             return config.getBufferedWriter();
+        } else if (annotationHelper.isAsyncWrite(cls)) {
+            return config.getAsyncWriter();
         } else {
             return config.getWriter();
         }
