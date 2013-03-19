@@ -3,6 +3,7 @@ package de.caluga.morphium.aggregation;
 import com.mongodb.BasicDBObject;
 import com.mongodb.DBObject;
 import de.caluga.morphium.Morphium;
+import de.caluga.morphium.async.AsyncOperationCallback;
 import de.caluga.morphium.query.Query;
 
 import java.util.List;
@@ -59,6 +60,8 @@ public interface Aggregator<T, R> {
     public void addOperator(DBObject o);
 
     public List<R> aggregate();
+
+    public void aggregate(AsyncOperationCallback<R> callback);
 
 
 }
