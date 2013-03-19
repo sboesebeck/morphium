@@ -52,6 +52,12 @@ public class MorphiumIteratorImpl<T> implements MorphiumIterator<T> {
             if (log.isDebugEnabled()) {
                 log.debug("Reached window boundary - reading in: skip:" + cursor + " limit:" + windowSize);
             }
+            if (theQuery.getSort() == null || theQuery.getSort().isEmpty()) {
+                if (log.isDebugEnabled()) {
+                    log.debug("No sort parameter given - sorting by _id");
+                }
+                theQuery.sort("_id"); //always sort with id field if no sort is given
+            }
             buffer = theQuery.asList();
         }
         cursor++;

@@ -157,7 +157,7 @@ public class MorphiumCacheImpl implements MorphiumCache {
      */
     @Override
     public String getCacheKey(Query q) {
-        return getCacheKey(q.toQueryObject(), q.getOrder(), q.getSkip(), q.getLimit());
+        return getCacheKey(q.toQueryObject(), q.getSort(), q.getSkip(), q.getLimit());
     }
 
 

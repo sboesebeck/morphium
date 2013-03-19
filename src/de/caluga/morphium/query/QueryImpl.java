@@ -32,7 +32,7 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
     private boolean additionalDataPresent = false;
 
     private int limit = 0, skip = 0;
-    private Map<String, Integer> order;
+    private Map<String, Integer> sort;
 
     private Morphium morphium;
     private static Logger log = Logger.getLogger(Query.class);
@@ -212,8 +212,8 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
     }
 
     @Override
-    public Map<String, Integer> getOrder() {
-        return order;
+    public Map<String, Integer> getSort() {
+        return sort;
     }
 
     @Override
@@ -313,7 +313,7 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
      */
     @Override
     public Query<T> sort(Map<String, Integer> n) {
-        order = n;
+        sort = n;
         return this;
     }
 
@@ -522,10 +522,10 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
         if (limit > 0) {
             query.limit(limit);
         }
-        if (order != null) {
+        if (sort != null) {
             BasicDBObject srt = new BasicDBObject();
-            for (String k : order.keySet()) {
-                srt.append(k, order.get(k));
+            for (String k : sort.keySet()) {
+                srt.append(k, sort.get(k));
             }
             query.sort(new BasicDBObject(srt));
         }
@@ -687,10 +687,10 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
         if (skip != 0) {
             srch = srch.skip(skip);
         }
-        if (order != null) {
+        if (sort != null) {
             BasicDBObject srt = new BasicDBObject();
-            for (String k : order.keySet()) {
-                srt.append(k, order.get(k));
+            for (String k : sort.keySet()) {
+                srt.append(k, sort.get(k));
             }
             srch.sort(new BasicDBObject(srt));
         }
@@ -764,8 +764,8 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
         DBCollection collection = morphium.getDatabase().getCollection(morphium.getMapper().getCollectionName(type));
         setReadPreferenceFor(collection);
         DBCursor query = collection.find(toQueryObject(), new BasicDBObject("_id", 1)); //only get IDs
-        if (order != null) {
-            query.sort(new BasicDBObject(order));
+        if (sort != null) {
+            query.sort(new BasicDBObject(sort));
         }
         if (skip > 0) {
             query.skip(skip);
@@ -797,9 +797,9 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
                 ret.norQueries = new Vector<Query<T>>();
                 ret.norQueries.addAll(norQueries);
             }
-            if (order != null) {
-                ret.order = new Hashtable<String, Integer>();
-                ret.order.putAll(order);
+            if (sort != null) {
+                ret.sort = new Hashtable<String, Integer>();
+                ret.sort.putAll(sort);
             }
             if (orQueries != null) {
                 ret.orQueries = new Vector<Query<T>>();
@@ -822,15 +822,6 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
         }
     }
 
-    @Override
-    public Query<T> order(Map<String, Integer> n) {
-        return sort(n);
-    }
-
-    @Override
-    public Query<T> order(String... prefixedString) {
-        return sort(prefixedString);
-    }
 
     @Override
     public int getNumberOfPendingRequests() {

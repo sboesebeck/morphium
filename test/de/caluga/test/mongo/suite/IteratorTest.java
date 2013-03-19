@@ -5,6 +5,8 @@ import de.caluga.morphium.query.MorphiumIterator;
 import de.caluga.morphium.query.Query;
 import org.junit.Test;
 
+import java.util.HashMap;
+
 /**
  * User: Stephan Bösebeck
  * Date: 23.11.12
@@ -45,6 +47,27 @@ public class IteratorTest extends MongoTest {
         }
 
         assert (u.getCounter() == 1000);
+    }
+
+    @Test
+    public void iteratorRepeatTest() throws Exception {
+        createUncachedObjects(278);
+        Query<UncachedObject> qu = MorphiumSingleton.get().createQueryFor(UncachedObject.class);
+
+//        MorphiumIterator<UncachedObject> it = qu.asIterable(10);
+        HashMap<String, String> hash = new HashMap<String, String>();
+        boolean error = false;
+        int count = 0;
+        for (UncachedObject o : qu.asIterable(20)) {
+            count++;
+            if (hash.get(o.getMongoId().toString()) == null) {
+                hash.put(o.getMongoId().toString(), "found");
+            } else {
+                log.error("Element read multiple times. Number " + count);
+                error = true;
+            }
+        }
+        assert (!error);
     }
 
     @Test
