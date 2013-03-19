@@ -54,7 +54,7 @@
     </logger>
 
     <logger name="de.caluga.morphium.writer.MorphiumWriterImpl">
-        <level value="INFO"/>
+        <level value="DEBUG"/>
     </logger>
 
 
