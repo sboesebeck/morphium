@@ -22,7 +22,7 @@ public interface MorphiumWriter {
      *
      * @param o - entity
      */
-    public <T> void store(T o, AsyncOperationCallback<T> callback);
+    public <T> void store(T o, String collection, AsyncOperationCallback<T> callback);
 
     /**
      * stores the given list of objects, should be entities or embedded
@@ -37,7 +37,7 @@ public interface MorphiumWriter {
      * @param ent    entity
      * @param fields - fields
      */
-    public <T> void updateUsingFields(T ent, AsyncOperationCallback<T> callback, String... fields);
+    public <T> void updateUsingFields(T ent, String collection, AsyncOperationCallback<T> callback, String... fields);
 
     /**
      * changes an object in DB AND in Memory...
@@ -48,7 +48,7 @@ public interface MorphiumWriter {
      * @param value value to set
      */
 
-    public <T> void set(T toSet, String field, Object value, boolean insertIfNotExists, boolean multiple, AsyncOperationCallback<T> callback);
+    public <T> void set(T toSet, String collection, String field, Object value, boolean insertIfNotExists, boolean multiple, AsyncOperationCallback<T> callback);
 
     /**
      * will change an entry in mongodb-collection corresponding to given class object
@@ -75,13 +75,13 @@ public interface MorphiumWriter {
      * @param field:  the field to change
      * @param amount: the value to set
      */
-    public <T> void inc(T toInc, String field, int amount, AsyncOperationCallback<T> callback);
+    public <T> void inc(T toInc, String collection, String field, int amount, AsyncOperationCallback<T> callback);
 
     public void setMorphium(Morphium m);
 
     public <T> void delete(List<T> lst, AsyncOperationCallback<T> callback);
 
-    public <T> void delete(T o, AsyncOperationCallback<T> callback);
+    public <T> void delete(T o, String collection, AsyncOperationCallback<T> callback);
 
     /**
      * deletes all objects matching the given query
@@ -102,11 +102,11 @@ public interface MorphiumWriter {
      * @param toSet: object to set the value in (or better - the corresponding entry in mongo)
      * @param field: field to remove from document
      */
-    public <T> void unset(T toSet, String field, AsyncOperationCallback<T> callback);
+    public <T> void unset(T toSet, String collection, String field, AsyncOperationCallback<T> callback);
 
-    public <T> void dropCollection(Class<T> cls, AsyncOperationCallback<T> callback);
+    public <T> void dropCollection(Class<T> cls, String collection, AsyncOperationCallback<T> callback);
 
-    public <T> void ensureIndex(Class<T> cls, Map<String, Object> index, AsyncOperationCallback<T> callback);
+    public <T> void ensureIndex(Class<T> cls, String collection, Map<String, Object> index, AsyncOperationCallback<T> callback);
 
     public int writeBufferCount();
 }
