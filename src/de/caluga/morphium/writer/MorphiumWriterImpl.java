@@ -382,7 +382,7 @@ public class MorphiumWriterImpl implements MorphiumWriter {
         if (callback == null) {
             r.run();
         } else {
-            while (writeBufferCount() >= morphium.getConfig().getMaxConnections() * morphium.getConfig().getBlockingThreadsMultiplier() * 0.9 - 1) {
+            while (writeBufferCount() >= morphium.getConfig().getMaxConnections() * morphium.getConfig().getBlockingThreadsMultiplier() * 0.75 - 1) {
                 if (logger.isDebugEnabled()) {
                     logger.debug("Have to wait for queue to be more empty - active threads now: " + writeBufferCount());
                 }
