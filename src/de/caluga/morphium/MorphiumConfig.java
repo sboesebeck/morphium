@@ -14,6 +14,7 @@ import de.caluga.morphium.annotations.ReadPreferenceLevel;
 import de.caluga.morphium.cache.MorphiumCache;
 import de.caluga.morphium.cache.MorphiumCacheImpl;
 import de.caluga.morphium.query.*;
+import de.caluga.morphium.writer.AsyncWriterImpl;
 import de.caluga.morphium.writer.BufferedMorphiumWriterImpl;
 import de.caluga.morphium.writer.MorphiumWriter;
 import de.caluga.morphium.writer.MorphiumWriterImpl;
@@ -41,6 +42,7 @@ public class MorphiumConfig {
     private String database;
     private MorphiumWriter writer = new MorphiumWriterImpl();
     private MorphiumWriter bufferedWriter = new BufferedMorphiumWriterImpl();
+    private MorphiumWriter asyncWriter = new AsyncWriterImpl();
 
     private int connectionTimeout = 0;
     private int socketTimeout = 0;
@@ -86,6 +88,7 @@ public class MorphiumConfig {
 
     private ReadPreferenceLevel defaultReadPreference;
     private Class<? extends MorphiumIterator> iteratorClass;
+
 
     public int getWriteBufferTimeGranularity() {
         return writeBufferTimeGranularity;
@@ -621,4 +624,11 @@ public class MorphiumConfig {
         this.fieldImplClass = fieldImplClass;
     }
 
+    public MorphiumWriter getAsyncWriter() {
+        return asyncWriter;
+    }
+
+    public void setAsyncWriter(MorphiumWriter asyncWriter) {
+        this.asyncWriter = asyncWriter;
+    }
 }
