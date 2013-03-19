@@ -4,9 +4,14 @@ import com.mongodb.BasicDBObject;
 import com.mongodb.DBObject;
 import de.caluga.morphium.AnnotationAndReflectionHelper;
 import de.caluga.morphium.Morphium;
+import de.caluga.morphium.async.AsyncOperationCallback;
+import de.caluga.morphium.async.AsyncOperationType;
 import de.caluga.morphium.query.Query;
 
 import java.util.*;
+import java.util.concurrent.SynchronousQueue;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 
 /**
  * User: Stephan Bösebeck
@@ -20,12 +25,16 @@ public class AggregatorImpl<T, R> implements Aggregator<T, R> {
     private Morphium morphium;
     private Class<? extends R> rType;
     private AnnotationAndReflectionHelper ah = new AnnotationAndReflectionHelper();
+    private ThreadPoolExecutor executor = new ThreadPoolExecutor(0, Integer.MAX_VALUE,
+            60L, TimeUnit.SECONDS,
+            new SynchronousQueue<Runnable>());
 
     @Override
     public void setMorphium(Morphium m) {
         morphium = m;
         if (m != null) {
             ah = m.getARHelper();
+            executor.setMaximumPoolSize((int) (m.getConfig().getMaxConnections() * 0.75));
         } else {
             ah = new AnnotationAndReflectionHelper();
         }
@@ -162,6 +171,21 @@ public class AggregatorImpl<T, R> implements Aggregator<T, R> {
     @Override
     public List<R> aggregate() {
         return morphium.aggregate(this);
+    }
+
+    @Override
+    public void aggregate(final AsyncOperationCallback<R> callback) {
+        if (callback == null) {
+            morphium.aggregate(this);
+        }
+        executor.submit(new Runnable() {
+            @Override
+            public void run() {
+                long start = System.currentTimeMillis();
+                List<R> ret = morphium.aggregate(AggregatorImpl.this);
+                callback.onOperationSucceeded(AsyncOperationType.READ, null, System.currentTimeMillis() - start, ret, null, AggregatorImpl.this);
+            }
+        });
     }
 
     @Override
