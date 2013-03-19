@@ -174,7 +174,7 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter {
     }
 
     @Override
-    public <T> void store(final T o, AsyncOperationCallback<T> c) {
+    public <T> void store(final T o, final String collection, AsyncOperationCallback<T> c) {
         if (c == null) {
             c = new AsyncOpAdapter<T>();
         }
@@ -183,7 +183,7 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter {
         addToWriteQueue(o.getClass(), new Runnable() {
             @Override
             public void run() {
-                directWriter.store(o, callback);
+                directWriter.store(o, collection, callback);
             }
         });
     }
@@ -211,7 +211,7 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter {
     }
 
     @Override
-    public <T> void updateUsingFields(final T ent, AsyncOperationCallback<T> c, final String... fields) {
+    public <T> void updateUsingFields(final T ent, final String collection, AsyncOperationCallback<T> c, final String... fields) {
         if (c == null) {
             c = new AsyncOpAdapter<T>();
         }
@@ -220,13 +220,13 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter {
         addToWriteQueue(ent.getClass(), new Runnable() {
             @Override
             public void run() {
-                directWriter.updateUsingFields(ent, callback, fields);
+                directWriter.updateUsingFields(ent, collection, callback, fields);
             }
         });
     }
 
     @Override
-    public <T> void set(final T toSet, final String field, final Object value, final boolean insertIfNotExists, final boolean multiple, AsyncOperationCallback<T> c) {
+    public <T> void set(final T toSet, final String collection, final String field, final Object value, final boolean insertIfNotExists, final boolean multiple, AsyncOperationCallback<T> c) {
         if (c == null) {
             c = new AsyncOpAdapter<T>();
         }
@@ -235,7 +235,7 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter {
         addToWriteQueue(toSet.getClass(), new Runnable() {
             @Override
             public void run() {
-                directWriter.set(toSet, field, value, insertIfNotExists, multiple, callback);
+                directWriter.set(toSet, collection, field, value, insertIfNotExists, multiple, callback);
             }
         });
     }
@@ -272,7 +272,7 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter {
     }
 
     @Override
-    public <T> void inc(final T toInc, final String field, final int amount, AsyncOperationCallback<T> c) {
+    public <T> void inc(final T toInc, final String collection, final String field, final int amount, AsyncOperationCallback<T> c) {
         if (c == null) {
             c = new AsyncOpAdapter<T>();
         }
@@ -281,7 +281,7 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter {
         addToWriteQueue(toInc.getClass(), new Runnable() {
             @Override
             public void run() {
-                directWriter.inc(toInc, field, amount, callback);
+                directWriter.inc(toInc, collection, field, amount, callback);
             }
         });
     }
@@ -310,7 +310,7 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter {
     }
 
     @Override
-    public <T> void delete(final T o, AsyncOperationCallback<T> c) {
+    public <T> void delete(final T o, final String collection, AsyncOperationCallback<T> c) {
         if (c == null) {
             c = new AsyncOpAdapter<T>();
         }
@@ -319,7 +319,7 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter {
         addToWriteQueue(o.getClass(), new Runnable() {
             @Override
             public void run() {
-                directWriter.delete(o, callback);
+                directWriter.delete(o, collection, callback);
             }
         });
     }
@@ -370,7 +370,7 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter {
     }
 
     @Override
-    public <T> void unset(final T toSet, final String field, AsyncOperationCallback<T> c) {
+    public <T> void unset(final T toSet, final String collection, final String field, AsyncOperationCallback<T> c) {
         if (c == null) {
             c = new AsyncOpAdapter<T>();
         }
@@ -379,13 +379,13 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter {
         addToWriteQueue(toSet.getClass(), new Runnable() {
             @Override
             public void run() {
-                directWriter.unset(toSet, field, callback);
+                directWriter.unset(toSet, collection, field, callback);
             }
         });
     }
 
     @Override
-    public <T> void dropCollection(final Class<T> cls, AsyncOperationCallback<T> c) {
+    public <T> void dropCollection(final Class<T> cls, final String collection, AsyncOperationCallback<T> c) {
         if (c == null) {
             c = new AsyncOpAdapter<T>();
         }
@@ -394,13 +394,13 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter {
         addToWriteQueue(cls, new Runnable() {
             @Override
             public void run() {
-                directWriter.dropCollection(cls, callback);
+                directWriter.dropCollection(cls, collection, callback);
             }
         });
     }
 
     @Override
-    public <T> void ensureIndex(final Class<T> cls, final Map<String, Object> index, AsyncOperationCallback<T> c) {
+    public <T> void ensureIndex(final Class<T> cls, final String collection, final Map<String, Object> index, AsyncOperationCallback<T> c) {
         if (c == null) {
             c = new AsyncOpAdapter<T>();
         }
@@ -409,7 +409,7 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter {
         addToWriteQueue(cls, new Runnable() {
             @Override
             public void run() {
-                directWriter.ensureIndex(cls, index, callback);
+                directWriter.ensureIndex(cls, collection, index, callback);
             }
         });
     }

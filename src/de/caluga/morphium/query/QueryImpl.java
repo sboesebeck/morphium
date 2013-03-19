@@ -38,6 +38,7 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
     private static Logger log = Logger.getLogger(Query.class);
     private AnnotationAndReflectionHelper annotationHelper = new AnnotationAndReflectionHelper();
     private ThreadPoolExecutor executor;
+    private String collectionName;
 
     public QueryImpl() {
 
@@ -141,12 +142,12 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
 
     @Override
     public List<T> complexQuery(DBObject query, Map<String, Integer> sort, int skip, int limit) {
-        String ck = morphium.getCache().getCacheKey(query, sort, skip, limit);
+        String ck = morphium.getCache().getCacheKey(query, sort, getCollectionName(), skip, limit);
         if (morphium.getCache().isCached(type, ck)) {
             return morphium.getCache().getFromCache(type, ck);
         }
         long start = System.currentTimeMillis();
-        DBCollection c = morphium.getDatabase().getCollection(morphium.getMapper().getCollectionName(type));
+        DBCollection c = morphium.getDatabase().getCollection(getCollectionName());
         setReadPreferenceFor(c);
         List<Field> fldlst = annotationHelper.getAllFields(type);
         BasicDBObject lst = new BasicDBObject();
@@ -376,7 +377,7 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
         morphium.inc(StatisticKeys.READS);
         long start = System.currentTimeMillis();
 
-        DBCollection collection = morphium.getDatabase().getCollection(morphium.getMapper().getCollectionName(type));
+        DBCollection collection = morphium.getDatabase().getCollection(getCollectionName());
         setReadPreferenceFor(collection);
         long ret = collection.count(toQueryObject());
         morphium.fireProfilingReadEvent(QueryImpl.this, System.currentTimeMillis() - start, ReadAccessType.COUNT);
@@ -499,7 +500,7 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
 
         }
         long start = System.currentTimeMillis();
-        DBCollection collection = morphium.getDatabase().getCollection(morphium.getMapper().getCollectionName(type));
+        DBCollection collection = morphium.getDatabase().getCollection(getCollectionName());
         setReadPreferenceFor(collection);
 
         List<Field> fldlst = annotationHelper.getAllFields(type);
@@ -667,7 +668,7 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
             morphium.inc(StatisticKeys.NO_CACHED_READS);
         }
         long start = System.currentTimeMillis();
-        DBCollection coll = morphium.getDatabase().getCollection(morphium.getMapper().getCollectionName(type));
+        DBCollection coll = morphium.getDatabase().getCollection(getCollectionName());
         setReadPreferenceFor(coll);
         List<Field> fldlst = annotationHelper.getAllFields(type);
         BasicDBObject fl = new BasicDBObject();
@@ -761,7 +762,7 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
             morphium.inc(StatisticKeys.NO_CACHED_READS);
         }
         long start = System.currentTimeMillis();
-        DBCollection collection = morphium.getDatabase().getCollection(morphium.getMapper().getCollectionName(type));
+        DBCollection collection = morphium.getDatabase().getCollection(getCollectionName());
         setReadPreferenceFor(collection);
         DBCursor query = collection.find(toQueryObject(), new BasicDBObject("_id", 1)); //only get IDs
         if (sort != null) {
@@ -826,5 +827,18 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
     @Override
     public int getNumberOfPendingRequests() {
         return getExecutor().getActiveCount();
+    }
+
+    @Override
+    public String getCollectionName() {
+        if (collectionName == null) {
+            collectionName = morphium.getMapper().getCollectionName(type);
+        }
+        return collectionName;
+    }
+
+    @Override
+    public void setCollectionName(String n) {
+        collectionName = n;
     }
 }
