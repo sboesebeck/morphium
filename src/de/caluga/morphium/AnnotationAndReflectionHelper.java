@@ -1,6 +1,7 @@
 package de.caluga.morphium;
 
 import de.caluga.morphium.annotations.*;
+import de.caluga.morphium.annotations.caching.AsyncWrites;
 import de.caluga.morphium.annotations.caching.WriteBuffer;
 import de.caluga.morphium.annotations.lifecycle.Lifecycle;
 import org.apache.log4j.Logger;
@@ -745,4 +746,8 @@ public class AnnotationAndReflectionHelper {
         }
     }
 
+    public boolean isAsyncWrite(Class<?> cls) {
+        AsyncWrites wb = getAnnotationFromHierarchy(cls, AsyncWrites.class);
+        return wb != null && wb.value();
+    }
 }

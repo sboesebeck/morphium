@@ -33,6 +33,11 @@ public @interface WriteBuffer {
 
     boolean value() default true;
 
+    /**
+     * max size of write Buffer entries,0 means unlimited. STRATEGY is meaningless then
+     *
+     * @return
+     */
     int size() default 0; //max size of write Buffer entries,0 means unlimited. STRATEGY is meaningless then
 
     /**

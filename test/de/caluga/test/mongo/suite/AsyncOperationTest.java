@@ -1,6 +1,7 @@
 package de.caluga.test.mongo.suite;
 
 import de.caluga.morphium.MorphiumSingleton;
+import de.caluga.morphium.annotations.caching.AsyncWrites;
 import de.caluga.morphium.async.AsyncOperationCallback;
 import de.caluga.morphium.async.AsyncOperationType;
 import de.caluga.morphium.query.Query;
@@ -123,5 +124,26 @@ public class AsyncOperationTest extends MongoTest {
             Thread.sleep(1000);
         }
         assert (asyncCall);
+    }
+
+    @Test
+    public void testAsyncWriter() throws Exception {
+        MorphiumSingleton.get().clearCollection(AsyncObject.class);
+        long start = System.currentTimeMillis();
+        for (int i = 0; i < 1000; i++) {
+            AsyncObject ao = new AsyncObject();
+            ao.setCounter(i);
+            ao.setValue("Async write");
+            MorphiumSingleton.get().store(ao);
+        }
+
+        long end = System.currentTimeMillis();
+        assert (end - start < 2000);
+    }
+
+
+    @AsyncWrites
+    public static class AsyncObject extends UncachedObject {
+
     }
 }
