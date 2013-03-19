@@ -264,8 +264,13 @@ public final class Morphium implements MorphiumWriter {
         unset(toSet, field, null);
     }
 
-    @Override
     public <T> void unset(final T toSet, final String field, final AsyncOperationCallback<T> callback) {
+        unset(toSet, getMapper().getCollectionName(toSet.getClass()), callback);
+    }
+
+
+    @Override
+    public <T> void unset(final T toSet, String collection, final String field, final AsyncOperationCallback<T> callback) {
         if (toSet == null) throw new RuntimeException("Cannot update null!");
 
         firePreUpdateEvent(toSet.getClass(), MorphiumStorageListener.UpdateTypes.UNSET);
@@ -274,7 +279,7 @@ public final class Morphium implements MorphiumWriter {
         if (annotationHelper.isBufferedWrite(toSet.getClass())) {
             config.getBufferedWriter();
         }
-        wr.unset(toSet, field, callback);
+        wr.unset(toSet, collection, field, callback);
     }
 
     /**
@@ -570,6 +575,11 @@ public final class Morphium implements MorphiumWriter {
     }
 
     public <T> void set(final T toSet, final String field, final Object value, boolean insertIfNotExists, boolean multiple, AsyncOperationCallback<T> callback) {
+        set(toSet, getMapper().getCollectionName(toSet.getClass()), field, value, insertIfNotExists, multiple, callback);
+    }
+
+    @Override
+    public <T> void set(final T toSet, String collection, final String field, final Object value, boolean insertIfNotExists, boolean multiple, AsyncOperationCallback<T> callback) {
         if (toSet == null) throw new RuntimeException("Cannot update null!");
 
         if (getId(toSet) == null) {
@@ -578,7 +588,7 @@ public final class Morphium implements MorphiumWriter {
             return;
         }
         annotationHelper.callLifecycleMethod(PreUpdate.class, toSet);
-        getWriterForClass(toSet.getClass()).set(toSet, field, value, insertIfNotExists, multiple, callback);
+        getWriterForClass(toSet.getClass()).set(toSet, collection, field, value, insertIfNotExists, multiple, callback);
         annotationHelper.callLifecycleMethod(PostUpdate.class, toSet);
     }
 
@@ -611,6 +621,10 @@ public final class Morphium implements MorphiumWriter {
     }
 
     public <T> void inc(final T toSet, final String field, final int i, final AsyncOperationCallback<T> callback) {
+        inc(toSet, getMapper().getCollectionName(toSet.getClass()), field, i, callback);
+    }
+
+    public <T> void inc(final T toSet, String collection, final String field, final int i, final AsyncOperationCallback<T> callback) {
         if (toSet == null) throw new RuntimeException("Cannot update null!");
 
         if (getId(toSet) == null) {
@@ -618,7 +632,7 @@ public final class Morphium implements MorphiumWriter {
             store(toSet);
             return;
         }
-        getWriterForClass(toSet.getClass()).inc(toSet, field, i, callback);
+        getWriterForClass(toSet.getClass()).inc(toSet, collection, field, i, callback);
     }
 
     @Override
@@ -663,15 +677,20 @@ public final class Morphium implements MorphiumWriter {
     }
 
     public <T> void updateUsingFields(final T ent, AsyncOperationCallback<T> callback, final String... fields) {
+        updateUsingFields(ent, getMapper().getCollectionName(ent.getClass()), callback, fields);
+    }
+
+    @Override
+    public <T> void updateUsingFields(final T ent, String collection, AsyncOperationCallback<T> callback, final String... fields) {
         if (ent == null) return;
         if (fields.length == 0) return; //not doing an update - no change
 
         if (annotationHelper.isAnnotationPresentInHierarchy(ent.getClass(), NoCache.class)) {
-            config.getWriter().updateUsingFields(ent, null, fields);
+            config.getWriter().updateUsingFields(ent, collection, null, fields);
             return;
         }
 
-        getWriterForClass(ent.getClass()).updateUsingFields(ent, null, fields);
+        getWriterForClass(ent.getClass()).updateUsingFields(ent, collection, null, fields);
     }
 
 
@@ -1184,8 +1203,12 @@ public final class Morphium implements MorphiumWriter {
         storeNoCache(lst, null);
     }
 
-    public <T> void storeNoCache(T lst, AsyncOperationCallback<T> callback) {
-        config.getWriter().store(lst, callback);
+    public <T> void storeNoCache(T o, AsyncOperationCallback<T> callback) {
+        storeNoCache(o, getMapper().getCollectionName(o.getClass()), callback);
+    }
+
+    public <T> void storeNoCache(T o, String collection, AsyncOperationCallback<T> callback) {
+        config.getWriter().store(o, collection, callback);
     }
 
     public <T> void storeInBackground(final T lst) {
@@ -1193,8 +1216,12 @@ public final class Morphium implements MorphiumWriter {
     }
 
     public <T> void storeInBackground(final T lst, final AsyncOperationCallback<T> callback) {
+        storeInBackground(lst, getMapper().getCollectionName(lst.getClass()), callback);
+    }
 
-        config.getBufferedWriter().store(lst, callback);
+    public <T> void storeInBackground(final T lst, String collection, final AsyncOperationCallback<T> callback) {
+
+        config.getBufferedWriter().store(lst, collection, callback);
     }
 
 
@@ -1203,15 +1230,23 @@ public final class Morphium implements MorphiumWriter {
     }
 
     public <T> void dropCollection(Class<T> cls, AsyncOperationCallback<T> callback) {
-        getWriterForClass(cls).dropCollection(cls, callback);
+        dropCollection(cls, getMapper().getCollectionName(cls), callback);
+    }
+
+    public <T> void dropCollection(Class<T> cls, String collection, AsyncOperationCallback<T> callback) {
+        getWriterForClass(cls).dropCollection(cls, collection, callback);
     }
 
     public void dropCollection(Class<?> cls) {
-        getWriterForClass(cls).dropCollection(cls, null);
+        getWriterForClass(cls).dropCollection(cls, getMapper().getCollectionName(cls), null);
     }
 
     public <T> void ensureIndex(Class<T> cls, Map<String, Object> index, AsyncOperationCallback<T> callback) {
-        getWriterForClass(cls).ensureIndex(cls, index, callback);
+        ensureIndex(cls, getMapper().getCollectionName(cls), index, callback);
+    }
+
+    public <T> void ensureIndex(Class<T> cls, String collection, Map<String, Object> index, AsyncOperationCallback<T> callback) {
+        getWriterForClass(cls).ensureIndex(cls, collection, index, callback);
     }
 
     @Override
@@ -1219,8 +1254,13 @@ public final class Morphium implements MorphiumWriter {
         return config.getWriter().writeBufferCount() + config.getBufferedWriter().writeBufferCount();
     }
 
+
     public void ensureIndex(Class<?> cls, Map<String, Object> index) {
-        getWriterForClass(cls).ensureIndex(cls, index, null);
+        getWriterForClass(cls).ensureIndex(cls, getMapper().getCollectionName(cls), index, null);
+    }
+
+    public void ensureIndex(Class<?> cls, String collection, Map<String, Object> index) {
+        getWriterForClass(cls).ensureIndex(cls, collection, index, null);
     }
 
     /**
@@ -1232,15 +1272,23 @@ public final class Morphium implements MorphiumWriter {
      * @param fldStr - fields
      */
     public <T> void ensureIndex(Class<T> cls, AsyncOperationCallback<T> callback, Enum... fldStr) {
+        ensureIndex(cls, getMapper().getCollectionName(cls), callback, fldStr);
+    }
+
+    public <T> void ensureIndex(Class<T> cls, String collection, AsyncOperationCallback<T> callback, Enum... fldStr) {
         Map<String, Object> m = new LinkedHashMap<String, Object>();
         for (Enum e : fldStr) {
             String f = e.name();
             m.put(f, 1);
         }
-        getWriterForClass(cls).ensureIndex(cls, m, callback);
+        getWriterForClass(cls).ensureIndex(cls, collection, m, callback);
     }
 
     public <T> void ensureIndex(Class<T> cls, AsyncOperationCallback<T> callback, String... fldStr) {
+        ensureIndex(cls, getMapper().getCollectionName(cls), callback, fldStr);
+    }
+
+    public <T> void ensureIndex(Class<T> cls, String collection, AsyncOperationCallback<T> callback, String... fldStr) {
         Map<String, Object> m = new LinkedHashMap<String, Object>();
         for (String f : fldStr) {
             int idx = 1;
@@ -1258,7 +1306,7 @@ public final class Morphium implements MorphiumWriter {
                 m.put(f, idx);
             }
         }
-        getWriterForClass(cls).ensureIndex(cls, m, callback);
+        getWriterForClass(cls).ensureIndex(cls, collection, m, callback);
     }
 
     public void ensureIndex(Class<?> cls, String... fldStr) {
@@ -1281,11 +1329,15 @@ public final class Morphium implements MorphiumWriter {
     }
 
     public <T> void store(T o, final AsyncOperationCallback<T> callback) {
+        store(o, getMapper().getCollectionName(o.getClass()), callback);
+    }
+
+    public <T> void store(T o, String collection, final AsyncOperationCallback<T> callback) {
         if (o instanceof List) {
             throw new RuntimeException("Lists need to be stored with storeList");
         }
 
-        getWriterForClass(o.getClass()).store(o, callback);
+        getWriterForClass(o.getClass()).store(o, collection, callback);
     }
 
     @Override
@@ -1344,11 +1396,24 @@ public final class Morphium implements MorphiumWriter {
      * @param o - entity
      */
     public void delete(Object o) {
-        getWriterForClass(o.getClass()).delete(o, null);
+        delete(o, getMapper().getCollectionName(o.getClass()));
     }
 
+    public void delete(Object o, String collection) {
+        getWriterForClass(o.getClass()).delete(o, collection, null);
+    }
+
+
     public <T> void delete(final T lo, final AsyncOperationCallback<T> callback) {
-        getWriterForClass(lo.getClass()).delete(lo, callback);
+        if (lo instanceof Query) {
+            delete((Query) lo, callback);
+            return;
+        }
+        getWriterForClass(lo.getClass()).delete(lo, getMapper().getCollectionName(lo.getClass()), callback);
+    }
+
+    public <T> void delete(final T lo, String collection, final AsyncOperationCallback<T> callback) {
+        getWriterForClass(lo.getClass()).delete(lo, collection, callback);
     }
 
 

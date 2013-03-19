@@ -36,7 +36,7 @@ public class MorphiumCacheImpl implements MorphiumCache {
      * adds some list of objects to the cache manually...
      * is being used internally, and should be used with care
      *
-     * @param k    - Key, usually the mongodb query string
+     * @param k    - Key, usually the mongodb query string - should be created by createCacheKey
      * @param type - class type
      * @param ret  - list of results
      * @param <T>  - Type of record
@@ -135,9 +135,10 @@ public class MorphiumCacheImpl implements MorphiumCache {
 
     @SuppressWarnings("StringBufferMayBeStringBuilder")
     @Override
-    public String getCacheKey(DBObject qo, Map<String, Integer> sort, int skip, int limit) {
+    public String getCacheKey(DBObject qo, Map<String, Integer> sort, String collection, int skip, int limit) {
         StringBuffer b = new StringBuffer();
         b.append(qo.toString());
+        b.append(" c:" + collection);
         b.append(" l:");
         b.append(limit);
         b.append(" s:");
@@ -157,7 +158,7 @@ public class MorphiumCacheImpl implements MorphiumCache {
      */
     @Override
     public String getCacheKey(Query q) {
-        return getCacheKey(q.toQueryObject(), q.getSort(), q.getSkip(), q.getLimit());
+        return getCacheKey(q.toQueryObject(), q.getSort(), q.getCollectionName(), q.getSkip(), q.getLimit());
     }
 
 

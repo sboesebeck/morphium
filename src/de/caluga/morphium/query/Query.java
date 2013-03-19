@@ -246,4 +246,12 @@ public interface Query<T> extends Cloneable {
 
     public int getNumberOfPendingRequests();
 
+    /**
+     * use a different collection name for the query
+     *
+     * @param n
+     */
+    public void setCollectionName(String n);
+
+    String getCollectionName();
 }
