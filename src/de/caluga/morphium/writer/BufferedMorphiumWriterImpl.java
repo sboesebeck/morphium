@@ -399,8 +399,12 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter {
         });
     }
 
-    @Override
     public <T> void ensureIndex(final Class<T> cls, final String collection, final Map<String, Object> index, AsyncOperationCallback<T> c) {
+        ensureIndex(cls, collection, index, null, c);
+    }
+
+    @Override
+    public <T> void ensureIndex(final Class<T> cls, final String collection, final Map<String, Object> index, final Map<String, Object> options, AsyncOperationCallback<T> c) {
         if (c == null) {
             c = new AsyncOpAdapter<T>();
         }
@@ -409,7 +413,7 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter {
         addToWriteQueue(cls, new Runnable() {
             @Override
             public void run() {
-                directWriter.ensureIndex(cls, collection, index, callback);
+                directWriter.ensureIndex(cls, collection, index, options, callback);
             }
         });
     }

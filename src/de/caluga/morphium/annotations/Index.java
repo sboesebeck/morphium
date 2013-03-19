@@ -32,6 +32,7 @@ import java.lang.annotation.Target;
  * }
  * </code>
  * As usual in Morphium, these strings can either be the variable name or the name of the field in MongoDB, or an alias
+ * Support for geosphatial indices: http://docs.mongodb.org/manual/applications/2d/
  */
 @Target({ElementType.TYPE, ElementType.FIELD})
 @Retention(RetentionPolicy.RUNTIME)
@@ -39,4 +40,6 @@ public @interface Index {
     boolean decrement() default false;
 
     String[] value() default {};
+
+    String[] options() default {};
 }
