@@ -18,7 +18,7 @@ public class WhereTest extends MongoTest {
         super.createUncachedObjects(100);
 
         Query<UncachedObject> q = MorphiumSingleton.get().createQueryFor(UncachedObject.class);
-        q = q.where("rs.slaveOk(); db.uncached_object.count({count:{$lt:10}}) > 0 && db.uncached_object.find({ _id: this._id }).count()>0");
+        q = q.where("this.count > 0");
         q.setReadPreferenceLevel(ReadPreferenceLevel.NEAREST);
         q.get();
 
