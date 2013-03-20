@@ -33,8 +33,22 @@ public class Messaging extends Thread {
 
     private volatile Vector<Msg> writeBuffer = new Vector<Msg>();
     private final ScheduledThreadPoolExecutor writer;
+    private String queueName;
 
+    /**
+     * attaches to the default queue named "msg"
+     *
+     * @param m               - morphium
+     * @param pause           - pause between checks
+     * @param processMultiple - process multiple messages at once, if false, only ony by one
+     */
     public Messaging(Morphium m, int pause, boolean processMultiple) {
+        this(m, null, pause, processMultiple);
+    }
+
+
+    public Messaging(Morphium m, String queueName, int pause, boolean processMultiple) {
+        this.queueName = queueName;
         morphium = m;
         running = true;
         this.pause = pause;
@@ -70,10 +84,11 @@ public class Messaging extends Thread {
 
             try {
                 Query<Msg> q = morphium.createQueryFor(Msg.class);
+                q.setCollectionName(getCollectionName());
                 //removing all outdated stuff
                 q = q.where("this.ttl<" + System.currentTimeMillis() + "-this.timestamp");
                 if (log.isDebugEnabled() && q.countAll() > 0) {
-                    log.info("Deleting outdate messages: " + q.countAll());
+                    log.debug("Deleting outdate messages: " + q.countAll());
                 }
                 morphium.delete(q);
                 q = q.q();
@@ -93,7 +108,7 @@ public class Messaging extends Thread {
                 List<Msg> toStore = new ArrayList<Msg>();
 
                 for (Msg msg : messagesList) {
-                    msg = morphium.reread(msg); //make sure it's current version in DB
+                    msg = morphium.reread(msg, getCollectionName()); //make sure it's current version in DB
                     if (msg == null) continue; //was deleted
                     if (!msg.getLockedBy().equals(id) && !msg.getLockedBy().equals("ALL")) {
                         //over-locked by someone else
@@ -101,8 +116,8 @@ public class Messaging extends Thread {
                     }
                     if (msg.getTtl() < System.currentTimeMillis() - msg.getTimestamp()) {
                         //Delete outdated msg!
-                        log.warn("Found outdated message - deleting it!");
-                        morphium.delete(msg);
+                        log.info("Found outdated message - deleting it!");
+                        morphium.delete(msg, getCollectionName());
                         continue;
                     }
                     try {
@@ -134,11 +149,12 @@ public class Messaging extends Thread {
 
                     if (msg.getType().equals(MsgType.SINGLE)) {
                         //removing it
-                        morphium.delete(msg);
+                        morphium.delete(msg, getCollectionName());
                     }
                     //updating it to be processed by others...
                     if (msg.getLockedBy().equals("ALL")) {
                         Query<Msg> idq = MorphiumSingleton.get().createQueryFor(Msg.class);
+                        idq.setCollectionName(getCollectionName());
                         idq.f(Msg.Fields.msgId).eq(msg.getMsgId());
 
                         MorphiumSingleton.get().push(idq, Msg.Fields.processedBy, id);
@@ -151,7 +167,7 @@ public class Messaging extends Thread {
                     }
 
                 }
-                morphium.storeList(toStore);
+                morphium.storeList(toStore, getCollectionName());
                 while (morphium.getWriteBufferCount() > 0) {
                     Thread.sleep(100);
                 }
@@ -174,6 +190,14 @@ public class Messaging extends Thread {
             listenerByName.clear();
             writer.shutdown();
         }
+    }
+
+    public String getCollectionName() {
+        if (queueName == null || queueName.isEmpty()) {
+            return "msg";
+        }
+        return "mmsg_" + queueName;
+
     }
 
     public void addListenerForMessageNamed(String n, MessageListener l) {
@@ -241,7 +265,7 @@ public class Messaging extends Thread {
         m.addProcessedId(id);
         m.setLockedBy(null);
         m.setLocked(0);
-        morphium.storeNoCache(m);
+        morphium.storeNoCache(m, getCollectionName(), null);
     }
 
     public boolean isAutoAnswer() {

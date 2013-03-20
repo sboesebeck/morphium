@@ -98,6 +98,11 @@ public class Msg {
         return exclusive;
     }
 
+    /**
+     * if true (default) message can only be processed by one system at a time
+     *
+     * @param exclusive
+     */
     public void setExclusive(boolean exclusive) {
         if (!exclusive) lockedBy = "ALL";
         else lockedBy = null;

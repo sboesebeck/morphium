@@ -109,4 +109,8 @@ public interface MorphiumWriter {
     public <T> void ensureIndex(Class<T> cls, String collection, Map<String, Object> index, Map<String, Object> options, AsyncOperationCallback<T> callback);
 
     public int writeBufferCount();
+
+    public <T> void store(List<T> lst, String collectionName, AsyncOperationCallback<T> callback);
+
+    public void flush();
 }

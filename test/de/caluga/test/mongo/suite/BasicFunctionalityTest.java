@@ -358,7 +358,7 @@ public class BasicFunctionalityTest extends MongoTest {
         List<CachedObject> lst = new ArrayList<CachedObject>();
         try {
             MorphiumSingleton.get().store(lst);
-            MorphiumSingleton.get().storeInBackground(lst);
+            MorphiumSingleton.get().storeBuffered(lst);
         } catch (Exception e) {
             log.info("Got exception, good!");
             return;

@@ -290,10 +290,19 @@ public final class Morphium implements MorphiumWriter {
      */
     @SuppressWarnings("unchecked")
     public <T> void ensureIndicesFor(Class<T> type) {
-        ensureIndicesFor(type, null);
+        ensureIndicesFor(type, getMapper().getCollectionName(type), null);
     }
 
+    public <T> void ensureIndicesFor(Class<T> type, String onCollection) {
+        ensureIndicesFor(type, onCollection, null);
+    }
+
+
     public <T> void ensureIndicesFor(Class<T> type, AsyncOperationCallback<T> callback) {
+        ensureIndicesFor(type, getMapper().getCollectionName(type), callback);
+    }
+
+    public <T> void ensureIndicesFor(Class<T> type, String onCollection, AsyncOperationCallback<T> callback) {
         if (annotationHelper.isAnnotationPresentInHierarchy(type, Index.class)) {
             //type must be marked as to be indexed
             List<Annotation> lst = annotationHelper.getAllAnnotationsFromHierachy(type, Index.class);
@@ -312,7 +321,7 @@ public final class Morphium implements MorphiumWriter {
                         if (options != null && options.size() > cnt) {
                             optionsMap = options.get(cnt);
                         }
-                        getWriterForClass(type).ensureIndex(type, getMapper().getCollectionName(type), m, optionsMap, callback);
+                        getWriterForClass(type).ensureIndex(type, onCollection, m, optionsMap, callback);
                     }
                 }
             }
@@ -332,7 +341,7 @@ public final class Morphium implements MorphiumWriter {
                     if (createIndexMapFrom(i.options()) != null) {
                         optionsMap = createIndexMapFrom(i.options()).get(0);
                     }
-                    getWriterForClass(type).ensureIndex(type, getMapper().getCollectionName(type), idx, optionsMap, callback);
+                    getWriterForClass(type).ensureIndex(type, onCollection, idx, optionsMap, callback);
                 }
             }
         }
@@ -731,12 +740,16 @@ public final class Morphium implements MorphiumWriter {
      * @return -  entity
      */
     public <T> T reread(T o) {
+        return reread(o, objectMapper.getCollectionName(o.getClass()));
+    }
+
+    public <T> T reread(T o, String collection) {
         if (o == null) throw new RuntimeException("Cannot re read null!");
         ObjectId id = getId(o);
         if (id == null) {
             return null;
         }
-        DBCollection col = database.getCollection(objectMapper.getCollectionName(o.getClass()));
+        DBCollection col = database.getCollection(collection);
         BasicDBObject srch = new BasicDBObject("_id", id);
         DBCursor crs = col.find(srch).limit(1);
         if (crs.hasNext()) {
@@ -1220,28 +1233,37 @@ public final class Morphium implements MorphiumWriter {
     }
 
     public <T> void storeNoCache(T lst) {
-        storeNoCache(lst, null);
+        storeNoCache(lst, getMapper().getCollectionName(lst.getClass()), null);
     }
 
     public <T> void storeNoCache(T o, AsyncOperationCallback<T> callback) {
         storeNoCache(o, getMapper().getCollectionName(o.getClass()), callback);
     }
 
+    public <T> void storeNoCache(T o, String collection) {
+        storeNoCache(o, collection, null);
+    }
+
     public <T> void storeNoCache(T o, String collection, AsyncOperationCallback<T> callback) {
         config.getWriter().store(o, collection, callback);
     }
 
-    public <T> void storeInBackground(final T lst) {
-        storeInBackground(lst, null);
+    public <T> void storeBuffered(final T lst) {
+        storeBuffered(lst, null);
     }
 
-    public <T> void storeInBackground(final T lst, final AsyncOperationCallback<T> callback) {
-        storeInBackground(lst, getMapper().getCollectionName(lst.getClass()), callback);
+    public <T> void storeBuffered(final T lst, final AsyncOperationCallback<T> callback) {
+        storeBuffered(lst, getMapper().getCollectionName(lst.getClass()), callback);
     }
 
-    public <T> void storeInBackground(final T lst, String collection, final AsyncOperationCallback<T> callback) {
+    public <T> void storeBuffered(final T lst, String collection, final AsyncOperationCallback<T> callback) {
 
         config.getBufferedWriter().store(lst, collection, callback);
+    }
+
+    public void flush() {
+        config.getBufferedWriter().flush();
+        config.getWriter().flush();
     }
 
 
@@ -1276,6 +1298,12 @@ public final class Morphium implements MorphiumWriter {
     @Override
     public int writeBufferCount() {
         return config.getWriter().writeBufferCount() + config.getBufferedWriter().writeBufferCount();
+    }
+
+    @Override
+    public <T> void store(List<T> lst, String collectionName, AsyncOperationCallback<T> callback) {
+        if (lst == null || lst.size() == 0) return;
+        getWriterForClass(lst.get(0).getClass()).store(lst, collectionName, callback);
     }
 
 
@@ -1385,8 +1413,29 @@ public final class Morphium implements MorphiumWriter {
     }
 
 
+    /**
+     * stores all elements of this list to the given collection
+     *
+     * @param lst        - list of objects to store
+     * @param collection - collection name to use
+     * @param <T>        - type of entity
+     */
+    public <T> void storeList(List<T> lst, String collection) {
+
+    }
+
+    public <T> void storeList(List<T> lst, String collection, AsyncOperationCallback<T> callback) {
+
+    }
+
+    /**
+     * sorts elements in this list, whether to store in background or directly
+     *
+     * @param lst - all objects are sorted whether to store in BG or direclty. All objects are stored in their corresponding collection
+     * @param <T>
+     */
     public <T> void storeList(List<T> lst) {
-        storeList(lst, null);
+        storeList(lst, (AsyncOperationCallback<T>) null);
     }
 
     public <T> void storeList(List<T> lst, final AsyncOperationCallback<T> callback) {

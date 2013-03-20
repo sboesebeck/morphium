@@ -230,6 +230,58 @@ public class MorphiumWriterImpl implements MorphiumWriter {
     }
 
     @Override
+    public <T> void store(final List<T> lst, String collectionName, final AsyncOperationCallback<T> callback) {
+        if (lst == null || lst.size() == 0) return;
+        if (!morphium.getDatabase().collectionExists(collectionName)) {
+            logger.warn("collection does not exist while storing list -  taking first element of list to ensure indices");
+            morphium.ensureIndicesFor((Class<T>) lst.get(0).getClass(), collectionName, callback);
+        }
+        ArrayList<DBObject> dbLst = new ArrayList<DBObject>();
+        DBCollection collection = morphium.getDatabase().getCollection(collectionName);
+        WriteConcern wc = morphium.getWriteConcernForClass(lst.get(0).getClass());
+        HashMap<Object, Boolean> isNew = new HashMap<Object, Boolean>();
+        for (Object record : lst) {
+            DBObject marshall = morphium.getMapper().marshall(record);
+            isNew.put(record, annotationHelper.getId(record) == null);
+            if (isNew.get(record)) {
+                dbLst.add(marshall);
+            } else {
+                //single update
+                long start = System.currentTimeMillis();
+                if (wc == null) {
+                    collection.save(marshall);
+                } else {
+                    collection.save(marshall, wc);
+                }
+                long dur = System.currentTimeMillis() - start;
+                morphium.fireProfilingWriteEvent(lst.get(0).getClass(), marshall, dur, false, WriteAccessType.SINGLE_INSERT);
+                morphium.firePostStoreEvent(record, isNew.get(record));
+            }
+
+        }
+        long start = System.currentTimeMillis();
+
+        if (wc == null) {
+            collection.insert(dbLst);
+        } else {
+            collection.insert(dbLst, wc);
+        }
+        long dur = System.currentTimeMillis() - start;
+        //bulk insert
+        morphium.fireProfilingWriteEvent(lst.get(0).getClass(), dbLst, dur, true, WriteAccessType.BULK_INSERT);
+        for (Object record : lst) {
+            if (isNew.get(record)) {
+                morphium.firePostStoreEvent(record, isNew.get(record));
+            }
+        }
+    }
+
+    @Override
+    public void flush() {
+        //nothing to do
+    }
+
+    @Override
     public <T> void store(final List<T> lst, final AsyncOperationCallback<T> callback) {
         if (!lst.isEmpty()) {
             Runnable r = new Runnable() {
