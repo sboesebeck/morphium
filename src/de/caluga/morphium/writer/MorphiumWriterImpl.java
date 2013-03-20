@@ -1,9 +1,6 @@
 package de.caluga.morphium.writer;
 
-import com.mongodb.BasicDBObject;
-import com.mongodb.DBCollection;
-import com.mongodb.DBObject;
-import com.mongodb.WriteConcern;
+import com.mongodb.*;
 import de.caluga.morphium.*;
 import de.caluga.morphium.annotations.*;
 import de.caluga.morphium.annotations.caching.Cache;
@@ -150,12 +147,17 @@ public class MorphiumWriterImpl implements MorphiumWriter {
                     }
 
                     WriteConcern wc = morphium.getWriteConcernForClass(type);
+                    WriteResult result = null;
                     if (wc != null) {
-                        morphium.getDatabase().getCollection(coll).save(marshall, wc);
+                        result = morphium.getDatabase().getCollection(coll).save(marshall, wc);
                     } else {
 
-                        morphium.getDatabase().getCollection(coll).save(marshall);
+                        result = morphium.getDatabase().getCollection(coll).save(marshall);
                     }
+                    if (!result.getLastError().ok()) {
+                        logger.error("Writing failed: " + result.getLastError().getErrorMessage());
+                    }
+
                     long dur = System.currentTimeMillis() - start;
                     morphium.fireProfilingWriteEvent(o.getClass(), marshall, dur, true, WriteAccessType.SINGLE_INSERT);
 //                    if (logger.isDebugEnabled()) {
@@ -248,10 +250,14 @@ public class MorphiumWriterImpl implements MorphiumWriter {
             } else {
                 //single update
                 long start = System.currentTimeMillis();
+                WriteResult result = null;
                 if (wc == null) {
-                    collection.save(marshall);
+                    result = collection.save(marshall);
                 } else {
-                    collection.save(marshall, wc);
+                    result = collection.save(marshall, wc);
+                }
+                if (!result.getLastError().ok()) {
+                    logger.error("Writing failed: " + result.getLastError().getErrorMessage());
                 }
                 long dur = System.currentTimeMillis() - start;
                 morphium.fireProfilingWriteEvent(lst.get(0).getClass(), marshall, dur, false, WriteAccessType.SINGLE_INSERT);
@@ -341,10 +347,14 @@ public class MorphiumWriterImpl implements MorphiumWriter {
                                 } else {
                                     //single update
                                     long start = System.currentTimeMillis();
+                                    WriteResult result = null;
                                     if (wc == null) {
-                                        collection.save(marshall);
+                                        result = collection.save(marshall);
                                     } else {
-                                        collection.save(marshall, wc);
+                                        result = collection.save(marshall, wc);
+                                    }
+                                    if (!result.getLastError().ok()) {
+                                        logger.error("Writing failed: " + result.getLastError().getErrorMessage());
                                     }
                                     long dur = System.currentTimeMillis() - start;
                                     morphium.fireProfilingWriteEvent(c, marshall, dur, false, WriteAccessType.SINGLE_INSERT);
