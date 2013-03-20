@@ -25,9 +25,64 @@ public class MessagingTest extends MongoTest {
     public boolean gotMessage3 = false;
     public boolean gotMessage4 = false;
 
+    public boolean error = false;
+
     public ObjectId lastMsgId;
 
     public int procCounter = 0;
+
+    @Test
+    public void testMsgQueName() throws Exception {
+        MorphiumSingleton.get().dropCollection(Msg.class);
+        MorphiumSingleton.get().dropCollection(Msg.class, "mmsg_msg2", null);
+
+        Messaging m = new Messaging(MorphiumSingleton.get(), 500, true);
+        m.addMessageListener(new MessageListener() {
+            @Override
+            public Msg onMessage(Messaging msg, Msg m) {
+                gotMessage1 = true;
+                return null;
+            }
+        });
+        m.start();
+
+        Messaging m2 = new Messaging(MorphiumSingleton.get(), "msg2", 500, true);
+        m2.addMessageListener(new MessageListener() {
+            @Override
+            public Msg onMessage(Messaging msg, Msg m) {
+                gotMessage2 = true;
+                return null;
+            }
+        });
+        m2.start();
+
+        Msg msg = new Msg("tst", MsgType.MULTI, "msg", "value", 30000);
+        msg.setExclusive(false);
+        m.storeMessage(msg);
+        Thread.sleep(1);
+        Query<Msg> q = MorphiumSingleton.get().createQueryFor(Msg.class);
+        assert (q.countAll() == 1);
+        q.setCollectionName("mmsg_msg2");
+        assert (q.countAll() == 0);
+
+        msg = new Msg("tst2", MsgType.MULTI, "msg", "value", 30000);
+        msg.setExclusive(false);
+        m2.storeMessage(msg);
+        q = MorphiumSingleton.get().createQueryFor(Msg.class);
+        assert (q.countAll() == 1);
+        q.setCollectionName("mmsg_msg2");
+        assert (q.countAll() == 1) : "Count is " + q.countAll();
+
+        Thread.sleep(4000);
+        assert (!gotMessage1);
+        assert (!gotMessage2);
+        m.setRunning(false);
+        m2.setRunning(false);
+        Thread.sleep(1000);
+        assert (!m.isAlive());
+        assert (!m2.isAlive());
+
+    }
 
     @Test
     public void testMsgLifecycle() throws Exception {
@@ -56,7 +111,7 @@ public class MessagingTest extends MongoTest {
         MorphiumSingleton.get().store(m);
 
         Query<Msg> q = MorphiumSingleton.get().createQueryFor(Msg.class);
-        MorphiumSingleton.get().delete(q);
+//        MorphiumSingleton.get().delete(q);
         //locking messages...
         q = q.f(Msg.Fields.sender).ne(id).f(Msg.Fields.lockedBy).eq(null).f(Msg.Fields.processedBy).ne(id);
         MorphiumSingleton.get().set(q, Msg.Fields.lockedBy, id);
@@ -83,7 +138,7 @@ public class MessagingTest extends MongoTest {
         q.sort(Msg.Fields.timestamp);
 
         messagesList = q.asList();
-        assert (messagesList.size() == 1) : "should get annother id - did not?!?!?!";
+        assert (messagesList.size() == 1) : "should get annother id - did not?!?!?!" + messagesList.size();
 
         log.info("Got msg: " + messagesList.get(0).toString());
 
@@ -92,6 +147,8 @@ public class MessagingTest extends MongoTest {
 
     @Test
     public void messagingTest() throws Exception {
+        error = false;
+
         MorphiumSingleton.get().clearCollection(Msg.class);
 
         final Messaging messaging = new Messaging(MorphiumSingleton.get(), 500, true);
@@ -138,6 +195,8 @@ public class MessagingTest extends MongoTest {
         gotMessage2 = false;
         gotMessage3 = false;
         gotMessage4 = false;
+        error = false;
+
         MorphiumSingleton.get().clearCollection(Msg.class);
         final Messaging m1 = new Messaging(MorphiumSingleton.get(), 500, true);
         final Messaging m2 = new Messaging(MorphiumSingleton.get(), 500, true);
@@ -149,7 +208,10 @@ public class MessagingTest extends MongoTest {
             public Msg onMessage(Messaging msg, Msg m) {
                 gotMessage1 = true;
                 log.info("M1 got message " + m.toString());
-//                assert (m.getSender().equals(m2.getSenderId())) : "Sender is not M2?!?!? m2_id: " + m2.getSenderId() + " - message sender: " + m.getSender();
+                if (!m.getSender().equals(m2.getSenderId())) {
+                    log.error("Sender is not M2?!?!? m2_id: " + m2.getSenderId() + " - message sender: " + m.getSender());
+                    error = true;
+                }
                 return null;
             }
 
@@ -161,7 +223,10 @@ public class MessagingTest extends MongoTest {
             public Msg onMessage(Messaging msg, Msg m) {
                 gotMessage2 = true;
                 log.info("M2 got message " + m.toString());
-//                assert (m.getSender().equals(m1.getSenderId())) : "Sender is not M1?!?!? m1_id: " + m1.getSenderId() + " - message sender: " + m.getSender();
+                if (!m.getSender().equals(m1.getSenderId())) {
+                    log.error("Sender is not M1?!?!? m1_id: " + m1.getSenderId() + " - message sender: " + m.getSender());
+                    error = true;
+                }
                 return null;
             }
 
@@ -176,7 +241,7 @@ public class MessagingTest extends MongoTest {
         Thread.sleep(1000);
         assert (gotMessage1) : "Message not recieved yet?!?!?";
         gotMessage1 = false;
-
+        assert (!error);
         m1.setRunning(false);
         m2.setRunning(false);
         Thread.sleep(1000);
@@ -192,6 +257,8 @@ public class MessagingTest extends MongoTest {
         gotMessage2 = false;
         gotMessage3 = false;
         gotMessage4 = false;
+        error = false;
+
 
         final Messaging m1 = new Messaging(MorphiumSingleton.get(), 100, true);
         final Messaging m2 = new Messaging(MorphiumSingleton.get(), 100, true);
@@ -208,7 +275,6 @@ public class MessagingTest extends MongoTest {
             public Msg onMessage(Messaging msg, Msg m) {
                 gotMessage1 = true;
                 log.info("M1 got message " + m.toString());
-//                assert (m.getSender().equals(m2.getSenderId())) : "Sender is not M2?!?!? m2_id: " + m2.getSenderId() + " - message sender: " + m.getSender();
                 return null;
             }
 
@@ -220,7 +286,6 @@ public class MessagingTest extends MongoTest {
             public Msg onMessage(Messaging msg, Msg m) {
                 gotMessage2 = true;
                 log.info("M2 got message " + m.toString());
-//                assert (m.getSender().equals(m1.getSenderId())) : "Sender is not M1?!?!? m1_id: " + m1.getSenderId() + " - message sender: " + m.getSender();
                 return null;
             }
 
@@ -232,7 +297,6 @@ public class MessagingTest extends MongoTest {
             public Msg onMessage(Messaging msg, Msg m) {
                 gotMessage3 = true;
                 log.info("M3 got message " + m.toString());
-//                assert (m.getSender().equals(m1.getSenderId())) : "Sender is not M1?!?!? m1_id: " + m1.getSenderId() + " - message sender: " + m.getSender();
                 return null;
             }
 
@@ -243,7 +307,6 @@ public class MessagingTest extends MongoTest {
             public Msg onMessage(Messaging msg, Msg m) {
                 gotMessage4 = true;
                 log.info("M4 got message " + m.toString());
-//                assert (m.getSender().equals(m1.getSenderId())) : "Sender is not M1?!?!? m1_id: " + m1.getSenderId() + " - message sender: " + m.getSender();
                 return null;
             }
 
@@ -300,8 +363,11 @@ public class MessagingTest extends MongoTest {
             @Override
             public Msg onMessage(Messaging msg, Msg m) {
                 gotMessage1 = true;
-                assert (m.getTo() == null || m.getTo().contains(m1.getSenderId())) : "wrongly received message?";
-                log.info("M1 got message " + m.toString());
+                if (m.getTo() != null && !m.getTo().contains(m1.getSenderId())) {
+                    log.error("wrongly received message?");
+                    error = true;
+                }
+                log.info("DM-M1 got message " + m.toString());
 //                assert (m.getSender().equals(m2.getSenderId())) : "Sender is not M2?!?!? m2_id: " + m2.getSenderId() + " - message sender: " + m.getSender();
                 return null;
             }
@@ -312,7 +378,7 @@ public class MessagingTest extends MongoTest {
             public Msg onMessage(Messaging msg, Msg m) {
                 gotMessage2 = true;
                 assert (m.getTo() == null || m.getTo().contains(m2.getSenderId())) : "wrongly received message?";
-                log.info("M2 got message " + m.toString());
+                log.info("DM-M2 got message " + m.toString());
 //                assert (m.getSender().equals(m1.getSenderId())) : "Sender is not M1?!?!? m1_id: " + m1.getSenderId() + " - message sender: " + m.getSender();
                 return null;
             }
@@ -324,7 +390,7 @@ public class MessagingTest extends MongoTest {
             public Msg onMessage(Messaging msg, Msg m) {
                 gotMessage3 = true;
                 assert (m.getTo() == null || m.getTo().contains(m3.getSenderId())) : "wrongly received message?";
-                log.info("M3 got message " + m.toString());
+                log.info("DM-M3 got message " + m.toString());
 //                assert (m.getSender().equals(m1.getSenderId())) : "Sender is not M1?!?!? m1_id: " + m1.getSenderId() + " - message sender: " + m.getSender();
                 return null;
             }
@@ -334,34 +400,38 @@ public class MessagingTest extends MongoTest {
         //sending message to all
         log.info("Sending broadcast message");
         m1.storeMessage(new Msg("testmsg1", "The message from M1", "Value"));
-        Thread.sleep(1000);
+        Thread.sleep(3000);
         assert (gotMessage2) : "Message not recieved yet by m2?!?!?";
         assert (gotMessage3) : "Message not recieved yet by m3?!?!?";
+        assert (!error);
         gotMessage1 = false;
         gotMessage2 = false;
         gotMessage3 = false;
+        error = false;
         waitForWrites();
         Thread.sleep(2500);
         assert (!gotMessage1) : "Message recieved again by m1?!?!?";
         assert (!gotMessage2) : "Message recieved again by m2?!?!?";
         assert (!gotMessage3) : "Message recieved again by m3?!?!?";
+        assert (!error);
 
         log.info("Sending direct message");
         Msg m = new Msg("testmsg1", "The message from M1", "Value");
         m.addRecipient(m2.getSenderId());
         m1.storeMessage(m);
-        Thread.sleep(2000);
+        Thread.sleep(1000);
         assert (gotMessage2) : "Message not received by m2?";
         assert (!gotMessage1) : "Message recieved by m1?!?!?";
-        assert (!gotMessage3) : "Message not recieved again by m3?!?!?";
+        assert (!gotMessage3) : "Message  recieved again by m3?!?!?";
         gotMessage1 = false;
         gotMessage2 = false;
         gotMessage3 = false;
-        Thread.sleep(2000);
+        error = false;
+        Thread.sleep(1000);
         assert (!gotMessage1) : "Message recieved again by m1?!?!?";
         assert (!gotMessage2) : "Message not recieved again by m2?!?!?";
         assert (!gotMessage3) : "Message not recieved again by m3?!?!?";
-
+        assert (!error);
 
         log.info("Sending message to 2 recipients");
         log.info("Sending direct message");
@@ -369,18 +439,20 @@ public class MessagingTest extends MongoTest {
         m.addRecipient(m2.getSenderId());
         m.addRecipient(m3.getSenderId());
         m1.storeMessage(m);
-        Thread.sleep(2000);
+        Thread.sleep(1000);
         assert (gotMessage2) : "Message not received by m2?";
         assert (!gotMessage1) : "Message recieved by m1?!?!?";
         assert (gotMessage3) : "Message not recieved by m3?!?!?";
+        assert (!error);
         gotMessage1 = false;
         gotMessage2 = false;
         gotMessage3 = false;
-        Thread.sleep(2000);
+
+        Thread.sleep(1000);
         assert (!gotMessage1) : "Message recieved again by m1?!?!?";
         assert (!gotMessage2) : "Message not recieved again by m2?!?!?";
         assert (!gotMessage3) : "Message not recieved again by m3?!?!?";
-
+        assert (!error);
 
         m1.setRunning(false);
         m2.setRunning(false);
@@ -393,6 +465,7 @@ public class MessagingTest extends MongoTest {
         gotMessage1 = false;
         gotMessage2 = false;
         gotMessage3 = false;
+        error = false;
 
         MorphiumSingleton.get().clearCollection(Msg.class);
         final Messaging m1 = new Messaging(MorphiumSingleton.get(), 100, true);
@@ -411,8 +484,14 @@ public class MessagingTest extends MongoTest {
             @Override
             public Msg onMessage(Messaging msg, Msg m) {
                 gotMessage1 = true;
-                assert (m.getTo() == null || m.getTo().contains(m1.getSenderId())) : "wrongly received message?";
-                assert (m.getInAnswerTo() == null) : "M1 got an answer, but did not ask?";
+                if (m.getTo() != null && !m.getTo().contains(m1.getSenderId())) {
+                    log.error("wrongly received message?");
+                    error = true;
+                }
+                if (m.getInAnswerTo() != null) {
+                    log.error("M1 got an answer, but did not ask?");
+                    error = true;
+                }
                 log.info("M1 got message " + m.toString());
                 Msg answer = m.createAnswerMsg();
                 answer.setValue("This is the answer from m1");
@@ -427,7 +506,10 @@ public class MessagingTest extends MongoTest {
             @Override
             public Msg onMessage(Messaging msg, Msg m) {
                 gotMessage2 = true;
-                assert (m.getTo() == null || m.getTo().contains(m2.getSenderId())) : "wrongly received message?";
+                if (m.getTo() != null && !m.getTo().contains(m2.getSenderId())) {
+                    log.error("wrongly received message?");
+                    error = true;
+                }
                 log.info("M2 got message " + m.toString());
                 assert (m.getInAnswerTo() == null) : "M2 got an answer, but did not ask?";
                 Msg answer = m.createAnswerMsg();
@@ -443,7 +525,11 @@ public class MessagingTest extends MongoTest {
             @Override
             public Msg onMessage(Messaging msg, Msg m) {
                 gotMessage3 = true;
-                assert (m.getTo() == null || m.getTo().contains(onlyAnswers.getSenderId())) : "wrongly received message?";
+                if (m.getTo() != null && !m.getTo().contains(onlyAnswers.getSenderId())) {
+                    log.error("wrongly received message?");
+                    error = true;
+                }
+
                 assert (m.getInAnswerTo() != null) : "was not an answer? " + m.toString();
 
                 log.info("M3 got answer " + m.toString());
@@ -465,10 +551,12 @@ public class MessagingTest extends MongoTest {
         assert (gotMessage3) : "no answer got back?";
         assert (gotMessage1) : "Question not received by m1";
         assert (gotMessage2) : "Question not received by m2";
+        assert (!error);
         gotMessage1 = false;
         gotMessage2 = false;
         gotMessage3 = false;
         Thread.sleep(2000);
+        assert (!error);
 
         assert (!gotMessage3 && !gotMessage1 && !gotMessage2) : "Message processing repeat?";
 
@@ -483,7 +571,7 @@ public class MessagingTest extends MongoTest {
             Thread.sleep(1000);
         }
         assert (cnt == 0) : "Messages not processed yet?!?!?" + cnt;
-
+        assert (!error);
         m1.setRunning(false);
         m2.setRunning(false);
         onlyAnswers.setRunning(false);
@@ -604,6 +692,7 @@ public class MessagingTest extends MongoTest {
         gotMessage2 = false;
         gotMessage3 = false;
         gotMessage4 = false;
+        error = false;
 
         m1.start();
         m2.start();
@@ -617,9 +706,11 @@ public class MessagingTest extends MongoTest {
             @Override
             public Msg onMessage(Messaging msg, Msg m) {
                 gotMessage1 = true;
-                assert (m.getTo() == null || m.getTo().contains(m1.getSenderId())) : "wrongly received message?";
+                if (m.getTo() != null && m.getTo().contains(m1.getSenderId())) {
+                    log.error("wrongly received message m1?");
+                    error = true;
+                }
                 log.info("M1 got message " + m.toString());
-//                assert (m.getSender().equals(m2.getSenderId())) : "Sender is not M2?!?!? m2_id: " + m2.getSenderId() + " - message sender: " + m.getSender();
                 return null;
             }
 
@@ -629,9 +720,11 @@ public class MessagingTest extends MongoTest {
             @Override
             public Msg onMessage(Messaging msg, Msg m) {
                 gotMessage2 = true;
-                assert (m.getTo() == null || m.getTo().contains(m2.getSenderId())) : "wrongly received message?";
+                if (m.getTo() != null && !m.getTo().contains(m2.getSenderId())) {
+                    log.error("wrongly received message m2?");
+                    error = true;
+                }
                 log.info("M2 got message " + m.toString());
-//                assert (m.getSender().equals(m1.getSenderId())) : "Sender is not M1?!?!? m1_id: " + m1.getSenderId() + " - message sender: " + m.getSender();
                 return null;
             }
 
@@ -641,9 +734,11 @@ public class MessagingTest extends MongoTest {
             @Override
             public Msg onMessage(Messaging msg, Msg m) {
                 gotMessage3 = true;
-                assert (m.getTo() == null || m.getTo().contains(m3.getSenderId())) : "wrongly received message?";
+                if (m.getTo() != null && !m.getTo().contains(m3.getSenderId())) {
+                    log.error("wrongly received message m3?");
+                    error = true;
+                }
                 log.info("M3 got message " + m.toString());
-//                assert (m.getSender().equals(m1.getSenderId())) : "Sender is not M1?!?!? m1_id: " + m1.getSenderId() + " - message sender: " + m.getSender();
                 return null;
             }
 
@@ -657,12 +752,14 @@ public class MessagingTest extends MongoTest {
         assert (!gotMessage1) : "Got message again?";
         assert (gotMessage2) : "m2 did not get msg?";
         assert (gotMessage3) : "m3 did not get msg";
+        assert (!error);
         gotMessage2 = false;
         gotMessage3 = false;
         Thread.sleep(1200);
         assert (!gotMessage1) : "Got message again?";
         assert (!gotMessage2) : "m2 did get msg again?";
         assert (!gotMessage3) : "m3 did get msg again?";
+        assert (!error);
 
         m1.setRunning(false);
         m2.setRunning(false);

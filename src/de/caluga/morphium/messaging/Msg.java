@@ -29,8 +29,10 @@ import java.util.Map;
 @WriteSafety(level = SafetyLevel.NORMAL, timeout = 0, waitForJournalCommit = true, waitForSync = true)
 @DefaultReadPreference(ReadPreferenceLevel.PRIMARY)
 @Lifecycle
-@Index({"sender,locked_by,processed_by,to,-timestamp", "locked_by,processed_by,to,timestamp"})
+@Index({"sender,locked_by,processed_by,recipient,-timestamp", "locked_by,processed_by,recipient,timestamp"})
 public class Msg {
+
+
     public static enum Fields {
         processedBy,
         lockedBy,
@@ -38,13 +40,13 @@ public class Msg {
         locked,
         type,
         inAnswerTo,
-        to,
         msg,
         additional,
         value,
         timestamp,
         sender,
-        ttl
+        ttl,
+        recipient
     }
 
     @Index
@@ -58,6 +60,8 @@ public class Msg {
     private MsgType type;
     private long ttl;
     private String sender;
+    private String recipient;
+    @Transient
     private List<String> to;
     private ObjectId inAnswerTo;
     //payload goes here
@@ -98,10 +102,23 @@ public class Msg {
         return exclusive;
     }
 
+    /**
+     * if true (default) message can only be processed by one system at a time
+     *
+     * @param exclusive
+     */
     public void setExclusive(boolean exclusive) {
         if (!exclusive) lockedBy = "ALL";
         else lockedBy = null;
         this.exclusive = exclusive;
+    }
+
+    public String getRecipient() {
+        return recipient;
+    }
+
+    public void setRecipient(String recipient) {
+        this.recipient = recipient;
     }
 
     public void addRecipient(String id) {
@@ -290,7 +307,9 @@ public class Msg {
                 ", timestamp=" + timestamp +
                 ", additional='" + additional + '\'' +
                 ", mapValue='" + mapValue + '\'' +
-                ", recipients='" + to + '\'' +
+                ", recipient='" + recipient + '\'' +
+                ", to_list='" + to + '\'' +
+
                 ", processedBy=" + processedBy +
                 '}';
     }
@@ -330,5 +349,28 @@ public class Msg {
         m.setInAnswerTo(this.msgId);
         m.addRecipient(this.getSender());
         messaging.queueMessage(m);
+    }
+
+    public Msg getCopy() {
+        Msg ret = new Msg();
+        ret.setAdditional(additional);
+        ret.setExclusive(exclusive);
+        ret.setInAnswerTo(inAnswerTo);
+        ret.setLocked(locked);
+        ret.setLockedBy(lockedBy);
+        ret.setName(name);
+        ret.setProcessedBy(processedBy);
+        ret.setSender(sender);
+        ret.setRecipient(recipient);
+        ret.setTimestamp(timestamp);
+        ret.setTtl(ttl);
+        ret.setType(type);
+        ret.setValue(value);
+        ret.setMsg(msg);
+//        ret.setMsgId();
+        ret.setMapValue(mapValue);
+        ret.setTo(to);
+
+        return ret;  //To change body of created methods use File | Settings | File Templates.
     }
 }

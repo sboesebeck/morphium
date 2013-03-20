@@ -98,7 +98,7 @@ public class CacheSyncTest extends MongoTest {
         System.out.println("Stats " + MorphiumSingleton.get().getStatistics().toString());
         assert (MorphiumSingleton.get().getStatistics().get(StatisticKeys.CACHE_ENTRIES.name()) != null) : "Cache entries not set?";
         cs1.sendClearAllMessage("test");
-        Thread.sleep(1500);
+        Thread.sleep(6500);
         if ((MorphiumSingleton.get().getStatistics().get(StatisticKeys.CACHE_ENTRIES.name()) != 0)) {
             throw new AssertionError("Cache entries set? Entries: " + MorphiumSingleton.get().getStatistics().get(StatisticKeys.CACHE_ENTRIES.name()));
         }
@@ -111,12 +111,17 @@ public class CacheSyncTest extends MongoTest {
     @Test
     public void idCacheTest() throws Exception {
         MorphiumSingleton.get().dropCollection(IdCachedObject.class);
+        //Making sure, indices are only created once...
+        IdCachedObject o = new IdCachedObject();
+        o.setCounter(0);
+        o.setValue("a value");
+        MorphiumSingleton.get().store(o);
         waitForAsyncOperationToStart(1000000);
         waitForWrites();
         Thread.sleep(2000);
         long start = System.currentTimeMillis();
-        for (int i = 0; i < 100; i++) {
-            IdCachedObject o = new IdCachedObject();
+        for (int i = 1; i < 100; i++) {
+            o = new IdCachedObject();
             o.setCounter(i);
             o.setValue("a value");
             MorphiumSingleton.get().store(o);
@@ -146,7 +151,7 @@ public class CacheSyncTest extends MongoTest {
         CacheSynchronizer cs1 = new CacheSynchronizer(msg1, MorphiumSingleton.get());
         start = System.currentTimeMillis();
         for (int i = 0; i < 100; i++) {
-            IdCachedObject o = new IdCachedObject();
+            o = new IdCachedObject();
             o.setCounter(i);
             o.setValue("a value");
             MorphiumSingleton.get().store(o);
@@ -155,7 +160,7 @@ public class CacheSyncTest extends MongoTest {
         dur = System.currentTimeMillis() - start;
         log.info("Storing with synchronizer: " + dur + " ms");
 
-        Thread.sleep(3000);
+        Thread.sleep(6000);
         start = System.currentTimeMillis();
         for (int i = 0; i < 100; i++) {
             Query<IdCachedObject> q = MorphiumSingleton.get().createQueryFor(IdCachedObject.class);

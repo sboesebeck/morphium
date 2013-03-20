@@ -2,12 +2,12 @@ package de.caluga.morphium.messaging;
 
 import de.caluga.morphium.Morphium;
 import de.caluga.morphium.MorphiumSingleton;
+import de.caluga.morphium.async.AsyncOperationCallback;
+import de.caluga.morphium.async.AsyncOperationType;
 import de.caluga.morphium.query.Query;
 import org.apache.log4j.Logger;
 
 import java.util.*;
-import java.util.concurrent.ScheduledThreadPoolExecutor;
-import java.util.concurrent.TimeUnit;
 
 /**
  * User: Stephan Bösebeck
@@ -31,10 +31,22 @@ public class Messaging extends Thread {
     private List<MessageListener> listeners;
     private Map<String, List<MessageListener>> listenerByName;
 
-    private volatile Vector<Msg> writeBuffer = new Vector<Msg>();
-    private final ScheduledThreadPoolExecutor writer;
+    private String queueName;
 
+    /**
+     * attaches to the default queue named "msg"
+     *
+     * @param m               - morphium
+     * @param pause           - pause between checks
+     * @param processMultiple - process multiple messages at once, if false, only ony by one
+     */
     public Messaging(Morphium m, int pause, boolean processMultiple) {
+        this(m, null, pause, processMultiple);
+    }
+
+
+    public Messaging(Morphium m, String queueName, int pause, boolean processMultiple) {
+        this.queueName = queueName;
         morphium = m;
         running = true;
         this.pause = pause;
@@ -50,15 +62,6 @@ public class Messaging extends Thread {
 
         listeners = new Vector<MessageListener>();
         listenerByName = new Hashtable<String, List<MessageListener>>();
-        writer = new ScheduledThreadPoolExecutor(1);
-        writer.scheduleAtFixedRate(new Runnable() {
-            @Override
-            public void run() {
-                Vector<Msg> wb = writeBuffer;
-                writeBuffer = new Vector<Msg>();
-                morphium.storeList(wb);
-            }
-        }, 500, pause, TimeUnit.MILLISECONDS);
     }
 
     public void run() {
@@ -70,30 +73,31 @@ public class Messaging extends Thread {
 
             try {
                 Query<Msg> q = morphium.createQueryFor(Msg.class);
+                q.setCollectionName(getCollectionName());
                 //removing all outdated stuff
                 q = q.where("this.ttl<" + System.currentTimeMillis() + "-this.timestamp");
                 if (log.isDebugEnabled() && q.countAll() > 0) {
-                    log.info("Deleting outdate messages: " + q.countAll());
+                    log.debug("Deleting outdate messages: " + q.countAll());
                 }
                 morphium.delete(q);
                 q = q.q();
                 //locking messages...
-                q.or(q.q().f(Msg.Fields.sender).ne(id).f(Msg.Fields.lockedBy).eq(null).f(Msg.Fields.processedBy).ne(id).f(Msg.Fields.to).eq(null),
-                        q.q().f(Msg.Fields.sender).ne(id).f(Msg.Fields.lockedBy).eq(null).f(Msg.Fields.processedBy).ne(id).f(Msg.Fields.to).eq(id));
+                q.or(q.q().f(Msg.Fields.sender).ne(id).f(Msg.Fields.lockedBy).eq(null).f(Msg.Fields.processedBy).ne(id).f(Msg.Fields.recipient).eq(null),
+                        q.q().f(Msg.Fields.sender).ne(id).f(Msg.Fields.lockedBy).eq(null).f(Msg.Fields.processedBy).ne(id).f(Msg.Fields.recipient).eq(id));
                 values.put("locked_by", id);
                 values.put("locked", System.currentTimeMillis());
                 morphium.set(q, values, false, processMultiple);
                 q = q.q();
                 q.or(q.q().f(Msg.Fields.lockedBy).eq(id),
-                        q.q().f(Msg.Fields.lockedBy).eq("ALL").f(Msg.Fields.processedBy).ne(id).f(Msg.Fields.to).eq(id),
-                        q.q().f(Msg.Fields.lockedBy).eq("ALL").f(Msg.Fields.processedBy).ne(id).f(Msg.Fields.to).eq(null));
+                        q.q().f(Msg.Fields.lockedBy).eq("ALL").f(Msg.Fields.processedBy).ne(id).f(Msg.Fields.recipient).eq(id),
+                        q.q().f(Msg.Fields.lockedBy).eq("ALL").f(Msg.Fields.processedBy).ne(id).f(Msg.Fields.recipient).eq(null));
                 q.sort(Msg.Fields.timestamp);
 
                 List<Msg> messagesList = q.asList();
                 List<Msg> toStore = new ArrayList<Msg>();
 
                 for (Msg msg : messagesList) {
-                    msg = morphium.reread(msg); //make sure it's current version in DB
+                    msg = morphium.reread(msg, getCollectionName()); //make sure it's current version in DB
                     if (msg == null) continue; //was deleted
                     if (!msg.getLockedBy().equals(id) && !msg.getLockedBy().equals("ALL")) {
                         //over-locked by someone else
@@ -101,8 +105,8 @@ public class Messaging extends Thread {
                     }
                     if (msg.getTtl() < System.currentTimeMillis() - msg.getTimestamp()) {
                         //Delete outdated msg!
-                        log.warn("Found outdated message - deleting it!");
-                        morphium.delete(msg);
+                        log.info("Found outdated message - deleting it!");
+                        morphium.delete(msg, getCollectionName());
                         continue;
                     }
                     try {
@@ -134,11 +138,12 @@ public class Messaging extends Thread {
 
                     if (msg.getType().equals(MsgType.SINGLE)) {
                         //removing it
-                        morphium.delete(msg);
+                        morphium.delete(msg, getCollectionName());
                     }
                     //updating it to be processed by others...
                     if (msg.getLockedBy().equals("ALL")) {
                         Query<Msg> idq = MorphiumSingleton.get().createQueryFor(Msg.class);
+                        idq.setCollectionName(getCollectionName());
                         idq.f(Msg.Fields.msgId).eq(msg.getMsgId());
 
                         MorphiumSingleton.get().push(idq, Msg.Fields.processedBy, id);
@@ -151,7 +156,7 @@ public class Messaging extends Thread {
                     }
 
                 }
-                morphium.storeList(toStore);
+                morphium.storeList(toStore, getCollectionName());
                 while (morphium.getWriteBufferCount() > 0) {
                     Thread.sleep(100);
                 }
@@ -172,8 +177,15 @@ public class Messaging extends Thread {
         if (!running) {
             listeners.clear();
             listenerByName.clear();
-            writer.shutdown();
         }
+    }
+
+    public String getCollectionName() {
+        if (queueName == null || queueName.isEmpty()) {
+            return "msg";
+        }
+        return "mmsg_" + queueName;
+
     }
 
     public void addListenerForMessageNamed(String n, MessageListener l) {
@@ -226,22 +238,39 @@ public class Messaging extends Thread {
     }
 
     public void queueMessage(final Msg m) {
-        if (log.isDebugEnabled()) {
-            log.debug("Queueing message " + m.getMsg());
+        storeMsg(m, true);
+    }
+
+    public void storeMessage(Msg m) {
+        storeMsg(m, false);
+    }
+
+    private void storeMsg(Msg m, boolean async) {
+        AsyncOperationCallback cb = null;
+        if (async) {
+            cb = new AsyncOperationCallback() {
+                @Override
+                public void onOperationSucceeded(AsyncOperationType type, Query q, long duration, List result, Object entity, Object... param) {
+                }
+
+                @Override
+                public void onOperationError(AsyncOperationType type, Query q, long duration, String error, Throwable t, Object entity, Object... param) {
+                }
+            };
         }
         m.setSender(id);
         m.addProcessedId(id);
         m.setLockedBy(null);
         m.setLocked(0);
-        writeBuffer.add(m);
-    }
-
-    public void storeMessage(Msg m) {
-        m.setSender(id);
-        m.addProcessedId(id);
-        m.setLockedBy(null);
-        m.setLocked(0);
-        morphium.storeNoCache(m);
+        if (m.getTo() != null && m.getTo().size() > 0) {
+            for (String recipient : m.getTo()) {
+                Msg msg = m.getCopy();
+                msg.setRecipient(recipient);
+                morphium.storeNoCache(msg, getCollectionName(), cb);
+            }
+        } else {
+            morphium.storeNoCache(m, getCollectionName(), cb);
+        }
     }
 
     public boolean isAutoAnswer() {

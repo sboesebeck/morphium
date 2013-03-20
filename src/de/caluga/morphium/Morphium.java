@@ -79,7 +79,7 @@ public final class Morphium implements MorphiumWriter {
     private Vector<ShutdownListener> shutDownListeners;
 
     private AnnotationAndReflectionHelper annotationHelper = new AnnotationAndReflectionHelper();
-    private MorphiumCache cache;
+    //    private MorphiumCache cache;
     private ObjectMapper objectMapper;
 
     public MorphiumConfig getConfig() {
@@ -156,7 +156,7 @@ public final class Morphium implements MorphiumWriter {
         config.getBufferedWriter().setMorphium(this);
         config.getAsyncWriter().setMorphium(this);
 
-        cache = config.getCache();
+//        cache = config.getCache();
 
         // enable/disable javax.validation support
         if (hasValidationSupport()) {
@@ -289,34 +289,63 @@ public final class Morphium implements MorphiumWriter {
      * @param type type to ensure indices for
      */
     @SuppressWarnings("unchecked")
-    public void ensureIndicesFor(Class type) {
+    public <T> void ensureIndicesFor(Class<T> type) {
+        ensureIndicesFor(type, getMapper().getCollectionName(type), null);
+    }
+
+    public <T> void ensureIndicesFor(Class<T> type, String onCollection) {
+        ensureIndicesFor(type, onCollection, null);
+    }
+
+
+    public <T> void ensureIndicesFor(Class<T> type, AsyncOperationCallback<T> callback) {
+        ensureIndicesFor(type, getMapper().getCollectionName(type), callback);
+    }
+
+    public <T> void ensureIndicesFor(Class<T> type, String onCollection, AsyncOperationCallback<T> callback) {
         if (annotationHelper.isAnnotationPresentInHierarchy(type, Index.class)) {
             //type must be marked as to be indexed
             List<Annotation> lst = annotationHelper.getAllAnnotationsFromHierachy(type, Index.class);
             for (Annotation a : lst) {
                 Index i = (Index) a;
                 if (i.value().length > 0) {
-                    for (String idx : i.value()) {
-                        String[] idxStr = idx.replaceAll(" +", "").split(",");
-                        ensureIndex(type, idxStr);
+                    List<Map<String, Object>> options = null;
+                    if (i.options().length > 0) {
+                        //options set
+                        options = createIndexMapFrom(i.options());
+                    }
+                    List<Map<String, Object>> idx = createIndexMapFrom(i.value());
+                    int cnt = 0;
+                    for (Map<String, Object> m : idx) {
+                        Map<String, Object> optionsMap = null;
+                        if (options != null && options.size() > cnt) {
+                            optionsMap = options.get(cnt);
+                        }
+                        getWriterForClass(type).ensureIndex(type, onCollection, m, optionsMap, callback);
                     }
                 }
             }
 
             List<String> flds = annotationHelper.getFields(type, Index.class);
             if (flds != null && flds.size() > 0) {
+
                 for (String f : flds) {
                     Index i = annotationHelper.getField(type, f).getAnnotation(Index.class);
+                    Map<String, Object> idx = new LinkedHashMap<String, Object>();
                     if (i.decrement()) {
-                        ensureIndex(type, "-" + f);
+                        idx.put(f, -1);
                     } else {
-                        ensureIndex(type, f);
+                        idx.put(f, 1);
                     }
+                    Map<String, Object> optionsMap = null;
+                    if (createIndexMapFrom(i.options()) != null) {
+                        optionsMap = createIndexMapFrom(i.options()).get(0);
+                    }
+                    getWriterForClass(type).ensureIndex(type, onCollection, idx, optionsMap, callback);
                 }
             }
         }
     }
-
 
     public DBObject simplifyQueryObject(DBObject q) {
         if (q.keySet().size() == 1 && q.get("$and") != null) {
@@ -711,12 +740,16 @@ public final class Morphium implements MorphiumWriter {
      * @return -  entity
      */
     public <T> T reread(T o) {
+        return reread(o, objectMapper.getCollectionName(o.getClass()));
+    }
+
+    public <T> T reread(T o, String collection) {
         if (o == null) throw new RuntimeException("Cannot re read null!");
         ObjectId id = getId(o);
         if (id == null) {
             return null;
         }
-        DBCollection col = database.getCollection(objectMapper.getCollectionName(o.getClass()));
+        DBCollection col = database.getCollection(collection);
         BasicDBObject srch = new BasicDBObject("_id", id);
         DBCursor crs = col.find(srch).limit(1);
         if (crs.hasNext()) {
@@ -1051,7 +1084,7 @@ public final class Morphium implements MorphiumWriter {
             delete(r);
         }
 
-        cache.clearCacheIfNecessary(cls);
+        getCache().clearCacheIfNecessary(cls);
 
 
     }
@@ -1147,7 +1180,7 @@ public final class Morphium implements MorphiumWriter {
 
     @SuppressWarnings("unchecked")
     public <T> T findById(Class<? extends T> type, ObjectId id) {
-        T ret = cache.getFromIDCache(type, id);
+        T ret = getCache().getFromIDCache(type, id);
         if (ret != null) return ret;
         List<String> ls = annotationHelper.getFields(type, Id.class);
         if (ls.size() == 0) throw new RuntimeException("Cannot find by ID on non-Entity");
@@ -1196,32 +1229,41 @@ public final class Morphium implements MorphiumWriter {
      * @param cls - class
      */
     public void clearCachefor(Class<?> cls) {
-        cache.clearCachefor(cls);
+        getCache().clearCachefor(cls);
     }
 
     public <T> void storeNoCache(T lst) {
-        storeNoCache(lst, null);
+        storeNoCache(lst, getMapper().getCollectionName(lst.getClass()), null);
     }
 
     public <T> void storeNoCache(T o, AsyncOperationCallback<T> callback) {
         storeNoCache(o, getMapper().getCollectionName(o.getClass()), callback);
     }
 
+    public <T> void storeNoCache(T o, String collection) {
+        storeNoCache(o, collection, null);
+    }
+
     public <T> void storeNoCache(T o, String collection, AsyncOperationCallback<T> callback) {
         config.getWriter().store(o, collection, callback);
     }
 
-    public <T> void storeInBackground(final T lst) {
-        storeInBackground(lst, null);
+    public <T> void storeBuffered(final T lst) {
+        storeBuffered(lst, null);
     }
 
-    public <T> void storeInBackground(final T lst, final AsyncOperationCallback<T> callback) {
-        storeInBackground(lst, getMapper().getCollectionName(lst.getClass()), callback);
+    public <T> void storeBuffered(final T lst, final AsyncOperationCallback<T> callback) {
+        storeBuffered(lst, getMapper().getCollectionName(lst.getClass()), callback);
     }
 
-    public <T> void storeInBackground(final T lst, String collection, final AsyncOperationCallback<T> callback) {
+    public <T> void storeBuffered(final T lst, String collection, final AsyncOperationCallback<T> callback) {
 
         config.getBufferedWriter().store(lst, collection, callback);
+    }
+
+    public void flush() {
+        config.getBufferedWriter().flush();
+        config.getWriter().flush();
     }
 
 
@@ -1245,8 +1287,12 @@ public final class Morphium implements MorphiumWriter {
         ensureIndex(cls, getMapper().getCollectionName(cls), index, callback);
     }
 
+    public <T> void ensureIndex(Class<T> cls, String collection, Map<String, Object> index, Map<String, Object> options, AsyncOperationCallback<T> callback) {
+        getWriterForClass(cls).ensureIndex(cls, collection, index, options, callback);
+    }
+
     public <T> void ensureIndex(Class<T> cls, String collection, Map<String, Object> index, AsyncOperationCallback<T> callback) {
-        getWriterForClass(cls).ensureIndex(cls, collection, index, callback);
+        getWriterForClass(cls).ensureIndex(cls, collection, index, null, callback);
     }
 
     @Override
@@ -1254,13 +1300,23 @@ public final class Morphium implements MorphiumWriter {
         return config.getWriter().writeBufferCount() + config.getBufferedWriter().writeBufferCount();
     }
 
+    @Override
+    public <T> void store(List<T> lst, String collectionName, AsyncOperationCallback<T> callback) {
+        if (lst == null || lst.size() == 0) return;
+        getWriterForClass(lst.get(0).getClass()).store(lst, collectionName, callback);
+    }
+
 
     public void ensureIndex(Class<?> cls, Map<String, Object> index) {
-        getWriterForClass(cls).ensureIndex(cls, getMapper().getCollectionName(cls), index, null);
+        getWriterForClass(cls).ensureIndex(cls, getMapper().getCollectionName(cls), index, null, null);
+    }
+
+    public void ensureIndex(Class<?> cls, String collection, Map<String, Object> index, Map<String, Object> options) {
+        getWriterForClass(cls).ensureIndex(cls, collection, index, options, null);
     }
 
     public void ensureIndex(Class<?> cls, String collection, Map<String, Object> index) {
-        getWriterForClass(cls).ensureIndex(cls, collection, index, null);
+        getWriterForClass(cls).ensureIndex(cls, collection, index, null, null);
     }
 
     /**
@@ -1281,7 +1337,7 @@ public final class Morphium implements MorphiumWriter {
             String f = e.name();
             m.put(f, 1);
         }
-        getWriterForClass(cls).ensureIndex(cls, collection, m, callback);
+        getWriterForClass(cls).ensureIndex(cls, collection, m, null, callback);
     }
 
     public <T> void ensureIndex(Class<T> cls, AsyncOperationCallback<T> callback, String... fldStr) {
@@ -1289,24 +1345,36 @@ public final class Morphium implements MorphiumWriter {
     }
 
     public <T> void ensureIndex(Class<T> cls, String collection, AsyncOperationCallback<T> callback, String... fldStr) {
-        Map<String, Object> m = new LinkedHashMap<String, Object>();
-        for (String f : fldStr) {
-            int idx = 1;
-            if (f.contains(":")) {
-                //explicitly defined index
-                String fs[] = f.split(":");
-                m.put(fs[0], fs[1]);
-            } else {
-                if (f.startsWith("-")) {
-                    idx = -1;
-                    f = f.substring(1);
-                } else if (f.startsWith("+")) {
-                    f = f.substring(1);
-                }
-                m.put(f, idx);
-            }
+        List<Map<String, Object>> m = createIndexMapFrom(fldStr);
+        for (Map<String, Object> idx : m) {
+            getWriterForClass(cls).ensureIndex(cls, collection, idx, null, callback);
         }
-        getWriterForClass(cls).ensureIndex(cls, collection, m, callback);
+    }
+
+    public List<Map<String, Object>> createIndexMapFrom(String[] fldStr) {
+        if (fldStr.length == 0) return null;
+        List<Map<String, Object>> lst = new ArrayList<Map<String, Object>>();
+
+
+        for (String f : fldStr) {
+            Map<String, Object> m = new LinkedHashMap<String, Object>();
+            for (String idx : f.split(",")) {
+                if (idx.contains(":")) {
+                    String i[] = idx.split(":");
+                    m.put(i[0].replaceAll(" ", ""), i[1].replaceAll(" ", ""));
+                } else {
+                    idx = idx.replaceAll(" ", "");
+                    if (idx.startsWith("-")) {
+                        m.put(idx.substring(1), -1);
+                    } else {
+                        idx = idx.replaceAll("^\\+", "").replaceAll(" ", "");
+                        m.put(idx, 1);
+                    }
+                }
+            }
+            lst.add(m);
+        }
+        return lst;
     }
 
     public void ensureIndex(Class<?> cls, String... fldStr) {
@@ -1346,8 +1414,29 @@ public final class Morphium implements MorphiumWriter {
     }
 
 
+    /**
+     * stores all elements of this list to the given collection
+     *
+     * @param lst        - list of objects to store
+     * @param collection - collection name to use
+     * @param <T>        - type of entity
+     */
+    public <T> void storeList(List<T> lst, String collection) {
+
+    }
+
+    public <T> void storeList(List<T> lst, String collection, AsyncOperationCallback<T> callback) {
+
+    }
+
+    /**
+     * sorts elements in this list, whether to store in background or directly
+     *
+     * @param lst - all objects are sorted whether to store in BG or direclty. All objects are stored in their corresponding collection
+     * @param <T>
+     */
     public <T> void storeList(List<T> lst) {
-        storeList(lst, null);
+        storeList(lst, (AsyncOperationCallback<T>) null);
     }
 
     public <T> void storeList(List<T> lst, final AsyncOperationCallback<T> callback) {
