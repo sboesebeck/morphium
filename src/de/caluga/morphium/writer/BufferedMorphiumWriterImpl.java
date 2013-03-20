@@ -52,15 +52,21 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter {
                                     continue;
                                 }
                             }
-                            WriteBuffer wb = annotationHelper.getAnnotationFromHierarchy(clz, WriteBuffer.class);
+                            WriteBuffer w = annotationHelper.getAnnotationFromHierarchy(clz, WriteBuffer.class);
+                            int size = 0;
+                            int timeout = morphium.getConfig().getWriteBufferTime();
+                            WriteBuffer.STRATEGY strategy = WriteBuffer.STRATEGY.JUST_WARN;
+
+                            if (w != null) {
+                                size = w.size();
+                                timeout = w.timeout();
+                                strategy = w.strategy();
+                            }
                             //can't be null
-                            if (wb.timeout() == -1 && wb.size() > 0 && opLog.get(clz).size() < wb.size()) {
+                            if (timeout == -1 && size > 0 && opLog.get(clz).size() < size) {
                                 continue; //wait for buffer to be filled
                             }
-                            long timeout = morphium.getConfig().getWriteBufferTime();
-                            if (wb.timeout() != 0) {
-                                timeout = wb.timeout();
-                            }
+
                             if (lastRun.get(clz) != null && System.currentTimeMillis() - lastRun.get(clz) < timeout) {
                                 //timeout not reached....
                                 continue;
@@ -127,9 +133,18 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter {
             opLog.put(type, new Vector<WriteBufferEntry>());
         }
         WriteBuffer w = annotationHelper.getAnnotationFromHierarchy(type, WriteBuffer.class);
-        if (w.size() > 0 && opLog.get(type).size() > w.size()) {
-            logger.warn("WARNING: Write buffer maximum exceeded: " + opLog.get(type).size() + " entries now, max is " + w.size());
-            switch (w.strategy()) {
+        int size = 0;
+        int timeout = morphium.getConfig().getWriteBufferTime();
+        WriteBuffer.STRATEGY strategy = WriteBuffer.STRATEGY.JUST_WARN;
+
+        if (w != null) {
+            size = w.size();
+            timeout = w.timeout();
+            strategy = w.strategy();
+        }
+        if (size > 0 && opLog.get(type).size() > size) {
+            logger.warn("WARNING: Write buffer maximum exceeded: " + opLog.get(type).size() + " entries now, max is " + size);
+            switch (strategy) {
                 case JUST_WARN:
                     break;
                 case IGNORE_NEW:
@@ -165,7 +180,7 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter {
                             }
                         });
 
-                        for (int i = 0; i < opLog.get(type).size() - w.size(); i++) {
+                        for (int i = 0; i < opLog.get(type).size() - size; i++) {
                             opLog.get(type).get(i).getToRun().run();
                             opLog.get(type).remove(i);
                         }
