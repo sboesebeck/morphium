@@ -15,7 +15,15 @@ import java.util.Map;
  * Time: 16:23
  * <p/>
  * Aggregator Framework:
- * represents the aggregator of Mongo 2.2.x.
+ * represents the aggregator of Mongo 2.2.x. and above
+ * $project
+ * $match
+ * $limit
+ * $skip
+ * $unwind
+ * $group
+ * $sort
+ * $geoNear - implementation still missing
  */
 public interface Aggregator<T, R> {
 

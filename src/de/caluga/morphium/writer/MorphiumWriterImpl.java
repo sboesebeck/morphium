@@ -158,13 +158,13 @@ public class MorphiumWriterImpl implements MorphiumWriter {
                     }
                     long dur = System.currentTimeMillis() - start;
                     morphium.fireProfilingWriteEvent(o.getClass(), marshall, dur, true, WriteAccessType.SINGLE_INSERT);
-                    if (logger.isDebugEnabled()) {
-                        String n = "";
-                        if (isNew) {
-                            n = "NEW ";
-                        }
-                        logger.debug(n + "stored " + type.getSimpleName() + " after " + dur + " ms length:" + marshall.toString().length());
-                    }
+//                    if (logger.isDebugEnabled()) {
+//                        String n = "";
+//                        if (isNew) {
+//                            n = "NEW ";
+//                        }
+//                        logger.debug(n + "stored " + type.getSimpleName() + " after " + dur + " ms length:" + marshall.toString().length());
+//                    }
                     if (isNew) {
                         List<String> flds = annotationHelper.getFields(o.getClass(), Id.class);
                         if (flds == null) {

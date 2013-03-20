@@ -29,7 +29,7 @@ import java.util.Map;
 @WriteSafety(level = SafetyLevel.NORMAL, timeout = 0, waitForJournalCommit = true, waitForSync = true)
 @DefaultReadPreference(ReadPreferenceLevel.PRIMARY)
 @Lifecycle
-@Index({"sender,locked_by,processed_by,to,-timestamp", "locked_by,processed_by,to,timestamp"})
+@Index({"sender,locked_by,processed_by,-timestamp", "locked_by,processed_by,timestamp"})
 public class Msg {
     public static enum Fields {
         processedBy,

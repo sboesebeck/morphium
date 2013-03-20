@@ -31,7 +31,7 @@ public class IdCacheTest extends MongoTest {
         q = q.f("counter").lt(30);
         List<CachedObject> lst = q.asList();
         assert (lst.size() == 29) : "Size matters! " + lst.size();
-
+        Thread.sleep(1000);
         ObjectId id = lst.get(0).getId();
         CachedObject c = MorphiumSingleton.get().findById(CachedObject.class, id);
         assert (lst.get(0) == c) : "Object differ?";

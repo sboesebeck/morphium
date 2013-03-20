@@ -1351,7 +1351,7 @@ public final class Morphium implements MorphiumWriter {
         }
     }
 
-    private List<Map<String, Object>> createIndexMapFrom(String[] fldStr) {
+    public List<Map<String, Object>> createIndexMapFrom(String[] fldStr) {
         if (fldStr.length == 0) return null;
         List<Map<String, Object>> lst = new ArrayList<Map<String, Object>>();
 
@@ -1361,17 +1361,18 @@ public final class Morphium implements MorphiumWriter {
             for (String idx : f.split(",")) {
                 if (idx.contains(":")) {
                     String i[] = idx.split(":");
-                    m.put(i[0], i[1]);
+                    m.put(i[0].replaceAll(" ", ""), i[1].replaceAll(" ", ""));
                 } else {
+                    idx = idx.replaceAll(" ", "");
                     if (idx.startsWith("-")) {
                         m.put(idx.substring(1), -1);
                     } else {
-                        idx = idx.replaceAll("^\\+", "");
+                        idx = idx.replaceAll("^\\+", "").replaceAll(" ", "");
                         m.put(idx, 1);
                     }
                 }
-                lst.add(m);
             }
+            lst.add(m);
         }
         return lst;
     }
