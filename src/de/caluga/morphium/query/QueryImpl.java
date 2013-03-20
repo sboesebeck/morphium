@@ -115,6 +115,7 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
     @Override
     public Query<T> q() {
         Query<T> q = new QueryImpl<T>(morphium, type, executor);
+        q.setCollectionName(getCollectionName());
         return q;
     }
 

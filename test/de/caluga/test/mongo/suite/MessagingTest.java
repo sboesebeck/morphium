@@ -30,6 +30,51 @@ public class MessagingTest extends MongoTest {
     public int procCounter = 0;
 
     @Test
+    public void testMsgQueName() throws Exception {
+        Messaging m = new Messaging(MorphiumSingleton.get(), 500, true);
+        m.addMessageListener(new MessageListener() {
+            @Override
+            public Msg onMessage(Messaging msg, Msg m) {
+                gotMessage1 = true;
+                return null;
+            }
+        });
+        m.start();
+
+        Messaging m2 = new Messaging(MorphiumSingleton.get(), "msg2", 500, true);
+        m2.addMessageListener(new MessageListener() {
+            @Override
+            public Msg onMessage(Messaging msg, Msg m) {
+                gotMessage2 = true;
+                return null;
+            }
+        });
+        m2.start();
+
+        Msg msg = new Msg("tst", MsgType.MULTI, "msg", "value", 30000);
+        msg.setExclusive(false);
+        m.storeMessage(msg);
+        Query<Msg> q = MorphiumSingleton.get().createQueryFor(Msg.class);
+        assert (q.countAll() == 1);
+        q.setCollectionName("mmsg_msg2");
+        assert (q.countAll() == 0);
+
+        msg = new Msg("tst2", MsgType.MULTI, "msg", "value", 30000);
+        msg.setExclusive(false);
+        m2.storeMessage(msg);
+        q = MorphiumSingleton.get().createQueryFor(Msg.class);
+        assert (q.countAll() == 1);
+        q.setCollectionName("mmsg_msg2");
+        assert (q.countAll() == 1) : "Count is " + q.countAll();
+
+        Thread.sleep(4000);
+        assert (!gotMessage1);
+        assert (!gotMessage2);
+
+
+    }
+
+    @Test
     public void testMsgLifecycle() throws Exception {
         Msg m = new Msg();
         m.setSender("Meine wunderbare ID " + System.currentTimeMillis());

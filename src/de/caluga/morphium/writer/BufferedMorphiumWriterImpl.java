@@ -66,25 +66,8 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter {
                                 continue;
                             }
                             lastRun.put(clz, System.currentTimeMillis());
-                            //neither buffer size reached, or time is up => queue writes
-                            List<WriteBufferEntry> localQueue;
-                            synchronized (opLog) {
-                                localQueue = opLog.get(clz);
-                                opLog.put(clz, new Vector<WriteBufferEntry>());
-                            }
-                            //queueing all ops in queue
-                            for (WriteBufferEntry entry : localQueue) {
-                                waitForWriters();
-                                try {
-                                    entry.getToRun().run();
-                                } catch (RejectedExecutionException e) {
-                                    logger.info("too much load - add write to next run");
-                                    opLog.get(clz).add(entry);
-                                } catch (Exception e) {
-                                    logger.error("could not write", e);
-                                }
-                            }
-                            localQueue = null; //let GC finish the work
+                            flushToQueue(clz);
+
                         }
                     } catch (Exception e) {
                         logger.info("Got exception during write buffer handling!", e);
@@ -101,6 +84,28 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter {
         };
         housekeeping.setDaemon(true);
         housekeeping.start();
+    }
+
+    private void flushToQueue(Class<?> clz) {
+        //either buffer size reached, or time is up => queue writes
+        List<WriteBufferEntry> localQueue;
+        synchronized (opLog) {
+            localQueue = opLog.get(clz);
+            opLog.put(clz, new Vector<WriteBufferEntry>());
+        }
+        //queueing all ops in queue
+        for (WriteBufferEntry entry : localQueue) {
+            waitForWriters();
+            try {
+                entry.getToRun().run();
+            } catch (RejectedExecutionException e) {
+                logger.info("too much load - add write to next run");
+                opLog.get(clz).add(entry);
+            } catch (Exception e) {
+                logger.error("could not write", e);
+            }
+        }
+        localQueue = null; //let GC finish the work
     }
 
     private void waitForWriters() {
@@ -428,6 +433,41 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter {
             }
         }
         return cnt;
+    }
+
+    @Override
+    public <T> void store(final List<T> lst, final String collectionName, AsyncOperationCallback<T> c) {
+        if (c == null) {
+            c = new AsyncOpAdapter<T>();
+        }
+        final AsyncOperationCallback<T> callback = c;
+        morphium.inc(StatisticKeys.WRITES_CACHED);
+        if (lst == null || lst.size() == 0) return;
+        addToWriteQueue(lst.get(0).getClass(), new Runnable() {
+            @Override
+            public void run() {
+                directWriter.store(lst, collectionName, callback);
+            }
+        });
+    }
+
+    @Override
+    public void flush() {
+        List<Class<?>> localBuffer = new ArrayList<Class<?>>();
+        synchronized (opLog) {
+            for (Class<?> clz : opLog.keySet()) {
+                localBuffer.add(clz);
+            }
+        }
+
+        for (Class<?> clz : localBuffer) {
+            synchronized (opLog) {
+                if (opLog.get(clz) == null || opLog.get(clz).size() == 0) {
+                    continue;
+                }
+            }
+            flushToQueue(clz);
+        }
     }
 
 
