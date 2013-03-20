@@ -79,7 +79,7 @@ public final class Morphium implements MorphiumWriter {
     private Vector<ShutdownListener> shutDownListeners;
 
     private AnnotationAndReflectionHelper annotationHelper = new AnnotationAndReflectionHelper();
-    private MorphiumCache cache;
+    //    private MorphiumCache cache;
     private ObjectMapper objectMapper;
 
     public MorphiumConfig getConfig() {
@@ -156,7 +156,7 @@ public final class Morphium implements MorphiumWriter {
         config.getBufferedWriter().setMorphium(this);
         config.getAsyncWriter().setMorphium(this);
 
-        cache = config.getCache();
+//        cache = config.getCache();
 
         // enable/disable javax.validation support
         if (hasValidationSupport()) {
@@ -1084,7 +1084,7 @@ public final class Morphium implements MorphiumWriter {
             delete(r);
         }
 
-        cache.clearCacheIfNecessary(cls);
+        getCache().clearCacheIfNecessary(cls);
 
 
     }
@@ -1180,7 +1180,7 @@ public final class Morphium implements MorphiumWriter {
 
     @SuppressWarnings("unchecked")
     public <T> T findById(Class<? extends T> type, ObjectId id) {
-        T ret = cache.getFromIDCache(type, id);
+        T ret = getCache().getFromIDCache(type, id);
         if (ret != null) return ret;
         List<String> ls = annotationHelper.getFields(type, Id.class);
         if (ls.size() == 0) throw new RuntimeException("Cannot find by ID on non-Entity");
@@ -1229,7 +1229,7 @@ public final class Morphium implements MorphiumWriter {
      * @param cls - class
      */
     public void clearCachefor(Class<?> cls) {
-        cache.clearCachefor(cls);
+        getCache().clearCachefor(cls);
     }
 
     public <T> void storeNoCache(T lst) {
