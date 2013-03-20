@@ -142,7 +142,7 @@ public class MorphiumWriterImpl implements MorphiumWriter {
                     }
                     if (!morphium.getDatabase().collectionExists(coll)) {
                         if (logger.isDebugEnabled())
-                            logger.debug("Collection does not exist - ensuring indices");
+                            logger.debug("Collection " + coll + " does not exist - ensuring indices");
                         morphium.ensureIndicesFor(type);
                     }
 
