@@ -11,6 +11,7 @@ import org.junit.Test;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 /**
  * User: Stephan Bösebeck
@@ -19,6 +20,19 @@ import java.util.List;
  * <p/>
  */
 public class IndexTest extends MongoTest {
+    @Test
+    public void createIndexMapFromTest() throws Exception {
+        List<Map<String, Object>> idx = MorphiumSingleton.get().createIndexMapFrom(new String[]{"-timer , -namne", "bla, fasel, blub"});
+        assert (idx.size() == 2) : "Created indexes: " + idx.size();
+        assert (idx.get(0).get("timer").equals(-1));
+        assert (idx.get(0).get("namne").equals(-1));
+
+        assert (idx.get(1).get("bla").equals(1));
+        assert (idx.get(1).get("fasel").equals(1));
+        assert (idx.get(1).get("blub").equals(1));
+    }
+
+
     @Test
     public void indexOnNewCollTest() throws Exception {
         MorphiumSingleton.get().dropCollection(IndexedObject.class);
@@ -38,7 +52,7 @@ public class IndexTest extends MongoTest {
         boolean foundTimerName2 = false;
         boolean foundTimer = false;
         boolean foundName = false;
-        boolean foundLst=false;
+        boolean foundLst = false;
 
         for (DBObject i : idx) {
             System.out.println(i.toString());
@@ -50,7 +64,7 @@ public class IndexTest extends MongoTest {
             } else if (key.get("timer") != null && key.get("timer").equals(-1) && key.get("name") == null) {
                 foundTimer = true;
             } else if (key.get("lst") != null) {
-                foundLst=true;
+                foundLst = true;
             } else if (key.get("timer") != null && key.get("timer").equals(-1) && key.get("name") != null && key.get("name").equals(-1)) {
                 foundTimerName2 = true;
             } else if (key.get("timer") != null && key.get("timer").equals(1) && key.get("name") != null && key.get("name").equals(-1)) {
@@ -62,7 +76,7 @@ public class IndexTest extends MongoTest {
     }
 
     @Entity
-    @Index({"-name, timer", "-name, -timer","lst:2d"})
+    @Index({"-name, timer", "-name, -timer", "lst:2d"})
     public static class IndexedObject {
         @Property
         @Index(decrement = true)
@@ -110,8 +124,8 @@ public class IndexTest extends MongoTest {
         }
 
         public void addLst(Integer i) {
-            if (lst==null) {
-                lst=new ArrayList<Integer>();
+            if (lst == null) {
+                lst = new ArrayList<Integer>();
             }
             lst.add(i);
         }

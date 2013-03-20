@@ -56,7 +56,10 @@ public class MorphiumConfig {
 
 
     private int maxWaitTime = 120000;
+    //default time for write buffer to be filled
     private int writeBufferTime = 1000;
+    //ms for the pause of the main thread
+
     private int writeBufferTimeGranularity = 100;
     private boolean autoreconnect = true;
     private int maxAutoReconnectTime = 0;

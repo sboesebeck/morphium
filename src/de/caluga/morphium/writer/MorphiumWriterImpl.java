@@ -1,9 +1,6 @@
 package de.caluga.morphium.writer;
 
-import com.mongodb.BasicDBObject;
-import com.mongodb.DBCollection;
-import com.mongodb.DBObject;
-import com.mongodb.WriteConcern;
+import com.mongodb.*;
 import de.caluga.morphium.*;
 import de.caluga.morphium.annotations.*;
 import de.caluga.morphium.annotations.caching.Cache;
@@ -145,26 +142,31 @@ public class MorphiumWriterImpl implements MorphiumWriter {
                     }
                     if (!morphium.getDatabase().collectionExists(coll)) {
                         if (logger.isDebugEnabled())
-                            logger.debug("Collection does not exist - ensuring indices");
+                            logger.debug("Collection " + coll + " does not exist - ensuring indices");
                         morphium.ensureIndicesFor(type);
                     }
 
                     WriteConcern wc = morphium.getWriteConcernForClass(type);
+                    WriteResult result = null;
                     if (wc != null) {
-                        morphium.getDatabase().getCollection(coll).save(marshall, wc);
+                        result = morphium.getDatabase().getCollection(coll).save(marshall, wc);
                     } else {
 
-                        morphium.getDatabase().getCollection(coll).save(marshall);
+                        result = morphium.getDatabase().getCollection(coll).save(marshall);
                     }
+                    if (!result.getLastError().ok()) {
+                        logger.error("Writing failed: " + result.getLastError().getErrorMessage());
+                    }
+
                     long dur = System.currentTimeMillis() - start;
                     morphium.fireProfilingWriteEvent(o.getClass(), marshall, dur, true, WriteAccessType.SINGLE_INSERT);
-                    if (logger.isDebugEnabled()) {
-                        String n = "";
-                        if (isNew) {
-                            n = "NEW ";
-                        }
-                        logger.debug(n + "stored " + type.getSimpleName() + " after " + dur + " ms length:" + marshall.toString().length());
-                    }
+//                    if (logger.isDebugEnabled()) {
+//                        String n = "";
+//                        if (isNew) {
+//                            n = "NEW ";
+//                        }
+//                        logger.debug(n + "stored " + type.getSimpleName() + " after " + dur + " ms length:" + marshall.toString().length());
+//                    }
                     if (isNew) {
                         List<String> flds = annotationHelper.getFields(o.getClass(), Id.class);
                         if (flds == null) {
@@ -230,6 +232,62 @@ public class MorphiumWriterImpl implements MorphiumWriter {
     }
 
     @Override
+    public <T> void store(final List<T> lst, String collectionName, final AsyncOperationCallback<T> callback) {
+        if (lst == null || lst.size() == 0) return;
+        if (!morphium.getDatabase().collectionExists(collectionName)) {
+            logger.warn("collection does not exist while storing list -  taking first element of list to ensure indices");
+            morphium.ensureIndicesFor((Class<T>) lst.get(0).getClass(), collectionName, callback);
+        }
+        ArrayList<DBObject> dbLst = new ArrayList<DBObject>();
+        DBCollection collection = morphium.getDatabase().getCollection(collectionName);
+        WriteConcern wc = morphium.getWriteConcernForClass(lst.get(0).getClass());
+        HashMap<Object, Boolean> isNew = new HashMap<Object, Boolean>();
+        for (Object record : lst) {
+            DBObject marshall = morphium.getMapper().marshall(record);
+            isNew.put(record, annotationHelper.getId(record) == null);
+            if (isNew.get(record)) {
+                dbLst.add(marshall);
+            } else {
+                //single update
+                long start = System.currentTimeMillis();
+                WriteResult result = null;
+                if (wc == null) {
+                    result = collection.save(marshall);
+                } else {
+                    result = collection.save(marshall, wc);
+                }
+                if (!result.getLastError().ok()) {
+                    logger.error("Writing failed: " + result.getLastError().getErrorMessage());
+                }
+                long dur = System.currentTimeMillis() - start;
+                morphium.fireProfilingWriteEvent(lst.get(0).getClass(), marshall, dur, false, WriteAccessType.SINGLE_INSERT);
+                morphium.firePostStoreEvent(record, isNew.get(record));
+            }
+
+        }
+        long start = System.currentTimeMillis();
+
+        if (wc == null) {
+            collection.insert(dbLst);
+        } else {
+            collection.insert(dbLst, wc);
+        }
+        long dur = System.currentTimeMillis() - start;
+        //bulk insert
+        morphium.fireProfilingWriteEvent(lst.get(0).getClass(), dbLst, dur, true, WriteAccessType.BULK_INSERT);
+        for (Object record : lst) {
+            if (isNew.get(record)) {
+                morphium.firePostStoreEvent(record, isNew.get(record));
+            }
+        }
+    }
+
+    @Override
+    public void flush() {
+        //nothing to do
+    }
+
+    @Override
     public <T> void store(final List<T> lst, final AsyncOperationCallback<T> callback) {
         if (!lst.isEmpty()) {
             Runnable r = new Runnable() {
@@ -289,10 +347,14 @@ public class MorphiumWriterImpl implements MorphiumWriter {
                                 } else {
                                     //single update
                                     long start = System.currentTimeMillis();
+                                    WriteResult result = null;
                                     if (wc == null) {
-                                        collection.save(marshall);
+                                        result = collection.save(marshall);
                                     } else {
-                                        collection.save(marshall, wc);
+                                        result = collection.save(marshall, wc);
+                                    }
+                                    if (!result.getLastError().ok()) {
+                                        logger.error("Writing failed: " + result.getLastError().getErrorMessage());
                                     }
                                     long dur = System.currentTimeMillis() - start;
                                     morphium.fireProfilingWriteEvent(c, marshall, dur, false, WriteAccessType.SINGLE_INSERT);
@@ -1015,7 +1077,7 @@ public class MorphiumWriterImpl implements MorphiumWriter {
     }
 
     @Override
-    public <T> void ensureIndex(final Class<T> cls, final String collection, final Map<String, Object> index, AsyncOperationCallback<T> callback) {
+    public <T> void ensureIndex(final Class<T> cls, final String collection, final Map<String, Object> index, final Map<String, Object> options, AsyncOperationCallback<T> callback) {
         Runnable r = new Runnable() {
             public void run() {
                 List<String> fields = annotationHelper.getFields(cls);
@@ -1033,7 +1095,12 @@ public class MorphiumWriterImpl implements MorphiumWriter {
                 BasicDBObject keys = new BasicDBObject(idx);
                 String coll = collection;
                 if (coll == null) coll = morphium.getMapper().getCollectionName(cls);
-                morphium.getDatabase().getCollection(coll).ensureIndex(keys);
+                if (options == null) {
+                    morphium.getDatabase().getCollection(coll).ensureIndex(keys);
+                } else {
+                    BasicDBObject opts = new BasicDBObject(options);
+                    morphium.getDatabase().getCollection(coll).ensureIndex(keys, opts);
+                }
                 long dur = System.currentTimeMillis() - start;
                 morphium.fireProfilingWriteEvent(cls, keys, dur, false, WriteAccessType.ENSURE_INDEX);
             }
