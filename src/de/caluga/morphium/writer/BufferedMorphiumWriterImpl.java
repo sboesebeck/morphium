@@ -101,7 +101,6 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter {
         }
         //queueing all ops in queue
         for (WriteBufferEntry entry : localQueue) {
-            waitForWriters();
             try {
                 entry.getToRun().run();
             } catch (RejectedExecutionException e) {
@@ -114,18 +113,6 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter {
         localQueue = null; //let GC finish the work
     }
 
-    private void waitForWriters() {
-        while (directWriter.writeBufferCount() > morphium.getConfig().getMaxConnections() * morphium.getConfig().getBlockingThreadsMultiplier() * 0.9 - 1) {
-            try {
-
-                if (logger.isDebugEnabled()) {
-                    logger.debug("have to wait - maximum connection limit almost reached");
-                }
-                Thread.sleep(500); //wait for threads to finish
-            } catch (InterruptedException e) {
-            }
-        }
-    }
 
     public void addToWriteQueue(Class<?> type, Runnable r) {
         WriteBufferEntry wb = new WriteBufferEntry(r, System.currentTimeMillis());
@@ -153,7 +140,6 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter {
                 case WRITE_NEW:
                     logger.warn("directly writing data... due to strategy setting");
                     r.run();
-                    waitForWriters();
                     return;
                 case WRITE_OLD:
                     synchronized (opLog) {
@@ -167,7 +153,6 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter {
                         for (int i = 0; i < opLog.get(type).size() - w.size(); i++) {
                             opLog.get(type).get(i).getToRun().run();
                             opLog.get(type).remove(i);
-                            waitForWriters();
                         }
                     }
                     return;
@@ -510,6 +495,16 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter {
         public void setTimestamp(long timestamp) {
             this.timestamp = timestamp;
         }
+    }
+
+    @Override
+    public void setMaximumQueingTries(int n) {
+        directWriter.setMaximumQueingTries(n);
+    }
+
+    @Override
+    public void setPauseBetweenTries(int p) {
+        directWriter.setPauseBetweenTries(p);
     }
 
     private class AsyncOpAdapter<T> implements AsyncOperationCallback<T> {

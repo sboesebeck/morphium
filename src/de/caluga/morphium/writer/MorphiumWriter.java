@@ -113,4 +113,8 @@ public interface MorphiumWriter {
     public <T> void store(List<T> lst, String collectionName, AsyncOperationCallback<T> callback);
 
     public void flush();
+
+    public void setMaximumQueingTries(int n);
+
+    public void setPauseBetweenTries(int p);
 }
