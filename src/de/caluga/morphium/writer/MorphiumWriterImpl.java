@@ -474,7 +474,9 @@ public class MorphiumWriterImpl implements MorphiumWriter {
                     if (tries > maximumRetries) {
                         throw new RuntimeException("Could not write - not even after " + maximumRetries + " and pause of " + pause + "ms", e);
                     }
-                    logger.warn("thread pool exceeded - waiting");
+                    if (logger.isDebugEnabled()) {
+                        logger.warn("thread pool exceeded - waiting");
+                    }
                     try {
                         Thread.sleep(pause);
                     } catch (InterruptedException e1) {
