@@ -112,6 +112,12 @@ public class MongoTest {
             cfg.setConnectionTimeout(10000);
             cfg.setMaxWaitTime(1000);
             cfg.setAutoreconnect(true);
+            cfg.setMaximumRetriesBufferedWriter(1000);
+            cfg.setMaximumRetriesWriter(1000);
+            cfg.setMaximumRetriesAsyncWriter(1000);
+            cfg.setRetryWaitTimeAsyncWriter(1000);
+            cfg.setRetryWaitTimeWriter(1000);
+            cfg.setRetryWaitTimeBufferedWriter(1000);
 //            cfg.setMongoLogin("morphium");
 //            cfg.setMongoPassword("tst");
 
