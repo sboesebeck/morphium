@@ -850,54 +850,38 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
 
     @Override
     public List<T> textSearch(TextSearchLanguages lang, String... texts) {
-        throw new RuntimeException("not implemented yet");
-//        if (texts.length==0) return new ArrayList<T>();
-//        BasicDBObject cmd=new BasicDBObject();
-//
-//        BasicDBObject txt=new BasicDBObject();
-//        StringBuilder b=new StringBuilder();
-//        for (String t:texts) {
+        if (texts.length == 0) return new ArrayList<T>();
+
+        BasicDBObject txt = new BasicDBObject();
+        txt.append("text", getCollectionName());
+        StringBuilder b = new StringBuilder();
+        for (String t : texts) {
 //            b.append("\"");
-//            b.append(t);
+            b.append(t);
+            b.append(" ");
 //            b.append("\" ");
-//        }
-//        txt.append("search",b.toString());
-//        txt.append("filter",toQueryObject());
-//        if (getLimit()>0) {
-//            txt.append("limit",limit);
-//        }
-//         if (!lang.equals(TextSearchLanguages.mongo_default)) {
-//             txt.append("language",lang.name());
-//         }
-//        cmd.append("text",txt);
-//
-//        DBCollection col=getMorphium().getDatabase().getCollection(getCollectionName());
-//        Method m= null;
-//        try {
-//            m = col.getClass().getMethod("command", DBObject.class, int.class, ReadPreference.class);
-//        } catch (NoSuchMethodException e) {
-//            throw new RuntimeException(e);
-//        }
-//        m.setAccessible(true);
-//        CommandResult result= null;
-//        try {
-//            result = (CommandResult)m.invoke(col, cmd, col.getOptions(), col.getReadPreference());
-//        } catch (IllegalAccessException e) {
-//            //TODO: Implement Handling
-//            throw new RuntimeException(e);
-//        } catch (InvocationTargetException e) {
-//            //TODO: Implement Handling
-//            throw new RuntimeException(e);
-//        }
-//        if (!result.ok()) {
-//            return null;
-//        }
-//        BasicDBList lst=(BasicDBList)result.get("results");
-//        List<T> ret=new ArrayList<T>();
-//        for (Object o:lst) {
-//            DBObject obj=(DBObject)o;
-//            ret.add(morphium.getMapper().unmarshall(getType(),obj));
-//        }
-//        return ret;
+        }
+        txt.append("search", b.toString());
+        txt.append("filter", toQueryObject());
+        if (getLimit() > 0) {
+            txt.append("limit", limit);
+        }
+        if (!lang.equals(TextSearchLanguages.mongo_default)) {
+            txt.append("language", lang.name());
+        }
+
+        CommandResult result = morphium.getDatabase().command(txt);
+
+
+        if (!result.ok()) {
+            return null;
+        }
+        BasicDBList lst = (BasicDBList) result.get("results");
+        List<T> ret = new ArrayList<T>();
+        for (Object o : lst) {
+            DBObject obj = (DBObject) o;
+            ret.add(morphium.getMapper().unmarshall(getType(), obj));
+        }
+        return ret;
     }
 }

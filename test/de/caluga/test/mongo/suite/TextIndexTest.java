@@ -4,8 +4,11 @@ import de.caluga.morphium.MorphiumSingleton;
 import de.caluga.morphium.annotations.Entity;
 import de.caluga.morphium.annotations.Id;
 import de.caluga.morphium.annotations.Index;
+import de.caluga.morphium.query.Query;
 import org.bson.types.ObjectId;
 import org.junit.Test;
+
+import java.util.List;
 
 /**
  * User: Stephan Bösebeck
@@ -18,7 +21,7 @@ public class TextIndexTest extends MongoTest {
 
     @Test
     public void textIndexTest() throws Exception {
-
+        MorphiumSingleton.get().dropCollection(Person.class);
         try {
             MorphiumSingleton.get().ensureIndicesFor(Person.class);
 
@@ -26,14 +29,15 @@ public class TextIndexTest extends MongoTest {
             log.info("Text search not enabled - test skipped");
             return;
         }
-        MorphiumSingleton.get().store(new Person("Hugo", "Strange", "Mr.", 65));
-        MorphiumSingleton.get().store(new Person("Bruce", "Wayne", "Mr.", 38));
+        MorphiumSingleton.get().store(new Person("hugo", "Strange", "Mr.", 65));
+        MorphiumSingleton.get().store(new Person("bruce", "Wayne", "Mr.", 38));
         MorphiumSingleton.get().store(new Person("Kitty", "Galore", "Mrs.", 25));
         MorphiumSingleton.get().store(new Person("Peter", "Parker", "Mr.", 22));
 
         waitForWrites();
-//        Query<Person> p=MorphiumSingleton.get().createQueryFor(Person.class);
-//        List<Person> lst=p.textSearch("Hugo","Bruce");
+        Query<Person> p = MorphiumSingleton.get().createQueryFor(Person.class);
+        List<Person> lst = p.textSearch("hugo", "bruce");
+        assert (lst.size() == 2);
     }
 
 
