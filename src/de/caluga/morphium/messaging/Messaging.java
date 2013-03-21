@@ -52,13 +52,14 @@ public class Messaging extends Thread {
         this.pause = pause;
         this.processMultiple = processMultiple;
         id = UUID.randomUUID().toString();
-        try {
-            m.ensureIndex(Msg.class, Msg.Fields.lockedBy, Msg.Fields.timestamp);
-            m.ensureIndex(Msg.class, Msg.Fields.lockedBy, Msg.Fields.processedBy);
-            m.ensureIndex(Msg.class, Msg.Fields.timestamp);
-        } catch (Exception e) {
-            log.error("Could not ensure indices", e);
-        }
+        m.ensureIndicesFor(Msg.class, queueName);
+//        try {
+//            m.ensureIndex(Msg.class, Msg.Fields.lockedBy, Msg.Fields.timestamp);
+//            m.ensureIndex(Msg.class, Msg.Fields.lockedBy, Msg.Fields.processedBy);
+//            m.ensureIndex(Msg.class, Msg.Fields.timestamp);
+//        } catch (Exception e) {
+//            log.error("Could not ensure indices", e);
+//        }
 
         listeners = new Vector<MessageListener>();
         listenerByName = new Hashtable<String, List<MessageListener>>();
