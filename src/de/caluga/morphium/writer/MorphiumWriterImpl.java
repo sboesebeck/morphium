@@ -32,10 +32,22 @@ public class MorphiumWriterImpl implements MorphiumWriter {
     private static Logger logger = Logger.getLogger(MorphiumWriterImpl.class);
     private Morphium morphium;
     private AnnotationAndReflectionHelper annotationHelper = new AnnotationAndReflectionHelper();
-
+    private int maximumRetries = 10;
+    private int pause = 250;
     private ThreadPoolExecutor executor = new ThreadPoolExecutor(0, Integer.MAX_VALUE,
             60L, TimeUnit.SECONDS,
             new SynchronousQueue<Runnable>());
+
+
+    @Override
+    public void setMaximumQueingTries(int n) {
+        maximumRetries = n;
+    }
+
+    @Override
+    public void setPauseBetweenTries(int p) {
+        pause = p;
+    }
 
     @Override
     public void setMorphium(Morphium m) {
@@ -451,18 +463,26 @@ public class MorphiumWriterImpl implements MorphiumWriter {
         if (callback == null) {
             r.run();
         } else {
-            while (writeBufferCount() >= morphium.getConfig().getMaxConnections() * morphium.getConfig().getBlockingThreadsMultiplier() * 0.75 - 1) {
-                if (logger.isDebugEnabled()) {
-                    logger.debug("Have to wait for queue to be more empty - active threads now: " + writeBufferCount());
-                }
+            int tries = 0;
+            boolean retry = true;
+            while (retry) {
                 try {
-                    Thread.sleep(100);
-                } catch (InterruptedException e) {
-                    //TODO: Implement Handling
-                    throw new RuntimeException(e);
+                    tries++;
+                    executor.submit(r);
+                    retry = false;
+                } catch (java.util.concurrent.RejectedExecutionException e) {
+                    if (tries > maximumRetries) {
+                        throw new RuntimeException("Could not write - not even after " + maximumRetries + " and pause of " + pause + "ms", e);
+                    }
+                    logger.warn("thread pool exceeded - waiting");
+                    try {
+                        Thread.sleep(pause);
+                    } catch (InterruptedException e1) {
+
+                    }
+
                 }
             }
-            executor.submit(r);
         }
     }
 
