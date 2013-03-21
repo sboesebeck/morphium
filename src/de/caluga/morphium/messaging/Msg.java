@@ -26,7 +26,7 @@ import java.util.Map;
 @NoCache
 //timeout <0 - setting relative to replication lag
 //timeout == 0 - wait forever
-@WriteSafety(level = SafetyLevel.NORMAL, timeout = 0, waitForJournalCommit = true, waitForSync = true)
+@WriteSafety(level = SafetyLevel.NORMAL, timeout = 0, waitForJournalCommit = true, waitForSync = false)
 @DefaultReadPreference(ReadPreferenceLevel.PRIMARY)
 @Lifecycle
 @Index({"sender,locked_by,processed_by,recipient,-timestamp", "locked_by,processed_by,recipient,timestamp"})

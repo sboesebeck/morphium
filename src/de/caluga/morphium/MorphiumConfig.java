@@ -52,6 +52,16 @@ public class MorphiumConfig {
     private boolean globalJ = false;
     private int writeTimeout = 0;
 
+    //maximum number of tries to queue a write operation
+    private int maximumRetriesBufferedWriter = 10;
+    private int maximumRetriesWriter = 10;
+    private int maximumRetriesAsyncWriter = 10;
+    //wait bewteen tries
+    private int retryWaitTimeBufferedWriter = 200;
+    private int retryWaitTimeWriter = 200;
+    private int retryWaitTimeAsyncWriter = 200;
+
+
     private int globalW = 1; //number of writes
 
 
@@ -636,5 +646,53 @@ public class MorphiumConfig {
 
     public void setAsyncWriter(MorphiumWriter asyncWriter) {
         this.asyncWriter = asyncWriter;
+    }
+
+    public int getMaximumRetriesBufferedWriter() {
+        return maximumRetriesBufferedWriter;
+    }
+
+    public void setMaximumRetriesBufferedWriter(int maximumRetriesBufferedWriter) {
+        this.maximumRetriesBufferedWriter = maximumRetriesBufferedWriter;
+    }
+
+    public int getMaximumRetriesWriter() {
+        return maximumRetriesWriter;
+    }
+
+    public void setMaximumRetriesWriter(int maximumRetriesWriter) {
+        this.maximumRetriesWriter = maximumRetriesWriter;
+    }
+
+    public int getMaximumRetriesAsyncWriter() {
+        return maximumRetriesAsyncWriter;
+    }
+
+    public void setMaximumRetriesAsyncWriter(int maximumRetriesAsyncWriter) {
+        this.maximumRetriesAsyncWriter = maximumRetriesAsyncWriter;
+    }
+
+    public int getRetryWaitTimeBufferedWriter() {
+        return retryWaitTimeBufferedWriter;
+    }
+
+    public void setRetryWaitTimeBufferedWriter(int retryWaitTimeBufferedWriter) {
+        this.retryWaitTimeBufferedWriter = retryWaitTimeBufferedWriter;
+    }
+
+    public int getRetryWaitTimeWriter() {
+        return retryWaitTimeWriter;
+    }
+
+    public void setRetryWaitTimeWriter(int retryWaitTimeWriter) {
+        this.retryWaitTimeWriter = retryWaitTimeWriter;
+    }
+
+    public int getRetryWaitTimeAsyncWriter() {
+        return retryWaitTimeAsyncWriter;
+    }
+
+    public void setRetryWaitTimeAsyncWriter(int retryWaitTimeAsyncWriter) {
+        this.retryWaitTimeAsyncWriter = retryWaitTimeAsyncWriter;
     }
 }

@@ -41,7 +41,7 @@ import java.util.*;
  */
 
 @SuppressWarnings("UnusedDeclaration")
-public final class Morphium implements MorphiumWriter {
+public final class Morphium {
 
     /**
      * singleton is usually not a good idea in j2ee-Context, but as we did it on
@@ -153,8 +153,14 @@ public final class Morphium implements MorphiumWriter {
             config.setBufferedWriter(new BufferedMorphiumWriterImpl());
         }
         config.getWriter().setMorphium(this);
+        config.getWriter().setMaximumQueingTries(config.getMaximumRetriesWriter());
+        config.getWriter().setPauseBetweenTries(config.getRetryWaitTimeWriter());
         config.getBufferedWriter().setMorphium(this);
+        config.getBufferedWriter().setMaximumQueingTries(config.getMaximumRetriesBufferedWriter());
+        config.getBufferedWriter().setPauseBetweenTries(config.getRetryWaitTimeBufferedWriter());
         config.getAsyncWriter().setMorphium(this);
+        config.getAsyncWriter().setMaximumQueingTries(config.getMaximumRetriesAsyncWriter());
+        config.getAsyncWriter().setPauseBetweenTries(config.getRetryWaitTimeAsyncWriter());
 
 //        cache = config.getCache();
 
@@ -269,7 +275,6 @@ public final class Morphium implements MorphiumWriter {
     }
 
 
-    @Override
     public <T> void unset(final T toSet, String collection, final String field, final AsyncOperationCallback<T> callback) {
         if (toSet == null) throw new RuntimeException("Cannot update null!");
 
@@ -607,7 +612,6 @@ public final class Morphium implements MorphiumWriter {
         set(toSet, getMapper().getCollectionName(toSet.getClass()), field, value, insertIfNotExists, multiple, callback);
     }
 
-    @Override
     public <T> void set(final T toSet, String collection, final String field, final Object value, boolean insertIfNotExists, boolean multiple, AsyncOperationCallback<T> callback) {
         if (toSet == null) throw new RuntimeException("Cannot update null!");
 
@@ -664,12 +668,6 @@ public final class Morphium implements MorphiumWriter {
         getWriterForClass(toSet.getClass()).inc(toSet, collection, field, i, callback);
     }
 
-    @Override
-    public void setMorphium(Morphium m) {
-        throw new RuntimeException("Does not make sense");
-    }
-
-    @Override
     public <T> void delete(List<T> lst, AsyncOperationCallback<T> callback) {
         ArrayList<T> directDel = new ArrayList<T>();
         ArrayList<T> bufferedDel = new ArrayList<T>();
@@ -709,7 +707,6 @@ public final class Morphium implements MorphiumWriter {
         updateUsingFields(ent, getMapper().getCollectionName(ent.getClass()), callback, fields);
     }
 
-    @Override
     public <T> void updateUsingFields(final T ent, String collection, AsyncOperationCallback<T> callback, final String... fields) {
         if (ent == null) return;
         if (fields.length == 0) return; //not doing an update - no change
@@ -1295,12 +1292,10 @@ public final class Morphium implements MorphiumWriter {
         getWriterForClass(cls).ensureIndex(cls, collection, index, null, callback);
     }
 
-    @Override
     public int writeBufferCount() {
         return config.getWriter().writeBufferCount() + config.getBufferedWriter().writeBufferCount();
     }
 
-    @Override
     public <T> void store(List<T> lst, String collectionName, AsyncOperationCallback<T> callback) {
         if (lst == null || lst.size() == 0) return;
         getWriterForClass(lst.get(0).getClass()).store(lst, collectionName, callback);
@@ -1408,7 +1403,6 @@ public final class Morphium implements MorphiumWriter {
         getWriterForClass(o.getClass()).store(o, collection, callback);
     }
 
-    @Override
     public <T> void store(List<T> lst, AsyncOperationCallback<T> callback) {
         storeList(lst, callback);
     }
@@ -1465,12 +1459,10 @@ public final class Morphium implements MorphiumWriter {
         getWriterForClass(o.getType()).delete(o, callback);
     }
 
-    @Override
     public <T> void pushPull(boolean push, Query<T> query, String field, Object value, boolean insertIfNotExist, boolean multiple, AsyncOperationCallback<T> callback) {
         getWriterForClass(query.getType()).pushPull(push, query, field, value, insertIfNotExist, multiple, callback);
     }
 
-    @Override
     public <T> void pushPullAll(boolean push, Query<T> query, String field, List<?> value, boolean insertIfNotExist, boolean multiple, AsyncOperationCallback<T> callback) {
         getWriterForClass(query.getType()).pushPullAll(push, query, field, value, insertIfNotExist, multiple, callback);
     }
