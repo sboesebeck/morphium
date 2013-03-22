@@ -1607,11 +1607,15 @@ public final class Morphium {
 
 
     public int getWriteBufferCount() {
-        return config.getBufferedWriter().writeBufferCount() + config.getWriter().writeBufferCount();
+        return config.getBufferedWriter().writeBufferCount() + config.getWriter().writeBufferCount() + config.getAsyncWriter().writeBufferCount();
     }
 
     public int getBufferedWriterBufferCount() {
         return config.getBufferedWriter().writeBufferCount();
+    }
+
+    public int getAsyncWriterBufferCount() {
+        return config.getAsyncWriter().writeBufferCount();
     }
 
     public int getWriterBufferCount() {

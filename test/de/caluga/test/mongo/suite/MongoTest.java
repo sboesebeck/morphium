@@ -181,9 +181,8 @@ public class MongoTest {
             if (count % 100 == 0)
                 log.info("still " + MorphiumSingleton.get().getWriteBufferCount() + " writers active (" + MorphiumSingleton.get().getBufferedWriterBufferCount() + " + " + MorphiumSingleton.get().getWriterBufferCount() + ")");
             try {
-                Thread.sleep(10);
+                Thread.sleep(100);
             } catch (InterruptedException ex) {
-                Logger.getLogger(BasicFunctionalityTest.class).fatal(ex);
             }
         }
         //waiting for it to be persisted
