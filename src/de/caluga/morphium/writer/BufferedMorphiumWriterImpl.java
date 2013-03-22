@@ -44,35 +44,40 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter {
                             for (Class<?> clz : opLog.keySet()) {
                                 localBuffer.add(clz);
                             }
-                        }
 
-                        for (Class<?> clz : localBuffer) {
-                            synchronized (opLog) {
+
+                            for (Class<?> clz : localBuffer) {
                                 if (opLog.get(clz) == null || opLog.get(clz).size() == 0) {
                                     continue;
                                 }
-                            }
-                            WriteBuffer w = annotationHelper.getAnnotationFromHierarchy(clz, WriteBuffer.class);
-                            int size = 0;
-                            int timeout = morphium.getConfig().getWriteBufferTime();
-                            WriteBuffer.STRATEGY strategy = WriteBuffer.STRATEGY.JUST_WARN;
+                                WriteBuffer w = annotationHelper.getAnnotationFromHierarchy(clz, WriteBuffer.class);
+                                int size = 0;
+                                int timeout = morphium.getConfig().getWriteBufferTime();
+                                WriteBuffer.STRATEGY strategy = WriteBuffer.STRATEGY.JUST_WARN;
 
-                            if (w != null) {
-                                size = w.size();
-                                timeout = w.timeout();
-                                strategy = w.strategy();
-                            }
-                            //can't be null
-                            if (timeout == -1 && size > 0 && opLog.get(clz).size() < size) {
-                                continue; //wait for buffer to be filled
+                                if (w != null) {
+                                    size = w.size();
+                                    timeout = w.timeout();
+                                    strategy = w.strategy();
+                                }
+                                //can't be null
+                                if (timeout == -1 && size > 0 && opLog.get(clz).size() < size) {
+                                    continue; //wait for buffer to be filled
+                                }
+
+                                if (lastRun.get(clz) != null && System.currentTimeMillis() - lastRun.get(clz) < timeout) {
+                                    //timeout not reached....
+                                    continue;
+                                }
+                                lastRun.put(clz, System.currentTimeMillis());
+                                List<WriteBufferEntry> localQueue;
+                                localQueue = opLog.get(clz);
+                                opLog.put(clz, new Vector<WriteBufferEntry>());
+
+                                opLog.get(clz).addAll(flushToQueue(localQueue));
+                                localQueue = null;
                             }
 
-                            if (lastRun.get(clz) != null && System.currentTimeMillis() - lastRun.get(clz) < timeout) {
-                                //timeout not reached....
-                                continue;
-                            }
-                            lastRun.put(clz, System.currentTimeMillis());
-                            flushToQueue(clz);
 
                         }
                     } catch (Exception e) {
@@ -92,90 +97,83 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter {
         housekeeping.start();
     }
 
-    private void flushToQueue(Class<?> clz) {
+    private List<WriteBufferEntry> flushToQueue(List<WriteBufferEntry> localQueue) {
         //either buffer size reached, or time is up => queue writes
-        List<WriteBufferEntry> localQueue;
-        synchronized (opLog) {
-            localQueue = opLog.get(clz);
-            opLog.put(clz, new Vector<WriteBufferEntry>());
-        }
+        List<WriteBufferEntry> didNotWrite = new ArrayList<WriteBufferEntry>();
         //queueing all ops in queue
         for (WriteBufferEntry entry : localQueue) {
             try {
                 entry.getToRun().run();
             } catch (RejectedExecutionException e) {
                 logger.info("too much load - add write to next run");
-                opLog.get(clz).add(entry);
+                didNotWrite.add(entry);
             } catch (Exception e) {
                 logger.error("could not write", e);
             }
         }
         localQueue = null; //let GC finish the work
+        return didNotWrite;
     }
 
 
     public void addToWriteQueue(Class<?> type, Runnable r) {
-        WriteBufferEntry wb = new WriteBufferEntry(r, System.currentTimeMillis());
-        if (opLog.get(type) == null) {
-            opLog.put(type, new Vector<WriteBufferEntry>());
-        }
-        WriteBuffer w = annotationHelper.getAnnotationFromHierarchy(type, WriteBuffer.class);
-        int size = 0;
-        int timeout = morphium.getConfig().getWriteBufferTime();
-        WriteBuffer.STRATEGY strategy = WriteBuffer.STRATEGY.JUST_WARN;
-
-        if (w != null) {
-            size = w.size();
-            timeout = w.timeout();
-            strategy = w.strategy();
-        }
-        if (size > 0 && opLog.get(type).size() > size) {
-            logger.warn("WARNING: Write buffer maximum exceeded: " + opLog.get(type).size() + " entries now, max is " + size);
-            switch (strategy) {
-                case JUST_WARN:
-                    break;
-                case IGNORE_NEW:
-                    logger.warn("ignoring new incoming...");
-                    return;
-                case WRITE_NEW:
-                    logger.warn("directly writing data... due to strategy setting");
-                    r.run();
-                    return;
-                case WRITE_OLD:
-                    synchronized (opLog) {
-                        Collections.sort(opLog.get(type), new Comparator<WriteBufferEntry>() {
-                            @Override
-                            public int compare(WriteBufferEntry o1, WriteBufferEntry o2) {
-                                return Long.valueOf(o1.getTimestamp()).compareTo(o2.getTimestamp());
-                            }
-                        });
-
-                        for (int i = 0; i < opLog.get(type).size() - w.size(); i++) {
-                            opLog.get(type).get(i).getToRun().run();
-                            opLog.get(type).remove(i);
-                        }
-                    }
-                    return;
-                case DEL_OLD:
-                    synchronized (opLog) {
-                        Collections.sort(opLog.get(type), new Comparator<WriteBufferEntry>() {
-                            @Override
-                            public int compare(WriteBufferEntry o1, WriteBufferEntry o2) {
-                                return Long.valueOf(o1.getTimestamp()).compareTo(o2.getTimestamp());
-                            }
-                        });
-
-                        for (int i = 0; i < opLog.get(type).size() - size; i++) {
-                            opLog.get(type).get(i).getToRun().run();
-                            opLog.get(type).remove(i);
-                        }
-                    }
-                    return;
+        synchronized (opLog) {
+            WriteBufferEntry wb = new WriteBufferEntry(r, System.currentTimeMillis());
+            if (opLog.get(type) == null) {
+                opLog.put(type, new Vector<WriteBufferEntry>());
             }
+            WriteBuffer w = annotationHelper.getAnnotationFromHierarchy(type, WriteBuffer.class);
+            int size = 0;
+            int timeout = morphium.getConfig().getWriteBufferTime();
+            WriteBuffer.STRATEGY strategy = WriteBuffer.STRATEGY.JUST_WARN;
 
+            if (w != null) {
+                size = w.size();
+                timeout = w.timeout();
+                strategy = w.strategy();
+            }
+            if (size > 0 && opLog.get(type).size() > size) {
+                logger.warn("WARNING: Write buffer maximum exceeded: " + opLog.get(type).size() + " entries now, max is " + size);
+                switch (strategy) {
+                    case JUST_WARN:
+                        break;
+                    case IGNORE_NEW:
+                        logger.warn("ignoring new incoming...");
+                        return;
+                    case WRITE_NEW:
+                        logger.warn("directly writing data... due to strategy setting");
+                        r.run();
+                        return;
+                    case WRITE_OLD:
+
+                        Collections.sort(opLog.get(type), new Comparator<WriteBufferEntry>() {
+                            @Override
+                            public int compare(WriteBufferEntry o1, WriteBufferEntry o2) {
+                                return Long.valueOf(o1.getTimestamp()).compareTo(o2.getTimestamp());
+                            }
+                        });
+
+                        opLog.get(type).get(0).getToRun().run();
+                        opLog.get(type).remove(0);
+                        break;
+                    case DEL_OLD:
+
+                        Collections.sort(opLog.get(type), new Comparator<WriteBufferEntry>() {
+                            @Override
+                            public int compare(WriteBufferEntry o1, WriteBufferEntry o2) {
+                                return Long.valueOf(o1.getTimestamp()).compareTo(o2.getTimestamp());
+                            }
+                        });
+                        if (logger.isDebugEnabled()) {
+                            logger.debug("Deleting oldest entry");
+                        }
+                        opLog.get(type).remove(0);
+                        break;
+                }
+
+            }
+            opLog.get(type).add(wb);
         }
-        opLog.get(type).add(wb);
-
     }
 
     @Override
@@ -458,15 +456,12 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter {
             for (Class<?> clz : opLog.keySet()) {
                 localBuffer.add(clz);
             }
-        }
-
-        for (Class<?> clz : localBuffer) {
-            synchronized (opLog) {
+            for (Class<?> clz : localBuffer) {
                 if (opLog.get(clz) == null || opLog.get(clz).size() == 0) {
                     continue;
                 }
+                opLog.get(clz).addAll(flushToQueue(opLog.get(clz)));
             }
-            flushToQueue(clz);
         }
     }
 
