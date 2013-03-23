@@ -245,6 +245,7 @@ public class CacheHousekeeper extends Thread {
                     boolean inIdCache = idCacheClone.get(cls) != null;
 
                     for (String k : et.getValue()) {
+                        if (k.endsWith("idlist")) continue;
                         if (inIdCache) {
                             //remove objects from id cache
                             for (Object f : cache.get(cls).get(k).getFound()) {
