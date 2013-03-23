@@ -178,8 +178,9 @@ public class MongoFieldImpl<T> implements MongoField<T> {
 
     @Override
     public Query<T> matches(Pattern p) {
-        // $regex : 'acme.*corp', $options: 'i'
-        add("$regex", p.toString());
+        fe.setValue(p);
+        fe.setField(annotationHelper.getFieldName(query.getType(), fldStr));
+        query.addChild(fe);
         return query;
     }
 
