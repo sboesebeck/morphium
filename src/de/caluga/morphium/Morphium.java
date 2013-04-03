@@ -6,10 +6,7 @@ package de.caluga.morphium;
 
 import com.mongodb.*;
 import de.caluga.morphium.aggregation.Aggregator;
-import de.caluga.morphium.annotations.DefaultReadPreference;
-import de.caluga.morphium.annotations.Id;
-import de.caluga.morphium.annotations.Index;
-import de.caluga.morphium.annotations.WriteSafety;
+import de.caluga.morphium.annotations.*;
 import de.caluga.morphium.annotations.caching.Cache;
 import de.caluga.morphium.annotations.caching.NoCache;
 import de.caluga.morphium.annotations.lifecycle.*;
@@ -852,6 +849,27 @@ public final class Morphium {
             l.preRemove(this, q);
         }
         //TODO: Fix - cannot call lifecycle method
+    }
+
+    public <T> T deReference(T obj) {
+        if (obj instanceof LazyDeReferencingProxy) {
+            obj = ((LazyDeReferencingProxy<T>) obj).__getDeref();
+        }
+        List<String> flds = getARHelper().getFields(obj.getClass(), Reference.class);
+        for (String f : flds) {
+            Field fld = getARHelper().getField(obj.getClass(), f);
+            Reference r = fld.getAnnotation(Reference.class);
+            if (r.lazyLoading()) {
+                try {
+                    LazyDeReferencingProxy v = (LazyDeReferencingProxy) fld.get(obj);
+                    Object value = v.__getDeref();
+                    fld.set(obj, value);
+                } catch (IllegalAccessException e) {
+                    logger.error("dereferencing of field " + f + " failed", e);
+                }
+            }
+        }
+        return obj;
     }
 
     /**
