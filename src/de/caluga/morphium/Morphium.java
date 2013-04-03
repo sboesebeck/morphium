@@ -851,15 +851,23 @@ public final class Morphium {
         //TODO: Fix - cannot call lifecycle method
     }
 
+    /**
+     * @param obj
+     * @param <T>
+     * @return
+     */
     public <T> T deReference(T obj) {
         if (obj instanceof LazyDeReferencingProxy) {
             obj = ((LazyDeReferencingProxy<T>) obj).__getDeref();
         }
-        List<String> flds = getARHelper().getFields(obj.getClass(), Reference.class);
-        for (String f : flds) {
-            Field fld = getARHelper().getField(obj.getClass(), f);
+        if (obj instanceof PartiallyUpdateableProxy) {
+            obj = ((PartiallyUpdateableProxy<T>) obj).__getDeref();
+        }
+        List<Field> flds = getARHelper().getAllFields(obj.getClass());
+        for (Field fld : flds) {
+            fld.setAccessible(true);
             Reference r = fld.getAnnotation(Reference.class);
-            if (r.lazyLoading()) {
+            if (r != null && r.lazyLoading()) {
                 try {
                     LazyDeReferencingProxy v = (LazyDeReferencingProxy) fld.get(obj);
                     Object value = v.__getDeref();
@@ -867,6 +875,12 @@ public final class Morphium {
                 } catch (IllegalAccessException e) {
                     logger.error("dereferencing of field " + f + " failed", e);
                 }
+            }
+            try {
+                if (fld.get(obj) != null && getARHelper().isAnnotationPresentInHierarchy(fld.getType(), Entity.class) && fld.get(obj) instanceof PartiallyUpdateableProxy) {
+                    fld.set(obj, ((PartiallyUpdateableProxy) fld.get(obj)).__getDeref());
+                }
+            } catch (IllegalAccessException e) {
             }
         }
         return obj;
