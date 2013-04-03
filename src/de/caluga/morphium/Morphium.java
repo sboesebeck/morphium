@@ -852,9 +852,13 @@ public final class Morphium {
     }
 
     /**
-     * @param obj
-     * @param <T>
-     * @return
+     * de-references the given object of type T. If itself or any of its members is a Proxy (PartiallyUpdateableProxy or LazyDeReferencingProxy), it'll be removed and replaced
+     * by the real objet.
+     * This is not recursive, only the members here are de-referenced
+     *
+     * @param obj - the object to replact
+     * @param <T> - type
+     * @return the dereferenced object
      */
     public <T> T deReference(T obj) {
         if (obj instanceof LazyDeReferencingProxy) {
@@ -873,7 +877,7 @@ public final class Morphium {
                     Object value = v.__getDeref();
                     fld.set(obj, value);
                 } catch (IllegalAccessException e) {
-                    logger.error("dereferencing of field " + f + " failed", e);
+                    logger.error("dereferencing of field " + fld.getName() + " failed", e);
                 }
             }
             try {
