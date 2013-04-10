@@ -47,7 +47,7 @@ public class MorphiumCacheImpl implements MorphiumCache {
         if (k == null) {
             return;
         }
-        if (ret != null && !k.endsWith("idlist")) {
+        if (!k.endsWith("idlist")) {
             //copy from idCache
             Hashtable<Class<?>, Hashtable<ObjectId, Object>> idCacheClone = cloneIdCache();
             for (T record : ret) {
