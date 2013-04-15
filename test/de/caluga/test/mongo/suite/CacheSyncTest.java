@@ -110,6 +110,7 @@ public class CacheSyncTest extends MongoTest {
 
     @Test
     public void idCacheTest() throws Exception {
+        MorphiumSingleton.get().dropCollection(Msg.class);
         MorphiumSingleton.get().dropCollection(IdCachedObject.class);
         //Making sure, indices are only created once...
         IdCachedObject o = new IdCachedObject();
