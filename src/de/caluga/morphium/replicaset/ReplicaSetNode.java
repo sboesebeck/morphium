@@ -16,6 +16,7 @@ import java.util.Date;
 @SuppressWarnings("UnusedDeclaration")
 @Embedded
 public class ReplicaSetNode {
+    private int id;
     private String name;
     private double health;
     private int state;
@@ -29,6 +30,18 @@ public class ReplicaSetNode {
     @Property(fieldName = "lastHeartbeat")
     private Date lastHeartbeat;
     private int pingMs;
+
+    public int getId() {
+        return id;
+    }
+
+    public void setId(int id) {
+        this.id = id;
+    }
+
+    public void setHealth(double health) {
+        this.health = health;
+    }
 
     public String getName() {
         return name;

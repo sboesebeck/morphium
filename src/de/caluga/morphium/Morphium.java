@@ -18,6 +18,7 @@ import de.caluga.morphium.query.Query;
 import de.caluga.morphium.replicaset.ConfNode;
 import de.caluga.morphium.replicaset.ReplicaSetConf;
 import de.caluga.morphium.replicaset.ReplicaSetNode;
+import de.caluga.morphium.replicaset.ReplicaSetStatus;
 import de.caluga.morphium.validation.JavaxValidationStorageListener;
 import de.caluga.morphium.writer.BufferedMorphiumWriterImpl;
 import de.caluga.morphium.writer.MorphiumWriter;
@@ -60,6 +61,8 @@ public final class Morphium {
     private MorphiumConfig config;
     private Mongo mongo;
     private DB database;
+
+    private ReplicaSetStatus currentStatus = null;
 
     //Cache by Type, query String -> CacheElement (contains list etc)
 
@@ -175,6 +178,27 @@ public final class Morphium {
             throw new RuntimeException(e);
         }
 
+        if (config.getAdr().size() > 1) {
+            Thread thr = new Thread() {
+                public void run() {
+                    //updating replicaset status / active nodes
+                    while (true) {
+                        try {
+                            currentStatus = getReplicaSetStatus(true);
+                            sleep(config.getReplicaSetMonitoringTimeout());
+                        } catch (InterruptedException e) {
+                        }
+                    }
+                }
+            };
+            thr.setDaemon(true);
+            thr.start();
+        }
+        try {
+            Thread.sleep(1000); //Waiting for initialization to finish
+        } catch (InterruptedException e) {
+
+        }
         logger.info("Initialization successful...");
 
     }
@@ -909,8 +933,12 @@ public final class Morphium {
      *
      * @return replica set status
      */
-    public de.caluga.morphium.replicaset.ReplicaSetStatus getReplicaSetStatus() {
+    private de.caluga.morphium.replicaset.ReplicaSetStatus getReplicaSetStatus() {
         return getReplicaSetStatus(false);
+    }
+
+    public ReplicaSetStatus getCurrentStatus() {
+        return currentStatus;
     }
 
     /**
@@ -922,7 +950,7 @@ public final class Morphium {
      * @return status
      */
     @SuppressWarnings("unchecked")
-    public de.caluga.morphium.replicaset.ReplicaSetStatus getReplicaSetStatus(boolean full) {
+    private de.caluga.morphium.replicaset.ReplicaSetStatus getReplicaSetStatus(boolean full) {
         if (config.getAdr().size() > 1) {
             try {
                 DB adminDB = getMongo().getDB("admin");
@@ -988,7 +1016,8 @@ public final class Morphium {
         }
         int timeout = safety.timeout();
         if (isReplicaSet() && w > 2) {
-            de.caluga.morphium.replicaset.ReplicaSetStatus s = getReplicaSetStatus();
+            de.caluga.morphium.replicaset.ReplicaSetStatus s = currentStatus;
+
             if (s == null || s.getActiveNodes() == 0) {
                 logger.warn("ReplicaSet status is null or no node active! Assuming default write concern");
                 return null;
