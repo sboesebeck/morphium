@@ -50,6 +50,27 @@ public class IteratorTest extends MongoTest {
     }
 
     @Test
+    public void iteratorByIdTest() throws Exception {
+        MorphiumSingleton.get().dropCollection(UncachedObject.class);
+        createUncachedObjects(100000);
+        Query<UncachedObject> qu = MorphiumSingleton.get().createQueryFor(UncachedObject.class);
+        qu.sort("_id");
+
+        MorphiumIterator<UncachedObject> it = qu.asIterable(107);
+
+        int read = 0;
+        UncachedObject u = null;
+        while (it.hasNext()) {
+            read++;
+            u = it.next();
+            log.info("Object: " + u.getCounter());
+            assert (u.getCounter() == read);
+        }
+
+        assert (read == 100000) : "Last counter wrong: " + u.getCounter();
+    }
+
+    @Test
     public void iteratorRepeatTest() throws Exception {
         createUncachedObjects(278);
         Query<UncachedObject> qu = MorphiumSingleton.get().createQueryFor(UncachedObject.class);
