@@ -259,6 +259,7 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
         } else {
             f = annotationHelper.getFieldName(type, f); //handling of aliases
         }
+
         MongoField<T> fld = morphium.createMongoField(); //new MongoFieldImpl<T>();
         fld.setFieldString(f);
         fld.setMapper(morphium.getMapper());

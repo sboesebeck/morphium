@@ -2,7 +2,9 @@ package de.caluga.test.mongo.suite;
 
 import com.mongodb.WriteConcern;
 import de.caluga.morphium.MorphiumSingleton;
-import de.caluga.morphium.replicaset.ReplicaSetStatus;
+import de.caluga.morphium.annotations.Entity;
+import de.caluga.morphium.annotations.SafetyLevel;
+import de.caluga.morphium.annotations.WriteSafety;
 import org.apache.log4j.Logger;
 import org.junit.Test;
 
@@ -16,22 +18,30 @@ public class ReplicaSetStatusTest extends MongoTest {
     private static Logger log = Logger.getLogger(ReplicaSetStatusTest.class);
 
     @Test
-    public void testReplicaSetStatus() throws Exception {
-        if (!MorphiumSingleton.get().isReplicaSet()) {
-            log.warn("Not testing replicaset-status - not configured as such!");
-            return;
+    public void testReplicaSetMonitoring() throws Exception {
+        int cnt = 0;
+        while (MorphiumSingleton.get().getCurrentStatus() == null) {
+            cnt++;
+            assert (cnt < 7);
+            Thread.sleep(1000);
         }
 
-        ReplicaSetStatus stat = MorphiumSingleton.get().getReplicaSetStatus(true);
-        log.info("Stat \n" + stat.toString());
-        assert (stat.getActiveNodes() > 1);
+        log.info("got status: " + MorphiumSingleton.get().getCurrentStatus().getActiveNodes());
     }
 
     @Test
-    public void testWriteConcer() throws Exception {
-        WriteConcern w = MorphiumSingleton.get().getWriteConcernForClass(UncachedObject.class);
-        //TODO: remove comment when mongodb bug is fixed
-//        assert (w.getW() == 3) : "W is wrong: " + w.getW();
+    public void testWriteConcern() throws Exception {
+        WriteConcern w = MorphiumSingleton.get().getWriteConcernForClass(SecureObject.class);
+        assert (w.getW() == 2);
+        assert (w.getJ());
+        assert (!w.getFsync());
+        assert (w.getWtimeout() == 10000);
+        assert (w.raiseNetworkErrors());
+    }
+
+    @Entity
+    @WriteSafety(level = SafetyLevel.WAIT_FOR_ALL_SLAVES, waitForSync = true, waitForJournalCommit = true, timeout = 10000)
+    public class SecureObject extends UncachedObject {
 
     }
 }
