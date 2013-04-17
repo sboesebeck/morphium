@@ -39,7 +39,7 @@ import java.util.*;
  */
 
 @SuppressWarnings("UnusedDeclaration")
-public final class Morphium {
+public class Morphium {
 
     /**
      * singleton is usually not a good idea in j2ee-Context, but as we did it on
@@ -87,6 +87,13 @@ public final class Morphium {
     }
 //    private boolean securityEnabled = false;
 
+    public Morphium() {
+        stats = new Hashtable<StatisticKeys, StatisticValue>();
+        shutDownListeners = new Vector<ShutdownListener>();
+        listeners = new ArrayList<MorphiumStorageListener>();
+        profilingListeners = new Vector<ProfilingListener>();
+    }
+
     /**
      * init the MongoDbLayer. Uses Morphium-Configuration Object for Configuration.
      * Needs to be set before use or RuntimeException is thrown!
@@ -95,17 +102,23 @@ public final class Morphium {
      * @see MorphiumConfig
      */
     public Morphium(MorphiumConfig cfg) {
-        if (cfg == null) {
-            throw new RuntimeException("Please specify configuration!");
+        this();
+        setConfig(cfg);
+        initializeAndConnect();
+
+    }
+
+    public void setConfig(MorphiumConfig cfg) {
+        if (config != null) {
+            throw new RuntimeException("Cannot change config!");
         }
         config = cfg;
-        shutDownListeners = new Vector<ShutdownListener>();
-        listeners = new ArrayList<MorphiumStorageListener>();
-        profilingListeners = new Vector<ProfilingListener>();
+    }
 
-
-        stats = new Hashtable<StatisticKeys, StatisticValue>();
-
+    private void initializeAndConnect() {
+        if (config == null) {
+            throw new RuntimeException("Please specify configuration!");
+        }
         for (StatisticKeys k : StatisticKeys.values()) {
             stats.put(k, new StatisticValue());
         }
@@ -200,7 +213,6 @@ public final class Morphium {
 
         }
         logger.info("Initialization successful...");
-
     }
 
     public MorphiumCache getCache() {
