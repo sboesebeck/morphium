@@ -77,8 +77,8 @@ public class MongoFieldImpl<T> implements MongoField<T> {
         // checking for Ids in references...
         if (val != null) {
             Class<?> cls = val.getClass();
+            Field field = annotationHelper.getField(query.getType(), fldStr);
             if (annotationHelper.isAnnotationPresentInHierarchy(cls, Entity.class) || val instanceof ObjectId) {
-                Field field = annotationHelper.getField(query.getType(), fldStr);
                 if (field.isAnnotationPresent(Reference.class)) {
                     ObjectId id;
                     if (val instanceof ObjectId) {
@@ -100,6 +100,16 @@ public class MongoFieldImpl<T> implements MongoField<T> {
                     }
                 }
 
+            }
+            if (field != null) {
+                if (val instanceof ObjectId && field.getType().equals(String.class)) {
+                    val = val.toString();
+                } else if (val instanceof String && field.getType().equals(ObjectId.class)) {
+                    try {
+                        val = new ObjectId((String) val);
+                    } catch (Exception e) {
+                    }
+                }
             }
         }
 
