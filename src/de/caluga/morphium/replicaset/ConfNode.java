@@ -14,18 +14,27 @@ import de.caluga.morphium.annotations.Property;
 @Embedded
 public class ConfNode {
     @Property(fieldName = "_id")
-    private String id;
+    private int id;
     private String host;
     private Integer priority;
 
     @Property(fieldName = "arbiterOnly")
     private Boolean arbiterOnly;
+    private Boolean hidden;
 
-    public String getId() {
+    public Boolean getHidden() {
+        return hidden;
+    }
+
+    public void setHidden(Boolean hidden) {
+        this.hidden = hidden;
+    }
+
+    public int getId() {
         return id;
     }
 
-    public void setId(String id) {
+    public void setId(int id) {
         this.id = id;
     }
 

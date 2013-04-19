@@ -82,6 +82,8 @@ public class MorphiumConfig {
     private AggregatorFactory aggregatorFactory;
     private MorphiumCache cache;
 
+    private int replicaSetMonitoringTimeout = 5000;
+
 
     /**
      * login credentials for MongoDB - if necessary. If null, don't authenticate
@@ -102,6 +104,13 @@ public class MorphiumConfig {
     private ReadPreferenceLevel defaultReadPreference;
     private Class<? extends MorphiumIterator> iteratorClass;
 
+    public int getReplicaSetMonitoringTimeout() {
+        return replicaSetMonitoringTimeout;
+    }
+
+    public void setReplicaSetMonitoringTimeout(int replicaSetMonitoringTimeout) {
+        this.replicaSetMonitoringTimeout = replicaSetMonitoringTimeout;
+    }
 
     public int getWriteBufferTimeGranularity() {
         return writeBufferTimeGranularity;

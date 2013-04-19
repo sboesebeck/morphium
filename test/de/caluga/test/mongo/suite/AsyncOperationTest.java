@@ -138,7 +138,8 @@ public class AsyncOperationTest extends MongoTest {
         }
 
         long end = System.currentTimeMillis();
-        assert (end - start < 2000);
+        assert (end - start < 8000);
+        waitForWrites();
     }
 
 

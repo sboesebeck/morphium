@@ -75,9 +75,21 @@ public class ReplicaSetStatus {
         int up = 0;
         for (ReplicaSetNode n : members) {
             if (n.getState() <= 2) {
-                up++;
+                boolean ignore = false;
+                for (ConfNode c : config.getMembers()) {
+                    if (c.getId() == n.getId() && c.getHidden() != null && c.getHidden()) {
+                        ignore = true;
+                    }
+                }
+                if (!ignore)
+                    up++;
             }
         }
+//        for (ConfNode c:config.getMembers()) {
+//            if (c.getHidden()!=null && c.getHidden()) {
+//                up--; //removing hidden nodes
+//            }
+//        }
         return up;
     }
 
