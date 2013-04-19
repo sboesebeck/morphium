@@ -6,10 +6,7 @@ package de.caluga.morphium;
 
 import com.mongodb.*;
 import de.caluga.morphium.aggregation.Aggregator;
-import de.caluga.morphium.annotations.DefaultReadPreference;
-import de.caluga.morphium.annotations.Id;
-import de.caluga.morphium.annotations.Index;
-import de.caluga.morphium.annotations.WriteSafety;
+import de.caluga.morphium.annotations.*;
 import de.caluga.morphium.annotations.caching.Cache;
 import de.caluga.morphium.annotations.caching.NoCache;
 import de.caluga.morphium.annotations.lifecycle.*;
@@ -21,6 +18,7 @@ import de.caluga.morphium.query.Query;
 import de.caluga.morphium.replicaset.ConfNode;
 import de.caluga.morphium.replicaset.ReplicaSetConf;
 import de.caluga.morphium.replicaset.ReplicaSetNode;
+import de.caluga.morphium.replicaset.ReplicaSetStatus;
 import de.caluga.morphium.validation.JavaxValidationStorageListener;
 import de.caluga.morphium.writer.BufferedMorphiumWriterImpl;
 import de.caluga.morphium.writer.MorphiumWriter;
@@ -41,7 +39,7 @@ import java.util.*;
  */
 
 @SuppressWarnings("UnusedDeclaration")
-public final class Morphium {
+public class Morphium {
 
     /**
      * singleton is usually not a good idea in j2ee-Context, but as we did it on
@@ -63,6 +61,8 @@ public final class Morphium {
     private MorphiumConfig config;
     private Mongo mongo;
     private DB database;
+
+    private ReplicaSetStatus currentStatus = null;
 
     //Cache by Type, query String -> CacheElement (contains list etc)
 
@@ -87,6 +87,13 @@ public final class Morphium {
     }
 //    private boolean securityEnabled = false;
 
+    public Morphium() {
+        stats = new Hashtable<StatisticKeys, StatisticValue>();
+        shutDownListeners = new Vector<ShutdownListener>();
+        listeners = new ArrayList<MorphiumStorageListener>();
+        profilingListeners = new Vector<ProfilingListener>();
+    }
+
     /**
      * init the MongoDbLayer. Uses Morphium-Configuration Object for Configuration.
      * Needs to be set before use or RuntimeException is thrown!
@@ -95,17 +102,23 @@ public final class Morphium {
      * @see MorphiumConfig
      */
     public Morphium(MorphiumConfig cfg) {
-        if (cfg == null) {
-            throw new RuntimeException("Please specify configuration!");
+        this();
+        setConfig(cfg);
+        initializeAndConnect();
+
+    }
+
+    public void setConfig(MorphiumConfig cfg) {
+        if (config != null) {
+            throw new RuntimeException("Cannot change config!");
         }
         config = cfg;
-        shutDownListeners = new Vector<ShutdownListener>();
-        listeners = new ArrayList<MorphiumStorageListener>();
-        profilingListeners = new Vector<ProfilingListener>();
+    }
 
-
-        stats = new Hashtable<StatisticKeys, StatisticValue>();
-
+    private void initializeAndConnect() {
+        if (config == null) {
+            throw new RuntimeException("Please specify configuration!");
+        }
         for (StatisticKeys k : StatisticKeys.values()) {
             stats.put(k, new StatisticValue());
         }
@@ -178,8 +191,28 @@ public final class Morphium {
             throw new RuntimeException(e);
         }
 
-        logger.info("Initialization successful...");
+        if (config.getAdr().size() > 1) {
+            Thread thr = new Thread() {
+                public void run() {
+                    //updating replicaset status / active nodes
+                    while (true) {
+                        try {
+                            currentStatus = getReplicaSetStatus(true);
+                            sleep(config.getReplicaSetMonitoringTimeout());
+                        } catch (InterruptedException e) {
+                        }
+                    }
+                }
+            };
+            thr.setDaemon(true);
+            thr.start();
+        }
+        try {
+            Thread.sleep(1000); //Waiting for initialization to finish
+        } catch (InterruptedException e) {
 
+        }
+        logger.info("Initialization successful...");
     }
 
     public MorphiumCache getCache() {
@@ -855,6 +888,45 @@ public final class Morphium {
     }
 
     /**
+     * de-references the given object of type T. If itself or any of its members is a Proxy (PartiallyUpdateableProxy or LazyDeReferencingProxy), it'll be removed and replaced
+     * by the real objet.
+     * This is not recursive, only the members here are de-referenced
+     *
+     * @param obj - the object to replact
+     * @param <T> - type
+     * @return the dereferenced object
+     */
+    public <T> T deReference(T obj) {
+        if (obj instanceof LazyDeReferencingProxy) {
+            obj = ((LazyDeReferencingProxy<T>) obj).__getDeref();
+        }
+        if (obj instanceof PartiallyUpdateableProxy) {
+            obj = ((PartiallyUpdateableProxy<T>) obj).__getDeref();
+        }
+        List<Field> flds = getARHelper().getAllFields(obj.getClass());
+        for (Field fld : flds) {
+            fld.setAccessible(true);
+            Reference r = fld.getAnnotation(Reference.class);
+            if (r != null && r.lazyLoading()) {
+                try {
+                    LazyDeReferencingProxy v = (LazyDeReferencingProxy) fld.get(obj);
+                    Object value = v.__getDeref();
+                    fld.set(obj, value);
+                } catch (IllegalAccessException e) {
+                    logger.error("dereferencing of field " + fld.getName() + " failed", e);
+                }
+            }
+            try {
+                if (fld.get(obj) != null && getARHelper().isAnnotationPresentInHierarchy(fld.getType(), Entity.class) && fld.get(obj) instanceof PartiallyUpdateableProxy) {
+                    fld.set(obj, ((PartiallyUpdateableProxy) fld.get(obj)).__getDeref());
+                }
+            } catch (IllegalAccessException e) {
+            }
+        }
+        return obj;
+    }
+
+    /**
      * will be called by query after unmarshalling
      *
      * @param o - entitiy
@@ -873,8 +945,12 @@ public final class Morphium {
      *
      * @return replica set status
      */
-    public de.caluga.morphium.replicaset.ReplicaSetStatus getReplicaSetStatus() {
+    private de.caluga.morphium.replicaset.ReplicaSetStatus getReplicaSetStatus() {
         return getReplicaSetStatus(false);
+    }
+
+    public ReplicaSetStatus getCurrentStatus() {
+        return currentStatus;
     }
 
     /**
@@ -886,7 +962,7 @@ public final class Morphium {
      * @return status
      */
     @SuppressWarnings("unchecked")
-    public de.caluga.morphium.replicaset.ReplicaSetStatus getReplicaSetStatus(boolean full) {
+    private de.caluga.morphium.replicaset.ReplicaSetStatus getReplicaSetStatus(boolean full) {
         if (config.getAdr().size() > 1) {
             try {
                 DB adminDB = getMongo().getDB("admin");
@@ -952,7 +1028,8 @@ public final class Morphium {
         }
         int timeout = safety.timeout();
         if (isReplicaSet() && w > 2) {
-            de.caluga.morphium.replicaset.ReplicaSetStatus s = getReplicaSetStatus();
+            de.caluga.morphium.replicaset.ReplicaSetStatus s = currentStatus;
+
             if (s == null || s.getActiveNodes() == 0) {
                 logger.warn("ReplicaSet status is null or no node active! Assuming default write concern");
                 return null;

@@ -16,6 +16,8 @@ public class BufferedWriterTest extends MongoTest {
     @Test
     public void testWriteBufferBySizeWithWriteNewStrategy() throws Exception {
         MorphiumSingleton.get().dropCollection(BufferedBySizeWriteNewObject.class);
+        waitForAsyncOperationToStart(10000);
+        waitForWrites();
         int amount = 1500;
         for (int i = 0; i < amount; i++) {
             BufferedBySizeWriteNewObject bo = new BufferedBySizeWriteNewObject();
@@ -29,9 +31,10 @@ public class BufferedWriterTest extends MongoTest {
             long count = MorphiumSingleton.get().createQueryFor(BufferedBySizeWriteNewObject.class).countAll();
             if (count == amount) break;
             System.out.println("Amount written: " + count + " but Write buffer: " + MorphiumSingleton.get().getWriteBufferCount());
+            assert (System.currentTimeMillis() - start < 15000);
             Thread.sleep(100);
         }
-        assert (System.currentTimeMillis() - start < 12000);
+        assert (System.currentTimeMillis() - start < 15000);
     }
 
     @Test

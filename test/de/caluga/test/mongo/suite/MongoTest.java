@@ -68,7 +68,8 @@ public class MongoTest {
             MorphiumSingleton.get().clearCollection(Msg.class);
             MorphiumSingleton.get().ensureIndex(UncachedObject.class, "counter", "value");
             MorphiumSingleton.get().ensureIndex(CachedObject.class, "counter", "value");
-//            Thread.sleep(1000);
+            waitForWrites();
+            Thread.sleep(1000);
             Map<String, Double> stats = MorphiumSingleton.get().getStatistics();
             Double ent = stats.get("X-Entries for: de.caluga.test.mongo.suite.CachedObject");
             assert (ent == null || ent == 0) : "Still cache entries???";
@@ -87,9 +88,9 @@ public class MongoTest {
     @org.junit.After
     public void tearDown() throws Exception {
         log.info("Cleaning up...");
-        MorphiumSingleton.get().clearCollection(UncachedObject.class);
-        MorphiumSingleton.get().clearCollection(CachedObject.class);
-        MorphiumSingleton.get().clearCollection(Msg.class);
+        MorphiumSingleton.get().dropCollection(UncachedObject.class);
+        MorphiumSingleton.get().dropCollection(CachedObject.class);
+        MorphiumSingleton.get().dropCollection(Msg.class);
         waitForWrites();
         log.info("done...");
     }
