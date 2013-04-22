@@ -565,6 +565,9 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
             if (log.isDebugEnabled()) {
                 log.debug("creating iterable for query - windowsize " + windowSize);
             }
+            if (getSort() == null || getSort().isEmpty()) {
+                throw new IllegalArgumentException("iterating over collection without sort! ATTENTION might cause to double reads or skipped data!");
+            }
             MorphiumIterator<T> it = morphium.getConfig().getIteratorClass().newInstance();
             it.setQuery(this);
             it.setWindowSize(windowSize);
