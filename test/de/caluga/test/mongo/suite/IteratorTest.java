@@ -74,7 +74,7 @@ public class IteratorTest extends MongoTest {
     public void iteratorRepeatTest() throws Exception {
         createUncachedObjects(278);
         Query<UncachedObject> qu = MorphiumSingleton.get().createQueryFor(UncachedObject.class);
-
+        qu = qu.sort("_id");
 //        MorphiumIterator<UncachedObject> it = qu.asIterable(10);
         HashMap<String, String> hash = new HashMap<String, String>();
         boolean error = false;
