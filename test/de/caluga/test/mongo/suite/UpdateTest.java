@@ -5,7 +5,9 @@ import de.caluga.morphium.query.Query;
 import org.junit.Test;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * User: Stephan Bösebeck
@@ -14,6 +16,29 @@ import java.util.List;
  * <p/>
  */
 public class UpdateTest extends MongoTest {
+    @Test
+    public void incMultipleFieldsTest() throws Exception {
+        MorphiumSingleton.get().dropCollection(UncachedMultipleCounter.class);
+        for (int i = 1; i <= 50; i++) {
+            UncachedMultipleCounter o = new UncachedMultipleCounter();
+            o.setCounter(i);
+            o.setValue("Uncached " + i);
+            o.setCounter2((double) i / 2.0);
+            MorphiumSingleton.get().store(o);
+        }
+        Query<UncachedMultipleCounter> q = MorphiumSingleton.get().createQueryFor(UncachedMultipleCounter.class);
+        q = q.f("value").eq("Uncached " + 5);
+
+        Map<String, Double> toInc = new HashMap<String, Double>();
+        toInc.put("counter", 10.0);
+        toInc.put("counter2", 0.5);
+        MorphiumSingleton.get().inc(q, toInc, false, true, null);
+
+        assert (q.get().getCounter() == 15) : "counter is:" + q.get().getCounter();
+        assert (q.get().getCounter2() == 3);
+
+    }
+
     @Test
     public void incTest() throws Exception {
         for (int i = 1; i <= 50; i++) {
@@ -197,6 +222,18 @@ public class UpdateTest extends MongoTest {
         assert (lc2.getEmbeddedObjectList() != null);
         assert (lc2.getEmbeddedObjectList().size() == 3) : "Size wrong should be 3 is " + lc2.getEmbeddedObjectList().size();
         assert (lc2.getEmbeddedObjectList().get(0).getTest() == 1l);
+    }
+
+    public static class UncachedMultipleCounter extends UncachedObject {
+        private double counter2;
+
+        public double getCounter2() {
+            return counter2;
+        }
+
+        public void setCounter2(double counter2) {
+            this.counter2 = counter2;
+        }
     }
 
 }

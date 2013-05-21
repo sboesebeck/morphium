@@ -691,7 +691,7 @@ public class MorphiumWriterImpl implements MorphiumWriter {
      * @param amount: the value to set
      */
     @Override
-    public <T> void inc(final T toInc, final String collection, final String field, final int amount, final AsyncOperationCallback<T> callback) {
+    public <T> void inc(final T toInc, final String collection, final String field, final double amount, final AsyncOperationCallback<T> callback) {
         Runnable r = new Runnable() {
             @Override
             public void run() {
@@ -764,7 +764,51 @@ public class MorphiumWriterImpl implements MorphiumWriter {
     }
 
     @Override
-    public <T> void inc(final Query<T> query, final String field, final int amount, final boolean insertIfNotExist, final boolean multiple, final AsyncOperationCallback<T> callback) {
+    public <T> void inc(final Query<T> query, final Map<String, Double> fieldsToInc, final boolean insertIfNotExist, final boolean multiple, final AsyncOperationCallback<T> callback) {
+        Runnable r = new Runnable() {
+            @Override
+            public void run() {
+                Class<?> cls = query.getType();
+                morphium.firePreUpdateEvent(annotationHelper.getRealClass(cls), MorphiumStorageListener.UpdateTypes.INC);
+                String coll = morphium.getMapper().getCollectionName(cls);
+
+                BasicDBObject update = new BasicDBObject();
+                update.put("$inc", new BasicDBObject(fieldsToInc));
+                DBObject qobj = query.toQueryObject();
+                if (insertIfNotExist) {
+                    qobj = morphium.simplifyQueryObject(qobj);
+                }
+                if (insertIfNotExist && !morphium.getDatabase().collectionExists(coll)) {
+                    morphium.ensureIndicesFor(cls);
+                }
+                WriteConcern wc = morphium.getWriteConcernForClass(cls);
+                long start = System.currentTimeMillis();
+                try {
+                    if (wc == null) {
+                        morphium.getDatabase().getCollection(coll).update(qobj, update, insertIfNotExist, multiple);
+                    } else {
+                        morphium.getDatabase().getCollection(coll).update(qobj, update, insertIfNotExist, multiple, wc);
+                    }
+                    long dur = System.currentTimeMillis() - start;
+                    morphium.fireProfilingWriteEvent(cls, update, dur, insertIfNotExist, multiple ? WriteAccessType.BULK_UPDATE : WriteAccessType.SINGLE_UPDATE);
+                    morphium.getCache().clearCacheIfNecessary(cls);
+                    morphium.firePostUpdateEvent(annotationHelper.getRealClass(cls), MorphiumStorageListener.UpdateTypes.INC);
+                    if (callback != null)
+                        callback.onOperationSucceeded(AsyncOperationType.INC, query, System.currentTimeMillis() - start, null, null, fieldsToInc);
+                } catch (RuntimeException e) {
+                    if (callback == null) throw new RuntimeException(e);
+                    callback.onOperationError(AsyncOperationType.INC, query, System.currentTimeMillis() - start, e.getMessage(), e, null, fieldsToInc);
+
+                }
+
+            }
+        };
+        submitAndBlockIfNecessary(callback, r);
+    }
+
+
+    @Override
+    public <T> void inc(final Query<T> query, final String field, final double amount, final boolean insertIfNotExist, final boolean multiple, final AsyncOperationCallback<T> callback) {
         Runnable r = new Runnable() {
             @Override
             public void run() {

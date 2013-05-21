@@ -64,7 +64,7 @@ public interface MorphiumWriter {
     public <T> void set(Query<T> query, Map<String, Object> values, boolean insertIfNotExist, boolean multiple, AsyncOperationCallback<T> callback);
 
 
-    public <T> void inc(Query<T> query, String field, int amount, boolean insertIfNotExist, boolean multiple, AsyncOperationCallback<T> callback);
+    public <T> void inc(Query<T> query, String field, double amount, boolean insertIfNotExist, boolean multiple, AsyncOperationCallback<T> callback);
 
     /**
      * Increases a value in an existing mongo collection entry - no reading necessary. Object is altered in place
@@ -75,7 +75,7 @@ public interface MorphiumWriter {
      * @param field:  the field to change
      * @param amount: the value to set
      */
-    public <T> void inc(T toInc, String collection, String field, int amount, AsyncOperationCallback<T> callback);
+    public <T> void inc(T toInc, String collection, String field, double amount, AsyncOperationCallback<T> callback);
 
     public void setMorphium(Morphium m);
 
@@ -117,4 +117,6 @@ public interface MorphiumWriter {
     public void setMaximumQueingTries(int n);
 
     public void setPauseBetweenTries(int p);
+
+    public <T> void inc(Query<T> query, Map<String, Double> fieldsToInc, boolean insertIfNotExist, boolean multiple, AsyncOperationCallback<T> callback);
 }

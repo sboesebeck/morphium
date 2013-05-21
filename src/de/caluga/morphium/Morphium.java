@@ -577,41 +577,48 @@ public class Morphium {
     }
 
     @SuppressWarnings({"unchecked", "UnusedDeclaration"})
-    public void dec(Query<?> query, Enum field, int amount, boolean insertIfNotExist, boolean multiple) {
+    public void dec(Query<?> query, Enum field, double amount, boolean insertIfNotExist, boolean multiple) {
         dec(query, field.name(), amount, insertIfNotExist, multiple);
     }
 
-    public void dec(Query<?> query, String field, int amount, boolean insertIfNotExist, boolean multiple) {
+    public void dec(Query<?> query, String field, double amount, boolean insertIfNotExist, boolean multiple) {
         inc(query, field, -amount, insertIfNotExist, multiple);
     }
 
-    public void dec(Query<?> query, String field, int amount) {
+    public void dec(Query<?> query, String field, double amount) {
         inc(query, field, -amount, false, false);
     }
 
     @SuppressWarnings({"unchecked", "UnusedDeclaration"})
-    public void dec(Query<?> query, Enum field, int amount) {
+    public void dec(Query<?> query, Enum field, double amount) {
         inc(query, field, -amount, false, false);
     }
 
-    public void inc(Query<?> query, String field, int amount) {
+    public void inc(Query<?> query, String field, double amount) {
         inc(query, field, amount, false, false);
     }
 
     @SuppressWarnings({"unchecked", "UnusedDeclaration"})
-    public void inc(Query<?> query, Enum field, int amount) {
+    public void inc(Query<?> query, Enum field, double amount) {
         inc(query, field, amount, false, false);
     }
 
-    public void inc(Query<?> query, Enum field, int amount, boolean insertIfNotExist, boolean multiple) {
+    public void inc(Query<?> query, Enum field, double amount, boolean insertIfNotExist, boolean multiple) {
         inc(query, field.name(), amount, insertIfNotExist, multiple);
     }
 
-    public void inc(final Query<?> query, final String name, final int amount, final boolean insertIfNotExist, final boolean multiple) {
+    public <T> void inc(final Query<T> query, final Map<String, Double> toUptad, final boolean insertIfNotExist, final boolean multiple, AsyncOperationCallback<T> callback) {
+        if (query == null) throw new RuntimeException("Cannot update null!");
+
+        firePreUpdateEvent(query.getType(), MorphiumStorageListener.UpdateTypes.INC);
+        getWriterForClass(query.getType()).inc(query, toUptad, insertIfNotExist, multiple, callback);
+    }
+
+    public void inc(final Query<?> query, final String name, final double amount, final boolean insertIfNotExist, final boolean multiple) {
         inc(query, name, amount, insertIfNotExist, multiple, null);
     }
 
-    public <T> void inc(final Query<T> query, final String name, final int amount, final boolean insertIfNotExist, final boolean multiple, final AsyncOperationCallback<T> callback) {
+    public <T> void inc(final Query<T> query, final String name, final double amount, final boolean insertIfNotExist, final boolean multiple, final AsyncOperationCallback<T> callback) {
         if (query == null) throw new RuntimeException("Cannot update null!");
 
         firePreUpdateEvent(query.getType(), MorphiumStorageListener.UpdateTypes.INC);
@@ -678,19 +685,19 @@ public class Morphium {
      * decreasing a value of a given object
      * calles <code>inc(toDec,field,-amount);</code>
      */
-    public void dec(Object toDec, String field, int amount) {
+    public void dec(Object toDec, String field, double amount) {
         inc(toDec, field, -amount);
     }
 
-    public void inc(final Object toSet, final String field, final int i) {
+    public void inc(final Object toSet, final String field, final double i) {
         inc(toSet, field, i, null);
     }
 
-    public <T> void inc(final T toSet, final String field, final int i, final AsyncOperationCallback<T> callback) {
+    public <T> void inc(final T toSet, final String field, final double i, final AsyncOperationCallback<T> callback) {
         inc(toSet, getMapper().getCollectionName(toSet.getClass()), field, i, callback);
     }
 
-    public <T> void inc(final T toSet, String collection, final String field, final int i, final AsyncOperationCallback<T> callback) {
+    public <T> void inc(final T toSet, String collection, final String field, final double i, final AsyncOperationCallback<T> callback) {
         if (toSet == null) throw new RuntimeException("Cannot update null!");
 
         if (getId(toSet) == null) {

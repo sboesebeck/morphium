@@ -260,7 +260,23 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter {
     }
 
     @Override
-    public <T> void inc(final Query<T> query, final String field, final int amount, final boolean insertIfNotExist, final boolean multiple, AsyncOperationCallback<T> c) {
+    public <T> void inc(final Query<T> query, final Map<String, Double> fieldsToInc, final boolean insertIfNotExist, final boolean multiple, AsyncOperationCallback<T> c) {
+        if (c == null) {
+            c = new AsyncOpAdapter<T>();
+        }
+        final AsyncOperationCallback<T> callback = c;
+        morphium.inc(StatisticKeys.WRITES_CACHED);
+        addToWriteQueue(query.getType(), new Runnable() {
+            @Override
+            public void run() {
+                directWriter.inc(query, fieldsToInc, insertIfNotExist, multiple, callback);
+            }
+        });
+    }
+
+
+    @Override
+    public <T> void inc(final Query<T> query, final String field, final double amount, final boolean insertIfNotExist, final boolean multiple, AsyncOperationCallback<T> c) {
         if (c == null) {
             c = new AsyncOpAdapter<T>();
         }
@@ -275,7 +291,7 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter {
     }
 
     @Override
-    public <T> void inc(final T toInc, final String collection, final String field, final int amount, AsyncOperationCallback<T> c) {
+    public <T> void inc(final T toInc, final String collection, final String field, final double amount, AsyncOperationCallback<T> c) {
         if (c == null) {
             c = new AsyncOpAdapter<T>();
         }
