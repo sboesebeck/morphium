@@ -36,6 +36,9 @@ public class UpdateTest extends MongoTest {
 
         assert (q.get().getCounter() == 15) : "counter is:" + q.get().getCounter();
         assert (q.get().getCounter2() == 3);
+        MorphiumSingleton.get().inc(q, toInc, false, true, null);
+        assert (q.get().getCounter() == 25) : "counter is:" + q.get().getCounter();
+        assert (q.get().getCounter2() == 3.5);
 
     }
 
