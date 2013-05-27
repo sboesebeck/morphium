@@ -398,6 +398,45 @@ public class MorphiumConfig {
     }
 
     /**
+     * setting hosts as Host:Port
+     * @param str list of hosts, with or without port
+     */
+    public void setHosts(List<String> str) throws UnknownHostException {
+        for (String s:str) {
+            String[] h=s.split(":");
+            if (h.length==1) {
+                addAddress(h[0],27017);
+            } else {
+                addAddress(h[0],Integer.parseInt(h[1]));
+            }
+        }
+    }
+
+    public void setHosts(List<String> str,List<Integer> ports) throws UnknownHostException {
+        for(int i=0;i<str.size();i++) {
+            if (ports.size()<i) {
+                addAddress(str.get(i),27017);
+            } else {
+                addAddress(str.get(i),ports.get(i));
+            }
+        }
+    }
+
+
+    public void setHosts(String hosts,String ports) throws UnknownHostException {
+        String h[]=hosts.split(",");
+        String p[]=ports.split(",");
+        for (int i=0;i<h.length;i++) {
+            if (p.length<i) {
+                addAddress(h[i],27017);
+            } else {
+                addAddress(h[i],Integer.parseInt(p[i]));
+            }
+        }
+
+    }
+
+    /**
      * add addresses to your servers here. Depending on isREplicaSet() and isPaired() one ore more server addresses are needed
      */
     public void setAdr(List<ServerAddress> adr) {

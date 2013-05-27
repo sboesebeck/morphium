@@ -110,7 +110,7 @@ public class MongoTest {
 //            cfg.addAddress("mongo2", 27017);
 //            cfg.addAddress("mongo3", 27017);
             cfg.setWriteCacheTimeout(100);
-            cfg.setConnectionTimeout(10000);
+            cfg.setConnectionTimeout(1000);
             cfg.setMaxWaitTime(1000);
             cfg.setAutoreconnect(true);
             cfg.setMaximumRetriesBufferedWriter(1000);

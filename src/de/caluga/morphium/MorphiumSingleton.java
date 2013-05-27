@@ -70,4 +70,9 @@ public class MorphiumSingleton {
         }
         return instance;
     }
+
+    public static void set(Morphium m) {
+        config=m.getConfig();
+        instance=m;
+    }
 }
