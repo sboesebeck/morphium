@@ -59,7 +59,7 @@ public class Morphium {
      */
     private final static Logger logger = Logger.getLogger(Morphium.class);
     private MorphiumConfig config;
-    private Mongo mongo;
+    private MongoClient mongo;
     private DB database;
 
     private ReplicaSetStatus currentStatus = null;
@@ -122,34 +122,35 @@ public class Morphium {
         for (StatisticKeys k : StatisticKeys.values()) {
             stats.put(k, new StatisticValue());
         }
+        MongoClientOptions.Builder o=MongoClientOptions.builder();
 
-        MongoOptions o = new MongoOptions();
-        o.setAutoConnectRetry(config.isAutoreconnect());
-        o.setSafe(config.isSafeMode());
-        o.setFsync(config.isGlobalFsync());
-        o.setSocketTimeout(config.getSocketTimeout());
-        o.setConnectTimeout(config.getConnectionTimeout());
-        o.setConnectionsPerHost(config.getMaxConnections());
-        o.setSocketKeepAlive(config.isSocketKeepAlive());
-        o.setThreadsAllowedToBlockForConnectionMultiplier(config.getBlockingThreadsMultiplier());
-        o.setJ(config.isGlobalJ());
-        o.setW(config.getGlobalW());
-        o.setWtimeout(config.getWriteTimeout());
-        o.setMaxAutoConnectRetryTime(config.getMaxAutoReconnectTime());
-        o.setMaxWaitTime(config.getMaxWaitTime());
+//        MongoOptions o = new MongoOptions();
+        o.autoConnectRetry(config.isAutoreconnect());
+//        o.safe(config.isSafeMode());
+        WriteConcern w=new WriteConcern(config.getGlobalW(),config.getWriteTimeout(),config.isGlobalFsync(),config.isGlobalJ(),false);
+
+        o.writeConcern(w);
+        o.socketTimeout(config.getSocketTimeout());
+        o.connectTimeout(config.getConnectionTimeout());
+        o.connectionsPerHost(config.getMaxConnections());
+        o.socketKeepAlive(config.isSocketKeepAlive());
+        o.threadsAllowedToBlockForConnectionMultiplier(config.getBlockingThreadsMultiplier());
+        o.maxAutoConnectRetryTime(config.getMaxAutoReconnectTime());
+        o.maxWaitTime(config.getMaxWaitTime());
 
         if (config.getAdr().isEmpty()) {
             throw new RuntimeException("Error - no server address specified!");
         }
-        mongo = new Mongo(config.getAdr(), o);
+        if (config.getMongoLogin() != null) {
+            MongoCredential cred=MongoCredential.createMongoCRCredential(config.getMongoLogin(),config.getDatabase(),config.getMongoPassword().toCharArray());
+            mongo=new MongoClient(config.getAdr(),o.build());
+        } else {
+            mongo=new MongoClient(config.getAdr(),o.build());
+        }
+//        mongo = new Mongo(config.getAdr(), o.build());
         database = mongo.getDB(config.getDatabase());
         if (config.getDefaultReadPreference() != null) {
             mongo.setReadPreference(config.getDefaultReadPreference().getPref());
-        }
-        if (config.getMongoLogin() != null) {
-            if (!database.authenticate(config.getMongoLogin(), config.getMongoPassword().toCharArray())) {
-                throw new RuntimeException("Authentication failed!");
-            }
         }
 
         if (config.getConfigManager() == null) {
