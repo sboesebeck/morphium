@@ -106,9 +106,14 @@ public class MorphiumCacheImpl implements MorphiumCache {
     @SuppressWarnings("unchecked")
     public <T> List<T> getFromCache(Class<? extends T> type, String k) {
         if (cache.get(type) == null || cache.get(type).get(k) == null) return null;
-        final CacheElement cacheElement = cache.get(type).get(k);
-        cacheElement.setLru(System.currentTimeMillis());
-        return cacheElement.getFound();
+        try {
+            final CacheElement cacheElement = cache.get(type).get(k);
+            cacheElement.setLru(System.currentTimeMillis());
+            return cacheElement.getFound();
+        } catch (Exception e) {
+            //can happen, when cache is cleared in thw wron moment
+        }
+        return null;
     }
 
     @SuppressWarnings("unchecked")
