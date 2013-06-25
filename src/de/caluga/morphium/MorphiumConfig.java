@@ -5,7 +5,24 @@ package de.caluga.morphium;
  * and open the template in the editor.
  */
 
+import java.io.IOException;
+import java.net.URL;
+import java.net.UnknownHostException;
+import java.util.ArrayList;
+import java.util.Enumeration;
+import java.util.Hashtable;
+import java.util.List;
+import java.util.Map;
+import java.util.Properties;
+import java.util.Vector;
+
+import org.apache.log4j.LogManager;
+import org.apache.log4j.Logger;
+import org.apache.log4j.xml.DOMConfigurator;
+
+import com.mongodb.DB;
 import com.mongodb.ServerAddress;
+
 import de.caluga.morphium.aggregation.Aggregator;
 import de.caluga.morphium.aggregation.AggregatorFactory;
 import de.caluga.morphium.aggregation.AggregatorFactoryImpl;
@@ -13,19 +30,18 @@ import de.caluga.morphium.aggregation.AggregatorImpl;
 import de.caluga.morphium.annotations.ReadPreferenceLevel;
 import de.caluga.morphium.cache.MorphiumCache;
 import de.caluga.morphium.cache.MorphiumCacheImpl;
-import de.caluga.morphium.query.*;
+import de.caluga.morphium.query.MongoField;
+import de.caluga.morphium.query.MongoFieldImpl;
+import de.caluga.morphium.query.MorphiumIterator;
+import de.caluga.morphium.query.MorphiumIteratorImpl;
+import de.caluga.morphium.query.Query;
+import de.caluga.morphium.query.QueryFactory;
+import de.caluga.morphium.query.QueryFactoryImpl;
+import de.caluga.morphium.query.QueryImpl;
 import de.caluga.morphium.writer.AsyncWriterImpl;
 import de.caluga.morphium.writer.BufferedMorphiumWriterImpl;
 import de.caluga.morphium.writer.MorphiumWriter;
 import de.caluga.morphium.writer.MorphiumWriterImpl;
-import org.apache.log4j.LogManager;
-import org.apache.log4j.Logger;
-import org.apache.log4j.xml.DOMConfigurator;
-
-import java.io.IOException;
-import java.net.URL;
-import java.net.UnknownHostException;
-import java.util.*;
 
 /**
  * Stores the configuration for the MongoDBLayer.
@@ -40,6 +56,8 @@ public class MorphiumConfig {
     private int globalCacheValidTime = 5000;
     private int writeCacheTimeout = 5000;
     private String database;
+
+    private DB db = null;
     private MorphiumWriter writer = new MorphiumWriterImpl();
     private MorphiumWriter bufferedWriter = new BufferedMorphiumWriterImpl();
     private MorphiumWriter asyncWriter = new AsyncWriterImpl();
@@ -247,7 +265,15 @@ public class MorphiumConfig {
         this.bufferedWriter = bufferedWriter;
     }
 
-    public MorphiumWriter getWriter() {
+    public DB getDb() {
+		return db;
+	}
+
+	public void setDb(DB db) {
+		this.db = db;
+	}
+
+	public MorphiumWriter getWriter() {
         return writer;
     }
 
