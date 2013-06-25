@@ -59,9 +59,6 @@ public class Morphium {
      */
     private final static Logger logger = Logger.getLogger(Morphium.class);
     private MorphiumConfig config;
-    private MongoClient mongo;
-    private DB database;
-
     private ReplicaSetStatus currentStatus = null;
 
     //Cache by Type, query String -> CacheElement (contains list etc)
@@ -122,37 +119,30 @@ public class Morphium {
         for (StatisticKeys k : StatisticKeys.values()) {
             stats.put(k, new StatisticValue());
         }
-        MongoClientOptions.Builder o=MongoClientOptions.builder();
-
-//        MongoOptions o = new MongoOptions();
-        o.autoConnectRetry(config.isAutoreconnect());
-//        o.safe(config.isSafeMode());
-        WriteConcern w=new WriteConcern(config.getGlobalW(),config.getWriteTimeout(),config.isGlobalFsync(),config.isGlobalJ(),false);
-
-        o.writeConcern(w);
-        o.socketTimeout(config.getSocketTimeout());
-        o.connectTimeout(config.getConnectionTimeout());
-        o.connectionsPerHost(config.getMaxConnections());
-        o.socketKeepAlive(config.isSocketKeepAlive());
-        o.threadsAllowedToBlockForConnectionMultiplier(config.getBlockingThreadsMultiplier());
-        o.maxAutoConnectRetryTime(config.getMaxAutoReconnectTime());
-        o.maxWaitTime(config.getMaxWaitTime());
-
-        if (config.getAdr().isEmpty()) {
-            throw new RuntimeException("Error - no server address specified!");
+        if(config.getDb() == null) {
+        	MongoClientOptions.Builder o = MongoClientOptions.builder();
+        	o.autoConnectRetry(config.isAutoreconnect());
+        	WriteConcern w=new WriteConcern(config.getGlobalW(),config.getWriteTimeout(),config.isGlobalFsync(),config.isGlobalJ(),false);
+        	o.writeConcern(w);
+        	o.socketTimeout(config.getSocketTimeout());
+        	o.connectTimeout(config.getConnectionTimeout());
+        	o.connectionsPerHost(config.getMaxConnections());
+        	o.socketKeepAlive(config.isSocketKeepAlive());
+        	o.threadsAllowedToBlockForConnectionMultiplier(config.getBlockingThreadsMultiplier());
+        	o.maxAutoConnectRetryTime(config.getMaxAutoReconnectTime());
+        	o.maxWaitTime(config.getMaxWaitTime());
+        	if (config.getAdr().isEmpty()) {
+        		throw new RuntimeException("Error - no server address specified!");
+        	}
+        	if (config.getMongoLogin() != null) {
+        		MongoCredential cred = MongoCredential.createMongoCRCredential(config.getMongoLogin(),config.getDatabase(),config.getMongoPassword().toCharArray());
+        	} 
+        	MongoClient mongo = new MongoClient(config.getAdr(),o.build());
+        	config.setDb(mongo.getDB(config.getDatabase()));
+        	if (config.getDefaultReadPreference() != null) {
+        		mongo.setReadPreference(config.getDefaultReadPreference().getPref());
+        	}
         }
-        if (config.getMongoLogin() != null) {
-            MongoCredential cred=MongoCredential.createMongoCRCredential(config.getMongoLogin(),config.getDatabase(),config.getMongoPassword().toCharArray());
-            mongo=new MongoClient(config.getAdr(),o.build());
-        } else {
-            mongo=new MongoClient(config.getAdr(),o.build());
-        }
-//        mongo = new Mongo(config.getAdr(), o.build());
-        database = mongo.getDB(config.getDatabase());
-        if (config.getDefaultReadPreference() != null) {
-            mongo.setReadPreference(config.getDefaultReadPreference().getPref());
-        }
-
         if (config.getConfigManager() == null) {
             config.setConfigManager(new ConfigManagerImpl());
         }
@@ -253,11 +243,11 @@ public class Morphium {
 
 
     public Mongo getMongo() {
-        return mongo;
+        return config.getDb().getMongo();
     }
 
     public DB getDatabase() {
-        return database;
+        return config.getDb();
     }
 
 
@@ -787,7 +777,7 @@ public class Morphium {
         if (id == null) {
             return null;
         }
-        DBCollection col = database.getCollection(collection);
+        DBCollection col = config.getDb().getCollection(collection);
         BasicDBObject srch = new BasicDBObject("_id", id);
         DBCursor crs = col.find(srch).limit(1);
         if (crs.hasNext()) {
@@ -1214,12 +1204,12 @@ public class Morphium {
      */
     @SuppressWarnings("unchecked")
     public List<Object> distinct(String key, Query q) {
-        return database.getCollection(objectMapper.getCollectionName(q.getType())).distinct(key, q.toQueryObject());
+        return config.getDb().getCollection(objectMapper.getCollectionName(q.getType())).distinct(key, q.toQueryObject());
     }
 
     @SuppressWarnings("unchecked")
     public List<Object> distinct(String key, Class cls) {
-        DBCollection collection = database.getCollection(objectMapper.getCollectionName(cls));
+        DBCollection collection = config.getDb().getCollection(objectMapper.getCollectionName(cls));
         setReadPreference(collection, cls);
         return collection.distinct(key, new BasicDBObject());
     }
@@ -1255,9 +1245,9 @@ public class Morphium {
         if (!jsFinalize.trim().startsWith("function(")) {
             jsFinalize = "function (data) {" + jsFinalize + "}";
         }
-        GroupCommand cmd = new GroupCommand(database.getCollection(objectMapper.getCollectionName(q.getType())),
+        GroupCommand cmd = new GroupCommand(config.getDb().getCollection(objectMapper.getCollectionName(q.getType())),
                 k, q.toQueryObject(), ini, jsReduce, jsFinalize);
-        return database.getCollection(objectMapper.getCollectionName(q.getType())).group(cmd);
+        return config.getDb().getCollection(objectMapper.getCollectionName(q.getType())).group(cmd);
     }
 
     @SuppressWarnings("unchecked")
@@ -1622,13 +1612,10 @@ public class Morphium {
         if (cacheHousekeeper.isAlive()) {
             cacheHousekeeper.interrupt();
         }
-        database = null;
+        config.getDb().getMongo().close();
         config = null;
-
-        mongo.close();
         MorphiumSingleton.reset();
     }
-
 
     public String createCamelCase(String n) {
         return annotationHelper.createCamelCase(n, false);
@@ -1646,7 +1633,7 @@ public class Morphium {
     }
 
     public <T, R> List<R> aggregate(Aggregator<T, R> a) {
-        DBCollection coll = database.getCollection(objectMapper.getCollectionName(a.getSearchType()));
+        DBCollection coll = config.getDb().getCollection(objectMapper.getCollectionName(a.getSearchType()));
         List<DBObject> agList = a.toAggregationList();
         DBObject first = agList.get(0);
         agList.remove(0);
