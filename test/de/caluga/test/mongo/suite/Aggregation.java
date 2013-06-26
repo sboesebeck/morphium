@@ -46,14 +46,14 @@ public class Aggregation extends MongoTest {
         }
         List<Aggregate> lst = a.aggregate();
         assert (lst.size() == 1) : "Size wrong: " + lst.size();
-        log.info("Summe:   " + lst.get(0).getSumme());
-        log.info("Schnitt: " + lst.get(0).getSchnitt());
-        log.info("Last:    " + lst.get(0).getLast());
+        log.info("Sum  : " + lst.get(0).getSumme());
+        log.info("Avg  : " + lst.get(0).getSchnitt());
+        log.info("Last :    " + lst.get(0).getLast());
         log.info("First:   " + lst.get(0).getFirst());
-        log.info("Anzahl:  " + lst.get(0).getAnzahl());
+        log.info("count:  " + lst.get(0).getAnzahl());
 
 
-        assert (lst.get(0).getAnzahl() == 15) : "Anzahl found: " + lst.get(0).getAnzahl();
+        assert (lst.get(0).getAnzahl() == 15) : "did not find 15, instead found: " + lst.get(0).getAnzahl();
 
     }
 

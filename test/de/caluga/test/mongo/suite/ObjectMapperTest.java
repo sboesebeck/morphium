@@ -86,7 +86,7 @@ public class ObjectMapperTest extends MongoTest {
         o.setCounter(12345);
         o.setValue("This \" is $ test");
         o.setMongoId(new ObjectId(new Date()));
-        ObjectId id = an.getId(o);
+        Object id = an.getId(o);
         assert (id.equals(o.getMongoId())) : "IDs not equal!";
     }
 

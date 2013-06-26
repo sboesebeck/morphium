@@ -8,7 +8,6 @@ import de.caluga.morphium.async.AsyncOperationCallback;
 import de.caluga.morphium.async.AsyncOperationType;
 import de.caluga.morphium.query.Query;
 import org.apache.log4j.Logger;
-import org.bson.types.ObjectId;
 
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
@@ -82,7 +81,7 @@ public class MorphiumWriterImpl implements MorphiumWriter {
                         throw new RuntimeException("Not an entity: " + type.getSimpleName() + " Storing not possible!");
                     }
                     morphium.inc(StatisticKeys.WRITES);
-                    ObjectId id = annotationHelper.getId(o);
+                    Object id = annotationHelper.getId(o);
                     if (annotationHelper.isAnnotationPresentInHierarchy(type, PartialUpdate.class)) {
                         if ((o instanceof PartiallyUpdateable)) {
                             updateUsingFields(o, collection, callback, ((PartiallyUpdateable) o).getAlteredFields().toArray(new String[((PartiallyUpdateable) o).getAlteredFields().size()]));
@@ -494,7 +493,7 @@ public class MorphiumWriterImpl implements MorphiumWriter {
         Runnable r = new Runnable() {
             @Override
             public void run() {
-                ObjectId id = annotationHelper.getId(ent);
+                Object id = annotationHelper.getId(ent);
                 if (id == null) {
                     //new object - update not working
                     logger.warn("trying to partially update new object - storing it in full!");
@@ -647,7 +646,7 @@ public class MorphiumWriterImpl implements MorphiumWriter {
         Runnable r = new Runnable() {
             @Override
             public void run() {
-                ObjectId id = annotationHelper.getId(o);
+                Object id = annotationHelper.getId(o);
                 morphium.firePreRemoveEvent(o);
                 BasicDBObject db = new BasicDBObject();
                 db.append("_id", id);
@@ -721,7 +720,7 @@ public class MorphiumWriterImpl implements MorphiumWriter {
 
                     if (f.getType().equals(Integer.class) || f.getType().equals(int.class)) {
                         try {
-                            f.set(toInc, ((Integer) f.get(toInc)) + amount);
+                            f.set(toInc, ((Integer) f.get(toInc)) + (int) amount);
                         } catch (IllegalAccessException e) {
                             throw new RuntimeException(e);
                         }

@@ -175,7 +175,7 @@ public class ObjectMapperImpl implements ObjectMapper {
                             BasicDBList lst = new BasicDBList();
                             for (Object rec : ((Collection) value)) {
                                 if (rec != null) {
-                                    ObjectId id = annotationHelper.getId(rec);
+                                    Object id = annotationHelper.getId(rec);
                                     if (id == null) {
                                         if (r.automaticStore()) {
                                             if (morphium == null) {
@@ -405,13 +405,13 @@ public class ObjectMapperImpl implements ObjectMapper {
                     if (morphium == null) {
                         log.fatal("Morphium not set - could not de-reference!");
                     } else {
-                        ObjectId id = null;
-                        if (valueFromDb instanceof ObjectId) {
-                            id = (ObjectId) valueFromDb;
+                        Object id = null;
+                        if (valueFromDb instanceof Object) {
+                            id = (Object) valueFromDb;
                         } else {
                             DBRef ref = (DBRef) valueFromDb;
                             if (ref != null) {
-                                id = (ObjectId) ref.getId();
+                                id = (Object) ref.getId();
                                 if (!ref.getRef().equals(fld.getType().getName())) {
                                     log.warn("Reference to different object?! - continuing anyway");
 
@@ -599,7 +599,7 @@ public class ObjectMapperImpl implements ObjectMapper {
                     toFillIn.add(val);
                 }
             } else if (val instanceof ObjectId) {
-                log.warn("Cannot de-reference to unknown collection - trying to add ObjectId only");
+                log.warn("Cannot de-reference to unknown collection - trying to add Object only");
                 toFillIn.add(val);
 
             } else if (val instanceof BasicDBList) {
@@ -610,7 +610,7 @@ public class ObjectMapperImpl implements ObjectMapper {
             } else if (val instanceof DBRef) {
                 try {
                     DBRef ref = (DBRef) val;
-                    ObjectId id = (ObjectId) ref.getId();
+                    Object id = (Object) ref.getId();
                     Class clz = Class.forName(ref.getRef());
                     List<String> idFlds = annotationHelper.getFields(clz, Id.class);
                     Reference reference = forField != null ? forField.getAnnotation(Reference.class) : null;

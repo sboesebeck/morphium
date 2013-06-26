@@ -3,7 +3,6 @@ package de.caluga.test.mongo.suite;
 import de.caluga.morphium.MorphiumSingleton;
 import de.caluga.morphium.StatisticKeys;
 import de.caluga.morphium.query.Query;
-import org.bson.types.ObjectId;
 import org.junit.Test;
 
 import java.util.ArrayList;
@@ -42,7 +41,7 @@ public class LazyLoadingTest extends MongoTest {
         Query<LazyLoadingObject> q = MorphiumSingleton.get().createQueryFor(LazyLoadingObject.class);
         q = q.f("name").eq("Lazy");
         LazyLoadingObject lzRead = q.get();
-        ObjectId id = MorphiumSingleton.get().getId(lzRead);
+        Object id = MorphiumSingleton.get().getId(lzRead);
         assert (id != null);
         co = lzRead.getLazyCached();
         Thread.sleep(1000);

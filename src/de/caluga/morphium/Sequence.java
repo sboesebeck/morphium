@@ -2,7 +2,7 @@ package de.caluga.morphium;
 
 import de.caluga.morphium.annotations.*;
 import de.caluga.morphium.annotations.caching.NoCache;
-import org.bson.types.ObjectId;
+
 
 /**
  * User: Stephan Bösebeck
@@ -21,7 +21,7 @@ import org.bson.types.ObjectId;
 @DefaultReadPreference(ReadPreferenceLevel.PRIMARY)
 public class Sequence {
     @Id
-    private ObjectId id;
+    private Object id;
     @Index
     private String name;
     private Long currentValue;
@@ -62,11 +62,11 @@ public class Sequence {
         this.lockedBy = lockedBy;
     }
 
-    public ObjectId getId() {
+    public Object getId() {
         return id;
     }
 
-    public void setId(ObjectId id) {
+    public void setId(Object id) {
         this.id = id;
     }
 

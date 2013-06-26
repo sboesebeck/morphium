@@ -30,7 +30,7 @@ public class UncachedObject {
     private boolean[] boolData;
 
     @Id
-    ObjectId mongoId;
+    private ObjectId mongoId;
 
     public double[] getDoubleData() {
         return doubleData;

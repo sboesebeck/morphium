@@ -3,7 +3,6 @@ package de.caluga.morphium;
 import de.caluga.morphium.annotations.Entity;
 import de.caluga.morphium.annotations.Id;
 import de.caluga.morphium.annotations.caching.NoCache;
-import org.bson.types.ObjectId;
 
 import java.sql.Timestamp;
 import java.util.List;
@@ -18,7 +17,7 @@ public class ConfigElement {
     private String value;
 
     @Id
-    private ObjectId Id;
+    private Object Id;
     private List<String> listValue;
     private Map<String, String> mapValue;
     private Boolean deleted;
@@ -56,11 +55,11 @@ public class ConfigElement {
         this.listValue = listValue;
     }
 
-    public ObjectId getId() {
+    public Object getId() {
         return Id;
     }
 
-    public void setId(ObjectId id) {
+    public void setId(Object id) {
         Id = id;
     }
 

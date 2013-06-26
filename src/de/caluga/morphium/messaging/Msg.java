@@ -63,7 +63,7 @@ public class Msg {
     private String recipient;
     @Transient
     private List<String> to;
-    private ObjectId inAnswerTo;
+    private Object inAnswerTo;
     //payload goes here
     private String name;
     private String msg;
@@ -168,11 +168,11 @@ public class Msg {
         this.to = to;
     }
 
-    public ObjectId getInAnswerTo() {
+    public Object getInAnswerTo() {
         return inAnswerTo;
     }
 
-    public void setInAnswerTo(ObjectId inAnswerTo) {
+    public void setInAnswerTo(Object inAnswerTo) {
         this.inAnswerTo = inAnswerTo;
     }
 
