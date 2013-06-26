@@ -16,7 +16,7 @@ public class ConfNode {
     @Property(fieldName = "_id")
     private int id;
     private String host;
-    private Integer priority;
+    private Double priority;
 
     @Property(fieldName = "arbiterOnly")
     private Boolean arbiterOnly;
@@ -46,11 +46,11 @@ public class ConfNode {
         this.host = host;
     }
 
-    public Integer getPriority() {
+    public Double getPriority() {
         return priority;
     }
 
-    public void setPriority(Integer priority) {
+    public void setPriority(Double priority) {
         this.priority = priority;
     }
 

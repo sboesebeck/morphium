@@ -10,7 +10,6 @@ import de.caluga.morphium.annotations.caching.Cache;
 import de.caluga.morphium.annotations.caching.Cache.ClearStrategy;
 import de.caluga.morphium.annotations.caching.NoCache;
 import org.apache.log4j.Logger;
-import org.bson.types.ObjectId;
 
 import java.util.*;
 
@@ -238,7 +237,7 @@ public class CacheHousekeeper extends Thread {
 
                 }
 
-                Hashtable<Class<?>, Hashtable<ObjectId, Object>> idCacheClone = morphium.getCache().cloneIdCache();
+                Hashtable<Class<?>, Hashtable<Object, Object>> idCacheClone = morphium.getCache().cloneIdCache();
                 for (Map.Entry<Class, Vector<String>> et : toDelete.entrySet()) {
                     Class cls = et.getKey();
 

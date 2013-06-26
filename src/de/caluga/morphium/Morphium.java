@@ -25,7 +25,6 @@ import de.caluga.morphium.writer.MorphiumWriter;
 import de.caluga.morphium.writer.MorphiumWriterImpl;
 import net.sf.cglib.proxy.Enhancer;
 import org.apache.log4j.Logger;
-import org.bson.types.ObjectId;
 
 import java.io.Serializable;
 import java.lang.annotation.Annotation;
@@ -119,29 +118,29 @@ public class Morphium {
         for (StatisticKeys k : StatisticKeys.values()) {
             stats.put(k, new StatisticValue());
         }
-        if(config.getDb() == null) {
-        	MongoClientOptions.Builder o = MongoClientOptions.builder();
-        	o.autoConnectRetry(config.isAutoreconnect());
-        	WriteConcern w=new WriteConcern(config.getGlobalW(),config.getWriteTimeout(),config.isGlobalFsync(),config.isGlobalJ(),false);
-        	o.writeConcern(w);
-        	o.socketTimeout(config.getSocketTimeout());
-        	o.connectTimeout(config.getConnectionTimeout());
-        	o.connectionsPerHost(config.getMaxConnections());
-        	o.socketKeepAlive(config.isSocketKeepAlive());
-        	o.threadsAllowedToBlockForConnectionMultiplier(config.getBlockingThreadsMultiplier());
-        	o.maxAutoConnectRetryTime(config.getMaxAutoReconnectTime());
-        	o.maxWaitTime(config.getMaxWaitTime());
-        	if (config.getAdr().isEmpty()) {
-        		throw new RuntimeException("Error - no server address specified!");
-        	}
-        	if (config.getMongoLogin() != null) {
-        		MongoCredential cred = MongoCredential.createMongoCRCredential(config.getMongoLogin(),config.getDatabase(),config.getMongoPassword().toCharArray());
-        	} 
-        	MongoClient mongo = new MongoClient(config.getAdr(),o.build());
-        	config.setDb(mongo.getDB(config.getDatabase()));
-        	if (config.getDefaultReadPreference() != null) {
-        		mongo.setReadPreference(config.getDefaultReadPreference().getPref());
-        	}
+        if (config.getDb() == null) {
+            MongoClientOptions.Builder o = MongoClientOptions.builder();
+            o.autoConnectRetry(config.isAutoreconnect());
+            WriteConcern w = new WriteConcern(config.getGlobalW(), config.getWriteTimeout(), config.isGlobalFsync(), config.isGlobalJ(), false);
+            o.writeConcern(w);
+            o.socketTimeout(config.getSocketTimeout());
+            o.connectTimeout(config.getConnectionTimeout());
+            o.connectionsPerHost(config.getMaxConnections());
+            o.socketKeepAlive(config.isSocketKeepAlive());
+            o.threadsAllowedToBlockForConnectionMultiplier(config.getBlockingThreadsMultiplier());
+            o.maxAutoConnectRetryTime(config.getMaxAutoReconnectTime());
+            o.maxWaitTime(config.getMaxWaitTime());
+            if (config.getAdr().isEmpty()) {
+                throw new RuntimeException("Error - no server address specified!");
+            }
+            if (config.getMongoLogin() != null) {
+                MongoCredential cred = MongoCredential.createMongoCRCredential(config.getMongoLogin(), config.getDatabase(), config.getMongoPassword().toCharArray());
+            }
+            MongoClient mongo = new MongoClient(config.getAdr(), o.build());
+            config.setDb(mongo.getDB(config.getDatabase()));
+            if (config.getDefaultReadPreference() != null) {
+                mongo.setReadPreference(config.getDefaultReadPreference().getPref());
+            }
         }
         if (config.getConfigManager() == null) {
             config.setConfigManager(new ConfigManagerImpl());
@@ -773,7 +772,7 @@ public class Morphium {
 
     public <T> T reread(T o, String collection) {
         if (o == null) throw new RuntimeException("Cannot re read null!");
-        ObjectId id = getId(o);
+        Object id = getId(o);
         if (id == null) {
             return null;
         }
@@ -1143,6 +1142,19 @@ public class Morphium {
     }
 
     /**
+     * issues a delete command - no lifecycle methods calles, no drop, keeps all indexec this way
+     * But uses sepcified collection name instead deriving name from class
+     *
+     * @param cls     - class
+     * @param colName - CollectionName
+     */
+    public void clearCollection(Class<?> cls, String colName) {
+        Query q = createQueryFor(cls);
+        q.setCollectionName(colName);
+        delete(q);
+    }
+
+    /**
      * clears every single object in collection - reads ALL objects to do so
      * this way Lifecycle methods can be called!
      *
@@ -1251,7 +1263,7 @@ public class Morphium {
     }
 
     @SuppressWarnings("unchecked")
-    public <T> T findById(Class<? extends T> type, ObjectId id) {
+    public <T> T findById(Class<? extends T> type, Object id) {
         T ret = getCache().getFromIDCache(type, id);
         if (ret != null) return ret;
         List<String> ls = annotationHelper.getFields(type, Id.class);
@@ -1339,7 +1351,7 @@ public class Morphium {
     }
 
 
-    public ObjectId getId(Object o) {
+    public Object getId(Object o) {
         return annotationHelper.getId(o);
     }
 
@@ -1662,7 +1674,7 @@ public class Morphium {
     }
 
     @SuppressWarnings("unchecked")
-    public <T> T createLazyLoadedEntity(Class<? extends T> cls, ObjectId id) {
+    public <T> T createLazyLoadedEntity(Class<? extends T> cls, Object id) {
         return (T) Enhancer.create(cls, new Class[]{Serializable.class}, new LazyDeReferencingProxy(this, cls, id));
     }
 

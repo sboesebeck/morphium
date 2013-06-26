@@ -24,7 +24,8 @@ public class NameProviderTest extends MongoTest {
 
     @Test
     public void testStoreWithNameProvider() throws Exception {
-        MorphiumSingleton.get().clearCollection(LogObject.class);
+        MorphiumSingleton.get().dropCollection(LogObject.class);
+        MorphiumSingleton.get().dropCollection(LogObject.class, "LogObject_Test", null);
         for (int i = 0; i < 100; i++) {
             LogObject lo = new LogObject();
             lo.setLevel(12);
@@ -32,11 +33,13 @@ public class NameProviderTest extends MongoTest {
             lo.setTimestamp(System.currentTimeMillis());
             MorphiumSingleton.get().store(lo);
         }
+        waitForAsyncOperationToStart(1000);
         waitForWrites();
         String colName = MorphiumSingleton.get().getMapper().getCollectionName(LogObject.class);
         assert (colName.endsWith("_Test"));
         DBCollection col = MorphiumSingleton.get().getDatabase().getCollection(colName);
-        assert (col.getCount() == 100) : "Error - did not store??" + col.getCount();
+        long count = col.getCount();
+        assert (count == 100) : "Error - did not store?? " + count;
     }
 
 

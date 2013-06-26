@@ -5,7 +5,6 @@ import de.caluga.morphium.FilterExpression;
 import de.caluga.morphium.Morphium;
 import de.caluga.morphium.annotations.ReadPreferenceLevel;
 import de.caluga.morphium.async.AsyncOperationCallback;
-import org.bson.types.ObjectId;
 
 import java.util.List;
 import java.util.Map;
@@ -175,7 +174,7 @@ public interface Query<T> extends Cloneable {
      *
      * @return list
      */
-    public List<ObjectId> idList();
+    public List<Object> idList();
 
     public void idList(AsyncOperationCallback<T> callback);
 
@@ -240,9 +239,9 @@ public interface Query<T> extends Cloneable {
 
     public void setExecutor(ThreadPoolExecutor executor);
 
-    public void getById(ObjectId id, AsyncOperationCallback<T> callback);
+    public void getById(Object id, AsyncOperationCallback<T> callback);
 
-    public T getById(ObjectId id);
+    public T getById(Object id);
 
     public int getNumberOfPendingRequests();
 

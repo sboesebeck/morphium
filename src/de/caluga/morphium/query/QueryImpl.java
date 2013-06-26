@@ -7,7 +7,6 @@ import de.caluga.morphium.annotations.caching.Cache;
 import de.caluga.morphium.async.AsyncOperationCallback;
 import de.caluga.morphium.async.AsyncOperationType;
 import org.apache.log4j.Logger;
-import org.bson.types.ObjectId;
 
 import java.lang.reflect.Field;
 import java.util.*;
@@ -600,7 +599,7 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
     }
 
     @Override
-    public void getById(final ObjectId id, final AsyncOperationCallback<T> callback) {
+    public void getById(final Object id, final AsyncOperationCallback<T> callback) {
         if (callback == null) throw new IllegalArgumentException("Callback is null");
         Runnable c = new Runnable() {
             @Override
@@ -620,7 +619,7 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
     }
 
     @Override
-    public T getById(ObjectId id) {
+    public T getById(Object id) {
         List<String> flds = annotationHelper.getFields(type, Id.class);
         if (flds == null || flds.isEmpty()) {
             throw new RuntimeException("Type does not have an ID-Field? " + type.getSimpleName());
@@ -736,7 +735,7 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
             public void run() {
                 long start = System.currentTimeMillis();
                 try {
-                    List<ObjectId> ret = idList();
+                    List<Object> ret = idList();
                     callback.onOperationSucceeded(AsyncOperationType.READ, QueryImpl.this, System.currentTimeMillis() - start, null, null, ret);
                 } catch (Exception e) {
                     callback.onOperationError(AsyncOperationType.READ, QueryImpl.this, System.currentTimeMillis() - start, e.getMessage(), e, null);
@@ -748,10 +747,10 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
     }
 
     @Override
-    public List<ObjectId> idList() {
+    public List<Object> idList() {
         Cache c = annotationHelper.getAnnotationFromHierarchy(type, Cache.class);//type.getAnnotation(Cache.class);
         boolean readCache = c != null && c.readCache();
-        List<ObjectId> ret = new ArrayList<ObjectId>();
+        List<Object> ret = new ArrayList<Object>();
         String ck = morphium.getCache().getCacheKey(this);
         ck += " idlist";
         morphium.inc(StatisticKeys.READS);
@@ -760,7 +759,7 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
             if (morphium.getCache().isCached(type, ck)) {
                 morphium.inc(StatisticKeys.CHITS);
                 //casts are not nice... any idea how to change that?
-                return (List<ObjectId>) morphium.getCache().getFromCache(type, ck);
+                return (List<Object>) morphium.getCache().getFromCache(type, ck);
             }
             morphium.inc(StatisticKeys.CMISS);
         } else {
@@ -781,7 +780,7 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
         }
 
         for (DBObject o : query) {
-            ret.add((ObjectId) o.get("_id"));
+            ret.add((Object) o.get("_id"));
         }
         long dur = System.currentTimeMillis() - start;
         morphium.fireProfilingReadEvent(this, dur, ReadAccessType.ID_LIST);

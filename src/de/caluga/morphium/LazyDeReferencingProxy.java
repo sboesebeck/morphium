@@ -3,7 +3,6 @@ package de.caluga.morphium;
 import net.sf.cglib.proxy.MethodInterceptor;
 import net.sf.cglib.proxy.MethodProxy;
 import org.apache.log4j.Logger;
-import org.bson.types.ObjectId;
 
 import java.io.Serializable;
 import java.lang.reflect.Method;
@@ -13,11 +12,11 @@ public class LazyDeReferencingProxy<T> implements MethodInterceptor, Serializabl
     private transient final Morphium morphium;
     private T deReferenced;
     private Class<? extends T> cls;
-    private ObjectId id;
+    private Object id;
 
     private final static Logger log = Logger.getLogger(LazyDeReferencingProxy.class);
 
-    public LazyDeReferencingProxy(Morphium m, Class<? extends T> type, ObjectId id) {
+    public LazyDeReferencingProxy(Morphium m, Class<? extends T> type, Object id) {
         cls = type;
         this.id = id;
         morphium = m;

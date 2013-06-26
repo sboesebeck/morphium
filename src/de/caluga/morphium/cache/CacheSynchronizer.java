@@ -12,7 +12,6 @@ import de.caluga.morphium.messaging.Msg;
 import de.caluga.morphium.messaging.MsgType;
 import de.caluga.morphium.query.Query;
 import org.apache.log4j.Logger;
-import org.bson.types.ObjectId;
 
 import java.util.Hashtable;
 import java.util.Vector;
@@ -139,7 +138,7 @@ public class CacheSynchronizer extends MorphiumStorageAdapter<Object> implements
     public void sendClearMessage(Object record, String reason, boolean isNew) {
 //        long start = System.currentTimeMillis();
         if (record.equals(Msg.class)) return;
-        ObjectId id = morphium.getId(record);
+        Object id = morphium.getId(record);
 
         Msg m = new Msg(CACHE_SYNC_RECORD, MsgType.MULTI, reason, record.getClass().getName(), 30000);
         if (id != null)
@@ -347,9 +346,8 @@ public class CacheSynchronizer extends MorphiumStorageAdapter<Object> implements
                         if (c.readCache()) {
                             try {
                                 firePreClearEvent(cls, m);
-                                Hashtable<Class<?>, Hashtable<ObjectId, Object>> idCache = morphium.getCache().cloneIdCache();
-                                for (String a : m.getAdditional()) {
-                                    ObjectId id = new ObjectId(a);
+                                Hashtable<Class<?>, Hashtable<Object, Object>> idCache = morphium.getCache().cloneIdCache();
+                                for (String id : m.getAdditional()) {
                                     if (idCache.get(cls) != null) {
                                         if (idCache.get(cls).get(id) != null) {
                                             //Object is updated in place!

@@ -5,7 +5,6 @@ import de.caluga.morphium.annotations.caching.AsyncWrites;
 import de.caluga.morphium.annotations.caching.WriteBuffer;
 import de.caluga.morphium.annotations.lifecycle.Lifecycle;
 import org.apache.log4j.Logger;
-import org.bson.types.ObjectId;
 
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Field;
@@ -479,7 +478,7 @@ public class AnnotationAndReflectionHelper {
     }
 
 
-    public ObjectId getId(Object o) {
+    public Object getId(Object o) {
         if (o == null) {
             throw new IllegalArgumentException("Object cannot be null");
         }
@@ -489,12 +488,9 @@ public class AnnotationAndReflectionHelper {
             throw new IllegalArgumentException("Object ID field not found " + o.getClass().getSimpleName());
         }
         try {
-            if (!(f.getType().equals(ObjectId.class))) {
-                throw new IllegalArgumentException("ID sould be of type ObjectId");
-            }
             o = getRealObject(o);
             if (o != null) {
-                return (ObjectId) f.get(o);
+                return f.get(o);
             } else {
                 log.warn("Illegal reference?");
             }

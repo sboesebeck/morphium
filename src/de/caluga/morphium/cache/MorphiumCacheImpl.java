@@ -6,7 +6,6 @@ import de.caluga.morphium.AnnotationAndReflectionHelper;
 import de.caluga.morphium.annotations.caching.Cache;
 import de.caluga.morphium.query.Query;
 import org.apache.log4j.Logger;
-import org.bson.types.ObjectId;
 
 import java.util.ArrayList;
 import java.util.Hashtable;
@@ -22,14 +21,14 @@ import java.util.Map;
  */
 public class MorphiumCacheImpl implements MorphiumCache {
     private Hashtable<Class<?>, Hashtable<String, CacheElement>> cache;
-    private Hashtable<Class<?>, Hashtable<ObjectId, Object>> idCache;
+    private Hashtable<Class<?>, Hashtable<Object, Object>> idCache;
     private AnnotationAndReflectionHelper annotationHelper = new AnnotationAndReflectionHelper();
 
     private Logger logger = Logger.getLogger(MorphiumCacheImpl.class);
 
     public MorphiumCacheImpl() {
         cache = new Hashtable<Class<?>, Hashtable<String, CacheElement>>();
-        idCache = new Hashtable<Class<?>, Hashtable<ObjectId, Object>>();
+        idCache = new Hashtable<Class<?>, Hashtable<Object, Object>>();
     }
 
     /**
@@ -49,10 +48,10 @@ public class MorphiumCacheImpl implements MorphiumCache {
         }
         if (!k.endsWith("idlist")) {
             //copy from idCache
-            Hashtable<Class<?>, Hashtable<ObjectId, Object>> idCacheClone = cloneIdCache();
+            Hashtable<Class<?>, Hashtable<Object, Object>> idCacheClone = cloneIdCache();
             for (T record : ret) {
                 if (idCacheClone.get(type) == null) {
-                    idCacheClone.put(type, new Hashtable<ObjectId, Object>());
+                    idCacheClone.put(type, new Hashtable<Object, Object>());
                 }
                 idCacheClone.get(type).put(annotationHelper.getId(record), record);
             }
@@ -124,13 +123,13 @@ public class MorphiumCacheImpl implements MorphiumCache {
 
     @SuppressWarnings("unchecked")
     @Override
-    public Hashtable<Class<?>, Hashtable<ObjectId, Object>> cloneIdCache() {
-        return (Hashtable<Class<?>, Hashtable<ObjectId, Object>>) idCache.clone();
+    public Hashtable<Class<?>, Hashtable<Object, Object>> cloneIdCache() {
+        return (Hashtable<Class<?>, Hashtable<Object, Object>>) idCache.clone();
     }
 
     @SuppressWarnings("unchecked")
     @Override
-    public <T> T getFromIDCache(Class<? extends T> type, ObjectId id) {
+    public <T> T getFromIDCache(Class<? extends T> type, Object id) {
         if (idCache.get(type) != null) {
             return (T) idCache.get(type).get(id);
         }
@@ -190,16 +189,16 @@ public class MorphiumCacheImpl implements MorphiumCache {
 
     @SuppressWarnings("unchecked")
     @Override
-    public void removeEntryFromCache(Class cls, ObjectId id) {
+    public void removeEntryFromCache(Class cls, Object id) {
         Hashtable<Class<?>, Hashtable<String, CacheElement>> c = cloneCache();
-        Hashtable<Class<?>, Hashtable<ObjectId, Object>> idc = cloneIdCache();
+        Hashtable<Class<?>, Hashtable<Object, Object>> idc = cloneIdCache();
         idc.get(cls).remove(id);
 
         ArrayList<String> toRemove = new ArrayList<String>();
         for (String key : c.get(cls).keySet()) {
 
             for (Object el : c.get(cls).get(key).getFound()) {
-                ObjectId lid = annotationHelper.getId(el);
+                Object lid = annotationHelper.getId(el);
                 if (lid == null) {
                     logger.error("Null id in CACHE?");
                     toRemove.add(key);
@@ -217,7 +216,7 @@ public class MorphiumCacheImpl implements MorphiumCache {
     }
 
     @Override
-    public void setIdCache(Hashtable<Class<?>, Hashtable<ObjectId, Object>> c) {
+    public void setIdCache(Hashtable<Class<?>, Hashtable<Object, Object>> c) {
         idCache = c;
     }
 

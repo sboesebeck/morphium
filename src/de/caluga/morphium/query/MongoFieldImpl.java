@@ -80,9 +80,9 @@ public class MongoFieldImpl<T> implements MongoField<T> {
             Field field = annotationHelper.getField(query.getType(), fldStr);
             if (annotationHelper.isAnnotationPresentInHierarchy(cls, Entity.class) || val instanceof ObjectId) {
                 if (field.isAnnotationPresent(Reference.class)) {
-                    ObjectId id;
+                    Object id;
                     if (val instanceof ObjectId) {
-                        id = (ObjectId) val;
+                        id = val;
                     } else {
                         id = annotationHelper.getId(val);
                     }
