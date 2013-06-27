@@ -89,7 +89,9 @@ public class MorphiumCacheImpl implements MorphiumCache {
         } else {
             return false;
         }
-        return cache.get(type) != null && cache.get(type).get(k) != null && cache.get(type).get(k).getFound() != null;
+        Hashtable<Class<?>, Hashtable<String, CacheElement>> snapshotCache = cache;
+
+        return snapshotCache.get(type) != null && snapshotCache.get(type).get(k) != null && snapshotCache.get(type).get(k).getFound() != null;
     }
 
     /**
@@ -104,9 +106,10 @@ public class MorphiumCacheImpl implements MorphiumCache {
     @Override
     @SuppressWarnings("unchecked")
     public <T> List<T> getFromCache(Class<? extends T> type, String k) {
-        if (cache.get(type) == null || cache.get(type).get(k) == null) return null;
+        Hashtable<Class<?>, Hashtable<String, CacheElement>> snapshotCache = cache;
+        if (snapshotCache.get(type) == null || snapshotCache.get(type).get(k) == null) return null;
         try {
-            final CacheElement cacheElement = cache.get(type).get(k);
+            final CacheElement cacheElement = snapshotCache.get(type).get(k);
             cacheElement.setLru(System.currentTimeMillis());
             return cacheElement.getFound();
         } catch (Exception e) {
