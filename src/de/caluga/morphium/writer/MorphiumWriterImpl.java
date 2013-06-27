@@ -154,7 +154,7 @@ public class MorphiumWriterImpl implements MorphiumWriter {
                     if (!morphium.getDatabase().collectionExists(coll)) {
                         if (logger.isDebugEnabled())
                             logger.debug("Collection " + coll + " does not exist - ensuring indices");
-                        morphium.ensureIndicesFor(type);
+                        morphium.ensureIndicesFor(type,coll,callback);
                     }
 
                     WriteConcern wc = morphium.getWriteConcernForClass(type);
@@ -349,7 +349,7 @@ public class MorphiumWriterImpl implements MorphiumWriter {
                             if (!morphium.getDatabase().collectionExists(coll)) {
                                 if (logger.isDebugEnabled())
                                     logger.debug("Collection does not exist - ensuring indices");
-                                morphium.ensureIndicesFor(c);
+                                morphium.ensureIndicesFor(c,coll,callback);
                             }
                             for (Object record : es.getValue()) {
                                 DBObject marshall = morphium.getMapper().marshall(record);
@@ -425,7 +425,9 @@ public class MorphiumWriterImpl implements MorphiumWriter {
                     throw new RuntimeException("Unknown field: " + field);
                 }
                 String fieldName = annotationHelper.getFieldName(cls, field);
-
+                if (insertIfNotExist && !morphium.getDatabase().collectionExists(coll)) {
+                    morphium.ensureIndicesFor(cls,coll,callback);
+                }
                 BasicDBObject update = new BasicDBObject("$set", new BasicDBObject(fieldName, value));
 
                 WriteConcern wc = morphium.getWriteConcernForClass(toSet.getClass());
@@ -500,8 +502,10 @@ public class MorphiumWriterImpl implements MorphiumWriter {
                     store(ent, collection, callback);
                     return;
                 }
+
                 morphium.firePreStoreEvent(ent, false);
                 morphium.inc(StatisticKeys.WRITES);
+
                 DBObject find = new BasicDBObject();
 
                 find.put("_id", id);
@@ -547,6 +551,9 @@ public class MorphiumWriterImpl implements MorphiumWriter {
                     String collectionName = morphium.getMapper().getCollectionName(ent.getClass());
                     if (collectionName == null) {
                         collectionName = collection;
+                    }
+                    if (!morphium.getDatabase().collectionExists(collectionName)) {
+                        morphium.ensureIndicesFor((Class<T>) ent.getClass(),collectionName,callback);
                     }
                     if (wc != null) {
                         morphium.getDatabase().getCollection(collectionName).update(find, update, false, false, wc);
@@ -708,6 +715,9 @@ public class MorphiumWriterImpl implements MorphiumWriter {
 
                 BasicDBObject update = new BasicDBObject("$inc", new BasicDBObject(fieldName, amount));
                 WriteConcern wc = morphium.getWriteConcernForClass(toInc.getClass());
+                if (!morphium.getDatabase().collectionExists(coll)) {
+                    morphium.ensureIndicesFor(cls,coll,callback);
+                }
                 long start = System.currentTimeMillis();
                 try {
                     if (wc == null) {
@@ -767,7 +777,7 @@ public class MorphiumWriterImpl implements MorphiumWriter {
         Runnable r = new Runnable() {
             @Override
             public void run() {
-                Class<?> cls = query.getType();
+                Class<? extends T> cls = query.getType();
                 morphium.firePreUpdateEvent(annotationHelper.getRealClass(cls), MorphiumStorageListener.UpdateTypes.INC);
                 String coll = morphium.getMapper().getCollectionName(cls);
 
@@ -778,7 +788,7 @@ public class MorphiumWriterImpl implements MorphiumWriter {
                     qobj = morphium.simplifyQueryObject(qobj);
                 }
                 if (insertIfNotExist && !morphium.getDatabase().collectionExists(coll)) {
-                    morphium.ensureIndicesFor(cls);
+                    morphium.ensureIndicesFor((Class<T>) cls,coll,callback);
                 }
                 WriteConcern wc = morphium.getWriteConcernForClass(cls);
                 long start = System.currentTimeMillis();
@@ -811,7 +821,7 @@ public class MorphiumWriterImpl implements MorphiumWriter {
         Runnable r = new Runnable() {
             @Override
             public void run() {
-                Class<?> cls = query.getType();
+                Class cls = query.getType();
                 morphium.firePreUpdateEvent(annotationHelper.getRealClass(cls), MorphiumStorageListener.UpdateTypes.INC);
                 String coll = morphium.getMapper().getCollectionName(cls);
                 String fieldName = annotationHelper.getFieldName(cls, field);
@@ -821,7 +831,7 @@ public class MorphiumWriterImpl implements MorphiumWriter {
                     qobj = morphium.simplifyQueryObject(qobj);
                 }
                 if (insertIfNotExist && !morphium.getDatabase().collectionExists(coll)) {
-                    morphium.ensureIndicesFor(cls);
+                    morphium.ensureIndicesFor(cls,coll,callback);
                 }
                 WriteConcern wc = morphium.getWriteConcernForClass(cls);
                 long start = System.currentTimeMillis();
@@ -878,7 +888,7 @@ public class MorphiumWriterImpl implements MorphiumWriter {
                 }
 
                 if (insertIfNotExist && !morphium.getDatabase().collectionExists(coll)) {
-                    morphium.ensureIndicesFor(cls);
+                    morphium.ensureIndicesFor((Class<T>) cls,coll,callback);
                 }
 
                 BasicDBObject update = new BasicDBObject("$set", toSet);
@@ -940,7 +950,7 @@ public class MorphiumWriterImpl implements MorphiumWriter {
                 BasicDBObject update = new BasicDBObject("$unset", new BasicDBObject(fieldName, 1));
                 WriteConcern wc = morphium.getWriteConcernForClass(toSet.getClass());
                 if (!morphium.getDatabase().collectionExists(coll)) {
-                    morphium.ensureIndicesFor(cls);
+                    morphium.ensureIndicesFor(cls,coll,callback);
                 }
                 long start = System.currentTimeMillis();
 
@@ -992,6 +1002,7 @@ public class MorphiumWriterImpl implements MorphiumWriter {
                 String fieldName = annotationHelper.getFieldName(cls, field);
                 BasicDBObject set = new BasicDBObject(fieldName, v);
                 BasicDBObject update = new BasicDBObject(push ? "$push" : "$pull", set);
+
                 long start = System.currentTimeMillis();
 
                 try {
@@ -1054,7 +1065,7 @@ public class MorphiumWriterImpl implements MorphiumWriter {
 
     private void pushIt(boolean push, boolean insertIfNotExist, boolean multiple, Class<?> cls, String coll, DBObject qobj, BasicDBObject update) {
         if (!morphium.getDatabase().collectionExists(coll) && insertIfNotExist) {
-            morphium.ensureIndicesFor(cls);
+            morphium.ensureIndicesFor(cls,coll);
         }
         WriteConcern wc = morphium.getWriteConcernForClass(cls);
         long start = System.currentTimeMillis();
@@ -1089,6 +1100,9 @@ public class MorphiumWriterImpl implements MorphiumWriter {
                     DBObject qobj = query.toQueryObject();
                     if (insertIfNotExist) {
                         qobj = morphium.simplifyQueryObject(qobj);
+                    }
+                    if (insertIfNotExist && !morphium.getDatabase().collectionExists(coll)) {
+                        morphium.ensureIndicesFor((Class<T>) cls,coll,callback);
                     }
                     field = annotationHelper.getFieldName(cls, field);
                     BasicDBObject set = new BasicDBObject(field, value);
