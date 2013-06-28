@@ -20,6 +20,7 @@ import java.util.List;
 @SuppressWarnings("AssertWithSideEffects")
 public class AsyncOperationTest extends MongoTest {
     private boolean asyncCall = false;
+    private boolean callback;
 
     @Test
     public void asyncStoreTest() throws Exception {
@@ -145,9 +146,25 @@ public class AsyncOperationTest extends MongoTest {
 
     @Test
     public void asyncErrorHandling() throws Exception {
+        log.info("upcoming Error Message + Exception is expected");
         WrongObject wo = new WrongObject();
         MorphiumSingleton.get().store(wo);
 
+        callback = false;
+        MorphiumSingleton.get().store(wo, new AsyncOperationCallback<WrongObject>() {
+            @Override
+            public void onOperationSucceeded(AsyncOperationType type, Query<WrongObject> q, long duration, List<WrongObject> result, WrongObject entity, Object... param) {
+
+            }
+
+            @Override
+            public void onOperationError(AsyncOperationType type, Query<WrongObject> q, long duration, String error, Throwable t, WrongObject entity, Object... param) {
+                log.info("On Error Callback called correctly");
+                callback = true;
+            }
+        });
+        Thread.sleep(1000);
+        assert (callback);
 
     }
 
