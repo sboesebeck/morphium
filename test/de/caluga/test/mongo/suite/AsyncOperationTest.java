@@ -1,6 +1,7 @@
 package de.caluga.test.mongo.suite;
 
 import de.caluga.morphium.MorphiumSingleton;
+import de.caluga.morphium.annotations.Entity;
 import de.caluga.morphium.annotations.caching.AsyncWrites;
 import de.caluga.morphium.async.AsyncOperationCallback;
 import de.caluga.morphium.async.AsyncOperationType;
@@ -142,6 +143,28 @@ public class AsyncOperationTest extends MongoTest {
         waitForWrites();
     }
 
+    @Test
+    public void asyncErrorHandling() throws Exception {
+        WrongObject wo = new WrongObject();
+        MorphiumSingleton.get().store(wo);
+
+
+    }
+
+
+    @AsyncWrites
+    @Entity
+    public static class WrongObject {
+        private String value;
+
+        public String getValue() {
+            return value;
+        }
+
+        public void setValue(String value) {
+            this.value = value;
+        }
+    }
 
     @AsyncWrites
     public static class AsyncObject extends UncachedObject {

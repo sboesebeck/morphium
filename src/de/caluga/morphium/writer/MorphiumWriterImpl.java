@@ -65,12 +65,19 @@ public class MorphiumWriterImpl implements MorphiumWriter {
      * @param obj - object to store
      */
     @Override
-    public <T> void store(final T obj, final String collection, final AsyncOperationCallback<T> callback) {
+    public <T> void store(final T obj, final String collection, AsyncOperationCallback<T> callback) {
         if (obj instanceof List) {
             store((List) obj, callback);
             return;
         }
-        Runnable r = new Runnable() {
+        WriterTask r = new WriterTask() {
+            private AsyncOperationCallback<T> callback;
+
+            @Override
+            public void setCallback(AsyncOperationCallback cb) {
+                callback = cb;
+            }
+
             public void run() {
                 long start = System.currentTimeMillis();
 
@@ -154,7 +161,7 @@ public class MorphiumWriterImpl implements MorphiumWriter {
                     if (!morphium.getDatabase().collectionExists(coll)) {
                         if (logger.isDebugEnabled())
                             logger.debug("Collection " + coll + " does not exist - ensuring indices");
-                        morphium.ensureIndicesFor(type,coll,callback);
+                        morphium.ensureIndicesFor(type, coll, callback);
                     }
 
                     WriteConcern wc = morphium.getWriteConcernForClass(type);
@@ -232,7 +239,6 @@ public class MorphiumWriterImpl implements MorphiumWriter {
                                 logger.fatal("Could not get more information about validation error ", e1);
                             }
                         }
-                        throw (RuntimeException) e;
                     }
                     if (callback == null) throw new RuntimeException(e);
                     callback.onOperationError(AsyncOperationType.WRITE, null, System.currentTimeMillis() - start, e.getMessage(), e, obj);
@@ -243,7 +249,7 @@ public class MorphiumWriterImpl implements MorphiumWriter {
     }
 
     @Override
-    public <T> void store(final List<T> lst, String collectionName, final AsyncOperationCallback<T> callback) {
+    public <T> void store(final List<T> lst, String collectionName, AsyncOperationCallback<T> callback) {
         if (lst == null || lst.size() == 0) return;
         if (!morphium.getDatabase().collectionExists(collectionName)) {
             logger.warn("collection does not exist while storing list -  taking first element of list to ensure indices");
@@ -299,9 +305,16 @@ public class MorphiumWriterImpl implements MorphiumWriter {
     }
 
     @Override
-    public <T> void store(final List<T> lst, final AsyncOperationCallback<T> callback) {
+    public <T> void store(final List<T> lst, AsyncOperationCallback<T> callback) {
         if (!lst.isEmpty()) {
-            Runnable r = new Runnable() {
+            WriterTask r = new WriterTask() {
+                private AsyncOperationCallback<T> callback;
+
+                @Override
+                public void setCallback(AsyncOperationCallback cb) {
+                    callback = cb;
+                }
+
                 public void run() {
                     HashMap<Class, List<Object>> sorted = new HashMap<Class, List<Object>>();
                     HashMap<Object, Boolean> isNew = new HashMap<Object, Boolean>();
@@ -349,7 +362,7 @@ public class MorphiumWriterImpl implements MorphiumWriter {
                             if (!morphium.getDatabase().collectionExists(coll)) {
                                 if (logger.isDebugEnabled())
                                     logger.debug("Collection does not exist - ensuring indices");
-                                morphium.ensureIndicesFor(c,coll,callback);
+                                morphium.ensureIndicesFor(c, coll, callback);
                             }
                             for (Object record : es.getValue()) {
                                 DBObject marshall = morphium.getMapper().marshall(record);
@@ -406,8 +419,15 @@ public class MorphiumWriterImpl implements MorphiumWriter {
 
 
     @Override
-    public <T> void set(final T toSet, final String collection, final String field, final Object v, final boolean insertIfNotExist, final boolean multiple, final AsyncOperationCallback<T> callback) {
-        Runnable r = new Runnable() {
+    public <T> void set(final T toSet, final String collection, final String field, final Object v, final boolean insertIfNotExist, final boolean multiple, AsyncOperationCallback<T> callback) {
+        WriterTask<T> r = new WriterTask<T>() {
+            private AsyncOperationCallback<T> callback;
+
+            @Override
+            public void setCallback(AsyncOperationCallback cb) {
+                callback = cb;
+            }
+
             @Override
             public void run() {
                 Class cls = toSet.getClass();
@@ -426,7 +446,7 @@ public class MorphiumWriterImpl implements MorphiumWriter {
                 }
                 String fieldName = annotationHelper.getFieldName(cls, field);
                 if (insertIfNotExist && !morphium.getDatabase().collectionExists(coll)) {
-                    morphium.ensureIndicesFor(cls,coll,callback);
+                    morphium.ensureIndicesFor(cls, coll, callback);
                 }
                 BasicDBObject update = new BasicDBObject("$set", new BasicDBObject(fieldName, value));
 
@@ -460,10 +480,11 @@ public class MorphiumWriterImpl implements MorphiumWriter {
     }
 
 
-    public <T> void submitAndBlockIfNecessary(AsyncOperationCallback<T> callback, Runnable r) {
+    public <T> void submitAndBlockIfNecessary(AsyncOperationCallback<T> callback, WriterTask<T> r) {
         if (callback == null) {
             r.run();
         } else {
+            r.setCallback(callback);
             int tries = 0;
             boolean retry = true;
             while (retry) {
@@ -490,9 +511,16 @@ public class MorphiumWriterImpl implements MorphiumWriter {
     }
 
     @Override
-    public <T> void updateUsingFields(final T ent, final String collection, final AsyncOperationCallback<T> callback, final String... fields) {
+    public <T> void updateUsingFields(final T ent, final String collection, AsyncOperationCallback<T> callback, final String... fields) {
         if (ent == null) return;
-        Runnable r = new Runnable() {
+        WriterTask r = new WriterTask() {
+            private AsyncOperationCallback<T> callback;
+
+            @Override
+            public void setCallback(AsyncOperationCallback cb) {
+                callback = cb;
+            }
+
             @Override
             public void run() {
                 Object id = annotationHelper.getId(ent);
@@ -553,7 +581,7 @@ public class MorphiumWriterImpl implements MorphiumWriter {
                         collectionName = collection;
                     }
                     if (!morphium.getDatabase().collectionExists(collectionName)) {
-                        morphium.ensureIndicesFor((Class<T>) ent.getClass(),collectionName,callback);
+                        morphium.ensureIndicesFor((Class<T>) ent.getClass(), collectionName, callback);
                     }
                     if (wc != null) {
                         morphium.getDatabase().getCollection(collectionName).update(find, update, false, false, wc);
@@ -578,8 +606,15 @@ public class MorphiumWriterImpl implements MorphiumWriter {
 
     @SuppressWarnings("SuspiciousMethodCalls")
     @Override
-    public <T> void delete(final List<T> lst, final AsyncOperationCallback<T> callback) {
-        Runnable r = new Runnable() {
+    public <T> void delete(final List<T> lst, AsyncOperationCallback<T> callback) {
+        WriterTask r = new WriterTask() {
+            private AsyncOperationCallback<T> callback;
+
+            @Override
+            public void setCallback(AsyncOperationCallback cb) {
+                callback = cb;
+            }
+
             @Override
             public void run() {
                 HashMap<Class<T>, List<Query<T>>> sortedMap = new HashMap<Class<T>, List<Query<T>>>();
@@ -617,8 +652,15 @@ public class MorphiumWriterImpl implements MorphiumWriter {
      * @param q - query
      */
     @Override
-    public <T> void delete(final Query<T> q, final AsyncOperationCallback<T> callback) {
-        Runnable r = new Runnable() {
+    public <T> void delete(final Query<T> q, AsyncOperationCallback<T> callback) {
+        WriterTask r = new WriterTask() {
+            private AsyncOperationCallback<T> callback;
+
+            @Override
+            public void setCallback(AsyncOperationCallback cb) {
+                callback = cb;
+            }
+
             @Override
             public void run() {
                 morphium.firePreRemoveEvent(q);
@@ -648,9 +690,16 @@ public class MorphiumWriterImpl implements MorphiumWriter {
     }
 
     @Override
-    public <T> void delete(final T o, final String collection, final AsyncOperationCallback<T> callback) {
+    public <T> void delete(final T o, final String collection, AsyncOperationCallback<T> callback) {
 
-        Runnable r = new Runnable() {
+        WriterTask r = new WriterTask() {
+            private AsyncOperationCallback<T> callback;
+
+            @Override
+            public void setCallback(AsyncOperationCallback cb) {
+                callback = cb;
+            }
+
             @Override
             public void run() {
                 Object id = annotationHelper.getId(o);
@@ -697,8 +746,15 @@ public class MorphiumWriterImpl implements MorphiumWriter {
      * @param amount: the value to set
      */
     @Override
-    public <T> void inc(final T toInc, final String collection, final String field, final double amount, final AsyncOperationCallback<T> callback) {
-        Runnable r = new Runnable() {
+    public <T> void inc(final T toInc, final String collection, final String field, final double amount, AsyncOperationCallback<T> callback) {
+        WriterTask r = new WriterTask() {
+            private AsyncOperationCallback<T> callback;
+
+            @Override
+            public void setCallback(AsyncOperationCallback cb) {
+                callback = cb;
+            }
+
             @Override
             public void run() {
                 Class cls = toInc.getClass();
@@ -716,7 +772,7 @@ public class MorphiumWriterImpl implements MorphiumWriter {
                 BasicDBObject update = new BasicDBObject("$inc", new BasicDBObject(fieldName, amount));
                 WriteConcern wc = morphium.getWriteConcernForClass(toInc.getClass());
                 if (!morphium.getDatabase().collectionExists(coll)) {
-                    morphium.ensureIndicesFor(cls,coll,callback);
+                    morphium.ensureIndicesFor(cls, coll, callback);
                 }
                 long start = System.currentTimeMillis();
                 try {
@@ -773,8 +829,15 @@ public class MorphiumWriterImpl implements MorphiumWriter {
     }
 
     @Override
-    public <T> void inc(final Query<T> query, final Map<String, Double> fieldsToInc, final boolean insertIfNotExist, final boolean multiple, final AsyncOperationCallback<T> callback) {
-        Runnable r = new Runnable() {
+    public <T> void inc(final Query<T> query, final Map<String, Double> fieldsToInc, final boolean insertIfNotExist, final boolean multiple, AsyncOperationCallback<T> callback) {
+        WriterTask r = new WriterTask() {
+            private AsyncOperationCallback<T> callback;
+
+            @Override
+            public void setCallback(AsyncOperationCallback cb) {
+                callback = cb;
+            }
+
             @Override
             public void run() {
                 Class<? extends T> cls = query.getType();
@@ -788,7 +851,7 @@ public class MorphiumWriterImpl implements MorphiumWriter {
                     qobj = morphium.simplifyQueryObject(qobj);
                 }
                 if (insertIfNotExist && !morphium.getDatabase().collectionExists(coll)) {
-                    morphium.ensureIndicesFor((Class<T>) cls,coll,callback);
+                    morphium.ensureIndicesFor((Class<T>) cls, coll, callback);
                 }
                 WriteConcern wc = morphium.getWriteConcernForClass(cls);
                 long start = System.currentTimeMillis();
@@ -817,8 +880,15 @@ public class MorphiumWriterImpl implements MorphiumWriter {
 
 
     @Override
-    public <T> void inc(final Query<T> query, final String field, final double amount, final boolean insertIfNotExist, final boolean multiple, final AsyncOperationCallback<T> callback) {
-        Runnable r = new Runnable() {
+    public <T> void inc(final Query<T> query, final String field, final double amount, final boolean insertIfNotExist, final boolean multiple, AsyncOperationCallback<T> callback) {
+        WriterTask r = new WriterTask() {
+            private AsyncOperationCallback<T> callback;
+
+            @Override
+            public void setCallback(AsyncOperationCallback cb) {
+                callback = cb;
+            }
+
             @Override
             public void run() {
                 Class cls = query.getType();
@@ -831,7 +901,7 @@ public class MorphiumWriterImpl implements MorphiumWriter {
                     qobj = morphium.simplifyQueryObject(qobj);
                 }
                 if (insertIfNotExist && !morphium.getDatabase().collectionExists(coll)) {
-                    morphium.ensureIndicesFor(cls,coll,callback);
+                    morphium.ensureIndicesFor(cls, coll, callback);
                 }
                 WriteConcern wc = morphium.getWriteConcernForClass(cls);
                 long start = System.currentTimeMillis();
@@ -870,8 +940,15 @@ public class MorphiumWriterImpl implements MorphiumWriter {
      * @param multiple         - update several documents, if false, only first hit will be updated
      */
     @Override
-    public <T> void set(final Query<T> query, final Map<String, Object> values, final boolean insertIfNotExist, final boolean multiple, final AsyncOperationCallback<T> callback) {
-        Runnable r = new Runnable() {
+    public <T> void set(final Query<T> query, final Map<String, Object> values, final boolean insertIfNotExist, final boolean multiple, AsyncOperationCallback<T> callback) {
+        WriterTask r = new WriterTask() {
+            private AsyncOperationCallback<T> callback;
+
+            @Override
+            public void setCallback(AsyncOperationCallback cb) {
+                callback = cb;
+            }
+
             @Override
             public void run() {
                 Class<?> cls = query.getType();
@@ -888,7 +965,7 @@ public class MorphiumWriterImpl implements MorphiumWriter {
                 }
 
                 if (insertIfNotExist && !morphium.getDatabase().collectionExists(coll)) {
-                    morphium.ensureIndicesFor((Class<T>) cls,coll,callback);
+                    morphium.ensureIndicesFor((Class<T>) cls, coll, callback);
                 }
 
                 BasicDBObject update = new BasicDBObject("$set", toSet);
@@ -924,14 +1001,21 @@ public class MorphiumWriterImpl implements MorphiumWriter {
      * @param field: field to remove from document
      */
     @Override
-    public <T> void unset(final T toSet, final String collection, final String field, final AsyncOperationCallback<T> callback) {
+    public <T> void unset(final T toSet, final String collection, final String field, AsyncOperationCallback<T> callback) {
         if (toSet == null) throw new RuntimeException("Cannot update null!");
         if (annotationHelper.getId(toSet) == null) {
             logger.info("just storing object as it is new...");
             store(toSet, collection, callback);
         }
 
-        Runnable r = new Runnable() {
+        WriterTask r = new WriterTask() {
+            private AsyncOperationCallback<T> callback;
+
+            @Override
+            public void setCallback(AsyncOperationCallback cb) {
+                callback = cb;
+            }
+
             @Override
             public void run() {
                 Class cls = toSet.getClass();
@@ -950,7 +1034,7 @@ public class MorphiumWriterImpl implements MorphiumWriter {
                 BasicDBObject update = new BasicDBObject("$unset", new BasicDBObject(fieldName, 1));
                 WriteConcern wc = morphium.getWriteConcernForClass(toSet.getClass());
                 if (!morphium.getDatabase().collectionExists(coll)) {
-                    morphium.ensureIndicesFor(cls,coll,callback);
+                    morphium.ensureIndicesFor(cls, coll, callback);
                 }
                 long start = System.currentTimeMillis();
 
@@ -984,8 +1068,15 @@ public class MorphiumWriterImpl implements MorphiumWriter {
 
 
     @Override
-    public <T> void pushPull(final boolean push, final Query<T> query, final String field, final Object value, final boolean insertIfNotExist, final boolean multiple, final AsyncOperationCallback<T> callback) {
-        Runnable r = new Runnable() {
+    public <T> void pushPull(final boolean push, final Query<T> query, final String field, final Object value, final boolean insertIfNotExist, final boolean multiple, AsyncOperationCallback<T> callback) {
+        WriterTask r = new WriterTask() {
+            private AsyncOperationCallback<T> callback;
+
+            @Override
+            public void setCallback(AsyncOperationCallback cb) {
+                callback = cb;
+            }
+
             @Override
             public void run() {
                 Class<?> cls = query.getType();
@@ -1065,7 +1156,7 @@ public class MorphiumWriterImpl implements MorphiumWriter {
 
     private void pushIt(boolean push, boolean insertIfNotExist, boolean multiple, Class<?> cls, String coll, DBObject qobj, BasicDBObject update) {
         if (!morphium.getDatabase().collectionExists(coll) && insertIfNotExist) {
-            morphium.ensureIndicesFor(cls,coll);
+            morphium.ensureIndicesFor(cls, coll);
         }
         WriteConcern wc = morphium.getWriteConcernForClass(cls);
         long start = System.currentTimeMillis();
@@ -1081,8 +1172,15 @@ public class MorphiumWriterImpl implements MorphiumWriter {
     }
 
     @Override
-    public <T> void pushPullAll(final boolean push, final Query<T> query, final String f, final List<?> v, final boolean insertIfNotExist, final boolean multiple, final AsyncOperationCallback<T> callback) {
-        Runnable r = new Runnable() {
+    public <T> void pushPullAll(final boolean push, final Query<T> query, final String f, final List<?> v, final boolean insertIfNotExist, final boolean multiple, AsyncOperationCallback<T> callback) {
+        WriterTask r = new WriterTask() {
+            private AsyncOperationCallback<T> callback;
+
+            @Override
+            public void setCallback(AsyncOperationCallback cb) {
+                callback = cb;
+            }
+
             @Override
             public void run() {
                 List<?> value = v;
@@ -1102,7 +1200,7 @@ public class MorphiumWriterImpl implements MorphiumWriter {
                         qobj = morphium.simplifyQueryObject(qobj);
                     }
                     if (insertIfNotExist && !morphium.getDatabase().collectionExists(coll)) {
-                        morphium.ensureIndicesFor((Class<T>) cls,coll,callback);
+                        morphium.ensureIndicesFor((Class<T>) cls, coll, callback);
                     }
                     field = annotationHelper.getFieldName(cls, field);
                     BasicDBObject set = new BasicDBObject(field, value);
@@ -1133,7 +1231,14 @@ public class MorphiumWriterImpl implements MorphiumWriter {
     @Override
     public <T> void dropCollection(final Class<T> cls, final String collection, AsyncOperationCallback<T> callback) {
         if (annotationHelper.isAnnotationPresentInHierarchy(cls, Entity.class)) {
-            Runnable r = new Runnable() {
+            WriterTask r = new WriterTask() {
+                private AsyncOperationCallback<T> callback;
+
+                @Override
+                public void setCallback(AsyncOperationCallback cb) {
+                    callback = cb;
+                }
+
                 public void run() {
                     morphium.firePreDropEvent(cls);
                     long start = System.currentTimeMillis();
@@ -1157,7 +1262,14 @@ public class MorphiumWriterImpl implements MorphiumWriter {
 
     @Override
     public <T> void ensureIndex(final Class<T> cls, final String collection, final Map<String, Object> index, final Map<String, Object> options, AsyncOperationCallback<T> callback) {
-        Runnable r = new Runnable() {
+        WriterTask r = new WriterTask() {
+            private AsyncOperationCallback<T> callback;
+
+            @Override
+            public void setCallback(AsyncOperationCallback cb) {
+                callback = cb;
+            }
+
             public void run() {
                 List<String> fields = annotationHelper.getFields(cls);
 
@@ -1183,6 +1295,8 @@ public class MorphiumWriterImpl implements MorphiumWriter {
                 long dur = System.currentTimeMillis() - start;
                 morphium.fireProfilingWriteEvent(cls, keys, dur, false, WriteAccessType.ENSURE_INDEX);
             }
+
+
         };
         submitAndBlockIfNecessary(callback, r);
     }
