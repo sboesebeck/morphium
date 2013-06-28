@@ -3,6 +3,7 @@ package de.caluga.morphium.writer;
 import de.caluga.morphium.async.AsyncOperationCallback;
 import de.caluga.morphium.async.AsyncOperationType;
 import de.caluga.morphium.query.Query;
+import org.apache.log4j.Logger;
 
 import java.util.List;
 
@@ -15,7 +16,7 @@ import java.util.List;
  */
 public class AsyncWriterImpl extends MorphiumWriterImpl {
     @Override
-    public <T> void submitAndBlockIfNecessary(AsyncOperationCallback<T> callback, Runnable r) {
+    public <T> void submitAndBlockIfNecessary(AsyncOperationCallback<T> callback, WriterTask<T> r) {
         if (callback == null) {
             callback = new AsyncOperationCallback<T>() {
                 @Override
@@ -24,6 +25,7 @@ public class AsyncWriterImpl extends MorphiumWriterImpl {
 
                 @Override
                 public void onOperationError(AsyncOperationType type, Query<T> q, long duration, String error, Throwable t, T entity, Object... param) {
+                    Logger.getLogger(AsyncWriterImpl.class).error("Error during async operation", t);
                 }
             };
         }
