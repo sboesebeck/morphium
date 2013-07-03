@@ -91,7 +91,11 @@ public class MorphiumCacheImpl implements MorphiumCache {
         }
         Hashtable<Class<?>, Hashtable<String, CacheElement>> snapshotCache = cache;
 
-        return snapshotCache.get(type) != null && snapshotCache.get(type).get(k) != null && snapshotCache.get(type).get(k).getFound() != null;
+        try {
+            return snapshotCache.get(type) != null && snapshotCache.get(type).get(k) != null && snapshotCache.get(type).get(k).getFound() != null;
+        } catch (Exception e) {
+            return false;
+        }
     }
 
     /**
