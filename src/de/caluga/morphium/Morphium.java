@@ -998,7 +998,7 @@ public class Morphium {
 
                 return status;
             } catch (Exception e) {
-                logger.error("Could not get Replicaset status", e);
+                logger.warn("Could not get Replicaset status: " + e.getMessage());
             }
         }
         return null;
@@ -1006,6 +1006,39 @@ public class Morphium {
 
     public boolean isReplicaSet() {
         return config.getAdr().size() > 1;
+    }
+
+
+    public void handleNetworkError(int i, Throwable e) {
+        logger.info("Handling network error..." + e.getClass().getName());
+        if (e.getClass().getName().equals("javax.validation.ConstraintViolationException")) {
+            throw ((RuntimeException) e);
+        }
+        if (e.getMessage().equals("can't find a master")
+                || e.getMessage().startsWith("No replica set members available in")
+                || e.getMessage().equals("not talking to master and retries used up")
+                || (e instanceof WriteConcernException && e.getMessage().contains("not master"))
+                || e instanceof MongoException.Network) {
+            if (i + 1 < getConfig().getRetriesOnNetworkError()) {
+                logger.warn("Retry because of network error: " + e.getMessage());
+                try {
+                    Thread.sleep(getConfig().getSleepBetweenNetworkErrorRetries());
+                } catch (InterruptedException e1) {
+                }
+
+            } else {
+                logger.info("no retries left - re-throwing exception");
+                if (e instanceof RuntimeException) {
+                    throw ((RuntimeException) e);
+                }
+                throw (new RuntimeException(e));
+            }
+        } else {
+            if (e instanceof RuntimeException) {
+                throw ((RuntimeException) e);
+            }
+            throw (new RuntimeException(e));
+        }
     }
 
     @SuppressWarnings("ConstantConditions")
@@ -1645,11 +1678,27 @@ public class Morphium {
     }
 
     public <T, R> List<R> aggregate(Aggregator<T, R> a) {
-        DBCollection coll = config.getDb().getCollection(objectMapper.getCollectionName(a.getSearchType()));
+        DBCollection coll = null;
+        for (int i = 0; i < getConfig().getRetriesOnNetworkError(); i++) {
+            try {
+                coll = config.getDb().getCollection(objectMapper.getCollectionName(a.getSearchType()));
+                break;
+            } catch (Throwable e) {
+                handleNetworkError(i, e);
+            }
+        }
         List<DBObject> agList = a.toAggregationList();
         DBObject first = agList.get(0);
         agList.remove(0);
-        AggregationOutput resp = coll.aggregate(first, agList.toArray(new DBObject[agList.size()]));
+        AggregationOutput resp = null;
+        for (int i = 0; i < getConfig().getRetriesOnNetworkError(); i++) {
+            try {
+                resp = coll.aggregate(first, agList.toArray(new DBObject[agList.size()]));
+                break;
+            } catch (Throwable t) {
+                handleNetworkError(i, t);
+            }
+        }
 
         List<R> ret = new ArrayList<R>();
         for (DBObject o : resp.results()) {

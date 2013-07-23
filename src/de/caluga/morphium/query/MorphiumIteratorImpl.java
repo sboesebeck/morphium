@@ -4,6 +4,7 @@ import org.apache.log4j.Logger;
 
 import java.util.Iterator;
 import java.util.List;
+import java.util.Stack;
 
 /**
  * User: Stephan Bösebeck
@@ -18,6 +19,7 @@ public class MorphiumIteratorImpl<T> implements MorphiumIterator<T> {
 
     private Query<T> theQuery;
     private List<T> buffer;
+    private Stack<List<T>> prefechBuffers;
     private int cursor = 0;
     private long count = 0;
 
@@ -41,7 +43,8 @@ public class MorphiumIteratorImpl<T> implements MorphiumIterator<T> {
         }
         int idx = cursor % windowSize;
         if (buffer == null || idx == 0) {
-            theQuery.skip(cursor);
+            int skp = (cursor / windowSize) * windowSize;
+            theQuery.skip(skp); //sounds strange, but is necessary for Jump / backs
             if (count - cursor < windowSize) {
                 theQuery.limit((int) (count - cursor));
             } else if (limit - cursor < windowSize) {
@@ -50,7 +53,7 @@ public class MorphiumIteratorImpl<T> implements MorphiumIterator<T> {
                 theQuery.limit(windowSize);
             }
             if (log.isDebugEnabled()) {
-                log.debug("Reached window boundary - reading in: skip:" + cursor + " limit:" + windowSize);
+                log.debug("Reached window boundary - reading in: skip:" + skp + " limit:" + windowSize);
             }
             if (theQuery.getSort() == null || theQuery.getSort().isEmpty()) {
                 if (log.isDebugEnabled()) {
@@ -120,11 +123,25 @@ public class MorphiumIteratorImpl<T> implements MorphiumIterator<T> {
 
     @Override
     public void ahead(int jump) {
+        //end of buffer index
+        if ((cursor / windowSize) * windowSize + windowSize <= cursor + jump) {
+            if (log.isDebugEnabled()) {
+                log.debug("Would jump over boundary - resetting buffer");
+            }
+            buffer = null;
+        }
         cursor += jump;
     }
 
     @Override
     public void back(int jump) {
+        //begin of buffer index
+        if ((cursor / windowSize * windowSize) > cursor - jump) {
+            if (log.isDebugEnabled()) {
+                log.debug("Would jump before boundary - resetting buffer");
+            }
+            buffer = null;
+        }
         cursor -= jump;
     }
 
