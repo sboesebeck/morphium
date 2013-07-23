@@ -147,4 +147,92 @@ public class NetworkRetryTest extends MongoTest {
     }
 
 
+    @Test
+    public void pushTest() throws Exception {
+        if (!doTest) return;
+        MorphiumSingleton.get().getConfig().setRetriesOnNetworkError(10);
+        MorphiumSingleton.get().getConfig().setSleepBetweenNetworkErrorRetries(2500);
+        MorphiumSingleton.get().dropCollection(ListContainer.class);
+        for (int i = 1; i <= 1000; i++) {
+            ListContainer lc = new ListContainer();
+            lc.addLong(12 + i);
+            lc.addString("string");
+            lc.setName("LC" + i);
+            MorphiumSingleton.get().store(lc);
+        }
+        for (int i = 1; i < 1000; i++) {
+            Query<ListContainer> lc = MorphiumSingleton.get().createQueryFor(ListContainer.class);
+            lc = lc.f("name").eq("LC" + i);
+            MorphiumSingleton.get().push(lc, "long_list", 12345l);
+            MorphiumSingleton.get().push(lc, "long_list", 12346l);
+            MorphiumSingleton.get().push(lc, "long_list", 12347l);
+            ListContainer cont = lc.get();
+            assert (cont.getLongList().contains(12345l)) : "No push?";
+            log.info("Pushed...");
+            Thread.sleep(1000);
+        }
+
+    }
+
+    @Test
+    public void pushAllTest() throws Exception {
+        if (!doTest) return;
+        MorphiumSingleton.get().getConfig().setRetriesOnNetworkError(10);
+        MorphiumSingleton.get().getConfig().setSleepBetweenNetworkErrorRetries(2500);
+        MorphiumSingleton.get().dropCollection(ListContainer.class);
+        for (int i = 1; i <= 1000; i++) {
+            ListContainer lc = new ListContainer();
+            lc.addLong(12 + i);
+            lc.addString("string");
+            lc.setName("LC" + i);
+            MorphiumSingleton.get().store(lc);
+        }
+        for (int i = 1; i < 1000; i++) {
+            Query<ListContainer> lc = MorphiumSingleton.get().createQueryFor(ListContainer.class);
+            lc = lc.f("name").eq("LC" + i);
+            List<Long> lst = new ArrayList<Long>();
+            lst.add(12345l);
+            lst.add(123456l);
+            lst.add(123l);
+            lst.add(12l);
+            MorphiumSingleton.get().pushAll(lc, "long_list", lst, false, false);
+            ListContainer cont = lc.get();
+            assert (cont.getLongList().contains(12345l)) : "No push?";
+            log.info("Pushed...");
+            Thread.sleep(1000);
+        }
+
+    }
+
+    @Test
+    public void incTest() throws Exception {
+        if (!doTest) return;
+        MorphiumSingleton.get().getConfig().setRetriesOnNetworkError(10);
+        MorphiumSingleton.get().getConfig().setSleepBetweenNetworkErrorRetries(2500);
+        createUncachedObjects(1000);
+
+        for (int i = 1; i < 1000; i++) {
+            Query<UncachedObject> q = MorphiumSingleton.get().createQueryFor(UncachedObject.class);
+            q = q.f("counter").eq(i);
+            MorphiumSingleton.get().inc(q, "counter", 10000);
+            log.info("increased...");
+            Thread.sleep(1000);
+        }
+    }
+
+    @Test
+    public void decTest() throws Exception {
+        if (!doTest) return;
+        MorphiumSingleton.get().getConfig().setRetriesOnNetworkError(10);
+        MorphiumSingleton.get().getConfig().setSleepBetweenNetworkErrorRetries(2500);
+        createUncachedObjects(1000);
+
+        for (int i = 500; i < 1000; i++) {
+            Query<UncachedObject> q = MorphiumSingleton.get().createQueryFor(UncachedObject.class);
+            q = q.f("counter").eq(i);
+            MorphiumSingleton.get().dec(q, "counter", 500);
+            log.info("decreased...");
+            Thread.sleep(1000);
+        }
+    }
 }
