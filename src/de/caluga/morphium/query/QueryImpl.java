@@ -162,22 +162,31 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
             lst.put(n, 1);
         }
 
-        DBCursor cursor = c.find(query, lst);
-        if (sort != null) {
-            DBObject srt = new BasicDBObject();
-            srt.putAll(sort);
-            cursor.sort(srt);
-        }
-        if (skip > 0) {
-            cursor.skip(skip);
-        }
-        if (limit > 0) {
-            cursor.limit(limit);
-        }
         List<T> ret = new ArrayList<T>();
+        int retries = morphium.getConfig().getRetriesOnNetworkError();
+        for (int i = 0; i < retries; i++) {
 
-        while (cursor.hasNext()) {
-            ret.add(morphium.getMapper().unmarshall(type, cursor.next()));
+            try {
+                DBCursor cursor = c.find(query, lst);
+                if (sort != null) {
+                    DBObject srt = new BasicDBObject();
+                    srt.putAll(sort);
+                    cursor.sort(srt);
+                }
+                if (skip > 0) {
+                    cursor.skip(skip);
+                }
+                if (limit > 0) {
+                    cursor.limit(limit);
+                }
+
+                while (cursor.hasNext()) {
+                    ret.add(morphium.getMapper().unmarshall(type, cursor.next()));
+                }
+                break;
+            } catch (RuntimeException e) {
+                morphium.handleNetworkError(i, e);
+            }
         }
         morphium.fireProfilingReadEvent(this, System.currentTimeMillis() - start, ReadAccessType.AS_LIST);
         return ret;
@@ -380,9 +389,16 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
 
         DBCollection collection = morphium.getDatabase().getCollection(getCollectionName());
         setReadPreferenceFor(collection);
-        long ret = collection.count(toQueryObject());
-        morphium.fireProfilingReadEvent(QueryImpl.this, System.currentTimeMillis() - start, ReadAccessType.COUNT);
-        return ret;
+        for (int i = 0; i < morphium.getConfig().getRetriesOnNetworkError(); i++) {
+            try {
+                long ret = collection.count(toQueryObject());
+                morphium.fireProfilingReadEvent(QueryImpl.this, System.currentTimeMillis() - start, ReadAccessType.COUNT);
+                return ret;
+            } catch (RuntimeException e) {
+                morphium.handleNetworkError(i, e);
+            }
+        }
+        return 0;
     }
 
     private void setReadPreferenceFor(DBCollection c) {
@@ -516,42 +532,53 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
             String n = annotationHelper.getFieldName(type, f.getName());
             lst.put(n, 1);
         }
-
-        DBCursor query = collection.find(toQueryObject(), lst);
-        if (skip > 0) {
-            query.skip(skip);
-        }
-        if (limit > 0) {
-            query.limit(limit);
-        }
-        if (sort != null) {
-            BasicDBObject srt = new BasicDBObject();
-            for (String k : sort.keySet()) {
-                srt.append(k, sort.get(k));
-            }
-            query.sort(new BasicDBObject(srt));
-        }
-
-        Iterator<DBObject> it = query.iterator();
-        List<T> ret = new ArrayList<T>();
-
         morphium.fireProfilingReadEvent(this, System.currentTimeMillis() - start, ReadAccessType.AS_LIST);
-        while (it.hasNext()) {
-            DBObject o = it.next();
-            T unmarshall = morphium.getMapper().unmarshall(type, o);
-            ret.add(unmarshall);
+        List<T> ret = new ArrayList<T>();
+        for (int i = 0; i < morphium.getConfig().getRetriesOnNetworkError(); i++) {
+            ret.clear();
+            try {
+                DBCursor query = collection.find(toQueryObject(), lst);
+                if (skip > 0) {
+                    query.skip(skip);
+                }
+                if (limit > 0) {
+                    query.limit(limit);
+                }
+                if (sort != null) {
+                    BasicDBObject srt = new BasicDBObject();
+                    for (String k : sort.keySet()) {
+                        srt.append(k, sort.get(k));
+                    }
+                    query.sort(new BasicDBObject(srt));
+                }
 
-            updateLastAccess(o, unmarshall);
+                Iterator<DBObject> it = query.iterator();
 
-            morphium.firePostLoadEvent(unmarshall);
+
+                while (it.hasNext()) {
+                    DBObject o = it.next();
+                    T unmarshall = morphium.getMapper().unmarshall(type, o);
+                    ret.add(unmarshall);
+
+                    updateLastAccess(o, unmarshall);
+
+                    morphium.firePostLoadEvent(unmarshall);
+                }
+                break;
+
+            } catch (Throwable e) {
+                morphium.handleNetworkError(i, e);
+            }
         }
 
 
         if (useCache) {
             morphium.getCache().addToCache(ck, type, ret);
         }
+
         return ret;
     }
+
 
     @Override
     public MorphiumIterator<T> asIterable() {
@@ -563,9 +590,6 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
         try {
             if (log.isDebugEnabled()) {
                 log.debug("creating iterable for query - windowsize " + windowSize);
-            }
-            if (getSort() == null || getSort().isEmpty()) {
-                throw new IllegalArgumentException("iterating over collection without sort! ATTENTION might cause to double reads or skipped data!");
             }
             MorphiumIterator<T> it = morphium.getConfig().getIteratorClass().newInstance();
             it.setQuery(this);
@@ -704,7 +728,15 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
             return null;
         }
 
-        DBObject ret = srch.toArray(1).get(0);
+        DBObject ret = null;
+        for (int i = 0; i < morphium.getConfig().getRetriesOnNetworkError(); i++) {
+            try {
+                ret = srch.toArray(1).get(0);
+                break;
+            } catch (RuntimeException e) {
+                morphium.handleNetworkError(i, e);
+            }
+        }
         List<T> lst = new ArrayList<T>(1);
         long dur = System.currentTimeMillis() - start;
         morphium.fireProfilingReadEvent(this, dur, ReadAccessType.GET);
@@ -768,19 +800,26 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
         long start = System.currentTimeMillis();
         DBCollection collection = morphium.getDatabase().getCollection(getCollectionName());
         setReadPreferenceFor(collection);
-        DBCursor query = collection.find(toQueryObject(), new BasicDBObject("_id", 1)); //only get IDs
-        if (sort != null) {
-            query.sort(new BasicDBObject(sort));
-        }
-        if (skip > 0) {
-            query.skip(skip);
-        }
-        if (limit > 0) {
-            query.limit(0);
-        }
+        for (int i = 0; i < morphium.getConfig().getRetriesOnNetworkError(); i++) {
+            try {
+                DBCursor query = collection.find(toQueryObject(), new BasicDBObject("_id", 1)); //only get IDs
+                if (sort != null) {
+                    query.sort(new BasicDBObject(sort));
+                }
+                if (skip > 0) {
+                    query.skip(skip);
+                }
+                if (limit > 0) {
+                    query.limit(0);
+                }
 
-        for (DBObject o : query) {
-            ret.add((Object) o.get("_id"));
+                for (DBObject o : query) {
+                    ret.add(o.get("_id"));
+                }
+                break;
+            } catch (RuntimeException e) {
+                morphium.handleNetworkError(i, e);
+            }
         }
         long dur = System.currentTimeMillis() - start;
         morphium.fireProfilingReadEvent(this, dur, ReadAccessType.ID_LIST);

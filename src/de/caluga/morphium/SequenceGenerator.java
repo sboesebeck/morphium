@@ -54,9 +54,11 @@ public class SequenceGenerator {
         this.morphium = mrph;
         id = UUID.randomUUID().toString();
 
-        if (!morphium.getDatabase().collectionExists(morphium.getMapper().getCollectionName(Sequence.class)) || morphium.createQueryFor(Sequence.class).f("name").eq(name).countAll() == 0) {
-            //sequence does not exist yet
-            if (log.isDebugEnabled()) log.debug("Sequence does not exist yet... inserting");
+        for (int i = 0; i < morphium.getConfig().getRetriesOnNetworkError(); i++) {
+            try {
+                if (!morphium.getDatabase().collectionExists(morphium.getMapper().getCollectionName(Sequence.class)) || morphium.createQueryFor(Sequence.class).f("name").eq(name).countAll() == 0) {
+                    //sequence does not exist yet
+                    if (log.isDebugEnabled()) log.debug("Sequence does not exist yet... inserting");
 //            Query<Sequence> seq = morphium.createQueryFor(Sequence.class);
 //            seq.f("name").eq(name);
 //
@@ -66,12 +68,17 @@ public class SequenceGenerator {
 //            morphium.set(seq, values, true, false);
 //            morphium.ensureIndicesFor(Sequence.class);
 
-            Sequence s = new Sequence();
-            s.setCurrentValue(startValue - inc);
-            s.setName(name);
-            s.setId(new ObjectId(new Date(0l), name.hashCode()));
-            morphium.storeNoCache(s);
-            //inserted
+                    Sequence s = new Sequence();
+                    s.setCurrentValue(startValue - inc);
+                    s.setName(name);
+                    s.setId(new ObjectId(new Date(0l), name.hashCode()));
+                    morphium.storeNoCache(s);
+                    //inserted
+                }
+                break;
+            } catch (Throwable t) {
+                morphium.handleNetworkError(i, t);
+            }
         }
     }
 

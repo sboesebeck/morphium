@@ -5,24 +5,8 @@ package de.caluga.morphium;
  * and open the template in the editor.
  */
 
-import java.io.IOException;
-import java.net.URL;
-import java.net.UnknownHostException;
-import java.util.ArrayList;
-import java.util.Enumeration;
-import java.util.Hashtable;
-import java.util.List;
-import java.util.Map;
-import java.util.Properties;
-import java.util.Vector;
-
-import org.apache.log4j.LogManager;
-import org.apache.log4j.Logger;
-import org.apache.log4j.xml.DOMConfigurator;
-
 import com.mongodb.DB;
 import com.mongodb.ServerAddress;
-
 import de.caluga.morphium.aggregation.Aggregator;
 import de.caluga.morphium.aggregation.AggregatorFactory;
 import de.caluga.morphium.aggregation.AggregatorFactoryImpl;
@@ -30,18 +14,19 @@ import de.caluga.morphium.aggregation.AggregatorImpl;
 import de.caluga.morphium.annotations.ReadPreferenceLevel;
 import de.caluga.morphium.cache.MorphiumCache;
 import de.caluga.morphium.cache.MorphiumCacheImpl;
-import de.caluga.morphium.query.MongoField;
-import de.caluga.morphium.query.MongoFieldImpl;
-import de.caluga.morphium.query.MorphiumIterator;
-import de.caluga.morphium.query.MorphiumIteratorImpl;
-import de.caluga.morphium.query.Query;
-import de.caluga.morphium.query.QueryFactory;
-import de.caluga.morphium.query.QueryFactoryImpl;
-import de.caluga.morphium.query.QueryImpl;
+import de.caluga.morphium.query.*;
 import de.caluga.morphium.writer.AsyncWriterImpl;
 import de.caluga.morphium.writer.BufferedMorphiumWriterImpl;
 import de.caluga.morphium.writer.MorphiumWriter;
 import de.caluga.morphium.writer.MorphiumWriterImpl;
+import org.apache.log4j.LogManager;
+import org.apache.log4j.Logger;
+import org.apache.log4j.xml.DOMConfigurator;
+
+import java.io.IOException;
+import java.net.URL;
+import java.net.UnknownHostException;
+import java.util.*;
 
 /**
  * Stores the configuration for the MongoDBLayer.
@@ -102,6 +87,9 @@ public class MorphiumConfig {
 
     private int replicaSetMonitoringTimeout = 5000;
 
+    private int retriesOnNetworkError = 1;
+    private int sleepBetweenNetworkErrorRetries = 1000;
+
 
     /**
      * login credentials for MongoDB - if necessary. If null, don't authenticate
@@ -121,6 +109,26 @@ public class MorphiumConfig {
 
     private ReadPreferenceLevel defaultReadPreference;
     private Class<? extends MorphiumIterator> iteratorClass;
+
+    public int getRetriesOnNetworkError() {
+        return retriesOnNetworkError;
+    }
+
+    public void setRetriesOnNetworkError(int retriesOnNetworkError) {
+        if (retriesOnNetworkError == 0) {
+            Logger.getLogger(MorphiumConfig.class).warn("Cannot set retries on network error to 0 - minimum is 1");
+            retriesOnNetworkError = 1;
+        }
+        this.retriesOnNetworkError = retriesOnNetworkError;
+    }
+
+    public int getSleepBetweenNetworkErrorRetries() {
+        return sleepBetweenNetworkErrorRetries;
+    }
+
+    public void setSleepBetweenNetworkErrorRetries(int sleepBetweenNetworkErrorRetries) {
+        this.sleepBetweenNetworkErrorRetries = sleepBetweenNetworkErrorRetries;
+    }
 
     public int getReplicaSetMonitoringTimeout() {
         return replicaSetMonitoringTimeout;
@@ -266,14 +274,14 @@ public class MorphiumConfig {
     }
 
     public DB getDb() {
-		return db;
-	}
+        return db;
+    }
 
-	public void setDb(DB db) {
-		this.db = db;
-	}
+    public void setDb(DB db) {
+        this.db = db;
+    }
 
-	public MorphiumWriter getWriter() {
+    public MorphiumWriter getWriter() {
         return writer;
     }
 
@@ -425,38 +433,39 @@ public class MorphiumConfig {
 
     /**
      * setting hosts as Host:Port
+     *
      * @param str list of hosts, with or without port
      */
     public void setHosts(List<String> str) throws UnknownHostException {
-        for (String s:str) {
-            String[] h=s.split(":");
-            if (h.length==1) {
-                addAddress(h[0],27017);
+        for (String s : str) {
+            String[] h = s.split(":");
+            if (h.length == 1) {
+                addAddress(h[0], 27017);
             } else {
-                addAddress(h[0],Integer.parseInt(h[1]));
+                addAddress(h[0], Integer.parseInt(h[1]));
             }
         }
     }
 
-    public void setHosts(List<String> str,List<Integer> ports) throws UnknownHostException {
-        for(int i=0;i<str.size();i++) {
-            if (ports.size()<i) {
-                addAddress(str.get(i),27017);
+    public void setHosts(List<String> str, List<Integer> ports) throws UnknownHostException {
+        for (int i = 0; i < str.size(); i++) {
+            if (ports.size() < i) {
+                addAddress(str.get(i), 27017);
             } else {
-                addAddress(str.get(i),ports.get(i));
+                addAddress(str.get(i), ports.get(i));
             }
         }
     }
 
 
-    public void setHosts(String hosts,String ports) throws UnknownHostException {
-        String h[]=hosts.split(",");
-        String p[]=ports.split(",");
-        for (int i=0;i<h.length;i++) {
-            if (p.length<i) {
-                addAddress(h[i],27017);
+    public void setHosts(String hosts, String ports) throws UnknownHostException {
+        String h[] = hosts.split(",");
+        String p[] = ports.split(",");
+        for (int i = 0; i < h.length; i++) {
+            if (p.length < i) {
+                addAddress(h[i], 27017);
             } else {
-                addAddress(h[i],Integer.parseInt(p[i]));
+                addAddress(h[i], Integer.parseInt(p[i]));
             }
         }
 

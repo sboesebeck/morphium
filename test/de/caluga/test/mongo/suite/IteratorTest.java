@@ -147,6 +147,32 @@ public class IteratorTest extends MongoTest {
 
     }
 
+
+    @Test
+    public void iterableSkipsTest() throws Exception {
+        createUncachedObjects(100);
+        Query<UncachedObject> qu = getUncachedObjectQuery();
+
+        MorphiumIterator<UncachedObject> it = qu.asIterable(10);
+        boolean back = false;
+        for (UncachedObject u : it) {
+            log.info("Object: " + u.getCounter());
+            if (u.getCounter() == 8) {
+                it.ahead(15);
+                log.info("Skipping 15 elements");
+            }
+            if (u.getCounter() == 30 && !back) {
+                log.info("and Back 22");
+                it.back(22);
+                back = true;
+            }
+
+
+        }
+
+    }
+
+
     @Test
     public void expectedBehaviorTest() throws Exception {
         createUncachedObjects(100);
