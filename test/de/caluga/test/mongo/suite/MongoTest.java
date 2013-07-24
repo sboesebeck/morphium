@@ -103,9 +103,9 @@ public class MongoTest {
 //            cfg.setTimeoutBugWorkAroundEnabled(true);
 
 
-            cfg.addAddress("localhost", 27017);
-            cfg.addAddress("localhost", 27018);
-            cfg.addAddress("localhost", 27019);
+            cfg.addAddress("192.168.44.31", 27017);
+            cfg.addAddress("192.168.44.31", 27018);
+            cfg.addAddress("192.168.44.31", 27019);
 //            cfg.addAddress("mongo1", 27017);
 //            cfg.addAddress("mongo2", 27017);
 //            cfg.addAddress("mongo3", 27017);
@@ -119,6 +119,12 @@ public class MongoTest {
             cfg.setRetryWaitTimeAsyncWriter(1000);
             cfg.setRetryWaitTimeWriter(1000);
             cfg.setRetryWaitTimeBufferedWriter(1000);
+
+            cfg.setMongoAdminUser("admin");
+            cfg.setMongoAdminPwd("admin");
+
+            cfg.setMongoLogin("tst");
+            cfg.setMongoPassword("tst");
 //            cfg.setMongoLogin("morphium");
 //            cfg.setMongoPassword("tst");
 

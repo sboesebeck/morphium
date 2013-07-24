@@ -21,7 +21,7 @@ public class AdditionalDataTest extends MongoTest {
         WriteConcern w = MorphiumSingleton.get().getWriteConcernForClass(AddDat.class);
 //        assert(w.getW()>1);
 //        assert(w.getWtimeout()>1000);
-        System.out.println("W: " + w.toString());
+        System.out.println("W: " + w);
         AddDat d = new AddDat();
         d.setCounter(999);
         Map<String, Object> additional = new HashMap<String, Object>();
