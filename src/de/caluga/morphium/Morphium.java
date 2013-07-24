@@ -185,9 +185,19 @@ public class Morphium {
             Thread thr = new Thread() {
                 public void run() {
                     //updating replicaset status / active nodes
+                    int nullcounter = 0;
                     while (true) {
                         try {
                             currentStatus = getReplicaSetStatus(true);
+                            if (currentStatus == null) {
+                                nullcounter++;
+                            } else {
+                                nullcounter = 0;
+                            }
+                            if (nullcounter > 10) {
+                                logger.error("Getting ReplicasetStatus failed 10 times... will gracefully exit thread");
+                                return;
+                            }
                             sleep(config.getReplicaSetMonitoringTimeout());
                         } catch (InterruptedException e) {
                         }
@@ -962,10 +972,10 @@ public class Morphium {
     private de.caluga.morphium.replicaset.ReplicaSetStatus getReplicaSetStatus(boolean full) {
         if (config.getAdr().size() > 1) {
             try {
-                DB adminDB = getMongo().getDB("admin");
+                DB adminDB = getMongo().getDB(config.getDatabase());
                 if (config.getMongoAdminUser() != null) {
                     if (!adminDB.authenticate(config.getMongoAdminUser(), config.getMongoAdminPwd().toCharArray())) {
-                        logger.error("Authentication for admin db failed!");
+                        logger.error("Authentication as admin failed!");
                         return null;
                     }
                 }
