@@ -120,11 +120,11 @@ public class MongoTest {
             cfg.setRetryWaitTimeWriter(1000);
             cfg.setRetryWaitTimeBufferedWriter(1000);
 
-//            cfg.setMongoAdminUser("admin");
-//            cfg.setMongoAdminPwd("admin");
+            cfg.setMongoAdminUser("adm");
+            cfg.setMongoAdminPwd("adm");
 //
-//            cfg.setMongoLogin("tst");
-//            cfg.setMongoPassword("tst");
+            cfg.setMongoLogin("tst");
+            cfg.setMongoPassword("tst");
 //            cfg.setMongoLogin("morphium");
 //            cfg.setMongoPassword("tst");
 

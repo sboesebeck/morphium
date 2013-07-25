@@ -133,10 +133,12 @@ public class Morphium {
             if (config.getAdr().isEmpty()) {
                 throw new RuntimeException("Error - no server address specified!");
             }
+
+            MongoClient mongo = new MongoClient(config.getAdr(), o.build());
             if (config.getMongoLogin() != null) {
                 MongoCredential cred = MongoCredential.createMongoCRCredential(config.getMongoLogin(), config.getDatabase(), config.getMongoPassword().toCharArray());
+                mongo.getDB(config.getDatabase()).authenticate(config.getMongoLogin(), config.getMongoPassword().toCharArray());
             }
-            MongoClient mongo = new MongoClient(config.getAdr(), o.build());
             config.setDb(mongo.getDB(config.getDatabase()));
             if (config.getDefaultReadPreference() != null) {
                 mongo.setReadPreference(config.getDefaultReadPreference().getPref());
