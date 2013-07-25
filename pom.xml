@@ -145,7 +145,7 @@
         <dependency>
             <groupId>org.mongodb</groupId>
             <artifactId>mongo-java-driver</artifactId>
-            <version>2.11.1</version>
+            <version>2.11.2</version>
         </dependency>
 
         <!-- for validation, we compile against the validation API -->
