@@ -972,7 +972,7 @@ public class Morphium {
     private de.caluga.morphium.replicaset.ReplicaSetStatus getReplicaSetStatus(boolean full) {
         if (config.getAdr().size() > 1) {
             try {
-                DB adminDB = getMongo().getDB(config.getDatabase());
+                DB adminDB = getMongo().getDB("admin");
                 if (config.getMongoAdminUser() != null) {
                     if (!adminDB.authenticate(config.getMongoAdminUser(), config.getMongoAdminPwd().toCharArray())) {
                         logger.error("Authentication as admin failed!");
@@ -1008,7 +1008,7 @@ public class Morphium {
 
                 return status;
             } catch (Exception e) {
-                logger.warn("Could not get Replicaset status: " + e.getMessage());
+                logger.warn("Could not get Replicaset status: " + e.getMessage(), e);
             }
         }
         return null;
