@@ -469,7 +469,9 @@ public class AnnotationAndReflectionHelper {
 
                         }
                     }
-
+                    if (log.isDebugEnabled()) {
+                        log.debug("Type conversion was successful");
+                    }
                 }
             }
         } catch (IllegalAccessException e) {
