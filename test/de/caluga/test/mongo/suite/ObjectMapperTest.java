@@ -4,6 +4,7 @@ import com.mongodb.BasicDBObject;
 import com.mongodb.DBObject;
 import de.caluga.morphium.AnnotationAndReflectionHelper;
 import de.caluga.morphium.MorphiumSingleton;
+import de.caluga.morphium.ObjectMapper;
 import de.caluga.morphium.ObjectMapperImpl;
 import org.bson.types.ObjectId;
 import org.junit.Test;
@@ -17,6 +18,44 @@ import java.util.*;
  * <p/>
  */
 public class ObjectMapperTest extends MongoTest {
+    @Test
+    public void simpleParseFromStringTest() throws Exception {
+        String json = "{ \"value\":\"test\",\"counter\":123}";
+        ObjectMapper om = MorphiumSingleton.get().getMapper();
+        UncachedObject uc = om.unmarshall(UncachedObject.class, json);
+        assert (uc.getCounter() == 123);
+    }
+
+    @Test
+    public void objectToStringParseTest() throws Exception {
+        ObjectMapper om = MorphiumSingleton.get().getMapper();
+        UncachedObject o = new UncachedObject();
+        o.setValue("A test");
+        o.setLongData(new long[]{1, 23, 4l, 5l});
+        o.setCounter(1234);
+        DBObject dbo = om.marshall(o);
+        UncachedObject uc = om.unmarshall(UncachedObject.class, dbo);
+        assert (uc.getCounter() == 1234);
+        assert (uc.getLongData()[0] == 1);
+    }
+
+
+    @Test
+    public void listContainerStringParseTest() throws Exception {
+        ObjectMapper om = MorphiumSingleton.get().getMapper();
+        ListContainer o = new ListContainer();
+        o.addLong(1234);
+        o.addString("string1");
+        o.addString("string2");
+        o.addString("string3");
+        o.addString("string4");
+        DBObject dbo = om.marshall(o);
+        ListContainer uc = om.unmarshall(ListContainer.class, dbo);
+        assert (uc.getStringList().size() == 4);
+        assert (uc.getStringList().get(0).equals("string1"));
+        assert (uc.getLongList().size() == 1);
+    }
+
     @Test
     public void testCreateCamelCase() throws Exception {
         AnnotationAndReflectionHelper om = new AnnotationAndReflectionHelper();
