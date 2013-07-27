@@ -8,6 +8,9 @@ import de.caluga.morphium.annotations.*;
 import de.caluga.morphium.query.Query;
 import org.apache.log4j.Logger;
 import org.bson.types.ObjectId;
+import org.json.simple.parser.ContainerFactory;
+import org.json.simple.parser.JSONParser;
+import org.json.simple.parser.ParseException;
 
 import java.lang.reflect.Array;
 import java.lang.reflect.Field;
@@ -26,6 +29,8 @@ public class ObjectMapperImpl implements ObjectMapper {
     private volatile Hashtable<Class<?>, NameProvider> nameProviders;
     private volatile AnnotationAndReflectionHelper annotationHelper = new AnnotationAndReflectionHelper();
     private Morphium morphium;
+
+    private JSONParser jsonParser = new JSONParser();
 
     public ObjectMapperImpl() {
 
@@ -337,6 +342,24 @@ public class ObjectMapperImpl implements ObjectMapper {
         return dbMap;
     }
 
+    @Override
+    public <T> T unmarshall(Class<? extends T> cls, String jsonString) throws ParseException {
+        ContainerFactory fact = new ContainerFactory() {
+            @Override
+            public Map createObjectContainer() {
+                return new BasicDBObject();
+            }
+
+            @Override
+            public List creatArrayContainer() {
+                return new BasicDBList();
+            }
+        };
+        DBObject obj = (DBObject) jsonParser.parse(jsonString, fact);
+        return unmarshall(cls, obj);
+
+
+    }
 
     @SuppressWarnings("unchecked")
     @Override
@@ -450,40 +473,82 @@ public class ObjectMapperImpl implements ObjectMapper {
                         value = valueFromDb;
 
                     } else {
-                        BasicDBList l = (BasicDBList) valueFromDb;
                         List lst = new ArrayList();
-                        if (l != null) {
-                            fillList(fld, l, lst);
-                            if (fld.getType().isArray()) {
-                                Object arr = Array.newInstance(fld.getType().getComponentType(), lst.size());
-                                for (int i = 0; i < lst.size(); i++) {
-                                    if (fld.getType().getComponentType().isPrimitive()) {
-                                        if (fld.getType().getComponentType().equals(int.class)) {
-                                            Array.set(arr, i, ((Integer) lst.get(i)).intValue());
-                                        } else if (fld.getType().getComponentType().equals(long.class)) {
-                                            Array.set(arr, i, ((Long) lst.get(i)).longValue());
-                                        } else if (fld.getType().getComponentType().equals(float.class)) {
-                                            //Driver sends doubles instead of floats
-                                            Array.set(arr, i, ((Double) lst.get(i)).floatValue());
-
-                                        } else if (fld.getType().getComponentType().equals(double.class)) {
-                                            Array.set(arr, i, ((Double) lst.get(i)).doubleValue());
-
-                                        } else if (fld.getType().getComponentType().equals(boolean.class)) {
-                                            Array.set(arr, i, ((Boolean) lst.get(i)).booleanValue());
-
-                                        }
-                                    } else {
-                                        Array.set(arr, i, lst.get(i));
+                        if (valueFromDb.getClass().isArray()) {
+                            //a real array!
+                            if (valueFromDb.getClass().getComponentType().isPrimitive()) {
+                                if (valueFromDb.getClass().getComponentType().equals(int.class)) {
+                                    for (int i : (int[]) valueFromDb) {
+                                        lst.add(i);
+                                    }
+                                } else if (valueFromDb.getClass().getComponentType().equals(double.class)) {
+                                    for (double i : (double[]) valueFromDb) {
+                                        lst.add(i);
+                                    }
+                                } else if (valueFromDb.getClass().getComponentType().equals(float.class)) {
+                                    for (float i : (float[]) valueFromDb) {
+                                        lst.add(i);
+                                    }
+                                } else if (valueFromDb.getClass().getComponentType().equals(boolean.class)) {
+                                    for (boolean i : (boolean[]) valueFromDb) {
+                                        lst.add(i);
+                                    }
+                                } else if (valueFromDb.getClass().getComponentType().equals(byte.class)) {
+                                    for (byte i : (byte[]) valueFromDb) {
+                                        lst.add(i);
+                                    }
+                                } else if (valueFromDb.getClass().getComponentType().equals(char.class)) {
+                                    for (char i : (char[]) valueFromDb) {
+                                        lst.add(i);
+                                    }
+                                } else if (valueFromDb.getClass().getComponentType().equals(long.class)) {
+                                    for (long i : (long[]) valueFromDb) {
+                                        lst.add(i);
                                     }
                                 }
-                                value = arr;
                             } else {
-                                value = lst;
+                                for (Object vdb : (Object[]) valueFromDb) {
+                                    lst.add(vdb);
+                                }
                             }
+                            value = lst;
                         } else {
-                            value = l;
+                            BasicDBList l = (BasicDBList) valueFromDb;
+                            if (l != null) {
+                                fillList(fld, l, lst);
+                            } else {
+                                value = l;
+                            }
                         }
+                        if (fld.getType().isArray()) {
+                            Object arr = Array.newInstance(fld.getType().getComponentType(), lst.size());
+                            for (int i = 0; i < lst.size(); i++) {
+                                if (fld.getType().getComponentType().isPrimitive()) {
+                                    if (fld.getType().getComponentType().equals(int.class)) {
+                                        Array.set(arr, i, ((Integer) lst.get(i)).intValue());
+                                    } else if (fld.getType().getComponentType().equals(long.class)) {
+                                        Array.set(arr, i, ((Long) lst.get(i)).longValue());
+                                    } else if (fld.getType().getComponentType().equals(float.class)) {
+                                        //Driver sends doubles instead of floats
+                                        Array.set(arr, i, ((Double) lst.get(i)).floatValue());
+
+                                    } else if (fld.getType().getComponentType().equals(double.class)) {
+                                        Array.set(arr, i, ((Double) lst.get(i)).doubleValue());
+
+                                    } else if (fld.getType().getComponentType().equals(boolean.class)) {
+                                        Array.set(arr, i, ((Boolean) lst.get(i)).booleanValue());
+
+                                    }
+                                } else {
+                                    Array.set(arr, i, lst.get(i));
+                                }
+                            }
+                            value = arr;
+                        } else {
+                            value = lst;
+                        }
+
+
                     }
                 } else if (fld.getType().isEnum()) {
                     value = Enum.valueOf((Class<? extends Enum>) fld.getType(), (String) valueFromDb);

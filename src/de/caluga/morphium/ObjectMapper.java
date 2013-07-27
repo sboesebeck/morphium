@@ -1,6 +1,7 @@
 package de.caluga.morphium;
 
 import com.mongodb.DBObject;
+import org.json.simple.parser.ParseException;
 
 /**
  * User: Stpehan Bösebeck
@@ -16,6 +17,8 @@ public interface ObjectMapper {
     public DBObject marshall(Object o);
 
     public <T> T unmarshall(Class<? extends T> cls, DBObject o);
+
+    public <T> T unmarshall(Class<? extends T> cls, String json) throws ParseException;
 
     /**
      * get current name provider for class
