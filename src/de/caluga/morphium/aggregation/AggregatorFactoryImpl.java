@@ -9,6 +9,9 @@ package de.caluga.morphium.aggregation;
 public class AggregatorFactoryImpl implements AggregatorFactory {
     private Class<? extends Aggregator> aggregatorClass;
 
+    public AggregatorFactoryImpl() {
+    }
+
     public AggregatorFactoryImpl(Class<? extends Aggregator> qi) {
         aggregatorClass = qi;
     }

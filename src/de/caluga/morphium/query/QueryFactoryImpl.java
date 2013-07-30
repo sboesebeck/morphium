@@ -17,6 +17,9 @@ public class QueryFactoryImpl implements QueryFactory {
     private Class<? extends Query> queryImpl;
     ThreadPoolExecutor executor = null;
 
+    public QueryFactoryImpl() {
+    }
+
     @Override
     public void setExecutor(ThreadPoolExecutor ex) {
         executor = ex;
