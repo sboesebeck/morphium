@@ -373,6 +373,9 @@ public class MorphiumConfig {
     }
 
     public ConfigManager getConfigManager() {
+        if (configManager == null) {
+            configManager = new ConfigManagerImpl();
+        }
         return configManager;
     }
 

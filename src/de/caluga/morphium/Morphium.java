@@ -144,9 +144,7 @@ public class Morphium {
                 mongo.setReadPreference(config.getDefaultReadPreference().getPref());
             }
         }
-        if (config.getConfigManager() == null) {
-            config.setConfigManager(new ConfigManagerImpl());
-        }
+
         config.getConfigManager().setMorphium(this);
         cacheHousekeeper = new CacheHousekeeper(this, 5000, config.getGlobalCacheValidTime());
         cacheHousekeeper.start();
