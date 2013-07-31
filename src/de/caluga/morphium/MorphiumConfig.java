@@ -30,6 +30,7 @@ import org.json.simple.parser.ParseException;
 import java.io.IOException;
 import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
+import java.net.MalformedURLException;
 import java.net.URL;
 import java.net.UnknownHostException;
 import java.util.*;
@@ -42,6 +43,7 @@ import java.util.*;
 @SuppressWarnings("UnusedDeclaration")
 @Embedded
 public class MorphiumConfig {
+    private String loggingConfigFile;
     @AdditionalData(readOnly = false)
     private Map<String, String> restoreData;
     //    private MongoDbMode mode;
@@ -101,7 +103,6 @@ public class MorphiumConfig {
     private int configManagerCacheTimeout = 1000 * 60 * 60; //one hour
     @Transient
     private List<ServerAddress> adr;
-    private Map<String, Integer> validTimeByClassName;
     @Transient
     private ConfigManager configManager;
     //securitysettings
@@ -117,7 +118,7 @@ public class MorphiumConfig {
     private Class<? extends MorphiumIterator> iteratorClass;
 
     public MorphiumConfig() {
-        this("test", 10, 60000, 10000, Thread.currentThread().getContextClassLoader().getResource("morphium-log4j.xml"));
+        this("test", 10, 60000, 10000, (URL) null);
     }
 
     public MorphiumConfig(String db, int maxConnections, int globalCacheValidTime, int housekeepingTimeout) throws IOException {
@@ -129,18 +130,44 @@ public class MorphiumConfig {
     }
 
     public MorphiumConfig(String db, int maxConnections, int globalCacheValidTime, int housekeepingTimeout, URL loggingConfigResource) {
-        validTimeByClassName = new Hashtable<String, Integer>();
         database = db;
         adr = new Vector<ServerAddress>();
+        if (loggingConfigResource != null) {
+            loggingConfigFile = loggingConfigResource.toString();
+        }
         this.maxConnections = maxConnections;
         this.globalCacheValidTime = globalCacheValidTime;
         this.housekeepingTimeout = housekeepingTimeout;
 
-        if (loggingConfigResource != null && !isLoggingConfigured()) {
-            DOMConfigurator.configure(loggingConfigResource);
+        configureLogging();
+
+
+    }
+
+    public String getLoggingConfigFile() {
+        return loggingConfigFile;
+    }
+
+    public void setLoggingConfigFile(String loggingConfigFile) {
+        this.loggingConfigFile = loggingConfigFile;
+    }
+
+    public void configureLogging() {
+        if (loggingConfigFile == null) {
+            System.out.println("Not configuring logging - logging config file not set");
+            return;
         }
-
-
+        if (isLoggingConfigured()) {
+            Logger.getLogger(MorphiumConfig.class).info("Logging already configured");
+            return;
+        }
+        if (loggingConfigFile != null && !isLoggingConfigured()) {
+            try {
+                DOMConfigurator.configure(new URL(loggingConfigFile));
+            } catch (MalformedURLException e) {
+                throw new RuntimeException(e);
+            }
+        }
     }
 
     /**
@@ -164,8 +191,15 @@ public class MorphiumConfig {
 
     public static MorphiumConfig createFromJson(String json) throws ParseException, NoSuchFieldException, ClassNotFoundException, IllegalAccessException, InstantiationException, UnknownHostException, NoSuchMethodException, InvocationTargetException {
         MorphiumConfig cfg = new ObjectMapperImpl().unmarshall(MorphiumConfig.class, json);
-        for (String k : cfg.restoreData.keySet()) {
-            String value = cfg.restoreData.get(k);
+        parseClassSettings(cfg, cfg.restoreData);
+        cfg.configureLogging();
+        return cfg;
+    }
+
+    private static void parseClassSettings(MorphiumConfig cfg, Map settings) throws UnknownHostException, ClassNotFoundException, NoSuchFieldException, IllegalAccessException, InstantiationException {
+        for (Object ko : settings.keySet()) {
+            String k = (String) ko;
+            String value = (String) settings.get(k);
             if (k.equals("serverAdrLst")) {
                 String lst = value;
                 for (String adr : lst.split(";")) {
@@ -174,7 +208,9 @@ public class MorphiumConfig {
                 }
 
             } else {
+                if (!k.endsWith("ClassName")) continue;
                 String n[] = k.split("_");
+                if (n.length != 3) continue;
                 Class cls = Class.forName(value);
                 Field f = MorphiumConfig.class.getDeclaredField(n[0]);
                 f.setAccessible(true);
@@ -188,9 +224,6 @@ public class MorphiumConfig {
 
         cfg.getAggregatorFactory().setAggregatorClass(cfg.getAggregatorClass());
         cfg.getQueryFact().setQueryImpl(cfg.getQueryClass());
-
-
-        return cfg;
     }
 
     public int getRetriesOnNetworkError() {
@@ -492,14 +525,6 @@ public class MorphiumConfig {
         this.writeCacheTimeout = writeCacheTimeout;
     }
 
-    public Map<String, Integer> getValidTimeByClassName() {
-        return validTimeByClassName;
-    }
-
-    public void setValidTimeByClassName(Map<String, Integer> validTimeByClassName) {
-        this.validTimeByClassName = validTimeByClassName;
-    }
-
     public List<ServerAddress> getAdr() {
         return adr;
     }
@@ -558,6 +583,15 @@ public class MorphiumConfig {
         adr.add(sa);
     }
 
+    public void addAddress(String host) throws UnknownHostException {
+        if (host.contains(":")) {
+            String[] h = host.split(":");
+            addAddress(h[0], Integer.parseInt(h[1]));
+        } else {
+            addAddress(host, 27017);
+        }
+    }
+
     public int getMaxConnections() {
         return maxConnections;
     }
@@ -595,14 +629,6 @@ public class MorphiumConfig {
         this.housekeepingTimeout = housekeepingTimeout;
     }
 
-    public void setValidTimeForClass(String cls, int tm) {
-        validTimeByClassName.put(cls, tm);
-    }
-
-    public long getValidTimeForClass(String cls) {
-        return validTimeByClassName.get(cls);
-    }
-
     public long getValidTime() {
         return globalCacheValidTime;
     }
@@ -623,18 +649,23 @@ public class MorphiumConfig {
 
     private void updateAdditionals() {
         restoreData = new HashMap<String, String>();
-        restoreData.put("writer_I_ClassName", getWriter().getClass().getName());
-        restoreData.put("bufferedWriter_I_ClassName", getBufferedWriter().getClass().getName());
-        restoreData.put("asyncWriter_I_ClassName", getAsyncWriter().getClass().getName());
-        restoreData.put("cache_I_ClassName", getCache().getClass().getName());
-        restoreData.put("aggregatorClass_C_ClassName", getAggregatorClass().getName());
-        restoreData.put("aggregatorFactory_I_ClassName", getAggregatorFactory().getClass().getName());
-        restoreData.put("configManager_I_ClassName", getConfigManager().getClass().getName());
-        restoreData.put("iteratorClass_C_ClassName", getIteratorClass().getName());
-        restoreData.put("omClass_C_ClassName", getOmClass().getName());
-        restoreData.put("queryClass_C_ClassName", getQueryClass().getName());
-        restoreData.put("queryFact_I_ClassName", getQueryFact().getClass().getName());
+        addClassSettingsTo(restoreData);
 
+
+    }
+
+    private void addClassSettingsTo(Map p) {
+        p.put("writer_I_ClassName", getWriter().getClass().getName());
+        p.put("bufferedWriter_I_ClassName", getBufferedWriter().getClass().getName());
+        p.put("asyncWriter_I_ClassName", getAsyncWriter().getClass().getName());
+        p.put("cache_I_ClassName", getCache().getClass().getName());
+        p.put("aggregatorClass_C_ClassName", getAggregatorClass().getName());
+        p.put("aggregatorFactory_I_ClassName", getAggregatorFactory().getClass().getName());
+        p.put("configManager_I_ClassName", getConfigManager().getClass().getName());
+        p.put("iteratorClass_C_ClassName", getIteratorClass().getName());
+        p.put("omClass_C_ClassName", getOmClass().getName());
+        p.put("queryClass_C_ClassName", getQueryClass().getName());
+        p.put("queryFact_I_ClassName", getQueryFact().getClass().getName());
         StringBuilder b = new StringBuilder();
         String del = "";
         for (ServerAddress a : getAdr()) {
@@ -642,7 +673,7 @@ public class MorphiumConfig {
             b.append(a.getHost() + ":" + a.getPort());
             del = ";";
         }
-        restoreData.put("serverAdrLst", b.toString());
+        p.put("serverAdrLst", b.toString());
     }
 
     public Class<? extends MorphiumIterator> getIteratorClass() {
@@ -710,5 +741,55 @@ public class MorphiumConfig {
 
     public void setRetryWaitTimeAsyncWriter(int retryWaitTimeAsyncWriter) {
         this.retryWaitTimeAsyncWriter = retryWaitTimeAsyncWriter;
+    }
+
+
+    public Properties asProperties() {
+        Properties p = new Properties();
+        AnnotationAndReflectionHelper an = new AnnotationAndReflectionHelper();
+        List<Field> flds = an.getAllFields(MorphiumConfig.class);
+        for (Field f : flds) {
+            if (f.isAnnotationPresent(Transient.class)) continue;
+            f.setAccessible(true);
+            try {
+                if (f.get(this) != null) {
+                    p.put(f.getName(), f.get(this).toString());
+                }
+            } catch (IllegalAccessException e) {
+                throw new RuntimeException(e);
+            }
+        }
+        addClassSettingsTo(p);
+
+        return p;
+    }
+
+    public static MorphiumConfig fromProperties(Properties p) throws ClassNotFoundException, NoSuchFieldException, InstantiationException, IllegalAccessException, UnknownHostException {
+        MorphiumConfig cfg = new MorphiumConfig();
+        AnnotationAndReflectionHelper an = new AnnotationAndReflectionHelper();
+        List<Field> flds = an.getAllFields(MorphiumConfig.class);
+        for (Field f : flds) {
+            if (f.isAnnotationPresent(Transient.class)) continue;
+            f.setAccessible(true);
+            if (p.getProperty(f.getName()) != null) {
+                try {
+                    if (f.getType().equals(int.class) || f.getType().equals(Integer.class)) {
+                        f.set(cfg, Integer.parseInt((String) p.get(f.getName())));
+                    } else if (f.getType().equals(String.class)) {
+                        f.set(cfg, p.get(f.getName()));
+                    } else if (f.getType().equals(boolean.class) || f.getType().equals(Boolean.class)) {
+                        f.set(cfg, p.get(f.getName()).equals("true"));
+                    } else if (f.getType().equals(long.class) || f.getType().equals(Long.class)) {
+                        f.set(cfg, Long.parseLong((String) p.get(f.getName())));
+                    }
+                } catch (IllegalAccessException e) {
+                    throw new RuntimeException(e);
+                }
+            }
+        }
+
+        parseClassSettings(cfg, p);
+        cfg.configureLogging();
+        return cfg;
     }
 }

@@ -148,13 +148,6 @@ public class ConfigManagerImpl implements ConfigManager {
     }
 
     private void store(String k, ConfigElement c) {
-
-        Query q = morphium.createQueryFor(ConfigElement.class);
-        q.f("name").eq(k);
-        List<ConfigElement> lst = morphium.find(q);
-        if (lst.size() > 0) {
-            c.setId(lst.get(0).getId()); //setting id to enforce update
-        }
         synchronized (addedAt) {
             configCache.put(k, c);
             storeSetting(c);
