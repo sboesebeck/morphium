@@ -12,12 +12,10 @@ import java.util.Map;
 @NoCache
 @Entity(collectionName = "config_element")
 public class ConfigElement {
-
+    @Id
     private String name;
     private String value;
 
-    @Id
-    private Object Id;
     private List<String> listValue;
     private Map<String, String> mapValue;
     private Boolean deleted;
@@ -53,14 +51,6 @@ public class ConfigElement {
 
     public void setListValue(List<String> listValue) {
         this.listValue = listValue;
-    }
-
-    public Object getId() {
-        return Id;
-    }
-
-    public void setId(Object id) {
-        Id = id;
     }
 
     public void setDeleted(Boolean d) {
