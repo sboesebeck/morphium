@@ -200,11 +200,11 @@ public class MorphiumConfig {
         for (Object ko : settings.keySet()) {
             String k = (String) ko;
             String value = (String) settings.get(k);
-            if (k.equals("serverAdrLst")) {
+            if (k.equals("hosts")) {
                 String lst = value;
-                for (String adr : lst.split(";")) {
+                for (String adr : lst.split(",")) {
                     String a[] = adr.split(":");
-                    cfg.addAddress(a[0], Integer.parseInt(a[1]));
+                    cfg.addHost(a[0].trim(), Integer.parseInt(a[1].trim()));
                 }
 
             } else {
@@ -545,34 +545,50 @@ public class MorphiumConfig {
      * @param str list of hosts, with or without port
      */
     public void setHosts(List<String> str) throws UnknownHostException {
+        adr.clear();
+
         for (String s : str) {
+            s = s.replaceAll(" ", "");
             String[] h = s.split(":");
             if (h.length == 1) {
-                addAddress(h[0], 27017);
+                addHost(h[0], 27017);
             } else {
-                addAddress(h[0], Integer.parseInt(h[1]));
+                addHost(h[0], Integer.parseInt(h[1]));
             }
         }
     }
 
     public void setHosts(List<String> str, List<Integer> ports) throws UnknownHostException {
+        adr.clear();
         for (int i = 0; i < str.size(); i++) {
+            String host = str.get(i).replaceAll(" ", "");
             if (ports.size() < i) {
-                addAddress(str.get(i), 27017);
+                addHost(host, 27017);
             } else {
-                addAddress(str.get(i), ports.get(i));
+                addHost(host, ports.get(i));
             }
         }
     }
 
+    public void setHosts(String hostPorts) throws UnknownHostException {
+        adr.clear();
+        String h[] = hostPorts.split(",");
+        for (String host : h) {
+            addHost(host);
+        }
+    }
+
     public void setHosts(String hosts, String ports) throws UnknownHostException {
+        adr.clear();
+        hosts = hosts.replaceAll(" ", "");
+        ports = ports.replaceAll(" ", "");
         String h[] = hosts.split(",");
         String p[] = ports.split(",");
         for (int i = 0; i < h.length; i++) {
             if (p.length < i) {
-                addAddress(h[i], 27017);
+                addHost(h[i], 27017);
             } else {
-                addAddress(h[i], Integer.parseInt(p[i]));
+                addHost(h[i], Integer.parseInt(p[i]));
             }
         }
 
@@ -580,18 +596,37 @@ public class MorphiumConfig {
 
     /**
      * add addresses to your servers here. Depending on isREplicaSet() and isPaired() one ore more server addresses are needed
+     * use addHost instead
      */
+    @Deprecated
     public void addAddress(String host, int port) throws UnknownHostException {
+        addHost(host, port);
+    }
+
+    public void addHost(String host, int port) throws UnknownHostException {
+        host = host.replaceAll(" ", "");
         ServerAddress sa = new ServerAddress(host, port);
         adr.add(sa);
     }
 
+    /**
+     * use addhost instead
+     *
+     * @param host
+     * @throws UnknownHostException
+     */
+    @Deprecated
     public void addAddress(String host) throws UnknownHostException {
+        addHost(host);
+    }
+
+    public void addHost(String host) throws UnknownHostException {
+        host = host.replaceAll(" ", "");
         if (host.contains(":")) {
             String[] h = host.split(":");
-            addAddress(h[0], Integer.parseInt(h[1]));
+            addHost(h[0], Integer.parseInt(h[1]));
         } else {
-            addAddress(host, 27017);
+            addHost(host, 27017);
         }
     }
 
@@ -674,9 +709,9 @@ public class MorphiumConfig {
         for (ServerAddress a : getAdr()) {
             b.append(del);
             b.append(a.getHost() + ":" + a.getPort());
-            del = ";";
+            del = ", ";
         }
-        p.put("serverAdrLst", b.toString());
+        p.put("hosts", b.toString());
     }
 
     public Class<? extends MorphiumIterator> getIteratorClass() {

@@ -6,9 +6,14 @@ import de.caluga.morphium.annotations.ReadPreferenceLevel;
 import de.caluga.morphium.messaging.Msg;
 import org.apache.log4j.Logger;
 
+import java.io.File;
+import java.io.FileReader;
+import java.io.FileWriter;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Properties;
 
 
 /**
@@ -19,106 +24,55 @@ import java.util.Map;
  */
 public class MongoTest {
     protected Logger log;
+    private static Properties props;
 
     public MongoTest() {
         log = Logger.getLogger(getClass().getName());
     }
 
-    public boolean waitForAsyncOperationToStart(int maxWaits) {
-        int cnt = 0;
-        while (MorphiumSingleton.get().getWriteBufferCount() == 0) {
-            Thread.yield();
-            if (cnt++ > maxWaits) return false;
+    public static Properties getProps() {
+        if (props == null) {
+            props = new Properties();
         }
-        return true;
-    }
-
-    public void createUncachedObjects(int amount) {
-        List<UncachedObject> lst = new ArrayList<UncachedObject>();
-        for (int i = 0; i < amount; i++) {
-            UncachedObject uc = new UncachedObject();
-            uc.setCounter(i + 1);
-            uc.setValue("v");
-            lst.add(uc);
+        File f = getFile();
+        if (f.exists()) {
+            try {
+                props.load(new FileReader(f));
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
         }
-        MorphiumSingleton.get().storeList(lst);
+        return props;
     }
 
-    public void createCachedObjects(int amount) {
-        List<CachedObject> lst = new ArrayList<CachedObject>();
-        for (int i = 0; i < amount; i++) {
-            CachedObject uc = new CachedObject();
-            uc.setCounter(i + 1);
-            uc.setValue("v");
-            lst.add(uc);
-        }
-        MorphiumSingleton.get().storeList(lst);
+    private static File getFile() {
+        return new File(System.getProperty("user.home") + "/.morphiumtest.cfg");
     }
-
-
-    @org.junit.Before
-    public void setUp() throws Exception {
-
-        try {
-            log.info("Preparing collections...");
-            MorphiumSingleton.get().clearCollection(UncachedObject.class);
-            MorphiumSingleton.get().clearCollection(CachedObject.class);
-            MorphiumSingleton.get().clearCollection(ComplexObject.class);
-            MorphiumSingleton.get().clearCollection(EnumEntity.class);
-            MorphiumSingleton.get().clearCollection(Msg.class);
-            MorphiumSingleton.get().ensureIndex(UncachedObject.class, "counter", "value");
-            MorphiumSingleton.get().ensureIndex(CachedObject.class, "counter", "value");
-            waitForWrites();
-            Thread.sleep(1000);
-            Map<String, Double> stats = MorphiumSingleton.get().getStatistics();
-            Double ent = stats.get("X-Entries for: de.caluga.test.mongo.suite.CachedObject");
-            assert (ent == null || ent == 0) : "Still cache entries???";
-            ent = stats.get("X-Entries for: de.caluga.test.mongo.suite.UncachedObject");
-            assert (ent == null || ent == 0) : "Uncached Object cached?";
-
-            waitForWrites();
-            log.info("Preparation finished");
-        } catch (Exception e) {
-            log.fatal("Error during preparation!");
-            e.printStackTrace();
-        }
-
-    }
-
-    @org.junit.After
-    public void tearDown() throws Exception {
-        log.info("Cleaning up...");
-        MorphiumSingleton.get().dropCollection(UncachedObject.class);
-        MorphiumSingleton.get().dropCollection(CachedObject.class);
-        MorphiumSingleton.get().dropCollection(Msg.class);
-        waitForWrites();
-        log.info("done...");
-    }
-
 
     @org.junit.BeforeClass
     public static void setUpClass() throws Exception {
         if (!MorphiumSingleton.isConfigured()) {
-            MorphiumConfig cfg = new MorphiumConfig("morphium_test", 55, 50000, 5000, "morphium-log4j-test.xml");
-//            cfg.setTimeoutBugWorkAroundEnabled(true);
+            MorphiumConfig cfg = null;
+            Properties p = getProps();
+            if (p.getProperty("database") != null) {
+                cfg = MorphiumConfig.fromProperties(p);
 
-
-            cfg.addAddress("localhost", 27017);
-            cfg.addAddress("localhost", 27018);
-            cfg.addAddress("localhost", 27019);
-//            cfg.addAddress("mongo1", 27017);
-//            cfg.addAddress("mongo2", 27017);
-//            cfg.addAddress("mongo3", 27017);
-            cfg.setWriteCacheTimeout(100);
-            cfg.setConnectionTimeout(1000);
-            cfg.setMaxWaitTime(1000);
-            cfg.setAutoreconnect(true);
-            cfg.setMaximumRetriesBufferedWriter(1000);
-            cfg.setMaximumRetriesWriter(1000);
-            cfg.setMaximumRetriesAsyncWriter(1000);
-            cfg.setRetryWaitTimeAsyncWriter(1000);
-            cfg.setRetryWaitTimeWriter(1000);
-            cfg.setRetryWaitTimeBufferedWriter(1000);
+            } else {
+                //creating default config
+                cfg = new MorphiumConfig("morphium_test", 55, 50000, 5000, "morphium-log4j-test.xml");
+                cfg.addHost("localhost", 27017);
+                cfg.addHost("localhost", 27018);
+                cfg.addHost("localhost", 27019);
+                cfg.setWriteCacheTimeout(100);
+                cfg.setConnectionTimeout(1000);
+                cfg.setMaxWaitTime(1000);
+                cfg.setAutoreconnect(true);
+                cfg.setMaximumRetriesBufferedWriter(1000);
+                cfg.setMaximumRetriesWriter(1000);
+                cfg.setMaximumRetriesAsyncWriter(1000);
+                cfg.setRetryWaitTimeAsyncWriter(1000);
+                cfg.setRetryWaitTimeWriter(1000);
+                cfg.setRetryWaitTimeBufferedWriter(1000);
 
 //            cfg.setMongoAdminUser("adm");
 //            cfg.setMongoAdminPwd("adm");
@@ -128,12 +82,16 @@ public class MongoTest {
 //            cfg.setMongoLogin("morphium");
 //            cfg.setMongoPassword("tst");
 
-            //necessary for Replicaset Status to work
+                //necessary for Replicaset Status to work
 //            cfg.setMongoAdminUser("admin");
 //            cfg.setMongoAdminPwd("admin");
 
-            cfg.setMaxAutoReconnectTime(5000);
-            cfg.setDefaultReadPreference(ReadPreferenceLevel.NEAREST);
+                cfg.setMaxAutoReconnectTime(5000);
+                cfg.setDefaultReadPreference(ReadPreferenceLevel.NEAREST);
+                p.putAll(cfg.asProperties());
+                p.put("failovertest", "false");
+                storeProps();
+            }
             MorphiumSingleton.setConfig(cfg);
             MorphiumSingleton.get();
 
@@ -175,10 +133,89 @@ public class MongoTest {
         }
     }
 
+    private static void storeProps() {
+        File f = getFile();
+        try {
+            getProps().store(new FileWriter(f), "created by morphium test");
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
     @org.junit.AfterClass
     public static void tearDownClass() throws Exception {
         System.out.println("NOT Shutting down - might be reused!");
 //        MorphiumSingleton.get().close();
+    }
+
+    public boolean waitForAsyncOperationToStart(int maxWaits) {
+        int cnt = 0;
+        while (MorphiumSingleton.get().getWriteBufferCount() == 0) {
+            Thread.yield();
+            if (cnt++ > maxWaits) return false;
+        }
+        return true;
+    }
+
+    public void createUncachedObjects(int amount) {
+        List<UncachedObject> lst = new ArrayList<UncachedObject>();
+        for (int i = 0; i < amount; i++) {
+            UncachedObject uc = new UncachedObject();
+            uc.setCounter(i + 1);
+            uc.setValue("v");
+            lst.add(uc);
+        }
+        MorphiumSingleton.get().storeList(lst);
+    }
+
+    public void createCachedObjects(int amount) {
+        List<CachedObject> lst = new ArrayList<CachedObject>();
+        for (int i = 0; i < amount; i++) {
+            CachedObject uc = new CachedObject();
+            uc.setCounter(i + 1);
+            uc.setValue("v");
+            lst.add(uc);
+        }
+        MorphiumSingleton.get().storeList(lst);
+    }
+
+    @org.junit.Before
+    public void setUp() throws Exception {
+
+        try {
+            log.info("Preparing collections...");
+            MorphiumSingleton.get().clearCollection(UncachedObject.class);
+            MorphiumSingleton.get().clearCollection(CachedObject.class);
+            MorphiumSingleton.get().clearCollection(ComplexObject.class);
+            MorphiumSingleton.get().clearCollection(EnumEntity.class);
+            MorphiumSingleton.get().clearCollection(Msg.class);
+            MorphiumSingleton.get().ensureIndex(UncachedObject.class, "counter", "value");
+            MorphiumSingleton.get().ensureIndex(CachedObject.class, "counter", "value");
+            waitForWrites();
+            Thread.sleep(1000);
+            Map<String, Double> stats = MorphiumSingleton.get().getStatistics();
+            Double ent = stats.get("X-Entries for: de.caluga.test.mongo.suite.CachedObject");
+            assert (ent == null || ent == 0) : "Still cache entries???";
+            ent = stats.get("X-Entries for: de.caluga.test.mongo.suite.UncachedObject");
+            assert (ent == null || ent == 0) : "Uncached Object cached?";
+
+            waitForWrites();
+            log.info("Preparation finished");
+        } catch (Exception e) {
+            log.fatal("Error during preparation!");
+            e.printStackTrace();
+        }
+
+    }
+
+    @org.junit.After
+    public void tearDown() throws Exception {
+        log.info("Cleaning up...");
+        MorphiumSingleton.get().dropCollection(UncachedObject.class);
+        MorphiumSingleton.get().dropCollection(CachedObject.class);
+        MorphiumSingleton.get().dropCollection(Msg.class);
+        waitForWrites();
+        log.info("done...");
     }
 
     public void waitForWrites() {

@@ -1,9 +1,8 @@
 package de.caluga.test.mongo.suite;
 
 import de.caluga.morphium.Morphium;
-import de.caluga.morphium.MorphiumConfig;
+import de.caluga.morphium.MorphiumSingleton;
 import de.caluga.morphium.annotations.Embedded;
-import de.caluga.morphium.annotations.ReadPreferenceLevel;
 import de.caluga.morphium.query.Query;
 import org.apache.log4j.Logger;
 import org.junit.Test;
@@ -16,36 +15,21 @@ import javax.swing.*;
  * Time: 09:35
  * <p/>
  */
-public class FailoverTests {
+public class FailoverTests extends MongoTest {
     private static Logger log = Logger.getLogger(FailoverTests.class);
     private static int writeError = 0;
     private static int readError = 0;
     private static int writes = 0;
     private boolean read = true;
 
-    public MorphiumConfig getCfg() throws Exception {
-        MorphiumConfig cfg = new MorphiumConfig("morphium_test", 5, 50000, 5000, "morphium-log4j-test.xml");
-        cfg.addAddress("localhost", 27017);
-        cfg.addAddress("localhost", 27018);
-        cfg.addAddress("localhost", 27019);
-        cfg.setWriteCacheTimeout(100);
-        cfg.setDefaultReadPreference(ReadPreferenceLevel.NEAREST);
-        return cfg;
-    }
 
     @Test
     public void failoverTest() throws Exception {
-        if (!System.getProperty("failovertest", "false").equals("true")) {
+        if (!getProps().getProperty("failovertest", "false").equals("true")) {
             log.info("Not running Failover test here");
             return;
         }
-        Morphium morphium = null;
-        try {
-            morphium = new Morphium(getCfg());
-        } catch (Exception e) {
-            log.warn("Failovertest not possible?");
-            return;
-        }
+        Morphium morphium = MorphiumSingleton.get();
         morphium.clearCollection(UncachedObject.class);
 
         //Writer-Thread
