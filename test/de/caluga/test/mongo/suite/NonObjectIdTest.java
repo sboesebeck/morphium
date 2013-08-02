@@ -17,6 +17,7 @@ import java.util.Date;
 public class NonObjectIdTest extends MongoTest {
     @Test
     public void nonObjectIdTest() throws Exception {
+
         Person p = new Person();
         p.setId("ABC123");
         p.setBirthday(new Date());
@@ -33,8 +34,7 @@ public class NonObjectIdTest extends MongoTest {
 
         p.setName("CHANGED");
         MorphiumSingleton.get().store(p);
-        waitForAsyncOperationToStart(100);
-        waitForWrites();
+
 
         p = new Person();
         p.setBirthday(new Date());
@@ -43,7 +43,8 @@ public class NonObjectIdTest extends MongoTest {
         waitForAsyncOperationToStart(100);
         waitForWrites();
 
-        assert (MorphiumSingleton.get().createQueryFor(Person.class).countAll() == 3);
+        long cnt = MorphiumSingleton.get().createQueryFor(Person.class).countAll();
+        assert (cnt == 3) : "Count wrong: " + cnt;
         assert (MorphiumSingleton.get().findById(Person.class, "BBC123").getName().equals("CHANGED"));
 
     }

@@ -3,7 +3,10 @@ package de.caluga.test.mongo.suite;
 import de.caluga.morphium.MorphiumConfig;
 import de.caluga.morphium.MorphiumSingleton;
 import de.caluga.morphium.annotations.ReadPreferenceLevel;
+import de.caluga.morphium.async.AsyncOperationCallback;
+import de.caluga.morphium.async.AsyncOperationType;
 import de.caluga.morphium.messaging.Msg;
+import de.caluga.morphium.query.Query;
 import org.apache.log4j.Logger;
 
 import java.io.File;
@@ -184,22 +187,41 @@ public class MongoTest {
 
         try {
             log.info("Preparing collections...");
-            MorphiumSingleton.get().clearCollection(UncachedObject.class);
-            MorphiumSingleton.get().clearCollection(CachedObject.class);
-            MorphiumSingleton.get().clearCollection(ComplexObject.class);
-            MorphiumSingleton.get().clearCollection(EnumEntity.class);
-            MorphiumSingleton.get().clearCollection(Msg.class);
-            MorphiumSingleton.get().ensureIndex(UncachedObject.class, "counter", "value");
-            MorphiumSingleton.get().ensureIndex(CachedObject.class, "counter", "value");
-            waitForWrites();
-            Thread.sleep(1000);
-            Map<String, Double> stats = MorphiumSingleton.get().getStatistics();
-            Double ent = stats.get("X-Entries for: de.caluga.test.mongo.suite.CachedObject");
-            assert (ent == null || ent == 0) : "Still cache entries???";
-            ent = stats.get("X-Entries for: de.caluga.test.mongo.suite.UncachedObject");
-            assert (ent == null || ent == 0) : "Uncached Object cached?";
+            AsyncOperationCallback cb = new AsyncOperationCallback() {
+                @Override
+                public void onOperationSucceeded(AsyncOperationType type, Query q, long duration, List result, Object entity, Object... param) {
 
+                }
+
+                @Override
+                public void onOperationError(AsyncOperationType type, Query q, long duration, String error, Throwable t, Object entity, Object... param) {
+                    log.error("Error: " + error, t);
+                }
+            };
+            MorphiumSingleton.get().dropCollection(UncachedObject.class, cb);
+            MorphiumSingleton.get().dropCollection(CachedObject.class, cb);
+            MorphiumSingleton.get().dropCollection(ComplexObject.class, cb);
+            MorphiumSingleton.get().dropCollection(EnumEntity.class, cb);
+            MorphiumSingleton.get().dropCollection(Msg.class, cb);
+            MorphiumSingleton.get().dropCollection(Person.class, cb);
+//            MorphiumSingleton.get().ensureIndex(UncachedObject.class, "counter", "value");
+//            MorphiumSingleton.get().ensureIndex(CachedObject.class, "counter", "value");
+            waitForAsyncOperationToStart(1000);
             waitForWrites();
+//            Thread.sleep(1000);
+            int count = 0;
+            while (count < 10) {
+                count++;
+                Map<String, Double> stats = MorphiumSingleton.get().getStatistics();
+                Double ent = stats.get("X-Entries for: de.caluga.test.mongo.suite.CachedObject");
+                if (ent == null || ent == 0) {
+                    break;
+                }
+                Thread.sleep(1000);
+            }
+
+            assert (count < 10) : "Cache not cleared?";
+
             log.info("Preparation finished");
         } catch (Exception e) {
             log.fatal("Error during preparation!");
