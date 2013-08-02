@@ -675,6 +675,11 @@ public class MorphiumConfig {
         globalCacheValidTime = tm;
     }
 
+    /**
+     * returns json representation of this object containing all values
+     *
+     * @return json string
+     */
     @Override
     public String toString() {
         updateAdditionals();
@@ -693,17 +698,40 @@ public class MorphiumConfig {
     }
 
     private void addClassSettingsTo(Map p) {
-        p.put("writer_I_ClassName", getWriter().getClass().getName());
-        p.put("bufferedWriter_I_ClassName", getBufferedWriter().getClass().getName());
-        p.put("asyncWriter_I_ClassName", getAsyncWriter().getClass().getName());
-        p.put("cache_I_ClassName", getCache().getClass().getName());
-        p.put("aggregatorClass_C_ClassName", getAggregatorClass().getName());
-        p.put("aggregatorFactory_I_ClassName", getAggregatorFactory().getClass().getName());
-        p.put("configManager_I_ClassName", getConfigManager().getClass().getName());
-        p.put("iteratorClass_C_ClassName", getIteratorClass().getName());
-        p.put("omClass_C_ClassName", getOmClass().getName());
-        p.put("queryClass_C_ClassName", getQueryClass().getName());
-        p.put("queryFact_I_ClassName", getQueryFact().getClass().getName());
+        MorphiumConfig defaults = new MorphiumConfig();
+        if (!defaults.getWriter().getClass().equals(getWriter().getClass())) {
+            p.put("writer_I_ClassName", getWriter().getClass().getName());
+        }
+        if (!defaults.getBufferedWriter().getClass().equals(getBufferedWriter().getClass())) {
+            p.put("bufferedWriter_I_ClassName", getBufferedWriter().getClass().getName());
+        }
+        if (!defaults.getAsyncWriter().getClass().equals(getAsyncWriter().getClass())) {
+            p.put("asyncWriter_I_ClassName", getAsyncWriter().getClass().getName());
+        }
+        if (!defaults.getCache().getClass().equals(getCache().getClass())) {
+            p.put("cache_I_ClassName", getCache().getClass().getName());
+        }
+        if (!defaults.getAggregatorClass().equals(getAggregatorClass())) {
+            p.put("aggregatorClass_C_ClassName", getAggregatorClass().getName());
+        }
+        if (!defaults.getAggregatorFactory().getClass().equals(getAggregatorFactory().getClass())) {
+            p.put("aggregatorFactory_I_ClassName", getAggregatorFactory().getClass().getName());
+        }
+        if (!defaults.getConfigManager().getClass().equals(getConfigManager().getClass())) {
+            p.put("configManager_I_ClassName", getConfigManager().getClass().getName());
+        }
+        if (!defaults.getIteratorClass().equals(getIteratorClass())) {
+            p.put("iteratorClass_C_ClassName", getIteratorClass().getName());
+        }
+        if (!defaults.getOmClass().equals(getOmClass())) {
+            p.put("omClass_C_ClassName", getOmClass().getName());
+        }
+        if (!defaults.getQueryClass().equals(getQueryClass())) {
+            p.put("queryClass_C_ClassName", getQueryClass().getName());
+        }
+        if (!defaults.getQueryFact().getClass().equals(getQueryFact().getClass())) {
+            p.put("queryFact_I_ClassName", getQueryFact().getClass().getName());
+        }
         StringBuilder b = new StringBuilder();
         String del = "";
         for (ServerAddress a : getAdr()) {
@@ -782,7 +810,13 @@ public class MorphiumConfig {
     }
 
 
+    /**
+     * returns a property set only containing non-default values set
+     *
+     * @return
+     */
     public Properties asProperties() {
+        MorphiumConfig defaults = new MorphiumConfig();
         Properties p = new Properties();
         AnnotationAndReflectionHelper an = new AnnotationAndReflectionHelper();
         List<Field> flds = an.getAllFields(MorphiumConfig.class);
@@ -790,7 +824,7 @@ public class MorphiumConfig {
             if (f.isAnnotationPresent(Transient.class)) continue;
             f.setAccessible(true);
             try {
-                if (f.get(this) != null) {
+                if (f.get(this) != null && !f.get(this).equals(f.get(defaults))) {
                     p.put(f.getName(), f.get(this).toString());
                 }
             } catch (IllegalAccessException e) {
