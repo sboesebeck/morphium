@@ -54,11 +54,11 @@ public class MorphiumConfig {
     @Transient
     private DB db = null;
     @Transient
-    private MorphiumWriter writer = new MorphiumWriterImpl();
+    private MorphiumWriter writer;
     @Transient
-    private MorphiumWriter bufferedWriter = new BufferedMorphiumWriterImpl();
+    private MorphiumWriter bufferedWriter;
     @Transient
-    private MorphiumWriter asyncWriter = new AsyncWriterImpl();
+    private MorphiumWriter asyncWriter;
     private int connectionTimeout = 0;
     private int socketTimeout = 0;
     private boolean socketKeepAlive = true;
@@ -102,7 +102,7 @@ public class MorphiumConfig {
     private String mongoLogin = null, mongoPassword = null;
     private int configManagerCacheTimeout = 1000 * 60 * 60; //one hour
     @Transient
-    private List<ServerAddress> adr;
+    private List<ServerAddress> adr = new Vector<ServerAddress>();
     @Transient
     private ConfigManager configManager;
     //securitysettings
@@ -116,6 +116,45 @@ public class MorphiumConfig {
     private ReadPreferenceLevel defaultReadPreference;
     @Transient
     private Class<? extends MorphiumIterator> iteratorClass;
+
+    public MorphiumConfig(Properties prop) {
+        AnnotationAndReflectionHelper an = new AnnotationAndReflectionHelper();
+        List<Field> flds = an.getAllFields(MorphiumConfig.class);
+        for (Field f : flds) {
+            if (f.isAnnotationPresent(Transient.class)) continue;
+            f.setAccessible(true);
+            if (prop.getProperty(f.getName()) != null) {
+                try {
+                    if (f.getType().equals(int.class) || f.getType().equals(Integer.class)) {
+                        f.set(this, Integer.parseInt((String) prop.get(f.getName())));
+                    } else if (f.getType().equals(String.class)) {
+                        f.set(this, prop.get(f.getName()));
+                    } else if (f.getType().equals(boolean.class) || f.getType().equals(Boolean.class)) {
+                        f.set(this, prop.get(f.getName()).equals("true"));
+                    } else if (f.getType().equals(long.class) || f.getType().equals(Long.class)) {
+                        f.set(this, Long.parseLong((String) prop.get(f.getName())));
+                    }
+                } catch (IllegalAccessException e) {
+                    throw new RuntimeException(e);
+                }
+            }
+        }
+
+        try {
+            parseClassSettings(this, prop);
+        } catch (UnknownHostException e) {
+            throw new RuntimeException(e);
+        } catch (ClassNotFoundException e) {
+            throw new RuntimeException(e);
+        } catch (NoSuchFieldException e) {
+            throw new RuntimeException(e);
+        } catch (IllegalAccessException e) {
+            throw new RuntimeException(e);
+        } catch (InstantiationException e) {
+            throw new RuntimeException(e);
+        }
+        configureLogging();
+    }
 
     public MorphiumConfig() {
         this("test", 10, 60000, 10000, (URL) null);
@@ -382,7 +421,11 @@ public class MorphiumConfig {
     }
 
     public MorphiumWriter getBufferedWriter() {
+        if (bufferedWriter == null) {
+            bufferedWriter = new BufferedMorphiumWriterImpl();
+        }
         return bufferedWriter;
+
     }
 
     public void setBufferedWriter(MorphiumWriter bufferedWriter) {
@@ -398,6 +441,9 @@ public class MorphiumConfig {
     }
 
     public MorphiumWriter getWriter() {
+        if (writer == null) {
+            writer = new MorphiumWriterImpl();
+        }
         return writer;
     }
 
@@ -699,6 +745,10 @@ public class MorphiumConfig {
 
     private void addClassSettingsTo(Map p) {
         MorphiumConfig defaults = new MorphiumConfig();
+        getWriter();
+        getBufferedWriter();
+        getAsyncWriter();
+
         if (!defaults.getWriter().getClass().equals(getWriter().getClass())) {
             p.put("writer_I_ClassName", getWriter().getClass().getName());
         }
@@ -754,6 +804,9 @@ public class MorphiumConfig {
     }
 
     public MorphiumWriter getAsyncWriter() {
+        if (asyncWriter == null) {
+            asyncWriter = new AsyncWriterImpl();
+        }
         return asyncWriter;
     }
 
@@ -837,31 +890,7 @@ public class MorphiumConfig {
     }
 
     public static MorphiumConfig fromProperties(Properties p) throws ClassNotFoundException, NoSuchFieldException, InstantiationException, IllegalAccessException, UnknownHostException {
-        MorphiumConfig cfg = new MorphiumConfig();
-        AnnotationAndReflectionHelper an = new AnnotationAndReflectionHelper();
-        List<Field> flds = an.getAllFields(MorphiumConfig.class);
-        for (Field f : flds) {
-            if (f.isAnnotationPresent(Transient.class)) continue;
-            f.setAccessible(true);
-            if (p.getProperty(f.getName()) != null) {
-                try {
-                    if (f.getType().equals(int.class) || f.getType().equals(Integer.class)) {
-                        f.set(cfg, Integer.parseInt((String) p.get(f.getName())));
-                    } else if (f.getType().equals(String.class)) {
-                        f.set(cfg, p.get(f.getName()));
-                    } else if (f.getType().equals(boolean.class) || f.getType().equals(Boolean.class)) {
-                        f.set(cfg, p.get(f.getName()).equals("true"));
-                    } else if (f.getType().equals(long.class) || f.getType().equals(Long.class)) {
-                        f.set(cfg, Long.parseLong((String) p.get(f.getName())));
-                    }
-                } catch (IllegalAccessException e) {
-                    throw new RuntimeException(e);
-                }
-            }
-        }
-
-        parseClassSettings(cfg, p);
-        cfg.configureLogging();
-        return cfg;
+        return new MorphiumConfig(p);
     }
+
 }
