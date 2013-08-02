@@ -8,6 +8,7 @@ import de.caluga.morphium.async.AsyncOperationCallback;
 import de.caluga.morphium.async.AsyncOperationType;
 import de.caluga.morphium.query.Query;
 import org.apache.log4j.Logger;
+import org.bson.types.ObjectId;
 
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
@@ -205,7 +206,18 @@ public class MorphiumWriterImpl implements MorphiumWriter {
                         }
                         try {
                             //Setting new ID (if object was new created) to Entity
-                            annotationHelper.getField(o.getClass(), flds.get(0)).set(o, marshall.get("_id"));
+
+                            Field fld = annotationHelper.getField(o.getClass(), flds.get(0));
+                            if (fld.getType().equals(marshall.get("_id").getClass())) {
+                                fld.set(o, marshall.get("_id"));
+                            } else {
+                                logger.warn("got default generated key, but ID-Field is not of type ObjectID... trying string conversion");
+                                if (fld.getType().equals(String.class)) {
+                                    fld.set(o, ((ObjectId) marshall.get("_id")).toString());
+                                } else {
+                                    throw new IllegalArgumentException("cannot convert ID for given object - id type is: " + fld.getType().getName() + "! Please set ID before write");
+                                }
+                            }
                         } catch (IllegalAccessException e) {
                             throw new RuntimeException(e);
                         }
