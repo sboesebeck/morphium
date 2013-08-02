@@ -1,6 +1,8 @@
 package de.caluga.test.mongo.suite;
 
 import de.caluga.morphium.MorphiumSingleton;
+import de.caluga.morphium.annotations.Entity;
+import de.caluga.morphium.annotations.Id;
 import org.junit.Test;
 
 import java.util.Date;
@@ -14,7 +16,7 @@ import java.util.Date;
  */
 public class NonObjectIdTest extends MongoTest {
     @Test
-    public void updateTest() throws Exception {
+    public void nonObjectIdTest() throws Exception {
         Person p = new Person();
         p.setId("ABC123");
         p.setBirthday(new Date());
@@ -34,8 +36,30 @@ public class NonObjectIdTest extends MongoTest {
         waitForAsyncOperationToStart(100);
         waitForWrites();
 
-        assert (MorphiumSingleton.get().createQueryFor(Person.class).countAll() == 2);
+        p = new Person();
+        p.setBirthday(new Date());
+        p.setName("no ID");
+        MorphiumSingleton.get().store(p);
+        waitForAsyncOperationToStart(100);
+        waitForWrites();
+
+        assert (MorphiumSingleton.get().createQueryFor(Person.class).countAll() == 3);
         assert (MorphiumSingleton.get().findById(Person.class, "BBC123").getName().equals("CHANGED"));
 
+    }
+
+    @Test(expected = IllegalArgumentException.class)
+    public void nonObjectIdTestFail() throws Exception {
+        Tst t = new Tst();
+        t.str = "test-a-string";
+
+        MorphiumSingleton.get().store(t); //will fail
+    }
+
+    @Entity
+    public static class Tst {
+        @Id
+        private Long myId;
+        private String str;
     }
 }
