@@ -217,10 +217,10 @@ public class MongoTest {
                 if (ent == null || ent == 0) {
                     break;
                 }
-                Thread.sleep(1000);
+                Thread.sleep(2000);
             }
 
-            assert (count < 10) : "Cache not cleared?";
+            assert (count < 10) : "Cache not cleared? count is "+count;
 
             log.info("Preparation finished");
         } catch (Exception e) {
