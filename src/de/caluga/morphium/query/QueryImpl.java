@@ -21,6 +21,7 @@ import java.util.concurrent.TimeUnit;
  * <p/>
  */
 public class QueryImpl<T> implements Query<T>, Cloneable {
+    private static Logger log = Logger.getLogger(Query.class);
     private String where;
     private Class<? extends T> type;
     private List<FilterExpression> andExpr;
@@ -29,12 +30,9 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
     private ReadPreferenceLevel readPreferenceLevel;
     private ReadPreference readPreference;
     private boolean additionalDataPresent = false;
-
     private int limit = 0, skip = 0;
     private Map<String, Integer> sort;
-
     private Morphium morphium;
-    private static Logger log = Logger.getLogger(Query.class);
     private AnnotationAndReflectionHelper annotationHelper = new AnnotationAndReflectionHelper();
     private ThreadPoolExecutor executor;
     private String collectionName;
@@ -47,6 +45,10 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
         this(m);
         setType(type);
         this.executor = executor;
+    }
+
+    public QueryImpl(Morphium m) {
+        setMorphium(m);
     }
 
     public ThreadPoolExecutor getExecutor() {
@@ -86,11 +88,6 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
         norQueries = new Vector<Query<T>>();
     }
 
-
-    public QueryImpl(Morphium m) {
-        setMorphium(m);
-    }
-
     public ReadPreferenceLevel getReadPreferenceLevel() {
         return readPreferenceLevel;
     }
@@ -98,17 +95,6 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
     public void setReadPreferenceLevel(ReadPreferenceLevel readPreferenceLevel) {
         this.readPreferenceLevel = readPreferenceLevel;
         readPreference = readPreferenceLevel.getPref();
-    }
-
-    @Override
-    public void setType(Class<? extends T> type) {
-        this.type = type;
-        DefaultReadPreference pr = annotationHelper.getAnnotationFromHierarchy(type, DefaultReadPreference.class);
-        if (pr != null) {
-            setReadPreferenceLevel(pr.value());
-        }
-        List<String> fields = annotationHelper.getFields(type, AdditionalData.class);
-        additionalDataPresent = fields != null && fields.size() != 0;
     }
 
     @Override
@@ -181,7 +167,8 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
                 }
 
                 while (cursor.hasNext()) {
-                    ret.add(morphium.getMapper().unmarshall(type, cursor.next()));
+                    T unmarshall = morphium.getMapper().unmarshall(type, cursor.next());
+                    if (unmarshall != null) ret.add(unmarshall);
                 }
                 break;
             } catch (RuntimeException e) {
@@ -281,7 +268,6 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
         return this;
     }
 
-
     @Override
     public Query<T> or(List<Query<T>> qs) {
         orQueries.addAll(qs);
@@ -296,7 +282,6 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
             throw new RuntimeException(e);
         }
     }
-
 
     @Override
     public Query<T> nor(Query<T>... qs) {
@@ -358,7 +343,6 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
         }
         return sort(m);
     }
-
 
     @Override
     public void countAll(final AsyncOperationCallback<T> c) {
@@ -482,6 +466,17 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
     }
 
     @Override
+    public void setType(Class<? extends T> type) {
+        this.type = type;
+        DefaultReadPreference pr = annotationHelper.getAnnotationFromHierarchy(type, DefaultReadPreference.class);
+        if (pr != null) {
+            setReadPreferenceLevel(pr.value());
+        }
+        List<String> fields = annotationHelper.getFields(type, AdditionalData.class);
+        additionalDataPresent = fields != null && fields.size() != 0;
+    }
+
+    @Override
     public void asList(final AsyncOperationCallback<T> callback) {
         if (callback == null) throw new IllegalArgumentException("callback is null");
         Runnable r = new Runnable() {
@@ -558,11 +553,13 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
                 while (it.hasNext()) {
                     DBObject o = it.next();
                     T unmarshall = morphium.getMapper().unmarshall(type, o);
-                    ret.add(unmarshall);
+                    if (unmarshall != null) {
+                        ret.add(unmarshall);
+                        updateLastAccess(o, unmarshall);
+                        morphium.firePostLoadEvent(unmarshall);
+                    }
 
-                    updateLastAccess(o, unmarshall);
 
-                    morphium.firePostLoadEvent(unmarshall);
                 }
                 break;
 
@@ -578,7 +575,6 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
 
         return ret;
     }
-
 
     @Override
     public MorphiumIterator<T> asIterable() {
@@ -743,12 +739,14 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
 
         if (ret != null) {
             T unmarshall = morphium.getMapper().unmarshall(type, ret);
-            morphium.firePostLoadEvent(unmarshall);
-            updateLastAccess(ret, unmarshall);
+            if (unmarshall != null) {
+                morphium.firePostLoadEvent(unmarshall);
+                updateLastAccess(ret, unmarshall);
 
-            lst.add((T) unmarshall);
-            if (readCache) {
-                morphium.getCache().addToCache(ck, type, lst);
+                lst.add((T) unmarshall);
+                if (readCache) {
+                    morphium.getCache().addToCache(ck, type, lst);
+                }
             }
             return unmarshall;
         }
@@ -829,7 +827,6 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
         return ret;
     }
 
-
     public Query<T> clone() throws CloneNotSupportedException {
         try {
             QueryImpl<T> ret = (QueryImpl<T>) super.clone();
@@ -865,7 +862,6 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
             throw new RuntimeException(e);
         }
     }
-
 
     @Override
     public int getNumberOfPendingRequests() {
@@ -922,7 +918,8 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
         List<T> ret = new ArrayList<T>();
         for (Object o : lst) {
             DBObject obj = (DBObject) o;
-            ret.add(morphium.getMapper().unmarshall(getType(), obj));
+            T unmarshall = morphium.getMapper().unmarshall(getType(), obj);
+            if (unmarshall != null) ret.add(unmarshall);
         }
         return ret;
     }
