@@ -29,7 +29,6 @@ public class ObjectMapperImpl implements ObjectMapper {
     private volatile Hashtable<Class<?>, NameProvider> nameProviders;
     private volatile AnnotationAndReflectionHelper annotationHelper = new AnnotationAndReflectionHelper();
     private Morphium morphium;
-
     private JSONParser jsonParser = new JSONParser();
 
     public ObjectMapperImpl() {
@@ -52,7 +51,6 @@ public class ObjectMapperImpl implements ObjectMapper {
             annotationHelper = new AnnotationAndReflectionHelper();
         }
     }
-
 
     /**
      * override nameprovider in runtime!
@@ -459,6 +457,29 @@ public class ObjectMapperImpl implements ObjectMapper {
                     }
                 } else if (fld.isAnnotationPresent(Id.class)) {
                     value = o.get("_id");
+                    if (!value.getClass().equals(fld.getType())) {
+                        log.warn("read value and field type differ...");
+                        if (fld.getType().equals(ObjectId.class)) {
+                            log.warn("trying objectID conversion");
+                            if (value.getClass().equals(String.class)) {
+                                try {
+                                    value = new ObjectId((String) value);
+                                } catch (Exception e) {
+                                    log.error("Id conversion failed - setting returning null", e);
+                                    return null;
+                                }
+                            }
+                        } else if (value.getClass().equals(ObjectId.class)) {
+                            if (fld.getType().equals(String.class)) {
+                                value = value.toString();
+                            } else if (fld.getType().equals(Long.class) || fld.getType().equals(long.class)) {
+                                value = ((ObjectId) value).getTime();
+                            } else {
+                                log.error("cannot convert - ID IS SET TO NULL. Type read from db is " + value.getClass().getName() + " - expected value is " + fld.getType().getName());
+                                return null;
+                            }
+                        }
+                    }
                 } else if (annotationHelper.isAnnotationPresentInHierarchy(fld.getType(), Entity.class) || annotationHelper.isAnnotationPresentInHierarchy(fld.getType(), Embedded.class)) {
                     //entity! embedded
                     value = unmarshall(fld.getType(), (DBObject) valueFromDb);
@@ -595,7 +616,8 @@ public class ObjectMapperImpl implements ObjectMapper {
                         }
                         try {
                             Class ecls = Class.forName(cn);
-                            map.put(n, unmarshall(ecls, (DBObject) map.get(n)));
+                            Object obj = unmarshall(ecls, (DBObject) map.get(n));
+                            if (obj != null) map.put(n, obj);
                         } catch (ClassNotFoundException e) {
                             throw new RuntimeException(e);
                         }
@@ -627,7 +649,8 @@ public class ObjectMapperImpl implements ObjectMapper {
                     }
                     try {
                         Class ecls = Class.forName(cn);
-                        mapValue.add(unmarshall(ecls, (DBObject) li));
+                        Object obj = unmarshall(ecls, (DBObject) li);
+                        if (obj != null) mapValue.add(obj);
                     } catch (ClassNotFoundException e) {
                         throw new RuntimeException(e);
                     }
@@ -655,7 +678,8 @@ public class ObjectMapperImpl implements ObjectMapper {
                     }
                     try {
                         Class ecls = Class.forName(cn);
-                        toFillIn.add(unmarshall(ecls, (DBObject) val));
+                        Object um = unmarshall(ecls, (DBObject) val);
+                        if (um != null) toFillIn.add(um);
                     } catch (ClassNotFoundException e) {
                         throw new RuntimeException(e);
                     }

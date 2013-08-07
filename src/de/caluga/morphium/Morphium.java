@@ -792,6 +792,7 @@ public class Morphium {
         if (crs.hasNext()) {
             DBObject dbo = crs.next();
             Object fromDb = objectMapper.unmarshall(o.getClass(), dbo);
+            if (fromDb == null) throw new RuntimeException("could not reread from db");
             List<String> flds = annotationHelper.getFields(o.getClass());
             for (String f : flds) {
                 Field fld = annotationHelper.getField(o.getClass(), f);
@@ -1712,7 +1713,9 @@ public class Morphium {
 
         List<R> ret = new ArrayList<R>();
         for (DBObject o : resp.results()) {
-            ret.add(getMapper().unmarshall(a.getResultType(), o));
+            R obj = getMapper().unmarshall(a.getResultType(), o);
+            if (obj == null) continue;
+            ret.add(obj);
         }
         return ret;
     }
