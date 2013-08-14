@@ -777,10 +777,10 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
     }
 
     @Override
-    public List<Object> idList() {
+    public <R> List<R> idList() {
         Cache c = annotationHelper.getAnnotationFromHierarchy(type, Cache.class);//type.getAnnotation(Cache.class);
         boolean readCache = c != null && c.readCache();
-        List<Object> ret = new ArrayList<Object>();
+        List<R> ret = new ArrayList<R>();
         String ck = morphium.getCache().getCacheKey(this);
         ck += " idlist";
         morphium.inc(StatisticKeys.READS);
@@ -789,7 +789,7 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
             if (morphium.getCache().isCached(type, ck)) {
                 morphium.inc(StatisticKeys.CHITS);
                 //casts are not nice... any idea how to change that?
-                return (List<Object>) morphium.getCache().getFromCache(type, ck);
+                return (List<R>) morphium.getCache().getFromCache(type, ck);
             }
             morphium.inc(StatisticKeys.CMISS);
         } else {
@@ -812,7 +812,7 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
                 }
 
                 for (DBObject o : query) {
-                    ret.add(o.get("_id"));
+                    ret.add((R) o.get("_id"));
                 }
                 break;
             } catch (RuntimeException e) {
