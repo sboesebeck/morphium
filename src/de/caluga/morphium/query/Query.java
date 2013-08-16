@@ -172,9 +172,9 @@ public interface Query<T> extends Cloneable {
     /**
      * only return the IDs of objects (useful if objects are really large)
      *
-     * @return list
+     * @return list of Ids, type R
      */
-    public List<Object> idList();
+    public <R> List<R> idList();
 
     public void idList(AsyncOperationCallback<T> callback);
 
