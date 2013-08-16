@@ -230,33 +230,28 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
 
     @Override
     public MongoField<T> f(String f) {
-        String cf = f;
+        StringBuffer fieldPath = new StringBuffer();
+    	String cf = f;
+        Class<?> clz = type;
         if (f.contains(".")) {
-            //if there is a . only check first part
-            cf = f.substring(0, f.indexOf("."));
-            //TODO: check field name completely => person.name, check type Person for field name
-        } else if (additionalDataPresent) {
+            String[] fieldNames = f.split("\\.");
+           	for(String fieldName : fieldNames) {
+           		String fieldNameInstance = annotationHelper.getFieldName(clz, fieldName);
+           		Field field = annotationHelper.getField(clz, fieldNameInstance);
+           		fieldPath.append(fieldNameInstance);
+           		fieldPath.append('.');
+       			clz = field.getType();
+           	}
+           	cf = fieldPath.substring(0, fieldPath.length() - 1);
+        }
+        else {
+        	cf = annotationHelper.getFieldName(clz, f);
+        }
+        if (additionalDataPresent) {
             log.debug("Additional data is available, not checking field");
-            MongoField<T> fld = morphium.createMongoField(); //new MongoFieldImpl<T>();
-            fld.setFieldString(f);
-            fld.setMapper(morphium.getMapper());
-            fld.setQuery(this);
-            return fld;
         }
-        Field field = annotationHelper.getField(type, cf);
-        if (field == null) {
-
-            throw new IllegalArgumentException("Unknown Field " + f);
-        }
-
-        if (field.isAnnotationPresent(Id.class)) {
-            f = "_id";
-        } else {
-            f = annotationHelper.getFieldName(type, f); //handling of aliases
-        }
-
-        MongoField<T> fld = morphium.createMongoField(); //new MongoFieldImpl<T>();
-        fld.setFieldString(f);
+        MongoField<T> fld = morphium.createMongoField();
+        fld.setFieldString(cf);
         fld.setMapper(morphium.getMapper());
         fld.setQuery(this);
         return fld;
