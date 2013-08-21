@@ -187,6 +187,32 @@ public class UpdateTest extends MongoTest {
     }
 
     @Test
+    public void unsetTest() throws Exception {
+        createUncachedObjects(100);
+        Query<UncachedObject> q = MorphiumSingleton.get().createQueryFor(UncachedObject.class).f("counter").eq(50);
+        MorphiumSingleton.get().unsetQ(q, "value");
+        UncachedObject uc = q.get();
+        assert (uc.getValue() == null);
+        q = MorphiumSingleton.get().createQueryFor(UncachedObject.class).f("counter").gt(90);
+        MorphiumSingleton.get().unsetQ(q, false, "value");
+        List<UncachedObject> lst = q.asList();
+        boolean found = false;
+        for (UncachedObject u : lst) {
+            if (u.getValue() == null) {
+                assert (!found);
+                found = true;
+            }
+        }
+        assert (found);
+        MorphiumSingleton.get().unsetQ(q, true, "binary_data", "bool_data", "value");
+        lst = q.asList();
+        for (UncachedObject u : lst) {
+            assert (u.getValue() == null);
+        }
+
+    }
+
+    @Test
     public void pushEntityListTest() throws Exception {
         MorphiumSingleton.get().dropCollection(ListContainer.class);
 

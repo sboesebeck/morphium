@@ -412,6 +412,51 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter {
     }
 
     @Override
+    public <T> void unset(final Query<T> query, final String field, final boolean multiple, AsyncOperationCallback<T> c) {
+        if (c == null) {
+            c = new AsyncOpAdapter<T>();
+        }
+        final AsyncOperationCallback<T> callback = c;
+        morphium.inc(StatisticKeys.WRITES_CACHED);
+        addToWriteQueue(query.getType(), new Runnable() {
+            @Override
+            public void run() {
+                directWriter.unset(query, field, multiple, callback);
+            }
+        });
+    }
+
+    @Override
+    public <T> void unset(final Query<T> query, AsyncOperationCallback<T> c, final boolean multiple, final String... fields) {
+        if (c == null) {
+            c = new AsyncOpAdapter<T>();
+        }
+        final AsyncOperationCallback<T> callback = c;
+        morphium.inc(StatisticKeys.WRITES_CACHED);
+        addToWriteQueue(query.getType(), new Runnable() {
+            @Override
+            public void run() {
+                directWriter.unset(query, callback, multiple, fields);
+            }
+        });
+    }
+
+    @Override
+    public <T> void unset(final Query<T> query, AsyncOperationCallback<T> c, final boolean multiple, final Enum... fields) {
+        if (c == null) {
+            c = new AsyncOpAdapter<T>();
+        }
+        final AsyncOperationCallback<T> callback = c;
+        morphium.inc(StatisticKeys.WRITES_CACHED);
+        addToWriteQueue(query.getType(), new Runnable() {
+            @Override
+            public void run() {
+                directWriter.unset(query, callback, multiple, fields);
+            }
+        });
+    }
+
+    @Override
     public <T> void dropCollection(final Class<T> cls, final String collection, AsyncOperationCallback<T> c) {
         if (c == null) {
             c = new AsyncOpAdapter<T>();
