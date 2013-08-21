@@ -25,6 +25,29 @@ public class BasicFunctionalityTest extends MongoTest {
     }
 
     @Test
+    public void subObjectQueryTest() throws Exception {
+        Query<ComplexObject> q = MorphiumSingleton.get().createQueryFor(ComplexObject.class);
+
+        q = q.f("embed.testValueLong").eq(null).f("entityEmbeded.binaryData").eq(null);
+        String queryString = q.toQueryObject().toString();
+        log.info(queryString);
+        assert (queryString.contains("embed.test_value_long") && queryString.contains("entityEmbeded.binary_data"));
+        q = q.f("embed.test_value_long").eq(null).f("entity_embeded.binary_data").eq(null);
+        queryString = q.toQueryObject().toString();
+        log.info(queryString);
+        assert (queryString.contains("embed.test_value_long") && queryString.contains("entityEmbeded.binary_data"));
+    }
+
+    @Test(expected = IllegalArgumentException.class)
+    public void subObjectQueryTestUnknownField() throws Exception {
+        Query<ComplexObject> q = MorphiumSingleton.get().createQueryFor(ComplexObject.class);
+
+        q = q.f("embed.testValueLong").eq(null).f("entityEmbeded.binaryData.non_existent").eq(null);
+        String queryString = q.toQueryObject().toString();
+        log.info(queryString);
+    }
+
+    @Test
     public void sortTest() throws Exception {
         for (int i = 1; i <= NO_OBJECTS; i++) {
             UncachedObject o = new UncachedObject();

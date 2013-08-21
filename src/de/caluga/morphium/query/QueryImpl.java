@@ -229,23 +229,47 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
     }
 
     @Override
+    public MongoField<T> f(String... f) {
+        StringBuffer b = new StringBuffer();
+        for (String e : f) {
+            b.append(e);
+            b.append(".");
+        }
+        b.deleteCharAt(b.length());
+        return f(b.toString());
+    }
+
+    @Override
+    public MongoField<T> f(Enum... f) {
+        StringBuffer b = new StringBuffer();
+        for (Enum e : f) {
+            b.append(e.name());
+            b.append(".");
+        }
+        b.deleteCharAt(b.length());
+        return f(b.toString());
+    }
+
     public MongoField<T> f(String f) {
         StringBuffer fieldPath = new StringBuffer();
-    	String cf = f;
+        String cf = f;
         Class<?> clz = type;
         if (f.contains(".")) {
             String[] fieldNames = f.split("\\.");
-           	for(String fieldName : fieldNames) {
-           		String fieldNameInstance = annotationHelper.getFieldName(clz, fieldName);
-           		Field field = annotationHelper.getField(clz, fieldNameInstance);
-           		fieldPath.append(fieldNameInstance);
-           		fieldPath.append('.');
-       			clz = field.getType();
-           	}
-           	cf = fieldPath.substring(0, fieldPath.length() - 1);
-        }
-        else {
-        	cf = annotationHelper.getFieldName(clz, f);
+            for (String fieldName : fieldNames) {
+                String fieldNameInstance = annotationHelper.getFieldName(clz, fieldName);
+                Field field = annotationHelper.getField(clz, fieldNameInstance);
+                if (field.isAnnotationPresent(Reference.class)) {
+                    //cannot join
+                    throw new IllegalArgumentException("cannot subquery references: " + fieldNameInstance + " of type " + clz.getName() + " has @Reference");
+                }
+                fieldPath.append(fieldNameInstance);
+                fieldPath.append('.');
+                clz = field.getType();
+            }
+            cf = fieldPath.substring(0, fieldPath.length() - 1);
+        } else {
+            cf = annotationHelper.getFieldName(clz, f);
         }
         if (additionalDataPresent) {
             log.debug("Additional data is available, not checking field");
