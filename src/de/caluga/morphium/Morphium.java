@@ -313,12 +313,42 @@ public class Morphium {
 
         firePreUpdateEvent(toSet.getClass(), MorphiumStorageListener.UpdateTypes.UNSET);
         Cache c = annotationHelper.getAnnotationFromHierarchy(toSet.getClass(), Cache.class);
-        MorphiumWriter wr = config.getWriter();
-        if (annotationHelper.isBufferedWrite(toSet.getClass())) {
-            config.getBufferedWriter();
-        }
+        MorphiumWriter wr = getWriterForClass(toSet.getClass());
         wr.unset(toSet, collection, field, callback);
     }
+
+    public <T> void unsetQ(Query<T> q, String... field) {
+        getWriterForClass(q.getType()).unset(q, null, false, field);
+    }
+
+    public <T> void unsetQ(Query<T> q, boolean multiple, String... field) {
+        getWriterForClass(q.getType()).unset(q, null, multiple, field);
+    }
+
+    public <T> void unsetQ(Query<T> q, Enum... field) {
+        getWriterForClass(q.getType()).unset(q, null, false, field);
+    }
+
+    public <T> void unsetQ(Query<T> q, boolean multiple, Enum... field) {
+        getWriterForClass(q.getType()).unset(q, null, multiple, field);
+    }
+
+    public <T> void unsetQ(Query<T> q, AsyncOperationCallback<T> cb, String... field) {
+        getWriterForClass(q.getType()).unset(q, cb, false, field);
+    }
+
+    public <T> void unsetQ(Query<T> q, AsyncOperationCallback<T> cb, boolean multiple, String... field) {
+        getWriterForClass(q.getType()).unset(q, cb, false, field);
+    }
+
+    public <T> void unsetQ(Query<T> q, AsyncOperationCallback<T> cb, Enum... field) {
+        getWriterForClass(q.getType()).unset(q, cb, false, field);
+    }
+
+    public <T> void unsetQ(Query<T> q, boolean multiple, AsyncOperationCallback<T> cb, Enum... field) {
+        getWriterForClass(q.getType()).unset(q, cb, multiple, field);
+    }
+
 
     /**
      * can be called for autmatic index ensurance. Attention: might cause heavy load on mongo
