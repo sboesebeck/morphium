@@ -258,6 +258,10 @@ public interface Query<T> extends Cloneable {
 
     public List<T> textSearch(TextSearchLanguages lang, String... texts);
 
+    MongoField<T> f(Enum... f);
+
+    MongoField<T> f(String... f);
+
     public enum TextSearchLanguages {
         danish,
         dutch,
