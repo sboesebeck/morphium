@@ -917,11 +917,7 @@ public class MorphiumWriterImpl implements MorphiumWriter {
                 }
             }
         };
-
-
         submitAndBlockIfNecessary(callback, r);
-
-
     }
 
     @Override
@@ -938,7 +934,7 @@ public class MorphiumWriterImpl implements MorphiumWriter {
             public void run() {
                 Class<? extends T> cls = query.getType();
                 morphium.firePreUpdateEvent(annotationHelper.getRealClass(cls), MorphiumStorageListener.UpdateTypes.INC);
-                String coll = morphium.getMapper().getCollectionName(cls);
+                String coll = query.getCollectionName();
 
                 BasicDBObject update = new BasicDBObject();
                 update.put("$inc", new BasicDBObject(fieldsToInc));
@@ -997,7 +993,7 @@ public class MorphiumWriterImpl implements MorphiumWriter {
             public void run() {
                 Class cls = query.getType();
                 morphium.firePreUpdateEvent(annotationHelper.getRealClass(cls), MorphiumStorageListener.UpdateTypes.INC);
-                String coll = morphium.getMapper().getCollectionName(cls);
+                String coll = query.getCollectionName();
                 String fieldName = annotationHelper.getFieldName(cls, field);
                 BasicDBObject update = new BasicDBObject("$inc", new BasicDBObject(fieldName, amount));
                 DBObject qobj = query.toQueryObject();
@@ -1064,7 +1060,7 @@ public class MorphiumWriterImpl implements MorphiumWriter {
             @Override
             public void run() {
                 Class<?> cls = query.getType();
-                String coll = morphium.getMapper().getCollectionName(cls);
+                String coll = query.getCollectionName();
                 morphium.firePreUpdateEvent(annotationHelper.getRealClass(cls), MorphiumStorageListener.UpdateTypes.SET);
                 BasicDBObject toSet = new BasicDBObject();
                 for (Map.Entry<String, Object> ef : values.entrySet()) {
@@ -1105,6 +1101,67 @@ public class MorphiumWriterImpl implements MorphiumWriter {
                 } catch (RuntimeException e) {
                     if (callback == null) throw new RuntimeException(e);
                     callback.onOperationError(AsyncOperationType.SET, query, System.currentTimeMillis() - start, e.getMessage(), e, null, values, insertIfNotExist, multiple);
+                }
+            }
+        };
+        submitAndBlockIfNecessary(callback, r);
+    }
+
+    @Override
+    public <T> void unset(final Query<T> query, AsyncOperationCallback<T> callback, final boolean multiple, final Enum... fields) {
+        ArrayList<String> flds = new ArrayList<String>();
+        for (Enum e : fields) {
+            flds.add(e.name());
+        }
+        unset(query, callback, multiple, flds.toArray(new String[fields.length]));
+    }
+
+    @Override
+    public <T> void unset(final Query<T> query, AsyncOperationCallback<T> callback, final boolean multiple, final String... fields) {
+        WriterTask r = new WriterTask() {
+            private AsyncOperationCallback<T> callback;
+
+            @Override
+            public void setCallback(AsyncOperationCallback cb) {
+                callback = cb;
+            }
+
+            @Override
+            public void run() {
+                Class<?> cls = query.getType();
+                String coll = query.getCollectionName();
+                morphium.firePreUpdateEvent(annotationHelper.getRealClass(cls), MorphiumStorageListener.UpdateTypes.SET);
+                DBObject qobj = query.toQueryObject();
+
+                Map<String, String> toSet = new HashMap<String, String>();
+                for (String f : fields) {
+                    toSet.put(f, ""); //value is ignored
+                }
+                BasicDBObject update = new BasicDBObject("$unset", toSet);
+                WriteConcern wc = morphium.getWriteConcernForClass(cls);
+                long start = System.currentTimeMillis();
+                try {
+                    for (int i = 0; i < morphium.getConfig().getRetriesOnNetworkError(); i++) {
+                        try {
+                            if (wc == null) {
+                                morphium.getDatabase().getCollection(coll).update(qobj, update, false, multiple);
+                            } else {
+                                morphium.getDatabase().getCollection(coll).update(qobj, update, false, multiple, wc);
+                            }
+                            break;
+                        } catch (Throwable t) {
+                            morphium.handleNetworkError(i, t);
+                        }
+                    }
+                    long dur = System.currentTimeMillis() - start;
+                    morphium.fireProfilingWriteEvent(cls, update, dur, false, multiple ? WriteAccessType.BULK_UPDATE : WriteAccessType.SINGLE_UPDATE);
+                    morphium.getCache().clearCacheIfNecessary(cls);
+                    morphium.firePostUpdateEvent(annotationHelper.getRealClass(cls), MorphiumStorageListener.UpdateTypes.SET);
+                    if (callback != null)
+                        callback.onOperationSucceeded(AsyncOperationType.SET, query, System.currentTimeMillis() - start, null, null, fields, false, multiple);
+                } catch (RuntimeException e) {
+                    if (callback == null) throw new RuntimeException(e);
+                    callback.onOperationError(AsyncOperationType.SET, query, System.currentTimeMillis() - start, e.getMessage(), e, null, fields, false, multiple);
                 }
             }
         };
@@ -1191,6 +1248,12 @@ public class MorphiumWriterImpl implements MorphiumWriter {
             }
         };
         submitAndBlockIfNecessary(callback, r);
+    }
+
+
+    @Override
+    public <T> void unset(Query<T> query, String field, boolean multiple, AsyncOperationCallback<T> callback) {
+        unset(query, callback, multiple, field);
     }
 
 

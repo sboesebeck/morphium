@@ -104,6 +104,12 @@ public interface MorphiumWriter {
      */
     public <T> void unset(T toSet, String collection, String field, AsyncOperationCallback<T> callback);
 
+    public <T> void unset(Query<T> query, String field, boolean multiple, AsyncOperationCallback<T> callback);
+
+    public <T> void unset(Query<T> query, AsyncOperationCallback<T> callback, boolean multiple, String... fields);
+
+    public <T> void unset(Query<T> query, AsyncOperationCallback<T> callback, boolean multiple, Enum... fields);
+
     public <T> void dropCollection(Class<T> cls, String collection, AsyncOperationCallback<T> callback);
 
     public <T> void ensureIndex(Class<T> cls, String collection, Map<String, Object> index, Map<String, Object> options, AsyncOperationCallback<T> callback);
@@ -119,4 +125,6 @@ public interface MorphiumWriter {
     public void setPauseBetweenTries(int p);
 
     public <T> void inc(Query<T> query, Map<String, Double> fieldsToInc, boolean insertIfNotExist, boolean multiple, AsyncOperationCallback<T> callback);
+
+
 }
