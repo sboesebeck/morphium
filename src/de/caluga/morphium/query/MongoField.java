@@ -22,6 +22,8 @@ public interface MongoField<T> {
 
     public Query<T> ne(Object val);
 
+    public Query<T> size(int val);
+
     public Query<T> lt(Object val);
 
     public Query<T> lte(Object val);
