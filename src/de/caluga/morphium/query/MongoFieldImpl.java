@@ -142,6 +142,12 @@ public class MongoFieldImpl<T> implements MongoField<T> {
     }
 
     @Override
+    public Query<T> size(int val) {
+        add("$size", val);
+        return query;
+    }
+
+    @Override
     public Query<T> lt(Object val) {
         add("$lt", val);
         return query;

@@ -83,4 +83,41 @@ public class QueryImplTest extends MongoTest {
 
 
     }
+
+    @Test
+    public void testToString() {
+        Query<ListContainer> q = MorphiumSingleton.get().createQueryFor(ListContainer.class);
+        q = q.f(ListContainer.Fields.longList).size(10);
+        String qStr = q.toString();
+        log.info("ToString: " + qStr);
+        log.info("query: " + q.toQueryObject().toString());
+
+        assert (q.toQueryObject().toString().equals("{ \"long_list\" : { \"$size\" : 10}}"));
+    }
+
+    @Test
+    public void testSize() {
+
+        ListContainer lc = new ListContainer();
+        for (int i = 0; i < 10; i++) {
+            lc.addLong((long) i);
+        }
+        lc.setName("A test");
+        MorphiumSingleton.get().store(lc);
+
+        lc = new ListContainer();
+        for (int i = 0; i < 5; i++) {
+            lc.addLong((long) i);
+        }
+        lc.setName("A test2");
+        MorphiumSingleton.get().store(lc);
+
+
+        Query<ListContainer> q = MorphiumSingleton.get().createQueryFor(ListContainer.class);
+        q = q.f(ListContainer.Fields.longList).size(10);
+        lc = q.get();
+        assert (lc.getLongList().size() == 10);
+        assert (lc.getName().equals("A test"));
+
+    }
 }

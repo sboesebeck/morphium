@@ -1,10 +1,10 @@
 package de.caluga.morphium;
 
-import java.util.List;
-import java.util.Vector;
-
 import com.mongodb.BasicDBObject;
 import com.mongodb.DBObject;
+
+import java.util.List;
+import java.util.Vector;
 
 public class FilterExpression {
     private String field;
@@ -50,16 +50,33 @@ public class FilterExpression {
                 expression.put(flt.getField(), flt.getValue());
             }
             o.put(field, expression);
-        }
-        else {
+        } else {
             if (value != null && value.getClass().isEnum()) {
                 o.put(field, ((Enum) value).name());
-            }
-            else {
+            } else {
                 o.put(field, value);
             }
         }
         return o;
     }
 
+    @Override
+    public String toString() {
+        StringBuilder c = new StringBuilder();
+        if (children != null && children.size() > 0) {
+            c.append("[ ");
+            for (FilterExpression fe : children) {
+                c.append(fe.toString());
+                c.append(", ");
+            }
+            c.deleteCharAt(c.length() - 1);
+            c.deleteCharAt(c.length() - 1);
+            c.append(" ]");
+        }
+        return "FilterExpression{" +
+                "field='" + field + '\'' +
+                ", value=" + value +
+                ", children=" + c.toString() +
+                '}';
+    }
 }

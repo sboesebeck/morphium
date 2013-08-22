@@ -942,4 +942,57 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
         }
         return ret;
     }
+
+    @Override
+    public String toString() {
+        StringBuilder and = new StringBuilder();
+        if (andExpr != null && andExpr.size() > 0) {
+            and.append("[");
+            for (FilterExpression fe : andExpr) {
+                and.append(fe.toString());
+                and.append(", ");
+            }
+            and.deleteCharAt(and.length() - 1);
+            and.deleteCharAt(and.length() - 1);
+            and.append(" ]");
+        }
+
+        StringBuilder ors = new StringBuilder();
+        if (orQueries != null && orQueries.size() > 0) {
+            ors.append("[ ");
+            for (Query<T> o : orQueries) {
+                ors.append(o.toString());
+                ors.append(", ");
+            }
+            ors.deleteCharAt(ors.length() - 1);
+            ors.deleteCharAt(ors.length() - 1);
+            ors.append(" ]");
+        }
+
+        StringBuilder nors = new StringBuilder();
+        if (norQueries != null && norQueries.size() > 0) {
+            nors.append("[ ");
+            for (Query<T> o : norQueries) {
+                nors.append(o.toString());
+                nors.append(", ");
+            }
+            nors.deleteCharAt(nors.length() - 1);
+            nors.deleteCharAt(nors.length() - 1);
+            nors.append(" ]");
+        }
+
+        return "Query{ " +
+                "collectionName='" + collectionName + '\'' +
+                ", type=" + type.getName() +
+                ", skip=" + skip +
+                ", limit=" + limit +
+                ", andExpr=" + and.toString() +
+                ", orQueries=" + ors +
+                ", norQueries=" + nors +
+                ", sort=" + sort +
+                ", readPreferenceLevel=" + readPreferenceLevel +
+                ", additionalDataPresent=" + additionalDataPresent +
+                ", where='" + where + '\'' +
+                '}';
+    }
 }
