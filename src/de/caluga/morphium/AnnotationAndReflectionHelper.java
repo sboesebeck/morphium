@@ -105,6 +105,11 @@ public class AnnotationAndReflectionHelper {
             return field;
         }
 
+        List<Class> inf=Arrays.asList(clz.getInterfaces());
+        if ((inf.contains(List.class)) || inf.contains(Map.class) || inf.contains(Collection.class) || inf.contains(Set.class) || clz.isArray()) {
+            //not diving into maps
+            return field;
+        }
         Field f = getField(cls, field);
         if (f == null && hasAdditionalData(clz)) {
             return field;

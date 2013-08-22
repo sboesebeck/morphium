@@ -8,6 +8,7 @@ import de.caluga.morphium.async.AsyncOperationCallback;
 import de.caluga.morphium.async.AsyncOperationType;
 import org.apache.log4j.Logger;
 
+import java.lang.reflect.Array;
 import java.lang.reflect.Field;
 import java.util.*;
 import java.util.concurrent.SynchronousQueue;
@@ -266,8 +267,19 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
                 fieldPath.append(fieldNameInstance);
                 fieldPath.append('.');
                 clz = field.getType();
+                if (clz.equals(List.class) || clz.equals(Collection.class) || clz.equals(Array.class) || clz.equals(Set.class) || clz.equals(Map.class)) {
+                    log.error("Cannot check fields in generic lists or maps");
+                    clz=Object.class;
+                }
+                if (clz.equals(Object.class)) {
+                    break;
+                }
             }
-            cf = fieldPath.substring(0, fieldPath.length() - 1);
+            if (clz.equals(Object.class)) {
+                cf=f;
+            } else {
+                cf = fieldPath.substring(0, fieldPath.length() - 1);
+            }
         } else {
             cf = annotationHelper.getFieldName(clz, f);
         }
