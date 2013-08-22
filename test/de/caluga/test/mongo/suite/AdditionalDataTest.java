@@ -37,8 +37,18 @@ public class AdditionalDataTest extends MongoTest {
         assert (d2.additionals != null);
         assert (d2.additionals.get("102-92-93").equals(new Integer(3234)));
         assert (((Map) d2.additionals.get("test")).get("tst").equals("tst"));
+        assert (d2.additionals.get("_id") == null);
+
     }
 
+    @Test
+    public void additionalDataNullTest() throws Exception {
+        AddDat d = new AddDat();
+        d.setCounter(999);
+        d.setAdditionals(null);
+        MorphiumSingleton.get().store(d);
+
+    }
 
     public static class AddDat extends UncachedObject {
         @AdditionalData(readOnly = false)
