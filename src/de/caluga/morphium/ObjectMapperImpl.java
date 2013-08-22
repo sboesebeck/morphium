@@ -155,7 +155,9 @@ public class ObjectMapperImpl implements ObjectMapper {
                 if (ad != null) {
                     if (!ad.readOnly()) {
                         //storing additional data
-                        dbo.putAll((Map<String, Object>) fld.get(o));
+                        if (fld.get(o) != null) {
+                            dbo.putAll((Map<String, Object>) fld.get(o));
+                        }
                     }
                     //additional data is usually transient
                     continue;
@@ -409,6 +411,10 @@ public class ObjectMapperImpl implements ObjectMapper {
                     Map<String, Object> data = new HashMap<String, Object>();
                     for (String k : keys) {
                         if (flds.contains(k)) {
+                            continue;
+                        }
+                        if (k.equals("_id")) {
+                            //id already mapped
                             continue;
                         }
                         data.put(k, o.get(k));
