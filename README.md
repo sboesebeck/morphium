@@ -30,55 +30,54 @@ Quick Start
 ===========
 
 before accessing mongo via morphium, you need to configure morphium. this is done by preparing a MorphiumConfig Object:
-
-`
- cfg = new MorphiumConfig();
- cfg.setDatabase("testdb");
- cfg.addHost("localhost", 27017);
-`
+```java
+  MorphiumConfig cfg = new MorphiumConfig();
+  cfg.setDatabase("testdb");
+  cfg.addHost("localhost", 27017);
+```
 
 you can also configure morphium using properties: new MorphiumConfig(properties); or a json-String: MorphiumConfig cfg = MorphiumConfig.createFromJson(json);
 
 After that, you just need to instancieate morphium:
 
-`
-Morphium m=new Morphium(cfg);
-`
+```
+  Morphium m=new Morphium(cfg);
+```
 
 then you are good to go:
 
-`
-Query<MyEntity> q=m.createQueryFor(MyEntity.class).f("a_field").eq("a value");
-List<MyEntity> lst=q.asList();
-MyEntity ent=q.get();
-...
-m.store(ent);
-`
+```java
+  Query<MyEntity> q=m.createQueryFor(MyEntity.class).f("a_field").eq("a value");
+  List<MyEntity> lst=q.asList();
+  MyEntity ent=q.get();
+  ...
+  m.store(ent);
+```
 
 Defining an Entity is quite simple as well:
 
-`
-@Entity(translateCamelCase = true)
-@Cache
-public class MyEntity {
-  @Id
-  private ObjectId myId; 
+```java
+  @Entity(translateCamelCase = true)
+  @Cache
+  public class MyEntity {
+    @Id
+    private ObjectId myId; 
   
-  private String aField;
+    private String aField;
   
-  private EmbeddedObject emb;
+    private EmbeddedObject emb;
   
-  @Reference
-  private MyEntity otherEntity;
+    @Reference
+    private MyEntity otherEntity;
   
-  ...
-}
-
-@Embedded
-public class EmbeddedObject {
    ...
-}
-`
+  }
+
+  @Embedded
+  public class EmbeddedObject {
+   ...
+  }
+```
 
 All entities need to have an @Id field. If the type is org.bson.types.ObjectId, it will be created by mongo, if not - you need to take care of that.
 References only work to other entities (of course).
