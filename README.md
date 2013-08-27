@@ -55,7 +55,6 @@ then you are good to go:
 ```
 
 Defining an Entity is quite simple as well:
-
 ```java
   @Entity(translateCamelCase = true)
   @Cache
@@ -82,6 +81,37 @@ Defining an Entity is quite simple as well:
 All entities need to have an @Id field. If the type is org.bson.types.ObjectId, it will be created by mongo, if not - you need to take care of that.
 References only work to other entities (of course).
 You can also use Maps, Lists or Arrays, all may also include other Entities or Embedded types.
+
+## Use enum instead of strings for queries
+As using strings to query your object might be a bit error prone, you also can use enums instead of field name strings:
+```java
+   Query<MyEntity> q=m.createQueryFor(MyEntity.class).f(MyEntity.Fields.aField).eq("a value");
+```
+of course, these enums need to be created. have a look at https://github.com/sboesebeck/intelliJGenPropertyEnumsPlugin for a plugin for generating those automatically
+in our example, the result would look like this:
+```java
+  @Entity(translateCamelCase = true)
+  @Cache
+  public class MyEntity {
+    @Id
+    private ObjectId myId; 
+  
+    private String aField;
+  
+    private EmbeddedObject emb;
+  
+    @Reference
+    private MyEntity otherEntity;
+    ...
+    public enum Fields { myId, aField, emb, otherEntity }
+   
+  }
+
+  @Embedded
+  public class EmbeddedObject {
+   ...
+  }
+```
 
 
 This is a very short glance at all the features of Morphium!
