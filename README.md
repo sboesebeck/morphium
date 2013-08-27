@@ -116,7 +116,7 @@ in our example, the result would look like this:
 
 This is a very short glance at all the features of Morphium!
 
-For more information take a closer look at http://code.google.com/p/morphium
+For more information take a closer look at the wiki.
 
 Have fun,
 
