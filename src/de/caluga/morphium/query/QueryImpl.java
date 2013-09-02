@@ -260,6 +260,9 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
             for (String fieldName : fieldNames) {
                 String fieldNameInstance = annotationHelper.getFieldName(clz, fieldName);
                 Field field = annotationHelper.getField(clz, fieldNameInstance);
+                if (field == null) {
+                    throw new IllegalArgumentException("Field " + fieldNameInstance + " not found!");
+                }
                 if (field.isAnnotationPresent(Reference.class)) {
                     //cannot join
                     throw new IllegalArgumentException("cannot subquery references: " + fieldNameInstance + " of type " + clz.getName() + " has @Reference");
@@ -269,14 +272,14 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
                 clz = field.getType();
                 if (clz.equals(List.class) || clz.equals(Collection.class) || clz.equals(Array.class) || clz.equals(Set.class) || clz.equals(Map.class)) {
                     log.error("Cannot check fields in generic lists or maps");
-                    clz=Object.class;
+                    clz = Object.class;
                 }
                 if (clz.equals(Object.class)) {
                     break;
                 }
             }
             if (clz.equals(Object.class)) {
-                cf=f;
+                cf = f;
             } else {
                 cf = fieldPath.substring(0, fieldPath.length() - 1);
             }
