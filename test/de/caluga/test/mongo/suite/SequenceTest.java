@@ -92,7 +92,7 @@ public class SequenceTest extends MongoTest {
         for (int i = 0; i < 10; i++) {
             Thread t = new Thread() {
                 public void run() {
-                    for (int i = 0; i < 100; i++) {
+                    for (int i = 0; i < 25; i++) {
                         long nv = sg1.getNextValue();
                         assert (!data.contains(Long.valueOf(nv))) : "Value already stored? Value: " + nv;
                         data.add(Long.valueOf(nv));
