@@ -20,6 +20,8 @@ public class ReferenceTest extends MongoTest {
 
     @Test
     public void storeReferenceTest() throws Exception {
+        MorphiumSingleton.get().dropCollection(ReferenceContainer.class);
+        Thread.sleep(250);
         UncachedObject uc1 = new UncachedObject();
         uc1.setCounter(1);
         uc1.setValue("Uncached 1");
@@ -43,31 +45,42 @@ public class ReferenceTest extends MongoTest {
         rc.setUc(uc1);
 
         List<UncachedObject> lst = new ArrayList<UncachedObject>();
+        UncachedObject toSearchFor = null;
         for (int i = 0; i < 10; i++) {
             //creating uncached Objects
             UncachedObject uc = new UncachedObject();
             uc.setValue("list value " + i);
             uc.setCounter(i);
-
+            if (i == 4)
+                toSearchFor = uc;
             lst.add(uc);
         }
         MorphiumSingleton.get().storeList(lst);
         rc.setLst(lst);
 
+        UncachedObject toSearchFor2 = null;
         lst = new ArrayList<UncachedObject>();
         for (int i = 0; i < 10; i++) {
             //creating uncached Objects
             UncachedObject uc = new UncachedObject();
             uc.setValue("list value " + i);
             uc.setCounter(i);
-
             lst.add(uc);
+            if (i == 4) {
+                toSearchFor2 = uc;
+            }
         }
 
         rc.setLzyLst(lst);
 
 
         MorphiumSingleton.get().store(rc); //stored
+
+
+        ReferenceContainer rc2 = new ReferenceContainer();
+        rc2.setLst(new ArrayList<UncachedObject>());
+        rc2.setUc(toSearchFor);
+        MorphiumSingleton.get().store(rc2);
 
         //read from db....
 
@@ -83,7 +96,19 @@ public class ReferenceTest extends MongoTest {
         assert (rcRead.getLzyLst().get(0).getClass().getName().contains("$EnhancerByCGLIB$")) : "List not lazy?";
         assert (rcRead.getLzyLst().get(0).getCounter() == rc.getLzyLst().get(0).getCounter()) : "Counter different?!?";
 
+        q = MorphiumSingleton.get().createQueryFor(ReferenceContainer.class).f("lst").eq(toSearchFor);
+        rcRead = q.get();
+        assert (rcRead != null);
+        assert (rcRead.getUc().getCounter() != toSearchFor.getCounter());
+        assert (rcRead.getCo() != null);
+        assert (rcRead.getId().equals(rc.getId()));
 
+        q = MorphiumSingleton.get().createQueryFor(ReferenceContainer.class).f("lzyLst").eq(toSearchFor2);
+        rcRead = q.get();
+        assert (rcRead != null);
+        assert (rcRead.getUc().getCounter() != toSearchFor2.getCounter());
+        assert (rcRead.getCo() != null);
+        assert (rcRead.getId().equals(rc.getId()));
     }
 
 
