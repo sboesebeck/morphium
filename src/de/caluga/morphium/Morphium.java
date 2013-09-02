@@ -145,10 +145,8 @@ public class Morphium {
             }
         }
 
-        config.getConfigManager().setMorphium(this);
         cacheHousekeeper = new CacheHousekeeper(this, 5000, config.getGlobalCacheValidTime());
         cacheHousekeeper.start();
-        config.getConfigManager().startCleanupThread();
         if (config.getWriter() == null) {
             config.setWriter(new MorphiumWriterImpl());
         }
@@ -259,10 +257,6 @@ public class Morphium {
         return config.getDb();
     }
 
-
-    public ConfigManager getConfigManager() {
-        return config.getConfigManager();
-    }
 
     /**
      * search for objects similar to template concerning all given fields.

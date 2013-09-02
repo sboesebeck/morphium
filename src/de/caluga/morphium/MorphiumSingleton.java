@@ -59,12 +59,7 @@ public class MorphiumSingleton {
             }
             synchronized (Morphium.class) {
                 if (instance == null) {
-                    if (config.getConfigManager() == null) {
-                        config.setConfigManager(new ConfigManagerImpl());
-                    }
                     instance = new Morphium(config);
-
-                    instance.getConfig().getConfigManager().setTimeout(config.getConfigManagerCacheTimeout());
                 }
             }
         }
@@ -72,7 +67,7 @@ public class MorphiumSingleton {
     }
 
     public static void set(Morphium m) {
-        config=m.getConfig();
-        instance=m;
+        config = m.getConfig();
+        instance = m;
     }
 }
