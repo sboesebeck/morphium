@@ -86,7 +86,7 @@ public class MongoFieldImpl<T> implements MongoField<T> {
                     } else {
                         id = annotationHelper.getId(val);
                     }
-                    if (field.getType().isAssignableFrom(List.class)) {
+                    if (Collection.class.isAssignableFrom(field.getType())) {
                         // list of references, this should be part of
                         //
                         // need to compare DBRefs

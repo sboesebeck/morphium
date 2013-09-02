@@ -125,7 +125,7 @@ public class ReferenceTest extends MongoTest {
         private CachedObject co;
 
         @Reference
-        List<UncachedObject> lst;
+        ArrayList<UncachedObject> lst;
 
         @Reference(lazyLoading = true)
         List<UncachedObject> lzyLst;
@@ -170,7 +170,7 @@ public class ReferenceTest extends MongoTest {
         }
 
         public void setLst(List<UncachedObject> lst) {
-            this.lst = lst;
+            this.lst = (ArrayList) lst;
         }
 
         public UncachedObject getLazyUc() {
