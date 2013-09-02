@@ -100,11 +100,8 @@ public class MorphiumConfig {
      * login credentials for MongoDB - if necessary. If null, don't authenticate
      */
     private String mongoLogin = null, mongoPassword = null;
-    private int configManagerCacheTimeout = 1000 * 60 * 60; //one hour
     @Transient
     private List<ServerAddress> adr = new Vector<ServerAddress>();
-    @Transient
-    private ConfigManager configManager;
     //securitysettings
 //    private Class<? extends Object> userClass, roleClass, aclClass;
     private String mongoAdminUser, mongoAdminPwd; //THE superuser!
@@ -451,17 +448,6 @@ public class MorphiumConfig {
         this.writer = writer;
     }
 
-    public ConfigManager getConfigManager() {
-        if (configManager == null) {
-            configManager = new ConfigManagerImpl();
-        }
-        return configManager;
-    }
-
-    public void setConfigManager(ConfigManager configManager) {
-        this.configManager = configManager;
-    }
-
     public int getConnectionTimeout() {
         return connectionTimeout;
     }
@@ -556,14 +542,6 @@ public class MorphiumConfig {
 
     public void setMongoAdminPwd(String mongoAdminPwd) {
         this.mongoAdminPwd = mongoAdminPwd;
-    }
-
-    public int getConfigManagerCacheTimeout() {
-        return configManagerCacheTimeout;
-    }
-
-    public void setConfigManagerCacheTimeout(int configManagerCacheTimeout) {
-        this.configManagerCacheTimeout = configManagerCacheTimeout;
     }
 
     public int getWriteCacheTimeout() {
@@ -766,9 +744,6 @@ public class MorphiumConfig {
         }
         if (!defaults.getAggregatorFactory().getClass().equals(getAggregatorFactory().getClass())) {
             p.put("aggregatorFactory_I_ClassName", getAggregatorFactory().getClass().getName());
-        }
-        if (!defaults.getConfigManager().getClass().equals(getConfigManager().getClass())) {
-            p.put("configManager_I_ClassName", getConfigManager().getClass().getName());
         }
         if (!defaults.getIteratorClass().equals(getIteratorClass())) {
             p.put("iteratorClass_C_ClassName", getIteratorClass().getName());

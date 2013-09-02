@@ -1,7 +1,6 @@
 package de.caluga.morphium.cache;
 
 import de.caluga.morphium.AnnotationAndReflectionHelper;
-import de.caluga.morphium.ConfigElement;
 import de.caluga.morphium.Morphium;
 import de.caluga.morphium.MorphiumStorageAdapter;
 import de.caluga.morphium.annotations.Entity;
@@ -143,10 +142,6 @@ public class CacheSynchronizer extends MorphiumStorageAdapter<Object> implements
         Msg m = new Msg(CACHE_SYNC_RECORD, MsgType.MULTI, reason, record.getClass().getName(), 30000);
         if (id != null)
             m.addAdditional(id.toString());
-        if (record.equals(ConfigElement.class)) {
-            messaging.queueMessage(m);
-            return;
-        }
         Cache c = annotationHelper.getAnnotationFromHierarchy(record.getClass(), Cache.class); //(Cache) type.getAnnotation(Cache.class);
         if (c == null) return; //not clearing cache for non-cached objects
         if (c.readCache() && c.clearOnWrite()) {
@@ -185,17 +180,6 @@ public class CacheSynchronizer extends MorphiumStorageAdapter<Object> implements
     public void sendClearMessage(Class type, String reason) {
         if (type.equals(Msg.class)) return;
         Msg m = new Msg(CACHE_SYNC_TYPE, MsgType.MULTI, reason, type.getName(), 30000);
-        if (type.equals(ConfigElement.class)) {
-            try {
-                firePreSendEvent(type, m);
-                messaging.queueMessage(m);
-                firePostSendEvent(type, m);
-            } catch (CacheSyncVetoException e) {
-                log.error("could not send clear cache message: Veto by listener!", e);
-            }
-
-            return;
-        }
         Cache c = annotationHelper.getAnnotationFromHierarchy(type, Cache.class); //(Cache) type.getAnnotation(Cache.class);
         if (c == null) return; //not clearing cache for non-cached objects
         if (c.readCache() && c.clearOnWrite()) {
@@ -303,17 +287,6 @@ public class CacheSynchronizer extends MorphiumStorageAdapter<Object> implements
                     return answer;
                 }
                 Class cls = Class.forName(m.getValue());
-                if (cls.equals(ConfigElement.class)) {
-                    try {
-                        firePreClearEvent(ConfigElement.class, m);
-                        morphium.getConfigManager().reinitSettings();
-                        firePostClearEvent(ConfigElement.class, m);
-                        answer.setMsg("config reread");
-                    } catch (CacheSyncVetoException e) {
-                        log.error("Veto during cache clearance of config", e);
-                    }
-                    return answer;
-                }
                 if (annotationHelper.isAnnotationPresentInHierarchy(cls, Entity.class)) {
                     Cache c = annotationHelper.getAnnotationFromHierarchy(cls, Cache.class); //cls.getAnnotation(Cache.class);
                     if (c != null) {
