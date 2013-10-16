@@ -23,6 +23,7 @@ public class ProfilingTester extends MongoTest {
         ProfilingListener pl = new ProfilingListener() {
             @Override
             public void readAccess(Query query, long time, ReadAccessType t) {
+                log.info("Read from Server: " + query.getServer().getHost() + ":" + query.getServer().getPort());
                 readAccess = true;
                 readTime = time;
             }
@@ -42,10 +43,11 @@ public class ProfilingTester extends MongoTest {
         MorphiumSingleton.get().store(uc);
         assert (writeAccess);
         assert (writeTime > -1);
-
-        MorphiumSingleton.get().createQueryFor(UncachedObject.class).get();
-        assert (readAccess);
-        assert (readTime > -1);
+        for (int i = 0; i < 100; i++) {
+            MorphiumSingleton.get().createQueryFor(UncachedObject.class).get();
+            assert (readAccess);
+            assert (readTime > -1);
+        }
         MorphiumSingleton.get().removeProfilingListener(pl);
     }
 }

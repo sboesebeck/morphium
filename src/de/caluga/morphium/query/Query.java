@@ -1,6 +1,7 @@
 package de.caluga.morphium.query;
 
 import com.mongodb.DBObject;
+import com.mongodb.ServerAddress;
 import de.caluga.morphium.FilterExpression;
 import de.caluga.morphium.Morphium;
 import de.caluga.morphium.annotations.ReadPreferenceLevel;
@@ -44,6 +45,11 @@ public interface Query<T> extends Cloneable {
      */
     public MongoField<T> f(String f);
 
+    /**
+     * returns the serveraddress the query was executed on
+     * @return the serveraddress the query was executed on, null if not executed yet
+     */
+    public ServerAddress getServer();
 
     /**
      * same as f(field.name())
