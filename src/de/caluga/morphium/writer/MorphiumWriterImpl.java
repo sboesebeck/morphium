@@ -38,7 +38,6 @@ public class MorphiumWriterImpl implements MorphiumWriter {
             60L, TimeUnit.SECONDS,
             new SynchronousQueue<Runnable>());
 
-
     @Override
     public void setMaximumQueingTries(int n) {
         maximumRetries = n;
@@ -60,7 +59,6 @@ public class MorphiumWriterImpl implements MorphiumWriter {
             annotationHelper = new AnnotationAndReflectionHelper();
         }
     }
-
 
     /**
      * @param obj - object to store
@@ -117,16 +115,24 @@ public class MorphiumWriterImpl implements MorphiumWriter {
                             } else {
                                 long now = System.currentTimeMillis();
                                 for (String ctf : lst) {
+                                    Object val = null;
+
                                     Field f = annotationHelper.getField(type, ctf);
+                                    if (f.getType().equals(long.class) || f.getType().equals(Long.class)) {
+                                        val = new Long(now);
+                                    } else if (f.getType().equals(Date.class)) {
+                                        val = new Date(now);
+                                    }
+
                                     if (f != null) {
                                         try {
-                                            f.set(o, now);
+                                            f.set(o, val);
                                         } catch (IllegalAccessException e) {
                                             logger.error("Could not set creation time", e);
 
                                         }
                                     }
-                                    marshall.put(ctf, now);
+                                    marshall.put(ctf, new Date(now));
                                 }
 
                             }
@@ -136,18 +142,26 @@ public class MorphiumWriterImpl implements MorphiumWriter {
                     if (annotationHelper.isAnnotationPresentInHierarchy(type, LastChange.class)) {
                         List<String> lst = annotationHelper.getFields(type, LastChange.class);
                         if (lst != null && lst.size() > 0) {
+                            long now = System.currentTimeMillis();
                             for (String ctf : lst) {
-                                long now = System.currentTimeMillis();
+                                Object val = null;
+
                                 Field f = annotationHelper.getField(type, ctf);
+                                if (f.getType().equals(long.class) || f.getType().equals(Long.class)) {
+                                    val = new Long(now);
+                                } else if (f.getType().equals(Date.class)) {
+                                    val = new Date(now);
+                                }
+
                                 if (f != null) {
                                     try {
-                                        f.set(o, now);
+                                        f.set(o, val);
                                     } catch (IllegalAccessException e) {
                                         logger.error("Could not set modification time", e);
 
                                     }
                                 }
-                                marshall.put(ctf, now);
+                                marshall.put(ctf, new Date(now));
                             }
                         } else {
                             logger.warn("Could not store last change - @LastChange missing!");
@@ -475,7 +489,6 @@ public class MorphiumWriterImpl implements MorphiumWriter {
         }
     }
 
-
     @Override
     public <T> void set(final T toSet, final String collection, final String field, final Object v, final boolean insertIfNotExist, final boolean multiple, AsyncOperationCallback<T> callback) {
         WriterTask<T> r = new WriterTask<T>() {
@@ -544,7 +557,6 @@ public class MorphiumWriterImpl implements MorphiumWriter {
         };
         submitAndBlockIfNecessary(callback, r);
     }
-
 
     public <T> void submitAndBlockIfNecessary(AsyncOperationCallback<T> callback, WriterTask<T> r) {
         if (callback == null) {
@@ -676,7 +688,6 @@ public class MorphiumWriterImpl implements MorphiumWriter {
         };
         submitAndBlockIfNecessary(callback, r);
     }
-
 
     @SuppressWarnings("SuspiciousMethodCalls")
     @Override
@@ -978,7 +989,6 @@ public class MorphiumWriterImpl implements MorphiumWriter {
         submitAndBlockIfNecessary(callback, r);
     }
 
-
     @Override
     public <T> void inc(final Query<T> query, final String field, final double amount, final boolean insertIfNotExist, final boolean multiple, AsyncOperationCallback<T> callback) {
         WriterTask r = new WriterTask() {
@@ -1034,7 +1044,6 @@ public class MorphiumWriterImpl implements MorphiumWriter {
         };
         submitAndBlockIfNecessary(callback, r);
     }
-
 
     /**
      * will change an entry in mongodb-collection corresponding to given class object
@@ -1250,12 +1259,10 @@ public class MorphiumWriterImpl implements MorphiumWriter {
         submitAndBlockIfNecessary(callback, r);
     }
 
-
     @Override
     public <T> void unset(Query<T> query, String field, boolean multiple, AsyncOperationCallback<T> callback) {
         unset(query, callback, multiple, field);
     }
-
 
     @Override
     public <T> void pushPull(final boolean push, final Query<T> query, final String field, final Object value, final boolean insertIfNotExist, final boolean multiple, AsyncOperationCallback<T> callback) {
@@ -1342,7 +1349,6 @@ public class MorphiumWriterImpl implements MorphiumWriter {
         }
         return value;
     }
-
 
     private void pushIt(boolean push, boolean insertIfNotExist, boolean multiple, Class<?> cls, String coll, DBObject qobj, BasicDBObject update) {
 
@@ -1432,7 +1438,6 @@ public class MorphiumWriterImpl implements MorphiumWriter {
         };
         submitAndBlockIfNecessary(callback, r);
     }
-
 
     @Override
     public <T> void dropCollection(final Class<T> cls, final String collection, AsyncOperationCallback<T> callback) {
