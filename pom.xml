@@ -93,6 +93,7 @@
                 <configuration>
                     <failOnError>false</failOnError>
                     <javadocExecutable>${java.home}/../bin/javadoc</javadocExecutable>
+                    <additionalJOption>-J-Xmx2048m</additionalJOption>
                 </configuration>
                 <executions>
                     <execution>
