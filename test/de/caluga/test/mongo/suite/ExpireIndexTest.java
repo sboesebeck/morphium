@@ -12,7 +12,6 @@ import java.util.Date;
  * User: stephan
  * Date: 06.11.13
  * Time: 14:33
- * To change this template use File | Settings | File Templates.
  */
 public class ExpireIndexTest extends MongoTest {
     @Test
