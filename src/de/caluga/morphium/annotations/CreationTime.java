@@ -24,4 +24,5 @@ import static java.lang.annotation.ElementType.FIELD;
 @Target({FIELD, ElementType.TYPE})
 @Retention(RetentionPolicy.RUNTIME)
 public @interface CreationTime {
+    boolean checkForNew() default false;
 }

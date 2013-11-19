@@ -102,14 +102,31 @@ public class MorphiumWriterImpl implements MorphiumWriter {
                         return;
                     }
                     boolean isNew = id == null;
-                    morphium.firePreStoreEvent(o, isNew);
+                    Object reread = null;
+                    if (id != null && morphium.getConfig().isCheckForNew() && !morphium.getARHelper().getIdField(o).getType().equals(ObjectId.class)) {
+                        //check if it exists
+                        reread = morphium.findById(o.getClass(), id);
+                        isNew = reread == null;
+                    }
 
-                    DBObject marshall = morphium.getMapper().marshall(o);
 
-                    if (isNew) {
-                        //new object - need to store creation time
-                        if (annotationHelper.isAnnotationPresentInHierarchy(type, CreationTime.class)) {
-                            List<String> lst = annotationHelper.getFields(type, CreationTime.class);
+                    //new object - need to store creation time
+                    if (annotationHelper.isAnnotationPresentInHierarchy(type, CreationTime.class)) {
+                        List<String> lst = annotationHelper.getFields(type, CreationTime.class);
+                        for (String fld : lst) {
+                            CreationTime ct = annotationHelper.getField(o.getClass(), fld).getAnnotation(CreationTime.class);
+                            if (ct.checkForNew() && reread == null) {
+                                reread = morphium.findById(o.getClass(), id);
+                            }
+                            if (reread == null) {
+                                isNew = true;
+                            } else {
+                                Object value = annotationHelper.getField(o.getClass(), fld).get(reread);
+                                annotationHelper.getField(o.getClass(), fld).set(o, value);
+                                isNew = false;
+                            }
+                        }
+                        if (isNew) {
                             if (lst == null || lst.size() == 0) {
                                 logger.error("Unable to store creation time as @CreationTime is missing");
                             } else {
@@ -132,13 +149,18 @@ public class MorphiumWriterImpl implements MorphiumWriter {
 
                                         }
                                     }
-                                    marshall.put(ctf, new Date(now));
+
                                 }
 
                             }
 
                         }
                     }
+
+                    morphium.firePreStoreEvent(o, isNew);
+
+                    DBObject marshall = morphium.getMapper().marshall(o);
+
                     if (annotationHelper.isAnnotationPresentInHierarchy(type, LastChange.class)) {
                         List<String> lst = annotationHelper.getFields(type, LastChange.class);
                         if (lst != null && lst.size() > 0) {
@@ -302,7 +324,13 @@ public class MorphiumWriterImpl implements MorphiumWriter {
         HashMap<Object, Boolean> isNew = new HashMap<Object, Boolean>();
         for (Object record : lst) {
             DBObject marshall = morphium.getMapper().marshall(record);
-            isNew.put(record, annotationHelper.getId(record) == null);
+            Object id = annotationHelper.getId(record);
+            boolean isn = id == null;
+            if (!isn && morphium.getConfig().isCheckForNew() && !annotationHelper.getIdField(record).getType().equals(ObjectId.class)) {
+                //check if it exists
+                isn = morphium.findById(record.getClass(), id) == null;
+            }
+            isNew.put(record, isn);
             if (isNew.get(record)) {
                 dbLst.add(marshall);
             } else {
