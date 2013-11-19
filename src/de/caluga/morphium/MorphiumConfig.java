@@ -65,6 +65,7 @@ public class MorphiumConfig {
     private boolean safeMode = false;
     private boolean globalFsync = false;
     private boolean globalJ = false;
+    private boolean checkForNew = false;
     private int writeTimeout = 0;
     //maximum number of tries to queue a write operation
     private int maximumRetriesBufferedWriter = 10;
@@ -178,6 +179,14 @@ public class MorphiumConfig {
         configureLogging();
 
 
+    }
+
+    public boolean isCheckForNew() {
+        return checkForNew;
+    }
+
+    public void setCheckForNew(boolean checkForNew) {
+        this.checkForNew = checkForNew;
     }
 
     public String getLoggingConfigFile() {
