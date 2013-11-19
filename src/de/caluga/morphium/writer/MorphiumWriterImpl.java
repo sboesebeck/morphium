@@ -114,15 +114,16 @@ public class MorphiumWriterImpl implements MorphiumWriter {
                     if (annotationHelper.isAnnotationPresentInHierarchy(type, CreationTime.class)) {
                         List<String> lst = annotationHelper.getFields(type, CreationTime.class);
                         for (String fld : lst) {
-                            CreationTime ct = annotationHelper.getField(o.getClass(), fld).getAnnotation(CreationTime.class);
-                            if (ct.checkForNew() && reread == null) {
+                            Field field = annotationHelper.getField(o.getClass(), fld);
+                            CreationTime ct = field.getAnnotation(CreationTime.class);
+                            if (ct.checkForNew() && reread == null && !field.getType().equals(ObjectId.class)) {
                                 reread = morphium.findById(o.getClass(), id);
                             }
                             if (reread == null) {
                                 isNew = true;
                             } else {
-                                Object value = annotationHelper.getField(o.getClass(), fld).get(reread);
-                                annotationHelper.getField(o.getClass(), fld).set(o, value);
+                                Object value = field.get(reread);
+                                field.set(o, value);
                                 isNew = false;
                             }
                         }
@@ -157,9 +158,6 @@ public class MorphiumWriterImpl implements MorphiumWriter {
                         }
                     }
 
-                    morphium.firePreStoreEvent(o, isNew);
-
-                    DBObject marshall = morphium.getMapper().marshall(o);
 
                     if (annotationHelper.isAnnotationPresentInHierarchy(type, LastChange.class)) {
                         List<String> lst = annotationHelper.getFields(type, LastChange.class);
@@ -183,13 +181,16 @@ public class MorphiumWriterImpl implements MorphiumWriter {
 
                                     }
                                 }
-                                marshall.put(ctf, new Date(now));
                             }
                         } else {
                             logger.warn("Could not store last change - @LastChange missing!");
                         }
 
                     }
+
+                    morphium.firePreStoreEvent(o, isNew);
+
+                    DBObject marshall = morphium.getMapper().marshall(o);
 
                     String coll = collection;
                     if (coll == null) {
