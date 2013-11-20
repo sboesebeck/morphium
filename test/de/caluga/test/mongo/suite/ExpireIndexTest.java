@@ -16,16 +16,17 @@ import java.util.Date;
 public class ExpireIndexTest extends MongoTest {
     @Test
     public void testExpiry() throws InterruptedException {
+        MorphiumSingleton.get().dropCollection(UCobj.class);
         for (int i = 0; i < 100; i++) {
             UCobj u = new UCobj();
             u.setCounter(i);
             u.setValue("V" + i);
             MorphiumSingleton.get().store(u);
         }
-        assert (MorphiumSingleton.get().createQueryFor(UCobj.class).countAll() == 200);
+        assert (MorphiumSingleton.get().createQueryFor(UCobj.class).countAll() == 100);
         log.info("Waiting for mongo to clear it");
-//        Thread.sleep(65000);
-//        assert (MorphiumSingleton.get().createQueryFor(UCobj.class).countAll() == 0);
+        Thread.sleep(65000);
+        assert (MorphiumSingleton.get().createQueryFor(UCobj.class).countAll() == 0);
     }
 
     @Index(value = {"created"}, options = {"expireAfterSeconds:5"})
