@@ -1511,7 +1511,29 @@ public class Morphium {
             for (String idx : f.split(",")) {
                 if (idx.contains(":")) {
                     String i[] = idx.split(":");
-                    m.put(i[0].replaceAll(" ", ""), i[1].replaceAll(" ", ""));
+                    String value = i[1].replaceAll(" ", "");
+                    String key = i[0].replaceAll(" ", "");
+                    if (value.matches("^['\"].*['\"]$")) {
+                        m.put(key, value);
+                    } else {
+                        try {
+                            int v = Integer.parseInt(value);
+                            m.put(key, v);
+                        } catch (NumberFormatException e) {
+                            try {
+                                long l = Long.parseLong(value);
+                                m.put(key, l);
+                            } catch (NumberFormatException ex) {
+                                try {
+                                    double d = Double.parseDouble(value);
+                                    m.put(key, d);
+                                } catch (NumberFormatException e1) {
+                                    m.put(key, value);
+                                }
+                            }
+                        }
+                    }
+
                 } else {
                     idx = idx.replaceAll(" ", "");
                     if (idx.startsWith("-")) {
