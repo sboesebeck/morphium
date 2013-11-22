@@ -103,90 +103,15 @@ public class MorphiumWriterImpl implements MorphiumWriter {
                     }
                     boolean isNew = id == null;
                     Object reread = null;
-                    if (id != null && morphium.getConfig().isCheckForNew() && !morphium.getARHelper().getIdField(o).getType().equals(ObjectId.class)) {
+                    CreationTime creationTime = annotationHelper.getAnnotationFromHierarchy(type, CreationTime.class);
+                    if (id != null && (morphium.getConfig().isCheckForNew() || (creationTime != null && creationTime.checkForNew()))
+                            && !annotationHelper.getIdField(o).getType().equals(ObjectId.class)) {
                         //check if it exists
                         reread = morphium.findById(o.getClass(), id);
                         isNew = reread == null;
                     }
+                    isNew = setAutoValues(o, type, id, isNew, reread);
 
-
-                    //new object - need to store creation time
-                    if (annotationHelper.isAnnotationPresentInHierarchy(type, CreationTime.class)) {
-                        List<String> lst = annotationHelper.getFields(type, CreationTime.class);
-                        for (String fld : lst) {
-                            Field field = annotationHelper.getField(o.getClass(), fld);
-                            CreationTime ct = field.getAnnotation(CreationTime.class);
-                            if (ct.checkForNew() && reread == null && !field.getType().equals(ObjectId.class)) {
-                                reread = morphium.findById(o.getClass(), id);
-                            }
-                            if (reread == null) {
-                                isNew = true;
-                            } else {
-                                Object value = field.get(reread);
-                                field.set(o, value);
-                                isNew = false;
-                            }
-                        }
-                        if (isNew) {
-                            if (lst == null || lst.size() == 0) {
-                                logger.error("Unable to store creation time as @CreationTime is missing");
-                            } else {
-                                long now = System.currentTimeMillis();
-                                for (String ctf : lst) {
-                                    Object val = null;
-
-                                    Field f = annotationHelper.getField(type, ctf);
-                                    if (f.getType().equals(long.class) || f.getType().equals(Long.class)) {
-                                        val = new Long(now);
-                                    } else if (f.getType().equals(Date.class)) {
-                                        val = new Date(now);
-                                    }
-
-                                    if (f != null) {
-                                        try {
-                                            f.set(o, val);
-                                        } catch (IllegalAccessException e) {
-                                            logger.error("Could not set creation time", e);
-
-                                        }
-                                    }
-
-                                }
-
-                            }
-
-                        }
-                    }
-
-
-                    if (annotationHelper.isAnnotationPresentInHierarchy(type, LastChange.class)) {
-                        List<String> lst = annotationHelper.getFields(type, LastChange.class);
-                        if (lst != null && lst.size() > 0) {
-                            long now = System.currentTimeMillis();
-                            for (String ctf : lst) {
-                                Object val = null;
-
-                                Field f = annotationHelper.getField(type, ctf);
-                                if (f.getType().equals(long.class) || f.getType().equals(Long.class)) {
-                                    val = new Long(now);
-                                } else if (f.getType().equals(Date.class)) {
-                                    val = new Date(now);
-                                }
-
-                                if (f != null) {
-                                    try {
-                                        f.set(o, val);
-                                    } catch (IllegalAccessException e) {
-                                        logger.error("Could not set modification time", e);
-
-                                    }
-                                }
-                            }
-                        } else {
-                            logger.warn("Could not store last change - @LastChange missing!");
-                        }
-
-                    }
 
                     morphium.firePreStoreEvent(o, isNew);
 
@@ -315,6 +240,87 @@ public class MorphiumWriterImpl implements MorphiumWriter {
         submitAndBlockIfNecessary(callback, r);
     }
 
+    private <T> boolean setAutoValues(T o, Class type, Object id, boolean aNew, Object reread) throws IllegalAccessException {
+        //new object - need to store creation time
+        if (annotationHelper.isAnnotationPresentInHierarchy(type, CreationTime.class)) {
+            List<String> lst = annotationHelper.getFields(type, CreationTime.class);
+            for (String fld : lst) {
+                Field field = annotationHelper.getField(o.getClass(), fld);
+                CreationTime ct = field.getAnnotation(CreationTime.class);
+                if (ct.checkForNew() && reread == null && !field.getType().equals(ObjectId.class)) {
+                    reread = morphium.findById(o.getClass(), id);
+                }
+                if (reread == null) {
+                    aNew = true;
+                } else {
+                    Object value = field.get(reread);
+                    field.set(o, value);
+                    aNew = false;
+                }
+            }
+            if (aNew) {
+                if (lst == null || lst.size() == 0) {
+                    logger.error("Unable to store creation time as @CreationTime is missing");
+                } else {
+                    long now = System.currentTimeMillis();
+                    for (String ctf : lst) {
+                        Object val = null;
+
+                        Field f = annotationHelper.getField(type, ctf);
+                        if (f.getType().equals(long.class) || f.getType().equals(Long.class)) {
+                            val = new Long(now);
+                        } else if (f.getType().equals(Date.class)) {
+                            val = new Date(now);
+                        }
+
+                        if (f != null) {
+                            try {
+                                f.set(o, val);
+                            } catch (IllegalAccessException e) {
+                                logger.error("Could not set creation time", e);
+
+                            }
+                        }
+
+                    }
+
+                }
+
+            }
+        }
+
+
+        if (annotationHelper.isAnnotationPresentInHierarchy(type, LastChange.class)) {
+            List<String> lst = annotationHelper.getFields(type, LastChange.class);
+            if (lst != null && lst.size() > 0) {
+                long now = System.currentTimeMillis();
+                for (String ctf : lst) {
+                    Object val = null;
+
+                    Field f = annotationHelper.getField(type, ctf);
+                    if (f.getType().equals(long.class) || f.getType().equals(Long.class)) {
+                        val = new Long(now);
+                    } else if (f.getType().equals(Date.class)) {
+                        val = new Date(now);
+                    }
+
+                    if (f != null) {
+                        try {
+                            f.set(o, val);
+                        } catch (IllegalAccessException e) {
+                            logger.error("Could not set modification time", e);
+
+                        }
+                    }
+                }
+            } else {
+                logger.warn("Could not store last change - @LastChange missing!");
+            }
+
+        }
+        return aNew;
+    }
+
     @Override
     public <T> void store(final List<T> lst, String collectionName, AsyncOperationCallback<T> callback) {
         if (lst == null || lst.size() == 0) return;
@@ -327,9 +333,18 @@ public class MorphiumWriterImpl implements MorphiumWriter {
             DBObject marshall = morphium.getMapper().marshall(record);
             Object id = annotationHelper.getId(record);
             boolean isn = id == null;
-            if (!isn && morphium.getConfig().isCheckForNew() && !annotationHelper.getIdField(record).getType().equals(ObjectId.class)) {
+            Object reread = null;
+            CreationTime creationTime = annotationHelper.getAnnotationFromHierarchy(record.getClass(), CreationTime.class);
+            if (!isn && (morphium.getConfig().isCheckForNew() || (creationTime != null && creationTime.checkForNew()))
+                    && !annotationHelper.getIdField(record).getType().equals(ObjectId.class)) {
                 //check if it exists
-                isn = morphium.findById(record.getClass(), id) == null;
+                reread = morphium.findById(record.getClass(), id);
+                isn = reread == null;
+            }
+            try {
+                isn = setAutoValues(record, record.getClass(), id, isn, reread);
+            } catch (IllegalAccessException e) {
+                e.printStackTrace();  //To change body of catch statement use File | Settings | File Templates.
             }
             isNew.put(record, isn);
             if (isNew.get(record)) {
@@ -547,8 +562,36 @@ public class MorphiumWriterImpl implements MorphiumWriter {
                 String fieldName = annotationHelper.getFieldName(cls, field);
 
                 BasicDBObject update = new BasicDBObject("$set", new BasicDBObject(fieldName, value));
+                List<String> lastChangeFields = annotationHelper.getFields(cls, LastChange.class);
+                if (lastChangeFields != null && lastChangeFields.size() != 0) {
+                    for (String fL : lastChangeFields) {
+                        Field fld = annotationHelper.getField(cls, fL);
+                        if (fld.getType().equals(Date.class)) {
+                            ((BasicDBObject) update.get("$set")).put(fL, new Date());
+                        } else {
+                            ((BasicDBObject) update.get("$set")).put(fL, System.currentTimeMillis());
+                        }
+                    }
+                }
 
-                WriteConcern wc = morphium.getWriteConcernForClass(toSet.getClass());
+                List<String> creationTimeFields = annotationHelper.getFields(cls, CreationTime.class);
+                if (insertIfNotExist && creationTimeFields != null && creationTimeFields.size() != 0) {
+                    long cnt = morphium.getDatabase().getCollection(coll).count(query);
+                    if (cnt == 0) {
+                        //not found, would insert
+                        for (String fL : creationTimeFields) {
+                            Field fld = annotationHelper.getField(cls, fL);
+                            if (fld.getType().equals(Date.class)) {
+                                ((BasicDBObject) update.get("$set")).put(fL, new Date());
+                            } else {
+                                ((BasicDBObject) update.get("$set")).put(fL, System.currentTimeMillis());
+                            }
+                        }
+                    }
+                }
+
+
+                WriteConcern wc = morphium.getWriteConcernForClass(cls);
                 long start = System.currentTimeMillis();
 
                 try {
@@ -557,6 +600,7 @@ public class MorphiumWriterImpl implements MorphiumWriter {
                             if (insertIfNotExist && !morphium.getDatabase().collectionExists(coll)) {
                                 morphium.ensureIndicesFor(cls, coll, callback);
                             }
+
                             if (wc == null) {
                                 morphium.getDatabase().getCollection(coll).update(query, update, insertIfNotExist, multiple);
                             } else {
@@ -1087,7 +1131,7 @@ public class MorphiumWriterImpl implements MorphiumWriter {
      */
     @Override
     public <T> void set(final Query<T> query, final Map<String, Object> values, final boolean insertIfNotExist, final boolean multiple, AsyncOperationCallback<T> callback) {
-        WriterTask r = new WriterTask() {
+        WriterTask $set = new WriterTask() {
             private AsyncOperationCallback<T> callback;
 
             @Override
@@ -1105,13 +1149,39 @@ public class MorphiumWriterImpl implements MorphiumWriter {
                     String fieldName = annotationHelper.getFieldName(cls, ef.getKey());
                     toSet.put(fieldName, marshallIfNecessary(ef.getValue()));
                 }
+                BasicDBObject update = new BasicDBObject("$set", toSet);
                 DBObject qobj = query.toQueryObject();
                 if (insertIfNotExist) {
                     qobj = morphium.simplifyQueryObject(qobj);
+                    List<String> creationTimeFlds = annotationHelper.getFields(cls, CreationTime.class);
+                    if (creationTimeFlds != null && creationTimeFlds.size() != 0 && morphium.getDatabase().getCollection(coll).find(qobj).count() == 0) {
+                        if (creationTimeFlds != null && creationTimeFlds.size() != 0) {
+                            for (String fL : creationTimeFlds) {
+                                Field fld = annotationHelper.getField(cls, fL);
+                                if (fld.getType().equals(Date.class)) {
+                                    ((BasicDBObject) update.get("$set")).put(fL, new Date());
+                                } else {
+                                    ((BasicDBObject) update.get("$set")).put(fL, System.currentTimeMillis());
+                                }
+                            }
+                        }
+                    }
                 }
 
 
-                BasicDBObject update = new BasicDBObject("$set", toSet);
+                List<String> latChangeFlds = annotationHelper.getFields(cls, LastChange.class);
+                if (latChangeFlds != null && latChangeFlds.size() != 0) {
+                    for (String fL : latChangeFlds) {
+                        Field fld = annotationHelper.getField(cls, fL);
+                        if (fld.getType().equals(Date.class)) {
+                            ((BasicDBObject) update.get("$set")).put(fL, new Date());
+                        } else {
+                            ((BasicDBObject) update.get("$set")).put(fL, System.currentTimeMillis());
+                        }
+                    }
+                }
+
+
                 WriteConcern wc = morphium.getWriteConcernForClass(cls);
                 long start = System.currentTimeMillis();
                 try {
@@ -1142,6 +1212,7 @@ public class MorphiumWriterImpl implements MorphiumWriter {
                 }
             }
         };
+        WriterTask r = $set;
         submitAndBlockIfNecessary(callback, r);
     }
 
@@ -1265,6 +1336,26 @@ public class MorphiumWriterImpl implements MorphiumWriter {
                         } catch (Throwable t) {
                             morphium.handleNetworkError(i, t);
                         }
+
+                        List<String> lastChangeFields = annotationHelper.getFields(cls, LastChange.class);
+                        if (lastChangeFields != null && lastChangeFields.size() != 0) {
+                            update = new BasicDBObject("$set", new BasicDBObject());
+                            for (String fL : lastChangeFields) {
+                                Field fld = annotationHelper.getField(cls, fL);
+                                if (fld.getType().equals(Date.class)) {
+                                    ((BasicDBObject) update.get("$set")).put(fL, new Date());
+                                } else {
+                                    ((BasicDBObject) update.get("$set")).put(fL, System.currentTimeMillis());
+                                }
+                            }
+                            if (wc == null) {
+                                morphium.getDatabase().getCollection(coll).update(query, update);
+                            } else {
+                                morphium.getDatabase().getCollection(coll).update(query, update, false, false, wc);
+                            }
+
+                        }
+
                     }
                     long dur = System.currentTimeMillis() - start;
                     morphium.fireProfilingWriteEvent(toSet.getClass(), update, dur, false, WriteAccessType.SINGLE_UPDATE);
@@ -1381,6 +1472,42 @@ public class MorphiumWriterImpl implements MorphiumWriter {
 
     private void pushIt(boolean push, boolean insertIfNotExist, boolean multiple, Class<?> cls, String coll, DBObject qobj, BasicDBObject update) {
 
+        List<String> lastChangeFields = annotationHelper.getFields(cls, LastChange.class);
+        if (lastChangeFields != null && lastChangeFields.size() != 0) {
+            update.put("$set", new BasicDBObject());
+            for (String fL : lastChangeFields) {
+                Field fld = annotationHelper.getField(cls, fL);
+
+                if (fld.getType().equals(Date.class)) {
+
+                    ((BasicDBObject) update.get("$set")).put(fL, new Date());
+                } else {
+                    ((BasicDBObject) update.get("$set")).put(fL, System.currentTimeMillis());
+                }
+            }
+        }
+        if (insertIfNotExist) {
+            List<String> creationTimeFields = annotationHelper.getFields(cls, CreationTime.class);
+            if (insertIfNotExist && creationTimeFields != null && creationTimeFields.size() != 0) {
+                long cnt = morphium.getDatabase().getCollection(coll).count(qobj);
+                if (cnt == 0) {
+                    //not found, would insert
+                    if (update.get("$set") == null) {
+                        update.put("$set", new BasicDBObject());
+                    }
+                    for (String fL : creationTimeFields) {
+                        Field fld = annotationHelper.getField(cls, fL);
+
+                        if (fld.getType().equals(Date.class)) {
+                            ((BasicDBObject) update.get("$set")).put(fL, new Date());
+                        } else {
+                            ((BasicDBObject) update.get("$set")).put(fL, System.currentTimeMillis());
+                        }
+                    }
+                }
+            }
+        }
+
         WriteConcern wc = morphium.getWriteConcernForClass(cls);
         long start = System.currentTimeMillis();
         for (int i = 0; i < morphium.getConfig().getRetriesOnNetworkError(); i++) {
@@ -1436,6 +1563,43 @@ public class MorphiumWriterImpl implements MorphiumWriter {
                     field = annotationHelper.getFieldName(cls, field);
                     BasicDBObject set = new BasicDBObject(field, value);
                     BasicDBObject update = new BasicDBObject(push ? "$pushAll" : "$pullAll", set);
+
+                    List<String> lastChangeFields = annotationHelper.getFields(cls, LastChange.class);
+                    if (lastChangeFields != null && lastChangeFields.size() != 0) {
+                        update.put("$set", new BasicDBObject());
+                        for (String fL : lastChangeFields) {
+                            Field fld = annotationHelper.getField(cls, fL);
+
+                            if (fld.getType().equals(Date.class)) {
+
+                                ((BasicDBObject) update.get("$set")).put(fL, new Date());
+                            } else {
+                                ((BasicDBObject) update.get("$set")).put(fL, System.currentTimeMillis());
+                            }
+                        }
+                    }
+                    if (insertIfNotExist) {
+                        List<String> creationTimeFields = annotationHelper.getFields(cls, CreationTime.class);
+                        if (insertIfNotExist && creationTimeFields != null && creationTimeFields.size() != 0) {
+                            long cnt = morphium.getDatabase().getCollection(coll).count(qobj);
+                            if (cnt == 0) {
+                                //not found, would insert
+                                if (update.get("$set") == null) {
+                                    update.put("$set", new BasicDBObject());
+                                }
+                                for (String fL : creationTimeFields) {
+                                    Field fld = annotationHelper.getField(cls, fL);
+
+                                    if (fld.getType().equals(Date.class)) {
+                                        ((BasicDBObject) update.get("$set")).put(fL, new Date());
+                                    } else {
+                                        ((BasicDBObject) update.get("$set")).put(fL, System.currentTimeMillis());
+                                    }
+                                }
+                            }
+                        }
+                    }
+
                     WriteConcern wc = morphium.getWriteConcernForClass(cls);
                     for (int i = 0; i < morphium.getConfig().getRetriesOnNetworkError(); i++) {
                         try {

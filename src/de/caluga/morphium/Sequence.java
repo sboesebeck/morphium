@@ -2,6 +2,7 @@ package de.caluga.morphium;
 
 import de.caluga.morphium.annotations.*;
 import de.caluga.morphium.annotations.caching.NoCache;
+import org.bson.types.ObjectId;
 
 
 /**
@@ -21,7 +22,7 @@ import de.caluga.morphium.annotations.caching.NoCache;
 @DefaultReadPreference(ReadPreferenceLevel.PRIMARY)
 public class Sequence {
     @Id
-    private Object id;
+    private ObjectId id;
     @Index
     private String name;
     private Long currentValue;
@@ -66,7 +67,7 @@ public class Sequence {
         return id;
     }
 
-    public void setId(Object id) {
+    public void setId(ObjectId id) {
         this.id = id;
     }
 

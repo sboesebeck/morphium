@@ -650,7 +650,11 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
                 Field f = annotationHelper.getField(type, ctf);
                 if (f != null) {
                     try {
-                        f.set(unmarshall, System.currentTimeMillis());
+                        if (f.getType().equals(Date.class)) {
+                            f.set(unmarshall, new Date());
+                        } else {
+                            f.set(unmarshall, System.currentTimeMillis());
+                        }
                     } catch (IllegalAccessException e) {
                         System.out.println("Could not set modification time");
 
