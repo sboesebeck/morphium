@@ -1513,7 +1513,7 @@ public class Morphium {
                     String i[] = idx.split(":");
                     String value = i[1].replaceAll(" ", "");
                     String key = i[0].replaceAll(" ", "");
-                    if (value.matches("^['\"].*['\"]$")) {
+                    if (value.matches("^['\"].*['\"]$") || value.equals("2d")) {
                         m.put(key, value);
                     } else {
                         try {
