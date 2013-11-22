@@ -39,7 +39,7 @@ public class MorphiumConfigTest extends MongoTest {
 
     @Test
     public void partialJsonTest() throws Exception {
-        String json = "{ \"hosts\":\"mongo1:27018, mongo2:27099\", \"database\" : \"testdb\", \"safe_mode\" : true , \"global_fsync\" : false , \"globalJ\" : false , \"write_timeout\" : 9990 }";
+        String json = "{ \"hosts\":\"localhost:27018, localhost:27099\", \"database\" : \"testdb\", \"safe_mode\" : true , \"global_fsync\" : false , \"globalJ\" : false , \"write_timeout\" : 9990 }";
         MorphiumConfig cfg = MorphiumConfig.createFromJson(json);
         assert (cfg.getWriteTimeout() == 9990);
         assert (cfg.isSafeMode());
