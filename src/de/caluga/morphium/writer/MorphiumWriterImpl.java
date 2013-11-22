@@ -434,11 +434,21 @@ public class MorphiumWriterImpl implements MorphiumWriter {
                             return;
                         }
 
+
                         if (sorted.get(o.getClass()) == null) {
                             sorted.put(o.getClass(), new ArrayList<Object>());
                         }
                         sorted.get(o.getClass()).add(o);
-                        if (morphium.getId(o) == null) {
+                        boolean isn = morphium.getId(o) == null;
+                        Object reread = null;
+                        if (annotationHelper.getAnnotationFromHierarchy(o.getClass(), CreationTime.class) != null) {
+                            try {
+                                isn = setAutoValues(o, o.getClass(), morphium.getId(o), isn, reread);
+                            } catch (IllegalAccessException e) {
+                                e.printStackTrace();  //To change body of catch statement use File | Settings | File Templates.
+                            }
+                        }
+                        if (isn) {
                             isNew.put(o, true);
                         } else {
                             isNew.put(o, false);

@@ -7,6 +7,7 @@ import de.caluga.morphium.query.Query;
 import org.bson.types.ObjectId;
 import org.junit.Test;
 
+import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
 
@@ -44,6 +45,21 @@ public class AutoVariableTest extends MongoTest {
         assert (q.get().created != null);
         assert (q.get().value.equals("additional test"));
         assert (q.get().lst.size() == 1);
+
+
+        List<CTimeTest> lst = new ArrayList<CTimeTest>();
+        for (int i = 0; i < 100; i++) {
+            ct = new CTimeTest();
+            ct.value = "value" + i;
+            ct.additional = "auch";
+            lst.add(ct);
+        }
+        MorphiumSingleton.get().storeList(lst);
+
+        for (CTimeTest tst : q.q().asIterable()) {
+            assert (tst.timestamp != 0);
+            assert (tst.created != null);
+        }
     }
 
     @Test
@@ -139,6 +155,22 @@ public class AutoVariableTest extends MongoTest {
         MorphiumSingleton.get().set(q, "additional", "1111", true, true);
         record = q.get();
         assert (record.timestamp != 0);
+
+
+        ArrayList<CTimeTestString> lst = new ArrayList<CTimeTestString>();
+        for (int i = 0; i < 100; i++) {
+            CTimeTestString ct = new CTimeTestString();
+            ct.mongoId = "" + i;
+            ct.value = "v" + i;
+            ct.additional = "add";
+            lst.add(ct);
+        }
+        MorphiumSingleton.get().storeList(lst);
+
+        for (CTimeTestString ct : q.q().asIterable()) {
+            assert (ct.timestamp != 0);
+            assert (ct.created != null);
+        }
     }
 
 
