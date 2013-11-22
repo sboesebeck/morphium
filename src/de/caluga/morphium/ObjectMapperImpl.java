@@ -590,8 +590,21 @@ public class ObjectMapperImpl implements ObjectMapper {
                 if (flds.isEmpty()) {
                     throw new RuntimeException("Error - class does not have an ID field!");
                 }
-
-                annotationHelper.getField(cls, flds.get(0)).set(ret, o.get("_id"));
+                Field field = annotationHelper.getField(cls, flds.get(0));
+                if (o.get("_id") != null) {  //Embedded entitiy?
+                    if (o.get("_id").getClass().equals(field.getType())) {
+                        field.set(ret, o.get("_id"));
+                    } else if (field.getType().equals(String.class) && o.get("_id").getClass().equals(ObjectId.class)) {
+                        log.warn("ID type missmatch - field is string but got objectId from mongo - converting");
+                        field.set(ret, o.get("_id").toString());
+                    } else if (field.getType().equals(ObjectId.class) && o.get("_id").getClass().equals(String.class)) {
+                        log.warn("ID type missmatch - field is objectId but got string from db - trying conversion");
+                        field.set(ret, new ObjectId((String) o.get("_id")));
+                    } else {
+                        log.error("ID type missmatch");
+                        throw new IllegalArgumentException("ID type missmatch. Field in '" + ret.getClass().toString() + "' is '" + field.getType().toString() + "' but we got '" + o.get("_id").getClass().toString() + "' from Mongo!");
+                    }
+                }
             }
             if (annotationHelper.isAnnotationPresentInHierarchy(cls, PartialUpdate.class) || cls.isInstance(PartiallyUpdateable.class)) {
                 return morphium.createPartiallyUpdateableEntity(ret);
