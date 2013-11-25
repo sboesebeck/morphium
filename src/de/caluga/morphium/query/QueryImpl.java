@@ -915,6 +915,11 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
     }
 
     @Override
+    public void delete() {
+        morphium.delete(this);
+    }
+
+    @Override
     public int getNumberOfPendingRequests() {
         return getExecutor().getActiveCount();
     }
