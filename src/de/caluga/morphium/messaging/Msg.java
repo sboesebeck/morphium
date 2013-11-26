@@ -26,10 +26,10 @@ import java.util.Map;
 @NoCache
 //timeout <0 - setting relative to replication lag
 //timeout == 0 - wait forever
-@WriteSafety(level = SafetyLevel.NORMAL, timeout = 0, waitForJournalCommit = true, waitForSync = false)
-@DefaultReadPreference(ReadPreferenceLevel.PRIMARY)
+@WriteSafety(level = SafetyLevel.WAIT_FOR_ALL_SLAVES, timeout = 0, waitForJournalCommit = false, waitForSync = false)
+@DefaultReadPreference(ReadPreferenceLevel.NEAREST)
 @Lifecycle
-@Index({"sender,locked_by,processed_by,recipient,-timestamp", "locked_by,processed_by,recipient,timestamp"})
+@Index({"sender,locked_by,processed_by,recipient", "locked_by,processed_by,recipient,timestamp"})
 public class Msg {
 
 
@@ -54,13 +54,13 @@ public class Msg {
     @Id
     private ObjectId msgId;
     @Index
-    private String lockedBy;
+    private String lockedBy = "";
     @Index
     private long locked;
     private MsgType type;
     private long ttl;
     private String sender;
-    private String recipient;
+    private String recipient = "";
     @Transient
     private List<String> to;
     private Object inAnswerTo;
@@ -97,7 +97,7 @@ public class Msg {
 
     public boolean isExclusive() {
         if (exclusive == null) {
-            return getLockedBy() != null && !getLockedBy().equals("ALL");
+            return !getLockedBy().equals("") && !getLockedBy().equals("ALL");
         }
         return exclusive;
     }
@@ -109,7 +109,7 @@ public class Msg {
      */
     public void setExclusive(boolean exclusive) {
         if (!exclusive) lockedBy = "ALL";
-        else lockedBy = null;
+        else lockedBy = "";
         this.exclusive = exclusive;
     }
 

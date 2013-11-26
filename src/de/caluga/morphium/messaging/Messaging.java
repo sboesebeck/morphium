@@ -25,7 +25,7 @@ public class Messaging extends Thread {
     private int pause = 5000;
     private String id;
     private boolean autoAnswer = false;
-
+    private boolean burstMode = false;
     private boolean processMultiple = false;
 
     private List<MessageListener> listeners;
@@ -70,11 +70,17 @@ public class Messaging extends Thread {
             log.debug("Messaging " + id + " started");
         }
         Map<String, Object> values = new HashMap<String, Object>();
+        boolean processed = false;
         while (running) {
 
             try {
                 Query<Msg> q = morphium.createQueryFor(Msg.class);
                 q.setCollectionName(getCollectionName());
+                if (q.countAll() == 0) {
+                    sleep(pause);
+                    continue;
+                }
+
                 //removing all outdated stuff
                 q = q.where("this.ttl<" + System.currentTimeMillis() + "-this.timestamp");
                 if (log.isDebugEnabled() && q.countAll() > 0) {
@@ -82,22 +88,30 @@ public class Messaging extends Thread {
                 }
                 morphium.delete(q);
                 q = q.q();
+                if (q.countAll() == 0) {
+                    sleep(pause);
+                    continue;
+                }
+
                 //locking messages...
-                q.or(q.q().f(Msg.Fields.sender).ne(id).f(Msg.Fields.lockedBy).eq(null).f(Msg.Fields.processedBy).ne(id).f(Msg.Fields.recipient).eq(null),
-                        q.q().f(Msg.Fields.sender).ne(id).f(Msg.Fields.lockedBy).eq(null).f(Msg.Fields.processedBy).ne(id).f(Msg.Fields.recipient).eq(id));
+                long start = System.currentTimeMillis();
+                q.or(q.q().f(Msg.Fields.sender).ne(id).f(Msg.Fields.lockedBy).eq("").f(Msg.Fields.processedBy).ne(id).f(Msg.Fields.recipient).eq(""),
+                        q.q().f(Msg.Fields.sender).ne(id).f(Msg.Fields.lockedBy).eq("").f(Msg.Fields.processedBy).ne(id).f(Msg.Fields.recipient).eq(id));
                 values.put("locked_by", id);
                 values.put("locked", System.currentTimeMillis());
                 morphium.set(q, values, false, processMultiple);
+                long dur = System.currentTimeMillis() - start;
+                log.warn("locking took " + dur + " ms");
                 q = q.q();
                 q.or(q.q().f(Msg.Fields.lockedBy).eq(id),
                         q.q().f(Msg.Fields.lockedBy).eq("ALL").f(Msg.Fields.processedBy).ne(id).f(Msg.Fields.recipient).eq(id),
-                        q.q().f(Msg.Fields.lockedBy).eq("ALL").f(Msg.Fields.processedBy).ne(id).f(Msg.Fields.recipient).eq(null));
+                        q.q().f(Msg.Fields.lockedBy).eq("ALL").f(Msg.Fields.processedBy).ne(id).f(Msg.Fields.recipient).eq(""));
                 q.sort(Msg.Fields.timestamp);
 
                 List<Msg> messagesList = q.asList();
-                List<Msg> toStore = new ArrayList<Msg>();
 
                 for (Msg msg : messagesList) {
+                    processed = true;
                     msg = morphium.reread(msg, getCollectionName()); //make sure it's current version in DB
                     if (msg == null) continue; //was deleted
                     if (!msg.getLockedBy().equals(id) && !msg.getLockedBy().equals("ALL")) {
@@ -140,32 +154,34 @@ public class Messaging extends Thread {
                     if (msg.getType().equals(MsgType.SINGLE)) {
                         //removing it
                         morphium.delete(msg, getCollectionName());
-                    }
-                    //updating it to be processed by others...
-                    if (msg.getLockedBy().equals("ALL")) {
+                    } else {
+                        //updating it to be processed by others...
                         Query<Msg> idq = MorphiumSingleton.get().createQueryFor(Msg.class);
                         idq.setCollectionName(getCollectionName());
                         idq.f(Msg.Fields.msgId).eq(msg.getMsgId());
 
                         MorphiumSingleton.get().push(idq, Msg.Fields.processedBy, id);
-                    } else {
-                        //Exclusive message
-                        msg.addProcessedId(id);
-                        msg.setLockedBy(null);
-                        msg.setLocked(0);
-                        toStore.add(msg);
+                        if (msg.getLockedBy().equals("ALL")) {
+                            //nothing
+                        } else {
+                            //Exclusive message
+                            Map<String, Object> update = new HashMap<String, Object>();
+                            update.put(Msg.Fields.locked.name(), 0);
+                            update.put(Msg.Fields.lockedBy.name(), "");
+
+                            MorphiumSingleton.get().set(idq, update, false, false);
+                        }
                     }
 
-                }
-                morphium.storeList(toStore, getCollectionName());
-                while (morphium.getWriteBufferCount() > 0) {
-                    Thread.sleep(100);
                 }
             } catch (Throwable e) {
                 log.error("Unhandled exception " + e.getMessage(), e);
             } finally {
                 try {
-                    sleep(pause);
+                    if ((!processed && burstMode) || !burstMode) {
+//                        log.info("sleeping");
+                        sleep(pause);
+                    }
                 } catch (InterruptedException ignored) {
                 }
             }
@@ -203,6 +219,19 @@ public class Messaging extends Thread {
         }
         listenerByName.get(n).remove(l);
 
+    }
+
+    public boolean isBurstMode() {
+        return burstMode;
+    }
+
+    /**
+     * when one message is processed, start immediately with the next one
+     *
+     * @param burstMode
+     */
+    public void setBurstMode(boolean burstMode) {
+        this.burstMode = burstMode;
     }
 
     public String getSenderId() {
@@ -260,8 +289,8 @@ public class Messaging extends Thread {
             };
         }
         m.setSender(id);
-        m.addProcessedId(id);
-        m.setLockedBy(null);
+//        m.addProcessedId(id);
+        m.setLockedBy("");
         m.setLocked(0);
         if (m.getTo() != null && m.getTo().size() > 0) {
             for (String recipient : m.getTo()) {
