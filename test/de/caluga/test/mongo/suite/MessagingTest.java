@@ -113,7 +113,7 @@ public class MessagingTest extends MongoTest {
         Query<Msg> q = MorphiumSingleton.get().createQueryFor(Msg.class);
 //        MorphiumSingleton.get().delete(q);
         //locking messages...
-        q = q.f(Msg.Fields.sender).ne(id).f(Msg.Fields.lockedBy).eq(null).f(Msg.Fields.processedBy).ne(id);
+        q = q.f(Msg.Fields.sender).ne(id).f(Msg.Fields.lockedBy).eq("").f(Msg.Fields.processedBy).ne(id);
         MorphiumSingleton.get().set(q, Msg.Fields.lockedBy, id);
 
         q = q.q();
@@ -130,7 +130,7 @@ public class MessagingTest extends MongoTest {
 
         q = MorphiumSingleton.get().createQueryFor(Msg.class);
         //locking messages...
-        q = q.f(Msg.Fields.sender).ne(id).f(Msg.Fields.lockedBy).eq(null).f(Msg.Fields.processedBy).ne(id);
+        q = q.f(Msg.Fields.sender).ne(id).f(Msg.Fields.lockedBy).eq("").f(Msg.Fields.processedBy).ne(id);
         MorphiumSingleton.get().set(q, Msg.Fields.lockedBy, id);
 
         q = q.q();
@@ -767,5 +767,109 @@ public class MessagingTest extends MongoTest {
         Thread.sleep(1000);
     }
 
+
+    @Test
+    public void burstModeTest() throws Exception {
+        procCounter = 0;
+
+        Messaging sender = new Messaging(MorphiumSingleton.get(), 10000, false);
+        log.info("Sender id: " + sender.getSenderId());
+        sender.addMessageListener(new MessageListener() {
+            @Override
+            public Msg onMessage(Messaging msg, Msg m) {
+                log.info("Go message???? FAIL" + msg.toString());
+                return null;
+            }
+        });
+
+
+        MessageListener l = new MessageListener() {
+            @Override
+            public Msg onMessage(Messaging msg, Msg m) {
+//                log.info("Got Message " + m.getValue());
+                synchronized (this) {
+                    procCounter++;
+                }
+                return null; //no answer
+            }
+        };
+        List<Messaging> receiver = new ArrayList<Messaging>();
+        for (int i = 0; i < 10; i++) {
+            Messaging rec = new Messaging(MorphiumSingleton.get(), 500, false);
+            receiver.add(rec);
+            rec.setBurstMode(false);
+            rec.addListenerForMessageNamed("test", l);
+        }
+
+        sender.start();
+        for (int i = 1; i <= 100; i++) {
+            Msg m = new Msg("test", "the message", "" + i);
+            m.setExclusive(true);
+            m.setType(MsgType.SINGLE);
+            m.setTtl(100000);
+            sender.queueMessage(m);
+            if (i % 100 == 0) log.info("Stored " + i);
+        }
+        Thread.sleep(1000); //Wait for queue
+        long start = System.currentTimeMillis();
+        for (Messaging rec : receiver) {
+            rec.start();
+        }
+
+        while (MorphiumSingleton.get().createQueryFor(Msg.class).countAll() != 0) {
+            Thread.sleep(50);
+//            log.info("Counter: "+procCounter);
+        }
+        long dur = System.currentTimeMillis() - start;
+        log.info("Processing of 100 msg took " + dur + " ms  Counter: " + procCounter);
+
+
+        for (Messaging rec : receiver) {
+            rec.setRunning(false);
+        }
+
+        ///burst Mode
+        procCounter = 0;
+        int messageCount = 800;
+        for (int i = 1; i <= messageCount; i++) {
+            Msg m = new Msg("test", "the message", "" + i);
+            m.setExclusive(true);
+            m.setType(MsgType.SINGLE);
+            m.setTtl(100000);
+            sender.queueMessage(m);
+            if (i % 100 == 0) {
+                log.info("Queued " + i);
+            }
+        }
+        Thread.sleep(1000);
+        receiver.clear();
+
+
+        //Creating new Thread
+        for (int i = 0; i < 20; i++) {
+            Messaging rec = new Messaging(MorphiumSingleton.get(), 500, false);
+            rec.setBurstMode(true);
+            rec.addListenerForMessageNamed("test", l);
+            rec.start();
+        }
+        start = System.currentTimeMillis();
+        int last = 0;
+        while (procCounter < messageCount) {
+            Thread.sleep(50);
+            if (procCounter > last + 100) {
+                log.info(" counter: " + procCounter);
+                last = procCounter;
+            }
+        }
+        dur = System.currentTimeMillis() - start;
+        log.info("Burst Processing of " + messageCount + " msg took " + dur + " ms Counter: " + procCounter);
+
+        sender.setRunning(false);
+        for (Messaging rec : receiver) {
+            rec.setRunning(false);
+
+        }
+        Thread.sleep(1000);
+    }
 
 }
