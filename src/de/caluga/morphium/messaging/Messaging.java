@@ -101,7 +101,7 @@ public class Messaging extends Thread {
                 values.put("locked", System.currentTimeMillis());
                 morphium.set(q, values, false, processMultiple);
                 long dur = System.currentTimeMillis() - start;
-                log.warn("locking took " + dur + " ms");
+//                log.warn("locking took " + dur + " ms");
                 q = q.q();
                 q.or(q.q().f(Msg.Fields.lockedBy).eq(id),
                         q.q().f(Msg.Fields.lockedBy).eq("ALL").f(Msg.Fields.processedBy).ne(id).f(Msg.Fields.recipient).eq(id),
@@ -289,7 +289,7 @@ public class Messaging extends Thread {
             };
         }
         m.setSender(id);
-//        m.addProcessedId(id);
+        m.addProcessedId(id);
         m.setLockedBy("");
         m.setLocked(0);
         if (m.getTo() != null && m.getTo().size() > 0) {

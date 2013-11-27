@@ -73,7 +73,7 @@ public class MessagingTest extends MongoTest {
         q.setCollectionName("mmsg_msg2");
         assert (q.countAll() == 1) : "Count is " + q.countAll();
 
-        Thread.sleep(4000);
+        Thread.sleep(8000);
         assert (!gotMessage1);
         assert (!gotMessage2);
         m.setRunning(false);
@@ -233,7 +233,7 @@ public class MessagingTest extends MongoTest {
         });
 
         m1.storeMessage(new Msg("testmsg1", "The message from M1", "Value"));
-        Thread.sleep(1000);
+        Thread.sleep(2000);
         assert (gotMessage2) : "Message not recieved yet?!?!?";
         gotMessage2 = false;
 
@@ -748,7 +748,7 @@ public class MessagingTest extends MongoTest {
         m.setExclusive(false);
         m1.storeMessage(m);
 
-        Thread.sleep(1200);
+        Thread.sleep(2200);
         assert (!gotMessage1) : "Got message again?";
         assert (gotMessage2) : "m2 did not get msg?";
         assert (gotMessage3) : "m3 did not get msg";
