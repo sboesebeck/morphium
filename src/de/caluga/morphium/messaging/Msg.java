@@ -22,7 +22,7 @@ import java.util.Map;
  * Reads from any node, as this produces lots of reads! All Writes will block until <b>all nodes</b> have confirmed the
  * write!
  */
-@Entity
+@Entity(polymorph = true)
 @NoCache
 //timeout <0 - setting relative to replication lag
 //timeout == 0 - wait forever
@@ -333,6 +333,13 @@ public class Msg {
         if (!exclusive) {
             locked = System.currentTimeMillis();
             lockedBy = "ALL";
+        } else {
+            if (lockedBy == null) {
+                lockedBy = "";
+            }
+        }
+        if (recipient == null) {
+            recipient = "";
         }
         timestamp = System.currentTimeMillis();
     }

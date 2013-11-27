@@ -580,6 +580,33 @@ public class MessagingTest extends MongoTest {
 
 
     @Test
+    public void msgSubclassTest() throws Exception {
+        Messaging m1 = new Messaging(MorphiumSingleton.get(), 500, false);
+        Messaging m2 = new Messaging(MorphiumSingleton.get(), 500, false);
+        gotMessage = false;
+        m2.addListenerForMessageNamed("test", new MessageListener() {
+            @Override
+            public Msg onMessage(Messaging msg, Msg m) {
+                log.info("Got message: " + m);
+                assert (m instanceof TstMsg) : m.getClass().toString();
+                gotMessage = true;
+                return null;  //To change body of implemented methods use File | Settings | File Templates.
+            }
+        });
+//        m1.start();
+        m2.start();
+
+        TstMsg tst = new TstMsg();
+        m1.storeMessage(tst);
+        Thread.sleep(1000);
+        assert (gotMessage);
+
+        m2.setRunning(false);
+        Thread.sleep(1000);
+
+    }
+
+    @Test
     public void massiveMessagingTest() throws Exception {
         int numberOfWorkers = 10;
         int numberOfMessages = 100;
@@ -870,6 +897,25 @@ public class MessagingTest extends MongoTest {
 
         }
         Thread.sleep(1000);
+    }
+
+    public static class TstMsg extends Msg {
+        private String testValue;
+
+        public TstMsg() {
+            super();
+            setName("test");
+            setType(MsgType.SINGLE);
+            setExclusive(true);
+        }
+
+        public String getTestValue() {
+            return testValue;
+        }
+
+        public void setTestValue(String testValue) {
+            this.testValue = testValue;
+        }
     }
 
 }
