@@ -563,6 +563,10 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
         List<Field> fldlst = annotationHelper.getAllFields(type);
         BasicDBObject lst = new BasicDBObject();
         lst.put("_id", 1);
+        Entity e = annotationHelper.getAnnotationFromHierarchy(type, Entity.class);
+        if (e.polymorph()) {
+            lst.put("class_name", 1);
+        }
         for (Field f : fldlst) {
             if (f.isAnnotationPresent(AdditionalData.class)) {
                 //to enable additional data
@@ -571,6 +575,7 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
             }
             String n = annotationHelper.getFieldName(type, f.getName());
             lst.put(n, 1);
+
         }
 
         List<T> ret = new ArrayList<T>();
@@ -608,8 +613,8 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
                 }
                 break;
 
-            } catch (Throwable e) {
-                morphium.handleNetworkError(i, e);
+            } catch (Throwable es) {
+                morphium.handleNetworkError(i, es);
             }
         }
         morphium.fireProfilingReadEvent(this, System.currentTimeMillis() - start, ReadAccessType.AS_LIST);
