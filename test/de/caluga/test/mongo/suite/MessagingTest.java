@@ -593,17 +593,17 @@ public class MessagingTest extends MongoTest {
                 return null;  //To change body of implemented methods use File | Settings | File Templates.
             }
         });
-//        m1.start();
+        m1.start();
         m2.start();
 
         TstMsg tst = new TstMsg();
         m1.storeMessage(tst);
-        Thread.sleep(1000);
+        Thread.sleep(1500);
         assert (gotMessage);
 
         m2.setRunning(false);
         Thread.sleep(1000);
-
+        m1.setRunning(false);
     }
 
     @Test

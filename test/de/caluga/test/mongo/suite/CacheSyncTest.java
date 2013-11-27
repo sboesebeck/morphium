@@ -163,9 +163,14 @@ public class CacheSyncTest extends MongoTest {
 
         Thread.sleep(5000);
         start = System.currentTimeMillis();
+
         for (int i = 0; i < 100; i++) {
             Query<IdCachedObject> q = MorphiumSingleton.get().createQueryFor(IdCachedObject.class);
             IdCachedObject obj = q.f("counter").eq(i).get();
+            if (obj == null) {
+                Thread.sleep(100); //wait a moment
+                obj = q.f("counter").eq(i).get();
+            }
             assert (obj != null) : "Object with counter " + i + " not found!";
             obj.setCounter(i + 2000);
             MorphiumSingleton.get().store(obj);
