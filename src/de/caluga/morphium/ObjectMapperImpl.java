@@ -367,7 +367,7 @@ public class ObjectMapperImpl implements ObjectMapper {
         try {
             if (o.get("class_name") != null || o.get("className") != null) {
 //                if (log.isDebugEnabled()) {
-                log.warn("overriding cls - it's defined in dbObject");
+//                    log.debug("overriding cls - it's defined in dbObject");
 //                }
                 try {
                     String cN = (String) o.get("class_name");

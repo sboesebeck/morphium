@@ -23,8 +23,9 @@ public class PolymorphismTest extends MongoTest {
     @Test
     public void polymorphTest() throws Exception {
         MorphiumSingleton.get().dropCollection(PolyTest.class);
-        PolyTest p = new PolyTest();
+        OtherSubClass p = new OtherSubClass();
         p.setPoly("poly");
+        p.setOther("other");
         MorphiumSingleton.get().store(p);
 
         SubClass sb = new SubClass();
@@ -49,7 +50,7 @@ public class PolymorphismTest extends MongoTest {
 
     @Entity(polymorph = true, nameProvider = PolyNameProvider.class)
     @NoCache
-    public static class PolyTest {
+    public static abstract class PolyTest {
         private String poly;
 
         @Id
@@ -73,6 +74,18 @@ public class PolymorphismTest extends MongoTest {
 
         public void setSub(String sub) {
             this.sub = sub;
+        }
+    }
+
+    public static class OtherSubClass extends PolyTest {
+        private String other;
+
+        public String getOther() {
+            return other;
+        }
+
+        public void setOther(String o) {
+            this.other = o;
         }
     }
 }

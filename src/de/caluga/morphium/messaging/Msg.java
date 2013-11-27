@@ -46,6 +46,7 @@ public class Msg {
         timestamp,
         sender,
         ttl,
+        mapValue,
         recipient
     }
 

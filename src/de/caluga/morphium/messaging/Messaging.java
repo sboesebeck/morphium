@@ -94,13 +94,13 @@ public class Messaging extends Thread {
                 }
 
                 //locking messages...
-                long start = System.currentTimeMillis();
+//                long start = System.currentTimeMillis();
                 q.or(q.q().f(Msg.Fields.sender).ne(id).f(Msg.Fields.lockedBy).eq("").f(Msg.Fields.processedBy).ne(id).f(Msg.Fields.recipient).eq(""),
                         q.q().f(Msg.Fields.sender).ne(id).f(Msg.Fields.lockedBy).eq("").f(Msg.Fields.processedBy).ne(id).f(Msg.Fields.recipient).eq(id));
                 values.put("locked_by", id);
                 values.put("locked", System.currentTimeMillis());
                 morphium.set(q, values, false, processMultiple);
-                long dur = System.currentTimeMillis() - start;
+//                long dur = System.currentTimeMillis() - start;
 //                log.warn("locking took " + dur + " ms");
                 q = q.q();
                 q.or(q.q().f(Msg.Fields.lockedBy).eq(id),
