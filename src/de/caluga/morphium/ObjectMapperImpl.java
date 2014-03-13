@@ -707,6 +707,7 @@ public class ObjectMapperImpl implements ObjectMapper {
                         throw new RuntimeException(e);
                     }
                 } else {
+
                     if (forField != null && forField.getGenericType() instanceof ParameterizedType) {
                         //have a list of something
                         ParameterizedType listType = (ParameterizedType) forField.getGenericType();
@@ -714,7 +715,10 @@ public class ObjectMapperImpl implements ObjectMapper {
                             listType = (ParameterizedType) listType.getActualTypeArguments()[0];
                         }
                         Class cls = (Class) listType.getActualTypeArguments()[0];
-                        val = unmarshall(cls, (DBObject) val);
+                        Entity entity = annotationHelper.getAnnotationFromHierarchy(cls, Entity.class); //(Entity) sc.getAnnotation(Entity.class);
+                        Embedded embedded = annotationHelper.getAnnotationFromHierarchy(cls, Embedded.class);//(Embedded) sc.getAnnotation(Embedded.class);
+                        if (entity != null || embedded != null)
+                            val = unmarshall(cls, (DBObject) val);
                     }
                     //Probably an "normal" map
                     toFillIn.add(val);
