@@ -752,7 +752,9 @@ public class Morphium {
 
     @SuppressWarnings({"unchecked", "UnusedDeclaration"})
     public String toJsonString(Object o) {
-        return objectMapper.marshall(o).toString();
+        DBObject db = objectMapper.marshall(o);
+        db.put("_id", db.get("_id").toString());
+        return db.toString();
     }
 
 
@@ -1014,8 +1016,8 @@ public class Morphium {
                     List<ConfNode> cmembers = new ArrayList<ConfNode>();
 
                     for (Object o : mem) {
-                        DBObject dbo = (DBObject) o;
-                        ConfNode cn = objectMapper.unmarshall(ConfNode.class, dbo);
+//                        DBObject dbo = (DBObject) o;
+                        ConfNode cn = (ConfNode) o;// objectMapper.unmarshall(ConfNode.class, dbo);
                         cmembers.add(cn);
                     }
                     cfg.setMembers(cmembers);
@@ -1025,8 +1027,8 @@ public class Morphium {
                 List lst = status.getMembers();
                 List<ReplicaSetNode> members = new ArrayList<ReplicaSetNode>();
                 for (Object l : lst) {
-                    DBObject o = (DBObject) l;
-                    ReplicaSetNode n = objectMapper.unmarshall(ReplicaSetNode.class, o);
+//                    DBObject o = (DBObject) l;
+                    ReplicaSetNode n = (ReplicaSetNode) l;//objectMapper.unmarshall(ReplicaSetNode.class, o);
                     members.add(n);
                 }
                 status.setMembers(members);

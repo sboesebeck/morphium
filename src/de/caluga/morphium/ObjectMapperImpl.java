@@ -15,6 +15,7 @@ import org.json.simple.parser.ParseException;
 import java.lang.reflect.Array;
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
+import java.lang.reflect.ParameterizedType;
 import java.util.*;
 
 /**
@@ -500,6 +501,7 @@ public class ObjectMapperImpl implements ObjectMapper {
                         value = valueFromDb;
 
                     } else {
+
                         List lst = new ArrayList();
                         if (valueFromDb.getClass().isArray()) {
                             //a real array!
@@ -674,6 +676,8 @@ public class ObjectMapperImpl implements ObjectMapper {
                         throw new RuntimeException(e);
                     }
                 } else {
+
+
                     mapValue.add(createMap((BasicDBObject) li));
                 }
             } else if (li instanceof BasicDBList) {
@@ -703,17 +707,35 @@ public class ObjectMapperImpl implements ObjectMapper {
                         throw new RuntimeException(e);
                     }
                 } else {
+                    if (forField != null && forField.getGenericType() instanceof ParameterizedType) {
+                        //have a list of something
+                        ParameterizedType listType = (ParameterizedType) forField.getGenericType();
+                        while (listType.getActualTypeArguments()[0] instanceof ParameterizedType) {
+                            listType = (ParameterizedType) listType.getActualTypeArguments()[0];
+                        }
+                        Class cls = (Class) listType.getActualTypeArguments()[0];
+                        val = unmarshall(cls, (DBObject) val);
+                    }
                     //Probably an "normal" map
                     toFillIn.add(val);
                 }
             } else if (val instanceof ObjectId) {
-                log.warn("Cannot de-reference to unknown collection - trying to add Object only");
-                toFillIn.add(val);
+                if (forField.getGenericType() instanceof ParameterizedType) {
+                    //have a list of something
+                    ParameterizedType listType = (ParameterizedType) forField.getGenericType();
+                    Class cls = (Class) listType.getActualTypeArguments()[0];
+                    Query q = morphium.createQueryFor(cls);
+                    q = q.f(annotationHelper.getFields(cls, Id.class).get(0)).eq(val);
+                    toFillIn.add(q.get());
+                } else {
+                    log.warn("Cannot de-reference to unknown collection - trying to add Object only");
+                    toFillIn.add(val);
+                }
 
             } else if (val instanceof BasicDBList) {
-                //one list once more
+                //list in list
                 ArrayList lt = new ArrayList();
-                fillList(null, (BasicDBList) val, lt);
+                fillList(forField, (BasicDBList) val, lt);
                 toFillIn.add(lt);
             } else if (val instanceof DBRef) {
                 try {
