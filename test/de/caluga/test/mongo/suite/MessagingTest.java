@@ -768,4 +768,41 @@ public class MessagingTest extends MongoTest {
     }
 
 
+    @Test
+    public void messageingPerformanceTest() throws Exception {
+        MorphiumSingleton.get().clearCollection(Msg.class);
+        final Messaging producer = new Messaging(MorphiumSingleton.get(), 100, true);
+        final Messaging consumer = new Messaging(MorphiumSingleton.get(), 10, true);
+        final int[] processed = {0};
+        consumer.addMessageListener(new MessageListener() {
+            @Override
+            public Msg onMessage(Messaging msg, Msg m) {
+                processed[0]++;
+                if (processed[0] % 1000 == 999) {
+                    log.info("Processed: " + processed[0]);
+                }
+                return null;
+            }
+        });
+
+        int numberOfMessages = 100000;
+        for (int i = 0; i < numberOfMessages; i++) {
+            Msg m = new Msg("msg", "m", "v");
+            m.setTtl(60 * 1000);
+            if (i % 1000 == 99) {
+                log.info("created msg " + i + " / 10000");
+            }
+            producer.storeMessage(m);
+        }
+        log.info("Start message processing....");
+        long start = System.currentTimeMillis();
+        consumer.start();
+        while (processed[0] < numberOfMessages) {
+            Thread.sleep(50);
+        }
+        long dur = System.currentTimeMillis() - start;
+        log.info("Processing took " + dur + " ms");
+        producer.setRunning(false);
+        Thread.sleep(1000);
+    }
 }

@@ -44,6 +44,9 @@ public class Messaging extends Thread {
         this(m, null, pause, processMultiple);
     }
 
+    public long getMessageCount() {
+        return morphium.createQueryFor(Msg.class).countAll();
+    }
 
     public Messaging(Morphium m, String queueName, int pause, boolean processMultiple) {
         this.queueName = queueName;
@@ -75,12 +78,12 @@ public class Messaging extends Thread {
             try {
                 Query<Msg> q = morphium.createQueryFor(Msg.class);
                 q.setCollectionName(getCollectionName());
-                //removing all outdated stuff
-                q = q.where("this.ttl<" + System.currentTimeMillis() + "-this.timestamp");
-                if (log.isDebugEnabled() && q.countAll() > 0) {
-                    log.debug("Deleting outdate messages: " + q.countAll());
-                }
-                morphium.delete(q);
+//                //removing all outdated stuff
+//                q = q.where("this.ttl<" + System.currentTimeMillis() + "-this.timestamp");
+//                if (log.isDebugEnabled() && q.countAll() > 0) {
+//                    log.debug("Deleting outdate messages: " + q.countAll());
+//                }
+//                morphium.delete(q);
                 q = q.q();
                 //locking messages...
                 q.or(q.q().f(Msg.Fields.sender).ne(id).f(Msg.Fields.lockedBy).eq(null).f(Msg.Fields.processedBy).ne(id).f(Msg.Fields.recipient).eq(null),
@@ -259,6 +262,7 @@ public class Messaging extends Thread {
                 }
             };
         }
+        m.setDeleteAt(new Date(System.currentTimeMillis() + m.getTtl()));
         m.setSender(id);
         m.addProcessedId(id);
         m.setLockedBy(null);
