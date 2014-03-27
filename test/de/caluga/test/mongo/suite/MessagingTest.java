@@ -646,17 +646,6 @@ public class MessagingTest extends MongoTest {
         assert (procCounter == numberOfMessages * (numberOfWorkers - 1)) : "Still processing messages?!?!?";
 
         //Waiting for all messages to be outdated and deleted
-        Query<Msg> q = MorphiumSingleton.get().createQueryFor(Msg.class);
-        long cnt = 0;
-        for (int i = 0; i < ttl / 1000 * 2; i++) {
-            cnt = q.countAll();
-            System.out.println("Messages in queue: " + cnt);
-            if (cnt == 0) {
-                break;
-            }
-            Thread.sleep(1000);
-        }
-        assert (cnt == 0) : "Messages not processed yet?!?!?" + cnt;
 
         //Stopping all
         for (Messaging m : systems) {
@@ -773,12 +762,12 @@ public class MessagingTest extends MongoTest {
             }
         });
 
-        int numberOfMessages = 100000;
+        int numberOfMessages = 10000;
         for (int i = 0; i < numberOfMessages; i++) {
             Msg m = new Msg("msg", "m", "v");
             m.setTtl(60 * 1000);
             if (i % 1000 == 99) {
-                log.info("created msg " + i + " / 10000");
+                log.info("created msg " + i + " / " + numberOfMessages);
             }
             producer.storeMessage(m);
         }
