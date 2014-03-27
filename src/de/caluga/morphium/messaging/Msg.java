@@ -7,10 +7,7 @@ import de.caluga.morphium.annotations.lifecycle.PreStore;
 import org.apache.log4j.Logger;
 import org.bson.types.ObjectId;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 /**
  * User: Stephan Bösebeck
@@ -26,7 +23,7 @@ import java.util.Map;
 @NoCache
 //timeout <0 - setting relative to replication lag
 //timeout == 0 - wait forever
-@WriteSafety(level = SafetyLevel.NORMAL, timeout = 0, waitForJournalCommit = true, waitForSync = false)
+@WriteSafety(level = SafetyLevel.NORMAL, timeout = 0, waitForJournalCommit = false, waitForSync = false)
 @DefaultReadPreference(ReadPreferenceLevel.PRIMARY)
 @Lifecycle
 @Index({"sender,locked_by,processed_by,recipient,-timestamp", "locked_by,processed_by,recipient,timestamp"})
@@ -73,6 +70,8 @@ public class Msg {
     @Index
     private long timestamp;
 
+    @Index(options = "expireAfterSeconds:0")
+    private Date deleteAt;
     @Transient
     private Boolean exclusive = null;
 
@@ -372,5 +371,9 @@ public class Msg {
         ret.setTo(to);
 
         return ret;  //To change body of created methods use File | Settings | File Templates.
+    }
+
+    public void setDeleteAt(Date deleteAt) {
+        this.deleteAt = deleteAt;
     }
 }
