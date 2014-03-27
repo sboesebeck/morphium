@@ -560,18 +560,6 @@ public class MessagingTest extends MongoTest {
 
         assert (!gotMessage3 && !gotMessage1 && !gotMessage2) : "Message processing repeat?";
 
-        Query<Msg> q = MorphiumSingleton.get().createQueryFor(Msg.class);
-        long cnt = 0;
-        for (int i = 0; i < 40; i++) {
-            cnt = q.countAll();
-            System.out.println("Messages in queue: " + cnt);
-            if (cnt == 0) {
-                break;
-            }
-            Thread.sleep(1000);
-        }
-        assert (cnt == 0) : "Messages not processed yet?!?!?" + cnt;
-        assert (!error);
         m1.setRunning(false);
         m2.setRunning(false);
         onlyAnswers.setRunning(false);
