@@ -362,7 +362,7 @@ public class MorphiumWriterImpl implements MorphiumWriter {
                     morphium.ensureIndicesFor((Class<T>) lst.get(0).getClass(), collectionName, callback);
                 }
                 BulkUpdateRequestBuilder up = bulkWriteOperation.find(new BasicDBObject("_id", morphium.getARHelper().getId(record))).upsert();
-                up.updateOne(marshall);
+                up.updateOne(new BasicDBObject("$set", marshall));
 //                }
 
 
@@ -497,7 +497,7 @@ public class MorphiumWriterImpl implements MorphiumWriter {
                                     for (int i = 0; i < morphium.getConfig().getRetriesOnNetworkError(); i++) {
                                         try {
                                             BulkWriteRequestBuilder findId = bulkWriteOperation.find(new BasicDBObject("_id", morphium.getARHelper().getId(record)));
-                                            findId.upsert().updateOne(marshall);
+                                            findId.upsert().updateOne(new BasicDBObject("$set", marshall));
 //                                            if (wc == null) {
 //                                                result = collection.save(marshall);
 //                                            } else {
