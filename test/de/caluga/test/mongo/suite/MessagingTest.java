@@ -762,7 +762,7 @@ public class MessagingTest extends MongoTest {
             }
         });
 
-        int numberOfMessages = 100000;
+        int numberOfMessages = 10000;
         for (int i = 0; i < numberOfMessages; i++) {
             Msg m = new Msg("msg", "m", "v");
             m.setTtl(60 * 1000);
