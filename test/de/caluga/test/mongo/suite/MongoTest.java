@@ -59,16 +59,18 @@ public class MongoTest {
             Properties p = getProps();
             if (p.getProperty("database") != null) {
                 cfg = MorphiumConfig.fromProperties(p);
-
+                cfg.setMaxConnections(100);
+                cfg.setBlockingThreadsMultiplier(100);
             } else {
                 //creating default config
-                cfg = new MorphiumConfig("morphium_test", 55, 50000, 5000, "morphium-log4j-test.xml");
+                cfg = new MorphiumConfig("morphium_test", 2055, 50000, 5000, "morphium-log4j-test.xml");
                 cfg.addHost("localhost", 27017);
                 cfg.addHost("localhost", 27018);
                 cfg.addHost("localhost", 27019);
                 cfg.setWriteCacheTimeout(100);
                 cfg.setConnectionTimeout(1000);
                 cfg.setMaxWaitTime(1000);
+                cfg.setMaxConnections(2000);
                 cfg.setAutoreconnect(true);
                 cfg.setMaximumRetriesBufferedWriter(1000);
                 cfg.setMaximumRetriesWriter(1000);
@@ -93,6 +95,7 @@ public class MongoTest {
                 cfg.setDefaultReadPreference(ReadPreferenceLevel.NEAREST);
                 p.putAll(cfg.asProperties());
                 p.put("failovertest", "false");
+                cfg.setBlockingThreadsMultiplier(100);
                 storeProps();
             }
             MorphiumSingleton.setConfig(cfg);
@@ -220,7 +223,7 @@ public class MongoTest {
                 Thread.sleep(2000);
             }
 
-            assert (count < 10) : "Cache not cleared? count is "+count;
+            assert (count < 10) : "Cache not cleared? count is " + count;
 
             log.info("Preparation finished");
         } catch (Exception e) {

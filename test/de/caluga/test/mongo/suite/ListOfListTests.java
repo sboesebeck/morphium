@@ -47,6 +47,66 @@ public class ListOfListTests extends MongoTest {
     }
 
 
+    @Test
+    public void jsonListTest() throws Exception {
+
+        String s = "{ \"_id\" : \"5321be491c26b5f02eec7bd7\" , \"string_list\" : [ \"Hi\" , \"Ho\"] , \"uc_list\" : [ { \"counter\" : 5 } , { \"counter\" : 7} , { \"counter\" : 12 }]}";
+        ListTypes l = MorphiumSingleton.get().getMapper().unmarshall(ListTypes.class, s);
+        System.out.println(l.getStringList().get(0));
+        UncachedObject u = l.getUcList().get(0);
+
+        s = "{ \"_id\" : \"5321be491c26b5f02eec7bd7\" , \"string_list\" : [ \"Hi\" , \"Ho\"] , \"uc_list\" : [ { \"counter\" : 10 } , { \"counter\" : 12 } , { \"counter\" : 22 }],\"uc_lst_list\" : [[ { \"counter\" : 0 } , { \"counter\" : 1 } , { \"counter\" : 2 }]]}";
+        l = MorphiumSingleton.get().getMapper().unmarshall(ListTypes.class, s);
+        System.out.println(l.getStringList().get(0));
+        u = l.getUcList().get(0);
+        List<UncachedObject> lst = l.getUcLstList().get(0);
+        u = lst.get(1);
+        assert (u.getCounter() == 1);
+        System.out.println("Done");
+    }
+
+
+    @Entity
+    public static class ListTypes {
+        @Id
+        private ObjectId id;
+        private List<String> stringList;
+        private List<UncachedObject> ucList;
+        private List<List<UncachedObject>> ucLstList;
+
+        public ObjectId getId() {
+            return id;
+        }
+
+        public List<List<UncachedObject>> getUcLstList() {
+            return ucLstList;
+        }
+
+        public void setUcLstList(List<List<UncachedObject>> ucLstList) {
+            this.ucLstList = ucLstList;
+        }
+
+        public void setId(ObjectId id) {
+            this.id = id;
+        }
+
+        public List<String> getStringList() {
+            return stringList;
+        }
+
+        public void setStringList(List<String> stringList) {
+            this.stringList = stringList;
+        }
+
+        public List<UncachedObject> getUcList() {
+            return ucList;
+        }
+
+        public void setUcList(List<UncachedObject> ucList) {
+            this.ucList = ucList;
+        }
+    }
+
     @Entity
     @WriteSafety(level = SafetyLevel.WAIT_FOR_ALL_SLAVES)
     @DefaultReadPreference(ReadPreferenceLevel.PRIMARY)
@@ -63,6 +123,7 @@ public class ListOfListTests extends MongoTest {
         public void setLst(List<List<String>> lst) {
             this.lst = lst;
         }
+
 
     }
 }
