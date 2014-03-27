@@ -144,9 +144,9 @@ public class MorphiumWriterImpl implements MorphiumWriter {
 
                                 result = morphium.getDatabase().getCollection(coll).save(marshall);
                             }
-                            if (!result.getLastError().ok()) {
-                                logger.error("Writing failed: " + result.getLastError().getErrorMessage());
-                            }
+//                            if (!result.getLastError().ok()) {
+//                                logger.error("Writing failed: " + result.getLastError().getErrorMessage());
+//                            }
                             break;
                         } catch (Throwable t) {
                             morphium.handleNetworkError(i, t);
@@ -328,7 +328,10 @@ public class MorphiumWriterImpl implements MorphiumWriter {
         ArrayList<DBObject> dbLst = new ArrayList<DBObject>();
         DBCollection collection = morphium.getDatabase().getCollection(collectionName);
         WriteConcern wc = morphium.getWriteConcernForClass(lst.get(0).getClass());
+
+        BulkWriteOperation bulkWriteOperation = collection.initializeUnorderedBulkOperation();
         HashMap<Object, Boolean> isNew = new HashMap<Object, Boolean>();
+        long start = System.currentTimeMillis();
         for (Object record : lst) {
             DBObject marshall = morphium.getMapper().marshall(record);
             Object id = annotationHelper.getId(record);
@@ -344,47 +347,52 @@ public class MorphiumWriterImpl implements MorphiumWriter {
             try {
                 isn = setAutoValues(record, record.getClass(), id, isn, reread);
             } catch (IllegalAccessException e) {
-                e.printStackTrace();  //To change body of catch statement use File | Settings | File Templates.
+                e.printStackTrace();
             }
             isNew.put(record, isn);
             if (isNew.get(record)) {
                 dbLst.add(marshall);
             } else {
                 //single update
-                long start = System.currentTimeMillis();
+
                 WriteResult result = null;
-                for (int i = 0; i < morphium.getConfig().getRetriesOnNetworkError(); i++) {
-                    try {
-                        if (!morphium.getDatabase().collectionExists(collectionName)) {
-                            logger.warn("collection does not exist while storing list -  taking first element of list to ensure indices");
-                            morphium.ensureIndicesFor((Class<T>) lst.get(0).getClass(), collectionName, callback);
-                        }
-                        if (wc == null) {
-                            result = collection.save(marshall);
-                        } else {
-                            result = collection.save(marshall, wc);
-                        }
-                    } catch (Exception e) {
-                        morphium.handleNetworkError(i, e);
-                    }
+//                for (int i = 0; i < morphium.getConfig().getRetriesOnNetworkError(); i++) {
+                if (!morphium.getDatabase().collectionExists(collectionName)) {
+                    logger.warn("collection does not exist while storing list -  taking first element of list to ensure indices");
+                    morphium.ensureIndicesFor((Class<T>) lst.get(0).getClass(), collectionName, callback);
                 }
-                if (!result.getLastError().ok()) {
-                    logger.error("Writing failed: " + result.getLastError().getErrorMessage());
-                }
-                long dur = System.currentTimeMillis() - start;
-                morphium.fireProfilingWriteEvent(lst.get(0).getClass(), marshall, dur, false, WriteAccessType.SINGLE_INSERT);
-                morphium.firePostStoreEvent(record, isNew.get(record));
+                BulkUpdateRequestBuilder up = bulkWriteOperation.find(new BasicDBObject("_id", morphium.getARHelper().getId(record))).upsert();
+                up.updateOne(marshall);
+//                }
+
+
             }
 
         }
-        long start = System.currentTimeMillis();
+
+        for (int i = 0; i < morphium.getConfig().getRetriesOnNetworkError(); i++) {
+            try {
+                //storing updates
+                if (wc == null) {
+                    bulkWriteOperation.execute();
+                } else {
+                    bulkWriteOperation.execute(wc);
+                }
+            } catch (Exception e) {
+                morphium.handleNetworkError(i, e);
+            }
+        }
+        long dur = System.currentTimeMillis() - start;
+        morphium.fireProfilingWriteEvent(lst.get(0).getClass(), lst, dur, false, WriteAccessType.BULK_UPDATE);
+        morphium.firePostStoreEvent(lst, false);
+        start = System.currentTimeMillis();
 
         if (wc == null) {
             collection.insert(dbLst);
         } else {
             collection.insert(dbLst, wc);
         }
-        long dur = System.currentTimeMillis() - start;
+        dur = System.currentTimeMillis() - start;
         //bulk insert
         morphium.fireProfilingWriteEvent(lst.get(0).getClass(), dbLst, dur, true, WriteAccessType.BULK_INSERT);
         for (Object record : lst) {
@@ -484,25 +492,34 @@ public class MorphiumWriterImpl implements MorphiumWriter {
                                 } else {
                                     //single update
                                     long start = System.currentTimeMillis();
-                                    WriteResult result = null;
-
+//                                    WriteResult result = null;
+                                    BulkWriteOperation bulkWriteOperation = collection.initializeUnorderedBulkOperation();
                                     for (int i = 0; i < morphium.getConfig().getRetriesOnNetworkError(); i++) {
                                         try {
-                                            if (wc == null) {
-                                                result = collection.save(marshall);
-                                            } else {
-                                                result = collection.save(marshall, wc);
-                                            }
-                                            if (!result.getLastError().ok()) {
-                                                logger.error("Writing failed: " + result.getLastError().getErrorMessage());
-                                            }
+                                            BulkWriteRequestBuilder findId = bulkWriteOperation.find(new BasicDBObject("_id", morphium.getARHelper().getId(record)));
+                                            findId.upsert().updateOne(marshall);
+//                                            if (wc == null) {
+//                                                result = collection.save(marshall);
+//                                            } else {
+//                                                result = collection.save(marshall, wc);
+//                                            }
+//                                            if (!result.getLastError().ok()) {
+//                                                logger.error("Writing failed: " + result.getLastError().getErrorMessage());
+//                                            }
                                             break;
                                         } catch (Exception e) {
                                             morphium.handleNetworkError(i, e);
                                         }
                                     }
+                                    BulkWriteResult result;
+                                    if (wc == null) {
+                                        result = bulkWriteOperation.execute();
+                                    } else {
+                                        result = bulkWriteOperation.execute(wc);
+                                    }
+                                    //TODO: to something with the result
                                     long dur = System.currentTimeMillis() - start;
-                                    morphium.fireProfilingWriteEvent(c, marshall, dur, false, WriteAccessType.SINGLE_INSERT);
+                                    morphium.fireProfilingWriteEvent(c, marshall, dur, false, WriteAccessType.BULK_UPDATE);
                                     morphium.firePostStoreEvent(record, isNew.get(record));
                                 }
 

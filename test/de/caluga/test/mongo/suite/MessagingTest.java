@@ -181,8 +181,8 @@ public class MessagingTest extends MongoTest {
         Thread.sleep(5000);
         assert (!gotMessage) : "Got message again?!?!?!";
 
-        Thread.sleep(5000);
-        assert (MorphiumSingleton.get().readAll(Msg.class).size() == 0) : "Still messages left?!?!?";
+//        Thread.sleep(5000);
+//        assert (MorphiumSingleton.get().readAll(Msg.class).size() == 0) : "Still messages left?!?!?";
         messaging.setRunning(false);
         Thread.sleep(1000);
         assert (!messaging.isAlive()) : "Messaging still running?!?";
@@ -560,17 +560,6 @@ public class MessagingTest extends MongoTest {
 
         assert (!gotMessage3 && !gotMessage1 && !gotMessage2) : "Message processing repeat?";
 
-        Query<Msg> q = MorphiumSingleton.get().createQueryFor(Msg.class);
-        long cnt = 0;
-        for (int i = 0; i < 40; i++) {
-            cnt = q.countAll();
-            System.out.println("Messages in queue: " + cnt);
-            if (cnt == 0) {
-                break;
-            }
-            Thread.sleep(1000);
-        }
-        assert (cnt == 0) : "Messages not processed yet?!?!?" + cnt;
         assert (!error);
         m1.setRunning(false);
         m2.setRunning(false);
@@ -657,19 +646,7 @@ public class MessagingTest extends MongoTest {
         }
         assert (procCounter == numberOfMessages * (numberOfWorkers - 1)) : "Still processing messages?!?!?";
 
-        //Waiting for all messages to be outdated and deleted
-        Query<Msg> q = MorphiumSingleton.get().createQueryFor(Msg.class);
-        long cnt = 0;
-        for (int i = 0; i < ttl / 1000 * 2; i++) {
-            cnt = q.countAll();
-            System.out.println("Messages in queue: " + cnt);
-            if (cnt == 0) {
-                break;
-            }
-            Thread.sleep(1000);
-        }
-        assert (cnt == 0) : "Messages not processed yet?!?!?" + cnt;
-
+        //Waiting for all messages to be outdated and deleted - done by mongo itself!
         //Stopping all
         for (Messaging m : systems) {
             m.setRunning(false);
@@ -769,7 +746,7 @@ public class MessagingTest extends MongoTest {
 
 
     @Test
-    public void messageingPerformanceTest() throws Exception {
+    public void messagingPerformanceTest() throws Exception {
         MorphiumSingleton.get().clearCollection(Msg.class);
         final Messaging producer = new Messaging(MorphiumSingleton.get(), 100, true);
         final Messaging consumer = new Messaging(MorphiumSingleton.get(), 10, true);

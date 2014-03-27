@@ -170,6 +170,10 @@ public class MongoTest {
             uc.setCounter(i + 1);
             uc.setValue("v");
             lst.add(uc);
+            if (i % 1000 == 999) {
+                MorphiumSingleton.get().storeList(lst);
+                lst.clear();
+            }
         }
         MorphiumSingleton.get().storeList(lst);
     }
