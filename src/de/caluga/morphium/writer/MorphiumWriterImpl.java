@@ -485,6 +485,7 @@ public class MorphiumWriterImpl implements MorphiumWriter {
                                     //single update
                                     long start = System.currentTimeMillis();
                                     WriteResult result = null;
+
                                     for (int i = 0; i < morphium.getConfig().getRetriesOnNetworkError(); i++) {
                                         try {
                                             if (wc == null) {
