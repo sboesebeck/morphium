@@ -2,6 +2,8 @@ package de.caluga.test.mongo.suite;
 
 import de.caluga.morphium.MorphiumSingleton;
 import de.caluga.morphium.annotations.Entity;
+import de.caluga.morphium.annotations.SafetyLevel;
+import de.caluga.morphium.annotations.WriteSafety;
 import de.caluga.morphium.annotations.caching.AsyncWrites;
 import de.caluga.morphium.async.AsyncOperationCallback;
 import de.caluga.morphium.async.AsyncOperationType;
@@ -171,6 +173,7 @@ public class AsyncOperationTest extends MongoTest {
 
     @AsyncWrites
     @Entity
+    @WriteSafety(waitForJournalCommit = false, waitForSync = false, level = SafetyLevel.IGNORE_ERROR)
     public static class WrongObject {
         private String value;
 

@@ -47,6 +47,7 @@ public interface Query<T> extends Cloneable {
 
     /**
      * returns the serveraddress the query was executed on
+     *
      * @return the serveraddress the query was executed on, null if not executed yet
      */
     public ServerAddress getServer();
@@ -264,9 +265,11 @@ public interface Query<T> extends Cloneable {
 
     public List<T> textSearch(TextSearchLanguages lang, String... texts);
 
-    MongoField<T> f(Enum... f);
+    public MongoField<T> f(Enum... f);
 
-    MongoField<T> f(String... f);
+    public MongoField<T> f(String... f);
+
+    public void delete();
 
     public enum TextSearchLanguages {
         danish,
