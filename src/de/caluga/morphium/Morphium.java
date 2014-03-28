@@ -15,8 +15,7 @@ import de.caluga.morphium.cache.CacheHousekeeper;
 import de.caluga.morphium.cache.MorphiumCache;
 import de.caluga.morphium.query.MongoField;
 import de.caluga.morphium.query.Query;
-import de.caluga.morphium.replicaset.ConfNode;
-import de.caluga.morphium.replicaset.ReplicaSetConf;
+import de.caluga.morphium.replicaset.RSMonitor;
 import de.caluga.morphium.replicaset.ReplicaSetNode;
 import de.caluga.morphium.replicaset.ReplicaSetStatus;
 import de.caluga.morphium.validation.JavaxValidationStorageListener;
@@ -58,16 +57,12 @@ public class Morphium {
      */
     private final static Logger logger = Logger.getLogger(Morphium.class);
     private MorphiumConfig config;
-    private ReplicaSetStatus currentStatus = null;
-
-    //Cache by Type, query String -> CacheElement (contains list etc)
 
     private final Map<StatisticKeys, StatisticValue> stats;
 
     /**
      * String Representing current user - needs to be set by Application
      */
-//    private String currentUser;
     private CacheHousekeeper cacheHousekeeper;
 
     private List<MorphiumStorageListener> listeners;
@@ -75,19 +70,22 @@ public class Morphium {
     private Vector<ShutdownListener> shutDownListeners;
 
     private AnnotationAndReflectionHelper annotationHelper = new AnnotationAndReflectionHelper();
-    //    private MorphiumCache cache;
     private ObjectMapper objectMapper;
+    private RSMonitor rsMonitor;
+    private Integer maxBsonSize;
+    private Integer maxMessageSize;
+    private Integer maxWriteBatchSize;
 
     public MorphiumConfig getConfig() {
         return config;
     }
-//    private boolean securityEnabled = false;
 
     public Morphium() {
         stats = new Hashtable<StatisticKeys, StatisticValue>();
         shutDownListeners = new Vector<ShutdownListener>();
         listeners = new ArrayList<MorphiumStorageListener>();
         profilingListeners = new Vector<ProfilingListener>();
+
     }
 
     /**
@@ -163,9 +161,6 @@ public class Morphium {
         config.getAsyncWriter().setMaximumQueingTries(config.getMaximumRetriesAsyncWriter());
         config.getAsyncWriter().setPauseBetweenTries(config.getRetryWaitTimeAsyncWriter());
 
-//        cache = config.getCache();
-
-        // enable/disable javax.validation support
         if (hasValidationSupport()) {
             logger.info("Adding javax.validation Support...");
             addListener(new JavaxValidationStorageListener());
@@ -179,38 +174,30 @@ public class Morphium {
             throw new RuntimeException(e);
         }
 
-        if (config.getAdr().size() > 1) {
-            Thread thr = new Thread() {
-                public void run() {
-                    //updating replicaset status / active nodes
-                    int nullcounter = 0;
-                    while (true) {
-                        try {
-                            currentStatus = getReplicaSetStatus(true);
-                            if (currentStatus == null) {
-                                nullcounter++;
-                            } else {
-                                nullcounter = 0;
-                            }
-                            if (nullcounter > 10) {
-                                logger.error("Getting ReplicasetStatus failed 10 times... will gracefully exit thread");
-                                return;
-                            }
-                            sleep(config.getReplicaSetMonitoringTimeout());
-                        } catch (InterruptedException e) {
-                        }
-                    }
-                }
-            };
-            thr.setDaemon(true);
-            thr.start();
-        }
         try {
             Thread.sleep(1000); //Waiting for initialization to finish
         } catch (InterruptedException e) {
 
         }
+        if (isReplicaSet()) {
+            rsMonitor = new RSMonitor(this);
+            rsMonitor.start();
+            rsMonitor.getReplicaSetStatus(false);
+        }
+        readMaximums();
         logger.info("Initialization successful...");
+    }
+
+    public Integer getMaxBsonSize() {
+        return maxBsonSize;
+    }
+
+    public Integer getMaxMessageSize() {
+        return maxMessageSize;
+    }
+
+    public Integer getMaxWriteBatchSize() {
+        return maxWriteBatchSize;
     }
 
     public MorphiumCache getCache() {
@@ -980,66 +967,13 @@ public class Morphium {
      * @return replica set status
      */
     private de.caluga.morphium.replicaset.ReplicaSetStatus getReplicaSetStatus() {
-        return getReplicaSetStatus(false);
+        return rsMonitor.getReplicaSetStatus(false);
     }
 
-    public ReplicaSetStatus getCurrentStatus() {
-        return currentStatus;
+    public ReplicaSetStatus getCurrentRSState() {
+        return rsMonitor.getCurrentStatus();
     }
 
-    /**
-     * get the current replicaset status - issues the replSetGetStatus command to mongo
-     * if full==true, also the configuration is read. This method is called with full==false for every write in
-     * case a Replicaset is configured to find out the current number of active nodes
-     *
-     * @param full - if true- return full status
-     * @return status
-     */
-    @SuppressWarnings("unchecked")
-    private de.caluga.morphium.replicaset.ReplicaSetStatus getReplicaSetStatus(boolean full) {
-        if (config.getAdr().size() > 1) {
-            try {
-                DB adminDB = getMongo().getDB("admin");
-                if (config.getMongoAdminUser() != null) {
-                    if (!adminDB.authenticate(config.getMongoAdminUser(), config.getMongoAdminPwd().toCharArray())) {
-                        logger.error("Authentication as admin failed!");
-                        return null;
-                    }
-                }
-                CommandResult res = adminDB.command("replSetGetStatus");
-                de.caluga.morphium.replicaset.ReplicaSetStatus status = objectMapper.unmarshall(de.caluga.morphium.replicaset.ReplicaSetStatus.class, res);
-                if (full) {
-                    DBCursor rpl = getMongo().getDB("local").getCollection("system.replset").find();
-                    DBObject stat = rpl.next(); //should only be one, i think
-                    ReplicaSetConf cfg = objectMapper.unmarshall(ReplicaSetConf.class, stat);
-                    List<Object> mem = cfg.getMemberList();
-                    List<ConfNode> cmembers = new ArrayList<ConfNode>();
-
-                    for (Object o : mem) {
-//                        DBObject dbo = (DBObject) o;
-                        ConfNode cn = (ConfNode) o;// objectMapper.unmarshall(ConfNode.class, dbo);
-                        cmembers.add(cn);
-                    }
-                    cfg.setMembers(cmembers);
-                    status.setConfig(cfg);
-                }
-                //de-referencing list
-                List lst = status.getMembers();
-                List<ReplicaSetNode> members = new ArrayList<ReplicaSetNode>();
-                for (Object l : lst) {
-//                    DBObject o = (DBObject) l;
-                    ReplicaSetNode n = (ReplicaSetNode) l;//objectMapper.unmarshall(ReplicaSetNode.class, o);
-                    members.add(n);
-                }
-                status.setMembers(members);
-
-                return status;
-            } catch (Exception e) {
-                logger.warn("Could not get Replicaset status: " + e.getMessage(), e);
-            }
-        }
-        return null;
-    }
 
     public boolean isReplicaSet() {
         return config.getAdr().size() > 1;
@@ -1095,7 +1029,7 @@ public class Morphium {
         }
         int timeout = safety.timeout();
         if (isReplicaSet() && w > 2) {
-            de.caluga.morphium.replicaset.ReplicaSetStatus s = currentStatus;
+            de.caluga.morphium.replicaset.ReplicaSetStatus s = rsMonitor.getCurrentStatus();
 
             if (s == null || s.getActiveNodes() == 0) {
                 logger.warn("ReplicaSet status is null or no node active! Assuming default write concern");
@@ -1135,15 +1069,6 @@ public class Morphium {
                     logger.warn("Warning: replication lag too high! timeout set to " + timeout + "ms - replication Lag is " + maxReplLag + "s - write should take place in Background!");
                 }
 
-//                if (getConfig().getConnectionTimeout() == 0) {
-//                    if (logger.isDebugEnabled())
-//                        logger.debug("Not waiting for all slaves withoug timeout - unfortunately no connection timeout set in config - setting to 10s, Type: " + cls.getSimpleName());
-//                    timeout = 10000;
-//                } else {
-//                    if (logger.isDebugEnabled())
-//                        logger.debug("Not waiting for all slaves without timeout - could cause deadlock. Setting to connectionTimeout value, Type: " + cls.getSimpleName());
-//                    timeout = getConfig().getConnectionTimeout();
-//                }
             }
             //Wait for all active slaves (-1 for the timeout bug)
             //TODO: remove -1 or think of something different
@@ -1153,18 +1078,6 @@ public class Morphium {
                 timeout = maxReplLag * 3000;
             }
         }
-//        if (w==0) {
-//            return WriteConcern.NONE;
-//        }
-//        if(w==1) {
-//            return WriteConcern.FSYNC_SAFE;
-//        }
-//        if (w==2) {
-//            return WriteConcern.JOURNAL_SAFE;
-//        }
-//        if (w==3) {
-//            return WriteConcern.REPLICAS_SAFE;
-//        }
 
         if (w == -99) {
             return new WriteConcern("majority", timeout, fsync, j);
@@ -1341,28 +1254,6 @@ public class Morphium {
 
         return createQueryFor(type).f(ls.get(0)).eq(id).get();
     }
-//    /**
-//     * returns a list of all elements for the given type, matching the given query
-//     * @param qu - the query to search
-//     * @param <T> - type of the elementyx
-//     * @return  - list of elements matching query
-//     */
-//    public <T> List<T> readAll(Query<T> qu) {
-//        inc(StatisticKeys.READS);
-//        if (qu.getEntityClass().isAnnotationPresent(Cache.class)) {
-//            if (isCached(qu.getEntityClass(), qu.toString())) {
-//                inc(StatisticKeys.CHITS);
-//                return getFromCache(qu.getEntityClass(), qu.toString());
-//            } else {
-//                inc(StatisticKeys.CMISS);
-//            }
-//        }
-//        List<T> lst = qu.asList();
-//        addToCache(qu.toString()+" / l:"+((QueryImpl)qu).getLimit()+" o:"+((QueryImpl)qu).getOffset(), qu.getEntityClass(), lst);
-//        return lst;
-//
-//    }
-
 
     @SuppressWarnings("unchecked")
     public <T> List<T> findByField(Class<? extends T> cls, String fld, Object val) {
@@ -1595,11 +1486,47 @@ public class Morphium {
      * @param <T>        - type of entity
      */
     public <T> void storeList(List<T> lst, String collection) {
-
+        storeList(lst, collection, null);
     }
 
     public <T> void storeList(List<T> lst, String collection, AsyncOperationCallback<T> callback) {
+        Map<Class<?>, MorphiumWriter> writers = new HashMap<Class<?>, MorphiumWriter>();
+        Map<Class<?>, List<Object>> values = new HashMap<Class<?>, List<Object>>();
+        for (Object o : lst) {
+            if (writers.get(o.getClass()) == null) {
+                writers.put(o.getClass(), getWriterForClass(o.getClass()));
+            }
+            if (values.get(o.getClass()) == null) {
+                values.put(o.getClass(), new ArrayList<Object>());
+            }
+            values.get(o.getClass()).add(o);
+        }
+        for (Class cls : writers.keySet()) {
+            writers.get(cls).store((List<T>) values.get(cls), collection, callback);
+        }
+    }
 
+
+    public void readMaximums() {
+        try {
+            DB adminDB = getMongo().getDB("admin");
+            MorphiumConfig config = getConfig();
+            if (config.getMongoAdminUser() != null) {
+                if (!adminDB.authenticate(config.getMongoAdminUser(), config.getMongoAdminPwd().toCharArray())) {
+                    logger.error("Authentication as admin failed!");
+                    return;
+                }
+            }
+            CommandResult res = adminDB.command("isMaster");
+            maxBsonSize = (Integer) res.get("maxBsonObjectSize");
+            maxMessageSize = (Integer) res.get("maxMessageSizeBytes");
+            maxWriteBatchSize = (Integer) res.get("maxWriteBatchSize");
+        } catch (Exception e) {
+            logger.error("Error reading max avalues from DB", e);
+            maxBsonSize = 0;
+            maxMessageSize = 0;
+            maxWriteBatchSize = 0;
+        }
     }
 
     /**
@@ -1619,7 +1546,7 @@ public class Morphium {
 
         //checking permission - might take some time ;-(
         for (T o : lst) {
-            if (annotationHelper.isBufferedWrite(o.getClass())) {
+            if (annotationHelper.isBufferedWrite(getARHelper().getRealClass(o.getClass()))) {
                 storeInBg.add(o);
             } else {
                 storeDirect.add(o);
