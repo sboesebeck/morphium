@@ -14,7 +14,7 @@ import java.util.Date;
  * Mongo Replicaset Node
  */
 @SuppressWarnings("UnusedDeclaration")
-@Embedded
+@Embedded(translateCamelCase = false)
 public class ReplicaSetNode {
     private int id;
     private String name;
