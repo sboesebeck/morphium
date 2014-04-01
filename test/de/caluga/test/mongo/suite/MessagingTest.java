@@ -181,8 +181,6 @@ public class MessagingTest extends MongoTest {
         Thread.sleep(5000);
         assert (!gotMessage) : "Got message again?!?!?!";
 
-        Thread.sleep(5000);
-        assert (MorphiumSingleton.get().readAll(Msg.class).size() == 0) : "Still messages left?!?!?";
         messaging.setRunning(false);
         Thread.sleep(1000);
         assert (!messaging.isAlive()) : "Messaging still running?!?";
