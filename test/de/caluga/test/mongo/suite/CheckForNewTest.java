@@ -26,7 +26,7 @@ public class CheckForNewTest extends MongoTest {
         tst.theId = "1";
         tst.theValue = "value";
         MorphiumSingleton.get().store(tst);
-        assert (tst.created != null);
+        assert (tst.created == null); //unfortunately, won't see whether object is new or not, unless asking mongo => checkForNew
 
 
         tst = new TestID();
@@ -78,13 +78,13 @@ public class CheckForNewTest extends MongoTest {
     }
 
     @Entity
-    @CreationTime
+    @CreationTime(checkForNew = true)
     public static class TestID2 {
         @Id
         public String theId;
         public String theValue;
 
-        @CreationTime(checkForNew = true)
+        @CreationTime
         public Date created;
 
     }
