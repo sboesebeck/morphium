@@ -533,11 +533,7 @@ public class Morphium {
         if (query == null || field == null) throw new RuntimeException("Cannot update null!");
 
         firePreUpdateEvent(query.getType(), MorphiumStorageListener.UpdateTypes.PULL);
-        MorphiumWriter wr = config.getWriter();
-        if (annotationHelper.isBufferedWrite(query.getType())) {
-            wr = config.getBufferedWriter();
-
-        }
+        MorphiumWriter wr = getWriterForClass(query.getType());
         wr.pushPull(false, query, field, value, insertIfNotExist, multiple, callback);
     }
 
@@ -549,12 +545,7 @@ public class Morphium {
         if (query == null || field == null) throw new RuntimeException("Cannot update null!");
 
         firePreUpdateEvent(query.getType(), MorphiumStorageListener.UpdateTypes.PUSH);
-        MorphiumWriter wr;
-        if (!annotationHelper.isBufferedWrite(query.getType())) {
-            wr = config.getWriter();
-        } else {
-            wr = config.getBufferedWriter();
-        }
+        MorphiumWriter wr = getWriterForClass(query.getType());
         wr.pushPullAll(true, query, field, value, insertIfNotExist, multiple, callback);
 
 
@@ -693,14 +684,10 @@ public class Morphium {
 
 
     public MorphiumWriter getWriterForClass(Class<?> cls) {
-        if (config.isCacheEnabled()) {
-            if (annotationHelper.isBufferedWrite(cls)) {
-                return config.getBufferedWriter();
-            } else if (annotationHelper.isAsyncWrite(cls)) {
-                return config.getAsyncWriter();
-            } else {
-                return config.getWriter();
-            }
+        if (annotationHelper.isBufferedWrite(cls) && config.isBufferedWritesEnabled()) {
+            return config.getBufferedWriter();
+        } else if (annotationHelper.isAsyncWrite(cls) && config.isAsyncWritesEnabled()) {
+            return config.getAsyncWriter();
         } else {
             return config.getWriter();
         }

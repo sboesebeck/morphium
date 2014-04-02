@@ -102,7 +102,9 @@ public class MorphiumConfig {
      */
     private String mongoLogin = null, mongoPassword = null;
 
-    boolean cacheEnabled = true;
+    boolean readCacheEnabled = true;
+    boolean asyncWritesEnabled = true;
+    boolean bufferedWritesEnabled = true;
     @Transient
     private List<ServerAddress> adr = new Vector<ServerAddress>();
     //securitysettings
@@ -879,19 +881,51 @@ public class MorphiumConfig {
         return new MorphiumConfig(p);
     }
 
-    public boolean isCacheEnabled() {
-        return cacheEnabled;
+    public boolean isReadCacheEnabled() {
+        return readCacheEnabled;
     }
 
-    public void setCacheEnabled(boolean cacheEnabled) {
-        this.cacheEnabled = cacheEnabled;
+    public void setReadCacheEnabled(boolean readCacheEnabled) {
+        this.readCacheEnabled = readCacheEnabled;
     }
 
-    public void disableCaching() {
-        this.cacheEnabled = false;
+    public void disableReadCache() {
+        this.readCacheEnabled = false;
     }
 
-    public void enableCaching() {
-        this.cacheEnabled = true;
+    public void enableReadCache() {
+        this.readCacheEnabled = true;
+    }
+
+    public boolean isAsyncWritesEnabled() {
+        return asyncWritesEnabled;
+    }
+
+    public void setAsyncWritesEnabled(boolean asyncWritesEnabled) {
+        this.asyncWritesEnabled = asyncWritesEnabled;
+    }
+
+    public void disableAsyncWrites() {
+        asyncWritesEnabled = false;
+    }
+
+    public void enableAsyncWrites() {
+        asyncWritesEnabled = true;
+    }
+
+    public boolean isBufferedWritesEnabled() {
+        return bufferedWritesEnabled;
+    }
+
+    public void setBufferedWritesEnabled(boolean bufferedWritesEnabled) {
+        this.bufferedWritesEnabled = bufferedWritesEnabled;
+    }
+
+    public void disableBufferedWrites() {
+        bufferedWritesEnabled = false;
+    }
+
+    public void enableBufferedWrites() {
+        bufferedWritesEnabled = true;
     }
 }

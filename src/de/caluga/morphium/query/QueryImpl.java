@@ -136,7 +136,7 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
     @Override
     public List<T> complexQuery(DBObject query, Map<String, Integer> sort, int skip, int limit) {
         Cache ca = annotationHelper.getAnnotationFromHierarchy(type, Cache.class); //type.getAnnotation(Cache.class);
-        boolean useCache = ca != null && ca.readCache() && morphium.getConfig().isCacheEnabled();
+        boolean useCache = ca != null && ca.readCache() && morphium.getConfig().isReadCacheEnabled();
         String ck = morphium.getCache().getCacheKey(query, sort, getCollectionName(), skip, limit);
         if (useCache && morphium.getCache().isCached(type, ck)) {
             return morphium.getCache().getFromCache(type, ck);
@@ -548,7 +548,7 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
     public List<T> asList() {
         morphium.inc(StatisticKeys.READS);
         Cache c = annotationHelper.getAnnotationFromHierarchy(type, Cache.class); //type.getAnnotation(Cache.class);
-        boolean useCache = c != null && c.readCache() && morphium.getConfig().isCacheEnabled();
+        boolean useCache = c != null && c.readCache() && morphium.getConfig().isReadCacheEnabled();
 
         String ck = morphium.getCache().getCacheKey(this);
         if (useCache) {
@@ -732,7 +732,7 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
     @Override
     public T get() {
         Cache c = annotationHelper.getAnnotationFromHierarchy(type, Cache.class); //type.getAnnotation(Cache.class);
-        boolean useCache = c != null && c.readCache() && morphium.getConfig().isCacheEnabled();
+        boolean useCache = c != null && c.readCache() && morphium.getConfig().isReadCacheEnabled();
         String ck = morphium.getCache().getCacheKey(this);
         morphium.inc(StatisticKeys.READS);
         if (useCache) {
@@ -839,7 +839,7 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
     @Override
     public <R> List<R> idList() {
         Cache c = annotationHelper.getAnnotationFromHierarchy(type, Cache.class);//type.getAnnotation(Cache.class);
-        boolean useCache = c != null && c.readCache() && morphium.getConfig().isCacheEnabled();
+        boolean useCache = c != null && c.readCache() && morphium.getConfig().isReadCacheEnabled();
         List<R> ret = new ArrayList<R>();
         String ck = morphium.getCache().getCacheKey(this);
         ck += " idlist";
