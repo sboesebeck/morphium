@@ -7,10 +7,7 @@ import de.caluga.morphium.annotations.lifecycle.PreStore;
 import org.apache.log4j.Logger;
 import org.bson.types.ObjectId;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 /**
  * User: Stephan Bösebeck
@@ -22,14 +19,14 @@ import java.util.Map;
  * Reads from any node, as this produces lots of reads! All Writes will block until <b>all nodes</b> have confirmed the
  * write!
  */
-@Entity(polymorph = true)
+@Entity
 @NoCache
 //timeout <0 - setting relative to replication lag
 //timeout == 0 - wait forever
-@WriteSafety(level = SafetyLevel.WAIT_FOR_ALL_SLAVES, timeout = 0, waitForJournalCommit = false, waitForSync = false)
-@DefaultReadPreference(ReadPreferenceLevel.NEAREST)
+@WriteSafety(level = SafetyLevel.NORMAL, timeout = 0, waitForJournalCommit = false, waitForSync = false)
+@DefaultReadPreference(ReadPreferenceLevel.PRIMARY)
 @Lifecycle
-@Index({"sender,locked_by,processed_by,recipient", "locked_by,processed_by,recipient,timestamp"})
+@Index({"sender,locked_by,processed_by,recipient,-timestamp", "locked_by,processed_by,recipient,timestamp"})
 public class Msg {
 
 
@@ -46,7 +43,6 @@ public class Msg {
         timestamp,
         sender,
         ttl,
-        mapValue,
         recipient
     }
 
@@ -55,13 +51,13 @@ public class Msg {
     @Id
     private ObjectId msgId;
     @Index
-    private String lockedBy = "";
+    private String lockedBy;
     @Index
     private long locked;
     private MsgType type;
     private long ttl;
     private String sender;
-    private String recipient = "";
+    private String recipient;
     @Transient
     private List<String> to;
     private Object inAnswerTo;
@@ -74,6 +70,8 @@ public class Msg {
     @Index
     private long timestamp;
 
+    @Index(options = "expireAfterSeconds:0")
+    private Date deleteAt;
     @Transient
     private Boolean exclusive = null;
 
@@ -98,7 +96,7 @@ public class Msg {
 
     public boolean isExclusive() {
         if (exclusive == null) {
-            return !getLockedBy().equals("") && !getLockedBy().equals("ALL");
+            return getLockedBy() != null && !getLockedBy().equals("ALL");
         }
         return exclusive;
     }
@@ -110,7 +108,7 @@ public class Msg {
      */
     public void setExclusive(boolean exclusive) {
         if (!exclusive) lockedBy = "ALL";
-        else lockedBy = "";
+        else lockedBy = null;
         this.exclusive = exclusive;
     }
 
@@ -334,13 +332,6 @@ public class Msg {
         if (!exclusive) {
             locked = System.currentTimeMillis();
             lockedBy = "ALL";
-        } else {
-            if (lockedBy == null) {
-                lockedBy = "";
-            }
-        }
-        if (recipient == null) {
-            recipient = "";
         }
         timestamp = System.currentTimeMillis();
     }
@@ -380,5 +371,9 @@ public class Msg {
         ret.setTo(to);
 
         return ret;  //To change body of created methods use File | Settings | File Templates.
+    }
+
+    public void setDeleteAt(Date deleteAt) {
+        this.deleteAt = deleteAt;
     }
 }

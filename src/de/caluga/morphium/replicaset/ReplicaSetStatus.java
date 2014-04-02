@@ -15,7 +15,7 @@ import java.util.List;
  * Replicaset Status
  */
 @SuppressWarnings("UnusedDeclaration")
-@Embedded
+@Embedded(translateCamelCase = false)
 public class ReplicaSetStatus {
     private static Logger log = Logger.getLogger(ReplicaSetStatus.class);
     private String set;

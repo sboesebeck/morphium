@@ -135,8 +135,10 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
 
     @Override
     public List<T> complexQuery(DBObject query, Map<String, Integer> sort, int skip, int limit) {
+        Cache ca = annotationHelper.getAnnotationFromHierarchy(type, Cache.class); //type.getAnnotation(Cache.class);
+        boolean useCache = ca != null && ca.readCache() && morphium.getConfig().isReadCacheEnabled();
         String ck = morphium.getCache().getCacheKey(query, sort, getCollectionName(), skip, limit);
-        if (morphium.getCache().isCached(type, ck)) {
+        if (useCache && morphium.getCache().isCached(type, ck)) {
             return morphium.getCache().getFromCache(type, ck);
         }
         long start = System.currentTimeMillis();
@@ -184,6 +186,9 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
             }
         }
         morphium.fireProfilingReadEvent(this, System.currentTimeMillis() - start, ReadAccessType.AS_LIST);
+        if (useCache) {
+            morphium.getCache().addToCache(ck, type, ret);
+        }
         return ret;
     }
 
@@ -543,7 +548,7 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
     public List<T> asList() {
         morphium.inc(StatisticKeys.READS);
         Cache c = annotationHelper.getAnnotationFromHierarchy(type, Cache.class); //type.getAnnotation(Cache.class);
-        boolean useCache = c != null && c.readCache();
+        boolean useCache = c != null && c.readCache() && morphium.getConfig().isReadCacheEnabled();
 
         String ck = morphium.getCache().getCacheKey(this);
         if (useCache) {
@@ -605,7 +610,7 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
                     T unmarshall = morphium.getMapper().unmarshall(type, o);
                     if (unmarshall != null) {
                         ret.add(unmarshall);
-                        updateLastAccess(o, unmarshall);
+                        updateLastAccess(unmarshall);
                         morphium.firePostLoadEvent(unmarshall);
                     }
 
@@ -648,18 +653,25 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
         }
     }
 
-    private void updateLastAccess(DBObject o, T unmarshall) {
+    private void updateLastAccess(T unmarshall) {
         if (annotationHelper.isAnnotationPresentInHierarchy(type, LastAccess.class)) {
             List<String> lst = annotationHelper.getFields(type, LastAccess.class);
             for (String ctf : lst) {
                 Field f = annotationHelper.getField(type, ctf);
                 if (f != null) {
                     try {
+                        long currentTime = System.currentTimeMillis();
                         if (f.getType().equals(Date.class)) {
                             f.set(unmarshall, new Date());
                         } else {
-                            f.set(unmarshall, System.currentTimeMillis());
+
+                            f.set(unmarshall, currentTime);
                         }
+                        ObjectMapper mapper = morphium.getMapper();
+                        String collName = mapper.getCollectionName(unmarshall.getClass());
+                        Object id = morphium.getARHelper().getId(unmarshall);
+                        //Cannot use store, as this would trigger an update of last changed...
+                        morphium.getDatabase().getCollection(collName).update(new BasicDBObject("_id", id), new BasicDBObject("$set", new BasicDBObject(ctf, currentTime)));
                     } catch (IllegalAccessException e) {
                         System.out.println("Could not set modification time");
 
@@ -668,7 +680,11 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
             }
 
             //Storing access timestamps
-            morphium.store(unmarshall);
+//            List<T> l=new ArrayList<T>();
+//            l.add(unmarshall);
+//            morphium.getWriterForClass(unmarshall.getClass()).store(l,null);
+
+//            morphium.store(unmarshall);
         }
     }
 
@@ -727,10 +743,10 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
     @Override
     public T get() {
         Cache c = annotationHelper.getAnnotationFromHierarchy(type, Cache.class); //type.getAnnotation(Cache.class);
-        boolean readCache = c != null && c.readCache();
+        boolean useCache = c != null && c.readCache() && morphium.getConfig().isReadCacheEnabled();
         String ck = morphium.getCache().getCacheKey(this);
         morphium.inc(StatisticKeys.READS);
-        if (readCache) {
+        if (useCache) {
             if (morphium.getCache().isCached(type, ck)) {
                 morphium.inc(StatisticKeys.CHITS);
                 List<T> lst = morphium.getCache().getFromCache(type, ck);
@@ -796,17 +812,17 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
             T unmarshall = morphium.getMapper().unmarshall(type, ret);
             if (unmarshall != null) {
                 morphium.firePostLoadEvent(unmarshall);
-                updateLastAccess(ret, unmarshall);
+                updateLastAccess(unmarshall);
 
                 lst.add((T) unmarshall);
-                if (readCache) {
+                if (useCache) {
                     morphium.getCache().addToCache(ck, type, lst);
                 }
             }
             return unmarshall;
         }
 
-        if (readCache) {
+        if (useCache) {
             morphium.getCache().addToCache(ck, type, lst);
         }
         return null;
@@ -834,12 +850,12 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
     @Override
     public <R> List<R> idList() {
         Cache c = annotationHelper.getAnnotationFromHierarchy(type, Cache.class);//type.getAnnotation(Cache.class);
-        boolean readCache = c != null && c.readCache();
+        boolean useCache = c != null && c.readCache() && morphium.getConfig().isReadCacheEnabled();
         List<R> ret = new ArrayList<R>();
         String ck = morphium.getCache().getCacheKey(this);
         ck += " idlist";
         morphium.inc(StatisticKeys.READS);
-        if (readCache) {
+        if (useCache) {
 
             if (morphium.getCache().isCached(type, ck)) {
                 morphium.inc(StatisticKeys.CHITS);
@@ -877,7 +893,7 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
         }
         long dur = System.currentTimeMillis() - start;
         morphium.fireProfilingReadEvent(this, dur, ReadAccessType.ID_LIST);
-        if (readCache) {
+        if (useCache) {
             morphium.getCache().addToCache(ck, type, ret);
         }
         return ret;

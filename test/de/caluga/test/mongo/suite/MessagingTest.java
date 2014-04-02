@@ -73,7 +73,7 @@ public class MessagingTest extends MongoTest {
         q.setCollectionName("mmsg_msg2");
         assert (q.countAll() == 1) : "Count is " + q.countAll();
 
-        Thread.sleep(8000);
+        Thread.sleep(4000);
         assert (!gotMessage1);
         assert (!gotMessage2);
         m.setRunning(false);
@@ -113,7 +113,7 @@ public class MessagingTest extends MongoTest {
         Query<Msg> q = MorphiumSingleton.get().createQueryFor(Msg.class);
 //        MorphiumSingleton.get().delete(q);
         //locking messages...
-        q = q.f(Msg.Fields.sender).ne(id).f(Msg.Fields.lockedBy).eq("").f(Msg.Fields.processedBy).ne(id);
+        q = q.f(Msg.Fields.sender).ne(id).f(Msg.Fields.lockedBy).eq(null).f(Msg.Fields.processedBy).ne(id);
         MorphiumSingleton.get().set(q, Msg.Fields.lockedBy, id);
 
         q = q.q();
@@ -130,7 +130,7 @@ public class MessagingTest extends MongoTest {
 
         q = MorphiumSingleton.get().createQueryFor(Msg.class);
         //locking messages...
-        q = q.f(Msg.Fields.sender).ne(id).f(Msg.Fields.lockedBy).eq("").f(Msg.Fields.processedBy).ne(id);
+        q = q.f(Msg.Fields.sender).ne(id).f(Msg.Fields.lockedBy).eq(null).f(Msg.Fields.processedBy).ne(id);
         MorphiumSingleton.get().set(q, Msg.Fields.lockedBy, id);
 
         q = q.q();
@@ -181,8 +181,6 @@ public class MessagingTest extends MongoTest {
         Thread.sleep(5000);
         assert (!gotMessage) : "Got message again?!?!?!";
 
-        Thread.sleep(5000);
-        assert (MorphiumSingleton.get().readAll(Msg.class).size() == 0) : "Still messages left?!?!?";
         messaging.setRunning(false);
         Thread.sleep(1000);
         assert (!messaging.isAlive()) : "Messaging still running?!?";
@@ -233,7 +231,7 @@ public class MessagingTest extends MongoTest {
         });
 
         m1.storeMessage(new Msg("testmsg1", "The message from M1", "Value"));
-        Thread.sleep(2000);
+        Thread.sleep(1000);
         assert (gotMessage2) : "Message not recieved yet?!?!?";
         gotMessage2 = false;
 
@@ -560,51 +558,12 @@ public class MessagingTest extends MongoTest {
 
         assert (!gotMessage3 && !gotMessage1 && !gotMessage2) : "Message processing repeat?";
 
-        Query<Msg> q = MorphiumSingleton.get().createQueryFor(Msg.class);
-        long cnt = 0;
-        for (int i = 0; i < 40; i++) {
-            cnt = q.countAll();
-            System.out.println("Messages in queue: " + cnt);
-            if (cnt == 0) {
-                break;
-            }
-            Thread.sleep(1000);
-        }
-        assert (cnt == 0) : "Messages not processed yet?!?!?" + cnt;
-        assert (!error);
         m1.setRunning(false);
         m2.setRunning(false);
         onlyAnswers.setRunning(false);
         Thread.sleep(1000);
     }
 
-
-    @Test
-    public void msgSubclassTest() throws Exception {
-        Messaging m1 = new Messaging(MorphiumSingleton.get(), 500, false);
-        Messaging m2 = new Messaging(MorphiumSingleton.get(), 500, false);
-        gotMessage = false;
-        m2.addListenerForMessageNamed("test", new MessageListener() {
-            @Override
-            public Msg onMessage(Messaging msg, Msg m) {
-                log.info("Got message: " + m);
-                assert (m instanceof TstMsg) : m.getClass().toString();
-                gotMessage = true;
-                return null;  //To change body of implemented methods use File | Settings | File Templates.
-            }
-        });
-        m1.start();
-        m2.start();
-
-        TstMsg tst = new TstMsg();
-        m1.storeMessage(tst);
-        Thread.sleep(1500);
-        assert (gotMessage);
-
-        m2.setRunning(false);
-        Thread.sleep(1000);
-        m1.setRunning(false);
-    }
 
     @Test
     public void massiveMessagingTest() throws Exception {
@@ -685,17 +644,6 @@ public class MessagingTest extends MongoTest {
         assert (procCounter == numberOfMessages * (numberOfWorkers - 1)) : "Still processing messages?!?!?";
 
         //Waiting for all messages to be outdated and deleted
-        Query<Msg> q = MorphiumSingleton.get().createQueryFor(Msg.class);
-        long cnt = 0;
-        for (int i = 0; i < ttl / 1000 * 2; i++) {
-            cnt = q.countAll();
-            System.out.println("Messages in queue: " + cnt);
-            if (cnt == 0) {
-                break;
-            }
-            Thread.sleep(1000);
-        }
-        assert (cnt == 0) : "Messages not processed yet?!?!?" + cnt;
 
         //Stopping all
         for (Messaging m : systems) {
@@ -775,7 +723,7 @@ public class MessagingTest extends MongoTest {
         m.setExclusive(false);
         m1.storeMessage(m);
 
-        Thread.sleep(2200);
+        Thread.sleep(1200);
         assert (!gotMessage1) : "Got message again?";
         assert (gotMessage2) : "m2 did not get msg?";
         assert (gotMessage3) : "m3 did not get msg";
@@ -796,126 +744,40 @@ public class MessagingTest extends MongoTest {
 
 
     @Test
-    public void burstModeTest() throws Exception {
-        procCounter = 0;
-
-        Messaging sender = new Messaging(MorphiumSingleton.get(), 10000, false);
-        log.info("Sender id: " + sender.getSenderId());
-        sender.addMessageListener(new MessageListener() {
+    public void messageingPerformanceTest() throws Exception {
+        MorphiumSingleton.get().clearCollection(Msg.class);
+        final Messaging producer = new Messaging(MorphiumSingleton.get(), 100, true);
+        final Messaging consumer = new Messaging(MorphiumSingleton.get(), 10, true);
+        final int[] processed = {0};
+        consumer.addMessageListener(new MessageListener() {
             @Override
             public Msg onMessage(Messaging msg, Msg m) {
-                log.info("Go message???? FAIL" + msg.toString());
+                processed[0]++;
+                if (processed[0] % 1000 == 999) {
+                    log.info("Processed: " + processed[0]);
+                }
                 return null;
             }
         });
 
-
-        MessageListener l = new MessageListener() {
-            @Override
-            public Msg onMessage(Messaging msg, Msg m) {
-//                log.info("Got Message " + m.getValue());
-                synchronized (this) {
-                    procCounter++;
-                }
-                return null; //no answer
+        int numberOfMessages = 10000;
+        for (int i = 0; i < numberOfMessages; i++) {
+            Msg m = new Msg("msg", "m", "v");
+            m.setTtl(60 * 1000);
+            if (i % 1000 == 99) {
+                log.info("created msg " + i + " / " + numberOfMessages);
             }
-        };
-        List<Messaging> receiver = new ArrayList<Messaging>();
-        for (int i = 0; i < 10; i++) {
-            Messaging rec = new Messaging(MorphiumSingleton.get(), 500, false);
-            receiver.add(rec);
-            rec.setBurstMode(false);
-            rec.addListenerForMessageNamed("test", l);
+            producer.storeMessage(m);
         }
-
-        sender.start();
-        for (int i = 1; i <= 100; i++) {
-            Msg m = new Msg("test", "the message", "" + i);
-            m.setExclusive(true);
-            m.setType(MsgType.SINGLE);
-            m.setTtl(100000);
-            sender.queueMessage(m);
-            if (i % 100 == 0) log.info("Stored " + i);
-        }
-        Thread.sleep(1000); //Wait for queue
+        log.info("Start message processing....");
         long start = System.currentTimeMillis();
-        for (Messaging rec : receiver) {
-            rec.start();
-        }
-
-        while (MorphiumSingleton.get().createQueryFor(Msg.class).countAll() != 0) {
+        consumer.start();
+        while (processed[0] < numberOfMessages) {
             Thread.sleep(50);
-//            log.info("Counter: "+procCounter);
         }
         long dur = System.currentTimeMillis() - start;
-        log.info("Processing of 100 msg took " + dur + " ms  Counter: " + procCounter);
-
-
-        for (Messaging rec : receiver) {
-            rec.setRunning(false);
-        }
-
-        ///burst Mode
-        procCounter = 0;
-        int messageCount = 800;
-        for (int i = 1; i <= messageCount; i++) {
-            Msg m = new Msg("test", "the message", "" + i);
-            m.setExclusive(true);
-            m.setType(MsgType.SINGLE);
-            m.setTtl(100000);
-            sender.queueMessage(m);
-            if (i % 100 == 0) {
-                log.info("Queued " + i);
-            }
-        }
-        Thread.sleep(1000);
-        receiver.clear();
-
-
-        //Creating new Thread
-        for (int i = 0; i < 20; i++) {
-            Messaging rec = new Messaging(MorphiumSingleton.get(), 500, false);
-            rec.setBurstMode(true);
-            rec.addListenerForMessageNamed("test", l);
-            rec.start();
-        }
-        start = System.currentTimeMillis();
-        int last = 0;
-        while (procCounter < messageCount) {
-            Thread.sleep(50);
-            if (procCounter > last + 100) {
-                log.info(" counter: " + procCounter);
-                last = procCounter;
-            }
-        }
-        dur = System.currentTimeMillis() - start;
-        log.info("Burst Processing of " + messageCount + " msg took " + dur + " ms Counter: " + procCounter);
-
-        sender.setRunning(false);
-        for (Messaging rec : receiver) {
-            rec.setRunning(false);
-
-        }
+        log.info("Processing took " + dur + " ms");
+        producer.setRunning(false);
         Thread.sleep(1000);
     }
-
-    public static class TstMsg extends Msg {
-        private String testValue;
-
-        public TstMsg() {
-            super();
-            setName("test");
-            setType(MsgType.SINGLE);
-            setExclusive(true);
-        }
-
-        public String getTestValue() {
-            return testValue;
-        }
-
-        public void setTestValue(String testValue) {
-            this.testValue = testValue;
-        }
-    }
-
 }

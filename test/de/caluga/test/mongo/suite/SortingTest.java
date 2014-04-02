@@ -36,7 +36,15 @@ public class SortingTest extends MongoTest {
         lst.add(uc);
         log.info("Sending bulk write...");
         MorphiumSingleton.get().storeList(lst);
-        log.info("Wrote it...");
+        log.info("Wrote it... waiting for batch to be stored");
+        while (MorphiumSingleton.get().createQueryFor(UncachedObject.class).countAll() < 5000) {
+            log.info("Waiting...");
+            try {
+                Thread.sleep(500);
+            } catch (InterruptedException e) {
+
+            }
+        }
     }
 
     @Test
