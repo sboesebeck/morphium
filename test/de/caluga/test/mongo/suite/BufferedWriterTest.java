@@ -74,6 +74,7 @@ public class BufferedWriterTest extends MongoTest {
             long count = MorphiumSingleton.get().createQueryFor(BufferedByTimeObject.class).countAll();
             if (count == amount) break;
             System.out.println("Amount written: " + count + " but Write buffer: " + MorphiumSingleton.get().getWriteBufferCount());
+            assert (MorphiumSingleton.get().getWriteBufferCount() != 0);
             Thread.sleep(100);
         }
         assert (System.currentTimeMillis() - start < 120000);
@@ -116,7 +117,7 @@ public class BufferedWriterTest extends MongoTest {
     }
 
 
-    @WriteBuffer(timeout = 2500)
+    @WriteBuffer(timeout = 5500)
     public static class BufferedByTimeObject extends UncachedObject {
 
     }
