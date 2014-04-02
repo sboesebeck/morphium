@@ -20,13 +20,13 @@ public class ReplicaSetStatusTest extends MongoTest {
     @Test
     public void testReplicaSetMonitoring() throws Exception {
         int cnt = 0;
-        while (MorphiumSingleton.get().getCurrentStatus() == null) {
+        while (MorphiumSingleton.get().getCurrentRSState() == null) {
             cnt++;
             assert (cnt < 7);
             Thread.sleep(1000);
         }
 
-        log.info("got status: " + MorphiumSingleton.get().getCurrentStatus().getActiveNodes());
+        log.info("got status: " + MorphiumSingleton.get().getCurrentRSState().getActiveNodes());
     }
 
     @Test
