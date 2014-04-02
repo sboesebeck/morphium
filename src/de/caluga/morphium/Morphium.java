@@ -7,8 +7,6 @@ package de.caluga.morphium;
 import com.mongodb.*;
 import de.caluga.morphium.aggregation.Aggregator;
 import de.caluga.morphium.annotations.*;
-import de.caluga.morphium.annotations.caching.Cache;
-import de.caluga.morphium.annotations.caching.NoCache;
 import de.caluga.morphium.annotations.lifecycle.*;
 import de.caluga.morphium.async.AsyncOperationCallback;
 import de.caluga.morphium.cache.CacheHousekeeper;
@@ -306,7 +304,6 @@ public class Morphium {
         if (toSet == null) throw new RuntimeException("Cannot update null!");
 
         firePreUpdateEvent(toSet.getClass(), MorphiumStorageListener.UpdateTypes.UNSET);
-        Cache c = annotationHelper.getAnnotationFromHierarchy(toSet.getClass(), Cache.class);
         MorphiumWriter wr = getWriterForClass(toSet.getClass());
         wr.unset(toSet, collection, field, callback);
     }
@@ -696,10 +693,14 @@ public class Morphium {
 
 
     public MorphiumWriter getWriterForClass(Class<?> cls) {
-        if (annotationHelper.isBufferedWrite(cls)) {
-            return config.getBufferedWriter();
-        } else if (annotationHelper.isAsyncWrite(cls)) {
-            return config.getAsyncWriter();
+        if (config.isCacheEnabled()) {
+            if (annotationHelper.isBufferedWrite(cls)) {
+                return config.getBufferedWriter();
+            } else if (annotationHelper.isAsyncWrite(cls)) {
+                return config.getAsyncWriter();
+            } else {
+                return config.getWriter();
+            }
         } else {
             return config.getWriter();
         }
@@ -777,11 +778,10 @@ public class Morphium {
         if (ent == null) return;
         if (fields.length == 0) return; //not doing an update - no change
 
-        if (annotationHelper.isAnnotationPresentInHierarchy(ent.getClass(), NoCache.class)) {
-            config.getWriter().updateUsingFields(ent, collection, null, fields);
-            return;
-        }
-
+//        if (annotationHelper.isAnnotationPresentInHierarchy(ent.getClass(), NoCache.class)) {
+//            config.getWriter().updateUsingFields(ent, collection, null, fields);
+//            return;
+//        }
         getWriterForClass(ent.getClass()).updateUsingFields(ent, collection, null, fields);
     }
 
