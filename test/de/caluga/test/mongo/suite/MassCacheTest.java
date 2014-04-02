@@ -167,6 +167,59 @@ public class MassCacheTest extends MongoTest {
         log.info("Test finished!");
     }
 
+
+    @Test
+    public void disableCacheTest() {
+        MorphiumSingleton.get().getConfig().disableReadCache();
+        MorphiumSingleton.get().getConfig().disableBufferedWrites();
+        log.info("Preparing test data...");
+        for (int j = 0; j < NO_OBJECTS; j++) {
+            CachedObject o = new CachedObject();
+            o.setCounter(j + 1);
+            o.setValue("Test " + j);
+            MorphiumSingleton.get().store(o);
+        }
+        waitForWrites();
+        log.info("Done.");
+
+        for (int j = 0; j < 3; j++) {
+            for (int i = 0; i < NO_OBJECTS; i++) {
+                Query<CachedObject> q = MorphiumSingleton.get().createQueryFor(CachedObject.class);
+                q.f("value").eq("Test " + i);
+                List<CachedObject> lst = q.asList();
+                assert (lst != null) : "List is NULL????";
+                assert (lst.size() > 0) : "Not found?!?!? Value: Test " + i;
+                assert (lst.get(0).getValue().equals("Test " + i)) : "Wrong value!";
+                log.info("found " + lst.size() + " elements for value: " + lst.get(0).getValue());
+
+            }
+        }
+        printStats();
+
+        Map<String, Double> statistics = MorphiumSingleton.get().getStatistics();
+        assert (statistics.get("CACHE_ENTRIES") == 0);
+        assert (statistics.get("WRITES_CACHED") == 1); //drop collection in setup...
+        MorphiumSingleton.get().getConfig().enableReadCache();
+        for (int j = 0; j < 3; j++) {
+            for (int i = 0; i < NO_OBJECTS; i++) {
+                Query<CachedObject> q = MorphiumSingleton.get().createQueryFor(CachedObject.class);
+                q.f("value").eq("Test " + i);
+                List<CachedObject> lst = q.asList();
+                assert (lst != null) : "List is NULL????";
+                assert (lst.size() > 0) : "Not found?!?!? Value: Test " + i;
+                assert (lst.get(0).getValue().equals("Test " + i)) : "Wrong value!";
+                log.info("found " + lst.size() + " elements for value: " + lst.get(0).getValue());
+
+            }
+        }
+        printStats();
+        statistics = MorphiumSingleton.get().getStatistics();
+        assert (statistics.get("CACHE_ENTRIES") != 0);
+        assert (statistics.get("CHITS") != 0);
+        MorphiumSingleton.get().getConfig().disableReadCache();
+        MorphiumSingleton.get().getConfig().disableBufferedWrites();
+    }
+
     @Test
     public void cacheTest() {
         log.info("Preparing test data...");
@@ -192,6 +245,9 @@ public class MassCacheTest extends MongoTest {
             }
         }
         printStats();
+        Map<String, Double> stats = MorphiumSingleton.get().getStatistics();
+        assert (stats.get("CACHE_ENTRIES") != 0);
+        assert (stats.get("CHITS") != 0);
     }
 
 
