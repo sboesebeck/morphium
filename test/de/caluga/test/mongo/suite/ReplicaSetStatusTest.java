@@ -32,7 +32,8 @@ public class ReplicaSetStatusTest extends MongoTest {
     @Test
     public void testWriteConcern() throws Exception {
         WriteConcern w = MorphiumSingleton.get().getWriteConcernForClass(SecureObject.class);
-        assert (w.getW() == 2);
+        int c = MorphiumSingleton.get().getCurrentStatus().getActiveNodes();
+        assert (w.getW() == c) : "W=" + w.getW() + " but should be: " + c;
         assert (w.getJ());
         assert (!w.getFsync());
         assert (w.getWtimeout() == 10000);
