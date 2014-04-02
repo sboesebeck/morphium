@@ -7,8 +7,6 @@ package de.caluga.morphium;
 import com.mongodb.*;
 import de.caluga.morphium.aggregation.Aggregator;
 import de.caluga.morphium.annotations.*;
-import de.caluga.morphium.annotations.caching.Cache;
-import de.caluga.morphium.annotations.caching.NoCache;
 import de.caluga.morphium.annotations.lifecycle.*;
 import de.caluga.morphium.async.AsyncOperationCallback;
 import de.caluga.morphium.cache.CacheHousekeeper;
@@ -293,7 +291,6 @@ public class Morphium {
         if (toSet == null) throw new RuntimeException("Cannot update null!");
 
         firePreUpdateEvent(toSet.getClass(), MorphiumStorageListener.UpdateTypes.UNSET);
-        Cache c = annotationHelper.getAnnotationFromHierarchy(toSet.getClass(), Cache.class);
         MorphiumWriter wr = getWriterForClass(toSet.getClass());
         wr.unset(toSet, collection, field, callback);
     }
@@ -523,11 +520,7 @@ public class Morphium {
         if (query == null || field == null) throw new RuntimeException("Cannot update null!");
 
         firePreUpdateEvent(query.getType(), MorphiumStorageListener.UpdateTypes.PULL);
-        MorphiumWriter wr = config.getWriter();
-        if (annotationHelper.isBufferedWrite(query.getType())) {
-            wr = config.getBufferedWriter();
-
-        }
+        MorphiumWriter wr = getWriterForClass(query.getType());
         wr.pushPull(false, query, field, value, insertIfNotExist, multiple, callback);
     }
 
@@ -539,12 +532,7 @@ public class Morphium {
         if (query == null || field == null) throw new RuntimeException("Cannot update null!");
 
         firePreUpdateEvent(query.getType(), MorphiumStorageListener.UpdateTypes.PUSH);
-        MorphiumWriter wr;
-        if (!annotationHelper.isBufferedWrite(query.getType())) {
-            wr = config.getWriter();
-        } else {
-            wr = config.getBufferedWriter();
-        }
+        MorphiumWriter wr = getWriterForClass(query.getType());
         wr.pushPullAll(true, query, field, value, insertIfNotExist, multiple, callback);
 
 
@@ -683,9 +671,9 @@ public class Morphium {
 
 
     public MorphiumWriter getWriterForClass(Class<?> cls) {
-        if (annotationHelper.isBufferedWrite(cls)) {
+        if (annotationHelper.isBufferedWrite(cls) && config.isBufferedWritesEnabled()) {
             return config.getBufferedWriter();
-        } else if (annotationHelper.isAsyncWrite(cls)) {
+        } else if (annotationHelper.isAsyncWrite(cls) && config.isAsyncWritesEnabled()) {
             return config.getAsyncWriter();
         } else {
             return config.getWriter();
@@ -764,11 +752,10 @@ public class Morphium {
         if (ent == null) return;
         if (fields.length == 0) return; //not doing an update - no change
 
-        if (annotationHelper.isAnnotationPresentInHierarchy(ent.getClass(), NoCache.class)) {
-            config.getWriter().updateUsingFields(ent, collection, null, fields);
-            return;
-        }
-
+//        if (annotationHelper.isAnnotationPresentInHierarchy(ent.getClass(), NoCache.class)) {
+//            config.getWriter().updateUsingFields(ent, collection, null, fields);
+//            return;
+//        }
         getWriterForClass(ent.getClass()).updateUsingFields(ent, collection, null, fields);
     }
 
@@ -1613,6 +1600,13 @@ public class Morphium {
     ///
     public Map<String, Double> getStatistics() {
         return new Statistics(this);
+    }
+
+    public void resetStatistics() {
+        stats.clear();
+        for (StatisticKeys k : StatisticKeys.values()) {
+            stats.put(k, new StatisticValue());
+        }
     }
 
 
