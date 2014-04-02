@@ -1675,6 +1675,13 @@ public class Morphium {
         return new Statistics(this);
     }
 
+    public void resetStatistics() {
+        stats.clear();
+        for (StatisticKeys k : StatisticKeys.values()) {
+            stats.put(k, new StatisticValue());
+        }
+    }
+
 
     public Map<StatisticKeys, StatisticValue> getStats() {
         return stats;

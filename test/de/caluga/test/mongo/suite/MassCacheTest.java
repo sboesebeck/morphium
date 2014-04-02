@@ -172,6 +172,7 @@ public class MassCacheTest extends MongoTest {
     public void disableCacheTest() {
         MorphiumSingleton.get().getConfig().disableReadCache();
         MorphiumSingleton.get().getConfig().disableBufferedWrites();
+        MorphiumSingleton.get().resetStatistics();
         log.info("Preparing test data...");
         for (int j = 0; j < NO_OBJECTS; j++) {
             CachedObject o = new CachedObject();
@@ -198,7 +199,7 @@ public class MassCacheTest extends MongoTest {
 
         Map<String, Double> statistics = MorphiumSingleton.get().getStatistics();
         assert (statistics.get("CACHE_ENTRIES") == 0);
-        assert (statistics.get("WRITES_CACHED") == 1); //drop collection in setup...
+        assert (statistics.get("WRITES_CACHED") == 0);
         MorphiumSingleton.get().getConfig().enableReadCache();
         for (int j = 0; j < 3; j++) {
             for (int i = 0; i < NO_OBJECTS; i++) {
