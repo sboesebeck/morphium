@@ -84,7 +84,7 @@ public class Messaging extends Thread {
 //                    log.debug("Deleting outdate messages: " + q.countAll());
 //                }
 //                morphium.delete(q);
-                q = q.q();
+//                q = q.q();
                 //locking messages...
                 q.or(q.q().f(Msg.Fields.sender).ne(id).f(Msg.Fields.lockedBy).eq(null).f(Msg.Fields.processedBy).ne(id).f(Msg.Fields.recipient).eq(null),
                         q.q().f(Msg.Fields.sender).ne(id).f(Msg.Fields.lockedBy).eq(null).f(Msg.Fields.processedBy).ne(id).f(Msg.Fields.recipient).eq(id));

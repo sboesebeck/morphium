@@ -181,8 +181,6 @@ public class MessagingTest extends MongoTest {
         Thread.sleep(5000);
         assert (!gotMessage) : "Got message again?!?!?!";
 
-//        Thread.sleep(5000);
-//        assert (MorphiumSingleton.get().readAll(Msg.class).size() == 0) : "Still messages left?!?!?";
         messaging.setRunning(false);
         Thread.sleep(1000);
         assert (!messaging.isAlive()) : "Messaging still running?!?";
@@ -560,7 +558,6 @@ public class MessagingTest extends MongoTest {
 
         assert (!gotMessage3 && !gotMessage1 && !gotMessage2) : "Message processing repeat?";
 
-        assert (!error);
         m1.setRunning(false);
         m2.setRunning(false);
         onlyAnswers.setRunning(false);
@@ -646,7 +643,8 @@ public class MessagingTest extends MongoTest {
         }
         assert (procCounter == numberOfMessages * (numberOfWorkers - 1)) : "Still processing messages?!?!?";
 
-        //Waiting for all messages to be outdated and deleted - done by mongo itself!
+        //Waiting for all messages to be outdated and deleted
+
         //Stopping all
         for (Messaging m : systems) {
             m.setRunning(false);
@@ -746,7 +744,7 @@ public class MessagingTest extends MongoTest {
 
 
     @Test
-    public void messagingPerformanceTest() throws Exception {
+    public void messageingPerformanceTest() throws Exception {
         MorphiumSingleton.get().clearCollection(Msg.class);
         final Messaging producer = new Messaging(MorphiumSingleton.get(), 100, true);
         final Messaging consumer = new Messaging(MorphiumSingleton.get(), 10, true);
@@ -767,7 +765,7 @@ public class MessagingTest extends MongoTest {
             Msg m = new Msg("msg", "m", "v");
             m.setTtl(60 * 1000);
             if (i % 1000 == 99) {
-                log.info("created msg " + i + " / 10000");
+                log.info("created msg " + i + " / " + numberOfMessages);
             }
             producer.storeMessage(m);
         }
