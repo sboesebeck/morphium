@@ -610,7 +610,7 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
                     T unmarshall = morphium.getMapper().unmarshall(type, o);
                     if (unmarshall != null) {
                         ret.add(unmarshall);
-                        updateLastAccess(o, unmarshall);
+                        updateLastAccess(unmarshall);
                         morphium.firePostLoadEvent(unmarshall);
                     }
 
@@ -653,18 +653,25 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
         }
     }
 
-    private void updateLastAccess(DBObject o, T unmarshall) {
+    private void updateLastAccess(T unmarshall) {
         if (annotationHelper.isAnnotationPresentInHierarchy(type, LastAccess.class)) {
             List<String> lst = annotationHelper.getFields(type, LastAccess.class);
             for (String ctf : lst) {
                 Field f = annotationHelper.getField(type, ctf);
                 if (f != null) {
                     try {
+                        long currentTime = System.currentTimeMillis();
                         if (f.getType().equals(Date.class)) {
                             f.set(unmarshall, new Date());
                         } else {
-                            f.set(unmarshall, System.currentTimeMillis());
+
+                            f.set(unmarshall, currentTime);
                         }
+                        ObjectMapper mapper = morphium.getMapper();
+                        String collName = mapper.getCollectionName(unmarshall.getClass());
+                        Object id = morphium.getARHelper().getId(unmarshall);
+                        //Cannot use store, as this would trigger an update of last changed...
+                        morphium.getDatabase().getCollection(collName).update(new BasicDBObject("_id", id), new BasicDBObject("$set", new BasicDBObject(ctf, currentTime)));
                     } catch (IllegalAccessException e) {
                         System.out.println("Could not set modification time");
 
@@ -673,7 +680,11 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
             }
 
             //Storing access timestamps
-            morphium.store(unmarshall);
+//            List<T> l=new ArrayList<T>();
+//            l.add(unmarshall);
+//            morphium.getWriterForClass(unmarshall.getClass()).store(l,null);
+
+//            morphium.store(unmarshall);
         }
     }
 
@@ -801,7 +812,7 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
             T unmarshall = morphium.getMapper().unmarshall(type, ret);
             if (unmarshall != null) {
                 morphium.firePostLoadEvent(unmarshall);
-                updateLastAccess(ret, unmarshall);
+                updateLastAccess(unmarshall);
 
                 lst.add((T) unmarshall);
                 if (useCache) {

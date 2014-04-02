@@ -243,19 +243,26 @@ public class MorphiumWriterImpl implements MorphiumWriter {
     private <T> boolean setAutoValues(T o, Class type, Object id, boolean aNew, Object reread) throws IllegalAccessException {
         //new object - need to store creation time
         if (annotationHelper.isAnnotationPresentInHierarchy(type, CreationTime.class)) {
+            CreationTime ct = annotationHelper.getAnnotationFromHierarchy(o.getClass(), CreationTime.class);
+            boolean checkForNew = ct.checkForNew();
             List<String> lst = annotationHelper.getFields(type, CreationTime.class);
             for (String fld : lst) {
                 Field field = annotationHelper.getField(o.getClass(), fld);
-                CreationTime ct = field.getAnnotation(CreationTime.class);
-                if (ct.checkForNew() && reread == null && !field.getType().equals(ObjectId.class)) {
-                    reread = morphium.findById(o.getClass(), id);
-                }
-                if (reread == null) {
-                    aNew = true;
+                if (id != null) {
+                    if (checkForNew && reread == null) {
+                        reread = morphium.findById(o.getClass(), id);
+                        aNew = reread == null;
+                    } else {
+                        if (reread == null) {
+                            aNew = (id instanceof ObjectId && id == null); //if id null, is new. if id!=null probably not, if type is objectId
+                        } else {
+                            Object value = field.get(reread);
+                            field.set(o, value);
+                            aNew = false;
+                        }
+                    }
                 } else {
-                    Object value = field.get(reread);
-                    field.set(o, value);
-                    aNew = false;
+                    aNew = true;
                 }
             }
             if (aNew) {
