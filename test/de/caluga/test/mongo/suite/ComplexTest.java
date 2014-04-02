@@ -70,7 +70,7 @@ public class ComplexTest extends MongoTest {
         Query<ComplexObject> q = MorphiumSingleton.get().createQueryFor(ComplexObject.class).f("ein_text").eq("A test");
         o = q.get();
         assert (o.getLastAccess() != 0) : "Last access not set!";
-        assert (o.getLastAccess() <= o.getChanged()) : "Timestamp lastAccess BEFORE creation?!?!?";
+
         o = new ComplexObject();
         o.setEinText("A test2");
         o.setTrans("Tansient");
@@ -78,8 +78,6 @@ public class ComplexTest extends MongoTest {
         List<ComplexObject> lst = MorphiumSingleton.get().readAll(ComplexObject.class);
         for (ComplexObject co : lst) {
             assert (co.getChanged() != 0) : "Last Access not set!";
-
-
         }
 
 
