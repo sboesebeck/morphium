@@ -101,6 +101,8 @@ public class MorphiumConfig {
      * login credentials for MongoDB - if necessary. If null, don't authenticate
      */
     private String mongoLogin = null, mongoPassword = null;
+
+    boolean cacheEnabled = true;
     @Transient
     private List<ServerAddress> adr = new Vector<ServerAddress>();
     //securitysettings
@@ -877,4 +879,19 @@ public class MorphiumConfig {
         return new MorphiumConfig(p);
     }
 
+    public boolean isCacheEnabled() {
+        return cacheEnabled;
+    }
+
+    public void setCacheEnabled(boolean cacheEnabled) {
+        this.cacheEnabled = cacheEnabled;
+    }
+
+    public void disableCaching() {
+        this.cacheEnabled = false;
+    }
+
+    public void enableCaching() {
+        this.cacheEnabled = true;
+    }
 }

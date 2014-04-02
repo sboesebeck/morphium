@@ -135,8 +135,10 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
 
     @Override
     public List<T> complexQuery(DBObject query, Map<String, Integer> sort, int skip, int limit) {
+        Cache ca = annotationHelper.getAnnotationFromHierarchy(type, Cache.class); //type.getAnnotation(Cache.class);
+        boolean useCache = ca != null && ca.readCache() && morphium.getConfig().isCacheEnabled();
         String ck = morphium.getCache().getCacheKey(query, sort, getCollectionName(), skip, limit);
-        if (morphium.getCache().isCached(type, ck)) {
+        if (useCache && morphium.getCache().isCached(type, ck)) {
             return morphium.getCache().getFromCache(type, ck);
         }
         long start = System.currentTimeMillis();
@@ -184,6 +186,9 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
             }
         }
         morphium.fireProfilingReadEvent(this, System.currentTimeMillis() - start, ReadAccessType.AS_LIST);
+        if (useCache) {
+            morphium.getCache().addToCache(ck, type, ret);
+        }
         return ret;
     }
 
@@ -543,7 +548,7 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
     public List<T> asList() {
         morphium.inc(StatisticKeys.READS);
         Cache c = annotationHelper.getAnnotationFromHierarchy(type, Cache.class); //type.getAnnotation(Cache.class);
-        boolean useCache = c != null && c.readCache();
+        boolean useCache = c != null && c.readCache() && morphium.getConfig().isCacheEnabled();
 
         String ck = morphium.getCache().getCacheKey(this);
         if (useCache) {
@@ -727,10 +732,10 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
     @Override
     public T get() {
         Cache c = annotationHelper.getAnnotationFromHierarchy(type, Cache.class); //type.getAnnotation(Cache.class);
-        boolean readCache = c != null && c.readCache();
+        boolean useCache = c != null && c.readCache() && morphium.getConfig().isCacheEnabled();
         String ck = morphium.getCache().getCacheKey(this);
         morphium.inc(StatisticKeys.READS);
-        if (readCache) {
+        if (useCache) {
             if (morphium.getCache().isCached(type, ck)) {
                 morphium.inc(StatisticKeys.CHITS);
                 List<T> lst = morphium.getCache().getFromCache(type, ck);
@@ -799,14 +804,14 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
                 updateLastAccess(ret, unmarshall);
 
                 lst.add((T) unmarshall);
-                if (readCache) {
+                if (useCache) {
                     morphium.getCache().addToCache(ck, type, lst);
                 }
             }
             return unmarshall;
         }
 
-        if (readCache) {
+        if (useCache) {
             morphium.getCache().addToCache(ck, type, lst);
         }
         return null;
@@ -834,12 +839,12 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
     @Override
     public <R> List<R> idList() {
         Cache c = annotationHelper.getAnnotationFromHierarchy(type, Cache.class);//type.getAnnotation(Cache.class);
-        boolean readCache = c != null && c.readCache();
+        boolean useCache = c != null && c.readCache() && morphium.getConfig().isCacheEnabled();
         List<R> ret = new ArrayList<R>();
         String ck = morphium.getCache().getCacheKey(this);
         ck += " idlist";
         morphium.inc(StatisticKeys.READS);
-        if (readCache) {
+        if (useCache) {
 
             if (morphium.getCache().isCached(type, ck)) {
                 morphium.inc(StatisticKeys.CHITS);
@@ -877,7 +882,7 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
         }
         long dur = System.currentTimeMillis() - start;
         morphium.fireProfilingReadEvent(this, dur, ReadAccessType.ID_LIST);
-        if (readCache) {
+        if (useCache) {
             morphium.getCache().addToCache(ck, type, ret);
         }
         return ret;
