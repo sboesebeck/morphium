@@ -26,7 +26,7 @@ public class CheckForNewTest extends MongoTest {
         tst.theId = "1";
         tst.theValue = "value";
         MorphiumSingleton.get().store(tst);
-        assert (tst.created == null); //unfortunately, won't see whether object is new or not, unless asking mongo => checkForNew
+        assert (tst.created != null);
 
 
         tst = new TestID();

@@ -244,7 +244,7 @@ public class MorphiumWriterImpl implements MorphiumWriter {
         //new object - need to store creation time
         if (annotationHelper.isAnnotationPresentInHierarchy(type, CreationTime.class)) {
             CreationTime ct = annotationHelper.getAnnotationFromHierarchy(o.getClass(), CreationTime.class);
-            boolean checkForNew = ct.checkForNew();
+            boolean checkForNew = ct.checkForNew() || morphium.getConfig().isCheckForNew();
             List<String> lst = annotationHelper.getFields(type, CreationTime.class);
             for (String fld : lst) {
                 Field field = annotationHelper.getField(o.getClass(), fld);
