@@ -187,14 +187,20 @@ public class Morphium {
     }
 
     public Integer getMaxBsonSize() {
+        if (maxBsonSize == null)
+            return Integer.MAX_VALUE;
         return maxBsonSize;
     }
 
     public Integer getMaxMessageSize() {
+        if (maxMessageSize == null)
+            return Integer.MAX_VALUE;
         return maxMessageSize;
     }
 
     public Integer getMaxWriteBatchSize() {
+        if (maxWriteBatchSize == null)
+            return Integer.MAX_VALUE;
         return maxWriteBatchSize;
     }
 
