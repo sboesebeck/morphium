@@ -217,8 +217,8 @@ public class MassCacheTest extends MongoTest {
         statistics = MorphiumSingleton.get().getStatistics();
         assert (statistics.get("CACHE_ENTRIES") != 0);
         assert (statistics.get("CHITS") != 0);
-        MorphiumSingleton.get().getConfig().disableReadCache();
-        MorphiumSingleton.get().getConfig().disableBufferedWrites();
+        MorphiumSingleton.get().getConfig().enableReadCache();
+        MorphiumSingleton.get().getConfig().enableBufferedWrites();
     }
 
     @Test
