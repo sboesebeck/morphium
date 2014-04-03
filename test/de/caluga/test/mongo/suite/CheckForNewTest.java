@@ -78,13 +78,13 @@ public class CheckForNewTest extends MongoTest {
     }
 
     @Entity
-    @CreationTime
+    @CreationTime(checkForNew = true)
     public static class TestID2 {
         @Id
         public String theId;
         public String theValue;
 
-        @CreationTime(checkForNew = true)
+        @CreationTime
         public Date created;
 
     }
