@@ -304,6 +304,10 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter {
 
                     try {
                         if (morphium != null) {
+                            if (morphium.getConfig() == null) {
+                                running = false;
+                                break;
+                            }
                             Thread.sleep(morphium.getConfig().getWriteBufferTimeGranularity());
                         } else {
                             logger.warn("Morphium not set - assuming timeout of 1sec");
