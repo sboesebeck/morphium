@@ -225,7 +225,7 @@ public class MorphiumCacheImpl implements MorphiumCache {
     public void removeEntryFromCache(Class cls, Object id) {
         Hashtable<Class<?>, Hashtable<String, CacheElement>> c = cloneCache();
         Hashtable<Class<?>, Hashtable<Object, Object>> idc = cloneIdCache();
-        if (idc.get(cls).get(id) != null) {
+        if (idc.get(cls) != null && idc.get(cls).get(id) != null) {
             for (CacheListener cl : cacheListeners) {
                 if (!cl.wouldRemoveEntryFromCache(cls, id, idc.get(cls).get(id))) {
                     logger.info("Not removing from cache due to veto from CacheListener " + cl.getClass().getName());
