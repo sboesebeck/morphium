@@ -894,7 +894,7 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
         long dur = System.currentTimeMillis() - start;
         morphium.fireProfilingReadEvent(this, dur, ReadAccessType.ID_LIST);
         if (useCache) {
-            morphium.getCache().addToCache(ck, type, ret);
+            morphium.getCache().addToCache(ck, (Class<? extends R>) type, ret);
         }
         return ret;
     }

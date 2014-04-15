@@ -7,10 +7,7 @@ import de.caluga.morphium.annotations.caching.Cache;
 import de.caluga.morphium.query.Query;
 import org.apache.log4j.Logger;
 
-import java.util.ArrayList;
-import java.util.Hashtable;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 /**
  * User: Stephan Bösebeck
@@ -24,11 +21,24 @@ public class MorphiumCacheImpl implements MorphiumCache {
     private Hashtable<Class<?>, Hashtable<Object, Object>> idCache;
     private AnnotationAndReflectionHelper annotationHelper = new AnnotationAndReflectionHelper();
 
+    private Vector<CacheListener> cacheListeners;
+
     private Logger logger = Logger.getLogger(MorphiumCacheImpl.class);
 
     public MorphiumCacheImpl() {
         cache = new Hashtable<Class<?>, Hashtable<String, CacheElement>>();
         idCache = new Hashtable<Class<?>, Hashtable<Object, Object>>();
+        cacheListeners = new Vector<CacheListener>();
+    }
+
+    @Override
+    public void addCacheListener(CacheListener cl) {
+        cacheListeners.add(cl);
+    }
+
+    @Override
+    public void removeCacheListener(CacheListener cl) {
+        cacheListeners.remove(cl);
     }
 
     /**
@@ -42,9 +52,19 @@ public class MorphiumCacheImpl implements MorphiumCache {
      */
     @SuppressWarnings("unchecked")
     @Override
-    public <T> void addToCache(String k, Class<?> type, List<T> ret) {
+    public <T> void addToCache(String k, Class<? extends T> type, List<T> ret) {
         if (k == null) {
             return;
+        }
+        CacheObject<T> co = new CacheObject<T>();
+        co.setKey(k);
+        co.setType(type);
+        co.setResult(ret);
+        for (CacheListener cl : cacheListeners) {
+            co = cl.wouldAddToCache(co);
+            if (co == null) {
+                return;
+            }
         }
         if (!k.endsWith("idlist")) {
             //copy from idCache
@@ -175,6 +195,12 @@ public class MorphiumCacheImpl implements MorphiumCache {
 
     @Override
     public void clearCachefor(Class<?> cls) {
+        for (CacheListener cl : cacheListeners) {
+            if (!cl.wouldClearCache(cls)) {
+                logger.info("Not clearing cache due to veto of cache listener " + cl.getClass().getName());
+                return;
+            }
+        }
         if (cache.get(cls) != null) {
             cache.get(cls).clear();
         }
@@ -199,6 +225,14 @@ public class MorphiumCacheImpl implements MorphiumCache {
     public void removeEntryFromCache(Class cls, Object id) {
         Hashtable<Class<?>, Hashtable<String, CacheElement>> c = cloneCache();
         Hashtable<Class<?>, Hashtable<Object, Object>> idc = cloneIdCache();
+        if (idc.get(cls).get(id) != null) {
+            for (CacheListener cl : cacheListeners) {
+                if (!cl.wouldRemoveEntryFromCache(cls, id, idc.get(cls).get(id))) {
+                    logger.info("Not removing from cache due to veto from CacheListener " + cl.getClass().getName());
+                    return;
+                }
+            }
+        }
         idc.get(cls).remove(id);
 
         ArrayList<String> toRemove = new ArrayList<String>();

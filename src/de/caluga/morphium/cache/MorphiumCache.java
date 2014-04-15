@@ -15,7 +15,7 @@ import java.util.Map;
  * TODO: Add documentation here
  */
 public interface MorphiumCache {
-    public <T> void addToCache(String k, Class<?> type, List<T> ret);
+    public <T> void addToCache(String k, Class<? extends T> type, List<T> ret);
 
     public String getCacheKey(DBObject qo, Map<String, Integer> sort, String collection, int skip, int limit);
 
@@ -37,9 +37,13 @@ public interface MorphiumCache {
 
     public <T> T getFromIDCache(Class<? extends T> type, Object id);
 
-    String getCacheKey(Query q);
+    public String getCacheKey(Query q);
 
-    boolean isCached(Class<?> type, String k);
+    public boolean isCached(Class<?> type, String k);
 
-    void clearCacheIfNecessary(Class cls);
+    public void clearCacheIfNecessary(Class cls);
+
+    public void addCacheListener(CacheListener cl);
+
+    public void removeCacheListener(CacheListener cl);
 }
