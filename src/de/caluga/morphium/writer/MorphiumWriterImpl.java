@@ -3,7 +3,6 @@ package de.caluga.morphium.writer;
 import com.mongodb.*;
 import de.caluga.morphium.*;
 import de.caluga.morphium.annotations.*;
-import de.caluga.morphium.annotations.caching.Cache;
 import de.caluga.morphium.async.AsyncOperationCallback;
 import de.caluga.morphium.async.AsyncOperationType;
 import de.caluga.morphium.query.Query;
@@ -185,13 +184,7 @@ public class MorphiumWriterImpl implements MorphiumWriter {
                         }
                     }
 
-                    Cache ch = annotationHelper.getAnnotationFromHierarchy(o.getClass(), Cache.class);
-                    if (ch != null) {
-                        if (ch.clearOnWrite()) {
-                            morphium.clearCachefor(o.getClass());
-                        }
-                    }
-
+                    morphium.getCache().clearCacheIfNecessary(o.getClass());
                     morphium.firePostStoreEvent(o, isNew);
                     if (callback != null)
                         callback.onOperationSucceeded(AsyncOperationType.WRITE, null, System.currentTimeMillis() - start, null, obj);
@@ -344,6 +337,7 @@ public class MorphiumWriterImpl implements MorphiumWriter {
         }
         long start = System.currentTimeMillis();
         int cnt = 0;
+        List<Class<?>> types = new ArrayList<Class<?>>();
         for (Object record : lst) {
             DBObject marshall = morphium.getMapper().marshall(record);
             Object id = annotationHelper.getId(record);
@@ -363,6 +357,7 @@ public class MorphiumWriterImpl implements MorphiumWriter {
             }
             isNew.put(record, isn);
 
+            if (!types.contains(record.getClass())) types.add(record.getClass());
             if (isNew.get(record)) {
                 dbLst.add(marshall);
             } else {
@@ -386,6 +381,10 @@ public class MorphiumWriterImpl implements MorphiumWriter {
                 morphium.handleNetworkError(i, e);
             }
         }
+        for (Class<?> c : types) {
+            morphium.getCache().clearCacheIfNecessary(c);
+        }
+
         long dur = System.currentTimeMillis() - start;
         morphium.fireProfilingWriteEvent(lst.get(0).getClass(), lst, dur, false, WriteAccessType.BULK_UPDATE);
         morphium.firePostStoreEvent(lst, false);
@@ -491,6 +490,7 @@ public class MorphiumWriterImpl implements MorphiumWriter {
                                     morphium.handleNetworkError(i, t);
                                 }
                             }
+
                             BulkWriteOperation bulkWriteOperation = collection.initializeUnorderedBulkOperation();
                             long start = System.currentTimeMillis();
                             for (Object record : es.getValue()) {
@@ -509,6 +509,7 @@ public class MorphiumWriterImpl implements MorphiumWriter {
                                     }
                                 }
                             }
+
                             if (cnt > 0)
                                 executeWriteBatch(es.getValue(), c, wc, bulkWriteOperation, start);
                             start = System.currentTimeMillis();
@@ -526,6 +527,7 @@ public class MorphiumWriterImpl implements MorphiumWriter {
                             } else {
                                 doStoreList(dbLst, wc, collection);
                             }
+                            morphium.getCache().clearCacheIfNecessary(c);
                             long dur = System.currentTimeMillis() - start;
                             //bulk insert
                             morphium.fireProfilingWriteEvent(c, dbLst, dur, true, WriteAccessType.BULK_INSERT);
@@ -535,6 +537,7 @@ public class MorphiumWriterImpl implements MorphiumWriter {
                                 }
                             }
                         }
+
                         if (callback != null)
                             callback.onOperationSucceeded(AsyncOperationType.WRITE, null, System.currentTimeMillis() - allStart, null, null, lst);
                     } catch (Exception e) {
@@ -582,6 +585,7 @@ public class MorphiumWriterImpl implements MorphiumWriter {
             }
             long dur = System.currentTimeMillis() - start;
             morphium.fireProfilingWriteEvent(c, es, dur, false, WriteAccessType.BULK_UPDATE);
+            morphium.getCache().clearCacheIfNecessary(c);
             morphium.firePostStoreEvent(es, false);
         }
     }
