@@ -169,7 +169,7 @@ public class CacheSyncTest extends MongoTest {
             q = q.f("counter").eq(i);
             IdCachedObject obj = q.get();
             if (obj == null) {
-                Thread.sleep(250); //wait a moment
+                Thread.sleep(1250); //wait a moment
                 obj = q.get();
             }
             assert (obj != null) : "Object with counter " + i + " not found!";
@@ -200,7 +200,7 @@ public class CacheSyncTest extends MongoTest {
 
 
     @Cache(readCache = true, syncCache = Cache.SyncCacheStrategy.UPDATE_ENTRY)
-    @WriteBuffer
+    @WriteBuffer(timeout = 1000)
     @WriteSafety(waitForJournalCommit = true, level = SafetyLevel.WAIT_FOR_ALL_SLAVES)
     public static class IdCachedObject extends CachedObject {
 
