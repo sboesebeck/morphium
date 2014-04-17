@@ -102,6 +102,7 @@ public class MorphiumConfig {
      */
     private String mongoLogin = null, mongoPassword = null;
 
+    private boolean autoValues = true;
     boolean readCacheEnabled = true;
     boolean asyncWritesEnabled = true;
     boolean bufferedWritesEnabled = true;
@@ -927,5 +928,21 @@ public class MorphiumConfig {
 
     public void enableBufferedWrites() {
         bufferedWritesEnabled = true;
+    }
+
+    public void setAutoValuesEnabled(boolean enabled) {
+        autoValues = enabled;
+    }
+
+    public boolean isAutoValuesEnabled() {
+        return autoValues;
+    }
+
+    public void enableAutoValues() {
+        autoValues = true;
+    }
+
+    public void disableAutoValues() {
+        autoValues = false;
     }
 }
