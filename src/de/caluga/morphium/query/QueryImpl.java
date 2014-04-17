@@ -39,6 +39,9 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
     private String collectionName;
     private ServerAddress srv = null;
 
+    private boolean autoValuesEnabled;
+
+
     public QueryImpl() {
 
     }
@@ -51,6 +54,24 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
 
     public QueryImpl(Morphium m) {
         setMorphium(m);
+    }
+
+    @Override
+    public void disableAutoValues() {
+        autoValuesEnabled = false;
+    }
+
+    @Override
+    public void enableAutoValues() {
+        autoValuesEnabled = true;
+    }
+
+    public boolean isAutoValuesEnabled() {
+        return autoValuesEnabled;
+    }
+
+    public void setAutoValuesEnabled(boolean autoValuesEnabled) {
+        this.autoValuesEnabled = autoValuesEnabled;
     }
 
     @Override
@@ -654,6 +675,7 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
     }
 
     private void updateLastAccess(T unmarshall) {
+        if (!autoValuesEnabled) return;
         if (annotationHelper.isAnnotationPresentInHierarchy(type, LastAccess.class)) {
             List<String> lst = annotationHelper.getFields(type, LastAccess.class);
             for (String ctf : lst) {

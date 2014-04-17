@@ -271,6 +271,14 @@ public interface Query<T> extends Cloneable {
 
     public void delete();
 
+    public void setAutoValuesEnabled(boolean autoValues);
+
+    public boolean isAutoValuesEnabled();
+
+    public void disableAutoValues();
+
+    public void enableAutoValues();
+
     public enum TextSearchLanguages {
         danish,
         dutch,
