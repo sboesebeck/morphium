@@ -102,16 +102,17 @@ public class MorphiumWriterImpl implements MorphiumWriter {
                     }
                     boolean isNew = id == null;
                     Object reread = null;
-                    CreationTime creationTime = annotationHelper.getAnnotationFromHierarchy(type, CreationTime.class);
-                    if (id != null && (morphium.getConfig().isCheckForNew() || (creationTime != null && creationTime.checkForNew()))
-                            && !annotationHelper.getIdField(o).getType().equals(ObjectId.class)) {
-                        //check if it exists
-                        reread = morphium.findById(o.getClass(), id);
-                        isNew = reread == null;
+                    if (morphium.isAutoValuesEnabledForThread()) {
+                        CreationTime creationTime = annotationHelper.getAnnotationFromHierarchy(type, CreationTime.class);
+                        if (id != null && (morphium.getConfig().isCheckForNew() || (creationTime != null && creationTime.checkForNew()))
+                                && !annotationHelper.getIdField(o).getType().equals(ObjectId.class)) {
+                            //check if it exists
+                            reread = morphium.findById(o.getClass(), id);
+                            isNew = reread == null;
+                        }
+                        isNew = setAutoValues(o, type, id, isNew, reread);
+
                     }
-                    isNew = setAutoValues(o, type, id, isNew, reread);
-
-
                     morphium.firePreStoreEvent(o, isNew);
 
                     DBObject marshall = morphium.getMapper().marshall(o);
@@ -234,6 +235,7 @@ public class MorphiumWriterImpl implements MorphiumWriter {
     }
 
     private <T> boolean setAutoValues(T o, Class type, Object id, boolean aNew, Object reread) throws IllegalAccessException {
+        if (!morphium.isAutoValuesEnabledForThread()) return aNew;
         //new object - need to store creation time
         if (annotationHelper.isAnnotationPresentInHierarchy(type, CreationTime.class)) {
             CreationTime ct = annotationHelper.getAnnotationFromHierarchy(o.getClass(), CreationTime.class);
@@ -343,17 +345,19 @@ public class MorphiumWriterImpl implements MorphiumWriter {
             Object id = annotationHelper.getId(record);
             boolean isn = id == null;
             Object reread = null;
-            CreationTime creationTime = annotationHelper.getAnnotationFromHierarchy(record.getClass(), CreationTime.class);
-            if (!isn && (morphium.getConfig().isCheckForNew() || (creationTime != null && creationTime.checkForNew()))
-                    && !annotationHelper.getIdField(record).getType().equals(ObjectId.class)) {
-                //check if it exists
-                reread = morphium.findById(record.getClass(), id);
-                isn = reread == null;
-            }
-            try {
-                isn = setAutoValues(record, record.getClass(), id, isn, reread);
-            } catch (IllegalAccessException e) {
-                logger.error(e);
+            if (morphium.isAutoValuesEnabledForThread()) {
+                CreationTime creationTime = annotationHelper.getAnnotationFromHierarchy(record.getClass(), CreationTime.class);
+                if (!isn && (morphium.getConfig().isCheckForNew() || (creationTime != null && creationTime.checkForNew()))
+                        && !annotationHelper.getIdField(record).getType().equals(ObjectId.class)) {
+                    //check if it exists
+                    reread = morphium.findById(record.getClass(), id);
+                    isn = reread == null;
+                }
+                try {
+                    isn = setAutoValues(record, record.getClass(), id, isn, reread);
+                } catch (IllegalAccessException e) {
+                    logger.error(e);
+                }
             }
             isNew.put(record, isn);
 

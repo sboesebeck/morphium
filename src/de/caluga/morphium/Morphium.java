@@ -55,6 +55,9 @@ public class Morphium {
      */
     private final static Logger logger = Logger.getLogger(Morphium.class);
     private MorphiumConfig config;
+    private ThreadLocal<Boolean> enableAutoValues = new ThreadLocal<Boolean>();
+    private ThreadLocal<Boolean> enableReadCache = new ThreadLocal<Boolean>();
+    private ThreadLocal<Boolean> disableWriteBuffer = new ThreadLocal<Boolean>();
 
     private final Map<StatisticKeys, StatisticValue> stats;
 
@@ -677,10 +680,14 @@ public class Morphium {
 
 
     public MorphiumWriter getWriterForClass(Class<?> cls) {
-        if (annotationHelper.isBufferedWrite(cls) && config.isBufferedWritesEnabled()) {
-            return config.getBufferedWriter();
-        } else if (annotationHelper.isAsyncWrite(cls) && config.isAsyncWritesEnabled()) {
-            return config.getAsyncWriter();
+        if (isWriteBufferEnabledForThread()) {
+            if (annotationHelper.isBufferedWrite(cls) && config.isBufferedWritesEnabled()) {
+                return config.getBufferedWriter();
+            } else if (annotationHelper.isAsyncWrite(cls) && config.isAsyncWritesEnabled()) {
+                return config.getAsyncWriter();
+            } else {
+                return config.getWriter();
+            }
         } else {
             return config.getWriter();
         }
@@ -1742,4 +1749,43 @@ public class Morphium {
     public int getWriterBufferCount() {
         return config.getWriter().writeBufferCount();
     }
+
+    public void disableAutoValuesForThread() {
+        enableAutoValues.set(false);
+    }
+
+    public void enableAutoValuesForThread() {
+        enableAutoValues.set(true);
+    }
+
+    public boolean isAutoValuesEnabledForThread() {
+        return (enableAutoValues.get() == null || enableAutoValues.get());
+    }
+
+    public void disableReadCacheForThread() {
+        enableReadCache.set(false);
+    }
+
+    public void enableReadCacheForThread() {
+        enableReadCache.set(true);
+    }
+
+    public boolean isReadCacheEnabledForThread() {
+        return (enableReadCache.get() == null || enableReadCache.get());
+    }
+
+
+    public void disableWriteBufferForThread() {
+        disableWriteBuffer.set(false);
+    }
+
+    public void enableWrieBufferForThread() {
+        disableWriteBuffer.set(true);
+    }
+
+    public boolean isWriteBufferEnabledForThread() {
+        return (disableWriteBuffer.get() == null || disableWriteBuffer.get());
+    }
+
+
 }
