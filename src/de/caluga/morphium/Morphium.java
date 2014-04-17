@@ -58,6 +58,7 @@ public class Morphium {
     private ThreadLocal<Boolean> enableAutoValues = new ThreadLocal<Boolean>();
     private ThreadLocal<Boolean> enableReadCache = new ThreadLocal<Boolean>();
     private ThreadLocal<Boolean> disableWriteBuffer = new ThreadLocal<Boolean>();
+    private ThreadLocal<Boolean> disableAsyncWrites = new ThreadLocal<Boolean>();
 
     private final Map<StatisticKeys, StatisticValue> stats;
 
@@ -680,14 +681,11 @@ public class Morphium {
 
 
     public MorphiumWriter getWriterForClass(Class<?> cls) {
-        if (isWriteBufferEnabledForThread()) {
-            if (annotationHelper.isBufferedWrite(cls) && config.isBufferedWritesEnabled()) {
-                return config.getBufferedWriter();
-            } else if (annotationHelper.isAsyncWrite(cls) && config.isAsyncWritesEnabled()) {
-                return config.getAsyncWriter();
-            } else {
-                return config.getWriter();
-            }
+
+        if (annotationHelper.isBufferedWrite(cls) && isWriteBufferEnabledForThread()) {
+            return config.getBufferedWriter();
+        } else if (annotationHelper.isAsyncWrite(cls) && isAsyncWritesEnabledForThread()) {
+            return config.getAsyncWriter();
         } else {
             return config.getWriter();
         }
@@ -1760,7 +1758,7 @@ public class Morphium {
     }
 
     public boolean isAutoValuesEnabledForThread() {
-        return (enableAutoValues.get() == null || enableAutoValues.get());
+        return ((enableAutoValues.get() == null || enableAutoValues.get()) && config.isAutoValuesEnabled());
     }
 
     public void disableReadCacheForThread() {
@@ -1772,7 +1770,7 @@ public class Morphium {
     }
 
     public boolean isReadCacheEnabledForThread() {
-        return (enableReadCache.get() == null || enableReadCache.get());
+        return (enableReadCache.get() == null || enableReadCache.get()) && config.isReadCacheEnabled();
     }
 
 
@@ -1780,12 +1778,25 @@ public class Morphium {
         disableWriteBuffer.set(false);
     }
 
-    public void enableWrieBufferForThread() {
+    public void enableWriteBufferForThread() {
         disableWriteBuffer.set(true);
     }
 
     public boolean isWriteBufferEnabledForThread() {
-        return (disableWriteBuffer.get() == null || disableWriteBuffer.get());
+        return (disableWriteBuffer.get() == null || disableWriteBuffer.get()) && config.isBufferedWritesEnabled();
+    }
+
+
+    public void disableAsyncWritesForThread() {
+        disableAsyncWrites.set(false);
+    }
+
+    public void enableAsyncWritesForThread() {
+        disableAsyncWrites.set(true);
+    }
+
+    public boolean isAsyncWritesEnabledForThread() {
+        return (disableAsyncWrites.get() == null || disableAsyncWrites.get()) && config.isAsyncWritesEnabled();
     }
 
 

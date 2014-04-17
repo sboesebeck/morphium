@@ -11,6 +11,7 @@ import de.caluga.morphium.messaging.Msg;
 import de.caluga.morphium.messaging.MsgType;
 import de.caluga.morphium.query.Query;
 import org.apache.log4j.Logger;
+import org.bson.types.ObjectId;
 
 import java.util.Hashtable;
 import java.util.Vector;
@@ -171,26 +172,28 @@ public class CacheSynchronizer extends MorphiumStorageAdapter<Object> implements
 //        log.info("Queueing cache sync message took "+dur+" ms");
     }
 
+    public void sendClearMessage(Class type, String reason) {
+        sendClearMessage(type, reason, false);
+    }
+
     /**
      * sends message if necessary
      *
      * @param type   - type
      * @param reason - reason
      */
-    public void sendClearMessage(Class type, String reason) {
+    public void sendClearMessage(Class type, String reason, boolean force) {
         if (type.equals(Msg.class)) return;
         Msg m = new Msg(CACHE_SYNC_TYPE, MsgType.MULTI, reason, type.getName(), 30000);
         Cache c = annotationHelper.getAnnotationFromHierarchy(type, Cache.class); //(Cache) type.getAnnotation(Cache.class);
         if (c == null) return; //not clearing cache for non-cached objects
-        if (c.readCache() && c.clearOnWrite()) {
-            if (!c.syncCache().equals(Cache.SyncCacheStrategy.NONE)) {
-                try {
-                    firePreSendEvent(type, m);
-                    messaging.queueMessage(m);
-                    firePostSendEvent(type, m);
-                } catch (CacheSyncVetoException e) {
-                    log.error("could not send clear message: Veto!", e);
-                }
+        if ((c.readCache() && c.clearOnWrite() && !c.syncCache().equals(Cache.SyncCacheStrategy.NONE)) || force) {
+            try {
+                firePreSendEvent(type, m);
+                messaging.queueMessage(m);
+                firePostSendEvent(type, m);
+            } catch (CacheSyncVetoException e) {
+                log.error("could not send clear message: Veto!", e);
             }
         }
     }
@@ -322,7 +325,12 @@ public class CacheSynchronizer extends MorphiumStorageAdapter<Object> implements
                                 Hashtable<Class<?>, Hashtable<Object, Object>> idCache = morphium.getCache().cloneIdCache();
                                 for (String id : m.getAdditional()) {
                                     if (idCache.get(cls) != null) {
-                                        if (idCache.get(cls).get(id) != null) {
+                                        Object toUpdate = idCache.get(cls).get(id);
+                                        if (toUpdate == null && (id instanceof String)) {
+                                            //Try objectId
+                                            toUpdate = idCache.get(cls).get(new ObjectId(id));
+                                        }
+                                        if (toUpdate != null) {
                                             //Object is updated in place!
                                             if (c.syncCache().equals(Cache.SyncCacheStrategy.REMOVE_ENTRY_FROM_TYPE_CACHE)) {
                                                 morphium.getCache().removeEntryFromCache(cls, id);
