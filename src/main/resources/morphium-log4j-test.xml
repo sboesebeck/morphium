@@ -57,7 +57,9 @@
         <level value="DEBUG"/>
     </logger>
 
-
+    <logger name="de.caluga.morphium.AnnotationAndReflectionHelper">
+        <level value="INFO"/>
+    </logger>
     <logger name="de.caluga.med">
         <level value="DEBUG"/>
     </logger>

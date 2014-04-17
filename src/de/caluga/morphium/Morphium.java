@@ -1173,6 +1173,7 @@ public class Morphium {
     public <T> Query<T> createQueryFor(Class<? extends T> type) {
         Query<T> q = config.getQueryFact().createQuery(this, type);
         q.setMorphium(this);
+        q.setAutoValuesEnabled(isAutoValuesEnabledForThread());
         return q;
     }
 

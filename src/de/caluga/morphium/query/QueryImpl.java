@@ -39,7 +39,7 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
     private String collectionName;
     private ServerAddress srv = null;
 
-    private boolean autoValuesEnabled;
+    private boolean autoValuesEnabled = true;
 
 
     public QueryImpl() {
