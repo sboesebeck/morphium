@@ -676,6 +676,7 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
 
     private void updateLastAccess(T unmarshall) {
         if (!autoValuesEnabled) return;
+        if (!morphium.isAutoValuesEnabledForThread()) return;
         if (annotationHelper.isAnnotationPresentInHierarchy(type, LastAccess.class)) {
             List<String> lst = annotationHelper.getFields(type, LastAccess.class);
             for (String ctf : lst) {
