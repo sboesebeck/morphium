@@ -261,8 +261,10 @@ public interface Query<T> extends Cloneable {
 
     public String getCollectionName();
 
+    @Deprecated
     public List<T> textSearch(String... texts);
 
+    @Deprecated
     public List<T> textSearch(TextSearchLanguages lang, String... texts);
 
     public MongoField<T> f(Enum... f);
@@ -278,6 +280,21 @@ public interface Query<T> extends Cloneable {
     public void disableAutoValues();
 
     public void enableAutoValues();
+
+
+    public Query<T> text(String... text);
+
+    public Query<T> text(TextSearchLanguages lang, String... text);
+
+    public Query<T> text(String metaScoreField, TextSearchLanguages lang, String... text);
+
+    void setReturnedFields(String... fl);
+
+    void addReturnedField(String f);
+
+    void setReturnedFields(Enum... fl);
+
+    void addReturnedField(Enum f);
 
     public enum TextSearchLanguages {
         danish,

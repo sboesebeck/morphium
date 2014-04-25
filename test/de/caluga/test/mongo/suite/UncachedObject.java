@@ -131,4 +131,7 @@ public class UncachedObject {
         result = 31 * result + (mongoId != null ? mongoId.hashCode() : 0);
         return result;
     }
+
+
+    public enum Fields {counter, binaryData, intData, longData, floatData, doubleData, boolData, mongoId, value}
 }
