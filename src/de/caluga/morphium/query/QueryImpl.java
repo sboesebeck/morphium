@@ -32,7 +32,7 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
     private ReadPreference readPreference;
     private boolean additionalDataPresent = false;
     private int limit = 0, skip = 0;
-    private Map<String, Integer> sort;
+    private Map<String, Object> sort;
     private Morphium morphium;
     private AnnotationAndReflectionHelper annotationHelper = new AnnotationAndReflectionHelper();
     private ThreadPoolExecutor executor;
@@ -43,7 +43,6 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
 
     private boolean autoValuesEnabled = true;
     private DBObject additionalFields;
-
 
     public QueryImpl() {
 
@@ -264,7 +263,7 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
     }
 
     @Override
-    public Map<String, Integer> getSort() {
+    public Map<String, Object> getSort() {
         return sort;
     }
 
@@ -398,14 +397,14 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
      * @return
      */
     @Override
-    public Query<T> sort(Map<String, Integer> n) {
+    public Query<T> sort(Map<String, Object> n) {
         sort = n;
         return this;
     }
 
     @Override
     public Query<T> sort(String... prefixedString) {
-        Map<String, Integer> m = new LinkedHashMap<String, java.lang.Integer>();
+        Map<String, Object> m = new LinkedHashMap<String, Object>();
         for (String i : prefixedString) {
             String fld = i;
             int val = 1;
@@ -426,7 +425,7 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
 
     @Override
     public Query<T> sort(Enum... naturalOrder) {
-        Map<String, Integer> m = new LinkedHashMap<String, java.lang.Integer>();
+        Map<String, Object> m = new LinkedHashMap<String, Object>();
         for (Enum i : naturalOrder) {
             String fld = annotationHelper.getFieldName(type, i.name());
             m.put(fld, 1);
@@ -928,7 +927,7 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
                 ret.norQueries.addAll(norQueries);
             }
             if (sort != null) {
-                ret.sort = new Hashtable<String, Integer>();
+                ret.sort = new Hashtable<String, Object>();
                 ret.sort.putAll(sort);
             }
             if (orQueries != null) {
