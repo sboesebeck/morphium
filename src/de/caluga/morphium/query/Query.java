@@ -103,7 +103,7 @@ public interface Query<T> extends Cloneable {
      * @param n - sort
      * @return the query
      */
-    public Query<T> sort(Map<String, Integer> n);
+    public Query<T> sort(Map<String, Object> n);
 
     /**
      * set order by prefixing field names with - for reverse ordering (+ or nothing default)
@@ -230,7 +230,7 @@ public interface Query<T> extends Cloneable {
 
     public int getSkip();
 
-    public Map<String, Integer> getSort();
+    public Map<String, Object> getSort();
 
     public Query<T> clone() throws CloneNotSupportedException;
 
@@ -288,13 +288,13 @@ public interface Query<T> extends Cloneable {
 
     public Query<T> text(String metaScoreField, TextSearchLanguages lang, String... text);
 
-    void setReturnedFields(String... fl);
+    public void setReturnedFields(String... fl);
 
-    void addReturnedField(String f);
+    public void addReturnedField(String f);
 
-    void setReturnedFields(Enum... fl);
+    public void setReturnedFields(Enum... fl);
 
-    void addReturnedField(Enum f);
+    public void addReturnedField(Enum f);
 
     public enum TextSearchLanguages {
         danish,
