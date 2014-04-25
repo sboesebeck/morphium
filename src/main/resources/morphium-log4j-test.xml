@@ -34,7 +34,7 @@
 
 
     <logger name="de.caluga.morphium">
-        <level value="DEBUG"/>
+        <level value="WARN"/>
     </logger>
 
     <logger name="de.caluga.morphium.writer">
@@ -46,7 +46,7 @@
     </logger>
 
     <logger name="de.caluga.morphium.Morphium">
-        <level value="WARN"/>
+        <level value="DEBUG"/>
     </logger>
 
     <logger name="de.caluga.morphium.SequenceGenerator">
@@ -60,11 +60,8 @@
     <logger name="de.caluga.morphium.AnnotationAndReflectionHelper">
         <level value="INFO"/>
     </logger>
-    <logger name="de.caluga.med">
-        <level value="DEBUG"/>
-    </logger>
 
-    <logger name="de.caluga.annotations">
+    <logger name="com.mongodb.driver.cluster">
         <level value="DEBUG"/>
     </logger>
 
