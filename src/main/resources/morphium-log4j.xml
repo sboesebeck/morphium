@@ -16,14 +16,14 @@
     <appender name="CONSOLE" class="org.apache.log4j.ConsoleAppender">
         <param name="Target" value="System.out"/>
         <layout class="org.apache.log4j.PatternLayout">
-            <param name="ConversionPattern" value="%d{ABSOLUTE} %-5p [%t] %c{1}: %m%n"/>
+            <param name="ConversionPattern" value="%d{ABSOLUTE} lkjhasdf %-5p [%t] %c{1}: %m%n"/>
         </layout>
     </appender>
 
     <appender name="JOB" class="org.apache.log4j.ConsoleAppender">
         <param name="Target" value="System.out"/>
         <layout class="org.apache.log4j.PatternLayout">
-            <param name="ConversionPattern" value="%d{ISO8601} %-5p [%t] %c{1}: %m%n"/>
+            <param name="ConversionPattern" value="%d{ISO8601} asdfas  %-5p [%t] %c{1}: %m%n"/>
         </layout>
     </appender>
     <appender name="mongo" class="de.caluga.morphium.logging.MongoAppender">
@@ -38,11 +38,9 @@
         <level value="INFO"/>
     </logger>
 
-    <logger name="de.caluga.med">
+    <logger name="com.mongodb">
         <level value="DEBUG"/>
     </logger>
-
-
     <!-- ======================= -->
     <!-- Setup the Root category -->
     <!-- ======================= -->
