@@ -48,6 +48,8 @@ public class CacheSynchronizer extends MorphiumStorageAdapter<Object> implements
     private boolean attached;
     private AnnotationAndReflectionHelper annotationHelper;
 
+    private boolean commitMessage =false;
+
     /**
      * @param msg      - primary messaging, will attach to and send messages over
      * @param morphium - the underlying morphium instance
@@ -221,6 +223,7 @@ public class CacheSynchronizer extends MorphiumStorageAdapter<Object> implements
     }
 
 
+
     @Override
     public void postStore(Morphium m, Object r, boolean isNew) {
         sendClearMessage(r, "store", isNew);
@@ -363,8 +366,26 @@ public class CacheSynchronizer extends MorphiumStorageAdapter<Object> implements
             log.error("Could not process message: ", t);
             answer.setMsg("Error processing message: " + t.getMessage());
         }
+        if (!commitMessage) {
+            return null;
+        }
         return answer;
     }
 
+    public void disableCommitMessages() {
+        commitMessage =false;
+    }
+
+    public void enableCommitMessages() {
+        commitMessage =true;
+    }
+
+    public void setCommitMessage(boolean msg) {
+        commitMessage =msg;
+    }
+
+    public boolean isCommitMessages() {
+        return commitMessage;
+    }
 
 }
