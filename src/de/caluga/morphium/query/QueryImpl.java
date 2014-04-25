@@ -215,9 +215,6 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
             lst.put("class_name", 1);
         }
 
-        if (additionalFields != null) {
-            lst.putAll(additionalFields);
-        }
         if (fieldList != null) {
             lst.putAll(fieldList);
         } else {
@@ -231,7 +228,9 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
                 lst.put(n, 1);
             }
         }
-
+        if (additionalFields != null) {
+            lst.putAll(additionalFields);
+        }
         return lst;
     }
 

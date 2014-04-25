@@ -70,6 +70,7 @@ public class TextIndexTest extends MongoTest {
         log.info("Query: " + p.toQueryObject().toString());
         for (Person pers : p.asIterable()) {
             log.info(" Name: " + pers.getNachname() + " score: " + pers.getScore());
+            assert(pers.getScore()>0);
         }
 
     }
