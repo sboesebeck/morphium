@@ -799,7 +799,17 @@ public class Morphium {
         }
         DBCollection col = config.getDb().getCollection(collection);
         BasicDBObject srch = new BasicDBObject("_id", id);
-        DBCursor crs = col.find(srch).limit(1);
+        List<Field> lst = annotationHelper.getAllFields(o.getClass());
+        BasicDBObject fields = new BasicDBObject();
+        for (Field f : lst) {
+            if (f.isAnnotationPresent(WriteOnly.class) || f.isAnnotationPresent(Transient.class)) {
+                continue;
+            }
+            String n = annotationHelper.getFieldName(o.getClass(), f.getName());
+            fields.put(n, 1);
+        }
+
+        DBCursor crs = col.find(srch, fields).limit(1);
         if (crs.hasNext()) {
             DBObject dbo = crs.next();
             Object fromDb = objectMapper.unmarshall(o.getClass(), dbo);

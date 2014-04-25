@@ -39,7 +39,10 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
     private String collectionName;
     private ServerAddress srv = null;
 
+    private DBObject fieldList;
+
     private boolean autoValuesEnabled = true;
+    private DBObject additionalFields;
 
 
     public QueryImpl() {
@@ -55,6 +58,7 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
     public QueryImpl(Morphium m) {
         setMorphium(m);
     }
+
 
     @Override
     public void disableAutoValues() {
@@ -165,18 +169,7 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
         long start = System.currentTimeMillis();
         DBCollection c = morphium.getDatabase().getCollection(getCollectionName());
         setReadPreferenceFor(c);
-        List<Field> fldlst = annotationHelper.getAllFields(type);
-        BasicDBObject lst = new BasicDBObject();
-        lst.put("_id", 1);
-        for (Field f : fldlst) {
-            if (f.isAnnotationPresent(AdditionalData.class)) {
-                //to enable additional data
-                lst = new BasicDBObject();
-                break;
-            }
-            String n = annotationHelper.getFieldName(type, f.getName());
-            lst.put(n, 1);
-        }
+        BasicDBObject lst = getFieldListForQuery();
 
         List<T> ret = new ArrayList<T>();
         int retries = morphium.getConfig().getRetriesOnNetworkError();
@@ -211,6 +204,35 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
             morphium.getCache().addToCache(ck, type, ret);
         }
         return ret;
+    }
+
+    private BasicDBObject getFieldListForQuery() {
+        List<Field> fldlst = annotationHelper.getAllFields(type);
+        BasicDBObject lst = new BasicDBObject();
+        lst.put("_id", 1);
+        Entity e = annotationHelper.getAnnotationFromHierarchy(type, Entity.class);
+        if (e.polymorph()) {
+            lst.put("class_name", 1);
+        }
+
+        if (additionalFields != null) {
+            lst.putAll(additionalFields);
+        }
+        if (fieldList != null) {
+            lst.putAll(fieldList);
+        } else {
+            for (Field f : fldlst) {
+                if (f.isAnnotationPresent(AdditionalData.class)) {
+                    //to enable additional data
+                    lst = new BasicDBObject();
+                    break;
+                }
+                String n = annotationHelper.getFieldName(type, f.getName());
+                lst.put(n, 1);
+            }
+        }
+
+        return lst;
     }
 
     @Override
@@ -585,24 +607,8 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
         long start = System.currentTimeMillis();
         DBCollection collection = morphium.getDatabase().getCollection(getCollectionName());
         setReadPreferenceFor(collection);
+        BasicDBObject lst = getFieldListForQuery();
 
-        List<Field> fldlst = annotationHelper.getAllFields(type);
-        BasicDBObject lst = new BasicDBObject();
-        lst.put("_id", 1);
-        Entity e = annotationHelper.getAnnotationFromHierarchy(type, Entity.class);
-        if (e.polymorph()) {
-            lst.put("class_name", 1);
-        }
-        for (Field f : fldlst) {
-            if (f.isAnnotationPresent(AdditionalData.class)) {
-                //to enable additional data
-                lst = new BasicDBObject();
-                break;
-            }
-            String n = annotationHelper.getFieldName(type, f.getName());
-            lst.put(n, 1);
-
-        }
 
         List<T> ret = new ArrayList<T>();
         for (int i = 0; i < morphium.getConfig().getRetriesOnNetworkError(); i++) {
@@ -787,18 +793,7 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
         long start = System.currentTimeMillis();
         DBCollection coll = morphium.getDatabase().getCollection(getCollectionName());
         setReadPreferenceFor(coll);
-        List<Field> fldlst = annotationHelper.getAllFields(type);
-        BasicDBObject fl = new BasicDBObject();
-        fl.put("_id", 1);
-        for (Field f : fldlst) {
-            if (f.isAnnotationPresent(AdditionalData.class)) {
-                //to enable additional data
-                fl = new BasicDBObject();
-                break;
-            }
-            String n = annotationHelper.getFieldName(type, f.getName());
-            fl.put(n, 1);
-        }
+        BasicDBObject fl = getFieldListForQuery();
 
         DBCursor srch = coll.find(toQueryObject(), fl);
         srch.limit(1);
@@ -982,11 +977,47 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
     }
 
     @Override
+    public Query<T> text(String... text) {
+        return text(null, (TextSearchLanguages) null, text);
+    }
+
+    @Override
+    public Query<T> text(TextSearchLanguages lang, String... text) {
+        return text(null, lang, text);
+    }
+
+    @Override
+    public Query<T> text(String metaScoreField, TextSearchLanguages lang, String... text) {
+        FilterExpression f = new FilterExpression();
+        f.setField("$text");
+        StringBuilder b = new StringBuilder();
+        for (String t : text) {
+            b.append(t);
+            b.append(" ");
+        }
+        f.setValue(new BasicDBObject("$search", b.toString()));
+        if (lang != null) {
+            ((BasicDBObject) f.getValue()).put("$language", lang.toString());
+        }
+        addChild(f);
+        if (metaScoreField != null) {
+
+            additionalFields = new BasicDBObject(metaScoreField, new BasicDBObject(new BasicDBObject("$meta", "textScore")));
+
+        }
+
+        return this;
+
+    }
+
+    @Override
+    @Deprecated
     public List<T> textSearch(String... texts) {
         return textSearch(TextSearchLanguages.mongo_default, texts);
     }
 
     @Override
+    @Deprecated
     public List<T> textSearch(TextSearchLanguages lang, String... texts) {
         if (texts.length == 0) return new ArrayList<T>();
 
@@ -1022,6 +1053,36 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
             if (unmarshall != null) ret.add(unmarshall);
         }
         return ret;
+    }
+
+    @Override
+    public void setReturnedFields(Enum... fl) {
+        for (Enum f : fl) {
+            addReturnedField(f);
+        }
+    }
+
+    @Override
+    public void setReturnedFields(String... fl) {
+        fieldList = new BasicDBObject();
+        for (String f : fl) {
+            addReturnedField(f);
+        }
+    }
+
+
+    @Override
+    public void addReturnedField(Enum f) {
+        addReturnedField(f.name());
+    }
+
+    @Override
+    public void addReturnedField(String f) {
+        if (fieldList == null) {
+            fieldList = new BasicDBObject();
+        }
+        String n = annotationHelper.getFieldName(type, f);
+        fieldList.put(n, 1);
     }
 
     @Override
@@ -1062,7 +1123,7 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
             nors.append(" ]");
         }
 
-        return "Query{ " +
+        String ret = "Query{ " +
                 "collectionName='" + collectionName + '\'' +
                 ", type=" + type.getName() +
                 ", skip=" + skip +
@@ -1075,5 +1136,10 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
                 ", additionalDataPresent=" + additionalDataPresent +
                 ", where='" + where + '\'' +
                 '}';
+        if (fieldList != null) {
+            ret += " Fields " + fieldList.toString();
+
+        }
+        return ret;
     }
 }

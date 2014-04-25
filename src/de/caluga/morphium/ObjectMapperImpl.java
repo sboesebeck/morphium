@@ -152,6 +152,9 @@ public class ObjectMapperImpl implements ObjectMapper {
                 if (Modifier.isStatic(fld.getModifiers())) {
                     continue;
                 }
+                if (fld.isAnnotationPresent(ReadOnly.class)) {
+                    continue; //do not write value
+                }
                 AdditionalData ad = fld.getAnnotation(AdditionalData.class);
                 if (ad != null) {
                     if (!ad.readOnly()) {
@@ -394,6 +397,7 @@ public class ObjectMapperImpl implements ObjectMapper {
             List<String> flds = annotationHelper.getFields(cls);
 
             for (String f : flds) {
+
                 Object valueFromDb = o.get(f);
                 Field fld = annotationHelper.getField(cls, f);
                 if (Modifier.isStatic(fld.getModifiers())) {
@@ -401,7 +405,9 @@ public class ObjectMapperImpl implements ObjectMapper {
                     continue;
                 }
 
-
+                if (fld.isAnnotationPresent(WriteOnly.class)) {
+                    ; //do not read from DB
+                }
                 if (fld.isAnnotationPresent(AdditionalData.class)) {
                     //this field should store all data that is not put to fields
                     if (!Map.class.isAssignableFrom(fld.getType())) {

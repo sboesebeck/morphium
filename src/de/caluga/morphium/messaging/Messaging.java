@@ -131,6 +131,7 @@ public class Messaging extends Thread {
                                     answer = new Msg(msg.getName(), "received", "");
                                 }
                                 if (answer != null) {
+                                    msg.setDeleteAt(new Date(System.currentTimeMillis() + msg.getTtl()));
                                     msg.sendAnswer(this, answer);
                                 }
                             }

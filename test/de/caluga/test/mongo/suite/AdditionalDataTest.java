@@ -18,6 +18,7 @@ public class AdditionalDataTest extends MongoTest {
 
     @Test
     public void additionalData() throws Exception {
+        MorphiumSingleton.get().dropCollection(AddDat.class);
         WriteConcern w = MorphiumSingleton.get().getWriteConcernForClass(AddDat.class);
 //        assert(w.getW()>1);
 //        assert(w.getWtimeout()>1000);

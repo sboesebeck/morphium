@@ -347,6 +347,7 @@ public class Msg {
     public void sendAnswer(Messaging messaging, Msg m) {
         m.setInAnswerTo(this.msgId);
         m.addRecipient(this.getSender());
+        m.setDeleteAt(new Date(System.currentTimeMillis() + m.getTtl()));
         messaging.queueMessage(m);
     }
 
