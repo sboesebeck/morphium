@@ -187,6 +187,11 @@ public class MongoTest {
             lst.add(uc);
         }
         MorphiumSingleton.get().storeList(lst);
+        try {
+            Thread.sleep(500);
+        } catch (InterruptedException e) {
+            e.printStackTrace();  //To change body of catch statement use File | Settings | File Templates.
+        }
     }
 
     @org.junit.Before

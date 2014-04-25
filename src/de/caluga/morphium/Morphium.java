@@ -1661,7 +1661,7 @@ public class Morphium {
         }
         config.getDb().getMongo().close();
         config = null;
-        MorphiumSingleton.reset();
+//        MorphiumSingleton.reset();
     }
 
     public String createCamelCase(String n) {

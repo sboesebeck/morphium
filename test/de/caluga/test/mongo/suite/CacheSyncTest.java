@@ -1,5 +1,7 @@
 package de.caluga.test.mongo.suite;
 
+import de.caluga.morphium.Morphium;
+import de.caluga.morphium.MorphiumConfig;
 import de.caluga.morphium.MorphiumSingleton;
 import de.caluga.morphium.StatisticKeys;
 import de.caluga.morphium.annotations.SafetyLevel;
@@ -9,6 +11,7 @@ import de.caluga.morphium.annotations.caching.WriteBuffer;
 import de.caluga.morphium.cache.CacheSyncListener;
 import de.caluga.morphium.cache.CacheSyncVetoException;
 import de.caluga.morphium.cache.CacheSynchronizer;
+import de.caluga.morphium.messaging.MessageListener;
 import de.caluga.morphium.messaging.Messaging;
 import de.caluga.morphium.messaging.Msg;
 import de.caluga.morphium.query.Query;
@@ -291,6 +294,89 @@ public class CacheSyncTest extends MongoTest {
         assert (postclear);
         assert (preSendClear);
         assert (postSendClear);
+
+    }
+
+
+    @Test
+    public void cacheSyncTest() throws Exception {
+        createCachedObjects(1000);
+
+        Morphium m1 = MorphiumSingleton.get();
+        MorphiumConfig cfg2=new MorphiumConfig();
+        cfg2.setAdr(m1.getConfig().getAdr());
+        cfg2.setDatabase(m1.getConfig().getDatabase());
+
+        Morphium m2 = new Morphium(cfg2);
+        Messaging msg1 = new Messaging(m1, 200, true);
+        Messaging msg2 = new Messaging(m2, 200, true);
+
+        msg1.start();
+        msg2.start();
+
+        CacheSynchronizer cs1 = new CacheSynchronizer(msg1, m1);
+        CacheSynchronizer cs2 = new CacheSynchronizer(msg2, m2);
+        waitForWrites();
+
+        //fill caches
+        for (int i = 0; i < 1000; i++) {
+            m1.createQueryFor(CachedObject.class).f("counter").lte(i + 10).asList(); //fill cache
+            m2.createQueryFor(CachedObject.class).f("counter").lte(i + 10).asList(); //fill cache
+        }
+        //1 always sends to 2....
+
+
+        CachedObject o=m1.createQueryFor(CachedObject.class).f("counter").eq(155).get();
+        cs2.addSyncListener(CachedObject.class,new CacheSyncListener() {
+            @Override
+            public void preClear(Class cls, Msg m) throws CacheSyncVetoException {
+                log.info("Should clear cache");
+                preClear=true;
+            }
+
+            @Override
+            public void postClear(Class cls, Msg m) {
+                log.info("did clear cache");
+                postclear=true;
+            }
+
+            @Override
+            public void preSendClearMsg(Class cls, Msg m) throws CacheSyncVetoException {
+                log.info("will send clear message");
+                preSendClear=true;
+            }
+
+            @Override
+            public void postSendClearMsg(Class cls, Msg m) {
+                log.info("just sent clear message");
+                postSendClear=true;
+            }
+        });
+        msg2.addMessageListener(new MessageListener() {
+            @Override
+            public Msg onMessage(Messaging msg, Msg m) {
+                log.info("Got message " + m.getName());
+                return null;
+            }
+        });
+        preSendClear=false;
+        preClear=false;
+        postclear=false;
+        postSendClear=false;
+        o.setValue("changed it");
+        m1.store(o);
+
+        Thread.sleep(1000);
+        assert(!preSendClear);
+        assert(!postSendClear);
+        assert(postclear);
+        assert(preClear);
+
+        cs1.detach();
+        cs2.detach();
+        msg1.setRunning(false);
+        msg2.setRunning(false);
+        m2.close();
 
     }
 
