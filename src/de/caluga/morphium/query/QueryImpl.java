@@ -652,7 +652,7 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
         if (useCache) {
             morphium.getCache().addToCache(ck, type, ret);
         }
-
+        morphium.firePostLoad(ret);
         return ret;
     }
 

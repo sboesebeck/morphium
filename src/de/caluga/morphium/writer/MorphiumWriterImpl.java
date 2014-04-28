@@ -326,7 +326,6 @@ public class MorphiumWriterImpl implements MorphiumWriter {
     @Override
     public <T> void store(final List<T> lst, String collectionName, AsyncOperationCallback<T> callback) {
         if (lst == null || lst.size() == 0) return;
-
         ArrayList<DBObject> dbLst = new ArrayList<DBObject>();
         DBCollection collection = morphium.getDatabase().getCollection(collectionName);
         WriteConcern wc = morphium.getWriteConcernForClass(lst.get(0).getClass());
@@ -372,7 +371,7 @@ public class MorphiumWriterImpl implements MorphiumWriter {
                 up.updateOne(new BasicDBObject("$set", marshall));
             }
         }
-
+        morphium.firePreStoreEvent(isNew);
         for (int i = 0; i < morphium.getConfig().getRetriesOnNetworkError(); i++) {
             try {
                 //storing updates
@@ -391,7 +390,7 @@ public class MorphiumWriterImpl implements MorphiumWriter {
 
         long dur = System.currentTimeMillis() - start;
         morphium.fireProfilingWriteEvent(lst.get(0).getClass(), lst, dur, false, WriteAccessType.BULK_UPDATE);
-        morphium.firePostStoreEvent(lst, false);
+
         start = System.currentTimeMillis();
 
         if (wc == null) {
@@ -402,11 +401,7 @@ public class MorphiumWriterImpl implements MorphiumWriter {
         dur = System.currentTimeMillis() - start;
         //bulk insert
         morphium.fireProfilingWriteEvent(lst.get(0).getClass(), dbLst, dur, true, WriteAccessType.BULK_INSERT);
-        for (Object record : lst) {
-            if (isNew.get(record)) {
-                morphium.firePostStoreEvent(record, isNew.get(record));
-            }
-        }
+        morphium.firePostStore(isNew);
     }
 
     @Override
@@ -825,7 +820,7 @@ public class MorphiumWriterImpl implements MorphiumWriter {
 
     @SuppressWarnings("SuspiciousMethodCalls")
     @Override
-    public <T> void delete(final List<T> lst, AsyncOperationCallback<T> callback) {
+    public <T> void remove(final List<T> lst, AsyncOperationCallback<T> callback) {
         WriterTask r = new WriterTask() {
             private AsyncOperationCallback<T> callback;
 
@@ -847,13 +842,15 @@ public class MorphiumWriterImpl implements MorphiumWriter {
                     q.f(annotationHelper.getIdFieldName(o)).eq(annotationHelper.getId(o));
                     sortedMap.get(o.getClass()).add(q);
                 }
+                morphium.firePreRemove(lst);
                 long start = System.currentTimeMillis();
                 try {
                     for (Class<T> cls : sortedMap.keySet()) {
                         Query<T> orQuery = morphium.createQueryFor(cls);
                         orQuery = orQuery.or(sortedMap.get(cls));
-                        delete(orQuery, (AsyncOperationCallback<T>) null); //sync call
+                        remove(orQuery, (AsyncOperationCallback<T>) null); //sync call
                     }
+                    morphium.firePostRemove(lst);
                     if (callback != null)
                         callback.onOperationSucceeded(AsyncOperationType.REMOVE, null, System.currentTimeMillis() - start, null, null, lst);
                 } catch (Exception e) {
@@ -871,7 +868,7 @@ public class MorphiumWriterImpl implements MorphiumWriter {
      * @param q - query
      */
     @Override
-    public <T> void delete(final Query<T> q, AsyncOperationCallback<T> callback) {
+    public <T> void remove(final Query<T> q, AsyncOperationCallback<T> callback) {
         WriterTask r = new WriterTask() {
             private AsyncOperationCallback<T> callback;
 
@@ -916,7 +913,7 @@ public class MorphiumWriterImpl implements MorphiumWriter {
     }
 
     @Override
-    public <T> void delete(final T o, final String collection, AsyncOperationCallback<T> callback) {
+    public <T> void remove(final T o, final String collection, AsyncOperationCallback<T> callback) {
 
         WriterTask r = new WriterTask() {
             private AsyncOperationCallback<T> callback;
@@ -929,7 +926,7 @@ public class MorphiumWriterImpl implements MorphiumWriter {
             @Override
             public void run() {
                 Object id = annotationHelper.getId(o);
-                morphium.firePreRemoveEvent(o);
+                morphium.firePreRemove(o);
                 BasicDBObject db = new BasicDBObject();
                 db.append("_id", id);
                 WriteConcern wc = morphium.getWriteConcernForClass(o.getClass());
@@ -1532,6 +1529,7 @@ public class MorphiumWriterImpl implements MorphiumWriter {
     }
 
     private void pushIt(boolean push, boolean insertIfNotExist, boolean multiple, Class<?> cls, String coll, DBObject qobj, BasicDBObject update) {
+        morphium.firePreUpdateEvent(annotationHelper.getRealClass(cls), push ? MorphiumStorageListener.UpdateTypes.PUSH : MorphiumStorageListener.UpdateTypes.PULL);
 
         List<String> lastChangeFields = annotationHelper.getFields(cls, LastChange.class);
         if (lastChangeFields != null && lastChangeFields.size() != 0) {

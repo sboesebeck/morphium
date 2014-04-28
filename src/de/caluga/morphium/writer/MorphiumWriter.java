@@ -79,16 +79,16 @@ public interface MorphiumWriter {
 
     public void setMorphium(Morphium m);
 
-    public <T> void delete(List<T> lst, AsyncOperationCallback<T> callback);
+    public <T> void remove(List<T> lst, AsyncOperationCallback<T> callback);
 
-    public <T> void delete(T o, String collection, AsyncOperationCallback<T> callback);
+    public <T> void remove(T o, String collection, AsyncOperationCallback<T> callback);
 
     /**
      * deletes all objects matching the given query
      *
      * @param q the query
      */
-    public <T> void delete(Query<T> q, AsyncOperationCallback<T> callback);
+    public <T> void remove(Query<T> q, AsyncOperationCallback<T> callback);
 
     public <T> void pushPull(boolean push, Query<T> query, String field, Object value, boolean insertIfNotExist, boolean multiple, AsyncOperationCallback<T> callback);
 

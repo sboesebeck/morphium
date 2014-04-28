@@ -177,9 +177,10 @@ public class CacheSyncTest extends MongoTest {
             }
             if (obj == null) {
                 notFoundCounter++;
+            } else {
+                obj.setCounter(i + 2000);
             }
             assert (notFoundCounter < 10) : "too many objects not found";
-            obj.setCounter(i + 2000);
             MorphiumSingleton.get().store(obj);
         }
         dur = System.currentTimeMillis() - start;
@@ -300,10 +301,11 @@ public class CacheSyncTest extends MongoTest {
 
     @Test
     public void cacheSyncTest() throws Exception {
+        MorphiumSingleton.get().dropCollection(Msg.class);
         createCachedObjects(1000);
 
         Morphium m1 = MorphiumSingleton.get();
-        MorphiumConfig cfg2=new MorphiumConfig();
+        MorphiumConfig cfg2 = new MorphiumConfig();
         cfg2.setAdr(m1.getConfig().getAdr());
         cfg2.setDatabase(m1.getConfig().getDatabase());
 
@@ -326,30 +328,30 @@ public class CacheSyncTest extends MongoTest {
         //1 always sends to 2....
 
 
-        CachedObject o=m1.createQueryFor(CachedObject.class).f("counter").eq(155).get();
-        cs2.addSyncListener(CachedObject.class,new CacheSyncListener() {
+        CachedObject o = m1.createQueryFor(CachedObject.class).f("counter").eq(155).get();
+        cs2.addSyncListener(CachedObject.class, new CacheSyncListener() {
             @Override
             public void preClear(Class cls, Msg m) throws CacheSyncVetoException {
                 log.info("Should clear cache");
-                preClear=true;
+                preClear = true;
             }
 
             @Override
             public void postClear(Class cls, Msg m) {
                 log.info("did clear cache");
-                postclear=true;
+                postclear = true;
             }
 
             @Override
             public void preSendClearMsg(Class cls, Msg m) throws CacheSyncVetoException {
                 log.info("will send clear message");
-                preSendClear=true;
+                preSendClear = true;
             }
 
             @Override
             public void postSendClearMsg(Class cls, Msg m) {
                 log.info("just sent clear message");
-                postSendClear=true;
+                postSendClear = true;
             }
         });
         msg2.addMessageListener(new MessageListener() {
@@ -359,19 +361,26 @@ public class CacheSyncTest extends MongoTest {
                 return null;
             }
         });
-        preSendClear=false;
-        preClear=false;
-        postclear=false;
-        postSendClear=false;
+        preSendClear = false;
+        preClear = false;
+        postclear = false;
+        postSendClear = false;
         o.setValue("changed it");
         m1.store(o);
 
         Thread.sleep(1000);
-        assert(!preSendClear);
-        assert(!postSendClear);
-        assert(postclear);
-        assert(preClear);
+        assert (!preSendClear);
+        assert (!postSendClear);
+        assert (postclear);
+        assert (preClear);
 
+        assert (m1.createQueryFor(Msg.class).countAll() == 1);
+
+        createCachedObjects(50);
+
+
+//        Thread.sleep(90000); //wait for messages to be cleared
+//        assert(m1.createQueryFor(Msg.class).countAll()==0);
         cs1.detach();
         cs2.detach();
         msg1.setRunning(false);

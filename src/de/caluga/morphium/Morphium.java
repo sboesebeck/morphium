@@ -299,8 +299,6 @@ public class Morphium {
 
     public <T> void unset(final T toSet, String collection, final String field, final AsyncOperationCallback<T> callback) {
         if (toSet == null) throw new RuntimeException("Cannot update null!");
-
-        firePreUpdateEvent(toSet.getClass(), MorphiumStorageListener.UpdateTypes.UNSET);
         MorphiumWriter wr = getWriterForClass(toSet.getClass());
         wr.unset(toSet, collection, field, callback);
     }
@@ -505,8 +503,6 @@ public class Morphium {
      */
     public <T> void push(final Query<T> query, final String field, final Object value, final boolean insertIfNotExist, final boolean multiple, final AsyncOperationCallback<T> callback) {
         if (query == null || field == null) throw new RuntimeException("Cannot update null!");
-
-        firePreUpdateEvent(query.getType(), MorphiumStorageListener.UpdateTypes.PUSH);
         getWriterForClass(query.getType()).pushPull(true, query, field, value, insertIfNotExist, multiple, null);
 
     }
@@ -528,8 +524,6 @@ public class Morphium {
      */
     public <T> void pull(final Query<T> query, final String field, final Object value, final boolean insertIfNotExist, final boolean multiple, final AsyncOperationCallback<T> callback) {
         if (query == null || field == null) throw new RuntimeException("Cannot update null!");
-
-        firePreUpdateEvent(query.getType(), MorphiumStorageListener.UpdateTypes.PULL);
         MorphiumWriter wr = getWriterForClass(query.getType());
         wr.pushPull(false, query, field, value, insertIfNotExist, multiple, callback);
     }
@@ -540,8 +534,6 @@ public class Morphium {
 
     public <T> void pushAll(final Query<T> query, final String field, final List<?> value, final boolean insertIfNotExist, final boolean multiple, final AsyncOperationCallback<T> callback) {
         if (query == null || field == null) throw new RuntimeException("Cannot update null!");
-
-        firePreUpdateEvent(query.getType(), MorphiumStorageListener.UpdateTypes.PUSH);
         MorphiumWriter wr = getWriterForClass(query.getType());
         wr.pushPullAll(true, query, field, value, insertIfNotExist, multiple, callback);
 
@@ -618,8 +610,6 @@ public class Morphium {
 
     public <T> void inc(final Query<T> query, final Map<String, Double> toUptad, final boolean insertIfNotExist, final boolean multiple, AsyncOperationCallback<T> callback) {
         if (query == null) throw new RuntimeException("Cannot update null!");
-
-        firePreUpdateEvent(query.getType(), MorphiumStorageListener.UpdateTypes.INC);
         getWriterForClass(query.getType()).inc(query, toUptad, insertIfNotExist, multiple, callback);
     }
 
@@ -629,8 +619,6 @@ public class Morphium {
 
     public <T> void inc(final Query<T> query, final String name, final double amount, final boolean insertIfNotExist, final boolean multiple, final AsyncOperationCallback<T> callback) {
         if (query == null) throw new RuntimeException("Cannot update null!");
-
-        firePreUpdateEvent(query.getType(), MorphiumStorageListener.UpdateTypes.INC);
         getWriterForClass(query.getType()).inc(query, name, amount, insertIfNotExist, multiple, callback);
 
     }
@@ -728,8 +716,8 @@ public class Morphium {
                 directDel.add(o);
             }
         }
-        config.getBufferedWriter().delete(bufferedDel, callback);
-        config.getWriter().delete(directDel, callback);
+        config.getBufferedWriter().remove(bufferedDel, callback);
+        config.getWriter().remove(directDel, callback);
     }
 
     public void inc(StatisticKeys k) {
@@ -834,7 +822,7 @@ public class Morphium {
         return o;
     }
 
-    @SuppressWarnings("unchecked")
+    ///Event handling
     public void firePreStoreEvent(Object o, boolean isNew) {
         if (o == null) return;
         for (MorphiumStorageListener l : listeners) {
@@ -844,7 +832,6 @@ public class Morphium {
 
     }
 
-    @SuppressWarnings("unchecked")
     public void firePostStoreEvent(Object o, boolean isNew) {
         for (MorphiumStorageListener l : listeners) {
             l.postStore(this, o, isNew);
@@ -854,7 +841,6 @@ public class Morphium {
 
     }
 
-    @SuppressWarnings("unchecked")
     public void firePreDropEvent(Class cls) {
         for (MorphiumStorageListener l : listeners) {
             l.preDrop(this, cls);
@@ -862,6 +848,51 @@ public class Morphium {
 
     }
 
+    public <T> void firePostStore(Map<T, Boolean> isNew) {
+        for (MorphiumStorageListener l : listeners) {
+            l.postStore(this, isNew);
+        }
+        for (Object o : isNew.keySet()) annotationHelper.callLifecycleMethod(PreStore.class, o);
+
+    }
+
+    public <T> void firePostRemove(List<T> toRemove) {
+        for (MorphiumStorageListener l : listeners) {
+            l.postRemove(this, toRemove);
+        }
+        for (Object o : toRemove) annotationHelper.callLifecycleMethod(PostRemove.class, o);
+
+    }
+
+    public <T> void firePostLoad(List<T> loaded) {
+        for (MorphiumStorageListener l : listeners) {
+            l.postLoad(this, loaded);
+        }
+        for (Object o : loaded) annotationHelper.callLifecycleMethod(PostLoad.class, o);
+
+    }
+
+
+    public void firePreStoreEvent(Map<Object, Boolean> isNew) {
+        for (MorphiumStorageListener l : listeners) {
+            l.preStore(this, isNew);
+        }
+        for (Object o : isNew.keySet()) annotationHelper.callLifecycleMethod(PreStore.class, o);
+    }
+
+    public <T> void firePreRemove(List<T> lst) {
+        for (MorphiumStorageListener l : listeners) {
+            l.preRemove(this, lst);
+        }
+        for (T o : lst) annotationHelper.callLifecycleMethod(PreRemove.class, o);
+    }
+
+    public void firePreRemove(Object o) {
+        for (MorphiumStorageListener l : listeners) {
+            l.preRemove(this, o);
+        }
+        annotationHelper.callLifecycleMethod(PreRemove.class, o);
+    }
 
     @SuppressWarnings("unchecked")
     public void firePostDropEvent(Class cls) {
@@ -900,13 +931,6 @@ public class Morphium {
         //TODO: FIX - Cannot call lifecycle method here
     }
 
-    @SuppressWarnings("unchecked")
-    public void firePreRemoveEvent(Object o) {
-        for (MorphiumStorageListener l : listeners) {
-            l.preDelete(this, o);
-        }
-        annotationHelper.callLifecycleMethod(PreRemove.class, o);
-    }
 
     @SuppressWarnings("unchecked")
     public void firePreRemoveEvent(Query q) {
@@ -1123,7 +1147,7 @@ public class Morphium {
 
 
     /**
-     * issues a delete command - no lifecycle methods calles, no drop, keeps all indexec this way
+     * issues a remove command - no lifecycle methods calles, no drop, keeps all indexec this way
      *
      * @param cls - class
      */
@@ -1133,7 +1157,7 @@ public class Morphium {
     }
 
     /**
-     * issues a delete command - no lifecycle methods calles, no drop, keeps all indexec this way
+     * issues a remove command - no lifecycle methods calles, no drop, keeps all indexec this way
      * But uses sepcified collection name instead deriving name from class
      *
      * @param cls     - class
@@ -1567,11 +1591,11 @@ public class Morphium {
 
 
     public <T> void delete(Query<T> o) {
-        getWriterForClass(o.getType()).delete(o, (AsyncOperationCallback<T>) null);
+        getWriterForClass(o.getType()).remove(o, (AsyncOperationCallback<T>) null);
     }
 
     public <T> void delete(Query<T> o, final AsyncOperationCallback<T> callback) {
-        getWriterForClass(o.getType()).delete(o, callback);
+        getWriterForClass(o.getType()).remove(o, callback);
     }
 
     public <T> void pushPull(boolean push, Query<T> query, String field, Object value, boolean insertIfNotExist, boolean multiple, AsyncOperationCallback<T> callback) {
@@ -1596,7 +1620,7 @@ public class Morphium {
     }
 
     public void delete(Object o, String collection) {
-        getWriterForClass(o.getClass()).delete(o, collection, null);
+        getWriterForClass(o.getClass()).remove(o, collection, null);
     }
 
 
@@ -1605,11 +1629,11 @@ public class Morphium {
             delete((Query) lo, callback);
             return;
         }
-        getWriterForClass(lo.getClass()).delete(lo, getMapper().getCollectionName(lo.getClass()), callback);
+        getWriterForClass(lo.getClass()).remove(lo, getMapper().getCollectionName(lo.getClass()), callback);
     }
 
     public <T> void delete(final T lo, String collection, final AsyncOperationCallback<T> callback) {
-        getWriterForClass(lo.getClass()).delete(lo, collection, callback);
+        getWriterForClass(lo.getClass()).remove(lo, collection, callback);
     }
 
 

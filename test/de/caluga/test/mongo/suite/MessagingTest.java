@@ -111,7 +111,7 @@ public class MessagingTest extends MongoTest {
         MorphiumSingleton.get().store(m);
 
         Query<Msg> q = MorphiumSingleton.get().createQueryFor(Msg.class);
-//        MorphiumSingleton.get().delete(q);
+//        MorphiumSingleton.get().remove(q);
         //locking messages...
         q = q.f(Msg.Fields.sender).ne(id).f(Msg.Fields.lockedBy).eq(null).f(Msg.Fields.processedBy).ne(id);
         MorphiumSingleton.get().set(q, Msg.Fields.lockedBy, id);

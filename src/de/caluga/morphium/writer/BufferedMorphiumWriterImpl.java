@@ -326,7 +326,7 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter {
     }
 
     @Override
-    public <T> void delete(final List<T> lst, AsyncOperationCallback<T> c) {
+    public <T> void remove(final List<T> lst, AsyncOperationCallback<T> c) {
         if (c == null) {
             c = new AsyncOpAdapter<T>();
         }
@@ -335,13 +335,13 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter {
         addToWriteQueue(lst.get(0).getClass(), new Runnable() {
             @Override
             public void run() {
-                directWriter.delete(lst, callback);
+                directWriter.remove(lst, callback);
             }
         });
     }
 
     @Override
-    public <T> void delete(final T o, final String collection, AsyncOperationCallback<T> c) {
+    public <T> void remove(final T o, final String collection, AsyncOperationCallback<T> c) {
         if (c == null) {
             c = new AsyncOpAdapter<T>();
         }
@@ -350,13 +350,13 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter {
         addToWriteQueue(o.getClass(), new Runnable() {
             @Override
             public void run() {
-                directWriter.delete(o, collection, callback);
+                directWriter.remove(o, collection, callback);
             }
         });
     }
 
     @Override
-    public <T> void delete(final Query<T> q, AsyncOperationCallback<T> c) {
+    public <T> void remove(final Query<T> q, AsyncOperationCallback<T> c) {
         if (c == null) {
             c = new AsyncOpAdapter<T>();
         }
@@ -365,7 +365,7 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter {
         addToWriteQueue(q.getType(), new Runnable() {
             @Override
             public void run() {
-                directWriter.delete(q, callback);
+                directWriter.remove(q, callback);
             }
         });
     }

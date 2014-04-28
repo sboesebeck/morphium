@@ -110,9 +110,9 @@ public class MongoTest {
 //                }
 //
 //                @Override
-//                public void preDelete(Morphium m, Object r) {
+//                public void preRemove(Morphium m, Object r) {
 //                     if (m.getARHelper().isBufferedWrite(r.getClass())) {
-//                        Logger.getLogger(MongoTest.class).info("Buffered delete of "+r.getClass());
+//                        Logger.getLogger(MongoTest.class).info("Buffered remove of "+r.getClass());
 //                    }
 //                }
 //
