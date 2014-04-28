@@ -32,12 +32,12 @@ public class RSMonitor {
 
     public void start() {
         execute();
-        executorService.schedule(new Runnable() {
+        executorService.scheduleWithFixedDelay(new Runnable() {
             @Override
             public void run() {
                 execute();
             }
-        }, morphium.getConfig().getReplicaSetMonitoringTimeout(), TimeUnit.MILLISECONDS);
+        }, 1000, morphium.getConfig().getReplicaSetMonitoringTimeout(), TimeUnit.MILLISECONDS);
     }
 
     public void terminate() {
@@ -46,9 +46,11 @@ public class RSMonitor {
 
     public void execute() {
         try {
+            if (logger.isDebugEnabled()) logger.debug("Getting RS-Status...");
             currentStatus = getReplicaSetStatus(true);
             if (currentStatus == null) {
                 nullcounter++;
+                if (logger.isDebugEnabled()) logger.debug("RS status is null! Counter " + nullcounter);
             } else {
                 nullcounter = 0;
             }

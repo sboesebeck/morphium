@@ -13,7 +13,7 @@ import org.bson.types.ObjectId;
  */
 @NoCache
 @Entity
-@WriteSafety(waitForJournalCommit = false, waitForSync = true, timeout = 0, level = SafetyLevel.WAIT_FOR_ALL_SLAVES)
+@WriteSafety(waitForJournalCommit = false, waitForSync = true, timeout = 3000, level = SafetyLevel.WAIT_FOR_ALL_SLAVES)
 @DefaultReadPreference(ReadPreferenceLevel.NEAREST)
 public class UncachedObject {
     @Index
