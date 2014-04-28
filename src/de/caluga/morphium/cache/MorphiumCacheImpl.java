@@ -238,15 +238,19 @@ public class MorphiumCacheImpl implements MorphiumCache {
         ArrayList<String> toRemove = new ArrayList<String>();
         for (String key : c.get(cls).keySet()) {
 
-            for (Object el : c.get(cls).get(key).getFound()) {
-                Object lid = annotationHelper.getId(el);
-                if (lid == null) {
-                    logger.error("Null id in CACHE?");
-                    toRemove.add(key);
+            if (c.get(cls).get(key) != null) {
+                for (Object el : c.get(cls).get(key).getFound()) {
+                    Object lid = annotationHelper.getId(el);
+                    if (lid == null) {
+                        logger.error("Null id in CACHE?");
+                        toRemove.add(key);
+                    }
+                    if (lid != null && lid.equals(id)) {
+                        toRemove.add(key);
+                    }
                 }
-                if (lid != null && lid.equals(id)) {
-                    toRemove.add(key);
-                }
+            } else {
+                logger.error("Null element in CACHE?");
             }
         }
         for (String k : toRemove) {
