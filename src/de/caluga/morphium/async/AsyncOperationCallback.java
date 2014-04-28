@@ -16,7 +16,7 @@ public interface AsyncOperationCallback<T> {
      * @param type     - type of operation performed
      * @param q        - the query for the operation (might be null)
      * @param duration - duration of the whole thing
-     * @param result   - list of all results, might be null (on update or delete)
+     * @param result   - list of all results, might be null (on update or remove)
      * @param param    - the parameter (e.g. the object to store, or the list of objects) - might be null
      */
     public void onOperationSucceeded(AsyncOperationType type, Query<T> q, long duration, List<T> result, T entity, Object... param);

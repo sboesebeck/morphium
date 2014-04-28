@@ -2,6 +2,7 @@ package de.caluga.morphium.validation;
 
 import de.caluga.morphium.AnnotationAndReflectionHelper;
 import de.caluga.morphium.Morphium;
+import de.caluga.morphium.MorphiumAccessVetoException;
 import de.caluga.morphium.MorphiumStorageAdapter;
 import de.caluga.morphium.annotations.Embedded;
 import de.caluga.morphium.annotations.Entity;
@@ -23,6 +24,14 @@ public class JavaxValidationStorageListener extends MorphiumStorageAdapter<Objec
     public JavaxValidationStorageListener() {
         ValidatorFactory factory = Validation.buildDefaultValidatorFactory();
         validator = factory.getValidator();
+    }
+
+
+    @Override
+    public void preStore(Morphium m, Map<Object, Boolean> isNew) throws MorphiumAccessVetoException {
+        for (Object b : isNew.keySet()) {
+            preStore(m, b, isNew.get(b));
+        }
     }
 
     @Override
@@ -51,16 +60,19 @@ public class JavaxValidationStorageListener extends MorphiumStorageAdapter<Objec
                 try {
                     Collection<Object> lst = (List<Object>) field.get(r);
                     if (lst != null) {
+                        Map<Object, Boolean> map = new HashMap<Object, Boolean>();
                         for (Object o : lst) {
-                            try {
-                                preStore(m, o, isNew);
-                            } catch (ConstraintViolationException e) {
-                                Set<ConstraintViolation<?>> constraintViolations = e.getConstraintViolations();
-                                for (ConstraintViolation v : constraintViolations) {
-                                    violations.add(v);
-                                }
+                            map.put(o, isNew);
+                        }
+                        try {
+                            preStore(m, map);
+                        } catch (ConstraintViolationException e) {
+                            Set<ConstraintViolation<?>> constraintViolations = e.getConstraintViolations();
+                            for (ConstraintViolation v : constraintViolations) {
+                                violations.add(v);
                             }
                         }
+
                     }
 
                 } catch (IllegalAccessException e) {
@@ -72,17 +84,20 @@ public class JavaxValidationStorageListener extends MorphiumStorageAdapter<Objec
                 try {
                     Map map = (Map) field.get(r);
                     if (map != null) {
+                        Map<Object, Boolean> lst = new HashMap<Object, Boolean>();
                         for (Object val : map.values()) {
-                            try {
-                                preStore(m, val, isNew);
-                            } catch (ConstraintViolationException e) {
-                                Set<ConstraintViolation<?>> constraintViolations = e.getConstraintViolations();
-                                for (ConstraintViolation v : constraintViolations) {
-                                    violations.add(v);
-                                }
+                            lst.put(val, isNew);
+                        }
+                        try {
+                            preStore(m, lst);
+                        } catch (ConstraintViolationException e) {
+                            Set<ConstraintViolation<?>> constraintViolations = e.getConstraintViolations();
+                            for (ConstraintViolation v : constraintViolations) {
+                                violations.add(v);
                             }
                         }
                     }
+
                 } catch (IllegalAccessException e) {
                     throw new RuntimeException(e);
                 }

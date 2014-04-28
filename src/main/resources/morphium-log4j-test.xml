@@ -46,7 +46,7 @@
     </logger>
 
     <logger name="de.caluga.morphium.Morphium">
-        <level value="DEBUG"/>
+        <level value="INFO"/>
     </logger>
 
     <logger name="de.caluga.morphium.SequenceGenerator">

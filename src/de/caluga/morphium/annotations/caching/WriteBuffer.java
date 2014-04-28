@@ -21,7 +21,7 @@ public @interface WriteBuffer {
      * what to do when max buffer entries is reached
      * WRITE_NEW: write newest entry (synchronous and not add to buffer)
      * WRITE_OLD: write some old entries (and remove from buffer)
-     * DEL_OLD: delete old entries from buffer
+     * DEL_OLD: remove old entries from buffer
      * IGNORE_NEW: just ignore incoming
      * JUST_WARN: increase buffer and warn about it
      */

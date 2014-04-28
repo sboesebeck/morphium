@@ -7,6 +7,8 @@ import de.caluga.morphium.async.AsyncOperationType;
 import de.caluga.morphium.query.Query;
 import org.apache.log4j.Logger;
 
+import java.net.InetAddress;
+import java.net.UnknownHostException;
 import java.util.*;
 
 /**
@@ -25,7 +27,7 @@ public class Messaging extends Thread {
     private int pause = 5000;
     private String id;
     private boolean autoAnswer = false;
-
+    private String hostname;
     private boolean processMultiple = false;
 
     private List<MessageListener> listeners;
@@ -55,6 +57,17 @@ public class Messaging extends Thread {
         this.pause = pause;
         this.processMultiple = processMultiple;
         id = UUID.randomUUID().toString();
+        hostname = System.getenv("HOSTNAME");
+        if (hostname == null) {
+            try {
+                hostname = InetAddress.getLocalHost().getHostName();
+            } catch (UnknownHostException e) {
+            }
+        }
+        if (hostname == null) {
+            hostname = "unknown host";
+        }
+
         m.ensureIndicesFor(Msg.class, queueName);
 //        try {
 //            m.ensureIndex(Msg.class, Msg.Fields.lockedBy, Msg.Fields.timestamp);
@@ -83,7 +96,7 @@ public class Messaging extends Thread {
 //                if (log.isDebugEnabled() && q.countAll() > 0) {
 //                    log.debug("Deleting outdate messages: " + q.countAll());
 //                }
-//                morphium.delete(q);
+//                morphium.remove(q);
 //                q = q.q();
                 //locking messages...
                 q.or(q.q().f(Msg.Fields.sender).ne(id).f(Msg.Fields.lockedBy).eq(null).f(Msg.Fields.processedBy).ne(id).f(Msg.Fields.recipient).eq(null),
@@ -268,6 +281,7 @@ public class Messaging extends Thread {
         m.addProcessedId(id);
         m.setLockedBy(null);
         m.setLocked(0);
+        m.setSenderHost(hostname);
         if (m.getTo() != null && m.getTo().size() > 0) {
             for (String recipient : m.getTo()) {
                 Msg msg = m.getCopy();

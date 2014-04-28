@@ -57,6 +57,7 @@ public class Msg {
     private MsgType type;
     private long ttl;
     private String sender;
+    private String senderHost;
     private String recipient;
     @Transient
     private List<String> to;
@@ -64,7 +65,7 @@ public class Msg {
     //payload goes here
     private String name;
     private String msg;
-    private List<String> additional;
+    private List<Object> additional;
     private Map<String, Object> mapValue;
     private String value;
     @Index
@@ -114,6 +115,18 @@ public class Msg {
 
     public String getRecipient() {
         return recipient;
+    }
+
+    public String getSenderHost() {
+        return senderHost;
+    }
+
+    public void setSenderHost(String senderHost) {
+        this.senderHost = senderHost;
+    }
+
+    public Date getDeleteAt() {
+        return deleteAt;
     }
 
     public void setRecipient(String recipient) {
@@ -262,17 +275,17 @@ public class Msg {
         this.msg = msg;
     }
 
-    public List<String> getAdditional() {
+    public List<Object> getAdditional() {
         return additional;
     }
 
-    public void setAdditional(List<String> additional) {
+    public void setAdditional(List<Object> additional) {
         this.additional = additional;
     }
 
     public void addAdditional(String value) {
         if (additional == null) {
-            additional = new ArrayList<String>();
+            additional = new ArrayList<Object>();
         }
         additional.add(value);
     }
