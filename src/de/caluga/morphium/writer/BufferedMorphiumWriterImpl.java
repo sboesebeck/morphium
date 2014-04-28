@@ -246,6 +246,22 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter {
 
 
     @Override
+    public <T> void pop(final T obj, final String collection, final String field, final boolean first, AsyncOperationCallback<T> c) {
+        if (c == null) {
+            c = new AsyncOpAdapter<T>();
+        }
+        final AsyncOperationCallback<T> callback = c;
+        morphium.inc(StatisticKeys.WRITES_CACHED);
+        addToWriteQueue(obj.getClass(), new Runnable() {
+            @Override
+            public void run() {
+                directWriter.pop(obj, collection, field, first, callback);
+            }
+        });
+    }
+
+
+    @Override
     public void setMorphium(Morphium m) {
         morphium = m;
         annotationHelper = m.getARHelper();

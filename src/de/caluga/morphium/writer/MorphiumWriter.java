@@ -104,6 +104,8 @@ public interface MorphiumWriter {
      */
     public <T> void unset(T toSet, String collection, String field, AsyncOperationCallback<T> callback);
 
+    <T> void pop(T obj, String collection, String field, boolean first, AsyncOperationCallback<T> callback);
+
     public <T> void unset(Query<T> query, String field, boolean multiple, AsyncOperationCallback<T> callback);
 
     public <T> void unset(Query<T> query, AsyncOperationCallback<T> callback, boolean multiple, String... fields);
