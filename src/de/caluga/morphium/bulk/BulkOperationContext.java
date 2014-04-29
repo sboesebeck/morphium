@@ -3,7 +3,11 @@ package de.caluga.morphium.bulk;
 import com.mongodb.BulkWriteOperation;
 import com.mongodb.BulkWriteResult;
 import de.caluga.morphium.Morphium;
+import de.caluga.morphium.WriteAccessType;
 import de.caluga.morphium.query.Query;
+
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * User: Stephan Bösebeck
@@ -18,10 +22,12 @@ public class BulkOperationContext {
     private boolean ordered;
 
     private BulkWriteOperation bulk = null;
+    private List<BulkRequestWrapper> requests;
 
     public BulkOperationContext(Morphium m, boolean ordered) {
         morphium = m;
         this.ordered = ordered;
+        requests = new ArrayList<BulkRequestWrapper>();
     }
 
 
@@ -33,12 +39,25 @@ public class BulkOperationContext {
                 bulk = morphium.getDatabase().getCollection(morphium.getMapper().getCollectionName(q.getType())).initializeUnorderedBulkOperation();
             }
         }
-        return new BulkRequestWrapper(bulk.find(q.toQueryObject()), morphium);
+        BulkRequestWrapper w = new BulkRequestWrapper(bulk.find(q.toQueryObject()), morphium, this, q);
+        requests.add(w);
+        return w;
     }
 
     public BulkWriteResult execute() {
-        return bulk.execute();
+        for (BulkRequestWrapper w : requests) {
+            w.preExec();
+        }
+        long dur = System.currentTimeMillis();
+        BulkWriteResult res = bulk.execute();
+        dur = System.currentTimeMillis() - dur;
+        for (BulkRequestWrapper w : requests) {
+            w.postExec();
+        }
+        for (BulkRequestWrapper w : requests) {
+            morphium.fireProfilingWriteEvent(w.getQuery().getType(), this, dur, false, WriteAccessType.BULK_UPDATE);
+        }
+        return res;
     }
-
 
 }

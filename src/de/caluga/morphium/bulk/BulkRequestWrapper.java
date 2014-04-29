@@ -4,8 +4,10 @@ import com.mongodb.BasicDBList;
 import com.mongodb.BasicDBObject;
 import com.mongodb.BulkWriteRequestBuilder;
 import de.caluga.morphium.Morphium;
+import de.caluga.morphium.MorphiumStorageListener;
 import de.caluga.morphium.annotations.Embedded;
 import de.caluga.morphium.annotations.Entity;
+import de.caluga.morphium.query.Query;
 
 import java.util.Arrays;
 import java.util.List;
@@ -22,10 +24,16 @@ public class BulkRequestWrapper {
 
     private BulkWriteRequestBuilder builder;
     private Morphium morphium;
+    private BulkOperationContext bc;
+    private Query query;
 
-    public BulkRequestWrapper(BulkWriteRequestBuilder b, Morphium m) {
+    private MorphiumStorageListener.UpdateTypes updateType;
+
+    public BulkRequestWrapper(BulkWriteRequestBuilder b, Morphium m, BulkOperationContext bulk, Query q) {
         builder = b;
         morphium = m;
+        bc = bulk;
+        query = q;
     }
 
 
@@ -35,11 +43,19 @@ public class BulkRequestWrapper {
     }
 
     public void removeOne() {
+        updateType = null;
+
         builder.removeOne();
     }
 
     public void replaceOne(Object obj) {
+        updateType = MorphiumStorageListener.UpdateTypes.SET;
         builder.replaceOne(morphium.getMapper().marshall(obj));
+    }
+
+    public void remove() {
+        updateType = null;
+        builder.remove();
     }
 
     private void writeOp(String operation, String field, Object value) {
@@ -91,6 +107,7 @@ public class BulkRequestWrapper {
     }
 
     public void set(String field, Object val, boolean multiple) {
+        updateType = MorphiumStorageListener.UpdateTypes.SET;
         if (multiple) {
             writeOp("$set", field, val);
         } else {
@@ -99,6 +116,8 @@ public class BulkRequestWrapper {
     }
 
     public void unset(String field, boolean multiple) {
+        updateType = MorphiumStorageListener.UpdateTypes.UNSET;
+
         if (multiple) {
             writeOp("$unset", field, 1);
         } else {
@@ -111,6 +130,7 @@ public class BulkRequestWrapper {
     }
 
     public void inc(String field, int amount, boolean multiple) {
+        updateType = MorphiumStorageListener.UpdateTypes.INC;
         if (multiple) {
             writeOp("$inc", field, amount);
         } else {
@@ -119,6 +139,8 @@ public class BulkRequestWrapper {
     }
 
     public void mul(String field, int val, boolean multiple) {
+        updateType = MorphiumStorageListener.UpdateTypes.MUL;
+
         if (multiple)
             writeOp("$mul", field, val);
         else
@@ -126,6 +148,8 @@ public class BulkRequestWrapper {
     }
 
     public void min(String field, int val, boolean multiple) {
+        updateType = MorphiumStorageListener.UpdateTypes.MIN;
+
         if (multiple)
             writeOp("$min", field, val);
         else
@@ -133,6 +157,8 @@ public class BulkRequestWrapper {
     }
 
     public void max(String field, int val, boolean multiple) {
+        updateType = MorphiumStorageListener.UpdateTypes.MAX;
+
         if (multiple)
             writeOp("$max", field, val);
         else
@@ -141,6 +167,8 @@ public class BulkRequestWrapper {
 
 
     public void rename(String fieldOld, String fieldNew, boolean multiple) {
+        updateType = MorphiumStorageListener.UpdateTypes.RENAME;
+
         if (multiple)
             writeOp("$rename", fieldOld, fieldNew);
         else
@@ -148,10 +176,12 @@ public class BulkRequestWrapper {
     }
 
     public void dec(String field, boolean multiple) {
+
         dec(field, -1, multiple);
     }
 
     public void dec(String field, int amount, boolean multiple) {
+        updateType = MorphiumStorageListener.UpdateTypes.DEC;
         if (multiple)
             writeOp("$inc", field, -amount);
         else
@@ -159,6 +189,8 @@ public class BulkRequestWrapper {
     }
 
     public void pull(String field, boolean multiple, Object... value) {
+        updateType = MorphiumStorageListener.UpdateTypes.PULL;
+
         if (value.length == 1) {
             if (multiple) {
                 writeOp("$pull", field, value[0]);
@@ -178,6 +210,8 @@ public class BulkRequestWrapper {
     }
 
     public void push(String field, boolean multiple, Object... value) {
+        updateType = MorphiumStorageListener.UpdateTypes.PUSH;
+
         if (value.length == 1) {
             if (multiple) {
                 writeOp("push", field, value[0]);
@@ -197,10 +231,38 @@ public class BulkRequestWrapper {
     }
 
     public void pop(String field, boolean first, boolean multiple) {
+        updateType = MorphiumStorageListener.UpdateTypes.POP;
+
         if (multiple)
             writeOp("$pop", field, first ? -1 : 1);
         else
             writeOpOne("$pop", field, first ? -1 : 1);
     }
 
+    public void preExec() {
+        if (updateType == null) {
+            morphium.firePreRemoveEvent(query);
+
+        } else {
+            morphium.firePreUpdateEvent(query.getType(), updateType);
+        }
+
+    }
+
+    public MorphiumStorageListener.UpdateTypes getUpdateType() {
+        return updateType;
+    }
+
+    public Query getQuery() {
+        return query;
+    }
+
+    public void postExec() {
+        if (updateType == null) {
+            morphium.firePostRemoveEvent(query);
+        } else {
+            morphium.firePostUpdateEvent(query.getType(), updateType);
+        }
+        morphium.getCache().clearCacheIfNecessary(query.getType());
+    }
 }
