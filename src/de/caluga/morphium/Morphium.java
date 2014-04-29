@@ -129,6 +129,7 @@ public class Morphium {
             o.socketKeepAlive(config.isSocketKeepAlive());
             o.threadsAllowedToBlockForConnectionMultiplier(config.getBlockingThreadsMultiplier());
             o.maxAutoConnectRetryTime(config.getMaxAutoReconnectTime());
+            o.acceptableLatencyDifference(config.getAcceptableLatencyDifference());
             o.maxWaitTime(config.getMaxWaitTime());
             if (config.getAdr().isEmpty()) {
                 throw new RuntimeException("Error - no server address specified!");

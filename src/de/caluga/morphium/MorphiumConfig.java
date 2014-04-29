@@ -119,6 +119,7 @@ public class MorphiumConfig {
     private ReadPreferenceLevel defaultReadPreference;
     @Transient
     private Class<? extends MorphiumIterator> iteratorClass;
+    private int acceptableLatencyDifference = 15;
 
     public MorphiumConfig(Properties prop) {
         AnnotationAndReflectionHelper an = new AnnotationAndReflectionHelper();
@@ -944,5 +945,13 @@ public class MorphiumConfig {
 
     public void disableAutoValues() {
         autoValues = false;
+    }
+
+    public int getAcceptableLatencyDifference() {
+        return acceptableLatencyDifference;
+    }
+
+    public void setAcceptableLatencyDifference(int acceptableLatencyDifference) {
+        this.acceptableLatencyDifference = acceptableLatencyDifference;
     }
 }
