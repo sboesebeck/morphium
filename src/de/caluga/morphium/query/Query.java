@@ -296,6 +296,9 @@ public interface Query<T> extends Cloneable {
 
     public void addReturnedField(Enum f);
 
+
+    public List distinct(String field);
+
     public enum TextSearchLanguages {
         danish,
         dutch,

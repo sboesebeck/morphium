@@ -165,6 +165,7 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
         if (useCache && morphium.getCache().isCached(type, ck)) {
             return morphium.getCache().getFromCache(type, ck);
         }
+
         long start = System.currentTimeMillis();
         DBCollection c = morphium.getDatabase().getCollection(getCollectionName());
         setReadPreferenceFor(c);
@@ -231,6 +232,11 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
             lst.putAll(additionalFields);
         }
         return lst;
+    }
+
+    @Override
+    public List distinct(String field) {
+        return morphium.getDatabase().getCollection(getCollectionName()).distinct(field, toQueryObject());
     }
 
     @Override
