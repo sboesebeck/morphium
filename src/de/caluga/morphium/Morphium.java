@@ -376,6 +376,7 @@ public class Morphium {
                             optionsMap = options.get(cnt);
                         }
                         getWriterForClass(type).ensureIndex(type, onCollection, m, optionsMap, callback);
+                        cnt++;
                     }
                 }
             }
