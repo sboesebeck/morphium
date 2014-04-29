@@ -1438,6 +1438,100 @@ public class MorphiumWriterImpl implements MorphiumWriter {
     }
 
     @Override
+    public <T> void pop(final T obj, final String collection, final String field, final boolean first, AsyncOperationCallback<T> callback) {
+        if (obj == null) throw new RuntimeException("Cannot update null!");
+        if (annotationHelper.getId(obj) == null) {
+            logger.info("just storing object as it is new...");
+            store(obj, collection, callback);
+        }
+
+        WriterTask r = new WriterTask() {
+            private AsyncOperationCallback<T> callback;
+
+            @Override
+            public void setCallback(AsyncOperationCallback cb) {
+                callback = cb;
+            }
+
+            @Override
+            public void run() {
+                Class cls = obj.getClass();
+                morphium.firePreUpdateEvent(annotationHelper.getRealClass(cls), MorphiumStorageListener.UpdateTypes.UNSET);
+
+                String coll = collection;
+                if (coll == null) coll = morphium.getMapper().getCollectionName(cls);
+                BasicDBObject query = new BasicDBObject();
+                query.put("_id", morphium.getId(obj));
+                Field f = annotationHelper.getField(cls, field);
+                if (f == null) {
+                    throw new RuntimeException("Unknown field: " + field);
+                }
+                String fieldName = annotationHelper.getFieldName(cls, field);
+
+                BasicDBObject update = new BasicDBObject("$pop", new BasicDBObject(fieldName, first ? -1 : 1));
+                WriteConcern wc = morphium.getWriteConcernForClass(obj.getClass());
+
+                long start = System.currentTimeMillis();
+
+                try {
+                    for (int i = 0; i < morphium.getConfig().getRetriesOnNetworkError(); i++) {
+                        try {
+                            if (!morphium.getDatabase().collectionExists(coll)) {
+                                morphium.ensureIndicesFor(cls, coll, callback);
+                            }
+                            if (wc == null) {
+                                morphium.getDatabase().getCollection(coll).update(query, update);
+                            } else {
+                                morphium.getDatabase().getCollection(coll).update(query, update, false, false, wc);
+                            }
+                            break;
+                        } catch (Throwable t) {
+                            morphium.handleNetworkError(i, t);
+                        }
+
+                        List<String> lastChangeFields = annotationHelper.getFields(cls, LastChange.class);
+                        if (lastChangeFields != null && lastChangeFields.size() != 0) {
+                            update = new BasicDBObject("$set", new BasicDBObject());
+                            for (String fL : lastChangeFields) {
+                                Field fld = annotationHelper.getField(cls, fL);
+                                if (fld.getType().equals(Date.class)) {
+                                    ((BasicDBObject) update.get("$set")).put(fL, new Date());
+                                } else {
+                                    ((BasicDBObject) update.get("$set")).put(fL, System.currentTimeMillis());
+                                }
+                            }
+                            if (wc == null) {
+                                morphium.getDatabase().getCollection(coll).update(query, update);
+                            } else {
+                                morphium.getDatabase().getCollection(coll).update(query, update, false, false, wc);
+                            }
+
+                        }
+
+                    }
+                    long dur = System.currentTimeMillis() - start;
+                    morphium.fireProfilingWriteEvent(obj.getClass(), update, dur, false, WriteAccessType.SINGLE_UPDATE);
+                    morphium.getCache().clearCacheIfNecessary(cls);
+
+                    try {
+                        f.set(obj, null);
+                    } catch (IllegalAccessException e) {
+                        //May happen, if null is not allowed for example
+                    }
+                    morphium.firePostUpdateEvent(annotationHelper.getRealClass(cls), MorphiumStorageListener.UpdateTypes.UNSET);
+                    if (callback != null)
+                        callback.onOperationSucceeded(AsyncOperationType.UNSET, null, System.currentTimeMillis() - start, null, obj, field);
+                } catch (RuntimeException e) {
+                    if (callback == null) throw new RuntimeException(e);
+                    callback.onOperationError(AsyncOperationType.UNSET, null, System.currentTimeMillis() - start, e.getMessage(), e, obj, field);
+                }
+
+            }
+        };
+        submitAndBlockIfNecessary(callback, r);
+    }
+
+    @Override
     public <T> void unset(Query<T> query, String field, boolean multiple, AsyncOperationCallback<T> callback) {
         unset(query, callback, multiple, field);
     }
