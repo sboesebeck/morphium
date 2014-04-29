@@ -43,7 +43,7 @@ public class IndexTest extends MongoTest {
         IndexedObject obj = new IndexedObject("test", 101);
         MorphiumSingleton.get().store(obj);
         //waiting for indices to be created
-        Thread.sleep(5000);
+        Thread.sleep(1000);
 
         //index should now be available
         List<DBObject> idx = MorphiumSingleton.get().getDatabase().getCollection("indexed_object").getIndexInfo();
@@ -59,16 +59,23 @@ public class IndexTest extends MongoTest {
             DBObject key = (DBObject) i.get("key");
             if (key.get("_id") != null && key.get("_id").equals(1)) {
                 foundId = true;
+                assert (i.get("unique") == null || !(Boolean) i.get("unique"));
             } else if (key.get("name") != null && key.get("name").equals(1) && key.get("timer") == null) {
                 foundName = true;
+                assert (i.get("unique") == null || !(Boolean) i.get("unique"));
             } else if (key.get("timer") != null && key.get("timer").equals(-1) && key.get("name") == null) {
                 foundTimer = true;
+                assert (i.get("unique") == null || !(Boolean) i.get("unique"));
             } else if (key.get("lst") != null) {
                 foundLst = true;
+                assert (i.get("unique") == null || !(Boolean) i.get("unique"));
             } else if (key.get("timer") != null && key.get("timer").equals(-1) && key.get("name") != null && key.get("name").equals(-1)) {
                 foundTimerName2 = true;
+                assert (i.get("unique") == null || !(Boolean) i.get("unique"));
             } else if (key.get("timer") != null && key.get("timer").equals(1) && key.get("name") != null && key.get("name").equals(-1)) {
                 foundTimerName = true;
+                assert ((Boolean) i.get("unique"));
+
             }
         }
         log.info("Found indices id:" + foundId + " timer: " + foundTimer + " TimerName: " + foundTimerName + " name: " + foundName + " TimerName2: " + foundTimerName2);
@@ -76,7 +83,7 @@ public class IndexTest extends MongoTest {
     }
 
     @Entity
-    @Index({"-name, timer", "-name, -timer", "lst:2d"})
+    @Index(value = {"-name, timer", "-name, -timer", "lst:2d", "name:text"}, options = {"unique:1", "", "", ""})
     public static class IndexedObject {
         @Property
         @Index(decrement = true)
