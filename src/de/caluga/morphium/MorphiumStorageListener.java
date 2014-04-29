@@ -12,7 +12,7 @@ import de.caluga.morphium.query.Query;
  */
 public interface MorphiumStorageListener<T> {
     public enum UpdateTypes {
-        SET, UNSET, PUSH, PULL, INC, DEC,
+        SET, UNSET, PUSH, PULL, INC, DEC, MUL, MIN, MAX, RENAME, POP,
     }
 
     public void preStore(Morphium m, T r, boolean isNew) throws MorphiumAccessVetoException;

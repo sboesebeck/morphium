@@ -739,7 +739,8 @@ public class Morphium {
     @SuppressWarnings({"unchecked", "UnusedDeclaration"})
     public String toJsonString(Object o) {
         DBObject db = objectMapper.marshall(o);
-        db.put("_id", db.get("_id").toString());
+        if (db.get("_id") != null)
+            db.put("_id", db.get("_id").toString());
         return db.toString();
     }
 
