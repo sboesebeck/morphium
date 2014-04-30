@@ -5,23 +5,23 @@ Morphium - Java Object Mapper and Caching Layer for MongoDB
 
 Morphium is a POJO Object mapper for Accessing Mongodb. Some of the main Features of Morphium:
 - actively developed
-- used by a number of projects (including holidayinsider.com)
+- used by a number of projects (including [holidayinsider.com](http://de.holidayinsider.com))
 - Transparent access to mongo db
 - Transparent declarative (Annotation based) caching
 - Annotation based definition of mappings
 - Cluster Awareness
 - Cache synchronization between cluster nodes
 - Asynchronous and Buffered write access
-- Messageing
+- Messaging
 - fluent interface for querying mongodb
-- support for the mongodb aggrgator framework
+- support for the mongodb aggregator framework
 - support for complex queries
-- support inheritence and polymorphism
+- support inheritance and polymorphism
 - support for javax.validation annotations
 - lifecycle method of pojos
 - nearly every aspect of morphium can be replaced by own implementation (e.g. Query-Object, CacheImplementation...)
 - ConfigManager helps storing app configurations in Mongo with efficient access to it (cached)
-- Spport for References, including lazy loaded references
+- Support for References, including lazy loaded references
 - Support for partial updated objects (when writing, only the changes of the object are transferred)
 
 
@@ -38,7 +38,7 @@ before accessing mongo via morphium, you need to configure morphium. this is don
 
 you can also configure morphium using properties: new MorphiumConfig(properties); or a json-String: MorphiumConfig cfg = MorphiumConfig.createFromJson(json);
 
-After that, you just need to instancieate morphium:
+After that, you just need to instantiate morphium:
 
 ```
   Morphium m=new Morphium(cfg);
