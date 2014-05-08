@@ -11,11 +11,9 @@ import org.bson.types.ObjectId;
 import org.json.simple.parser.ContainerFactory;
 import org.json.simple.parser.JSONParser;
 import org.json.simple.parser.ParseException;
+import sun.reflect.ReflectionFactory;
 
-import java.lang.reflect.Array;
-import java.lang.reflect.Field;
-import java.lang.reflect.Modifier;
-import java.lang.reflect.ParameterizedType;
+import java.lang.reflect.*;
 import java.util.*;
 
 /**
@@ -392,8 +390,26 @@ public class ObjectMapperImpl implements ObjectMapper {
                 }
             }
 
-            T ret = cls.newInstance();
+            T ret = null;
 
+            try {
+                ret = cls.newInstance();
+            } catch (Exception e) {
+            }
+            if (ret == null) {
+                final ReflectionFactory reflection = ReflectionFactory.getReflectionFactory();
+                final Constructor<Object> constructor;
+                try {
+                    constructor = reflection.newConstructorForSerialization(
+                            cls, Object.class.getDeclaredConstructor(new Class[0]));
+                    ret = (T) constructor.newInstance(new Object[0]);
+                } catch (Exception e) {
+                    log.error(e);
+                }
+            }
+            if (ret == null) {
+                throw new IllegalArgumentException("Could not instanciate " + cls.getName());
+            }
             List<String> flds = annotationHelper.getFields(cls);
 
             for (String f : flds) {
@@ -618,9 +634,7 @@ public class ObjectMapperImpl implements ObjectMapper {
                 return morphium.createPartiallyUpdateableEntity(ret);
             }
             return ret;
-        } catch (InstantiationException e) {
-            throw new RuntimeException(e);
-        } catch (IllegalAccessException e) {
+        } catch (Exception e) {
             throw new RuntimeException(e);
         }
 
@@ -628,13 +642,13 @@ public class ObjectMapperImpl implements ObjectMapper {
 
     }
 
-    private Object createMap(BasicDBObject map) {
-        Object value;
-        if (map != null) {
-            for (String n : map.keySet()) {
+    private Map createMap(BasicDBObject dbObject) {
+        Map retMap = new HashMap(dbObject);
+        if (dbObject != null) {
+            for (String n : dbObject.keySet()) {
 
-                if (map.get(n) instanceof BasicDBObject) {
-                    Object val = map.get(n);
+                if (dbObject.get(n) instanceof BasicDBObject) {
+                    Object val = dbObject.get(n);
                     if (((BasicDBObject) val).containsField("class_name") || ((BasicDBObject) val).containsField("className")) {
                         //Entity to map!
                         String cn = (String) ((BasicDBObject) val).get("class_name");
@@ -643,26 +657,25 @@ public class ObjectMapperImpl implements ObjectMapper {
                         }
                         try {
                             Class ecls = Class.forName(cn);
-                            Object obj = unmarshall(ecls, (DBObject) map.get(n));
-                            if (obj != null) map.put(n, obj);
+                            Object obj = unmarshall(ecls, (DBObject) dbObject.get(n));
+                            if (obj != null) retMap.put(n, obj);
                         } catch (ClassNotFoundException e) {
                             throw new RuntimeException(e);
                         }
                     } else {
                         //maybe a map of maps? --> recurse
-                        map.put(n, createMap((BasicDBObject) val));
+                        retMap.put(n, createMap((BasicDBObject) val));
                     }
-                } else if (map.get(n) instanceof BasicDBList) {
-                    BasicDBList lst = (BasicDBList) map.get(n);
+                } else if (dbObject.get(n) instanceof BasicDBList) {
+                    BasicDBList lst = (BasicDBList) dbObject.get(n);
                     List mapValue = createList(lst);
-                    map.put(n, mapValue);
+                    retMap.put(n, mapValue);
                 }
             }
-            value = map;
         } else {
-            value = null;
+            retMap = null;
         }
-        return value;
+        return retMap;
     }
 
     private List createList(BasicDBList lst) {

@@ -6,6 +6,8 @@ import de.caluga.morphium.AnnotationAndReflectionHelper;
 import de.caluga.morphium.MorphiumSingleton;
 import de.caluga.morphium.ObjectMapper;
 import de.caluga.morphium.ObjectMapperImpl;
+import de.caluga.morphium.annotations.Entity;
+import de.caluga.morphium.annotations.Id;
 import org.bson.types.ObjectId;
 import org.junit.Test;
 
@@ -463,6 +465,54 @@ public class ObjectMapperTest extends MongoTest {
         dur = System.currentTimeMillis() - start;
         log.info("De-Marshalling of ComplexObject with cached references 25000 times took " + dur + "ms");
         assert (dur < 7500); //Mongo 2.6 is slower :(
+
+    }
+
+
+    @Test
+    public void noDefaultConstructorTest() throws Exception {
+        NoDefaultConstructorUncachedObject o = new NoDefaultConstructorUncachedObject("test", 15);
+        String serialized = MorphiumSingleton.get().getMapper().marshall(o).toString();
+        log.info("Serialized... " + serialized);
+
+        o = MorphiumSingleton.get().getMapper().unmarshall(NoDefaultConstructorUncachedObject.class, serialized);
+        assert (o != null);
+        assert (o.getCounter() == 15);
+        assert (o.getValue().equals("test"));
+    }
+
+
+    public static class NoDefaultConstructorUncachedObject extends UncachedObject {
+        public NoDefaultConstructorUncachedObject(String v, int c) {
+            setCounter(c);
+            setValue(v);
+        }
+    }
+
+
+    @Test
+    public void mapTest() throws Exception {
+        ObjectMapper m = MorphiumSingleton.get().getMapper();
+
+
+        MappedObject o = new MappedObject();
+        o.aMap = new HashMap<String, String>();
+        o.aMap.put("test", "test");
+        o.uc = new NoDefaultConstructorUncachedObject("v", 123);
+
+        DBObject dbo = m.marshall(o);
+        o = m.unmarshall(MappedObject.class, dbo.toString());
+
+        assert (!(o.aMap instanceof DBObject));
+        assert (o.aMap.get("test") != null);
+    }
+
+    @Entity
+    public static class MappedObject {
+        @Id
+        public String id;
+        public UncachedObject uc;
+        public Map<String, String> aMap;
 
     }
 }
