@@ -426,7 +426,7 @@ public class ObjectMapperImpl implements ObjectMapper {
                 }
 
                 if (fld.isAnnotationPresent(WriteOnly.class)) {
-                    throw new IllegalArgumentException("Entity is read only!"); //do not read from DB
+                    continue;//do not read from DB
                 }
                 if (fld.isAnnotationPresent(AdditionalData.class)) {
                     //this field should store all data that is not put to fields
