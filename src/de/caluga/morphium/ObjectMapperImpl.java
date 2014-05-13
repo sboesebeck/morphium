@@ -164,6 +164,11 @@ public class ObjectMapperImpl implements ObjectMapper {
                     //additional data is usually transient
                     continue;
                 }
+                if (dbo.containsField(fName)) {
+                    //already stored, skip it
+                    log.warn("Field " + fName + " is shadowed - inherited values?");
+                    continue;
+                }
                 if (fld.isAnnotationPresent(Id.class)) {
                     fName = "_id";
                 }
@@ -422,7 +427,7 @@ public class ObjectMapperImpl implements ObjectMapper {
                 }
 
                 if (fld.isAnnotationPresent(WriteOnly.class)) {
-                    ; //do not read from DB
+                    continue;//do not read from DB
                 }
                 if (fld.isAnnotationPresent(AdditionalData.class)) {
                     //this field should store all data that is not put to fields

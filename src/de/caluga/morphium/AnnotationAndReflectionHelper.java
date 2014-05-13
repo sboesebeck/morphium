@@ -105,7 +105,7 @@ public class AnnotationAndReflectionHelper {
             return field;
         }
 
-        List<Class> inf=Arrays.asList(clz.getInterfaces());
+        List<Class> inf = Arrays.asList(clz.getInterfaces());
         if ((inf.contains(List.class)) || inf.contains(Map.class) || inf.contains(Collection.class) || inf.contains(Set.class) || clz.isArray()) {
             //not diving into maps
             return field;
@@ -214,8 +214,8 @@ public class AnnotationAndReflectionHelper {
         //now we have a list of all classed up to Object
         //we need to run through it in the right order
         //in order to allow Inheritance to "shadow" fields
-        for (int i = hierachy.size() - 1; i >= 0; i--) {
-            Class c = hierachy.get(i);
+        for (Class c : hierachy) {
+//            Class c = hierachy.get(i);
             Collections.addAll(ret, c.getDeclaredFields());
         }
         fieldListCache.put(clz, ret);
