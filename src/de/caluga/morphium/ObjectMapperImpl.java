@@ -164,6 +164,10 @@ public class ObjectMapperImpl implements ObjectMapper {
                     //additional data is usually transient
                     continue;
                 }
+                if (dbo.containsField(fName)) {
+                    //already stored, skip it
+                    continue;
+                }
                 if (fld.isAnnotationPresent(Id.class)) {
                     fName = "_id";
                 }
@@ -422,7 +426,7 @@ public class ObjectMapperImpl implements ObjectMapper {
                 }
 
                 if (fld.isAnnotationPresent(WriteOnly.class)) {
-                    ; //do not read from DB
+                    throw new IllegalArgumentException("Entity is read only!"); //do not read from DB
                 }
                 if (fld.isAnnotationPresent(AdditionalData.class)) {
                     //this field should store all data that is not put to fields
