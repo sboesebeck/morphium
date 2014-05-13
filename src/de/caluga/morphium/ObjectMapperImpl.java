@@ -166,6 +166,7 @@ public class ObjectMapperImpl implements ObjectMapper {
                 }
                 if (dbo.containsField(fName)) {
                     //already stored, skip it
+                    log.warn("Field " + fName + " is shadowed - inherited values?");
                     continue;
                 }
                 if (fld.isAnnotationPresent(Id.class)) {
