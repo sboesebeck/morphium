@@ -158,7 +158,7 @@ public class ObjectMapperImpl implements ObjectMapper {
                     if (!ad.readOnly()) {
                         //storing additional data
                         if (fld.get(o) != null) {
-                            dbo.putAll((Map<String, Object>) fld.get(o));
+                            dbo.putAll((Map) createDBMap((Map<String, Object>) fld.get(o)));
                         }
                     }
                     //additional data is usually transient
@@ -445,7 +445,19 @@ public class ObjectMapperImpl implements ObjectMapper {
                             //id already mapped
                             continue;
                         }
-                        data.put(k, o.get(k));
+
+                        if (o.get(k) instanceof BasicDBObject) {
+                            if (((BasicDBObject) o.get(k)).get("class_name") != null) {
+                                data.put(k, unmarshall(Class.forName((String) ((BasicDBObject) o.get(k)).get("class_name")), (BasicDBObject) o.get(k)));
+                            } else {
+                                data.put(k, createMap((BasicDBObject) o.get(k)));
+                            }
+                        } else if (o.get(k) instanceof BasicDBList) {
+                            data.put(k, createList((BasicDBList) o.get(k)));
+                        } else {
+                            data.put(k, o.get(k));
+                        }
+
                     }
                     fld.set(ret, data);
                     continue;
