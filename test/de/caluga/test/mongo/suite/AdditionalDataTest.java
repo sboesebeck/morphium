@@ -43,6 +43,48 @@ public class AdditionalDataTest extends MongoTest {
     }
 
     @Test
+    public void additionalDateCompex() throws Exception {
+        MorphiumSingleton.get().dropCollection(AddDat.class);
+        WriteConcern w = MorphiumSingleton.get().getWriteConcernForClass(AddDat.class);
+//        assert(w.getW()>1);
+//        assert(w.getWtimeout()>1000);
+        System.out.println("W: " + w);
+        AddDat d = new AddDat();
+        d.setCounter(999);
+        Map<String, Object> additional = new HashMap<String, Object>();
+        additional.put("102-92-93", new Integer(3234));
+        Map<String, String> dat = new HashMap<String, String>();
+        dat.put("tst", "tst");
+        dat.put("tst2", "tst2");
+        additional.put("test", dat);
+        additional.put("object", new UncachedObject());
+        AddDat d2 = new AddDat();
+        d2.setValue("inner value");
+        Map<String, Object> additional2 = new HashMap<>();
+        additional2.put("a lot", "of things");
+        additional2.put("object2", new UncachedObject());
+        AddDat ad3 = new AddDat();
+        ad3.setValue("sagich nicht");
+        additional2.put("addit2", ad3);
+
+        d2.setAdditionals(additional2);
+        additional.put("addit", d2);
+        d.setAdditionals(additional);
+
+        String str = MorphiumSingleton.get().getMapper().marshall(d).toString();
+        MorphiumSingleton.get().store(d);
+
+        log.info(str);
+
+        d2 = MorphiumSingleton.get().findById(AddDat.class, d.getMongoId());
+
+        assert (d2.additionals != null);
+        assert (d2.additionals.get("object") != null);
+
+
+    }
+
+    @Test
     public void additionalDataNullTest() throws Exception {
         AddDat d = new AddDat();
         d.setCounter(999);
