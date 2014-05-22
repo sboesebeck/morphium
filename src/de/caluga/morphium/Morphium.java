@@ -1020,6 +1020,9 @@ public class Morphium {
         if (e.getClass().getName().equals("javax.validation.ConstraintViolationException")) {
             throw ((RuntimeException) e);
         }
+        if (e instanceof DuplicateKeyException) {
+            throw new RuntimeException(e);
+        }
         if (e.getMessage().equals("can't find a master")
                 || e.getMessage().startsWith("No replica set members available in")
                 || e.getMessage().equals("not talking to master and retries used up")
