@@ -21,6 +21,34 @@ public class BulkInsertTest extends MongoTest {
     private boolean asyncCall = false;
 
     @Test
+    public void maxWriteBatchTest() throws Exception {
+        MorphiumSingleton.get().clearCollection(UncachedObject.class);
+
+        List<UncachedObject> lst = new ArrayList<>();
+        for (int i = 0; i < 4212; i++) {
+            UncachedObject u = new UncachedObject();
+            u.setValue("V" + i);
+            u.setCounter(i);
+            lst.add(u);
+        }
+        MorphiumSingleton.get().storeList(lst);
+        assert (MorphiumSingleton.get().createQueryFor(UncachedObject.class).countAll() == 4212);
+
+        for (UncachedObject u : lst) {
+            u.setCounter(u.getCounter() + 1000);
+        }
+        for (int i = 0; i < 100; i++) {
+            UncachedObject u = new UncachedObject();
+            u.setValue("O" + i);
+            u.setCounter(i + 1200);
+            lst.add(u);
+        }
+        MorphiumSingleton.get().storeList(lst);
+
+
+    }
+
+    @Test
     public void bulkInsert() throws Exception {
         MorphiumSingleton.get().clearCollection(UncachedObject.class);
         log.info("Start storing single");
