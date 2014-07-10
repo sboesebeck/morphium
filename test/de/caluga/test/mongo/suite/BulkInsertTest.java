@@ -8,6 +8,7 @@ import de.caluga.morphium.query.Query;
 import org.junit.Test;
 
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.List;
 
 /**
@@ -130,5 +131,19 @@ public class BulkInsertTest extends MongoTest {
         q.setReadPreferenceLevel(ReadPreferenceLevel.PRIMARY);
         assert (q.countAll() == 1000) : "Assert not all stored yet????";
 
+    }
+
+
+    @Test(expected = IllegalArgumentException.class)
+    public void bulkInsertNonId() throws Exception {
+        MorphiumSingleton.get().dropCollection(Person.class);
+        List<Person> prs = new ArrayList<>();
+        for (int i = 0; i < 100; i++) {
+            Person p = new Person();
+            p.setBirthday(new Date());
+            p.setName("" + i);
+            prs.add(p);
+        }
+        MorphiumSingleton.get().storeList(prs);
     }
 }
