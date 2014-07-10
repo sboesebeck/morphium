@@ -22,6 +22,7 @@ import de.caluga.morphium.writer.MorphiumWriter;
 import de.caluga.morphium.writer.MorphiumWriterImpl;
 import net.sf.cglib.proxy.Enhancer;
 import org.apache.log4j.Logger;
+import org.bson.types.ObjectId;
 
 import java.io.Serializable;
 import java.lang.annotation.Annotation;
@@ -400,6 +401,68 @@ public class Morphium {
                     getWriterForClass(type).ensureIndex(type, onCollection, idx, optionsMap, callback);
                 }
             }
+        }
+    }
+
+
+    /**
+     * automatically convert the collection for the given type to a capped collection
+     * only works if @Capped annotation is given for type
+     *
+     * @param c - type
+     */
+    public <T> void convertToCapped(final Class<T> c) {
+        convertToCapped(c, null);
+    }
+
+    public <T> void convertToCapped(final Class<T> c, final AsyncOperationCallback<T> callback) {
+        Runnable r = new Runnable() {
+            @Override
+            public void run() {
+                WriteConcern wc = getWriteConcernForClass(c);
+                String coll = getMapper().getCollectionName(c);
+                DBCollection collection = null;
+
+                for (int i = 0; i < getConfig().getRetriesOnNetworkError(); i++) {
+                    try {
+                        collection = getDatabase().getCollection(coll);
+                        if (!getDatabase().collectionExists(coll)) {
+                            if (logger.isDebugEnabled())
+                                logger.debug("Collection does not exist - ensuring indices / capped status");
+                            BasicDBObject cmd = new BasicDBObject();
+                            cmd.put("create", coll);
+                            Capped capped = annotationHelper.getAnnotationFromHierarchy(c, Capped.class);
+                            if (capped != null) {
+                                cmd.put("capped", true);
+                                cmd.put("size", capped.maxSize());
+                                cmd.put("max", capped.maxEntries());
+                            }
+                            cmd.put("autoIndexId", (annotationHelper.getIdField(c).getType().equals(ObjectId.class)));
+                            getDatabase().command(cmd);
+                        } else {
+                            Capped capped = annotationHelper.getAnnotationFromHierarchy(c, Capped.class);
+                            if (capped != null) {
+                                BasicDBObject cmd = new BasicDBObject();
+                                cmd.put("convertToCapped", coll);
+                                cmd.put("size", capped.maxSize());
+                                cmd.put("max", capped.maxEntries());
+                                getDatabase().command(cmd);
+                                //Indexes are not available after converting - recreate them
+                                ensureIndicesFor(c, callback);
+                            }
+                        }
+                        break;
+                    } catch (Throwable t) {
+                        handleNetworkError(i, t);
+                    }
+                }
+            }
+        };
+
+        if (callback == null) {
+            r.run();
+        } else {
+            new Thread(r).start();
         }
     }
 

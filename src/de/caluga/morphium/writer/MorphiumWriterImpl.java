@@ -461,6 +461,9 @@ public class MorphiumWriterImpl implements MorphiumWriter {
                             }
                         }
                         if (isn) {
+                            if (!annotationHelper.getIdField(o).getType().equals(ObjectId.class)) {
+                                throw new IllegalArgumentException("Cannot automatically set non -ObjectId IDs");
+                            }
                             isNew.put(o, true);
                         } else {
                             isNew.put(o, false);
@@ -481,7 +484,17 @@ public class MorphiumWriterImpl implements MorphiumWriter {
                                     collection = morphium.getDatabase().getCollection(coll);
                                     if (!morphium.getDatabase().collectionExists(coll)) {
                                         if (logger.isDebugEnabled())
-                                            logger.debug("Collection does not exist - ensuring indices");
+                                            logger.debug("Collection does not exist - ensuring indices / capped status");
+                                        BasicDBObject cmd = new BasicDBObject();
+                                        cmd.put("create", "collection");
+                                        Capped capped = annotationHelper.getAnnotationFromHierarchy(c, Capped.class);
+                                        if (capped != null) {
+                                            cmd.put("capped", true);
+                                            cmd.put("size", capped.maxSize());
+                                            cmd.put("max", capped.maxEntries());
+                                        }
+                                        cmd.put("autoIndexId", (annotationHelper.getIdField(c).getType().equals(ObjectId.class)));
+                                        morphium.getDatabase().command(cmd);
                                         morphium.ensureIndicesFor(c, coll, callback);
                                     }
                                     break;
@@ -567,6 +580,69 @@ public class MorphiumWriterImpl implements MorphiumWriter {
             }
         }
     }
+
+
+    /**
+     * automatically convert the collection for the given type to a capped collection
+     * only works if @Capped annotation is given for type
+     *
+     * @param c - type
+     */
+    public <T> void convertToCapped(final Class<T> c) {
+        convertToCapped(c, null);
+    }
+
+    public <T> void convertToCapped(final Class<T> c, final AsyncOperationCallback<T> callback) {
+        Runnable r = new Runnable() {
+            @Override
+            public void run() {
+                WriteConcern wc = morphium.getWriteConcernForClass(c);
+                String coll = morphium.getMapper().getCollectionName(c);
+                DBCollection collection = null;
+
+                for (int i = 0; i < morphium.getConfig().getRetriesOnNetworkError(); i++) {
+                    try {
+                        collection = morphium.getDatabase().getCollection(coll);
+                        if (!morphium.getDatabase().collectionExists(coll)) {
+                            if (logger.isDebugEnabled())
+                                logger.debug("Collection does not exist - ensuring indices / capped status");
+                            BasicDBObject cmd = new BasicDBObject();
+                            cmd.put("create", coll);
+                            Capped capped = annotationHelper.getAnnotationFromHierarchy(c, Capped.class);
+                            if (capped != null) {
+                                cmd.put("capped", true);
+                                cmd.put("size", capped.maxSize());
+                                cmd.put("max", capped.maxEntries());
+                            }
+                            cmd.put("autoIndexId", (annotationHelper.getIdField(c).getType().equals(ObjectId.class)));
+                            morphium.getDatabase().command(cmd);
+                        } else {
+                            Capped capped = annotationHelper.getAnnotationFromHierarchy(c, Capped.class);
+                            if (capped != null) {
+                                BasicDBObject cmd = new BasicDBObject();
+                                cmd.put("convertToCapped", coll);
+                                cmd.put("size", capped.maxSize());
+                                cmd.put("max", capped.maxEntries());
+                                morphium.getDatabase().command(cmd);
+                                //Indexes are not available after converting - recreate them
+                                morphium.ensureIndicesFor(c, callback);
+                            }
+                        }
+                        break;
+                    } catch (Throwable t) {
+                        morphium.handleNetworkError(i, t);
+                    }
+                }
+            }
+        };
+
+        if (callback == null) {
+            r.run();
+        } else {
+            new Thread(r).start();
+        }
+    }
+
 
     private void executeWriteBatch(List<Object> es, Class c, WriteConcern wc, BulkWriteOperation bulkWriteOperation, long start) {
         for (int i = 0; i < morphium.getConfig().getRetriesOnNetworkError(); i++) {
