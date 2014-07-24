@@ -1,9 +1,6 @@
 package de.caluga.morphium.replicaset;
 
-import com.mongodb.CommandResult;
-import com.mongodb.DB;
-import com.mongodb.DBCursor;
-import com.mongodb.DBObject;
+import com.mongodb.*;
 import de.caluga.morphium.Morphium;
 import de.caluga.morphium.MorphiumConfig;
 import org.apache.log4j.Logger;
@@ -120,6 +117,10 @@ public class RSMonitor {
                 return status;
             } catch (Exception e) {
                 logger.warn("Could not get Replicaset status: " + e.getMessage(), e);
+                logger.warn("Tried connection to: ");
+                for (ServerAddress adr : morphium.getConfig().getAdr()) {
+                    logger.warn("   " + adr.getHost() + ":" + adr.getPort());
+                }
             }
         }
         return null;
