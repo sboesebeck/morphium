@@ -404,6 +404,13 @@ public class Morphium {
         }
     }
 
+    public <T> void convertToCapped(Class<T> c, int size, int max, AsyncOperationCallback<T> cb) {
+
+    }
+
+    public <T> void convertToCapped(String className, int size, int max, AsyncOperationCallback<T> cb) {
+
+    }
 
     /**
      * automatically convert the collection for the given type to a capped collection
@@ -411,11 +418,11 @@ public class Morphium {
      *
      * @param c - type
      */
-    public <T> void convertToCapped(final Class<T> c) {
-        convertToCapped(c, null);
+    public <T> void ensureCapped(final Class<T> c) {
+        ensureCapped(c, null);
     }
 
-    public <T> void convertToCapped(final Class<T> c, final AsyncOperationCallback<T> callback) {
+    public <T> void ensureCapped(final Class<T> c, final AsyncOperationCallback<T> callback) {
         Runnable r = new Runnable() {
             @Override
             public void run() {
@@ -426,6 +433,7 @@ public class Morphium {
                 for (int i = 0; i < getConfig().getRetriesOnNetworkError(); i++) {
                     try {
                         collection = getDatabase().getCollection(coll);
+                        if (collection.isCapped()) return;
                         if (!getDatabase().collectionExists(coll)) {
                             if (logger.isDebugEnabled())
                                 logger.debug("Collection does not exist - ensuring indices / capped status");
@@ -465,6 +473,7 @@ public class Morphium {
             new Thread(r).start();
         }
     }
+
 
     public DBObject simplifyQueryObject(DBObject q) {
         if (q.keySet().size() == 1 && q.get("$and") != null) {
