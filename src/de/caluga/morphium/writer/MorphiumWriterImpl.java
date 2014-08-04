@@ -461,7 +461,7 @@ public class MorphiumWriterImpl implements MorphiumWriter {
                             }
                         }
                         if (isn) {
-                            if (!annotationHelper.getIdField(o).getType().equals(ObjectId.class)) {
+                            if (!annotationHelper.getIdField(o).getType().equals(ObjectId.class) && morphium.getId(o) == null) {
                                 throw new IllegalArgumentException("Cannot automatically set non -ObjectId IDs");
                             }
                             isNew.put(o, true);
