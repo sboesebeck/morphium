@@ -31,4 +31,11 @@ public @interface CreationTime {
      * @return
      */
     boolean checkForNew() default false;
+
+    /**
+     * define the format for creation time when storing into strings
+     *
+     * @return
+     */
+    String dateFormat() default "yyyy-MM-dd hh:mm:ss";
 }

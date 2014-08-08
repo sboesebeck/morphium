@@ -175,7 +175,7 @@ public class IteratorTest extends MongoTest {
 
     @Test
     public void expectedBehaviorTest() throws Exception {
-        createUncachedObjects(100);
+        createUncachedObjects(10);
         Query<UncachedObject> qu = MorphiumSingleton.get().createQueryFor(UncachedObject.class).sort("-counter");
         for (UncachedObject u : qu.asIterable()) {
             UncachedObject uc = new UncachedObject();

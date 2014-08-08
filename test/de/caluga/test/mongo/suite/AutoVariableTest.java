@@ -59,6 +59,7 @@ public class AutoVariableTest extends MongoTest {
         for (CTimeTest tst : q.q().asIterable()) {
             assert (tst.timestamp != 0);
             assert (tst.created != null);
+            assert (tst.createdString != null);
         }
     }
 
@@ -81,6 +82,8 @@ public class AutoVariableTest extends MongoTest {
         Thread.sleep(1); //just to be sure
         la = MorphiumSingleton.get().createQueryFor(LATest.class).f("value").eq("value1").get();
         assert (la.lastAccess != lastAcc);
+        assert (la.lastAccessString != null);
+
     }
 
     @Test
@@ -115,6 +118,7 @@ public class AutoVariableTest extends MongoTest {
             assert (tst.lastChange != 0);
             assert (tst.lastChange == cmp);
             assert (tst.lastChangeDate != null);
+            assert (tst.lastChangeString != null);
         }
 
 
@@ -122,24 +126,24 @@ public class AutoVariableTest extends MongoTest {
 
     @Test
     public void testCTNonOjbectId() throws Exception {
-        MorphiumSingleton.get().dropCollection(CTimeTestString.class);
-        CTimeTestString record = new CTimeTestString();
+        MorphiumSingleton.get().dropCollection(CTimeTestStringId.class);
+        CTimeTestStringId record = new CTimeTestStringId();
         record.mongoId = "12345";
         record.value = "v1";
         MorphiumSingleton.get().store(record);
 
 
-        record = new CTimeTestString();
+        record = new CTimeTestStringId();
         record.mongoId = "12346";
         record.value = "v2";
         MorphiumSingleton.get().store(record);
 
-        record = new CTimeTestString();
+        record = new CTimeTestStringId();
         record.mongoId = "12346";
         record.value = "v3";
         MorphiumSingleton.get().store(record);
 
-        Query<CTimeTestString> q = MorphiumSingleton.get().createQueryFor(CTimeTestString.class);
+        Query<CTimeTestStringId> q = MorphiumSingleton.get().createQueryFor(CTimeTestStringId.class);
         q = q.f("value").eq("v1");
         record = q.get();
         assert (record.created != null);
@@ -157,9 +161,9 @@ public class AutoVariableTest extends MongoTest {
         assert (record.timestamp != 0);
 
 
-        ArrayList<CTimeTestString> lst = new ArrayList<CTimeTestString>();
+        ArrayList<CTimeTestStringId> lst = new ArrayList<CTimeTestStringId>();
         for (int i = 0; i < 100; i++) {
-            CTimeTestString ct = new CTimeTestString();
+            CTimeTestStringId ct = new CTimeTestStringId();
             ct.mongoId = "" + i;
             ct.value = "v" + i;
             ct.additional = "add";
@@ -167,7 +171,7 @@ public class AutoVariableTest extends MongoTest {
         }
         MorphiumSingleton.get().storeList(lst);
 
-        for (CTimeTestString ct : q.q().asIterable()) {
+        for (CTimeTestStringId ct : q.q().asIterable()) {
             assert (ct.timestamp != 0);
             assert (ct.created != null);
         }
@@ -185,6 +189,8 @@ public class AutoVariableTest extends MongoTest {
         private long lastChange;
         @LastChange
         private Date lastChangeDate;
+        @LastChange
+        private String lastChangeString;
     }
 
     @Entity
@@ -198,6 +204,8 @@ public class AutoVariableTest extends MongoTest {
         private long lastAccess;
         @LastAccess
         private Date lastAccessDate;
+        @LastAccess
+        private String lastAccessString;
     }
 
     @Entity
@@ -216,6 +224,8 @@ public class AutoVariableTest extends MongoTest {
         @CreationTime
         private long timestamp;
 
+        @CreationTime
+        private String createdString;
 
     }
 
@@ -223,7 +233,7 @@ public class AutoVariableTest extends MongoTest {
     @Entity
     @NoCache
     @CreationTime(checkForNew = true)
-    public static class CTimeTestString {
+    public static class CTimeTestStringId {
         @Id
         private String mongoId;
         private String value;

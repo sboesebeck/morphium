@@ -32,13 +32,14 @@ public class CacheSyncTest extends MongoTest {
 
     @Test
     public void sendClearMsgTest() throws Exception {
+        MorphiumSingleton.get().dropCollection(Msg.class);
         Messaging msg = new Messaging(MorphiumSingleton.get(), 100, true);
         msg.start();
         CacheSynchronizer cs = new CacheSynchronizer(msg, MorphiumSingleton.get());
 
         Query<Msg> q = MorphiumSingleton.get().createQueryFor(Msg.class);
         long cnt = q.countAll();
-        assert (cnt == 0) : "Already a message?!?!" + cnt;
+        assert (cnt == 0) : "Already a message?!?! " + cnt;
 
         cs.sendClearMessage(CachedObject.class, "test");
         Thread.sleep(2000);
@@ -177,6 +178,7 @@ public class CacheSyncTest extends MongoTest {
             }
             if (obj == null) {
                 notFoundCounter++;
+                continue;
             } else {
                 obj.setCounter(i + 2000);
             }
@@ -373,8 +375,10 @@ public class CacheSyncTest extends MongoTest {
         assert (!postSendClear);
         assert (postclear);
         assert (preClear);
+        Thread.sleep(60000);
 
-        assert (m1.createQueryFor(Msg.class).countAll() == 1);
+        long l = m1.createQueryFor(Msg.class).countAll();
+        assert (l == 1) : "too many messages? " + l;
 
         createCachedObjects(50);
 

@@ -404,11 +404,27 @@ public class Morphium {
         }
     }
 
-    public <T> void convertToCapped(Class<T> c, int size, int max, AsyncOperationCallback<T> cb) {
-
+    /**
+     * converts the given type to capped collection in Mongo, even if no @capped is defined!
+     * <b>Warning:</b> depending on size this might take some time!
+     *
+     * @param c
+     * @param size
+     * @param cb
+     * @param <T>
+     */
+    public <T> void convertToCapped(Class<T> c, int size, AsyncOperationCallback<T> cb) {
+        convertToCapped(getMapper().getCollectionName(c), size, cb);
+        //Indexes are not available after converting - recreate them
+        ensureIndicesFor(c, cb);
     }
 
-    public <T> void convertToCapped(String className, int size, int max, AsyncOperationCallback<T> cb) {
+    public <T> void convertToCapped(String coll, int size, AsyncOperationCallback<T> cb) {
+        BasicDBObject cmd = new BasicDBObject();
+        cmd.put("convertToCapped", coll);
+        cmd.put("size", size);
+//        cmd.put("max", max);
+        getDatabase().command(cmd);
 
     }
 
@@ -450,13 +466,8 @@ public class Morphium {
                         } else {
                             Capped capped = annotationHelper.getAnnotationFromHierarchy(c, Capped.class);
                             if (capped != null) {
-                                BasicDBObject cmd = new BasicDBObject();
-                                cmd.put("convertToCapped", coll);
-                                cmd.put("size", capped.maxSize());
-                                cmd.put("max", capped.maxEntries());
-                                getDatabase().command(cmd);
-                                //Indexes are not available after converting - recreate them
-                                ensureIndicesFor(c, callback);
+
+                                convertToCapped(c, capped.maxSize(),null);
                             }
                         }
                         break;

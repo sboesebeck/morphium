@@ -16,5 +16,4 @@ public @interface Capped {
 
     int maxEntries();
 
-    boolean autoconvert() default false;
 }
