@@ -18,4 +18,10 @@ import static java.lang.annotation.ElementType.TYPE;
 @Target({FIELD, TYPE})
 @Retention(RetentionPolicy.RUNTIME)
 public @interface LastChange {
+    /**
+     * define the format for timestamp when storing into strings
+     *
+     * @return
+     */
+    String dateFormat() default "yyyy-MM-dd hh:mm:ss";
 }

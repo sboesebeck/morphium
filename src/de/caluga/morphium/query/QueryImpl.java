@@ -10,6 +10,7 @@ import org.apache.log4j.Logger;
 
 import java.lang.reflect.Array;
 import java.lang.reflect.Field;
+import java.text.SimpleDateFormat;
 import java.util.*;
 import java.util.concurrent.SynchronousQueue;
 import java.util.concurrent.ThreadPoolExecutor;
@@ -696,9 +697,13 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
                         long currentTime = System.currentTimeMillis();
                         if (f.getType().equals(Date.class)) {
                             f.set(unmarshall, new Date());
+                        } else if (f.getType().equals(String.class)) {
+                            LastAccess ctField = f.getAnnotation(LastAccess.class);
+                            SimpleDateFormat df = new SimpleDateFormat(ctField.dateFormat());
+                            f.set(unmarshall, df.format(currentTime));
                         } else {
-
                             f.set(unmarshall, currentTime);
+
                         }
                         ObjectMapper mapper = morphium.getMapper();
                         String collName = mapper.getCollectionName(unmarshall.getClass());

@@ -11,6 +11,7 @@ import org.bson.types.ObjectId;
 
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
+import java.text.SimpleDateFormat;
 import java.util.*;
 import java.util.concurrent.SynchronousQueue;
 import java.util.concurrent.ThreadPoolExecutor;
@@ -126,6 +127,7 @@ public class MorphiumWriterImpl implements MorphiumWriter {
                             if (!morphium.getDatabase().collectionExists(coll)) {
                                 if (logger.isDebugEnabled())
                                     logger.debug("Collection " + coll + " does not exist - ensuring indices");
+                                createCappedColl(o.getClass());
                                 morphium.ensureIndicesFor(type, coll, callback);
                             }
                             break;
@@ -262,7 +264,7 @@ public class MorphiumWriterImpl implements MorphiumWriter {
             }
             if (aNew) {
                 if (lst == null || lst.size() == 0) {
-                    logger.error("Unable to store creation time as @CreationTime is missing");
+                    logger.error("Unable to store creation time as @CreationTime for field is missing");
                 } else {
                     long now = System.currentTimeMillis();
                     for (String ctf : lst) {
@@ -273,6 +275,10 @@ public class MorphiumWriterImpl implements MorphiumWriter {
                             val = new Long(now);
                         } else if (f.getType().equals(Date.class)) {
                             val = new Date(now);
+                        } else if (f.getType().equals(String.class)) {
+                            CreationTime ctField = f.getAnnotation(CreationTime.class);
+                            SimpleDateFormat df = new SimpleDateFormat(ctField.dateFormat());
+                            val = df.format(now);
                         }
 
                         if (f != null) {
@@ -304,6 +310,10 @@ public class MorphiumWriterImpl implements MorphiumWriter {
                         val = new Long(now);
                     } else if (f.getType().equals(Date.class)) {
                         val = new Date(now);
+                    } else if (f.getType().equals(String.class)) {
+                        LastChange ctField = f.getAnnotation(LastChange.class);
+                        SimpleDateFormat df = new SimpleDateFormat(ctField.dateFormat());
+                        val = df.format(now);
                     }
 
                     if (f != null) {
@@ -483,18 +493,7 @@ public class MorphiumWriterImpl implements MorphiumWriter {
                                 try {
                                     collection = morphium.getDatabase().getCollection(coll);
                                     if (!morphium.getDatabase().collectionExists(coll)) {
-                                        if (logger.isDebugEnabled())
-                                            logger.debug("Collection does not exist - ensuring indices / capped status");
-                                        BasicDBObject cmd = new BasicDBObject();
-                                        cmd.put("create", "collection");
-                                        Capped capped = annotationHelper.getAnnotationFromHierarchy(c, Capped.class);
-                                        if (capped != null) {
-                                            cmd.put("capped", true);
-                                            cmd.put("size", capped.maxSize());
-                                            cmd.put("max", capped.maxEntries());
-                                        }
-                                        cmd.put("autoIndexId", (annotationHelper.getIdField(c).getType().equals(ObjectId.class)));
-                                        morphium.getDatabase().command(cmd);
+                                        createCappedColl(c);
                                         morphium.ensureIndicesFor(c, coll, callback);
                                     }
                                     break;
@@ -564,6 +563,22 @@ public class MorphiumWriterImpl implements MorphiumWriter {
             submitAndBlockIfNecessary(callback, r);
         }
 
+    }
+
+
+    private void createCappedColl(Class c) {
+        if (logger.isDebugEnabled())
+            logger.debug("Collection does not exist - ensuring indices / capped status");
+        BasicDBObject cmd = new BasicDBObject();
+        cmd.put("create", morphium.getMapper().getCollectionName(c));
+        Capped capped = annotationHelper.getAnnotationFromHierarchy(c, Capped.class);
+        if (capped != null) {
+            cmd.put("capped", true);
+            cmd.put("size", capped.maxSize());
+            cmd.put("max", capped.maxEntries());
+        }
+        cmd.put("autoIndexId", (annotationHelper.getIdField(c).getType().equals(ObjectId.class)));
+        morphium.getDatabase().command(cmd);
     }
 
     private void doStoreList(List<DBObject> dbLst, WriteConcern wc, DBCollection collection) {
