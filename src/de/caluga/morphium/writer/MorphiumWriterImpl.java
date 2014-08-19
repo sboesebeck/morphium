@@ -535,7 +535,7 @@ public class MorphiumWriterImpl implements MorphiumWriter {
                                     doStoreList(lst, wc, collection);
                                 }
 
-                            } else {
+                            } else if (dbLst.size() > 0) {
                                 doStoreList(dbLst, wc, collection);
                             }
                             morphium.getCache().clearCacheIfNecessary(c);
