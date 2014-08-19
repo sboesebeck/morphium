@@ -173,7 +173,8 @@ public class CacheSyncTest extends MongoTest {
             q = q.f("counter").eq(i);
             IdCachedObject obj = q.get();
             if (obj == null) {
-                Thread.sleep(1250); //wait a moment
+                log.info("Object not found... waiting");
+                Thread.sleep(1550); //wait a moment
                 obj = q.get();
             }
             if (obj == null) {
