@@ -1652,7 +1652,7 @@ public class Morphium {
     }
 
     /**
-     * sorts elements in this list, whether to store in background or directly
+     * sorts elements in this list, whether to store in background or directly.
      *
      * @param lst - all objects are sorted whether to store in BG or direclty. All objects are stored in their corresponding collection
      * @param <T>

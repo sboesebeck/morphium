@@ -504,10 +504,13 @@ public class MorphiumWriterImpl implements MorphiumWriter {
 
                             BulkWriteOperation bulkWriteOperation = collection.initializeUnorderedBulkOperation();
                             long start = System.currentTimeMillis();
+
+                            HashMap<Integer, Object> mapMarshalledNewObjects = new HashMap<>();
                             for (Object record : es.getValue()) {
                                 DBObject marshall = morphium.getMapper().marshall(record);
                                 if (isNew.get(record)) {
                                     dbLst.add(marshall);
+                                    mapMarshalledNewObjects.put(dbLst.size() - 1, record);
                                 } else {
                                     //bulk update
                                     BulkWriteRequestBuilder findId = bulkWriteOperation.find(new BasicDBObject("_id", morphium.getARHelper().getId(record)));
@@ -533,18 +536,42 @@ public class MorphiumWriterImpl implements MorphiumWriter {
                                     }
                                     List<DBObject> lst = dbLst.subList(idx, end);
                                     doStoreList(lst, wc, collection);
+                                    for (DBObject o : lst) {
+                                        Object entity = mapMarshalledNewObjects.get(dbLst.indexOf(o));
+                                        if (entity == null) {
+                                            logger.error("cannot update mongo_id...");
+                                        } else {
+                                            try {
+                                                morphium.getARHelper().getIdField(entity).set(entity, o.get("_id"));
+                                            } catch (Exception e) {
+                                                logger.error("Setting of mongo_id failed", e);
+                                            }
+                                        }
+                                    }
                                 }
 
                             } else if (dbLst.size() > 0) {
                                 doStoreList(dbLst, wc, collection);
+                                for (DBObject o : dbLst) {
+                                    Object entity = mapMarshalledNewObjects.get(dbLst.indexOf(o));
+                                    if (entity == null) {
+                                        logger.error("cannot update mongo_id...");
+                                    } else {
+                                        try {
+                                            morphium.getARHelper().getIdField(entity).set(entity, o.get("_id"));
+                                        } catch (Exception e) {
+                                            logger.error("Setting of mongo_id failed", e);
+                                        }
+                                    }
+                                }
                             }
                             morphium.getCache().clearCacheIfNecessary(c);
                             long dur = System.currentTimeMillis() - start;
                             //bulk insert
                             morphium.fireProfilingWriteEvent(c, dbLst, dur, true, WriteAccessType.BULK_INSERT);
                             for (Object record : es.getValue()) {
-                                if (isNew.get(record)) {
-                                    morphium.firePostStoreEvent(record, isNew.get(record));
+                                if (isNew.get(record) == null || isNew.get(record)) { //null because key changed => mongo _id
+                                    morphium.firePostStoreEvent(record, true);
                                 }
                             }
                         }

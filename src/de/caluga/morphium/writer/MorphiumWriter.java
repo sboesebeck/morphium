@@ -25,7 +25,7 @@ public interface MorphiumWriter {
     public <T> void store(T o, String collection, AsyncOperationCallback<T> callback);
 
     /**
-     * stores the given list of objects, should be entities or embedded
+     * stores the given list of objects, should be entities or embedded.
      *
      * @param lst - to store
      */
