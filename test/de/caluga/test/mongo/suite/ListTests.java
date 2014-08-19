@@ -5,6 +5,9 @@ import de.caluga.morphium.annotations.ReadPreferenceLevel;
 import de.caluga.morphium.query.Query;
 import org.junit.Test;
 
+import java.util.ArrayList;
+import java.util.List;
+
 /**
  * User: Stephan Bösebeck
  * Date: 28.05.12
@@ -107,4 +110,27 @@ public class ListTests extends MongoTest {
         assert (lst2.getEmbeddedObjectList().get(count) == null);
 
     }
+
+
+    @Test
+    public void singleEntryListTest() throws Exception {
+        MorphiumSingleton.get().dropCollection(UncachedObject.class);
+        List<UncachedObject> lst = new ArrayList<>();
+        lst.add(new UncachedObject());
+
+        lst.get(0).setValue("hello");
+        lst.get(0).setCounter(1);
+
+        MorphiumSingleton.get().store(lst.get(0));
+
+        assert (lst.get(0).getMongoId() != null);
+
+        lst.get(0).setCounter(999);
+
+        MorphiumSingleton.get().storeList(lst);
+
+        assert (MorphiumSingleton.get().createQueryFor(UncachedObject.class).asList().get(0).getCounter() == 999);
+
+    }
+
 }
