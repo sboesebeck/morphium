@@ -17,17 +17,17 @@ public class IteratorTest extends MongoTest {
 
     @Test
     public void iterationSpeedTest() throws Exception {
-        createUncachedObjects(5000);
-
+        createUncachedObjects(15000);
+        log.info("creation finished - now Iterating...");
         Query<UncachedObject> qu = MorphiumSingleton.get().createQueryFor(UncachedObject.class).sort("_id");
         long start = System.currentTimeMillis();
-        MorphiumIterator<UncachedObject> it = qu.asIterable(2);
+        MorphiumIterator<UncachedObject> it = qu.asIterable(1000);
 
         while (it.hasNext()) {
             it.next();
         }
 
-        log.info("Took " + (System.currentTimeMillis() - start) + " ms - 8630");
+        log.info("Took " + (System.currentTimeMillis() - start) + " ms - 523");
     }
 
 
