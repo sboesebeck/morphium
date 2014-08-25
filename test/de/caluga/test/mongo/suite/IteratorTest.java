@@ -16,6 +16,22 @@ import java.util.HashMap;
 public class IteratorTest extends MongoTest {
 
     @Test
+    public void iterationSpeedTest() throws Exception {
+        createUncachedObjects(5000);
+
+        Query<UncachedObject> qu = MorphiumSingleton.get().createQueryFor(UncachedObject.class).sort("_id");
+        long start = System.currentTimeMillis();
+        MorphiumIterator<UncachedObject> it = qu.asIterable(2);
+
+        while (it.hasNext()) {
+            it.next();
+        }
+
+        log.info("Took " + (System.currentTimeMillis() - start) + " ms - 8630");
+    }
+
+
+    @Test
     public void basicIteratorTest() throws Exception {
         createUncachedObjects(1000);
 
