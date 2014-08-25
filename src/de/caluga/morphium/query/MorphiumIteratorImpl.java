@@ -2,9 +2,10 @@ package de.caluga.morphium.query;
 
 import org.apache.log4j.Logger;
 
+import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Stack;
+import java.util.Vector;
 
 /**
  * User: Stephan Bösebeck
@@ -18,13 +19,15 @@ public class MorphiumIteratorImpl<T> implements MorphiumIterator<T> {
     private int windowSize = 1;
 
     private Query<T> theQuery;
-    private List<T> buffer;
-    private Stack<List<T>> prefechBuffers;
+    private Container<T>[] prefetchBuffers;
     private int cursor = 0;
     private long count = 0;
 
     private Logger log = Logger.getLogger(MorphiumIterator.class);
     private long limit;
+    private int prefetchWindows = 1;
+
+    private Vector<Thread> activeThreads = new Vector<>();
 
     @Override
     public Iterator<T> iterator() {
@@ -36,35 +39,89 @@ public class MorphiumIteratorImpl<T> implements MorphiumIterator<T> {
         return (cursor < count) && (cursor < limit);
     }
 
+
+    private List<T> getBuffer(int windowNumber) {
+        int skp = windowNumber * windowSize;
+        theQuery.skip(skp); //sounds strange, but is necessary for Jump / backs
+        theQuery.limit(windowSize);
+        if (theQuery.getSort() == null || theQuery.getSort().isEmpty()) {
+            if (log.isDebugEnabled()) {
+                log.debug("No sort parameter given - sorting by _id");
+            }
+            theQuery.sort("_id"); //always sort with id field if no sort is given
+        }
+        return theQuery.asList();
+    }
+
     @Override
     public T next() {
         if (cursor > count || cursor > limit) {
             return null;
         }
-        int idx = cursor % windowSize;
-        if (buffer == null || idx == 0) {
-            int skp = (cursor / windowSize) * windowSize;
-            theQuery.skip(skp); //sounds strange, but is necessary for Jump / backs
-            if (count - cursor < windowSize) {
-                theQuery.limit((int) (count - cursor));
-            } else if (limit - cursor < windowSize) {
-                theQuery.limit((int) (limit - cursor));
-            } else {
-                theQuery.limit(windowSize);
+
+        if (prefetchBuffers == null) {
+            //first iteration
+            prefetchBuffers = new Container[prefetchWindows];
+            prefetchBuffers[0] = new Container<T>();
+            prefetchBuffers[0].setData(getBuffer(0));
+
+            for (int i = 1; i < prefetchWindows; i++) {
+                final Container<T> c = new Container<>();
+                prefetchBuffers[i] = c;
+                final int idx = i;
+                new Thread() {
+                    @Override
+                    public void run() {
+                        activeThreads.add(this);
+                        if (idx * windowSize <= limit && idx * windowSize <= count) {
+                            c.setData(getBuffer(idx));
+                        }
+                        activeThreads.remove(this);
+                    }
+                }.start();
             }
-            if (log.isDebugEnabled()) {
-                log.debug("Reached window boundary - reading in: skip:" + skp + " limit:" + windowSize);
-            }
-            if (theQuery.getSort() == null || theQuery.getSort().isEmpty()) {
-                if (log.isDebugEnabled()) {
-                    log.debug("No sort parameter given - sorting by _id");
-                }
-                theQuery.sort("_id"); //always sort with id field if no sort is given
-            }
-            buffer = theQuery.asList();
+
+
         }
+
+
+        if (cursor + 1 > windowSize) {
+            //removing first
+            for (int i = 1; i < prefetchWindows; i++) {
+                prefetchBuffers[i - 1] = prefetchBuffers[i];
+            }
+
+
+            prefetchBuffers[prefetchWindows - 1] = new Container<T>();
+
+            int numOfThreads = activeThreads.size();
+            //add new one in background...
+            new Thread() {
+                public void run() {
+                    activeThreads.add(this);
+                    prefetchBuffers[prefetchWindows - 1].setData(getBuffer(cursor / windowSize + prefetchWindows - 1));
+                    activeThreads.remove(this);
+                }
+            }.start();
+            while (activeThreads.size() < numOfThreads + 1) {
+                log.info("Waiting for thread to be running...");
+                Thread.yield();
+            }
+
+        }
+        if (prefetchBuffers[0] == null || prefetchBuffers[0].getData() == null) {
+            while (activeThreads.size() > 0 && !(prefetchBuffers[0].getData() != null)) {
+                log.info("Waiting for threads to finish...");
+                Thread.yield();
+            }
+            if (prefetchBuffers[0] == null || prefetchBuffers[0].getData() == null) {
+                return null;
+            }
+
+        }
+        T ret = prefetchBuffers[0].getData().get(cursor % windowSize);
         cursor++;
-        return buffer.get(idx);
+        return ret;
     }
 
     @Override
@@ -102,13 +159,22 @@ public class MorphiumIteratorImpl<T> implements MorphiumIterator<T> {
 
     @Override
     public int getCurrentBufferSize() {
-        if (buffer == null) return 0;
-        return buffer.size();
+        if (prefetchBuffers == null) return 0;
+        if (prefetchBuffers[0] == null || prefetchBuffers[0].getData() == null) return 0;
+
+        int cnt = 0;
+        for (Container<T> buffer : prefetchBuffers) {
+            if (buffer.getData() == null) continue;
+            cnt += buffer.getData().size();
+        }
+        return cnt;
     }
 
     @Override
     public List<T> getCurrentBuffer() {
-        return buffer;
+        if (prefetchBuffers == null || prefetchBuffers[0] == null || prefetchBuffers[0].getData() == null)
+            return new ArrayList<>();
+        return prefetchBuffers[0].getData();
     }
 
     @Override
@@ -128,7 +194,7 @@ public class MorphiumIteratorImpl<T> implements MorphiumIterator<T> {
             if (log.isDebugEnabled()) {
                 log.debug("Would jump over boundary - resetting buffer");
             }
-            buffer = null;
+            prefetchBuffers = null;
         }
         cursor += jump;
     }
@@ -140,10 +206,26 @@ public class MorphiumIteratorImpl<T> implements MorphiumIterator<T> {
             if (log.isDebugEnabled()) {
                 log.debug("Would jump before boundary - resetting buffer");
             }
-            buffer = null;
+            prefetchBuffers = null;
         }
         cursor -= jump;
     }
 
+    @Override
+    public void setNumberOfPrefetchWindows(int n) {
+        this.prefetchWindows = n;
+    }
 
+
+    private class Container<T> {
+        private List<T> data;
+
+        public List<T> getData() {
+            return data;
+        }
+
+        public void setData(List<T> data) {
+            this.data = data;
+        }
+    }
 }

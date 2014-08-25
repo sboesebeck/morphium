@@ -70,4 +70,6 @@ public interface MorphiumIterator<T> extends Iterable<T>, Iterator<T> {
      */
     public void back(int jump);
 
+    public void setNumberOfPrefetchWindows(int n);
+
 }
