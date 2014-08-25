@@ -155,15 +155,26 @@ public interface Query<T> extends Cloneable {
     public void asList(AsyncOperationCallback<T> callback);
 
     /**
-     * create an iterator / iterable for this query, default windowSize (10)
+     * create an iterator / iterable for this query, default windowSize (10), prefetch windows 1
      */
     public MorphiumIterator<T> asIterable();
 
 
     /**
      * create an iterator / iterable for this query, sets window size (how many objects should be read from DB)
+     * prefetch number is 1 in this case
      */
     public MorphiumIterator<T> asIterable(int windowSize);
+
+    /**
+     * create an iterator / iterable for this query, sets window size (how many entities are read en block) and how many windows of this size will be prefechted...
+     *
+     * @param windowSize
+     * @param prefixWindows
+     * @return
+     */
+
+    public MorphiumIterator<T> asIterable(int windowSize, int prefixWindows);
 
 
     /**
@@ -245,6 +256,7 @@ public interface Query<T> extends Cloneable {
     public void setMorphium(Morphium m);
 
     public void setExecutor(ThreadPoolExecutor executor);
+
 
     public void getById(Object id, AsyncOperationCallback<T> callback);
 

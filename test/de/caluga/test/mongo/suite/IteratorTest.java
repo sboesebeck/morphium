@@ -41,9 +41,17 @@ public class IteratorTest extends MongoTest {
         u = it.next();
         assert (u.getCounter() == 5);
 
+        HashMap<Integer, Boolean> counters = new HashMap<>();
+
         while (it.hasNext()) {
             u = it.next();
-            log.info("Object: " + u.getCounter());
+            log.info("Object: " + u.getCounter() + " Buffer Size: " + it.getCurrentBufferSize());
+            if (counters.get(u.getCounter()) != null && counters.get(u.getCounter())) {
+                throw new RuntimeException("Test Failed: iteration repeat!");
+            } else {
+                counters.put(u.getCounter(), true);
+            }
+
         }
 
         assert (u.getCounter() == 1000);
@@ -93,6 +101,7 @@ public class IteratorTest extends MongoTest {
 
     @Test
     public void iteratorBoundaryTest() throws Exception {
+
         createUncachedObjects(17);
 
         Query<UncachedObject> qu = getUncachedObjectQuery();
@@ -104,7 +113,7 @@ public class IteratorTest extends MongoTest {
         log.info("Got first one: " + u.getCounter() + "  / " + u.getValue());
 
         u = new UncachedObject();
-        u.setCounter(800);
+        u.setCounter(8000);
         u.setValue("Should not be read");
         MorphiumSingleton.get().store(u);
         waitForWrites();
@@ -115,7 +124,7 @@ public class IteratorTest extends MongoTest {
         }
 
         assert (u.getCounter() == 17);
-        assert (it.getCurrentBufferSize() == 2);
+        assert (it.getCurrentBufferSize() == 2) : "Buffer size is " + it.getCurrentBufferSize() + " should be 2";
     }
 
     @Test
