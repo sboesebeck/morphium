@@ -21,10 +21,11 @@ public class IteratorTest extends MongoTest {
         log.info("creation finished - now Iterating...");
         Query<UncachedObject> qu = MorphiumSingleton.get().createQueryFor(UncachedObject.class).sort("_id");
         long start = System.currentTimeMillis();
-        MorphiumIterator<UncachedObject> it = qu.asIterable(1000);
+        MorphiumIterator<UncachedObject> it = qu.asIterable(10000);
 
         while (it.hasNext()) {
             it.next();
+            log.info("." + it.getCursor());
         }
 
         log.info("Took " + (System.currentTimeMillis() - start) + " ms - 523");
