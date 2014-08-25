@@ -21,6 +21,7 @@ public class IteratorTest extends MongoTest {
 
         Query<UncachedObject> qu = getUncachedObjectQuery();
 
+        long start = System.currentTimeMillis();
         MorphiumIterator<UncachedObject> it = qu.asIterable(2);
         assert (it.hasNext());
         UncachedObject u = it.next();
@@ -55,6 +56,8 @@ public class IteratorTest extends MongoTest {
         }
 
         assert (u.getCounter() == 1000);
+        long dur = System.currentTimeMillis() - start;
+        log.info("Took " + dur + " ms");
     }
 
     @Test
