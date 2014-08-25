@@ -5,7 +5,9 @@ import de.caluga.morphium.query.MorphiumIterator;
 import de.caluga.morphium.query.Query;
 import org.junit.Test;
 
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 
 /**
  * User: Stephan Bösebeck
@@ -17,18 +19,102 @@ public class IteratorTest extends MongoTest {
 
     @Test
     public void iterationSpeedTest() throws Exception {
-        createUncachedObjects(1500);
-        log.info("creation finished - now Iterating...");
         Query<UncachedObject> qu = MorphiumSingleton.get().createQueryFor(UncachedObject.class).sort("_id");
-        long start = System.currentTimeMillis();
-        MorphiumIterator<UncachedObject> it = qu.asIterable(100);
+        qu.setCollectionName("test_uc");
+        if (qu.countAll() != 15000) {
+            MorphiumSingleton.get().dropCollection(UncachedObject.class, "test_uc", null);
+            log.info("Creating uncached objects");
 
+            List<UncachedObject> lst = new ArrayList<>();
+            for (int i = 0; i < 15000; i++) {
+                UncachedObject o = new UncachedObject();
+                o.setCounter(i + 1);
+                o.setValue("V" + i);
+                lst.add(o);
+            }
+            MorphiumSingleton.get().storeList(lst, "test_uc");
+        }
+        log.info("creation finished");
+        log.info("creating iterator");
+        MorphiumIterator<UncachedObject> it = qu.asIterable(1000, 1);
+        log.info("iterating 1000/1");
+        long start = System.currentTimeMillis();
         while (it.hasNext()) {
-            it.next();
-//            log.info("." + it.getCursor());
+            UncachedObject o = it.next();
+//            log.info("." + it.getCursor()+": "+o.getCounter());
+            assert (it.getCursor() == o.getCounter()) : "cursor=" + it.getCursor() + " != counter=" + o.getCounter();
         }
 
-        log.info("Took " + (System.currentTimeMillis() - start) + " ms - 523");
+        log.info("iterater 1000/1 Took " + (System.currentTimeMillis() - start) + " ms");
+
+        Thread.sleep(500);
+        log.info("iterating 1000/5");
+        start = System.currentTimeMillis();
+        it = qu.asIterable(1000, 5);
+
+        while (it.hasNext()) {
+            UncachedObject o = it.next();
+            assert (it.getCursor() == o.getCounter());
+
+        }
+
+        log.info("iterater 1000/5 Took " + (System.currentTimeMillis() - start) + " ms");
+
+        Thread.sleep(500);
+        log.info("iterating 100/1");
+        start = System.currentTimeMillis();
+        it = qu.asIterable(100, 1);
+
+        while (it.hasNext()) {
+            UncachedObject o = it.next();
+            assert (it.getCursor() == o.getCounter());
+
+        }
+
+        log.info("iterater 100/1 Took " + (System.currentTimeMillis() - start) + " ms");
+
+
+        Thread.sleep(500);
+        log.info("iterating 100/5");
+        start = System.currentTimeMillis();
+        it = qu.asIterable(100, 5);
+
+        while (it.hasNext()) {
+            UncachedObject o = it.next();
+            assert (it.getCursor() == o.getCounter());
+
+        }
+
+        log.info("iterater 100/5 Took " + (System.currentTimeMillis() - start) + " ms");
+
+
+        Thread.sleep(500);
+        log.info("iterating 100/15");
+        start = System.currentTimeMillis();
+        it = qu.asIterable(100, 15);
+
+        while (it.hasNext()) {
+            UncachedObject o = it.next();
+            assert (it.getCursor() == o.getCounter());
+
+        }
+
+        log.info("iterater 100/15 Took " + (System.currentTimeMillis() - start) + " ms");
+
+
+        Thread.sleep(500);
+        log.info("iterating 5000/5");
+        start = System.currentTimeMillis();
+        it = qu.asIterable(5000, 5);
+
+        while (it.hasNext()) {
+            UncachedObject o = it.next();
+            assert (it.getCursor() == o.getCounter());
+        }
+
+        log.info("iterater 5000/5 Took " + (System.currentTimeMillis() - start) + " ms");
+
+
     }
 
 

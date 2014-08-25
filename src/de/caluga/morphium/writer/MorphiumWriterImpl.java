@@ -376,26 +376,28 @@ public class MorphiumWriterImpl implements MorphiumWriter {
             } else {
                 //single update
                 WriteResult result = null;
-
+                cnt++;
                 BulkUpdateRequestBuilder up = bulkWriteOperation.find(new BasicDBObject("_id", morphium.getARHelper().getId(record))).upsert();
                 up.updateOne(new BasicDBObject("$set", marshall));
             }
         }
         morphium.firePreStoreEvent(isNew);
-        for (int i = 0; i < morphium.getConfig().getRetriesOnNetworkError(); i++) {
-            try {
-                //storing updates
-                if (wc == null) {
-                    bulkWriteOperation.execute();
-                } else {
-                    bulkWriteOperation.execute(wc);
+        if (cnt > 0) {
+            for (int i = 0; i < morphium.getConfig().getRetriesOnNetworkError(); i++) {
+                try {
+                    //storing updates
+                    if (wc == null) {
+                        bulkWriteOperation.execute();
+                    } else {
+                        bulkWriteOperation.execute(wc);
+                    }
+                } catch (Exception e) {
+                    morphium.handleNetworkError(i, e);
                 }
-            } catch (Exception e) {
-                morphium.handleNetworkError(i, e);
             }
-        }
-        for (Class<?> c : types) {
-            morphium.getCache().clearCacheIfNecessary(c);
+            for (Class<?> c : types) {
+                morphium.getCache().clearCacheIfNecessary(c);
+            }
         }
 
         long dur = System.currentTimeMillis() - start;
