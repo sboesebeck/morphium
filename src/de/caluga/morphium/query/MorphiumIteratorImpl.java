@@ -104,14 +104,14 @@ public class MorphiumIteratorImpl<T> implements MorphiumIterator<T> {
                 }
             }.start();
             while (activeThreads.size() < numOfThreads + 1) {
-                log.info("Waiting for thread to be running...");
+//                log.info("Waiting for thread to be running...");
                 Thread.yield();
             }
 
         }
         if (prefetchBuffers[0] == null || prefetchBuffers[0].getData() == null) {
             while (activeThreads.size() > 0 && !(prefetchBuffers[0].getData() != null)) {
-                log.info("Waiting for threads to finish...");
+//                log.info("Waiting for threads to finish...");
                 Thread.yield();
             }
             if (prefetchBuffers[0] == null || prefetchBuffers[0].getData() == null) {
