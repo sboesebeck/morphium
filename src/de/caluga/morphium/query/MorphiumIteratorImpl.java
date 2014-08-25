@@ -109,33 +109,33 @@ public class MorphiumIteratorImpl<T> implements MorphiumIterator<T> {
             prefetchBuffers[prefetchWindows - 1] = new Container<T>();
 
             //add new one in background...
+
             while (workQueue.remainingCapacity() < 5) {
                 Thread.yield();
             }
+            int numOfThreads = workQueue.size();
+            final int win = cursor / windowSize + prefetchWindows - 1;
             executorService.submit(new Runnable() {
                 public void run() {
-                    prefetchBuffers[prefetchWindows - 1].setData(getBuffer(cursor / windowSize + prefetchWindows - 1));
+                    prefetchBuffers[prefetchWindows - 1].setData(getBuffer(win));
                 }
             });
-//            while (activeThreads.size() < numOfThreads + 1) {
-////                log.info("Waiting for thread to be running...");
-//                Thread.yield();
-//            }
+
 
         }
-//        if (prefetchBuffers[0] == null || prefetchBuffers[0].getData() == null) {
-//            while (activeThreads.size() > 0 && !(prefetchBuffers[0].getData() != null)) {
-////                log.info("Waiting for threads to finish...");
-//                Thread.yield();
-//            }
-//            if (prefetchBuffers[0] == null || prefetchBuffers[0].getData() == null) {
-//                return null;
-//            }
-//
-//        }
+        if (prefetchBuffers[0] == null || prefetchBuffers[0].getData() == null) {
+            while (workQueue.size() > 0 && !(prefetchBuffers[0].getData() != null)) {
+//                log.info("Waiting for threads to finish...");
+                Thread.yield();
+            }
+            if (prefetchBuffers[0] == null || prefetchBuffers[0].getData() == null) {
+                return null;
+            }
+
+        }
         if (prefetchBuffers[0].getData() == null) return null;
-        T ret = prefetchBuffers[0].getData().get(cursor % windowSize);
         cursor++;
+        T ret = prefetchBuffers[0].getData().get(cursor % windowSize);
         return ret;
     }
 
