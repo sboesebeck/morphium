@@ -20,7 +20,6 @@ public class IteratorTest extends MongoTest {
         createUncachedObjects(1000);
 
         Query<UncachedObject> qu = getUncachedObjectQuery();
-
         long start = System.currentTimeMillis();
         MorphiumIterator<UncachedObject> it = qu.asIterable(2);
         assert (it.hasNext());
@@ -42,22 +41,13 @@ public class IteratorTest extends MongoTest {
         u = it.next();
         assert (u.getCounter() == 5);
 
-        HashMap<Integer, Boolean> counters = new HashMap<>();
-
         while (it.hasNext()) {
             u = it.next();
-            log.info("Object: " + u.getCounter() + " Buffer Size: " + it.getCurrentBufferSize());
-            if (counters.get(u.getCounter()) != null && counters.get(u.getCounter())) {
-                throw new RuntimeException("Test Failed: iteration repeat!");
-            } else {
-                counters.put(u.getCounter(), true);
-            }
-
+            log.info("Object: " + u.getCounter());
         }
 
         assert (u.getCounter() == 1000);
-        long dur = System.currentTimeMillis() - start;
-        log.info("Took " + dur + " ms");
+        log.info("Took " + (System.currentTimeMillis() - start) + " ms");
     }
 
     @Test
@@ -66,7 +56,7 @@ public class IteratorTest extends MongoTest {
         createUncachedObjects(10000);
         Query<UncachedObject> qu = MorphiumSingleton.get().createQueryFor(UncachedObject.class);
         qu.sort("_id");
-
+        long start = System.currentTimeMillis();
         MorphiumIterator<UncachedObject> it = qu.asIterable(107);
 
         int read = 0;
@@ -79,6 +69,7 @@ public class IteratorTest extends MongoTest {
         }
 
         assert (read == 10000) : "Last counter wrong: " + u.getCounter();
+        log.info("Took " + (System.currentTimeMillis() - start) + " ms");
     }
 
     @Test
@@ -90,6 +81,7 @@ public class IteratorTest extends MongoTest {
         HashMap<String, String> hash = new HashMap<String, String>();
         boolean error = false;
         int count = 0;
+        long start = System.currentTimeMillis();
         for (UncachedObject o : qu.asIterable(20)) {
             count++;
             if (hash.get(o.getMongoId().toString()) == null) {
@@ -100,15 +92,16 @@ public class IteratorTest extends MongoTest {
             }
         }
         assert (!error);
+        log.info("Took " + (System.currentTimeMillis() - start) + " ms");
     }
 
     @Test
     public void iteratorBoundaryTest() throws Exception {
-
         createUncachedObjects(17);
 
         Query<UncachedObject> qu = getUncachedObjectQuery();
 
+        long start = System.currentTimeMillis();
         MorphiumIterator<UncachedObject> it = qu.asIterable(3);
         assert (it.hasNext());
         UncachedObject u = it.next();
@@ -116,7 +109,7 @@ public class IteratorTest extends MongoTest {
         log.info("Got first one: " + u.getCounter() + "  / " + u.getValue());
 
         u = new UncachedObject();
-        u.setCounter(8000);
+        u.setCounter(800);
         u.setValue("Should not be read");
         MorphiumSingleton.get().store(u);
         waitForWrites();
@@ -127,7 +120,8 @@ public class IteratorTest extends MongoTest {
         }
 
         assert (u.getCounter() == 17);
-        assert (it.getCurrentBufferSize() == 2) : "Buffer size is " + it.getCurrentBufferSize() + " should be 2";
+        assert (it.getCurrentBufferSize() == 2);
+        log.info("Took " + (System.currentTimeMillis() - start) + " ms");
     }
 
     @Test
@@ -137,6 +131,7 @@ public class IteratorTest extends MongoTest {
         Query<UncachedObject> qu = getUncachedObjectQuery();
         qu.limit(10);
 
+        long start = System.currentTimeMillis();
         MorphiumIterator<UncachedObject> it = qu.asIterable(3);
         int count = 0;
         while (it.hasNext()) {
@@ -144,19 +139,21 @@ public class IteratorTest extends MongoTest {
             it.next();
         }
         assert (count == 10) : "Count wrong: " + count;
+
+        log.info("Took " + (System.currentTimeMillis() - start) + " ms");
     }
 
     @Test
     public void iterableTest() throws Exception {
         createUncachedObjects(100);
         Query<UncachedObject> qu = getUncachedObjectQuery();
-
+        long start = System.currentTimeMillis();
         int cnt = 0;
         for (UncachedObject u : qu.asIterable(10)) {
             cnt++;
             assert (u.getCounter() == cnt);
         }
-
+        log.info("Took " + (System.currentTimeMillis() - start) + " ms");
     }
 
 
@@ -165,6 +162,7 @@ public class IteratorTest extends MongoTest {
         createUncachedObjects(100);
         Query<UncachedObject> qu = getUncachedObjectQuery();
 
+        long start = System.currentTimeMillis();
         MorphiumIterator<UncachedObject> it = qu.asIterable(10);
         boolean back = false;
         for (UncachedObject u : it) {
@@ -181,13 +179,14 @@ public class IteratorTest extends MongoTest {
 
 
         }
-
+        log.info("Took " + (System.currentTimeMillis() - start) + " ms");
     }
 
 
     @Test
     public void expectedBehaviorTest() throws Exception {
         createUncachedObjects(10);
+        long start = System.currentTimeMillis();
         Query<UncachedObject> qu = MorphiumSingleton.get().createQueryFor(UncachedObject.class).sort("-counter");
         for (UncachedObject u : qu.asIterable()) {
             UncachedObject uc = new UncachedObject();
@@ -198,6 +197,8 @@ public class IteratorTest extends MongoTest {
             //Will write out some Wrong!-Values... this is expected and GOOD!
             log.info("Current Counter: " + u.getCounter() + " and Value: " + u.getValue());
         }
+
+        log.info("Took " + (System.currentTimeMillis() - start) + " ms");
     }
 
 
