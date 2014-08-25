@@ -53,17 +53,26 @@ public class MorphiumIteratorImpl<T> implements MorphiumIterator<T> {
 
 
     private List<T> getBuffer(int windowNumber) {
-        int skp = windowNumber * windowSize;
-        Query q = theQuery.q();
-        q.skip(skp); //sounds strange, but is necessary for Jump / backs
-        q.limit(windowSize);
-        if (q.getSort() == null || q.getSort().isEmpty()) {
-            if (log.isDebugEnabled()) {
-                log.debug("No sort parameter given - sorting by _id");
+        try {
+            int skp = windowNumber * windowSize;
+            System.out.println("Getting buffer win: " + windowNumber + " skip: " + skp + " windowSize: " + windowSize);
+            Query q = null;
+
+            q = theQuery.clone();
+
+            q.skip(skp); //sounds strange, but is necessary for Jump / backs
+            q.limit(windowSize);
+            if (q.getSort() == null || q.getSort().isEmpty()) {
+                if (log.isDebugEnabled()) {
+                    log.debug("No sort parameter given - sorting by _id");
+                }
+                q.sort("_id"); //always sort with id field if no sort is given
             }
-            q.sort("_id"); //always sort with id field if no sort is given
+            return q.asList();
+        } catch (CloneNotSupportedException e) {
+            System.out.println("CLONE FAILED!?!?!?!?");
+            return null;
         }
-        return q.asList();
     }
 
     @Override
@@ -97,9 +106,12 @@ public class MorphiumIteratorImpl<T> implements MorphiumIterator<T> {
 
 
         }
+        while (prefetchBuffers[0].getData() == null) {
+            Thread.yield();
+        }
+        T ret = prefetchBuffers[0].getData().get(cursor % windowSize);
 
-
-        if (cursor + 1 > windowSize) {
+        if ((cursor % windowSize) + 1 >= windowSize) {
             //removing first
             for (int i = 1; i < prefetchWindows; i++) {
                 prefetchBuffers[i - 1] = prefetchBuffers[i];
@@ -109,12 +121,11 @@ public class MorphiumIteratorImpl<T> implements MorphiumIterator<T> {
             prefetchBuffers[prefetchWindows - 1] = new Container<T>();
 
             //add new one in background...
-
-            while (workQueue.remainingCapacity() < 5) {
-                Thread.yield();
-            }
-            int numOfThreads = workQueue.size();
-            final int win = cursor / windowSize + prefetchWindows - 1;
+//
+//            while (workQueue.remainingCapacity() < 5) {
+//                Thread.yield();
+//            }
+            final int win = cursor / windowSize + prefetchWindows;
             executorService.submit(new Runnable() {
                 public void run() {
                     prefetchBuffers[prefetchWindows - 1].setData(getBuffer(win));
@@ -123,10 +134,8 @@ public class MorphiumIteratorImpl<T> implements MorphiumIterator<T> {
 
 
         }
-        while (prefetchBuffers[0].getData() == null) {
-            Thread.yield();
-        }
-        T ret = prefetchBuffers[0].getData().get(cursor % windowSize);
+
+
         cursor++;
         return ret;
     }

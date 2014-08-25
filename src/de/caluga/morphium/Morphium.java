@@ -1624,7 +1624,11 @@ public class Morphium {
             values.get(o.getClass()).add(o);
         }
         for (Class cls : writers.keySet()) {
-            writers.get(cls).store((List<T>) values.get(cls), collection, callback);
+            try {
+                writers.get(cls).store((List<T>) values.get(cls), collection, callback);
+            } catch (Exception e) {
+                logger.error("Write failed for " + cls.getName() + " lst of size " + values.get(cls).size(), e);
+            }
         }
     }
 
