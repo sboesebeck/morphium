@@ -123,19 +123,11 @@ public class MorphiumIteratorImpl<T> implements MorphiumIterator<T> {
 
 
         }
-        if (prefetchBuffers[0] == null || prefetchBuffers[0].getData() == null) {
-            while (workQueue.size() > 0 && !(prefetchBuffers[0].getData() != null)) {
-//                log.info("Waiting for threads to finish...");
-                Thread.yield();
-            }
-            if (prefetchBuffers[0] == null || prefetchBuffers[0].getData() == null) {
-                return null;
-            }
-
+        while (prefetchBuffers[0].getData() == null) {
+            Thread.yield();
         }
-        if (prefetchBuffers[0].getData() == null) return null;
-        cursor++;
         T ret = prefetchBuffers[0].getData().get(cursor % windowSize);
+        cursor++;
         return ret;
     }
 
