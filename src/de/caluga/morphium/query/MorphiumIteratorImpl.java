@@ -5,7 +5,10 @@ import org.apache.log4j.Logger;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Vector;
+import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 
 /**
  * User: Stephan Bösebeck
@@ -27,7 +30,16 @@ public class MorphiumIteratorImpl<T> implements MorphiumIterator<T> {
     private long limit;
     private int prefetchWindows = 1;
 
-    private Vector<Thread> activeThreads = new Vector<>();
+
+    private final ArrayBlockingQueue<Runnable> workQueue;
+    private ExecutorService executorService;
+
+
+    public MorphiumIteratorImpl() {
+        workQueue = new ArrayBlockingQueue<>(100);
+        executorService = new ThreadPoolExecutor(10, 100, 10000, TimeUnit.MILLISECONDS, workQueue);
+
+    }
 
     @Override
     public Iterator<T> iterator() {
@@ -42,15 +54,16 @@ public class MorphiumIteratorImpl<T> implements MorphiumIterator<T> {
 
     private List<T> getBuffer(int windowNumber) {
         int skp = windowNumber * windowSize;
-        theQuery.skip(skp); //sounds strange, but is necessary for Jump / backs
-        theQuery.limit(windowSize);
-        if (theQuery.getSort() == null || theQuery.getSort().isEmpty()) {
+        Query q = theQuery.q();
+        q.skip(skp); //sounds strange, but is necessary for Jump / backs
+        q.limit(windowSize);
+        if (q.getSort() == null || q.getSort().isEmpty()) {
             if (log.isDebugEnabled()) {
                 log.debug("No sort parameter given - sorting by _id");
             }
-            theQuery.sort("_id"); //always sort with id field if no sort is given
+            q.sort("_id"); //always sort with id field if no sort is given
         }
-        return theQuery.asList();
+        return q.asList();
     }
 
     @Override
@@ -69,16 +82,17 @@ public class MorphiumIteratorImpl<T> implements MorphiumIterator<T> {
                 final Container<T> c = new Container<>();
                 prefetchBuffers[i] = c;
                 final int idx = i;
-                new Thread() {
+                while (workQueue.remainingCapacity() < 5) {
+                    Thread.yield();
+                }
+                executorService.submit(new Runnable() {
                     @Override
                     public void run() {
-                        activeThreads.add(this);
                         if (idx * windowSize <= limit && idx * windowSize <= count) {
                             c.setData(getBuffer(idx));
                         }
-                        activeThreads.remove(this);
                     }
-                }.start();
+                });
             }
 
 
@@ -94,31 +108,32 @@ public class MorphiumIteratorImpl<T> implements MorphiumIterator<T> {
 
             prefetchBuffers[prefetchWindows - 1] = new Container<T>();
 
-            int numOfThreads = activeThreads.size();
             //add new one in background...
-            new Thread() {
+            while (workQueue.remainingCapacity() < 5) {
+                Thread.yield();
+            }
+            executorService.submit(new Runnable() {
                 public void run() {
-                    activeThreads.add(this);
                     prefetchBuffers[prefetchWindows - 1].setData(getBuffer(cursor / windowSize + prefetchWindows - 1));
-                    activeThreads.remove(this);
                 }
-            }.start();
-            while (activeThreads.size() < numOfThreads + 1) {
-//                log.info("Waiting for thread to be running...");
-                Thread.yield();
-            }
+            });
+//            while (activeThreads.size() < numOfThreads + 1) {
+////                log.info("Waiting for thread to be running...");
+//                Thread.yield();
+//            }
 
         }
-        if (prefetchBuffers[0] == null || prefetchBuffers[0].getData() == null) {
-            while (activeThreads.size() > 0 && !(prefetchBuffers[0].getData() != null)) {
-//                log.info("Waiting for threads to finish...");
-                Thread.yield();
-            }
-            if (prefetchBuffers[0] == null || prefetchBuffers[0].getData() == null) {
-                return null;
-            }
-
-        }
+//        if (prefetchBuffers[0] == null || prefetchBuffers[0].getData() == null) {
+//            while (activeThreads.size() > 0 && !(prefetchBuffers[0].getData() != null)) {
+////                log.info("Waiting for threads to finish...");
+//                Thread.yield();
+//            }
+//            if (prefetchBuffers[0] == null || prefetchBuffers[0].getData() == null) {
+//                return null;
+//            }
+//
+//        }
+        if (prefetchBuffers[0].getData() == null) return null;
         T ret = prefetchBuffers[0].getData().get(cursor % windowSize);
         cursor++;
         return ret;
