@@ -72,7 +72,7 @@ public interface MorphiumIterator<T> extends Iterable<T>, Iterator<T> {
 
     public void setNumberOfPrefetchWindows(int n);
 
-    int getNumberOfAvailableThreads();
+    public int getNumberOfAvailableThreads();
 
-    int getNumberOfThreads();
+    public int getNumberOfThreads();
 }
