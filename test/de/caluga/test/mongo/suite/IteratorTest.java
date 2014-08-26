@@ -18,15 +18,39 @@ import java.util.List;
 public class IteratorTest extends MongoTest {
 
     @Test
+    public void doubleIteratorTest() throws Exception {
+//        createUncachedObjects(1500);
+        createCachedObjects(100);
+
+        Query<UncachedObject> qu = MorphiumSingleton.get().createQueryFor(UncachedObject.class).sort("counter");
+        qu.setCollectionName("test_uc");
+        MorphiumIterator<UncachedObject> it = qu.asIterable(1000, 3);
+        for (UncachedObject u : it) {
+            Query<CachedObject> other = MorphiumSingleton.get().createQueryFor(CachedObject.class).f("counter").gt(u.getCounter() % 100).f("counter").lt(u.getCounter() % 100 + 10).sort("counter");
+            MorphiumIterator<CachedObject> otherIt = other.asIterable();
+            assert (it.getCursor() == u.getCounter());
+            for (CachedObject co : otherIt) {
+//                log.info("iterating otherIt: "+otherIt.getNumberOfThreads()+" "+co.getCounter());
+//                Thread.sleep(200);
+                assert (co.getValue() != null);
+            }
+            if (it.getCursor() % 100 == 1)
+                log.info("Iteration it: " + it.getNumberOfThreads());
+        }
+
+
+    }
+
+    @Test
     public void iterationSpeedTest() throws Exception {
         Query<UncachedObject> qu = MorphiumSingleton.get().createQueryFor(UncachedObject.class).sort("_id");
         qu.setCollectionName("test_uc");
-        if (qu.countAll() != 15000) {
+        if (qu.countAll() != 150000) {
             MorphiumSingleton.get().dropCollection(UncachedObject.class, "test_uc", null);
             log.info("Creating uncached objects");
 
             List<UncachedObject> lst = new ArrayList<>();
-            for (int i = 0; i < 15000; i++) {
+            for (int i = 0; i < 150000; i++) {
                 UncachedObject o = new UncachedObject();
                 o.setCounter(i + 1);
                 o.setValue("V" + i);
@@ -69,12 +93,12 @@ public class IteratorTest extends MongoTest {
             assert (it.getCursor() == o.getCounter());
 
         }
-        log.info("iterator 1000/5 Took " + (System.currentTimeMillis() - start) + " ms");
+        log.info("iterator 1000/10 Took " + (System.currentTimeMillis() - start) + " ms");
 
 
         log.info("iterating 1000/15");
         start = System.currentTimeMillis();
-        it = qu.asIterable(1000, 5);
+        it = qu.asIterable(1000, 15);
 
         while (it.hasNext()) {
             UncachedObject o = it.next();

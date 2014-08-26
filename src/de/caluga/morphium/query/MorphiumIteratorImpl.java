@@ -144,6 +144,11 @@ public class MorphiumIteratorImpl<T> implements MorphiumIterator<T> {
 //            }
             final int win = cursor / windowSize + prefetchWindows;
             final Container<T> container = prefetchBuffers[prefetchWindows - 1];
+
+            if (workQueue.remainingCapacity() < 2) {
+                Thread.yield(); //busy wait...
+            }
+
             executorService.submit(new Runnable() {
                 public void run() {
                     container.setData(getBuffer(win));
@@ -250,6 +255,17 @@ public class MorphiumIteratorImpl<T> implements MorphiumIterator<T> {
     public void setNumberOfPrefetchWindows(int n) {
         this.prefetchWindows = n;
     }
+
+    @Override
+    public int getNumberOfAvailableThreads() {
+        return workQueue.remainingCapacity();
+    }
+
+    @Override
+    public int getNumberOfThreads() {
+        return workQueue.size();
+    }
+
 
 
     private class Container<T> {
