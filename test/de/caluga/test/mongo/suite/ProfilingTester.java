@@ -23,7 +23,11 @@ public class ProfilingTester extends MongoTest {
         ProfilingListener pl = new ProfilingListener() {
             @Override
             public void readAccess(Query query, long time, ReadAccessType t) {
-                log.info("Read from Server: " + query.getServer().getHost() + ":" + query.getServer().getPort());
+                if (query.getServer() == null) {
+                    log.info("did not get Server in query...");
+                } else {
+                    log.info("Read from Server: " + query.getServer().getHost() + ":" + query.getServer().getPort());
+                }
                 readAccess = true;
                 readTime = time;
             }
