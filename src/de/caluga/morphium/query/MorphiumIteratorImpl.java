@@ -55,7 +55,7 @@ public class MorphiumIteratorImpl<T> implements MorphiumIterator<T> {
     private List<T> getBuffer(int windowNumber) {
         try {
             int skp = windowNumber * windowSize;
-            System.out.println("Getting buffer win: " + windowNumber + " skip: " + skp + " windowSize: " + windowSize);
+//            System.out.println("Getting buffer win: " + windowNumber + " skip: " + skp + " windowSize: " + windowSize);
             Query q = null;
 
             q = theQuery.clone();
@@ -68,10 +68,15 @@ public class MorphiumIteratorImpl<T> implements MorphiumIterator<T> {
                 }
                 q.sort("_id"); //always sort with id field if no sort is given
             }
-            return q.asList();
+            List list = q.asList();
+            if (list == null) {
+//                System.err.println("Error: no result!?!?!");
+                return new ArrayList<>();
+            }
+            return list;
         } catch (CloneNotSupportedException e) {
-            System.out.println("CLONE FAILED!?!?!?!?");
-            return null;
+//            System.out.println("CLONE FAILED!?!?!?!?");
+            return new ArrayList<>();
         }
     }
 
@@ -94,6 +99,7 @@ public class MorphiumIteratorImpl<T> implements MorphiumIterator<T> {
                 while (workQueue.remainingCapacity() < 5) {
                     Thread.yield();
                 }
+
                 executorService.submit(new Runnable() {
                     @Override
                     public void run() {
@@ -103,10 +109,21 @@ public class MorphiumIteratorImpl<T> implements MorphiumIterator<T> {
                     }
                 });
             }
-
-
         }
+
+
+        int sleepCount = 0;
         while (prefetchBuffers[0].getData() == null) {
+//            System.out.println("Still waiting for "+cursor);
+//            try {
+//                sleepCount++;
+//                Thread.sleep(250);
+//                if (sleepCount>10) {
+//                    throw new RuntimeException();
+//                }
+//            } catch (InterruptedException e) {
+//                e.printStackTrace();
+//            }
             Thread.yield();
         }
         T ret = prefetchBuffers[0].getData().get(cursor % windowSize);
@@ -126,9 +143,11 @@ public class MorphiumIteratorImpl<T> implements MorphiumIterator<T> {
 //                Thread.yield();
 //            }
             final int win = cursor / windowSize + prefetchWindows;
+            final Container<T> container = prefetchBuffers[prefetchWindows - 1];
             executorService.submit(new Runnable() {
                 public void run() {
-                    prefetchBuffers[prefetchWindows - 1].setData(getBuffer(win));
+                    container.setData(getBuffer(win));
+//                    System.out.println("Getting window "+win+" finished");
                 }
             });
 
