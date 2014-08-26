@@ -5,10 +5,8 @@ import org.apache.log4j.Logger;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
-import java.util.concurrent.ArrayBlockingQueue;
-import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadPoolExecutor;
-import java.util.concurrent.TimeUnit;
 
 /**
  * User: Stephan Bösebeck
@@ -31,13 +29,14 @@ public class MorphiumIteratorImpl<T> implements MorphiumIterator<T> {
     private int prefetchWindows = 1;
 
 
-    private final ArrayBlockingQueue<Runnable> workQueue;
-    private ExecutorService executorService;
+    //    private final ArrayBlockingQueue<Runnable> workQueue;
+    private ThreadPoolExecutor executorService;
 
 
     public MorphiumIteratorImpl() {
-        workQueue = new ArrayBlockingQueue<>(100);
-        executorService = new ThreadPoolExecutor(10, 100, 1000, TimeUnit.MILLISECONDS, workQueue);
+//        workQueue = new ArrayBlockingQueue<>(100);
+        executorService = (ThreadPoolExecutor) Executors.newCachedThreadPool();
+//        executorService = new ThreadPoolExecutor(10, 100, 1000, TimeUnit.MILLISECONDS, workQueue);
 
     }
 
@@ -96,9 +95,9 @@ public class MorphiumIteratorImpl<T> implements MorphiumIterator<T> {
                 final Container<T> c = new Container<>();
                 prefetchBuffers[i] = c;
                 final int idx = i;
-                while (workQueue.remainingCapacity() < 5) {
-                    Thread.yield();
-                }
+//                while (workQueue.remainingCapacity() < 5) {
+//                    Thread.yield();
+//                }
 
                 executorService.execute(new Runnable() {
                     @Override
@@ -145,9 +144,9 @@ public class MorphiumIteratorImpl<T> implements MorphiumIterator<T> {
             final int win = cursor / windowSize + prefetchWindows;
             final Container<T> container = prefetchBuffers[prefetchWindows - 1];
 
-            if (workQueue.remainingCapacity() < 2) {
-                Thread.yield(); //busy wait...
-            }
+//            if (workQueue.remainingCapacity() < 2) {
+//                Thread.yield(); //busy wait...
+//            }
 
             executorService.execute(new Runnable() {
                 public void run() {
@@ -258,12 +257,16 @@ public class MorphiumIteratorImpl<T> implements MorphiumIterator<T> {
 
     @Override
     public int getNumberOfAvailableThreads() {
-        return workQueue.remainingCapacity();
+        return executorService.getMaximumPoolSize() - executorService.getActiveCount();
+//        executorService.
+//        return workQueue.remainingCapacity();
+
     }
 
     @Override
     public int getNumberOfThreads() {
-        return workQueue.size();
+//        return workQueue.size();
+        return executorService.getActiveCount();
     }
 
 
