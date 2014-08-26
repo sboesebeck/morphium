@@ -37,7 +37,7 @@ public class MorphiumIteratorImpl<T> implements MorphiumIterator<T> {
 
     public MorphiumIteratorImpl() {
         workQueue = new ArrayBlockingQueue<>(100);
-        executorService = new ThreadPoolExecutor(10, 100, 10000, TimeUnit.MILLISECONDS, workQueue);
+        executorService = new ThreadPoolExecutor(10, 100, 1000, TimeUnit.MILLISECONDS, workQueue);
 
     }
 
@@ -100,7 +100,7 @@ public class MorphiumIteratorImpl<T> implements MorphiumIterator<T> {
                     Thread.yield();
                 }
 
-                executorService.submit(new Runnable() {
+                executorService.execute(new Runnable() {
                     @Override
                     public void run() {
                         if (idx * windowSize <= limit && idx * windowSize <= count) {
@@ -149,7 +149,7 @@ public class MorphiumIteratorImpl<T> implements MorphiumIterator<T> {
                 Thread.yield(); //busy wait...
             }
 
-            executorService.submit(new Runnable() {
+            executorService.execute(new Runnable() {
                 public void run() {
                     container.setData(getBuffer(win));
 //                    System.out.println("Getting window "+win+" finished");
