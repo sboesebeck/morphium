@@ -28,6 +28,8 @@ public class MorphiumIteratorImpl<T> implements MorphiumIterator<T> {
     private long limit;
     private int prefetchWindows = 1;
 
+    private boolean multithreaddedAccess = false;
+
 
     //    private final ArrayBlockingQueue<Runnable> workQueue;
     private ThreadPoolExecutor executorService;
@@ -81,6 +83,17 @@ public class MorphiumIteratorImpl<T> implements MorphiumIterator<T> {
 
     @Override
     public T next() {
+        if (multithreaddedAccess) {
+            synchronized (this) {
+                return doNext();
+            }
+        } else {
+            return doNext();
+        }
+    }
+
+
+    private T doNext() {
         if (cursor > count || cursor > limit) {
             return null;
         }
@@ -228,6 +241,16 @@ public class MorphiumIteratorImpl<T> implements MorphiumIterator<T> {
 
     @Override
     public void ahead(int jump) {
+        if (multithreaddedAccess) {
+            synchronized (this) {
+                doAhead(jump);
+            }
+        } else {
+            doAhead(jump);
+        }
+    }
+
+    private void doAhead(int jump) {
         //end of buffer index
         if ((cursor / windowSize) * windowSize + windowSize <= cursor + jump) {
             if (log.isDebugEnabled()) {
@@ -240,6 +263,17 @@ public class MorphiumIteratorImpl<T> implements MorphiumIterator<T> {
 
     @Override
     public void back(int jump) {
+        if (multithreaddedAccess) {
+            synchronized (this) {
+                doBack(jump);
+            }
+        } else {
+            doBack(jump);
+        }
+
+    }
+
+    private void doBack(int jump) {
         //begin of buffer index
         if ((cursor / windowSize * windowSize) > cursor - jump) {
             if (log.isDebugEnabled()) {
@@ -249,7 +283,6 @@ public class MorphiumIteratorImpl<T> implements MorphiumIterator<T> {
         }
         cursor -= jump;
     }
-
     @Override
     public void setNumberOfPrefetchWindows(int n) {
         this.prefetchWindows = n;
@@ -263,6 +296,7 @@ public class MorphiumIteratorImpl<T> implements MorphiumIterator<T> {
 
     }
 
+
     @Override
     public int getNumberOfThreads() {
 //        return workQueue.size();
@@ -270,6 +304,15 @@ public class MorphiumIteratorImpl<T> implements MorphiumIterator<T> {
     }
 
 
+    @Override
+    public boolean isMultithreaddedAccess() {
+        return multithreaddedAccess;
+    }
+
+    @Override
+    public void setMultithreaddedAccess(boolean mu) {
+        multithreaddedAccess = mu;
+    }
 
     private class Container<T> {
         private List<T> data;
