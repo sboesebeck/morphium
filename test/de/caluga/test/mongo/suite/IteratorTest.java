@@ -3,11 +3,13 @@ package de.caluga.test.mongo.suite;
 import de.caluga.morphium.MorphiumSingleton;
 import de.caluga.morphium.query.MorphiumIterator;
 import de.caluga.morphium.query.Query;
+import org.bson.types.ObjectId;
 import org.junit.Test;
 
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Vector;
 
 /**
  * User: Stephan Bösebeck
@@ -17,9 +19,81 @@ import java.util.List;
  */
 public class IteratorTest extends MongoTest {
 
+    private Vector<ObjectId> data = new Vector<>();
+
+    private int runningThreads = 0;
+
+
+    @Test
+    public void concurrentAccessTest() throws Exception {
+        createTestUc();
+        Query<UncachedObject> qu = MorphiumSingleton.get().createQueryFor(UncachedObject.class).sort("counter");
+        qu.setCollectionName("test_uc");
+
+        final MorphiumIterator<UncachedObject> it = qu.asIterable(1000, 15);
+        it.setMultithreaddedAccess(true);
+
+        runningThreads = 0;
+
+        for (int i = 0; i < 3; i++) {
+            new Thread() {
+                public void run() {
+                    runningThreads++;
+                    while (it.hasNext()) {
+                        UncachedObject uc = it.next();
+                        assert (!data.contains(uc.getMongoId()));
+                        data.add(uc.getMongoId());
+                    }
+                    runningThreads--;
+                }
+            }.start();
+            Thread.sleep(100);
+        }
+
+        while (runningThreads > 0) {
+            Thread.sleep(200);
+        }
+
+
+    }
+
+    @Test
+    public void parallelIteratorAccessTest() throws Exception {
+        createTestUc();
+        runningThreads = 0;
+
+
+        for (int i = 0; i < 3; i++) {
+            new Thread() {
+                public void run() {
+                    int myNum = runningThreads++;
+                    log.info("Starting thread..." + myNum);
+                    Query<UncachedObject> qu = MorphiumSingleton.get().createQueryFor(UncachedObject.class).sort("counter");
+                    qu.setCollectionName("test_uc");
+                    MorphiumIterator<UncachedObject> it = qu.asIterable(5000, 15);
+                    for (UncachedObject uc : it) {
+                        assert (it.getCursor() == uc.getCounter());
+                        if (it.getCursor() % 2500 == 0) {
+                            log.info("Thread " + myNum + " read " + it.getCursor() + "/" + it.getCount());
+                            Thread.yield();
+                        }
+                    }
+                    runningThreads--;
+                    log.info("Thread finished");
+                }
+            }.start();
+            Thread.sleep(250);
+        }
+        Thread.sleep(1000);
+        while (runningThreads > 0) {
+            Thread.sleep(100);
+        }
+    }
+
+
     @Test
     public void doubleIteratorTest() throws Exception {
-//        createUncachedObjects(1500);
+        createTestUc();
         createCachedObjects(100);
 
         Query<UncachedObject> qu = MorphiumSingleton.get().createQueryFor(UncachedObject.class).sort("counter");
@@ -43,22 +117,9 @@ public class IteratorTest extends MongoTest {
 
     @Test
     public void iterationSpeedTest() throws Exception {
+        createTestUc();
         Query<UncachedObject> qu = MorphiumSingleton.get().createQueryFor(UncachedObject.class).sort("_id");
         qu.setCollectionName("test_uc");
-        if (qu.countAll() != 150000) {
-            MorphiumSingleton.get().dropCollection(UncachedObject.class, "test_uc", null);
-            log.info("Creating uncached objects");
-
-            List<UncachedObject> lst = new ArrayList<>();
-            for (int i = 0; i < 150000; i++) {
-                UncachedObject o = new UncachedObject();
-                o.setCounter(i + 1);
-                o.setValue("V" + i);
-                lst.add(o);
-            }
-            MorphiumSingleton.get().storeList(lst, "test_uc");
-        }
-        log.info("creation finished");
         log.info("creating iterator");
         MorphiumIterator<UncachedObject> it = qu.asIterable(1000, 1);
         log.info("iterating 1000/1");
@@ -207,6 +268,27 @@ public class IteratorTest extends MongoTest {
         }
         log.info("iterating direktly took " + (System.currentTimeMillis() - start) + " ms");
 
+    }
+
+    private void createTestUc() {
+        Query<UncachedObject> qu = MorphiumSingleton.get().createQueryFor(UncachedObject.class);
+        qu.setCollectionName("test_uc");
+        if (qu.countAll() != 150000) {
+            MorphiumSingleton.get().dropCollection(UncachedObject.class, "test_uc", null);
+            log.info("Creating uncached objects");
+
+            List<UncachedObject> lst = new ArrayList<>();
+            for (int i = 0; i < 150000; i++) {
+                UncachedObject o = new UncachedObject();
+                o.setCounter(i + 1);
+                o.setValue("V" + i);
+                lst.add(o);
+            }
+            MorphiumSingleton.get().storeList(lst, "test_uc");
+            log.info("creation finished");
+        } else {
+            log.info("Testdata already filled...");
+        }
     }
 
 
