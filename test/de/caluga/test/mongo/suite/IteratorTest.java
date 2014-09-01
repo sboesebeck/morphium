@@ -127,6 +127,11 @@ public class IteratorTest extends MongoTest {
         while (it.hasNext()) {
             UncachedObject o = it.next();
 //            log.info("." + it.getCursor()+": "+o.getCounter());
+//            if (it.getCursor()%1000==0) {
+//                ThreadMXBean thbean = ManagementFactory.getThreadMXBean();
+//                log.info("Running threads: " + thbean.getThreadCount());
+//                log.info("Buffers: "+it.getCurrentBufferSize());
+//            }
             assert (it.getCursor() == o.getCounter()) : "cursor=" + it.getCursor() + " != counter=" + o.getCounter();
         }
 
@@ -137,9 +142,14 @@ public class IteratorTest extends MongoTest {
         start = System.currentTimeMillis();
         it = qu.asIterable(1000, 5);
 
+
         while (it.hasNext()) {
             UncachedObject o = it.next();
             assert (it.getCursor() == o.getCounter());
+//            if (it.getCursor()%1000==0) {
+//                ThreadMXBean thbean = ManagementFactory.getThreadMXBean();
+//                log.info("Running threads: " + thbean.getThreadCount());
+//            }
 
         }
         log.info("iterator 1000/5 Took " + (System.currentTimeMillis() - start) + " ms");
