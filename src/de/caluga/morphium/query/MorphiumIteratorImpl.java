@@ -5,8 +5,9 @@ import org.apache.log4j.Logger;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
-import java.util.concurrent.Executors;
+import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 
 /**
  * User: Stephan Bösebeck
@@ -113,7 +114,7 @@ public class MorphiumIteratorImpl<T> implements MorphiumIterator<T> {
                 final Container<T> c = new Container<>();
                 prefetchBuffers[i] = c;
                 final int idx = i;
-                while (executorService.getQueue().remainingCapacity()<100) {
+                while (executorService.getQueue().remainingCapacity() < 100) {
                     Thread.yield();
                 }
                 Runnable cmd = new Runnable() {
@@ -125,11 +126,11 @@ public class MorphiumIteratorImpl<T> implements MorphiumIterator<T> {
                     }
                 };
 
-                boolean queued=false;
+                boolean queued = false;
                 while (!queued) {
                     try {
                         executorService.execute(cmd);
-                        queued=true;
+                        queued = true;
                     } catch (Throwable e) {
 
                     }
@@ -157,7 +158,7 @@ public class MorphiumIteratorImpl<T> implements MorphiumIterator<T> {
             prefetchBuffers[prefetchWindows - 1] = new Container<T>();
             final int win = cursor / windowSize + prefetchWindows;
             cursor++;
-            if (win*windowSize<count) {
+            if (win * windowSize < count) {
                 //add new one in background...
                 final Container<T> container = prefetchBuffers[prefetchWindows - 1];
 

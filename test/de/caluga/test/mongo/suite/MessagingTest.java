@@ -758,6 +758,12 @@ public class MessagingTest extends MongoTest {
                 if (processed[0] % 1000 == 0) {
                     log.info("Processed: " + processed[0]);
                 }
+                //simulate processing
+                try {
+                    Thread.sleep((long) (10 * Math.random()));
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                }
                 return null;
             }
         });
@@ -765,7 +771,7 @@ public class MessagingTest extends MongoTest {
         int numberOfMessages = 10000;
         for (int i = 0; i < numberOfMessages; i++) {
             Msg m = new Msg("msg", "m", "v");
-            m.setTtl(5*60 * 1000);
+            m.setTtl(5 * 60 * 1000);
             if (i % 1000 == 0) {
                 log.info("created msg " + i + " / " + numberOfMessages);
             }
@@ -776,7 +782,7 @@ public class MessagingTest extends MongoTest {
         consumer.start();
         while (processed[0] < numberOfMessages) {
             ThreadMXBean thbean = ManagementFactory.getThreadMXBean();
-            log.info("Running threads: "+thbean.getThreadCount());
+            log.info("Running threads: " + thbean.getThreadCount());
             Thread.sleep(1500);
         }
         long dur = System.currentTimeMillis() - start;
@@ -790,7 +796,7 @@ public class MessagingTest extends MongoTest {
     public void mutlithreaddedMessagingPerformanceTest() throws Exception {
         MorphiumSingleton.get().clearCollection(Msg.class);
         final Messaging producer = new Messaging(MorphiumSingleton.get(), 100, true);
-        final Messaging consumer = new Messaging(MorphiumSingleton.get(), 10,true,true,2000,3);
+        final Messaging consumer = new Messaging(MorphiumSingleton.get(), 10, true, true, 2000, 3);
         final int[] processed = {0};
         consumer.addMessageListener(new MessageListener() {
             @Override
@@ -802,7 +808,7 @@ public class MessagingTest extends MongoTest {
 
                 //simulate processing
                 try {
-                    Thread.sleep((long) (1000* Math.random()));
+                    Thread.sleep((long) (10 * Math.random()));
                 } catch (InterruptedException e) {
                     e.printStackTrace();
                 }
@@ -810,10 +816,10 @@ public class MessagingTest extends MongoTest {
             }
         });
 
-        int numberOfMessages = 5000;
+        int numberOfMessages = 10000;
         for (int i = 0; i < numberOfMessages; i++) {
             Msg m = new Msg("msg", "m", "v");
-            m.setTtl(5*60 * 1000);
+            m.setTtl(5 * 60 * 1000);
             if (i % 1000 == 0) {
                 log.info("created msg " + i + " / " + numberOfMessages);
             }
@@ -823,17 +829,14 @@ public class MessagingTest extends MongoTest {
         long start = System.currentTimeMillis();
         consumer.start();
         while (processed[0] < numberOfMessages) {
-//            ThreadMXBean thbean = ManagementFactory.getThreadMXBean();
-//            log.info("Running threads: "+thbean.getThreadCount());
+            ThreadMXBean thbean = ManagementFactory.getThreadMXBean();
+            log.info("Running threads: " + thbean.getThreadCount());
             Thread.sleep(15);
         }
         long dur = System.currentTimeMillis() - start;
         log.info("Processing took " + dur + " ms");
         producer.setRunning(false);
         Thread.sleep(1000);
-
-
-
 
 
     }

@@ -11,7 +11,9 @@ import org.apache.log4j.Logger;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.*;
-import java.util.concurrent.*;
+import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 
 /**
  * User: Stephan Bösebeck
@@ -39,9 +41,9 @@ public class Messaging extends Thread {
 
     private ThreadPoolExecutor threadPool;
 
-    private boolean multithreadded=false;
-    private int prefetchdWindows=1;
-    private int windowSize=1000;
+    private boolean multithreadded = false;
+    private int prefetchdWindows = 1;
+    private int windowSize = 1000;
 
 
     /**
@@ -55,8 +57,8 @@ public class Messaging extends Thread {
         this(m, null, pause, processMultiple);
     }
 
-    public Messaging(Morphium m, int pause, boolean processMultiple,boolean multithreadded,int windowSize,int prefetchdWindows) {
-        this(m,null,pause,processMultiple,multithreadded,windowSize,prefetchdWindows);
+    public Messaging(Morphium m, int pause, boolean processMultiple, boolean multithreadded, int windowSize, int prefetchdWindows) {
+        this(m, null, pause, processMultiple, multithreadded, windowSize, prefetchdWindows);
     }
 
     public long getMessageCount() {
@@ -64,18 +66,18 @@ public class Messaging extends Thread {
     }
 
     public Messaging(Morphium m, String queueName, int pause, boolean processMultiple) {
-        this(m,queueName,pause,processMultiple,false,1000,1);
+        this(m, queueName, pause, processMultiple, false, 1000, 1);
     }
-    public Messaging(Morphium m, String queueName, int pause, boolean processMultiple,boolean multithreadded,int windowSize,int prefetchdWindows) {
-        this.multithreadded=multithreadded;
-        this.windowSize=windowSize;
-        this.prefetchdWindows=prefetchdWindows;
+
+    public Messaging(Morphium m, String queueName, int pause, boolean processMultiple, boolean multithreadded, int windowSize, int prefetchdWindows) {
+        this.multithreadded = multithreadded;
+        this.windowSize = windowSize;
+        this.prefetchdWindows = prefetchdWindows;
 
 
-
-        threadPool= new ThreadPoolExecutor(0, Integer.MAX_VALUE,
+        threadPool = new ThreadPoolExecutor(0, Integer.MAX_VALUE,
                 60L, TimeUnit.SECONDS,
-                new ArrayBlockingQueue<Runnable>(1000));
+                new ArrayBlockingQueue<Runnable>(100));
 
         this.queueName = queueName;
         morphium = m;
@@ -137,13 +139,13 @@ public class Messaging extends Thread {
                 q.sort(Msg.Fields.timestamp);
 
 //                List<Msg> messages = q.asList();
-                MorphiumIterator<Msg> messages=q.asIterable(windowSize,prefetchdWindows);
+                MorphiumIterator<Msg> messages = q.asIterable(windowSize, prefetchdWindows);
                 messages.setMultithreaddedAccess(multithreadded);
                 final List<Msg> toStore = new Vector<Msg>();
                 final List<Runnable> toExec = new Vector<Runnable>();
 
                 for (final Msg m : messages) {
-                    Runnable r=new Runnable() {
+                    Runnable r = new Runnable() {
                         @Override
                         public void run() {
                             final Msg msg = morphium.reread(m, getCollectionName()); //make sure it's current version in DB
@@ -214,8 +216,8 @@ public class Messaging extends Thread {
                     };
 
                     if (multithreadded) {
-                        boolean queued=false;
-                        while(!queued) {
+                        boolean queued = false;
+                        while (!queued) {
                             try {
                                 threadPool.execute(r);
                             } catch (Throwable t) {
@@ -226,14 +228,14 @@ public class Messaging extends Thread {
                     }
                 }
                 //wait for all threads to finish
-                while (threadPool.getActiveCount()>0) {
+                while (threadPool.getActiveCount() > 0) {
                     Thread.sleep(100);
                 }
                 morphium.storeList(toStore, getCollectionName());
-                for (Runnable r:toExec) {
+                for (Runnable r : toExec) {
                     if (multithreadded) {
-                        boolean queued=false;
-                        while(!queued) {
+                        boolean queued = false;
+                        while (!queued) {
                             try {
                                 threadPool.execute(r);
                             } catch (Throwable t) {
