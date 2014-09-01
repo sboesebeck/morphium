@@ -37,7 +37,7 @@ public class MorphiumIteratorImpl<T> implements MorphiumIterator<T> {
 
 
     public MorphiumIteratorImpl() {
-        workQueue = new ArrayBlockingQueue<>(100, true);
+        workQueue = new ArrayBlockingQueue<>(1000, true);
         executorService = new ThreadPoolExecutor(25, Integer.MAX_VALUE,
                 60L, TimeUnit.SECONDS,
                 workQueue);

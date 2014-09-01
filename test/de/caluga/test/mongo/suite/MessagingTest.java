@@ -9,8 +9,6 @@ import de.caluga.morphium.query.Query;
 import org.bson.types.ObjectId;
 import org.junit.Test;
 
-import java.lang.management.ManagementFactory;
-import java.lang.management.ThreadMXBean;
 import java.util.*;
 
 /**
@@ -781,13 +779,14 @@ public class MessagingTest extends MongoTest {
         long start = System.currentTimeMillis();
         consumer.start();
         while (processed[0] < numberOfMessages) {
-            ThreadMXBean thbean = ManagementFactory.getThreadMXBean();
-            log.info("Running threads: " + thbean.getThreadCount());
-            Thread.sleep(1500);
+//            ThreadMXBean thbean = ManagementFactory.getThreadMXBean();
+//            log.info("Running threads: " + thbean.getThreadCount());
+            Thread.sleep(15);
         }
         long dur = System.currentTimeMillis() - start;
         log.info("Processing took " + dur + " ms");
         producer.setRunning(false);
+        consumer.setRunning(false);
         Thread.sleep(1000);
     }
 
@@ -829,13 +828,14 @@ public class MessagingTest extends MongoTest {
         long start = System.currentTimeMillis();
         consumer.start();
         while (processed[0] < numberOfMessages) {
-            ThreadMXBean thbean = ManagementFactory.getThreadMXBean();
-            log.info("Running threads: " + thbean.getThreadCount());
+//            ThreadMXBean thbean = ManagementFactory.getThreadMXBean();
+//            log.info("Running threads: " + thbean.getThreadCount());
             Thread.sleep(15);
         }
         long dur = System.currentTimeMillis() - start;
         log.info("Processing took " + dur + " ms");
         producer.setRunning(false);
+        consumer.setRunning(false);
         Thread.sleep(1000);
 
 

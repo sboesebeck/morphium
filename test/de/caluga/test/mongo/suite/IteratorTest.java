@@ -178,33 +178,19 @@ public class IteratorTest extends MongoTest {
         }
         log.info("iterator 1000/5 Took " + (System.currentTimeMillis() - start) + " ms");
 
-
-
-        
-        log.info("iterating 100/1");
-        start = System.currentTimeMillis();
-        it = qu.asIterable(100, 1);
-
-        while (it.hasNext()) {
-            UncachedObject o = it.next();
-            assert (it.getCursor() == o.getCounter());
-
-        }
-
-        log.info("iterator 100/1 Took " + (System.currentTimeMillis() - start) + " ms");
-
-
-        log.info("iterating 100/5");
-        start = System.currentTimeMillis();
-        it = qu.asIterable(100, 5);
-
-        while (it.hasNext()) {
-            UncachedObject o = it.next();
-            assert (it.getCursor() == o.getCounter());
-
-        }
-
-        log.info("iterator 100/5 Took " + (System.currentTimeMillis() - start) + " ms");
+//
+//
+//        log.info("iterating 100/5");
+//        start = System.currentTimeMillis();
+//        it = qu.asIterable(100, 5);
+//
+//        while (it.hasNext()) {
+//            UncachedObject o = it.next();
+//            assert (it.getCursor() == o.getCounter());
+//
+//        }
+//
+//        log.info("iterator 100/5 Took " + (System.currentTimeMillis() - start) + " ms");
 
 
         log.info("iterating 100/15");
