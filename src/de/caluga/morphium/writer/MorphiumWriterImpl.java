@@ -819,6 +819,7 @@ public class MorphiumWriterImpl implements MorphiumWriter {
                     tries++;
                     executor.submit(r);
                     retry = false;
+                } catch (OutOfMemoryError om) {
                 } catch (java.util.concurrent.RejectedExecutionException e) {
                     if (tries > maximumRetries) {
                         throw new RuntimeException("Could not write - not even after " + maximumRetries + " and pause of " + pause + "ms", e);

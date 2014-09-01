@@ -9,6 +9,8 @@ import de.caluga.morphium.query.Query;
 import org.bson.types.ObjectId;
 import org.junit.Test;
 
+import java.lang.management.ManagementFactory;
+import java.lang.management.ThreadMXBean;
 import java.util.*;
 
 /**
@@ -744,7 +746,7 @@ public class MessagingTest extends MongoTest {
 
 
     @Test
-    public void messageingPerformanceTest() throws Exception {
+    public void messagingPerformanceTest() throws Exception {
         MorphiumSingleton.get().clearCollection(Msg.class);
         final Messaging producer = new Messaging(MorphiumSingleton.get(), 100, true);
         final Messaging consumer = new Messaging(MorphiumSingleton.get(), 10, true);
@@ -753,7 +755,7 @@ public class MessagingTest extends MongoTest {
             @Override
             public Msg onMessage(Messaging msg, Msg m) {
                 processed[0]++;
-                if (processed[0] % 1000 == 999) {
+                if (processed[0] % 1000 == 0) {
                     log.info("Processed: " + processed[0]);
                 }
                 return null;
@@ -763,8 +765,8 @@ public class MessagingTest extends MongoTest {
         int numberOfMessages = 10000;
         for (int i = 0; i < numberOfMessages; i++) {
             Msg m = new Msg("msg", "m", "v");
-            m.setTtl(60 * 1000);
-            if (i % 1000 == 99) {
+            m.setTtl(5*60 * 1000);
+            if (i % 1000 == 0) {
                 log.info("created msg " + i + " / " + numberOfMessages);
             }
             producer.storeMessage(m);
@@ -773,11 +775,66 @@ public class MessagingTest extends MongoTest {
         long start = System.currentTimeMillis();
         consumer.start();
         while (processed[0] < numberOfMessages) {
-            Thread.sleep(50);
+            ThreadMXBean thbean = ManagementFactory.getThreadMXBean();
+            log.info("Running threads: "+thbean.getThreadCount());
+            Thread.sleep(1500);
         }
         long dur = System.currentTimeMillis() - start;
         log.info("Processing took " + dur + " ms");
         producer.setRunning(false);
         Thread.sleep(1000);
+    }
+
+
+    @Test
+    public void mutlithreaddedMessagingPerformanceTest() throws Exception {
+        MorphiumSingleton.get().clearCollection(Msg.class);
+        final Messaging producer = new Messaging(MorphiumSingleton.get(), 100, true);
+        final Messaging consumer = new Messaging(MorphiumSingleton.get(), 10,true,true,2000,3);
+        final int[] processed = {0};
+        consumer.addMessageListener(new MessageListener() {
+            @Override
+            public Msg onMessage(Messaging msg, Msg m) {
+                processed[0]++;
+                if (processed[0] % 1000 == 0) {
+                    log.info("Processed: " + processed[0]);
+                }
+
+                //simulate processing
+                try {
+                    Thread.sleep((long) (1000* Math.random()));
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                }
+                return null;
+            }
+        });
+
+        int numberOfMessages = 5000;
+        for (int i = 0; i < numberOfMessages; i++) {
+            Msg m = new Msg("msg", "m", "v");
+            m.setTtl(5*60 * 1000);
+            if (i % 1000 == 0) {
+                log.info("created msg " + i + " / " + numberOfMessages);
+            }
+            producer.storeMessage(m);
+        }
+        log.info("Start message processing....");
+        long start = System.currentTimeMillis();
+        consumer.start();
+        while (processed[0] < numberOfMessages) {
+//            ThreadMXBean thbean = ManagementFactory.getThreadMXBean();
+//            log.info("Running threads: "+thbean.getThreadCount());
+            Thread.sleep(15);
+        }
+        long dur = System.currentTimeMillis() - start;
+        log.info("Processing took " + dur + " ms");
+        producer.setRunning(false);
+        Thread.sleep(1000);
+
+
+
+
+
     }
 }

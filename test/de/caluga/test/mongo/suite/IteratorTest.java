@@ -422,7 +422,7 @@ public class IteratorTest extends MongoTest {
 
     @Test
     public void iterableTest() throws Exception {
-        createUncachedObjects(100);
+        createUncachedObjects(1000);
         Query<UncachedObject> qu = getUncachedObjectQuery();
         long start = System.currentTimeMillis();
         int cnt = 0;
@@ -484,5 +484,20 @@ public class IteratorTest extends MongoTest {
         qu = qu.f("counter").lte(1000);
         qu = qu.sort("counter");
         return qu;
+    }
+
+
+
+    @Test
+    public void prefetchTest() throws Exception {
+        createUncachedObjects(1000);
+        Query<UncachedObject> qu=MorphiumSingleton.get().createQueryFor(UncachedObject.class).sort("counter");
+
+        MorphiumIterator<UncachedObject> it = qu.asIterable(10, 10);
+        for (UncachedObject u: it) {
+            log.info("."+it.getCursor());
+        }
+
+
     }
 }
