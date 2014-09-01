@@ -5,8 +5,9 @@ import org.apache.log4j.Logger;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
-import java.util.concurrent.Executors;
+import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 
 /**
  * User: Stephan Bösebeck
@@ -37,8 +38,7 @@ public class MorphiumIteratorImpl<T> implements MorphiumIterator<T> {
 
     public MorphiumIteratorImpl() {
 //        workQueue = new ArrayBlockingQueue<>(100);
-        executorService = (ThreadPoolExecutor) Executors.newCachedThreadPool();
-//        executorService = new ThreadPoolExecutor(10, 100, 1000, TimeUnit.MILLISECONDS, workQueue);
+        executorService = new ThreadPoolExecutor(10, Integer.MAX_VALUE, 60000, TimeUnit.MILLISECONDS, new ArrayBlockingQueue<Runnable>(1000));
 
     }
 
