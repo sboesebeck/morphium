@@ -32,15 +32,15 @@ public class MorphiumIteratorImpl<T> implements MorphiumIterator<T> {
     private boolean multithreaddedAccess = false;
 
 
-    //    private final ArrayBlockingQueue<Runnable> workQueue;
+    private final ArrayBlockingQueue<Runnable> workQueue;
     private ThreadPoolExecutor executorService;
 
 
     public MorphiumIteratorImpl() {
-//        workQueue = new ArrayBlockingQueue<>(100);
-        executorService = new ThreadPoolExecutor(0, 100,
+        workQueue = new ArrayBlockingQueue<>(100, true);
+        executorService = new ThreadPoolExecutor(25, Integer.MAX_VALUE,
                 60L, TimeUnit.SECONDS,
-                new ArrayBlockingQueue<Runnable>(100, true));
+                workQueue);
 //        executorService = new ThreadPoolExecutor(10, 100, 1000, TimeUnit.MILLISECONDS, workQueue);
 
     }
@@ -114,9 +114,9 @@ public class MorphiumIteratorImpl<T> implements MorphiumIterator<T> {
                 final Container<T> c = new Container<>();
                 prefetchBuffers[i] = c;
                 final int idx = i;
-                while (executorService.getQueue().remainingCapacity() < 100) {
-                    Thread.yield();
-                }
+//                while (executorService.getQueue().remainingCapacity() < 100) {
+//                    Thread.yield();
+//                }
                 Runnable cmd = new Runnable() {
                     @Override
                     public void run() {
@@ -126,15 +126,7 @@ public class MorphiumIteratorImpl<T> implements MorphiumIterator<T> {
                     }
                 };
 
-                boolean queued = false;
-                while (!queued) {
-                    try {
-                        executorService.execute(cmd);
-                        queued = true;
-                    } catch (Throwable e) {
-
-                    }
-                }
+                executorService.execute(cmd);
             }
         }
 
@@ -154,7 +146,6 @@ public class MorphiumIteratorImpl<T> implements MorphiumIterator<T> {
                 prefetchBuffers[i - 1] = prefetchBuffers[i];
             }
 
-
             prefetchBuffers[prefetchWindows - 1] = new Container<T>();
             final int win = cursor / windowSize + prefetchWindows;
             cursor++;
@@ -164,7 +155,7 @@ public class MorphiumIteratorImpl<T> implements MorphiumIterator<T> {
 
                 executorService.execute(new Runnable() {
                     public void run() {
-//                        System.out.println("Executing..." + win + " / " + cursor);
+//                        System.out.println("Executing..." + win + " / " + cursor + " / " + executorService.getActiveCount() + " / queue: " + executorService.getQueue().size());
                         container.setData(getBuffer(win));
                     }
                 });
@@ -287,6 +278,9 @@ public class MorphiumIteratorImpl<T> implements MorphiumIterator<T> {
     @Override
     public void setNumberOfPrefetchWindows(int n) {
         this.prefetchWindows = n;
+        executorService = new ThreadPoolExecutor(n, Integer.MAX_VALUE,
+                60L, TimeUnit.SECONDS,
+                workQueue);
     }
 
     @Override
