@@ -484,6 +484,24 @@ public class IteratorTest extends MongoTest {
 
 
     @Test
+    public void multithreaddedIteratorTest() {
+        createUncachedObjects(1000);
+
+        MorphiumIterator<UncachedObject> it = MorphiumSingleton.get().createQueryFor(UncachedObject.class).sort("counter").asIterable(10, 10);
+        it.setMultithreaddedAccess(true);
+
+        int cnt = 0;
+        while (it.hasNext()) {
+            UncachedObject uc = it.next();
+            assert (uc.getCounter() == it.getCursor());
+            cnt++;
+            assert (uc.getCounter() == cnt);
+        }
+        assert (cnt == it.getCount());
+    }
+
+
+    @Test
     public void prefetchTest() throws Exception {
         createUncachedObjects(1000);
         Query<UncachedObject> qu = MorphiumSingleton.get().createQueryFor(UncachedObject.class).sort("counter");

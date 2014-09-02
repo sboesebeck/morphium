@@ -75,9 +75,9 @@ public class Messaging extends Thread {
         this.prefetchdWindows = prefetchdWindows;
 
 
-        threadPool = new ThreadPoolExecutor(0, Integer.MAX_VALUE,
-                60L, TimeUnit.SECONDS,
-                new ArrayBlockingQueue<Runnable>(100));
+        threadPool = new ThreadPoolExecutor(0, 10,
+                1L, TimeUnit.SECONDS,
+                new ArrayBlockingQueue<Runnable>(1000));
 
         this.queueName = queueName;
         morphium = m;
@@ -141,15 +141,22 @@ public class Messaging extends Thread {
 //                List<Msg> messages = q.asList();
                 MorphiumIterator<Msg> messages = q.asIterable(windowSize, prefetchdWindows);
                 messages.setMultithreaddedAccess(multithreadded);
+
                 final List<Msg> toStore = new Vector<Msg>();
                 final List<Runnable> toExec = new Vector<Runnable>();
-
+//                int count=0;
                 for (final Msg m : messages) {
+//                    count++;
+//                    System.out.println("Processing message " + count);
                     Runnable r = new Runnable() {
                         @Override
                         public void run() {
                             final Msg msg = morphium.reread(m, getCollectionName()); //make sure it's current version in DB
-                            if (msg == null) return; //was deleted
+//                            System.out.println("Processing message "+msg.getMsgId()+ " / "+m.getMsgId());
+                            if (msg == null) {
+
+                                return; //was deleted
+                            }
                             if (!msg.getLockedBy().equals(id) && !msg.getLockedBy().equals("ALL")) {
                                 //over-locked by someone else
                                 return;
@@ -215,18 +222,21 @@ public class Messaging extends Thread {
                         }
                     };
 
+
                     if (multithreadded) {
                         boolean queued = false;
                         while (!queued) {
                             try {
                                 threadPool.execute(r);
-                            } catch (Throwable t) {
+                                queued = true;
+                            } catch (Throwable e) {
                             }
                         }
                     } else {
                         r.run();
                     }
                 }
+
                 //wait for all threads to finish
                 while (threadPool.getActiveCount() > 0) {
                     Thread.sleep(100);
@@ -238,6 +248,7 @@ public class Messaging extends Thread {
                         while (!queued) {
                             try {
                                 threadPool.execute(r);
+                                queued = true;
                             } catch (Throwable t) {
                             }
                         }

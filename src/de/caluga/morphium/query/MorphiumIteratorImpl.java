@@ -126,7 +126,15 @@ public class MorphiumIteratorImpl<T> implements MorphiumIterator<T> {
                     }
                 };
 
-                executorService.execute(cmd);
+                boolean queued = false;
+                while (!queued) {
+                    try {
+                        executorService.execute(cmd);
+                        queued = true;
+                    } catch (Throwable e) {
+
+                    }
+                }
             }
         }
 
