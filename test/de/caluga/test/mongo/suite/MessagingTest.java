@@ -797,14 +797,19 @@ public class MessagingTest extends MongoTest {
         final Messaging producer = new Messaging(MorphiumSingleton.get(), 100, true);
         final Messaging consumer = new Messaging(MorphiumSingleton.get(), 10, true, true, 2000, 3);
         final int[] processed = {0};
+        final Map<String, Long> msgCountById = new Hashtable<>();
         consumer.addMessageListener(new MessageListener() {
             @Override
             public Msg onMessage(Messaging msg, Msg m) {
-                processed[0]++;
+                synchronized (processed) {
+                    processed[0]++;
+                }
                 if (processed[0] % 1000 == 0) {
                     log.info("Processed: " + processed[0]);
                 }
-
+                assert (!m.getProcessedBy().contains(msg.getSenderId()));
+//                assert(!msgCountById.containsKey(m.getMsgId().toString()));
+                msgCountById.put(m.getMsgId().toString(), 1l);
                 //simulate processing
                 try {
                     Thread.sleep((long) (10 * Math.random()));
@@ -830,12 +835,14 @@ public class MessagingTest extends MongoTest {
         while (processed[0] < numberOfMessages) {
 //            ThreadMXBean thbean = ManagementFactory.getThreadMXBean();
 //            log.info("Running threads: " + thbean.getThreadCount());
-            Thread.sleep(15);
+            log.info("Processed " + processed[0]);
+            Thread.sleep(1500);
         }
         long dur = System.currentTimeMillis() - start;
         log.info("Processing took " + dur + " ms");
         producer.setRunning(false);
         consumer.setRunning(false);
+        log.info("Waitingh for threads to finish");
         Thread.sleep(1000);
 
 
