@@ -8,12 +8,12 @@ package de.caluga.morphium;
  * Name Providers define the name of a given collection. Can be set in config for any type
  */
 public final class DefaultNameProvider implements NameProvider {
-    private AnnotationAndReflectionHelper ah = new AnnotationAndReflectionHelper();
 
     @Override
     public String getCollectionName(Class<?> type, ObjectMapper om, boolean translateCamelCase, boolean useFQN, String specifiedName, Morphium morphium) {
 
         String name = type.getSimpleName();
+
 
         if (useFQN) {
             name = type.getName().replaceAll("\\.", "_");
@@ -21,8 +21,15 @@ public final class DefaultNameProvider implements NameProvider {
         if (specifiedName != null) {
             name = specifiedName;
         } else {
+
             if (translateCamelCase) {
-                name = ah.convertCamelCase(name);
+                AnnotationAndReflectionHelper ar = null;
+                if (morphium != null) {
+                    ar = morphium.getARHelper();
+                } else {
+                    ar = new AnnotationAndReflectionHelper(true);
+                }
+                name = ar.convertCamelCase(name);
             }
         }
         return name;

@@ -26,7 +26,7 @@ import java.util.*;
 public class ObjectMapperImpl implements ObjectMapper {
     private static Logger log = Logger.getLogger(ObjectMapperImpl.class);
     private volatile Hashtable<Class<?>, NameProvider> nameProviders;
-    private volatile AnnotationAndReflectionHelper annotationHelper = new AnnotationAndReflectionHelper();
+    private volatile AnnotationAndReflectionHelper annotationHelper = new AnnotationAndReflectionHelper(true);
     private Morphium morphium;
     private JSONParser jsonParser = new JSONParser();
 
@@ -34,6 +34,7 @@ public class ObjectMapperImpl implements ObjectMapper {
 
         nameProviders = new Hashtable<Class<?>, NameProvider>();
     }
+
 
     /**
      * will automatically be called after instanciation by Morphium
@@ -47,8 +48,13 @@ public class ObjectMapperImpl implements ObjectMapper {
         if (m != null) {
             annotationHelper = m.getARHelper();
         } else {
-            annotationHelper = new AnnotationAndReflectionHelper();
+            annotationHelper = new AnnotationAndReflectionHelper(true);
         }
+    }
+
+    @Override
+    public Morphium getMorphium() {
+        return morphium;
     }
 
     /**

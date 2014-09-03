@@ -19,7 +19,7 @@ import java.util.*;
 public class MorphiumCacheImpl implements MorphiumCache {
     private Hashtable<Class<?>, Hashtable<String, CacheElement>> cache;
     private Hashtable<Class<?>, Hashtable<Object, Object>> idCache;
-    private AnnotationAndReflectionHelper annotationHelper = new AnnotationAndReflectionHelper();
+    private AnnotationAndReflectionHelper annotationHelper = new AnnotationAndReflectionHelper(false); //only used to get id's and annotations, camalcase conversion never happens
 
     private Vector<CacheListener> cacheListeners;
 
