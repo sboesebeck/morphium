@@ -270,7 +270,7 @@ public class IteratorTest extends MongoTest {
     private void createTestUc() {
         Query<UncachedObject> qu = MorphiumSingleton.get().createQueryFor(UncachedObject.class);
         qu.setCollectionName("test_uc");
-        if (qu.countAll() != 150000) {
+        if (qu.countAll() != 10000) {
             MorphiumSingleton.get().dropCollection(UncachedObject.class, "test_uc", null);
             log.info("Creating uncached objects");
 
