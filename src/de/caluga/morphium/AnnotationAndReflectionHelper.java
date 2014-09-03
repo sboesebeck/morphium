@@ -31,8 +31,10 @@ public class AnnotationAndReflectionHelper {
     private Map<String, List<String>> fieldAnnotationListCache = new HashMap<String, List<String>>();
     private Map<Class<?>, Map<Class<? extends Annotation>, Method>> lifeCycleMethods;
     private Map<Class<?>, Boolean> hasAdditionalData;
+    private boolean ccc = true;
 
-    public AnnotationAndReflectionHelper() {
+    public AnnotationAndReflectionHelper(boolean convertCamelCase) {
+        this.ccc = convertCamelCase;
         lifeCycleMethods = new Hashtable<Class<?>, Map<Class<? extends Annotation>, Method>>();
         hasAdditionalData = new Hashtable<Class<?>, Boolean>();
     }
@@ -136,9 +138,9 @@ public class AnnotationAndReflectionHelper {
         String fieldName = f.getName();
         Entity ent = getAnnotationFromHierarchy(cls, Entity.class); //(Entity) cls.getAnnotation(Entity.class);
         Embedded emb = getAnnotationFromHierarchy(cls, Embedded.class);//(Embedded) cls.getAnnotation(Embedded.class);
-        if (ent != null && ent.translateCamelCase()) {
+        if (ccc && ent != null && ent.translateCamelCase()) {
             fieldName = convertCamelCase(fieldName);
-        } else if (emb != null && emb.translateCamelCase()) {
+        } else if (ccc && emb != null && emb.translateCamelCase()) {
             fieldName = convertCamelCase(fieldName);
         }
 
@@ -275,7 +277,7 @@ public class AnnotationAndReflectionHelper {
                 fieldCache.put(key, f);
                 return f;
             }
-            if (convertCamelCase(f.getName()).equals(fld)) {
+            if (ccc && convertCamelCase(f.getName()).equals(fld)) {
                 f.setAccessible(true);
                 fieldCache.put(key, f);
                 return f;
@@ -595,7 +597,7 @@ public class AnnotationAndReflectionHelper {
                 continue;
             }
 
-            if (tcc) {
+            if (tcc && ccc) {
                 ret.add(convertCamelCase(f.getName()));
             } else {
                 ret.add(f.getName());

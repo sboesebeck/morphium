@@ -3,7 +3,6 @@ package de.caluga.morphium.query;
 import com.mongodb.BasicDBList;
 import com.mongodb.BasicDBObject;
 import com.mongodb.DBRef;
-import de.caluga.morphium.AnnotationAndReflectionHelper;
 import de.caluga.morphium.FilterExpression;
 import de.caluga.morphium.MongoType;
 import de.caluga.morphium.ObjectMapper;
@@ -33,8 +32,7 @@ public class MongoFieldImpl<T> implements MongoField<T> {
     private String fldStr;
 
     private FilterExpression fe;
-    //TODO: get instance from morphium - for memory consumption and caching purpose
-    private AnnotationAndReflectionHelper annotationHelper = new AnnotationAndReflectionHelper();
+
 
     public MongoFieldImpl() {
     }
@@ -77,14 +75,14 @@ public class MongoFieldImpl<T> implements MongoField<T> {
         // checking for Ids in references...
         if (val != null) {
             Class<?> cls = val.getClass();
-            Field field = annotationHelper.getField(query.getType(), fldStr);
-            if (annotationHelper.isAnnotationPresentInHierarchy(cls, Entity.class) || val instanceof ObjectId) {
+            Field field = mapper.getMorphium().getARHelper().getField(query.getType(), fldStr);
+            if (mapper.getMorphium().getARHelper().isAnnotationPresentInHierarchy(cls, Entity.class) || val instanceof ObjectId) {
                 if (field.isAnnotationPresent(Reference.class)) {
                     Object id;
                     if (val instanceof ObjectId) {
                         id = val;
                     } else {
-                        id = annotationHelper.getId(val);
+                        id = mapper.getMorphium().getARHelper().getId(val);
                     }
                     if (Collection.class.isAssignableFrom(field.getType())) {
                         // list of references, this should be part of
@@ -114,13 +112,13 @@ public class MongoFieldImpl<T> implements MongoField<T> {
         }
 
         fe.setValue(val);
-        fe.setField(annotationHelper.getFieldName(query.getType(), fldStr));
+        fe.setField(mapper.getMorphium().getARHelper().getFieldName(query.getType(), fldStr));
         query.addChild(fe);
         return query;  // To change body of implemented methods use File | Settings | File Templates.
     }
 
     private void add(String op, Object value) {
-        fe.setField(annotationHelper.getFieldName(query.getType(), fldStr));
+        fe.setField(mapper.getMorphium().getARHelper().getFieldName(query.getType(), fldStr));
         FilterExpression child = new FilterExpression();
         child.setField(op);
         child.setValue(value);
@@ -130,7 +128,7 @@ public class MongoFieldImpl<T> implements MongoField<T> {
     }
 
     private void add(List<FilterExpression> expressionList) {
-        fe.setField(annotationHelper.getFieldName(query.getType(), fldStr));
+        fe.setField(mapper.getMorphium().getARHelper().getFieldName(query.getType(), fldStr));
         fe.setChildren(expressionList);
         query.addChild(fe);
     }
@@ -195,7 +193,7 @@ public class MongoFieldImpl<T> implements MongoField<T> {
     @Override
     public Query<T> matches(Pattern p) {
         fe.setValue(p);
-        fe.setField(annotationHelper.getFieldName(query.getType(), fldStr));
+        fe.setField(mapper.getMorphium().getARHelper().getFieldName(query.getType(), fldStr));
         query.addChild(fe);
         return query;
     }

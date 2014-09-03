@@ -72,7 +72,7 @@ public class Morphium {
     private Vector<ProfilingListener> profilingListeners;
     private Vector<ShutdownListener> shutDownListeners;
 
-    private AnnotationAndReflectionHelper annotationHelper = new AnnotationAndReflectionHelper();
+    private AnnotationAndReflectionHelper annotationHelper;
     private ObjectMapper objectMapper;
     private RSMonitor rsMonitor;
     private Integer maxBsonSize;
@@ -94,6 +94,7 @@ public class Morphium {
     /**
      * init the MongoDbLayer. Uses Morphium-Configuration Object for Configuration.
      * Needs to be set before use or RuntimeException is thrown!
+     * us used for de-referencing and automatical save of referenced entities
      * all logging is done in INFO level
      *
      * @see MorphiumConfig
@@ -101,6 +102,7 @@ public class Morphium {
     public Morphium(MorphiumConfig cfg) {
         this();
         setConfig(cfg);
+        annotationHelper = new AnnotationAndReflectionHelper(cfg.isCamelCaseConversionEnabled());
         initializeAndConnect();
 
     }
@@ -467,7 +469,7 @@ public class Morphium {
                             Capped capped = annotationHelper.getAnnotationFromHierarchy(c, Capped.class);
                             if (capped != null) {
 
-                                convertToCapped(c, capped.maxSize(),null);
+                                convertToCapped(c, capped.maxSize(), null);
                             }
                         }
                         break;

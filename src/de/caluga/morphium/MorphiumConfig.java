@@ -106,6 +106,8 @@ public class MorphiumConfig {
     boolean readCacheEnabled = true;
     boolean asyncWritesEnabled = true;
     boolean bufferedWritesEnabled = true;
+    boolean camelCaseConversionEnabled = true;
+
     @Transient
     private List<ServerAddress> adr = new Vector<ServerAddress>();
     //securitysettings
@@ -122,7 +124,7 @@ public class MorphiumConfig {
     private int acceptableLatencyDifference = 15;
 
     public MorphiumConfig(Properties prop) {
-        AnnotationAndReflectionHelper an = new AnnotationAndReflectionHelper();
+        AnnotationAndReflectionHelper an = new AnnotationAndReflectionHelper(true); //settings always convert camel case
         List<Field> flds = an.getAllFields(MorphiumConfig.class);
         for (Field f : flds) {
             if (f.isAnnotationPresent(Transient.class)) continue;
@@ -861,7 +863,7 @@ public class MorphiumConfig {
     public Properties asProperties() {
         MorphiumConfig defaults = new MorphiumConfig();
         Properties p = new Properties();
-        AnnotationAndReflectionHelper an = new AnnotationAndReflectionHelper();
+        AnnotationAndReflectionHelper an = new AnnotationAndReflectionHelper(true);
         List<Field> flds = an.getAllFields(MorphiumConfig.class);
         for (Field f : flds) {
             if (f.isAnnotationPresent(Transient.class)) continue;
@@ -953,5 +955,13 @@ public class MorphiumConfig {
 
     public void setAcceptableLatencyDifference(int acceptableLatencyDifference) {
         this.acceptableLatencyDifference = acceptableLatencyDifference;
+    }
+
+    public boolean isCamelCaseConversionEnabled() {
+        return camelCaseConversionEnabled;
+    }
+
+    public void setCamelCaseConversionEnabled(boolean camelCaseConversionEnabled) {
+        this.camelCaseConversionEnabled = camelCaseConversionEnabled;
     }
 }

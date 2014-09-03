@@ -37,5 +37,9 @@ public interface ObjectMapper {
      */
     public void setNameProviderForClass(Class<?> cls, NameProvider np);
 
-    void setMorphium(Morphium m);
+    public void setMorphium(Morphium m);
+
+    public Morphium getMorphium();
+
+
 }

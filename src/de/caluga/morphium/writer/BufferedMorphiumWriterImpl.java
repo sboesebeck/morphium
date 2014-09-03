@@ -1,6 +1,5 @@
 package de.caluga.morphium.writer;
 
-import de.caluga.morphium.AnnotationAndReflectionHelper;
 import de.caluga.morphium.Morphium;
 import de.caluga.morphium.StatisticKeys;
 import de.caluga.morphium.annotations.caching.WriteBuffer;
@@ -23,7 +22,6 @@ import java.util.concurrent.RejectedExecutionException;
 public class BufferedMorphiumWriterImpl implements MorphiumWriter {
 
     private Morphium morphium;
-    private AnnotationAndReflectionHelper annotationHelper = new AnnotationAndReflectionHelper();
     private MorphiumWriter directWriter;
     private Map<Class<?>, List<WriteBufferEntry>> opLog = new Hashtable<Class<?>, List<WriteBufferEntry>>(); //synced
     private Map<Class<?>, Long> lastRun = new Hashtable<Class<?>, Long>();
@@ -61,7 +59,7 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter {
             if (opLog.get(type) == null) {
                 opLog.put(type, new Vector<WriteBufferEntry>());
             }
-            WriteBuffer w = annotationHelper.getAnnotationFromHierarchy(type, WriteBuffer.class);
+            WriteBuffer w = morphium.getARHelper().getAnnotationFromHierarchy(type, WriteBuffer.class);
             int size = 0;
             int timeout = morphium.getConfig().getWriteBufferTime();
             WriteBuffer.STRATEGY strategy = WriteBuffer.STRATEGY.JUST_WARN;
@@ -264,7 +262,7 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter {
     @Override
     public void setMorphium(Morphium m) {
         morphium = m;
-        annotationHelper = m.getARHelper();
+
         directWriter = m.getConfig().getWriter();
 
         housekeeping = new Thread() {
@@ -284,7 +282,7 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter {
                                 if (opLog.get(clz) == null || opLog.get(clz).size() == 0) {
                                     continue;
                                 }
-                                WriteBuffer w = annotationHelper.getAnnotationFromHierarchy(clz, WriteBuffer.class);
+                                WriteBuffer w = morphium.getARHelper().getAnnotationFromHierarchy(clz, WriteBuffer.class);
                                 int size = 0;
                                 int timeout = morphium.getConfig().getWriteBufferTime();
                                 WriteBuffer.STRATEGY strategy = WriteBuffer.STRATEGY.JUST_WARN;

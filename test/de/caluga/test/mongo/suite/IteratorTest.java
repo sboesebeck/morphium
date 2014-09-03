@@ -94,9 +94,9 @@ public class IteratorTest extends MongoTest {
     @Test
     public void doubleIteratorTest() throws Exception {
         createTestUc();
-        createCachedObjects(100);
+        createCachedObjects(1000);
 
-        Query<UncachedObject> qu = MorphiumSingleton.get().createQueryFor(UncachedObject.class).sort("counter");
+        Query<UncachedObject> qu = MorphiumSingleton.get().createQueryFor(UncachedObject.class).f("counter").lt(10000).sort("counter");
         qu.setCollectionName("test_uc");
         MorphiumIterator<UncachedObject> it = qu.asIterable(1000, 3);
         for (UncachedObject u : it) {
@@ -107,9 +107,10 @@ public class IteratorTest extends MongoTest {
 //                log.info("iterating otherIt: "+otherIt.getNumberOfThreads()+" "+co.getCounter());
 //                Thread.sleep(200);
                 assert (co.getValue() != null);
+                assert (co.getCounter() > u.getCounter() % 100 && co.getCounter() < u.getCounter() % 100 + 10);
             }
-            if (it.getCursor() % 100 == 1)
-                log.info("Iteration it: " + it.getNumberOfThreads());
+            if (it.getCursor() % 100 == 0)
+                log.info("Iteration it: " + it.getCursor() + "/" + it.getCount());
         }
 
 
