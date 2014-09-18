@@ -76,7 +76,14 @@ public class ObjectMapperTest extends MongoTest {
     @Test
     public void testDisableConvertCamelCase() throws Exception {
         AnnotationAndReflectionHelper om = new AnnotationAndReflectionHelper(false);
-        assert (om.convertCamelCase("thisIsATest").equals("thisIsATest")) : "Conversion failed!";
+        String fn = om.getFieldName(UncachedObject.class, "intData");
+
+        assert (fn.equals("intData")) : "Conversion failed! " + fn;
+
+        om = new AnnotationAndReflectionHelper(true);
+        fn = om.getFieldName(UncachedObject.class, "intData");
+
+        assert (fn.equals("int_data")) : "Conversion failed! " + fn;
     }
 
     @Test
