@@ -28,6 +28,9 @@ import java.io.Serializable;
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Field;
 import java.util.*;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 
 /**
  * This is the single access point for accessing MongoDB. This should
@@ -79,6 +82,8 @@ public class Morphium {
     private Integer maxMessageSize;
     private Integer maxWriteBatchSize;
 
+    private ThreadPoolExecutor asyncOperationsThreadPool;
+
     public MorphiumConfig getConfig() {
         return config;
     }
@@ -103,6 +108,9 @@ public class Morphium {
         this();
         setConfig(cfg);
         annotationHelper = new AnnotationAndReflectionHelper(cfg.isCamelCaseConversionEnabled());
+        asyncOperationsThreadPool = new ThreadPoolExecutor(getConfig().getThreadPoolAsyncOpCoreSize(), getConfig().getThreadPoolAsyncOpMaxSize(),
+                getConfig().getThreadPoolAsyncOpKeepAliveTime(), TimeUnit.MILLISECONDS,
+                new LinkedBlockingQueue<Runnable>());
         initializeAndConnect();
 
     }
@@ -1929,4 +1937,26 @@ public class Morphium {
     }
 
 
+    public void queueTask(Runnable runnable) {
+        boolean queued = false;
+        do {
+            try {
+                asyncOperationsThreadPool.execute(runnable);
+                queued = true;
+            } catch (Exception e) {
+                try {
+                    Thread.sleep(100); //wait a moment, reduce load
+                } catch (InterruptedException e1) {
+                }
+            }
+        } while (!queued);
+    }
+
+    public int getNumberOfAvailableThreads() {
+        return asyncOperationsThreadPool.getMaximumPoolSize() - asyncOperationsThreadPool.getActiveCount();
+    }
+
+    public int getActiveThreads() {
+        return asyncOperationsThreadPool.getActiveCount();
+    }
 }
