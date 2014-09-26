@@ -236,6 +236,7 @@ public class ObjectMapperTest extends MongoTest {
 
     @Test
     public void listValueTest() {
+        MorphiumSingleton.get().dropCollection(MapListObject.class);
         MapListObject o = new MapListObject();
         List lst = new ArrayList();
         lst.add("A Value");
@@ -249,7 +250,7 @@ public class ObjectMapperTest extends MongoTest {
         DBObject marshall = om.marshall(o);
         String m = marshall.toString();
 
-        assert (m.equals("{ \"name\" : \"Simple List\" , \"list_value\" : [ \"A Value\" , 27.0 , { \"counter\" : 0 , \"class_name\" : \"de.caluga.test.mongo.suite.UncachedObject\"}]}")) : "Marshall not ok: " + m;
+        assert (m.equals("{ \"name\" : \"Simple List\" , \"list_value\" : [ \"A Value\" , 27.0 , { \"counter\" : 0 , \"type_id\" : \"myIdUC\"}]}")) : "Marshall not ok: " + m;
 
         MapListObject mo = om.unmarshall(MapListObject.class, marshall);
         System.out.println("Mo: " + mo.getName());
@@ -282,7 +283,7 @@ public class ObjectMapperTest extends MongoTest {
         DBObject marshall = om.marshall(o);
         String m = marshall.toString();
         System.out.println("Marshalled object: " + m);
-        assert (m.equals("{ \"name\" : \"A map-value\" , \"map_value\" : { \"a_string\" : \"This is a string\" , \"a primitive value\" : 42 , \"double\" : 42.0 , \"null\" :  null  , \"Entity\" : { \"counter\" : 0 , \"class_name\" : \"de.caluga.test.mongo.suite.UncachedObject\"}}}")) : "Value not marshalled coorectly";
+        assert (m.equals("{ \"name\" : \"A map-value\" , \"map_value\" : { \"a_string\" : \"This is a string\" , \"a primitive value\" : 42 , \"double\" : 42.0 , \"null\" :  null  , \"Entity\" : { \"counter\" : 0 , \"type_id\" : \"myIdUC\"}}}")) : "Value not marshalled coorectly";
 
         MapListObject mo = om.unmarshall(MapListObject.class, marshall);
         assert (mo.getName().equals("A map-value")) : "Name error";

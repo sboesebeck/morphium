@@ -12,7 +12,7 @@ import org.bson.types.ObjectId;
  * @author stephan
  */
 @NoCache
-@Entity
+@Entity(typeId = "myIdUC")
 @WriteSafety(waitForJournalCommit = false, waitForSync = true, timeout = 3000, level = SafetyLevel.WAIT_FOR_ALL_SLAVES)
 @DefaultReadPreference(ReadPreferenceLevel.NEAREST)
 public class UncachedObject {

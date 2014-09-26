@@ -25,16 +25,20 @@ import java.util.*;
 @SuppressWarnings({"ConstantConditions", "MismatchedQueryAndUpdateOfCollection", "unchecked", "MismatchedReadAndWriteOfArray"})
 public class ObjectMapperImpl implements ObjectMapper {
     private static Logger log = Logger.getLogger(ObjectMapperImpl.class);
-    private volatile Hashtable<Class<?>, NameProvider> nameProviders;
     private volatile AnnotationAndReflectionHelper annotationHelper = new AnnotationAndReflectionHelper(true);
     private Morphium morphium;
     private JSONParser jsonParser = new JSONParser();
+    private EntityCache cache;
 
     public ObjectMapperImpl() {
+        cache = new EntityCache();
 
-        nameProviders = new Hashtable<Class<?>, NameProvider>();
     }
 
+    @Override
+    public Class<?> getClassforTypeId(String id) {
+        return null;
+    }
 
     /**
      * will automatically be called after instanciation by Morphium
@@ -64,7 +68,7 @@ public class ObjectMapperImpl implements ObjectMapper {
      * @param np  - the NameProvider for that class
      */
     public void setNameProviderForClass(Class<?> cls, NameProvider np) {
-        nameProviders.put(cls, np);
+        cache.getNameProviders().put(cls, np);
     }
 
     public NameProvider getNameProviderForClass(Class<?> cls) {
@@ -85,11 +89,11 @@ public class ObjectMapperImpl implements ObjectMapper {
             throw new IllegalArgumentException("No Entity " + cls.getSimpleName());
         }
 
-        if (nameProviders.get(cls) == null) {
+        if (cache.getNameProviders().get(cls) == null) {
             NameProvider np = p.nameProvider().newInstance();
-            nameProviders.put(cls, np);
+            cache.getNameProviders().put(cls, np);
         }
-        return nameProviders.get(cls);
+        return cache.getNameProviders().get(cls);
     }
 
     @SuppressWarnings("unchecked")
@@ -137,11 +141,18 @@ public class ObjectMapperImpl implements ObjectMapper {
         Embedded emb = annotationHelper.getAnnotationFromHierarchy(o.getClass(), Embedded.class); //o.getClass().getAnnotation(Embedded.class);
 
         if (e != null && e.polymorph()) {
-            dbo.put("class_name", cls.getName());
+            if (e.typeId().equals(".")) {
+                dbo.put("type_id", cls.getName());
+            } else {
+                dbo.put("type_id", e.typeId());
+            }
         }
-
         if (emb != null && emb.polymorph()) {
-            dbo.put("class_name", cls.getName());
+            if (emb.typeId().equals(".")) {
+                dbo.put("type_id", cls.getName());
+            } else {
+                dbo.put("type_id", emb.typeId());
+            }
         }
 
         for (String f : flds) {
@@ -296,10 +307,26 @@ public class ObjectMapperImpl implements ObjectMapper {
         BasicDBList lst = new BasicDBList();
         for (Object lo : v) {
             if (lo != null) {
-                if (annotationHelper.isAnnotationPresentInHierarchy(lo.getClass(), Entity.class) ||
-                        annotationHelper.isAnnotationPresentInHierarchy(lo.getClass(), Embedded.class)) {
+                Entity ent = annotationHelper.getAnnotationFromHierarchy(lo.getClass(), Entity.class);
+                Embedded emb = annotationHelper.getAnnotationFromHierarchy(lo.getClass(), Embedded.class);
+                if (ent != null || emb != null) {
                     DBObject marshall = marshall(lo);
-                    marshall.put("class_name", lo.getClass().getName());
+                    if (ent != null) {
+                        if (ent.typeId().equals(".")) {
+                            marshall.put("type_id", lo.getClass().getName());
+                        } else {
+                            marshall.put("type_id", ent.typeId());
+                        }
+
+                    }
+                    if (emb != null) {
+                        if (emb.typeId().equals(".")) {
+                            marshall.put("type_id", lo.getClass().getName());
+                        } else {
+                            marshall.put("type_id", emb.typeId());
+                        }
+
+                    }
                     lst.add(marshall);
                 } else if (lo instanceof List) {
                     lst.add(createDBList((List) lo));
@@ -336,9 +363,23 @@ public class ObjectMapperImpl implements ObjectMapper {
             }
             Object mval = es.getValue(); // ((Map) v).get(k);
             if (mval != null) {
-                if (annotationHelper.isAnnotationPresentInHierarchy(mval.getClass(), Entity.class) || annotationHelper.isAnnotationPresentInHierarchy(mval.getClass(), Embedded.class)) {
+                Entity ent = annotationHelper.getAnnotationFromHierarchy(mval.getClass(), Entity.class);
+                Embedded emb = annotationHelper.getAnnotationFromHierarchy(mval.getClass(), Embedded.class);
+                if (ent != null || emb != null) {
                     DBObject obj = marshall(mval);
-                    obj.put("class_name", mval.getClass().getName());
+                    if (ent != null) {
+                        if (ent.typeId().equals(".")) {
+                            obj.put("type_id", mval.getClass().getName());
+                        } else {
+                            obj.put("type_id", ent.typeId());
+                        }
+                    } else if (emb != null) {
+                        if (emb.typeId().equals(".")) {
+                            obj.put("type_id", mval.getClass().getName());
+                        } else {
+                            obj.put("type_id", ent.typeId());
+                        }
+                    }
                     mval = obj;
                 } else if (mval instanceof Map) {
                     mval = createDBMap((Map) mval);
@@ -374,31 +415,54 @@ public class ObjectMapperImpl implements ObjectMapper {
 
     }
 
+    public <T> T getEnum(Class<? extends T> cls, String name) {
+
+        T[] en = cls.getEnumConstants();
+        for (Enum e : ((Enum[]) en)) {
+            if (e.name().equals(name)) {
+                return (T) e;
+            }
+        }
+        return null;
+    }
+
+
     @SuppressWarnings("unchecked")
     @Override
     public <T> T unmarshall(Class<? extends T> cls, DBObject o) {
         try {
-            if (o.get("class_name") != null || o.get("className") != null) {
+            if (o.get("type_id") != null) {
+                cls = cache.getEntityByTypeId().get(o.get("type_id"));
+            } else if (o.get("class_name") != null || o.get("className") != null) {
 //                if (log.isDebugEnabled()) {
 //                    log.debug("overriding cls - it's defined in dbObject");
 //                }
+                String cN = (String) o.get("class_name");
+                if (cN == null) {
+                    cN = (String) o.get("className");
+                }
                 try {
-                    String cN = (String) o.get("class_name");
-                    if (cN == null) {
-                        cN = (String) o.get("className");
-                    }
                     cls = (Class<? extends T>) Class.forName(cN);
                 } catch (ClassNotFoundException e) {
+
+                    log.warn("could not load class " + cN);
+                    if (o.get("name") != null) {
+                        String name = (String) o.get("name");
+                        log.warn(" trying recovery for Enums");
+                        for (Class enumCls : cache.getEnumlist()) {
+                            T en = (T) getEnum(enumCls, name);
+                            if (en != null) {
+                                log.warn(" => Using enum of type " + en.getClass().getName());
+                                return en;
+                            }
+                        }
+
+                    }
                     throw new RuntimeException(e);
                 }
             }
             if (cls.isEnum()) {
-                T[] en = cls.getEnumConstants();
-                for (Enum e : ((Enum[]) en)) {
-                    if (e.name().equals(o.get("name"))) {
-                        return (T) e;
-                    }
-                }
+                return getEnum(cls, (String) o.get("name"));
             }
 
             T ret = null;
@@ -412,8 +476,8 @@ public class ObjectMapperImpl implements ObjectMapper {
                 final Constructor<Object> constructor;
                 try {
                     constructor = reflection.newConstructorForSerialization(
-                            cls, Object.class.getDeclaredConstructor(new Class[0]));
-                    ret = (T) constructor.newInstance(new Object[0]);
+                            cls, Object.class.getDeclaredConstructor());
+                    ret = (T) constructor.newInstance();
                 } catch (Exception e) {
                     log.error(e);
                 }
@@ -672,11 +736,17 @@ public class ObjectMapperImpl implements ObjectMapper {
 
                 if (dbObject.get(n) instanceof BasicDBObject) {
                     Object val = dbObject.get(n);
-                    if (((BasicDBObject) val).containsField("class_name") || ((BasicDBObject) val).containsField("className")) {
+
+                    BasicDBObject dbo = (BasicDBObject) val;
+                    if (dbo.containsField("type_id")) {
+                        Class ecls = cache.getEntityByTypeId().get(dbo.get("type_id"));
+                        Object obj = unmarshall(ecls, (DBObject) dbObject.get(n));
+                        if (obj != null) retMap.put(n, obj);
+                    } else if (dbo.containsField("class_name") || dbo.containsField("className")) {
                         //Entity to map!
-                        String cn = (String) ((BasicDBObject) val).get("class_name");
+                        String cn = (String) dbo.get("class_name");
                         if (cn == null) {
-                            cn = (String) ((BasicDBObject) val).get("className");
+                            cn = (String) dbo.get("className");
                         }
                         try {
                             Class ecls = Class.forName(cn);
@@ -687,7 +757,7 @@ public class ObjectMapperImpl implements ObjectMapper {
                         }
                     } else {
                         //maybe a map of maps? --> recurse
-                        retMap.put(n, createMap((BasicDBObject) val));
+                        retMap.put(n, createMap(dbo));
                     }
                 } else if (dbObject.get(n) instanceof BasicDBList) {
                     BasicDBList lst = (BasicDBList) dbObject.get(n);
@@ -705,14 +775,19 @@ public class ObjectMapperImpl implements ObjectMapper {
         List mapValue = new ArrayList();
         for (Object li : lst) {
             if (li instanceof BasicDBObject) {
-                if (((BasicDBObject) li).containsField("class_name") || ((BasicDBObject) li).containsField("className")) {
-                    String cn = (String) ((BasicDBObject) li).get("class_name");
+                BasicDBObject bobj = (BasicDBObject) li;
+                if (bobj.containsField("type_id")) {
+                    Class cls = cache.getEntityByTypeId().get(bobj.get("type_id"));
+                    Object obj = unmarshall(cls, bobj);
+                    if (obj != null) mapValue.add(obj);
+                } else if (bobj.containsField("class_name") || bobj.containsField("className")) {
+                    String cn = (String) bobj.get("class_name");
                     if (cn == null) {
-                        cn = (String) ((BasicDBObject) li).get("className");
+                        cn = (String) bobj.get("className");
                     }
                     try {
                         Class ecls = Class.forName(cn);
-                        Object obj = unmarshall(ecls, (DBObject) li);
+                        Object obj = unmarshall(ecls, bobj);
                         if (obj != null) mapValue.add(obj);
                     } catch (ClassNotFoundException e) {
                         throw new RuntimeException(e);
@@ -720,7 +795,7 @@ public class ObjectMapperImpl implements ObjectMapper {
                 } else {
 
 
-                    mapValue.add(createMap((BasicDBObject) li));
+                    mapValue.add(createMap(bobj));
                 }
             } else if (li instanceof BasicDBList) {
                 mapValue.add(createList((BasicDBList) li));
@@ -735,7 +810,14 @@ public class ObjectMapperImpl implements ObjectMapper {
     private void fillList(Field forField, BasicDBList fromDB, List toFillIn) {
         for (Object val : fromDB) {
             if (val instanceof BasicDBObject) {
-                if (((BasicDBObject) val).containsField("class_name") || ((BasicDBObject) val).containsField("className")) {
+                if (((BasicDBObject) val).containsField("type_id")) {
+                    //Entity to map!
+                    Class ecls = cache.getEntityByTypeId().get(((BasicDBObject) val).get("type_id"));
+                    if (ecls != null) {
+                        Object um = unmarshall(ecls, (DBObject) val);
+                        if (um != null) toFillIn.add(um);
+                    } else throw new RuntimeException("Type_id unknown");
+                } else if (((BasicDBObject) val).containsField("class_name") || ((BasicDBObject) val).containsField("className")) {
                     //Entity to map!
                     String cn = (String) ((BasicDBObject) val).get("class_name");
                     if (cn == null) {

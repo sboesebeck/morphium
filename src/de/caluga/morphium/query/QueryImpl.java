@@ -209,6 +209,7 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
         Entity e = morphium.getARHelper().getAnnotationFromHierarchy(type, Entity.class);
         if (e.polymorph()) {
             lst.put("class_name", 1);
+            lst.put("type_id", 1);
         }
 
         if (fieldList != null) {

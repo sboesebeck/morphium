@@ -1,5 +1,6 @@
 package de.caluga.test.mongo.suite;
 
+import com.mongodb.DBObject;
 import de.caluga.morphium.MorphiumSingleton;
 import de.caluga.morphium.annotations.DefaultReadPreference;
 import de.caluga.morphium.annotations.Embedded;
@@ -329,6 +330,10 @@ public class MapListTest extends MongoTest {
         lst.add(map2);
         map.put("list1", lst);
         o.setMap6a(map);
+
+        DBObject dbo = MorphiumSingleton.get().getMapper().marshall(o);
+        CMapListObject lstObj = MorphiumSingleton.get().getMapper().unmarshall(CMapListObject.class, dbo);
+
 
         MorphiumSingleton.get().store(o);
 

@@ -35,5 +35,7 @@ public @interface Entity {
      */
     boolean polymorph() default false;
 
+    String typeId() default ".";
+
     Class<? extends NameProvider> nameProvider() default DefaultNameProvider.class;
 }

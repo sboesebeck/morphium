@@ -41,5 +41,7 @@ public interface ObjectMapper {
 
     public Morphium getMorphium();
 
+    public Class<?> getClassforTypeId(String id);
+
 
 }
