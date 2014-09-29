@@ -36,6 +36,11 @@ public class ObjectMapperImpl implements ObjectMapper {
     }
 
     @Override
+    public EntityCache getEntityCache() {
+        return cache;
+    }
+
+    @Override
     public Class<?> getClassforTypeId(String id) {
         return null;
     }
@@ -432,7 +437,16 @@ public class ObjectMapperImpl implements ObjectMapper {
     public <T> T unmarshall(Class<? extends T> cls, DBObject o) {
         try {
             if (o.get("type_id") != null) {
-                cls = cache.getEntityByTypeId().get(o.get("type_id"));
+                if (cache.getEntityByTypeId().get(o.get("type_id")) == null) {
+                    log.warn("type id unknown - treating ID as class (default) " + o.get("type_id"));
+                    try {
+                        cls = (Class<? extends T>) Class.forName((String) o.get("type_id"));
+                        cache.getEntityByTypeId().put((String) o.get("type_id"), cls);
+                    } catch (Exception e) {
+                    }
+                } else {
+                    cls = cache.getEntityByTypeId().get(o.get("type_id"));
+                }
             } else if (o.get("class_name") != null || o.get("className") != null) {
 //                if (log.isDebugEnabled()) {
 //                    log.debug("overriding cls - it's defined in dbObject");

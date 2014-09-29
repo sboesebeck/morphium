@@ -5,7 +5,6 @@ import de.caluga.morphium.annotations.Entity;
 import org.apache.log4j.Logger;
 
 import java.io.File;
-import java.lang.annotation.Annotation;
 import java.util.*;
 import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
@@ -21,13 +20,28 @@ public class EntityCache {
     private volatile Map<String, Class> entityByTypeId = new Hashtable<>();
     private volatile Vector<Class> enumlist = new Vector<>();
     private volatile Hashtable<Class<?>, NameProvider> nameProviders = new Hashtable<>();
-    private volatile Hashtable<Class<?>, List<? extends Annotation>> annotationsByClass = new Hashtable<>();
 
     private volatile AnnotationAndReflectionHelper hlp = new AnnotationAndReflectionHelper(true);
     private volatile NameProvider defaultNameProvider = new DefaultNameProvider();
 
+
+    private List<String> paths;
     public EntityCache() {
-        findClasses();
+        paths = new ArrayList<>();
+        String classpath = System.getProperty("java.class.path");
+        String[] p = classpath.split(System.getProperty("path.separator"));
+        paths.addAll(Arrays.asList(p));
+
+        String javaHome = System.getProperty("java.home");
+        paths.add(javaHome + File.separator + "lib");
+
+        updateClasses();
+    }
+
+    public void addClassPathElement(String el) {
+        paths.add(el);
+
+        traverseClassesInDir(new File(el), new File(el));
     }
 
 
@@ -123,22 +137,17 @@ public class EntityCache {
         }
     }
 
-    private void findClasses() {
-        String classpath = System.getProperty("java.class.path");
-        String[] paths = classpath.split(System.getProperty("path.separator"));
-
-        String javaHome = System.getProperty("java.home");
-        File file = new File(javaHome + File.separator + "lib");
-        if (file.exists()) {
-            traverseClassesInDir(file, file);
-        }
-
+    public void updateClasses() {
+        nameProviders.clear();
+        entityByTypeId.clear();
+        enumlist.clear();
         for (String path : paths) {
-            file = new File(path);
+            File file = new File(path);
             if (file.exists()) {
                 traverseClassesInDir(file, file);
             }
         }
+
     }
 
     private void traverseClassesInDir(File root, File file) {
