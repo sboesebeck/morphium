@@ -151,6 +151,7 @@ public class ObjectMapperImpl implements ObjectMapper {
             } else {
                 dbo.put("type_id", e.typeId());
             }
+            dbo.put("class_name", cls.getName());
         }
         if (emb != null && emb.polymorph()) {
             if (emb.typeId().equals(".")) {
@@ -158,7 +159,9 @@ public class ObjectMapperImpl implements ObjectMapper {
             } else {
                 dbo.put("type_id", emb.typeId());
             }
+            dbo.put("class_name", cls.getName());
         }
+
 
         for (String f : flds) {
             String fName = f;
@@ -332,6 +335,7 @@ public class ObjectMapperImpl implements ObjectMapper {
                         }
 
                     }
+                    marshall.put("class_name", lo.getClass().getName());
                     lst.add(marshall);
                 } else if (lo instanceof List) {
                     lst.add(createDBList((List) lo));
@@ -385,6 +389,7 @@ public class ObjectMapperImpl implements ObjectMapper {
                             obj.put("type_id", ent.typeId());
                         }
                     }
+                    obj.put("class_name", mval.getClass().getName());
                     mval = obj;
                 } else if (mval instanceof Map) {
                     mval = createDBMap((Map) mval);
@@ -754,21 +759,15 @@ public class ObjectMapperImpl implements ObjectMapper {
                     BasicDBObject dbo = (BasicDBObject) val;
                     if (dbo.containsField("type_id")) {
                         Class ecls = cache.getEntityByTypeId().get(dbo.get("type_id"));
-                        Object obj = unmarshall(ecls, (DBObject) dbObject.get(n));
-                        if (obj != null) retMap.put(n, obj);
-                    } else if (dbo.containsField("class_name") || dbo.containsField("className")) {
-                        //Entity to map!
-                        String cn = (String) dbo.get("class_name");
-                        if (cn == null) {
-                            cn = (String) dbo.get("className");
-                        }
-                        try {
-                            Class ecls = Class.forName(cn);
+                        if (ecls == null) {
+                            handleClassName(dbo, retMap, n, dbo);
+                        } else {
                             Object obj = unmarshall(ecls, (DBObject) dbObject.get(n));
                             if (obj != null) retMap.put(n, obj);
-                        } catch (ClassNotFoundException e) {
-                            throw new RuntimeException(e);
                         }
+                    } else if (dbo.containsField("class_name") || dbo.containsField("className")) {
+                        handleClassName(dbObject, retMap, n, dbo);
+
                     } else {
                         //maybe a map of maps? --> recurse
                         retMap.put(n, createMap(dbo));
@@ -785,6 +784,21 @@ public class ObjectMapperImpl implements ObjectMapper {
         return retMap;
     }
 
+    private void handleClassName(BasicDBObject dbObject, Map retMap, String n, BasicDBObject dbo) {
+        //Entity to map!
+        String cn = (String) dbo.get("class_name");
+        if (cn == null) {
+            cn = (String) dbo.get("className");
+        }
+        try {
+            Class ecls = Class.forName(cn);
+            Object obj = unmarshall(ecls, (DBObject) dbObject.get(n));
+            if (obj != null) retMap.put(n, obj);
+        } catch (ClassNotFoundException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
     private List createList(BasicDBList lst) {
         List mapValue = new ArrayList();
         for (Object li : lst) {
@@ -792,23 +806,15 @@ public class ObjectMapperImpl implements ObjectMapper {
                 BasicDBObject bobj = (BasicDBObject) li;
                 if (bobj.containsField("type_id")) {
                     Class cls = cache.getEntityByTypeId().get(bobj.get("type_id"));
-                    Object obj = unmarshall(cls, bobj);
-                    if (obj != null) mapValue.add(obj);
-                } else if (bobj.containsField("class_name") || bobj.containsField("className")) {
-                    String cn = (String) bobj.get("class_name");
-                    if (cn == null) {
-                        cn = (String) bobj.get("className");
-                    }
-                    try {
-                        Class ecls = Class.forName(cn);
-                        Object obj = unmarshall(ecls, bobj);
+                    if (cls == null) {
+                        handleClassNameList(mapValue, bobj);
+                    } else {
+                        Object obj = unmarshall(cls, bobj);
                         if (obj != null) mapValue.add(obj);
-                    } catch (ClassNotFoundException e) {
-                        throw new RuntimeException(e);
                     }
+                } else if (bobj.containsField("class_name") || bobj.containsField("className")) {
+                    handleClassNameList(mapValue, bobj);
                 } else {
-
-
                     mapValue.add(createMap(bobj));
                 }
             } else if (li instanceof BasicDBList) {
@@ -818,6 +824,20 @@ public class ObjectMapperImpl implements ObjectMapper {
             }
         }
         return mapValue;
+    }
+
+    private void handleClassNameList(List mapValue, BasicDBObject bobj) {
+        String cn = (String) bobj.get("class_name");
+        if (cn == null) {
+            cn = (String) bobj.get("className");
+        }
+        try {
+            Class ecls = Class.forName(cn);
+            Object obj = unmarshall(ecls, bobj);
+            if (obj != null) mapValue.add(obj);
+        } catch (ClassNotFoundException e) {
+            throw new RuntimeException(e);
+        }
     }
 
     @SuppressWarnings({"unchecked", "ConstantConditions"})
@@ -830,20 +850,24 @@ public class ObjectMapperImpl implements ObjectMapper {
                     if (ecls != null) {
                         Object um = unmarshall(ecls, (DBObject) val);
                         if (um != null) toFillIn.add(um);
-                    } else throw new RuntimeException("Type_id unknown");
+                    } else {
+                        handleClassNameList(toFillIn, (BasicDBObject) val);
+//                        throw new RuntimeException("Type_id unknown");
+                    }
                 } else if (((BasicDBObject) val).containsField("class_name") || ((BasicDBObject) val).containsField("className")) {
-                    //Entity to map!
-                    String cn = (String) ((BasicDBObject) val).get("class_name");
-                    if (cn == null) {
-                        cn = (String) ((BasicDBObject) val).get("className");
-                    }
-                    try {
-                        Class ecls = Class.forName(cn);
-                        Object um = unmarshall(ecls, (DBObject) val);
-                        if (um != null) toFillIn.add(um);
-                    } catch (ClassNotFoundException e) {
-                        throw new RuntimeException(e);
-                    }
+                    handleClassNameList(toFillIn, (BasicDBObject) val);
+//                    //Entity to map!
+//                    String cn = (String) ((BasicDBObject) val).get("class_name");
+//                    if (cn == null) {
+//                        cn = (String) ((BasicDBObject) val).get("className");
+//                    }
+//                    try {
+//                        Class ecls = Class.forName(cn);
+//                        Object um = unmarshall(ecls, (DBObject) val);
+//                        if (um != null) toFillIn.add(um);
+//                    } catch (ClassNotFoundException e) {
+//                        throw new RuntimeException(e);
+//                    }
                 } else {
 
                     if (forField != null && forField.getGenericType() instanceof ParameterizedType) {
