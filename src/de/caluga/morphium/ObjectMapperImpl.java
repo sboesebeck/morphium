@@ -443,14 +443,36 @@ public class ObjectMapperImpl implements ObjectMapper {
         try {
             if (o.get("type_id") != null) {
                 if (cache.getEntityByTypeId().get(o.get("type_id")) == null) {
-                    log.warn("type id unknown - treating ID as class (default) " + o.get("type_id"));
+                    log.warn("type id unknown or class not registered " + o.get("type_id") + " - switching to old behaviour using class " + o.get("class_name"));
                     try {
-                        cls = (Class<? extends T>) Class.forName((String) o.get("type_id"));
-                        cache.getEntityByTypeId().put((String) o.get("type_id"), cls);
+                        cls = (Class<? extends T>) Class.forName((String) o.get("class_name"));
+                        cache.getEntityByTypeId().put((String) o.get("class_name"), cls);
                     } catch (Exception e) {
                     }
                 } else {
-                    cls = cache.getEntityByTypeId().get(o.get("type_id"));
+                    String cN = (String) o.get("class_name");
+                    if (cN == null) {
+                        cN = (String) o.get("className");
+                    }
+                    try {
+                        cls = (Class<? extends T>) Class.forName(cN);
+                    } catch (ClassNotFoundException e) {
+
+                        log.warn("could not load class " + cN);
+                        if (o.get("name") != null) {
+                            String name = (String) o.get("name");
+                            log.warn(" trying recovery for Enums");
+                            for (Class enumCls : cache.getEnumlist()) {
+                                T en = (T) getEnum(enumCls, name);
+                                if (en != null) {
+                                    log.warn(" => Using enum of type " + en.getClass().getName());
+                                    return en;
+                                }
+                            }
+
+                        }
+                        throw new RuntimeException(e);
+                    }
                 }
             } else if (o.get("class_name") != null || o.get("className") != null) {
 //                if (log.isDebugEnabled()) {
@@ -760,6 +782,7 @@ public class ObjectMapperImpl implements ObjectMapper {
                     if (dbo.containsField("type_id")) {
                         Class ecls = cache.getEntityByTypeId().get(dbo.get("type_id"));
                         if (ecls == null) {
+                            log.warn("Did not find type_id " + dbo.get("type_id") + " - using classname");
                             handleClassName(dbo, retMap, n, dbo);
                         } else {
                             Object obj = unmarshall(ecls, (DBObject) dbObject.get(n));
@@ -807,6 +830,7 @@ public class ObjectMapperImpl implements ObjectMapper {
                 if (bobj.containsField("type_id")) {
                     Class cls = cache.getEntityByTypeId().get(bobj.get("type_id"));
                     if (cls == null) {
+                        log.warn("Did not find type_id " + bobj.get("type_id") + " - using classname");
                         handleClassNameList(mapValue, bobj);
                     } else {
                         Object obj = unmarshall(cls, bobj);

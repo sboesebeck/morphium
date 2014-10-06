@@ -484,6 +484,29 @@ public class ObjectMapperTest extends MongoTest {
 
 
     @Test
+    public void typeIdListTest() throws Exception {
+        ListTestObject lt = new ListTestObject();
+        lt.id = "a test";
+        lt.theList = new ArrayList<>();
+
+
+        UncachedObject obj = new UncachedObject();
+        obj.setCounter(1);
+        obj.setValue("A value");
+        ListContainer lc = new ListContainer();
+        lc.setName("list");
+
+
+        DBObject db = MorphiumSingleton.get().getMapper().marshall(obj);
+        assert (db.get("type_id").equals("myIdUC"));
+        assert (db.get("class_name").equals(UncachedObject.class.getName()));
+//        MorphiumSingleton.get().getMapper().unmarshall(Object.class,)
+        db.put("type_id", "unknown");
+
+    }
+
+
+    @Test
     public void noDefaultConstructorTest() throws Exception {
         NoDefaultConstructorUncachedObject o = new NoDefaultConstructorUncachedObject("test", 15);
         String serialized = MorphiumSingleton.get().getMapper().marshall(o).toString();
@@ -528,5 +551,12 @@ public class ObjectMapperTest extends MongoTest {
         public UncachedObject uc;
         public Map<String, String> aMap;
 
+    }
+
+    @Entity
+    public static class ListTestObject {
+        @Id
+        public String id;
+        public List<UncachedObject> theList;
     }
 }
