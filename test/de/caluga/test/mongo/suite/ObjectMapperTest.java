@@ -1,5 +1,6 @@
 package de.caluga.test.mongo.suite;
 
+import com.mongodb.BasicDBList;
 import com.mongodb.BasicDBObject;
 import com.mongodb.DBObject;
 import de.caluga.morphium.AnnotationAndReflectionHelper;
@@ -493,16 +494,23 @@ public class ObjectMapperTest extends MongoTest {
         UncachedObject obj = new UncachedObject();
         obj.setCounter(1);
         obj.setValue("A value");
-        ListContainer lc = new ListContainer();
-        lc.setName("list");
+        lt.theList.add(obj);
 
 
-        DBObject db = MorphiumSingleton.get().getMapper().marshall(obj);
-        assert (db.get("type_id").equals("myIdUC"));
-        assert (db.get("class_name").equals(UncachedObject.class.getName()));
+        DBObject db = MorphiumSingleton.get().getMapper().marshall(lt);
+        assert (db.get("the_list") != null);
+        assert (((BasicDBList) db.get("the_list")).get(0) != null);
+        assert (((BasicDBObject) ((BasicDBList) db.get("the_list")).get(0)).get("type_id").equals("myIdUC"));
+        assert (((BasicDBObject) ((BasicDBList) db.get("the_list")).get(0)).get("class_name").equals(UncachedObject.class.getName()));
+//        assert (db.get("type_id").equals("myIdUC"));
+//        assert (db.get("class_name").equals(UncachedObject.class.getName()));
 //        MorphiumSingleton.get().getMapper().unmarshall(Object.class,)
-        db.put("type_id", "unknown");
-
+//        db.put("type_id", "unknown");
+        ((BasicDBObject) ((BasicDBList) db.get("the_list")).get(0)).put("type_id", "unknown");
+        ListTestObject lto = MorphiumSingleton.get().getMapper().unmarshall(ListTestObject.class, db);
+        assert (lto.id.equals("a test"));
+        assert (lto.theList.size() == 1);
+        assert (lto.theList.get(0) instanceof UncachedObject);
     }
 
 
