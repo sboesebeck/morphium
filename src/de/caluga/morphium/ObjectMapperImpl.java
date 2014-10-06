@@ -783,7 +783,7 @@ public class ObjectMapperImpl implements ObjectMapper {
                         Class ecls = cache.getEntityByTypeId().get(dbo.get("type_id"));
                         if (ecls == null) {
                             log.warn("Did not find type_id " + dbo.get("type_id") + " - using classname");
-                            handleClassName(dbo, retMap, n, dbo);
+                            handleClassName(dbObject, retMap, n, dbo);
                         } else {
                             Object obj = unmarshall(ecls, (DBObject) dbObject.get(n));
                             if (obj != null) retMap.put(n, obj);
@@ -875,6 +875,7 @@ public class ObjectMapperImpl implements ObjectMapper {
                         Object um = unmarshall(ecls, (DBObject) val);
                         if (um != null) toFillIn.add(um);
                     } else {
+                        log.error("Did not find type_id " + ((BasicDBObject) val).get("type_id") + " - using classname instead: " + ((BasicDBObject) val).get("class_name"));
                         handleClassNameList(toFillIn, (BasicDBObject) val);
 //                        throw new RuntimeException("Type_id unknown");
                     }

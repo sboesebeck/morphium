@@ -541,6 +541,7 @@ public class ObjectMapperTest extends MongoTest {
 
 
         MappedObject o = new MappedObject();
+        o.id = "A test";
         o.aMap = new HashMap<String, String>();
         o.aMap.put("test", "test");
         o.uc = new NoDefaultConstructorUncachedObject("v", 123);
@@ -548,6 +549,7 @@ public class ObjectMapperTest extends MongoTest {
         DBObject dbo = m.marshall(o);
         o = m.unmarshall(MappedObject.class, dbo.toString());
 
+        assert (o.id.equals("A test"));
         assert (!(o.aMap instanceof DBObject));
         assert (o.aMap.get("test") != null);
     }
