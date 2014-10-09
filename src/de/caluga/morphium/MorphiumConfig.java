@@ -122,12 +122,6 @@ public class MorphiumConfig {
     @Transient
     private Class<? extends MorphiumIterator> iteratorClass;
     private int acceptableLatencyDifference = 15;
-    private int threadPoolMessagingCoreSize = 0;
-    private int threadPoolMessagingMaxSize = 100;
-    private long threadPoolMessagingKeepAliveTime = 2000;
-    private int threadPoolAsyncOpCoreSize = 1;
-    private int threadPoolAsyncOpMaxSize = 1000;
-    private long threadPoolAsyncOpKeepAliveTime = 1000;
 
     public MorphiumConfig(Properties prop) {
         AnnotationAndReflectionHelper an = new AnnotationAndReflectionHelper(true); //settings always convert camel case
@@ -969,53 +963,5 @@ public class MorphiumConfig {
 
     public void setCamelCaseConversionEnabled(boolean camelCaseConversionEnabled) {
         this.camelCaseConversionEnabled = camelCaseConversionEnabled;
-    }
-
-    public int getThreadPoolMessagingCoreSize() {
-        return threadPoolMessagingCoreSize;
-    }
-
-    public void setThreadPoolMessagingCoreSize(int threadPoolMessagingCoreSize) {
-        this.threadPoolMessagingCoreSize = threadPoolMessagingCoreSize;
-    }
-
-    public int getThreadPoolMessagingMaxSize() {
-        return threadPoolMessagingMaxSize;
-    }
-
-    public void setThreadPoolMessagingMaxSize(int threadPoolMessagingMaxSize) {
-        this.threadPoolMessagingMaxSize = threadPoolMessagingMaxSize;
-    }
-
-    public long getThreadPoolMessagingKeepAliveTime() {
-        return threadPoolMessagingKeepAliveTime;
-    }
-
-    public void setThreadPoolMessagingKeepAliveTime(long threadPoolMessagingKeepAliveTime) {
-        this.threadPoolMessagingKeepAliveTime = threadPoolMessagingKeepAliveTime;
-    }
-
-    public int getThreadPoolAsyncOpCoreSize() {
-        return threadPoolAsyncOpCoreSize;
-    }
-
-    public void setThreadPoolAsyncOpCoreSize(int threadPoolAsyncOpCoreSize) {
-        this.threadPoolAsyncOpCoreSize = threadPoolAsyncOpCoreSize;
-    }
-
-    public int getThreadPoolAsyncOpMaxSize() {
-        return threadPoolAsyncOpMaxSize;
-    }
-
-    public void setThreadPoolAsyncOpMaxSize(int threadPoolAsyncOpMaxSize) {
-        this.threadPoolAsyncOpMaxSize = threadPoolAsyncOpMaxSize;
-    }
-
-    public long getThreadPoolAsyncOpKeepAliveTime() {
-        return threadPoolAsyncOpKeepAliveTime;
-    }
-
-    public void setThreadPoolAsyncOpKeepAliveTime(long threadPoolAsyncOpKeepAliveTime) {
-        this.threadPoolAsyncOpKeepAliveTime = threadPoolAsyncOpKeepAliveTime;
     }
 }

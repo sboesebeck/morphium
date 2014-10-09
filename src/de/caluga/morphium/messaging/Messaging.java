@@ -11,7 +11,7 @@ import org.apache.log4j.Logger;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.*;
-import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 
@@ -73,16 +73,14 @@ public class Messaging extends Thread {
         this.multithreadded = multithreadded;
         this.windowSize = windowSize;
         this.prefetchdWindows = prefetchdWindows;
-        morphium = m;
 
 
-        if (multithreadded) {
-            threadPool = new ThreadPoolExecutor(morphium.getConfig().getThreadPoolMessagingCoreSize(), morphium.getConfig().getThreadPoolMessagingMaxSize(),
-                    morphium.getConfig().getThreadPoolMessagingKeepAliveTime(), TimeUnit.MILLISECONDS,
-                    new LinkedBlockingQueue<Runnable>());
-        }
+        threadPool = new ThreadPoolExecutor(0, 10,
+                1L, TimeUnit.SECONDS,
+                new ArrayBlockingQueue<Runnable>(1000));
 
         this.queueName = queueName;
+        morphium = m;
         running = true;
         this.pause = pause;
         this.processMultiple = processMultiple;
@@ -240,10 +238,8 @@ public class Messaging extends Thread {
                 }
 
                 //wait for all threads to finish
-                if (multithreadded) {
-                    while (threadPool.getActiveCount() > 0) {
-                        Thread.sleep(100);
-                    }
+                while (threadPool.getActiveCount() > 0) {
+                    Thread.sleep(100);
                 }
                 morphium.storeList(toStore, getCollectionName());
                 for (Runnable r : toExec) {

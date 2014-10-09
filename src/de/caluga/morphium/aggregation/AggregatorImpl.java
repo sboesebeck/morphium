@@ -8,6 +8,9 @@ import de.caluga.morphium.async.AsyncOperationType;
 import de.caluga.morphium.query.Query;
 
 import java.util.*;
+import java.util.concurrent.SynchronousQueue;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 
 /**
  * User: Stephan Bösebeck
@@ -20,7 +23,9 @@ public class AggregatorImpl<T, R> implements Aggregator<T, R> {
     private List<DBObject> params = new ArrayList<DBObject>();
     private Morphium morphium;
     private Class<? extends R> rType;
-
+    private ThreadPoolExecutor executor = new ThreadPoolExecutor(0, Integer.MAX_VALUE,
+            60L, TimeUnit.SECONDS,
+            new SynchronousQueue<Runnable>());
 
     @Override
     public void setMorphium(Morphium m) {
@@ -164,17 +169,15 @@ public class AggregatorImpl<T, R> implements Aggregator<T, R> {
     public void aggregate(final AsyncOperationCallback<R> callback) {
         if (callback == null) {
             morphium.aggregate(this);
-        } else {
-
-            morphium.queueTask(new Runnable() {
-                @Override
-                public void run() {
-                    long start = System.currentTimeMillis();
-                    List<R> ret = morphium.aggregate(AggregatorImpl.this);
-                    callback.onOperationSucceeded(AsyncOperationType.READ, null, System.currentTimeMillis() - start, ret, null, AggregatorImpl.this);
-                }
-            });
         }
+        executor.submit(new Runnable() {
+            @Override
+            public void run() {
+                long start = System.currentTimeMillis();
+                List<R> ret = morphium.aggregate(AggregatorImpl.this);
+                callback.onOperationSucceeded(AsyncOperationType.READ, null, System.currentTimeMillis() - start, ret, null, AggregatorImpl.this);
+            }
+        });
     }
 
     @Override
