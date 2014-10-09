@@ -70,7 +70,7 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter {
                 strategy = w.strategy();
             }
             if (size > 0 && opLog.get(type).size() > size) {
-                logger.warn("WARNING: Write buffer maximum exceeded: " + opLog.get(type).size() + " entries now, max is " + size);
+                logger.warn("WARNING: Write buffer for type "+type.getName()+" maximum exceeded: " + opLog.get(type).size() + " entries now, max is " + size);
                 switch (strategy) {
                     case JUST_WARN:
                         break;
