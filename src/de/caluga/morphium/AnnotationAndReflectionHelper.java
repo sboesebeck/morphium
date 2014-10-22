@@ -181,7 +181,8 @@ public class AnnotationAndReflectionHelper {
      */
     @SuppressWarnings("StringBufferMayBeStringBuilder")
     public String convertCamelCase(String n) {
-        StringBuffer b = new StringBuffer();
+        if (!ccc) return n;
+        StringBuilder b = new StringBuilder();
         for (int i = 0; i < n.length() - 1; i++) {
             if (Character.isUpperCase(n.charAt(i)) && i > 0) {
                 b.append("_");
@@ -204,10 +205,10 @@ public class AnnotationAndReflectionHelper {
         }
         Class<?> cls = getRealClass(clz);
 
-        List<Field> ret = new Vector<Field>();
+        List<Field> ret = new ArrayList<Field>();
         Class sc = cls;
         //getting class hierachy
-        List<Class> hierachy = new Vector<Class>();
+        List<Class> hierachy = new ArrayList<Class>();
         while (!sc.equals(Object.class)) {
             hierachy.add(sc);
             sc = sc.getSuperclass();
@@ -552,7 +553,7 @@ public class AnnotationAndReflectionHelper {
         if (fieldAnnotationListCache.containsKey(k)) {
             return fieldAnnotationListCache.get(k);
         }
-        List<String> ret = new Vector<String>();
+        List<String> ret = new ArrayList<>();
         Class sc = cls;
         sc = getRealClass(sc);
         Entity entity = getAnnotationFromHierarchy(sc, Entity.class); //(Entity) sc.getAnnotation(Entity.class);

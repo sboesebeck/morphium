@@ -167,7 +167,7 @@ public class MorphiumCacheImpl implements MorphiumCache {
     @SuppressWarnings("StringBufferMayBeStringBuilder")
     @Override
     public String getCacheKey(DBObject qo, Map<String, Integer> sort, String collection, int skip, int limit) {
-        StringBuffer b = new StringBuffer();
+        StringBuilder b = new StringBuilder();
         b.append(qo.toString());
         b.append(" c:" + collection);
         b.append(" l:");

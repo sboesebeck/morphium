@@ -23,7 +23,7 @@ public class WriteBufferCountTest extends MongoTest {
         for (int i = 0; i < 10000; i++) {
             UncachedObject uc = new UncachedObject();
             uc.setCounter(1);
-            StringBuffer longText = new StringBuffer();
+            StringBuilder longText = new StringBuilder();
             for (int t = 0; t < 1000; t++) {
                 longText.append("-test-" + i);
             }

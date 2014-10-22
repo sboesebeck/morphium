@@ -142,8 +142,8 @@ public class Messaging extends Thread {
                 MorphiumIterator<Msg> messages = q.asIterable(windowSize, prefetchdWindows);
                 messages.setMultithreaddedAccess(multithreadded);
 
-                final List<Msg> toStore = new Vector<Msg>();
-                final List<Runnable> toExec = new Vector<Runnable>();
+                final List<Msg> toStore = new ArrayList<>();
+                final List<Runnable> toExec = new ArrayList<>();
 //                int count=0;
                 for (final Msg m : messages) {
 //                    count++;
