@@ -110,9 +110,9 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
     public void setMorphium(Morphium m) {
         morphium = m;
 
-        andExpr = new Vector<FilterExpression>();
-        orQueries = new Vector<Query<T>>();
-        norQueries = new Vector<Query<T>>();
+        andExpr = new ArrayList<>();
+        orQueries = new ArrayList<>();
+        norQueries = new ArrayList<>();
     }
 
     public ReadPreferenceLevel getReadPreferenceLevel() {
@@ -286,7 +286,7 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
 
     @Override
     public MongoField<T> f(String... f) {
-        StringBuffer b = new StringBuffer();
+        StringBuilder b = new StringBuilder();
         for (String e : f) {
             b.append(e);
             b.append(".");
@@ -297,7 +297,7 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
 
     @Override
     public MongoField<T> f(Enum... f) {
-        StringBuffer b = new StringBuffer();
+        StringBuilder b = new StringBuilder();
         for (Enum e : f) {
             b.append(e.name());
             b.append(".");
@@ -307,7 +307,7 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
     }
 
     public MongoField<T> f(String f) {
-        StringBuffer fieldPath = new StringBuffer();
+        StringBuilder fieldPath = new StringBuilder();
         String cf = f;
         Class<?> clz = type;
         if (f.contains(".")) {
@@ -930,19 +930,19 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
         try {
             QueryImpl<T> ret = (QueryImpl<T>) super.clone();
             if (andExpr != null) {
-                ret.andExpr = new Vector<FilterExpression>();
+                ret.andExpr = new ArrayList<>();
                 ret.andExpr.addAll(andExpr);
             }
             if (norQueries != null) {
-                ret.norQueries = new Vector<Query<T>>();
+                ret.norQueries = new ArrayList<>();
                 ret.norQueries.addAll(norQueries);
             }
             if (sort != null) {
-                ret.sort = new Hashtable<String, Object>();
+                ret.sort = new HashMap<String, Object>();
                 ret.sort.putAll(sort);
             }
             if (orQueries != null) {
-                ret.orQueries = new Vector<Query<T>>();
+                ret.orQueries = new ArrayList<>();
                 ret.orQueries.addAll(orQueries);
             }
             if (readPreferenceLevel != null) {

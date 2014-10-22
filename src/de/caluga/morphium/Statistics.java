@@ -65,7 +65,7 @@ public class Statistics extends Hashtable<String, Double> {
 
     @Override
     public String toString() {
-        StringBuffer b = new StringBuffer();
+        StringBuilder b = new StringBuilder();
         StatisticKeys[] lst = morphium.getStats().keySet().toArray(new StatisticKeys[morphium.getStats().keySet().size()]);
         Arrays.sort(lst);
         for (StatisticKeys k : lst) {

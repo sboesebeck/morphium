@@ -3,8 +3,8 @@ package de.caluga.morphium;
 import com.mongodb.BasicDBObject;
 import com.mongodb.DBObject;
 
+import java.util.ArrayList;
 import java.util.List;
-import java.util.Vector;
 
 public class FilterExpression {
     private String field;
@@ -37,7 +37,7 @@ public class FilterExpression {
 
     public void addChild(FilterExpression e) {
         if (children == null) {
-            children = new Vector<FilterExpression>();
+            children = new ArrayList<FilterExpression>();
         }
         children.add(e);
     }
