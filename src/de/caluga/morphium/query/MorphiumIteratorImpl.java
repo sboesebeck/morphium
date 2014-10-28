@@ -5,9 +5,6 @@ import org.apache.log4j.Logger;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
-import java.util.concurrent.ArrayBlockingQueue;
-import java.util.concurrent.ThreadPoolExecutor;
-import java.util.concurrent.TimeUnit;
 
 /**
  * User: Stephan Bösebeck
@@ -32,15 +29,9 @@ public class MorphiumIteratorImpl<T> implements MorphiumIterator<T> {
     private boolean multithreaddedAccess = false;
 
 
-    private final ArrayBlockingQueue<Runnable> workQueue;
-    private ThreadPoolExecutor executorService;
-
 
     public MorphiumIteratorImpl() {
-        workQueue = new ArrayBlockingQueue<>(1000, true);
-        executorService = new ThreadPoolExecutor(25, Integer.MAX_VALUE,
-                60L, TimeUnit.SECONDS,
-                workQueue);
+//        workQueue = new ArrayBlockingQueue<>(1000, true);
 //        executorService = new ThreadPoolExecutor(10, 100, 1000, TimeUnit.MILLISECONDS, workQueue);
 
     }
@@ -129,7 +120,7 @@ public class MorphiumIteratorImpl<T> implements MorphiumIterator<T> {
                 boolean queued = false;
                 while (!queued) {
                     try {
-                        executorService.execute(cmd);
+                        theQuery.getMorphium().queueTask(cmd);
                         queued = true;
                     } catch (Throwable e) {
 
@@ -161,7 +152,7 @@ public class MorphiumIteratorImpl<T> implements MorphiumIterator<T> {
                 //add new one in background...
                 final Container<T> container = prefetchBuffers[prefetchWindows - 1];
 
-                executorService.execute(new Runnable() {
+                theQuery.getMorphium().queueTask(new Runnable() {
                     public void run() {
 //                        System.out.println("Executing..." + win + " / " + cursor + " / " + executorService.getActiveCount() + " / queue: " + executorService.getQueue().size());
                         container.setData(getBuffer(win));
@@ -286,14 +277,12 @@ public class MorphiumIteratorImpl<T> implements MorphiumIterator<T> {
     @Override
     public void setNumberOfPrefetchWindows(int n) {
         this.prefetchWindows = n;
-        executorService = new ThreadPoolExecutor(n, Integer.MAX_VALUE,
-                60L, TimeUnit.SECONDS,
-                workQueue);
+
     }
 
     @Override
     public int getNumberOfAvailableThreads() {
-        return executorService.getMaximumPoolSize() - executorService.getActiveCount();
+        return theQuery.getMorphium().getNumberOfAvailableThreads();
 //        executorService.
 //        return workQueue.remainingCapacity();
 
@@ -303,7 +292,7 @@ public class MorphiumIteratorImpl<T> implements MorphiumIterator<T> {
     @Override
     public int getNumberOfThreads() {
 //        return workQueue.size();
-        return executorService.getActiveCount();
+        return theQuery.getMorphium().getActiveThreads();
     }
 
 

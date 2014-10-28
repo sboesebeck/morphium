@@ -45,6 +45,7 @@ public class IteratorTest extends MongoTest {
                         data.add(uc.getMongoId());
                     }
                     runningThreads--;
+                    log.info("Thread finished");
                 }
             }.start();
             Thread.sleep(100);
