@@ -13,7 +13,7 @@ import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.text.SimpleDateFormat;
 import java.util.*;
-import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.SynchronousQueue;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 
@@ -33,9 +33,7 @@ public class MorphiumWriterImpl implements MorphiumWriter {
     private Morphium morphium;
     private int maximumRetries = 10;
     private int pause = 250;
-    private ThreadPoolExecutor executor = new ThreadPoolExecutor(0, Integer.MAX_VALUE,
-            60L, TimeUnit.SECONDS,
-            new ArrayBlockingQueue<Runnable>(1000, true));
+    private ThreadPoolExecutor executor = null;
 
     @Override
     public void setMaximumQueingTries(int n) {
@@ -51,8 +49,9 @@ public class MorphiumWriterImpl implements MorphiumWriter {
     public void setMorphium(Morphium m) {
         morphium = m;
         if (m != null) {
-            executor.setCorePoolSize(m.getConfig().getMaxConnections() / 2);
-            executor.setMaximumPoolSize((int) (m.getConfig().getMaxConnections() * m.getConfig().getBlockingThreadsMultiplier() * 0.9));
+            executor = new ThreadPoolExecutor(m.getConfig().getMaxConnections() / 2, (int) (m.getConfig().getMaxConnections() * m.getConfig().getBlockingThreadsMultiplier() * 0.9),
+                    60L, TimeUnit.SECONDS,
+                    new SynchronousQueue<Runnable>());
         }
     }
 

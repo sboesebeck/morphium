@@ -6,6 +6,8 @@ import de.caluga.morphium.async.AsyncOperationType;
 import de.caluga.morphium.query.Query;
 import org.junit.Test;
 
+import java.lang.management.ManagementFactory;
+import java.lang.management.ThreadMXBean;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -56,5 +58,14 @@ public class WriteBufferCountTest extends MongoTest {
             assert (cnt < 1000000);
         }
         return c;
+    }
+
+
+    @Test
+    public void threadNumberTest() throws Exception {
+        ThreadMXBean thbean = ManagementFactory.getThreadMXBean();
+        log.info("Running threads: " + thbean.getThreadCount());
+        assert (thbean.getThreadCount() < 1000);
+
     }
 }
