@@ -15,7 +15,7 @@ import java.util.concurrent.TimeUnit;
  */
 public class QueryFactoryImpl implements QueryFactory {
     private Class<? extends Query> queryImpl;
-    ThreadPoolExecutor executor = null;
+    private ThreadPoolExecutor executor = null;
 
     public QueryFactoryImpl() {
     }
@@ -30,9 +30,9 @@ public class QueryFactoryImpl implements QueryFactory {
     }
 
     @Override
-    public ThreadPoolExecutor getExecutor() {
+    public ThreadPoolExecutor getExecutor(Morphium m) {
         if (executor == null) {
-            executor = new ThreadPoolExecutor(0, Integer.MAX_VALUE,
+            executor = new ThreadPoolExecutor(m.getConfig().getMaxConnections() / 2, (int) (m.getConfig().getMaxConnections() * m.getConfig().getBlockingThreadsMultiplier() * 0.9),
                     60L, TimeUnit.SECONDS,
                     new SynchronousQueue<Runnable>());
         }
@@ -55,8 +55,7 @@ public class QueryFactoryImpl implements QueryFactory {
             Query<T> q = queryImpl.newInstance();
             q.setMorphium(m);
             q.setType(type);
-            q.setExecutor(getExecutor());
-
+            q.setExecutor(getExecutor(m));
             return q;
         } catch (InstantiationException e) {
             throw new RuntimeException(e);

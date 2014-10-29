@@ -18,7 +18,7 @@ public interface QueryFactory {
 
     public void setQueryImpl(Class<? extends Query> queryImpl);
 
-    void setExecutor(ThreadPoolExecutor ex);
+    public void setExecutor(ThreadPoolExecutor ex);
 
-    ThreadPoolExecutor getExecutor();
+    public ThreadPoolExecutor getExecutor(Morphium m);
 }

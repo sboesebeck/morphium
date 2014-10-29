@@ -165,7 +165,7 @@ public class CacheSyncTest extends MongoTest {
         dur = System.currentTimeMillis() - start;
         log.info("Storing with synchronizer: " + dur + " ms");
 
-        Thread.sleep(10000);
+        Thread.sleep(15000);
         start = System.currentTimeMillis();
         int notFoundCounter = 0;
         for (int i = 0; i < 100; i++) {

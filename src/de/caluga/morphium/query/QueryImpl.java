@@ -12,9 +12,7 @@ import java.lang.reflect.Array;
 import java.lang.reflect.Field;
 import java.text.SimpleDateFormat;
 import java.util.*;
-import java.util.concurrent.SynchronousQueue;
 import java.util.concurrent.ThreadPoolExecutor;
-import java.util.concurrent.TimeUnit;
 
 /**
  * User: Stpehan Bösebeck
@@ -83,11 +81,6 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
     }
 
     public ThreadPoolExecutor getExecutor() {
-        if (executor == null) {
-            executor = new ThreadPoolExecutor(0, Integer.MAX_VALUE,
-                    60L, TimeUnit.SECONDS,
-                    new SynchronousQueue<Runnable>());
-        }
         return executor;
     }
 

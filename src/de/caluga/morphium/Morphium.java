@@ -115,6 +115,9 @@ public class Morphium {
 
     }
 
+    public ThreadPoolExecutor getAsyncOperationsThreadPool() {
+        return asyncOperationsThreadPool;
+    }
     public void setConfig(MorphiumConfig cfg) {
         if (config != null) {
             throw new RuntimeException("Cannot change config!");
