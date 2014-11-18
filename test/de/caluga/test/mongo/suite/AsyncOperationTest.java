@@ -63,6 +63,7 @@ public class AsyncOperationTest extends MongoTest {
         });
 
         waitForWrites();
+        Thread.sleep(1000);
 
         assert MorphiumSingleton.get().createQueryFor(UncachedObject.class).f("counter").eq(0).countAll() > 0;
         assert (asyncCall);

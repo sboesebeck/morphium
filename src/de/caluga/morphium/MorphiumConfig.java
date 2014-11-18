@@ -128,6 +128,7 @@ public class MorphiumConfig {
     private int threadPoolAsyncOpCoreSize = 1;
     private int threadPoolAsyncOpMaxSize = 1000;
     private long threadPoolAsyncOpKeepAliveTime = 1000;
+    private boolean objectSerializationEnabled = true;
 
     public MorphiumConfig(Properties prop) {
         AnnotationAndReflectionHelper an = new AnnotationAndReflectionHelper(true); //settings always convert camel case
@@ -1017,5 +1018,13 @@ public class MorphiumConfig {
 
     public void setThreadPoolAsyncOpKeepAliveTime(long threadPoolAsyncOpKeepAliveTime) {
         this.threadPoolAsyncOpKeepAliveTime = threadPoolAsyncOpKeepAliveTime;
+    }
+
+    public boolean isObjectSerializationEnabled() {
+        return objectSerializationEnabled;
+    }
+
+    public void setObjectSerializationEnabled(boolean objectSerializationEnabled) {
+        this.objectSerializationEnabled = objectSerializationEnabled;
     }
 }
