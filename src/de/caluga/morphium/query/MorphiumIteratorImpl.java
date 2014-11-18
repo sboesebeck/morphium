@@ -125,6 +125,7 @@ public class MorphiumIteratorImpl<T> implements MorphiumIterator<T> {
                     } catch (Throwable e) {
 
                     }
+
                 }
             }
         }

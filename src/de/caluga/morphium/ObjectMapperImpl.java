@@ -11,8 +11,11 @@ import org.bson.types.ObjectId;
 import org.json.simple.parser.ContainerFactory;
 import org.json.simple.parser.JSONParser;
 import org.json.simple.parser.ParseException;
+import sun.misc.BASE64Decoder;
+import sun.misc.BASE64Encoder;
 import sun.reflect.ReflectionFactory;
 
+import java.io.*;
 import java.lang.reflect.*;
 import java.util.*;
 
@@ -117,6 +120,30 @@ public class ObjectMapperImpl implements ObjectMapper {
     public DBObject marshall(Object o) {
         //recursively map object ot mongo-Object...
         if (!annotationHelper.isEntity(o)) {
+            if (morphium.getConfig().isObjectSerializationEnabled()) {
+                if (o instanceof Serializable) {
+                    try {
+                        BinarySerializedObject obj = new BinarySerializedObject();
+                        obj.setOriginalClassName(o.getClass().getName());
+                        ByteArrayOutputStream out = new ByteArrayOutputStream();
+                        ObjectOutputStream oout = new ObjectOutputStream(out);
+                        oout.writeObject(o);
+                        oout.flush();
+
+                        BASE64Encoder enc = new BASE64Encoder();
+
+                        String str = enc.encode(out.toByteArray());
+                        obj.setB64Data(str);
+                        DBObject ret = marshall(obj);
+                        return ret;
+
+                    } catch (IOException e) {
+                        throw new IllegalArgumentException("Binary serialization failed! " + o.getClass().getName(), e);
+                    }
+                } else {
+                    throw new IllegalArgumentException("Cannot write object to db that is neither entity, embedded nor serializable!");
+                }
+            }
             throw new IllegalArgumentException("Object is no entity: " + o.getClass().getSimpleName());
         }
 
@@ -376,8 +403,12 @@ public class ObjectMapperImpl implements ObjectMapper {
 
     @SuppressWarnings("unchecked")
     @Override
-    public <T> T unmarshall(Class<? extends T> cls, DBObject o) {
+    public <T> T unmarshall(Class<? extends T> theClass, DBObject o) {
+        Class cls = theClass;
         try {
+            if (morphium != null && morphium.getConfig().isObjectSerializationEnabled() && !annotationHelper.isAnnotationPresentInHierarchy(cls, Entity.class) && !(annotationHelper.isAnnotationPresentInHierarchy(cls, Embedded.class))) {
+                cls = BinarySerializedObject.class;
+            }
             if (o.get("class_name") != null || o.get("className") != null) {
 //                if (log.isDebugEnabled()) {
 //                    log.debug("overriding cls - it's defined in dbObject");
@@ -393,7 +424,7 @@ public class ObjectMapperImpl implements ObjectMapper {
                 }
             }
             if (cls.isEnum()) {
-                T[] en = cls.getEnumConstants();
+                T[] en = (T[]) cls.getEnumConstants();
                 for (Enum e : ((Enum[]) en)) {
                     if (e.name().equals(o.get("name"))) {
                         return (T) e;
@@ -401,7 +432,7 @@ public class ObjectMapperImpl implements ObjectMapper {
                 }
             }
 
-            T ret = null;
+            Object ret = null;
 
             try {
                 ret = cls.newInstance();
@@ -654,9 +685,16 @@ public class ObjectMapperImpl implements ObjectMapper {
                 }
             }
             if (annotationHelper.isAnnotationPresentInHierarchy(cls, PartialUpdate.class) || cls.isInstance(PartiallyUpdateable.class)) {
-                return morphium.createPartiallyUpdateableEntity(ret);
+                return (T) morphium.createPartiallyUpdateableEntity(ret);
             }
-            return ret;
+            if (ret instanceof BinarySerializedObject) {
+                BinarySerializedObject bso = (BinarySerializedObject) ret;
+                BASE64Decoder dec = new BASE64Decoder();
+                ObjectInputStream in = new ObjectInputStream(new ByteArrayInputStream(dec.decodeBuffer(bso.getB64Data())));
+                T read = (T) in.readObject();
+                return read;
+            }
+            return (T) ret;
         } catch (Exception e) {
             throw new RuntimeException(e);
         }

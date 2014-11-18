@@ -28,7 +28,7 @@ import java.io.Serializable;
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Field;
 import java.util.*;
-import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.SynchronousQueue;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 
@@ -110,7 +110,7 @@ public class Morphium {
         annotationHelper = new AnnotationAndReflectionHelper(cfg.isCamelCaseConversionEnabled());
         asyncOperationsThreadPool = new ThreadPoolExecutor(getConfig().getThreadPoolAsyncOpCoreSize(), getConfig().getThreadPoolAsyncOpMaxSize(),
                 getConfig().getThreadPoolAsyncOpKeepAliveTime(), TimeUnit.MILLISECONDS,
-                new LinkedBlockingQueue<Runnable>());
+                new SynchronousQueue<Runnable>());
         initializeAndConnect();
 
     }
@@ -118,6 +118,7 @@ public class Morphium {
     public ThreadPoolExecutor getAsyncOperationsThreadPool() {
         return asyncOperationsThreadPool;
     }
+
     public void setConfig(MorphiumConfig cfg) {
         if (config != null) {
             throw new RuntimeException("Cannot change config!");
@@ -373,7 +374,6 @@ public class Morphium {
 
     public <T> void ensureIndicesFor(Class<T> type, String onCollection, AsyncOperationCallback<T> callback) {
         if (annotationHelper.isAnnotationPresentInHierarchy(type, Index.class)) {
-            //type must be marked as to be indexed
             List<Annotation> lst = annotationHelper.getAllAnnotationsFromHierachy(type, Index.class);
             for (Annotation a : lst) {
                 Index i = (Index) a;
@@ -395,27 +395,28 @@ public class Morphium {
                     }
                 }
             }
+        }
 
-            List<String> flds = annotationHelper.getFields(type, Index.class);
-            if (flds != null && flds.size() > 0) {
+        List<String> flds = annotationHelper.getFields(type, Index.class);
+        if (flds != null && flds.size() > 0) {
 
-                for (String f : flds) {
-                    Index i = annotationHelper.getField(type, f).getAnnotation(Index.class);
-                    Map<String, Object> idx = new LinkedHashMap<String, Object>();
-                    if (i.decrement()) {
-                        idx.put(f, -1);
-                    } else {
-                        idx.put(f, 1);
-                    }
-                    Map<String, Object> optionsMap = null;
-                    if (createIndexMapFrom(i.options()) != null) {
-                        optionsMap = createIndexMapFrom(i.options()).get(0);
-                    }
-                    getWriterForClass(type).ensureIndex(type, onCollection, idx, optionsMap, callback);
+            for (String f : flds) {
+                Index i = annotationHelper.getField(type, f).getAnnotation(Index.class);
+                Map<String, Object> idx = new LinkedHashMap<String, Object>();
+                if (i.decrement()) {
+                    idx.put(f, -1);
+                } else {
+                    idx.put(f, 1);
                 }
+                Map<String, Object> optionsMap = null;
+                if (createIndexMapFrom(i.options()) != null) {
+                    optionsMap = createIndexMapFrom(i.options()).get(0);
+                }
+                getWriterForClass(type).ensureIndex(type, onCollection, idx, optionsMap, callback);
             }
         }
     }
+
 
     /**
      * converts the given type to capped collection in Mongo, even if no @capped is defined!

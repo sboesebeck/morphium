@@ -123,8 +123,8 @@ public class IteratorTest extends MongoTest {
         Query<UncachedObject> qu = MorphiumSingleton.get().createQueryFor(UncachedObject.class).sort("_id");
         qu.setCollectionName("test_uc");
         log.info("creating iterator");
-        MorphiumIterator<UncachedObject> it = qu.asIterable(1000, 1);
-        log.info("iterating 1000/1");
+        MorphiumIterator<UncachedObject> it = qu.asIterable(5000, 1);
+        log.info("iterating 5000/1");
         long start = System.currentTimeMillis();
         while (it.hasNext()) {
             UncachedObject o = it.next();
@@ -137,7 +137,7 @@ public class IteratorTest extends MongoTest {
             assert (it.getCursor() == o.getCounter()) : "cursor=" + it.getCursor() + " != counter=" + o.getCounter();
         }
 
-        log.info("iterator 1000/1 Took " + (System.currentTimeMillis() - start) + " ms");
+        log.info("iterator 5000/1 Took " + (System.currentTimeMillis() - start) + " ms");
 
 
         log.info("iterating 1000/5");
@@ -160,7 +160,6 @@ public class IteratorTest extends MongoTest {
         log.info("iterating 1000/10");
         start = System.currentTimeMillis();
         it = qu.asIterable(1000, 10);
-
         while (it.hasNext()) {
             UncachedObject o = it.next();
             assert (it.getCursor() == o.getCounter());
@@ -194,34 +193,45 @@ public class IteratorTest extends MongoTest {
 //
 //        log.info("iterator 100/5 Took " + (System.currentTimeMillis() - start) + " ms");
 
+//
+//        log.info("iterating 100/15");
+//        start = System.currentTimeMillis();
+//        it = qu.asIterable(100, 15);
+//
+//        while (it.hasNext()) {
+//            UncachedObject o = it.next();
+//            assert (it.getCursor() == o.getCounter());
+//
+//        }
+//
+//        log.info("iterator 100/15 Took " + (System.currentTimeMillis() - start) + " ms");
 
-        log.info("iterating 100/15");
+
+//        log.info("iterating 100/100");
+//        start = System.currentTimeMillis();
+//        it = qu.asIterable(100, 100);
+//
+//        while (it.hasNext()) {
+//            UncachedObject o = it.next();
+//            assert (it.getCursor() == o.getCounter());
+//
+//        }
+//
+//        log.info("iterator 100/100 Took " + (System.currentTimeMillis() - start) + " ms");
+
+
+        log.info("iterating 1000/50");
         start = System.currentTimeMillis();
-        it = qu.asIterable(100, 15);
+        it = qu.asIterable(5000, 5);
 
         while (it.hasNext()) {
             UncachedObject o = it.next();
             assert (it.getCursor() == o.getCounter());
-
         }
 
-        log.info("iterator 100/15 Took " + (System.currentTimeMillis() - start) + " ms");
+        log.info("iterator 5000/5 Took " + (System.currentTimeMillis() - start) + " ms");
 
 
-        log.info("iterating 100/100");
-        start = System.currentTimeMillis();
-        it = qu.asIterable(100, 100);
-
-        while (it.hasNext()) {
-            UncachedObject o = it.next();
-            assert (it.getCursor() == o.getCounter());
-
-        }
-
-        log.info("iterator 100/100 Took " + (System.currentTimeMillis() - start) + " ms");
-
-
-        
         log.info("iterating 5000/5");
         start = System.currentTimeMillis();
         it = qu.asIterable(5000, 5);
@@ -260,23 +270,23 @@ public class IteratorTest extends MongoTest {
 
         log.info("Iterating directly over list");
         start = System.currentTimeMillis();
-        List<UncachedObject> lst = qu.asList();
+        List<UncachedObject> lst = qu.sort("-counter").asList(); //force new query
         for (UncachedObject u : lst) {
             assert (u.getValue() != null);
         }
-        log.info("iterating direktly took " + (System.currentTimeMillis() - start) + " ms");
+        log.info("iterating directly took " + (System.currentTimeMillis() - start) + " ms");
 
     }
 
     private void createTestUc() {
         Query<UncachedObject> qu = MorphiumSingleton.get().createQueryFor(UncachedObject.class);
         qu.setCollectionName("test_uc");
-        if (qu.countAll() != 10000) {
+        if (qu.countAll() != 250000) {
             MorphiumSingleton.get().dropCollection(UncachedObject.class, "test_uc", null);
             log.info("Creating uncached objects");
 
             List<UncachedObject> lst = new ArrayList<>();
-            for (int i = 0; i < 150000; i++) {
+            for (int i = 0; i < 250000; i++) {
                 UncachedObject o = new UncachedObject();
                 o.setCounter(i + 1);
                 o.setValue("V" + i);
