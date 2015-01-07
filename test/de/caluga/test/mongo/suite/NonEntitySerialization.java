@@ -22,6 +22,7 @@ public class NonEntitySerialization extends MongoTest {
 
         NonEntity ne2 = MorphiumSingleton.get().getMapper().unmarshall(NonEntity.class, obj);
         assert (ne2.getInteger() == 42);
+        log.info("Successful read:" + ne2.toString());
     }
 
 
@@ -43,6 +44,14 @@ public class NonEntitySerialization extends MongoTest {
 
         public void setInteger(Integer integer) {
             this.integer = integer;
+        }
+
+        @Override
+        public String toString() {
+            return "NonEntity{" +
+                    "value='" + value + '\'' +
+                    ", integer=" + integer +
+                    '}';
         }
     }
 }
