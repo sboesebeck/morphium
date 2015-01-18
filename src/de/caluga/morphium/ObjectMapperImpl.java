@@ -33,9 +33,22 @@ public class ObjectMapperImpl implements ObjectMapper {
     private Morphium morphium;
     private JSONParser jsonParser = new JSONParser();
 
+    private volatile Vector<Class<?>> mongoTypes;
+
     public ObjectMapperImpl() {
 
         nameProviders = new Hashtable<Class<?>, NameProvider>();
+        mongoTypes = new Vector<>();
+
+        mongoTypes.add(String.class);
+        mongoTypes.add(Character.class);
+        mongoTypes.add(Integer.class);
+        mongoTypes.add(Long.class);
+        mongoTypes.add(Float.class);
+        mongoTypes.add(Date.class);
+        mongoTypes.add(Boolean.class);
+        mongoTypes.add(Byte.class);
+
     }
 
 
@@ -118,7 +131,7 @@ public class ObjectMapperImpl implements ObjectMapper {
     @SuppressWarnings("unchecked")
     @Override
     public DBObject marshall(Object o) {
-        //recursively map object ot mongo-Object...
+        //recursively map object to mongo-Object...
         if (!annotationHelper.isEntity(o)) {
             if (morphium.getConfig().isObjectSerializationEnabled()) {
                 if (o instanceof Serializable) {
@@ -338,8 +351,12 @@ public class ObjectMapperImpl implements ObjectMapper {
                     obj.put("name", ((Enum) lo).name());
                     lst.add(obj);
                     //throw new IllegalArgumentException("List of enums not supported yet");
-                } else {
+                } else if (lo.getClass().isPrimitive()) {
                     lst.add(lo);
+                } else if (mongoTypes.contains(lo.getClass())) {
+                    lst.add(lo);
+                } else {
+                    lst.add(marshall(lo));
                 }
             } else {
                 lst.add(null);
@@ -375,6 +392,8 @@ public class ObjectMapperImpl implements ObjectMapper {
                     BasicDBObject obj = new BasicDBObject();
                     obj.put("class_name", mval.getClass().getName());
                     obj.put("name", ((Enum) mval).name());
+                } else if (!mval.getClass().isPrimitive() && !mongoTypes.contains(mval.getClass())) {
+                    mval = marshall(mval);
                 }
             }
             dbMap.put((String) k, mval);
@@ -723,6 +742,22 @@ public class ObjectMapperImpl implements ObjectMapper {
                         } catch (ClassNotFoundException e) {
                             throw new RuntimeException(e);
                         }
+                    } else if (((BasicDBObject) val).containsField("_b64data")) {
+                        String d = (String) ((BasicDBObject) val).get("_b64data");
+                        BASE64Decoder dec = new BASE64Decoder();
+                        ObjectInputStream in = null;
+                        try {
+                            in = new ObjectInputStream(new ByteArrayInputStream(dec.decodeBuffer(d)));
+                            Object read = in.readObject();
+                            retMap.put(n, read);
+                        } catch (IOException e) {
+                            //TODO: Implement Handling
+                            throw new RuntimeException(e);
+                        } catch (ClassNotFoundException e) {
+                            //TODO: Implement Handling
+                            throw new RuntimeException(e);
+                        }
+
                     } else {
                         //maybe a map of maps? --> recurse
                         retMap.put(n, createMap((BasicDBObject) val));
@@ -755,6 +790,20 @@ public class ObjectMapperImpl implements ObjectMapper {
                     } catch (ClassNotFoundException e) {
                         throw new RuntimeException(e);
                     }
+                } else if (((BasicDBObject) li).containsField("_b64data")) {
+                    String d = (String) ((BasicDBObject) li).get("_b64data");
+                    BASE64Decoder dec = new BASE64Decoder();
+                    ObjectInputStream in = null;
+                    try {
+                        in = new ObjectInputStream(new ByteArrayInputStream(dec.decodeBuffer(d)));
+                        Object read = in.readObject();
+                        mapValue.add(read);
+                    } catch (IOException e) {
+                        throw new RuntimeException(e);
+                    } catch (ClassNotFoundException e) {
+                        throw new RuntimeException(e);
+                    }
+
                 } else {
 
 
@@ -786,6 +835,21 @@ public class ObjectMapperImpl implements ObjectMapper {
                     } catch (ClassNotFoundException e) {
                         throw new RuntimeException(e);
                     }
+                } else if (((BasicDBObject) val).containsField("_b64data")) {
+                    String d = (String) ((BasicDBObject) val).get("_b64data");
+                    if (d == null) d = (String) ((BasicDBObject) val).get("b64Data");
+                    BASE64Decoder dec = new BASE64Decoder();
+                    ObjectInputStream in = null;
+                    try {
+                        in = new ObjectInputStream(new ByteArrayInputStream(dec.decodeBuffer(d)));
+                        Object read = in.readObject();
+                        toFillIn.add(read);
+                    } catch (IOException e) {
+                        throw new RuntimeException(e);
+                    } catch (ClassNotFoundException e) {
+                        throw new RuntimeException(e);
+                    }
+
                 } else {
 
                     if (forField != null && forField.getGenericType() instanceof ParameterizedType) {

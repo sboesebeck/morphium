@@ -1,16 +1,14 @@
 package de.caluga.morphium;
 
 import de.caluga.morphium.annotations.Embedded;
-import de.caluga.morphium.annotations.Entity;
-import de.caluga.morphium.annotations.Id;
-import de.caluga.morphium.annotations.caching.NoCache;
-import org.bson.types.ObjectId;
+import de.caluga.morphium.annotations.Property;
 
 /**
  * Created by stephan on 17.11.14.
  */
 @Embedded
 public class BinarySerializedObject {
+    @Property(fieldName = "_b64data")
     private String b64Data;
     private String originalClassName;
 
