@@ -45,6 +45,7 @@ public class ObjectMapperImpl implements ObjectMapper {
         mongoTypes.add(Integer.class);
         mongoTypes.add(Long.class);
         mongoTypes.add(Float.class);
+        mongoTypes.add(Double.class);
         mongoTypes.add(Date.class);
         mongoTypes.add(Boolean.class);
         mongoTypes.add(Byte.class);
