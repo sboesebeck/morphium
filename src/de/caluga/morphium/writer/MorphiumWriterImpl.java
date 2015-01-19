@@ -600,6 +600,9 @@ public class MorphiumWriterImpl implements MorphiumWriter {
             cmd.put("capped", true);
             cmd.put("size", capped.maxSize());
             cmd.put("max", capped.maxEntries());
+        } else {
+            logger.warn("cannot cap collection for class " + c.getName() + " not @Capped");
+            return;
         }
         cmd.put("autoIndexId", (morphium.getARHelper().getIdField(c).getType().equals(ObjectId.class)));
         morphium.getDatabase().command(cmd);
