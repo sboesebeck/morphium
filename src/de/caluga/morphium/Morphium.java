@@ -135,26 +135,47 @@ public class Morphium {
         }
         if (config.getDb() == null) {
             MongoClientOptions.Builder o = MongoClientOptions.builder();
-            o.autoConnectRetry(config.isAutoreconnect());
-            WriteConcern w = new WriteConcern(config.getGlobalW(), config.getWriteTimeout(), config.isGlobalFsync(), config.isGlobalJ(), false);
+            WriteConcern w = new WriteConcern(config.getGlobalW(), config.getWriteTimeout(), config.isGlobalFsync(), config.isGlobalJ());
             o.writeConcern(w);
             o.socketTimeout(config.getSocketTimeout());
             o.connectTimeout(config.getConnectionTimeout());
             o.connectionsPerHost(config.getMaxConnections());
             o.socketKeepAlive(config.isSocketKeepAlive());
             o.threadsAllowedToBlockForConnectionMultiplier(config.getBlockingThreadsMultiplier());
-            o.maxAutoConnectRetryTime(config.getMaxAutoReconnectTime());
-            o.acceptableLatencyDifference(config.getAcceptableLatencyDifference());
+            o.cursorFinalizerEnabled(config.isCursorFinalizerEnabled());
+            o.alwaysUseMBeans(config.isAlwaysUseMBeans());
+            o.heartbeatConnectTimeout(config.getHeartbeatConnectTimeout());
+            o.heartbeatFrequency(config.getHeartbeatFrequency());
+            o.heartbeatSocketTimeout(config.getHeartbeatSocketTimeout());
+            o.minConnectionsPerHost(config.getMinConnectionsPerHost());
+            o.minHeartbeatFrequency(config.getMinHearbeatFrequency());
+            o.localThreshold(config.getLocalThreashold());
+            o.maxConnectionIdleTime(config.getMaxConnectionIdleTime());
+            o.maxConnectionLifeTime(config.getMaxConnectionLifeTime());
+            o.requiredReplicaSetName(config.getRequiredReplicaSetName());
             o.maxWaitTime(config.getMaxWaitTime());
             if (config.getAdr().isEmpty()) {
                 throw new RuntimeException("Error - no server address specified!");
             }
 
-            MongoClient mongo = new MongoClient(config.getAdr(), o.build());
+            MongoClient mongo;
             if (config.getMongoLogin() != null) {
                 MongoCredential cred = MongoCredential.createMongoCRCredential(config.getMongoLogin(), config.getDatabase(), config.getMongoPassword().toCharArray());
-                mongo.getDB(config.getDatabase()).authenticate(config.getMongoLogin(), config.getMongoPassword().toCharArray());
+                List<MongoCredential> lst = new ArrayList<>();
+                lst.add(cred);
+                if (config.getAdr().size() == 1) {
+                    mongo = new MongoClient(config.getAdr().get(0), lst, o.build());
+                } else {
+                    mongo = new MongoClient(config.getAdr(), lst, o.build());
+                }
+            } else {
+                if (config.getAdr().size() == 1) {
+                    mongo = new MongoClient(config.getAdr().get(0), o.build());
+                } else {
+                    mongo = new MongoClient(config.getAdr(), o.build());
+                }
             }
+
             config.setDb(mongo.getDB(config.getDatabase()));
             if (config.getDefaultReadPreference() != null) {
                 mongo.setReadPreference(config.getDefaultReadPreference().getPref());

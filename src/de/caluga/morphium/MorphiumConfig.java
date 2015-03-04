@@ -129,6 +129,17 @@ public class MorphiumConfig {
     private int threadPoolAsyncOpMaxSize = 1000;
     private long threadPoolAsyncOpKeepAliveTime = 1000;
     private boolean objectSerializationEnabled = true;
+    private boolean cursorFinalizerEnabled = false;
+    private boolean alwaysUseMBeans = false;
+    private int heartbeatConnectTimeout;
+    private int heartbeatFrequency = 1000;
+    private int heartbeatSocketTimeout = 0;
+    private int minConnectionsPerHost = 1;
+    private int minHearbeatFrequency = 2000;
+    private int localThreashold = 0;
+    private int maxConnectionIdleTime = 0;
+    private int maxConnectionLifeTime = 0;
+    private String requiredReplicaSetName = null;
 
     public MorphiumConfig(Properties prop) {
         AnnotationAndReflectionHelper an = new AnnotationAndReflectionHelper(true); //settings always convert camel case
@@ -1026,5 +1037,93 @@ public class MorphiumConfig {
 
     public void setObjectSerializationEnabled(boolean objectSerializationEnabled) {
         this.objectSerializationEnabled = objectSerializationEnabled;
+    }
+
+    public boolean isCursorFinalizerEnabled() {
+        return cursorFinalizerEnabled;
+    }
+
+    public void setCursorFinalizerEnabled(boolean cursorFinalizerEnabled) {
+        this.cursorFinalizerEnabled = cursorFinalizerEnabled;
+    }
+
+    public boolean isAlwaysUseMBeans() {
+        return alwaysUseMBeans;
+    }
+
+    public void setAlwaysUseMBeans(boolean alwaysUseMBeans) {
+        this.alwaysUseMBeans = alwaysUseMBeans;
+    }
+
+    public int getHeartbeatConnectTimeout() {
+        return heartbeatConnectTimeout;
+    }
+
+    public void setHeartbeatConnectTimeout(int heartbeatConnectTimeout) {
+        this.heartbeatConnectTimeout = heartbeatConnectTimeout;
+    }
+
+    public int getHeartbeatFrequency() {
+        return heartbeatFrequency;
+    }
+
+    public void setHeartbeatFrequency(int heartbeatFrequency) {
+        this.heartbeatFrequency = heartbeatFrequency;
+    }
+
+    public int getHeartbeatSocketTimeout() {
+        return heartbeatSocketTimeout;
+    }
+
+    public void setHeartbeatSocketTimeout(int heartbeatSocketTimeout) {
+        this.heartbeatSocketTimeout = heartbeatSocketTimeout;
+    }
+
+    public int getMinConnectionsPerHost() {
+        return minConnectionsPerHost;
+    }
+
+    public void setMinConnectionsPerHost(int minConnectionsPerHost) {
+        this.minConnectionsPerHost = minConnectionsPerHost;
+    }
+
+    public int getMinHearbeatFrequency() {
+        return minHearbeatFrequency;
+    }
+
+    public void setMinHearbeatFrequency(int minHearbeatFrequency) {
+        this.minHearbeatFrequency = minHearbeatFrequency;
+    }
+
+    public int getLocalThreashold() {
+        return localThreashold;
+    }
+
+    public void setLocalThreashold(int localThreashold) {
+        this.localThreashold = localThreashold;
+    }
+
+    public int getMaxConnectionIdleTime() {
+        return maxConnectionIdleTime;
+    }
+
+    public void setMaxConnectionIdleTime(int maxConnectionIdleTime) {
+        this.maxConnectionIdleTime = maxConnectionIdleTime;
+    }
+
+    public int getMaxConnectionLifeTime() {
+        return maxConnectionLifeTime;
+    }
+
+    public void setMaxConnectionLifeTime(int maxConnectionLifeTime) {
+        this.maxConnectionLifeTime = maxConnectionLifeTime;
+    }
+
+    public String getRequiredReplicaSetName() {
+        return requiredReplicaSetName;
+    }
+
+    public void setRequiredReplicaSetName(String requiredReplicaSetName) {
+        this.requiredReplicaSetName = requiredReplicaSetName;
     }
 }
