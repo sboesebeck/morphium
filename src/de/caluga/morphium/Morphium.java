@@ -1145,7 +1145,7 @@ public class Morphium {
                 || e.getMessage().startsWith("No replica set members available in")
                 || e.getMessage().equals("not talking to master and retries used up")
                 || (e instanceof WriteConcernException && e.getMessage().contains("not master"))
-                || e instanceof MongoException.Network) {
+                || e instanceof MongoException) {
             if (i + 1 < getConfig().getRetriesOnNetworkError()) {
                 logger.warn("Retry because of network error: " + e.getMessage());
                 try {
