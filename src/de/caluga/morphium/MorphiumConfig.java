@@ -131,14 +131,14 @@ public class MorphiumConfig {
     private boolean objectSerializationEnabled = true;
     private boolean cursorFinalizerEnabled = false;
     private boolean alwaysUseMBeans = false;
-    private int heartbeatConnectTimeout;
+    private int heartbeatConnectTimeout = 0;
     private int heartbeatFrequency = 1000;
-    private int heartbeatSocketTimeout = 0;
+    private int heartbeatSocketTimeout = 1000;
     private int minConnectionsPerHost = 1;
     private int minHearbeatFrequency = 2000;
     private int localThreashold = 0;
-    private int maxConnectionIdleTime = 0;
-    private int maxConnectionLifeTime = 0;
+    private int maxConnectionIdleTime = 1000;
+    private int maxConnectionLifeTime = 5000;
     private String requiredReplicaSetName = null;
 
     public MorphiumConfig(Properties prop) {
