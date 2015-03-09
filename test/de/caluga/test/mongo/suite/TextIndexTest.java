@@ -35,8 +35,8 @@ public class TextIndexTest extends MongoTest {
         createData();
         waitForWrites();
         Query<Person> p = MorphiumSingleton.get().createQueryFor(Person.class);
-        List<Person> lst = p.textSearch("hugo", "bruce");
-        assert (lst.size() == 2);
+        List<Person> lst = p.text(Query.TextSearchLanguages.english, "hugo", "bruce").asList();
+        assert (lst.size() == 2) : "size is " + lst.size();
     }
 
 
