@@ -78,6 +78,9 @@ public class MongoTest {
                 cfg.setRetryWaitTimeAsyncWriter(1000);
                 cfg.setRetryWaitTimeWriter(1000);
                 cfg.setRetryWaitTimeBufferedWriter(1000);
+                cfg.setGlobalFsync(false);
+                cfg.setGlobalJ(false);
+                cfg.setGlobalW(1);
 
 //            cfg.setMongoAdminUser("adm");
 //            cfg.setMongoAdminPwd("adm");
