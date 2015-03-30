@@ -1,6 +1,5 @@
 package de.caluga.morphium;
 
-import com.sun.org.apache.bcel.internal.generic.NEW;
 import de.caluga.morphium.annotations.*;
 import de.caluga.morphium.annotations.caching.AsyncWrites;
 import de.caluga.morphium.annotations.caching.WriteBuffer;
