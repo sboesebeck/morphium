@@ -1,5 +1,6 @@
 package de.caluga.morphium;
 
+import com.sun.org.apache.bcel.internal.generic.NEW;
 import de.caluga.morphium.annotations.*;
 import de.caluga.morphium.annotations.caching.AsyncWrites;
 import de.caluga.morphium.annotations.caching.WriteBuffer;
@@ -86,6 +87,19 @@ public class AnnotationAndReflectionHelper {
             }
             z = z.getSuperclass();
             if (z == null) break;
+        }
+
+        Queue<Class<?>> interfaces = new LinkedList<>();
+        for (Class<?> anInterface : cls.getInterfaces()) {
+            interfaces.add(anInterface);
+        }
+        while(!interfaces.isEmpty()) {
+            Class<?> iface = interfaces.poll();
+            if(iface.isAnnotationPresent(anCls))
+                return iface.getAnnotation(anCls);
+            for (Class<?> anInterface : iface.getInterfaces()) {
+                interfaces.add(anInterface);
+            }
         }
         return null;
     }
