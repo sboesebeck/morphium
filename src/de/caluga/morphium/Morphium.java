@@ -528,7 +528,8 @@ public class Morphium {
         if (callback == null) {
             r.run();
         } else {
-            new Thread(r).start();
+            asyncOperationsThreadPool.execute(r);
+//            new Thread(r).start();
         }
     }
 

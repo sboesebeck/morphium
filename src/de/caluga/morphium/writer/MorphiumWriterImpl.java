@@ -681,7 +681,8 @@ public class MorphiumWriterImpl implements MorphiumWriter {
         if (callback == null) {
             r.run();
         } else {
-            new Thread(r).start();
+            morphium.getAsyncOperationsThreadPool().execute(r);
+//            new Thread(r).start();
         }
     }
 
