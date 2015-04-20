@@ -19,9 +19,9 @@ public class Statistics extends Hashtable<String, Double> {
             super.put(et.getKey().name(), (double) et.getValue().get());
         }
         double entries = 0;
-        Hashtable<Class<?>, Hashtable<String, CacheElement>> cc = morphium.getCache().cloneCache();
-        for (Map.Entry<Class<?>, Hashtable<String, CacheElement>> en : cc.entrySet()) {
-            Hashtable<String, CacheElement> lst = en.getValue();
+        Map<Class<?>, Map<String, CacheElement>> cc = morphium.getCache().cloneCache();
+        for (Map.Entry<Class<?>, Map<String, CacheElement>> en : cc.entrySet()) {
+            Map<String, CacheElement> lst = en.getValue();
             entries += lst.size();
             super.put("X-Entries for: " + en.getKey().getName(), (double) lst.size());
         }
