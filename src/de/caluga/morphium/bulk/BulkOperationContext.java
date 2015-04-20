@@ -30,6 +30,16 @@ public class BulkOperationContext {
         requests = new ArrayList<BulkRequestWrapper>();
     }
 
+    public <T> void insert(T o) {
+        if (bulk == null) {
+            if (ordered) {
+                bulk = morphium.getDatabase().getCollection(morphium.getMapper().getCollectionName(o.getClass())).initializeOrderedBulkOperation();
+            } else {
+                bulk = morphium.getDatabase().getCollection(morphium.getMapper().getCollectionName(o.getClass())).initializeUnorderedBulkOperation();
+            }
+        }
+        bulk.insert(morphium.getMapper().marshall(o));
+    }
 
     public <T> BulkRequestWrapper addFind(Query<T> q) {
         if (bulk == null) {

@@ -1,10 +1,15 @@
 package de.caluga.morphium.writer;
 
+import com.mongodb.BulkWriteOperation;
+import com.mongodb.BulkWriteRequestBuilder;
+import com.mongodb.DBCollection;
 import de.caluga.morphium.Morphium;
 import de.caluga.morphium.StatisticKeys;
 import de.caluga.morphium.annotations.caching.WriteBuffer;
 import de.caluga.morphium.async.AsyncOperationCallback;
 import de.caluga.morphium.async.AsyncOperationType;
+import de.caluga.morphium.bulk.BulkOperationContext;
+import de.caluga.morphium.bulk.BulkRequestWrapper;
 import de.caluga.morphium.query.Query;
 import org.apache.log4j.Logger;
 
@@ -31,19 +36,30 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter {
     private Thread housekeeping;
     private boolean running = true;
     private static Logger logger = Logger.getLogger(BufferedMorphiumWriterImpl.class);
-
+    private boolean orderedExecution=false;
 
     public BufferedMorphiumWriterImpl() {
 
+    }
+
+    public boolean isOrderedExecution() {
+        return orderedExecution;
+    }
+
+    public void setOrderedExecution(boolean orderedExecution) {
+        this.orderedExecution = orderedExecution;
     }
 
     private List<WriteBufferEntry> flushToQueue(List<WriteBufferEntry> localQueue) {
         //either buffer size reached, or time is up => queue writes
         List<WriteBufferEntry> didNotWrite = new ArrayList<WriteBufferEntry>();
         //queueing all ops in queue
+        BulkOperationContext ctx=new BulkOperationContext(morphium,orderedExecution);
+
         for (WriteBufferEntry entry : localQueue) {
             try {
-                entry.getToRun().run();
+                entry.getToRun().exec(ctx);
+                entry.getCb().onOperationSucceeded(entry.getType(),null,0,null,null);
             } catch (RejectedExecutionException e) {
                 logger.info("too much load - add write to next run");
                 didNotWrite.add(entry);
@@ -52,13 +68,14 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter {
             }
         }
         localQueue = null; //let GC finish the work
+        ctx.execute();
         return didNotWrite;
     }
 
 
-    public void addToWriteQueue(Class<?> type, Runnable r) {
+    public void addToWriteQueue(Class<?> type, BufferedBulkOp r, AsyncOperationCallback c,AsyncOperationType t) {
         synchronized (opLog) {
-            WriteBufferEntry wb = new WriteBufferEntry(r, System.currentTimeMillis());
+            WriteBufferEntry wb = new WriteBufferEntry(r, System.currentTimeMillis(),c,t);
             if (opLog.get(type) == null) {
                 opLog.put(type, new Vector<WriteBufferEntry>());
             }
@@ -74,6 +91,7 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter {
             }
             if (size > 0 && opLog.get(type).size() > size) {
                 logger.warn("WARNING: Write buffer for type "+type.getName()+" maximum exceeded: " + opLog.get(type).size() + " entries now, max is " + size);
+                BulkOperationContext ctx=new BulkOperationContext(morphium,orderedExecution);
                 switch (strategy) {
                     case JUST_WARN:
                         break;
@@ -82,7 +100,8 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter {
                         return;
                     case WRITE_NEW:
                         logger.warn("directly writing data... due to strategy setting");
-                        r.run();
+
+                        r.exec(ctx);
                         return;
                     case WRITE_OLD:
 
@@ -93,7 +112,7 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter {
                             }
                         });
 
-                        opLog.get(type).get(0).getToRun().run();
+                        opLog.get(type).get(0).getToRun().exec(ctx);
                         opLog.get(type).remove(0);
                         break;
                     case DEL_OLD:
@@ -110,6 +129,7 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter {
                         opLog.get(type).remove(0);
                         break;
                 }
+                ctx.execute();
 
             }
             opLog.get(type).add(wb);
@@ -123,12 +143,13 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter {
         }
         final AsyncOperationCallback<T> callback = c;
         morphium.inc(StatisticKeys.WRITES_CACHED);
-        addToWriteQueue(o.getClass(), new Runnable() {
+        addToWriteQueue(o.getClass(), new BufferedBulkOp() {
             @Override
-            public void run() {
-                directWriter.store(o, collection, callback);
+            public void exec(BulkOperationContext ctx) {
+                //do nothing
+                ctx.insert(o);
             }
-        });
+        }, c, AsyncOperationType.WRITE);
     }
 
     @Override
@@ -145,12 +166,13 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter {
         morphium.inc(StatisticKeys.WRITES_CACHED);
 
         //TODO: think of something more accurate
-        addToWriteQueue(lst.get(0).getClass(), new Runnable() {
+        addToWriteQueue(lst.get(0).getClass(), new BufferedBulkOp() {
             @Override
-            public void run() {
-                directWriter.store(lst, callback);
+            public void exec(BulkOperationContext ctx) {
+                for (T o:lst)
+                    ctx.insert(o);
             }
-        });
+        },c,AsyncOperationType.WRITE);
     }
 
     @Override
@@ -160,12 +182,22 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter {
         }
         final AsyncOperationCallback<T> callback = c;
         morphium.inc(StatisticKeys.WRITES_CACHED);
-        addToWriteQueue(ent.getClass(), new Runnable() {
+        addToWriteQueue(ent.getClass(), new BufferedBulkOp() {
             @Override
-            public void run() {
-                directWriter.updateUsingFields(ent, collection, callback, fields);
+            public void exec(BulkOperationContext ctx) {
+//                directWriter.updateUsingFields(ent, collection, callback, fields);
+                Query<Object> query = morphium.createQueryFor(ent.getClass()).f(morphium.getARHelper().getIdFieldName(ent)).eq(morphium.getARHelper().getId(ent));
+                if(collection!=null)
+                    query.setCollectionName(collection);
+                BulkRequestWrapper r = ctx.addFind(query);
+                if (fields.length!=0) {
+                    for (String f:fields) {
+                        r.set(f,morphium.getARHelper().getValue(ent,f),false);
+                    }
+                }
+
             }
-        });
+        },c,AsyncOperationType.UPDATE);
     }
 
     @Override
@@ -175,12 +207,19 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter {
         }
         final AsyncOperationCallback<T> callback = c;
         morphium.inc(StatisticKeys.WRITES_CACHED);
-        addToWriteQueue(toSet.getClass(), new Runnable() {
+        addToWriteQueue(toSet.getClass(), new BufferedBulkOp() {
             @Override
-            public void run() {
-                directWriter.set(toSet, collection, field, value, insertIfNotExists, multiple, callback);
+            public void exec(BulkOperationContext ctx) {
+//                directWriter.set(toSet, collection, field, value, insertIfNotExists, multiple, callback);
+                Query<Object> query = morphium.createQueryFor(toSet.getClass()).f(morphium.getARHelper().getIdFieldName(toSet)).eq(morphium.getARHelper().getId(toSet));
+                if (collection != null) query.setCollectionName(collection);
+                BulkRequestWrapper wr = ctx.addFind(query);
+                if (insertIfNotExists) {
+                    wr = wr.upsert();
+                }
+                wr.set(field, value, multiple);
             }
-        });
+        }, c, AsyncOperationType.SET);
     }
 
 
@@ -191,12 +230,19 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter {
         }
         final AsyncOperationCallback<T> callback = c;
         morphium.inc(StatisticKeys.WRITES_CACHED);
-        addToWriteQueue(query.getType(), new Runnable() {
+        addToWriteQueue(query.getType(), new BufferedBulkOp() {
             @Override
-            public void run() {
-                directWriter.set(query, values, insertIfNotExist, multiple, callback);
+            public void exec(BulkOperationContext ctx) {
+//                directWriter.set(toSet, collection, field, value, insertIfNotExists, multiple, callback);
+                BulkRequestWrapper wr = ctx.addFind(query);
+                if (insertIfNotExist) {
+                    wr = wr.upsert();
+                }
+                for (Map.Entry kv : values.entrySet()) {
+                    wr.set(kv.getKey().toString(), kv.getValue(), multiple);
+                }
             }
-        });
+        }, c, AsyncOperationType.SET);
     }
 
     @Override
@@ -206,12 +252,19 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter {
         }
         final AsyncOperationCallback<T> callback = c;
         morphium.inc(StatisticKeys.WRITES_CACHED);
-        addToWriteQueue(query.getType(), new Runnable() {
+        addToWriteQueue(query.getType(),new BufferedBulkOp() {
             @Override
-            public void run() {
-                directWriter.inc(query, fieldsToInc, insertIfNotExist, multiple, callback);
+            public void exec(BulkOperationContext ctx) {
+//                directWriter.set(toSet, collection, field, value, insertIfNotExists, multiple, callback);
+                BulkRequestWrapper wr=ctx.addFind(query);
+                if (insertIfNotExist) {
+                    wr=wr.upsert();
+                }
+                for (Map.Entry kv:fieldsToInc.entrySet()) {
+                    wr.inc(kv.getKey().toString(), ((Double)kv.getValue()).intValue(), multiple);
+                }
             }
-        });
+        },c,AsyncOperationType.INC);
     }
 
 
@@ -222,27 +275,37 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter {
         }
         final AsyncOperationCallback<T> callback = c;
         morphium.inc(StatisticKeys.WRITES_CACHED);
-        addToWriteQueue(query.getType(), new Runnable() {
+        addToWriteQueue(query.getType(), new BufferedBulkOp() {
             @Override
-            public void run() {
-                directWriter.inc(query, field, amount, insertIfNotExist, multiple, callback);
+            public void exec(BulkOperationContext ctx) {
+//                directWriter.set(toSet, collection, field, value, insertIfNotExists, multiple, callback);
+                BulkRequestWrapper wr = ctx.addFind(query);
+                if (insertIfNotExist) {
+                    wr = wr.upsert();
+                }
+                wr.inc(field, (int) amount, multiple);
             }
-        });
+        }, c, AsyncOperationType.INC);
     }
 
     @Override
-    public <T> void inc(final T toInc, final String collection, final String field, final double amount, AsyncOperationCallback<T> c) {
+    public <T> void inc(final T obj, final String collection, final String field, final double amount, AsyncOperationCallback<T> c) {
         if (c == null) {
             c = new AsyncOpAdapter<T>();
         }
         final AsyncOperationCallback<T> callback = c;
         morphium.inc(StatisticKeys.WRITES_CACHED);
-        addToWriteQueue(toInc.getClass(), new Runnable() {
+
+        addToWriteQueue(obj.getClass(), new BufferedBulkOp() {
             @Override
-            public void run() {
-                directWriter.inc(toInc, collection, field, amount, callback);
+            public void exec(BulkOperationContext ctx) {
+//                directWriter.set(toSet, collection, field, value, insertIfNotExists, multiple, callback);
+                Query q = morphium.createQueryFor(obj.getClass()).f(morphium.getARHelper().getIdFieldName(obj)).eq(morphium.getARHelper().getId(obj));
+                BulkRequestWrapper wr = ctx.addFind(q);
+                wr.inc(field, (int) amount, false);
             }
-        });
+        }, c, AsyncOperationType.INC);
+
     }
 
 
@@ -253,12 +316,15 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter {
         }
         final AsyncOperationCallback<T> callback = c;
         morphium.inc(StatisticKeys.WRITES_CACHED);
-        addToWriteQueue(obj.getClass(), new Runnable() {
+        addToWriteQueue(obj.getClass(), new BufferedBulkOp() {
             @Override
-            public void run() {
-                directWriter.pop(obj, collection, field, first, callback);
+            public void exec(BulkOperationContext ctx) {
+//                directWriter.set(toSet, collection, field, value, insertIfNotExists, multiple, callback);
+                Query q = morphium.createQueryFor(obj.getClass()).f(morphium.getARHelper().getIdFieldName(obj)).eq(morphium.getARHelper().getId(obj));
+                BulkRequestWrapper wr = ctx.addFind(q);
+                wr.pop(field, first, false);
             }
-        });
+        }, c, AsyncOperationType.WRITE);
     }
 
 
@@ -349,12 +415,16 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter {
         }
         final AsyncOperationCallback<T> callback = c;
         morphium.inc(StatisticKeys.WRITES_CACHED);
-        addToWriteQueue(lst.get(0).getClass(), new Runnable() {
-            @Override
-            public void run() {
-                directWriter.remove(lst, callback);
-            }
-        });
+        for (final T obj:lst) {
+            addToWriteQueue(obj.getClass(), new BufferedBulkOp() {
+                @Override
+                public void exec(BulkOperationContext ctx) {
+                    Query q=morphium.createQueryFor(obj.getClass()).f(morphium.getARHelper().getIdFieldName(obj)).eq(morphium.getARHelper().getId(obj));
+                    BulkRequestWrapper r = ctx.addFind(q);
+                    r.remove();
+                }
+            },c,AsyncOperationType.REMOVE);
+        }
     }
 
     @Override
@@ -364,12 +434,14 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter {
         }
         final AsyncOperationCallback<T> callback = c;
         morphium.inc(StatisticKeys.WRITES_CACHED);
-        addToWriteQueue(o.getClass(), new Runnable() {
+        addToWriteQueue(o.getClass(), new BufferedBulkOp() {
             @Override
-            public void run() {
-                directWriter.remove(o, collection, callback);
+            public void exec(BulkOperationContext ctx) {
+                Query q = morphium.createQueryFor(o.getClass()).f(morphium.getARHelper().getIdFieldName(o)).eq(morphium.getARHelper().getId(o));
+                BulkRequestWrapper r = ctx.addFind(q);
+                r.remove();
             }
-        });
+        }, c, AsyncOperationType.REMOVE);
     }
 
     @Override
@@ -379,57 +451,84 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter {
         }
         final AsyncOperationCallback<T> callback = c;
         morphium.inc(StatisticKeys.WRITES_CACHED);
-        addToWriteQueue(q.getType(), new Runnable() {
+        addToWriteQueue(q.getType(), new BufferedBulkOp() {
             @Override
-            public void run() {
-                directWriter.remove(q, callback);
+            public void exec(BulkOperationContext ctx) {
+                BulkRequestWrapper r = ctx.addFind(q);
+                r.remove();
             }
-        });
+        }, c, AsyncOperationType.REMOVE);
     }
 
     @Override
-    public <T> void pushPull(final boolean push, final Query<T> query, final String field, final Object value, final boolean insertIfNotExist, final boolean multiple, AsyncOperationCallback<T> c) {
+    public <T> void pushPull(final boolean push, final Query<T> q, final String field, final Object value, final boolean insertIfNotExist, final boolean multiple, AsyncOperationCallback<T> c) {
         if (c == null) {
             c = new AsyncOpAdapter<T>();
         }
         final AsyncOperationCallback<T> callback = c;
         morphium.inc(StatisticKeys.WRITES_CACHED);
-        addToWriteQueue(query.getType(), new Runnable() {
+        addToWriteQueue(q.getType(), new BufferedBulkOp() {
             @Override
-            public void run() {
-                directWriter.pushPull(push, query, field, value, insertIfNotExist, multiple, callback);
+            public void exec(BulkOperationContext ctx) {
+//                directWriter.pushPull(push, query, field, value, insertIfNotExist, multiple, callback);
+                BulkRequestWrapper r = ctx.addFind(q);
+                if (insertIfNotExist) {
+                    r = r.upsert();
+                }
+                if (push) {
+                    r.push(field, multiple, value);
+                } else {
+                    r.pull(field, multiple, value);
+                }
             }
-        });
+        }, c, push ? AsyncOperationType.PUSH : AsyncOperationType.PULL);
     }
 
     @Override
-    public <T> void pushPullAll(final boolean push, final Query<T> query, final String field, final List<?> value, final boolean insertIfNotExist, final boolean multiple, AsyncOperationCallback<T> c) {
+    public <T> void pushPullAll(final boolean push, final Query<T> q, final String field, final List<?> value, final boolean insertIfNotExist, final boolean multiple, AsyncOperationCallback<T> c) {
         if (c == null) {
             c = new AsyncOpAdapter<T>();
         }
         final AsyncOperationCallback<T> callback = c;
         morphium.inc(StatisticKeys.WRITES_CACHED);
-        addToWriteQueue(query.getType(), new Runnable() {
+        addToWriteQueue(q.getType(), new BufferedBulkOp() {
             @Override
-            public void run() {
-                directWriter.pushPullAll(push, query, field, value, insertIfNotExist, multiple, callback);
+            public void exec(BulkOperationContext ctx) {
+//                directWriter.pushPull(push, query, field, value, insertIfNotExist, multiple, callback);
+                BulkRequestWrapper r = ctx.addFind(q);
+                if (insertIfNotExist) {
+                    r = r.upsert();
+                }
+                if (push) {
+                    for (Object o : value) {
+                        r.push(field, multiple, o);
+                    }
+                } else {
+                    for (Object o : value) {
+                        r.pull(field, multiple, o);
+                    }
+                }
             }
-        });
+        }, c, push ? AsyncOperationType.PUSH : AsyncOperationType.PULL);
     }
 
     @Override
-    public <T> void unset(final T toSet, final String collection, final String field, AsyncOperationCallback<T> c) {
+    public <T> void unset(final T obj, final String collection, final String field, AsyncOperationCallback<T> c) {
         if (c == null) {
             c = new AsyncOpAdapter<T>();
         }
         final AsyncOperationCallback<T> callback = c;
         morphium.inc(StatisticKeys.WRITES_CACHED);
-        addToWriteQueue(toSet.getClass(), new Runnable() {
+        addToWriteQueue(obj.getClass(), new BufferedBulkOp() {
             @Override
-            public void run() {
-                directWriter.unset(toSet, collection, field, callback);
+            public void exec(BulkOperationContext ctx) {
+//                directWriter.set(toSet, collection, field, value, insertIfNotExists, multiple, callback);
+                Query q=morphium.createQueryFor(obj.getClass()).f(morphium.getARHelper().getIdFieldName(obj)).eq(morphium.getARHelper().getId(obj));
+                if (collection!=null) q.setCollectionName(collection);
+                BulkRequestWrapper wr = ctx.addFind(q);
+                wr.unset(field,false);
             }
-        });
+        }, c, AsyncOperationType.UNSET);
     }
 
     @Override
@@ -439,12 +538,14 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter {
         }
         final AsyncOperationCallback<T> callback = c;
         morphium.inc(StatisticKeys.WRITES_CACHED);
-        addToWriteQueue(query.getType(), new Runnable() {
+        addToWriteQueue(query.getType(), new BufferedBulkOp() {
             @Override
-            public void run() {
-                directWriter.unset(query, field, multiple, callback);
+            public void exec(BulkOperationContext ctx) {
+//                directWriter.set(toSet, collection, field, value, insertIfNotExists, multiple, callback);
+                BulkRequestWrapper wr = ctx.addFind(query);
+                wr.unset(field,multiple);
             }
-        });
+        }, c, AsyncOperationType.UNSET);
     }
 
     @Override
@@ -454,12 +555,16 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter {
         }
         final AsyncOperationCallback<T> callback = c;
         morphium.inc(StatisticKeys.WRITES_CACHED);
-        addToWriteQueue(query.getType(), new Runnable() {
+        addToWriteQueue(query.getType(), new BufferedBulkOp() {
             @Override
-            public void run() {
-                directWriter.unset(query, callback, multiple, fields);
+            public void exec(BulkOperationContext ctx) {
+//                directWriter.set(toSet, collection, field, value, insertIfNotExists, multiple, callback);
+                BulkRequestWrapper wr = ctx.addFind(query);
+                for (String f:fields) {
+                    wr.unset(f, multiple);
+                }
             }
-        });
+        }, c, AsyncOperationType.UNSET);
     }
 
     @Override
@@ -469,12 +574,16 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter {
         }
         final AsyncOperationCallback<T> callback = c;
         morphium.inc(StatisticKeys.WRITES_CACHED);
-        addToWriteQueue(query.getType(), new Runnable() {
+        addToWriteQueue(query.getType(), new BufferedBulkOp() {
             @Override
-            public void run() {
-                directWriter.unset(query, callback, multiple, fields);
+            public void exec(BulkOperationContext ctx) {
+//                directWriter.set(toSet, collection, field, value, insertIfNotExists, multiple, callback);
+                BulkRequestWrapper wr = ctx.addFind(query);
+                for (Enum f:fields) {
+                    wr.unset(f.name(), multiple);
+                }
             }
-        });
+        }, c, AsyncOperationType.UNSET);
     }
 
     @Override
@@ -484,12 +593,12 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter {
         }
         final AsyncOperationCallback<T> callback = c;
         morphium.inc(StatisticKeys.WRITES_CACHED);
-        addToWriteQueue(cls, new Runnable() {
+        addToWriteQueue(cls, new BufferedBulkOp() {
             @Override
-            public void run() {
+            public void exec(BulkOperationContext ctx) {
                 directWriter.dropCollection(cls, collection, callback);
             }
-        });
+        },c, AsyncOperationType.REMOVE);
     }
 
     public <T> void ensureIndex(final Class<T> cls, final String collection, final Map<String, Object> index, AsyncOperationCallback<T> c) {
@@ -503,12 +612,12 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter {
         }
         final AsyncOperationCallback<T> callback = c;
         morphium.inc(StatisticKeys.WRITES_CACHED);
-        addToWriteQueue(cls, new Runnable() {
+        addToWriteQueue(cls,new BufferedBulkOp() {
             @Override
-            public void run() {
+            public void exec(BulkOperationContext ctx) {
                 directWriter.ensureIndex(cls, collection, index, options, callback);
             }
-        });
+        },c,AsyncOperationType.ENSURE_INDICES);
     }
 
 
@@ -531,12 +640,14 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter {
         final AsyncOperationCallback<T> callback = c;
         morphium.inc(StatisticKeys.WRITES_CACHED);
         if (lst == null || lst.size() == 0) return;
-        addToWriteQueue(lst.get(0).getClass(), new Runnable() {
+        addToWriteQueue(lst.get(0).getClass(),new BufferedBulkOp() {
             @Override
-            public void run() {
-                directWriter.store(lst, collectionName, callback);
+            public void exec(BulkOperationContext ctx) {
+                for (T o:lst) {
+                    ctx.insert(o);
+                }
             }
-        });
+        },c,AsyncOperationType.WRITE);
     }
 
     @Override
@@ -563,19 +674,39 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter {
     }
 
     private class WriteBufferEntry {
-        private Runnable toRun;
+        private BufferedBulkOp toRun;
+        private AsyncOperationCallback cb;
+        private AsyncOperationType type;
         private long timestamp;
 
-        private WriteBufferEntry(Runnable toRun, long timestamp) {
+        private WriteBufferEntry(BufferedBulkOp toRun, long timestamp,AsyncOperationCallback c,AsyncOperationType t) {
             this.toRun = toRun;
             this.timestamp = timestamp;
+            this.cb=c;
+            this.type=t;
         }
 
-        public Runnable getToRun() {
+        public AsyncOperationType getType() {
+            return type;
+        }
+
+        public void setType(AsyncOperationType type) {
+            this.type = type;
+        }
+
+        public AsyncOperationCallback getCb() {
+            return cb;
+        }
+
+        public void setCb(AsyncOperationCallback cb) {
+            this.cb = cb;
+        }
+
+        public BufferedBulkOp getToRun() {
             return toRun;
         }
 
-        public void setToRun(Runnable toRun) {
+        public void setToRun(BufferedBulkOp toRun) {
             this.toRun = toRun;
         }
 
@@ -608,5 +739,9 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter {
         public void onOperationError(AsyncOperationType type, Query<T> q, long duration, String error, Throwable t, T entity, Object... param) {
 
         }
+    }
+
+    private interface BufferedBulkOp {
+        public void exec(BulkOperationContext ctx);
     }
 }
