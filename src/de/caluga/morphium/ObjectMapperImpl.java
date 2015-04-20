@@ -18,6 +18,7 @@ import sun.reflect.ReflectionFactory;
 import java.io.*;
 import java.lang.reflect.*;
 import java.util.*;
+import java.util.concurrent.CopyOnWriteArrayList;
 
 /**
  * User: Stpehan Bösebeck
@@ -33,12 +34,12 @@ public class ObjectMapperImpl implements ObjectMapper {
     private Morphium morphium;
     private JSONParser jsonParser = new JSONParser();
 
-    private volatile Vector<Class<?>> mongoTypes;
+    private volatile List<Class<?>> mongoTypes;
 
     public ObjectMapperImpl() {
 
         nameProviders = new HashMap<Class<?>, NameProvider>();
-        mongoTypes = new Vector<>();
+        mongoTypes = new CopyOnWriteArrayList<>();
 
         mongoTypes.add(String.class);
         mongoTypes.add(Character.class);
