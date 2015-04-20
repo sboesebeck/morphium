@@ -17,13 +17,15 @@ import java.util.concurrent.RejectedExecutionException;
  * Date: 11.03.13
  * Time: 11:41
  * <p/>
- * TODO: Add documentation here
+ * Buffered Writer buffers all write requests (store, update, remove...) to mongo for a certain time. After that time the requests are
+ * issued en block to mongo. Attention: this is not using BULK-Requests yet!
  */
 @SuppressWarnings({"EmptyCatchBlock", "SynchronizeOnNonFinalField"})
 public class BufferedMorphiumWriterImpl implements MorphiumWriter {
 
     private Morphium morphium;
     private MorphiumWriter directWriter;
+    //needs to be securely stored
     private Map<Class<?>, List<WriteBufferEntry>> opLog = new ConcurrentHashMap<>(); //synced
     private Map<Class<?>, Long> lastRun = new ConcurrentHashMap<>();
     private Thread housekeeping;

@@ -109,7 +109,7 @@ public class MorphiumConfig {
     boolean camelCaseConversionEnabled = true;
 
     @Transient
-    private List<ServerAddress> adr = new Vector<ServerAddress>();
+    private List<ServerAddress> adr = new ArrayList<>();
     //securitysettings
 //    private Class<? extends Object> userClass, roleClass, aclClass;
     private String mongoAdminUser, mongoAdminPwd; //THE superuser!
@@ -194,7 +194,7 @@ public class MorphiumConfig {
 
     public MorphiumConfig(String db, int maxConnections, int globalCacheValidTime, int housekeepingTimeout, URL loggingConfigResource) {
         database = db;
-        adr = new Vector<ServerAddress>();
+        adr = new ArrayList<>();
         if (loggingConfigResource != null) {
             loggingConfigFile = loggingConfigResource.toString();
         }

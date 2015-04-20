@@ -92,7 +92,7 @@ public class CacheHousekeeper extends Thread {
     public void run() {
         while (running) {
             try {
-                Map<Class, Vector<String>> toDelete = new HashMap<Class, Vector<String>>();
+                Map<Class, List<String>> toDelete = new HashMap<Class, List<String>>();
                 Map<Class<?>, Map<String, CacheElement>> cache = morphium.getCache().cloneCache();
                 for (Map.Entry<Class<?>, Map<String, CacheElement>> es : cache.entrySet()) {
                     Class<?> clz = es.getKey();
@@ -167,18 +167,18 @@ public class CacheHousekeeper extends Thread {
 
                         if (e == null || e.getFound() == null || System.currentTimeMillis() - e.getCreated() > time) {
                             if (toDelete.get(clz) == null) {
-                                toDelete.put(clz, new Vector<String>());
+                                toDelete.put(clz, new ArrayList<String>());
                             }
                             toDelete.get(clz).add(k);
                             del++;
                         } else {
                             if (lruTime.get(e.getLru()) == null) {
-                                lruTime.put(e.getLru(), new Vector<String>());
+                                lruTime.put(e.getLru(), new ArrayList<String>());
                             }
                             lruTime.get(e.getLru()).add(k);
                             long fifo = System.currentTimeMillis() - e.getCreated();
                             if (fifoTime.get(fifo) == null) {
-                                fifoTime.put(fifo, new Vector<String>());
+                                fifoTime.put(fifo, new ArrayList<String>());
                             }
                             fifoTime.get(fifo).add(k);
                         }
@@ -195,7 +195,7 @@ public class CacheHousekeeper extends Thread {
                                 while (cache.get(clz).size() - del > maxEntries) {
                                     if (lruTime.get(array[idx]) != null && lruTime.get(array[idx]).size() != 0) {
                                         if (toDelete.get(clz) == null) {
-                                            toDelete.put(clz, new Vector<String>());
+                                            toDelete.put(clz, new ArrayList<String>());
                                         }
                                         toDelete.get(clz).add(lruTime.get(array[idx]).get(0));
                                         lruTime.get(array[idx]).remove(0);
@@ -214,7 +214,7 @@ public class CacheHousekeeper extends Thread {
                                 while (cache.get(clz).size() - del > maxEntries) {
                                     if (fifoTime.get(array[array.length - 1 - idx]) != null && fifoTime.get(array[array.length - 1 - idx]).size() != 0) {
                                         if (toDelete.get(clz) == null) {
-                                            toDelete.put(clz, new Vector<String>());
+                                            toDelete.put(clz, new ArrayList<String>());
                                         }
                                         toDelete.get(clz).add(fifoTime.get(array[array.length - 1 - idx]).get(0));
                                         fifoTime.get(array[array.length - 1 - idx]).remove(0);
@@ -234,7 +234,7 @@ public class CacheHousekeeper extends Thread {
                                 while (cache.get(clz).size() - del > maxEntries) {
                                     if (lruTime.get(array[idx]) != null && lruTime.get(array[idx]).size() != 0) {
                                         if (toDelete.get(clz) == null) {
-                                            toDelete.put(clz, new Vector<String>());
+                                            toDelete.put(clz, new ArrayList<String>());
                                         }
                                         toDelete.get(clz).add(lruTime.get(array[idx]).get(0));
                                         del++;
@@ -251,7 +251,7 @@ public class CacheHousekeeper extends Thread {
                 }
 
                 Map<Class<?>, Map<Object, Object>> idCacheClone = morphium.getCache().cloneIdCache();
-                for (Map.Entry<Class, Vector<String>> et : toDelete.entrySet()) {
+                for (Map.Entry<Class, List<String>> et : toDelete.entrySet()) {
                     Class cls = et.getKey();
 
                     boolean inIdCache = idCacheClone.get(cls) != null;
