@@ -1,6 +1,7 @@
 package de.caluga.test.mongo.suite;
 
 import de.caluga.morphium.MorphiumSingleton;
+import de.caluga.morphium.annotations.Embedded;
 import de.caluga.morphium.annotations.Entity;
 import de.caluga.morphium.annotations.Id;
 import de.caluga.morphium.annotations.caching.NoCache;
@@ -24,7 +25,7 @@ public class InterfacePolymorphismTest extends MongoTest {
         ifaceTestType.setPolyTest(new SubClass(11));
         MorphiumSingleton.get().store(ifaceTestType);
 
-        assert (MorphiumSingleton.get().createQueryFor(IfaceTestType.class).countAll() == 2);
+        assert (MorphiumSingleton.get().createQueryFor(IfaceTestType.class).countAll() == 1);
         List<IfaceTestType> lst = MorphiumSingleton.get().createQueryFor(IfaceTestType.class).asList();
         for (IfaceTestType tst : lst) {
             log.info("Class " + tst.getClass().toString());
@@ -32,7 +33,7 @@ public class InterfacePolymorphismTest extends MongoTest {
     }
 
     @Entity
-    public class IfaceTestType {
+    public static class IfaceTestType {
         @Id
         private ObjectId id;
         private String name;
@@ -55,7 +56,7 @@ public class InterfacePolymorphismTest extends MongoTest {
         }
     }
 
-    @Entity(polymorph = true)
+    @Embedded(polymorph = true)
     @NoCache
     public static interface IPolyTest {
         int getNumber();
