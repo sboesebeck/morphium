@@ -412,7 +412,7 @@ public class CacheSynchronizer implements MessageListener, MorphiumStorageListen
                         if (c.readCache()) {
                             try {
                                 firePreClearEvent(cls, m);
-                                Hashtable<Class<?>, Hashtable<Object, Object>> idCache = morphium.getCache().cloneIdCache();
+                                Map<Class<?>, Map<Object, Object>> idCache = morphium.getCache().cloneIdCache();
                                 for (Object id : m.getAdditional()) {
                                     if (idCache.get(cls) != null) {
                                         Object toUpdate = idCache.get(cls).get(id);

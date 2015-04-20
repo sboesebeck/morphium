@@ -463,6 +463,18 @@ public class Morphium {
 
     }
 
+    public Map execCommand(String cmd) {
+        Map<String, Object> map = new HashMap<>();
+        map.put(cmd, "1");
+        return execCommand(map);
+    }
+
+    public Map execCommand(Map<String, Object> command) {
+        BasicDBObject cmd = new BasicDBObject(command);
+        CommandResult r = getDatabase().command(cmd);
+        return r.toMap();
+    }
+
     /**
      * automatically convert the collection for the given type to a capped collection
      * only works if @Capped annotation is given for type
@@ -516,7 +528,8 @@ public class Morphium {
         if (callback == null) {
             r.run();
         } else {
-            new Thread(r).start();
+            asyncOperationsThreadPool.execute(r);
+//            new Thread(r).start();
         }
     }
 

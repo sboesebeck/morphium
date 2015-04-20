@@ -601,7 +601,7 @@ public class MorphiumWriterImpl implements MorphiumWriter {
             cmd.put("size", capped.maxSize());
             cmd.put("max", capped.maxEntries());
         } else {
-            logger.warn("cannot cap collection for class " + c.getName() + " not @Capped");
+//            logger.warn("cannot cap collection for class " + c.getName() + " not @Capped");
             return;
         }
         cmd.put("autoIndexId", (morphium.getARHelper().getIdField(c).getType().equals(ObjectId.class)));
@@ -681,7 +681,8 @@ public class MorphiumWriterImpl implements MorphiumWriter {
         if (callback == null) {
             r.run();
         } else {
-            new Thread(r).start();
+            morphium.getAsyncOperationsThreadPool().execute(r);
+//            new Thread(r).start();
         }
     }
 
