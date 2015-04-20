@@ -3,11 +3,11 @@ package de.caluga.morphium;
 import de.caluga.morphium.cache.CacheElement;
 
 import java.util.Arrays;
-import java.util.Hashtable;
+import java.util.HashMap;
 import java.util.Map;
 
 @SuppressWarnings("StringBufferMayBeStringBuilder")
-public class Statistics extends Hashtable<String, Double> {
+public class Statistics extends HashMap<String, Double> {
     private static final long serialVersionUID = -2368547656520608318L;
     private transient final Morphium morphium;
 
@@ -34,22 +34,22 @@ public class Statistics extends Hashtable<String, Double> {
     }
 
 
-    public synchronized Double get(Enum key) {
+    public Double get(Enum key) {
         return get(key.name());
     }
 
     @Override
-    public synchronized Double put(String arg0, Double arg1) {
+    public Double put(String arg0, Double arg1) {
         throw new RuntimeException("not allowed!");
     }
 
     @Override
-    public synchronized void putAll(@SuppressWarnings("rawtypes") Map arg0) {
+    public void putAll(@SuppressWarnings("rawtypes") Map arg0) {
         throw new RuntimeException("not allowed");
     }
 
     @Override
-    public synchronized Double remove(Object arg0) {
+    public Double remove(Object arg0) {
         throw new RuntimeException("not allowed");
     }
 

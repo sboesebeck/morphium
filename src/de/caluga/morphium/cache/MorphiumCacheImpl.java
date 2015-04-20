@@ -8,6 +8,7 @@ import de.caluga.morphium.query.Query;
 import org.apache.log4j.Logger;
 
 import java.util.*;
+import java.util.concurrent.CopyOnWriteArrayList;
 
 /**
  * User: Stephan Bösebeck
@@ -21,14 +22,14 @@ public class MorphiumCacheImpl implements MorphiumCache {
     private Map<Class<?>, Map<Object, Object>> idCache;
     private AnnotationAndReflectionHelper annotationHelper = new AnnotationAndReflectionHelper(false); //only used to get id's and annotations, camalcase conversion never happens
 
-    private Vector<CacheListener> cacheListeners;
+    private List<CacheListener> cacheListeners;
 
     private Logger logger = Logger.getLogger(MorphiumCacheImpl.class);
 
     public MorphiumCacheImpl() {
         cache = new HashMap<Class<?>, Map<String, CacheElement>>();
         idCache = new HashMap<>();
-        cacheListeners = new Vector<CacheListener>();
+        cacheListeners = new CopyOnWriteArrayList<CacheListener>();
     }
 
     @Override
@@ -80,9 +81,9 @@ public class MorphiumCacheImpl implements MorphiumCache {
 
         CacheElement<T> e = new CacheElement<T>(ret);
         e.setLru(System.currentTimeMillis());
-        Map<Class<?>, Map<String, CacheElement>> cl = (Map<Class<?>, Map<String, CacheElement>>) cloneMap(cache);
+        Map<Class<?>, Map<String, CacheElement>> cl = (Map<Class<?>, Map<String, CacheElement>>) new HashMap<>(cache);
         if (cl.get(type) == null) {
-            cl.put(type, new Hashtable<String, CacheElement>());
+            cl.put(type, new HashMap<String, CacheElement>());
         }
         cl.get(type).put(k, e);
 
@@ -92,16 +93,7 @@ public class MorphiumCacheImpl implements MorphiumCache {
     }
 
 
-    private Map cloneMap(Map source) {
-        return cloneMap(source, new HashMap());
-    }
 
-    private Map cloneMap(Map source, Map dest) {
-        for (Object k : source.keySet()) {
-            dest.put(k, source.get(k));
-        }
-        return dest;
-    }
 
     @Override
     public void clearCacheIfNecessary(Class cls) {
@@ -157,13 +149,13 @@ public class MorphiumCacheImpl implements MorphiumCache {
     @SuppressWarnings("unchecked")
     @Override
     public Map<Class<?>, Map<String, CacheElement>> cloneCache() {
-        return (Map<Class<?>, Map<String, CacheElement>>) cloneMap(cache);
+        return (Map<Class<?>, Map<String, CacheElement>>) new HashMap<>(cache);
     }
 
     @SuppressWarnings("unchecked")
     @Override
     public Map<Class<?>, Map<Object, Object>> cloneIdCache() {
-        return (Map<Class<?>, Map<Object, Object>>) cloneMap(idCache);
+        return (Map<Class<?>, Map<Object, Object>>) new HashMap<>(idCache);
     }
 
     @SuppressWarnings("unchecked")

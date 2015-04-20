@@ -13,7 +13,11 @@ import de.caluga.morphium.messaging.MsgType;
 import de.caluga.morphium.query.Query;
 import org.apache.log4j.Logger;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.CopyOnWriteArrayList;
 
 /**
  * User: Stephan Bösebeck
@@ -42,8 +46,8 @@ public class CacheSynchronizer implements MessageListener, MorphiumStorageListen
     public static final String CACHE_SYNC_TYPE = "cacheSyncType";
     public static final String CACHE_SYNC_RECORD = "cacheSyncRecord";
 
-    private Vector<CacheSyncListener> listeners = new Vector<CacheSyncListener>();
-    private Hashtable<Class<?>, Vector<CacheSyncListener>> listenerForType = new Hashtable<Class<?>, Vector<CacheSyncListener>>();
+    private List<CacheSyncListener> listeners = new CopyOnWriteArrayList<>();
+    private Map<Class<?>, List<CacheSyncListener>> listenerForType = new HashMap<Class<?>, List<CacheSyncListener>>();
     private boolean attached;
     private AnnotationAndReflectionHelper annotationHelper;
 
@@ -76,7 +80,9 @@ public class CacheSynchronizer implements MessageListener, MorphiumStorageListen
 
     public void addSyncListener(Class type, CacheSyncListener cl) {
         if (listenerForType.get(type) == null) {
-            listenerForType.put(type, new Vector<CacheSyncListener>());
+            HashMap<Class<?>, List<CacheSyncListener>> v = new HashMap<>(listenerForType);
+            v.put(type, new CopyOnWriteArrayList<CacheSyncListener>());
+            listenerForType = v;
         }
         listenerForType.get(type).add(cl);
     }

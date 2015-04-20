@@ -9,6 +9,7 @@ import de.caluga.morphium.query.Query;
 import org.apache.log4j.Logger;
 
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.RejectedExecutionException;
 
 /**
@@ -23,8 +24,8 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter {
 
     private Morphium morphium;
     private MorphiumWriter directWriter;
-    private Map<Class<?>, List<WriteBufferEntry>> opLog = new Hashtable<Class<?>, List<WriteBufferEntry>>(); //synced
-    private Map<Class<?>, Long> lastRun = new Hashtable<Class<?>, Long>();
+    private Map<Class<?>, List<WriteBufferEntry>> opLog = new ConcurrentHashMap<>(); //synced
+    private Map<Class<?>, Long> lastRun = new ConcurrentHashMap<>();
     private Thread housekeeping;
     private boolean running = true;
     private static Logger logger = Logger.getLogger(BufferedMorphiumWriterImpl.class);

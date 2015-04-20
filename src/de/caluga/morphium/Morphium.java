@@ -28,6 +28,7 @@ import java.io.Serializable;
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Field;
 import java.util.*;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.SynchronousQueue;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
@@ -64,7 +65,7 @@ public class Morphium {
     private ThreadLocal<Boolean> disableWriteBuffer = new ThreadLocal<Boolean>();
     private ThreadLocal<Boolean> disableAsyncWrites = new ThreadLocal<Boolean>();
 
-    private final Map<StatisticKeys, StatisticValue> stats;
+    private Map<StatisticKeys, StatisticValue> stats;
 
     /**
      * String Representing current user - needs to be set by Application
@@ -72,8 +73,8 @@ public class Morphium {
     private CacheHousekeeper cacheHousekeeper;
 
     private List<MorphiumStorageListener> listeners;
-    private Vector<ProfilingListener> profilingListeners;
-    private Vector<ShutdownListener> shutDownListeners;
+    private List<ProfilingListener> profilingListeners;
+    private List<ShutdownListener> shutDownListeners;
 
     private AnnotationAndReflectionHelper annotationHelper;
     private ObjectMapper objectMapper;
@@ -89,10 +90,10 @@ public class Morphium {
     }
 
     public Morphium() {
-        stats = new Hashtable<StatisticKeys, StatisticValue>();
-        shutDownListeners = new Vector<ShutdownListener>();
-        listeners = new ArrayList<MorphiumStorageListener>();
-        profilingListeners = new Vector<ProfilingListener>();
+        stats = new HashMap<StatisticKeys, StatisticValue>();
+        shutDownListeners = new CopyOnWriteArrayList<ShutdownListener>();
+        listeners = new CopyOnWriteArrayList<>();
+        profilingListeners = new CopyOnWriteArrayList<>();
 
     }
 
@@ -1790,10 +1791,12 @@ public class Morphium {
     }
 
     public void resetStatistics() {
-        stats.clear();
+        Map<StatisticKeys, StatisticValue> s = new HashMap<StatisticKeys, StatisticValue>();
+
         for (StatisticKeys k : StatisticKeys.values()) {
-            stats.put(k, new StatisticValue());
+            s.put(k, new StatisticValue());
         }
+        stats = s;
     }
 
 
