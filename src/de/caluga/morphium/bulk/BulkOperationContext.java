@@ -2,6 +2,7 @@ package de.caluga.morphium.bulk;
 
 import com.mongodb.BulkWriteOperation;
 import com.mongodb.BulkWriteResult;
+import com.mongodb.BulkWriteUpsert;
 import de.caluga.morphium.Morphium;
 import de.caluga.morphium.WriteAccessType;
 import de.caluga.morphium.query.Query;
@@ -55,6 +56,42 @@ public class BulkOperationContext {
     }
 
     public BulkWriteResult execute() {
+        if (bulk == null) return new BulkWriteResult() {
+            @Override
+            public boolean isAcknowledged() {
+                return false;
+            }
+
+            @Override
+            public int getInsertedCount() {
+                return 0;
+            }
+
+            @Override
+            public int getMatchedCount() {
+                return 0;
+            }
+
+            @Override
+            public int getRemovedCount() {
+                return 0;
+            }
+
+            @Override
+            public boolean isModifiedCountAvailable() {
+                return false;
+            }
+
+            @Override
+            public int getModifiedCount() {
+                return 0;
+            }
+
+            @Override
+            public List<BulkWriteUpsert> getUpserts() {
+                return null;
+            }
+        };
         for (BulkRequestWrapper w : requests) {
             w.preExec();
         }
