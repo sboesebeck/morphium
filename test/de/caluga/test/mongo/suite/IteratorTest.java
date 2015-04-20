@@ -33,25 +33,31 @@ public class IteratorTest extends MongoTest {
         final MorphiumIterator<UncachedObject> it = qu.asIterable(1000, 15);
         it.setMultithreaddedAccess(true);
 
-        runningThreads = 0;
-
+        final Vector<Thread> threads=new Vector<>();
         for (int i = 0; i < 3; i++) {
-            new Thread() {
+            log.info("Starting thread..."+i);
+            Thread t=new Thread() {
                 public void run() {
-                    runningThreads++;
+                    int cnt=0;
                     while (it.hasNext()) {
                         UncachedObject uc = it.next();
                         assert (!data.contains(uc.getMongoId()));
                         data.add(uc.getMongoId());
+                        cnt++;
+                        if (cnt %1000 == 0) {
+                            log.info("Got "+cnt);
+                        }
                     }
-                    runningThreads--;
                     log.info("Thread finished");
+                    threads.remove(this);
                 }
-            }.start();
+            };
+            threads.add(t);
+            t.start();
             Thread.sleep(100);
         }
 
-        while (runningThreads > 0) {
+        while (threads.size() > 0) {
             Thread.sleep(200);
         }
 
