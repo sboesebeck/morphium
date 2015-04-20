@@ -90,11 +90,11 @@ public class CacheHousekeeper extends Thread {
     public void run() {
         while (running) {
             try {
-                Map<Class, Vector<String>> toDelete = new Hashtable<Class, Vector<String>>();
+                Map<Class, Vector<String>> toDelete = new HashMap<Class, Vector<String>>();
                 Map<Class<?>, Map<String, CacheElement>> cache = morphium.getCache().cloneCache();
                 for (Map.Entry<Class<?>, Map<String, CacheElement>> es : cache.entrySet()) {
                     Class<?> clz = es.getKey();
-                    Hashtable<String, CacheElement> ch = (Hashtable<String, CacheElement>) cloneMap(es.getValue());
+                    Map<String, CacheElement> ch = (Map<String, CacheElement>) cloneMap(es.getValue());
 
 
                     int maxEntries = -1;
