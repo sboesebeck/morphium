@@ -28,7 +28,7 @@ import java.util.*;
 @SuppressWarnings({"ConstantConditions", "MismatchedQueryAndUpdateOfCollection", "unchecked", "MismatchedReadAndWriteOfArray"})
 public class ObjectMapperImpl implements ObjectMapper {
     private static Logger log = Logger.getLogger(ObjectMapperImpl.class);
-    private volatile Hashtable<Class<?>, NameProvider> nameProviders;
+    private volatile HashMap<Class<?>, NameProvider> nameProviders;
     private volatile AnnotationAndReflectionHelper annotationHelper = new AnnotationAndReflectionHelper(true);
     private Morphium morphium;
     private JSONParser jsonParser = new JSONParser();
@@ -37,7 +37,7 @@ public class ObjectMapperImpl implements ObjectMapper {
 
     public ObjectMapperImpl() {
 
-        nameProviders = new Hashtable<Class<?>, NameProvider>();
+        nameProviders = new HashMap<Class<?>, NameProvider>();
         mongoTypes = new Vector<>();
 
         mongoTypes.add(String.class);
@@ -81,7 +81,9 @@ public class ObjectMapperImpl implements ObjectMapper {
      * @param np  - the NameProvider for that class
      */
     public void setNameProviderForClass(Class<?> cls, NameProvider np) {
-        nameProviders.put(cls, np);
+        HashMap<Class<?>, NameProvider> nps = new HashMap<>(nameProviders);
+        nps.put(cls, np);
+        nameProviders = nps;
     }
 
     public NameProvider getNameProviderForClass(Class<?> cls) {
@@ -104,7 +106,7 @@ public class ObjectMapperImpl implements ObjectMapper {
 
         if (nameProviders.get(cls) == null) {
             NameProvider np = p.nameProvider().newInstance();
-            nameProviders.put(cls, np);
+            setNameProviderForClass(cls, np);
         }
         return nameProviders.get(cls);
     }

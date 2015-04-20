@@ -31,7 +31,7 @@ public class CacheHousekeeper extends Thread {
         gcTimeout = globalCacheTimout;
         morphium = m;
         annotationHelper = m.getARHelper();
-        validTimeForClass = new Hashtable<Class<?>, Integer>();
+        validTimeForClass = new HashMap<>();
         setDaemon(true);
 
         //Last use Configuration manager to read out cache configurations from Mongo!
@@ -63,7 +63,9 @@ public class CacheHousekeeper extends Thread {
     }
 
     public void setValidCacheTime(Class<?> cls, int timeout) {
-        validTimeForClass.put(cls, timeout);
+        HashMap<Class<?>, Integer> v = new HashMap<>(validTimeForClass);
+        v.put(cls, timeout);
+        validTimeForClass = v;
     }
 
     public Integer getValidCacheTime(Class<?> cls) {
@@ -101,8 +103,8 @@ public class CacheHousekeeper extends Thread {
                     Cache cacheSettings = annotationHelper.getAnnotationFromHierarchy(clz, Cache.class);//clz.getAnnotation(Cache.class);
                     NoCache noCache = annotationHelper.getAnnotationFromHierarchy(clz, NoCache.class);// clz.getAnnotation(NoCache.class);
                     int time = gcTimeout;
-                    Hashtable<Long, List<String>> lruTime = new Hashtable<Long, List<String>>();
-                    Hashtable<Long, List<String>> fifoTime = new Hashtable<Long, List<String>>();
+                    HashMap<Long, List<String>> lruTime = new HashMap<>();
+                    HashMap<Long, List<String>> fifoTime = new HashMap<>();
                     ClearStrategy strategy = null;
                     if (noCache == null) {
                         if (cacheSettings != null) {

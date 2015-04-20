@@ -11,6 +11,7 @@ import org.apache.log4j.Logger;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.*;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
@@ -107,8 +108,8 @@ public class Messaging extends Thread {
 //            log.error("Could not ensure indices", e);
 //        }
 
-        listeners = new Vector<MessageListener>();
-        listenerByName = new Hashtable<String, List<MessageListener>>();
+        listeners = new CopyOnWriteArrayList<>();
+        listenerByName = new HashMap<String, List<MessageListener>>();
     }
 
     public void run() {
@@ -293,7 +294,9 @@ public class Messaging extends Thread {
 
     public void addListenerForMessageNamed(String n, MessageListener l) {
         if (listenerByName.get(n) == null) {
-            listenerByName.put(n, new ArrayList<MessageListener>());
+            HashMap<String, List<MessageListener>> c = new HashMap<>(listenerByName);
+            c.put(n, new ArrayList<MessageListener>());
+            listenerByName = c;
         }
         listenerByName.get(n).add(l);
     }
@@ -303,7 +306,9 @@ public class Messaging extends Thread {
         if (listenerByName.get(n) == null) {
             return;
         }
-        listenerByName.get(n).remove(l);
+        HashMap<String, List<MessageListener>> c = new HashMap<>(listenerByName);
+        c.get(n).remove(l);
+        listenerByName = c;
 
     }
 

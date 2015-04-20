@@ -25,9 +25,9 @@ import java.util.*;
 @SuppressWarnings("unchecked")
 public class AnnotationAndReflectionHelper {
     private Logger log = Logger.getLogger(AnnotationAndReflectionHelper.class);
-    private Map<String, Field> fieldCache = new Hashtable<String, Field>();
-    private Map<Class<?>, Class<?>> realClassCache = new Hashtable<Class<?>, Class<?>>();
-    private Map<Class<?>, List<Field>> fieldListCache = new Hashtable<Class<?>, List<Field>>();
+    private Map<String, Field> fieldCache = new HashMap<>();
+    private Map<Class<?>, Class<?>> realClassCache = new HashMap<>();
+    private Map<Class<?>, List<Field>> fieldListCache = new HashMap<>();
     private Map<String, List<String>> fieldAnnotationListCache = new HashMap<String, List<String>>();
     private Map<Class<?>, Map<Class<? extends Annotation>, Method>> lifeCycleMethods;
     private Map<Class<?>, Boolean> hasAdditionalData;
@@ -35,8 +35,8 @@ public class AnnotationAndReflectionHelper {
 
     public AnnotationAndReflectionHelper(boolean convertCamelCase) {
         this.ccc = convertCamelCase;
-        lifeCycleMethods = new Hashtable<Class<?>, Map<Class<? extends Annotation>, Method>>();
-        hasAdditionalData = new Hashtable<Class<?>, Boolean>();
+        lifeCycleMethods = new HashMap<>();
+        hasAdditionalData = new HashMap<>();
     }
 
     public <T extends Annotation> boolean isAnnotationPresentInHierarchy(Class<?> cls, Class<? extends T> anCls) {
@@ -106,7 +106,9 @@ public class AnnotationAndReflectionHelper {
     public boolean hasAdditionalData(Class clz) {
         if (hasAdditionalData.get(clz) == null) {
             List<String> lst = getFields(clz, AdditionalData.class);
-            hasAdditionalData.put(clz, (lst != null && lst.size() > 0));
+            HashMap m = new HashMap(hasAdditionalData);
+            m.put(clz, (lst != null && lst.size() > 0));
+            hasAdditionalData = m;
         }
 
         return hasAdditionalData.get(clz);
@@ -234,7 +236,9 @@ public class AnnotationAndReflectionHelper {
 //            Class c = hierachy.get(i);
             Collections.addAll(ret, c.getDeclaredFields());
         }
-        fieldListCache.put(clz, ret);
+        HashMap<Class<?>, List<Field>> flc = new HashMap<>(fieldListCache);
+        flc.put(clz, ret);
+        fieldListCache = flc;
         return ret;
     }
 
@@ -248,24 +252,27 @@ public class AnnotationAndReflectionHelper {
      */
     public Field getField(Class clz, String fld) {
         String key = clz.toString() + "->" + fld;
-        if (fieldCache.containsKey(key)) {
-            return fieldCache.get(key);
+        HashMap<String, Field> fc = new HashMap<>(fieldCache);
+        if (fc.containsKey(key)) {
+            return fc.get(key);
         }
         Class cls = getRealClass(clz);
         List<Field> flds = getAllFields(cls);
+        Field ret = null;
         for (Field f : flds) {
             if (f.isAnnotationPresent(Property.class) && f.getAnnotation(Property.class).fieldName() != null && !".".equals(f.getAnnotation(Property.class).fieldName())) {
                 if (f.getAnnotation(Property.class).fieldName().equals(fld)) {
                     f.setAccessible(true);
-                    fieldCache.put(key, f);
-                    return f;
+
+                    fc.put(key, f);
+                    ret = f;
                 }
             }
             if (f.isAnnotationPresent(Reference.class) && f.getAnnotation(Reference.class).fieldName() != null && !".".equals(f.getAnnotation(Reference.class).fieldName())) {
                 if (f.getAnnotation(Reference.class).fieldName().equals(fld)) {
                     f.setAccessible(true);
-                    fieldCache.put(key, f);
-                    return f;
+                    fc.put(key, f);
+                    ret = f;
                 }
             }
             if (f.isAnnotationPresent(Aliases.class)) {
@@ -274,33 +281,36 @@ public class AnnotationAndReflectionHelper {
                 for (String field : v) {
                     if (field.equals(fld)) {
                         f.setAccessible(true);
-                        fieldCache.put(key, f);
-                        return f;
+                        fc.put(key, f);
+                        ret = f;
                     }
                 }
             }
             if (fld.equals("_id")) {
                 if (f.isAnnotationPresent(Id.class)) {
                     f.setAccessible(true);
-                    fieldCache.put(key, f);
-                    return f;
+                    fc.put(key, f);
+                    ret = f;
                 }
             }
             if (f.getName().equals(fld)) {
                 f.setAccessible(true);
-                fieldCache.put(key, f);
-                return f;
+                fc.put(key, f);
+                ret = f;
             }
             if (ccc && convertCamelCase(f.getName()).equals(fld)) {
                 f.setAccessible(true);
-                fieldCache.put(key, f);
-                return f;
+                fc.put(key, f);
+                ret = f;
             }
 
+            if (ret != null) break;
 
         }
+        fieldCache = fc;
+
         //unknown field
-        return null;
+        return ret;
     }
 
 
@@ -563,8 +573,9 @@ public class AnnotationAndReflectionHelper {
         for (Class<? extends Annotation> a : annotations) {
             k += "/" + a.toString();
         }
-        if (fieldAnnotationListCache.containsKey(k)) {
-            return fieldAnnotationListCache.get(k);
+        HashMap<String, List<String>> fa = new HashMap<>(fieldAnnotationListCache);
+        if (fa.containsKey(k)) {
+            return fa.get(k);
         }
         List<String> ret = new ArrayList<>();
         Class sc = cls;
@@ -617,7 +628,9 @@ public class AnnotationAndReflectionHelper {
                 ret.add(f.getName());
             }
         }
-        fieldAnnotationListCache.put(k, ret);
+
+        fa.put(k, ret);
+        fieldAnnotationListCache = fa;
         return ret;
     }
 
@@ -759,7 +772,8 @@ public class AnnotationAndReflectionHelper {
                 methods.put(a.annotationType(), m);
             }
         }
-        lifeCycleMethods.put(cls, methods);
+        HashMap<Class<?>, Map<Class<? extends Annotation>, Method>> lc = new HashMap<>(lifeCycleMethods);
+        lc.put(cls, methods);
         if (methods.get(type) != null) {
             try {
                 methods.get(type).invoke(on);
@@ -769,6 +783,7 @@ public class AnnotationAndReflectionHelper {
                 throw new RuntimeException(e);
             }
         }
+        lifeCycleMethods = lc;
     }
 
     public boolean isAsyncWrite(Class<?> cls) {
