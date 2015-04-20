@@ -3,7 +3,6 @@ package de.caluga.morphium.cache;
 import com.mongodb.DBObject;
 import de.caluga.morphium.query.Query;
 
-import java.util.Hashtable;
 import java.util.List;
 import java.util.Map;
 
@@ -21,19 +20,19 @@ public interface MorphiumCache {
 
     public <T> List<T> getFromCache(Class<? extends T> type, String k);
 
-    public Hashtable<Class<?>, Hashtable<String, CacheElement>> cloneCache();
+    public Map<Class<?>, Map<String, CacheElement>> cloneCache();
 
-    public Hashtable<Class<?>, Hashtable<Object, Object>> cloneIdCache();
+    public Map<Class<?>, Map<Object, Object>> cloneIdCache();
 
     public void clearCachefor(Class<?> cls);
 
-    public void setCache(Hashtable<Class<?>, Hashtable<String, CacheElement>> cache);
+    public void setCache(Map<Class<?>, Map<String, CacheElement>> cache);
 
     public void resetCache();
 
     public void removeEntryFromCache(Class cls, Object id);
 
-    public void setIdCache(Hashtable<Class<?>, Hashtable<Object, Object>> c);
+    public void setIdCache(Map<Class<?>, Map<Object, Object>> c);
 
     public <T> T getFromIDCache(Class<? extends T> type, Object id);
 

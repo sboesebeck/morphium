@@ -17,8 +17,8 @@ import java.util.*;
  * TODO: Add documentation here
  */
 public class MorphiumCacheImpl implements MorphiumCache {
-    private Hashtable<Class<?>, Hashtable<String, CacheElement>> cache;
-    private Hashtable<Class<?>, Hashtable<Object, Object>> idCache;
+    private Map<Class<?>, Map<String, CacheElement>> cache;
+    private Map<Class<?>, Map<Object, Object>> idCache;
     private AnnotationAndReflectionHelper annotationHelper = new AnnotationAndReflectionHelper(false); //only used to get id's and annotations, camalcase conversion never happens
 
     private Vector<CacheListener> cacheListeners;
@@ -26,8 +26,8 @@ public class MorphiumCacheImpl implements MorphiumCache {
     private Logger logger = Logger.getLogger(MorphiumCacheImpl.class);
 
     public MorphiumCacheImpl() {
-        cache = new Hashtable<Class<?>, Hashtable<String, CacheElement>>();
-        idCache = new Hashtable<Class<?>, Hashtable<Object, Object>>();
+        cache = new HashMap<Class<?>, Map<String, CacheElement>>();
+        idCache = new HashMap<>();
         cacheListeners = new Vector<CacheListener>();
     }
 
@@ -68,7 +68,7 @@ public class MorphiumCacheImpl implements MorphiumCache {
         }
         if (!k.endsWith("idlist")) {
             //copy from idCache
-            Hashtable<Class<?>, Hashtable<Object, Object>> idCacheClone = cloneIdCache();
+            Map<Class<?>, Map<Object, Object>> idCacheClone = cloneIdCache();
             for (T record : ret) {
                 if (idCacheClone.get(type) == null) {
                     idCacheClone.put(type, new Hashtable<Object, Object>());
@@ -80,7 +80,7 @@ public class MorphiumCacheImpl implements MorphiumCache {
 
         CacheElement<T> e = new CacheElement<T>(ret);
         e.setLru(System.currentTimeMillis());
-        Hashtable<Class<?>, Hashtable<String, CacheElement>> cl = (Hashtable<Class<?>, Hashtable<String, CacheElement>>) cache.clone();
+        Map<Class<?>, Map<String, CacheElement>> cl = (Map<Class<?>, Map<String, CacheElement>>) cloneMap(cache);
         if (cl.get(type) == null) {
             cl.put(type, new Hashtable<String, CacheElement>());
         }
@@ -89,6 +89,18 @@ public class MorphiumCacheImpl implements MorphiumCache {
         //atomar execution of this operand - no synchronization needed
         cache = cl;
 
+    }
+
+
+    private Map cloneMap(Map source) {
+        return cloneMap(source, new HashMap());
+    }
+
+    private Map cloneMap(Map source, Map dest) {
+        for (Object k : source.keySet()) {
+            dest.put(k, source.get(k));
+        }
+        return dest;
     }
 
     @Override
@@ -109,7 +121,7 @@ public class MorphiumCacheImpl implements MorphiumCache {
         } else {
             return false;
         }
-        Hashtable<Class<?>, Hashtable<String, CacheElement>> snapshotCache = cache;
+        Map<Class<?>, Map<String, CacheElement>> snapshotCache = cache;
 
         try {
             return snapshotCache.get(type) != null && snapshotCache.get(type).get(k) != null && snapshotCache.get(type).get(k).getFound() != null;
@@ -130,7 +142,7 @@ public class MorphiumCacheImpl implements MorphiumCache {
     @Override
     @SuppressWarnings("unchecked")
     public <T> List<T> getFromCache(Class<? extends T> type, String k) {
-        Hashtable<Class<?>, Hashtable<String, CacheElement>> snapshotCache = cache;
+        Map<Class<?>, Map<String, CacheElement>> snapshotCache = cache;
         if (snapshotCache.get(type) == null || snapshotCache.get(type).get(k) == null) return null;
         try {
             final CacheElement cacheElement = snapshotCache.get(type).get(k);
@@ -144,14 +156,14 @@ public class MorphiumCacheImpl implements MorphiumCache {
 
     @SuppressWarnings("unchecked")
     @Override
-    public Hashtable<Class<?>, Hashtable<String, CacheElement>> cloneCache() {
-        return (Hashtable<Class<?>, Hashtable<String, CacheElement>>) cache.clone();
+    public Map<Class<?>, Map<String, CacheElement>> cloneCache() {
+        return (Map<Class<?>, Map<String, CacheElement>>) cloneMap(cache);
     }
 
     @SuppressWarnings("unchecked")
     @Override
-    public Hashtable<Class<?>, Hashtable<Object, Object>> cloneIdCache() {
-        return (Hashtable<Class<?>, Hashtable<Object, Object>>) idCache.clone();
+    public Map<Class<?>, Map<Object, Object>> cloneIdCache() {
+        return (Map<Class<?>, Map<Object, Object>>) cloneMap(idCache);
     }
 
     @SuppressWarnings("unchecked")
@@ -212,19 +224,19 @@ public class MorphiumCacheImpl implements MorphiumCache {
 
     @Override
     public void resetCache() {
-        setCache(new Hashtable<Class<?>, Hashtable<String, CacheElement>>());
+        setCache(new HashMap<Class<?>, Map<String, CacheElement>>());
     }
 
     @Override
-    public void setCache(Hashtable<Class<?>, Hashtable<String, CacheElement>> cache) {
+    public void setCache(Map<Class<?>, Map<String, CacheElement>> cache) {
         this.cache = cache;
     }
 
     @SuppressWarnings("unchecked")
     @Override
     public void removeEntryFromCache(Class cls, Object id) {
-        Hashtable<Class<?>, Hashtable<String, CacheElement>> c = cloneCache();
-        Hashtable<Class<?>, Hashtable<Object, Object>> idc = cloneIdCache();
+        Map<Class<?>, Map<String, CacheElement>> c = cloneCache();
+        Map<Class<?>, Map<Object, Object>> idc = cloneIdCache();
         if (idc.get(cls) != null && idc.get(cls).get(id) != null) {
             for (CacheListener cl : cacheListeners) {
                 if (!cl.wouldRemoveEntryFromCache(cls, id, idc.get(cls).get(id))) {
@@ -261,7 +273,7 @@ public class MorphiumCacheImpl implements MorphiumCache {
     }
 
     @Override
-    public void setIdCache(Hashtable<Class<?>, Hashtable<Object, Object>> c) {
+    public void setIdCache(Map<Class<?>, Map<Object, Object>> c) {
         idCache = c;
     }
 

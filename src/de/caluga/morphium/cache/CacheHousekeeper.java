@@ -75,15 +75,26 @@ public class CacheHousekeeper extends Thread {
 
     }
 
+    private Map cloneMap(Map source) {
+        return cloneMap(source, new HashMap());
+    }
+
+    private Map cloneMap(Map source, Map dest) {
+        for (Object k : source.keySet()) {
+            dest.put(k, source.get(k));
+        }
+        return dest;
+    }
+
     @SuppressWarnings({"unchecked", "ConstantConditions"})
     public void run() {
         while (running) {
             try {
-                Hashtable<Class, Vector<String>> toDelete = new Hashtable<Class, Vector<String>>();
-                Hashtable<Class<?>, Hashtable<String, CacheElement>> cache = morphium.getCache().cloneCache();
-                for (Map.Entry<Class<?>, Hashtable<String, CacheElement>> es : cache.entrySet()) {
+                Map<Class, Vector<String>> toDelete = new HashMap<Class, Vector<String>>();
+                Map<Class<?>, Map<String, CacheElement>> cache = morphium.getCache().cloneCache();
+                for (Map.Entry<Class<?>, Map<String, CacheElement>> es : cache.entrySet()) {
                     Class<?> clz = es.getKey();
-                    Hashtable<String, CacheElement> ch = (Hashtable<String, CacheElement>) es.getValue().clone();
+                    Map<String, CacheElement> ch = (Map<String, CacheElement>) cloneMap(es.getValue());
 
 
                     int maxEntries = -1;
@@ -237,7 +248,7 @@ public class CacheHousekeeper extends Thread {
 
                 }
 
-                Hashtable<Class<?>, Hashtable<Object, Object>> idCacheClone = morphium.getCache().cloneIdCache();
+                Map<Class<?>, Map<Object, Object>> idCacheClone = morphium.getCache().cloneIdCache();
                 for (Map.Entry<Class, Vector<String>> et : toDelete.entrySet()) {
                     Class cls = et.getKey();
 
