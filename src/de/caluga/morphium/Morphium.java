@@ -915,7 +915,7 @@ public class Morphium {
     }
 
     public <T> T reread(T o, String collection) {
-        if (o == null) throw new RuntimeException("Cannot re read null!");
+        if (o == null) return null;
         Object id = getId(o);
         if (id == null) {
             return null;

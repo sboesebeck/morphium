@@ -63,7 +63,7 @@ public class CacheHousekeeper extends Thread {
     }
 
     public void setValidCacheTime(Class<?> cls, int timeout) {
-        HashMap<Class<?>, Integer> v = new HashMap<>(validTimeForClass);
+        HashMap<Class<?>, Integer> v = (HashMap) ((HashMap) validTimeForClass).clone();
         v.put(cls, timeout);
         validTimeForClass = v;
     }
@@ -77,17 +77,6 @@ public class CacheHousekeeper extends Thread {
 
     }
 
-    private Map cloneMap(Map source) {
-        return cloneMap(source, new HashMap());
-    }
-
-    private Map cloneMap(Map source, Map dest) {
-        for (Object k : source.keySet()) {
-            dest.put(k, source.get(k));
-        }
-        return dest;
-    }
-
     @SuppressWarnings({"unchecked", "ConstantConditions"})
     public void run() {
         while (running) {
@@ -96,7 +85,7 @@ public class CacheHousekeeper extends Thread {
                 Map<Class<?>, Map<String, CacheElement>> cache = morphium.getCache().cloneCache();
                 for (Map.Entry<Class<?>, Map<String, CacheElement>> es : cache.entrySet()) {
                     Class<?> clz = es.getKey();
-                    Map<String, CacheElement> ch = (Map<String, CacheElement>) cloneMap(es.getValue());
+                    Map<String, CacheElement> ch = (Map<String, CacheElement>) ((HashMap) es.getValue()).clone();
 
 
                     int maxEntries = -1;
