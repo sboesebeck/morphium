@@ -31,12 +31,16 @@ public class AnnotationAndReflectionHelper {
     private Map<String, List<String>> fieldAnnotationListCache = new HashMap<String, List<String>>();
     private Map<Class<?>, Map<Class<? extends Annotation>, Method>> lifeCycleMethods;
     private Map<Class<?>, Boolean> hasAdditionalData;
+    private Map<Class<?>, Map<Class<? extends Annotation>, Annotation>> annotationCache;
+    private Map<Class<?>, Map<String, String>> fieldNameCache;
     private boolean ccc = true;
 
     public AnnotationAndReflectionHelper(boolean convertCamelCase) {
         this.ccc = convertCamelCase;
         lifeCycleMethods = new HashMap<>();
         hasAdditionalData = new HashMap<>();
+        annotationCache = new HashMap<>();
+        fieldNameCache = new HashMap<>();
     }
 
     public <T extends Annotation> boolean isAnnotationPresentInHierarchy(Class<?> cls, Class<? extends T> anCls) {
@@ -75,14 +79,22 @@ public class AnnotationAndReflectionHelper {
      */
     public <T extends Annotation> T getAnnotationFromHierarchy(Class<?> cls, Class<? extends T> anCls) {
         cls = getRealClass(cls);
+        if (annotationCache.get(cls) != null) {
+            return (T) annotationCache.get(cls).get(anCls);
+        }
+        T ret = null;
+        Map<Class<?>, Map<Class<? extends Annotation>, Annotation>> m = (HashMap) ((HashMap) annotationCache).clone();
+        m.put(cls, new HashMap<Class<? extends Annotation>, Annotation>());
         if (cls.isAnnotationPresent(anCls)) {
-            return cls.getAnnotation(anCls);
+            m.get(cls).put(anCls, cls.getAnnotation(anCls));
+            ret = cls.getAnnotation(anCls);
         }
         //class hierarchy?
         Class<?> z = cls;
         while (!z.equals(Object.class)) {
             if (z.isAnnotationPresent(anCls)) {
-                return z.getAnnotation(anCls);
+                m.get(cls).put(anCls, z.getAnnotation(anCls));
+                ret = z.getAnnotation(anCls);
             }
             z = z.getSuperclass();
             if (z == null) break;
@@ -94,19 +106,22 @@ public class AnnotationAndReflectionHelper {
         }
         while(!interfaces.isEmpty()) {
             Class<?> iface = interfaces.poll();
-            if(iface.isAnnotationPresent(anCls))
-                return iface.getAnnotation(anCls);
+            if (iface.isAnnotationPresent(anCls)) {
+                m.get(cls).put(anCls, iface.getAnnotation(anCls));
+                ret = iface.getAnnotation(anCls);
+            }
             for (Class<?> anInterface : iface.getInterfaces()) {
                 interfaces.add(anInterface);
             }
         }
-        return null;
+        annotationCache = m;
+        return ret;
     }
 
     public boolean hasAdditionalData(Class clz) {
         if (hasAdditionalData.get(clz) == null) {
             List<String> lst = getFields(clz, AdditionalData.class);
-            HashMap m = new HashMap(hasAdditionalData);
+            HashMap m = (HashMap) ((HashMap) hasAdditionalData).clone();
             m.put(clz, (lst != null && lst.size() > 0));
             hasAdditionalData = m;
         }
@@ -121,45 +136,58 @@ public class AnnotationAndReflectionHelper {
             //no check possible
             return field;
         }
+        if (fieldNameCache.containsKey(clz)) {
+            if (fieldNameCache.get(clz).get(field) != null) {
+                return fieldNameCache.get(clz).get(field);
+            }
+        }
+
+        String ret = field;
 
         List<Class> inf = Arrays.asList(clz.getInterfaces());
         if ((inf.contains(List.class)) || inf.contains(Map.class) || inf.contains(Collection.class) || inf.contains(Set.class) || clz.isArray()) {
             //not diving into maps
-            return field;
-        }
-        Field f = getField(cls, field);
-        if (f == null && hasAdditionalData(clz)) {
-            return field;
-        }
-        if (f == null) throw new RuntimeException("Field not found " + field + " in cls: " + clz.getName());
-        if (f.isAnnotationPresent(Property.class)) {
-            Property p = f.getAnnotation(Property.class);
-            if (p.fieldName() != null && !p.fieldName().equals(".")) {
-                return p.fieldName();
+
+        } else {
+
+            Field f = getField(cls, field);
+            if (f == null && hasAdditionalData(clz)) {
+                return field;
+            }
+            if (f == null) throw new RuntimeException("Field not found " + field + " in cls: " + clz.getName());
+            if (f.isAnnotationPresent(Property.class)) {
+                Property p = f.getAnnotation(Property.class);
+                if (p.fieldName() != null && !p.fieldName().equals(".")) {
+                    return p.fieldName();
+                }
+            }
+
+            if (f.isAnnotationPresent(Reference.class)) {
+                Reference p = f.getAnnotation(Reference.class);
+                if (p.fieldName() != null && !p.fieldName().equals(".")) {
+                    return p.fieldName();
+                }
+            }
+            if (f.isAnnotationPresent(Id.class)) {
+                return "_id";
+            }
+
+
+            ret = f.getName();
+            Entity ent = getAnnotationFromHierarchy(cls, Entity.class); //(Entity) cls.getAnnotation(Entity.class);
+            Embedded emb = getAnnotationFromHierarchy(cls, Embedded.class);//(Embedded) cls.getAnnotation(Embedded.class);
+            if (ccc && ent != null && ent.translateCamelCase()) {
+                ret = convertCamelCase(ret);
+            } else if (ccc && emb != null && emb.translateCamelCase()) {
+                ret = convertCamelCase(ret);
             }
         }
-
-        if (f.isAnnotationPresent(Reference.class)) {
-            Reference p = f.getAnnotation(Reference.class);
-            if (p.fieldName() != null && !p.fieldName().equals(".")) {
-                return p.fieldName();
-            }
+        HashMap<Class<?>, Map<String, String>> m = (HashMap) ((HashMap) fieldNameCache).clone();
+        if (!m.containsKey(cls)) {
+            m.put(cls, new HashMap<String, String>());
         }
-        if (f.isAnnotationPresent(Id.class)) {
-            return "_id";
-        }
-
-
-        String fieldName = f.getName();
-        Entity ent = getAnnotationFromHierarchy(cls, Entity.class); //(Entity) cls.getAnnotation(Entity.class);
-        Embedded emb = getAnnotationFromHierarchy(cls, Embedded.class);//(Embedded) cls.getAnnotation(Embedded.class);
-        if (ccc && ent != null && ent.translateCamelCase()) {
-            fieldName = convertCamelCase(fieldName);
-        } else if (ccc && emb != null && emb.translateCamelCase()) {
-            fieldName = convertCamelCase(fieldName);
-        }
-
-        return fieldName;
+        m.get(cls).put(field, ret);
+        return ret;
 
     }
 
@@ -236,7 +264,7 @@ public class AnnotationAndReflectionHelper {
 //            Class c = hierachy.get(i);
             Collections.addAll(ret, c.getDeclaredFields());
         }
-        HashMap<Class<?>, List<Field>> flc = new HashMap<>(fieldListCache);
+        HashMap<Class<?>, List<Field>> flc = (HashMap) ((HashMap) fieldListCache).clone();
         flc.put(clz, ret);
         fieldListCache = flc;
         return ret;
@@ -252,7 +280,7 @@ public class AnnotationAndReflectionHelper {
      */
     public Field getField(Class clz, String fld) {
         String key = clz.toString() + "->" + fld;
-        HashMap<String, Field> fc = new HashMap<>(fieldCache);
+        HashMap<String, Field> fc = (HashMap) ((HashMap) fieldCache).clone();
         if (fc.containsKey(key)) {
             return fc.get(key);
         }
@@ -573,7 +601,7 @@ public class AnnotationAndReflectionHelper {
         for (Class<? extends Annotation> a : annotations) {
             k += "/" + a.toString();
         }
-        HashMap<String, List<String>> fa = new HashMap<>(fieldAnnotationListCache);
+        HashMap<String, List<String>> fa = (HashMap) ((HashMap) fieldAnnotationListCache).clone();
         if (fa.containsKey(k)) {
             return fa.get(k);
         }
@@ -606,6 +634,7 @@ public class AnnotationAndReflectionHelper {
                     continue;
                 }
             }
+
             if (f.isAnnotationPresent(Reference.class) && !".".equals(f.getAnnotation(Reference.class).fieldName())) {
                 ret.add(f.getAnnotation(Reference.class).fieldName());
                 continue;
@@ -772,7 +801,7 @@ public class AnnotationAndReflectionHelper {
                 methods.put(a.annotationType(), m);
             }
         }
-        HashMap<Class<?>, Map<Class<? extends Annotation>, Method>> lc = new HashMap<>(lifeCycleMethods);
+        HashMap<Class<?>, Map<Class<? extends Annotation>, Method>> lc = (HashMap) ((HashMap) lifeCycleMethods).clone();
         lc.put(cls, methods);
         if (methods.get(type) != null) {
             try {

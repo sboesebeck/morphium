@@ -81,7 +81,7 @@ public class MorphiumCacheImpl implements MorphiumCache {
 
         CacheElement<T> e = new CacheElement<T>(ret);
         e.setLru(System.currentTimeMillis());
-        Map<Class<?>, Map<String, CacheElement>> cl = (Map<Class<?>, Map<String, CacheElement>>) new HashMap<>(cache);
+        Map<Class<?>, Map<String, CacheElement>> cl = (Map<Class<?>, Map<String, CacheElement>>) (((HashMap) cache).clone());
         if (cl.get(type) == null) {
             cl.put(type, new HashMap<String, CacheElement>());
         }
@@ -149,13 +149,13 @@ public class MorphiumCacheImpl implements MorphiumCache {
     @SuppressWarnings("unchecked")
     @Override
     public Map<Class<?>, Map<String, CacheElement>> cloneCache() {
-        return (Map<Class<?>, Map<String, CacheElement>>) new HashMap<>(cache);
+        return (Map<Class<?>, Map<String, CacheElement>>) (((HashMap) cache).clone());
     }
 
     @SuppressWarnings("unchecked")
     @Override
     public Map<Class<?>, Map<Object, Object>> cloneIdCache() {
-        return (Map<Class<?>, Map<Object, Object>>) new HashMap<>(idCache);
+        return (Map<Class<?>, Map<Object, Object>>) (((HashMap) idCache).clone());
     }
 
     @SuppressWarnings("unchecked")

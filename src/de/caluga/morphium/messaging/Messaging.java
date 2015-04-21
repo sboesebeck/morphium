@@ -294,7 +294,7 @@ public class Messaging extends Thread {
 
     public void addListenerForMessageNamed(String n, MessageListener l) {
         if (listenerByName.get(n) == null) {
-            HashMap<String, List<MessageListener>> c = new HashMap<>(listenerByName);
+            HashMap<String, List<MessageListener>> c = (HashMap) ((HashMap) listenerByName).clone();
             c.put(n, new ArrayList<MessageListener>());
             listenerByName = c;
         }
@@ -306,7 +306,7 @@ public class Messaging extends Thread {
         if (listenerByName.get(n) == null) {
             return;
         }
-        HashMap<String, List<MessageListener>> c = new HashMap<>(listenerByName);
+        HashMap<String, List<MessageListener>> c = (HashMap) ((HashMap) listenerByName).clone();
         c.get(n).remove(l);
         listenerByName = c;
 
