@@ -105,7 +105,7 @@ public class AnnotationAndReflectionHelper {
     public boolean hasAdditionalData(Class clz) {
         if (hasAdditionalData.get(clz) == null) {
             List<String> lst = getFields(clz, AdditionalData.class);
-            HashMap m = new HashMap(hasAdditionalData);
+            HashMap m = (HashMap)((HashMap) hasAdditionalData).clone();
             m.put(clz, (lst != null && lst.size() > 0));
             hasAdditionalData = m;
         }
@@ -235,7 +235,7 @@ public class AnnotationAndReflectionHelper {
 //            Class c = hierachy.get(i);
             Collections.addAll(ret, c.getDeclaredFields());
         }
-        HashMap<Class<?>, List<Field>> flc = new HashMap<>(fieldListCache);
+        HashMap<Class<?>, List<Field>> flc = (HashMap)((HashMap) fieldListCache).clone();
         flc.put(clz, ret);
         fieldListCache = flc;
         return ret;
@@ -251,7 +251,7 @@ public class AnnotationAndReflectionHelper {
      */
     public Field getField(Class clz, String fld) {
         String key = clz.toString() + "->" + fld;
-        HashMap<String, Field> fc = new HashMap<>(fieldCache);
+        HashMap<String, Field> fc = (HashMap)((HashMap) fieldCache).clone();
         if (fc.containsKey(key)) {
             return fc.get(key);
         }
@@ -572,7 +572,7 @@ public class AnnotationAndReflectionHelper {
         for (Class<? extends Annotation> a : annotations) {
             k += "/" + a.toString();
         }
-        HashMap<String, List<String>> fa = new HashMap<>(fieldAnnotationListCache);
+        HashMap<String, List<String>> fa = (HashMap)((HashMap) fieldAnnotationListCache).clone();
         if (fa.containsKey(k)) {
             return fa.get(k);
         }
