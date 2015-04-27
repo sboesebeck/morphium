@@ -1,7 +1,6 @@
 package de.caluga.morphium;
 
 import de.caluga.morphium.query.Query;
-import org.apache.log4j.Logger;
 import org.bson.types.ObjectId;
 
 import java.util.Date;
@@ -34,7 +33,7 @@ public class SequenceGenerator {
     private String id;
     private String name;
 
-    private static Logger log = Logger.getLogger(SequenceGenerator.class);
+    private static Logger log = new Logger(SequenceGenerator.class);
 
     public SequenceGenerator() {
         this(MorphiumSingleton.get(), "seq", 1, 1);

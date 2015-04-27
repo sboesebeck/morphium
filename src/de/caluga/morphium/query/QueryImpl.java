@@ -6,7 +6,6 @@ import de.caluga.morphium.annotations.*;
 import de.caluga.morphium.annotations.caching.Cache;
 import de.caluga.morphium.async.AsyncOperationCallback;
 import de.caluga.morphium.async.AsyncOperationType;
-import org.apache.log4j.Logger;
 
 import java.lang.reflect.Array;
 import java.lang.reflect.Field;
@@ -21,7 +20,7 @@ import java.util.concurrent.ThreadPoolExecutor;
  * <p/>
  */
 public class QueryImpl<T> implements Query<T>, Cloneable {
-    private static Logger log = Logger.getLogger(Query.class);
+    private static Logger log = new Logger(Query.class);
     private String where;
     private Class<? extends T> type;
     private List<FilterExpression> andExpr;

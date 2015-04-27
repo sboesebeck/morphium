@@ -1,14 +1,13 @@
 package de.caluga.test.mongo.suite;
 
+import de.caluga.morphium.Logger;
 import de.caluga.morphium.Morphium;
 import de.caluga.morphium.MorphiumSingleton;
 import de.caluga.morphium.annotations.Embedded;
 import de.caluga.morphium.query.Query;
-import org.apache.log4j.Logger;
 import org.junit.Test;
 
 import javax.swing.*;
-import java.util.logging.Level;
 
 /**
  * User: Stephan Bösebeck
@@ -17,7 +16,7 @@ import java.util.logging.Level;
  * <p/>
  */
 public class FailoverTests extends MongoTest {
-    private static Logger log = Logger.getLogger(FailoverTests.class);
+    private static Logger log = new Logger(FailoverTests.class);
     private static int writeError = 0;
     private static int readError = 0;
     private static int writes = 0;
@@ -32,7 +31,6 @@ public class FailoverTests extends MongoTest {
         }
 
 
-        java.util.logging.Logger.getLogger("com.mongodb").setLevel(Level.ALL);
         Morphium morphium = MorphiumSingleton.get();
         morphium.clearCollection(UncachedObject.class);
 

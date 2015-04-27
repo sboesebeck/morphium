@@ -3,9 +3,9 @@ package de.caluga.morphium.cache;
 import com.mongodb.BasicDBObject;
 import com.mongodb.DBObject;
 import de.caluga.morphium.AnnotationAndReflectionHelper;
+import de.caluga.morphium.Logger;
 import de.caluga.morphium.annotations.caching.Cache;
 import de.caluga.morphium.query.Query;
-import org.apache.log4j.Logger;
 
 import java.util.*;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -24,7 +24,7 @@ public class MorphiumCacheImpl implements MorphiumCache {
 
     private List<CacheListener> cacheListeners;
 
-    private Logger logger = Logger.getLogger(MorphiumCacheImpl.class);
+    private Logger logger = new Logger(MorphiumCacheImpl.class);
 
     public MorphiumCacheImpl() {
         cache = new HashMap<Class<?>, Map<String, CacheElement>>();
@@ -35,6 +35,11 @@ public class MorphiumCacheImpl implements MorphiumCache {
     @Override
     public void addCacheListener(CacheListener cl) {
         cacheListeners.add(cl);
+    }
+
+    @Override
+    public boolean isListenerRegistered(CacheListener cl) {
+        return cacheListeners.contains(cl);
     }
 
     @Override

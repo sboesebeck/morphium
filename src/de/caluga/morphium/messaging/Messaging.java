@@ -1,12 +1,12 @@
 package de.caluga.morphium.messaging;
 
+import de.caluga.morphium.Logger;
 import de.caluga.morphium.Morphium;
 import de.caluga.morphium.MorphiumSingleton;
 import de.caluga.morphium.async.AsyncOperationCallback;
 import de.caluga.morphium.async.AsyncOperationType;
 import de.caluga.morphium.query.MorphiumIterator;
 import de.caluga.morphium.query.Query;
-import org.apache.log4j.Logger;
 
 import java.net.InetAddress;
 import java.net.UnknownHostException;
@@ -25,7 +25,7 @@ import java.util.concurrent.TimeUnit;
  */
 @SuppressWarnings({"ConstantConditions", "unchecked", "UnusedDeclaration"})
 public class Messaging extends Thread {
-    private static Logger log = Logger.getLogger(Messaging.class);
+    private static Logger log = new Logger(Messaging.class);
 
     private Morphium morphium;
     private boolean running;

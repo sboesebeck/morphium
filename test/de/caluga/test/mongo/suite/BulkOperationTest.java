@@ -1,5 +1,6 @@
 package de.caluga.test.mongo.suite;
 
+import com.mongodb.BulkWriteResult;
 import de.caluga.morphium.Morphium;
 import de.caluga.morphium.MorphiumSingleton;
 import de.caluga.morphium.MorphiumStorageAdapter;
@@ -37,6 +38,30 @@ public class BulkOperationTest extends MongoTest {
             assert (o.getCounter() == 999) : "Counter is " + o.getCounter();
         }
 
+    }
+
+    @Test
+    public void bulkInsertTest() throws Exception {
+
+        MorphiumSingleton.get().dropCollection(UncachedObject.class);
+
+        for (int j = 0; j < 2; j++) {
+            BulkOperationContext ctx = new BulkOperationContext(MorphiumSingleton.get(), false);
+            for (int i = 0; i < 5000; i++) {
+                UncachedObject o = new UncachedObject();
+                o.setCounter(i);
+                o.setValue("Bulk");
+                ctx.insert(o);
+            }
+            BulkWriteResult res = ctx.execute();
+            assert (res.getInsertedCount() == 5000);
+            assert (res.isAcknowledged());
+        }
+        while (true) {
+            long l = MorphiumSingleton.get().createQueryFor(UncachedObject.class).countAll();
+            log.info("Stored: " + l);
+            if (l == 10000) break;
+        }
     }
 
 

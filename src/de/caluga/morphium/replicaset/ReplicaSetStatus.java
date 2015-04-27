@@ -1,8 +1,8 @@
 package de.caluga.morphium.replicaset;
 
+import de.caluga.morphium.Logger;
 import de.caluga.morphium.annotations.Embedded;
 import de.caluga.morphium.annotations.Transient;
-import org.apache.log4j.Logger;
 
 import java.util.Date;
 import java.util.List;
@@ -17,7 +17,7 @@ import java.util.List;
 @SuppressWarnings("UnusedDeclaration")
 @Embedded(translateCamelCase = false)
 public class ReplicaSetStatus {
-    private static Logger log = Logger.getLogger(ReplicaSetStatus.class);
+    private static Logger log = new Logger(ReplicaSetStatus.class);
     private String set;
     private String myState;
     private Date date;

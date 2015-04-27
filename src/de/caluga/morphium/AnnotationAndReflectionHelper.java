@@ -4,7 +4,6 @@ import de.caluga.morphium.annotations.*;
 import de.caluga.morphium.annotations.caching.AsyncWrites;
 import de.caluga.morphium.annotations.caching.WriteBuffer;
 import de.caluga.morphium.annotations.lifecycle.Lifecycle;
-import org.apache.log4j.Logger;
 
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Field;
@@ -24,7 +23,7 @@ import java.util.*;
  */
 @SuppressWarnings("unchecked")
 public class AnnotationAndReflectionHelper {
-    private Logger log = Logger.getLogger(AnnotationAndReflectionHelper.class);
+    private Logger log = new Logger(AnnotationAndReflectionHelper.class);
     private Map<String, Field> fieldCache = new HashMap<>();
     private Map<Class<?>, Class<?>> realClassCache = new HashMap<>();
     private Map<Class<?>, List<Field>> fieldListCache = new HashMap<>();
