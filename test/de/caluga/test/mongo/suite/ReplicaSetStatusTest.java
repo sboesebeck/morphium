@@ -1,11 +1,11 @@
 package de.caluga.test.mongo.suite;
 
 import com.mongodb.WriteConcern;
+import de.caluga.morphium.Logger;
 import de.caluga.morphium.MorphiumSingleton;
 import de.caluga.morphium.annotations.Entity;
 import de.caluga.morphium.annotations.SafetyLevel;
 import de.caluga.morphium.annotations.WriteSafety;
-import org.apache.log4j.Logger;
 import org.junit.Test;
 
 /**
@@ -15,7 +15,7 @@ import org.junit.Test;
  * <p/>
  */
 public class ReplicaSetStatusTest extends MongoTest {
-    private static Logger log = Logger.getLogger(ReplicaSetStatusTest.class);
+    private static Logger log = new Logger(ReplicaSetStatusTest.class);
 
     @Test
     public void testReplicaSetMonitoring() throws Exception {

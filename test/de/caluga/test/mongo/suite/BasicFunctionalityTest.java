@@ -4,10 +4,10 @@
  */
 package de.caluga.test.mongo.suite;
 
+import de.caluga.morphium.Logger;
 import de.caluga.morphium.MorphiumSingleton;
 import de.caluga.morphium.StatisticKeys;
 import de.caluga.morphium.query.Query;
-import org.apache.log4j.Logger;
 import org.junit.Test;
 
 import java.util.ArrayList;
@@ -19,7 +19,7 @@ import java.util.Map;
  */
 public class BasicFunctionalityTest extends MongoTest {
     public static final int NO_OBJECTS = 100;
-    private final static Logger log = Logger.getLogger(BasicFunctionalityTest.class);
+    private final static Logger log = new Logger(BasicFunctionalityTest.class);
 
     public BasicFunctionalityTest() {
     }
@@ -249,7 +249,7 @@ public class BasicFunctionalityTest extends MongoTest {
         List<UncachedObject> lst = q.asList();
         for (UncachedObject o : lst) {
             assert (o.getCounter() < 10 || o.getValue().equals("Uncached 50")) : "Value did not match: " + o.toString();
-            System.out.println(o.toString());
+            log.info(o.toString());
         }
         log.info("1st test passed");
         for (int i = 1; i < 120; i++) {

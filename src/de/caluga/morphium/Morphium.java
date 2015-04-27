@@ -21,7 +21,6 @@ import de.caluga.morphium.writer.BufferedMorphiumWriterImpl;
 import de.caluga.morphium.writer.MorphiumWriter;
 import de.caluga.morphium.writer.MorphiumWriterImpl;
 import net.sf.cglib.proxy.Enhancer;
-import org.apache.log4j.Logger;
 import org.bson.types.ObjectId;
 
 import java.io.Serializable;
@@ -58,7 +57,7 @@ public class Morphium {
      *
      * @see MorphiumConfig
      */
-    private final static Logger logger = Logger.getLogger(Morphium.class);
+    private final static Logger logger = new Logger(Morphium.class);
     private MorphiumConfig config;
     private ThreadLocal<Boolean> enableAutoValues = new ThreadLocal<Boolean>();
     private ThreadLocal<Boolean> enableReadCache = new ThreadLocal<Boolean>();
@@ -155,6 +154,12 @@ public class Morphium {
             o.maxConnectionLifeTime(config.getMaxConnectionLifeTime());
             o.requiredReplicaSetName(config.getRequiredReplicaSetName());
             o.maxWaitTime(config.getMaxWaitTime());
+
+            System.getProperties().put("morphium.log.level", "" + config.getLogLevel());
+            System.getProperties().put("morphium.log.synced", "" + config.isLogSynced());
+            if (config.getLogFile() != null) {
+                System.getProperties().put("morphium.log.file", config.getLogFile());
+            }
             if (config.getAdr().isEmpty()) {
                 throw new RuntimeException("Error - no server address specified!");
             }

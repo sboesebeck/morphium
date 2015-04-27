@@ -6,7 +6,6 @@ import com.mongodb.DBObject;
 import com.mongodb.DBRef;
 import de.caluga.morphium.annotations.*;
 import de.caluga.morphium.query.Query;
-import org.apache.log4j.Logger;
 import org.bson.types.ObjectId;
 import org.json.simple.parser.ContainerFactory;
 import org.json.simple.parser.JSONParser;
@@ -28,7 +27,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
  */
 @SuppressWarnings({"ConstantConditions", "MismatchedQueryAndUpdateOfCollection", "unchecked", "MismatchedReadAndWriteOfArray"})
 public class ObjectMapperImpl implements ObjectMapper {
-    private static Logger log = Logger.getLogger(ObjectMapperImpl.class);
+    private static Logger log = new Logger(ObjectMapperImpl.class);
     private volatile HashMap<Class<?>, NameProvider> nameProviders;
     private volatile AnnotationAndReflectionHelper annotationHelper = new AnnotationAndReflectionHelper(true);
     private Morphium morphium;

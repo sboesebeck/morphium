@@ -1,6 +1,6 @@
 package de.caluga.morphium.query;
 
-import org.apache.log4j.Logger;
+import de.caluga.morphium.Logger;
 
 import java.util.ArrayList;
 import java.util.Iterator;
@@ -22,7 +22,7 @@ public class MorphiumIteratorImpl<T> implements MorphiumIterator<T> {
     private int cursor = 0;
     private long count = 0;
 
-    private Logger log = Logger.getLogger(MorphiumIterator.class);
+    private Logger log = new Logger(MorphiumIterator.class);
     private long limit;
     private int prefetchWindows = 1;
 

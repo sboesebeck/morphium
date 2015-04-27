@@ -45,4 +45,6 @@ public interface MorphiumCache {
     public void addCacheListener(CacheListener cl);
 
     public void removeCacheListener(CacheListener cl);
+
+    public boolean isListenerRegistered(CacheListener cl);
 }

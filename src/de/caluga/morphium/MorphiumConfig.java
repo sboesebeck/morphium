@@ -22,16 +22,10 @@ import de.caluga.morphium.writer.AsyncWriterImpl;
 import de.caluga.morphium.writer.BufferedMorphiumWriterImpl;
 import de.caluga.morphium.writer.MorphiumWriter;
 import de.caluga.morphium.writer.MorphiumWriterImpl;
-import org.apache.log4j.LogManager;
-import org.apache.log4j.Logger;
-import org.apache.log4j.xml.DOMConfigurator;
 import org.json.simple.parser.ParseException;
 
-import java.io.IOException;
 import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
-import java.net.MalformedURLException;
-import java.net.URL;
 import java.net.UnknownHostException;
 import java.util.*;
 
@@ -43,7 +37,6 @@ import java.util.*;
 @SuppressWarnings("UnusedDeclaration")
 @Embedded
 public class MorphiumConfig {
-    private String loggingConfigFile;
     @AdditionalData(readOnly = false)
     private Map<String, String> restoreData;
     //    private MongoDbMode mode;
@@ -67,6 +60,11 @@ public class MorphiumConfig {
     private boolean globalJ = false;
     private boolean checkForNew = false;
     private int writeTimeout = 0;
+
+    private int logLevel = 0;
+    private boolean logSynced = false;
+    private String logFile = null;
+
     //maximum number of tries to queue a write operation
     private int maximumRetriesBufferedWriter = 10;
     private int maximumRetriesWriter = 10;
@@ -177,33 +175,20 @@ public class MorphiumConfig {
         } catch (InstantiationException e) {
             throw new RuntimeException(e);
         }
-        configureLogging();
     }
 
     public MorphiumConfig() {
-        this("test", 10, 60000, 10000, (URL) null);
+        this("test", 10, 60000, 10000);
     }
 
-    public MorphiumConfig(String db, int maxConnections, int globalCacheValidTime, int housekeepingTimeout) throws IOException {
-        this(db, maxConnections, globalCacheValidTime, housekeepingTimeout, Thread.currentThread().getContextClassLoader().getResource("morphium-log4j.xml"));
-    }
 
-    public MorphiumConfig(String db, int maxConnections, int globalCacheValidTime, int housekeepingTimeout, String resourceName) throws IOException {
-        this(db, maxConnections, globalCacheValidTime, housekeepingTimeout, Thread.currentThread().getContextClassLoader().getResource(resourceName));
-    }
-
-    public MorphiumConfig(String db, int maxConnections, int globalCacheValidTime, int housekeepingTimeout, URL loggingConfigResource) {
+    public MorphiumConfig(String db, int maxConnections, int globalCacheValidTime, int housekeepingTimeout) {
         database = db;
         adr = new ArrayList<>();
-        if (loggingConfigResource != null) {
-            loggingConfigFile = loggingConfigResource.toString();
-        }
+
         this.maxConnections = maxConnections;
         this.globalCacheValidTime = globalCacheValidTime;
         this.housekeepingTimeout = housekeepingTimeout;
-
-        configureLogging();
-
 
     }
 
@@ -215,55 +200,10 @@ public class MorphiumConfig {
         this.checkForNew = checkForNew;
     }
 
-    public String getLoggingConfigFile() {
-        return loggingConfigFile;
-    }
-
-    public void setLoggingConfigFile(String loggingConfigFile) {
-        this.loggingConfigFile = loggingConfigFile;
-    }
-
-    public void configureLogging() {
-        if (loggingConfigFile == null) {
-            System.out.println("Not configuring logging - logging config file not set");
-            return;
-        }
-        if (isLoggingConfigured()) {
-            Logger.getLogger(MorphiumConfig.class).info("Logging already configured");
-            return;
-        }
-        if (loggingConfigFile != null && !isLoggingConfigured()) {
-            try {
-                DOMConfigurator.configure(new URL(loggingConfigFile));
-            } catch (MalformedURLException e) {
-                throw new RuntimeException(e);
-            }
-        }
-    }
-
-    /**
-     * Returns true if it appears that log4j have been previously configured.
-     * http://wiki.apache.org/logging-log4j/UsefulCode
-     */
-    private static boolean isLoggingConfigured() {
-        Enumeration appenders = Logger.getRootLogger().getAllAppenders();
-        if (appenders.hasMoreElements()) {
-            return true;
-        } else {
-            Enumeration loggers = LogManager.getCurrentLoggers();
-            while (loggers.hasMoreElements()) {
-                Logger c = (Logger) loggers.nextElement();
-                if (c.getAllAppenders().hasMoreElements())
-                    return true;
-            }
-        }
-        return false;
-    }
 
     public static MorphiumConfig createFromJson(String json) throws ParseException, NoSuchFieldException, ClassNotFoundException, IllegalAccessException, InstantiationException, UnknownHostException, NoSuchMethodException, InvocationTargetException {
         MorphiumConfig cfg = new ObjectMapperImpl().unmarshall(MorphiumConfig.class, json);
         parseClassSettings(cfg, cfg.restoreData);
-        cfg.configureLogging();
         return cfg;
     }
 
@@ -303,7 +243,7 @@ public class MorphiumConfig {
 
     public void setRetriesOnNetworkError(int retriesOnNetworkError) {
         if (retriesOnNetworkError == 0) {
-            Logger.getLogger(MorphiumConfig.class).warn("Cannot set retries on network error to 0 - minimum is 1");
+            new Logger(MorphiumConfig.class).warn("Cannot set retries on network error to 0 - minimum is 1");
             retriesOnNetworkError = 1;
         }
         this.retriesOnNetworkError = retriesOnNetworkError;
@@ -1125,5 +1065,34 @@ public class MorphiumConfig {
 
     public void setRequiredReplicaSetName(String requiredReplicaSetName) {
         this.requiredReplicaSetName = requiredReplicaSetName;
+    }
+
+    public int getLogLevel() {
+        return logLevel;
+    }
+
+    public void setLogLevel(int logLevel) {
+        this.logLevel = logLevel;
+        System.getProperties().put("morphium.log.level", "" + logLevel);
+    }
+
+    public boolean isLogSynced() {
+        return logSynced;
+    }
+
+    public void setLogSynced(boolean logSynced) {
+        this.logSynced = logSynced;
+        System.getProperties().put("morphium.log.synced", "" + logSynced);
+
+    }
+
+    public String getLogFile() {
+        return logFile;
+    }
+
+    public void setLogFile(String logFile) {
+        this.logFile = logFile;
+        System.getProperties().put("morphium.log.file", logFile);
+
     }
 }

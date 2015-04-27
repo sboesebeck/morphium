@@ -1,9 +1,9 @@
 package de.caluga.morphium.replicaset;
 
 import com.mongodb.*;
+import de.caluga.morphium.Logger;
 import de.caluga.morphium.Morphium;
 import de.caluga.morphium.MorphiumConfig;
-import org.apache.log4j.Logger;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -16,7 +16,7 @@ import java.util.concurrent.TimeUnit;
  * Used in order to get number of currently active nodes and their state
  */
 public class RSMonitor {
-    private static Logger logger = Logger.getLogger(RSMonitor.class);
+    private static Logger logger = new Logger(RSMonitor.class);
     private Morphium morphium;
     private final ScheduledThreadPoolExecutor executorService;
     private ReplicaSetStatus currentStatus;

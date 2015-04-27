@@ -4,9 +4,9 @@
  */
 package de.caluga.test.mongo.suite;
 
+import de.caluga.morphium.Logger;
 import de.caluga.morphium.MorphiumSingleton;
 import de.caluga.morphium.query.Query;
-import org.apache.log4j.Logger;
 import org.junit.Test;
 
 import java.util.ArrayList;
@@ -21,7 +21,7 @@ public class MassCacheTest extends MongoTest {
     public static final int NO_OBJECTS = 200;
     public static final int WRITING_THREADS = 5;
     public static final int READING_THREADS = 5;
-    private static final Logger log = Logger.getLogger(MassCacheTest.class);
+    private static final Logger log = new Logger(MassCacheTest.class);
 
     @Test
     public void massiveParallelWritingTest() throws InterruptedException {
@@ -120,7 +120,7 @@ public class MassCacheTest extends MongoTest {
         try {
             Thread.sleep(1000);
         } catch (InterruptedException ex) {
-            Logger.getLogger(MassCacheTest.class.getName()).fatal(ex);
+            new Logger(MassCacheTest.class.getName()).fatal(ex);
         }
 
         log.info("Creating reader threads (random read)...");

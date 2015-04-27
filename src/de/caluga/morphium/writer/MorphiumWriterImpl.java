@@ -6,7 +6,6 @@ import de.caluga.morphium.annotations.*;
 import de.caluga.morphium.async.AsyncOperationCallback;
 import de.caluga.morphium.async.AsyncOperationType;
 import de.caluga.morphium.query.Query;
-import org.apache.log4j.Logger;
 import org.bson.types.ObjectId;
 
 import java.lang.reflect.Field;
@@ -29,7 +28,7 @@ import java.util.concurrent.TimeUnit;
  */
 @SuppressWarnings({"ConstantConditions", "unchecked"})
 public class MorphiumWriterImpl implements MorphiumWriter {
-    private static Logger logger = Logger.getLogger(MorphiumWriterImpl.class);
+    private static Logger logger = new Logger(MorphiumWriterImpl.class);
     private Morphium morphium;
     private int maximumRetries = 10;
     private int pause = 250;

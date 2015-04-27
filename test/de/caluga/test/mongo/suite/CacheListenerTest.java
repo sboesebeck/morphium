@@ -39,6 +39,8 @@ public class CacheListenerTest extends MongoTest {
             }
         };
         MorphiumSingleton.get().getCache().addCacheListener(cl);
+        assert (MorphiumSingleton.get().getCache().isListenerRegistered(cl));
+
 
         super.createCachedObjects(100);
 
@@ -47,6 +49,7 @@ public class CacheListenerTest extends MongoTest {
         }
         waitForWrites();
         assert (wouldAdd);
+        Thread.sleep(100);
 
         super.createCachedObjects(10);
         assert (wouldClear);

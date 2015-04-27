@@ -1,10 +1,10 @@
 package de.caluga.morphium.messaging;
 
+import de.caluga.morphium.Logger;
 import de.caluga.morphium.annotations.*;
 import de.caluga.morphium.annotations.caching.NoCache;
 import de.caluga.morphium.annotations.lifecycle.Lifecycle;
 import de.caluga.morphium.annotations.lifecycle.PreStore;
-import org.apache.log4j.Logger;
 import org.bson.types.ObjectId;
 
 import java.util.*;
@@ -332,14 +332,14 @@ public class Msg {
             throw new RuntimeException("Cannot send msg anonymously - set Sender first!");
         }
         if (type == null) {
-            Logger.getLogger(Msg.class).warn("Messagetype not set - using SINGLE");
+            new Logger(Msg.class).warn("Messagetype not set - using SINGLE");
             type = MsgType.SINGLE;
         }
         if (name == null) {
             throw new RuntimeException("Cannot send a message without name!");
         }
         if (ttl == 0) {
-            Logger.getLogger(Msg.class).warn("Defaulting msg ttl to 30sec");
+            new Logger(Msg.class).warn("Defaulting msg ttl to 30sec");
             ttl = 30000;
         }
         if (!exclusive) {
