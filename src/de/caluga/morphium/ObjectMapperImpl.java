@@ -81,7 +81,7 @@ public class ObjectMapperImpl implements ObjectMapper {
      * @param np  - the NameProvider for that class
      */
     public void setNameProviderForClass(Class<?> cls, NameProvider np) {
-        HashMap<Class<?>, NameProvider> nps = new HashMap<>(nameProviders);
+        HashMap<Class<?>, NameProvider> nps = (HashMap) ((HashMap) nameProviders).clone();
         nps.put(cls, np);
         nameProviders = nps;
     }

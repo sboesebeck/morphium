@@ -76,7 +76,7 @@ public class CacheSynchronizer implements MessageListener, MorphiumStorageListen
 
     public void addSyncListener(Class type, CacheSyncListener cl) {
         if (listenerForType.get(type) == null) {
-            HashMap<Class<?>, List<CacheSyncListener>> v = new HashMap<>(listenerForType);
+            HashMap<Class<?>, List<CacheSyncListener>> v = (HashMap<Class<?>, List<CacheSyncListener>>) ((HashMap) listenerForType).clone();
             v.put(type, new CopyOnWriteArrayList<CacheSyncListener>());
             listenerForType = v;
         }
