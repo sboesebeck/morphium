@@ -78,7 +78,7 @@ public class AnnotationAndReflectionHelper {
      */
     public <T extends Annotation> T getAnnotationFromHierarchy(Class<?> cls, Class<? extends T> anCls) {
         cls = getRealClass(cls);
-        if (annotationCache.get(cls) != null) {
+        if (annotationCache.get(cls) != null &&  annotationCache.get(cls).get(anCls)!=null && annotationCache.get(cls).get(anCls).getClass().equals(anCls)) {
             return (T) annotationCache.get(cls).get(anCls);
         }
         T ret = null;
@@ -112,6 +112,15 @@ public class AnnotationAndReflectionHelper {
             for (Class<?> anInterface : iface.getInterfaces()) {
                 interfaces.add(anInterface);
             }
+        }
+
+        if (m.get(cls).get(anCls)==null) {
+            m.get(cls).put(anCls, new Annotation() {
+                @Override
+                public Class<? extends Annotation> annotationType() {
+                    return null;
+                }
+            });
         }
         annotationCache = m;
         return ret;
