@@ -86,6 +86,8 @@ public class MongoTest {
                 cfg.setGlobalJ(false);
                 cfg.setGlobalW(1);
 
+
+
 //            cfg.setMongoAdminUser("adm");
 //            cfg.setMongoAdminPwd("adm");
 ////
@@ -105,6 +107,9 @@ public class MongoTest {
                 cfg.setBlockingThreadsMultiplier(100);
                 storeProps();
             }
+            cfg.setLogLevel(5);
+            cfg.setLogFile("STDERR");
+            cfg.setLogSynced(false);
             MorphiumSingleton.setConfig(cfg);
             MorphiumSingleton.get();
 
