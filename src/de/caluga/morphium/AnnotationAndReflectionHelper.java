@@ -23,6 +23,12 @@ import java.util.*;
  */
 @SuppressWarnings("unchecked")
 public class AnnotationAndReflectionHelper {
+    private final Annotation annotationNotPresent = new Annotation() {
+        @Override
+        public Class<? extends Annotation> annotationType() {
+            return null;
+        }
+    };
     private Logger log = new Logger(AnnotationAndReflectionHelper.class);
     private Map<String, Field> fieldCache = new HashMap<>();
     private Map<Class<?>, Class<?>> realClassCache = new HashMap<>();
@@ -78,51 +84,56 @@ public class AnnotationAndReflectionHelper {
      */
     public <T extends Annotation> T getAnnotationFromHierarchy(Class<?> cls, Class<? extends T> anCls) {
         cls = getRealClass(cls);
-        if (annotationCache.get(cls) != null &&  annotationCache.get(cls).get(anCls)!=null && annotationCache.get(cls).get(anCls).getClass().equals(anCls)) {
+        if (annotationCache.get(cls) != null && annotationCache.get(cls).get(anCls) != null) {
+            if (annotationCache.get(cls).get(anCls).equals(annotationNotPresent)) {
+                return null;
+            }
             return (T) annotationCache.get(cls).get(anCls);
         }
         T ret = null;
         Map<Class<?>, Map<Class<? extends Annotation>, Annotation>> m = (HashMap) ((HashMap) annotationCache).clone();
-        m.put(cls, new HashMap<Class<? extends Annotation>, Annotation>());
-        if (cls.isAnnotationPresent(anCls)) {
-            m.get(cls).put(anCls, cls.getAnnotation(anCls));
-            ret = cls.getAnnotation(anCls);
-        }
-        //class hierarchy?
-        Class<?> z = cls;
-        while (!z.equals(Object.class)) {
-            if (z.isAnnotationPresent(anCls)) {
-                m.get(cls).put(anCls, z.getAnnotation(anCls));
-                ret = z.getAnnotation(anCls);
-            }
-            z = z.getSuperclass();
-            if (z == null) break;
-        }
+        if (m.get(cls) == null)
+            m.put(cls, new HashMap<Class<? extends Annotation>, Annotation>());
 
-        Queue<Class<?>> interfaces = new LinkedList<>();
-        for (Class<?> anInterface : cls.getInterfaces()) {
-            interfaces.add(anInterface);
-        }
-        while(!interfaces.isEmpty()) {
-            Class<?> iface = interfaces.poll();
-            if (iface.isAnnotationPresent(anCls)) {
-                m.get(cls).put(anCls, iface.getAnnotation(anCls));
-                ret = iface.getAnnotation(anCls);
-            }
-            for (Class<?> anInterface : iface.getInterfaces()) {
-                interfaces.add(anInterface);
-            }
-        }
+        ret = cls.getAnnotation(anCls);
+        if (ret == null) {
 
-        if (m.get(cls).get(anCls)==null) {
-            m.get(cls).put(anCls, new Annotation() {
-                @Override
-                public Class<? extends Annotation> annotationType() {
-                    return null;
+            //class hierarchy?
+            Class<?> z = cls;
+            while (!z.equals(Object.class)) {
+                if (z.isAnnotationPresent(anCls)) {
+                    ret = z.getAnnotation(anCls); //found it on the "downmost" inheritence level
+                    break;
                 }
-            });
+                z = z.getSuperclass();
+                if (z == null) break;
+            }
+
+            if (ret == null) {
+                //check interfaces if nothing was found yet
+                Queue<Class<?>> interfaces = new LinkedList<>();
+                for (Class<?> anInterface : cls.getInterfaces()) {
+                    interfaces.add(anInterface);
+                }
+                while (!interfaces.isEmpty()) {
+                    Class<?> iface = interfaces.poll();
+                    if (iface.isAnnotationPresent(anCls)) {
+                        ret = iface.getAnnotation(anCls);
+                        break; //no need to look further, found annotation
+                    }
+                    interfaces.addAll(Arrays.asList(iface.getInterfaces()));
+                }
+            }
+
+            if (ret == null) {
+                //annotation not present in hierarchy, store marker
+                m.get(cls).put(anCls, annotationNotPresent);
+            } else {
+                //found it, keep it in cache
+                m.get(cls).put(anCls, ret);
+            }
+            annotationCache = m;
         }
-        annotationCache = m;
         return ret;
     }
 

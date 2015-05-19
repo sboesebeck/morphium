@@ -1,6 +1,6 @@
 package de.caluga.test.mongo.suite;
 
-import org.apache.log4j.Logger;
+import de.caluga.morphium.Logger;
 import org.junit.Test;
 
 import java.util.HashMap;
@@ -14,7 +14,7 @@ import java.util.Map;
  * TODO: Add documentation here
  */
 public class CloneMapTest {
-    private Logger log = Logger.getLogger(CloneMapTest.class);
+    private Logger log = new Logger(CloneMapTest.class);
 
     @Test
     public void testCompare() {
@@ -22,7 +22,7 @@ public class CloneMapTest {
         for (int i = 0; i < 100000; i++) {
             master.put("Key " + i, new Double(i));
         }
-        System.out.println("starting test using constructor");
+        log.info("starting test using constructor");
         long start = System.currentTimeMillis();
 
         for (int i = 0; i < 1000; i++) {
@@ -31,13 +31,13 @@ public class CloneMapTest {
             master = m;
         }
         long dur = System.currentTimeMillis() - start;
-        System.out.println("Took " + dur + " ms");
+        log.info("Took " + dur + " ms");
 
         master = new HashMap<>();
         for (int i = 0; i < 100000; i++) {
             master.put("Key " + i, new Double(i));
         }
-        System.out.println("starting test using manual copy");
+        log.info("starting test using manual copy");
         start = System.currentTimeMillis();
 
         for (int i = 0; i < 1000; i++) {
@@ -49,13 +49,13 @@ public class CloneMapTest {
             master = m;
         }
         dur = System.currentTimeMillis() - start;
-        System.out.println("Took " + dur + " ms");
+        log.info("Took " + dur + " ms");
 
         master = new HashMap<>();
         for (int i = 0; i < 100000; i++) {
             master.put("Key " + i, new Double(i));
         }
-        System.out.println("starting test using clone");
+        log.info("starting test using clone");
         start = System.currentTimeMillis();
 
         for (int i = 0; i < 1000; i++) {
@@ -64,6 +64,6 @@ public class CloneMapTest {
             master = m;
         }
         dur = System.currentTimeMillis() - start;
-        System.out.println("Took " + dur + " ms");
+        log.info("Took " + dur + " ms");
     }
 }

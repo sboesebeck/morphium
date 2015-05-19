@@ -7,6 +7,8 @@ package de.caluga.test.mongo.suite;
 import de.caluga.morphium.Logger;
 import de.caluga.morphium.MorphiumSingleton;
 import de.caluga.morphium.StatisticKeys;
+import de.caluga.morphium.annotations.Embedded;
+import de.caluga.morphium.annotations.Entity;
 import de.caluga.morphium.query.Query;
 import org.junit.Test;
 
@@ -288,6 +290,13 @@ public class BasicFunctionalityTest extends MongoTest {
 
     }
 
+    @Test
+    public void testAnnotationCache() throws Exception {
+        Entity e = MorphiumSingleton.get().getARHelper().getAnnotationFromHierarchy(EmbeddedObject.class, Entity.class);
+        assert (e == null);
+        Embedded em = MorphiumSingleton.get().getARHelper().getAnnotationFromHierarchy(EmbeddedObject.class, Embedded.class);
+        assert (em != null);
+    }
     @Test
     public void uncachedListTest() {
         MorphiumSingleton.get().clearCollection(UncachedObject.class);
