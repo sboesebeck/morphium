@@ -61,9 +61,9 @@ public class MorphiumConfig {
     private boolean checkForNew = false;
     private int writeTimeout = 0;
 
-    private int logLevel = 0;
-    private boolean logSynced = false;
-    private String logFile = null;
+    private int globalLogLevel = 0;
+    private boolean globalLogSynced = false;
+    private String globalLogFile = null;
 
     //maximum number of tries to queue a write operation
     private int maximumRetriesBufferedWriter = 10;
@@ -1067,32 +1067,55 @@ public class MorphiumConfig {
         this.requiredReplicaSetName = requiredReplicaSetName;
     }
 
-    public int getLogLevel() {
-        return logLevel;
+    public int getGlobalLogLevel() {
+        return globalLogLevel;
     }
 
-    public void setLogLevel(int logLevel) {
-        this.logLevel = logLevel;
-        System.getProperties().put("morphium.log.level", "" + logLevel);
+    public void setGlobalLogLevel(int globalLogLevel) {
+        this.globalLogLevel = globalLogLevel;
+        System.getProperties().put("morphium.log.level", "" + globalLogLevel);
     }
 
-    public boolean isLogSynced() {
-        return logSynced;
+    public boolean isGlobalLogSynced() {
+        return globalLogSynced;
     }
 
-    public void setLogSynced(boolean logSynced) {
-        this.logSynced = logSynced;
-        System.getProperties().put("morphium.log.synced", "" + logSynced);
+    public void setGlobalLogSynced(boolean globalLogSynced) {
+        this.globalLogSynced = globalLogSynced;
+        System.getProperties().put("morphium.log.synced", "" + globalLogSynced);
 
     }
 
-    public String getLogFile() {
-        return logFile;
+    public String getGlobalLogFile() {
+        return globalLogFile;
     }
 
-    public void setLogFile(String logFile) {
-        this.logFile = logFile;
-        System.getProperties().put("morphium.log.file", logFile);
+    public void setGlobalLogFile(String globalLogFile) {
+        this.globalLogFile = globalLogFile;
+        System.getProperties().put("morphium.log.file", globalLogFile);
+    }
 
+    public void setLogFileForClass(Class cls, String file) {
+        setLogFileForPrefix(cls.getName(), file);
+    }
+
+    public void setLogFileForPrefix(String prf, String file) {
+        System.getProperties().put("morphium.log.file." + prf, file);
+    }
+
+    public void setLogLevelForClass(Class cls, int level) {
+        setLogLevelForPrefix(cls.getName(), level);
+    }
+
+    public void setLogLevelForPrefix(String cls, int level) {
+        System.getProperties().put("morphium.log.level." + cls, level);
+    }
+
+    public void setLogSyncedForClass(Class cls, boolean synced) {
+        setLogSyncedForPrefix(cls.getName(), synced);
+    }
+
+    public void setLogSyncedForPrefix(String cls, boolean synced) {
+        System.getProperties().put("morphium.log.synced." + cls, synced);
     }
 }

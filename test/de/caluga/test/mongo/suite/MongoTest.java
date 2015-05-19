@@ -1,5 +1,6 @@
 package de.caluga.test.mongo.suite;
 
+import de.caluga.morphium.AnnotationAndReflectionHelper;
 import de.caluga.morphium.Logger;
 import de.caluga.morphium.MorphiumConfig;
 import de.caluga.morphium.MorphiumSingleton;
@@ -7,6 +8,7 @@ import de.caluga.morphium.annotations.ReadPreferenceLevel;
 import de.caluga.morphium.async.AsyncOperationCallback;
 import de.caluga.morphium.async.AsyncOperationType;
 import de.caluga.morphium.messaging.Msg;
+import de.caluga.morphium.query.MorphiumIteratorImpl;
 import de.caluga.morphium.query.Query;
 
 import java.io.File;
@@ -56,6 +58,9 @@ public class MongoTest {
 
     @org.junit.BeforeClass
     public static void setUpClass() throws Exception {
+        System.setProperty("morphium.log.level", "5");
+        System.setProperty("morphium.log.synced", "true");
+        System.setProperty("morphium.log.file", "-");
         if (!MorphiumSingleton.isConfigured()) {
             MorphiumConfig cfg = null;
             Properties p = getProps();
@@ -107,9 +112,14 @@ public class MongoTest {
                 cfg.setBlockingThreadsMultiplier(100);
                 storeProps();
             }
-            cfg.setLogLevel(5);
-            cfg.setLogFile("STDERR");
-            cfg.setLogSynced(false);
+            cfg.setGlobalLogLevel(3);
+            cfg.setGlobalLogFile("-");
+            cfg.setGlobalLogSynced(true);
+
+            cfg.setLogLevelForClass(AnnotationAndReflectionHelper.class, 4);
+            cfg.setLogLevelForClass(MorphiumIteratorImpl.class, 3);
+            cfg.setLogLevelForPrefix("de.caluga.test", 5);
+            cfg.setLogSyncedForPrefix("de.caluga.test", true);
             MorphiumSingleton.setConfig(cfg);
             MorphiumSingleton.get();
 
@@ -162,7 +172,7 @@ public class MongoTest {
 
     @org.junit.AfterClass
     public static void tearDownClass() throws Exception {
-        System.out.println("NOT Shutting down - might be reused!");
+        new Logger(MongoTest.class).info("NOT Shutting down - might be reused!");
 //        MorphiumSingleton.get().close();
     }
 

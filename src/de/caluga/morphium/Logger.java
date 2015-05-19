@@ -4,6 +4,7 @@ import java.io.*;
 import java.text.DateFormat;
 import java.text.SimpleDateFormat;
 import java.util.Date;
+import java.util.Map;
 
 /**
  * Created by stephan on 25.04.15.
@@ -15,6 +16,7 @@ public class Logger {
     private String file;
     private PrintWriter out = new PrintWriter(new OutputStreamWriter(System.out));
     private boolean synced = false;
+    private boolean close = false;
 
     public Logger(String name) {
         prfx = name;
@@ -30,11 +32,16 @@ public class Logger {
         if (getSetting("log.file." + name) != null) v = getSetting("log.file." + name);
         if (v != null) {
             file = v;
-            if (v.equals("-")) {
+            if (v.equals("-") || v.equals("STDOUT")) {
                 out = new PrintWriter(new OutputStreamWriter(System.out));
+                close = false;
+            } else if (v.equals("STDERR")) {
+                out = new PrintWriter(new OutputStreamWriter(System.err));
+                close = false;
             } else {
                 try {
                     out = new PrintWriter(new BufferedWriter(new FileWriter(v, true)));
+                    close = true;
                 } catch (IOException e) {
                     error(null, e);
                 }
@@ -42,19 +49,20 @@ public class Logger {
         }
 
         v = getSetting("log.synced");
-        if (getSetting("log.synced." + name) != null) v = getSetting("log.file." + name);
+        if (getSetting("log.synced." + name) != null) v = getSetting("log.synced." + name);
         if (v != null) {
             synced = v.equals("true");
         }
 
-        info("Logger " + name + " instanciated: Level: " + level + " Synced: " + synced + " file: " + file);
+//        info("Logger " + name + " instanciated: Level: " + level + " Synced: " + synced + " file: " + file);
     }
 
     @Override
     protected void finalize() throws Throwable {
         super.finalize();
         out.flush();
-        out.close();
+        if (close)
+            out.close();
 
     }
 
@@ -86,6 +94,24 @@ public class Logger {
         }
         if (System.getProperty(s) != null) {
             v = System.getProperty(s);
+        }
+        if (v == null) {
+            //no setting yet, looking for prefixes
+            int lng = 0;
+            for (Map.Entry<Object, Object> p : System.getProperties().entrySet()) {
+                if (s.startsWith(p.getKey().toString())) {
+                    //prefix found
+                    if (p.getKey().toString().length() > lng) {
+                        //keeping the longest prefix
+                        //if s== log.level.de.caluga.morphium.ObjetMapperImpl
+                        // property: morphium.log.level.de.caluga.morphium=5
+                        // property: morphium.log.level.de.caluga=0
+                        // => keep only the longer one (5)
+                        lng = p.getKey().toString().length();
+                        v = p.getValue().toString();
+                    }
+                }
+            }
         }
 
         return v;

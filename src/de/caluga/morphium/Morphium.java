@@ -155,10 +155,10 @@ public class Morphium {
             o.requiredReplicaSetName(config.getRequiredReplicaSetName());
             o.maxWaitTime(config.getMaxWaitTime());
 
-            System.getProperties().put("morphium.log.level", "" + config.getLogLevel());
-            System.getProperties().put("morphium.log.synced", "" + config.isLogSynced());
-            if (config.getLogFile() != null) {
-                System.getProperties().put("morphium.log.file", config.getLogFile());
+            System.getProperties().put("morphium.log.level", "" + config.getGlobalLogLevel());
+            System.getProperties().put("morphium.log.synced", "" + config.isGlobalLogSynced());
+            if (config.getGlobalLogFile() != null) {
+                System.getProperties().put("morphium.log.file", config.getGlobalLogFile());
             }
             if (config.getAdr().isEmpty()) {
                 throw new RuntimeException("Error - no server address specified!");
