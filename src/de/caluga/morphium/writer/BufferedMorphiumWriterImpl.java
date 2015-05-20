@@ -92,6 +92,7 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter {
                 BulkOperationContext ctx = new BulkOperationContext(morphium, orderedExecution);
                 switch (strategy) {
                     case JUST_WARN:
+                        opLog.get(type).add(wb);
                         break;
                     case IGNORE_NEW:
                         logger.warn("ignoring new incoming...");
@@ -111,6 +112,7 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter {
 
                         opLog.get(type).get(0).getToRun().exec(ctx);
                         opLog.get(type).remove(0);
+                        opLog.get(type).add(wb);
                         break;
                     case DEL_OLD:
 
@@ -124,7 +126,8 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter {
                             logger.debug("Deleting oldest entry");
                         }
                         opLog.get(type).remove(0);
-                        break;
+                        opLog.get(type).add(wb);
+                        return;
                 }
                 ctx.execute();
 
