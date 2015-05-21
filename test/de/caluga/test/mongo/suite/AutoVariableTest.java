@@ -87,6 +87,28 @@ public class AutoVariableTest extends MongoTest {
     }
 
     @Test
+    public void testAutoVariablesBulkWrite() throws Exception {
+        MorphiumSingleton.get().dropCollection(CTimeTest.class);
+        List<CTimeTest> lst = new ArrayList<>();
+        for (int i = 0; i < 100; i++) {
+            CTimeTest ct = new CTimeTest();
+            ct.additional = "tst";
+            ct.value = "value" + i;
+            lst.add(ct);
+        }
+
+        MorphiumSingleton.get().storeList(lst);
+
+        lst = MorphiumSingleton.get().createQueryFor(CTimeTest.class).asList();
+        for (CTimeTest t : lst) {
+            assert (t.created != null);
+            assert (t.timestamp != 0);
+        }
+        log.info("Done");
+
+    }
+
+    @Test
     public void testLastChange() throws Exception {
         MorphiumSingleton.get().dropCollection(LCTest.class);
         LCTest lc = new LCTest();
