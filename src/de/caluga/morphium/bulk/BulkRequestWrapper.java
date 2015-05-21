@@ -2,6 +2,7 @@ package de.caluga.morphium.bulk;
 
 import com.mongodb.BasicDBList;
 import com.mongodb.BasicDBObject;
+import com.mongodb.BulkUpdateRequestBuilder;
 import com.mongodb.BulkWriteRequestBuilder;
 import de.caluga.morphium.Morphium;
 import de.caluga.morphium.MorphiumStorageListener;
@@ -22,10 +23,11 @@ import java.util.Map;
  */
 public class BulkRequestWrapper {
 
-    private BulkWriteRequestBuilder builder;
+    private Object builder;
     private Morphium morphium;
     private BulkOperationContext bc;
     private Query query;
+    private boolean upsert = false;
 
     private MorphiumStorageListener.UpdateTypes updateType;
 
@@ -38,37 +40,64 @@ public class BulkRequestWrapper {
 
 
     public BulkRequestWrapper upsert() {
-        builder.upsert();
+        if (upsert) return this;
+        builder = ((BulkWriteRequestBuilder) builder).upsert();
+        upsert = true;
         return this;
     }
 
     public void removeOne() {
         updateType = null;
-
-        builder.removeOne();
+        if (upsert) {
+//            ((BulkUpdateRequestBuilder)builder).removeOne();
+            throw new IllegalArgumentException("remove with upsert not supported");
+        } else {
+            ((BulkWriteRequestBuilder) builder).removeOne();
+        }
     }
 
     public void replaceOne(Object obj) {
         updateType = MorphiumStorageListener.UpdateTypes.SET;
-        builder.replaceOne(morphium.getMapper().marshall(obj));
+        if (upsert) {
+            ((BulkUpdateRequestBuilder) builder).replaceOne(morphium.getMapper().marshall(obj));
+//            throw new IllegalArgumentException("remove with upsert not supported");
+        } else {
+            ((BulkWriteRequestBuilder) builder).replaceOne(morphium.getMapper().marshall(obj));
+        }
     }
 
     public void remove() {
         updateType = null;
-        builder.remove();
+        if (upsert) {
+//            ((BulkUpdateRequestBuilder)builder).removeOne();
+            throw new IllegalArgumentException("remove with upsert not supported");
+        } else {
+            ((BulkWriteRequestBuilder) builder).remove();
+        }
+//        builder.remove();
     }
 
     private void writeOp(String operation, String field, Object value) {
         if (morphium.getARHelper().isAnnotationPresentInHierarchy(value.getClass(), Entity.class) || morphium.getARHelper().isAnnotationPresentInHierarchy(value.getClass(), Embedded.class)) {
-            builder.update(new BasicDBObject(operation, new BasicDBObject(field, morphium.getMapper().marshall(value))));
+            if (upsert) {
+                ((BulkUpdateRequestBuilder) builder).update(new BasicDBObject(operation, new BasicDBObject(field, morphium.getMapper().marshall(value))));
+//                throw new IllegalArgumentException("remove with upsert not supported");
+            } else {
+                ((BulkWriteRequestBuilder) builder).update(new BasicDBObject(operation, new BasicDBObject(field, morphium.getMapper().marshall(value))));
+            }
+//            builder.update(new BasicDBObject(operation, new BasicDBObject(field, morphium.getMapper().marshall(value))));
         } else if (Map.class.isAssignableFrom(value.getClass())) {
             BasicDBObject map = new BasicDBObject();
             Map valueMap = (Map) value;
             for (Object o : valueMap.keySet()) {
                 map.put((String) o, morphium.getMapper().marshall(valueMap.get(o)));
             }
-            builder.update(new BasicDBObject(operation, new BasicDBObject(field, map)));
-
+            if (upsert) {
+                ((BulkUpdateRequestBuilder) builder).update(new BasicDBObject(operation, new BasicDBObject(field, map)));
+//                throw new IllegalArgumentException("remove with upsert not supported");
+            } else {
+                ((BulkWriteRequestBuilder) builder).update(new BasicDBObject(operation, new BasicDBObject(field, map)));
+            }
         } else if (List.class.isAssignableFrom(value.getClass())) {
             //list handling
             BasicDBList lst = new BasicDBList();
@@ -76,22 +105,43 @@ public class BulkRequestWrapper {
             for (Object o : valList) {
                 lst.add(morphium.getMapper().marshall(o));
             }
-            builder.update(new BasicDBObject(operation, new BasicDBObject(field, lst)));
+            if (upsert) {
+                ((BulkUpdateRequestBuilder) builder).update(new BasicDBObject(operation, new BasicDBObject(field, lst)));
+//                throw new IllegalArgumentException("remove with upsert not supported");
+            } else {
+                ((BulkWriteRequestBuilder) builder).update(new BasicDBObject(operation, new BasicDBObject(field, lst)));
+            }
         } else {
-            builder.update(new BasicDBObject(operation, new BasicDBObject(field, value)));
+            if (upsert) {
+                ((BulkUpdateRequestBuilder) builder).update(new BasicDBObject(operation, new BasicDBObject(field, value)));
+//                throw new IllegalArgumentException("remove with upsert not supported");
+            } else {
+                ((BulkWriteRequestBuilder) builder).update(new BasicDBObject(operation, new BasicDBObject(field, value)));
+            }
         }
+
     }
 
     private void writeOpOne(String operation, String field, Object value) {
         if (morphium.getARHelper().isAnnotationPresentInHierarchy(value.getClass(), Entity.class) || morphium.getARHelper().isAnnotationPresentInHierarchy(value.getClass(), Embedded.class)) {
-            builder.updateOne(new BasicDBObject(operation, new BasicDBObject(field, morphium.getMapper().marshall(value))));
+            if (upsert) {
+                ((BulkUpdateRequestBuilder) builder).updateOne(new BasicDBObject(operation, new BasicDBObject(field, morphium.getMapper().marshall(value))));
+//                throw new IllegalArgumentException("remove with upsert not supported");
+            } else {
+                ((BulkWriteRequestBuilder) builder).updateOne(new BasicDBObject(operation, new BasicDBObject(field, morphium.getMapper().marshall(value))));
+            }
         } else if (Map.class.isAssignableFrom(value.getClass())) {
             BasicDBObject map = new BasicDBObject();
             Map valueMap = (Map) value;
             for (Object o : valueMap.keySet()) {
                 map.put((String) o, morphium.getMapper().marshall(valueMap.get(o)));
             }
-            builder.updateOne(new BasicDBObject(operation, new BasicDBObject(field, map)));
+            if (upsert) {
+                ((BulkUpdateRequestBuilder) builder).updateOne(new BasicDBObject(operation, new BasicDBObject(field, map)));
+//                throw new IllegalArgumentException("remove with upsert not supported");
+            } else {
+                ((BulkWriteRequestBuilder) builder).updateOne(new BasicDBObject(operation, new BasicDBObject(field, map)));
+            }
 
         } else if (List.class.isAssignableFrom(value.getClass())) {
             //list handling
@@ -100,9 +150,19 @@ public class BulkRequestWrapper {
             for (Object o : valList) {
                 lst.add(morphium.getMapper().marshall(o));
             }
-            builder.updateOne(new BasicDBObject(operation, new BasicDBObject(field, lst)));
+            if (upsert) {
+                ((BulkUpdateRequestBuilder) builder).updateOne(new BasicDBObject(operation, new BasicDBObject(field, lst)));
+//                throw new IllegalArgumentException("remove with upsert not supported");
+            } else {
+                ((BulkWriteRequestBuilder) builder).updateOne(new BasicDBObject(operation, new BasicDBObject(field, lst)));
+            }
         } else {
-            builder.updateOne(new BasicDBObject(operation, new BasicDBObject(field, value)));
+            if (upsert) {
+                ((BulkUpdateRequestBuilder) builder).updateOne(new BasicDBObject(operation, new BasicDBObject(field, value)));
+//                throw new IllegalArgumentException("remove with upsert not supported");
+            } else {
+                ((BulkWriteRequestBuilder) builder).updateOne(new BasicDBObject(operation, new BasicDBObject(field, value)));
+            }
         }
     }
 
@@ -136,6 +196,7 @@ public class BulkRequestWrapper {
         } else {
             writeOpOne("$inc", field, amount);
         }
+
     }
 
     public void mul(String field, int val, boolean multiple) {

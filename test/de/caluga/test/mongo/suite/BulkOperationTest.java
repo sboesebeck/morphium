@@ -31,6 +31,7 @@ public class BulkOperationTest extends MongoTest {
         BulkOperationContext c = new BulkOperationContext(MorphiumSingleton.get(), false);
         BulkRequestWrapper wrapper = c.addFind(MorphiumSingleton.get().createQueryFor(UncachedObject.class).f("counter").gte(0));
         wrapper.set("counter", 999, true);
+        wrapper.upsert();
         c.execute();
         Thread.sleep(500);
 
@@ -40,6 +41,20 @@ public class BulkOperationTest extends MongoTest {
 
     }
 
+    @Test
+    public void bulkUpsertTest() throws Exception {
+        MorphiumSingleton.get().dropCollection(UncachedObject.class);
+        BulkOperationContext c = new BulkOperationContext(MorphiumSingleton.get(), false);
+        BulkRequestWrapper wrapper = c.addFind(MorphiumSingleton.get().createQueryFor(UncachedObject.class).f("counter").eq(50));
+        wrapper = wrapper.upsert();
+        wrapper.inc("counter", 1, true);
+
+        c.execute();
+        Thread.sleep(1000);
+        long l = MorphiumSingleton.get().createQueryFor(UncachedObject.class).countAll();
+        assert (l == 1) : "Count is " + l;
+
+    }
     @Test
     public void bulkInsertTest() throws Exception {
 
