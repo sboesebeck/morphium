@@ -49,12 +49,54 @@ public class BulkOperationTest extends MongoTest {
         wrapper = wrapper.upsert();
         wrapper.inc("counter", 1, true);
 
-        c.execute();
-        Thread.sleep(1000);
+        BulkWriteResult res = c.execute();
+        assert (res.getUpserts().size() == 1);
+        Thread.sleep(100);
         long l = MorphiumSingleton.get().createQueryFor(UncachedObject.class).countAll();
         assert (l == 1) : "Count is " + l;
+        assert (MorphiumSingleton.get().createQueryFor(UncachedObject.class).get().getCounter() == 51);
+
+
+
 
     }
+
+    @Test
+    public void bulkMultiUpsertTest() throws Exception {
+        MorphiumSingleton.get().dropCollection(UncachedObject.class);
+        BulkOperationContext c = new BulkOperationContext(MorphiumSingleton.get(), true); //needs to be ordered
+        BulkRequestWrapper wrapper = c.addFind(MorphiumSingleton.get().createQueryFor(UncachedObject.class).f("counter").eq(50));
+        wrapper = wrapper.upsert();
+        wrapper.inc("counter", 1, false);
+
+        wrapper = c.addFind(MorphiumSingleton.get().createQueryFor(UncachedObject.class).f("dval").eq(60).f("counter").eq(10));
+        wrapper = wrapper.upsert();
+        wrapper.dec("dval", 2.6, false);
+
+        wrapper = c.addFind(MorphiumSingleton.get().createQueryFor(UncachedObject.class).f("counter").eq(10));
+        wrapper = wrapper.upsert();
+        wrapper.inc("counter", 10, false);
+
+        wrapper = c.addFind(MorphiumSingleton.get().createQueryFor(UncachedObject.class).f("counter").eq(100));
+        wrapper = wrapper.upsert();
+        wrapper.set("counter", 1, false);
+
+        wrapper = c.addFind(MorphiumSingleton.get().createQueryFor(UncachedObject.class).f("counter").eq(700));
+        wrapper = wrapper.upsert();
+        wrapper.max("counter", 1000, false);
+
+        BulkWriteResult res = c.execute();
+        assert (res.getUpserts().size() == 4);
+        Thread.sleep(100);
+        long l = MorphiumSingleton.get().createQueryFor(UncachedObject.class).countAll();
+        assert (l == 4) : "Count is " + l;
+        for (UncachedObject uc : MorphiumSingleton.get().createQueryFor(UncachedObject.class).asList()) {
+            log.info("Counter is: " + uc.getCounter() + " dval: " + uc.getDval());
+        }
+
+    }
+
+
     @Test
     public void bulkInsertTest() throws Exception {
 

@@ -22,6 +22,8 @@ public class UncachedObject {
     @Index
     private int counter;
 
+    private double dval;
+
     private byte[] binaryData;
     private int[] intData;
     private long[] longData;
@@ -31,6 +33,14 @@ public class UncachedObject {
 
     @Id
     private ObjectId mongoId;
+
+    public double getDval() {
+        return dval;
+    }
+
+    public void setDval(double dval) {
+        this.dval = dval;
+    }
 
     public double[] getDoubleData() {
         return doubleData;

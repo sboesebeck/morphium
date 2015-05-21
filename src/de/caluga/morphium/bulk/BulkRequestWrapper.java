@@ -189,7 +189,7 @@ public class BulkRequestWrapper {
         inc(field, 1, multiple);
     }
 
-    public void inc(String field, int amount, boolean multiple) {
+    public void inc(String field, double amount, boolean multiple) {
         updateType = MorphiumStorageListener.UpdateTypes.INC;
         if (multiple) {
             writeOp("$inc", field, amount);
@@ -199,7 +199,7 @@ public class BulkRequestWrapper {
 
     }
 
-    public void mul(String field, int val, boolean multiple) {
+    public void mul(String field, double val, boolean multiple) {
         updateType = MorphiumStorageListener.UpdateTypes.MUL;
 
         if (multiple)
@@ -208,7 +208,7 @@ public class BulkRequestWrapper {
             writeOpOne("$mul", field, val);
     }
 
-    public void min(String field, int val, boolean multiple) {
+    public void min(String field, double val, boolean multiple) {
         updateType = MorphiumStorageListener.UpdateTypes.MIN;
 
         if (multiple)
@@ -217,7 +217,7 @@ public class BulkRequestWrapper {
             writeOpOne("$min", field, val);
     }
 
-    public void max(String field, int val, boolean multiple) {
+    public void max(String field, double val, boolean multiple) {
         updateType = MorphiumStorageListener.UpdateTypes.MAX;
 
         if (multiple)
@@ -241,7 +241,7 @@ public class BulkRequestWrapper {
         dec(field, -1, multiple);
     }
 
-    public void dec(String field, int amount, boolean multiple) {
+    public void dec(String field, double amount, boolean multiple) {
         updateType = MorphiumStorageListener.UpdateTypes.DEC;
         if (multiple)
             writeOp("$inc", field, -amount);
