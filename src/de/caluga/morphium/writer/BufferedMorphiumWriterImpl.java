@@ -52,11 +52,18 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter {
         //either buffer size reached, or time is up => queue writes
         List<WriteBufferEntry> didNotWrite = new ArrayList<WriteBufferEntry>();
         //queueing all ops in queue
-        BulkOperationContext ctx = new BulkOperationContext(morphium, orderedExecution);
+        BulkOperationContext ctx = new BulkOperationContext(morphium, false);
+        BulkOperationContext octx = new BulkOperationContext(morphium, true);
 
         for (WriteBufferEntry entry : localQueue) {
             try {
-                entry.getToRun().exec(ctx);
+                WriteBuffer w = morphium.getARHelper().getAnnotationFromHierarchy(entry.getEntityType(), WriteBuffer.class);
+                if (w.ordered()) {
+                    entry.getToRun().exec(octx);
+                } else {
+                    entry.getToRun().exec(ctx);
+
+                }
                 entry.getCb().onOperationSucceeded(entry.getType(), null, 0, null, null);
             } catch (RejectedExecutionException e) {
                 logger.info("too much load - add write to next run");
@@ -65,15 +72,24 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter {
                 logger.error("could not write", e);
             }
         }
-        localQueue = null; //let GC finish the work
-        ctx.execute();
+        localQueue = null; //let GC finish the wory
+        try {
+            ctx.execute();
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        try {
+            octx.execute();
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
         return didNotWrite;
     }
 
 
     public void addToWriteQueue(Class<?> type, BufferedBulkOp r, AsyncOperationCallback c, AsyncOperationType t) {
         synchronized (opLog) {
-            WriteBufferEntry wb = new WriteBufferEntry(r, System.currentTimeMillis(), c, t);
+            WriteBufferEntry wb = new WriteBufferEntry(type, r, System.currentTimeMillis(), c, t);
             if (opLog.get(type) == null) {
                 opLog.put(type, new Vector<WriteBufferEntry>());
             }
@@ -82,6 +98,7 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter {
             int timeout = morphium.getConfig().getWriteBufferTime();
             WriteBuffer.STRATEGY strategy = WriteBuffer.STRATEGY.JUST_WARN;
 
+            boolean ordered = w.ordered();
             if (w != null) {
                 size = w.size();
                 timeout = w.timeout();
@@ -89,7 +106,7 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter {
             }
             if (size > 0 && opLog.get(type).size() > size) {
                 logger.warn("WARNING: Write buffer for type " + type.getName() + " maximum exceeded: " + opLog.get(type).size() + " entries now, max is " + size);
-                BulkOperationContext ctx = new BulkOperationContext(morphium, orderedExecution);
+                BulkOperationContext ctx = new BulkOperationContext(morphium, ordered);
                 switch (strategy) {
                     case JUST_WARN:
                         opLog.get(type).add(wb);
@@ -750,12 +767,22 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter {
         private AsyncOperationCallback cb;
         private AsyncOperationType type;
         private long timestamp;
+        private Class entityType;
 
-        private WriteBufferEntry(BufferedBulkOp toRun, long timestamp, AsyncOperationCallback c, AsyncOperationType t) {
+        private WriteBufferEntry(Class entitiyType, BufferedBulkOp toRun, long timestamp, AsyncOperationCallback c, AsyncOperationType t) {
             this.toRun = toRun;
             this.timestamp = timestamp;
             this.cb = c;
             this.type = t;
+            this.entityType = entitiyType;
+        }
+
+        public Class getEntityType() {
+            return entityType;
+        }
+
+        public void setEntityType(Class entityType) {
+            this.entityType = entityType;
         }
 
         public AsyncOperationType getType() {

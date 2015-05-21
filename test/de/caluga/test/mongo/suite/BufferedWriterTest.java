@@ -3,6 +3,7 @@ package de.caluga.test.mongo.suite;
 import de.caluga.morphium.MorphiumSingleton;
 import de.caluga.morphium.annotations.caching.NoCache;
 import de.caluga.morphium.annotations.caching.WriteBuffer;
+import de.caluga.morphium.query.Query;
 import org.junit.Test;
 
 /**
@@ -14,6 +15,34 @@ import org.junit.Test;
  */
 public class BufferedWriterTest extends MongoTest {
 
+    @Test
+    public void testWriteBufferUpsert() throws Exception {
+        MorphiumSingleton.get().dropCollection(BufferedBySizeObject.class);
+
+        waitForAsyncOperationToStart(10000);
+        waitForWrites();
+
+        Query<BufferedBySizeObject> q = MorphiumSingleton.get().createQueryFor(BufferedBySizeObject.class).f("counter").eq(100);
+        MorphiumSingleton.get().inc(q, "counter", 1, true, false);
+
+        q = MorphiumSingleton.get().createQueryFor(BufferedBySizeObject.class).f("counter").eq(101);
+        MorphiumSingleton.get().inc(q, "counter", 1.0, true, false);
+
+        q = MorphiumSingleton.get().createQueryFor(BufferedBySizeObject.class).f("counter").eq(201);
+        MorphiumSingleton.get().dec(q, "counter", 1.0, true, false);
+
+        q = MorphiumSingleton.get().createQueryFor(BufferedBySizeObject.class).f("counter").eq(300);
+        MorphiumSingleton.get().set(q, "counter", 1, true, false);
+
+        waitForAsyncOperationToStart(10000);
+        waitForWrites();
+
+        q = MorphiumSingleton.get().createQueryFor(BufferedBySizeObject.class);
+        assert (q.countAll() == 3);
+        for (BufferedBySizeObject o : q.asList()) {
+            log.info("Counter: " + o.getCounter());
+        }
+    }
 
     @Test
     public void testWriteBufferBySizeWithWriteNewStrategy() throws Exception {
