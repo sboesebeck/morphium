@@ -95,8 +95,9 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter {
             int timeout = morphium.getConfig().getWriteBufferTime();
             WriteBuffer.STRATEGY strategy = WriteBuffer.STRATEGY.JUST_WARN;
 
-            boolean ordered = w.ordered();
+            boolean ordered = false;
             if (w != null) {
+                ordered = w.ordered();
                 size = w.size();
                 timeout = w.timeout();
                 strategy = w.strategy();
