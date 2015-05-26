@@ -16,6 +16,7 @@ import java.util.concurrent.SynchronousQueue;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 
+
 /**
  * User: Stephan Bösebeck
  * Date: 30.08.12
@@ -27,7 +28,7 @@ import java.util.concurrent.TimeUnit;
  * @see MorphiumWriter
  */
 @SuppressWarnings({"ConstantConditions", "unchecked"})
-public class MorphiumWriterImpl implements MorphiumWriter {
+public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
     private static Logger logger = new Logger(MorphiumWriterImpl.class);
     private Morphium morphium;
     private int maximumRetries = 10;
@@ -51,6 +52,7 @@ public class MorphiumWriterImpl implements MorphiumWriter {
             executor = new ThreadPoolExecutor(m.getConfig().getMaxConnections() / 2, (int) (m.getConfig().getMaxConnections() * m.getConfig().getBlockingThreadsMultiplier() * 0.9),
                     60L, TimeUnit.SECONDS,
                     new SynchronousQueue<Runnable>());
+            m.addShutdownListener(this);
         }
     }
 
@@ -1993,5 +1995,16 @@ public class MorphiumWriterImpl implements MorphiumWriter {
     @Override
     public int writeBufferCount() {
         return executor.getActiveCount();
+    }
+
+    @Override
+    public void onShutdown(Morphium m) {
+        if (executor != null) {
+            try {
+                executor.shutdownNow();
+            } catch (Exception e) {
+                //swallow
+            }
+        }
     }
 }

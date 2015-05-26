@@ -3,6 +3,7 @@ package de.caluga.morphium.messaging;
 import de.caluga.morphium.Logger;
 import de.caluga.morphium.Morphium;
 import de.caluga.morphium.MorphiumSingleton;
+import de.caluga.morphium.ShutdownListener;
 import de.caluga.morphium.async.AsyncOperationCallback;
 import de.caluga.morphium.async.AsyncOperationType;
 import de.caluga.morphium.query.MorphiumIterator;
@@ -24,7 +25,7 @@ import java.util.concurrent.TimeUnit;
  * Messaging implements a simple, threadsafe and messaging api. Used for cache synchronization.
  */
 @SuppressWarnings({"ConstantConditions", "unchecked", "UnusedDeclaration"})
-public class Messaging extends Thread {
+public class Messaging extends Thread implements ShutdownListener {
     private static Logger log = new Logger(Messaging.class);
 
     private Morphium morphium;
@@ -82,6 +83,7 @@ public class Messaging extends Thread {
                     morphium.getConfig().getThreadPoolMessagingKeepAliveTime(), TimeUnit.MILLISECONDS,
                     new LinkedBlockingQueue<Runnable>());
         }
+        morphium.addShutdownListener(this);
 
         this.queueName = queueName;
         running = true;
@@ -389,5 +391,17 @@ public class Messaging extends Thread {
 
     public void setAutoAnswer(boolean autoAnswer) {
         this.autoAnswer = autoAnswer;
+    }
+
+    @Override
+    public void onShutdown(Morphium m) {
+        try {
+            if (threadPool != null) {
+                threadPool.shutdownNow();
+                threadPool = null;
+            }
+        } catch (Exception e) {
+            //swallow
+        }
     }
 }

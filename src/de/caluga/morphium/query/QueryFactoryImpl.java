@@ -1,6 +1,7 @@
 package de.caluga.morphium.query;
 
 import de.caluga.morphium.Morphium;
+import de.caluga.morphium.ShutdownListener;
 
 import java.util.concurrent.SynchronousQueue;
 import java.util.concurrent.ThreadPoolExecutor;
@@ -35,6 +36,16 @@ public class QueryFactoryImpl implements QueryFactory {
             executor = new ThreadPoolExecutor(m.getConfig().getMaxConnections() / 2, (int) (m.getConfig().getMaxConnections() * m.getConfig().getBlockingThreadsMultiplier() * 0.9),
                     60L, TimeUnit.SECONDS,
                     new SynchronousQueue<Runnable>());
+            m.addShutdownListener(new ShutdownListener() {
+                @Override
+                public void onShutdown(Morphium m) {
+                    try {
+                        executor.shutdownNow();
+                    } catch (Exception e) {
+                        //swallow
+                    }
+                }
+            });
         }
         return executor;
     }

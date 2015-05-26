@@ -189,6 +189,7 @@ public class Morphium {
         }
 
         cacheHousekeeper = new CacheHousekeeper(this, 5000, config.getGlobalCacheValidTime());
+        cacheHousekeeper.setDaemon(true);
         cacheHousekeeper.start();
         if (config.getWriter() == null) {
             config.setWriter(new MorphiumWriterImpl());
@@ -1820,6 +1821,7 @@ public class Morphium {
 
     public void close() {
         cacheHousekeeper.end();
+        asyncOperationsThreadPool.shutdownNow();
 
         for (ShutdownListener l : shutDownListeners) {
             l.onShutdown(this);
@@ -1832,6 +1834,7 @@ public class Morphium {
         if (cacheHousekeeper.isAlive()) {
             cacheHousekeeper.interrupt();
         }
+
         config.getDb().getMongo().close();
         config = null;
 //        MorphiumSingleton.reset();
