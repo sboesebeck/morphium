@@ -134,6 +134,15 @@ public class Morphium {
             stats.put(k, new StatisticValue());
         }
         if (config.getDb() == null) {
+            Runtime.getRuntime().addShutdownHook(new Thread() {
+                public void run() {
+                    try {
+                        close();
+                    } catch (Exception e) {
+                        //swallow
+                    }
+                }
+            });
             MongoClientOptions.Builder o = MongoClientOptions.builder();
             WriteConcern w = new WriteConcern(config.getGlobalW(), config.getWriteTimeout(), config.isGlobalFsync(), config.isGlobalJ());
             o.writeConcern(w);
