@@ -1,9 +1,6 @@
 package de.caluga.morphium.writer;
 
-import de.caluga.morphium.Logger;
-import de.caluga.morphium.Morphium;
-import de.caluga.morphium.MorphiumStorageListener;
-import de.caluga.morphium.StatisticKeys;
+import de.caluga.morphium.*;
 import de.caluga.morphium.annotations.caching.WriteBuffer;
 import de.caluga.morphium.async.AsyncOperationCallback;
 import de.caluga.morphium.async.AsyncOperationType;
@@ -459,6 +456,25 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter {
         housekeeping.setDaemon(true);
         housekeeping.start();
 
+        m.addShutdownListener(new ShutdownListener() {
+            @Override
+            public void onShutdown(Morphium m) {
+                running = false;
+                try {
+                    long start = System.currentTimeMillis();
+                    while (housekeeping.isAlive()) {
+                        if (System.currentTimeMillis() - start > 1000) {
+                            housekeeping.stop();
+                            break;
+                        }
+                        Thread.sleep(50);
+                    }
+                } catch (Exception e) {
+                    //swallow on shutdown
+                }
+            }
+        });
+
     }
 
     @Override
@@ -758,7 +774,13 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter {
     @Override
     protected void finalize() throws Throwable {
         logger.info("Stopping housekeeping thread");
-        housekeeping.stop();
+        running = false;
+        Thread.sleep(250);
+        try {
+            housekeeping.stop();
+        } catch (Throwable e) {
+            e.printStackTrace();
+        }
         super.finalize();
     }
 
