@@ -807,6 +807,9 @@ public class AnnotationAndReflectionHelper {
                 } catch (IllegalAccessException e) {
                     throw new RuntimeException(e);
                 } catch (InvocationTargetException e) {
+                    if (e.getCause().getClass().equals(MorphiumAccessVetoException.class)) {
+                        throw (RuntimeException) e.getCause();
+                    }
                     throw new RuntimeException(e);
                 }
             }
