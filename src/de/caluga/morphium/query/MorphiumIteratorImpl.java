@@ -65,15 +65,15 @@ public class MorphiumIteratorImpl<T> implements MorphiumIterator<T> {
             }
             List list = q.asList();
             if (list.size() == 0) {
-                System.err.println("No results?");
+                log.error("No results?");
             }
             if (list == null) {
-                System.err.println("Error: no result!?!?!");
+                log.error("Error: no result!?!?!");
                 return new ArrayList<>();
             }
             return list;
         } catch (CloneNotSupportedException e) {
-            System.out.println("CLONE FAILED!?!?!?!?");
+            log.fatal("CLONE FAILED!?!?!?!?");
             return new ArrayList<>();
         }
     }
