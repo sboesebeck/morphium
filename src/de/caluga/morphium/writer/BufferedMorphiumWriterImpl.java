@@ -224,7 +224,8 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter {
                 }
 
                 for (String f : flds) {
-                    r.set(f, morphium.getARHelper().getValue(ent, f), false);
+                    String fld = morphium.getARHelper().getFieldName(query.getType(), f);
+                    r.set(fld, morphium.getARHelper().getValue(ent, f), false);
                 }
                 morphium.getCache().clearCacheIfNecessary(ent.getClass());
                 morphium.firePostUpdateEvent(ent.getClass(), MorphiumStorageListener.UpdateTypes.SET);
@@ -252,7 +253,8 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter {
                     wr = wr.upsert();
                 }
                 morphium.getCache().clearCacheIfNecessary(toSet.getClass());
-                wr.set(field, value, multiple);
+                String fld = morphium.getARHelper().getFieldName(query.getType(), field);
+                wr.set(fld, value, multiple);
                 morphium.firePostUpdateEvent(toSet.getClass(), MorphiumStorageListener.UpdateTypes.SET);
             }
         }, c, AsyncOperationType.SET);
@@ -277,7 +279,8 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter {
                 }
                 morphium.getCache().clearCacheIfNecessary(query.getType());
                 for (Map.Entry kv : values.entrySet()) {
-                    wr.set(kv.getKey().toString(), kv.getValue(), multiple);
+                    String fld = morphium.getARHelper().getFieldName(query.getType(), kv.getKey().toString());
+                    wr.set(fld, kv.getValue(), multiple);
                 }
                 morphium.firePostUpdateEvent(query.getType(), MorphiumStorageListener.UpdateTypes.SET);
             }
@@ -302,7 +305,8 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter {
                 }
                 morphium.getCache().clearCacheIfNecessary(query.getType());
                 for (Map.Entry kv : fieldsToInc.entrySet()) {
-                    wr.inc(kv.getKey().toString(), ((Double) kv.getValue()).intValue(), multiple);
+                    String fld = morphium.getARHelper().getFieldName(query.getType(), kv.getKey().toString());
+                    wr.inc(fld, ((Double) kv.getValue()).intValue(), multiple);
                 }
                 morphium.firePostUpdateEvent(query.getType(), MorphiumStorageListener.UpdateTypes.INC);
             }
@@ -327,7 +331,8 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter {
                     wr = wr.upsert();
                 }
                 morphium.getCache().clearCacheIfNecessary(query.getType());
-                wr.inc(field, (int) amount, multiple);
+                String fieldName = morphium.getARHelper().getFieldName(query.getType(), field);
+                wr.inc(fieldName, (int) amount, multiple);
                 morphium.firePostUpdateEvent(query.getType(), MorphiumStorageListener.UpdateTypes.INC);
             }
         }, c, AsyncOperationType.INC);
@@ -349,7 +354,8 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter {
                 Query q = morphium.createQueryFor(obj.getClass()).f(morphium.getARHelper().getIdFieldName(obj)).eq(morphium.getARHelper().getId(obj));
                 BulkRequestWrapper wr = ctx.addFind(q);
                 morphium.getCache().clearCacheIfNecessary(obj.getClass());
-                wr.inc(field, (int) amount, false);
+                String fld = morphium.getARHelper().getFieldName(obj.getClass(), field);
+                wr.inc(fld, (int) amount, false);
                 morphium.firePostUpdateEvent(obj.getClass(), MorphiumStorageListener.UpdateTypes.INC);
             }
         }, c, AsyncOperationType.INC);
@@ -372,7 +378,8 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter {
                 Query q = morphium.createQueryFor(obj.getClass()).f(morphium.getARHelper().getIdFieldName(obj)).eq(morphium.getARHelper().getId(obj));
                 BulkRequestWrapper wr = ctx.addFind(q);
                 morphium.getCache().clearCacheIfNecessary(obj.getClass());
-                wr.pop(field, first, false);
+                String fld = morphium.getARHelper().getFieldName(obj.getClass(), field);
+                wr.pop(fld, first, false);
                 morphium.firePostUpdateEvent(obj.getClass(), MorphiumStorageListener.UpdateTypes.POP);
             }
         }, c, AsyncOperationType.WRITE);
@@ -553,13 +560,14 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter {
                     r = r.upsert();
                 }
                 morphium.getCache().clearCacheIfNecessary(q.getType());
+                String fld = morphium.getARHelper().getFieldName(q.getType(), field);
                 if (push) {
                     morphium.firePreUpdateEvent(q.getType(), MorphiumStorageListener.UpdateTypes.PUSH);
-                    r.push(field, multiple, value);
+                    r.push(fld, multiple, value);
                     morphium.firePostUpdateEvent(q.getType(), MorphiumStorageListener.UpdateTypes.PUSH);
                 } else {
                     morphium.firePreUpdateEvent(q.getType(), MorphiumStorageListener.UpdateTypes.PULL);
-                    r.pull(field, multiple, value);
+                    r.pull(fld, multiple, value);
                     morphium.firePostUpdateEvent(q.getType(), MorphiumStorageListener.UpdateTypes.PULL);
                 }
             }
@@ -582,16 +590,17 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter {
                     r = r.upsert();
                 }
                 morphium.getCache().clearCacheIfNecessary(q.getType());
+                String fld = morphium.getARHelper().getFieldName(q.getType(), field);
                 if (push) {
                     morphium.firePreUpdateEvent(q.getType(), MorphiumStorageListener.UpdateTypes.PUSH);
                     for (Object o : value) {
-                        r.push(field, multiple, o);
+                        r.push(fld, multiple, o);
                     }
                     morphium.firePostUpdateEvent(q.getType(), MorphiumStorageListener.UpdateTypes.PUSH);
                 } else {
                     morphium.firePreUpdateEvent(q.getType(), MorphiumStorageListener.UpdateTypes.PULL);
                     for (Object o : value) {
-                        r.pull(field, multiple, o);
+                        r.pull(fld, multiple, o);
                     }
                     morphium.firePostUpdateEvent(q.getType(), MorphiumStorageListener.UpdateTypes.PULL);
                 }
@@ -614,7 +623,8 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter {
                 if (collection != null) q.setCollectionName(collection);
                 BulkRequestWrapper wr = ctx.addFind(q);
                 morphium.getCache().clearCacheIfNecessary(obj.getClass());
-                wr.unset(field, false);
+                String fld = morphium.getARHelper().getFieldName(obj.getClass(), field);
+                wr.unset(fld, false);
             }
         }, c, AsyncOperationType.UNSET);
     }
@@ -632,7 +642,8 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter {
 //                directWriter.set(toSet, collection, field, value, insertIfNotExists, multiple, callback);
                 morphium.firePreUpdateEvent(query.getType(), MorphiumStorageListener.UpdateTypes.UNSET);
                 BulkRequestWrapper wr = ctx.addFind(query);
-                wr.unset(field, multiple);
+                String fld = morphium.getARHelper().getFieldName(query.getType(), field);
+                wr.unset(fld, multiple);
                 morphium.getCache().clearCacheIfNecessary(query.getType());
                 morphium.firePostUpdateEvent(query.getType(), MorphiumStorageListener.UpdateTypes.UNSET);
             }
@@ -653,7 +664,8 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter {
                 morphium.firePreUpdateEvent(query.getType(), MorphiumStorageListener.UpdateTypes.UNSET);
                 BulkRequestWrapper wr = ctx.addFind(query);
                 for (String f : fields) {
-                    wr.unset(f, multiple);
+                    String fld = morphium.getARHelper().getFieldName(query.getType(), f);
+                    wr.unset(fld, multiple);
                 }
                 morphium.getCache().clearCacheIfNecessary(query.getType());
                 morphium.firePostUpdateEvent(query.getType(), MorphiumStorageListener.UpdateTypes.UNSET);

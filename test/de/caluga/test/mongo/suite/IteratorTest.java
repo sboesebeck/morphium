@@ -438,6 +438,7 @@ public class IteratorTest extends MongoTest {
     public void iterableTest() throws Exception {
         createUncachedObjects(1000);
         Query<UncachedObject> qu = getUncachedObjectQuery();
+        qu.limit(20);
         long start = System.currentTimeMillis();
         int cnt = 0;
         for (UncachedObject u : qu.asIterable(10)) {
