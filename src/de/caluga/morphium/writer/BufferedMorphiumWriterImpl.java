@@ -790,9 +790,9 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter {
         running = false;
         Thread.sleep(250);
         try {
-            housekeeping.stop();
+            if (housekeeping != null) housekeeping.stop();
         } catch (Throwable e) {
-            e.printStackTrace();
+//            e.printStackTrace();
         }
         super.finalize();
     }
