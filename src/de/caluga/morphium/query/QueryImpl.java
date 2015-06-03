@@ -655,26 +655,39 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
         return asIterable(10, 1);
     }
 
-    public MorphiumIterator<T> asIterable(int windowSize) {
-        return asIterable(windowSize, 1);
+    @Override
+    public MorphiumIterator<T> asCustomIterable(int windowSize, Class<? extends MorphiumIterator<T>> it) {
+        try {
+            MorphiumIterator<T> ret = it.newInstance();
+            ret.setQuery(this);
+            ret.setWindowSize(windowSize);
+            return ret;
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
     }
+    public MorphiumIterator<T> asIterable(int windowSize) {
+        if (log.isDebugEnabled()) {
+            log.debug("creating iterable for query - windowsize " + windowSize);
+        }
+        MorphiumIterator<T> it = new DefaultMorphiumIterator<T>();
+        it.setQuery(this);
+        it.setWindowSize(windowSize);
+        return it;
+    }
+
 
     @Override
     public MorphiumIterator<T> asIterable(int windowSize, int prefixWindows) {
-        try {
-            if (log.isDebugEnabled()) {
-                log.debug("creating iterable for query - windowsize " + windowSize);
-            }
-            MorphiumIterator<T> it = morphium.getConfig().getIteratorClass().newInstance();
-            it.setQuery(this);
-            it.setWindowSize(windowSize);
-            it.setNumberOfPrefetchWindows(prefixWindows);
-            return it;
-        } catch (InstantiationException e) {
-            throw new RuntimeException(e);
-        } catch (IllegalAccessException e) {
-            throw new RuntimeException(e);
+
+        if (log.isDebugEnabled()) {
+            log.debug("creating iterable for query - windowsize " + windowSize);
         }
+        MorphiumIterator<T> it = new PrefetchingMorphiumIterator<>();
+        it.setQuery(this);
+        it.setWindowSize(windowSize);
+        it.setNumberOfPrefetchWindows(prefixWindows);
+        return it;
     }
 
     private void updateLastAccess(T unmarshall) {

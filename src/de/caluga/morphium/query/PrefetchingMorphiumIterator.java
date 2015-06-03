@@ -14,7 +14,7 @@ import java.util.List;
  * This implementation of the Iterable Interface maxe paging on db side easier.
  * This iterator read WINDOWSIZE objects from Mongo and holds them in memory, until iterated over them.
  */
-public class MorphiumIteratorImpl<T> implements MorphiumIterator<T> {
+public class PrefetchingMorphiumIterator<T> implements MorphiumIterator<T> {
     private int windowSize = 1;
 
     private Query<T> theQuery;
@@ -29,8 +29,8 @@ public class MorphiumIteratorImpl<T> implements MorphiumIterator<T> {
     private boolean multithreaddedAccess = false;
 
 
-
-    public MorphiumIteratorImpl() {
+    public PrefetchingMorphiumIterator() {
+        log.warn("Prefetching Iterator is relaying on skip-functionality of mongo which can cause problems in some cases - use DefaultMorphiumIterator instead");
 //        workQueue = new ArrayBlockingQueue<>(1000, true);
 //        executorService = new ThreadPoolExecutor(10, 100, 1000, TimeUnit.MILLISECONDS, workQueue);
 
@@ -99,9 +99,9 @@ public class MorphiumIteratorImpl<T> implements MorphiumIterator<T> {
             //first iteration
             prefetchBuffers = new Container[prefetchWindows];
             prefetchBuffers[0] = new Container<T>();
-            prefetchBuffers[0].setData(getBuffer(0));
+            prefetchBuffers[0].setData(getBuffer(cursor / windowSize));
 
-            for (int i = 1; i < prefetchWindows; i++) {
+            for (int i = cursor / windowSize + 1; i < prefetchWindows; i++) {
                 final Container<T> c = new Container<>();
                 prefetchBuffers[i] = c;
                 final int idx = i;
