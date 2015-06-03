@@ -1,9 +1,5 @@
 package de.caluga.morphium;
 
-/*
- * To change this template, choose Tools | Templates
- * and open the template in the editor.
- */
 
 import com.mongodb.DB;
 import com.mongodb.ServerAddress;
@@ -117,8 +113,6 @@ public class MorphiumConfig {
     private Class<? extends MongoField> fieldImplClass = MongoFieldImpl.class;
     @Transient
     private ReadPreferenceLevel defaultReadPreference;
-    @Transient
-    private Class<? extends MorphiumIterator> iteratorClass;
     private int acceptableLatencyDifference = 15;
     private int threadPoolMessagingCoreSize = 0;
     private int threadPoolMessagingMaxSize = 100;
@@ -720,9 +714,6 @@ public class MorphiumConfig {
         if (!defaults.getAggregatorFactory().getClass().equals(getAggregatorFactory().getClass())) {
             p.put("aggregatorFactory_I_ClassName", getAggregatorFactory().getClass().getName());
         }
-        if (!defaults.getIteratorClass().equals(getIteratorClass())) {
-            p.put("iteratorClass_C_ClassName", getIteratorClass().getName());
-        }
         if (!defaults.getOmClass().equals(getOmClass())) {
             p.put("omClass_C_ClassName", getOmClass().getName());
         }
@@ -740,17 +731,6 @@ public class MorphiumConfig {
             del = ", ";
         }
         p.put("hosts", b.toString());
-    }
-
-    public Class<? extends MorphiumIterator> getIteratorClass() {
-        if (iteratorClass == null) {
-            iteratorClass = MorphiumIteratorImpl.class;
-        }
-        return iteratorClass;
-    }
-
-    public void setIteratorClass(Class<? extends MorphiumIterator> iteratorClass) {
-        this.iteratorClass = iteratorClass;
     }
 
     public MorphiumWriter getAsyncWriter() {

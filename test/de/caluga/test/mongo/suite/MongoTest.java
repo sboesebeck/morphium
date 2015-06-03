@@ -8,7 +8,7 @@ import de.caluga.morphium.annotations.ReadPreferenceLevel;
 import de.caluga.morphium.async.AsyncOperationCallback;
 import de.caluga.morphium.async.AsyncOperationType;
 import de.caluga.morphium.messaging.Msg;
-import de.caluga.morphium.query.MorphiumIteratorImpl;
+import de.caluga.morphium.query.PrefetchingMorphiumIterator;
 import de.caluga.morphium.query.Query;
 
 import java.io.File;
@@ -117,7 +117,7 @@ public class MongoTest {
             cfg.setGlobalLogSynced(true);
 
             cfg.setLogLevelForClass(AnnotationAndReflectionHelper.class, 4);
-            cfg.setLogLevelForClass(MorphiumIteratorImpl.class, 3);
+            cfg.setLogLevelForClass(PrefetchingMorphiumIterator.class, 3);
             cfg.setLogLevelForPrefix("de.caluga.test", 5);
             cfg.setLogSyncedForPrefix("de.caluga.test", true);
             MorphiumSingleton.setConfig(cfg);
