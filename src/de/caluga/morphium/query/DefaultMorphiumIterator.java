@@ -89,6 +89,10 @@ public class DefaultMorphiumIterator<T> implements MorphiumIterator<T> {
 
         }
         cursor++;
+        if (idx >= buffer.size()) {
+            log.debug("Trying to read past end of buffer - automatic deletion?");
+            return null;
+        }
         return buffer.get(idx);
     }
 

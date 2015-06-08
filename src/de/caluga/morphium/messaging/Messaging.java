@@ -154,11 +154,18 @@ public class Messaging extends Thread implements ShutdownListener {
                     Runnable r = new Runnable() {
                         @Override
                         public void run() {
+                            if (m.getProcessedBy() != null && m.getProcessedBy().contains(id)) {
+                                log.fatal("Was already processed - ERROR?");
+                                throw new RuntimeException("was already processed - error on mongo query result!");
+                            }
                             final Msg msg = morphium.reread(m, getCollectionName()); //make sure it's current version in DB
 //                            System.out.println("Processing message "+msg.getMsgId()+ " / "+m.getMsgId());
                             if (msg == null) {
-
                                 return; //was deleted
+                            }
+                            if (msg.getProcessedBy() != null && msg.getProcessedBy().contains(id)) {
+                                log.info("Was already processed - multithreadding?");
+                                return;
                             }
                             if (!msg.getLockedBy().equals(id) && !msg.getLockedBy().equals("ALL")) {
                                 //over-locked by someone else
@@ -242,7 +249,7 @@ public class Messaging extends Thread implements ShutdownListener {
 
                 //wait for all threads to finish
                 if (multithreadded) {
-                    while (threadPool.getActiveCount() > 0) {
+                    while (threadPool != null && threadPool.getActiveCount() > 0) {
                         Thread.sleep(100);
                     }
                 }
