@@ -44,7 +44,6 @@ public class Messaging extends Thread implements ShutdownListener {
     private ThreadPoolExecutor threadPool;
 
     private boolean multithreadded = false;
-    private int prefetchdWindows = 1;
     private int windowSize = 1000;
 
 
@@ -59,8 +58,8 @@ public class Messaging extends Thread implements ShutdownListener {
         this(m, null, pause, processMultiple);
     }
 
-    public Messaging(Morphium m, int pause, boolean processMultiple, boolean multithreadded, int windowSize, int prefetchdWindows) {
-        this(m, null, pause, processMultiple, multithreadded, windowSize, prefetchdWindows);
+    public Messaging(Morphium m, int pause, boolean processMultiple, boolean multithreadded, int windowSize) {
+        this(m, null, pause, processMultiple, multithreadded, windowSize);
     }
 
     public long getMessageCount() {
@@ -68,13 +67,12 @@ public class Messaging extends Thread implements ShutdownListener {
     }
 
     public Messaging(Morphium m, String queueName, int pause, boolean processMultiple) {
-        this(m, queueName, pause, processMultiple, false, 1000, 1);
+        this(m, queueName, pause, processMultiple, false, 1000);
     }
 
-    public Messaging(Morphium m, String queueName, int pause, boolean processMultiple, boolean multithreadded, int windowSize, int prefetchdWindows) {
+    public Messaging(Morphium m, String queueName, int pause, boolean processMultiple, boolean multithreadded, int windowSize) {
         this.multithreadded = multithreadded;
         this.windowSize = windowSize;
-        this.prefetchdWindows = prefetchdWindows;
         morphium = m;
 
 
@@ -144,7 +142,7 @@ public class Messaging extends Thread implements ShutdownListener {
                 q.sort(Msg.Fields.timestamp);
 
 //                List<Msg> messages = q.asList();
-                MorphiumIterator<Msg> messages = q.asIterable(windowSize, prefetchdWindows);
+                MorphiumIterator<Msg> messages = q.asIterable(windowSize);
                 messages.setMultithreaddedAccess(multithreadded);
 
                 final List<Msg> toStore = new ArrayList<>();

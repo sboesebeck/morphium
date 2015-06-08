@@ -378,7 +378,7 @@ public class IteratorTest extends MongoTest {
         assert (u.getCounter() == 1);
         log.info("Got one: " + u.getCounter() + "  / " + u.getValue());
         log.info("Current Buffersize: " + it.getCurrentBufferSize());
-        assert (it.getCurrentBufferSize() == 2) : "buffer is " + it.getCurrentBufferSize();
+        assert (it.getCurrentBufferSize() < 10) : "buffer is " + it.getCurrentBufferSize();
 
         u = it.next();
         assert (u.getCounter() == 2);
