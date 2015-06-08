@@ -165,7 +165,19 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter {
                 //do nothing
                 boolean isNew = morphium.getARHelper().getId(o) == null;
                 morphium.firePreStoreEvent(o, isNew);
-                ctx.insert(o);
+                if (isNew) {
+                    ctx.insert(o);
+                } else {
+                    BulkRequestWrapper wr = ctx.addFind(morphium.createQueryFor(o.getClass()).f(morphium.getARHelper().getIdFieldName(o)).eq(morphium.getARHelper().getId(o)));
+                    for (String f : morphium.getARHelper().getFields(o.getClass())) {
+                        try {
+                            wr.set(morphium.getARHelper().getFieldName(o.getClass(), f), morphium.getARHelper().getField(o.getClass(), f).get(o), false);
+                        } catch (IllegalAccessException e) {
+                            e.printStackTrace();
+                        }
+
+                    }
+                }
                 morphium.getCache().clearCacheIfNecessary(o.getClass());
                 morphium.firePostStoreEvent(o, isNew);
             }
