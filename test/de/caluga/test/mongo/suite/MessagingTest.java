@@ -795,7 +795,7 @@ public class MessagingTest extends MongoTest {
     public void mutlithreaddedMessagingPerformanceTest() throws Exception {
         MorphiumSingleton.get().clearCollection(Msg.class);
         final Messaging producer = new Messaging(MorphiumSingleton.get(), 100, true);
-        final Messaging consumer = new Messaging(MorphiumSingleton.get(), 10, true, true, 2000, 3);
+        final Messaging consumer = new Messaging(MorphiumSingleton.get(), 10, true, true, 2000);
         final int[] processed = {0};
         final Map<String, Long> msgCountById = new Hashtable<>();
         consumer.addMessageListener(new MessageListener() {
