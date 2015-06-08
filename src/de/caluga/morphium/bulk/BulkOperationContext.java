@@ -6,7 +6,9 @@ import com.mongodb.BulkWriteUpsert;
 import de.caluga.morphium.Morphium;
 import de.caluga.morphium.WriteAccessType;
 import de.caluga.morphium.query.Query;
+import org.bson.types.ObjectId;
 
+import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -37,6 +39,18 @@ public class BulkOperationContext {
                 bulk = morphium.getDatabase().getCollection(morphium.getMapper().getCollectionName(o.getClass())).initializeOrderedBulkOperation();
             } else {
                 bulk = morphium.getDatabase().getCollection(morphium.getMapper().getCollectionName(o.getClass())).initializeUnorderedBulkOperation();
+            }
+        }
+        if (morphium.getARHelper().getId(o) == null) {
+            Field idField = morphium.getARHelper().getIdField(o);
+            if (idField.getType().equals(ObjectId.class)) {
+                //create new ID
+                ObjectId id = new ObjectId();
+                try {
+                    idField.set(o, id);
+                } catch (IllegalAccessException e) {
+                    throw new RuntimeException(e);
+                }
             }
         }
         bulk.insert(morphium.getMapper().marshall(o));
