@@ -8,4 +8,11 @@ package de.caluga.morphium;
  * TODO: Add documentation here
  */
 public class MorphiumAccessVetoException extends RuntimeException {
+    public MorphiumAccessVetoException() {
+        super();
+    }
+
+    public MorphiumAccessVetoException(String msg) {
+        super(msg);
+    }
 }
