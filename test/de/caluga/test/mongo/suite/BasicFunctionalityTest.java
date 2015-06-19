@@ -4,14 +4,17 @@
  */
 package de.caluga.test.mongo.suite;
 
+import de.caluga.morphium.AnnotationAndReflectionHelper;
 import de.caluga.morphium.Logger;
 import de.caluga.morphium.MorphiumSingleton;
 import de.caluga.morphium.StatisticKeys;
 import de.caluga.morphium.annotations.Embedded;
 import de.caluga.morphium.annotations.Entity;
+import de.caluga.morphium.annotations.Id;
 import de.caluga.morphium.query.Query;
 import org.junit.Test;
 
+import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -455,6 +458,83 @@ public class BasicFunctionalityTest extends MongoTest {
         assert (qu.countAll() == uncached) : "Difference in object count for cached objects. Wrote " + uncached + " found: " + qu.countAll();
         Query<CachedObject> q = MorphiumSingleton.get().createQueryFor(CachedObject.class);
         assert (q.countAll() == cached) : "Difference in object count for cached objects. Wrote " + cached + " found: " + q.countAll();
+
+    }
+
+
+    @Test
+    public void arHelperTest() {
+        AnnotationAndReflectionHelper annotationHelper = MorphiumSingleton.get().getARHelper();
+        long start = System.currentTimeMillis();
+        for (int i = 0; i < 500000; i++)
+            annotationHelper.isAnnotationPresentInHierarchy(UncachedObject.class, Entity.class);
+        long dur = System.currentTimeMillis() - start;
+        log.info("present duration: " + dur);
+
+        start = System.currentTimeMillis();
+        for (int i = 0; i < 500000; i++)
+            annotationHelper.isAnnotationPresentInHierarchy(UncachedObject.class, Entity.class);
+        dur = System.currentTimeMillis() - start;
+        log.info("present duration: " + dur);
+
+        start = System.currentTimeMillis();
+        for (int i = 0; i < 500000; i++)
+            annotationHelper.getFields(UncachedObject.class, Id.class);
+        dur = System.currentTimeMillis() - start;
+        log.info("fields an duration: " + dur);
+        start = System.currentTimeMillis();
+        for (int i = 0; i < 500000; i++)
+            annotationHelper.getFields(UncachedObject.class, Id.class);
+        dur = System.currentTimeMillis() - start;
+        log.info("fields an duration: " + dur);
+
+        start = System.currentTimeMillis();
+        for (int i = 0; i < 500000; i++)
+            annotationHelper.getFields(UncachedObject.class);
+        dur = System.currentTimeMillis() - start;
+        log.info("fields duration: " + dur);
+
+        start = System.currentTimeMillis();
+        for (int i = 0; i < 500000; i++)
+            annotationHelper.getFields(UncachedObject.class);
+        dur = System.currentTimeMillis() - start;
+        log.info("fields duration: " + dur);
+
+        start = System.currentTimeMillis();
+        for (int i = 0; i < 500000; i++)
+            annotationHelper.getAnnotationFromHierarchy(UncachedObject.class, Entity.class);
+        dur = System.currentTimeMillis() - start;
+        log.info("Hierarchy duration: " + dur);
+
+        start = System.currentTimeMillis();
+        for (int i = 0; i < 500000; i++)
+            annotationHelper.getAnnotationFromHierarchy(UncachedObject.class, Entity.class);
+        dur = System.currentTimeMillis() - start;
+        log.info("Hierarchy duration: " + dur);
+
+
+        start = System.currentTimeMillis();
+        for (int i = 0; i < 50000; i++) {
+            List<String> lst = annotationHelper.getFields(UncachedObject.class);
+            for (String f : lst) {
+                Field fld = annotationHelper.getField(UncachedObject.class, f);
+                fld.isAnnotationPresent(Id.class);
+            }
+        }
+        dur = System.currentTimeMillis() - start;
+        log.info("fields / getField duration: " + dur);
+
+        start = System.currentTimeMillis();
+        for (int i = 0; i < 50000; i++) {
+            List<String> lst = annotationHelper.getFields(UncachedObject.class);
+            for (String f : lst) {
+                Field fld = annotationHelper.getField(UncachedObject.class, f);
+                fld.isAnnotationPresent(Id.class);
+            }
+        }
+        dur = System.currentTimeMillis() - start;
+        log.info("fields / getField duration: " + dur);
+
 
     }
 
