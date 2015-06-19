@@ -967,8 +967,10 @@ public class Morphium {
             firePostLoadEvent(o);
         } else {
 //            logger.info("Did not find object with id " + id);
+            crs.close();
             return null;
         }
+        crs.close();
         return o;
     }
 
