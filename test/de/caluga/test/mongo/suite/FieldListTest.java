@@ -45,6 +45,7 @@ public class FieldListTest extends MongoTest {
 
         DBCursor cursor = MorphiumSingleton.get().getDatabase().getCollection("write_only_object").find(new BasicDBObject("_id", wo.getMongoId()));
         DBObject obj = cursor.next();
+        cursor.close();
         assert (obj.get("write_only_value").equals("write only"));
 
     }

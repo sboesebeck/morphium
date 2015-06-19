@@ -87,6 +87,7 @@ public class RSMonitor {
                 if (full) {
                     DBCursor rpl = morphium.getMongo().getDB("local").getCollection("system.replset").find();
                     DBObject stat = rpl.next(); //should only be one, i think
+                    rpl.close();
                     ReplicaSetConf cfg = morphium.getMapper().unmarshall(ReplicaSetConf.class, stat);
                     List<Object> mem = cfg.getMemberList();
                     List<ConfNode> cmembers = new ArrayList<ConfNode>();

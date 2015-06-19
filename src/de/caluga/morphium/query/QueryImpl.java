@@ -182,6 +182,7 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
                     if (unmarshall != null) ret.add(unmarshall);
                 }
                 srv = cursor.getServerAddress();
+                cursor.close();
                 break;
             } catch (RuntimeException e) {
                 morphium.handleNetworkError(i, e);
@@ -460,6 +461,7 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
             try {
                 DBCursor cu = collection.find(toQueryObject());
                 long ret = cu.count();
+                cu.close();
                 srv = cu.getServerAddress();
                 morphium.fireProfilingReadEvent(QueryImpl.this, System.currentTimeMillis() - start, ReadAccessType.COUNT);
                 return ret;
@@ -605,8 +607,9 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
         List<T> ret = new ArrayList<T>();
         for (int i = 0; i < morphium.getConfig().getRetriesOnNetworkError(); i++) {
             ret.clear();
+            DBCursor query = null;
             try {
-                DBCursor query = collection.find(toQueryObject(), lst);
+                query = collection.find(toQueryObject(), lst);
                 if (skip > 0) {
                     query.skip(skip);
                 }
@@ -639,6 +642,8 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
 
             } catch (Throwable es) {
                 morphium.handleNetworkError(i, es);
+            } finally {
+                if (query != null) query.close();
             }
         }
         morphium.fireProfilingReadEvent(this, System.currentTimeMillis() - start, ReadAccessType.AS_LIST);
@@ -823,6 +828,7 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
         }
 
         if (srch.length() == 0) {
+            srch.close();
             return null;
         }
 
@@ -831,6 +837,7 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
             try {
                 ret = srch.toArray(1).get(0);
                 srv = srch.getServerAddress();
+                srch.close();
                 break;
             } catch (RuntimeException e) {
                 morphium.handleNetworkError(i, e);
@@ -918,6 +925,7 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
                     ret.add((R) o.get("_id"));
                 }
                 srv = query.getServerAddress();
+                query.close();
                 break;
             } catch (RuntimeException e) {
                 morphium.handleNetworkError(i, e);
