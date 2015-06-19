@@ -314,14 +314,14 @@ public class ObjectMapperTest extends MongoTest {
         long dur = System.currentTimeMillis() - start;
 
         log.info("Mapping of UncachedObject 25000 times took " + dur + "ms");
-        assert (dur < 1000);
+        assert (dur < 5000);
         start = System.currentTimeMillis();
         for (int i = 0; i < 25000; i++) {
             UncachedObject uc = om.unmarshall(UncachedObject.class, marshall);
         }
         dur = System.currentTimeMillis() - start;
         log.info("De-Marshalling of UncachedObject 25000 times took " + dur + "ms");
-        assert (dur < 1000);
+        assert (dur < 5000);
 
     }
 
@@ -378,7 +378,7 @@ public class ObjectMapperTest extends MongoTest {
         long dur = System.currentTimeMillis() - start;
 
         log.info("Mapping of ComplexObject 25000 times took " + dur + "ms");
-        assert (dur < 2000);
+        assert (dur < 7000);
         start = System.currentTimeMillis();
         for (int i = 0; i < 25000; i++) {
             ComplexObject co = om.unmarshall(ComplexObject.class, marshall);
@@ -424,7 +424,7 @@ public class ObjectMapperTest extends MongoTest {
             log.info("Mapping of ComplexObject 25000 with uncached references times took " + dur + "ms");
 
         }
-        assert (dur < 2000);
+        assert (dur < 5000);
         start = System.currentTimeMillis();
         for (int i = 0; i < 25000; i++) {
             ComplexObject co = om.unmarshall(ComplexObject.class, marshall);
