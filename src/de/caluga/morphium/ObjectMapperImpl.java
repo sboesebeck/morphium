@@ -34,6 +34,7 @@ public class ObjectMapperImpl implements ObjectMapper {
     private JSONParser jsonParser = new JSONParser();
 
     private volatile List<Class<?>> mongoTypes;
+    final ReflectionFactory reflection = ReflectionFactory.getReflectionFactory();
 
     public ObjectMapperImpl() {
 
@@ -461,7 +462,6 @@ public class ObjectMapperImpl implements ObjectMapper {
             } catch (Exception e) {
             }
             if (ret == null) {
-                final ReflectionFactory reflection = ReflectionFactory.getReflectionFactory();
                 final Constructor<Object> constructor;
                 try {
                     constructor = reflection.newConstructorForSerialization(

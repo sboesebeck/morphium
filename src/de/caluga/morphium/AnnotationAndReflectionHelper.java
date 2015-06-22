@@ -75,6 +75,7 @@ public class AnnotationAndReflectionHelper {
         return wb != null && wb.value();
     }
 
+
     /**
      * returns annotations, even if in class hierarchy or
      * lazyloading proxy
@@ -125,15 +126,15 @@ public class AnnotationAndReflectionHelper {
                 }
             }
 
-            if (ret == null) {
-                //annotation not present in hierarchy, store marker
-                m.get(cls).put(anCls, annotationNotPresent);
-            } else {
-                //found it, keep it in cache
-                m.get(cls).put(anCls, ret);
-            }
-            annotationCache = m;
         }
+        if (ret == null) {
+            //annotation not present in hierarchy, store marker
+            m.get(cls).put(anCls, annotationNotPresent);
+        } else {
+            //found it, keep it in cache
+            m.get(cls).put(anCls, ret);
+        }
+        annotationCache = m;
         return ret;
     }
 
@@ -289,6 +290,7 @@ public class AnnotationAndReflectionHelper {
         return ret;
     }
 
+
     /**
      * extended logic: Fld may be, the java field name, the name of the specified value in Property-Annotation or
      * the translated underscored lowercase name (mongoId => mongo_id) or a name specified in the Aliases-Annotation of this field
@@ -299,15 +301,16 @@ public class AnnotationAndReflectionHelper {
      */
     public Field getField(Class clz, String fld) {
         String key = clz.toString() + "->" + fld;
-        HashMap<String, Field> fc = (HashMap) ((HashMap) fieldCache).clone();
-        if (fc.containsKey(key)) {
-            return fc.get(key);
+        Field val = fieldCache.get(key);
+        if (val != null) {
+            return val;
         }
+        HashMap<String, Field> fc = (HashMap) ((HashMap) fieldCache).clone();
         Class cls = getRealClass(clz);
         List<Field> flds = getAllFields(cls);
         Field ret = null;
         for (Field f : flds) {
-            if (f.isAnnotationPresent(Property.class) && f.getAnnotation(Property.class).fieldName() != null && !".".equals(f.getAnnotation(Property.class).fieldName())) {
+            if (ret == null && f.isAnnotationPresent(Property.class) && f.getAnnotation(Property.class).fieldName() != null && !".".equals(f.getAnnotation(Property.class).fieldName())) {
                 if (f.getAnnotation(Property.class).fieldName().equals(fld)) {
                     f.setAccessible(true);
 
@@ -315,14 +318,14 @@ public class AnnotationAndReflectionHelper {
                     ret = f;
                 }
             }
-            if (f.isAnnotationPresent(Reference.class) && f.getAnnotation(Reference.class).fieldName() != null && !".".equals(f.getAnnotation(Reference.class).fieldName())) {
+            if (ret == null && f.isAnnotationPresent(Reference.class) && f.getAnnotation(Reference.class).fieldName() != null && !".".equals(f.getAnnotation(Reference.class).fieldName())) {
                 if (f.getAnnotation(Reference.class).fieldName().equals(fld)) {
                     f.setAccessible(true);
                     fc.put(key, f);
                     ret = f;
                 }
             }
-            if (f.isAnnotationPresent(Aliases.class)) {
+            if (ret == null && f.isAnnotationPresent(Aliases.class)) {
                 Aliases aliases = f.getAnnotation(Aliases.class);
                 String[] v = aliases.value();
                 for (String field : v) {
@@ -333,19 +336,19 @@ public class AnnotationAndReflectionHelper {
                     }
                 }
             }
-            if (fld.equals("_id")) {
+            if (ret == null && fld.equals("_id")) {
                 if (f.isAnnotationPresent(Id.class)) {
                     f.setAccessible(true);
                     fc.put(key, f);
                     ret = f;
                 }
             }
-            if (f.getName().equals(fld)) {
+            if (ret == null && f.getName().equals(fld)) {
                 f.setAccessible(true);
                 fc.put(key, f);
                 ret = f;
             }
-            if (ccc && convertCamelCase(f.getName()).equals(fld)) {
+            if (ret == null && ccc && convertCamelCase(f.getName()).equals(fld)) {
                 f.setAccessible(true);
                 fc.put(key, f);
                 ret = f;
@@ -620,10 +623,11 @@ public class AnnotationAndReflectionHelper {
         for (Class<? extends Annotation> a : annotations) {
             k += "/" + a.toString();
         }
-        HashMap<String, List<String>> fa = (HashMap) ((HashMap) fieldAnnotationListCache).clone();
-        if (fa.containsKey(k)) {
-            return fa.get(k);
+        List<String> strings = fieldAnnotationListCache.get(k);
+        if (strings != null) {
+            return strings;
         }
+        HashMap<String, List<String>> fa = (HashMap) ((HashMap) fieldAnnotationListCache).clone();
         List<String> ret = new ArrayList<>();
         Class sc = cls;
         sc = getRealClass(sc);
