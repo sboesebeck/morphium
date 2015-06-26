@@ -207,6 +207,8 @@ public class Morphium {
                     mongo = new MongoClient(config.getAdr(), lst, o.build());
                 }
                 adminDB = mongo.getDatabase("admin");
+            } else {
+                adminDB = mongo.getDatabase("admin");
             }
         }
 

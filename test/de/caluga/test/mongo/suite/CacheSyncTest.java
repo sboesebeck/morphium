@@ -383,7 +383,7 @@ public class CacheSyncTest extends MongoTest {
         assert (postclear);
         assert (preClear);
         log.info("Waiting a minute for msg to be cleared... ");
-        Thread.sleep(60000);
+        Thread.sleep(62000);
 
         long l = m1.createQueryFor(Msg.class).countAll();
         assert (l <= 1) : "too many messages? " + l;
