@@ -38,7 +38,6 @@ import java.util.concurrent.TimeUnit;
  * @author stephan
  */
 
-@SuppressWarnings("UnusedDeclaration")
 public class Morphium {
 
     /**
@@ -64,16 +63,16 @@ public class Morphium {
     private ThreadLocal<Boolean> disableWriteBuffer = new ThreadLocal<Boolean>();
     private ThreadLocal<Boolean> disableAsyncWrites = new ThreadLocal<Boolean>();
 
-    private Map<StatisticKeys, StatisticValue> stats;
+    private Map<StatisticKeys, StatisticValue> stats = new HashMap<>();
 
     /**
      * String Representing current user - needs to be set by Application
      */
     private CacheHousekeeper cacheHousekeeper;
 
-    private List<MorphiumStorageListener> listeners;
+    private List<MorphiumStorageListener> listeners = new CopyOnWriteArrayList<>();
     private List<ProfilingListener> profilingListeners;
-    private List<ShutdownListener> shutDownListeners;
+    private List<ShutdownListener> shutDownListeners = new CopyOnWriteArrayList<>();
 
     private AnnotationAndReflectionHelper annotationHelper;
     private ObjectMapper objectMapper;
@@ -89,9 +88,6 @@ public class Morphium {
     }
 
     public Morphium() {
-        stats = new HashMap<StatisticKeys, StatisticValue>();
-        shutDownListeners = new CopyOnWriteArrayList<ShutdownListener>();
-        listeners = new CopyOnWriteArrayList<>();
         profilingListeners = new CopyOnWriteArrayList<>();
 
     }
@@ -223,9 +219,7 @@ public class Morphium {
         try {
             objectMapper = config.getOmClass().newInstance();
             objectMapper.setMorphium(this);
-        } catch (InstantiationException e) {
-            throw new RuntimeException(e);
-        } catch (IllegalAccessException e) {
+        } catch (Exception e) {
             throw new RuntimeException(e);
         }
 
@@ -1703,12 +1697,12 @@ public class Morphium {
         try {
             DB adminDB = getMongo().getDB("admin");
             MorphiumConfig config = getConfig();
-            if (config.getMongoAdminUser() != null) {
-                if (!adminDB.authenticate(config.getMongoAdminUser(), config.getMongoAdminPwd().toCharArray())) {
-                    logger.error("Authentication as admin failed!");
-                    return;
-                }
-            }
+//            if (config.getMongoAdminUser() != null) {
+//                if (!adminDB.authenticate(config.getMongoAdminUser(), config.getMongoAdminPwd().toCharArray())) {
+//                    logger.error("Authentication as admin failed!");
+//                    return;
+//                }
+//            }
             CommandResult res = adminDB.command("isMaster");
             maxBsonSize = (Integer) res.get("maxBsonObjectSize");
             maxMessageSize = (Integer) res.get("maxMessageSizeBytes");

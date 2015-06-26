@@ -203,6 +203,7 @@ public class AutoVariableTest extends MongoTest {
     @Entity
     @NoCache
     @LastChange
+    @WriteSafety(level = SafetyLevel.WAIT_FOR_ALL_SLAVES)
     public static class LCTest {
         @Id
         private ObjectId mongoId;
