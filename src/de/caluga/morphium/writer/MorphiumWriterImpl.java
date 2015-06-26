@@ -1974,10 +1974,10 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                 for (int i = 0; i < morphium.getConfig().getRetriesOnNetworkError(); i++) {
                     try {
                         if (options == null) {
-                            morphium.getDatabase().getCollection(coll).ensureIndex(keys);
+                            morphium.getDatabase().getCollection(coll).createIndex(keys);
                         } else {
                             BasicDBObject opts = new BasicDBObject(options);
-                            morphium.getDatabase().getCollection(coll).ensureIndex(keys, opts);
+                            morphium.getDatabase().getCollection(coll).createIndex(keys, opts);
                         }
                     } catch (Exception e) {
                         morphium.handleNetworkError(i, e);
