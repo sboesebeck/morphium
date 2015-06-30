@@ -82,6 +82,35 @@ public class IndexTest extends MongoTest {
         assert (foundId && foundTimer && foundTimerName && foundName && foundTimerName2 && foundLst);
     }
 
+
+    @Test
+    public void ensureIndexHierarchyTest() throws Exception {
+        MorphiumSingleton.get().ensureIndicesFor(IndexedSubObject.class);
+        List<DBObject> idx = MorphiumSingleton.get().getDatabase().getCollection("indexed_sub_object").getIndexInfo();
+        boolean found = false;
+        for (DBObject i : idx) {
+            DBObject key = (DBObject) i.get("key");
+            if (key.get("name") != null && key.get("something") != null && key.get("name").equals(1) && key.get("something").equals(-1)) {
+                found = true;
+                break;
+            }
+        }
+        assert (found);
+    }
+
+    @Index({"name,-something"})
+    public static class IndexedSubObject extends IndexedObject {
+        private String something;
+
+        public String getSomething() {
+            return something;
+        }
+
+        public void setSomething(String something) {
+            this.something = something;
+        }
+    }
+
     @Entity
     @Index(value = {"-name, timer", "-name, -timer", "lst:2d", "name:text"}, options = {"unique:1", "", "", ""})
     public static class IndexedObject {
