@@ -88,17 +88,20 @@ public class IndexTest extends MongoTest {
         MorphiumSingleton.get().ensureIndicesFor(IndexedSubObject.class);
         List<DBObject> idx = MorphiumSingleton.get().getDatabase().getCollection("indexed_sub_object").getIndexInfo();
         boolean found = false;
+        boolean found2 = false;
         for (DBObject i : idx) {
             DBObject key = (DBObject) i.get("key");
-            if (key.get("name") != null && key.get("something") != null && key.get("name").equals(1) && key.get("something").equals(-1)) {
+            if (key.get("something") != null && key.get("some_other") != null && key.get("something").equals(1) && key.get("some_other").equals(1)) {
+                found2 = true;
+            } else if (key.get("name") != null && key.get("something") != null && key.get("name").equals(1) && key.get("something").equals(-1)) {
                 found = true;
-                break;
+
             }
         }
-        assert (found);
+        assert (found && found2);
     }
 
-    @Index({"name,-something"})
+    @Index({"name,-something", "something,some_other"})
     public static class IndexedSubObject extends IndexedObject {
         private String something;
 
@@ -120,6 +123,8 @@ public class IndexTest extends MongoTest {
 
         @Index
         private String name;
+
+        private String someOther;
 
         //Index defined up
         private List<Integer> lst;
