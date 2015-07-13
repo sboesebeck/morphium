@@ -252,7 +252,7 @@ public class ObjectMapperImpl implements ObjectMapper {
                                     if (morphium == null) {
                                         throw new RuntimeException("cannot set dbRef - morphium is not set");
                                     }
-                                    DBRef ref = new DBRef(morphium.getDatabase(), annotationHelper.getRealClass(rec.getClass()).getName(), id);
+                                    DBRef ref = new DBRef(annotationHelper.getRealClass(rec.getClass()).getName(), id);
                                     lst.add(ref);
                                 } else {
                                     lst.add(null);
@@ -538,7 +538,7 @@ public class ObjectMapperImpl implements ObjectMapper {
                             DBRef ref = (DBRef) valueFromDb;
                             if (ref != null) {
                                 id = (Object) ref.getId();
-                                if (!ref.getRef().equals(fld.getType().getName())) {
+                                if (!ref.getCollectionName().equals(fld.getType().getName())) {
                                     log.warn("Reference to different object?! - continuing anyway");
 
                                 }
@@ -892,7 +892,7 @@ public class ObjectMapperImpl implements ObjectMapper {
                 try {
                     DBRef ref = (DBRef) val;
                     Object id = (Object) ref.getId();
-                    Class clz = Class.forName(ref.getRef());
+                    Class clz = Class.forName(ref.getCollectionName());
                     List<String> idFlds = annotationHelper.getFields(clz, Id.class);
                     Reference reference = forField != null ? forField.getAnnotation(Reference.class) : null;
 
