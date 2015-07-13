@@ -75,11 +75,13 @@ public class MongoTest {
                 cfg.addHost("localhost", 27018);
                 cfg.addHost("localhost", 27019);
                 cfg.setWriteCacheTimeout(100);
-                cfg.setConnectionTimeout(1000);
-                cfg.setMaxWaitTime(10000);
+                cfg.setConnectionTimeout(10000);
+                cfg.setMaxWaitTime(20000);
+                cfg.setMaxAutoReconnectTime(500);
+                cfg.setMaxConnectionLifeTime(60000);
+                cfg.setMaxConnectionIdleTime(30000);
                 cfg.setMaxConnections(2000);
                 cfg.setMinConnectionsPerHost(1);
-                cfg.setMaxConnectionIdleTime(500);
                 cfg.setAutoreconnect(true);
                 cfg.setMaximumRetriesBufferedWriter(1000);
                 cfg.setMaximumRetriesWriter(1000);

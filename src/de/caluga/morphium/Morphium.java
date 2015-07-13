@@ -5,6 +5,7 @@
 package de.caluga.morphium;
 
 import com.mongodb.*;
+import com.mongodb.client.MongoDatabase;
 import de.caluga.morphium.aggregation.Aggregator;
 import de.caluga.morphium.annotations.*;
 import de.caluga.morphium.annotations.lifecycle.*;
@@ -21,6 +22,9 @@ import de.caluga.morphium.writer.BufferedMorphiumWriterImpl;
 import de.caluga.morphium.writer.MorphiumWriter;
 import de.caluga.morphium.writer.MorphiumWriterImpl;
 import net.sf.cglib.proxy.Enhancer;
+import org.bson.BsonDocument;
+import org.bson.BsonInt32;
+import org.bson.Document;
 import org.bson.types.ObjectId;
 
 import java.io.Serializable;
@@ -39,7 +43,6 @@ import java.util.concurrent.TimeUnit;
  * @author stephan
  */
 
-@SuppressWarnings("UnusedDeclaration")
 public class Morphium {
 
     /**
@@ -65,16 +68,16 @@ public class Morphium {
     private ThreadLocal<Boolean> disableWriteBuffer = new ThreadLocal<Boolean>();
     private ThreadLocal<Boolean> disableAsyncWrites = new ThreadLocal<Boolean>();
 
-    private Map<StatisticKeys, StatisticValue> stats;
+    private Map<StatisticKeys, StatisticValue> stats = new HashMap<>();
 
     /**
      * String Representing current user - needs to be set by Application
      */
     private CacheHousekeeper cacheHousekeeper;
 
-    private List<MorphiumStorageListener> listeners;
+    private List<MorphiumStorageListener> listeners = new CopyOnWriteArrayList<>();
     private List<ProfilingListener> profilingListeners;
-    private List<ShutdownListener> shutDownListeners;
+    private List<ShutdownListener> shutDownListeners = new CopyOnWriteArrayList<>();
 
     private AnnotationAndReflectionHelper annotationHelper;
     private ObjectMapper objectMapper;
@@ -84,15 +87,13 @@ public class Morphium {
     private Integer maxWriteBatchSize;
 
     private ThreadPoolExecutor asyncOperationsThreadPool;
+    private MongoDatabase adminDB;
 
     public MorphiumConfig getConfig() {
         return config;
     }
 
     public Morphium() {
-        stats = new HashMap<StatisticKeys, StatisticValue>();
-        shutDownListeners = new CopyOnWriteArrayList<ShutdownListener>();
-        listeners = new CopyOnWriteArrayList<>();
         profilingListeners = new CopyOnWriteArrayList<>();
 
     }
@@ -221,6 +222,20 @@ public class Morphium {
             if (config.getDefaultReadPreference() != null) {
                 mongo.setReadPreference(config.getDefaultReadPreference().getPref());
             }
+
+            if (config.getMongoAdminUser() != null) {
+                MongoCredential cred = MongoCredential.createMongoCRCredential(config.getMongoAdminUser(), "admin", config.getMongoAdminPwd().toCharArray());
+                List<MongoCredential> lst = new ArrayList<>();
+                lst.add(cred);
+                if (config.getAdr().size() == 1) {
+                    mongo = new MongoClient(config.getAdr().get(0), lst, o.build());
+                } else {
+                    mongo = new MongoClient(config.getAdr(), lst, o.build());
+                }
+                adminDB = mongo.getDatabase("admin");
+            } else {
+                adminDB = mongo.getDatabase("admin");
+            }
         }
 
         cacheHousekeeper = new CacheHousekeeper(this, 5000, config.getGlobalCacheValidTime());
@@ -249,9 +264,7 @@ public class Morphium {
         try {
             objectMapper = config.getOmClass().newInstance();
             objectMapper.setMorphium(this);
-        } catch (InstantiationException e) {
-            throw new RuntimeException(e);
-        } catch (IllegalAccessException e) {
+        } catch (Exception e) {
             throw new RuntimeException(e);
         }
 
@@ -1727,15 +1740,7 @@ public class Morphium {
 
     public void readMaximums() {
         try {
-            DB adminDB = getMongo().getDB("admin");
-            MorphiumConfig config = getConfig();
-            if (config.getMongoAdminUser() != null) {
-                if (!adminDB.authenticate(config.getMongoAdminUser(), config.getMongoAdminPwd().toCharArray())) {
-                    logger.error("Authentication as admin failed!");
-                    return;
-                }
-            }
-            CommandResult res = adminDB.command("isMaster");
+            Document res = adminDB.runCommand(new BsonDocument("isMaster", new BsonInt32(1)));
             maxBsonSize = (Integer) res.get("maxBsonObjectSize");
             maxMessageSize = (Integer) res.get("maxMessageSizeBytes");
             maxWriteBatchSize = (Integer) res.get("maxWriteBatchSize");

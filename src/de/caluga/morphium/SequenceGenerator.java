@@ -70,7 +70,7 @@ public class SequenceGenerator {
                     Sequence s = new Sequence();
                     s.setCurrentValue(startValue - inc);
                     s.setName(name);
-                    s.setId(new ObjectId(new Date(0l), name.hashCode()));
+                    s.setId(new ObjectId(new Date(0l), name.hashCode() & 0xffffff));
                     morphium.storeNoCache(s);
                     //inserted
                 }

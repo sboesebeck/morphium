@@ -76,12 +76,12 @@ public class RSMonitor {
             try {
                 DB adminDB = morphium.getMongo().getDB("admin");
                 MorphiumConfig config = morphium.getConfig();
-                if (config.getMongoAdminUser() != null) {
-                    if (!adminDB.authenticate(config.getMongoAdminUser(), config.getMongoAdminPwd().toCharArray())) {
-                        logger.error("Authentication as admin failed!");
-                        return null;
-                    }
-                }
+//                if (config.getMongoAdminUser() != null) {
+//                    if (!adminDB.authenticate(config.getMongoAdminUser(), config.getMongoAdminPwd().toCharArray())) {
+//                        logger.error("Authentication as admin failed!");
+//                        return null;
+//                    }
+//                }
                 CommandResult res = adminDB.command("replSetGetStatus");
                 de.caluga.morphium.replicaset.ReplicaSetStatus status = morphium.getMapper().unmarshall(de.caluga.morphium.replicaset.ReplicaSetStatus.class, res);
                 if (full) {
