@@ -129,8 +129,8 @@ public class MorphiumConfig {
     private int minConnectionsPerHost = 1;
     private int minHearbeatFrequency = 2000;
     private int localThreashold = 0;
-    private int maxConnectionIdleTime = 1000;
-    private int maxConnectionLifeTime = 5000;
+    private int maxConnectionIdleTime = 10000;
+    private int maxConnectionLifeTime = 60000;
     private String requiredReplicaSetName = null;
 
     public MorphiumConfig(Properties prop) {

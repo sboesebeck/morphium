@@ -12,7 +12,7 @@ public class QuitProperlyTest {
 
 
     public static void main(String args[]) throws Exception {
-        MorphiumConfig cfg = new MorphiumConfig("holidayinsider", 10, 1000, 1000);
+        MorphiumConfig cfg = new MorphiumConfig("morphium-test", 10, 1000, 1000);
         cfg.addHost("localhost");
         Morphium m = new Morphium(cfg);
 

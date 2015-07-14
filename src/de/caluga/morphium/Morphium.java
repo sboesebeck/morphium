@@ -107,7 +107,6 @@ public class Morphium {
             throw new RuntimeException(e);
         }
         setConfig(cfg);
-        initializeAndConnect();
     }
 
 
@@ -120,7 +119,6 @@ public class Morphium {
             throw new RuntimeException(e);
         }
         setConfig(cfg);
-        initializeAndConnect();
     }
 
     /**
@@ -134,8 +132,6 @@ public class Morphium {
     public Morphium(MorphiumConfig cfg) {
         this();
         setConfig(cfg);
-        initializeAndConnect();
-
     }
 
     public ThreadPoolExecutor getAsyncOperationsThreadPool() {
@@ -151,6 +147,7 @@ public class Morphium {
         asyncOperationsThreadPool = new ThreadPoolExecutor(getConfig().getThreadPoolAsyncOpCoreSize(), getConfig().getThreadPoolAsyncOpMaxSize(),
                 getConfig().getThreadPoolAsyncOpKeepAliveTime(), TimeUnit.MILLISECONDS,
                 new SynchronousQueue<Runnable>());
+        initializeAndConnect();
     }
 
     private void initializeAndConnect() {
