@@ -4,8 +4,7 @@
  */
 package de.caluga.test.mongo.suite;
 
-import de.caluga.morphium.Logger;
-import de.caluga.morphium.MorphiumSingleton;
+import de.caluga.morphium.*;
 import de.caluga.morphium.query.Query;
 import org.junit.Test;
 
@@ -18,7 +17,7 @@ import java.util.Map;
  */
 public class MassCacheTest extends MongoTest {
 
-    public static final int NO_OBJECTS = 200;
+    public static final int NO_OBJECTS = 2000;
     public static final int WRITING_THREADS = 5;
     public static final int READING_THREADS = 5;
     private static final Logger log = new Logger(MassCacheTest.class);
@@ -232,6 +231,18 @@ public class MassCacheTest extends MongoTest {
         }
         waitForWrites();
         log.info("Done.");
+        ProfilingListener pl = new ProfilingListener() {
+            @Override
+            public void readAccess(Query query, long time, ReadAccessType t) {
+                log.info("Read Access...");
+                //Should never be called as cache hits won't trigger profiling
+            }
+
+            @Override
+            public void writeAccess(Class type, Object o, long time, boolean isNew, WriteAccessType t) {
+                log.info("Write access...");
+            }
+        };
 
         for (int j = 0; j < 3; j++) {
             for (int i = 0; i < NO_OBJECTS; i++) {
@@ -244,11 +255,17 @@ public class MassCacheTest extends MongoTest {
                 log.info("found " + lst.size() + " elements for value: " + lst.get(0).getValue());
 
             }
+            MorphiumSingleton.get().removeProfilingListener(pl);
+            MorphiumSingleton.get().addProfilingListener(pl);
+
         }
+        MorphiumSingleton.get().removeProfilingListener(pl);
+
         printStats();
         Map<String, Double> stats = MorphiumSingleton.get().getStatistics();
-        assert (stats.get("CACHE_ENTRIES") != 0);
-        assert (stats.get("CHITS") != 0);
+        assert (stats.get("CACHE_ENTRIES") >= 100);
+        assert (stats.get("CHITS") >= 200);
+        assert (stats.get("CHITSPERC") >= 60);
     }
 
 
