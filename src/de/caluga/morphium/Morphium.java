@@ -30,6 +30,7 @@ import org.bson.types.ObjectId;
 import java.io.Serializable;
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Field;
+import java.net.UnknownHostException;
 import java.util.*;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.SynchronousQueue;
@@ -97,6 +98,31 @@ public class Morphium {
 
     }
 
+    public Morphium(String host, String db) {
+        this();
+        MorphiumConfig cfg = new MorphiumConfig(db, 100, 5000, 5000);
+        try {
+            cfg.addHost(host);
+        } catch (UnknownHostException e) {
+            throw new RuntimeException(e);
+        }
+        setConfig(cfg);
+        initializeAndConnect();
+    }
+
+
+    public Morphium(String host, int port, String db) {
+        this();
+        MorphiumConfig cfg = new MorphiumConfig(db, 100, 5000, 5000);
+        try {
+            cfg.addHost(host, port);
+        } catch (UnknownHostException e) {
+            throw new RuntimeException(e);
+        }
+        setConfig(cfg);
+        initializeAndConnect();
+    }
+
     /**
      * init the MongoDbLayer. Uses Morphium-Configuration Object for Configuration.
      * Needs to be set before use or RuntimeException is thrown!
@@ -108,10 +134,6 @@ public class Morphium {
     public Morphium(MorphiumConfig cfg) {
         this();
         setConfig(cfg);
-        annotationHelper = new AnnotationAndReflectionHelper(cfg.isCamelCaseConversionEnabled());
-        asyncOperationsThreadPool = new ThreadPoolExecutor(getConfig().getThreadPoolAsyncOpCoreSize(), getConfig().getThreadPoolAsyncOpMaxSize(),
-                getConfig().getThreadPoolAsyncOpKeepAliveTime(), TimeUnit.MILLISECONDS,
-                new SynchronousQueue<Runnable>());
         initializeAndConnect();
 
     }
@@ -125,6 +147,10 @@ public class Morphium {
             throw new RuntimeException("Cannot change config!");
         }
         config = cfg;
+        annotationHelper = new AnnotationAndReflectionHelper(cfg.isCamelCaseConversionEnabled());
+        asyncOperationsThreadPool = new ThreadPoolExecutor(getConfig().getThreadPoolAsyncOpCoreSize(), getConfig().getThreadPoolAsyncOpMaxSize(),
+                getConfig().getThreadPoolAsyncOpKeepAliveTime(), TimeUnit.MILLISECONDS,
+                new SynchronousQueue<Runnable>());
     }
 
     private void initializeAndConnect() {
