@@ -87,22 +87,50 @@ public class IndexTest extends MongoTest {
     public void ensureIndexHierarchyTest() throws Exception {
         MorphiumSingleton.get().ensureIndicesFor(IndexedSubObject.class);
         List<DBObject> idx = MorphiumSingleton.get().getDatabase().getCollection("indexed_sub_object").getIndexInfo();
-        boolean found = false;
-        boolean found2 = false;
+        boolean foundnew1 = false;
+        boolean foundnew2 = false;
+
+        boolean foundId = false;
+        boolean foundTimerName = false;
+        boolean foundTimerName2 = false;
+        boolean foundTimer = false;
+        boolean foundName = false;
+        boolean foundLst = false;
         for (DBObject i : idx) {
             DBObject key = (DBObject) i.get("key");
-            if (key.get("something") != null && key.get("some_other") != null && key.get("something").equals(1) && key.get("some_other").equals(1)) {
-                found2 = true;
+            if (key.get("_id") != null && key.get("_id").equals(1)) {
+                foundId = true;
+                assert (i.get("unique") == null || !(Boolean) i.get("unique"));
+            } else if (key.get("name") != null && key.get("something") == null && key.get("name").equals(1) && key.get("timer") == null) {
+                foundName = true;
+                assert (i.get("unique") == null || !(Boolean) i.get("unique"));
+            } else if (key.get("timer") != null && key.get("timer").equals(-1) && key.get("name") == null) {
+                foundTimer = true;
+                assert (i.get("unique") == null || !(Boolean) i.get("unique"));
+            } else if (key.get("lst") != null) {
+                foundLst = true;
+                assert (i.get("unique") == null || !(Boolean) i.get("unique"));
+            } else if (key.get("timer") != null && key.get("timer").equals(-1) && key.get("name") != null && key.get("name").equals(-1)) {
+                foundTimerName2 = true;
+                assert (i.get("unique") == null || !(Boolean) i.get("unique"));
+            } else if (key.get("timer") != null && key.get("timer").equals(1) && key.get("name") != null && key.get("name").equals(-1)) {
+                foundTimerName = true;
+                assert ((Boolean) i.get("unique"));
+            } else if (key.get("something") != null && key.get("some_other") != null && key.get("something").equals(1) && key.get("some_other").equals(1)) {
+                foundnew1 = true;
             } else if (key.get("name") != null && key.get("something") != null && key.get("name").equals(1) && key.get("something").equals(-1)) {
-                found = true;
+                foundnew2 = true;
 
             }
         }
-        assert (found && found2);
+        log.info("Found indices id:" + foundId + " timer: " + foundTimer + " TimerName: " + foundTimerName + " name: " + foundName + " TimerName2: " + foundTimerName2 + " SubIndex1: " + foundnew1 + " subIndex2: " + foundnew2);
+        assert (foundnew1 && foundnew2 && foundId && foundTimer && foundTimerName && foundName && foundTimerName2 && foundLst);
     }
 
     @Index({"name,-something", "something,some_other"})
     public static class IndexedSubObject extends IndexedObject {
+        @Index(options = {"unique:1"})
+        private String idxFld;
         private String something;
 
         public String getSomething() {
