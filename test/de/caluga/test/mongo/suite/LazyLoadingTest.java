@@ -1,8 +1,13 @@
 package de.caluga.test.mongo.suite;
 
+import de.caluga.morphium.Morphium;
 import de.caluga.morphium.MorphiumSingleton;
 import de.caluga.morphium.StatisticKeys;
+import de.caluga.morphium.annotations.Entity;
+import de.caluga.morphium.annotations.Id;
+import de.caluga.morphium.annotations.Reference;
 import de.caluga.morphium.query.Query;
+import org.bson.types.ObjectId;
 import org.junit.Test;
 
 import java.util.ArrayList;
@@ -43,9 +48,12 @@ public class LazyLoadingTest extends MongoTest {
         LazyLoadingObject lzRead = q.get();
         Object id = MorphiumSingleton.get().getId(lzRead);
         assert (id != null);
+        assert (lzRead.getLazyUncached().getCounter() == 15);
+        assert (lzRead.getLazyUncached().getValue().equals("A uncached value"));
         co = lzRead.getLazyCached();
         Thread.sleep(1000);
         id = MorphiumSingleton.get().getId(co);
+        assert (co.getCounter() == 22);
         assert (id != null);
 
     }
@@ -217,4 +225,87 @@ public class LazyLoadingTest extends MongoTest {
         dur = System.currentTimeMillis() - start;
         log.info("Reading single lazy took " + dur + " ms");
     }
+
+
+    @Entity
+    public static class SimpleEntity {
+
+        protected int value;
+        @Id
+        ObjectId id;
+        @Reference
+        SimpleEntity ref;
+        @Reference(lazyLoading = true)
+        SimpleEntity lazyRef;
+
+        public SimpleEntity(int value) {
+            this.value = value;
+        }
+
+        public SimpleEntity() {
+        }
+
+        public int getValue() {
+            return value;
+        }
+
+        public void setValue(int value) {
+            this.value = value;
+        }
+
+        public SimpleEntity getLazyRef() {
+            return lazyRef;
+        }
+
+        public void setLazyRef(SimpleEntity lazyRef) {
+            this.lazyRef = lazyRef;
+        }
+
+        public SimpleEntity getRef() {
+            return ref;
+        }
+
+        public void setRef(SimpleEntity ref) {
+            this.ref = ref;
+        }
+
+        public ObjectId getId() {
+            return id;
+        }
+
+        public void setId(ObjectId id) {
+            this.id = id;
+        }
+    }
+
+
+    @Test
+    public void testLazyRef() {
+        Morphium m = MorphiumSingleton.get();
+        m.clearCollection(SimpleEntity.class);
+
+        SimpleEntity s1 = new SimpleEntity(1);
+        SimpleEntity s2 = new SimpleEntity(2);
+        SimpleEntity s3 = new SimpleEntity(3);
+
+        m.store(s1);
+        m.store(s3);
+
+
+        s2.ref = s1;
+        s2.lazyRef = s3;
+        m.store(s2);
+
+        SimpleEntity s1Fetched = m.createQueryFor(SimpleEntity.class).f("value").eq(1).get();
+        assert (s1Fetched.value == 1);
+        SimpleEntity s2Fetched = m.createQueryFor(SimpleEntity.class).f("value").eq(2).get();
+        assert (s2Fetched.value == 2);
+        SimpleEntity s3Fetched = m.createQueryFor(SimpleEntity.class).f("value").eq(3).get();
+        assert (s3Fetched.value == 3);
+        assert (s2Fetched.getRef().getValue() == 1);
+        System.out.println(s2Fetched.lazyRef.value);
+        assert (s2Fetched.getLazyRef().getValue() == 3);
+
+    }
+
 }
