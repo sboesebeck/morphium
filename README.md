@@ -24,6 +24,7 @@ Morphium is a POJO Object mapper for Accessing Mongodb. Some of the main Feature
 - Support for References, including lazy loaded references
 - Support for partial updated objects (when writing, only the changes of the object are transferred)
 
+for questions and feature requests / bug reports also have a look at the google group morphium-discuss@googlegroups.com
 
 
 Quick Start
