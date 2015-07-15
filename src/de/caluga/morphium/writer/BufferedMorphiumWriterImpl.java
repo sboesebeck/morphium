@@ -21,7 +21,7 @@ import java.util.concurrent.RejectedExecutionException;
  * issued en block to mongo. Attention: this is not using BULK-Requests yet!
  */
 @SuppressWarnings({"EmptyCatchBlock", "SynchronizeOnNonFinalField"})
-public class BufferedMorphiumWriterImpl implements MorphiumWriter {
+public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
 
     private Morphium morphium;
     private MorphiumWriter directWriter;
@@ -798,15 +798,20 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter {
 
     @Override
     protected void finalize() throws Throwable {
+        onShutdown(morphium);
+        super.finalize();
+    }
+
+    @Override
+    public void onShutdown(Morphium m) {
         logger.info("Stopping housekeeping thread");
         running = false;
-        Thread.sleep(250);
         try {
+            Thread.sleep((morphium.getConfig().getWriteBufferTimeGranularity()));
+
             if (housekeeping != null) housekeeping.stop();
         } catch (Throwable e) {
-//            e.printStackTrace();
         }
-        super.finalize();
     }
 
     private class WriteBufferEntry {

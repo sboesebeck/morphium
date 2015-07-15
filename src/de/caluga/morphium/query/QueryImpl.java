@@ -604,7 +604,7 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
         BasicDBObject lst = getFieldListForQuery();
 
 
-        List<T> ret = new ArrayList<T>();
+        List<T> ret = new ArrayList<>();
         for (int i = 0; i < morphium.getConfig().getRetriesOnNetworkError(); i++) {
             ret.clear();
             DBCursor query = null;
@@ -829,6 +829,10 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
 
         if (srch.length() == 0) {
             srch.close();
+            List<T> lst = new ArrayList<T>(0);
+            if (useCache) {
+                morphium.getCache().addToCache(ck, type, lst);
+            }
             return null;
         }
 
