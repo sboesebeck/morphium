@@ -5,23 +5,23 @@ Morphium - Java Object Mapper and Caching Layer for MongoDB
 
 Morphium is a POJO Object mapper for Accessing Mongodb. Some of the main Features of Morphium:
 - actively developed
-- used by a number of projects (including holidayinsider.com)
-- Transparent access to mongo db
+- used by a number of projects (including holidayinsider.com and holidays.hrs.de/)
+- Transparent access to MongoDB
 - Transparent declarative (Annotation based) caching
 - Annotation based definition of mappings
 - Cluster Awareness
 - Cache synchronization between cluster nodes
 - Asynchronous and Buffered write access
-- Messageing
+- Messaging
 - fluent interface for querying mongodb
-- support for the mongodb aggrgator framework
+- support for the MongoDB aggregator framework
 - support for complex queries
-- support inheritence and polymorphism
+- support inheritance and polymorphism
 - support for javax.validation annotations
 - lifecycle method of pojos
-- nearly every aspect of morphium can be replaced by own implementation (e.g. Query-Object, CacheImplementation...)
+- nearly every aspect of Morphium can be replaced by own implementation (e.g. Query-Object, CacheImplementation...)
 - ConfigManager helps storing app configurations in Mongo with efficient access to it (cached)
-- Spport for References, including lazy loaded references
+- Support for References, including lazy loaded references
 - Support for partial updated objects (when writing, only the changes of the object are transferred)
 
 
@@ -29,16 +29,16 @@ Morphium is a POJO Object mapper for Accessing Mongodb. Some of the main Feature
 Quick Start
 ===========
 
-before accessing mongo via morphium, you need to configure morphium. this is done by preparing a MorphiumConfig Object:
+before accessing mongo via Morphium, you need to configure Morphium. this is done by preparing a MorphiumConfig Object:
 ```java
   MorphiumConfig cfg = new MorphiumConfig();
   cfg.setDatabase("testdb");
   cfg.addHost("localhost", 27017);
 ```
 
-you can also configure morphium using properties: new MorphiumConfig(properties); or a json-String: MorphiumConfig cfg = MorphiumConfig.createFromJson(json);
+you can also configure Morphium using properties: new MorphiumConfig(properties); or a json-String: MorphiumConfig cfg = MorphiumConfig.createFromJson(json);
 
-After that, you just need to instancieate morphium:
+After that, you just need to instantiate Morphium:
 
 ```
   Morphium m=new Morphium(cfg);
