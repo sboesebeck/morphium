@@ -255,7 +255,6 @@ public class Logger {
     }
 
 
-
     public boolean isSynced() {
         return synced;
     }
