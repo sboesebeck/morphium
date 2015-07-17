@@ -24,10 +24,12 @@ Morphium is a POJO Object mapper for Accessing Mongodb. Some of the main Feature
 - Support for References, including lazy loaded references
 - Support for partial updated objects (when writing, only the changes of the object are transferred)
 
+for questions and feature requests / bug reports also have a look at the google group morphium-discuss@googlegroups.com
 
 
 Quick Start
 ===========
+
 
 before accessing mongo via morphium, you need to configure morphium. this is done by preparing a MorphiumConfig Object:
 ```java
@@ -42,6 +44,21 @@ After that, you just need to instantiate morphium:
 
 ```
   Morphium m=new Morphium(cfg);
+```
+
+There are some convenience constructors available since V2.2.23 which make your life a bit easier:
+
+```
+   Morphium m=new Morphium("localhost","test-db");
+```
+
+this creates a morphium instance with most default settings, connecting to localhost, standard port 27017 and using database `test-db`
+
+if necessary, it's of course possible to specify the port to connect to:
+
+```
+  Morphium m=new Morphium("localhost:27019","test-db");
+  Morphium n=new Morphium("localhost",27020,"test-db");
 ```
 
 then you are good to go:
