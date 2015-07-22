@@ -588,6 +588,9 @@ public class ObjectMapperImpl implements ObjectMapper {
                 } else if (annotationHelper.isAnnotationPresentInHierarchy(fld.getType(), Entity.class) || annotationHelper.isAnnotationPresentInHierarchy(fld.getType(), Embedded.class)) {
                     //entity! embedded
                     value = unmarshall(fld.getType(), (DBObject) valueFromDb);
+//                    List lst = new ArrayList<Object>();
+//                    lst.add(value);
+//                    morphium.firePostLoad(lst);
                 } else if (Map.class.isAssignableFrom(fld.getType())) {
                     BasicDBObject map = (BasicDBObject) valueFromDb;
                     value = createMap(map);
