@@ -803,6 +803,18 @@ public class AnnotationAndReflectionHelper {
         if (!isAnnotationPresentInHierarchy(cls, Lifecycle.class)) {//cls.isAnnotationPresent(Lifecycle.class)) {
             return;
         }
+        List<String> flds = getFields(on.getClass());
+        for (String f:flds) {
+            Field field = getField(on.getClass(), f);
+            if ((isAnnotationPresentInHierarchy(field.getType(), Entity.class) || isAnnotationPresentInHierarchy(field.getType(), Embedded.class)) && isAnnotationPresentInHierarchy(field.getType(), Lifecycle.class)) {
+                field.setAccessible(true);
+                try {
+                    callLifecycleMethod(type,field.get(on));
+                } catch (IllegalAccessException e) {
+                    e.printStackTrace();
+                }
+            }
+        }
         //Already stored - should not change during runtime
         if (lifeCycleMethods.get(cls) != null) {
             if (lifeCycleMethods.get(cls).get(type) != null) {
