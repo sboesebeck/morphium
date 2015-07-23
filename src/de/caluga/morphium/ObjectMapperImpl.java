@@ -549,11 +549,13 @@ public class ObjectMapperImpl implements ObjectMapper {
                                 List<String> lst = annotationHelper.getFields(fld.getType(), Id.class);
                                 if (lst.size() == 0)
                                     throw new IllegalArgumentException("Referenced object does not have an ID? Is it an Entity?");
-                                value = morphium.createLazyLoadedEntity(fld.getType(), id);
+                                value = morphium.createLazyLoadedEntity(fld.getType(), id, ret, f);
                             } else {
 //                                Query q = morphium.createQueryFor(fld.getSearchType());
 //                                q.f("_id").eq(id);
+                                morphium.fireWouldDereference(ret, f, id, fld.getType(), false);
                                 value = morphium.findById(fld.getType(), id);
+                                morphium.fireDidDereference(ret, f, value, false);
                             }
                         } else {
                             value = null;
@@ -645,7 +647,7 @@ public class ObjectMapperImpl implements ObjectMapper {
                         } else {
                             BasicDBList l = (BasicDBList) valueFromDb;
                             if (l != null) {
-                                fillList(fld, l, lst);
+                                fillList(fld, l, lst, ret);
                             } else {
                                 value = l;
                             }
@@ -825,7 +827,7 @@ public class ObjectMapperImpl implements ObjectMapper {
     }
 
     @SuppressWarnings({"unchecked", "ConstantConditions"})
-    private void fillList(Field forField, BasicDBList fromDB, List toFillIn) {
+    private void fillList(Field forField, BasicDBList fromDB, List toFillIn, Object containerEntity) {
         for (Object val : fromDB) {
             if (val instanceof BasicDBObject) {
                 if (((BasicDBObject) val).containsField("class_name") || ((BasicDBObject) val).containsField("className")) {
@@ -889,7 +891,7 @@ public class ObjectMapperImpl implements ObjectMapper {
             } else if (val instanceof BasicDBList) {
                 //list in list
                 ArrayList lt = new ArrayList();
-                fillList(forField, (BasicDBList) val, lt);
+                fillList(forField, (BasicDBList) val, lt, containerEntity);
                 toFillIn.add(lt);
             } else if (val instanceof DBRef) {
                 try {
@@ -902,11 +904,14 @@ public class ObjectMapperImpl implements ObjectMapper {
                     if (reference != null && reference.lazyLoading()) {
                         if (idFlds.size() == 0)
                             throw new IllegalArgumentException("Referenced object does not have an ID? Is it an Entity?");
-                        toFillIn.add(morphium.createLazyLoadedEntity(clz, id));
+                        toFillIn.add(morphium.createLazyLoadedEntity(clz, id, containerEntity, forField.getName()));
                     } else {
+                        morphium.fireWouldDereference(containerEntity, forField.getName(), id, clz, false);
                         Query q = morphium.createQueryFor(clz);
                         q = q.f(idFlds.get(0)).eq(id);
-                        toFillIn.add(q.get());
+                        Object e = q.get();
+                        toFillIn.add(e);
+                        morphium.fireDidDereference(containerEntity, forField.getName(), e, false);
                     }
                 } catch (ClassNotFoundException e) {
                     throw new RuntimeException(e);
