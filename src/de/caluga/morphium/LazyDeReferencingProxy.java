@@ -9,16 +9,20 @@ import java.lang.reflect.Method;
 public class LazyDeReferencingProxy<T> implements MethodInterceptor, Serializable {
     private static final long serialVersionUID = 3777709000906217075L;
     private transient final Morphium morphium;
+    private final String fieldname;
+    private final Object container;
     private T deReferenced;
     private Class<? extends T> cls;
     private Object id;
 
     private final static Logger log = new Logger(LazyDeReferencingProxy.class);
 
-    public LazyDeReferencingProxy(Morphium m, Class<? extends T> type, Object id) {
+    public LazyDeReferencingProxy(Morphium m, Class<? extends T> type, Object id, Object container, String fieldname) {
         cls = type;
         this.id = id;
         morphium = m;
+        this.container = container;
+        this.fieldname = fieldname;
     }
 
     public T __getDeref() {
@@ -56,7 +60,9 @@ public class LazyDeReferencingProxy<T> implements MethodInterceptor, Serializabl
         if (deReferenced == null) {
             if (log.isDebugEnabled())
                 log.debug("DeReferencing due to first access");
+            morphium.fireWouldDereference(container, fieldname, id, cls, true);
             deReferenced = (T) morphium.findById(cls, id);
+            morphium.fireDidDereference(container, fieldname, deReferenced, true);
         }
     }
 

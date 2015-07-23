@@ -88,6 +88,7 @@ public class Morphium {
 
     private ThreadPoolExecutor asyncOperationsThreadPool;
     private MongoDatabase adminDB;
+    private List<DereferencingListener> lazyDereferencingListeners = new CopyOnWriteArrayList<>();
 
     public MorphiumConfig getConfig() {
         return config;
@@ -1942,8 +1943,8 @@ public class Morphium {
     }
 
     @SuppressWarnings("unchecked")
-    public <T> T createLazyLoadedEntity(Class<? extends T> cls, Object id) {
-        return (T) Enhancer.create(cls, new Class[]{Serializable.class}, new LazyDeReferencingProxy(this, cls, id));
+    public <T> T createLazyLoadedEntity(Class<? extends T> cls, Object id, Object container, String fieldName) {
+        return (T) Enhancer.create(cls, new Class[]{Serializable.class}, new LazyDeReferencingProxy(this, cls, id, container, fieldName));
     }
 
     @SuppressWarnings("unchecked")
@@ -2046,5 +2047,25 @@ public class Morphium {
 
     public int getActiveThreads() {
         return asyncOperationsThreadPool.getActiveCount();
+    }
+
+    public <T, E, I> void fireWouldDereference(E container, String fieldname, I id, Class<? extends T> cls, boolean lazy) {
+        for (DereferencingListener l : this.lazyDereferencingListeners) {
+            l.wouldDereference(container, fieldname, id, cls, lazy);
+        }
+    }
+
+    public <T> void fireDidDereference(Object container, String fieldname, T deReferenced, boolean lazy) {
+        for (DereferencingListener l : this.lazyDereferencingListeners) {
+            l.didDereference(container, fieldname, deReferenced, lazy);
+        }
+    }
+
+    public void addLazyDereferencingListener(DereferencingListener lst) {
+        this.lazyDereferencingListeners.add(lst);
+    }
+
+    public void removeLazyDeRrferencingListener(DereferencingListener lst) {
+        this.lazyDereferencingListeners.remove(lst);
     }
 }

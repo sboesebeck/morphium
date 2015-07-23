@@ -174,7 +174,7 @@ public class AsyncOperationTest extends MongoTest {
 
     @AsyncWrites
     @Entity
-    @WriteSafety(waitForJournalCommit = false, waitForSync = false, level = SafetyLevel.IGNORE_ERROR)
+    @WriteSafety(waitForJournalCommit = false, waitForSync = false, level = SafetyLevel.NORMAL)
     public static class WrongObject {
         private String value;
 
