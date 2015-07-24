@@ -1,5 +1,7 @@
 package de.caluga.test.mongo.suite;
 
+import de.caluga.morphium.DereferencingListener;
+import de.caluga.morphium.MorphiumAccessVetoException;
 import de.caluga.morphium.MorphiumSingleton;
 import de.caluga.morphium.annotations.*;
 import de.caluga.morphium.annotations.caching.NoCache;
@@ -18,10 +20,13 @@ import java.util.List;
  */
 public class ReferenceTest extends MongoTest {
 
+    private boolean didDeref = false;
+    private boolean wouldDeref = false;
+
     @Test
     public void storeReferenceTest() throws Exception {
         MorphiumSingleton.get().dropCollection(ReferenceContainer.class);
-        Thread.sleep(250);
+
         UncachedObject uc1 = new UncachedObject();
         uc1.setCounter(1);
         uc1.setValue("Uncached 1");
@@ -111,6 +116,88 @@ public class ReferenceTest extends MongoTest {
         assert (rcRead.getId().equals(rc.getId()));
     }
 
+
+    @Test
+    public void referenceListenerTest() throws Exception {
+        DereferencingListener deRef = new DereferencingListener() {
+            @Override
+            public void wouldDereference(Object entityIncludingReference, String fieldInEntity, Object id, Class typeReferenced, boolean lazy) throws MorphiumAccessVetoException {
+                wouldDeref = true;
+            }
+
+            @Override
+            public Object didDereference(Object entitiyIncludingReference, String fieldInEntity, Object referencedObject, boolean lazy) {
+                didDeref = true;
+                assert (referencedObject != null);
+                return referencedObject;
+            }
+        };
+
+        MorphiumSingleton.get().addDereferencingListener(deRef);
+
+
+        //Creating a testObject;
+        MorphiumSingleton.get().dropCollection(ReferenceContainer.class);
+        UncachedObject uc1 = new UncachedObject();
+
+        uc1.setCounter(1);
+        uc1.setValue("Uncached 1");
+        MorphiumSingleton.get().store(uc1);
+
+        UncachedObject uc2 = new UncachedObject();
+        uc2.setCounter(1);
+        uc2.setValue("Uncached 2");
+        MorphiumSingleton.get().store(uc2);
+
+
+        CachedObject co = new CachedObject();
+        co.setCounter(3);
+        co.setValue("Cached 3");
+        MorphiumSingleton.get().storeNoCache(co);
+        //Making sure it's stored yet
+
+        ReferenceContainer rc = new ReferenceContainer();
+        rc.setCo(co);
+        rc.setLazyUc(uc2);
+        rc.setUc(uc1);
+
+        List<UncachedObject> lst = new ArrayList<UncachedObject>();
+        UncachedObject toSearchFor = null;
+        for (int i = 0; i < 10; i++) {
+            //creating uncached Objects
+            UncachedObject uc = new UncachedObject();
+            uc.setValue("list value " + i);
+            uc.setCounter(i);
+            if (i == 4)
+                toSearchFor = uc;
+            lst.add(uc);
+        }
+        MorphiumSingleton.get().storeList(lst);
+        rc.setLst(lst);
+
+        UncachedObject toSearchFor2 = null;
+        lst = new ArrayList<UncachedObject>();
+        for (int i = 0; i < 10; i++) {
+            //creating uncached Objects
+            UncachedObject uc = new UncachedObject();
+            uc.setValue("list value " + i);
+            uc.setCounter(i);
+            lst.add(uc);
+            if (i == 4) {
+                toSearchFor2 = uc;
+            }
+        }
+
+        rc.setLzyLst(lst);
+
+
+        MorphiumSingleton.get().store(rc); //stored
+
+        ReferenceContainer rcRead = MorphiumSingleton.get().createQueryFor(ReferenceContainer.class).get();
+
+        assert (wouldDeref = true);
+        assert (didDeref = true);
+    }
 
     @Entity
     @WriteSafety(waitForSync = true, waitForJournalCommit = true, level = SafetyLevel.WAIT_FOR_ALL_SLAVES)

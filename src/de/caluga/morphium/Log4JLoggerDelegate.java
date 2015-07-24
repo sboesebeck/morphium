@@ -31,6 +31,9 @@ public class Log4JLoggerDelegate implements LoggerDelegate {
                 case 5:
                     mname = "debug";
                     break;
+                default:
+                    mname = "unknown";
+                    break;
             }
 
             if (mname.isEmpty()) return;

@@ -84,7 +84,6 @@ public class Logger {
 
     public void setFile(String v) {
         this.file = v;
-        file = v;
         out.flush();
         out.close();
         if (file == null) {
