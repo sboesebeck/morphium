@@ -50,7 +50,7 @@ public class BulkOperationContext {
                 bulk = morphium.getDatabase().getCollection(morphium.getMapper().getCollectionName(q.getType())).initializeUnorderedBulkOperation();
             }
         }
-        BulkRequestWrapper w = new BulkRequestWrapper(bulk.find(q.toQueryObject()), morphium, this, q);
+        BulkRequestWrapper w = new BulkRequestWrapper(bulk.find(q.toQueryObject()), morphium, q);
         requests.add(w);
         return w;
     }
