@@ -43,19 +43,24 @@ public class Logger {
                 }
             } else {
 
-                if (v.equals("-") || v.equals("STDOUT")) {
-                    out = new PrintWriter(new OutputStreamWriter(System.out));
-                    close = false;
-                } else if (v.equals("STDERR")) {
-                    out = new PrintWriter(new OutputStreamWriter(System.err));
-                    close = false;
-                } else {
-                    try {
-                        out = new PrintWriter(new BufferedWriter(new FileWriter(v, true)));
-                        close = true;
-                    } catch (IOException e) {
-                        error(null, e);
-                    }
+                switch (v) {
+                    case "-":
+                    case "STDOUT":
+                        out = new PrintWriter(new OutputStreamWriter(System.out));
+                        close = false;
+                        break;
+                    case "STDERR":
+                        out = new PrintWriter(new OutputStreamWriter(System.err));
+                        close = false;
+                        break;
+                    default:
+                        try {
+                            out = new PrintWriter(new BufferedWriter(new FileWriter(v, true)));
+                            close = true;
+                        } catch (IOException e) {
+                            error(null, e);
+                        }
+                        break;
                 }
             }
         }
@@ -308,7 +313,6 @@ public class Logger {
             out.println();
             if (t != null) {
                 t.printStackTrace();
-                ;
             }
             if (synced)
                 out.flush();

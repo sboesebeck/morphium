@@ -30,7 +30,7 @@ import java.util.*;
 public class Msg {
 
 
-    public static enum Fields {
+    public  enum Fields {
         processedBy,
         lockedBy,
         msgId,
@@ -135,7 +135,7 @@ public class Msg {
 
     public void addRecipient(String id) {
         if (to == null) {
-            to = new ArrayList<String>();
+            to = new ArrayList<>();
 
         }
         if (!to.contains(id)) {
@@ -144,17 +144,15 @@ public class Msg {
     }
 
     public void removeRecipient(String id) {
-        if (to == null) {
-            return;
+        if (to != null) {
 
-        } else {
             to.remove(id);
         }
     }
 
     public void addValue(String key, Object value) {
         if (mapValue == null) {
-            mapValue = new HashMap<String, Object>();
+            mapValue = new HashMap<>();
         }
         mapValue.put(key, value);
     }
@@ -222,7 +220,7 @@ public class Msg {
 
     public void addProcessedId(String id) {
         if (processedBy == null) {
-            processedBy = new ArrayList<String>();
+            processedBy = new ArrayList<>();
         }
         processedBy.add(id);
     }
@@ -285,7 +283,7 @@ public class Msg {
 
     public void addAdditional(String value) {
         if (additional == null) {
-            additional = new ArrayList<Object>();
+            additional = new ArrayList<>();
         }
         additional.add(value);
     }

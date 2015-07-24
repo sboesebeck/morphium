@@ -13,6 +13,7 @@ import java.util.List;
  * Time: 13:58
  * <p/>
  */
+@SuppressWarnings("AssertWithSideEffects")
 public class IdCacheTest extends MongoTest {
 
     @Test

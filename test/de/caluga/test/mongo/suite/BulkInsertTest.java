@@ -17,6 +17,7 @@ import java.util.List;
  * Time: 11:34
  * <p/>
  */
+@SuppressWarnings("AssertWithSideEffects")
 public class BulkInsertTest extends MongoTest {
     private boolean asyncSuccess = true;
     private boolean asyncCall = false;
@@ -64,7 +65,7 @@ public class BulkInsertTest extends MongoTest {
         log.info("storing objects one by one took " + dur + " ms");
         MorphiumSingleton.get().clearCollection(UncachedObject.class);
         log.info("Start storing list");
-        List<UncachedObject> lst = new ArrayList<UncachedObject>();
+        List<UncachedObject> lst = new ArrayList<>();
         start = System.currentTimeMillis();
         for (int i = 0; i < 100; i++) {
             UncachedObject uc = new UncachedObject();
@@ -116,7 +117,7 @@ public class BulkInsertTest extends MongoTest {
         MorphiumSingleton.get().clearCollection(UncachedObject.class);
 
         log.info("Start storing list");
-        List<UncachedObject> lst = new ArrayList<UncachedObject>();
+        List<UncachedObject> lst = new ArrayList<>();
         start = System.currentTimeMillis();
         for (int i = 0; i < 1000; i++) {
             UncachedObject uc = new UncachedObject();

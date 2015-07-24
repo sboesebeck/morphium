@@ -5,7 +5,6 @@ import de.caluga.morphium.annotations.Id;
 import org.bson.types.ObjectId;
 import org.hibernate.validator.constraints.Email;
 
-import javax.validation.Valid;
 import javax.validation.constraints.*;
 import java.util.Date;
 import java.util.List;

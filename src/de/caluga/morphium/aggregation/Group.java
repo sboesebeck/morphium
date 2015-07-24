@@ -19,7 +19,7 @@ public class Group<T, R> {
     private Aggregator<T, R> aggregator;
     private BasicDBObject id;
 
-    private List<BasicDBObject> operators = new ArrayList<BasicDBObject>();
+    private List<BasicDBObject> operators = new ArrayList<>();
 
     public Group(Aggregator<T, R> ag, Map<String, String> idSubObject) {
         aggregator = ag;

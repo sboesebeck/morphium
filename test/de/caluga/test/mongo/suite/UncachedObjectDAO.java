@@ -13,7 +13,7 @@ import java.util.List;
  */
 public class UncachedObjectDAO extends DAO<UncachedObject> {
     public enum Field {
-        counter, value, mongo_id;
+        counter, value, mongo_id
     }
 
 

@@ -64,7 +64,7 @@ public class SequenceTest extends MongoTest {
     @Test
     public void massiveMultiSequenceTest() throws Exception {
         MorphiumSingleton.get().dropCollection(Sequence.class);
-        Vector<SequenceGenerator> gens = new Vector<SequenceGenerator>();
+        Vector<SequenceGenerator> gens = new Vector<>();
         //creating lots of sequences
         for (int i = 0; i < 10; i++) {
             SequenceGenerator sg1 = new SequenceGenerator(MorphiumSingleton.get(), "tstseq_" + i, i % 3 + 1, i);
@@ -87,15 +87,15 @@ public class SequenceTest extends MongoTest {
     public void massiveParallelSingleSequenceTest() throws Exception {
         MorphiumSingleton.get().dropCollection(Sequence.class);
         final SequenceGenerator sg1 = new SequenceGenerator(MorphiumSingleton.get(), "tstseq", 1, 0);
-        Vector<Thread> thr = new Vector<Thread>();
-        final Vector<Long> data = new Vector<Long>();
+        Vector<Thread> thr = new Vector<>();
+        final Vector<Long> data = new Vector<>();
         for (int i = 0; i < 10; i++) {
             Thread t = new Thread() {
                 public void run() {
                     for (int i = 0; i < 25; i++) {
                         long nv = sg1.getNextValue();
                         assert (!data.contains(Long.valueOf(nv))) : "Value already stored? Value: " + nv;
-                        data.add(Long.valueOf(nv));
+                        data.add(nv);
                         try {
                             sleep(10);
                         } catch (InterruptedException e) {
@@ -122,14 +122,14 @@ public class SequenceTest extends MongoTest {
     @Test
     public void massiveParallelMultiSequenceTest() throws Exception {
         MorphiumSingleton.get().dropCollection(Sequence.class);
-        Vector<SequenceGenerator> gens = new Vector<SequenceGenerator>();
+        Vector<SequenceGenerator> gens = new Vector<>();
         //creating lots of sequences
         for (int i = 0; i < 20; i++) {
             SequenceGenerator sg1 = new SequenceGenerator(MorphiumSingleton.get(), "tstseq_" + i, i % 3 + 1, i);
             gens.add(sg1);
         }
 
-        Vector<Thread> thr = new Vector<Thread>();
+        Vector<Thread> thr = new Vector<>();
         for (final SequenceGenerator g : gens) {
             Thread t = new Thread() {
                 public void run() {

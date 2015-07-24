@@ -38,7 +38,7 @@ public class ObjectMapperImpl implements ObjectMapper {
 
     public ObjectMapperImpl() {
 
-        nameProviders = new HashMap<Class<?>, NameProvider>();
+        nameProviders = new HashMap<>();
         mongoTypes = new CopyOnWriteArrayList<>();
 
         mongoTypes.add(String.class);
@@ -151,8 +151,7 @@ public class ObjectMapperImpl implements ObjectMapper {
 
                         String str = enc.encode(out.toByteArray());
                         obj.setB64Data(str);
-                        DBObject ret = marshall(obj);
-                        return ret;
+                        return marshall(obj);
 
                     } catch (IOException e) {
                         throw new IllegalArgumentException("Binary serialization failed! " + o.getClass().getName(), e);
@@ -459,7 +458,7 @@ public class ObjectMapperImpl implements ObjectMapper {
 
             try {
                 ret = cls.newInstance();
-            } catch (Exception e) {
+            } catch (Exception ignored) {
             }
             if (ret == null) {
                 final Constructor<Object> constructor;
@@ -495,7 +494,7 @@ public class ObjectMapperImpl implements ObjectMapper {
                         continue;
                     }
                     Set<String> keys = o.keySet();
-                    Map<String, Object> data = new HashMap<String, Object>();
+                    Map<String, Object> data = new HashMap<>();
                     for (String k : keys) {
                         if (flds.contains(k)) {
                             continue;
@@ -639,17 +638,12 @@ public class ObjectMapperImpl implements ObjectMapper {
                                     }
                                 }
                             } else {
-                                for (Object vdb : (Object[]) valueFromDb) {
-                                    lst.add(vdb);
-                                }
+                                Collections.addAll(lst, (Object[]) valueFromDb);
                             }
-                            value = lst;
                         } else {
                             BasicDBList l = (BasicDBList) valueFromDb;
                             if (l != null) {
                                 fillList(fld, l, lst, ret);
-                            } else {
-                                value = l;
                             }
                         }
                         if (fld.getType().isArray()) {
@@ -718,8 +712,7 @@ public class ObjectMapperImpl implements ObjectMapper {
                 BinarySerializedObject bso = (BinarySerializedObject) ret;
                 BASE64Decoder dec = new BASE64Decoder();
                 ObjectInputStream in = new ObjectInputStream(new ByteArrayInputStream(dec.decodeBuffer(bso.getB64Data())));
-                T read = (T) in.readObject();
-                return read;
+                return (T) in.readObject();
             }
             return (T) ret;
         } catch (Exception e) {
@@ -758,10 +751,7 @@ public class ObjectMapperImpl implements ObjectMapper {
                             in = new ObjectInputStream(new ByteArrayInputStream(dec.decodeBuffer(d)));
                             Object read = in.readObject();
                             retMap.put(n, read);
-                        } catch (IOException e) {
-                            //TODO: Implement Handling
-                            throw new RuntimeException(e);
-                        } catch (ClassNotFoundException e) {
+                        } catch (IOException | ClassNotFoundException e) {
                             //TODO: Implement Handling
                             throw new RuntimeException(e);
                         }
@@ -806,9 +796,7 @@ public class ObjectMapperImpl implements ObjectMapper {
                         in = new ObjectInputStream(new ByteArrayInputStream(dec.decodeBuffer(d)));
                         Object read = in.readObject();
                         mapValue.add(read);
-                    } catch (IOException e) {
-                        throw new RuntimeException(e);
-                    } catch (ClassNotFoundException e) {
+                    } catch (IOException | ClassNotFoundException e) {
                         throw new RuntimeException(e);
                     }
 
@@ -852,9 +840,7 @@ public class ObjectMapperImpl implements ObjectMapper {
                         in = new ObjectInputStream(new ByteArrayInputStream(dec.decodeBuffer(d)));
                         Object read = in.readObject();
                         toFillIn.add(read);
-                    } catch (IOException e) {
-                        throw new RuntimeException(e);
-                    } catch (ClassNotFoundException e) {
+                    } catch (IOException | ClassNotFoundException e) {
                         throw new RuntimeException(e);
                     }
 

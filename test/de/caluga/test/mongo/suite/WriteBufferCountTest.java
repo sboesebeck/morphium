@@ -21,13 +21,13 @@ import java.util.List;
 public class WriteBufferCountTest extends MongoTest {
     @Test
     public void testWbCount() throws Exception {
-        List<UncachedObject> lst = new ArrayList<UncachedObject>();
+        List<UncachedObject> lst = new ArrayList<>();
         for (int i = 0; i < 10000; i++) {
             UncachedObject uc = new UncachedObject();
             uc.setCounter(1);
             StringBuilder longText = new StringBuilder();
             for (int t = 0; t < 1000; t++) {
-                longText.append("-test-" + i);
+                longText.append("-test-").append(i);
             }
             lst.add(uc);
         }

@@ -412,7 +412,7 @@ public class IteratorTest extends MongoTest {
         for (MorphiumIterator<UncachedObject> it : toTest) {
 
             int read = 0;
-            UncachedObject u = null;
+            UncachedObject u = new UncachedObject();
             while (it.hasNext()) {
                 read++;
                 u = it.next();
@@ -434,7 +434,7 @@ public class IteratorTest extends MongoTest {
 
         MorphiumIterator<UncachedObject>[] toTest = new MorphiumIterator[]{qu.asIterable(20, 1), qu.asIterable(20, 10), qu.asIterable(20)};
         for (MorphiumIterator<UncachedObject> it : toTest) {
-            HashMap<String, String> hash = new HashMap<String, String>();
+            HashMap<String, String> hash = new HashMap<>();
             boolean error = false;
             int count = 0;
             long start = System.currentTimeMillis();

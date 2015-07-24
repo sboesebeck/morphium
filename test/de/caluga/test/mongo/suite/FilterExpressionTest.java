@@ -115,7 +115,7 @@ public class FilterExpressionTest {
     }
 
     private List<FilterExpression> createChildrenList() {
-        List<FilterExpression> filterList = new ArrayList<FilterExpression>();
+        List<FilterExpression> filterList = new ArrayList<>();
         filterList.add(createChild1());
         filterList.add(createChild2());
         return filterList;

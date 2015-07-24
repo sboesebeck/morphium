@@ -8,5 +8,5 @@ package de.caluga.morphium;
  * PRofiling read access types
  */
 public enum ReadAccessType {
-    GET, AS_LIST, ID_LIST, COUNT;
+    GET, AS_LIST, ID_LIST, COUNT
 }

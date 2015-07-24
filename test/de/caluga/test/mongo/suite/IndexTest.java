@@ -83,6 +83,7 @@ public class IndexTest extends MongoTest {
     }
 
 
+    @SuppressWarnings("ConstantConditions")
     @Test
     public void ensureIndexHierarchyTest() throws Exception {
         MorphiumSingleton.get().ensureIndicesFor(IndexedSubObject.class);
@@ -194,7 +195,7 @@ public class IndexTest extends MongoTest {
 
         public void addLst(Integer i) {
             if (lst == null) {
-                lst = new ArrayList<Integer>();
+                lst = new ArrayList<>();
             }
             lst.add(i);
         }

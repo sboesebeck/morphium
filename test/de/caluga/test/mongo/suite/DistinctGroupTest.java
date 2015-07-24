@@ -17,7 +17,7 @@ import java.util.List;
 public class DistinctGroupTest extends MongoTest {
     @Test
     public void distinctTest() throws Exception {
-        List<UncachedObject> lst = new ArrayList<UncachedObject>();
+        List<UncachedObject> lst = new ArrayList<>();
         for (int i = 0; i < 100; i++) {
             UncachedObject uc = new UncachedObject();
             uc.setCounter(i % 3);
@@ -41,7 +41,7 @@ public class DistinctGroupTest extends MongoTest {
     @Test
     public void groupTest() throws Exception {
         createUncachedObjects(100);
-        HashMap<String, Object> initial = new HashMap<String, Object>();
+        HashMap<String, Object> initial = new HashMap<>();
         initial.put("count", 0);
         initial.put("sum", 0);
         DBObject ret = MorphiumSingleton.get().group(MorphiumSingleton.get().createQueryFor(UncachedObject.class), initial,

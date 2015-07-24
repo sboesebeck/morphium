@@ -67,10 +67,6 @@ public class PrefetchingMorphiumIterator<T> implements MorphiumIterator<T> {
             if (list.size() == 0) {
                 log.error("No results?");
             }
-            if (list == null) {
-                log.error("Error: no result!?!?!");
-                return new ArrayList<>();
-            }
             return list;
         } catch (CloneNotSupportedException e) {
             log.fatal("CLONE FAILED!?!?!?!?");
@@ -98,7 +94,7 @@ public class PrefetchingMorphiumIterator<T> implements MorphiumIterator<T> {
         if (prefetchBuffers == null) {
             //first iteration
             prefetchBuffers = new Container[prefetchWindows];
-            prefetchBuffers[0] = new Container<T>();
+            prefetchBuffers[0] = new Container<>();
             prefetchBuffers[0].setData(getBuffer(cursor / windowSize));
 
             for (int i = cursor / windowSize + 1; i < prefetchWindows; i++) {
@@ -122,7 +118,7 @@ public class PrefetchingMorphiumIterator<T> implements MorphiumIterator<T> {
                     try {
                         theQuery.getMorphium().queueTask(cmd);
                         queued = true;
-                    } catch (Throwable e) {
+                    } catch (Throwable ignored) {
 
                     }
 
@@ -142,11 +138,9 @@ public class PrefetchingMorphiumIterator<T> implements MorphiumIterator<T> {
         }
         if ((cursor % windowSize) + 1 >= windowSize) {
             //removing first
-            for (int i = 1; i < prefetchWindows; i++) {
-                prefetchBuffers[i - 1] = prefetchBuffers[i];
-            }
+            System.arraycopy(prefetchBuffers, 1, prefetchBuffers, 0, prefetchWindows - 1);
 
-            prefetchBuffers[prefetchWindows - 1] = new Container<T>();
+            prefetchBuffers[prefetchWindows - 1] = new Container<>();
             final int win = cursor / windowSize + prefetchWindows;
             cursor++;
             if (win * windowSize < count) {

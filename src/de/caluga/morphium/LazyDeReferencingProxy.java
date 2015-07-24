@@ -29,6 +29,7 @@ public class LazyDeReferencingProxy<T> implements MethodInterceptor, Serializabl
         try {
             dereference();
         } catch (Throwable throwable) {
+            throw(new RuntimeException(throwable));
         }
         return deReferenced;
     }

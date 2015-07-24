@@ -47,7 +47,7 @@ public class AutoVariableTest extends MongoTest {
         assert (q.get().lst.size() == 1);
 
 
-        List<CTimeTest> lst = new ArrayList<CTimeTest>();
+        List<CTimeTest> lst = new ArrayList<>();
         for (int i = 0; i < 100; i++) {
             ct = new CTimeTest();
             ct.value = "value" + i;
@@ -183,7 +183,7 @@ public class AutoVariableTest extends MongoTest {
         assert (record.timestamp != 0);
 
 
-        ArrayList<CTimeTestStringId> lst = new ArrayList<CTimeTestStringId>();
+        ArrayList<CTimeTestStringId> lst = new ArrayList<>();
         for (int i = 0; i < 100; i++) {
             CTimeTestStringId ct = new CTimeTestStringId();
             ct.mongoId = "" + i;

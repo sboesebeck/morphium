@@ -35,7 +35,7 @@ public interface Query<T> extends Cloneable {
      * @param wh where string
      * @return where wuery
      */
-    public Query<T> where(String wh);
+    Query<T> where(String wh);
 
     /**
      * Get a field. F may be the name as it is in mongo db or the variable name in java...
@@ -43,14 +43,14 @@ public interface Query<T> extends Cloneable {
      * @param f field
      * @return the field implementation
      */
-    public MongoField<T> f(String f);
+    MongoField<T> f(String f);
 
     /**
      * returns the serveraddress the query was executed on
      *
      * @return the serveraddress the query was executed on, null if not executed yet
      */
-    public ServerAddress getServer();
+    ServerAddress getServer();
 
     /**
      * same as f(field.name())
@@ -58,28 +58,28 @@ public interface Query<T> extends Cloneable {
      * @param field field
      * @return mongo field
      */
-    public MongoField<T> f(Enum field);
+    MongoField<T> f(Enum field);
 
     /**
      * concatenate those queries with or
      *
      * @param q query
      */
-    public Query<T> or(Query<T>... q);
+    Query<T> or(Query<T>... q);
 
     /**
      * concatenate those queries with or
      *
      * @param q query
      */
-    public Query<T> or(List<Query<T>> q);
+    Query<T> or(List<Query<T>> q);
 
     /**
      * not or
      *
      * @param q query
      */
-    public Query<T> nor(Query<T>... q);
+    Query<T> nor(Query<T>... q);
 
     /**
      * limit the number of entries in result
@@ -87,7 +87,7 @@ public interface Query<T> extends Cloneable {
      * @param i - limit
      * @return the query
      */
-    public Query<T> limit(int i);
+    Query<T> limit(int i);
 
     /**
      * skip the first entries in result
@@ -95,7 +95,7 @@ public interface Query<T> extends Cloneable {
      * @param i skip
      * @return the query
      */
-    public Query<T> skip(int i);
+    Query<T> skip(int i);
 
     /**
      * set an order - Key: FieldName (java or Mongo-Name), Value: Integer: -1 reverse, 1 standard
@@ -103,7 +103,7 @@ public interface Query<T> extends Cloneable {
      * @param n - sort
      * @return the query
      */
-    public Query<T> sort(Map<String, Object> n);
+    Query<T> sort(Map<String, Object> n);
 
     /**
      * set order by prefixing field names with - for reverse ordering (+ or nothing default)
@@ -111,53 +111,53 @@ public interface Query<T> extends Cloneable {
      * @param prefixedString sort
      * @return the query
      */
-    public Query<T> sort(String... prefixedString);
+    Query<T> sort(String... prefixedString);
 
-    public Query<T> sort(Enum... naturalOrder);
+    Query<T> sort(Enum... naturalOrder);
 
     /**
      * count all results in query - does not take limit or skip into account
      *
      * @return number
      */
-    public long countAll();  //not taking limit and skip into account!
+    long countAll();  //not taking limit and skip into account!
 
-    public void countAll(AsyncOperationCallback<T> callback);
+    void countAll(AsyncOperationCallback<T> callback);
 
     /**
      * needed for creation of the query representation tree
      *
      * @param e expression
      */
-    public void addChild(FilterExpression e);
+    void addChild(FilterExpression e);
 
     /**
      * create a db object from this query and all of it's child nodes
      *
      * @return query object
      */
-    public DBObject toQueryObject();
+    DBObject toQueryObject();
 
     /**
      * what type this query is for
      *
      * @return class
      */
-    public Class<? extends T> getType();
+    Class<? extends T> getType();
 
     /**
      * the result as list
      *
      * @return list
      */
-    public List<T> asList();
+    List<T> asList();
 
-    public void asList(AsyncOperationCallback<T> callback);
+    void asList(AsyncOperationCallback<T> callback);
 
     /**
      * create an iterator / iterable for this query, default windowSize (10), prefetch windows 1
      */
-    public MorphiumIterator<T> asIterable();
+    MorphiumIterator<T> asIterable();
 
 
     MorphiumIterator<T> asCustomIterable(int windowSize, Class<? extends MorphiumIterator<T>> it);
@@ -166,7 +166,7 @@ public interface Query<T> extends Cloneable {
      * create an iterator / iterable for this query, sets window size (how many objects should be read from DB)
      * prefetch number is 1 in this case
      */
-    public MorphiumIterator<T> asIterable(int windowSize);
+    MorphiumIterator<T> asIterable(int windowSize);
 
     /**
      * create an iterator / iterable for this query, sets window size (how many entities are read en block) and how many windows of this size will be prefechted...
@@ -176,7 +176,7 @@ public interface Query<T> extends Cloneable {
      * @return
      */
 
-    public MorphiumIterator<T> asIterable(int windowSize, int prefixWindows);
+    MorphiumIterator<T> asIterable(int windowSize, int prefixWindows);
 
 
     /**
@@ -184,9 +184,9 @@ public interface Query<T> extends Cloneable {
      *
      * @return entity
      */
-    public T get();
+    T get();
 
-    public void get(AsyncOperationCallback<T> callback);
+    void get(AsyncOperationCallback<T> callback);
 
 
     /**
@@ -194,25 +194,25 @@ public interface Query<T> extends Cloneable {
      *
      * @return list of Ids, type R
      */
-    public <R> List<R> idList();
+    <R> List<R> idList();
 
-    public void idList(AsyncOperationCallback<T> callback);
+    void idList(AsyncOperationCallback<T> callback);
 
     /**
      * what type to use
      *
      * @param type type
      */
-    public void setType(Class<? extends T> type);
+    void setType(Class<? extends T> type);
 
     /**
      * create a new empty query for the same type using the same mapper as this
      *
      * @return query
      */
-    public Query<T> q();
+    Query<T> q();
 
-    public List<T> complexQuery(DBObject query);
+    List<T> complexQuery(DBObject query);
 
     /**
      * just sends the given query to the MongoDBDriver and masrhalls objects as listed
@@ -223,9 +223,9 @@ public interface Query<T> extends Cloneable {
      * @param limit - maximium number of results
      * @return list of objects matching query
      */
-    public List<T> complexQuery(DBObject query, Map<String, Integer> sort, int skip, int limit);
+    List<T> complexQuery(DBObject query, Map<String, Integer> sort, int skip, int limit);
 
-    public List<T> complexQuery(DBObject query, String sort, int skip, int limit);
+    List<T> complexQuery(DBObject query, String sort, int skip, int limit);
 
     /**
      * same as copmplexQuery(query,0,1).get(0);
@@ -233,87 +233,87 @@ public interface Query<T> extends Cloneable {
      * @param query - query
      * @return type
      */
-    public T complexQueryOne(DBObject query);
+    T complexQueryOne(DBObject query);
 
-    public T complexQueryOne(DBObject query, Map<String, Integer> sort, int skip);
+    T complexQueryOne(DBObject query, Map<String, Integer> sort, int skip);
 
-    public T complexQueryOne(DBObject query, Map<String, Integer> sort);
+    T complexQueryOne(DBObject query, Map<String, Integer> sort);
 
-    public int getLimit();
+    int getLimit();
 
-    public int getSkip();
+    int getSkip();
 
-    public Map<String, Object> getSort();
+    Map<String, Object> getSort();
 
-    public Query<T> clone() throws CloneNotSupportedException;
+    Query<T> clone() throws CloneNotSupportedException;
 
-    public ReadPreferenceLevel getReadPreferenceLevel();
+    ReadPreferenceLevel getReadPreferenceLevel();
 
-    public void setReadPreferenceLevel(ReadPreferenceLevel readPreferenceLevel);
+    void setReadPreferenceLevel(ReadPreferenceLevel readPreferenceLevel);
 
-    public String getWhere();
+    String getWhere();
 
-    public Morphium getMorphium();
+    Morphium getMorphium();
 
-    public void setMorphium(Morphium m);
+    void setMorphium(Morphium m);
 
-    public void setExecutor(ThreadPoolExecutor executor);
+    void setExecutor(ThreadPoolExecutor executor);
 
 
-    public void getById(Object id, AsyncOperationCallback<T> callback);
+    void getById(Object id, AsyncOperationCallback<T> callback);
 
-    public T getById(Object id);
+    T getById(Object id);
 
-    public int getNumberOfPendingRequests();
+    int getNumberOfPendingRequests();
 
     /**
      * use a different collection name for the query
      *
      * @param n
      */
-    public void setCollectionName(String n);
+    void setCollectionName(String n);
 
-    public String getCollectionName();
-
-    @Deprecated
-    public List<T> textSearch(String... texts);
+    String getCollectionName();
 
     @Deprecated
-    public List<T> textSearch(TextSearchLanguages lang, String... texts);
+    List<T> textSearch(String... texts);
 
-    public MongoField<T> f(Enum... f);
+    @Deprecated
+    List<T> textSearch(TextSearchLanguages lang, String... texts);
 
-    public MongoField<T> f(String... f);
+    MongoField<T> f(Enum... f);
 
-    public void delete();
+    MongoField<T> f(String... f);
 
-    public void setAutoValuesEnabled(boolean autoValues);
+    void delete();
 
-    public boolean isAutoValuesEnabled();
+    void setAutoValuesEnabled(boolean autoValues);
 
-    public void disableAutoValues();
+    boolean isAutoValuesEnabled();
 
-    public void enableAutoValues();
+    void disableAutoValues();
 
-
-    public Query<T> text(String... text);
-
-    public Query<T> text(TextSearchLanguages lang, String... text);
-
-    public Query<T> text(String metaScoreField, TextSearchLanguages lang, String... text);
-
-    public void setReturnedFields(String... fl);
-
-    public void addReturnedField(String f);
-
-    public void setReturnedFields(Enum... fl);
-
-    public void addReturnedField(Enum f);
+    void enableAutoValues();
 
 
-    public List distinct(String field);
+    Query<T> text(String... text);
 
-    public enum TextSearchLanguages {
+    Query<T> text(TextSearchLanguages lang, String... text);
+
+    Query<T> text(String metaScoreField, TextSearchLanguages lang, String... text);
+
+    void setReturnedFields(String... fl);
+
+    void addReturnedField(String f);
+
+    void setReturnedFields(Enum... fl);
+
+    void addReturnedField(Enum f);
+
+
+    List distinct(String field);
+
+    enum TextSearchLanguages {
         danish,
         dutch,
         english,

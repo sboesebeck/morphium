@@ -86,7 +86,7 @@ public class ValidationTest extends MongoTest {
         ValidationTestObject o = getValidObject();
         o.setWhereever("nix");
         ListValidationTestObject lst = new ListValidationTestObject();
-        List<ValidationTestObject> obj = new ArrayList<ValidationTestObject>();
+        List<ValidationTestObject> obj = new ArrayList<>();
         obj.add(o);
         obj.add(getValidObject());
         obj.add(getValidObject());

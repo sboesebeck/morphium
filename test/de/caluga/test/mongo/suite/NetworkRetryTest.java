@@ -116,7 +116,7 @@ public class NetworkRetryTest extends MongoTest {
 
         log.info("Now disconnect some mongo nodes, please");
         for (int i = 0; i < 1000; i++) {
-            List<UncachedObject> lst = new ArrayList<UncachedObject>();
+            List<UncachedObject> lst = new ArrayList<>();
             for (int cnt = 0; cnt < 10000; cnt += 1000) {
                 UncachedObject o = null;
                 o = new UncachedObject();
@@ -190,7 +190,7 @@ public class NetworkRetryTest extends MongoTest {
         for (int i = 1; i < 1000; i++) {
             Query<ListContainer> lc = MorphiumSingleton.get().createQueryFor(ListContainer.class);
             lc = lc.f("name").eq("LC" + i);
-            List<Long> lst = new ArrayList<Long>();
+            List<Long> lst = new ArrayList<>();
             lst.add(12345l);
             lst.add(123456l);
             lst.add(123l);

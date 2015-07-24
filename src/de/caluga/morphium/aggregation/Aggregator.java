@@ -27,49 +27,49 @@ import java.util.Map;
  */
 public interface Aggregator<T, R> {
 
-    public void setMorphium(Morphium m);
+    void setMorphium(Morphium m);
 
-    public Morphium getMorphium();
+    Morphium getMorphium();
 
-    public void setSearchType(Class<? extends T> type);
+    void setSearchType(Class<? extends T> type);
 
-    public Class<? extends T> getSearchType();
+    Class<? extends T> getSearchType();
 
-    public void setResultType(Class<? extends R> type);
+    void setResultType(Class<? extends R> type);
 
-    public Class<? extends R> getResultType();
+    Class<? extends R> getResultType();
 
-    public Aggregator<T, R> project(Map<String, Object> m);  //field -> other field, field -> 0,1
+    Aggregator<T, R> project(Map<String, Object> m);  //field -> other field, field -> 0,1
 
-    public Aggregator<T, R> project(String... m);    //field:1
+    Aggregator<T, R> project(String... m);    //field:1
 
-    public Aggregator<T, R> project(BasicDBObject m);    //custom
+    Aggregator<T, R> project(BasicDBObject m);    //custom
 
-    public Aggregator<T, R> match(Query<T> q);
+    Aggregator<T, R> match(Query<T> q);
 
-    public Aggregator<T, R> limit(int num);
+    Aggregator<T, R> limit(int num);
 
-    public Aggregator<T, R> skip(int num);
+    Aggregator<T, R> skip(int num);
 
-    public Aggregator<T, R> unwind(String listField);
+    Aggregator<T, R> unwind(String listField);
 
-    public Aggregator<T, R> sort(String... prefixed);
+    Aggregator<T, R> sort(String... prefixed);
 
-    public Aggregator<T, R> sort(Map<String, Integer> sort);
+    Aggregator<T, R> sort(Map<String, Integer> sort);
 
-    public Group<T, R> group(BasicDBObject id);
+    Group<T, R> group(BasicDBObject id);
 
-    public Group<T, R> group(Map<String, String> idSubObject);
+    Group<T, R> group(Map<String, String> idSubObject);
 
-    public Group<T, R> group(String id);
+    Group<T, R> group(String id);
 
-    public List<DBObject> toAggregationList();
+    List<DBObject> toAggregationList();
 
-    public void addOperator(DBObject o);
+    void addOperator(DBObject o);
 
-    public List<R> aggregate();
+    List<R> aggregate();
 
-    public void aggregate(AsyncOperationCallback<R> callback);
+    void aggregate(AsyncOperationCallback<R> callback);
 
 
 }

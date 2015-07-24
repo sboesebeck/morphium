@@ -12,6 +12,7 @@ import org.junit.Test;
  * Time: 11:00
  * To change this template use File | Settings | File Templates.
  */
+@SuppressWarnings("AssertWithSideEffects")
 public class CacheListenerTest extends MongoTest {
     boolean wouldAdd = false;
     boolean wouldClear = false;

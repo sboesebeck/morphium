@@ -13,6 +13,7 @@ import java.util.Date;
  * Date: 06.11.13
  * Time: 14:33
  */
+@SuppressWarnings("AssertWithSideEffects")
 public class ExpireIndexTest extends MongoTest {
     @Test
     public void testExpiry() throws InterruptedException {

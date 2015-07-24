@@ -54,9 +54,8 @@ public class RSMonitor {
             if (nullcounter > 10) {
                 logger.error("Getting ReplicasetStatus failed 10 times... will gracefully exit thread");
                 executorService.shutdownNow();
-                return;
             }
-        } catch (Exception e) {
+        } catch (Exception ignored) {
 
         }
     }
@@ -90,7 +89,7 @@ public class RSMonitor {
                     rpl.close();
                     ReplicaSetConf cfg = morphium.getMapper().unmarshall(ReplicaSetConf.class, stat);
                     List<Object> mem = cfg.getMemberList();
-                    List<ConfNode> cmembers = new ArrayList<ConfNode>();
+                    List<ConfNode> cmembers = new ArrayList<>();
 
                     for (Object o : mem) {
 //                        DBObject dbo = (DBObject) o;
@@ -102,7 +101,7 @@ public class RSMonitor {
                 }
                 //de-referencing list
                 List lst = status.getMembers();
-                List<ReplicaSetNode> members = new ArrayList<ReplicaSetNode>();
+                List<ReplicaSetNode> members = new ArrayList<>();
                 for (Object l : lst) {
 //                    DBObject o = (DBObject) l;
                     ReplicaSetNode n = (ReplicaSetNode) l;//objectMapper.unmarshall(ReplicaSetNode.class, o);

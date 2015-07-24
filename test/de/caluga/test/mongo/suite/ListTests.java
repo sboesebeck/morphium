@@ -14,6 +14,7 @@ import java.util.List;
  * Time: 17:17
  * <p/>
  */
+@SuppressWarnings("AssertWithSideEffects")
 public class ListTests extends MongoTest {
 
     @Test
