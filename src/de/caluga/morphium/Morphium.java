@@ -542,7 +542,6 @@ public class Morphium {
         Runnable r = new Runnable() {
             @Override
             public void run() {
-                WriteConcern wc = getWriteConcernForClass(c);
                 String coll = getMapper().getCollectionName(c);
                 DBCollection collection = null;
 
@@ -2061,11 +2060,11 @@ public class Morphium {
         }
     }
 
-    public void addLazyDereferencingListener(DereferencingListener lst) {
+    public void addDereferencingListener(DereferencingListener lst) {
         this.lazyDereferencingListeners.add(lst);
     }
 
-    public void removeLazyDeRrferencingListener(DereferencingListener lst) {
+    public void removeDerrferencingListener(DereferencingListener lst) {
         this.lazyDereferencingListeners.remove(lst);
     }
 }

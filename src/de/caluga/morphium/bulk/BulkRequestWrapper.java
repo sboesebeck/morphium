@@ -25,16 +25,14 @@ public class BulkRequestWrapper {
 
     private Object builder;
     private Morphium morphium;
-    private BulkOperationContext bc;
     private Query query;
     private boolean upsert = false;
 
     private MorphiumStorageListener.UpdateTypes updateType;
 
-    public BulkRequestWrapper(BulkWriteRequestBuilder b, Morphium m, BulkOperationContext bulk, Query q) {
+    public BulkRequestWrapper(BulkWriteRequestBuilder b, Morphium m, Query q) {
         builder = b;
         morphium = m;
-        bc = bulk;
         query = q;
     }
 
