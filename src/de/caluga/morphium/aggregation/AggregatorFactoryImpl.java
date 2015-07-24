@@ -34,9 +34,7 @@ public class AggregatorFactoryImpl implements AggregatorFactory {
             a.setSearchType(type);
             a.setResultType(resultType);
             return a;
-        } catch (InstantiationException e) {
-            throw new RuntimeException(e);
-        } catch (IllegalAccessException e) {
+        } catch (InstantiationException | IllegalAccessException e) {
             throw new RuntimeException(e);
         }
 

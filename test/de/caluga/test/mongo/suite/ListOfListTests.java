@@ -18,20 +18,20 @@ public class ListOfListTests extends MongoTest {
     @Test
     public void storeListOfLists() throws Exception {
         MorphiumSingleton.get().clearCollection(LoLType.class);
-        List<List<String>> val = new ArrayList<List<String>>();
-        List<String> v1 = new ArrayList<String>();
+        List<List<String>> val = new ArrayList<>();
+        List<String> v1 = new ArrayList<>();
         v1.add("v1 - 1");
         v1.add("v1 - 2");
         v1.add("v1 - 3");
         val.add(v1);
-        v1 = new ArrayList<String>();
+        v1 = new ArrayList<>();
         v1.add("v2 - 1");
         v1.add("v2 - 2");
         v1.add("v2 - 3");
         v1.add("v2 - 4");
         val.add(v1);
 
-        v1 = new ArrayList<String>();
+        v1 = new ArrayList<>();
         v1.add("v3 - 1");
         v1.add("v3 - 2");
         val.add(v1);

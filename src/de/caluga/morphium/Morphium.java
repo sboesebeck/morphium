@@ -63,10 +63,10 @@ public class Morphium {
      */
     private final static Logger logger = new Logger(Morphium.class);
     private MorphiumConfig config;
-    private ThreadLocal<Boolean> enableAutoValues = new ThreadLocal<Boolean>();
-    private ThreadLocal<Boolean> enableReadCache = new ThreadLocal<Boolean>();
-    private ThreadLocal<Boolean> disableWriteBuffer = new ThreadLocal<Boolean>();
-    private ThreadLocal<Boolean> disableAsyncWrites = new ThreadLocal<Boolean>();
+    private ThreadLocal<Boolean> enableAutoValues = new ThreadLocal<>();
+    private ThreadLocal<Boolean> enableReadCache = new ThreadLocal<>();
+    private ThreadLocal<Boolean> disableWriteBuffer = new ThreadLocal<>();
+    private ThreadLocal<Boolean> disableAsyncWrites = new ThreadLocal<>();
 
     private Map<StatisticKeys, StatisticValue> stats = new HashMap<>();
 
@@ -268,7 +268,7 @@ public class Morphium {
 
         try {
             Thread.sleep(1000); //Waiting for initialization to finish
-        } catch (InterruptedException e) {
+        } catch (InterruptedException ignored) {
 
         }
         if (isReplicaSet()) {
@@ -320,14 +320,14 @@ public class Morphium {
     }
 
     public void addListener(MorphiumStorageListener lst) {
-        List<MorphiumStorageListener> newList = new ArrayList<MorphiumStorageListener>();
+        List<MorphiumStorageListener> newList = new ArrayList<>();
         newList.addAll(listeners);
         newList.add(lst);
         listeners = newList;
     }
 
     public void removeListener(MorphiumStorageListener lst) {
-        List<MorphiumStorageListener> newList = new ArrayList<MorphiumStorageListener>();
+        List<MorphiumStorageListener> newList = new ArrayList<>();
         newList.addAll(listeners);
         newList.remove(lst);
         listeners = newList;
@@ -356,7 +356,7 @@ public class Morphium {
     @SuppressWarnings({"unchecked", "UnusedDeclaration"})
     public <T> List<T> findByTemplate(T template, String... fields) {
         Class cls = template.getClass();
-        List<String> flds = new ArrayList<String>();
+        List<String> flds = new ArrayList<>();
         if (fields.length > 0) {
             flds.addAll(Arrays.asList(fields));
         } else {
@@ -383,7 +383,7 @@ public class Morphium {
     }
 
     public <T> void unset(final T toSet, final String field, final AsyncOperationCallback<T> callback) {
-        unset(toSet, getMapper().getCollectionName(toSet.getClass()), callback);
+        unset(toSet, getMapper().getCollectionName(toSet.getClass()), field, callback);
     }
 
 
@@ -476,7 +476,7 @@ public class Morphium {
 
             for (String f : flds) {
                 Index i = annotationHelper.getField(type, f).getAnnotation(Index.class);
-                Map<String, Object> idx = new LinkedHashMap<String, Object>();
+                Map<String, Object> idx = new LinkedHashMap<>();
                 if (i.decrement()) {
                     idx.put(f, -1);
                 } else {
@@ -610,7 +610,7 @@ public class Morphium {
     }
 
     public <T> void set(Query<T> query, Enum field, Object val, AsyncOperationCallback<T> callback) {
-        Map<String, Object> toSet = new HashMap<String, Object>();
+        Map<String, Object> toSet = new HashMap<>();
         toSet.put(field.name(), val);
         getWriterForClass(query.getType()).set(query, toSet, false, false, callback);
     }
@@ -620,13 +620,13 @@ public class Morphium {
     }
 
     public <T> void set(Query<T> query, String field, Object val, AsyncOperationCallback<T> callback) {
-        Map<String, Object> toSet = new HashMap<String, Object>();
+        Map<String, Object> toSet = new HashMap<>();
         toSet.put(field, val);
         getWriterForClass(query.getType()).set(query, toSet, false, false, callback);
     }
 
     public void setEnum(Query<?> query, Map<Enum, Object> values, boolean insertIfNotExist, boolean multiple) {
-        HashMap<String, Object> toSet = new HashMap<String, Object>();
+        HashMap<String, Object> toSet = new HashMap<>();
         for (Map.Entry<Enum, Object> est : values.entrySet()) {
             toSet.put(est.getKey().name(), values.get(est.getValue()));
         }
@@ -748,7 +748,7 @@ public class Morphium {
     }
 
     public <T> void set(Query<T> query, String field, Object val, boolean insertIfNotExist, boolean multiple, AsyncOperationCallback<T> callback) {
-        Map<String, Object> map = new HashMap<String, Object>();
+        Map<String, Object> map = new HashMap<>();
         map.put(field, val);
         set(query, map, insertIfNotExist, multiple, callback);
     }
@@ -892,8 +892,8 @@ public class Morphium {
     }
 
     public <T> void delete(List<T> lst, AsyncOperationCallback<T> callback) {
-        ArrayList<T> directDel = new ArrayList<T>();
-        ArrayList<T> bufferedDel = new ArrayList<T>();
+        ArrayList<T> directDel = new ArrayList<>();
+        ArrayList<T> bufferedDel = new ArrayList<>();
         for (T o : lst) {
             if (annotationHelper.isBufferedWrite(o.getClass())) {
                 bufferedDel.add(o);
@@ -1161,7 +1161,7 @@ public class Morphium {
                 if (fld.get(obj) != null && getARHelper().isAnnotationPresentInHierarchy(fld.getType(), Entity.class) && fld.get(obj) instanceof PartiallyUpdateableProxy) {
                     fld.set(obj, ((PartiallyUpdateableProxy) fld.get(obj)).__getDeref());
                 }
-            } catch (IllegalAccessException e) {
+            } catch (IllegalAccessException ignored) {
             }
         }
         return obj;
@@ -1217,7 +1217,7 @@ public class Morphium {
                 logger.warn("Retry because of network error: " + e.getMessage());
                 try {
                     Thread.sleep(getConfig().getSleepBetweenNetworkErrorRetries());
-                } catch (InterruptedException e1) {
+                } catch (InterruptedException ignored) {
                 }
 
             } else {
@@ -1599,7 +1599,7 @@ public class Morphium {
     }
 
     public <T> void ensureIndex(Class<T> cls, String collection, AsyncOperationCallback<T> callback, Enum... fldStr) {
-        Map<String, Object> m = new LinkedHashMap<String, Object>();
+        Map<String, Object> m = new LinkedHashMap<>();
         for (Enum e : fldStr) {
             String f = e.name();
             m.put(f, 1);
@@ -1620,11 +1620,11 @@ public class Morphium {
 
     public List<Map<String, Object>> createIndexMapFrom(String[] fldStr) {
         if (fldStr.length == 0) return null;
-        List<Map<String, Object>> lst = new ArrayList<Map<String, Object>>();
+        List<Map<String, Object>> lst = new ArrayList<>();
 
 
         for (String f : fldStr) {
-            Map<String, Object> m = new LinkedHashMap<String, Object>();
+            Map<String, Object> m = new LinkedHashMap<>();
             for (String idx : f.split(",")) {
                 if (idx.contains(":")) {
                     String i[] = idx.split(":");
@@ -1714,14 +1714,14 @@ public class Morphium {
     }
 
     public <T> void storeList(List<T> lst, String collection, AsyncOperationCallback<T> callback) {
-        Map<Class<?>, MorphiumWriter> writers = new HashMap<Class<?>, MorphiumWriter>();
-        Map<Class<?>, List<Object>> values = new HashMap<Class<?>, List<Object>>();
+        Map<Class<?>, MorphiumWriter> writers = new HashMap<>();
+        Map<Class<?>, List<Object>> values = new HashMap<>();
         for (Object o : lst) {
             if (writers.get(o.getClass()) == null) {
                 writers.put(o.getClass(), getWriterForClass(o.getClass()));
             }
             if (values.get(o.getClass()) == null) {
-                values.put(o.getClass(), new ArrayList<Object>());
+                values.put(o.getClass(), new ArrayList<>());
             }
             values.get(o.getClass()).add(o);
         }
@@ -1761,8 +1761,8 @@ public class Morphium {
 
     public <T> void storeList(List<T> lst, final AsyncOperationCallback<T> callback) {
         //have to sort list - might have different objects
-        List<T> storeDirect = new ArrayList<T>();
-        final List<T> storeInBg = new ArrayList<T>();
+        List<T> storeDirect = new ArrayList<>();
+        final List<T> storeInBg = new ArrayList<>();
 
         //checking permission - might take some time ;-(
         for (T o : lst) {
@@ -1836,7 +1836,7 @@ public class Morphium {
     }
 
     public void resetStatistics() {
-        Map<StatisticKeys, StatisticValue> s = new HashMap<StatisticKeys, StatisticValue>();
+        Map<StatisticKeys, StatisticValue> s = new HashMap<>();
 
         for (StatisticKeys k : StatisticKeys.values()) {
             s.put(k, new StatisticValue());
@@ -1916,12 +1916,13 @@ public class Morphium {
                 handleNetworkError(i, t);
             }
         }
-
-        List<R> ret = new ArrayList<R>();
-        for (DBObject o : resp.results()) {
-            R obj = getMapper().unmarshall(a.getResultType(), o);
-            if (obj == null) continue;
-            ret.add(obj);
+            List<R> ret = new ArrayList<>();
+        if (resp!=null) {
+            for (DBObject o : resp.results()) {
+                R obj = getMapper().unmarshall(a.getResultType(), o);
+                if (obj == null) continue;
+                ret.add(obj);
+            }
         }
         return ret;
     }
@@ -1950,9 +1951,7 @@ public class Morphium {
     public <T> MongoField<T> createMongoField() {
         try {
             return (MongoField<T>) config.getFieldImplClass().newInstance();
-        } catch (InstantiationException e) {
-            throw new RuntimeException(e);
-        } catch (IllegalAccessException e) {
+        } catch (InstantiationException | IllegalAccessException e) {
             throw new RuntimeException(e);
         }
     }
@@ -2034,7 +2033,7 @@ public class Morphium {
             } catch (Exception e) {
                 try {
                     Thread.sleep(100); //wait a moment, reduce load
-                } catch (InterruptedException e1) {
+                } catch (InterruptedException ignored) {
                 }
             }
         } while (!queued);

@@ -100,7 +100,7 @@ public class SequenceGenerator {
             log.error("Sequence vanished?");
             throw new RuntimeException("Sequence vanished");
         }
-        Map<String, Object> values = new HashMap<String, Object>();
+        Map<String, Object> values = new HashMap<>();
         Sequence sequence = seq.get();
         if (recLevel > 30) {
             log.error("Could not get lock on Sequence " + name + " Checking timestamp...");

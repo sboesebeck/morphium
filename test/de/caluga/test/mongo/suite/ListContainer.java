@@ -29,10 +29,10 @@ public class ListContainer {
     private List<EmbeddedObject> embeddedObjectList;
 
     public ListContainer() {
-        stringList = new ArrayList<String>();
-        longList = new ArrayList<Long>();
-        refList = new ArrayList<UncachedObject>();
-        embeddedObjectList = new ArrayList<EmbeddedObject>();
+        stringList = new ArrayList<>();
+        longList = new ArrayList<>();
+        refList = new ArrayList<>();
+        embeddedObjectList = new ArrayList<>();
     }
 
     public ObjectId getId() {

@@ -17,6 +17,7 @@ import java.util.List;
  * Time: 00:02
  * <p/>
  */
+@SuppressWarnings("AssertWithSideEffects")
 public class LazyLoadingTest extends MongoTest {
 
     private boolean wouldDeref = false;
@@ -83,7 +84,7 @@ public class LazyLoadingTest extends MongoTest {
         lz.setLazyCached(co);
         lz.setLazyUncached(o);
 
-        List<UncachedObject> lst = new ArrayList<UncachedObject>();
+        List<UncachedObject> lst = new ArrayList<>();
         for (int i = 0; i < 10; i++) {
             UncachedObject uc = new UncachedObject();
             uc.setValue("Part of list");
@@ -216,7 +217,7 @@ public class LazyLoadingTest extends MongoTest {
         log.info("Reading lazy objects single...");
         start = System.currentTimeMillis();
         //Store them to prefent finalizer() to be called causing the lazy loading to take place
-        List<LazyLoadingObject> storage = new ArrayList<LazyLoadingObject>();
+        List<LazyLoadingObject> storage = new ArrayList<>();
         for (int i = 0; i < numberOfObjects; i++) {
             Query<LazyLoadingObject> coq = MorphiumSingleton.get().createQueryFor(LazyLoadingObject.class);
             coq = coq.f("name").eq("Lazy " + i);

@@ -188,7 +188,7 @@ public class MongoTest {
     }
 
     public void createUncachedObjects(int amount) {
-        List<UncachedObject> lst = new ArrayList<UncachedObject>();
+        List<UncachedObject> lst = new ArrayList<>();
         for (int i = 0; i < amount; i++) {
             UncachedObject uc = new UncachedObject();
             uc.setCounter(i + 1);
@@ -203,7 +203,7 @@ public class MongoTest {
     }
 
     public void createCachedObjects(int amount) {
-        List<CachedObject> lst = new ArrayList<CachedObject>();
+        List<CachedObject> lst = new ArrayList<>();
         for (int i = 0; i < amount; i++) {
             CachedObject uc = new CachedObject();
             uc.setCounter(i + 1);

@@ -573,9 +573,9 @@ public class MessagingTest extends MongoTest {
 
 
         MorphiumSingleton.get().clearCollection(Msg.class);
-        List<Messaging> systems = new ArrayList<Messaging>();
+        List<Messaging> systems = new ArrayList<>();
 
-        final Map<ObjectId, Integer> processedMessages = new Hashtable<ObjectId, Integer>();
+        final Map<ObjectId, Integer> processedMessages = new Hashtable<>();
 
         for (int i = 0; i < numberOfWorkers; i++) {
             //creating messaging instances
@@ -584,7 +584,7 @@ public class MessagingTest extends MongoTest {
             systems.add(m);
             MessageListener l = new MessageListener() {
                 Messaging msg;
-                List<String> ids = new Vector<String>();
+                List<String> ids = new Vector<>();
 
                 @Override
                 public Msg onMessage(Messaging msg, Msg m) {
@@ -607,7 +607,7 @@ public class MessagingTest extends MongoTest {
 
         long start = System.currentTimeMillis();
         for (int i = 0; i < numberOfMessages; i++) {
-            int m = (int) Math.random() * systems.size();
+            int m = (int) (Math.random() * systems.size());
             Msg msg = new Msg("test" + i, MsgType.MULTI, "The message for msg " + i, "a value", ttl);
             msg.addAdditional("Additional Value " + i);
             msg.setExclusive(false);

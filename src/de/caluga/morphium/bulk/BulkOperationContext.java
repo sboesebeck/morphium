@@ -28,7 +28,7 @@ public class BulkOperationContext {
     public BulkOperationContext(Morphium m, boolean ordered) {
         morphium = m;
         this.ordered = ordered;
-        requests = new ArrayList<BulkRequestWrapper>();
+        requests = new ArrayList<>();
     }
 
     public <T> void insert(T o) {

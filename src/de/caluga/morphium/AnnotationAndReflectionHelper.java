@@ -33,7 +33,7 @@ public class AnnotationAndReflectionHelper {
     private Map<String, Field> fieldCache = new HashMap<>();
     private Map<Class<?>, Class<?>> realClassCache = new HashMap<>();
     private Map<Class<?>, List<Field>> fieldListCache = new HashMap<>();
-    private Map<String, List<String>> fieldAnnotationListCache = new HashMap<String, List<String>>();
+    private Map<String, List<String>> fieldAnnotationListCache = new HashMap<>();
     private Map<Class<?>, Map<Class<? extends Annotation>, Method>> lifeCycleMethods;
     private Map<Class<?>, Boolean> hasAdditionalData;
     private Map<Class<?>, Map<Class<? extends Annotation>, Annotation>> annotationCache;
@@ -113,9 +113,7 @@ public class AnnotationAndReflectionHelper {
             if (ret == null) {
                 //check interfaces if nothing was found yet
                 Queue<Class<?>> interfaces = new LinkedList<>();
-                for (Class<?> anInterface : cls.getInterfaces()) {
-                    interfaces.add(anInterface);
-                }
+                Collections.addAll(interfaces, cls.getInterfaces());
                 while (!interfaces.isEmpty()) {
                     Class<?> iface = interfaces.poll();
                     if (iface.isAnnotationPresent(anCls)) {
@@ -268,10 +266,10 @@ public class AnnotationAndReflectionHelper {
         }
         Class<?> cls = getRealClass(clz);
 
-        List<Field> ret = new ArrayList<Field>();
+        List<Field> ret = new ArrayList<>();
         Class sc = cls;
         //getting class hierachy
-        List<Class> hierachy = new ArrayList<Class>();
+        List<Class> hierachy = new ArrayList<>();
         while (!sc.equals(Object.class)) {
             hierachy.add(sc);
             sc = sc.getSuperclass();
@@ -742,7 +740,7 @@ public class AnnotationAndReflectionHelper {
 
     public List<Annotation> getAllAnnotationsFromHierachy(Class<?> cls, Class<? extends Annotation>... anCls) {
         cls = getRealClass(cls);
-        List<Annotation> ret = new ArrayList<Annotation>();
+        List<Annotation> ret = new ArrayList<>();
         Class<?> z = cls;
         while (!z.equals(Object.class)) {
             if (z.getAnnotations() != null && z.getAnnotations().length != 0) {
@@ -832,7 +830,7 @@ public class AnnotationAndReflectionHelper {
             return;
         }
 
-        Map<Class<? extends Annotation>, Method> methods = new HashMap<Class<? extends Annotation>, Method>();
+        Map<Class<? extends Annotation>, Method> methods = new HashMap<>();
         //Methods must be public
         for (Method m : cls.getMethods()) {
             for (Annotation a : m.getAnnotations()) {
@@ -844,9 +842,7 @@ public class AnnotationAndReflectionHelper {
         if (methods.get(type) != null) {
             try {
                 methods.get(type).invoke(on);
-            } catch (IllegalAccessException e) {
-                throw new RuntimeException(e);
-            } catch (InvocationTargetException e) {
+            } catch (IllegalAccessException | InvocationTargetException e) {
                 throw new RuntimeException(e);
             }
         }

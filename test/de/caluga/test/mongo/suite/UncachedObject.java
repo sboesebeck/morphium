@@ -128,10 +128,8 @@ public class UncachedObject {
         UncachedObject that = (UncachedObject) o;
 
         if (counter != that.counter) return false;
-        if (mongoId != null ? !mongoId.equals(that.mongoId) : that.mongoId != null) return false;
-        if (value != null ? !value.equals(that.value) : that.value != null) return false;
+        return !(mongoId != null ? !mongoId.equals(that.mongoId) : that.mongoId != null) && !(value != null ? !value.equals(that.value) : that.value != null);
 
-        return true;
     }
 
     @Override

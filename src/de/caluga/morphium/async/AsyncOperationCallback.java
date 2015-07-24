@@ -19,7 +19,7 @@ public interface AsyncOperationCallback<T> {
      * @param result   - list of all results, might be null (on update or remove)
      * @param param    - the parameter (e.g. the object to store, or the list of objects) - might be null
      */
-    public void onOperationSucceeded(AsyncOperationType type, Query<T> q, long duration, List<T> result, T entity, Object... param);
+    void onOperationSucceeded(AsyncOperationType type, Query<T> q, long duration, List<T> result, T entity, Object... param);
 
     /**
      * callback for insuccesfull operations
@@ -30,5 +30,5 @@ public interface AsyncOperationCallback<T> {
      * @param error    - error message
      * @param t        - the exception (if any)
      */
-    public void onOperationError(AsyncOperationType type, Query<T> q, long duration, String error, Throwable t, T entity, Object... param);
+    void onOperationError(AsyncOperationType type, Query<T> q, long duration, String error, Throwable t, T entity, Object... param);
 }

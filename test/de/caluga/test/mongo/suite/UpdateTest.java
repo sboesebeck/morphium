@@ -29,7 +29,7 @@ public class UpdateTest extends MongoTest {
         Query<UncachedMultipleCounter> q = MorphiumSingleton.get().createQueryFor(UncachedMultipleCounter.class);
         q = q.f("value").eq("Uncached " + 5);
 
-        Map<String, Double> toInc = new HashMap<String, Double>();
+        Map<String, Double> toInc = new HashMap<>();
         toInc.put("counter", 10.0);
         toInc.put("counter2", 0.5);
         MorphiumSingleton.get().inc(q, toInc, false, true, null);
@@ -224,7 +224,7 @@ public class UpdateTest extends MongoTest {
             MorphiumSingleton.get().store(lc);
         }
 
-        List<EmbeddedObject> obj = new ArrayList<EmbeddedObject>();
+        List<EmbeddedObject> obj = new ArrayList<>();
 
         Query<ListContainer> lc = MorphiumSingleton.get().createQueryFor(ListContainer.class);
         lc = lc.f("name").eq("LC15");

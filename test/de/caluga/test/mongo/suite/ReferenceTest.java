@@ -18,6 +18,7 @@ import java.util.List;
  * Time: 00:33
  * <p/>
  */
+@SuppressWarnings("AssertWithSideEffects")
 public class ReferenceTest extends MongoTest {
 
     private boolean didDeref = false;
@@ -49,7 +50,7 @@ public class ReferenceTest extends MongoTest {
         rc.setLazyUc(uc2);
         rc.setUc(uc1);
 
-        List<UncachedObject> lst = new ArrayList<UncachedObject>();
+        List<UncachedObject> lst = new ArrayList<>();
         UncachedObject toSearchFor = null;
         for (int i = 0; i < 10; i++) {
             //creating uncached Objects
@@ -64,7 +65,7 @@ public class ReferenceTest extends MongoTest {
         rc.setLst(lst);
 
         UncachedObject toSearchFor2 = null;
-        lst = new ArrayList<UncachedObject>();
+        lst = new ArrayList<>();
         for (int i = 0; i < 10; i++) {
             //creating uncached Objects
             UncachedObject uc = new UncachedObject();
@@ -161,7 +162,7 @@ public class ReferenceTest extends MongoTest {
         rc.setLazyUc(uc2);
         rc.setUc(uc1);
 
-        List<UncachedObject> lst = new ArrayList<UncachedObject>();
+        List<UncachedObject> lst = new ArrayList<>();
         UncachedObject toSearchFor = null;
         for (int i = 0; i < 10; i++) {
             //creating uncached Objects
@@ -169,14 +170,13 @@ public class ReferenceTest extends MongoTest {
             uc.setValue("list value " + i);
             uc.setCounter(i);
             if (i == 4)
-                toSearchFor = uc;
             lst.add(uc);
         }
         MorphiumSingleton.get().storeList(lst);
         rc.setLst(lst);
 
         UncachedObject toSearchFor2 = null;
-        lst = new ArrayList<UncachedObject>();
+        lst = new ArrayList<>();
         for (int i = 0; i < 10; i++) {
             //creating uncached Objects
             UncachedObject uc = new UncachedObject();
@@ -184,7 +184,6 @@ public class ReferenceTest extends MongoTest {
             uc.setCounter(i);
             lst.add(uc);
             if (i == 4) {
-                toSearchFor2 = uc;
             }
         }
 

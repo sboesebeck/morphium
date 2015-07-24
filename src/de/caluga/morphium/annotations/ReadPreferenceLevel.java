@@ -16,7 +16,7 @@ public enum ReadPreferenceLevel {
     NEAREST(ReadPreference.nearest());
     private ReadPreference pref;
 
-    private ReadPreferenceLevel(ReadPreference pref) {
+     ReadPreferenceLevel(ReadPreference pref) {
         this.pref = pref;
     }
 

@@ -27,7 +27,7 @@ public class MassCacheTest extends MongoTest {
 
         log.info("\nMassive parallel writing - single creating objects");
         long start = System.currentTimeMillis();
-        ArrayList<Thread> thr = new ArrayList<Thread>();
+        ArrayList<Thread> thr = new ArrayList<>();
         for (int i = 0; i < WRITING_THREADS; i++) {
             Thread t = new Thread() {
 
@@ -98,7 +98,7 @@ public class MassCacheTest extends MongoTest {
     public void massiveParallelAccessTest() {
         log.info("\nMassive parallel reading & writing - single creating objects");
         long start = System.currentTimeMillis();
-        ArrayList<Thread> thr = new ArrayList<Thread>();
+        ArrayList<Thread> thr = new ArrayList<>();
         for (int i = 0; i < WRITING_THREADS; i++) {
             Thread t = new Thread() {
 

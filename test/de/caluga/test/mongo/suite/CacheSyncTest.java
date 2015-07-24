@@ -24,6 +24,7 @@ import org.junit.Test;
  * Time: 16:40
  * <p/>
  */
+@SuppressWarnings("AssertWithSideEffects")
 public class CacheSyncTest extends MongoTest {
     private boolean preSendClear = false;
     private boolean postSendClear = false;

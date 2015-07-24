@@ -25,7 +25,7 @@ public interface DereferencingListener<T, E, I> {
      * @param lazy                    - true, if lazy loaded reference should be dereferenced
      * @throws MorphiumAccessVetoException - can be thrown, if de-referencing should not take place
      */
-    public void wouldDereference(E entityIncludingReference, String fieldInEntity, I id, Class<T> typeReferenced, boolean lazy) throws MorphiumAccessVetoException;  //
+    void wouldDereference(E entityIncludingReference, String fieldInEntity, I id, Class<T> typeReferenced, boolean lazy) throws MorphiumAccessVetoException;  //
 
     /**
      * Will be called, after a lazy loaded reference was de-referenced and unmarshalled
@@ -36,5 +36,5 @@ public interface DereferencingListener<T, E, I> {
      * @param lazy                      - true, if lazy loaded reference
      * @return
      */
-    public T didDereference(E entitiyIncludingReference, String fieldInEntity, T referencedObject, boolean lazy); //returns the object to set as de-referenced object. referencedObject would be null, if not found
+    T didDereference(E entitiyIncludingReference, String fieldInEntity, T referencedObject, boolean lazy); //returns the object to set as de-referenced object. referencedObject would be null, if not found
 }

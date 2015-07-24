@@ -158,15 +158,7 @@ public class MorphiumConfig {
 
         try {
             parseClassSettings(this, prop);
-        } catch (UnknownHostException e) {
-            throw new RuntimeException(e);
-        } catch (ClassNotFoundException e) {
-            throw new RuntimeException(e);
-        } catch (NoSuchFieldException e) {
-            throw new RuntimeException(e);
-        } catch (IllegalAccessException e) {
-            throw new RuntimeException(e);
-        } catch (InstantiationException e) {
+        } catch (UnknownHostException | InstantiationException | IllegalAccessException | NoSuchFieldException | ClassNotFoundException e) {
             throw new RuntimeException(e);
         }
     }
@@ -206,8 +198,7 @@ public class MorphiumConfig {
             String k = (String) ko;
             String value = (String) settings.get(k);
             if (k.equals("hosts")) {
-                String lst = value;
-                for (String adr : lst.split(",")) {
+                for (String adr : value.split(",")) {
                     String a[] = adr.split(":");
                     cfg.addHost(a[0].trim(), Integer.parseInt(a[1].trim()));
                 }
@@ -684,7 +675,7 @@ public class MorphiumConfig {
     }
 
     private void updateAdditionals() {
-        restoreData = new HashMap<String, String>();
+        restoreData = new HashMap<>();
         addClassSettingsTo(restoreData);
 
 
@@ -727,7 +718,7 @@ public class MorphiumConfig {
         String del = "";
         for (ServerAddress a : getAdr()) {
             b.append(del);
-            b.append(a.getHost() + ":" + a.getPort());
+            b.append(a.getHost()).append(":").append(a.getPort());
             del = ", ";
         }
         p.put("hosts", b.toString());
