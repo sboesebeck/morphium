@@ -869,7 +869,12 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                     try {
                         Object value = morphium.getARHelper().getValue(ent, f);
                         if (morphium.getARHelper().isAnnotationPresentInHierarchy(value.getClass(), Entity.class)) {
-                            value = morphium.getMapper().marshall(value);
+                            if (morphium.getARHelper().getField(ent.getClass(), f).getAnnotation(Reference.class) != null) {
+                                //need to store reference
+                                value = morphium.getARHelper().getId(ent);
+                            } else {
+                                value = morphium.getMapper().marshall(value);
+                            }
                         }
                         update.put(f, value);
 
