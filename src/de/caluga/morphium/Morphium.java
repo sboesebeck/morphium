@@ -822,9 +822,9 @@ public class Morphium {
      * db.collection.update({"_id":toSet.id},{$set:{field:value}}
      * <b>attention</b>: this alteres the given object toSet in a similar way
      *
-     * @param toSet: object to set the value in (or better - the corresponding entry in mongo)
-     * @param field: the field to change
-     * @param value: the value to set
+     * @param toSet - object to set the value in (or better - the corresponding entry in mongo)
+     * @param field - the field to change
+     * @param value - the value to set
      */
     public void set(final Object toSet, final String field, final Object value) {
         set(toSet, field, value, null);
