@@ -613,8 +613,8 @@ public class AnnotationAndReflectionHelper {
      * if no annotation is given, all fields are returned
      * Does not take the @Aliases-annotation int account
      *
-     * @param cls
-     * @return
+     * @param cls - the class to geht ghe Fields from
+     * @return List of Strings, each a field name (as described in @Property or determined by name)
      */
     public List<String> getFields(Class cls, Class<? extends Annotation>... annotations) {
         String k = cls.toString();
