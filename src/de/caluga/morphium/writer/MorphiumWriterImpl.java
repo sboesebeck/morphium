@@ -1962,7 +1962,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                 Map<String, Object> idx = new LinkedHashMap<>();
                 for (Map.Entry<String, Object> es : index.entrySet()) {
                     String k = es.getKey();
-                    if (!fields.contains(k) && !fields.contains(morphium.getARHelper().convertCamelCase(k))) {
+                    if (!k.contains(".") && !fields.contains(k) && !fields.contains(morphium.getARHelper().convertCamelCase(k))) {
                         throw new IllegalArgumentException("Field unknown for type " + cls.getSimpleName() + ": " + k);
                     }
                     String fn = morphium.getARHelper().getFieldName(cls, k);
