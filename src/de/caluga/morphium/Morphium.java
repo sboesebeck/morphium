@@ -234,6 +234,7 @@ public class Morphium {
             } else {
                 adminDB = mongo.getDatabase("admin");
             }
+
         }
 
         cacheHousekeeper = new CacheHousekeeper(this, 5000, config.getGlobalCacheValidTime());
@@ -332,7 +333,6 @@ public class Morphium {
         newList.remove(lst);
         listeners = newList;
     }
-
 
     public Mongo getMongo() {
         return config.getDb().getMongo();

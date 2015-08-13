@@ -1,6 +1,7 @@
 package de.caluga.test.mongo.suite;
 
 import de.caluga.morphium.MorphiumSingleton;
+import de.caluga.morphium.annotations.Index;
 import de.caluga.morphium.query.Query;
 import org.junit.Test;
 
@@ -84,4 +85,16 @@ public class SubDocumentTests extends MongoTest {
         assert (lst != null);
         assert (lst.size() == 0);
     }
+
+
+    @Test
+    public void testSubDocumentIndex() throws Exception {
+        MorphiumSingleton.get().ensureIndicesFor(SubDocumentIndex.class);
+    }
+
+    @Index({"embed.id"})
+    public static class SubDocumentIndex extends ComplexObject {
+
+    }
+
 }
