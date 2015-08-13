@@ -793,7 +793,27 @@ public class AnnotationAndReflectionHelper {
 
 
     public void callLifecycleMethod(Class<? extends Annotation> type, Object on) {
+        callLifecycleMethod(type, on, new ArrayList());
+    }
+
+    private void callLifecycleMethod(Class<? extends Annotation> type, Object on, List calledOn) {
         if (on == null) return;
+        if (on.getClass().getName().contains("$$EnhancerByCGLIB$$")) {
+            try {
+                Field f1 = on.getClass().getDeclaredField("CGLIB$CALLBACK_0");
+                f1.setAccessible(true);
+                Object delegate = f1.get(on);
+                Method m = delegate.getClass().getMethod("__getPureDeref");
+                on = m.invoke(delegate);
+                if (on == null) return;
+            } catch (Exception e) {
+                //throw new RuntimeException(e);
+                log.error("Exception: ", e);
+            }
+        }
+
+        if (calledOn.contains(on)) return;
+        calledOn.add(on);
         //No synchronized block - might cause the methods to be put twice into the
         //hashtabel - but for performance reasons, it's ok...
         Class<?> cls = on.getClass();
@@ -807,7 +827,7 @@ public class AnnotationAndReflectionHelper {
             if ((isAnnotationPresentInHierarchy(field.getType(), Entity.class) || isAnnotationPresentInHierarchy(field.getType(), Embedded.class)) && isAnnotationPresentInHierarchy(field.getType(), Lifecycle.class)) {
                 field.setAccessible(true);
                 try {
-                    callLifecycleMethod(type,field.get(on));
+                    callLifecycleMethod(type, field.get(on), calledOn);
                 } catch (IllegalAccessException e) {
                     e.printStackTrace();
                 }

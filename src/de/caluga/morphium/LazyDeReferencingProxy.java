@@ -25,25 +25,33 @@ public class LazyDeReferencingProxy<T> implements MethodInterceptor, Serializabl
         this.fieldname = fieldname;
     }
 
+    public T __getPureDeref() {
+        return deReferenced;
+    }
+
     public T __getDeref() {
         try {
             dereference();
         } catch (Throwable throwable) {
-            throw(new RuntimeException(throwable));
+            throw (new RuntimeException(throwable));
         }
         return deReferenced;
     }
 
     @Override
     public Object intercept(Object o, Method method, Object[] objects, MethodProxy methodProxy) throws Throwable {
-//            if (method.getName().equals("getClass")) {
-//                return cls;
-//            }
+//        log.error("MEthod trigger "+method.getName());
+        if (method.getName().equals("getClass")) {
+            return cls;
+        }
         if (method.getName().equals("__getType")) {
             return cls;
         }
         if (method.getName().equals("finalize")) {
             return methodProxy.invokeSuper(o, objects);
+        }
+        if (method.getName().equals("__getPureDeref")) {
+            return deReferenced;
         }
 
         dereference();

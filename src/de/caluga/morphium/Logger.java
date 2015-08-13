@@ -300,7 +300,8 @@ public class Logger {
             out.print("[");
             StackTraceElement[] st = new Exception().getStackTrace();
             int idx = 0;
-            while (st[idx].getClassName().equals(this.getClass().getName()) && idx <= st.length) idx++;
+            while ((st[idx].getClassName().equals(this.getClass().getName()) || st[idx].getClassName().equals(Logger.class.getName())) && idx <= st.length)
+                idx++;
             out.print(st[idx].getClassName());
             out.print(".");
             out.print(st[idx].getMethodName());

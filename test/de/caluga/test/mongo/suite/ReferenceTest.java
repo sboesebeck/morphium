@@ -1,10 +1,12 @@
 package de.caluga.test.mongo.suite;
 
 import de.caluga.morphium.DereferencingListener;
+import de.caluga.morphium.Morphium;
 import de.caluga.morphium.MorphiumAccessVetoException;
 import de.caluga.morphium.MorphiumSingleton;
 import de.caluga.morphium.annotations.*;
 import de.caluga.morphium.annotations.caching.NoCache;
+import de.caluga.morphium.annotations.lifecycle.Lifecycle;
 import de.caluga.morphium.query.Query;
 import org.bson.types.ObjectId;
 import org.junit.Test;
@@ -170,7 +172,7 @@ public class ReferenceTest extends MongoTest {
             uc.setValue("list value " + i);
             uc.setCounter(i);
             if (i == 4)
-            lst.add(uc);
+                lst.add(uc);
         }
         MorphiumSingleton.get().storeList(lst);
         rc.setLst(lst);
@@ -196,6 +198,73 @@ public class ReferenceTest extends MongoTest {
 
         assert (wouldDeref = true);
         assert (didDeref = true);
+    }
+
+    @Lifecycle
+    @Entity
+    public static class SimpleDoublyLinkedEntity {
+        @Id
+        ObjectId id;
+        @Reference(lazyLoading = true, automaticStore = false)
+        SimpleDoublyLinkedEntity prev, next;
+        int value;
+
+        public SimpleDoublyLinkedEntity() {
+        }
+
+        public SimpleDoublyLinkedEntity(int value) {
+            this.value = value;
+        }
+
+        public void setPrev(SimpleDoublyLinkedEntity prev) {
+            this.prev = prev;
+            prev.next = this;
+        }
+
+        public SimpleDoublyLinkedEntity getPrev() {
+            return prev;
+        }
+
+        public SimpleDoublyLinkedEntity getNext() {
+            return next;
+        }
+
+        public int getValue() {
+            return value;
+        }
+    }
+
+    @Test
+    public void testSimpleDoublyLinkedStructure() {
+        Morphium m = MorphiumSingleton.get();
+        m.clearCollection(SimpleDoublyLinkedEntity.class);
+        SimpleDoublyLinkedEntity e1 = new SimpleDoublyLinkedEntity(1);
+        SimpleDoublyLinkedEntity e2 = new SimpleDoublyLinkedEntity(2);
+        SimpleDoublyLinkedEntity e3 = new SimpleDoublyLinkedEntity(3);
+
+        // store wihtout links to get Ids
+        m.store(e1);
+        m.store(e2);
+        m.store(e3);
+
+        // set links
+        e2.setPrev(e1);
+        e3.setPrev(e2);
+
+        // update
+        m.store(e1);
+        m.store(e2);
+        m.store(e3);
+
+        m.clearCachefor(SimpleDoublyLinkedEntity.class);
+
+        e2 = m.createQueryFor(SimpleDoublyLinkedEntity.class).getById(e2.id);
+        e1 = m.createQueryFor(SimpleDoublyLinkedEntity.class).getById(e1.id);
+
+        assert (e1.getValue() == e2.getPrev().getValue());
+        assert (e2.getValue() == e1.getNext().getValue());
+
+
     }
 
     @Entity
