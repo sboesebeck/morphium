@@ -1682,7 +1682,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                 Object v = marshallIfNecessary(value);
 
                 String fieldName = morphium.getARHelper().getFieldName(cls, field);
-                BasicDBObject set = new BasicDBObject(fieldName, v);
+                BasicDBObject set = new BasicDBObject(fieldName, v.getClass().isEnum() ? v.toString() : v);
                 BasicDBObject update = new BasicDBObject(push ? "$push" : "$pull", set);
 
                 long start = System.currentTimeMillis();
