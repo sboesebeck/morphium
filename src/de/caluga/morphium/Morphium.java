@@ -1464,9 +1464,11 @@ public class Morphium {
         if (!jsFinalize.trim().startsWith("function(")) {
             jsFinalize = "function (data) {" + jsFinalize + "}";
         }
-        GroupCommand cmd = new GroupCommand(config.getDb().getCollection(objectMapper.getCollectionName(q.getType())),
+        DBCollection collection = config.getDb().getCollection(objectMapper.getCollectionName(q.getType()));
+        GroupCommand cmd = new GroupCommand(collection,
                 k, q.toQueryObject(), ini, jsReduce, jsFinalize);
-        return config.getDb().getCollection(objectMapper.getCollectionName(q.getType())).group(cmd);
+        collection.setWriteConcern(getWriteConcernForClass(q.getType()));
+        return collection.group(cmd);
     }
 
     @SuppressWarnings("unchecked")
