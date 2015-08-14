@@ -736,7 +736,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                 }
                 String fieldName = morphium.getARHelper().getFieldName(cls, field);
 
-                BasicDBObject update = new BasicDBObject("$set", new BasicDBObject(fieldName, value));
+                BasicDBObject update = new BasicDBObject("$set", new BasicDBObject(fieldName, value.getClass().isEnum() ? value.toString() : value));
                 List<String> lastChangeFields = morphium.getARHelper().getFields(cls, LastChange.class);
                 if (lastChangeFields != null && lastChangeFields.size() != 0) {
                     for (String fL : lastChangeFields) {
@@ -1739,8 +1739,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                         ((Map) value).put(en.getKey(), marshall);
                     }
                 }
-            } else if (value.getClass().isEnum()) {
-                value = value.toString();
+
             }
         }
         return value;
