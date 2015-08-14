@@ -71,6 +71,23 @@ public class Logger {
             synced = v.equals("true");
         }
 
+        v = getSetting("log.delegate");
+        if (getSetting("log.delegate." + name) != null) v = getSetting("log.delegate." + name);
+        if (v != null) {
+            if (v.equals("log4j")) {
+                delegate = new Log4JLoggerDelegate();
+            } else if (v.equals("jul")) {
+                delegate = new JavaUtilLoggingDelegate();
+            } else {
+                try {
+                    delegate = (LoggerDelegate) Class.forName(v).newInstance();
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
+            }
+        }
+
+
 //        info("Logger " + name + " instanciated: Level: " + level + " Synced: " + synced + " file: " + file);
     }
 
