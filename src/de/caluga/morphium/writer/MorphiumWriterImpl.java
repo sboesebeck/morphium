@@ -1739,6 +1739,8 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                         ((Map) value).put(en.getKey(), marshall);
                     }
                 }
+            } else if (value.getClass().isEnum()) {
+                value = value.toString();
             }
         }
         return value;
