@@ -552,9 +552,13 @@ public class ObjectMapperImpl implements ObjectMapper {
                             } else {
 //                                Query q = morphium.createQueryFor(fld.getSearchType());
 //                                q.f("_id").eq(id);
-                                morphium.fireWouldDereference(ret, f, id, fld.getType(), false);
-                                value = morphium.findById(fld.getType(), id);
-                                morphium.fireDidDereference(ret, f, value, false);
+                                try {
+                                    morphium.fireWouldDereference(ret, f, id, fld.getType(), false);
+                                    value = morphium.findById(fld.getType(), id);
+                                    morphium.fireDidDereference(ret, f, value, false);
+                                } catch (MorphiumAccessVetoException e) {
+                                    log.info("not dereferencing due to veto from listener", e);
+                                }
                             }
                         } else {
                             value = null;
@@ -892,12 +896,16 @@ public class ObjectMapperImpl implements ObjectMapper {
                             throw new IllegalArgumentException("Referenced object does not have an ID? Is it an Entity?");
                         toFillIn.add(morphium.createLazyLoadedEntity(clz, id, containerEntity, forField.getName()));
                     } else {
-                        morphium.fireWouldDereference(containerEntity, forField.getName(), id, clz, false);
-                        Query q = morphium.createQueryFor(clz);
-                        q = q.f(idFlds.get(0)).eq(id);
-                        Object e = q.get();
-                        toFillIn.add(e);
-                        morphium.fireDidDereference(containerEntity, forField.getName(), e, false);
+                        try {
+                            morphium.fireWouldDereference(containerEntity, forField.getName(), id, clz, false);
+                            Query q = morphium.createQueryFor(clz);
+                            q = q.f(idFlds.get(0)).eq(id);
+                            Object e = q.get();
+                            toFillIn.add(e);
+                            morphium.fireDidDereference(containerEntity, forField.getName(), e, false);
+                        } catch (MorphiumAccessVetoException e1) {
+                            log.info("Not de-referencing due to veto exception from Listeiner", e1);
+                        }
                     }
                 } catch (ClassNotFoundException e) {
                     throw new RuntimeException(e);
