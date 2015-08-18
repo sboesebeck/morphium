@@ -69,9 +69,13 @@ public class LazyDeReferencingProxy<T> implements MethodInterceptor, Serializabl
         if (deReferenced == null) {
             if (log.isDebugEnabled())
                 log.debug("DeReferencing due to first access");
-            morphium.fireWouldDereference(container, fieldname, id, cls, true);
-            deReferenced = (T) morphium.findById(cls, id);
-            morphium.fireDidDereference(container, fieldname, deReferenced, true);
+            try {
+                morphium.fireWouldDereference(container, fieldname, id, cls, true);
+                deReferenced = (T) morphium.findById(cls, id);
+                morphium.fireDidDereference(container, fieldname, deReferenced, true);
+            } catch (MorphiumAccessVetoException e) {
+                log.info("did not dereference due to VetoException from listener", e);
+            }
         }
     }
 
