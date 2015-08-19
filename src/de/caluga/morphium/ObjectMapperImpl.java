@@ -287,13 +287,16 @@ public class ObjectMapperImpl implements ObjectMapper {
 
                     //Store Entities recursively
                     //TODO: Fix recursion - this could cause a loop!
-                    if (annotationHelper.isAnnotationPresentInHierarchy(fld.getType(), Entity.class)) {
+                    Class<?> valueClass = value.getClass();
+                    if (valueClass == null) valueClass = fld.getType();
+
+                    if (annotationHelper.isAnnotationPresentInHierarchy(valueClass, Entity.class)) {
                         if (value != null) {
                             DBObject obj = marshall(value);
                             obj.removeField("_id");  //Do not store ID embedded!
                             v = obj;
                         }
-                    } else if (annotationHelper.isAnnotationPresentInHierarchy(fld.getType(), Embedded.class)) {
+                    } else if (annotationHelper.isAnnotationPresentInHierarchy(valueClass, Embedded.class)) {
                         if (value != null) {
                             v = marshall(value);
                         }
