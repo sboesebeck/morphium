@@ -287,8 +287,13 @@ public class ObjectMapperImpl implements ObjectMapper {
 
                     //Store Entities recursively
                     //TODO: Fix recursion - this could cause a loop!
-                    Class<?> valueClass = value.getClass();
-                    if (valueClass == null) valueClass = fld.getType();
+                    Class<?> valueClass = null;
+
+                    if (value == null) {
+                        valueClass = fld.getType();
+                    } else {
+                        valueClass=value.getClass();
+                    }
 
                     if (annotationHelper.isAnnotationPresentInHierarchy(valueClass, Entity.class)) {
                         if (value != null) {
