@@ -296,7 +296,7 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
     }
 
     @Override
-    public <T> void inc(final Query<T> query, final Map<String, Double> fieldsToInc, final boolean insertIfNotExist, final boolean multiple, AsyncOperationCallback<T> c) {
+    public <T> void inc(final Query<T> query, final Map<String, Number> fieldsToInc, final boolean insertIfNotExist, final boolean multiple, AsyncOperationCallback<T> c) {
         if (c == null) {
             c = new AsyncOpAdapter<>();
         }
@@ -323,7 +323,7 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
 
 
     @Override
-    public <T> void inc(final Query<T> query, final String field, final double amount, final boolean insertIfNotExist, final boolean multiple, AsyncOperationCallback<T> c) {
+    public <T> void inc(final Query<T> query, final String field, final Number amount, final boolean insertIfNotExist, final boolean multiple, AsyncOperationCallback<T> c) {
         if (c == null) {
             c = new AsyncOpAdapter<>();
         }
@@ -346,7 +346,7 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
     }
 
     @Override
-    public <T> void inc(final T obj, final String collection, final String field, final double amount, AsyncOperationCallback<T> c) {
+    public <T> void inc(final T obj, final String collection, final String field, final Number amount, AsyncOperationCallback<T> c) {
         if (c == null) {
             c = new AsyncOpAdapter<>();
         }
@@ -358,6 +358,7 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
 //                directWriter.set(toSet, collection, field, value, insertIfNotExists, multiple, callback);
                 morphium.firePreUpdateEvent(obj.getClass(), MorphiumStorageListener.UpdateTypes.INC);
                 Query q = morphium.createQueryFor(obj.getClass()).f(morphium.getARHelper().getIdFieldName(obj)).eq(morphium.getARHelper().getId(obj));
+                q.setCollectionName(collection);
                 BulkRequestWrapper wr = ctx.addFind(q);
                 morphium.getCache().clearCacheIfNecessary(obj.getClass());
                 String fld = morphium.getARHelper().getFieldName(obj.getClass(), field);
