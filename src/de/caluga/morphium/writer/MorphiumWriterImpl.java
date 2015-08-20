@@ -173,7 +173,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                             } else {
                                 logger.warn("got default generated key, but ID-Field is not of type ObjectID... trying string conversion");
                                 if (fld.getType().equals(String.class)) {
-                                    fld.set(o, ((ObjectId) marshall.get("_id")).toString());
+                                    fld.set(o, marshall.get("_id").toString());
                                 } else {
                                     throw new IllegalArgumentException("cannot convert ID for given object - id type is: " + fld.getType().getName() + "! Please set ID before write");
                                 }
@@ -973,7 +973,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                     for (Class<T> cls : sortedMap.keySet()) {
                         Query<T> orQuery = morphium.createQueryFor(cls);
                         orQuery = orQuery.or(sortedMap.get(cls));
-                        remove(orQuery, (AsyncOperationCallback<T>) null); //sync call
+                        remove(orQuery, null); //sync call
                     }
                     morphium.firePostRemove(lst);
                     if (callback != null)

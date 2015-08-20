@@ -858,7 +858,7 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
                 morphium.firePostLoadEvent(unmarshall);
                 updateLastAccess(unmarshall);
 
-                lst.add((T) unmarshall);
+                lst.add(unmarshall);
                 if (useCache) {
                     morphium.getCache().addToCache(ck, type, lst);
                 }
@@ -1005,7 +1005,7 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
 
     @Override
     public Query<T> text(String... text) {
-        return text(null, (TextSearchLanguages) null, text);
+        return text(null, null, text);
     }
 
     @Override

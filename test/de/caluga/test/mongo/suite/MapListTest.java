@@ -111,7 +111,7 @@ public class MapListTest extends MongoTest {
         assert (ml.getMapListValue().get("zweihundert").size() == 4);
         assert (ml.getMapListValue().get("zweihundert").get(0) != null);
 
-        assert (((EmbObj) ml.getMap1().get("2nd").get(0)).getTest() != null);
+        assert (ml.getMap1().get("2nd").get(0).getTest() != null);
         assert (ml.getMap2().get("test").getTest().equals("val"));
     }
 

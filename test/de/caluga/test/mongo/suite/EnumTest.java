@@ -22,11 +22,11 @@ public class EnumTest extends MongoTest {
         ent.setValue("ein Test");
         MorphiumSingleton.get().store(ent);
 
-        ent = (EnumEntity) MorphiumSingleton.get().createQueryFor(EnumEntity.class).f("value").eq("ein Test").get();
+        ent = MorphiumSingleton.get().createQueryFor(EnumEntity.class).f("value").eq("ein Test").get();
         assert (ent.getTst() != null) : "Enum is null!";
         assert (ent.getTst().equals(TestEnum.TEST1)) : "Enum error!";
 
-        ent = (EnumEntity) MorphiumSingleton.get().createQueryFor(EnumEntity.class).f("tst").eq(TestEnum.TEST1).get();
+        ent = MorphiumSingleton.get().createQueryFor(EnumEntity.class).f("tst").eq(TestEnum.TEST1).get();
         assert (ent.getTst() != null) : "Enum is null!";
         assert (ent.getTst().equals(TestEnum.TEST1)) : "Enum error!";
 
@@ -45,11 +45,11 @@ public class EnumTest extends MongoTest {
         ent.setTstLst(lst);
         MorphiumSingleton.get().store(ent);
 
-        EnumEntity ent2 = (EnumEntity) MorphiumSingleton.get().createQueryFor(EnumEntity.class).f("value").eq("ein Test").get();
+        EnumEntity ent2 = MorphiumSingleton.get().createQueryFor(EnumEntity.class).f("value").eq("ein Test").get();
         assert (ent2.getTst() != null) : "Enum is null!";
         assert (ent2.getTst().equals(TestEnum.TEST1)) : "Enum error!";
 
-        ent2 = (EnumEntity) MorphiumSingleton.get().createQueryFor(EnumEntity.class).f("tst").eq(TestEnum.TEST1).get();
+        ent2 = MorphiumSingleton.get().createQueryFor(EnumEntity.class).f("tst").eq(TestEnum.TEST1).get();
         assert (ent2.getTst() != null) : "Enum is null!";
         assert (ent2.getTst().equals(TestEnum.TEST1)) : "Enum error!";
 
