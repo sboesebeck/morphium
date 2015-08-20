@@ -59,7 +59,7 @@ public class AnnotationAndReflectionHelper {
         if (sc.getName().contains("$$EnhancerByCGLIB$$")) {
 
             try {
-                Class ret = (Class<? extends T>) Class.forName(sc.getName().substring(0, sc.getName().indexOf("$$")));
+                Class ret = Class.forName(sc.getName().substring(0, sc.getName().indexOf("$$")));
                 realClassCache.put(sc, ret);
                 sc = ret;
             } catch (Exception e) {

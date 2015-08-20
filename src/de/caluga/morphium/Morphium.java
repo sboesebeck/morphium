@@ -1780,7 +1780,7 @@ public class Morphium {
 
 
     public <T> void delete(Query<T> o) {
-        getWriterForClass(o.getType()).remove(o, (AsyncOperationCallback<T>) null);
+        getWriterForClass(o.getType()).remove(o, null);
     }
 
     public <T> void delete(Query<T> o, final AsyncOperationCallback<T> callback) {

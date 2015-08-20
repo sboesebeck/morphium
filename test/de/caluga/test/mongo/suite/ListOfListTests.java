@@ -40,7 +40,7 @@ public class ListOfListTests extends MongoTest {
         l.setLst(val);
         MorphiumSingleton.get().store(l);
 
-        LoLType l2 = (LoLType) MorphiumSingleton.get().createQueryFor(LoLType.class).f("id").eq(l.id).get();
+        LoLType l2 = MorphiumSingleton.get().createQueryFor(LoLType.class).f("id").eq(l.id).get();
         assert (l2.lst.size() == l.lst.size()) : "Error in list sizes";
         assert (l2.lst.get(0).size() == l.lst.get(0).size()) : "error in sublist sizes";
         assert (l2.lst.get(1).get(0).equals(l.lst.get(1).get(0))) : "error in sublist values";

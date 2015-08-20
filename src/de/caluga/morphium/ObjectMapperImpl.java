@@ -448,7 +448,7 @@ public class ObjectMapperImpl implements ObjectMapper {
                     if (cN == null) {
                         cN = (String) o.get("className");
                     }
-                    cls = (Class<? extends T>) Class.forName(cN);
+                    cls = Class.forName(cN);
                 } catch (ClassNotFoundException e) {
                     throw new RuntimeException(e);
                 }
@@ -472,8 +472,8 @@ public class ObjectMapperImpl implements ObjectMapper {
                 final Constructor<Object> constructor;
                 try {
                     constructor = reflection.newConstructorForSerialization(
-                            cls, Object.class.getDeclaredConstructor(new Class[0]));
-                    ret = (T) constructor.newInstance(new Object[0]);
+                            cls, Object.class.getDeclaredConstructor());
+                    ret = constructor.newInstance();
                 } catch (Exception e) {
                     log.error(e);
                 }
@@ -540,11 +540,11 @@ public class ObjectMapperImpl implements ObjectMapper {
                     } else {
                         Object id = null;
                         if (valueFromDb instanceof Object) {
-                            id = (Object) valueFromDb;
+                            id = valueFromDb;
                         } else {
                             DBRef ref = (DBRef) valueFromDb;
                             if (ref != null) {
-                                id = (Object) ref.getId();
+                                id = ref.getId();
                                 if (!ref.getCollectionName().equals(fld.getType().getName())) {
                                     log.warn("Reference to different object?! - continuing anyway");
 
@@ -894,7 +894,7 @@ public class ObjectMapperImpl implements ObjectMapper {
             } else if (val instanceof DBRef) {
                 try {
                     DBRef ref = (DBRef) val;
-                    Object id = (Object) ref.getId();
+                    Object id = ref.getId();
                     Class clz = Class.forName(ref.getCollectionName());
                     List<String> idFlds = annotationHelper.getFields(clz, Id.class);
                     Reference reference = forField != null ? forField.getAnnotation(Reference.class) : null;

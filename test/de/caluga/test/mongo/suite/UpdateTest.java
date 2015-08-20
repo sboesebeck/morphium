@@ -153,8 +153,8 @@ public class UpdateTest extends MongoTest {
         private Value val;
     }
 
-    public static enum Value {
-        v1, v2, v3;
+    public enum Value {
+        v1, v2, v3
     }
     @Test
     public void pushTest() throws Exception {
