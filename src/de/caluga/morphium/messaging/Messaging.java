@@ -151,6 +151,7 @@ public class Messaging extends Thread implements ShutdownListener {
                 for (final Msg m : messages) {
 //                    count++;
 //                    System.out.println("Processing message " + count);
+                    if (m == null) continue; //message was erased
                     Runnable r = new Runnable() {
                         @Override
                         public void run() {
