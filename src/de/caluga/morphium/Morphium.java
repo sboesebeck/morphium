@@ -725,12 +725,6 @@ public class Morphium {
 
     }
 
-    @SuppressWarnings({"unchecked", "UnusedDeclaration"})
-    public void pullAll(Query<?> query, String field, List<Object> value, boolean insertIfNotExist, boolean multiple) {
-        pull(query, field, value, insertIfNotExist, multiple);
-    }
-
-
     /**
      * will change an entry in mongodb-collection corresponding to given class object
      * if query is too complex, upsert might not work!
@@ -743,6 +737,19 @@ public class Morphium {
      * @param insertIfNotExist - insert, if it does not exist (query needs to be simple!)
      * @param multiple         - update several documents, if false, only first hit will be updated
      */
+    public <T> void set(Query<T> query, Enum field, Object val, boolean insertIfNotExist, boolean multiple) {
+        set(query, field.name(), val, insertIfNotExist, multiple, (AsyncOperationCallback<Query<T>>) null);
+    }
+
+    public <T> void set(Query<T> query, Enum field, Object val, boolean insertIfNotExist, boolean multiple, AsyncOperationCallback<Query<T>> callback) {
+        set(query, field.name(), val, insertIfNotExist, multiple, callback);
+    }
+
+
+    @SuppressWarnings({"unchecked", "UnusedDeclaration"})
+    public void pullAll(Query<?> query, String field, List<Object> value, boolean insertIfNotExist, boolean multiple) {
+        pull(query, field, value, insertIfNotExist, multiple);
+    }
     public <T> void set(Query<T> query, String field, Object val, boolean insertIfNotExist, boolean multiple) {
         set(query, field, val, insertIfNotExist, multiple, (AsyncOperationCallback<T>) null);
     }
