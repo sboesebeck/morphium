@@ -44,6 +44,33 @@ public class BufferedWriterTest extends MongoTest {
         }
     }
 
+
+    @Test
+    public void testWriteBufferIncs() throws Exception {
+        MorphiumSingleton.get().dropCollection(BufferedBySizeObject.class);
+
+        waitForAsyncOperationToStart(10000);
+        waitForWrites();
+
+        Query<BufferedBySizeObject> q = MorphiumSingleton.get().createQueryFor(BufferedBySizeObject.class).f("counter").eq(100);
+        MorphiumSingleton.get().inc(q, "dval", 1, true, false);
+
+        q = MorphiumSingleton.get().createQueryFor(BufferedBySizeObject.class).f("counter").eq(100);
+        MorphiumSingleton.get().inc(q, "dval", 1.0, true, false);
+
+        q = MorphiumSingleton.get().createQueryFor(BufferedBySizeObject.class).f("counter").eq(100);
+        MorphiumSingleton.get().dec(q, "dval", 1.0, true, false);
+
+        waitForAsyncOperationToStart(10000);
+        waitForWrites();
+
+        q = MorphiumSingleton.get().createQueryFor(BufferedBySizeObject.class);
+        assert (q.countAll() == 1) : "Counted " + q.countAll();
+        BufferedBySizeObject o = q.get();
+        log.info("Counter: " + o.getCounter());
+        assert (o.getCounter() == 100);
+        assert (o.getDval() == 1.0);
+    }
     @Test
     public void testWriteBufferBySizeWithWriteNewStrategy() throws Exception {
         MorphiumSingleton.get().dropCollection(BufferedBySizeWriteNewObject.class);

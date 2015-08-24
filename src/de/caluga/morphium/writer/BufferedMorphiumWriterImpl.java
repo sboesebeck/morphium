@@ -339,7 +339,7 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
                 }
                 morphium.getCache().clearCacheIfNecessary(query.getType());
                 String fieldName = morphium.getARHelper().getFieldName(query.getType(), field);
-                wr.inc(fieldName, (int) amount, multiple);
+                wr.inc(fieldName, amount, multiple);
                 morphium.firePostUpdateEvent(query.getType(), MorphiumStorageListener.UpdateTypes.INC);
             }
         }, c, AsyncOperationType.INC);
@@ -362,7 +362,7 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
                 BulkRequestWrapper wr = ctx.addFind(q);
                 morphium.getCache().clearCacheIfNecessary(obj.getClass());
                 String fld = morphium.getARHelper().getFieldName(obj.getClass(), field);
-                wr.inc(fld, (int) amount, false);
+                wr.inc(fld, amount, false);
                 morphium.firePostUpdateEvent(obj.getClass(), MorphiumStorageListener.UpdateTypes.INC);
             }
         }, c, AsyncOperationType.INC);
