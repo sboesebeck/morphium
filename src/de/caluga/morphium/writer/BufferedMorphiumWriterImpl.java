@@ -1,5 +1,7 @@
 package de.caluga.morphium.writer;
 
+import com.mongodb.BulkWriteError;
+import com.mongodb.BulkWriteException;
 import de.caluga.morphium.*;
 import de.caluga.morphium.annotations.caching.WriteBuffer;
 import de.caluga.morphium.async.AsyncOperationCallback;
@@ -72,13 +74,24 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
         }
         try {
             ctx.execute();
+        } catch (BulkWriteException bwe) {
+            logger.error("Error executing unordered bulk",bwe);
+            for (BulkWriteError err:bwe.getWriteErrors()){
+                logger.error("Write error: "+err.getMessage()+"\n"+err.getDetails().toString());
+            }
         } catch (Exception e) {
-            e.printStackTrace();
+            logger.error("Error during exeecution of unordered bulk",e);
         }
         try {
             octx.execute();
+        } catch (BulkWriteException bwe) {
+            logger.error("Error executing ordered bulk",bwe);
+            for (BulkWriteError err:bwe.getWriteErrors()){
+                logger.error("Write error: "+err.getMessage()+"\n"+err.getDetails().toString());
+
+            }
         } catch (Exception e) {
-            e.printStackTrace();
+            logger.error("Error during exeecution of ordered bulk", e);
         }
         return didNotWrite;
     }
