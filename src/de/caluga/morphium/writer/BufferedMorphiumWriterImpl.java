@@ -7,6 +7,7 @@ import de.caluga.morphium.async.AsyncOperationType;
 import de.caluga.morphium.bulk.BulkOperationContext;
 import de.caluga.morphium.bulk.BulkRequestWrapper;
 import de.caluga.morphium.query.Query;
+import org.bson.types.ObjectId;
 
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
@@ -161,6 +162,10 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
             public void exec(BulkOperationContext ctx) {
                 //do nothing
                 boolean isNew = morphium.getARHelper().getId(o) == null;
+                if (!isNew && !morphium.getARHelper().getIdField(o).getType().equals(ObjectId.class)) {
+                    //need to check if type is not ObjectId
+                    isNew = (morphium.createQueryFor(o.getClass()).f("_id").eq(morphium.getId(o)).countAll() == 0);
+                }
                 morphium.firePreStoreEvent(o, isNew);
                 if (isNew) {
                     ctx.insert(o);
@@ -168,7 +173,7 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
                     BulkRequestWrapper wr = ctx.addFind(morphium.createQueryFor(o.getClass()).f(morphium.getARHelper().getIdFieldName(o)).eq(morphium.getARHelper().getId(o)));
                     for (String f : morphium.getARHelper().getFields(o.getClass())) {
                         try {
-                            wr.set(morphium.getARHelper().getFieldName(o.getClass(), f), morphium.getARHelper().getField(o.getClass(), f).get(o), false);
+                            wr.set(morphium.getARHelper().getFieldName(o.getClass(), f), morphium.getMapper().marshallIfNecessary(morphium.getARHelper().getField(o.getClass(), f).get(o)), false);
                         } catch (IllegalAccessException e) {
                             e.printStackTrace();
                         }

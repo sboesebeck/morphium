@@ -132,6 +132,23 @@ public class ObjectMapperImpl implements ObjectMapper {
         }
     }
 
+
+    @Override
+    public Object marshallIfNecessary(Object o) {
+        if (o == null) return null;
+        if (annotationHelper.isEntity(o)) {
+            return marshall(o);
+        }
+        if (Collection.class.isAssignableFrom(o.getClass())) {
+            ArrayList lst = new ArrayList((Collection) o);
+            return createDBList(lst);
+        }
+        if (Map.class.isAssignableFrom(o.getClass())) {
+            return createDBMap((Map) o);
+        }
+        return o;
+    }
+
     @SuppressWarnings("unchecked")
     @Override
     public DBObject marshall(Object o) {
