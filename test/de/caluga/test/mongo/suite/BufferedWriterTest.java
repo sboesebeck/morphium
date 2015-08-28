@@ -1,6 +1,9 @@
 package de.caluga.test.mongo.suite;
 
+import de.caluga.morphium.Morphium;
 import de.caluga.morphium.MorphiumSingleton;
+import de.caluga.morphium.annotations.Entity;
+import de.caluga.morphium.annotations.Id;
 import de.caluga.morphium.annotations.caching.NoCache;
 import de.caluga.morphium.annotations.caching.WriteBuffer;
 import de.caluga.morphium.query.Query;
@@ -71,6 +74,7 @@ public class BufferedWriterTest extends MongoTest {
         assert (o.getCounter() == 100);
         assert (o.getDval() == 1.0);
     }
+
     @Test
     public void testWriteBufferBySizeWithWriteNewStrategy() throws Exception {
         MorphiumSingleton.get().dropCollection(BufferedBySizeWriteNewObject.class);
@@ -173,6 +177,93 @@ public class BufferedWriterTest extends MongoTest {
         Thread.sleep(4000);
         long count = MorphiumSingleton.get().createQueryFor(BufferedBySizeIgnoreNewObject.class).countAll();
         assert (count < 1500);
+    }
+
+    @Test
+    public void testComplexObject() throws Exception {
+        Morphium m = MorphiumSingleton.get();
+        m.dropCollection(ComplexObjectBuffered.class);
+        for (int i = 0; i < 100; i++) {
+            ComplexObjectBuffered buf = new ComplexObjectBuffered();
+            buf.setEinText("The text " + i);
+            EmbeddedObject e = new EmbeddedObject();
+            e.setName("just a test");
+            buf.setEmbed(e);
+            UncachedObject uc = new UncachedObject();
+            uc.setCounter(i);
+            uc.setValue("value");
+            buf.setEntityEmbeded(uc);
+            m.store(buf);
+        }
+        while (m.getWriteBufferCount() != 0) Thread.sleep(100);
+
+        ComplexObjectBuffered buf = m.createQueryFor(ComplexObjectBuffered.class).f("ein_text").eq("The text " + 0).get();
+        assert (buf != null);
+        assert (m.createQueryFor(ComplexObjectBuffered.class).countAll() == 100);
+    }
+
+    @Test
+    public void testNonObjectIdID() throws Exception {
+        Morphium m = MorphiumSingleton.get();
+        m.dropCollection(SimpleObject.class);
+        for (int i = 0; i < 100; i++) {
+            SimpleObject so = new SimpleObject();
+            so.setCount(i);
+            so.setValue("value " + i);
+            so.setMyId("id_" + i);
+            m.store(so);
+        }
+        while (m.getWriteBufferCount() != 0) Thread.sleep(100);
+        assert (m.createQueryFor(SimpleObject.class).countAll() == 100);
+
+        for (int i = 0; i < 100; i++) {
+            SimpleObject so = new SimpleObject();
+            so.setCount(i);
+            so.setValue("value " + i);
+            so.setMyId("id_" + i);
+            m.store(so);
+        }
+        while (m.getWriteBufferCount() != 0) Thread.sleep(100);
+        assert (m.createQueryFor(SimpleObject.class).countAll() == 100);
+    }
+
+
+    @WriteBuffer(size = 100, timeout = 1000)
+    @Entity
+    public static class SimpleObject {
+        @Id
+        private String myId;
+        private String value;
+        private int count;
+
+        public String getMyId() {
+            return myId;
+        }
+
+        public void setMyId(String myId) {
+            this.myId = myId;
+        }
+
+        public String getValue() {
+            return value;
+        }
+
+        public void setValue(String value) {
+            this.value = value;
+        }
+
+        public int getCount() {
+            return count;
+        }
+
+        public void setCount(int count) {
+            this.count = count;
+        }
+    }
+
+    @WriteBuffer(size = 10, timeout = 1000)
+    public static class ComplexObjectBuffered extends ComplexObject {
+
     }
 
 
