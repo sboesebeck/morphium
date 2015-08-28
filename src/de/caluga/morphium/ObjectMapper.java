@@ -14,6 +14,8 @@ public interface ObjectMapper {
 
     String getCollectionName(Class cls);
 
+    Object marshallIfNecessary(Object o);
+
     DBObject marshall(Object o);
 
     <T> T unmarshall(Class<? extends T> cls, DBObject o);
