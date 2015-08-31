@@ -1100,7 +1100,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
      * @param amount: the value to set
      */
     @Override
-    public <T> void inc(final T toInc, final String collection, final String field, final double amount, AsyncOperationCallback<T> callback) {
+    public <T> void inc(final T toInc, final String collection, final String field, final Number amount, AsyncOperationCallback<T> callback) {
         WriterTask r = new WriterTask() {
             private AsyncOperationCallback<T> callback;
 
@@ -1148,25 +1148,25 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
 
                     if (f.getType().equals(Integer.class) || f.getType().equals(int.class)) {
                         try {
-                            f.set(toInc, ((Integer) f.get(toInc)) + (int) amount);
+                            f.set(toInc, ((Integer) f.get(toInc)) + (int) amount.intValue());
                         } catch (IllegalAccessException e) {
                             throw new RuntimeException(e);
                         }
                     } else if (f.getType().equals(Double.class) || f.getType().equals(double.class)) {
                         try {
-                            f.set(toInc, ((Double) f.get(toInc)) + amount);
+                            f.set(toInc, ((Double) f.get(toInc)) + amount.doubleValue());
                         } catch (IllegalAccessException e) {
                             throw new RuntimeException(e);
                         }
                     } else if (f.getType().equals(Float.class) || f.getType().equals(float.class)) {
                         try {
-                            f.set(toInc, ((Float) f.get(toInc)) + (float) amount);
+                            f.set(toInc, ((Float) f.get(toInc)) + (float) amount.floatValue());
                         } catch (IllegalAccessException e) {
                             throw new RuntimeException(e);
                         }
                     } else if (f.getType().equals(Long.class) || f.getType().equals(long.class)) {
                         try {
-                            f.set(toInc, ((Long) f.get(toInc)) + (long) amount);
+                            f.set(toInc, ((Long) f.get(toInc)) + (long) amount.longValue());
                         } catch (IllegalAccessException e) {
                             throw new RuntimeException(e);
                         }
@@ -1187,7 +1187,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
     }
 
     @Override
-    public <T> void inc(final Query<T> query, final Map<String, Double> fieldsToInc, final boolean insertIfNotExist, final boolean multiple, AsyncOperationCallback<T> callback) {
+    public <T> void inc(final Query<T> query, final Map<String, Number> fieldsToInc, final boolean insertIfNotExist, final boolean multiple, AsyncOperationCallback<T> callback) {
         WriterTask r = new WriterTask() {
             private AsyncOperationCallback<T> callback;
 
@@ -1245,7 +1245,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
     }
 
     @Override
-    public <T> void inc(final Query<T> query, final String field, final double amount, final boolean insertIfNotExist, final boolean multiple, AsyncOperationCallback<T> callback) {
+    public <T> void inc(final Query<T> query, final String field, final Number amount, final boolean insertIfNotExist, final boolean multiple, AsyncOperationCallback<T> callback) {
         WriterTask r = new WriterTask() {
             private AsyncOperationCallback<T> callback;
 
