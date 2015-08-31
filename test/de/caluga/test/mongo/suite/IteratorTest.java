@@ -73,6 +73,17 @@ public class IteratorTest extends MongoTest {
     }
 
     @Test
+    public void emptyResultIteratorTest() throws Exception {
+        for (UncachedObject uc : MorphiumSingleton.get().createQueryFor(UncachedObject.class).asIterable(100)) {
+            assert (false);
+        }
+
+        for (UncachedObject uc : MorphiumSingleton.get().createQueryFor(UncachedObject.class).sort("-counter").asIterable(100)) {
+            assert (false);
+        }
+    }
+
+    @Test
     public void parallelIteratorAccessTest() throws Exception {
         createTestUc();
         runningThreads = 0;
