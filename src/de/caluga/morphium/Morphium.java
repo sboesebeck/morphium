@@ -725,12 +725,6 @@ public class Morphium {
 
     }
 
-    @SuppressWarnings({"unchecked", "UnusedDeclaration"})
-    public void pullAll(Query<?> query, String field, List<Object> value, boolean insertIfNotExist, boolean multiple) {
-        pull(query, field, value, insertIfNotExist, multiple);
-    }
-
-
     /**
      * will change an entry in mongodb-collection corresponding to given class object
      * if query is too complex, upsert might not work!
@@ -743,6 +737,19 @@ public class Morphium {
      * @param insertIfNotExist - insert, if it does not exist (query needs to be simple!)
      * @param multiple         - update several documents, if false, only first hit will be updated
      */
+    public <T> void set(Query<T> query, Enum field, Object val, boolean insertIfNotExist, boolean multiple) {
+        set(query, field.name(), val, insertIfNotExist, multiple, (AsyncOperationCallback<Query<T>>) null);
+    }
+
+    public <T> void set(Query<T> query, Enum field, Object val, boolean insertIfNotExist, boolean multiple, AsyncOperationCallback<Query<T>> callback) {
+        set(query, field.name(), val, insertIfNotExist, multiple, callback);
+    }
+
+
+    @SuppressWarnings({"unchecked", "UnusedDeclaration"})
+    public void pullAll(Query<?> query, String field, List<Object> value, boolean insertIfNotExist, boolean multiple) {
+        pull(query, field, value, insertIfNotExist, multiple);
+    }
     public <T> void set(Query<T> query, String field, Object val, boolean insertIfNotExist, boolean multiple) {
         set(query, field, val, insertIfNotExist, multiple, (AsyncOperationCallback<T>) null);
     }
@@ -760,52 +767,6 @@ public class Morphium {
     public <T> void set(final Query<T> query, final Map<String, Object> map, final boolean insertIfNotExist, final boolean multiple, AsyncOperationCallback<T> callback) {
         if (query == null) throw new RuntimeException("Cannot update null!");
         getWriterForClass(query.getType()).set(query, map, insertIfNotExist, multiple, callback);
-    }
-
-    @SuppressWarnings({"unchecked", "UnusedDeclaration"})
-    public void dec(Query<?> query, Enum field, double amount, boolean insertIfNotExist, boolean multiple) {
-        dec(query, field.name(), amount, insertIfNotExist, multiple);
-    }
-
-    public void dec(Query<?> query, String field, double amount, boolean insertIfNotExist, boolean multiple) {
-        inc(query, field, -amount, insertIfNotExist, multiple);
-    }
-
-    public void dec(Query<?> query, String field, double amount) {
-        inc(query, field, -amount, false, false);
-    }
-
-    @SuppressWarnings({"unchecked", "UnusedDeclaration"})
-    public void dec(Query<?> query, Enum field, double amount) {
-        inc(query, field, -amount, false, false);
-    }
-
-    public void inc(Query<?> query, String field, double amount) {
-        inc(query, field, amount, false, false);
-    }
-
-    @SuppressWarnings({"unchecked", "UnusedDeclaration"})
-    public void inc(Query<?> query, Enum field, double amount) {
-        inc(query, field, amount, false, false);
-    }
-
-    public void inc(Query<?> query, Enum field, double amount, boolean insertIfNotExist, boolean multiple) {
-        inc(query, field.name(), amount, insertIfNotExist, multiple);
-    }
-
-    public <T> void inc(final Query<T> query, final Map<String, Double> toUptad, final boolean insertIfNotExist, final boolean multiple, AsyncOperationCallback<T> callback) {
-        if (query == null) throw new RuntimeException("Cannot update null!");
-        getWriterForClass(query.getType()).inc(query, toUptad, insertIfNotExist, multiple, callback);
-    }
-
-    public void inc(final Query<?> query, final String name, final double amount, final boolean insertIfNotExist, final boolean multiple) {
-        inc(query, name, amount, insertIfNotExist, multiple, null);
-    }
-
-    public <T> void inc(final Query<T> query, final String name, final double amount, final boolean insertIfNotExist, final boolean multiple, final AsyncOperationCallback<T> callback) {
-        if (query == null) throw new RuntimeException("Cannot update null!");
-        getWriterForClass(query.getType()).inc(query, name, amount, insertIfNotExist, multiple, callback);
-
     }
 
 
@@ -853,6 +814,168 @@ public class Morphium {
     }
 
 
+    ////////// DEC and INC Methods
+
+    @SuppressWarnings({"unchecked", "UnusedDeclaration"})
+    public void dec(Query<?> query, Enum field, double amount, boolean insertIfNotExist, boolean multiple) {
+        dec(query, field.name(), -amount, insertIfNotExist, multiple);
+    }
+
+    public void dec(Query<?> query, Enum field, long amount, boolean insertIfNotExist, boolean multiple) {
+        dec(query, field.name(), -amount, insertIfNotExist, multiple);
+    }
+
+    public void dec(Query<?> query, Enum field, Number amount, boolean insertIfNotExist, boolean multiple) {
+        dec(query, field.name(), -amount.doubleValue(), insertIfNotExist, multiple);
+    }
+
+    public void dec(Query<?> query, Enum field, int amount, boolean insertIfNotExist, boolean multiple) {
+        dec(query, field.name(), -amount, insertIfNotExist, multiple);
+    }
+
+    public void dec(Query<?> query, String field, double amount, boolean insertIfNotExist, boolean multiple) {
+        inc(query, field, -amount, insertIfNotExist, multiple);
+    }
+
+    public void dec(Query<?> query, String field, long amount, boolean insertIfNotExist, boolean multiple) {
+        inc(query, field, -amount, insertIfNotExist, multiple);
+    }
+
+    public void dec(Query<?> query, String field, int amount, boolean insertIfNotExist, boolean multiple) {
+        inc(query, field, -amount, insertIfNotExist, multiple);
+    }
+
+    public void dec(Query<?> query, String field, Number amount, boolean insertIfNotExist, boolean multiple) {
+        inc(query, field, -amount.doubleValue(), insertIfNotExist, multiple);
+    }
+
+    public void dec(Query<?> query, String field, double amount) {
+        inc(query, field, -amount, false, false);
+    }
+
+    public void dec(Query<?> query, String field, long amount) {
+        inc(query, field, -amount, false, false);
+    }
+
+    public void dec(Query<?> query, String field, int amount) {
+        inc(query, field, -amount, false, false);
+    }
+
+    public void dec(Query<?> query, String field, Number amount) {
+        inc(query, field, -amount.doubleValue(), false, false);
+    }
+
+    @SuppressWarnings({"unchecked", "UnusedDeclaration"})
+    public void dec(Query<?> query, Enum field, double amount) {
+        inc(query, field, -amount, false, false);
+    }
+
+    public void dec(Query<?> query, Enum field, long amount) {
+        inc(query, field, -amount, false, false);
+    }
+
+    public void dec(Query<?> query, Enum field, int amount) {
+        inc(query, field, -amount, false, false);
+    }
+
+    public void dec(Query<?> query, Enum field, Number amount) {
+        inc(query, field, -amount.doubleValue(), false, false);
+    }
+
+
+    public void inc(Query<?> query, String field, long amount) {
+        inc(query, field, amount, false, false);
+    }
+
+    public void inc(Query<?> query, String field, int amount) {
+        inc(query, field, amount, false, false);
+    }
+
+    public void inc(Query<?> query, String field, Number amount) {
+        inc(query, field, amount, false, false);
+    }
+
+    public void inc(Query<?> query, String field, double amount) {
+        inc(query, field, amount, false, false);
+    }
+
+    @SuppressWarnings({"unchecked", "UnusedDeclaration"})
+    public void inc(Query<?> query, Enum field, double amount) {
+        inc(query, field, amount, false, false);
+    }
+
+    public void inc(Query<?> query, Enum field, long amount) {
+        inc(query, field, amount, false, false);
+    }
+
+    public void inc(Query<?> query, Enum field, int amount) {
+        inc(query, field, amount, false, false);
+    }
+
+    public void inc(Query<?> query, Enum field, Number amount) {
+        inc(query, field, amount, false, false);
+    }
+
+    public void inc(Query<?> query, Enum field, double amount, boolean insertIfNotExist, boolean multiple) {
+        inc(query, field.name(), amount, insertIfNotExist, multiple);
+    }
+
+    public void inc(Query<?> query, Enum field, long amount, boolean insertIfNotExist, boolean multiple) {
+        inc(query, field.name(), amount, insertIfNotExist, multiple);
+    }
+
+    public void inc(Query<?> query, Enum field, int amount, boolean insertIfNotExist, boolean multiple) {
+        inc(query, field.name(), amount, insertIfNotExist, multiple);
+    }
+
+    public void inc(Query<?> query, Enum field, Number amount, boolean insertIfNotExist, boolean multiple) {
+        inc(query, field.name(), amount, insertIfNotExist, multiple);
+    }
+
+    public <T> void inc(final Query<T> query, final Map<String, Number> toUptad, final boolean insertIfNotExist, final boolean multiple, AsyncOperationCallback<T> callback) {
+        if (query == null) throw new RuntimeException("Cannot update null!");
+        getWriterForClass(query.getType()).inc(query, toUptad, insertIfNotExist, multiple, callback);
+    }
+
+    public void inc(final Query<?> query, final String name, final long amount, final boolean insertIfNotExist, final boolean multiple) {
+        inc(query, name, amount, insertIfNotExist, multiple, null);
+    }
+
+    public void inc(final Query<?> query, final String name, final int amount, final boolean insertIfNotExist, final boolean multiple) {
+        inc(query, name, amount, insertIfNotExist, multiple, null);
+    }
+
+    public void inc(final Query<?> query, final String name, final double amount, final boolean insertIfNotExist, final boolean multiple) {
+        inc(query, name, amount, insertIfNotExist, multiple, null);
+    }
+
+    public void inc(final Query<?> query, final String name, final Number amount, final boolean insertIfNotExist, final boolean multiple) {
+        inc(query, name, amount, insertIfNotExist, multiple, null);
+    }
+
+    public <T> void inc(final Query<T> query, final String name, final long amount, final boolean insertIfNotExist, final boolean multiple, final AsyncOperationCallback<T> callback) {
+        if (query == null) throw new RuntimeException("Cannot update null!");
+        getWriterForClass(query.getType()).inc(query, name, amount, insertIfNotExist, multiple, callback);
+    }
+
+    public <T> void inc(final Query<T> query, final String name, final int amount, final boolean insertIfNotExist, final boolean multiple, final AsyncOperationCallback<T> callback) {
+        if (query == null) throw new RuntimeException("Cannot update null!");
+        getWriterForClass(query.getType()).inc(query, name, amount, insertIfNotExist, multiple, callback);
+    }
+
+    public <T> void inc(final Query<T> query, final String name, final double amount, final boolean insertIfNotExist, final boolean multiple, final AsyncOperationCallback<T> callback) {
+        if (query == null) throw new RuntimeException("Cannot update null!");
+        getWriterForClass(query.getType()).inc(query, name, amount, insertIfNotExist, multiple, callback);
+
+    }
+
+    public <T> void inc(final Query<T> query, final String name, final Number amount, final boolean insertIfNotExist, final boolean multiple, final AsyncOperationCallback<T> callback) {
+        if (query == null) throw new RuntimeException("Cannot update null!");
+        getWriterForClass(query.getType()).inc(query, name, amount, insertIfNotExist, multiple, callback);
+
+    }
+
+
     public MorphiumWriter getWriterForClass(Class<?> cls) {
 
         if (annotationHelper.isBufferedWrite(cls) && isWriteBufferEnabledForThread()) {
@@ -872,7 +995,31 @@ public class Morphium {
         inc(toDec, field, -amount);
     }
 
+    public void dec(Object toDec, String field, int amount) {
+        inc(toDec, field, -amount);
+    }
+
+    public void dec(Object toDec, String field, long amount) {
+        inc(toDec, field, -amount);
+    }
+
+    public void dec(Object toDec, String field, Number amount) {
+        inc(toDec, field, -amount.doubleValue());
+    }
+
+    public void inc(final Object toSet, final String field, final long i) {
+        inc(toSet, field, i, null);
+    }
+
+    public void inc(final Object toSet, final String field, final int i) {
+        inc(toSet, field, i, null);
+    }
+
     public void inc(final Object toSet, final String field, final double i) {
+        inc(toSet, field, i, null);
+    }
+
+    public void inc(final Object toSet, final String field, final Number i) {
         inc(toSet, field, i, null);
     }
 
@@ -880,7 +1027,52 @@ public class Morphium {
         inc(toSet, getMapper().getCollectionName(toSet.getClass()), field, i, callback);
     }
 
+    public <T> void inc(final T toSet, final String field, final int i, final AsyncOperationCallback<T> callback) {
+        inc(toSet, getMapper().getCollectionName(toSet.getClass()), field, i, callback);
+    }
+
+    public <T> void inc(final T toSet, final String field, final long i, final AsyncOperationCallback<T> callback) {
+        inc(toSet, getMapper().getCollectionName(toSet.getClass()), field, i, callback);
+    }
+
+    public <T> void inc(final T toSet, final String field, final Number i, final AsyncOperationCallback<T> callback) {
+        inc(toSet, getMapper().getCollectionName(toSet.getClass()), field, i, callback);
+    }
+
     public <T> void inc(final T toSet, String collection, final String field, final double i, final AsyncOperationCallback<T> callback) {
+        if (toSet == null) throw new RuntimeException("Cannot update null!");
+
+        if (getId(toSet) == null) {
+            logger.info("just storing object as it is new...");
+            store(toSet);
+            return;
+        }
+        getWriterForClass(toSet.getClass()).inc(toSet, collection, field, i, callback);
+    }
+
+    public <T> void inc(final T toSet, String collection, final String field, final int i, final AsyncOperationCallback<T> callback) {
+        if (toSet == null) throw new RuntimeException("Cannot update null!");
+
+        if (getId(toSet) == null) {
+            logger.info("just storing object as it is new...");
+            store(toSet);
+            return;
+        }
+        getWriterForClass(toSet.getClass()).inc(toSet, collection, field, i, callback);
+    }
+
+    public <T> void inc(final T toSet, String collection, final String field, final long i, final AsyncOperationCallback<T> callback) {
+        if (toSet == null) throw new RuntimeException("Cannot update null!");
+
+        if (getId(toSet) == null) {
+            logger.info("just storing object as it is new...");
+            store(toSet);
+            return;
+        }
+        getWriterForClass(toSet.getClass()).inc(toSet, collection, field, i, callback);
+    }
+
+    public <T> void inc(final T toSet, String collection, final String field, final Number i, final AsyncOperationCallback<T> callback) {
         if (toSet == null) throw new RuntimeException("Cannot update null!");
 
         if (getId(toSet) == null) {
@@ -1918,8 +2110,8 @@ public class Morphium {
                 handleNetworkError(i, t);
             }
         }
-            List<R> ret = new ArrayList<>();
-        if (resp!=null) {
+        List<R> ret = new ArrayList<>();
+        if (resp != null) {
             for (DBObject o : resp.results()) {
                 R obj = getMapper().unmarshall(a.getResultType(), o);
                 if (obj == null) continue;

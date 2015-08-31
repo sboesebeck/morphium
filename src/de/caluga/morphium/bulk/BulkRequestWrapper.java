@@ -187,6 +187,14 @@ public class BulkRequestWrapper {
         inc(field, 1, multiple);
     }
 
+    public void inc(String field, Number amount, boolean multiple) {
+        updateType = MorphiumStorageListener.UpdateTypes.INC;
+        if (multiple) {
+            writeOp("$inc", field, amount);
+        } else {
+            writeOpOne("$inc", field, amount);
+        }
+    }
     public void inc(String field, double amount, boolean multiple) {
         updateType = MorphiumStorageListener.UpdateTypes.INC;
         if (multiple) {
