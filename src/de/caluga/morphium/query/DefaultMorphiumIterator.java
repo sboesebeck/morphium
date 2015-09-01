@@ -84,6 +84,8 @@ public class DefaultMorphiumIterator<T> implements MorphiumIterator<T> {
             }
             if (buffer == null || buffer.size() == 0) {
                 log.fatal("Buffer is empty!?!?!?! cursor: " + cursor + " cnt: " + count + " window: " + windowSize + " query: " + q.toQueryObject().toString());
+            } else {
+                updateLastValues(q, buffer);
             }
 
         }
