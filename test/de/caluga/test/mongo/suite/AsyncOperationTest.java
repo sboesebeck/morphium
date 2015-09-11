@@ -111,7 +111,7 @@ public class AsyncOperationTest extends MongoTest {
             @Override
             public void onOperationSucceeded(AsyncOperationType type, Query<UncachedObject> q, long duration, List<UncachedObject> result, UncachedObject entity, Object... param) {
                 assert (param != null && param[0] != null);
-                assert (param[0].equals(Long.valueOf(100)));
+                assert (param[0].equals((long) 100));
                 asyncCall = true;
             }
 
@@ -174,7 +174,7 @@ public class AsyncOperationTest extends MongoTest {
 
     @AsyncWrites
     @Entity
-    @WriteSafety(waitForJournalCommit = false, waitForSync = false, level = SafetyLevel.IGNORE_ERROR)
+    @WriteSafety(waitForJournalCommit = false, waitForSync = false, level = SafetyLevel.NORMAL)
     public static class WrongObject {
         private String value;
 

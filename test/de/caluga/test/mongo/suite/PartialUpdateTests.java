@@ -62,7 +62,7 @@ public class PartialUpdateTests extends MongoTest {
         MorphiumSingleton.get().store(po);
         waitForWrites();
         q.setReadPreferenceLevel(ReadPreferenceLevel.PRIMARY);
-        po = (PartUpdTestObj) q.q().f("value").eq(6).get();
+        po = q.q().f("value").eq(6).get();
         assert (po.getName().equals("neuer Name")) : "Name not changed?";
     }
 

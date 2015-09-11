@@ -18,20 +18,20 @@ public class ListOfListTests extends MongoTest {
     @Test
     public void storeListOfLists() throws Exception {
         MorphiumSingleton.get().clearCollection(LoLType.class);
-        List<List<String>> val = new ArrayList<List<String>>();
-        List<String> v1 = new ArrayList<String>();
+        List<List<String>> val = new ArrayList<>();
+        List<String> v1 = new ArrayList<>();
         v1.add("v1 - 1");
         v1.add("v1 - 2");
         v1.add("v1 - 3");
         val.add(v1);
-        v1 = new ArrayList<String>();
+        v1 = new ArrayList<>();
         v1.add("v2 - 1");
         v1.add("v2 - 2");
         v1.add("v2 - 3");
         v1.add("v2 - 4");
         val.add(v1);
 
-        v1 = new ArrayList<String>();
+        v1 = new ArrayList<>();
         v1.add("v3 - 1");
         v1.add("v3 - 2");
         val.add(v1);
@@ -40,7 +40,7 @@ public class ListOfListTests extends MongoTest {
         l.setLst(val);
         MorphiumSingleton.get().store(l);
 
-        LoLType l2 = (LoLType) MorphiumSingleton.get().createQueryFor(LoLType.class).f("id").eq(l.id).get();
+        LoLType l2 = MorphiumSingleton.get().createQueryFor(LoLType.class).f("id").eq(l.id).get();
         assert (l2.lst.size() == l.lst.size()) : "Error in list sizes";
         assert (l2.lst.get(0).size() == l.lst.get(0).size()) : "error in sublist sizes";
         assert (l2.lst.get(1).get(0).equals(l.lst.get(1).get(0))) : "error in sublist values";

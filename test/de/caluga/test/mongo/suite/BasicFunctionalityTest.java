@@ -22,6 +22,7 @@ import java.util.Map;
 /**
  * @author stephan
  */
+@SuppressWarnings("AssertWithSideEffects")
 public class BasicFunctionalityTest extends MongoTest {
     public static final int NO_OBJECTS = 100;
     private final static Logger log = new Logger(BasicFunctionalityTest.class);
@@ -306,7 +307,7 @@ public class BasicFunctionalityTest extends MongoTest {
         log.info("Preparing a list...");
 
         long start = System.currentTimeMillis();
-        List<UncachedObject> lst = new ArrayList<UncachedObject>();
+        List<UncachedObject> lst = new ArrayList<>();
         for (int i = 1; i <= NO_OBJECTS; i++) {
             UncachedObject o = new UncachedObject();
             o.setCounter(i);
@@ -390,7 +391,7 @@ public class BasicFunctionalityTest extends MongoTest {
 
     @Test
     public void checkListWriting() {
-        List<CachedObject> lst = new ArrayList<CachedObject>();
+        List<CachedObject> lst = new ArrayList<>();
         try {
             MorphiumSingleton.get().store(lst);
             MorphiumSingleton.get().storeBuffered(lst);
@@ -425,7 +426,7 @@ public class BasicFunctionalityTest extends MongoTest {
 
     @Test
     public void mixedListWritingTest() {
-        List<Object> tst = new ArrayList<Object>();
+        List<Object> tst = new ArrayList<>();
         int cached = 0;
         int uncached = 0;
         for (int i = 0; i < NO_OBJECTS; i++) {

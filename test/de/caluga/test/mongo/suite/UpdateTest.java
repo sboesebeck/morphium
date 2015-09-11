@@ -29,7 +29,7 @@ public class UpdateTest extends MongoTest {
         Query<UncachedMultipleCounter> q = MorphiumSingleton.get().createQueryFor(UncachedMultipleCounter.class);
         q = q.f("value").eq("Uncached " + 5);
 
-        Map<String, Double> toInc = new HashMap<String, Double>();
+        Map<String, Number> toInc = new HashMap<>();
         toInc.put("counter", 10.0);
         toInc.put("counter2", 0.5);
         MorphiumSingleton.get().inc(q, toInc, false, true, null);
@@ -138,6 +138,25 @@ public class UpdateTest extends MongoTest {
     }
 
     @Test
+    public void setTestEnum() throws Exception {
+        EnumUC u = new EnumUC();
+        u.setCounter(1);
+        u.setValue("something");
+        MorphiumSingleton.get().store(u);
+
+        MorphiumSingleton.get().set(u, "val", Value.v2);
+
+    }
+
+
+    public static class EnumUC extends UncachedObject {
+        private Value val;
+    }
+
+    public enum Value {
+        v1, v2, v3
+    }
+    @Test
     public void pushTest() throws Exception {
         MorphiumSingleton.get().dropCollection(ListContainer.class);
         for (int i = 1; i <= 50; i++) {
@@ -224,7 +243,7 @@ public class UpdateTest extends MongoTest {
             MorphiumSingleton.get().store(lc);
         }
 
-        List<EmbeddedObject> obj = new ArrayList<EmbeddedObject>();
+        List<EmbeddedObject> obj = new ArrayList<>();
 
         Query<ListContainer> lc = MorphiumSingleton.get().createQueryFor(ListContainer.class);
         lc = lc.f("name").eq("LC15");

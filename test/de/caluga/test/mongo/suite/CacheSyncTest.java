@@ -24,6 +24,7 @@ import org.junit.Test;
  * Time: 16:40
  * <p/>
  */
+@SuppressWarnings("AssertWithSideEffects")
 public class CacheSyncTest extends MongoTest {
     private boolean preSendClear = false;
     private boolean postSendClear = false;
@@ -139,7 +140,7 @@ public class CacheSyncTest extends MongoTest {
         start = System.currentTimeMillis();
         for (int i = 0; i < 100; i++) {
             Query<IdCachedObject> q = MorphiumSingleton.get().createQueryFor(IdCachedObject.class);
-            IdCachedObject obj = (IdCachedObject) q.f("counter").eq(i).get();
+            IdCachedObject obj = q.f("counter").eq(i).get();
             obj.setCounter(i + 1000);
             MorphiumSingleton.get().store(obj);
         }
@@ -383,7 +384,7 @@ public class CacheSyncTest extends MongoTest {
         assert (postclear);
         assert (preClear);
         log.info("Waiting a minute for msg to be cleared... ");
-        Thread.sleep(60000);
+        Thread.sleep(62000);
 
         long l = m1.createQueryFor(Msg.class).countAll();
         assert (l <= 1) : "too many messages? " + l;

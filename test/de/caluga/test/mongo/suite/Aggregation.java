@@ -64,8 +64,8 @@ public class Aggregation extends MongoTest {
         log.info("done... starting");
         long start = System.currentTimeMillis();
         Query<UncachedObject> q = MorphiumSingleton.get().createQueryFor(UncachedObject.class);
-        HashMap<Integer, Integer> sum = new HashMap<Integer, Integer>();
-        HashMap<Integer, Integer> anz = new HashMap<Integer, Integer>();
+        HashMap<Integer, Integer> sum = new HashMap<>();
+        HashMap<Integer, Integer> anz = new HashMap<>();
         q = q.sort("counter");
 
         for (UncachedObject u : q.asList()) {
@@ -73,12 +73,12 @@ public class Aggregation extends MongoTest {
             if (sum.get(v) == null) {
                 sum.put(v, u.getCounter());
             } else {
-                sum.put(v, sum.get(v).intValue() + v);
+                sum.put(v, sum.get(v) + v);
             }
             if (anz.get(v) == null) {
                 anz.put(v, 1);
             } else {
-                anz.put(v, anz.get(v).intValue() + 1);
+                anz.put(v, anz.get(v) + 1);
             }
 
         }

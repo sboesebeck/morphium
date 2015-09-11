@@ -8,5 +8,5 @@ package de.caluga.morphium;
  * NameProvider define the name for a given Collection
  */
 public interface NameProvider {
-    public String getCollectionName(Class<?> type, ObjectMapper om, boolean translateCamelCase, boolean useFQN, String specifiedName, Morphium morphium);
+    String getCollectionName(Class<?> type, ObjectMapper om, boolean translateCamelCase, boolean useFQN, String specifiedName, Morphium morphium);
 }

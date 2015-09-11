@@ -10,6 +10,7 @@ import java.util.List;
 /**
  * Created by stephan on 08.08.14.
  */
+@SuppressWarnings("AssertWithSideEffects")
 public class CappedCollectionTest extends MongoTest {
 
     @Test

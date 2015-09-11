@@ -7,5 +7,5 @@ package de.caluga.test.mongo.suite;
  * <p/>
  */
 public enum TestEnum {
-    TEST1, TEST2, VALUE, NOCH_EIN_TEST;
+    TEST1, TEST2, VALUE, NOCH_EIN_TEST
 }

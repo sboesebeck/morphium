@@ -88,7 +88,7 @@ public class MongoFieldImpl<T> implements MongoField<T> {
                         // list of references, this should be part of
                         //
                         // need to compare DBRefs
-                        val = new DBRef(null, val.getClass().getName(), id);
+                        val = new DBRef(val.getClass().getName(), id);
                     } else {
                         // Reference
                         // here - query value is an entity AND it is referenced by the query type
@@ -105,7 +105,7 @@ public class MongoFieldImpl<T> implements MongoField<T> {
                 } else if (val instanceof String && field.getType().equals(ObjectId.class)) {
                     try {
                         val = new ObjectId((String) val);
-                    } catch (Exception e) {
+                    } catch (Exception ignored) {
                     }
                 }
             }
@@ -260,7 +260,7 @@ public class MongoFieldImpl<T> implements MongoField<T> {
         lst.add(p1);
         lst.add(p2);
 
-        List<FilterExpression> expressionList = new ArrayList<FilterExpression>();
+        List<FilterExpression> expressionList = new ArrayList<>();
 
         FilterExpression withinExpression = new FilterExpression();
         withinExpression.setField("$within");
@@ -288,7 +288,7 @@ public class MongoFieldImpl<T> implements MongoField<T> {
             lst.add(p1);
         }
 
-        List<FilterExpression> expressionList = new ArrayList<FilterExpression>();
+        List<FilterExpression> expressionList = new ArrayList<>();
 
         FilterExpression withinExpression = new FilterExpression();
         withinExpression.setField("$within");
@@ -313,7 +313,7 @@ public class MongoFieldImpl<T> implements MongoField<T> {
         lst.add(p1);
         lst.add(r);
 
-        List<FilterExpression> expressionList = new ArrayList<FilterExpression>();
+        List<FilterExpression> expressionList = new ArrayList<>();
 
         FilterExpression withinExpression = new FilterExpression();
         withinExpression.setField("$within");
@@ -338,7 +338,7 @@ public class MongoFieldImpl<T> implements MongoField<T> {
         lst.add(p1);
         lst.add(r);
 
-        List<FilterExpression> expressionList = new ArrayList<FilterExpression>();
+        List<FilterExpression> expressionList = new ArrayList<>();
 
         FilterExpression withinExpression = new FilterExpression();
         withinExpression.setField("$within");
@@ -359,7 +359,7 @@ public class MongoFieldImpl<T> implements MongoField<T> {
         location.add(x);
         location.add(y);
 
-        List<FilterExpression> expressionList = new ArrayList<FilterExpression>();
+        List<FilterExpression> expressionList = new ArrayList<>();
 
         FilterExpression nearExpression = new FilterExpression();
         nearExpression.setField("$nearSphere");
@@ -382,7 +382,7 @@ public class MongoFieldImpl<T> implements MongoField<T> {
         location.add(x);
         location.add(y);
 
-        List<FilterExpression> expressionList = new ArrayList<FilterExpression>();
+        List<FilterExpression> expressionList = new ArrayList<>();
 
         FilterExpression nearExpression = new FilterExpression();
         nearExpression.setField("$near");

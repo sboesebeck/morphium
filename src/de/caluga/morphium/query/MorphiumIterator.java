@@ -19,27 +19,27 @@ import java.util.List;
  */
 @SuppressWarnings("UnusedDeclaration")
 public interface MorphiumIterator<T> extends Iterable<T>, Iterator<T> {
-    public void setWindowSize(int sz);
+    void setWindowSize(int sz);
 
-    public int getWindowSize();
+    int getWindowSize();
 
-    public void setQuery(Query<T> q);
+    void setQuery(Query<T> q);
 
-    public Query<T> getQuery();
+    Query<T> getQuery();
 
     /**
      * retruns the number of elements now in buffer. Max windowsize
      *
      * @return list
      */
-    public int getCurrentBufferSize();
+    int getCurrentBufferSize();
 
     /**
      * get the current buffer. Maximum length is specified windowsize
      *
      * @return list
      */
-    public List<T> getCurrentBuffer();
+    List<T> getCurrentBuffer();
 
     /**
      * how many elements are to be processed.
@@ -47,34 +47,34 @@ public interface MorphiumIterator<T> extends Iterable<T>, Iterator<T> {
      *
      * @return count
      */
-    public long getCount();
+    long getCount();
 
     /**
      * returns current cursor position
      *
      * @return int
      */
-    public int getCursor();
+    int getCursor();
 
     /**
      * move the cursor position ahead
      *
      * @param jump number of elements to jump
      */
-    public void ahead(int jump);
+    void ahead(int jump);
 
     /**
      * get back some positions
      *
      * @param jump number of elements to jump back
      */
-    public void back(int jump);
+    void back(int jump);
 
-    public void setNumberOfPrefetchWindows(int n);
+    void setNumberOfPrefetchWindows(int n);
 
-    public int getNumberOfAvailableThreads();
+    int getNumberOfAvailableThreads();
 
-    public int getNumberOfThreads();
+    int getNumberOfThreads();
 
     boolean isMultithreaddedAccess();
 

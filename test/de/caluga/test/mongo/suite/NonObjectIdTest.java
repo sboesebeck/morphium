@@ -14,6 +14,7 @@ import java.util.Date;
  * <p/>
  * TODO: Add documentation here
  */
+@SuppressWarnings("AssertWithSideEffects")
 public class NonObjectIdTest extends MongoTest {
     @Test
     public void nonObjectIdTest() throws Exception {
