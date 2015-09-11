@@ -11,17 +11,17 @@ import java.util.Vector;
 
 public class PartiallyUpdateableProxy<T> implements MethodInterceptor, PartiallyUpdateable, Serializable {
     private static final long serialVersionUID = -1277417045334974980L;
-    private transient final Morphium morphium;
+//    private transient final Morphium morphium;
     private AnnotationAndReflectionHelper ah;
 
     private List<String> updateableFields;
     private T reference;
 
     public PartiallyUpdateableProxy(Morphium m, T o) {
-        updateableFields = new Vector<String>();
+        updateableFields = new Vector<>();
         reference = o;
-        morphium = m;
-        ah = morphium.getARHelper();
+//        morphium = m;
+        ah = m.getARHelper();
     }
 
     public T __getDeref() {

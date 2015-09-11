@@ -14,39 +14,39 @@ import java.util.Map;
  *         These listeners will be informed about Storing _any_ object in morphium!
  */
 public interface MorphiumStorageListener<T> {
-    public enum UpdateTypes {
+    enum UpdateTypes {
         SET, UNSET, PUSH, PULL, INC, DEC, MUL, MIN, MAX, RENAME, POP,
     }
 
-    public void preStore(Morphium m, T r, boolean isNew) throws MorphiumAccessVetoException;
+    void preStore(Morphium m, T r, boolean isNew) throws MorphiumAccessVetoException;
 
-    public void preStore(Morphium m, Map<T, Boolean> isNew) throws MorphiumAccessVetoException;
+    void preStore(Morphium m, Map<T, Boolean> isNew) throws MorphiumAccessVetoException;
 
 
-    public void postStore(Morphium m, T r, boolean isNew);
+    void postStore(Morphium m, T r, boolean isNew);
 
-    public void postStore(Morphium m, Map<T, Boolean> isNew);
+    void postStore(Morphium m, Map<T, Boolean> isNew);
 
-    public void preRemove(Morphium m, Query<T> q) throws MorphiumAccessVetoException;
+    void preRemove(Morphium m, Query<T> q) throws MorphiumAccessVetoException;
 
-    public void preRemove(Morphium m, T r) throws MorphiumAccessVetoException;
+    void preRemove(Morphium m, T r) throws MorphiumAccessVetoException;
 
-    public void postRemove(Morphium m, T r);
+    void postRemove(Morphium m, T r);
 
-    public void postRemove(Morphium m, List<T> lst);
+    void postRemove(Morphium m, List<T> lst);
 
-    public void postDrop(Morphium m, Class<? extends T> cls);
+    void postDrop(Morphium m, Class<? extends T> cls);
 
-    public void preDrop(Morphium m, Class<? extends T> cls) throws MorphiumAccessVetoException;
+    void preDrop(Morphium m, Class<? extends T> cls) throws MorphiumAccessVetoException;
 
-    public void postRemove(Morphium m, Query<T> q);
+    void postRemove(Morphium m, Query<T> q);
 
-    public void postLoad(Morphium m, T o);
+    void postLoad(Morphium m, T o);
 
-    public void postLoad(Morphium m, List<T> o);
+    void postLoad(Morphium m, List<T> o);
 
-    public void preUpdate(Morphium m, Class<? extends T> cls, Enum updateType) throws MorphiumAccessVetoException;
+    void preUpdate(Morphium m, Class<? extends T> cls, Enum updateType) throws MorphiumAccessVetoException;
 
-    public void postUpdate(Morphium m, Class<? extends T> cls, Enum updateType);
+    void postUpdate(Morphium m, Class<? extends T> cls, Enum updateType);
 
 }

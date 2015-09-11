@@ -12,13 +12,15 @@ import org.json.simple.parser.ParseException;
  */
 public interface ObjectMapper {
 
-    public String getCollectionName(Class cls);
+    String getCollectionName(Class cls);
 
-    public DBObject marshall(Object o);
+    Object marshallIfNecessary(Object o);
 
-    public <T> T unmarshall(Class<? extends T> cls, DBObject o);
+    DBObject marshall(Object o);
 
-    public <T> T unmarshall(Class<? extends T> cls, String json) throws ParseException;
+    <T> T unmarshall(Class<? extends T> cls, DBObject o);
+
+    <T> T unmarshall(Class<? extends T> cls, String json) throws ParseException;
 
     /**
      * get current name provider for class
@@ -27,7 +29,7 @@ public interface ObjectMapper {
      * @return configured name provider in @Entity or currently set one
      */
     @SuppressWarnings("UnusedDeclaration")
-    public NameProvider getNameProviderForClass(Class<?> cls);
+    NameProvider getNameProviderForClass(Class<?> cls);
 
     /**
      * override settings vor name Provider from @Entity
@@ -35,11 +37,11 @@ public interface ObjectMapper {
      * @param cls - class
      * @param np  the name Provider to use
      */
-    public void setNameProviderForClass(Class<?> cls, NameProvider np);
+    void setNameProviderForClass(Class<?> cls, NameProvider np);
 
-    public void setMorphium(Morphium m);
+    void setMorphium(Morphium m);
 
-    public Morphium getMorphium();
+    Morphium getMorphium();
 
 
 }

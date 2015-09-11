@@ -19,6 +19,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
+import java.util.logging.Level;
 
 
 /**
@@ -61,6 +62,46 @@ public class MongoTest {
         System.setProperty("morphium.log.level", "5");
         System.setProperty("morphium.log.synced", "true");
         System.setProperty("morphium.log.file", "-");
+        java.util.logging.Logger l = java.util.logging.Logger.getGlobal();
+        l.setLevel(Level.SEVERE);
+//        l.addHandler(new Handler() {
+//            @Override
+//            public void publish(LogRecord record) {
+//                Logger l=new Logger(record.getLoggerName());
+//                if (record.getLevel().equals(Level.ALL)) {
+//                    l.debug(record.getMessage(),record.getThrown());
+//                } else if (record.getLevel().equals(Level.FINE)) {
+//                    l.warn(record.getMessage(),record.getThrown());
+//                } else if (record.getLevel().equals(Level.FINER)) {
+//                    l.info(record.getMessage(),record.getThrown());
+//                } else if (record.getLevel().equals(Level.FINEST)) {
+//                    l.debug(record.getMessage(),record.getThrown());
+//                } else if (record.getLevel().equals(Level.CONFIG)) {
+//                    l.debug(record.getMessage(),record.getThrown());
+//                } else if (record.getLevel().equals(Level.INFO)) {
+//                    l.info(record.getMessage(),record.getThrown());
+//                } else if (record.getLevel().equals(Level.WARNING)) {
+//                    l.warn(record.getMessage(),record.getThrown());
+//                } else if (record.getLevel().equals(Level.SEVERE)) {
+//                    l.fatal(record.getMessage(),record.getThrown());
+//                } else  {
+//                    l.info(record.getMessage(),record.getThrown());
+//
+//                }
+//            }
+//
+//            @Override
+//            public void flush() {
+//
+//            }
+//
+//            @Override
+//            public void close() throws SecurityException {
+//
+//            }
+//        });
+        l = java.util.logging.Logger.getLogger("connection");
+        l.setLevel(java.util.logging.Level.OFF);
         if (!MorphiumSingleton.isConfigured()) {
             MorphiumConfig cfg = null;
             Properties p = getProps();
@@ -75,11 +116,13 @@ public class MongoTest {
                 cfg.addHost("localhost", 27018);
                 cfg.addHost("localhost", 27019);
                 cfg.setWriteCacheTimeout(100);
-                cfg.setConnectionTimeout(1000);
-                cfg.setMaxWaitTime(10000);
+                cfg.setConnectionTimeout(10000);
+                cfg.setMaxWaitTime(20000);
+                cfg.setMaxAutoReconnectTime(500);
+                cfg.setMaxConnectionLifeTime(60000);
+                cfg.setMaxConnectionIdleTime(30000);
                 cfg.setMaxConnections(2000);
                 cfg.setMinConnectionsPerHost(1);
-                cfg.setMaxConnectionIdleTime(500);
                 cfg.setAutoreconnect(true);
                 cfg.setMaximumRetriesBufferedWriter(1000);
                 cfg.setMaximumRetriesWriter(1000);
@@ -186,7 +229,7 @@ public class MongoTest {
     }
 
     public void createUncachedObjects(int amount) {
-        List<UncachedObject> lst = new ArrayList<UncachedObject>();
+        List<UncachedObject> lst = new ArrayList<>();
         for (int i = 0; i < amount; i++) {
             UncachedObject uc = new UncachedObject();
             uc.setCounter(i + 1);
@@ -201,7 +244,7 @@ public class MongoTest {
     }
 
     public void createCachedObjects(int amount) {
-        List<CachedObject> lst = new ArrayList<CachedObject>();
+        List<CachedObject> lst = new ArrayList<>();
         for (int i = 0; i < amount; i++) {
             CachedObject uc = new CachedObject();
             uc.setCounter(i + 1);

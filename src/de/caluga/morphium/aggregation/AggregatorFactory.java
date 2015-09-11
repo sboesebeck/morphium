@@ -8,11 +8,11 @@ package de.caluga.morphium.aggregation;
  */
 @SuppressWarnings("UnusedDeclaration")
 public interface AggregatorFactory {
-    public Class<? extends Aggregator> getAggregatorClass();
+    Class<? extends Aggregator> getAggregatorClass();
 
-    public void setAggregatorClass(Class<? extends Aggregator> AggregatorImpl);
+    void setAggregatorClass(Class<? extends Aggregator> AggregatorImpl);
 
-    public <T, R> Aggregator<T, R> createAggregator(Class<? extends T> type, Class<? extends R> resultType);
+    <T, R> Aggregator<T, R> createAggregator(Class<? extends T> type, Class<? extends R> resultType);
 }
 
 

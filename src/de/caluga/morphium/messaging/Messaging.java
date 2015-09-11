@@ -92,7 +92,7 @@ public class Messaging extends Thread implements ShutdownListener {
         if (hostname == null) {
             try {
                 hostname = InetAddress.getLocalHost().getHostName();
-            } catch (UnknownHostException e) {
+            } catch (UnknownHostException ignored) {
             }
         }
         if (hostname == null) {
@@ -109,14 +109,14 @@ public class Messaging extends Thread implements ShutdownListener {
 //        }
 
         listeners = new CopyOnWriteArrayList<>();
-        listenerByName = new HashMap<String, List<MessageListener>>();
+        listenerByName = new HashMap<>();
     }
 
     public void run() {
         if (log.isDebugEnabled()) {
             log.debug("Messaging " + id + " started");
         }
-        Map<String, Object> values = new HashMap<String, Object>();
+        Map<String, Object> values = new HashMap<>();
         while (running) {
 
             try {
@@ -151,6 +151,7 @@ public class Messaging extends Thread implements ShutdownListener {
                 for (final Msg m : messages) {
 //                    count++;
 //                    System.out.println("Processing message " + count);
+                    if (m == null) continue; //message was erased
                     Runnable r = new Runnable() {
                         @Override
                         public void run() {
@@ -239,7 +240,7 @@ public class Messaging extends Thread implements ShutdownListener {
                             try {
                                 threadPool.execute(r);
                                 queued = true;
-                            } catch (Throwable e) {
+                            } catch (Throwable ignored) {
                             }
                         }
                     } else {
@@ -261,7 +262,7 @@ public class Messaging extends Thread implements ShutdownListener {
                             try {
                                 threadPool.execute(r);
                                 queued = true;
-                            } catch (Throwable t) {
+                            } catch (Throwable ignored) {
                             }
                         }
                     } else {

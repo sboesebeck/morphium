@@ -27,9 +27,9 @@ public class MorphiumCacheImpl implements MorphiumCache {
     private Logger logger = new Logger(MorphiumCacheImpl.class);
 
     public MorphiumCacheImpl() {
-        cache = new HashMap<Class<?>, Map<String, CacheElement>>();
+        cache = new HashMap<>();
         idCache = new HashMap<>();
-        cacheListeners = new CopyOnWriteArrayList<CacheListener>();
+        cacheListeners = new CopyOnWriteArrayList<>();
     }
 
     @Override
@@ -62,7 +62,7 @@ public class MorphiumCacheImpl implements MorphiumCache {
         if (k == null) {
             return;
         }
-        CacheObject<T> co = new CacheObject<T>();
+        CacheObject<T> co = new CacheObject<>();
         co.setKey(k);
         co.setType(type);
         co.setResult(ret);
@@ -77,14 +77,14 @@ public class MorphiumCacheImpl implements MorphiumCache {
             Map<Class<?>, Map<Object, Object>> idCacheClone = cloneIdCache();
             for (T record : ret) {
                 if (idCacheClone.get(type) == null) {
-                    idCacheClone.put(type, new Hashtable<Object, Object>());
+                    idCacheClone.put(type, new Hashtable<>());
                 }
                 idCacheClone.get(type).put(annotationHelper.getId(record), record);
             }
             setIdCache(idCacheClone);
         }
 
-        CacheElement<T> e = new CacheElement<T>(ret);
+        CacheElement<T> e = new CacheElement<>(ret);
         e.setLru(System.currentTimeMillis());
         Map<Class<?>, Map<String, CacheElement>> cl = (Map<Class<?>, Map<String, CacheElement>>) (((HashMap) cache).clone());
         if (cl.get(type) == null) {
@@ -178,7 +178,7 @@ public class MorphiumCacheImpl implements MorphiumCache {
     public String getCacheKey(DBObject qo, Map<String, Integer> sort, String collection, int skip, int limit) {
         StringBuilder b = new StringBuilder();
         b.append(qo.toString());
-        b.append(" c:" + collection);
+        b.append(" c:").append(collection);
         b.append(" l:");
         b.append(limit);
         b.append(" s:");
@@ -244,7 +244,7 @@ public class MorphiumCacheImpl implements MorphiumCache {
         }
         idc.get(cls).remove(id);
 
-        ArrayList<String> toRemove = new ArrayList<String>();
+        ArrayList<String> toRemove = new ArrayList<>();
         for (String key : c.get(cls).keySet()) {
 
             if (c.get(cls).get(key) != null) {

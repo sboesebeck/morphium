@@ -17,6 +17,7 @@ import org.junit.Test;
  * Time: 08:12
  * To change this template use File | Settings | File Templates.
  */
+@SuppressWarnings("AssertWithSideEffects")
 public class BulkOperationTest extends MongoTest {
     private boolean preRemove, postRemove;
     private boolean preUpdate, postUpdate;
