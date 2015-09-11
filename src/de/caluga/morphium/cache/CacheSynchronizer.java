@@ -38,8 +38,8 @@ public class CacheSynchronizer implements MessageListener, MorphiumStorageListen
     public static final String CACHE_SYNC_TYPE = "cacheSyncType";
     public static final String CACHE_SYNC_RECORD = "cacheSyncRecord";
 
-    private Vector<CacheSyncListener> listeners = new Vector<CacheSyncListener>();
-    private Hashtable<Class<?>, Vector<CacheSyncListener>> listenerForType = new Hashtable<Class<?>, Vector<CacheSyncListener>>();
+    private Vector<CacheSyncListener> listeners = new Vector<>();
+    private Hashtable<Class<?>, Vector<CacheSyncListener>> listenerForType = new Hashtable<>();
     private boolean attached;
     private AnnotationAndReflectionHelper annotationHelper;
 
@@ -137,7 +137,7 @@ public class CacheSynchronizer implements MessageListener, MorphiumStorageListen
 //        long start = System.currentTimeMillis();
 
 
-        Map<Class<?>, Map<Boolean, List<Object>>> sorted = new HashMap<Class<?>, Map<Boolean, List<Object>>>();
+        Map<Class<?>, Map<Boolean, List<Object>>> sorted = new HashMap<>();
 
         for (Object record : isNew.keySet()) {
             Cache c = annotationHelper.getAnnotationFromHierarchy(record.getClass(), Cache.class); //(Cache) type.getAnnotation(Cache.class);
@@ -145,8 +145,8 @@ public class CacheSynchronizer implements MessageListener, MorphiumStorageListen
             if (c.readCache() && c.clearOnWrite()) {
                 if (sorted.get(record.getClass()) == null) {
                     sorted.put(record.getClass(), new HashMap<Boolean, List<Object>>());
-                    sorted.get(record.getClass()).put(true, new ArrayList<Object>());
-                    sorted.get(record.getClass()).put(false, new ArrayList<Object>());
+                    sorted.get(record.getClass()).put(true, new ArrayList<>());
+                    sorted.get(record.getClass()).put(false, new ArrayList<>());
                 }
                 sorted.get(record.getClass()).get(isNew.get(record)).add(record);
 
@@ -156,8 +156,8 @@ public class CacheSynchronizer implements MessageListener, MorphiumStorageListen
         for (Class<?> cls : sorted.keySet()) {
             Cache c = annotationHelper.getAnnotationFromHierarchy(cls, Cache.class); //(Cache) type.getAnnotation(Cache.class);
 
-            ArrayList<Object> toUpdate = new ArrayList<Object>();
-            ArrayList<Object> toClrCachee = new ArrayList<Object>();
+            ArrayList<Object> toUpdate = new ArrayList<>();
+            ArrayList<Object> toClrCachee = new ArrayList<>();
 
             //not new objects
             for (Object record : sorted.get(cls).get(false)) {
@@ -285,7 +285,7 @@ public class CacheSynchronizer implements MessageListener, MorphiumStorageListen
 
     @Override
     public void postStore(Morphium m, Object r, boolean isNew) {
-        Map<Object, Boolean> map = new HashMap<Object, Boolean>();
+        Map<Object, Boolean> map = new HashMap<>();
         map.put(r, isNew);
         sendClearMessage("store", map);
     }
@@ -308,14 +308,14 @@ public class CacheSynchronizer implements MessageListener, MorphiumStorageListen
 
     @Override
     public void postRemove(Morphium m, Object r) {
-        Map<Object, Boolean> map = new HashMap<Object, Boolean>();
+        Map<Object, Boolean> map = new HashMap<>();
         map.put(r, false);
         sendClearMessage("remove", map);
     }
 
     @Override
     public void postRemove(Morphium m, List<Object> lst) {
-        Map<Object, Boolean> map = new HashMap<Object, Boolean>();
+        Map<Object, Boolean> map = new HashMap<>();
         for (Object r : lst) map.put(r, false);
         sendClearMessage("remove", map);
     }

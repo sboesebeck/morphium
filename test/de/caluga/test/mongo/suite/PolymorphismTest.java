@@ -19,6 +19,7 @@ import java.util.List;
  * Time: 08:39
  * Test polymorphism mechanism in Morphium
  */
+@SuppressWarnings("AssertWithSideEffects")
 public class PolymorphismTest extends MongoTest {
     @Test
     public void polymorphTest() throws Exception {

@@ -20,7 +20,7 @@ public class CloneMapTest {
     public void testCompare() {
         Map<String, Object> master = new HashMap<>();
         for (int i = 0; i < 100000; i++) {
-            master.put("Key " + i, new Double(i));
+            master.put("Key " + i, (double) i);
         }
         log.info("starting test using constructor");
         long start = System.currentTimeMillis();
@@ -35,7 +35,7 @@ public class CloneMapTest {
 
         master = new HashMap<>();
         for (int i = 0; i < 100000; i++) {
-            master.put("Key " + i, new Double(i));
+            master.put("Key " + i, (double) i);
         }
         log.info("starting test using manual copy");
         start = System.currentTimeMillis();
@@ -53,7 +53,7 @@ public class CloneMapTest {
 
         master = new HashMap<>();
         for (int i = 0; i < 100000; i++) {
-            master.put("Key " + i, new Double(i));
+            master.put("Key " + i, (double) i);
         }
         log.info("starting test using clone");
         start = System.currentTimeMillis();

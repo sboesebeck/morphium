@@ -5,6 +5,7 @@
 package de.caluga.morphium;
 
 import com.mongodb.*;
+import com.mongodb.client.MongoDatabase;
 import de.caluga.morphium.aggregation.Aggregator;
 import de.caluga.morphium.annotations.*;
 import de.caluga.morphium.annotations.lifecycle.*;
@@ -21,11 +22,15 @@ import de.caluga.morphium.writer.BufferedMorphiumWriterImpl;
 import de.caluga.morphium.writer.MorphiumWriter;
 import de.caluga.morphium.writer.MorphiumWriterImpl;
 import net.sf.cglib.proxy.Enhancer;
+import org.bson.BsonDocument;
+import org.bson.BsonInt32;
+import org.bson.Document;
 import org.bson.types.ObjectId;
 
 import java.io.Serializable;
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Field;
+import java.net.UnknownHostException;
 import java.util.*;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.SynchronousQueue;
@@ -38,7 +43,6 @@ import java.util.concurrent.TimeUnit;
  * @author stephan
  */
 
-@SuppressWarnings("UnusedDeclaration")
 public class Morphium {
 
     /**
@@ -59,21 +63,21 @@ public class Morphium {
      */
     private final static Logger logger = new Logger(Morphium.class);
     private MorphiumConfig config;
-    private ThreadLocal<Boolean> enableAutoValues = new ThreadLocal<Boolean>();
-    private ThreadLocal<Boolean> enableReadCache = new ThreadLocal<Boolean>();
-    private ThreadLocal<Boolean> disableWriteBuffer = new ThreadLocal<Boolean>();
-    private ThreadLocal<Boolean> disableAsyncWrites = new ThreadLocal<Boolean>();
+    private ThreadLocal<Boolean> enableAutoValues = new ThreadLocal<>();
+    private ThreadLocal<Boolean> enableReadCache = new ThreadLocal<>();
+    private ThreadLocal<Boolean> disableWriteBuffer = new ThreadLocal<>();
+    private ThreadLocal<Boolean> disableAsyncWrites = new ThreadLocal<>();
 
-    private Map<StatisticKeys, StatisticValue> stats;
+    private Map<StatisticKeys, StatisticValue> stats = new HashMap<>();
 
     /**
      * String Representing current user - needs to be set by Application
      */
     private CacheHousekeeper cacheHousekeeper;
 
-    private List<MorphiumStorageListener> listeners;
+    private List<MorphiumStorageListener> listeners = new CopyOnWriteArrayList<>();
     private List<ProfilingListener> profilingListeners;
-    private List<ShutdownListener> shutDownListeners;
+    private List<ShutdownListener> shutDownListeners = new CopyOnWriteArrayList<>();
 
     private AnnotationAndReflectionHelper annotationHelper;
     private ObjectMapper objectMapper;
@@ -83,17 +87,39 @@ public class Morphium {
     private Integer maxWriteBatchSize;
 
     private ThreadPoolExecutor asyncOperationsThreadPool;
+    private MongoDatabase adminDB;
+    private List<DereferencingListener> lazyDereferencingListeners = new CopyOnWriteArrayList<>();
 
     public MorphiumConfig getConfig() {
         return config;
     }
 
     public Morphium() {
-        stats = new HashMap<StatisticKeys, StatisticValue>();
-        shutDownListeners = new CopyOnWriteArrayList<ShutdownListener>();
-        listeners = new CopyOnWriteArrayList<>();
         profilingListeners = new CopyOnWriteArrayList<>();
 
+    }
+
+    public Morphium(String host, String db) {
+        this();
+        MorphiumConfig cfg = new MorphiumConfig(db, 100, 5000, 5000);
+        try {
+            cfg.addHost(host);
+        } catch (UnknownHostException e) {
+            throw new RuntimeException(e);
+        }
+        setConfig(cfg);
+    }
+
+
+    public Morphium(String host, int port, String db) {
+        this();
+        MorphiumConfig cfg = new MorphiumConfig(db, 100, 5000, 5000);
+        try {
+            cfg.addHost(host, port);
+        } catch (UnknownHostException e) {
+            throw new RuntimeException(e);
+        }
+        setConfig(cfg);
     }
 
     /**
@@ -107,12 +133,6 @@ public class Morphium {
     public Morphium(MorphiumConfig cfg) {
         this();
         setConfig(cfg);
-        annotationHelper = new AnnotationAndReflectionHelper(cfg.isCamelCaseConversionEnabled());
-        asyncOperationsThreadPool = new ThreadPoolExecutor(getConfig().getThreadPoolAsyncOpCoreSize(), getConfig().getThreadPoolAsyncOpMaxSize(),
-                getConfig().getThreadPoolAsyncOpKeepAliveTime(), TimeUnit.MILLISECONDS,
-                new SynchronousQueue<Runnable>());
-        initializeAndConnect();
-
     }
 
     public ThreadPoolExecutor getAsyncOperationsThreadPool() {
@@ -124,6 +144,11 @@ public class Morphium {
             throw new RuntimeException("Cannot change config!");
         }
         config = cfg;
+        annotationHelper = new AnnotationAndReflectionHelper(cfg.isCamelCaseConversionEnabled());
+        asyncOperationsThreadPool = new ThreadPoolExecutor(getConfig().getThreadPoolAsyncOpCoreSize(), getConfig().getThreadPoolAsyncOpMaxSize(),
+                getConfig().getThreadPoolAsyncOpKeepAliveTime(), TimeUnit.MILLISECONDS,
+                new SynchronousQueue<Runnable>());
+        initializeAndConnect();
     }
 
     private void initializeAndConnect() {
@@ -195,6 +220,21 @@ public class Morphium {
             if (config.getDefaultReadPreference() != null) {
                 mongo.setReadPreference(config.getDefaultReadPreference().getPref());
             }
+
+            if (config.getMongoAdminUser() != null) {
+                MongoCredential cred = MongoCredential.createMongoCRCredential(config.getMongoAdminUser(), "admin", config.getMongoAdminPwd().toCharArray());
+                List<MongoCredential> lst = new ArrayList<>();
+                lst.add(cred);
+                if (config.getAdr().size() == 1) {
+                    mongo = new MongoClient(config.getAdr().get(0), lst, o.build());
+                } else {
+                    mongo = new MongoClient(config.getAdr(), lst, o.build());
+                }
+                adminDB = mongo.getDatabase("admin");
+            } else {
+                adminDB = mongo.getDatabase("admin");
+            }
+
         }
 
         cacheHousekeeper = new CacheHousekeeper(this, 5000, config.getGlobalCacheValidTime());
@@ -223,15 +263,13 @@ public class Morphium {
         try {
             objectMapper = config.getOmClass().newInstance();
             objectMapper.setMorphium(this);
-        } catch (InstantiationException e) {
-            throw new RuntimeException(e);
-        } catch (IllegalAccessException e) {
+        } catch (Exception e) {
             throw new RuntimeException(e);
         }
 
         try {
             Thread.sleep(1000); //Waiting for initialization to finish
-        } catch (InterruptedException e) {
+        } catch (InterruptedException ignored) {
 
         }
         if (isReplicaSet()) {
@@ -283,19 +321,18 @@ public class Morphium {
     }
 
     public void addListener(MorphiumStorageListener lst) {
-        List<MorphiumStorageListener> newList = new ArrayList<MorphiumStorageListener>();
+        List<MorphiumStorageListener> newList = new ArrayList<>();
         newList.addAll(listeners);
         newList.add(lst);
         listeners = newList;
     }
 
     public void removeListener(MorphiumStorageListener lst) {
-        List<MorphiumStorageListener> newList = new ArrayList<MorphiumStorageListener>();
+        List<MorphiumStorageListener> newList = new ArrayList<>();
         newList.addAll(listeners);
         newList.remove(lst);
         listeners = newList;
     }
-
 
     public Mongo getMongo() {
         return config.getDb().getMongo();
@@ -319,7 +356,7 @@ public class Morphium {
     @SuppressWarnings({"unchecked", "UnusedDeclaration"})
     public <T> List<T> findByTemplate(T template, String... fields) {
         Class cls = template.getClass();
-        List<String> flds = new ArrayList<String>();
+        List<String> flds = new ArrayList<>();
         if (fields.length > 0) {
             flds.addAll(Arrays.asList(fields));
         } else {
@@ -346,7 +383,7 @@ public class Morphium {
     }
 
     public <T> void unset(final T toSet, final String field, final AsyncOperationCallback<T> callback) {
-        unset(toSet, getMapper().getCollectionName(toSet.getClass()), callback);
+        unset(toSet, getMapper().getCollectionName(toSet.getClass()), field, callback);
     }
 
 
@@ -439,7 +476,7 @@ public class Morphium {
 
             for (String f : flds) {
                 Index i = annotationHelper.getField(type, f).getAnnotation(Index.class);
-                Map<String, Object> idx = new LinkedHashMap<String, Object>();
+                Map<String, Object> idx = new LinkedHashMap<>();
                 if (i.decrement()) {
                     idx.put(f, -1);
                 } else {
@@ -505,7 +542,6 @@ public class Morphium {
         Runnable r = new Runnable() {
             @Override
             public void run() {
-                WriteConcern wc = getWriteConcernForClass(c);
                 String coll = getMapper().getCollectionName(c);
                 DBCollection collection = null;
 
@@ -574,7 +610,7 @@ public class Morphium {
     }
 
     public <T> void set(Query<T> query, Enum field, Object val, AsyncOperationCallback<T> callback) {
-        Map<String, Object> toSet = new HashMap<String, Object>();
+        Map<String, Object> toSet = new HashMap<>();
         toSet.put(field.name(), val);
         getWriterForClass(query.getType()).set(query, toSet, false, false, callback);
     }
@@ -584,13 +620,13 @@ public class Morphium {
     }
 
     public <T> void set(Query<T> query, String field, Object val, AsyncOperationCallback<T> callback) {
-        Map<String, Object> toSet = new HashMap<String, Object>();
+        Map<String, Object> toSet = new HashMap<>();
         toSet.put(field, val);
         getWriterForClass(query.getType()).set(query, toSet, false, false, callback);
     }
 
     public void setEnum(Query<?> query, Map<Enum, Object> values, boolean insertIfNotExist, boolean multiple) {
-        HashMap<String, Object> toSet = new HashMap<String, Object>();
+        HashMap<String, Object> toSet = new HashMap<>();
         for (Map.Entry<Enum, Object> est : values.entrySet()) {
             toSet.put(est.getKey().name(), values.get(est.getValue()));
         }
@@ -689,12 +725,6 @@ public class Morphium {
 
     }
 
-    @SuppressWarnings({"unchecked", "UnusedDeclaration"})
-    public void pullAll(Query<?> query, String field, List<Object> value, boolean insertIfNotExist, boolean multiple) {
-        pull(query, field, value, insertIfNotExist, multiple);
-    }
-
-
     /**
      * will change an entry in mongodb-collection corresponding to given class object
      * if query is too complex, upsert might not work!
@@ -707,12 +737,25 @@ public class Morphium {
      * @param insertIfNotExist - insert, if it does not exist (query needs to be simple!)
      * @param multiple         - update several documents, if false, only first hit will be updated
      */
+    public <T> void set(Query<T> query, Enum field, Object val, boolean insertIfNotExist, boolean multiple) {
+        set(query, field.name(), val, insertIfNotExist, multiple, (AsyncOperationCallback<Query<T>>) null);
+    }
+
+    public <T> void set(Query<T> query, Enum field, Object val, boolean insertIfNotExist, boolean multiple, AsyncOperationCallback<Query<T>> callback) {
+        set(query, field.name(), val, insertIfNotExist, multiple, callback);
+    }
+
+
+    @SuppressWarnings({"unchecked", "UnusedDeclaration"})
+    public void pullAll(Query<?> query, String field, List<Object> value, boolean insertIfNotExist, boolean multiple) {
+        pull(query, field, value, insertIfNotExist, multiple);
+    }
     public <T> void set(Query<T> query, String field, Object val, boolean insertIfNotExist, boolean multiple) {
         set(query, field, val, insertIfNotExist, multiple, (AsyncOperationCallback<T>) null);
     }
 
     public <T> void set(Query<T> query, String field, Object val, boolean insertIfNotExist, boolean multiple, AsyncOperationCallback<T> callback) {
-        Map<String, Object> map = new HashMap<String, Object>();
+        Map<String, Object> map = new HashMap<>();
         map.put(field, val);
         set(query, map, insertIfNotExist, multiple, callback);
     }
@@ -724,52 +767,6 @@ public class Morphium {
     public <T> void set(final Query<T> query, final Map<String, Object> map, final boolean insertIfNotExist, final boolean multiple, AsyncOperationCallback<T> callback) {
         if (query == null) throw new RuntimeException("Cannot update null!");
         getWriterForClass(query.getType()).set(query, map, insertIfNotExist, multiple, callback);
-    }
-
-    @SuppressWarnings({"unchecked", "UnusedDeclaration"})
-    public void dec(Query<?> query, Enum field, double amount, boolean insertIfNotExist, boolean multiple) {
-        dec(query, field.name(), amount, insertIfNotExist, multiple);
-    }
-
-    public void dec(Query<?> query, String field, double amount, boolean insertIfNotExist, boolean multiple) {
-        inc(query, field, -amount, insertIfNotExist, multiple);
-    }
-
-    public void dec(Query<?> query, String field, double amount) {
-        inc(query, field, -amount, false, false);
-    }
-
-    @SuppressWarnings({"unchecked", "UnusedDeclaration"})
-    public void dec(Query<?> query, Enum field, double amount) {
-        inc(query, field, -amount, false, false);
-    }
-
-    public void inc(Query<?> query, String field, double amount) {
-        inc(query, field, amount, false, false);
-    }
-
-    @SuppressWarnings({"unchecked", "UnusedDeclaration"})
-    public void inc(Query<?> query, Enum field, double amount) {
-        inc(query, field, amount, false, false);
-    }
-
-    public void inc(Query<?> query, Enum field, double amount, boolean insertIfNotExist, boolean multiple) {
-        inc(query, field.name(), amount, insertIfNotExist, multiple);
-    }
-
-    public <T> void inc(final Query<T> query, final Map<String, Double> toUptad, final boolean insertIfNotExist, final boolean multiple, AsyncOperationCallback<T> callback) {
-        if (query == null) throw new RuntimeException("Cannot update null!");
-        getWriterForClass(query.getType()).inc(query, toUptad, insertIfNotExist, multiple, callback);
-    }
-
-    public void inc(final Query<?> query, final String name, final double amount, final boolean insertIfNotExist, final boolean multiple) {
-        inc(query, name, amount, insertIfNotExist, multiple, null);
-    }
-
-    public <T> void inc(final Query<T> query, final String name, final double amount, final boolean insertIfNotExist, final boolean multiple, final AsyncOperationCallback<T> callback) {
-        if (query == null) throw new RuntimeException("Cannot update null!");
-        getWriterForClass(query.getType()).inc(query, name, amount, insertIfNotExist, multiple, callback);
-
     }
 
 
@@ -786,9 +783,9 @@ public class Morphium {
      * db.collection.update({"_id":toSet.id},{$set:{field:value}}
      * <b>attention</b>: this alteres the given object toSet in a similar way
      *
-     * @param toSet: object to set the value in (or better - the corresponding entry in mongo)
-     * @param field: the field to change
-     * @param value: the value to set
+     * @param toSet - object to set the value in (or better - the corresponding entry in mongo)
+     * @param field - the field to change
+     * @param value - the value to set
      */
     public void set(final Object toSet, final String field, final Object value) {
         set(toSet, field, value, null);
@@ -817,6 +814,168 @@ public class Morphium {
     }
 
 
+    ////////// DEC and INC Methods
+
+    @SuppressWarnings({"unchecked", "UnusedDeclaration"})
+    public void dec(Query<?> query, Enum field, double amount, boolean insertIfNotExist, boolean multiple) {
+        dec(query, field.name(), -amount, insertIfNotExist, multiple);
+    }
+
+    public void dec(Query<?> query, Enum field, long amount, boolean insertIfNotExist, boolean multiple) {
+        dec(query, field.name(), -amount, insertIfNotExist, multiple);
+    }
+
+    public void dec(Query<?> query, Enum field, Number amount, boolean insertIfNotExist, boolean multiple) {
+        dec(query, field.name(), -amount.doubleValue(), insertIfNotExist, multiple);
+    }
+
+    public void dec(Query<?> query, Enum field, int amount, boolean insertIfNotExist, boolean multiple) {
+        dec(query, field.name(), -amount, insertIfNotExist, multiple);
+    }
+
+    public void dec(Query<?> query, String field, double amount, boolean insertIfNotExist, boolean multiple) {
+        inc(query, field, -amount, insertIfNotExist, multiple);
+    }
+
+    public void dec(Query<?> query, String field, long amount, boolean insertIfNotExist, boolean multiple) {
+        inc(query, field, -amount, insertIfNotExist, multiple);
+    }
+
+    public void dec(Query<?> query, String field, int amount, boolean insertIfNotExist, boolean multiple) {
+        inc(query, field, -amount, insertIfNotExist, multiple);
+    }
+
+    public void dec(Query<?> query, String field, Number amount, boolean insertIfNotExist, boolean multiple) {
+        inc(query, field, -amount.doubleValue(), insertIfNotExist, multiple);
+    }
+
+    public void dec(Query<?> query, String field, double amount) {
+        inc(query, field, -amount, false, false);
+    }
+
+    public void dec(Query<?> query, String field, long amount) {
+        inc(query, field, -amount, false, false);
+    }
+
+    public void dec(Query<?> query, String field, int amount) {
+        inc(query, field, -amount, false, false);
+    }
+
+    public void dec(Query<?> query, String field, Number amount) {
+        inc(query, field, -amount.doubleValue(), false, false);
+    }
+
+    @SuppressWarnings({"unchecked", "UnusedDeclaration"})
+    public void dec(Query<?> query, Enum field, double amount) {
+        inc(query, field, -amount, false, false);
+    }
+
+    public void dec(Query<?> query, Enum field, long amount) {
+        inc(query, field, -amount, false, false);
+    }
+
+    public void dec(Query<?> query, Enum field, int amount) {
+        inc(query, field, -amount, false, false);
+    }
+
+    public void dec(Query<?> query, Enum field, Number amount) {
+        inc(query, field, -amount.doubleValue(), false, false);
+    }
+
+
+    public void inc(Query<?> query, String field, long amount) {
+        inc(query, field, amount, false, false);
+    }
+
+    public void inc(Query<?> query, String field, int amount) {
+        inc(query, field, amount, false, false);
+    }
+
+    public void inc(Query<?> query, String field, Number amount) {
+        inc(query, field, amount, false, false);
+    }
+
+    public void inc(Query<?> query, String field, double amount) {
+        inc(query, field, amount, false, false);
+    }
+
+    @SuppressWarnings({"unchecked", "UnusedDeclaration"})
+    public void inc(Query<?> query, Enum field, double amount) {
+        inc(query, field, amount, false, false);
+    }
+
+    public void inc(Query<?> query, Enum field, long amount) {
+        inc(query, field, amount, false, false);
+    }
+
+    public void inc(Query<?> query, Enum field, int amount) {
+        inc(query, field, amount, false, false);
+    }
+
+    public void inc(Query<?> query, Enum field, Number amount) {
+        inc(query, field, amount, false, false);
+    }
+
+    public void inc(Query<?> query, Enum field, double amount, boolean insertIfNotExist, boolean multiple) {
+        inc(query, field.name(), amount, insertIfNotExist, multiple);
+    }
+
+    public void inc(Query<?> query, Enum field, long amount, boolean insertIfNotExist, boolean multiple) {
+        inc(query, field.name(), amount, insertIfNotExist, multiple);
+    }
+
+    public void inc(Query<?> query, Enum field, int amount, boolean insertIfNotExist, boolean multiple) {
+        inc(query, field.name(), amount, insertIfNotExist, multiple);
+    }
+
+    public void inc(Query<?> query, Enum field, Number amount, boolean insertIfNotExist, boolean multiple) {
+        inc(query, field.name(), amount, insertIfNotExist, multiple);
+    }
+
+    public <T> void inc(final Query<T> query, final Map<String, Number> toUptad, final boolean insertIfNotExist, final boolean multiple, AsyncOperationCallback<T> callback) {
+        if (query == null) throw new RuntimeException("Cannot update null!");
+        getWriterForClass(query.getType()).inc(query, toUptad, insertIfNotExist, multiple, callback);
+    }
+
+    public void inc(final Query<?> query, final String name, final long amount, final boolean insertIfNotExist, final boolean multiple) {
+        inc(query, name, amount, insertIfNotExist, multiple, null);
+    }
+
+    public void inc(final Query<?> query, final String name, final int amount, final boolean insertIfNotExist, final boolean multiple) {
+        inc(query, name, amount, insertIfNotExist, multiple, null);
+    }
+
+    public void inc(final Query<?> query, final String name, final double amount, final boolean insertIfNotExist, final boolean multiple) {
+        inc(query, name, amount, insertIfNotExist, multiple, null);
+    }
+
+    public void inc(final Query<?> query, final String name, final Number amount, final boolean insertIfNotExist, final boolean multiple) {
+        inc(query, name, amount, insertIfNotExist, multiple, null);
+    }
+
+    public <T> void inc(final Query<T> query, final String name, final long amount, final boolean insertIfNotExist, final boolean multiple, final AsyncOperationCallback<T> callback) {
+        if (query == null) throw new RuntimeException("Cannot update null!");
+        getWriterForClass(query.getType()).inc(query, name, amount, insertIfNotExist, multiple, callback);
+    }
+
+    public <T> void inc(final Query<T> query, final String name, final int amount, final boolean insertIfNotExist, final boolean multiple, final AsyncOperationCallback<T> callback) {
+        if (query == null) throw new RuntimeException("Cannot update null!");
+        getWriterForClass(query.getType()).inc(query, name, amount, insertIfNotExist, multiple, callback);
+    }
+
+    public <T> void inc(final Query<T> query, final String name, final double amount, final boolean insertIfNotExist, final boolean multiple, final AsyncOperationCallback<T> callback) {
+        if (query == null) throw new RuntimeException("Cannot update null!");
+        getWriterForClass(query.getType()).inc(query, name, amount, insertIfNotExist, multiple, callback);
+
+    }
+
+    public <T> void inc(final Query<T> query, final String name, final Number amount, final boolean insertIfNotExist, final boolean multiple, final AsyncOperationCallback<T> callback) {
+        if (query == null) throw new RuntimeException("Cannot update null!");
+        getWriterForClass(query.getType()).inc(query, name, amount, insertIfNotExist, multiple, callback);
+
+    }
+
+
     public MorphiumWriter getWriterForClass(Class<?> cls) {
 
         if (annotationHelper.isBufferedWrite(cls) && isWriteBufferEnabledForThread()) {
@@ -836,11 +995,47 @@ public class Morphium {
         inc(toDec, field, -amount);
     }
 
+    public void dec(Object toDec, String field, int amount) {
+        inc(toDec, field, -amount);
+    }
+
+    public void dec(Object toDec, String field, long amount) {
+        inc(toDec, field, -amount);
+    }
+
+    public void dec(Object toDec, String field, Number amount) {
+        inc(toDec, field, -amount.doubleValue());
+    }
+
+    public void inc(final Object toSet, final String field, final long i) {
+        inc(toSet, field, i, null);
+    }
+
+    public void inc(final Object toSet, final String field, final int i) {
+        inc(toSet, field, i, null);
+    }
+
     public void inc(final Object toSet, final String field, final double i) {
         inc(toSet, field, i, null);
     }
 
+    public void inc(final Object toSet, final String field, final Number i) {
+        inc(toSet, field, i, null);
+    }
+
     public <T> void inc(final T toSet, final String field, final double i, final AsyncOperationCallback<T> callback) {
+        inc(toSet, getMapper().getCollectionName(toSet.getClass()), field, i, callback);
+    }
+
+    public <T> void inc(final T toSet, final String field, final int i, final AsyncOperationCallback<T> callback) {
+        inc(toSet, getMapper().getCollectionName(toSet.getClass()), field, i, callback);
+    }
+
+    public <T> void inc(final T toSet, final String field, final long i, final AsyncOperationCallback<T> callback) {
+        inc(toSet, getMapper().getCollectionName(toSet.getClass()), field, i, callback);
+    }
+
+    public <T> void inc(final T toSet, final String field, final Number i, final AsyncOperationCallback<T> callback) {
         inc(toSet, getMapper().getCollectionName(toSet.getClass()), field, i, callback);
     }
 
@@ -855,9 +1050,42 @@ public class Morphium {
         getWriterForClass(toSet.getClass()).inc(toSet, collection, field, i, callback);
     }
 
+    public <T> void inc(final T toSet, String collection, final String field, final int i, final AsyncOperationCallback<T> callback) {
+        if (toSet == null) throw new RuntimeException("Cannot update null!");
+
+        if (getId(toSet) == null) {
+            logger.info("just storing object as it is new...");
+            store(toSet);
+            return;
+        }
+        getWriterForClass(toSet.getClass()).inc(toSet, collection, field, i, callback);
+    }
+
+    public <T> void inc(final T toSet, String collection, final String field, final long i, final AsyncOperationCallback<T> callback) {
+        if (toSet == null) throw new RuntimeException("Cannot update null!");
+
+        if (getId(toSet) == null) {
+            logger.info("just storing object as it is new...");
+            store(toSet);
+            return;
+        }
+        getWriterForClass(toSet.getClass()).inc(toSet, collection, field, i, callback);
+    }
+
+    public <T> void inc(final T toSet, String collection, final String field, final Number i, final AsyncOperationCallback<T> callback) {
+        if (toSet == null) throw new RuntimeException("Cannot update null!");
+
+        if (getId(toSet) == null) {
+            logger.info("just storing object as it is new...");
+            store(toSet);
+            return;
+        }
+        getWriterForClass(toSet.getClass()).inc(toSet, collection, field, i, callback);
+    }
+
     public <T> void delete(List<T> lst, AsyncOperationCallback<T> callback) {
-        ArrayList<T> directDel = new ArrayList<T>();
-        ArrayList<T> bufferedDel = new ArrayList<T>();
+        ArrayList<T> directDel = new ArrayList<>();
+        ArrayList<T> bufferedDel = new ArrayList<>();
         for (T o : lst) {
             if (annotationHelper.isBufferedWrite(o.getClass())) {
                 bufferedDel.add(o);
@@ -1125,7 +1353,7 @@ public class Morphium {
                 if (fld.get(obj) != null && getARHelper().isAnnotationPresentInHierarchy(fld.getType(), Entity.class) && fld.get(obj) instanceof PartiallyUpdateableProxy) {
                     fld.set(obj, ((PartiallyUpdateableProxy) fld.get(obj)).__getDeref());
                 }
-            } catch (IllegalAccessException e) {
+            } catch (IllegalAccessException ignored) {
             }
         }
         return obj;
@@ -1181,7 +1409,7 @@ public class Morphium {
                 logger.warn("Retry because of network error: " + e.getMessage());
                 try {
                     Thread.sleep(getConfig().getSleepBetweenNetworkErrorRetries());
-                } catch (InterruptedException e1) {
+                } catch (InterruptedException ignored) {
                 }
 
             } else {
@@ -1428,9 +1656,11 @@ public class Morphium {
         if (!jsFinalize.trim().startsWith("function(")) {
             jsFinalize = "function (data) {" + jsFinalize + "}";
         }
-        GroupCommand cmd = new GroupCommand(config.getDb().getCollection(objectMapper.getCollectionName(q.getType())),
+        DBCollection collection = config.getDb().getCollection(objectMapper.getCollectionName(q.getType()));
+        GroupCommand cmd = new GroupCommand(collection,
                 k, q.toQueryObject(), ini, jsReduce, jsFinalize);
-        return config.getDb().getCollection(objectMapper.getCollectionName(q.getType())).group(cmd);
+        collection.setWriteConcern(getWriteConcernForClass(q.getType()));
+        return collection.group(cmd);
     }
 
     @SuppressWarnings("unchecked")
@@ -1563,7 +1793,7 @@ public class Morphium {
     }
 
     public <T> void ensureIndex(Class<T> cls, String collection, AsyncOperationCallback<T> callback, Enum... fldStr) {
-        Map<String, Object> m = new LinkedHashMap<String, Object>();
+        Map<String, Object> m = new LinkedHashMap<>();
         for (Enum e : fldStr) {
             String f = e.name();
             m.put(f, 1);
@@ -1584,11 +1814,11 @@ public class Morphium {
 
     public List<Map<String, Object>> createIndexMapFrom(String[] fldStr) {
         if (fldStr.length == 0) return null;
-        List<Map<String, Object>> lst = new ArrayList<Map<String, Object>>();
+        List<Map<String, Object>> lst = new ArrayList<>();
 
 
         for (String f : fldStr) {
-            Map<String, Object> m = new LinkedHashMap<String, Object>();
+            Map<String, Object> m = new LinkedHashMap<>();
             for (String idx : f.split(",")) {
                 if (idx.contains(":")) {
                     String i[] = idx.split(":");
@@ -1678,14 +1908,14 @@ public class Morphium {
     }
 
     public <T> void storeList(List<T> lst, String collection, AsyncOperationCallback<T> callback) {
-        Map<Class<?>, MorphiumWriter> writers = new HashMap<Class<?>, MorphiumWriter>();
-        Map<Class<?>, List<Object>> values = new HashMap<Class<?>, List<Object>>();
+        Map<Class<?>, MorphiumWriter> writers = new HashMap<>();
+        Map<Class<?>, List<Object>> values = new HashMap<>();
         for (Object o : lst) {
             if (writers.get(o.getClass()) == null) {
                 writers.put(o.getClass(), getWriterForClass(o.getClass()));
             }
             if (values.get(o.getClass()) == null) {
-                values.put(o.getClass(), new ArrayList<Object>());
+                values.put(o.getClass(), new ArrayList<>());
             }
             values.get(o.getClass()).add(o);
         }
@@ -1701,15 +1931,7 @@ public class Morphium {
 
     public void readMaximums() {
         try {
-            DB adminDB = getMongo().getDB("admin");
-            MorphiumConfig config = getConfig();
-            if (config.getMongoAdminUser() != null) {
-                if (!adminDB.authenticate(config.getMongoAdminUser(), config.getMongoAdminPwd().toCharArray())) {
-                    logger.error("Authentication as admin failed!");
-                    return;
-                }
-            }
-            CommandResult res = adminDB.command("isMaster");
+            Document res = adminDB.runCommand(new BsonDocument("isMaster", new BsonInt32(1)));
             maxBsonSize = (Integer) res.get("maxBsonObjectSize");
             maxMessageSize = (Integer) res.get("maxMessageSizeBytes");
             maxWriteBatchSize = (Integer) res.get("maxWriteBatchSize");
@@ -1733,8 +1955,8 @@ public class Morphium {
 
     public <T> void storeList(List<T> lst, final AsyncOperationCallback<T> callback) {
         //have to sort list - might have different objects
-        List<T> storeDirect = new ArrayList<T>();
-        final List<T> storeInBg = new ArrayList<T>();
+        List<T> storeDirect = new ArrayList<>();
+        final List<T> storeInBg = new ArrayList<>();
 
         //checking permission - might take some time ;-(
         for (T o : lst) {
@@ -1750,7 +1972,7 @@ public class Morphium {
 
 
     public <T> void delete(Query<T> o) {
-        getWriterForClass(o.getType()).remove(o, (AsyncOperationCallback<T>) null);
+        getWriterForClass(o.getType()).remove(o, null);
     }
 
     public <T> void delete(Query<T> o, final AsyncOperationCallback<T> callback) {
@@ -1808,7 +2030,7 @@ public class Morphium {
     }
 
     public void resetStatistics() {
-        Map<StatisticKeys, StatisticValue> s = new HashMap<StatisticKeys, StatisticValue>();
+        Map<StatisticKeys, StatisticValue> s = new HashMap<>();
 
         for (StatisticKeys k : StatisticKeys.values()) {
             s.put(k, new StatisticValue());
@@ -1888,12 +2110,13 @@ public class Morphium {
                 handleNetworkError(i, t);
             }
         }
-
-        List<R> ret = new ArrayList<R>();
-        for (DBObject o : resp.results()) {
-            R obj = getMapper().unmarshall(a.getResultType(), o);
-            if (obj == null) continue;
-            ret.add(obj);
+        List<R> ret = new ArrayList<>();
+        if (resp != null) {
+            for (DBObject o : resp.results()) {
+                R obj = getMapper().unmarshall(a.getResultType(), o);
+                if (obj == null) continue;
+                ret.add(obj);
+            }
         }
         return ret;
     }
@@ -1914,17 +2137,15 @@ public class Morphium {
     }
 
     @SuppressWarnings("unchecked")
-    public <T> T createLazyLoadedEntity(Class<? extends T> cls, Object id) {
-        return (T) Enhancer.create(cls, new Class[]{Serializable.class}, new LazyDeReferencingProxy(this, cls, id));
+    public <T> T createLazyLoadedEntity(Class<? extends T> cls, Object id, Object container, String fieldName) {
+        return (T) Enhancer.create(cls, new Class[]{Serializable.class}, new LazyDeReferencingProxy(this, cls, id, container, fieldName));
     }
 
     @SuppressWarnings("unchecked")
     public <T> MongoField<T> createMongoField() {
         try {
             return (MongoField<T>) config.getFieldImplClass().newInstance();
-        } catch (InstantiationException e) {
-            throw new RuntimeException(e);
-        } catch (IllegalAccessException e) {
+        } catch (InstantiationException | IllegalAccessException e) {
             throw new RuntimeException(e);
         }
     }
@@ -2006,7 +2227,7 @@ public class Morphium {
             } catch (Exception e) {
                 try {
                     Thread.sleep(100); //wait a moment, reduce load
-                } catch (InterruptedException e1) {
+                } catch (InterruptedException ignored) {
                 }
             }
         } while (!queued);
@@ -2018,5 +2239,25 @@ public class Morphium {
 
     public int getActiveThreads() {
         return asyncOperationsThreadPool.getActiveCount();
+    }
+
+    public <T, E, I> void fireWouldDereference(E container, String fieldname, I id, Class<? extends T> cls, boolean lazy) {
+        for (DereferencingListener l : this.lazyDereferencingListeners) {
+            l.wouldDereference(container, fieldname, id, cls, lazy);
+        }
+    }
+
+    public <T> void fireDidDereference(Object container, String fieldname, T deReferenced, boolean lazy) {
+        for (DereferencingListener l : this.lazyDereferencingListeners) {
+            l.didDereference(container, fieldname, deReferenced, lazy);
+        }
+    }
+
+    public void addDereferencingListener(DereferencingListener lst) {
+        this.lazyDereferencingListeners.add(lst);
+    }
+
+    public void removeDerrferencingListener(DereferencingListener lst) {
+        this.lazyDereferencingListeners.remove(lst);
     }
 }

@@ -37,7 +37,7 @@ public class FilterExpression {
 
     public void addChild(FilterExpression e) {
         if (children == null) {
-            children = new ArrayList<FilterExpression>();
+            children = new ArrayList<>();
         }
         children.add(e);
     }

@@ -15,7 +15,7 @@ public class SkipLimitTest extends MongoTest {
     @Test
     public void skipTest() throws Exception {
         createUncachedObjects(100);
-        UncachedObject o = (UncachedObject) MorphiumSingleton.get().createQueryFor(UncachedObject.class).f("counter").lt(100).skip(10).sort("counter").get();
+        UncachedObject o = MorphiumSingleton.get().createQueryFor(UncachedObject.class).f("counter").lt(100).skip(10).sort("counter").get();
         assert (o.getCounter() == 11);
 
     }

@@ -33,7 +33,7 @@ public class AnnotationAndReflectionHelper {
     private Map<String, Field> fieldCache = new HashMap<>();
     private Map<Class<?>, Class<?>> realClassCache = new HashMap<>();
     private Map<Class<?>, List<Field>> fieldListCache = new HashMap<>();
-    private Map<String, List<String>> fieldAnnotationListCache = new HashMap<String, List<String>>();
+    private Map<String, List<String>> fieldAnnotationListCache = new HashMap<>();
     private Map<Class<?>, Map<Class<? extends Annotation>, Method>> lifeCycleMethods;
     private Map<Class<?>, Boolean> hasAdditionalData;
     private Map<Class<?>, Map<Class<? extends Annotation>, Annotation>> annotationCache;
@@ -59,7 +59,7 @@ public class AnnotationAndReflectionHelper {
         if (sc.getName().contains("$$EnhancerByCGLIB$$")) {
 
             try {
-                Class ret = (Class<? extends T>) Class.forName(sc.getName().substring(0, sc.getName().indexOf("$$")));
+                Class ret = Class.forName(sc.getName().substring(0, sc.getName().indexOf("$$")));
                 realClassCache.put(sc, ret);
                 sc = ret;
             } catch (Exception e) {
@@ -113,9 +113,7 @@ public class AnnotationAndReflectionHelper {
             if (ret == null) {
                 //check interfaces if nothing was found yet
                 Queue<Class<?>> interfaces = new LinkedList<>();
-                for (Class<?> anInterface : cls.getInterfaces()) {
-                    interfaces.add(anInterface);
-                }
+                Collections.addAll(interfaces, cls.getInterfaces());
                 while (!interfaces.isEmpty()) {
                     Class<?> iface = interfaces.poll();
                     if (iface.isAnnotationPresent(anCls)) {
@@ -268,10 +266,10 @@ public class AnnotationAndReflectionHelper {
         }
         Class<?> cls = getRealClass(clz);
 
-        List<Field> ret = new ArrayList<Field>();
+        List<Field> ret = new ArrayList<>();
         Class sc = cls;
         //getting class hierachy
-        List<Class> hierachy = new ArrayList<Class>();
+        List<Class> hierachy = new ArrayList<>();
         while (!sc.equals(Object.class)) {
             hierachy.add(sc);
             sc = sc.getSuperclass();
@@ -615,8 +613,8 @@ public class AnnotationAndReflectionHelper {
      * if no annotation is given, all fields are returned
      * Does not take the @Aliases-annotation int account
      *
-     * @param cls
-     * @return
+     * @param cls - the class to geht ghe Fields from
+     * @return List of Strings, each a field name (as described in @Property or determined by name)
      */
     public List<String> getFields(Class cls, Class<? extends Annotation>... annotations) {
         String k = cls.toString();
@@ -742,7 +740,7 @@ public class AnnotationAndReflectionHelper {
 
     public List<Annotation> getAllAnnotationsFromHierachy(Class<?> cls, Class<? extends Annotation>... anCls) {
         cls = getRealClass(cls);
-        List<Annotation> ret = new ArrayList<Annotation>();
+        List<Annotation> ret = new ArrayList<>();
         Class<?> z = cls;
         while (!z.equals(Object.class)) {
             if (z.getAnnotations() != null && z.getAnnotations().length != 0) {
@@ -795,13 +793,45 @@ public class AnnotationAndReflectionHelper {
 
 
     public void callLifecycleMethod(Class<? extends Annotation> type, Object on) {
+        callLifecycleMethod(type, on, new ArrayList());
+    }
+
+    private void callLifecycleMethod(Class<? extends Annotation> type, Object on, List calledOn) {
         if (on == null) return;
+        if (on.getClass().getName().contains("$$EnhancerByCGLIB$$")) {
+            try {
+                Field f1 = on.getClass().getDeclaredField("CGLIB$CALLBACK_0");
+                f1.setAccessible(true);
+                Object delegate = f1.get(on);
+                Method m = delegate.getClass().getMethod("__getPureDeref");
+                on = m.invoke(delegate);
+                if (on == null) return;
+            } catch (Exception e) {
+                //throw new RuntimeException(e);
+                log.error("Exception: ", e);
+            }
+        }
+
+        if (calledOn.contains(on)) return;
+        calledOn.add(on);
         //No synchronized block - might cause the methods to be put twice into the
         //hashtabel - but for performance reasons, it's ok...
         Class<?> cls = on.getClass();
         //No Lifecycle annotation - no method calling
         if (!isAnnotationPresentInHierarchy(cls, Lifecycle.class)) {//cls.isAnnotationPresent(Lifecycle.class)) {
             return;
+        }
+        List<String> flds = getFields(on.getClass());
+        for (String f:flds) {
+            Field field = getField(on.getClass(), f);
+            if ((isAnnotationPresentInHierarchy(field.getType(), Entity.class) || isAnnotationPresentInHierarchy(field.getType(), Embedded.class)) && isAnnotationPresentInHierarchy(field.getType(), Lifecycle.class)) {
+                field.setAccessible(true);
+                try {
+                    callLifecycleMethod(type, field.get(on), calledOn);
+                } catch (IllegalAccessException e) {
+                    e.printStackTrace();
+                }
+            }
         }
         //Already stored - should not change during runtime
         if (lifeCycleMethods.get(cls) != null) {
@@ -820,7 +850,7 @@ public class AnnotationAndReflectionHelper {
             return;
         }
 
-        Map<Class<? extends Annotation>, Method> methods = new HashMap<Class<? extends Annotation>, Method>();
+        Map<Class<? extends Annotation>, Method> methods = new HashMap<>();
         //Methods must be public
         for (Method m : cls.getMethods()) {
             for (Annotation a : m.getAnnotations()) {
@@ -832,9 +862,7 @@ public class AnnotationAndReflectionHelper {
         if (methods.get(type) != null) {
             try {
                 methods.get(type).invoke(on);
-            } catch (IllegalAccessException e) {
-                throw new RuntimeException(e);
-            } catch (InvocationTargetException e) {
+            } catch (IllegalAccessException | InvocationTargetException e) {
                 throw new RuntimeException(e);
             }
         }

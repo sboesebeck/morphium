@@ -1,5 +1,7 @@
 package de.caluga.morphium.writer;
 
+import com.mongodb.BulkWriteError;
+import com.mongodb.BulkWriteException;
 import de.caluga.morphium.*;
 import de.caluga.morphium.annotations.caching.WriteBuffer;
 import de.caluga.morphium.async.AsyncOperationCallback;
@@ -7,6 +9,7 @@ import de.caluga.morphium.async.AsyncOperationType;
 import de.caluga.morphium.bulk.BulkOperationContext;
 import de.caluga.morphium.bulk.BulkRequestWrapper;
 import de.caluga.morphium.query.Query;
+import org.bson.types.ObjectId;
 
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
@@ -21,7 +24,7 @@ import java.util.concurrent.RejectedExecutionException;
  * issued en block to mongo. Attention: this is not using BULK-Requests yet!
  */
 @SuppressWarnings({"EmptyCatchBlock", "SynchronizeOnNonFinalField"})
-public class BufferedMorphiumWriterImpl implements MorphiumWriter {
+public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
 
     private Morphium morphium;
     private MorphiumWriter directWriter;
@@ -47,7 +50,7 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter {
 
     private List<WriteBufferEntry> flushToQueue(List<WriteBufferEntry> localQueue) {
         //either buffer size reached, or time is up => queue writes
-        List<WriteBufferEntry> didNotWrite = new ArrayList<WriteBufferEntry>();
+        List<WriteBufferEntry> didNotWrite = new ArrayList<>();
         //queueing all ops in queue
         BulkOperationContext ctx = new BulkOperationContext(morphium, false);
         BulkOperationContext octx = new BulkOperationContext(morphium, true);
@@ -69,16 +72,26 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter {
                 logger.error("could not write", e);
             }
         }
-        localQueue = null; //let GC finish the wory
         try {
             ctx.execute();
+        } catch (BulkWriteException bwe) {
+            logger.error("Error executing unordered bulk",bwe);
+            for (BulkWriteError err:bwe.getWriteErrors()){
+                logger.error("Write error: "+err.getMessage()+"\n"+err.getDetails().toString());
+            }
         } catch (Exception e) {
-            e.printStackTrace();
+            logger.error("Error during exeecution of unordered bulk",e);
         }
         try {
             octx.execute();
+        } catch (BulkWriteException bwe) {
+            logger.error("Error executing ordered bulk",bwe);
+            for (BulkWriteError err:bwe.getWriteErrors()){
+                logger.error("Write error: "+err.getMessage()+"\n"+err.getDetails().toString());
+
+            }
         } catch (Exception e) {
-            e.printStackTrace();
+            logger.error("Error during exeecution of ordered bulk", e);
         }
         return didNotWrite;
     }
@@ -99,7 +112,6 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter {
             if (w != null) {
                 ordered = w.ordered();
                 size = w.size();
-                timeout = w.timeout();
                 strategy = w.strategy();
             }
             if (size > 0 && opLog.get(type).size() > size) {
@@ -155,15 +167,18 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter {
     @Override
     public <T> void store(final T o, final String collection, AsyncOperationCallback<T> c) {
         if (c == null) {
-            c = new AsyncOpAdapter<T>();
+            c = new AsyncOpAdapter<>();
         }
-        final AsyncOperationCallback<T> callback = c;
         morphium.inc(StatisticKeys.WRITES_CACHED);
         addToWriteQueue(o.getClass(), new BufferedBulkOp() {
             @Override
             public void exec(BulkOperationContext ctx) {
                 //do nothing
                 boolean isNew = morphium.getARHelper().getId(o) == null;
+                if (!isNew && !morphium.getARHelper().getIdField(o).getType().equals(ObjectId.class)) {
+                    //need to check if type is not ObjectId
+                    isNew = (morphium.createQueryFor(o.getClass()).f("_id").eq(morphium.getId(o)).countAll() == 0);
+                }
                 morphium.firePreStoreEvent(o, isNew);
                 if (isNew) {
                     ctx.insert(o);
@@ -171,7 +186,7 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter {
                     BulkRequestWrapper wr = ctx.addFind(morphium.createQueryFor(o.getClass()).f(morphium.getARHelper().getIdFieldName(o)).eq(morphium.getARHelper().getId(o)));
                     for (String f : morphium.getARHelper().getFields(o.getClass())) {
                         try {
-                            wr.set(morphium.getARHelper().getFieldName(o.getClass(), f), morphium.getARHelper().getField(o.getClass(), f).get(o), false);
+                            wr.set(morphium.getARHelper().getFieldName(o.getClass(), f), morphium.getMapper().marshallIfNecessary(morphium.getARHelper().getField(o.getClass(), f).get(o)), false);
                         } catch (IllegalAccessException e) {
                             e.printStackTrace();
                         }
@@ -192,16 +207,15 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter {
             return;
         }
         if (c == null) {
-            c = new AsyncOpAdapter<T>();
+            c = new AsyncOpAdapter<>();
         }
-        final AsyncOperationCallback<T> callback = c;
         morphium.inc(StatisticKeys.WRITES_CACHED);
 
         //TODO: think of something more accurate
         addToWriteQueue(lst.get(0).getClass(), new BufferedBulkOp() {
             @Override
             public void exec(BulkOperationContext ctx) {
-                Map<Object, Boolean> map = new HashMap<Object, Boolean>();
+                Map<Object, Boolean> map = new HashMap<>();
                 morphium.firePreStoreEvent(map);
                 for (T o : lst) {
                     map.put(o, morphium.getARHelper().getId(o) == null);
@@ -217,7 +231,7 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter {
     @Override
     public <T> void updateUsingFields(final T ent, final String collection, AsyncOperationCallback<T> c, final String... fields) {
         if (c == null) {
-            c = new AsyncOpAdapter<T>();
+            c = new AsyncOpAdapter<>();
         }
         final AsyncOperationCallback<T> callback = c;
         morphium.inc(StatisticKeys.WRITES_CACHED);
@@ -249,7 +263,7 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter {
     @Override
     public <T> void set(final T toSet, final String collection, final String field, final Object value, final boolean insertIfNotExists, final boolean multiple, AsyncOperationCallback<T> c) {
         if (c == null) {
-            c = new AsyncOpAdapter<T>();
+            c = new AsyncOpAdapter<>();
         }
         final AsyncOperationCallback<T> callback = c;
         morphium.inc(StatisticKeys.WRITES_CACHED);
@@ -276,7 +290,7 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter {
     @Override
     public <T> void set(final Query<T> query, final Map<String, Object> values, final boolean insertIfNotExist, final boolean multiple, AsyncOperationCallback<T> c) {
         if (c == null) {
-            c = new AsyncOpAdapter<T>();
+            c = new AsyncOpAdapter<>();
         }
         final AsyncOperationCallback<T> callback = c;
         morphium.inc(StatisticKeys.WRITES_CACHED);
@@ -300,9 +314,9 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter {
     }
 
     @Override
-    public <T> void inc(final Query<T> query, final Map<String, Double> fieldsToInc, final boolean insertIfNotExist, final boolean multiple, AsyncOperationCallback<T> c) {
+    public <T> void inc(final Query<T> query, final Map<String, Number> fieldsToInc, final boolean insertIfNotExist, final boolean multiple, AsyncOperationCallback<T> c) {
         if (c == null) {
-            c = new AsyncOpAdapter<T>();
+            c = new AsyncOpAdapter<>();
         }
         final AsyncOperationCallback<T> callback = c;
         morphium.inc(StatisticKeys.WRITES_CACHED);
@@ -327,11 +341,10 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter {
 
 
     @Override
-    public <T> void inc(final Query<T> query, final String field, final double amount, final boolean insertIfNotExist, final boolean multiple, AsyncOperationCallback<T> c) {
+    public <T> void inc(final Query<T> query, final String field, final Number amount, final boolean insertIfNotExist, final boolean multiple, AsyncOperationCallback<T> c) {
         if (c == null) {
-            c = new AsyncOpAdapter<T>();
+            c = new AsyncOpAdapter<>();
         }
-        final AsyncOperationCallback<T> callback = c;
         morphium.inc(StatisticKeys.WRITES_CACHED);
         addToWriteQueue(query.getType(), new BufferedBulkOp() {
             @Override
@@ -344,18 +357,17 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter {
                 }
                 morphium.getCache().clearCacheIfNecessary(query.getType());
                 String fieldName = morphium.getARHelper().getFieldName(query.getType(), field);
-                wr.inc(fieldName, (int) amount, multiple);
+                wr.inc(fieldName, amount, multiple);
                 morphium.firePostUpdateEvent(query.getType(), MorphiumStorageListener.UpdateTypes.INC);
             }
         }, c, AsyncOperationType.INC);
     }
 
     @Override
-    public <T> void inc(final T obj, final String collection, final String field, final double amount, AsyncOperationCallback<T> c) {
+    public <T> void inc(final T obj, final String collection, final String field, final Number amount, AsyncOperationCallback<T> c) {
         if (c == null) {
-            c = new AsyncOpAdapter<T>();
+            c = new AsyncOpAdapter<>();
         }
-        final AsyncOperationCallback<T> callback = c;
         morphium.inc(StatisticKeys.WRITES_CACHED);
 
         addToWriteQueue(obj.getClass(), new BufferedBulkOp() {
@@ -364,10 +376,11 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter {
 //                directWriter.set(toSet, collection, field, value, insertIfNotExists, multiple, callback);
                 morphium.firePreUpdateEvent(obj.getClass(), MorphiumStorageListener.UpdateTypes.INC);
                 Query q = morphium.createQueryFor(obj.getClass()).f(morphium.getARHelper().getIdFieldName(obj)).eq(morphium.getARHelper().getId(obj));
+                q.setCollectionName(collection);
                 BulkRequestWrapper wr = ctx.addFind(q);
                 morphium.getCache().clearCacheIfNecessary(obj.getClass());
                 String fld = morphium.getARHelper().getFieldName(obj.getClass(), field);
-                wr.inc(fld, (int) amount, false);
+                wr.inc(fld, amount, false);
                 morphium.firePostUpdateEvent(obj.getClass(), MorphiumStorageListener.UpdateTypes.INC);
             }
         }, c, AsyncOperationType.INC);
@@ -378,9 +391,8 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter {
     @Override
     public <T> void pop(final T obj, final String collection, final String field, final boolean first, AsyncOperationCallback<T> c) {
         if (c == null) {
-            c = new AsyncOpAdapter<T>();
+            c = new AsyncOpAdapter<>();
         }
-        final AsyncOperationCallback<T> callback = c;
         morphium.inc(StatisticKeys.WRITES_CACHED);
         addToWriteQueue(obj.getClass(), new BufferedBulkOp() {
             @Override
@@ -410,7 +422,7 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter {
                 while (running) {
                     try {
                         //processing and clearing write cache...
-                        List<Class<?>> localBuffer = new ArrayList<Class<?>>();
+                        List<Class<?>> localBuffer = new ArrayList<>();
                         synchronized (opLog) {
                             for (Class<?> clz : opLog.keySet()) {
                                 localBuffer.add(clz);
@@ -446,7 +458,6 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter {
                                 opLog.put(clz, new Vector<WriteBufferEntry>());
 
                                 opLog.get(clz).addAll(flushToQueue(localQueue));
-                                localQueue = null;
                             }
 
 
@@ -500,7 +511,7 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter {
     @Override
     public <T> void remove(final List<T> lst, AsyncOperationCallback<T> c) {
         if (c == null) {
-            c = new AsyncOpAdapter<T>();
+            c = new AsyncOpAdapter<>();
         }
         final AsyncOperationCallback<T> callback = c;
         morphium.inc(StatisticKeys.WRITES_CACHED);
@@ -521,9 +532,8 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter {
     @Override
     public <T> void remove(final T o, final String collection, AsyncOperationCallback<T> c) {
         if (c == null) {
-            c = new AsyncOpAdapter<T>();
+            c = new AsyncOpAdapter<>();
         }
-        final AsyncOperationCallback<T> callback = c;
         morphium.inc(StatisticKeys.WRITES_CACHED);
         addToWriteQueue(o.getClass(), new BufferedBulkOp() {
             @Override
@@ -540,9 +550,8 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter {
     @Override
     public <T> void remove(final Query<T> q, AsyncOperationCallback<T> c) {
         if (c == null) {
-            c = new AsyncOpAdapter<T>();
+            c = new AsyncOpAdapter<>();
         }
-        final AsyncOperationCallback<T> callback = c;
         morphium.inc(StatisticKeys.WRITES_CACHED);
         addToWriteQueue(q.getType(), new BufferedBulkOp() {
             @Override
@@ -559,9 +568,8 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter {
     @Override
     public <T> void pushPull(final boolean push, final Query<T> q, final String field, final Object value, final boolean insertIfNotExist, final boolean multiple, AsyncOperationCallback<T> c) {
         if (c == null) {
-            c = new AsyncOpAdapter<T>();
+            c = new AsyncOpAdapter<>();
         }
-        final AsyncOperationCallback<T> callback = c;
         morphium.inc(StatisticKeys.WRITES_CACHED);
         addToWriteQueue(q.getType(), new BufferedBulkOp() {
             @Override
@@ -589,9 +597,8 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter {
     @Override
     public <T> void pushPullAll(final boolean push, final Query<T> q, final String field, final List<?> value, final boolean insertIfNotExist, final boolean multiple, AsyncOperationCallback<T> c) {
         if (c == null) {
-            c = new AsyncOpAdapter<T>();
+            c = new AsyncOpAdapter<>();
         }
-        final AsyncOperationCallback<T> callback = c;
         morphium.inc(StatisticKeys.WRITES_CACHED);
         addToWriteQueue(q.getType(), new BufferedBulkOp() {
             @Override
@@ -623,9 +630,8 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter {
     @Override
     public <T> void unset(final T obj, final String collection, final String field, AsyncOperationCallback<T> c) {
         if (c == null) {
-            c = new AsyncOpAdapter<T>();
+            c = new AsyncOpAdapter<>();
         }
-        final AsyncOperationCallback<T> callback = c;
         morphium.inc(StatisticKeys.WRITES_CACHED);
         addToWriteQueue(obj.getClass(), new BufferedBulkOp() {
             @Override
@@ -644,7 +650,7 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter {
     @Override
     public <T> void unset(final Query<T> query, final String field, final boolean multiple, AsyncOperationCallback<T> c) {
         if (c == null) {
-            c = new AsyncOpAdapter<T>();
+            c = new AsyncOpAdapter<>();
         }
         final AsyncOperationCallback<T> callback = c;
         morphium.inc(StatisticKeys.WRITES_CACHED);
@@ -665,9 +671,8 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter {
     @Override
     public <T> void unset(final Query<T> query, AsyncOperationCallback<T> c, final boolean multiple, final String... fields) {
         if (c == null) {
-            c = new AsyncOpAdapter<T>();
+            c = new AsyncOpAdapter<>();
         }
-        final AsyncOperationCallback<T> callback = c;
         morphium.inc(StatisticKeys.WRITES_CACHED);
         addToWriteQueue(query.getType(), new BufferedBulkOp() {
             @Override
@@ -688,9 +693,8 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter {
     @Override
     public <T> void unset(final Query<T> query, AsyncOperationCallback<T> c, final boolean multiple, final Enum... fields) {
         if (c == null) {
-            c = new AsyncOpAdapter<T>();
+            c = new AsyncOpAdapter<>();
         }
-        final AsyncOperationCallback<T> callback = c;
         morphium.inc(StatisticKeys.WRITES_CACHED);
         addToWriteQueue(query.getType(), new BufferedBulkOp() {
             @Override
@@ -711,7 +715,7 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter {
     @Override
     public <T> void dropCollection(final Class<T> cls, final String collection, AsyncOperationCallback<T> c) {
         if (c == null) {
-            c = new AsyncOpAdapter<T>();
+            c = new AsyncOpAdapter<>();
         }
         final AsyncOperationCallback<T> callback = c;
         morphium.inc(StatisticKeys.WRITES_CACHED);
@@ -731,7 +735,7 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter {
     @Override
     public <T> void ensureIndex(final Class<T> cls, final String collection, final Map<String, Object> index, final Map<String, Object> options, AsyncOperationCallback<T> c) {
         if (c == null) {
-            c = new AsyncOpAdapter<T>();
+            c = new AsyncOpAdapter<>();
         }
         final AsyncOperationCallback<T> callback = c;
         morphium.inc(StatisticKeys.WRITES_CACHED);
@@ -758,7 +762,7 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter {
     @Override
     public <T> void store(final List<T> lst, final String collectionName, AsyncOperationCallback<T> c) {
         if (c == null) {
-            c = new AsyncOpAdapter<T>();
+            c = new AsyncOpAdapter<>();
         }
         final AsyncOperationCallback<T> callback = c;
         morphium.inc(StatisticKeys.WRITES_CACHED);
@@ -766,7 +770,7 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter {
         addToWriteQueue(lst.get(0).getClass(), new BufferedBulkOp() {
             @Override
             public void exec(BulkOperationContext ctx) {
-                Map<Object, Boolean> map = new HashMap<Object, Boolean>();
+                Map<Object, Boolean> map = new HashMap<>();
                 for (T o : lst) {
                     ctx.insert(o);
                 }
@@ -782,7 +786,7 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter {
 
     @Override
     public void flush() {
-        List<Class<?>> localBuffer = new ArrayList<Class<?>>();
+        List<Class<?>> localBuffer = new ArrayList<>();
         synchronized (opLog) {
             for (Class<?> clz : opLog.keySet()) {
                 localBuffer.add(clz);
@@ -798,15 +802,20 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter {
 
     @Override
     protected void finalize() throws Throwable {
+        onShutdown(morphium);
+        super.finalize();
+    }
+
+    @Override
+    public void onShutdown(Morphium m) {
         logger.info("Stopping housekeeping thread");
         running = false;
-        Thread.sleep(250);
         try {
+            Thread.sleep((morphium.getConfig().getWriteBufferTimeGranularity()));
+
             if (housekeeping != null) housekeeping.stop();
         } catch (Throwable e) {
-//            e.printStackTrace();
         }
-        super.finalize();
     }
 
     private class WriteBufferEntry {
@@ -888,6 +897,6 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter {
     }
 
     private interface BufferedBulkOp {
-        public void exec(BulkOperationContext ctx);
+        void exec(BulkOperationContext ctx);
     }
 }

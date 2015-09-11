@@ -9,7 +9,7 @@ import java.util.List;
  * <p/>
  */
 public interface PartiallyUpdateable {
-    public List<String> getAlteredFields();
+    List<String> getAlteredFields();
 
-    public void clearAlteredFields();
+    void clearAlteredFields();
 }

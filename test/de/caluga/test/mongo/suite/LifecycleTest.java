@@ -1,9 +1,8 @@
 package de.caluga.test.mongo.suite;
 
+import de.caluga.morphium.Morphium;
 import de.caluga.morphium.MorphiumSingleton;
-import de.caluga.morphium.annotations.Entity;
-import de.caluga.morphium.annotations.Id;
-import de.caluga.morphium.annotations.ReadPreferenceLevel;
+import de.caluga.morphium.annotations.*;
 import de.caluga.morphium.annotations.caching.NoCache;
 import de.caluga.morphium.annotations.lifecycle.*;
 import de.caluga.morphium.query.Query;
@@ -122,4 +121,114 @@ public class LifecycleTest extends MongoTest {
             preUpdate = true;
         }
     }
+
+
+    @Entity
+    @Lifecycle
+    public static class EntityPostLoad {
+        @Id
+        ObjectId id;
+        @Transient
+        public String testPostLoad, testPostLoadValue;
+        public EmbeddedPostLoad emb;
+        public String value;
+
+        public EntityPostLoad(String value) {
+            this.value = value;
+        }
+
+        public EmbeddedPostLoad getEmb() {
+            return emb;
+        }
+
+        @PostLoad
+        public void postLoad() {
+            testPostLoad = "OK";
+            testPostLoadValue = value;
+        }
+    }
+
+    @Embedded
+    @Lifecycle
+    public static class EmbeddedPostLoad {
+        @Transient
+        public String testPostLoad, testPostLoadValue;
+        @Transient
+        public String testPreRemove,testPreStore,testPostStore;
+        public String value;
+        @Transient
+        private String testPostRemove;
+
+        //Update for embedded objects not possible - only using a query, but then there is no object to call the lifecycle method on
+
+
+        public EmbeddedPostLoad(String value) {
+            this.value = value;
+        }
+
+        @PostLoad
+        public void postLoad() {
+            testPostLoad = "OK";
+            testPostLoadValue = value;
+        }
+
+        @PreStore
+        public void preStore(){
+            testPreStore="OK";
+        }
+
+        @PostStore
+        public void postStore() {
+            testPostStore="OK";
+        }
+
+        @PreRemove
+        public void preRemove() {
+            testPreRemove="OK";
+        }
+
+        @PostRemove
+        public void postRemove() {
+            testPostRemove="OK";
+        }
+    }
+
+
+    @Test
+    public void testLazyLoading() {
+
+        Morphium m = MorphiumSingleton.get();
+        m.clearCollection(EntityPostLoad.class);
+
+        EntityPostLoad e = new EntityPostLoad("test");
+        e.emb = new EmbeddedPostLoad("testEmb");
+        m.store(e);
+
+        EntityPostLoad eFetched = m.createQueryFor(EntityPostLoad.class).get();
+
+        assertEquals("value:", "test", eFetched.value);
+        assertEquals("post load:", "OK", eFetched.testPostLoad);
+        assertEquals("post load: fields initiated:", eFetched.value, eFetched.testPostLoadValue);
+
+        EmbeddedPostLoad emb = eFetched.getEmb();
+        assertEquals("embedded: value:", "testEmb", emb.value);
+        assertEquals("embedded: post load:", "OK", emb.testPostLoad);
+        assertEquals("embedded: post load: fields initiated:", emb.value, emb.testPostLoadValue);
+
+        eFetched.value="newVal";
+        m.store(eFetched);
+        assertEquals("Embedded: preStore", eFetched.getEmb().testPreStore, "OK");
+        assertEquals("Embedded: postStore", eFetched.getEmb().testPostStore, "OK");
+
+        m.delete(eFetched);
+        assertEquals("Embedded: preDel", eFetched.getEmb().testPreRemove, "OK");
+        assertEquals("Embedded: postDel",eFetched.getEmb().testPostRemove,"OK");
+
+
+    }
+
+    private void assertEquals(String s, String test, String value) {
+        assert (test.equals(value)) : s;
+    }
+
 }

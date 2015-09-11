@@ -22,11 +22,11 @@ public class GeoSearchTests extends MongoTest {
     @Test
     public void nearTest() throws Exception {
         MorphiumSingleton.get().dropCollection(Place.class);
-        ArrayList<Place> toStore = new ArrayList<Place>();
+        ArrayList<Place> toStore = new ArrayList<>();
 //        MorphiumSingleton.get().ensureIndicesFor(Place.class);
         for (int i = 0; i < 1000; i++) {
             Place p = new Place();
-            List<Double> pos = new ArrayList<Double>();
+            List<Double> pos = new ArrayList<>();
             pos.add((Math.random() * 180) - 90);
             pos.add((Math.random() * 180) - 90);
             p.setName("P" + i);
@@ -47,11 +47,11 @@ public class GeoSearchTests extends MongoTest {
     @Test
     public void nearSphereTest() throws Exception {
         MorphiumSingleton.get().dropCollection(Place.class);
-        ArrayList<Place> toStore = new ArrayList<Place>();
+        ArrayList<Place> toStore = new ArrayList<>();
 //        MorphiumSingleton.get().ensureIndicesFor(Place.class);
         for (int i = 0; i < 1000; i++) {
             Place p = new Place();
-            List<Double> pos = new ArrayList<Double>();
+            List<Double> pos = new ArrayList<>();
             pos.add((Math.random() * 6) - 3);
             pos.add((Math.random() * 6) - 3);
             p.setName("P" + i);
@@ -72,11 +72,11 @@ public class GeoSearchTests extends MongoTest {
     @Test
     public void boxTest() throws Exception {
         MorphiumSingleton.get().dropCollection(Place.class);
-        ArrayList<Place> toStore = new ArrayList<Place>();
+        ArrayList<Place> toStore = new ArrayList<>();
 //        MorphiumSingleton.get().ensureIndicesFor(Place.class);
         for (int i = 0; i < 1000; i++) {
             Place p = new Place();
-            List<Double> pos = new ArrayList<Double>();
+            List<Double> pos = new ArrayList<>();
             pos.add((Math.random() * 180) - 90);
             pos.add((Math.random() * 180) - 90);
             p.setName("P" + i);
@@ -98,11 +98,11 @@ public class GeoSearchTests extends MongoTest {
     @Test
     public void centerSphereTest() throws Exception {
         MorphiumSingleton.get().dropCollection(Place.class);
-        ArrayList<Place> toStore = new ArrayList<Place>();
+        ArrayList<Place> toStore = new ArrayList<>();
 //        MorphiumSingleton.get().ensureIndicesFor(Place.class);
         for (int i = 0; i < 1000; i++) {
             Place p = new Place();
-            List<Double> pos = new ArrayList<Double>();
+            List<Double> pos = new ArrayList<>();
             pos.add((Math.random() * Math.PI) - Math.PI / 2);
             pos.add((Math.random() * Math.PI) - Math.PI / 2);
             p.setName("P" + i);
@@ -124,11 +124,11 @@ public class GeoSearchTests extends MongoTest {
     @Test
     public void polygonTest() throws Exception {
         MorphiumSingleton.get().dropCollection(Place.class);
-        ArrayList<Place> toStore = new ArrayList<Place>();
+        ArrayList<Place> toStore = new ArrayList<>();
 //        MorphiumSingleton.get().ensureIndicesFor(Place.class);
         for (int i = 0; i < 1000; i++) {
             Place p = new Place();
-            List<Double> pos = new ArrayList<Double>();
+            List<Double> pos = new ArrayList<>();
             pos.add((Math.random() * 180) - 90);
             pos.add((Math.random() * 180) - 90);
             p.setName("P" + i);
@@ -150,11 +150,11 @@ public class GeoSearchTests extends MongoTest {
     @Test
     public void centerTest() throws Exception {
         MorphiumSingleton.get().dropCollection(Place.class);
-        ArrayList<Place> toStore = new ArrayList<Place>();
+        ArrayList<Place> toStore = new ArrayList<>();
 //        MorphiumSingleton.get().ensureIndicesFor(Place.class);
         for (int i = 0; i < 1000; i++) {
             Place p = new Place();
-            List<Double> pos = new ArrayList<Double>();
+            List<Double> pos = new ArrayList<>();
             pos.add((Math.random() * 180) - 90);
             pos.add((Math.random() * 180) - 90);
             p.setName("P" + i);

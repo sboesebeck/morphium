@@ -18,7 +18,7 @@ import java.util.Map;
 public class SortingTest extends MongoTest {
     private void prepare() {
         log.info("Writing 5000 random elements...");
-        List<UncachedObject> lst = new ArrayList<UncachedObject>(5000);
+        List<UncachedObject> lst = new ArrayList<>(5000);
         for (int i = 0; i < 5000; i++) {
             UncachedObject uc = new UncachedObject();
             uc.setValue("Random value");
@@ -69,7 +69,7 @@ public class SortingTest extends MongoTest {
 
         q = MorphiumSingleton.get().createQueryFor(UncachedObject.class);
         q = q.f("value").eq("Random value");
-        Map<String, Object> order = new HashMap<String, Object>();
+        Map<String, Object> order = new HashMap<>();
         order.put("counter", -1);
         q = q.sort(order);
 
@@ -105,7 +105,7 @@ public class SortingTest extends MongoTest {
 
         q = MorphiumSingleton.get().createQueryFor(UncachedObject.class);
         q = q.f("value").eq("Random value");
-        Map<String, Object> order = new HashMap<String, Object>();
+        Map<String, Object> order = new HashMap<>();
         order.put("counter", 1);
         q = q.sort(order);
 

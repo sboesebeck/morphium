@@ -68,9 +68,7 @@ public class QueryFactoryImpl implements QueryFactory {
             q.setType(type);
             q.setExecutor(getExecutor(m));
             return q;
-        } catch (InstantiationException e) {
-            throw new RuntimeException(e);
-        } catch (IllegalAccessException e) {
+        } catch (InstantiationException | IllegalAccessException e) {
             throw new RuntimeException(e);
         }
 
