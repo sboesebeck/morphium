@@ -16,6 +16,7 @@ import java.util.List;
  * Date: 30.03.15
  * Test interface polymorphism mechanism in Morphium
  */
+@SuppressWarnings("AssertWithSideEffects")
 public class InterfacePolymorphismTest extends MongoTest {
     @Test
     public void polymorphTest() throws Exception {
@@ -58,7 +59,7 @@ public class InterfacePolymorphismTest extends MongoTest {
 
     @Embedded(polymorph = true)
     @NoCache
-    public static interface IPolyTest {
+    public interface IPolyTest {
         int getNumber();
     }
 

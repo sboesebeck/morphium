@@ -81,7 +81,7 @@ public class CacheHousekeeper extends Thread {
     public void run() {
         while (running) {
             try {
-                Map<Class, List<String>> toDelete = new HashMap<Class, List<String>>();
+                Map<Class, List<String>> toDelete = new HashMap<>();
                 Map<Class<?>, Map<String, CacheElement>> cache = morphium.getCache().cloneCache();
                 for (Map.Entry<Class<?>, Map<String, CacheElement>> es : cache.entrySet()) {
                     Class<?> clz = es.getKey();

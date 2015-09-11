@@ -75,7 +75,7 @@ public class TextIndexTest extends MongoTest {
             log.info(" Name: " + pers.getNachname() + " score: " + pers.getScore());
             assert (pers.getScore() > 0);
         }
-        HashMap<String, Object> sort = new HashMap<String, Object>();
+        HashMap<String, Object> sort = new HashMap<>();
         sort.put("score", new BasicDBObject("$meta", "textScore"));
 
         p.sort(sort);

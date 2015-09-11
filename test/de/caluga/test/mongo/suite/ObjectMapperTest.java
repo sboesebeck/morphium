@@ -269,7 +269,7 @@ public class ObjectMapperTest extends MongoTest {
     @Test
     public void mapValueTest() {
         MapListObject o = new MapListObject();
-        Map<String, Object> map = new HashMap<String, Object>();
+        Map<String, Object> map = new HashMap<>();
         map.put("a_string", "This is a string");
         map.put("a primitive value", 42);
         map.put("double", 42.0);
@@ -509,7 +509,7 @@ public class ObjectMapperTest extends MongoTest {
 
 
         MappedObject o = new MappedObject();
-        o.aMap = new HashMap<String, String>();
+        o.aMap = new HashMap<>();
         o.aMap.put("test", "test");
         o.uc = new NoDefaultConstructorUncachedObject("v", 123);
 

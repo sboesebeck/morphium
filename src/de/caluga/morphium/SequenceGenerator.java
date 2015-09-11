@@ -70,7 +70,7 @@ public class SequenceGenerator {
                     Sequence s = new Sequence();
                     s.setCurrentValue(startValue - inc);
                     s.setName(name);
-                    s.setId(new ObjectId(new Date(0l), name.hashCode()));
+                    s.setId(new ObjectId(new Date(0l), name.hashCode() & 0xffffff));
                     morphium.storeNoCache(s);
                     //inserted
                 }
@@ -100,7 +100,7 @@ public class SequenceGenerator {
             log.error("Sequence vanished?");
             throw new RuntimeException("Sequence vanished");
         }
-        Map<String, Object> values = new HashMap<String, Object>();
+        Map<String, Object> values = new HashMap<>();
         Sequence sequence = seq.get();
         if (recLevel > 30) {
             log.error("Could not get lock on Sequence " + name + " Checking timestamp...");

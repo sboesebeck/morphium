@@ -3,6 +3,7 @@ package de.caluga.test.mongo.suite;
 import de.caluga.morphium.MorphiumSingleton;
 import org.junit.Test;
 
+@SuppressWarnings("AssertWithSideEffects")
 public class FieldShadowingTest extends MongoTest {
 
     @Test

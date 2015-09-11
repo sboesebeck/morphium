@@ -10,5 +10,5 @@ import de.caluga.morphium.async.AsyncOperationCallback;
  * TODO: Add documentation here
  */
 public interface WriterTask<T> extends Runnable {
-    public void setCallback(AsyncOperationCallback<T> cb);
+    void setCallback(AsyncOperationCallback<T> cb);
 }

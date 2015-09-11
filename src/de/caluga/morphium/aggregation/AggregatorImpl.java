@@ -17,7 +17,7 @@ import java.util.*;
  */
 public class AggregatorImpl<T, R> implements Aggregator<T, R> {
     private Class<? extends T> type;
-    private List<DBObject> params = new ArrayList<DBObject>();
+    private List<DBObject> params = new ArrayList<>();
     private Morphium morphium;
     private Class<? extends R> rType;
 
@@ -61,7 +61,7 @@ public class AggregatorImpl<T, R> implements Aggregator<T, R> {
 
     @Override
     public Aggregator<T, R> project(String... m) {
-        Map<String, Object> map = new HashMap<String, Object>();
+        Map<String, Object> map = new HashMap<>();
         for (String sm : m) {
             map.put(sm, 1);
         }
@@ -105,7 +105,7 @@ public class AggregatorImpl<T, R> implements Aggregator<T, R> {
 
     @Override
     public Aggregator<T, R> sort(String... prefixed) {
-        Map<String, Integer> m = new LinkedHashMap<String, java.lang.Integer>();
+        Map<String, Integer> m = new LinkedHashMap<>();
         for (String i : prefixed) {
             String fld = i;
             int val = 1;
@@ -137,17 +137,17 @@ public class AggregatorImpl<T, R> implements Aggregator<T, R> {
 
     @Override
     public Group<T, R> group(BasicDBObject id) {
-        return new Group<T, R>(this, id);
+        return new Group<>(this, id);
     }
 
     @Override
     public Group<T, R> group(Map<String, String> idSubObject) {
-        return new Group<T, R>(this, idSubObject);
+        return new Group<>(this, idSubObject);
     }
 
     @Override
     public Group<T, R> group(String id) {
-        return new Group<T, R>(this, id);
+        return new Group<>(this, id);
     }
 
     @Override

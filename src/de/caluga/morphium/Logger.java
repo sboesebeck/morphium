@@ -17,8 +17,10 @@ public class Logger {
     private PrintWriter out = new PrintWriter(new OutputStreamWriter(System.out));
     private boolean synced = false;
     private boolean close = false;
+    private LoggerDelegate delegate = new DefaultLoggerDelegate();
 
     public Logger(String name) {
+
         prfx = name;
 
         String v = getSetting("log.level");
@@ -32,18 +34,33 @@ public class Logger {
         if (getSetting("log.file." + name) != null) v = getSetting("log.file." + name);
         if (v != null) {
             file = v;
-            if (v.equals("-") || v.equals("STDOUT")) {
-                out = new PrintWriter(new OutputStreamWriter(System.out));
-                close = false;
-            } else if (v.equals("STDERR")) {
-                out = new PrintWriter(new OutputStreamWriter(System.err));
-                close = false;
-            } else {
+            if (v.startsWith("class:")) {
                 try {
-                    out = new PrintWriter(new BufferedWriter(new FileWriter(v, true)));
-                    close = true;
-                } catch (IOException e) {
-                    error(null, e);
+                    delegate = (LoggerDelegate) Class.forName(v.substring(v.indexOf(":") + 1)).newInstance();
+                } catch (Exception e) {
+                    e.printStackTrace();
+                    out = new PrintWriter(new OutputStreamWriter(System.out));
+                }
+            } else {
+
+                switch (v) {
+                    case "-":
+                    case "STDOUT":
+                        out = new PrintWriter(new OutputStreamWriter(System.out));
+                        close = false;
+                        break;
+                    case "STDERR":
+                        out = new PrintWriter(new OutputStreamWriter(System.err));
+                        close = false;
+                        break;
+                    default:
+                        try {
+                            out = new PrintWriter(new BufferedWriter(new FileWriter(v, true)));
+                            close = true;
+                        } catch (IOException e) {
+                            error(null, e);
+                        }
+                        break;
                 }
             }
         }
@@ -53,6 +70,23 @@ public class Logger {
         if (v != null) {
             synced = v.equals("true");
         }
+
+        v = getSetting("log.delegate");
+        if (getSetting("log.delegate." + name) != null) v = getSetting("log.delegate." + name);
+        if (v != null) {
+            if (v.equals("log4j")) {
+                delegate = new Log4JLoggerDelegate();
+            } else if (v.equals("jul")) {
+                delegate = new JavaUtilLoggingDelegate();
+            } else {
+                try {
+                    delegate = (LoggerDelegate) Class.forName(v).newInstance();
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
+            }
+        }
+
 
 //        info("Logger " + name + " instanciated: Level: " + level + " Synced: " + synced + " file: " + file);
     }
@@ -72,7 +106,6 @@ public class Logger {
 
     public void setFile(String v) {
         this.file = v;
-        file = v;
         out.flush();
         out.close();
         if (file == null) {
@@ -123,6 +156,10 @@ public class Logger {
 
     public void setLevel(Object o) {
         //ignore
+    }
+
+    public int getLevel() {
+        return level;
     }
 
     public boolean isEnabledFor(Object o) {
@@ -238,8 +275,24 @@ public class Logger {
         doLog(1, msg, t);
     }
 
+
+    public boolean isSynced() {
+        return synced;
+    }
+
+    public void setSynced(boolean synced) {
+        this.synced = synced;
+    }
+
     private void doLog(int lv, String msg, Throwable t) {
-        if (level >= lv) {
+        if (level >= lv)
+            delegate.log(prfx, lv, msg, t);
+    }
+
+    private class DefaultLoggerDelegate implements LoggerDelegate {
+
+        @Override
+        public void log(String name, int lv, String msg, Throwable t) {
             out.print(df.format(new Date()));
             out.print(":");
             switch (lv) {
@@ -264,7 +317,8 @@ public class Logger {
             out.print("[");
             StackTraceElement[] st = new Exception().getStackTrace();
             int idx = 0;
-            while (st[idx].getClassName().equals(this.getClass().getName()) && idx <= st.length) idx++;
+            while ((st[idx].getClassName().equals(this.getClass().getName()) || st[idx].getClassName().equals(Logger.class.getName())) && idx <= st.length)
+                idx++;
             out.print(st[idx].getClassName());
             out.print(".");
             out.print(st[idx].getMethodName());
@@ -277,19 +331,10 @@ public class Logger {
             out.println();
             if (t != null) {
                 t.printStackTrace();
-                ;
             }
             if (synced)
                 out.flush();
 
         }
-    }
-
-    public boolean isSynced() {
-        return synced;
-    }
-
-    public void setSynced(boolean synced) {
-        this.synced = synced;
     }
 }

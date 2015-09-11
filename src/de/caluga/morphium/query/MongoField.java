@@ -16,56 +16,37 @@ import java.util.regex.Pattern;
  */
 @SuppressWarnings("UnusedDeclaration")
 public interface MongoField<T> {
-    public Query<T> all(List<Object> val);
+    Query<T> all(List<Object> val);
 
-    public Query<T> eq(Object val);
+    Query<T> eq(Object val);
 
-    public Query<T> ne(Object val);
+    Query<T> ne(Object val);
 
-    public Query<T> size(int val);
+    Query<T> size(int val);
 
-    public Query<T> lt(Object val);
+    Query<T> lt(Object val);
 
-    public Query<T> lte(Object val);
+    Query<T> lte(Object val);
 
-    public Query<T> gt(Object val);
+    Query<T> gt(Object val);
 
-    public Query<T> gte(Object val);
+    Query<T> gte(Object val);
 
-    public Query<T> exists();
+    Query<T> exists();
 
-    public Query<T> notExists();
+    Query<T> notExists();
 
-    public Query<T> mod(int base, int val);
+    Query<T> mod(int base, int val);
 
-    public Query<T> matches(Pattern p);
+    Query<T> matches(Pattern p);
 
-    public Query<T> matches(String ptrn);
+    Query<T> matches(String ptrn);
 
-    public Query<T> type(MongoType t);
+    Query<T> type(MongoType t);
 
-    public Query<T> in(Collection<?> vals);
+    Query<T> in(Collection<?> vals);
 
-    public Query<T> nin(Collection<?> vals);
-
-    /**
-     * return a sorted list of elements around point x,y
-     * spherical distance calculation
-     *
-     * @param x pos x
-     * @param y pos y
-     * @return the query
-     */
-    public Query<T> nearSphere(double x, double y);
-
-    /**
-     * return a sorted list of elements around point x,y
-     *
-     * @param x pos x
-     * @param y pos y
-     * @return the query
-     */
-    public Query<T> near(double x, double y);
+    Query<T> nin(Collection<?> vals);
 
     /**
      * return a sorted list of elements around point x,y
@@ -75,7 +56,7 @@ public interface MongoField<T> {
      * @param y pos y
      * @return the query
      */
-    public Query<T> nearSphere(double x, double y, double maxDistance);
+    Query<T> nearSphere(double x, double y);
 
     /**
      * return a sorted list of elements around point x,y
@@ -84,16 +65,35 @@ public interface MongoField<T> {
      * @param y pos y
      * @return the query
      */
-    public Query<T> near(double x, double y, double maxDistance);
+    Query<T> near(double x, double y);
+
+    /**
+     * return a sorted list of elements around point x,y
+     * spherical distance calculation
+     *
+     * @param x pos x
+     * @param y pos y
+     * @return the query
+     */
+    Query<T> nearSphere(double x, double y, double maxDistance);
+
+    /**
+     * return a sorted list of elements around point x,y
+     *
+     * @param x pos x
+     * @param y pos y
+     * @return the query
+     */
+    Query<T> near(double x, double y, double maxDistance);
 
     /**
      * search for entries with geo coordinates wihtin the given rectancle - x,y upper left, x2,y2 lower right corner
      */
-    public Query<T> box(double x, double y, double x2, double y2);
+    Query<T> box(double x, double y, double x2, double y2);
 
-    public Query<T> polygon(double... p);
+    Query<T> polygon(double... p);
 
-    public Query<T> center(double x, double y, double r);
+    Query<T> center(double x, double y, double r);
 
     /**
      * same as center() but uses spherical geometry for distance calc.
@@ -103,18 +103,18 @@ public interface MongoField<T> {
      * @param r - radius
      * @return the query
      */
-    public Query<T> centerSphere(double x, double y, double r);
+    Query<T> centerSphere(double x, double y, double r);
 
 
-    public Query<T> getQuery();
+    Query<T> getQuery();
 
-    public void setQuery(Query<T> q);
+    void setQuery(Query<T> q);
 
-    public ObjectMapper getMapper();
+    ObjectMapper getMapper();
 
-    public void setMapper(ObjectMapper mapper);
+    void setMapper(ObjectMapper mapper);
 
-    public String getFieldString();
+    String getFieldString();
 
-    public void setFieldString(String fld);
+    void setFieldString(String fld);
 }

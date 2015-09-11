@@ -56,7 +56,7 @@ public class JavaxValidationStorageListener extends MorphiumStorageAdapter<Objec
                 try {
                     Collection<Object> lst = (List<Object>) field.get(r);
                     if (lst != null) {
-                        Map<Object, Boolean> map = new HashMap<Object, Boolean>();
+                        Map<Object, Boolean> map = new HashMap<>();
                         for (Object o : lst) {
                             map.put(o, isNew);
                         }
@@ -80,7 +80,7 @@ public class JavaxValidationStorageListener extends MorphiumStorageAdapter<Objec
                 try {
                     Map map = (Map) field.get(r);
                     if (map != null) {
-                        Map<Object, Boolean> lst = new HashMap<Object, Boolean>();
+                        Map<Object, Boolean> lst = new HashMap<>();
                         for (Object val : map.values()) {
                             lst.put(val, isNew);
                         }

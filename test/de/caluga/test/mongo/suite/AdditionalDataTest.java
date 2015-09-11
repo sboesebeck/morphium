@@ -25,9 +25,9 @@ public class AdditionalDataTest extends MongoTest {
         System.out.println("W: " + w);
         AddDat d = new AddDat();
         d.setCounter(999);
-        Map<String, Object> additional = new HashMap<String, Object>();
-        additional.put("102-92-93", new Integer(3234));
-        Map<String, String> dat = new HashMap<String, String>();
+        Map<String, Object> additional = new HashMap<>();
+        additional.put("102-92-93", 3234);
+        Map<String, String> dat = new HashMap<>();
         dat.put("tst", "tst");
         dat.put("tst2", "tst2");
         additional.put("test", dat);
@@ -36,7 +36,7 @@ public class AdditionalDataTest extends MongoTest {
         System.out.println("Stored some additional data!");
         AddDat d2 = MorphiumSingleton.get().findById(AddDat.class, d.getMongoId());
         assert (d2.additionals != null);
-        assert (d2.additionals.get("102-92-93").equals(new Integer(3234)));
+        assert (d2.additionals.get("102-92-93").equals(3234));
         assert (((Map) d2.additionals.get("test")).get("tst").equals("tst"));
         assert (d2.additionals.get("_id") == null);
 
@@ -51,9 +51,9 @@ public class AdditionalDataTest extends MongoTest {
         System.out.println("W: " + w);
         AddDat d = new AddDat();
         d.setCounter(999);
-        Map<String, Object> additional = new HashMap<String, Object>();
-        additional.put("102-92-93", new Integer(3234));
-        Map<String, String> dat = new HashMap<String, String>();
+        Map<String, Object> additional = new HashMap<>();
+        additional.put("102-92-93", 3234);
+        Map<String, String> dat = new HashMap<>();
         dat.put("tst", "tst");
         dat.put("tst2", "tst2");
         additional.put("test", dat);

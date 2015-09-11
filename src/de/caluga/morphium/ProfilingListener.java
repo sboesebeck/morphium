@@ -10,7 +10,7 @@ import de.caluga.morphium.query.Query;
  * Listener for profiling
  */
 public interface ProfilingListener {
-    public void readAccess(Query query, long time, ReadAccessType t);
+    void readAccess(Query query, long time, ReadAccessType t);
 
-    public void writeAccess(Class type, Object o, long time, boolean isNew, WriteAccessType t);
+    void writeAccess(Class type, Object o, long time, boolean isNew, WriteAccessType t);
 }

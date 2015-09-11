@@ -1,8 +1,12 @@
 package de.caluga.test.mongo.suite;
 
+import de.caluga.morphium.DereferencingListener;
+import de.caluga.morphium.Morphium;
+import de.caluga.morphium.MorphiumAccessVetoException;
 import de.caluga.morphium.MorphiumSingleton;
 import de.caluga.morphium.annotations.*;
 import de.caluga.morphium.annotations.caching.NoCache;
+import de.caluga.morphium.annotations.lifecycle.Lifecycle;
 import de.caluga.morphium.query.Query;
 import org.bson.types.ObjectId;
 import org.junit.Test;
@@ -16,12 +20,16 @@ import java.util.List;
  * Time: 00:33
  * <p/>
  */
+@SuppressWarnings("AssertWithSideEffects")
 public class ReferenceTest extends MongoTest {
+
+    private boolean didDeref = false;
+    private boolean wouldDeref = false;
 
     @Test
     public void storeReferenceTest() throws Exception {
         MorphiumSingleton.get().dropCollection(ReferenceContainer.class);
-        Thread.sleep(250);
+
         UncachedObject uc1 = new UncachedObject();
         uc1.setCounter(1);
         uc1.setValue("Uncached 1");
@@ -44,7 +52,7 @@ public class ReferenceTest extends MongoTest {
         rc.setLazyUc(uc2);
         rc.setUc(uc1);
 
-        List<UncachedObject> lst = new ArrayList<UncachedObject>();
+        List<UncachedObject> lst = new ArrayList<>();
         UncachedObject toSearchFor = null;
         for (int i = 0; i < 10; i++) {
             //creating uncached Objects
@@ -59,7 +67,7 @@ public class ReferenceTest extends MongoTest {
         rc.setLst(lst);
 
         UncachedObject toSearchFor2 = null;
-        lst = new ArrayList<UncachedObject>();
+        lst = new ArrayList<>();
         for (int i = 0; i < 10; i++) {
             //creating uncached Objects
             UncachedObject uc = new UncachedObject();
@@ -111,6 +119,153 @@ public class ReferenceTest extends MongoTest {
         assert (rcRead.getId().equals(rc.getId()));
     }
 
+
+    @Test
+    public void referenceListenerTest() throws Exception {
+        DereferencingListener deRef = new DereferencingListener() {
+            @Override
+            public void wouldDereference(Object entityIncludingReference, String fieldInEntity, Object id, Class typeReferenced, boolean lazy) throws MorphiumAccessVetoException {
+                wouldDeref = true;
+            }
+
+            @Override
+            public Object didDereference(Object entitiyIncludingReference, String fieldInEntity, Object referencedObject, boolean lazy) {
+                didDeref = true;
+                assert (referencedObject != null);
+                return referencedObject;
+            }
+        };
+
+        MorphiumSingleton.get().addDereferencingListener(deRef);
+
+
+        //Creating a testObject;
+        MorphiumSingleton.get().dropCollection(ReferenceContainer.class);
+        UncachedObject uc1 = new UncachedObject();
+
+        uc1.setCounter(1);
+        uc1.setValue("Uncached 1");
+        MorphiumSingleton.get().store(uc1);
+
+        UncachedObject uc2 = new UncachedObject();
+        uc2.setCounter(1);
+        uc2.setValue("Uncached 2");
+        MorphiumSingleton.get().store(uc2);
+
+
+        CachedObject co = new CachedObject();
+        co.setCounter(3);
+        co.setValue("Cached 3");
+        MorphiumSingleton.get().storeNoCache(co);
+        //Making sure it's stored yet
+
+        ReferenceContainer rc = new ReferenceContainer();
+        rc.setCo(co);
+        rc.setLazyUc(uc2);
+        rc.setUc(uc1);
+
+        List<UncachedObject> lst = new ArrayList<>();
+        UncachedObject toSearchFor = null;
+        for (int i = 0; i < 10; i++) {
+            //creating uncached Objects
+            UncachedObject uc = new UncachedObject();
+            uc.setValue("list value " + i);
+            uc.setCounter(i);
+            if (i == 4)
+                lst.add(uc);
+        }
+        MorphiumSingleton.get().storeList(lst);
+        rc.setLst(lst);
+
+        UncachedObject toSearchFor2 = null;
+        lst = new ArrayList<>();
+        for (int i = 0; i < 10; i++) {
+            //creating uncached Objects
+            UncachedObject uc = new UncachedObject();
+            uc.setValue("list value " + i);
+            uc.setCounter(i);
+            lst.add(uc);
+            if (i == 4) {
+            }
+        }
+
+        rc.setLzyLst(lst);
+
+
+        MorphiumSingleton.get().store(rc); //stored
+
+        ReferenceContainer rcRead = MorphiumSingleton.get().createQueryFor(ReferenceContainer.class).get();
+
+        assert (wouldDeref = true);
+        assert (didDeref = true);
+    }
+
+    @Lifecycle
+    @Entity
+    public static class SimpleDoublyLinkedEntity {
+        @Id
+        ObjectId id;
+        @Reference(lazyLoading = true, automaticStore = false)
+        SimpleDoublyLinkedEntity prev, next;
+        int value;
+
+        public SimpleDoublyLinkedEntity() {
+        }
+
+        public SimpleDoublyLinkedEntity(int value) {
+            this.value = value;
+        }
+
+        public void setPrev(SimpleDoublyLinkedEntity prev) {
+            this.prev = prev;
+            prev.next = this;
+        }
+
+        public SimpleDoublyLinkedEntity getPrev() {
+            return prev;
+        }
+
+        public SimpleDoublyLinkedEntity getNext() {
+            return next;
+        }
+
+        public int getValue() {
+            return value;
+        }
+    }
+
+    @Test
+    public void testSimpleDoublyLinkedStructure() {
+        Morphium m = MorphiumSingleton.get();
+        m.clearCollection(SimpleDoublyLinkedEntity.class);
+        SimpleDoublyLinkedEntity e1 = new SimpleDoublyLinkedEntity(1);
+        SimpleDoublyLinkedEntity e2 = new SimpleDoublyLinkedEntity(2);
+        SimpleDoublyLinkedEntity e3 = new SimpleDoublyLinkedEntity(3);
+
+        // store wihtout links to get Ids
+        m.store(e1);
+        m.store(e2);
+        m.store(e3);
+
+        // set links
+        e2.setPrev(e1);
+        e3.setPrev(e2);
+
+        // update
+        m.store(e1);
+        m.store(e2);
+        m.store(e3);
+
+        m.clearCachefor(SimpleDoublyLinkedEntity.class);
+
+        e2 = m.createQueryFor(SimpleDoublyLinkedEntity.class).getById(e2.id);
+        e1 = m.createQueryFor(SimpleDoublyLinkedEntity.class).getById(e1.id);
+
+        assert (e1.getValue() == e2.getPrev().getValue());
+        assert (e2.getValue() == e1.getNext().getValue());
+
+
+    }
 
     @Entity
     @WriteSafety(waitForSync = true, waitForJournalCommit = true, level = SafetyLevel.WAIT_FOR_ALL_SLAVES)

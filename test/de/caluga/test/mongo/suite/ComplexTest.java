@@ -206,7 +206,7 @@ public class ComplexTest extends MongoTest {
 
         waitForWrites();
         Query<ComplexObject> qc = MorphiumSingleton.get().createQueryFor(ComplexObject.class);
-        co = (ComplexObject) qc.f("embed.name").eq("embedded1").get();
+        co = qc.f("embed.name").eq("embedded1").get();
         assert (co != null);
         assert (co.getEmbed() != null);
         assert (co.getEmbed().getName().equals("embedded1"));

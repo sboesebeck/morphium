@@ -12,7 +12,7 @@ import java.util.List;
  * TODO: Add documentation here
  */
 public interface MorphiumReadListener<T> {
-    public void preRead(Query<T> q) throws MorphiumAccessVetoException;
+    void preRead(Query<T> q) throws MorphiumAccessVetoException;
 
-    public void postRead(Query<T> q, List<T> result, boolean fromCache) throws MorphiumAccessVetoException;
+    void postRead(Query<T> q, List<T> result, boolean fromCache) throws MorphiumAccessVetoException;
 }

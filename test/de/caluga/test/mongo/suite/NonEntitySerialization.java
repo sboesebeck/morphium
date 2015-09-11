@@ -34,7 +34,7 @@ public class NonEntitySerialization extends MongoTest {
     @Test
     public void testNonEntityList() throws Exception {
         NonEntityContainer nc = new NonEntityContainer();
-        nc.setList(new ArrayList<Object>());
+        nc.setList(new ArrayList<>());
         NonEntity ne = new NonEntity();
         ne.setInteger(42);
         ne.setValue("Thank you for the fish");
