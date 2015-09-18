@@ -11,6 +11,7 @@ import de.caluga.morphium.annotations.Id;
 import org.bson.types.ObjectId;
 import org.junit.Test;
 
+import java.math.BigInteger;
 import java.util.*;
 
 /**
@@ -20,6 +21,30 @@ import java.util.*;
  * <p/>
  */
 public class ObjectMapperTest extends MongoTest {
+
+    @Test
+    public void customTypeMapperTest() throws  Exception {
+        ObjectMapper om=MorphiumSingleton.get().getMapper();
+        BigInteger tst=new BigInteger("affedeadbeefaffedeadbeef42",16);
+        DBObject d=om.marshall(tst);
+
+        BigInteger bi=om.unmarshall(BigInteger.class,d);
+        assert(bi!=null);
+        assert(tst.equals(bi));
+
+        BIObject bio=new BIObject();
+        bio.biValue=tst;
+        MorphiumSingleton.get().store(bio);
+
+        BIObject bio2=MorphiumSingleton.get().createQueryFor(BIObject.class).get();
+        assert(bio2!=null);
+        assert(bio2.biValue!=null);
+        assert(bio2.biValue.equals(tst));
+    }
+
+
+
+
     @Test
     public void simpleParseFromStringTest() throws Exception {
         String json = "{ \"value\":\"test\",\"counter\":123}";
@@ -526,6 +551,16 @@ public class ObjectMapperTest extends MongoTest {
         public String id;
         public UncachedObject uc;
         public Map<String, String> aMap;
+
+    }
+
+
+    @Entity
+    public static class BIObject {
+        @Id
+        public ObjectId id;
+        public String value;
+        public BigInteger biValue;
 
     }
 }

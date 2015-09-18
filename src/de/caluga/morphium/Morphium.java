@@ -151,6 +151,14 @@ public class Morphium {
         initializeAndConnect();
     }
 
+
+    public void registerTypeMapper(Class c, TypeMapper m)  {
+        getMapper().registerCustomTypeMapper(c,m);
+    }
+
+    public void deregisterTypeMapper(Class c) {
+        getMapper().deregisterTypeMapper(c);
+    }
     private void initializeAndConnect() {
         if (config == null) {
             throw new RuntimeException("Please specify configuration!");
