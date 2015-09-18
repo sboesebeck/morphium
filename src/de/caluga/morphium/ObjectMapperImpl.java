@@ -5,6 +5,7 @@ import com.mongodb.BasicDBObject;
 import com.mongodb.DBObject;
 import com.mongodb.DBRef;
 import de.caluga.morphium.annotations.*;
+import de.caluga.morphium.mapping.BigIntegerTypeMapper;
 import de.caluga.morphium.query.Query;
 import org.bson.types.ObjectId;
 import org.json.simple.parser.ContainerFactory;
@@ -16,6 +17,7 @@ import sun.reflect.ReflectionFactory;
 
 import java.io.*;
 import java.lang.reflect.*;
+import java.math.BigInteger;
 import java.util.*;
 import java.util.concurrent.CopyOnWriteArrayList;
 
@@ -32,6 +34,8 @@ public class ObjectMapperImpl implements ObjectMapper {
     private volatile AnnotationAndReflectionHelper annotationHelper = new AnnotationAndReflectionHelper(true);
     private Morphium morphium;
     private JSONParser jsonParser = new JSONParser();
+
+    private Map<Class, TypeMapper> customMapper;
 
     private volatile List<Class<?>> mongoTypes;
     final ReflectionFactory reflection = ReflectionFactory.getReflectionFactory();
@@ -50,6 +54,9 @@ public class ObjectMapperImpl implements ObjectMapper {
         mongoTypes.add(Date.class);
         mongoTypes.add(Boolean.class);
         mongoTypes.add(Byte.class);
+        customMapper = new HashMap<>();
+        customMapper.put(BigInteger.class, new BigIntegerTypeMapper());
+
 
     }
 
@@ -149,9 +156,33 @@ public class ObjectMapperImpl implements ObjectMapper {
         return o;
     }
 
+    @Override
+    public void registerCustomTypeMapper(Class c, TypeMapper m) {
+        customMapper.put(c, m);
+    }
+
+    @Override
+    public void deregisterTypeMapper(Class c) {
+        customMapper.remove(c);
+    }
+
+    private boolean hasCustomMapper(Class c) {
+        return customMapper.get(c) != null;
+    }
+
     @SuppressWarnings("unchecked")
     @Override
     public DBObject marshall(Object o) {
+
+        Class c = annotationHelper.getRealClass(o.getClass());
+        if (hasCustomMapper(c)) {
+            Object ret = customMapper.get(c).marshall(o);
+            if (!(ret instanceof DBObject)) {
+                return new BasicDBObject("value", ret);
+            }
+            return (DBObject) ret;
+        }
+
         //recursively map object to mongo-Object...
         if (!annotationHelper.isEntity(o)) {
             if (morphium.getConfig().isObjectSerializationEnabled()) {
@@ -309,10 +340,11 @@ public class ObjectMapperImpl implements ObjectMapper {
                     if (value == null) {
                         valueClass = fld.getType();
                     } else {
-                        valueClass=value.getClass();
+                        valueClass = value.getClass();
                     }
-
-                    if (annotationHelper.isAnnotationPresentInHierarchy(valueClass, Entity.class)) {
+                    if (hasCustomMapper(valueClass)) {
+                        v = customMapper.get(valueClass).marshall(value);
+                    } else if (annotationHelper.isAnnotationPresentInHierarchy(valueClass, Entity.class)) {
                         if (value != null) {
                             DBObject obj = marshall(value);
                             obj.removeField("_id");  //Do not store ID embedded!
@@ -453,6 +485,9 @@ public class ObjectMapperImpl implements ObjectMapper {
     public <T> T unmarshall(Class<? extends T> theClass, DBObject o) {
         Class cls = theClass;
         try {
+            if (hasCustomMapper(cls)) {
+                return (T) customMapper.get(cls).unmarshall(o.get("value"));
+            }
             if (morphium != null && morphium.getConfig().isObjectSerializationEnabled() && !annotationHelper.isAnnotationPresentInHierarchy(cls, Entity.class) && !(annotationHelper.isAnnotationPresentInHierarchy(cls, Embedded.class))) {
                 cls = BinarySerializedObject.class;
             }
@@ -707,6 +742,8 @@ public class ObjectMapperImpl implements ObjectMapper {
                     }
                 } else if (fld.getType().isEnum()) {
                     value = Enum.valueOf((Class<? extends Enum>) fld.getType(), (String) valueFromDb);
+                } else if (hasCustomMapper(fld.getType())) {
+                    value=customMapper.get(fld.getType()).unmarshall(valueFromDb);
                 } else {
                     value = valueFromDb;
                 }
