@@ -20,6 +20,7 @@ public class AggregatorImpl<T, R> implements Aggregator<T, R> {
     private List<DBObject> params = new ArrayList<>();
     private Morphium morphium;
     private Class<? extends R> rType;
+    private String collectionName;
 
 
     @Override
@@ -78,6 +79,7 @@ public class AggregatorImpl<T, R> implements Aggregator<T, R> {
     @Override
     public Aggregator<T, R> match(Query<T> q) {
         DBObject o = new BasicDBObject("$match", q.toQueryObject());
+        collectionName = q.getCollectionName();
         params.add(o);
         return this;
     }
@@ -133,6 +135,16 @@ public class AggregatorImpl<T, R> implements Aggregator<T, R> {
         DBObject o = new BasicDBObject("$sort", new BasicDBObject(sort));
         params.add(o);
         return this;
+    }
+
+    @Override
+    public void setCollectionName(String cn) {
+        collectionName = cn;
+    }
+
+    @Override
+    public String getCollectionName() {
+        return collectionName;
     }
 
     @Override
