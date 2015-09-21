@@ -2100,7 +2100,9 @@ public class Morphium {
         DBCollection coll = null;
         for (int i = 0; i < getConfig().getRetriesOnNetworkError(); i++) {
             try {
-                coll = config.getDb().getCollection(objectMapper.getCollectionName(a.getSearchType()));
+                String collectionName = a.getCollectionName();
+                if (collectionName == null) objectMapper.getCollectionName(a.getSearchType());
+                coll = config.getDb().getCollection(collectionName);
                 break;
             } catch (Throwable e) {
                 handleNetworkError(i, e);

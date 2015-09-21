@@ -57,6 +57,10 @@ public interface Aggregator<T, R> {
 
     Aggregator<T, R> sort(Map<String, Integer> sort);
 
+    void setCollectionName(String cn);
+
+    String getCollectionName();
+
     Group<T, R> group(BasicDBObject id);
 
     Group<T, R> group(Map<String, String> idSubObject);
