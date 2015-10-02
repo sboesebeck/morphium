@@ -63,7 +63,7 @@ if necessary, it's of course possible to specify the port to connect to:
 then you are good to go:
 
 ```java
-  Query<MyEntity> q=m.createQueryFor(MyEntity.class).f("a_field").eq("a value");
+  Query<MyEntity> q=m.createQueryFor(MyEntity.class).f("a_field").eq("a id");
   List<MyEntity> lst=q.asList();
   MyEntity ent=q.get();
   ...
@@ -101,7 +101,7 @@ You can also use Maps, Lists or Arrays, all may also include other Entities or E
 ## Use enum instead of strings for queries
 As using strings to query your object might be a bit error prone, you also can use enums instead of field name strings:
 ```java
-   Query<MyEntity> q=m.createQueryFor(MyEntity.class).f(MyEntity.Fields.aField).eq("a value");
+   Query<MyEntity> q=m.createQueryFor(MyEntity.class).f(MyEntity.Fields.aField).eq("a id");
 ```
 of course, these enums need to be created. have a look at https://github.com/sboesebeck/intelliJGenPropertyEnumsPlugin for a plugin for generating those automatically
 in our example, the result would look like this:
