@@ -14,16 +14,16 @@
     <!-- ============================== -->
 
     <appender name="CONSOLE" class="org.apache.log4j.ConsoleAppender">
-        <param name="Target" value="System.out"/>
+        <param name="Target" id="System.out"/>
         <layout class="org.apache.log4j.PatternLayout">
-            <param name="ConversionPattern" value="%d{ABSOLUTE} lkjhasdf %-5p [%t] %c{1}: %m%n"/>
+            <param name="ConversionPattern" id="%d{ABSOLUTE} lkjhasdf %-5p [%t] %c{1}: %m%n"/>
         </layout>
     </appender>
 
     <appender name="JOB" class="org.apache.log4j.ConsoleAppender">
-        <param name="Target" value="System.out"/>
+        <param name="Target" id="System.out"/>
         <layout class="org.apache.log4j.PatternLayout">
-            <param name="ConversionPattern" value="%d{ISO8601} asdfas  %-5p [%t] %c{1}: %m%n"/>
+            <param name="ConversionPattern" id="%d{ISO8601} asdfas  %-5p [%t] %c{1}: %m%n"/>
         </layout>
     </appender>
     <appender name="mongo" class="de.caluga.morphium.logging.MongoAppender">
@@ -35,18 +35,18 @@
 
 
     <logger name="de.caluga.morphium">
-        <level value="INFO"/>
+        <level id="INFO"/>
     </logger>
 
     <logger name="com.mongodb">
-        <level value="DEBUG"/>
+        <level id="DEBUG"/>
     </logger>
     <!-- ======================= -->
     <!-- Setup the Root category -->
     <!-- ======================= -->
 
     <root>
-        <priority value="DEBUG"/>
+        <priority id="DEBUG"/>
         <appender-ref ref="CONSOLE"/>
     </root>
 
