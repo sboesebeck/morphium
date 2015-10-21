@@ -44,7 +44,7 @@ public class BsonString implements Bson {
     }
 
     @Override
-    public Bson deserialize() {
+    public Bson deserialize(byte[] in) {
         return null;
     }
 }
