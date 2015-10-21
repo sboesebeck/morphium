@@ -73,5 +73,5 @@ public interface Bson {
 
     byte[] serialize();
 
-    Bson deserialize();
+    Bson deserialize(byte[] in);
 }
