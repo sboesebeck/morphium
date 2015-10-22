@@ -59,7 +59,9 @@
 <p>Morphium is a POJO Object mapper for Accessing Mongodb. Some of the main Features of Morphium:</p>
 
 <ul>
-<li>3.0 Ready - V2.2.x works fine with mongodb 3.0, <b>Attention</b> storageEnging wiredTiger seems to by a lot slower than the standard engine when using Morphium. We're working on it... stay tuned. <b>Update on that:</b> it seems like the performance on WiredTiger is a bit slower due to the access pattern morphiums test suite uses. In prooductional environments performance is as expected.</b></li>
+<li>3.0 Ready - V2.2.x works fine with mongodb 3.0, <b>Attention</b> storageEnging wiredTiger seems to by a lot slower than the standard engine when using Morphium. We're working on it... stay tuned. <b>Update on that:</b> it seems like the performance on WiredTiger is a bit slower due to the access pattern morphiums test suite uses. In prooductional environments performance is as expected. Eg. writing performance is way better with wired tiger. Probably it is possible to configure WT to work as performant as MMAPV1 for morphium's test suite, but that is actually not important!
+</li>
+<li>When using WiredTiger storage engine, make sure the settings are configured to your needs, otherwise performance might suffer</li>
 <li>actively developed</li>
 <li>used by a number of projects (including holidayinsider.com)</li>
 <li>Transparent access to mongo db</li>
