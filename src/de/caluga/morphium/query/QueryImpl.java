@@ -41,6 +41,8 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
     private boolean autoValuesEnabled = true;
     private DBObject additionalFields;
 
+    private HashMap<String, String> tags = new HashMap<>();
+
     public QueryImpl() {
 
     }
@@ -55,6 +57,10 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
         setMorphium(m);
     }
 
+    @Override
+    public void addTagValue(String tag, String value) {
+        tags.put(tag, value);
+    }
 
     @Override
     public void disableAutoValues() {
@@ -476,10 +482,39 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
     }
 
     private void setReadPreferenceFor(DBCollection c) {
-        if (readPreference != null) {
-            c.setReadPreference(readPreference);
+        if (tags == null || tags.size() == 0) {
+            if (readPreference != null) {
+                c.setReadPreference(readPreference);
+            } else {
+                c.setReadPreference(null);
+            }
         } else {
-            c.setReadPreference(null);
+            List<Tag> tagList = new ArrayList<>();
+            for (Map.Entry<String, String> e : tags.entrySet()) {
+                Tag t = new Tag(e.getKey(), e.getValue());
+                tagList.add(t);
+            }
+            TagSet tagSet = new TagSet(tagList);
+            switch (readPreferenceLevel) {
+                case NEAREST:
+                    readPreference = ReadPreference.nearest(tagSet);
+                    break;
+                case PRIMARY:
+                    //nothing to do
+                    break;
+                case PRIMARY_PREFERRED:
+                    readPreference = ReadPreference.primaryPreferred(tagSet);
+                    break;
+                case SECONDARY:
+                    readPreference = ReadPreference.secondary(tagSet);
+                    break;
+                case SECONDARY_PREFERRED:
+                    readPreference = ReadPreference.secondaryPreferred(tagSet);
+                    break;
+                default:
+                    throw new IllegalArgumentException("Unkown ReadPreference " + readPreferenceLevel.name());
+            }
+            c.setReadPreference(readPreference);
         }
     }
 
@@ -613,6 +648,7 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
             DBCursor query = null;
             try {
                 query = collection.find(toQueryObject(), lst);
+
                 if (skip > 0) {
                     query.skip(skip);
                 }
