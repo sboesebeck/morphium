@@ -313,6 +313,8 @@ public interface Query<T> extends Cloneable {
 
     List distinct(String field);
 
+    void addTagValue(String tag, String value);
+
     enum TextSearchLanguages {
         danish,
         dutch,
