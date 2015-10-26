@@ -85,7 +85,18 @@ public class CacheHousekeeper extends Thread {
                 Map<Class<?>, Map<String, CacheElement>> cache = morphium.getCache().cloneCache();
                 for (Map.Entry<Class<?>, Map<String, CacheElement>> es : cache.entrySet()) {
                     Class<?> clz = es.getKey();
-                    Map<String, CacheElement> ch = (Map<String, CacheElement>) ((HashMap) es.getValue()).clone();
+                    Map<String, CacheElement> ch = null;
+                    int errorCount = 0;
+                    while (ch == null) {
+                        try {
+                            ch = (Map<String, CacheElement>) ((HashMap) es.getValue()).clone();
+                        } catch (Exception e) {
+                            errorCount++;
+                            log.info("Cache concurrenc access error..." + errorCount);
+                            Thread.yield();
+                            if (errorCount > 3) throw new RuntimeException("could not handle it", e);
+                        }
+                    }
 
 
                     int maxEntries = -1;
