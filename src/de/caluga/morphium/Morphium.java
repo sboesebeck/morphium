@@ -1408,10 +1408,10 @@ public class Morphium {
         if (e instanceof DuplicateKeyException) {
             throw new RuntimeException(e);
         }
-        if (e.getMessage().equals("can't find a master")
+        if (e.getMessage() != null && (e.getMessage().equals("can't find a master")
                 || e.getMessage().startsWith("No replica set members available in")
-                || e.getMessage().equals("not talking to master and retries used up")
-                || (e instanceof WriteConcernException && e.getMessage().contains("not master"))
+                || e.getMessage().equals("not talking to master and retries used up"))
+                || (e instanceof WriteConcernException && e.getMessage() != null && e.getMessage().contains("not master"))
                 || e instanceof MongoException) {
             if (i + 1 < getConfig().getRetriesOnNetworkError()) {
                 logger.warn("Retry because of network error: " + e.getMessage());
@@ -2101,7 +2101,7 @@ public class Morphium {
         for (int i = 0; i < getConfig().getRetriesOnNetworkError(); i++) {
             try {
                 String collectionName = a.getCollectionName();
-                if (collectionName == null) objectMapper.getCollectionName(a.getSearchType());
+                if (collectionName == null) collectionName = objectMapper.getCollectionName(a.getSearchType());
                 coll = config.getDb().getCollection(collectionName);
                 break;
             } catch (Throwable e) {

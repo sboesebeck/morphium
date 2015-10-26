@@ -59,7 +59,7 @@ public class MongoTest {
 
     @org.junit.BeforeClass
     public static void setUpClass() throws Exception {
-        System.setProperty("morphium.log.level", "5");
+        System.setProperty("morphium.log.level", "4");
         System.setProperty("morphium.log.synced", "true");
         System.setProperty("morphium.log.file", "-");
         java.util.logging.Logger l = java.util.logging.Logger.getGlobal();
@@ -116,8 +116,8 @@ public class MongoTest {
                 cfg.addHost("localhost", 27018);
                 cfg.addHost("localhost", 27019);
                 cfg.setWriteCacheTimeout(100);
-                cfg.setConnectionTimeout(10000);
-                cfg.setMaxWaitTime(20000);
+                cfg.setConnectionTimeout(2000);
+                cfg.setMaxWaitTime(2000);
                 cfg.setMaxAutoReconnectTime(500);
                 cfg.setMaxConnectionLifeTime(60000);
                 cfg.setMaxConnectionIdleTime(30000);
