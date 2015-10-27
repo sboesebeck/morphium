@@ -523,7 +523,7 @@ public class ObjectMapperImpl implements ObjectMapper {
             if (ret == null) {
                 final Constructor<Object> constructor;
                 try {
-                    constructor = reflection.newConstructorForSerialization(
+                    constructor = (Constructor<Object>) reflection.newConstructorForSerialization(
                             cls, Object.class.getDeclaredConstructor());
                     ret = constructor.newInstance();
                 } catch (Exception e) {

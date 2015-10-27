@@ -3,6 +3,8 @@ package de.caluga.morphium;
 
 import com.mongodb.DB;
 import com.mongodb.ServerAddress;
+import com.mongodb.Tag;
+import com.mongodb.TagSet;
 import de.caluga.morphium.aggregation.Aggregator;
 import de.caluga.morphium.aggregation.AggregatorFactory;
 import de.caluga.morphium.aggregation.AggregatorFactoryImpl;
@@ -78,6 +80,7 @@ public class MorphiumConfig {
     private boolean autoreconnect = true;
     private int maxAutoReconnectTime = 0;
     private int blockingThreadsMultiplier = 5;
+
     @Transient
     private Class<? extends Query> queryClass;
     @Transient
@@ -131,6 +134,8 @@ public class MorphiumConfig {
     private int localThreashold = 0;
     private int maxConnectionIdleTime = 10000;
     private int maxConnectionLifeTime = 60000;
+
+    private String defaultTags;
     private String requiredReplicaSetName = null;
 
     public MorphiumConfig(Properties prop) {
@@ -1089,4 +1094,30 @@ public class MorphiumConfig {
     public void setLogSyncedForPrefix(String cls, boolean synced) {
         System.getProperties().put("morphium.log.synced." + cls, synced);
     }
+
+    public String getDefaultTags() {
+        return defaultTags;
+    }
+
+    public void addDefaultTag(String name, String value) {
+        if (defaultTags != null) {
+            defaultTags += ",";
+        } else {
+            defaultTags = "";
+        }
+        defaultTags += name + ":" + value;
+    }
+
+
+    public TagSet getDefaultTagSet() {
+        if (defaultTags == null) return null;
+        List<Tag> tagList = new ArrayList<>();
+
+        for (String t : defaultTags.split(",")) {
+            String[] tag = t.split(":");
+            tagList.add(new Tag(tag[0], tag[1]));
+        }
+        return new TagSet(tagList);
+    }
+
 }
