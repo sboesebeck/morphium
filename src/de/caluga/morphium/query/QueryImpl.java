@@ -41,7 +41,7 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
     private boolean autoValuesEnabled = true;
     private DBObject additionalFields;
 
-    private HashMap<String, String> tags = new HashMap<>();
+    private String tags;
 
     public QueryImpl() {
 
@@ -51,16 +51,32 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
         this(m);
         setType(type);
         this.executor = executor;
+        if (m.getConfig().getDefaultTagSet() != null) {
+            tags = m.getConfig().getDefaultTags();
+        }
     }
 
     public QueryImpl(Morphium m) {
         setMorphium(m);
     }
 
+
     @Override
-    public void addTagValue(String tag, String value) {
-        tags.put(tag, value);
+    public String[] getTags() {
+        if (tags == null) return new String[0];
+        return tags.split(",");
     }
+
+    @Override
+    public void addTag(String name, String value) {
+        if (tags != null) {
+            tags += ",";
+        } else {
+            tags = "";
+        }
+        tags += name + ":" + value;
+    }
+
 
     @Override
     public void disableAutoValues() {
@@ -482,7 +498,7 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
     }
 
     private void setReadPreferenceFor(DBCollection c) {
-        if (tags == null || tags.size() == 0) {
+        if (tags == null || tags.length() == 0) {
             if (readPreference != null) {
                 c.setReadPreference(readPreference);
             } else {
@@ -490,9 +506,9 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
             }
         } else {
             List<Tag> tagList = new ArrayList<>();
-            for (Map.Entry<String, String> e : tags.entrySet()) {
-                Tag t = new Tag(e.getKey(), e.getValue());
-                tagList.add(t);
+            for (String t : tags.split(",")) {
+                String tag[] = t.split(":");
+                tagList.add(new Tag(tag[0], tag[1]));
             }
             TagSet tagSet = new TagSet(tagList);
             switch (readPreferenceLevel) {
