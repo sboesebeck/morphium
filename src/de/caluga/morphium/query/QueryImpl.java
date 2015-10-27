@@ -41,6 +41,8 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
     private boolean autoValuesEnabled = true;
     private DBObject additionalFields;
 
+    private String tags;
+
     public QueryImpl() {
 
     }
@@ -49,10 +51,30 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
         this(m);
         setType(type);
         this.executor = executor;
+        if (m.getConfig().getDefaultTagSet() != null) {
+            tags = m.getConfig().getDefaultTags();
+        }
     }
 
     public QueryImpl(Morphium m) {
         setMorphium(m);
+    }
+
+
+    @Override
+    public String[] getTags() {
+        if (tags == null) return new String[0];
+        return tags.split(",");
+    }
+
+    @Override
+    public void addTag(String name, String value) {
+        if (tags != null) {
+            tags += ",";
+        } else {
+            tags = "";
+        }
+        tags += name + ":" + value;
     }
 
 
@@ -476,10 +498,39 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
     }
 
     private void setReadPreferenceFor(DBCollection c) {
-        if (readPreference != null) {
-            c.setReadPreference(readPreference);
+        if (tags == null || tags.length() == 0) {
+            if (readPreference != null) {
+                c.setReadPreference(readPreference);
+            } else {
+                c.setReadPreference(null);
+            }
         } else {
-            c.setReadPreference(null);
+            List<Tag> tagList = new ArrayList<>();
+            for (String t : tags.split(",")) {
+                String tag[] = t.split(":");
+                tagList.add(new Tag(tag[0], tag[1]));
+            }
+            TagSet tagSet = new TagSet(tagList);
+            switch (readPreferenceLevel) {
+                case NEAREST:
+                    readPreference = ReadPreference.nearest(tagSet);
+                    break;
+                case PRIMARY:
+                    //nothing to do
+                    break;
+                case PRIMARY_PREFERRED:
+                    readPreference = ReadPreference.primaryPreferred(tagSet);
+                    break;
+                case SECONDARY:
+                    readPreference = ReadPreference.secondary(tagSet);
+                    break;
+                case SECONDARY_PREFERRED:
+                    readPreference = ReadPreference.secondaryPreferred(tagSet);
+                    break;
+                default:
+                    throw new IllegalArgumentException("Unkown ReadPreference " + readPreferenceLevel.name());
+            }
+            c.setReadPreference(readPreference);
         }
     }
 
@@ -613,6 +664,7 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
             DBCursor query = null;
             try {
                 query = collection.find(toQueryObject(), lst);
+
                 if (skip > 0) {
                     query.skip(skip);
                 }
