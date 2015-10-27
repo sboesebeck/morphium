@@ -291,6 +291,10 @@ public interface Query<T> extends Cloneable {
 
     boolean isAutoValuesEnabled();
 
+    String[] getTags();
+
+    void addTag(String name, String value);
+
     void disableAutoValues();
 
     void enableAutoValues();
@@ -313,7 +317,6 @@ public interface Query<T> extends Cloneable {
 
     List distinct(String field);
 
-    void addTagValue(String tag, String value);
 
     enum TextSearchLanguages {
         danish,
