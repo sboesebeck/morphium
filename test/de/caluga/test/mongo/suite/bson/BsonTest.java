@@ -3,8 +3,10 @@ package de.caluga.test.mongo.suite.bson;/**
  */
 
 import de.caluga.morphium.Logger;
+import de.caluga.morphium.driver.bson.BsonDecoder;
 import de.caluga.morphium.driver.bson.BsonEncoder;
 import de.caluga.morphium.driver.bson.MongoId;
+import de.caluga.test.mongo.suite.MongoTest;
 import org.junit.Test;
 
 import java.io.UnsupportedEncodingException;
@@ -15,19 +17,40 @@ import java.util.Map;
 /**
  * TODO: Add Documentation here
  **/
-public class BsonTest {
+public class BsonTest extends MongoTest {
 
     private static String[] chars = {"0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "A", "B", "C", "D", "E", "F",};
 
     private static Logger log = new Logger(BsonTest.class);
 
 
-    @org.junit.BeforeClass
-    public static void setUpClass() throws Exception {
-        log.setLevel(5);
-        log.setFile("-");
-        log.setSynced(true);
+    @Test
+    public void encodeDecodeTest() throws Exception {
+
+        Map<String, Object> doc = new HashMap<>();
+
+        doc.put("_id", new MongoId());
+        doc.put("counter", 123);
+        doc.put("value", "a value");
+
+        Map<String, Object> subDoc = new HashMap<>();
+        subDoc.put("some", 1223.2);
+        subDoc.put("bool", true);
+        subDoc.put("created", new Date());
+
+        doc.put("sub", subDoc);
+
+
+        byte[] bytes = BsonEncoder.encodeDocument(doc);
+
+        log.error(getHex(bytes));
+//        System.err.println(getHex(bytes));
+
+        BsonDecoder dec = new BsonDecoder();
+        Map<String, Object> aDoc = dec.decodeDocument(bytes);
+        assert (aDoc.equals(doc));
     }
+
 
     @Test
     public void encodeTest() throws Exception {
