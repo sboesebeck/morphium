@@ -45,16 +45,17 @@ public class BsonEncoder {
 
 
     public byte[] getBytes() {
-        ByteArrayOutputStream n = new ByteArrayOutputStream();
-        int sz = out.size() + 5; //4 + terminating 0
-        for (int i = 0; i < 4; i++) n.write((byte) ((sz >> ((7 - i) * 8)) & 0xff));
-        try {
-            n.write(out.toByteArray());
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
-        n.write(0x00);
-        return n.toByteArray();
+//        ByteArrayOutputStream n = new ByteArrayOutputStream();
+////        int sz = out.size() + 5; //4 + terminating 0
+////        for (int i = 0; i < 4; i++) n.write((byte) ((sz >> ((7 - i) * 8)) & 0xff));
+//        try {
+//            n.write(out.toByteArray());
+//        } catch (IOException e) {
+//            e.printStackTrace();
+//        }
+//        n.write(0x00);
+//        return n.toByteArray();
+        return out.toByteArray();
     }
 
 
@@ -69,7 +70,17 @@ public class BsonEncoder {
                 e1.printStackTrace();
             }
         }
-        return o.toByteArray();
+
+        ByteArrayOutputStream o2 = new ByteArrayOutputStream();
+        for (int i = 0; i < 4; i++) o2.write((byte) (((o.size() + 4 + 1) >> ((7 - i) * 8)) & 0xff));
+        try {
+            o2.write(o.toByteArray());
+            o2.write(0x00);
+        } catch (IOException e) {
+            //TODO: Implement Handling
+            throw new RuntimeException(e);
+        }
+        return o2.toByteArray();
     }
 
     private BsonEncoder encodeObject(String n, Object v) {
@@ -104,7 +115,6 @@ public class BsonEncoder {
             writeByte(3);
             cString(n);
             byte[] b = BsonEncoder.encodeDocument(((Map<String, Object>) v));
-            writeInt(b.length);
             writeBytes(b);
         } else if (v instanceof MongoBob) {
             //binary data
