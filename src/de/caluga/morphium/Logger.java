@@ -108,8 +108,10 @@ public class Logger {
         this.file = v;
         out.flush();
         out.close();
-        if (file == null) {
+        if (file == null || file.equals("-") || file.equalsIgnoreCase("STDOUT")) {
             out = new PrintWriter(new OutputStreamWriter(System.out));
+        } else if (file.equalsIgnoreCase("STDERR")) {
+            out = new PrintWriter(new OutputStreamWriter(System.err));
         } else {
             try {
                 out = new PrintWriter(new BufferedWriter(new FileWriter(v, true)));
