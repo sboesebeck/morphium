@@ -16,7 +16,8 @@ import java.util.concurrent.atomic.AtomicInteger;
  **/
 public class MongoId {
 
-    private static final int MACHINEID;
+    private final static int THE_MACHINE_ID;
+    private int machineId;
     private static final AtomicInteger COUNT = new AtomicInteger(new SecureRandom().nextInt());
     private final short PID;
     private final int counter;
@@ -24,7 +25,7 @@ public class MongoId {
 
     static {
         try {
-            MACHINEID = createMachineId();
+            THE_MACHINE_ID = createMachineId();
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
@@ -34,13 +35,34 @@ public class MongoId {
         PID = createPID();
         counter = COUNT.getAndIncrement();
         timestamp = (int) (System.currentTimeMillis() / 1000);
+        machineId = THE_MACHINE_ID;
     }
 
     private MongoId(short pid, int c, int ts) {
         this.PID = pid;
         counter = c;
         timestamp = ts;
+        machineId = THE_MACHINE_ID;
     }
+
+    public MongoId(byte[] bytes, int idx) {
+        if (bytes == null) {
+            throw new IllegalArgumentException();
+        } else if (idx + 12 >= bytes.length) {
+            throw new IllegalArgumentException("not enough data, 12 bytes needed");
+        } else {
+            this.timestamp = readInt(bytes, idx);
+            this.machineId = readInt(new byte[]{(byte) 0, bytes[idx + 4], bytes[idx + 5], bytes[idx + 6]}, 0);
+            this.PID = (short) readInt(new byte[]{(byte) 0, (byte) 0, bytes[idx + 7], bytes[idx + 8]}, 0);
+            this.counter = readInt(new byte[]{(byte) 0, bytes[idx + 9], bytes[idx + 10], bytes[idx + 11]}, 0);
+        }
+    }
+
+    private int readInt(byte[] bytes, int idx) {
+        return bytes[idx] << 24 | (bytes[idx + 1] & 0xFF) << 16 | (bytes[idx + 2] & 0xFF) << 8 | (bytes[idx + 3] & 0xFF);
+
+    }
+
 
     private void storeInt(byte[] arr, int offset, int val) {
         for (int i = 0; i < 4; i++) arr[i + offset] = ((byte) ((val >> ((7 - i) * 8)) & 0xff));
@@ -58,7 +80,7 @@ public class MongoId {
         byte[] bytes = new byte[12];
 
         storeInt(bytes, 0, timestamp);
-        storeInt3Byte(bytes, 4, createMachineId());
+        storeInt3Byte(bytes, 4, machineId);
         storeShort(bytes, 7, PID);
         storeShort(bytes, 10, counter);
         return bytes;
