@@ -19,9 +19,11 @@ public class MongoId {
     private final static int THE_MACHINE_ID;
     private int machineId;
     private static final AtomicInteger COUNT = new AtomicInteger(new SecureRandom().nextInt());
-    private final short PID;
+    private final short pid;
     private final int counter;
     private final int timestamp;
+
+    public static ThreadLocal<Short> threadPid;
 
     static {
         try {
@@ -32,14 +34,17 @@ public class MongoId {
     }
 
     public MongoId() {
-        PID = createPID();
-        counter = COUNT.getAndIncrement();
+        long start = System.currentTimeMillis();
+
+        pid = createPID();
+        long dur = System.currentTimeMillis() - start;
+        counter = COUNT.getAndIncrement() & 0x00ffffff;
         timestamp = (int) (System.currentTimeMillis() / 1000);
         machineId = THE_MACHINE_ID;
     }
 
     private MongoId(short pid, int c, int ts) {
-        this.PID = pid;
+        this.pid = pid;
         counter = c;
         timestamp = ts;
         machineId = THE_MACHINE_ID;
@@ -53,7 +58,7 @@ public class MongoId {
         } else {
             this.timestamp = readInt(bytes, idx);
             this.machineId = readInt(new byte[]{(byte) 0, bytes[idx + 4], bytes[idx + 5], bytes[idx + 6]}, 0);
-            this.PID = (short) readInt(new byte[]{(byte) 0, (byte) 0, bytes[idx + 7], bytes[idx + 8]}, 0);
+            this.pid = (short) readInt(new byte[]{(byte) 0, (byte) 0, bytes[idx + 7], bytes[idx + 8]}, 0);
             this.counter = readInt(new byte[]{(byte) 0, bytes[idx + 9], bytes[idx + 10], bytes[idx + 11]}, 0);
         }
     }
@@ -64,16 +69,42 @@ public class MongoId {
     }
 
 
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (!(o instanceof MongoId)) return false;
+
+        MongoId mongoId = (MongoId) o;
+
+        if (machineId != mongoId.machineId) return false;
+        if (pid != mongoId.pid) return false;
+        if (counter != mongoId.counter) return false;
+        return timestamp == mongoId.timestamp;
+
+    }
+
+    @Override
+    public int hashCode() {
+        int result = machineId;
+        result = 31 * result + (int) pid;
+        result = 31 * result + counter;
+        result = 31 * result + timestamp;
+        return result;
+    }
+
     private void storeInt(byte[] arr, int offset, int val) {
         for (int i = 0; i < 4; i++) arr[i + offset] = ((byte) ((val >> ((7 - i) * 8)) & 0xff));
     }
 
     private void storeShort(byte[] arr, int offset, int val) {
-        for (int i = 0; i < 2; i++) arr[i + offset] = ((byte) ((val >> ((3 - i) * 8)) & 0xff));
+        arr[offset] = ((byte) ((val >> 8) & 0xff));
+        arr[offset + 1] = ((byte) ((val) & 0xff));
     }
 
     private void storeInt3Byte(byte[] arr, int offset, int val) {
-        for (int i = 1; i < 4; i++) arr[i + offset - 1] = ((byte) ((val >> ((7 - i) * 8)) & 0xff));
+        arr[offset] = ((byte) ((val >> 16) & 0xff));
+        arr[offset + 1] = ((byte) ((val >> 8) & 0xff));
+        arr[offset + 2] = ((byte) ((val) & 0xff));
     }
 
     public byte[] getBytes() {
@@ -81,26 +112,31 @@ public class MongoId {
 
         storeInt(bytes, 0, timestamp);
         storeInt3Byte(bytes, 4, machineId);
-        storeShort(bytes, 7, PID);
-        storeShort(bytes, 10, counter);
+        storeShort(bytes, 7, pid);
+        storeInt3Byte(bytes, 9, counter);
         return bytes;
     }
 
     private static short createPID() {
-        short processId;
-        try {
-            String pName = java.lang.management.ManagementFactory.getRuntimeMXBean().getName();
-            if (pName.contains("@")) {
-                processId = (short) Integer.parseInt(pName.substring(0, pName.indexOf('@')));
-            } else {
-                processId = (short) pName.hashCode();
+        if (threadPid == null || threadPid.get() == null) {
+
+            short processId;
+            try {
+                String pName = java.lang.management.ManagementFactory.getRuntimeMXBean().getName();
+                if (pName.contains("@")) {
+                    processId = (short) Integer.parseInt(pName.substring(0, pName.indexOf('@')));
+                } else {
+                    processId = (short) pName.hashCode();
+                }
+            } catch (Throwable t) {
+                new Logger(MongoId.class).error("could not get processID - using random fallback");
+                processId = (short) new SecureRandom().nextInt();
             }
-        } catch (Throwable t) {
-            new Logger(MongoId.class).error("could not get processID - using random fallback");
-            processId = (short) new SecureRandom().nextInt();
+            threadPid = new ThreadLocal<>();
+            threadPid.set(processId);
         }
 
-        return processId;
+        return threadPid.get();
     }
 
 
@@ -133,5 +169,21 @@ public class MongoId {
 
         machineId = machineId & 0x00ffffff;
         return machineId;
+    }
+
+
+    public String toString() {
+        String[] chars = {"0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "A", "B", "C", "D", "E", "F",};
+        byte[] b = getBytes();
+
+        StringBuilder bld = new StringBuilder();
+
+        for (byte by : b) {
+            int idx = (by >>> 4) & 0x0f;
+            bld.append(chars[idx]);
+            idx = by & 0x0f;
+            bld.append(chars[idx]);
+        }
+        return bld.toString();
     }
 }
