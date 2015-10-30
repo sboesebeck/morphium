@@ -10,9 +10,7 @@ import de.caluga.test.mongo.suite.MongoTest;
 import org.junit.Test;
 
 import java.io.UnsupportedEncodingException;
-import java.util.Date;
-import java.util.HashMap;
-import java.util.Map;
+import java.util.*;
 
 /**
  * TODO: Add Documentation here
@@ -49,6 +47,19 @@ public class BsonTest extends MongoTest {
         BsonDecoder dec = new BsonDecoder();
         Map<String, Object> aDoc = dec.decodeDocument(bytes);
         assert (aDoc.equals(doc));
+    }
+
+
+    @Test
+    public void mongoIdTest() throws Exception {
+        List<MongoId> lst = new ArrayList<>();
+        log.info("Creating...");
+        for (int i = 0; i < 100000; i++) {
+            MongoId id = new MongoId();
+            assert (!lst.contains(id));
+            lst.add(id);
+        }
+        log.info("done");
     }
 
 
