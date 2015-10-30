@@ -4,6 +4,7 @@ package de.caluga.morphium.driver.bson;/**
 
 import java.io.UnsupportedEncodingException;
 import java.util.*;
+import java.util.regex.Pattern;
 
 /**
  * TODO: Add Documentation here
@@ -68,7 +69,15 @@ public class BsonDecoder {
 
                 case 0x05:
                     //binary data
-                    throw new RuntimeException("Not implemented yet!");
+//                    throw new RuntimeException("Not implemented yet!");
+                    int boblen = readInt(in, idx);
+                    byte[] bobdata = new byte[boblen];
+                    //skipping subtype!
+                    System.arraycopy(in, idx + 5, bobdata, 0, boblen);
+                    MongoBob bob = new MongoBob(bobdata);
+                    idx += boblen + 5;
+                    value = bob;
+                    break;
                 case 0x0e:
                     //deprecated
                 case 0x0c:
@@ -98,13 +107,53 @@ public class BsonDecoder {
                     break;
                 case 0x0b:
                     //regex
+                    l = 0;
+                    while (in[idx + l] != 0) l++;
+                    String pattern = new String(in, idx, l, "UTF-8");
+                    idx += l;
 
+                    l = 0;
+                    while (in[idx + l] != 0) l++;
+                    String opts = new String(in, idx, l, "UTF-8");
+                    idx += l;
+                    int flags = 0;
+                    if (opts.contains("i")) {
+                        flags = flags | Pattern.CASE_INSENSITIVE;
+                    }
+                    if (opts.contains("m")) {
+                        flags = flags | Pattern.MULTILINE;
+                    }
+                    if (opts.contains("l")) {
+                        flags = flags | Pattern.LITERAL;
+                    }
+
+                    if (opts.contains("s")) {
+                        flags = flags | Pattern.DOTALL;
+                    }
+
+                    if (opts.contains("u")) {
+                        flags = flags | Pattern.UNICODE_CASE;
+                    }
+                    value = Pattern.compile(name, flags);
+                    break;
                 case 0x0d:
                     //javascript
-
+                    strlen = readInt(in, idx);
+                    String code = new String(in, idx + 4, strlen - 1, "UTF-8");
+                    MongoJSScript scr = new MongoJSScript(code);
+                    value = scr;
+                    idx += strlen + 4;
+                    break;
                 case 0x0f:
                     //javascript w/ scope
-                    throw new RuntimeException("not implemented yet");
+                    //first 4 bytes the whole length
+                    strlen = readInt(in, idx + 4);
+                    code = new String(in, idx + 8, strlen - 1, "UTF-8");
+                    Map<String, Object> scope = new HashMap<>();
+                    int doclen = decodeDocumentIn(scope, in, idx + 8 + strlen);
+                    value = new MongoJSScript(code, scope);
+                    idx += doclen + 8 + strlen;
+                    break;
                 case 0x10:
                     //32 bit int
                     value = readInt(in, idx);
@@ -120,9 +169,11 @@ public class BsonDecoder {
                     break;
                 case (byte) 0xff:
                     //min key
-
+                    value = new MongoMinKey();
+                    break;
                 case 0x7f:
                     //max key
+                    value = new MongoMaxKey();
                 default:
                     throw new RuntimeException("unknown data type: " + in[idx]);
 

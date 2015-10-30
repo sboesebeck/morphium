@@ -124,7 +124,7 @@ public class BsonEncoder {
             byte[] data = b.getData();
             if (data == null) data = new byte[0];
             writeInt(data.length);
-            writeByte(0);
+            writeByte(0); //subtype
 
             writeBytes(data);
         } else if (MongoId.class.isAssignableFrom(v.getClass())) {
