@@ -2,7 +2,6 @@ package de.caluga.test.mongo.suite.bson;
 
 import de.caluga.morphium.Logger;
 import de.caluga.morphium.driver.bson.BsonEncoder;
-import de.caluga.morphium.driver.bson.MongoId;
 import de.caluga.test.mongo.suite.MongoTest;
 import org.junit.Test;
 
@@ -42,8 +41,8 @@ public class ConnectTest extends MongoTest {
         writeInt(10, buffer); //return
 
         Map<String, Object> query = new HashMap<>();
-        query.put("$query", "{}");
-        query.put("_id", new MongoId());
+        query.put("$query", "");
+//        query.put("_id", new MongoId());
         BsonEncoder enc = new BsonEncoder();
         byte[] bytes = enc.encodeDocument(query);
         buffer.write(bytes);
