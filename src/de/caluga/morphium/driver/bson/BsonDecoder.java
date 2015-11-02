@@ -185,19 +185,19 @@ public class BsonDecoder {
 
 
     public int readInt(byte[] bytes, int idx) {
-        return bytes[idx] << 24 | (bytes[idx + 1] & 0xFF) << 16 | (bytes[idx + 2] & 0xFF) << 8 | (bytes[idx + 3] & 0xFF);
+        return bytes[idx] | (bytes[idx + 1] & 0xFF) << 8 | (bytes[idx + 2] & 0xFF) << 16 | ((bytes[idx + 3] & 0xFF) << 24);
 
     }
 
     public long readLong(byte[] bytes, int idx) {
-        return ((long) ((bytes[idx] & 0xFF)) << 56) |
-                ((long) ((bytes[idx + 1] & 0xFF)) << 48) |
-                ((long) (bytes[idx + 2] & 0xFF) << 40) |
-                ((long) (bytes[idx + 3] & 0xFF) << 32) |
-                ((long) (bytes[idx + 4] & 0xFF) << 24) |
-                ((long) (bytes[idx + 5] & 0xFF) << 16) |
-                ((long) (bytes[idx + 6] & 0xFF) << 8) |
-                ((long) (bytes[idx + 7] & 0xFF));
+        return ((long) ((bytes[idx] & 0xFF))) |
+                ((long) ((bytes[idx + 1] & 0xFF)) << 8) |
+                ((long) (bytes[idx + 2] & 0xFF) << 16) |
+                ((long) (bytes[idx + 3] & 0xFF) << 24) |
+                ((long) (bytes[idx + 4] & 0xFF) << 32) |
+                ((long) (bytes[idx + 5] & 0xFF) << 40) |
+                ((long) (bytes[idx + 6] & 0xFF) << 48) |
+                ((long) (bytes[idx + 7] & 0xFF) << 56);
 
     }
 }
