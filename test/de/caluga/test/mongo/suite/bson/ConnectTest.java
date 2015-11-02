@@ -45,8 +45,8 @@ public class ConnectTest extends MongoTest {
 //        q.put("_id", new MongoId());
         query.put("$query", q);
 //        query.put("_id", new MongoId());
-        BsonEncoder enc = new BsonEncoder();
-        byte[] bytes = enc.encodeDocument(query);
+//        BsonEncoder enc = new BsonEncoder();
+        byte[] bytes = BsonEncoder.encodeDocument(query);
         buffer.write(bytes);
 
         writeInt(buffer.size() + 4, out);
