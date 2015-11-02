@@ -45,12 +45,12 @@ public class ConnectTest extends MongoTest {
         HashMap<String, Object> q = new HashMap<String, Object>();
         q.put("_id", new MongoId());
         query.put("$query", q);
-        query.put("_id", new MongoId());
+//        query.put("_id", new MongoId());
         BsonEncoder enc = new BsonEncoder();
         byte[] bytes = enc.encodeDocument(query);
         buffer.write(bytes);
 
-        writeInt(buffer.size(), out);
+        writeInt(buffer.size() + 4, out);
         out.write(buffer.toByteArray());
         out.flush();
 

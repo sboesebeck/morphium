@@ -72,7 +72,7 @@ public class BsonEncoder {
         }
 
         ByteArrayOutputStream o2 = new ByteArrayOutputStream();
-        for (int i = 0; i < 4; i++) o2.write((byte) (((o.size() + 4 + 1) >> ((7 - i) * 8)) & 0xff));
+        for (int i = 3; i >= 0; i--) o2.write((byte) ((o.size() + 4 + 1 >> ((7 - i) * 8)) & 0xff));
         try {
             o2.write(o.toByteArray());
             o2.write(0x00);
@@ -207,11 +207,11 @@ public class BsonEncoder {
     }
 
     private void writeInt(int val) {
-        for (int i = 0; i < 4; i++) writeByte((byte) ((val >> ((7 - i) * 8)) & 0xff));
+        for (int i = 3; i >= 0; i--) writeByte((byte) ((val >> ((7 - i) * 8)) & 0xff));
     }
 
     private void writeLong(long lng) {
-        for (int i = 0; i < 8; i++) writeByte((byte) ((lng >> ((7 - i) * 8)) & 0xff));
+        for (int i = 7; i >= 0; i--) writeByte((byte) ((lng >> ((7 - i) * 8)) & 0xff));
     }
 
     private BsonEncoder writeByte(int v) {
