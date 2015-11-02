@@ -1,13 +1,17 @@
 package de.caluga.test.mongo.suite.bson;
 
+import com.mongodb.BasicDBObject;
 import de.caluga.morphium.Logger;
+import de.caluga.morphium.driver.bson.BsonDecoder;
 import de.caluga.morphium.driver.bson.BsonEncoder;
 import de.caluga.test.mongo.suite.MongoTest;
 import org.junit.Test;
 
 import java.io.*;
 import java.net.Socket;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -66,7 +70,126 @@ public class ConnectTest extends MongoTest {
 
         log.info(getHex(inBuffer));
 
+        int sz = readInt(inBuffer, 0);
+        int reqId = readInt(inBuffer, 4);
+        int inReplyTo = readInt(inBuffer, 8);
+        int opCode = readInt(inBuffer, 12);
+        int flags = readInt(inBuffer, 16);
+        long cursorId = readLong(inBuffer, 20);
+        int startFrom = readInt(inBuffer, 28);
+        int numReturned = readInt(inBuffer, 32);
+        log.info("Size  :         " + sz);
+        log.info("reqId :         " + getHex(reqId));
+        log.info("inRepl:         " + getHex(inReplyTo));
+        log.info("flags:          " + getHex(flags));
+        log.info("cursor: " + getHex(cursorId));
+        log.info("startFrom:      " + getHex(startFrom));
+        log.info("returned docs : " + getHex(numReturned));
 
+        BsonDecoder dec = new BsonDecoder();
+        int idx = 36;
+        for (int i = 0; i < numReturned; i++) {
+            Map<String, Object> obj = new HashMap<>();
+            int l = dec.decodeDocumentIn(obj, inBuffer, idx);
+            idx += l;
+
+            log.info(new BasicDBObject(obj).toString());
+        }
+
+
+    }
+
+
+    public abstract class MsgHeader {
+        int reqId;
+        int inReplyTo;
+
+
+        public abstract byte[] getPayload() throws IOException;
+
+        public abstract MsgHeader parse(byte[] bytes, int offset) throws UnsupportedEncodingException;
+
+
+        public byte[] bytes() throws IOException {
+            byte[] payload = getPayload();
+            ByteArrayOutputStream out = new ByteArrayOutputStream();
+            ConnectTest.this.writeInt(payload.length + 8, out);
+            ConnectTest.this.writeInt(reqId, out);
+            ConnectTest.this.writeInt(inReplyTo, out);
+            out.write(payload);
+            return out.toByteArray();
+        }
+
+        public void parseHeader(byte[] bytes) {
+            int size = readInt(bytes, 0);
+            reqId = readInt(bytes, 4);
+            inReplyTo = readInt(bytes, 8);
+        }
+    }
+
+    public class OPQuery extends MsgHeader {
+        int opCode = 2004;
+        int flags;
+        String db;
+        String coll;
+        int skip;
+        int limit;
+        Map<String, Object> doc;
+
+        @Override
+        public byte[] getPayload() throws IOException {
+            ByteArrayOutputStream out = new ByteArrayOutputStream();
+            writeInt(opCode, out);
+            writeInt(flags, out);
+            writeString(db + "." + coll, out);
+            writeInt(skip, out);
+            writeInt(limit, out);
+            out.write(BsonEncoder.encodeDocument(doc));
+            return out.toByteArray();
+        }
+
+        @Override
+        public MsgHeader parse(byte[] bytes, int offset) {
+            //does not make any sense...
+            return null;
+        }
+    }
+
+    public class OPReply extends MsgHeader {
+        int opcode = 1;
+        int flags;
+        long cursorId;
+        int startFrom;
+        int numReturned;
+        List<Map<String, Object>> documents;
+
+        @Override
+        public byte[] getPayload() {
+            return new byte[0];
+        }
+
+        @Override
+        public MsgHeader parse(byte[] bytes, int offset) throws UnsupportedEncodingException {
+            super.parseHeader(bytes);
+            flags = readInt(bytes, offset);
+            offset += 4;
+            cursorId = readLong(bytes, offset);
+            offset += 8;
+            startFrom = readInt(bytes, offset);
+            offset += 4;
+            numReturned = readInt(bytes, offset);
+            offset += 4;
+
+            documents = new ArrayList<>();
+            for (int i = 0; i < numReturned; i++) {
+                Map<String, Object> m = new HashMap<>();
+                BsonDecoder dec = new BsonDecoder();
+                int l = dec.decodeDocumentIn(m, bytes, offset);
+                offset += l;
+                documents.add(m);
+            }
+            return this;
+        }
     }
 
 
@@ -75,7 +198,21 @@ public class ConnectTest extends MongoTest {
         to.write(((byte) ((value >> 8) & 0xff)));
         to.write(((byte) ((value >> 16) & 0xff)));
         to.write(((byte) ((value >> 24) & 0xff)));
+    }
 
+    public int readInt(byte[] bytes, int idx) {
+        return bytes[idx] | (bytes[idx + 1] << 8) | (bytes[idx + 2] << 16) | (bytes[idx + 3] << 24);
+    }
+
+    public long readLong(byte[] bytes, int idx) {
+        return ((long) ((bytes[idx] & 0xFF))) |
+                ((long) ((bytes[idx + 1] & 0xFF)) << 8) |
+                ((long) (bytes[idx + 2] & 0xFF) << 16) |
+                ((long) (bytes[idx + 3] & 0xFF) << 24) |
+                ((long) (bytes[idx + 4] & 0xFF) << 32) |
+                ((long) (bytes[idx + 5] & 0xFF) << 40) |
+                ((long) (bytes[idx + 6] & 0xFF) << 48) |
+                ((long) (bytes[idx + 7] & 0xFF) << 56);
 
     }
 
@@ -133,6 +270,15 @@ public class ConnectTest extends MongoTest {
         }
         return sb.toString();
 
+    }
+
+
+    private String getHex(long i) {
+        return (getHex((byte) (i >> 56 & 0xff)) + getHex((byte) (i >> 48 & 0xff)) + getHex((byte) (i >> 40 & 0xff)) + getHex((byte) (i >> 32 & 0xff)) + getHex((byte) (i >> 24 & 0xff)) + getHex((byte) (i >> 16 & 0xff)) + getHex((byte) (i >> 8 & 0xff)) + getHex((byte) (i & 0xff)));
+    }
+
+    private String getHex(int i) {
+        return (getHex((byte) (i >> 24 & 0xff)) + getHex((byte) (i >> 16 & 0xff)) + getHex((byte) (i >> 8 & 0xff)) + getHex((byte) (i & 0xff)));
     }
 
     private String getHex(byte by) {
