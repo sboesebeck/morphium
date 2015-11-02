@@ -17,13 +17,13 @@ public class BsonDecoder {
         return ret;
     }
 
-    private int decodeDocumentIn(Map<String, Object> ret, byte[] in, int startIndex) throws UnsupportedEncodingException {
+    public int decodeDocumentIn(Map<String, Object> ret, byte[] in, int startIndex) throws UnsupportedEncodingException {
 
         int sz = readInt(in, startIndex);
         if (sz > in.length)
             throw new RuntimeException("error - size differs! read " + sz + " but buffer is " + in.length);
 
-        for (int idx = startIndex + 4; idx < sz; ) {
+        for (int idx = startIndex + 4; startIndex - 4 - idx < sz; ) {
             String name;
             byte type = in[idx++];
             if (type == 0) break; //end of document
