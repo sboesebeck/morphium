@@ -45,4 +45,14 @@ public class Driver implements MorphiumMongoDriver {
     public MorphiumDb getDB(String name) {
         return null;
     }
+
+    @Override
+    public Map<String, Object> runCommand(Map<String, Object> cmd) {
+        return null;
+    }
+
+    @Override
+    public Map<String, Object> find(Map<String, Object> findCommand) {
+        return null;
+    }
 }
