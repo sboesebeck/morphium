@@ -3,8 +3,16 @@ package de.caluga.morphium.driver.mongodb;/**
  */
 
 import com.mongodb.*;
+import com.mongodb.client.FindIterable;
+import com.mongodb.client.MongoCollection;
+import com.mongodb.client.MongoDatabase;
+import com.mongodb.client.model.InsertManyOptions;
 import de.caluga.morphium.Logger;
-import de.caluga.morphium.driver.MorphiumMongoDriver;
+import de.caluga.morphium.driver.MorphiumDriver;
+import de.caluga.morphium.driver.MorphiumDriverException;
+import de.caluga.morphium.driver.MorphiumDriverOperation;
+import de.caluga.morphium.driver.ReadPreference;
+import org.bson.Document;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -14,7 +22,7 @@ import java.util.Map;
 /**
  * TODO: Add Documentation here
  **/
-public class Driver implements MorphiumMongoDriver {
+public class Driver implements MorphiumDriver {
     private Logger log = new Logger(Driver.class);
     private String[] hostSeed;
     private int maxConnectionsPerHost = 50;
@@ -35,6 +43,11 @@ public class Driver implements MorphiumMongoDriver {
     private boolean socketKeepAlive;
     private int heartbeatConnectTimeout;
     private int maxWaitTime;
+
+    private int defaultBatchSize = 100;
+    private int retriesOnNetworkError = 2;
+    private int sleepBetweenErrorRetries = 500;
+
 
     private Map<String, String[]> credentials = new HashMap<>();
     private MongoClient mongo;
@@ -198,53 +211,57 @@ public class Driver implements MorphiumMongoDriver {
     }
 
     @Override
-    public void connect(String replicasetName) {
-        MongoClientOptions.Builder o = MongoClientOptions.builder();
-        WriteConcern w = new WriteConcern(getDefaultW(), getWriteTimeout(), isDefaultFsync(), isDefaultJ());
-        o.writeConcern(w);
-        o.socketTimeout(getSocketTimeout());
-        o.connectTimeout(getConnectionTimeout());
-        o.connectionsPerHost(getMaxConnectionsPerHost());
-        o.socketKeepAlive(isSocketKeepAlive());
-        o.threadsAllowedToBlockForConnectionMultiplier(getMaxBlockintThreadMultiplier());
+    public void connect(String replicasetName) throws MorphiumDriverException {
+        try {
+            MongoClientOptions.Builder o = MongoClientOptions.builder();
+            WriteConcern w = new WriteConcern(getDefaultW(), getWriteTimeout(), isDefaultFsync(), isDefaultJ());
+            o.writeConcern(w);
+            o.socketTimeout(getSocketTimeout());
+            o.connectTimeout(getConnectionTimeout());
+            o.connectionsPerHost(getMaxConnectionsPerHost());
+            o.socketKeepAlive(isSocketKeepAlive());
+            o.threadsAllowedToBlockForConnectionMultiplier(getMaxBlockintThreadMultiplier());
 //        o.cursorFinalizerEnabled(isCursorFinalizerEnabled()); //Deprecated?
 //        o.alwaysUseMBeans(isAlwaysUseMBeans());
-        o.heartbeatConnectTimeout(getHeartbeatConnectTimeout());
-        o.heartbeatFrequency(getHeartbeatFrequency());
-        o.heartbeatSocketTimeout(getHeartbeatSocketTimeout());
-        o.minConnectionsPerHost(getMinConnectionsPerHost());
-        o.minHeartbeatFrequency(getHeartbeatFrequency());
-        o.localThreshold(getLocalThreshold());
-        o.maxConnectionIdleTime(getMaxConnectionIdleTime());
-        o.maxConnectionLifeTime(getMaxConnectionLifetime());
-        if (replicasetName != null) {
-            o.requiredReplicaSetName(replicasetName);
-        }
-        o.maxWaitTime(getMaxWaitTime());
-
-
-        List<MongoCredential> lst = new ArrayList<>();
-        for (Map.Entry<String, String[]> e : credentials.entrySet()) {
-            MongoCredential cred = MongoCredential.createMongoCRCredential(e.getValue()[0], e.getKey(), e.getValue()[1].toCharArray());
-            lst.add(cred);
-        }
-
-
-        if (hostSeed.length == 1) {
-            ServerAddress adr = new ServerAddress(hostSeed[0]);
-            mongo = new MongoClient(adr, lst, o.build());
-        } else {
-            List<ServerAddress> adrLst = new ArrayList<>();
-            for (String h : hostSeed) {
-                adrLst.add(new ServerAddress(h));
+            o.heartbeatConnectTimeout(getHeartbeatConnectTimeout());
+            o.heartbeatFrequency(getHeartbeatFrequency());
+            o.heartbeatSocketTimeout(getHeartbeatSocketTimeout());
+            o.minConnectionsPerHost(getMinConnectionsPerHost());
+            o.minHeartbeatFrequency(getHeartbeatFrequency());
+            o.localThreshold(getLocalThreshold());
+            o.maxConnectionIdleTime(getMaxConnectionIdleTime());
+            o.maxConnectionLifeTime(getMaxConnectionLifetime());
+            if (replicasetName != null) {
+                o.requiredReplicaSetName(replicasetName);
             }
-            mongo = new MongoClient(adrLst, lst, o.build());
+            o.maxWaitTime(getMaxWaitTime());
+
+
+            List<MongoCredential> lst = new ArrayList<>();
+            for (Map.Entry<String, String[]> e : credentials.entrySet()) {
+                MongoCredential cred = MongoCredential.createMongoCRCredential(e.getValue()[0], e.getKey(), e.getValue()[1].toCharArray());
+                lst.add(cred);
+            }
+
+
+            if (hostSeed.length == 1) {
+                ServerAddress adr = new ServerAddress(hostSeed[0]);
+                mongo = new MongoClient(adr, lst, o.build());
+            } else {
+                List<ServerAddress> adrLst = new ArrayList<>();
+                for (String h : hostSeed) {
+                    adrLst.add(new ServerAddress(h));
+                }
+                mongo = new MongoClient(adrLst, lst, o.build());
+            }
+        } catch (Exception e) {
+            throw new MorphiumDriverException("Error creating connection to mongo", e);
         }
     }
 
     @Override
     public boolean isConnected() {
-        return false;
+        return mongo != null;
     }
 
     @Override
@@ -268,8 +285,12 @@ public class Driver implements MorphiumMongoDriver {
     }
 
     @Override
-    public void close() {
-
+    public void close() throws MorphiumDriverException {
+        try {
+            mongo.close();
+        } catch (Exception e) {
+            throw new MorphiumDriverException("error closing", e);
+        }
     }
 
     @Override
@@ -283,42 +304,96 @@ public class Driver implements MorphiumMongoDriver {
     }
 
     @Override
-    public Map<String, Object> runCommand(String db, Map<String, Object> cmd) {
+    public Map<String, Object> runCommand(String db, Map<String, Object> cmd) throws MorphiumDriverException {
+
+        return new DriverHelper().doCall(new MorphiumDriverOperation() {
+            @Override
+            public Map<String, Object> execute() {
+                Document ret = mongo.getDatabase(db).runCommand(new BasicDBObject(cmd));
+                return ret;
+            }
+
+        }, retriesOnNetworkError, sleepBetweenErrorRetries);
+    }
+
+
+    @Override
+    public List<Map<String, Object>> find(String db, String collection, Map<String, Object> query, Map<String, Integer> sort, Map<String, Integer> projection, int skip, int limit, int batchSize, de.caluga.morphium.driver.ReadPreference readPreference) {
+
+        try {
+            return (List<Map<String, Object>>) new DriverHelper().doCall(new MorphiumDriverOperation() {
+                @Override
+                public Map<String, Object> execute() {
+                    MongoDatabase database = mongo.getDatabase(db);
+                    MongoCollection<Document> coll = database.getCollection(collection);
+                    FindIterable<Document> ret = coll.find(new BasicDBObject(query));
+                    //TODO: Read Preference handling
+                    if (sort != null)
+                        ret = ret.sort(new BasicDBObject(sort));
+                    if (skip != 0) ret = ret.skip(skip);
+                    if (limit != 0) ret = ret.limit(limit);
+                    if (batchSize != 0) ret.batchSize(batchSize);
+                    else ret.batchSize(defaultBatchSize);
+                    if (projection != null) ret.projection(new BasicDBObject(projection));
+                    List<Map<String, Object>> values = new ArrayList<>();
+                    for (Document d : ret) {
+                        values.add(d);
+                    }
+
+                    Map<String, Object> r = new HashMap<String, Object>();
+                    r.put("result", values);
+                    return r;
+                }
+            }, retriesOnNetworkError, sleepBetweenErrorRetries);
+        } catch (MorphiumDriverException e) {
+            e.printStackTrace();
+        }
+    }
+
+
+    @Override
+    public long count(String db, String collection, Map<String, Object> query, ReadPreference rp) {
+        MongoDatabase database = mongo.getDatabase(db);
+        MongoCollection<Document> coll = database.getCollection(collection);
+        //TODO: Read Preference handling
+        return coll.count(new BasicDBObject(query));
+
+    }
+
+    @Override
+    public void insert(String db, String collection, List<Map<String, Object>> objs, de.caluga.morphium.driver.WriteConcern wc) {
+
+        MongoCollection c = mongo.getDatabase(db).getCollection(collection);
+        if (objs.size() == 1) {
+            c.insertOne(new BasicDBObject(objs.get(0)));
+        } else {
+            InsertManyOptions imo = new InsertManyOptions();
+            imo.ordered(false);
+            List<BasicDBObject> obj = new ArrayList<>();
+            for (Map<String, Object> o : objs) {
+                obj.add(new BasicDBObject(o));
+            }
+            c.insertMany(obj, imo);
+        }
+    }
+
+    @Override
+    public Map<String, Object> udate(String db, String collection, Map<String, Object> query, Map<String, Object> op, boolean multiple, boolean upsert, de.caluga.morphium.driver.WriteConcern wc) {
         return null;
     }
 
     @Override
-    public Map<String, Object> runCommand(String db, String collection, Map<String, Object> cmd) {
+    public Map<String, Object> delete(String db, String collection, Map<String, Object> query, boolean multiple, de.caluga.morphium.driver.WriteConcern wc) {
         return null;
     }
 
     @Override
-    public List<Map<String, Object>> find(String db, String collection, Map<String, Object> query) {
+    public Map<String, Object> drop(String db, String collection, de.caluga.morphium.driver.WriteConcern wc) {
         return null;
     }
 
     @Override
-    public Map<String, Object> insert(String db, String collection, List<Map<String, Object>> objs) {
-        return null;
-    }
-
-    @Override
-    public Map<String, Object> udate(String db, String collection, Map<String, Object> query, Map<String, Object> op) {
-        return null;
-    }
-
-    @Override
-    public Map<String, Object> delete(String db, String collection, Map<String, Object> query) {
-        return null;
-    }
-
-    @Override
-    public Map<String, Object> drop(String db, String collection) {
-        return null;
-    }
-
-    @Override
-    public Map<String, Object> drop(String db) {
+    public Map<String, Object> drop(String db, de.caluga.morphium.driver.WriteConcern wc) {
         return null;
     }
 
@@ -348,7 +423,7 @@ public class Driver implements MorphiumMongoDriver {
     }
 
     @Override
-    public Map<String, Object> aggregate(String db, String collection, List<Map<String, Object>> pipeline, boolean explain, boolean allowDiskUse) {
+    public Map<String, Object> aggregate(String db, String collection, List<Map<String, Object>> pipeline, boolean explain, boolean allowDiskUse, ReadPreference readPreference) {
         return null;
     }
 
@@ -380,5 +455,23 @@ public class Driver implements MorphiumMongoDriver {
     @Override
     public void setMaxWaitTime(int maxWaitTime) {
         this.maxWaitTime = maxWaitTime;
+    }
+
+    @Override
+    public int getRetriesOnNetworkError() {
+        return retriesOnNetworkError;
+    }
+
+    @Override
+    public void setRetriesOnNetworkError(int retriesOnNetworkError) {
+        this.retriesOnNetworkError = retriesOnNetworkError;
+    }
+
+    public int getSleepBetweenErrorRetries() {
+        return sleepBetweenErrorRetries;
+    }
+
+    public void setSleepBetweenErrorRetries(int sleepBetweenErrorRetries) {
+        this.sleepBetweenErrorRetries = sleepBetweenErrorRetries;
     }
 }
