@@ -1,4 +1,4 @@
-package de.caluga.morphium.bulk;
+package de.caluga.morphium.driver;
 
 import com.mongodb.BulkWriteOperation;
 import com.mongodb.BulkWriteResult;
