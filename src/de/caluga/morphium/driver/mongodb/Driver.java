@@ -348,6 +348,7 @@ public class Driver implements MorphiumDriver {
         } catch (MorphiumDriverException e) {
             e.printStackTrace();
         }
+        return null;
     }
 
 
