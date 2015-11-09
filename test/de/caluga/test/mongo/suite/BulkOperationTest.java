@@ -5,8 +5,8 @@ import de.caluga.morphium.Morphium;
 import de.caluga.morphium.MorphiumSingleton;
 import de.caluga.morphium.MorphiumStorageAdapter;
 import de.caluga.morphium.MorphiumStorageListener;
-import de.caluga.morphium.bulk.BulkOperationContext;
-import de.caluga.morphium.bulk.BulkRequestWrapper;
+import de.caluga.morphium.driver.BulkOperationContext;
+import de.caluga.morphium.driver.BulkRequestWrapper;
 import de.caluga.morphium.query.Query;
 import org.junit.Test;
 

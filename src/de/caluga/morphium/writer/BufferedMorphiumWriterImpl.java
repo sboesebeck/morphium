@@ -6,8 +6,8 @@ import de.caluga.morphium.*;
 import de.caluga.morphium.annotations.caching.WriteBuffer;
 import de.caluga.morphium.async.AsyncOperationCallback;
 import de.caluga.morphium.async.AsyncOperationType;
-import de.caluga.morphium.bulk.BulkOperationContext;
-import de.caluga.morphium.bulk.BulkRequestWrapper;
+import de.caluga.morphium.driver.BulkOperationContext;
+import de.caluga.morphium.driver.BulkRequestWrapper;
 import de.caluga.morphium.query.Query;
 import org.bson.types.ObjectId;
 
