@@ -847,4 +847,66 @@ public class MessagingTest extends MongoTest {
 
 
     }
+
+
+    @Test
+    public void exclusiveMessageTest() throws Exception {
+        MorphiumSingleton.get().dropCollection(Msg.class);
+        Messaging sender = new Messaging(MorphiumSingleton.get(), 100, false);
+        sender.start();
+
+        gotMessage1 = false;
+        gotMessage2 = false;
+        gotMessage3 = false;
+        gotMessage4 = false;
+
+        Messaging m1 = new Messaging(MorphiumSingleton.get(), 100, false);
+        m1.addMessageListener(new MessageListener() {
+            @Override
+            public Msg onMessage(Messaging msg, Msg m) {
+                gotMessage1 = true;
+                return null;
+            }
+        });
+        Messaging m2 = new Messaging(MorphiumSingleton.get(), 100, false);
+        m2.addMessageListener(new MessageListener() {
+            @Override
+            public Msg onMessage(Messaging msg, Msg m) {
+                gotMessage2 = true;
+                return null;
+            }
+        });
+        Messaging m3 = new Messaging(MorphiumSingleton.get(), 100, false);
+        m3.addMessageListener(new MessageListener() {
+            @Override
+            public Msg onMessage(Messaging msg, Msg m) {
+                gotMessage3 = true;
+                return null;
+            }
+        });
+
+        m1.start();
+        m2.start();
+        m3.start();
+
+        Msg m = new Msg();
+        m.setExclusive(true);
+        m.setName("A message");
+
+        sender.queueMessage(m);
+        Thread.sleep(1000);
+
+        int rec = 0;
+        if (gotMessage1) rec++;
+        if (gotMessage2) rec++;
+        if (gotMessage3) rec++;
+        assert (rec == 1);
+
+        assert (m1.getNumberOfMessages() == 0);
+        m1.setRunning(false);
+        m2.setRunning(false);
+        m3.setRunning(false);
+
+
+    }
 }
