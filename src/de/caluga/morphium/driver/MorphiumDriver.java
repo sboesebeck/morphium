@@ -114,7 +114,7 @@ public interface MorphiumDriver {
 
     Map<String, Object> delete(String db, String collection, Map<String, Object> query, boolean multiple, WriteConcern wc) throws MorphiumDriverException;
 
-    Map<String, Object> drop(String db, String collection, WriteConcern wc) throws MorphiumDriverException;
+    void drop(String db, String collection, WriteConcern wc) throws MorphiumDriverException;
 
     Map<String, Object> drop(String db, WriteConcern wc) throws MorphiumDriverException;
 

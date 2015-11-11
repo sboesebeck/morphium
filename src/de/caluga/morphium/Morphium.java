@@ -1091,6 +1091,28 @@ public class Morphium {
         getWriterForClass(toSet.getClass()).inc(toSet, collection, field, i, callback);
     }
 
+    public <T> void delete(List<T> lst, String forceCollectionName) {
+        delete(lst, forceCollectionName, (AsyncOperationCallback<T>) null);
+    }
+
+    public <T> void delete(List<T> lst, String forceCollectionName, AsyncOperationCallback<T> callback) {
+        ArrayList<T> directDel = new ArrayList<>();
+        ArrayList<T> bufferedDel = new ArrayList<>();
+        for (T o : lst) {
+            if (annotationHelper.isBufferedWrite(o.getClass())) {
+                bufferedDel.add(o);
+            } else {
+                directDel.add(o);
+            }
+        }
+
+        for (T o : bufferedDel) {
+            config.getBufferedWriter().remove(o, forceCollectionName, callback);
+        }
+        for (T o : directDel) {
+            config.getWriter().remove(o, forceCollectionName, callback);
+        }
+    }
     public <T> void delete(List<T> lst, AsyncOperationCallback<T> callback) {
         ArrayList<T> directDel = new ArrayList<>();
         ArrayList<T> bufferedDel = new ArrayList<>();

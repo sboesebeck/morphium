@@ -2,7 +2,6 @@ package de.caluga.morphium.messaging;
 
 import de.caluga.morphium.Logger;
 import de.caluga.morphium.Morphium;
-import de.caluga.morphium.MorphiumSingleton;
 import de.caluga.morphium.ShutdownListener;
 import de.caluga.morphium.async.AsyncOperationCallback;
 import de.caluga.morphium.async.AsyncOperationType;
@@ -112,6 +111,20 @@ public class Messaging extends Thread implements ShutdownListener {
         listenerByName = new HashMap<>();
     }
 
+    public void removeMessage(Msg m) {
+        morphium.delete(m, getCollectionName());
+    }
+
+    public List<Msg> findMessages(Query<Msg> q) {
+        try {
+            q = q.clone();
+        } catch (CloneNotSupportedException e) {
+            //cannot happen
+        }
+        q.setCollectionName(getCollectionName());
+        return q.asList();
+    }
+
     public void run() {
         if (log.isDebugEnabled()) {
             log.debug("Messaging " + id + " started");
@@ -147,6 +160,7 @@ public class Messaging extends Thread implements ShutdownListener {
 
                 final List<Msg> toStore = new ArrayList<>();
                 final List<Runnable> toExec = new ArrayList<>();
+                final List<Msg> toRemove = new ArrayList<>();
 //                int count=0;
                 for (final Msg m : messages) {
 //                    count++;
@@ -215,20 +229,22 @@ public class Messaging extends Thread implements ShutdownListener {
                                 toExec.add(new Runnable() {
                                     @Override
                                     public void run() {
-                                        Query<Msg> idq = MorphiumSingleton.get().createQueryFor(Msg.class);
+                                        Query<Msg> idq = morphium.createQueryFor(Msg.class);
                                         idq.setCollectionName(getCollectionName());
                                         idq.f(Msg.Fields.msgId).eq(msg.getMsgId());
 
-                                        MorphiumSingleton.get().push(idq, Msg.Fields.processedBy, id);
+                                        morphium.push(idq, Msg.Fields.processedBy, id);
                                     }
                                 });
 
                             } else {
                                 //Exclusive message
-                                msg.addProcessedId(id);
-                                msg.setLockedBy(null);
-                                msg.setLocked(0);
-                                toStore.add(msg);
+
+                                toRemove.add(msg);
+//                                msg.addProcessedId(id);
+//                                msg.setLockedBy(null);
+//                                msg.setLocked(0);
+//                                toStore.add(msg); //TODO: delete message?
                             }
                         }
                     };
@@ -255,6 +271,7 @@ public class Messaging extends Thread implements ShutdownListener {
                     }
                 }
                 morphium.storeList(toStore, getCollectionName());
+                morphium.delete(toRemove, getCollectionName());
                 for (Runnable r : toExec) {
                     if (multithreadded) {
                         boolean queued = false;
@@ -359,6 +376,12 @@ public class Messaging extends Thread implements ShutdownListener {
 
     public void storeMessage(Msg m) {
         storeMsg(m, false);
+    }
+
+    public long getNumberOfMessages() {
+        Query<Msg> q = morphium.createQueryFor(Msg.class);
+        q.setCollectionName(getCollectionName());
+        return q.countAll();
     }
 
     private void storeMsg(Msg m, boolean async) {
