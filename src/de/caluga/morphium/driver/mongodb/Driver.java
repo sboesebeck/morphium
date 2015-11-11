@@ -7,6 +7,9 @@ import com.mongodb.client.FindIterable;
 import com.mongodb.client.MongoCollection;
 import com.mongodb.client.MongoDatabase;
 import com.mongodb.client.model.InsertManyOptions;
+import com.mongodb.client.model.UpdateOptions;
+import com.mongodb.client.result.DeleteResult;
+import com.mongodb.client.result.UpdateResult;
 import de.caluga.morphium.Logger;
 import de.caluga.morphium.driver.MorphiumDriver;
 import de.caluga.morphium.driver.MorphiumDriverException;
@@ -294,12 +297,12 @@ public class Driver implements MorphiumDriver {
     }
 
     @Override
-    public Map<String, Object> getStats() {
+    public Map<String, Object> getStats() throws MorphiumDriverException {
         return null;
     }
 
     @Override
-    public Map<String, Object> getOps(long threshold) {
+    public Map<String, Object> getOps(long threshold) throws MorphiumDriverException {
         return null;
     }
 
@@ -318,113 +321,214 @@ public class Driver implements MorphiumDriver {
 
 
     @Override
-    public List<Map<String, Object>> find(String db, String collection, Map<String, Object> query, Map<String, Integer> sort, Map<String, Integer> projection, int skip, int limit, int batchSize, de.caluga.morphium.driver.ReadPreference readPreference) {
+    public List<Map<String, Object>> find(String db, String collection, Map<String, Object> query, Map<String, Integer> sort, Map<String, Integer> projection, int skip, int limit, int batchSize, de.caluga.morphium.driver.ReadPreference readPreference) throws MorphiumDriverException {
 
-        try {
-            return (List<Map<String, Object>>) new DriverHelper().doCall(new MorphiumDriverOperation() {
-                @Override
-                public Map<String, Object> execute() {
-                    MongoDatabase database = mongo.getDatabase(db);
-                    MongoCollection<Document> coll = database.getCollection(collection);
-                    FindIterable<Document> ret = coll.find(new BasicDBObject(query));
-                    //TODO: Read Preference handling
-                    if (sort != null)
-                        ret = ret.sort(new BasicDBObject(sort));
-                    if (skip != 0) ret = ret.skip(skip);
-                    if (limit != 0) ret = ret.limit(limit);
-                    if (batchSize != 0) ret.batchSize(batchSize);
-                    else ret.batchSize(defaultBatchSize);
-                    if (projection != null) ret.projection(new BasicDBObject(projection));
-                    List<Map<String, Object>> values = new ArrayList<>();
-                    for (Document d : ret) {
-                        values.add(d);
-                    }
+        return (List<Map<String, Object>>) new DriverHelper().doCall(new MorphiumDriverOperation() {
+            @Override
+            public Map<String, Object> execute() {
+                MongoDatabase database = mongo.getDatabase(db);
+                MongoCollection<Document> coll = getCollection(database, collection, readPreference, null);
+                FindIterable<Document> ret = coll.find(new BasicDBObject(query));
 
-                    Map<String, Object> r = new HashMap<String, Object>();
-                    r.put("result", values);
-                    return r;
+                //TODO: Read Preference handling
+                if (sort != null)
+                    ret = ret.sort(new BasicDBObject(sort));
+                if (skip != 0) ret = ret.skip(skip);
+                if (limit != 0) ret = ret.limit(limit);
+                if (batchSize != 0) ret.batchSize(batchSize);
+                else ret.batchSize(defaultBatchSize);
+                if (projection != null) ret.projection(new BasicDBObject(projection));
+                List<Map<String, Object>> values = new ArrayList<>();
+                for (Document d : ret) {
+                    values.add(d);
                 }
-            }, retriesOnNetworkError, sleepBetweenErrorRetries);
-        } catch (MorphiumDriverException e) {
-            e.printStackTrace();
+
+                Map<String, Object> r = new HashMap<String, Object>();
+                r.put("result", values);
+                return r;
+            }
+        }, retriesOnNetworkError, sleepBetweenErrorRetries);
+    }
+
+    private MongoCollection<Document> getCollection(MongoDatabase database, String collection, ReadPreference readPreference, de.caluga.morphium.driver.WriteConcern wc) {
+        MongoCollection<Document> coll = database.getCollection(collection);
+        com.mongodb.ReadPreference prf = null;
+
+        TagSet tags = null;
+        if (readPreference.getTagSet() != null) {
+            List<Tag> tagList = new ArrayList<Tag>();
+            for (Map.Entry<String, String> e : readPreference.getTagSet().entrySet()) {
+                tagList.add(new Tag(e.getKey(), e.getValue()));
+            }
+            tags = new TagSet(tagList);
+
         }
-        return null;
+        switch (readPreference.getType()) {
+            case NEAREST:
+                if (tags != null) {
+                    prf = com.mongodb.ReadPreference.nearest(tags);
+                } else {
+                    prf = com.mongodb.ReadPreference.nearest();
+                }
+                break;
+            case PRIMARY:
+                prf = com.mongodb.ReadPreference.primary();
+                if (tags != null) log.warn("Cannot use tags with primary only read preference!");
+                break;
+            case PRIMARY_PREFERRED:
+                if (tags != null)
+                    prf = com.mongodb.ReadPreference.primaryPreferred(tags);
+                else
+                    prf = com.mongodb.ReadPreference.primaryPreferred();
+                break;
+            case SECONDARY:
+                if (tags != null)
+                    prf = com.mongodb.ReadPreference.secondary(tags);
+                else
+                    prf = com.mongodb.ReadPreference.secondary();
+                break;
+            case SECONDARY_PREFERRED:
+                if (tags != null)
+                    prf = com.mongodb.ReadPreference.secondaryPreferred(tags);
+                else
+                    prf = com.mongodb.ReadPreference.secondary();
+                break;
+            default:
+                log.error("Unhandeled read preference: " + readPreference.toString());
+                prf = null;
+
+        }
+        if (prf != null) coll = coll.withReadPreference(prf);
+        return coll;
     }
 
 
     @Override
     public long count(String db, String collection, Map<String, Object> query, ReadPreference rp) {
         MongoDatabase database = mongo.getDatabase(db);
-        MongoCollection<Document> coll = database.getCollection(collection);
-        //TODO: Read Preference handling
+        MongoCollection<Document> coll = getCollection(database, collection, rp, null);
         return coll.count(new BasicDBObject(query));
 
     }
 
     @Override
-    public void insert(String db, String collection, List<Map<String, Object>> objs, de.caluga.morphium.driver.WriteConcern wc) {
-
-        MongoCollection c = mongo.getDatabase(db).getCollection(collection);
-        if (objs.size() == 1) {
-            c.insertOne(new BasicDBObject(objs.get(0)));
-        } else {
-            InsertManyOptions imo = new InsertManyOptions();
-            imo.ordered(false);
-            List<BasicDBObject> obj = new ArrayList<>();
-            for (Map<String, Object> o : objs) {
-                obj.add(new BasicDBObject(o));
+    public void insert(String db, String collection, List<Map<String, Object>> objs, de.caluga.morphium.driver.WriteConcern wc) throws MorphiumDriverException {
+        new DriverHelper().doCall(new MorphiumDriverOperation() {
+            @Override
+            public Map<String, Object> execute() {
+                MongoCollection c = mongo.getDatabase(db).getCollection(collection);
+                if (objs.size() == 1) {
+                    c.insertOne(new BasicDBObject(objs.get(0)));
+                } else {
+                    InsertManyOptions imo = new InsertManyOptions();
+                    imo.ordered(false);
+                    List<BasicDBObject> obj = new ArrayList<>();
+                    for (Map<String, Object> o : objs) {
+                        obj.add(new BasicDBObject(o));
+                    }
+                    c.insertMany(obj, imo);
+                }
+                return null;
             }
-            c.insertMany(obj, imo);
-        }
+        }, retriesOnNetworkError, sleepBetweenErrorRetries);
+
     }
 
     @Override
-    public Map<String, Object> udate(String db, String collection, Map<String, Object> query, Map<String, Object> op, boolean multiple, boolean upsert, de.caluga.morphium.driver.WriteConcern wc) {
+    public Map<String, Object> udate(String db, String collection, Map<String, Object> query, Map<String, Object> op, boolean multiple, boolean upsert, de.caluga.morphium.driver.WriteConcern wc) throws MorphiumDriverException {
+        return new DriverHelper().doCall(new MorphiumDriverOperation() {
+            @Override
+            public Map<String, Object> execute() {
+                UpdateOptions opts = new UpdateOptions();
+                opts.upsert(upsert);
+                UpdateResult res;
+                if (multiple) {
+                    res = mongo.getDatabase(db).getCollection(collection).updateMany(new BasicDBObject(query), new BasicDBObject(op), opts);
+                } else {
+                    res = mongo.getDatabase(db).getCollection(collection).updateOne(new BasicDBObject(query), new BasicDBObject(op), opts);
+                }
+
+                Map<String, Object> ret = new HashMap<>();
+                ret.put("matched", res.getMatchedCount());
+                ret.put("modified", res.getModifiedCount());
+                ret.put("acc", res.wasAcknowledged());
+                return ret;
+            }
+        }, retriesOnNetworkError, sleepBetweenErrorRetries);
+
+    }
+
+    @Override
+    public Map<String, Object> delete(String db, String collection, Map<String, Object> query, boolean multiple, de.caluga.morphium.driver.WriteConcern wc) throws MorphiumDriverException {
+        return new DriverHelper().doCall(new MorphiumDriverOperation() {
+            @Override
+            public Map<String, Object> execute() {
+                MongoDatabase database = mongo.getDatabase(db);
+                MongoCollection<Document> coll = database.getCollection(collection);
+                DeleteResult res;
+                if (multiple) {
+                    res = coll.deleteMany(new BasicDBObject(query));
+                } else {
+                    res = coll.deleteOne(new BasicDBObject(query));
+                }
+                Map<String, Object> r = new HashMap<String, Object>();
+                r.put("deleted", res.getDeletedCount());
+                r.put("acc", res.wasAcknowledged());
+
+                return r;
+            }
+        }, retriesOnNetworkError, sleepBetweenErrorRetries);
+    }
+
+    @Override
+    public void drop(String db, String collection, de.caluga.morphium.driver.WriteConcern wc) throws MorphiumDriverException {
+        new DriverHelper().doCall(new MorphiumDriverOperation() {
+            @Override
+            public Map<String, Object> execute() {
+                MongoDatabase database = mongo.getDatabase(db);
+                MongoCollection<Document> coll = database.getCollection(collection);
+
+                coll.drop();
+                return null;
+            }
+        }, retriesOnNetworkError, sleepBetweenErrorRetries);
+    }
+
+    @Override
+    public Map<String, Object> drop(String db, de.caluga.morphium.driver.WriteConcern wc) throws
+            MorphiumDriverException {
         return null;
     }
 
     @Override
-    public Map<String, Object> delete(String db, String collection, Map<String, Object> query, boolean multiple, de.caluga.morphium.driver.WriteConcern wc) {
-        return null;
-    }
-
-    @Override
-    public Map<String, Object> drop(String db, String collection, de.caluga.morphium.driver.WriteConcern wc) {
-        return null;
-    }
-
-    @Override
-    public Map<String, Object> drop(String db, de.caluga.morphium.driver.WriteConcern wc) {
-        return null;
-    }
-
-    @Override
-    public boolean exists(String db) {
+    public boolean exists(String db) throws MorphiumDriverException {
         return false;
     }
 
     @Override
-    public boolean exists(String db, String collection) {
+    public boolean exists(String db, String collection) throws MorphiumDriverException {
         return false;
     }
 
     @Override
-    public Map<String, Object> getIndexes(String db, String collection) {
+    public Map<String, Object> getIndexes(String db, String collection) throws MorphiumDriverException {
         return null;
     }
 
     @Override
-    public List<String> getCollectionNames(String db) {
+    public List<String> getCollectionNames(String db) throws MorphiumDriverException {
         return null;
     }
 
     @Override
-    public Map<String, Object> killCursors(String db, String collection, List<Long> cursorIds) {
+    public Map<String, Object> killCursors(String db, String collection, List<Long> cursorIds) throws
+            MorphiumDriverException {
         return null;
     }
 
     @Override
-    public Map<String, Object> aggregate(String db, String collection, List<Map<String, Object>> pipeline, boolean explain, boolean allowDiskUse, ReadPreference readPreference) {
+    public Map<String, Object> aggregate(String db, String collection, List<Map<String, Object>> pipeline,
+                                         boolean explain, boolean allowDiskUse, ReadPreference readPreference) throws MorphiumDriverException {
         return null;
     }
 
