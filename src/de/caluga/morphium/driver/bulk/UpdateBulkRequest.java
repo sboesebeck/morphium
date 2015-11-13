@@ -2,12 +2,14 @@ package de.caluga.morphium.driver.bulk;/**
  * Created by stephan on 13.11.15.
  */
 
+import de.caluga.morphium.driver.MorphiumDriver;
+
 import java.util.Map;
 
 /**
  * TODO: Add Documentation here
  **/
-public class UpdateBulkRequest extends BulkRequest {
+public abstract class UpdateBulkRequest extends BulkRequest {
     private Map<String, Object> query;
     private boolean upsert = false;
 
@@ -27,9 +29,6 @@ public class UpdateBulkRequest extends BulkRequest {
         this.query = query;
     }
 
-    public void removeOne() {
-        if (upsert) throw new IllegalArgumentException("Upsert && remove does not make sense...");
-
-    }
+    public abstract Map<String, Object> execute(MorphiumDriver drv);
 
 }
