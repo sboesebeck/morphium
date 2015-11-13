@@ -144,6 +144,35 @@ public class MessagingTest extends MongoTest {
 
     }
 
+    @Test
+    public void multithreaddingTest() throws Exception {
+        Messaging producer = new Messaging(MorphiumSingleton.get(), 500, false);
+        producer.start();
+        for (int i = 0; i < 1000; i++) {
+            Msg m = new Msg("test" + i, MsgType.SINGLE, "tm", "" + i + System.currentTimeMillis(), 10000);
+            producer.storeMessage(m);
+        }
+        final int[] count = {0};
+        Messaging consumer = new Messaging(MorphiumSingleton.get(), 500, false, true, 1000);
+        consumer.addMessageListener(new MessageListener() {
+            @Override
+            public Msg onMessage(Messaging msg, Msg m) {
+                log.info("Got message!");
+                count[0]++;
+                return null;
+            }
+        });
+
+        consumer.start();
+
+        Thread.sleep(10000);
+        consumer.setRunning(false);
+        producer.setRunning(false);
+        log.info("Messages processed: " + count[0]);
+        log.info("Messages left: " + consumer.getMessageCount());
+
+    }
+
 
     @Test
     public void messagingTest() throws Exception {

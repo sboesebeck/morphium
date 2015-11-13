@@ -36,6 +36,18 @@ public interface MorphiumDriver {
 
     int getHeartbeatFrequency();
 
+    void setHeartbeatSocketTimeout(int heartbeatSocketTimeout);
+
+    void setUseSSL(boolean useSSL);
+
+    void setHeartbeatFrequency(int heartbeatFrequency);
+
+    void setWriteTimeout(int writeTimeout);
+
+    void setDefaultBatchSize(int defaultBatchSize);
+
+    void setCredentials(Map<String, String[]> credentials);
+
     int getHeartbeatSocketTimeout();
 
     boolean isUseSSL();
@@ -72,7 +84,7 @@ public interface MorphiumDriver {
 
     void connect() throws MorphiumDriverException;
 
-    ;
+    void setDefaultReadPreference(ReadPreference rp);
 
     void connect(String replicasetName) throws MorphiumDriverException;
 
@@ -108,6 +120,15 @@ public interface MorphiumDriver {
 
     long count(String db, String collection, Map<String, Object> query, ReadPreference rp) throws MorphiumDriverException;
 
+    /**
+     * just insert - no special handling
+     *
+     * @param db
+     * @param collection
+     * @param objs
+     * @param wc
+     * @throws MorphiumDriverException
+     */
     void insert(String db, String collection, List<Map<String, Object>> objs, WriteConcern wc) throws MorphiumDriverException;
 
     Map<String, Object> udate(String db, String collection, Map<String, Object> query, Map<String, Object> op, boolean multiple, boolean upsert, WriteConcern wc) throws MorphiumDriverException;
@@ -116,15 +137,19 @@ public interface MorphiumDriver {
 
     void drop(String db, String collection, WriteConcern wc) throws MorphiumDriverException;
 
-    Map<String, Object> drop(String db, WriteConcern wc) throws MorphiumDriverException;
+    void drop(String db, WriteConcern wc) throws MorphiumDriverException;
 
     boolean exists(String db) throws MorphiumDriverException;
+
+    List<Object> distinct(String db, String collection, String field) throws MorphiumDriverException;
 
     boolean exists(String db, String collection) throws MorphiumDriverException;
 
     Map<String, Object> getIndexes(String db, String collection) throws MorphiumDriverException;
 
     List<String> getCollectionNames(String db) throws MorphiumDriverException;
+
+    Map<String, Object> group(String db, String coll, Map<String, Object> query, Map<String, Object> initial, String jsReduce, String jsFinalize, ReadPreference rp, String... keys);
 
     Map<String, Object> killCursors(String db, String collection, List<Long> cursorIds) throws MorphiumDriverException;
 
@@ -141,4 +166,6 @@ public interface MorphiumDriver {
     int getMaxWaitTime();
 
     void setMaxWaitTime(int maxWaitTime);
+
+    boolean isCapped(String db, String coll) throws MorphiumDriverException;
 }

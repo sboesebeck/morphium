@@ -4,14 +4,16 @@
  */
 package de.caluga.morphium;
 
-import com.mongodb.*;
-import com.mongodb.client.MongoDatabase;
 import de.caluga.morphium.aggregation.Aggregator;
 import de.caluga.morphium.annotations.*;
 import de.caluga.morphium.annotations.lifecycle.*;
 import de.caluga.morphium.async.AsyncOperationCallback;
 import de.caluga.morphium.cache.CacheHousekeeper;
 import de.caluga.morphium.cache.MorphiumCache;
+import de.caluga.morphium.driver.MorphiumDriver;
+import de.caluga.morphium.driver.MorphiumDriverException;
+import de.caluga.morphium.driver.WriteConcern;
+import de.caluga.morphium.driver.mongodb.Driver;
 import de.caluga.morphium.query.MongoField;
 import de.caluga.morphium.query.Query;
 import de.caluga.morphium.replicaset.RSMonitor;
@@ -22,9 +24,6 @@ import de.caluga.morphium.writer.BufferedMorphiumWriterImpl;
 import de.caluga.morphium.writer.MorphiumWriter;
 import de.caluga.morphium.writer.MorphiumWriterImpl;
 import net.sf.cglib.proxy.Enhancer;
-import org.bson.BsonDocument;
-import org.bson.BsonInt32;
-import org.bson.Document;
 import org.bson.types.ObjectId;
 
 import java.io.Serializable;
@@ -87,8 +86,8 @@ public class Morphium {
     private Integer maxWriteBatchSize;
 
     private ThreadPoolExecutor asyncOperationsThreadPool;
-    private MongoDatabase adminDB;
     private List<DereferencingListener> lazyDereferencingListeners = new CopyOnWriteArrayList<>();
+    private MorphiumDriver morphiumDriver;
 
     public MorphiumConfig getConfig() {
         return config;
@@ -152,13 +151,14 @@ public class Morphium {
     }
 
 
-    public void registerTypeMapper(Class c, TypeMapper m)  {
-        getMapper().registerCustomTypeMapper(c,m);
+    public void registerTypeMapper(Class c, TypeMapper m) {
+        getMapper().registerCustomTypeMapper(c, m);
     }
 
     public void deregisterTypeMapper(Class c) {
         getMapper().deregisterTypeMapper(c);
     }
+
     private void initializeAndConnect() {
         if (config == null) {
             throw new RuntimeException("Please specify configuration!");
@@ -176,26 +176,25 @@ public class Morphium {
                     }
                 }
             });
-            MongoClientOptions.Builder o = MongoClientOptions.builder();
-            WriteConcern w = new WriteConcern(config.getGlobalW(), config.getWriteTimeout(), config.isGlobalFsync(), config.isGlobalJ());
-            o.writeConcern(w);
-            o.socketTimeout(config.getSocketTimeout());
-            o.connectTimeout(config.getConnectionTimeout());
-            o.connectionsPerHost(config.getMaxConnections());
-            o.socketKeepAlive(config.isSocketKeepAlive());
-            o.threadsAllowedToBlockForConnectionMultiplier(config.getBlockingThreadsMultiplier());
-            o.cursorFinalizerEnabled(config.isCursorFinalizerEnabled());
-            o.alwaysUseMBeans(config.isAlwaysUseMBeans());
-            o.heartbeatConnectTimeout(config.getHeartbeatConnectTimeout());
-            o.heartbeatFrequency(config.getHeartbeatFrequency());
-            o.heartbeatSocketTimeout(config.getHeartbeatSocketTimeout());
-            o.minConnectionsPerHost(config.getMinConnectionsPerHost());
-            o.minHeartbeatFrequency(config.getMinHearbeatFrequency());
-            o.localThreshold(config.getLocalThreashold());
-            o.maxConnectionIdleTime(config.getMaxConnectionIdleTime());
-            o.maxConnectionLifeTime(config.getMaxConnectionLifeTime());
-            o.requiredReplicaSetName(config.getRequiredReplicaSetName());
-            o.maxWaitTime(config.getMaxWaitTime());
+
+
+            morphiumDriver = new Driver();
+            morphiumDriver.setSocketTimeout(config.getSocketTimeout());
+            morphiumDriver.setConnectionTimeout(config.getConnectionTimeout());
+            morphiumDriver.setMaxConnectionsPerHost(config.getMaxConnections());
+            morphiumDriver.setSocketKeepAlive((config.isSocketKeepAlive()));
+            morphiumDriver.setMaxBlockingThreadMultiplier(config.getBlockingThreadsMultiplier());
+//            drv.cursorFinalizerEnabled(config.isCursorFinalizerEnabled());
+//            drv.alwaysUseMBeans(config.isAlwaysUseMBeans());
+            morphiumDriver.setHeartbeatConnectTimeout(config.getHeartbeatConnectTimeout());
+            morphiumDriver.setHeartbeatFrequency(config.getHeartbeatFrequency());
+            morphiumDriver.setHeartbeatSocketTimeout(config.getHeartbeatSocketTimeout());
+            morphiumDriver.setMinConnectionsPerHost(config.getMinConnectionsPerHost());
+//            drv.setMinminHeartbeatFrequency(config.getMinHearbeatFrequency());
+            morphiumDriver.setLocalThreshold(config.getLocalThreashold());
+            morphiumDriver.setMaxConnectionIdleTime(config.getMaxConnectionIdleTime());
+            morphiumDriver.setMaxConnectionLifetime(config.getMaxConnectionLifeTime());
+            morphiumDriver.setMaxWaitTime(config.getMaxWaitTime());
 
             System.getProperties().put("morphium.log.level", "" + config.getGlobalLogLevel());
             System.getProperties().put("morphium.log.synced", "" + config.isGlobalLogSynced());
@@ -206,43 +205,17 @@ public class Morphium {
                 throw new RuntimeException("Error - no server address specified!");
             }
 
-            MongoClient mongo;
-            if (config.getMongoLogin() != null) {
-                MongoCredential cred = MongoCredential.createMongoCRCredential(config.getMongoLogin(), config.getDatabase(), config.getMongoPassword().toCharArray());
-                List<MongoCredential> lst = new ArrayList<>();
-                lst.add(cred);
-                if (config.getAdr().size() == 1) {
-                    mongo = new MongoClient(config.getAdr().get(0), lst, o.build());
-                } else {
-                    mongo = new MongoClient(config.getAdr(), lst, o.build());
-                }
-            } else {
-                if (config.getAdr().size() == 1) {
-                    mongo = new MongoClient(config.getAdr().get(0), o.build());
-                } else {
-                    mongo = new MongoClient(config.getAdr(), o.build());
-                }
-            }
 
-            config.setDb(mongo.getDB(config.getDatabase()));
-            if (config.getDefaultReadPreference() != null) {
-                mongo.setReadPreference(config.getDefaultReadPreference().getPref());
-            }
+            morphiumDriver.setCredentials(config.getMongoLogin(), config.getDatabase(), config.getMongoPassword().toCharArray());
+            morphiumDriver.setCredentials(config.getMongoAdminUser(), "system", config.getMongoAdminPwd().toCharArray());
 
-            if (config.getMongoAdminUser() != null) {
-                MongoCredential cred = MongoCredential.createMongoCRCredential(config.getMongoAdminUser(), "admin", config.getMongoAdminPwd().toCharArray());
-                List<MongoCredential> lst = new ArrayList<>();
-                lst.add(cred);
-                if (config.getAdr().size() == 1) {
-                    mongo = new MongoClient(config.getAdr().get(0), lst, o.build());
-                } else {
-                    mongo = new MongoClient(config.getAdr(), lst, o.build());
-                }
-                adminDB = mongo.getDatabase("admin");
-            } else {
-                adminDB = mongo.getDatabase("admin");
+            String[] seed = new String[config.getAdr().size()];
+            for (int i = 0; i < seed.length; i++) {
+                seed[i] = config.getAdr().get(i).getHost() + ":" + config.getAdr().get(i).getPort();
             }
+            morphiumDriver.setHostSeed(seed);
 
+            morphiumDriver.setDefaultReadPreference(config.getDefaultReadPreference());
         }
 
         cacheHousekeeper = new CacheHousekeeper(this, 5000, config.getGlobalCacheValidTime());
@@ -342,12 +315,8 @@ public class Morphium {
         listeners = newList;
     }
 
-    public Mongo getMongo() {
-        return config.getDb().getMongo();
-    }
-
-    public DB getDatabase() {
-        return config.getDb();
+    public MorphiumDriver getMongo() {
+        return morphiumDriver;
     }
 
 
@@ -516,24 +485,33 @@ public class Morphium {
     }
 
     public <T> void convertToCapped(String coll, int size, AsyncOperationCallback<T> cb) {
-        BasicDBObject cmd = new BasicDBObject();
+        Map<String, Object> cmd = new HashMap<>();
         cmd.put("convertToCapped", coll);
         cmd.put("size", size);
 //        cmd.put("max", max);
-        getDatabase().command(cmd);
+        try {
+            morphiumDriver.runCommand(config.getDatabase(), cmd);
+        } catch (MorphiumDriverException e) {
+            throw new RuntimeException(e);
+        }
 
     }
 
-    public Map execCommand(String cmd) {
+    public Map<String, Object> execCommand(String cmd) {
         Map<String, Object> map = new HashMap<>();
         map.put(cmd, "1");
         return execCommand(map);
     }
 
-    public Map execCommand(Map<String, Object> command) {
-        BasicDBObject cmd = new BasicDBObject(command);
-        CommandResult r = getDatabase().command(cmd);
-        return r.toMap();
+    public Map<String, Object> execCommand(Map<String, Object> command) {
+        Map<String, Object> cmd = new HashMap<>(command);
+        Map<String, Object> ret = null;
+        try {
+            ret = morphiumDriver.runCommand(config.getDatabase(), cmd);
+        } catch (MorphiumDriverException e) {
+            throw new RuntimeException(e);
+        }
+        return ret;
     }
 
     /**
@@ -551,37 +529,34 @@ public class Morphium {
             @Override
             public void run() {
                 String coll = getMapper().getCollectionName(c);
-                DBCollection collection = null;
+//                DBCollection collection = null;
 
-                for (int i = 0; i < getConfig().getRetriesOnNetworkError(); i++) {
-                    try {
-                        collection = getDatabase().getCollection(coll);
-                        if (collection.isCapped()) return;
-                        if (!getDatabase().collectionExists(coll)) {
-                            if (logger.isDebugEnabled())
-                                logger.debug("Collection does not exist - ensuring indices / capped status");
-                            BasicDBObject cmd = new BasicDBObject();
-                            cmd.put("create", coll);
-                            Capped capped = annotationHelper.getAnnotationFromHierarchy(c, Capped.class);
-                            if (capped != null) {
-                                cmd.put("capped", true);
-                                cmd.put("size", capped.maxSize());
-                                cmd.put("max", capped.maxEntries());
-                            }
-                            cmd.put("autoIndexId", (annotationHelper.getIdField(c).getType().equals(ObjectId.class)));
-                            getDatabase().command(cmd);
-                        } else {
-                            Capped capped = annotationHelper.getAnnotationFromHierarchy(c, Capped.class);
-                            if (capped != null) {
-
-                                convertToCapped(c, capped.maxSize(), null);
-                            }
+                try {
+                    if (morphiumDriver.isCapped(config.getDatabase(), coll)) return;
+                    if (!morphiumDriver.exists(config.getDatabase(), coll)) {
+                        if (logger.isDebugEnabled())
+                            logger.debug("Collection does not exist - ensuring indices / capped status");
+                        Map<String, Object> cmd = new HashMap<>();
+                        cmd.put("create", coll);
+                        Capped capped = annotationHelper.getAnnotationFromHierarchy(c, Capped.class);
+                        if (capped != null) {
+                            cmd.put("capped", true);
+                            cmd.put("size", capped.maxSize());
+                            cmd.put("max", capped.maxEntries());
                         }
-                        break;
-                    } catch (Throwable t) {
-                        handleNetworkError(i, t);
+                        cmd.put("autoIndexId", (annotationHelper.getIdField(c).getType().equals(ObjectId.class)));
+                        morphiumDriver.runCommand(config.getDatabase(), cmd);
+                    } else {
+                        Capped capped = annotationHelper.getAnnotationFromHierarchy(c, Capped.class);
+                        if (capped != null) {
+
+                            convertToCapped(c, capped.maxSize(), null);
+                        }
                     }
+                } catch (Throwable t) {
+                    throw new RuntimeException(t);
                 }
+
             }
         };
 
@@ -594,14 +569,12 @@ public class Morphium {
     }
 
 
-    public DBObject simplifyQueryObject(DBObject q) {
+    public Map<String, Object> simplifyQueryObject(Map<String, Object> q) {
         if (q.keySet().size() == 1 && q.get("$and") != null) {
-            BasicDBObject ret = new BasicDBObject();
-            BasicDBList lst = (BasicDBList) q.get("$and");
+            Map<String, Object> ret = new HashMap<>();
+            List<Map<String, Object>> lst = (List<Map<String, Object>>) q.get("$and");
             for (Object o : lst) {
-                if (o instanceof DBObject) {
-                    ret.putAll(((DBObject) o));
-                } else if (o instanceof Map) {
+                if (o instanceof Map) {
                     ret.putAll(((Map) o));
                 } else {
                     //something we cannot handle
@@ -758,6 +731,7 @@ public class Morphium {
     public void pullAll(Query<?> query, String field, List<Object> value, boolean insertIfNotExist, boolean multiple) {
         pull(query, field, value, insertIfNotExist, multiple);
     }
+
     public <T> void set(Query<T> query, String field, Object val, boolean insertIfNotExist, boolean multiple) {
         set(query, field, val, insertIfNotExist, multiple, (AsyncOperationCallback<T>) null);
     }
@@ -1113,6 +1087,7 @@ public class Morphium {
             config.getWriter().remove(o, forceCollectionName, callback);
         }
     }
+
     public <T> void delete(List<T> lst, AsyncOperationCallback<T> callback) {
         ArrayList<T> directDel = new ArrayList<>();
         ArrayList<T> bufferedDel = new ArrayList<>();
@@ -1133,7 +1108,7 @@ public class Morphium {
 
     @SuppressWarnings({"unchecked", "UnusedDeclaration"})
     public String toJsonString(Object o) {
-        DBObject db = objectMapper.marshall(o);
+        Map<String, Object> db = objectMapper.marshall(o);
         if (db.get("_id") != null)
             db.put("_id", db.get("_id").toString());
         return db.toString();
@@ -1193,10 +1168,11 @@ public class Morphium {
         if (id == null) {
             return null;
         }
-        DBCollection col = config.getDb().getCollection(collection);
-        BasicDBObject srch = new BasicDBObject("_id", id);
+//        DBCollection col = config.getDb().getCollection(collection);
+        Map<String, Object> srch = new HashMap<>();
+        srch.put("_id", id);
         List<Field> lst = annotationHelper.getAllFields(o.getClass());
-        BasicDBObject fields = new BasicDBObject();
+        Map<String, Object> fields = new HashMap<>();
         for (Field f : lst) {
             if (f.isAnnotationPresent(WriteOnly.class) || f.isAnnotationPresent(Transient.class)) {
                 continue;
@@ -1205,30 +1181,31 @@ public class Morphium {
             fields.put(n, 1);
         }
 
-        DBCursor crs = col.find(srch, fields).limit(1);
-        if (crs.hasNext()) {
-            DBObject dbo = crs.next();
-            Object fromDb = objectMapper.unmarshall(o.getClass(), dbo);
-            if (fromDb == null) throw new RuntimeException("could not reread from db");
-            List<String> flds = annotationHelper.getFields(o.getClass());
-            for (String f : flds) {
-                Field fld = annotationHelper.getField(o.getClass(), f);
-                if (java.lang.reflect.Modifier.isStatic(fld.getModifiers())) {
-                    continue;
+        try {
+            List<Map<String, Object>> found = morphiumDriver.find(config.getDatabase(), collection, srch, null, null, 0, 1, 1, null);
+            if (found != null && found.size() > 0) {
+                Map<String, Object> dbo = found.get(0);
+                Object fromDb = objectMapper.unmarshall(o.getClass(), dbo);
+                if (fromDb == null) throw new RuntimeException("could not reread from db");
+                List<String> flds = annotationHelper.getFields(o.getClass());
+                for (String f : flds) {
+                    Field fld = annotationHelper.getField(o.getClass(), f);
+                    if (java.lang.reflect.Modifier.isStatic(fld.getModifiers())) {
+                        continue;
+                    }
+                    try {
+                        fld.set(o, fld.get(fromDb));
+                    } catch (IllegalAccessException e) {
+                        logger.error("Could not set Value: " + fld);
+                    }
                 }
-                try {
-                    fld.set(o, fld.get(fromDb));
-                } catch (IllegalAccessException e) {
-                    logger.error("Could not set Value: " + fld);
-                }
+                firePostLoadEvent(o);
+            } else {
+                return null;
             }
-            firePostLoadEvent(o);
-        } else {
-//            logger.info("Did not find object with id " + id);
-            crs.close();
-            return null;
+        } catch (MorphiumDriverException e) {
+            throw new RuntimeException(e);
         }
-        crs.close();
         return o;
     }
 
@@ -1421,41 +1398,41 @@ public class Morphium {
         return config.getAdr().size() > 1;
     }
 
-
-    public void handleNetworkError(int i, Throwable e) {
-        logger.info("Handling network error..." + e.getClass().getName());
-        if (e.getClass().getName().equals("javax.validation.ConstraintViolationException")) {
-            throw ((RuntimeException) e);
-        }
-        if (e instanceof DuplicateKeyException) {
-            throw new RuntimeException(e);
-        }
-        if (e.getMessage() != null && (e.getMessage().equals("can't find a master")
-                || e.getMessage().startsWith("No replica set members available in")
-                || e.getMessage().equals("not talking to master and retries used up"))
-                || (e instanceof WriteConcernException && e.getMessage() != null && e.getMessage().contains("not master"))
-                || e instanceof MongoException) {
-            if (i + 1 < getConfig().getRetriesOnNetworkError()) {
-                logger.warn("Retry because of network error: " + e.getMessage());
-                try {
-                    Thread.sleep(getConfig().getSleepBetweenNetworkErrorRetries());
-                } catch (InterruptedException ignored) {
-                }
-
-            } else {
-                logger.info("no retries left - re-throwing exception");
-                if (e instanceof RuntimeException) {
-                    throw ((RuntimeException) e);
-                }
-                throw (new RuntimeException(e));
-            }
-        } else {
-            if (e instanceof RuntimeException) {
-                throw ((RuntimeException) e);
-            }
-            throw (new RuntimeException(e));
-        }
-    }
+//
+//    public void handleNetworkError(int i, Throwable e) {
+//        logger.info("Handling network error..." + e.getClass().getName());
+//        if (e.getClass().getName().equals("javax.validation.ConstraintViolationException")) {
+//            throw ((RuntimeException) e);
+//        }
+//        if (e instanceof DuplicateKeyException) {
+//            throw new RuntimeException(e);
+//        }
+//        if (e.getMessage() != null && (e.getMessage().equals("can't find a master")
+//                || e.getMessage().startsWith("No replica set members available in")
+//                || e.getMessage().equals("not talking to master and retries used up"))
+//                || (e instanceof WriteConcernException && e.getMessage() != null && e.getMessage().contains("not master"))
+//                || e instanceof MongoException) {
+//            if (i + 1 < getConfig().getRetriesOnNetworkError()) {
+//                logger.warn("Retry because of network error: " + e.getMessage());
+//                try {
+//                    Thread.sleep(getConfig().getSleepBetweenNetworkErrorRetries());
+//                } catch (InterruptedException ignored) {
+//                }
+//
+//            } else {
+//                logger.info("no retries left - re-throwing exception");
+//                if (e instanceof RuntimeException) {
+//                    throw ((RuntimeException) e);
+//                }
+//                throw (new RuntimeException(e));
+//            }
+//        } else {
+//            if (e instanceof RuntimeException) {
+//                throw ((RuntimeException) e);
+//            }
+//            throw (new RuntimeException(e));
+//        }
+//    }
 
     @SuppressWarnings("ConstantConditions")
     public WriteConcern getWriteConcernForClass(Class<?> cls) {
@@ -1524,10 +1501,7 @@ public class Morphium {
             }
         }
 
-        if (w == -99) {
-            return new WriteConcern("majority", timeout, fsync, j);
-        }
-        return new WriteConcern(w, timeout, fsync, j);
+        return WriteConcern.getWc(w, fsync, j, timeout);
     }
 
     public void addProfilingListener(ProfilingListener l) {
@@ -1615,6 +1589,10 @@ public class Morphium {
         return qu.asList();
     }
 
+    public <T> Query<T> createQueryFor(Class<? extends T> type, String usingCollectionName) {
+        return createQueryFor(type).setCollectionName(usingCollectionName);
+    }
+
     public <T> Query<T> createQueryFor(Class<? extends T> type) {
         Query<T> q = config.getQueryFact().createQuery(this, type);
         q.setMorphium(this);
@@ -1633,7 +1611,7 @@ public class Morphium {
 
     /**
      * returns a distinct list of values of the given collection
-     * Attention: these values are not unmarshalled, you might get MongoDBObjects
+     * Attention: these values are not unmarshalled, you might get MongoMap<String,Object>s
      */
     public List<Object> distinct(Enum key, Query q) {
         return distinct(key.name(), q);
@@ -1641,56 +1619,39 @@ public class Morphium {
 
     /**
      * returns a distinct list of values of the given collection
-     * Attention: these values are not unmarshalled, you might get MongoDBObjects
+     * Attention: these values are not unmarshalled, you might get MongoMap<String,Object>s
      */
     @SuppressWarnings("unchecked")
     public List<Object> distinct(String key, Query q) {
-        return config.getDb().getCollection(objectMapper.getCollectionName(q.getType())).distinct(key, q.toQueryObject());
+        try {
+            return morphiumDriver.distinct(config.getDatabase(), q.getCollectionName(), key);
+        } catch (MorphiumDriverException e) {
+            throw new RuntimeException(e);
+        }
     }
 
     @SuppressWarnings("unchecked")
     public List<Object> distinct(String key, Class cls) {
-        DBCollection collection = config.getDb().getCollection(objectMapper.getCollectionName(cls));
-        setReadPreference(collection, cls);
-        return collection.distinct(key, new BasicDBObject());
-    }
-
-    private void setReadPreference(DBCollection c, Class type) {
-        DefaultReadPreference pr = annotationHelper.getAnnotationFromHierarchy(type, DefaultReadPreference.class);
-        if (pr != null) {
-            c.setReadPreference(pr.value().getPref());
-        } else {
-            c.setReadPreference(null);
+        try {
+            return morphiumDriver.distinct(config.getDatabase(), objectMapper.getCollectionName(cls), key);
+        } catch (MorphiumDriverException e) {
+            throw new RuntimeException(e);
         }
     }
 
-    public DBObject group(Query q, Map<String, Object> initial, String jsReduce, String jsFinalize, String... keys) {
-        BasicDBObject k = new BasicDBObject();
-        BasicDBObject ini = new BasicDBObject();
-        ini.putAll(initial);
-        for (String ks : keys) {
-            if (ks.startsWith("-")) {
-                k.append(ks.substring(1), "false");
-            } else if (ks.startsWith("+")) {
-                k.append(ks.substring(1), "true");
-            } else {
-                k.append(ks, "true");
-            }
+    @SuppressWarnings("unchecked")
+    public List<Object> distinct(String key, String collectionName) {
+        try {
+            return morphiumDriver.distinct(config.getDatabase(), collectionName, key);
+        } catch (MorphiumDriverException e) {
+            throw new RuntimeException(e);
         }
-        if (!jsReduce.trim().startsWith("function(")) {
-            jsReduce = "function (obj,data) { " + jsReduce + " }";
-        }
-        if (jsFinalize == null) {
-            jsFinalize = "";
-        }
-        if (!jsFinalize.trim().startsWith("function(")) {
-            jsFinalize = "function (data) {" + jsFinalize + "}";
-        }
-        DBCollection collection = config.getDb().getCollection(objectMapper.getCollectionName(q.getType()));
-        GroupCommand cmd = new GroupCommand(collection,
-                k, q.toQueryObject(), ini, jsReduce, jsFinalize);
-        collection.setWriteConcern(getWriteConcernForClass(q.getType()));
-        return collection.group(cmd);
+    }
+
+
+    public Map<String, Object> group(Query q, Map<String, Object> initial, String jsReduce, String jsFinalize, String... keys) {
+        //TODO: readpreference
+        return morphiumDriver.group(config.getDatabase(), objectMapper.getCollectionName(q.getType()), q.toQueryObject(), initial, jsReduce, jsFinalize, null, keys);
     }
 
     @SuppressWarnings("unchecked")
@@ -1961,7 +1922,9 @@ public class Morphium {
 
     public void readMaximums() {
         try {
-            Document res = adminDB.runCommand(new BsonDocument("isMaster", new BsonInt32(1)));
+            Map<String, Object> cmd = new HashMap<>();
+            cmd.put("isMaster", 1);
+            Map<String, Object> res = morphiumDriver.runCommand("admin", cmd);
             maxBsonSize = (Integer) res.get("maxBsonObjectSize");
             maxMessageSize = (Integer) res.get("maxMessageSizeBytes");
             maxWriteBatchSize = (Integer) res.get("maxWriteBatchSize");
@@ -2119,38 +2082,39 @@ public class Morphium {
     }
 
     public <T, R> List<R> aggregate(Aggregator<T, R> a) {
-        DBCollection coll = null;
-        for (int i = 0; i < getConfig().getRetriesOnNetworkError(); i++) {
-            try {
-                String collectionName = a.getCollectionName();
-                if (collectionName == null) collectionName = objectMapper.getCollectionName(a.getSearchType());
-                coll = config.getDb().getCollection(collectionName);
-                break;
-            } catch (Throwable e) {
-                handleNetworkError(i, e);
-            }
-        }
-        List<DBObject> agList = a.toAggregationList();
-        DBObject first = agList.get(0);
-        agList.remove(0);
-        AggregationOutput resp = null;
-        for (int i = 0; i < getConfig().getRetriesOnNetworkError(); i++) {
-            try {
-                resp = coll.aggregate(first, agList.toArray(new DBObject[agList.size()]));
-                break;
-            } catch (Throwable t) {
-                handleNetworkError(i, t);
-            }
-        }
-        List<R> ret = new ArrayList<>();
-        if (resp != null) {
-            for (DBObject o : resp.results()) {
-                R obj = getMapper().unmarshall(a.getResultType(), o);
-                if (obj == null) continue;
-                ret.add(obj);
-            }
-        }
-        return ret;
+        throw new RuntimeException("Not implemented yet");
+//        DBCollection coll = null;
+//        for (int i = 0; i < getConfig().getRetriesOnNetworkError(); i++) {
+//            try {
+//                String collectionName = a.getCollectionName();
+//                if (collectionName == null) collectionName = objectMapper.getCollectionName(a.getSearchType());
+//                coll = config.getDb().getCollection(collectionName);
+//                break;
+//            } catch (Throwable e) {
+//                handleNetworkError(i, e);
+//            }
+//        }
+//        List<Map<String, Object>> agList = a.toAggregationList();
+//        Map<String, Object> first = agList.get(0);
+//        agList.remove(0);
+//        AggregationOutput resp = null;
+//        for (int i = 0; i < getConfig().getRetriesOnNetworkError(); i++) {
+//            try {
+//                resp = coll.aggregate(first, agList.toArray(new Map<String, Object>[agList.size()]));
+//                break;
+//            } catch (Throwable t) {
+//                handleNetworkError(i, t);
+//            }
+//        }
+//        List<R> ret = new ArrayList<>();
+//        if (resp != null) {
+//            for (Map<String, Object> o : resp.results()) {
+//                R obj = getMapper().unmarshall(a.getResultType(), o);
+//                if (obj == null) continue;
+//                ret.add(obj);
+//            }
+//        }
+//        return ret;
     }
 
     /**
