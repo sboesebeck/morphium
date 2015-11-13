@@ -16,6 +16,7 @@ import de.caluga.morphium.driver.MorphiumDriver;
 import de.caluga.morphium.driver.MorphiumDriverException;
 import de.caluga.morphium.driver.MorphiumDriverOperation;
 import de.caluga.morphium.driver.ReadPreference;
+import de.caluga.morphium.driver.bulk.BulkRequestContext;
 import org.bson.Document;
 
 import java.util.ArrayList;
@@ -405,7 +406,7 @@ public class Driver implements MorphiumDriver {
         }, retriesOnNetworkError, sleepBetweenErrorRetries);
     }
 
-    private MongoCollection<Document> getCollection(MongoDatabase database, String collection, ReadPreference readPreference, de.caluga.morphium.driver.WriteConcern wc) {
+    public MongoCollection<Document> getCollection(MongoDatabase database, String collection, ReadPreference readPreference, de.caluga.morphium.driver.WriteConcern wc) {
         MongoCollection<Document> coll = database.getCollection(collection);
         com.mongodb.ReadPreference prf = null;
 
@@ -762,5 +763,20 @@ public class Driver implements MorphiumDriver {
     public boolean isCapped(String db, String coll) throws MorphiumDriverException {
         //TODO: Change to new syntax? Using Command?
         return mongo.getDB(db).getCollection(coll).isCapped();
+    }
+
+    @Override
+    public BulkRequestContext createBulkContext(String db, String collection, boolean ordered, de.caluga.morphium.driver.WriteConcern wc) {
+        return new MongodbBulkContext(db, collection, this, ordered, wc);
+    }
+
+
+    public MongoDatabase getDb(String db) {
+        return mongo.getDatabase(db);
+    }
+
+    public MongoCollection getCollection(String db, String coll) {
+
+        return mongo.getDatabase(db).getCollection(coll);
     }
 }
