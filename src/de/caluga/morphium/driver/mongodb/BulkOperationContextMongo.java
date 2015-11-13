@@ -1,4 +1,4 @@
-package de.caluga.morphium.driver;
+package de.caluga.morphium.driver.mongodb;
 
 import com.mongodb.BulkWriteOperation;
 import com.mongodb.BulkWriteResult;
@@ -17,7 +17,7 @@ import java.util.List;
  * <p/>
  * TODO: Add documentation here
  */
-public class BulkOperationContext {
+public class BulkOperationContextMongo {
     private Morphium morphium;
 
     private boolean ordered;
@@ -25,7 +25,7 @@ public class BulkOperationContext {
     private BulkWriteOperation bulk = null;
     private List<BulkRequestWrapper> requests;
 
-    public BulkOperationContext(Morphium m, boolean ordered) {
+    public BulkOperationContextMongo(Morphium m, boolean ordered) {
         morphium = m;
         this.ordered = ordered;
         requests = new ArrayList<>();

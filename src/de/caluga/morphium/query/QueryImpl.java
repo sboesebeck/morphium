@@ -1051,8 +1051,9 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
     }
 
     @Override
-    public void setCollectionName(String n) {
+    public Query<T> setCollectionName(String n) {
         collectionName = n;
+        return this;
     }
 
     @Override
