@@ -11,10 +11,10 @@ import de.caluga.morphium.aggregation.AggregatorFactoryImpl;
 import de.caluga.morphium.aggregation.AggregatorImpl;
 import de.caluga.morphium.annotations.AdditionalData;
 import de.caluga.morphium.annotations.Embedded;
-import de.caluga.morphium.annotations.ReadPreferenceLevel;
 import de.caluga.morphium.annotations.Transient;
 import de.caluga.morphium.cache.MorphiumCache;
 import de.caluga.morphium.cache.MorphiumCacheImpl;
+import de.caluga.morphium.driver.ReadPreference;
 import de.caluga.morphium.query.*;
 import de.caluga.morphium.writer.AsyncWriterImpl;
 import de.caluga.morphium.writer.BufferedMorphiumWriterImpl;
@@ -115,7 +115,7 @@ public class MorphiumConfig {
     @Transient
     private Class<? extends MongoField> fieldImplClass = MongoFieldImpl.class;
     @Transient
-    private ReadPreferenceLevel defaultReadPreference;
+    private ReadPreference defaultReadPreference;
     private int acceptableLatencyDifference = 15;
     private int threadPoolMessagingCoreSize = 0;
     private int threadPoolMessagingMaxSize = 100;
@@ -485,11 +485,11 @@ public class MorphiumConfig {
         this.mongoPassword = mongoPassword;
     }
 
-    public ReadPreferenceLevel getDefaultReadPreference() {
+    public ReadPreference getDefaultReadPreference() {
         return defaultReadPreference;
     }
 
-    public void setDefaultReadPreference(ReadPreferenceLevel defaultReadPreference) {
+    public void setDefaultReadPreference(ReadPreference defaultReadPreference) {
         this.defaultReadPreference = defaultReadPreference;
     }
 
