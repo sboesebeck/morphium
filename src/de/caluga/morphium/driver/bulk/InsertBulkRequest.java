@@ -2,23 +2,25 @@ package de.caluga.morphium.driver.bulk;/**
  * Created by stephan on 13.11.15.
  */
 
+import java.util.List;
 import java.util.Map;
 
 /**
  * TODO: Add Documentation here
  **/
 public class InsertBulkRequest extends BulkRequest {
-    private Map<String, Object> toInsert;
+    private List<Map<String, Object>> toInsert;
 
-    public InsertBulkRequest(Map<String, Object> objToInsert) {
+    public InsertBulkRequest(List<Map<String, Object>> objToInsert) {
         toInsert = objToInsert;
     }
 
-    public Map<String, Object> getToInsert() {
+    public List<Map<String, Object>> getToInsert() {
         return toInsert;
     }
 
-    public void setToInsert(Map<String, Object> toInsert) {
+    public void setToInsert(List<Map<String, Object>> toInsert) {
         this.toInsert = toInsert;
     }
+
 }
