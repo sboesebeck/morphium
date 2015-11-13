@@ -2,6 +2,8 @@ package de.caluga.morphium.driver;/**
  * Created by stephan on 15.10.15.
  */
 
+import de.caluga.morphium.driver.bulk.BulkRequestContext;
+
 import java.util.List;
 import java.util.Map;
 
@@ -168,4 +170,6 @@ public interface MorphiumDriver {
     void setMaxWaitTime(int maxWaitTime);
 
     boolean isCapped(String db, String coll) throws MorphiumDriverException;
+
+    BulkRequestContext createBulkContext(String db, String collection, boolean ordered, WriteConcern wc);
 }
