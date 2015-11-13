@@ -1,9 +1,5 @@
-package de.caluga.morphium.driver;
+package de.caluga.morphium.driver.mongodb;
 
-import com.mongodb.BasicDBList;
-import com.mongodb.BasicDBObject;
-import com.mongodb.BulkUpdateRequestBuilder;
-import com.mongodb.BulkWriteRequestBuilder;
 import de.caluga.morphium.Morphium;
 import de.caluga.morphium.MorphiumStorageListener;
 import de.caluga.morphium.annotations.Embedded;

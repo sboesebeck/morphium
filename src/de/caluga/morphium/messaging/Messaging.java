@@ -62,7 +62,7 @@ public class Messaging extends Thread implements ShutdownListener {
     }
 
     public long getMessageCount() {
-        return morphium.createQueryFor(Msg.class).countAll();
+        return morphium.createQueryFor(Msg.class).setCollectionName(getCollectionName()).countAll();
     }
 
     public Messaging(Morphium m, String queueName, int pause, boolean processMultiple) {
@@ -245,6 +245,9 @@ public class Messaging extends Thread implements ShutdownListener {
 //                                msg.setLockedBy(null);
 //                                msg.setLocked(0);
 //                                toStore.add(msg); //TODO: delete message?
+                            }
+                            if (msg.getType().equals(MsgType.SINGLE) && !toRemove.contains(msg)) {
+                                toRemove.add(msg);
                             }
                         }
                     };
