@@ -6,8 +6,7 @@ import de.caluga.morphium.*;
 import de.caluga.morphium.annotations.caching.WriteBuffer;
 import de.caluga.morphium.async.AsyncOperationCallback;
 import de.caluga.morphium.async.AsyncOperationType;
-import de.caluga.morphium.driver.mongodb.BulkOperationContextMongo;
-import de.caluga.morphium.driver.mongodb.BulkRequestWrapper;
+import de.caluga.morphium.driver.bulk.BulkRequestContext;
 import de.caluga.morphium.query.Query;
 import org.bson.types.ObjectId;
 
@@ -52,8 +51,8 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
         //either buffer size reached, or time is up => queue writes
         List<WriteBufferEntry> didNotWrite = new ArrayList<>();
         //queueing all ops in queue
-        BulkOperationContextMongo ctx = new BulkOperationContextMongo(morphium, false);
-        BulkOperationContextMongo octx = new BulkOperationContextMongo(morphium, true);
+        BulkRequestContext ctx = morphium.getDriver().createBulkContext(morphium.getConfig().getDatabase(), "", false, null);
+        BulkRequestContext octx = morphium.getDriver().createBulkContext(morphium.getConfig().getDatabase(), "", true, null);
 
         for (WriteBufferEntry entry : localQueue) {
             try {
@@ -527,6 +526,11 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
                 }
             }, c, AsyncOperationType.REMOVE);
         }
+    }
+
+    @Override
+    public <T> void remove(Query<T> q, boolean multiple, AsyncOperationCallback<T> callback) {
+
     }
 
     @Override

@@ -9,6 +9,7 @@ import java.util.Map;
  **/
 public abstract class BulkRequestContext {
     private boolean odererd = false;
+    public int batchSize;
 
     public boolean isOdererd() {
         return odererd;
@@ -16,6 +17,14 @@ public abstract class BulkRequestContext {
 
     public void setOdererd(boolean odererd) {
         this.odererd = odererd;
+    }
+
+    public int getBatchSize() {
+        return batchSize;
+    }
+
+    public void setBatchSize(int batchSize) {
+        this.batchSize = batchSize;
     }
 
     public abstract void addRequest(BulkRequest br);

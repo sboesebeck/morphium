@@ -3,6 +3,7 @@ package de.caluga.morphium.driver;/**
  */
 
 import de.caluga.morphium.driver.bulk.BulkRequestContext;
+import de.caluga.morphium.driver.mongodb.Maximums;
 
 import java.util.List;
 import java.util.Map;
@@ -92,6 +93,8 @@ public interface MorphiumDriver {
 
     ;
 
+    Maximums getMaximums();
+
     boolean isConnected();
 
     void setDefaultJ(boolean j);
@@ -133,7 +136,7 @@ public interface MorphiumDriver {
      */
     void insert(String db, String collection, List<Map<String, Object>> objs, WriteConcern wc) throws MorphiumDriverException;
 
-    Map<String, Object> udate(String db, String collection, Map<String, Object> query, Map<String, Object> op, boolean multiple, boolean upsert, WriteConcern wc) throws MorphiumDriverException;
+    Map<String, Object> update(String db, String collection, Map<String, Object> query, Map<String, Object> op, boolean multiple, boolean upsert, WriteConcern wc) throws MorphiumDriverException;
 
     Map<String, Object> delete(String db, String collection, Map<String, Object> query, boolean multiple, WriteConcern wc) throws MorphiumDriverException;
 
@@ -172,4 +175,6 @@ public interface MorphiumDriver {
     boolean isCapped(String db, String coll) throws MorphiumDriverException;
 
     BulkRequestContext createBulkContext(String db, String collection, boolean ordered, WriteConcern wc);
+
+    void createIndex(String db, String collection, Map<String, Object> index, Map<String, Object> options) throws MorphiumDriverException;
 }
