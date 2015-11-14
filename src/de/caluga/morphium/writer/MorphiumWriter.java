@@ -81,6 +81,8 @@ public interface MorphiumWriter {
 
     <T> void remove(List<T> lst, AsyncOperationCallback<T> callback);
 
+    <T> void remove(Query<T> q, boolean multiple, AsyncOperationCallback<T> callback);
+
     <T> void remove(T o, String collection, AsyncOperationCallback<T> callback);
 
     /**

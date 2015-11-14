@@ -75,7 +75,7 @@ public class RSMonitor {
     public de.caluga.morphium.replicaset.ReplicaSetStatus getReplicaSetStatus(boolean full) {
         if (morphium.isReplicaSet()) {
             try {
-//                DB adminDB = morphium.getMongo().("admin");
+//                DB adminDB = morphium.getDriver().("admin");
                 MorphiumConfig config = morphium.getConfig();
 //                if (config.getMongoAdminUser() != null) {
 //                    if (!adminDB.authenticate(config.getMongoAdminUser(), config.getMongoAdminPwd().toCharArray())) {
@@ -85,15 +85,15 @@ public class RSMonitor {
 //                }
 
 
-                Map<String, Object> res = morphium.getMongo().getStats();
+                Map<String, Object> res = morphium.getDriver().getStats();
                 de.caluga.morphium.replicaset.ReplicaSetStatus status = morphium.getMapper().unmarshall(de.caluga.morphium.replicaset.ReplicaSetStatus.class, res);
                 if (full) {
-                    List<Map<String, Object>> stats = morphium.getMongo().find("local", "system.replset", new HashMap<String, Object>(), null, null, 0, 10, 10, null);
+                    List<Map<String, Object>> stats = morphium.getDriver().find("local", "system.replset", new HashMap<String, Object>(), null, null, 0, 10, 10, null);
                     if (stats == null || stats.size() == 0) {
                         logger.info("could not get replicaset status");
                     } else {
                         Map<String, Object> stat = stats.get(0);
-//                    DBCursor rpl = morphium.getMongo().getDB("local").getCollection("system.replset").find();
+//                    DBCursor rpl = morphium.getDriver().getDB("local").getCollection("system.replset").find();
 //                    DBObject stat = rpl.next(); //should only be one, i think
 //                    rpl.close();
                         ReplicaSetConf cfg = morphium.getMapper().unmarshall(ReplicaSetConf.class, stat);
