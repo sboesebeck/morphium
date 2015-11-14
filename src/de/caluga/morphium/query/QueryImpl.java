@@ -36,10 +36,10 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
     private String collectionName;
     private ServerAddress srv = null;
 
-    private DBObject fieldList;
+    private Map<String, Object> fieldList;
 
     private boolean autoValuesEnabled = true;
-    private DBObject additionalFields;
+    private Map<String, Object> additionalFields;
 
     private String tags;
 
@@ -145,12 +145,12 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
         return q;
     }
 
-    public List<T> complexQuery(DBObject query) {
+    public List<T> complexQuery(Map<String, Object> query) {
         return complexQuery(query, (String) null, 0, 0);
     }
 
     @Override
-    public List<T> complexQuery(DBObject query, String sort, int skip, int limit) {
+    public List<T> complexQuery(Map<String, Object> query, String sort, int skip, int limit) {
         Map<String, Integer> srt = new HashMap<>();
         if (sort != null) {
             String[] tok = sort.split(",");
@@ -168,7 +168,7 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
     }
 
     @Override
-    public List<T> complexQuery(DBObject query, Map<String, Integer> sort, int skip, int limit) {
+    public List<T> complexQuery(Map<String, Object> query, Map<String, Integer> sort, int skip, int limit) {
         Cache ca = morphium.getARHelper().getAnnotationFromHierarchy(type, Cache.class); //type.getAnnotation(Cache.class);
         boolean useCache = ca != null && ca.readCache() && morphium.isReadCacheEnabledForThread();
         String ck = morphium.getCache().getCacheKey(query, sort, getCollectionName(), skip, limit);
@@ -177,9 +177,8 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
         }
 
         long start = System.currentTimeMillis();
-        DBCollection c = morphium.getDatabase().getCollection(getCollectionName());
         setReadPreferenceFor(c);
-        BasicDBObject lst = getFieldListForQuery();
+        Map<String, Object> lst = getFieldListForQuery();
 
         List<T> ret = new ArrayList<>();
         int retries = morphium.getConfig().getRetriesOnNetworkError();
@@ -188,7 +187,7 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
             try {
                 DBCursor cursor = c.find(query, lst);
                 if (sort != null) {
-                    DBObject srt = new BasicDBObject();
+                    Map<String, Object> srt = new HashMap<String, Object>();
                     srt.putAll(sort);
                     cursor.sort(srt);
                 }
@@ -217,14 +216,14 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
         return ret;
     }
 
-    private BasicDBObject getFieldListForQuery() {
+    private Map<String, Object> getFieldListForQuery() {
         List<Field> fldlst = morphium.getARHelper().getAllFields(type);
-        BasicDBObject lst = new BasicDBObject();
+        Map<String, Object> lst = new HashMap<String, Object>();
         lst.put("_id", 1);
         Entity e = morphium.getARHelper().getAnnotationFromHierarchy(type, Entity.class);
         if (e.polymorph()) {
 //            lst.put("class_name", 1);
-            return new BasicDBObject();
+            return new HashMap<String, Object>();
         }
 
         if (fieldList != null) {
@@ -233,7 +232,7 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
             for (Field f : fldlst) {
                 if (f.isAnnotationPresent(AdditionalData.class)) {
                     //to enable additional data
-                    lst = new BasicDBObject();
+                    lst = new HashMap<String, Object>();
                     break;
                 }
                 String n = morphium.getARHelper().getFieldName(type, f.getName());
@@ -252,12 +251,12 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
     }
 
     @Override
-    public T complexQueryOne(DBObject query) {
+    public T complexQueryOne(Map<String, Object> query) {
         return complexQueryOne(query, null, 0);
     }
 
     @Override
-    public T complexQueryOne(DBObject query, Map<String, Integer> sort, int skip) {
+    public T complexQueryOne(Map<String, Object> query, Map<String, Integer> sort, int skip) {
         List<T> ret = complexQuery(query, sort, skip, 1);
         if (ret != null && !ret.isEmpty()) {
             return ret.get(0);
@@ -266,7 +265,7 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
     }
 
     @Override
-    public T complexQueryOne(DBObject query, Map<String, Integer> sort) {
+    public T complexQueryOne(Map<String, Object> query, Map<String, Integer> sort) {
         return complexQueryOne(query, sort, 0);
     }
 
@@ -549,9 +548,9 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
     }
 
     @Override
-    public DBObject toQueryObject() {
-        BasicDBObject o = new BasicDBObject();
-        BasicDBList lst = new BasicDBList();
+    public Map<String, Object> toQueryObject() {
+        Map<String, Object> o = new HashMap<String, Object>();
+        List<Map<String, Object>><Map<String, Object>>lst = new List<Map<String, Object>> < Map < String, Object >> ();
         boolean onlyAnd = orQueries.isEmpty() && norQueries.isEmpty() && where == null;
         if (where != null) {
             o.put("$where", where);
@@ -573,14 +572,15 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
             }
 
             o.put("$and", lst);
-            lst = new BasicDBList();
+            lst = new List<Map<String, Object>> < Map < String, Object >> ();
         }
         if (orQueries.size() != 0) {
             for (Query<T> ex : orQueries) {
                 lst.add(ex.toQueryObject());
             }
             if (o.get("$and") != null) {
-                ((BasicDBList) o.get("$and")).add(new BasicDBObject("$or", lst));
+                ((List < Map < String, Object >> < Map < String, Object >>)o.get("$and")).
+                add(new HashMap<String, Object>("$or", lst));
             } else {
                 o.put("$or", lst);
             }
@@ -591,7 +591,8 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
                 lst.add(ex.toQueryObject());
             }
             if (o.get("$and") != null) {
-                ((BasicDBList) o.get("$and")).add(new BasicDBObject("$nor", lst));
+                ((List < Map < String, Object >> < Map < String, Object >>)o.get("$and")).
+                add(new HashMap<String, Object>("$nor", lst));
             } else {
                 o.put("$nor", lst);
             }
@@ -655,7 +656,7 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
         long start = System.currentTimeMillis();
         DBCollection collection = morphium.getDatabase().getCollection(getCollectionName());
         setReadPreferenceFor(collection);
-        BasicDBObject lst = getFieldListForQuery();
+        Map<String, Object> lst = getFieldListForQuery();
 
 
         List<T> ret = new ArrayList<>();
@@ -672,16 +673,16 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
                     query.limit(limit);
                 }
                 if (sort != null) {
-                    BasicDBObject srt = new BasicDBObject();
+                    Map<String, Object> srt = new HashMap<String, Object>();
                     for (String k : sort.keySet()) {
                         srt.append(k, sort.get(k));
                     }
-                    query.sort(new BasicDBObject(srt));
+                    query.sort(new HashMap<String, Object>(srt));
                 }
                 srv = query.getServerAddress();
 
 
-                for (DBObject o : query) {
+                for (Map<String, Object> o : query) {
                     T unmarshall = morphium.getMapper().unmarshall(type, o);
                     if (unmarshall != null) {
                         ret.add(unmarshall);
@@ -772,7 +773,7 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
                         String collName = mapper.getCollectionName(unmarshall.getClass());
                         Object id = morphium.getARHelper().getId(unmarshall);
                         //Cannot use store, as this would trigger an update of last changed...
-                        morphium.getDatabase().getCollection(collName).update(new BasicDBObject("_id", id), new BasicDBObject("$set", new BasicDBObject(ctf, currentTime)));
+                        morphium.getDatabase().getCollection(collName).update(new HashMap<String, Object>("_id", id), new HashMap<String, Object>("$set", new HashMap<String, Object>(ctf, currentTime)));
                     } catch (IllegalAccessException e) {
                         System.out.println("Could not set modification time");
 
@@ -865,7 +866,7 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
         long start = System.currentTimeMillis();
         DBCollection coll = morphium.getDatabase().getCollection(getCollectionName());
         setReadPreferenceFor(coll);
-        BasicDBObject fl = getFieldListForQuery();
+        Map<String, Object> fl = getFieldListForQuery();
 
         DBCursor srch = coll.find(toQueryObject(), fl);
         srch.limit(1);
@@ -873,11 +874,11 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
             srch = srch.skip(skip);
         }
         if (sort != null) {
-            BasicDBObject srt = new BasicDBObject();
+            Map<String, Object> srt = new HashMap<String, Object>();
             for (String k : sort.keySet()) {
                 srt.append(k, sort.get(k));
             }
-            srch.sort(new BasicDBObject(srt));
+            srch.sort(new HashMap<String, Object>(srt));
         }
 
         if (srch.length() == 0) {
@@ -889,7 +890,7 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
             return null;
         }
 
-        DBObject ret = null;
+        Map<String, Object> ret = null;
         for (int i = 0; i < morphium.getConfig().getRetriesOnNetworkError(); i++) {
             try {
                 ret = srch.toArray(1).get(0);
@@ -967,9 +968,9 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
         setReadPreferenceFor(collection);
         for (int i = 0; i < morphium.getConfig().getRetriesOnNetworkError(); i++) {
             try {
-                DBCursor query = collection.find(toQueryObject(), new BasicDBObject("_id", 1)); //only get IDs
+                DBCursor query = collection.find(toQueryObject(), new HashMap<String, Object>("_id", 1)); //only get IDs
                 if (sort != null) {
-                    query.sort(new BasicDBObject(sort));
+                    query.sort(new HashMap<String, Object>(sort));
                 }
                 if (skip > 0) {
                     query.skip(skip);
@@ -978,7 +979,7 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
                     query.limit(0);
                 }
 
-                for (DBObject o : query) {
+                for (Map<String, Object> o : query) {
                     ret.add((R) o.get("_id"));
                 }
                 srv = query.getServerAddress();
@@ -1075,14 +1076,14 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
             b.append(t);
             b.append(" ");
         }
-        f.setValue(new BasicDBObject("$search", b.toString()));
+        f.setValue(new HashMap<String, Object>("$search", b.toString()));
         if (lang != null) {
-            ((BasicDBObject) f.getValue()).put("$language", lang.toString());
+            ((Map<String, Object>) f.getValue()).put("$language", lang.toString());
         }
         addChild(f);
         if (metaScoreField != null) {
 
-            additionalFields = new BasicDBObject(metaScoreField, new BasicDBObject(new BasicDBObject("$meta", "textScore")));
+            additionalFields = new HashMap<String, Object>(metaScoreField, new HashMap<String, Object>(new HashMap<String, Object>("$meta", "textScore")));
 
         }
 
@@ -1101,7 +1102,7 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
     public List<T> textSearch(TextSearchLanguages lang, String... texts) {
         if (texts.length == 0) return new ArrayList<>();
 
-        BasicDBObject txt = new BasicDBObject();
+        Map<String, Object> txt = new HashMap<String, Object>();
         txt.append("text", getCollectionName());
         StringBuilder b = new StringBuilder();
         for (String t : texts) {
@@ -1125,10 +1126,11 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
         if (!result.ok()) {
             return null;
         }
-        BasicDBList lst = (BasicDBList) result.get("results");
+        List<Map<String, Object>><Map<String, Object>>lst = (List < Map < String, Object >> < Map < String, Object >>)
+        result.get("results");
         List<T> ret = new ArrayList<>();
         for (Object o : lst) {
-            DBObject obj = (DBObject) o;
+            Map<String, Object> obj = (Map<String, Object>) o;
             T unmarshall = morphium.getMapper().unmarshall(getType(), obj);
             if (unmarshall != null) ret.add(unmarshall);
         }
@@ -1144,7 +1146,7 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
 
     @Override
     public void setReturnedFields(String... fl) {
-        fieldList = new BasicDBObject();
+        fieldList = new HashMap<String, Object>();
         for (String f : fl) {
             addReturnedField(f);
         }
@@ -1159,7 +1161,7 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
     @Override
     public void addReturnedField(String f) {
         if (fieldList == null) {
-            fieldList = new BasicDBObject();
+            fieldList = new HashMap<String, Object>();
         }
         String n = morphium.getARHelper().getFieldName(type, f);
         fieldList.put(n, 1);
