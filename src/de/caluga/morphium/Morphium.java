@@ -81,9 +81,6 @@ public class Morphium {
     private AnnotationAndReflectionHelper annotationHelper;
     private ObjectMapper objectMapper;
     private RSMonitor rsMonitor;
-    private Integer maxBsonSize;
-    private Integer maxMessageSize;
-    private Integer maxWriteBatchSize;
 
     private ThreadPoolExecutor asyncOperationsThreadPool;
     private List<DereferencingListener> lazyDereferencingListeners = new CopyOnWriteArrayList<>();
@@ -258,26 +255,7 @@ public class Morphium {
             rsMonitor.start();
             rsMonitor.getReplicaSetStatus(false);
         }
-        readMaximums();
         logger.info("Initialization successful...");
-    }
-
-    public Integer getMaxBsonSize() {
-        if (maxBsonSize == null)
-            return Integer.MAX_VALUE;
-        return maxBsonSize;
-    }
-
-    public Integer getMaxMessageSize() {
-        if (maxMessageSize == null)
-            return Integer.MAX_VALUE;
-        return maxMessageSize;
-    }
-
-    public Integer getMaxWriteBatchSize() {
-        if (maxWriteBatchSize == null)
-            return Integer.MAX_VALUE;
-        return maxWriteBatchSize;
     }
 
     public MorphiumCache getCache() {
@@ -315,7 +293,7 @@ public class Morphium {
         listeners = newList;
     }
 
-    public MorphiumDriver getMongo() {
+    public MorphiumDriver getDriver() {
         return morphiumDriver;
     }
 
@@ -1851,6 +1829,12 @@ public class Morphium {
         return lst;
     }
 
+    public Map<String, Object> getMap(String key, Object value) {
+        HashMap<String, Object> ret = new HashMap<>();
+        ret.put(key, value);
+        return ret;
+    }
+
     public void ensureIndex(Class<?> cls, String... fldStr) {
         ensureIndex(cls, null, fldStr);
     }
@@ -1919,22 +1903,6 @@ public class Morphium {
         }
     }
 
-
-    public void readMaximums() {
-        try {
-            Map<String, Object> cmd = new HashMap<>();
-            cmd.put("isMaster", 1);
-            Map<String, Object> res = morphiumDriver.runCommand("admin", cmd);
-            maxBsonSize = (Integer) res.get("maxBsonObjectSize");
-            maxMessageSize = (Integer) res.get("maxMessageSizeBytes");
-            maxWriteBatchSize = (Integer) res.get("maxWriteBatchSize");
-        } catch (Exception e) {
-            logger.error("Error reading max avalues from DB", e);
-            maxBsonSize = 0;
-            maxMessageSize = 0;
-            maxWriteBatchSize = 0;
-        }
-    }
 
     /**
      * sorts elements in this list, whether to store in background or directly.

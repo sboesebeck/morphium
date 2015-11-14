@@ -29,12 +29,13 @@ public class MongodbBulkContext extends BulkRequestContext {
 
     private List<BulkRequest> requests;
 
-    public MongodbBulkContext(String db, String collection, Driver driver, boolean ordered, WriteConcern wc) {
+    public MongodbBulkContext(String db, String collection, Driver driver, boolean ordered, int batchSize, WriteConcern wc) {
         this.driver = driver;
         this.ordered = ordered;
         this.db = db;
         this.collection = collection;
         this.wc = wc;
+        this.batchSize = batchSize;
 
         requests = new ArrayList<>();
     }
@@ -48,6 +49,9 @@ public class MongodbBulkContext extends BulkRequestContext {
     public Map<String, Object> execute() {
         List<WriteModel<? extends Document>> lst = new ArrayList<>();
         Map<Document, Map<String, Object>> inserts = new HashMap<>();
+        int count = 0;
+        List<BulkWriteResult> results = new ArrayList<>();
+
         for (BulkRequest br : requests) {
             if (br instanceof InsertBulkRequest) {
                 //Insert...
@@ -75,11 +79,18 @@ public class MongodbBulkContext extends BulkRequestContext {
                     lst.add(new UpdateOneModel(new Document(up.getQuery()), new Document(up.getCmd())));
                 }
             }
+            count++;
+            if (count >= driver.getMaximums().getMaxWriteBatchSize()) {
+                results.add(commitWrite(lst));
+                lst.clear();
+            }
+        }
+        if (lst.size() != 0) {
+            results.add(commitWrite(lst));
+            lst.clear();
         }
 
-        BulkWriteOptions bulkWriteOptions = new BulkWriteOptions();
-        bulkWriteOptions.ordered(ordered);
-        BulkWriteResult bulkWriteResult = driver.getCollection(driver.getDb(db), collection, null, wc).bulkWrite(lst, bulkWriteOptions);
+
 
         if (inserts.size() != 0) {
             for (Map.Entry<Document, Map<String, Object>> e : inserts.entrySet()) {
@@ -92,11 +103,30 @@ public class MongodbBulkContext extends BulkRequestContext {
 
         Map<String, Object> res = new HashMap<>();
 
-        res.put("num_del", bulkWriteResult.getDeletedCount());
-        res.put("num_matched", bulkWriteResult.getMatchedCount());
-        res.put("num_insert", bulkWriteResult.getInsertedCount());
-        res.put("num_modified", bulkWriteResult.getModifiedCount());
-        res.put("num_upserts", bulkWriteResult.getUpserts().size());
+        int delCount = 0;
+        int matchedCount = 0;
+        int insertCount = 0;
+        int modifiedCount = 0;
+        int upsertCount = 0;
+        for (BulkWriteResult r : results) {
+            delCount += r.getDeletedCount();
+            matchedCount += r.getMatchedCount();
+            insertCount += r.getInsertedCount();
+            modifiedCount += r.getModifiedCount();
+            upsertCount += r.getUpserts().size();
+        }
+
+        res.put("num_del", delCount);
+        res.put("num_matched", matchedCount);
+        res.put("num_insert", insertCount);
+        res.put("num_modified", modifiedCount);
+        res.put("num_upserts", upsertCount);
         return res;
+    }
+
+    private BulkWriteResult commitWrite(List<WriteModel<? extends Document>> lst) {
+        BulkWriteOptions bulkWriteOptions = new BulkWriteOptions();
+        bulkWriteOptions.ordered(ordered);
+        return driver.getCollection(driver.getDb(db), collection, null, wc).bulkWrite(lst, bulkWriteOptions);
     }
 }

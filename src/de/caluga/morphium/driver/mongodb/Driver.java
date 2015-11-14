@@ -57,6 +57,7 @@ public class Driver implements MorphiumDriver {
 
     private Map<String, String[]> credentials = new HashMap<>();
     private MongoClient mongo;
+    private Maximums maximums;
 
     @Override
     public void setCredentials(String db, String login, char[] pwd) {
@@ -309,6 +310,28 @@ public class Driver implements MorphiumDriver {
         }
     }
 
+
+    @Override
+    public Maximums getMaximums() {
+        if (maximums == null) {
+            maximums = new Maximums();
+            try {
+                Map<String, Object> cmd = new HashMap<>();
+                cmd.put("isMaster", 1);
+                Map<String, Object> res = runCommand("admin", cmd);
+                maximums.setMaxBsonSize((Integer) res.get("maxBsonObjectSize"));
+                maximums.setMaxMessageSize((Integer) res.get("maxMessageSizeBytes"));
+                maximums.setMaxWriteBatchSize((Integer) res.get("maxWriteBatchSize"));
+            } catch (Exception e) {
+                log.error("Error reading max avalues from DB", e);
+//            maxBsonSize = 0;
+//            maxMessageSize = 0;
+//            maxWriteBatchSize = 0;
+            }
+        }
+        return maximums;
+    }
+
     @Override
     public boolean isConnected() {
         return mongo != null;
@@ -514,7 +537,7 @@ public class Driver implements MorphiumDriver {
     }
 
     @Override
-    public Map<String, Object> udate(String db, String collection, Map<String, Object> query, Map<String, Object> op, boolean multiple, boolean upsert, de.caluga.morphium.driver.WriteConcern wc) throws MorphiumDriverException {
+    public Map<String, Object> update(String db, String collection, Map<String, Object> query, Map<String, Object> op, boolean multiple, boolean upsert, de.caluga.morphium.driver.WriteConcern wc) throws MorphiumDriverException {
         return new DriverHelper().doCall(new MorphiumDriverOperation() {
             @Override
             public Map<String, Object> execute() {
@@ -767,7 +790,7 @@ public class Driver implements MorphiumDriver {
 
     @Override
     public BulkRequestContext createBulkContext(String db, String collection, boolean ordered, de.caluga.morphium.driver.WriteConcern wc) {
-        return new MongodbBulkContext(db, collection, this, ordered, wc);
+        return new MongodbBulkContext(db, collection, this, ordered, defaultBatchSize, wc);
     }
 
 
@@ -778,5 +801,21 @@ public class Driver implements MorphiumDriver {
     public MongoCollection getCollection(String db, String coll) {
 
         return mongo.getDatabase(db).getCollection(coll);
+    }
+
+    @Override
+    public void createIndex(String db, String collection, Map<String, Object> index, Map<String, Object> options) throws MorphiumDriverException {
+        new DriverHelper().doCall(new MorphiumDriverOperation() {
+            @Override
+            public Map<String, Object> execute() {
+                if (options == null) {
+                    mongo.getDB(db).getCollection(collection).createIndex(new BasicDBObject(index));
+                } else {
+                    mongo.getDB(db).getCollection(collection).createIndex(new BasicDBObject(index), new BasicDBObject(options));
+                }
+                return null;
+            }
+        }, retriesOnNetworkError, sleepBetweenErrorRetries);
+
     }
 }
