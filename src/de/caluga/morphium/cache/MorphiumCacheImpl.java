@@ -1,7 +1,5 @@
 package de.caluga.morphium.cache;
 
-import com.mongodb.BasicDBObject;
-import com.mongodb.DBObject;
 import de.caluga.morphium.AnnotationAndReflectionHelper;
 import de.caluga.morphium.Logger;
 import de.caluga.morphium.annotations.caching.Cache;
@@ -175,7 +173,7 @@ public class MorphiumCacheImpl implements MorphiumCache {
 
     @SuppressWarnings("StringBufferMayBeStringBuilder")
     @Override
-    public String getCacheKey(DBObject qo, Map<String, Integer> sort, String collection, int skip, int limit) {
+    public String getCacheKey(Map<String, Object> qo, Map<String, Integer> sort, String collection, int skip, int limit) {
         StringBuilder b = new StringBuilder();
         b.append(qo.toString());
         b.append(" c:").append(collection);
@@ -185,10 +183,13 @@ public class MorphiumCacheImpl implements MorphiumCache {
         b.append(skip);
         if (sort != null) {
             b.append(" sort:");
-            b.append(new BasicDBObject(sort).toString());
+            for (Map.Entry<String, Integer> s : sort.entrySet()) {
+                b.append(" " + s.getKey() + ":" + s.getValue());
+            }
         }
         return b.toString();
     }
+
 
     /**
      * create unique cache key for queries, also honoring skip & limit and sorting

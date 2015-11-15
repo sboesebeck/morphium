@@ -1160,7 +1160,8 @@ public class Morphium {
         }
 
         try {
-            List<Map<String, Object>> found = morphiumDriver.find(config.getDatabase(), collection, srch, null, null, 0, 1, 1, null);
+            Map<String, Object> findMetaData = new HashMap<>();
+            List<Map<String, Object>> found = morphiumDriver.find(config.getDatabase(), collection, srch, null, null, 0, 1, 1, null, findMetaData);
             if (found != null && found.size() > 0) {
                 Map<String, Object> dbo = found.get(0);
                 Object fromDb = objectMapper.unmarshall(o.getClass(), dbo);
@@ -1602,7 +1603,7 @@ public class Morphium {
     @SuppressWarnings("unchecked")
     public List<Object> distinct(String key, Query q) {
         try {
-            return morphiumDriver.distinct(config.getDatabase(), q.getCollectionName(), key);
+            return morphiumDriver.distinct(config.getDatabase(), q.getCollectionName(), key, q.toQueryObject());
         } catch (MorphiumDriverException e) {
             throw new RuntimeException(e);
         }
@@ -1611,7 +1612,7 @@ public class Morphium {
     @SuppressWarnings("unchecked")
     public List<Object> distinct(String key, Class cls) {
         try {
-            return morphiumDriver.distinct(config.getDatabase(), objectMapper.getCollectionName(cls), key);
+            return morphiumDriver.distinct(config.getDatabase(), objectMapper.getCollectionName(cls), key, new HashMap<>());
         } catch (MorphiumDriverException e) {
             throw new RuntimeException(e);
         }
@@ -1620,7 +1621,7 @@ public class Morphium {
     @SuppressWarnings("unchecked")
     public List<Object> distinct(String key, String collectionName) {
         try {
-            return morphiumDriver.distinct(config.getDatabase(), collectionName, key);
+            return morphiumDriver.distinct(config.getDatabase(), collectionName, key, new HashMap<>());
         } catch (MorphiumDriverException e) {
             throw new RuntimeException(e);
         }
@@ -1831,6 +1832,12 @@ public class Morphium {
 
     public Map<String, Object> getMap(String key, Object value) {
         HashMap<String, Object> ret = new HashMap<>();
+        ret.put(key, value);
+        return ret;
+    }
+
+    public Map<String, Integer> getIntMap(String key, Integer value) {
+        HashMap<String, Integer> ret = new HashMap<>();
         ret.put(key, value);
         return ret;
     }

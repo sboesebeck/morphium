@@ -1,6 +1,5 @@
 package de.caluga.morphium.cache;
 
-import com.mongodb.DBObject;
 import de.caluga.morphium.query.Query;
 
 import java.util.List;
@@ -16,7 +15,7 @@ import java.util.Map;
 public interface MorphiumCache {
     <T> void addToCache(String k, Class<? extends T> type, List<T> ret);
 
-    String getCacheKey(DBObject qo, Map<String, Integer> sort, String collection, int skip, int limit);
+    String getCacheKey(Map<String, Object> qo, Map<String, Integer> sort, String collection, int skip, int limit);
 
     <T> List<T> getFromCache(Class<? extends T> type, String k);
 

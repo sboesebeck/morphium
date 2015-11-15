@@ -99,8 +99,8 @@ public class DefaultMorphiumIterator<T> implements MorphiumIterator<T> {
 
     private void updateLastValues(Query<T> q, List<T> buffer) {
         try {
-            Map<String, Object> sort = q.getSort();
-            for (Map.Entry<String, Object> e : sort.entrySet()) {
+            Map<String, Integer> sort = q.getSort();
+            for (Map.Entry<String, Integer> e : sort.entrySet()) {
                 lastValues.put(e.getKey(), q.getMorphium().getARHelper().getValue(buffer.get(buffer.size() - 1), e.getKey()));
             }
         } catch (Exception e) {
@@ -110,9 +110,9 @@ public class DefaultMorphiumIterator<T> implements MorphiumIterator<T> {
 
     private Query<T> getLimitedQuery(Query<T> q) {
         try {
-            Map<String, Object> sort = q.getSort();
+            Map<String, Integer> sort = q.getSort();
             Query<T> ret = q.clone();
-            for (Map.Entry<String, Object> e : sort.entrySet()) {
+            for (Map.Entry<String, Integer> e : sort.entrySet()) {
                 if (lastValues.get(e.getKey()) == null) continue;
                 if (e.getValue().equals(-1)) {
                     ret.f(e.getKey()).lt(lastValues.get(e.getKey()));
