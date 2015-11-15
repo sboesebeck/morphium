@@ -32,4 +32,37 @@ public class ReadPreference {
         if (tagSet == null) tagSet = new HashMap<>();
         tagSet.put(key, value);
     }
+
+
+    public static ReadPreference primary() {
+        ReadPreference rp = new ReadPreference();
+        rp.setType(ReadPreferenceType.PRIMARY);
+        return rp;
+    }
+
+
+    public static ReadPreference primaryPreferred() {
+        ReadPreference rp = new ReadPreference();
+        rp.setType(ReadPreferenceType.PRIMARY_PREFERRED);
+        return rp;
+    }
+
+    public static ReadPreference secondary() {
+        ReadPreference rp = new ReadPreference();
+        rp.setType(ReadPreferenceType.SECONDARY);
+        return rp;
+    }
+
+    public static ReadPreference secondaryPreferred() {
+        ReadPreference rp = new ReadPreference();
+        rp.setType(ReadPreferenceType.SECONDARY_PREFERRED);
+        return rp;
+
+    }
+
+    public static ReadPreference nearest() {
+        ReadPreference rp = new ReadPreference();
+        rp.setType(ReadPreferenceType.NEAREST);
+        return rp;
+    }
 }

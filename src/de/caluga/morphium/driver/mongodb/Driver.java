@@ -4,7 +4,6 @@ package de.caluga.morphium.driver.mongodb;/**
 
 import com.mongodb.*;
 import com.mongodb.client.DistinctIterable;
-import com.mongodb.client.FindIterable;
 import com.mongodb.client.MongoCollection;
 import com.mongodb.client.MongoDatabase;
 import com.mongodb.client.model.InsertManyOptions;
@@ -400,14 +399,18 @@ public class Driver implements MorphiumDriver {
 
 
     @Override
-    public List<Map<String, Object>> find(String db, String collection, Map<String, Object> query, Map<String, Integer> sort, Map<String, Integer> projection, int skip, int limit, int batchSize, de.caluga.morphium.driver.ReadPreference readPreference) throws MorphiumDriverException {
+    @SuppressWarnings("ALL")
+    public List<Map<String, Object>> find(String db, String collection, Map<String, Object> query, Map<String, Integer> sort, Map<String, Integer> projection, int skip, int limit, int batchSize, ReadPreference readPreference, final Map<String, Object> findMetaData) throws MorphiumDriverException {
 
         return (List<Map<String, Object>>) new DriverHelper().doCall(new MorphiumDriverOperation() {
             @Override
             public Map<String, Object> execute() {
-                MongoDatabase database = mongo.getDatabase(db);
-                MongoCollection<Document> coll = getCollection(database, collection, readPreference, null);
-                FindIterable<Document> ret = coll.find(new BasicDBObject(query));
+
+                DB database = mongo.getDB(db);
+//                MongoDatabase database = mongo.getDatabase(db);
+                DBCollection coll = getColl(database, collection, readPreference, null);
+
+                DBCursor ret = coll.find(new BasicDBObject(query), projection != null ? new BasicDBObject(projection) : null);
 
                 //TODO: Read Preference handling
                 if (sort != null)
@@ -416,19 +419,98 @@ public class Driver implements MorphiumDriver {
                 if (limit != 0) ret = ret.limit(limit);
                 if (batchSize != 0) ret.batchSize(batchSize);
                 else ret.batchSize(defaultBatchSize);
-                if (projection != null) ret.projection(new BasicDBObject(projection));
                 List<Map<String, Object>> values = new ArrayList<>();
-                for (Document d : ret) {
-                    values.add(d);
+                for (DBObject d : ret) {
+                    values.add((BasicDBObject) d);
                 }
-
                 Map<String, Object> r = new HashMap<String, Object>();
                 r.put("result", values);
+
+                if (findMetaData != null) {
+                    findMetaData.put("server", ret.getServerAddress().getHost() + ":" + ret.getServerAddress().getPort());
+                    findMetaData.put("cursorId", ret.getCursorId());
+                    findMetaData.put("collection", ret.getCollection().getName());
+                }
                 return r;
             }
-        }, retriesOnNetworkError, sleepBetweenErrorRetries);
+        }, retriesOnNetworkError, sleepBetweenErrorRetries).get("result");
     }
 
+
+    @SuppressWarnings("Duplicates")
+    public DBCollection getColl(DB database, String collection, ReadPreference readPreference, de.caluga.morphium.driver.WriteConcern wc) {
+        DBCollection coll = database.getCollection(collection);
+        com.mongodb.ReadPreference prf = null;
+
+        if (readPreference == null) readPreference = defaultReadPreference;
+        if (readPreference != null) {
+            TagSet tags = null;
+
+            //Thanks to the poor downward compatibility, a more or less complete copy of this code was necessary!
+            //great!
+            if (readPreference.getTagSet() != null) {
+                List<Tag> tagList = new ArrayList<Tag>();
+                for (Map.Entry<String, String> e : readPreference.getTagSet().entrySet()) {
+                    tagList.add(new Tag(e.getKey(), e.getValue()));
+                }
+                tags = new TagSet(tagList);
+
+            }
+            switch (readPreference.getType()) {
+                case NEAREST:
+                    if (tags != null) {
+                        prf = com.mongodb.ReadPreference.nearest(tags);
+                    } else {
+                        prf = com.mongodb.ReadPreference.nearest();
+                    }
+                    break;
+                case PRIMARY:
+                    prf = com.mongodb.ReadPreference.primary();
+                    if (tags != null) log.warn("Cannot use tags with primary only read preference!");
+                    break;
+                case PRIMARY_PREFERRED:
+                    if (tags != null)
+                        prf = com.mongodb.ReadPreference.primaryPreferred(tags);
+                    else
+                        prf = com.mongodb.ReadPreference.primaryPreferred();
+                    break;
+                case SECONDARY:
+                    if (tags != null)
+                        prf = com.mongodb.ReadPreference.secondary(tags);
+                    else
+                        prf = com.mongodb.ReadPreference.secondary();
+                    break;
+                case SECONDARY_PREFERRED:
+                    if (tags != null)
+                        prf = com.mongodb.ReadPreference.secondaryPreferred(tags);
+                    else
+                        prf = com.mongodb.ReadPreference.secondary();
+                    break;
+                default:
+                    log.error("Unhandeled read preference: " + readPreference.toString());
+                    prf = null;
+
+            }
+            if (prf != null) coll.setReadPreference(prf);
+        }
+
+        if (wc != null) {
+            WriteConcern writeConcern;
+            if (wc.getW() < 0) {
+                //majority
+                writeConcern = WriteConcern.MAJORITY;
+                writeConcern = writeConcern.withFsync(wc.isFsync());
+                writeConcern = writeConcern.withJ(wc.isJ());
+            } else {
+                writeConcern = new WriteConcern(wc.getW(), wc.getWtimeout(), wc.isFsync(), wc.isJ());
+            }
+            coll.setWriteConcern(writeConcern);
+        }
+        return coll;
+    }
+
+
+    @SuppressWarnings("Duplicates")
     public MongoCollection<Document> getCollection(MongoDatabase database, String collection, ReadPreference readPreference, de.caluga.morphium.driver.WriteConcern wc) {
         MongoCollection<Document> coll = database.getCollection(collection);
         com.mongodb.ReadPreference prf = null;
@@ -623,12 +705,13 @@ public class Driver implements MorphiumDriver {
 
 
     @Override
-    public List<Object> distinct(String db, String collection, String field) throws MorphiumDriverException {
+    public List<Object> distinct(String db, String collection, String field, final Map<String, Object> filter) throws MorphiumDriverException {
         final List<Object> ret = new ArrayList<>();
         new DriverHelper().doCall(new MorphiumDriverOperation() {
             @Override
             public Map<String, Object> execute() {
                 DistinctIterable<Object> it = mongo.getDatabase(db).getCollection(collection).distinct(field, null);
+                it = it.filter(new Document(filter));
                 for (Object value : it) {
                     ret.add(it);
                 }

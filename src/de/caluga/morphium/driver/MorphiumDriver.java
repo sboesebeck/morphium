@@ -121,7 +121,7 @@ public interface MorphiumDriver {
 
     Map<String, Object> runCommand(String db, Map<String, Object> cmd) throws MorphiumDriverException;
 
-    List<Map<String, Object>> find(String db, String collection, Map<String, Object> query, Map<String, Integer> sort, Map<String, Integer> projection, int skip, int limit, int batchSize, ReadPreference rp) throws MorphiumDriverException;
+    List<Map<String, Object>> find(String db, String collection, Map<String, Object> query, Map<String, Integer> sort, Map<String, Integer> projection, int skip, int limit, int batchSize, ReadPreference rp, Map<String, Object> findMetaData) throws MorphiumDriverException;
 
     long count(String db, String collection, Map<String, Object> query, ReadPreference rp) throws MorphiumDriverException;
 
@@ -146,7 +146,7 @@ public interface MorphiumDriver {
 
     boolean exists(String db) throws MorphiumDriverException;
 
-    List<Object> distinct(String db, String collection, String field) throws MorphiumDriverException;
+    List<Object> distinct(String db, String collection, String field, Map<String, Object> filter) throws MorphiumDriverException;
 
     boolean exists(String db, String collection) throws MorphiumDriverException;
 
