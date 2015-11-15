@@ -1,6 +1,7 @@
 package de.caluga.morphium.annotations;
 
-import com.mongodb.ReadPreference;
+
+import de.caluga.morphium.driver.ReadPreference;
 
 /**
  * User: Stephan Bösebeck

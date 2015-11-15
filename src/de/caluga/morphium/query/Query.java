@@ -1,6 +1,5 @@
 package de.caluga.morphium.query;
 
-import com.mongodb.ServerAddress;
 import de.caluga.morphium.FilterExpression;
 import de.caluga.morphium.Morphium;
 import de.caluga.morphium.annotations.ReadPreferenceLevel;
@@ -49,7 +48,7 @@ public interface Query<T> extends Cloneable {
      *
      * @return the serveraddress the query was executed on, null if not executed yet
      */
-    ServerAddress getServer();
+    String getServer();
 
     /**
      * same as f(field.name())
@@ -102,7 +101,7 @@ public interface Query<T> extends Cloneable {
      * @param n - sort
      * @return the query
      */
-    Query<T> sort(Map<String, Object> n);
+    Query<T> sort(Map<String, Integer> n);
 
     /**
      * set order by prefixing field names with - for reverse ordering (+ or nothing default)
@@ -242,7 +241,7 @@ public interface Query<T> extends Cloneable {
 
     int getSkip();
 
-    Map<String, Object> getSort();
+    Map<String, Integer> getSort();
 
     Query<T> clone() throws CloneNotSupportedException;
 

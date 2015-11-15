@@ -1,13 +1,8 @@
 package de.caluga.morphium;
 
-import com.mongodb.BasicDBList;
-import com.mongodb.BasicDBObject;
-import com.mongodb.DBObject;
-import com.mongodb.DBRef;
 import de.caluga.morphium.annotations.*;
 import de.caluga.morphium.mapping.BigIntegerTypeMapper;
 import de.caluga.morphium.query.Query;
-import org.bson.types.ObjectId;
 import org.json.simple.parser.ContainerFactory;
 import org.json.simple.parser.JSONParser;
 import org.json.simple.parser.ParseException;
@@ -172,15 +167,15 @@ public class ObjectMapperImpl implements ObjectMapper {
 
     @SuppressWarnings("unchecked")
     @Override
-    public DBObject marshall(Object o) {
+    public Map<String, Object> marshall(Object o) {
 
         Class c = annotationHelper.getRealClass(o.getClass());
         if (hasCustomMapper(c)) {
             Object ret = customMapper.get(c).marshall(o);
-            if (!(ret instanceof DBObject)) {
-                return new BasicDBObject("value", ret);
+            if (!(ret instanceof Map)) {
+                return morphium.getMap("value", ret);
             }
-            return (DBObject) ret;
+            return (Map<String, Object>) ret;
         }
 
         //recursively map object to mongo-Object...
@@ -211,7 +206,7 @@ public class ObjectMapperImpl implements ObjectMapper {
             throw new IllegalArgumentException("Object is no entity: " + o.getClass().getSimpleName());
         }
 
-        DBObject dbo = new BasicDBObject();
+        HashMap<String, Object> dbo = new HashMap<>();
         if (o == null) {
             return dbo;
         }
@@ -261,7 +256,7 @@ public class ObjectMapperImpl implements ObjectMapper {
                     //additional data is usually transient
                     continue;
                 }
-                if (dbo.containsField(fName)) {
+                if (dbo.containsKey(fName)) {
                     //already stored, skip it
                     log.warn("Field " + fName + " is shadowed - inherited values?");
                     continue;
@@ -281,7 +276,7 @@ public class ObjectMapperImpl implements ObjectMapper {
                     } else {
                         if (Collection.class.isAssignableFrom(fld.getType())) {
                             //list of references....
-                            BasicDBList lst = new BasicDBList();
+                            List<Map<String, Object>> lst = new ArrayList<>();
                             for (Object rec : ((Collection) value)) {
                                 if (rec != null) {
                                     Object id = annotationHelper.getId(rec);
@@ -299,7 +294,7 @@ public class ObjectMapperImpl implements ObjectMapper {
                                     if (morphium == null) {
                                         throw new RuntimeException("cannot set dbRef - morphium is not set");
                                     }
-                                    DBRef ref = new DBRef(annotationHelper.getRealClass(rec.getClass()).getName(), id);
+                                    Map<String, Object> ref = morphium.getMap(annotationHelper.getRealClass(rec.getClass()).getName(), id);
                                     lst.add(ref);
                                 } else {
                                     lst.add(null);
@@ -346,8 +341,8 @@ public class ObjectMapperImpl implements ObjectMapper {
                         v = customMapper.get(valueClass).marshall(value);
                     } else if (annotationHelper.isAnnotationPresentInHierarchy(valueClass, Entity.class)) {
                         if (value != null) {
-                            DBObject obj = marshall(value);
-                            obj.removeField("_id");  //Do not store ID embedded!
+                            Map<String, Object> obj = marshall(value);
+                            obj.remove("_id");  //Do not store ID embedded!
                             v = obj;
                         }
                     } else if (annotationHelper.isAnnotationPresentInHierarchy(valueClass, Embedded.class)) {
@@ -358,7 +353,7 @@ public class ObjectMapperImpl implements ObjectMapper {
                         v = value;
                         if (v != null) {
                             if (v instanceof Map) {
-                                //create MongoDBObject-Map
+                                //create MongoHashMap<String,Object>-Map
                                 v = createDBMap((Map) v);
                             } else if (v instanceof List) {
                                 v = createDBList((List) v);
@@ -392,13 +387,13 @@ public class ObjectMapperImpl implements ObjectMapper {
         return dbo;
     }
 
-    private BasicDBList createDBList(List v) {
-        BasicDBList lst = new BasicDBList();
+    private List<Map<String, Object>> createDBList(List v) {
+        List<Map<String, Object>> lst = new ArrayList<Map<String, Object>>();
         for (Object lo : v) {
             if (lo != null) {
                 if (annotationHelper.isAnnotationPresentInHierarchy(lo.getClass(), Entity.class) ||
                         annotationHelper.isAnnotationPresentInHierarchy(lo.getClass(), Embedded.class)) {
-                    DBObject marshall = marshall(lo);
+                    Map<String, Object> marshall = marshall(lo);
                     marshall.put("class_name", lo.getClass().getName());
                     lst.add(marshall);
                 } else if (lo instanceof List) {
@@ -406,7 +401,7 @@ public class ObjectMapperImpl implements ObjectMapper {
                 } else if (lo instanceof Map) {
                     lst.add(createDBMap(((Map) lo)));
                 } else if (lo.getClass().isEnum()) {
-                    BasicDBObject obj = new BasicDBObject();
+                    Map<String, Object> obj = new HashMap<>();
                     obj.put("class_name", lo.getClass().getName());
                     obj.put("name", ((Enum) lo).name());
                     lst.add(obj);
@@ -426,8 +421,8 @@ public class ObjectMapperImpl implements ObjectMapper {
     }
 
     @SuppressWarnings("unchecked")
-    private BasicDBObject createDBMap(Map v) {
-        BasicDBObject dbMap = new BasicDBObject();
+    private Map<String, Object> createDBMap(Map v) {
+        Map<String, Object> dbMap = new HashMap<>();
         for (Map.Entry<Object, Object> es : ((Map<Object, Object>) v).entrySet()) {
             Object k = es.getKey();
             if (!(k instanceof String)) {
@@ -441,7 +436,7 @@ public class ObjectMapperImpl implements ObjectMapper {
             Object mval = es.getValue(); // ((Map) v).get(k);
             if (mval != null) {
                 if (annotationHelper.isAnnotationPresentInHierarchy(mval.getClass(), Entity.class) || annotationHelper.isAnnotationPresentInHierarchy(mval.getClass(), Embedded.class)) {
-                    DBObject obj = marshall(mval);
+                    Map<String, Object> obj = marshall(mval);
                     obj.put("class_name", mval.getClass().getName());
                     mval = obj;
                 } else if (mval instanceof Map) {
@@ -449,7 +444,7 @@ public class ObjectMapperImpl implements ObjectMapper {
                 } else if (mval instanceof List) {
                     mval = createDBList((List) mval);
                 } else if (mval.getClass().isEnum()) {
-                    BasicDBObject obj = new BasicDBObject();
+                    Map<String, Object> obj = new HashMap<>();
                     obj.put("class_name", mval.getClass().getName());
                     obj.put("name", ((Enum) mval).name());
                 } else if (!mval.getClass().isPrimitive() && !mongoTypes.contains(mval.getClass())) {
@@ -466,15 +461,15 @@ public class ObjectMapperImpl implements ObjectMapper {
         ContainerFactory fact = new ContainerFactory() {
             @Override
             public Map createObjectContainer() {
-                return new BasicDBObject();
+                return new HashMap<>();
             }
 
             @Override
             public List creatArrayContainer() {
-                return new BasicDBList();
+                return new ArrayList();
             }
         };
-        DBObject obj = (DBObject) jsonParser.parse(jsonString, fact);
+        HashMap<String, Object> obj = (HashMap<String, Object>) jsonParser.parse(jsonString, fact);
         return unmarshall(cls, obj);
 
 
@@ -482,7 +477,7 @@ public class ObjectMapperImpl implements ObjectMapper {
 
     @SuppressWarnings("unchecked")
     @Override
-    public <T> T unmarshall(Class<? extends T> theClass, DBObject o) {
+    public <T> T unmarshall(Class<? extends T> theClass, Map<String, Object> o) {
         Class cls = theClass;
         try {
             if (hasCustomMapper(cls)) {
@@ -564,14 +559,14 @@ public class ObjectMapperImpl implements ObjectMapper {
                             continue;
                         }
 
-                        if (o.get(k) instanceof BasicDBObject) {
-                            if (((BasicDBObject) o.get(k)).get("class_name") != null) {
-                                data.put(k, unmarshall(Class.forName((String) ((BasicDBObject) o.get(k)).get("class_name")), (BasicDBObject) o.get(k)));
+                        if (o.get(k) instanceof Map<String, Object>) {
+                            if (((Map<String, Object>) o.get(k)).get("class_name") != null) {
+                                data.put(k, unmarshall(Class.forName((String) ((Map<String, Object>) o.get(k)).get("class_name")), (Map<String, Object>) o.get(k)));
                             } else {
-                                data.put(k, createMap((BasicDBObject) o.get(k)));
+                                data.put(k, createMap((Map<String, Object>) o.get(k)));
                             }
-                        } else if (o.get(k) instanceof BasicDBList) {
-                            data.put(k, createList((BasicDBList) o.get(k)));
+                        } else if (o.get(k) instanceof List<Map<String, Object>>) {
+                            data.put(k, createList((List<Map<String, Object>>) o.get(k)));
                         } else {
                             data.put(k, o.get(k));
                         }
@@ -594,10 +589,10 @@ public class ObjectMapperImpl implements ObjectMapper {
                         if (valueFromDb instanceof Object) {
                             id = valueFromDb;
                         } else {
-                            DBRef ref = (DBRef) valueFromDb;
+                            Map<String, Object> ref = (Map<String, Object>) valueFromDb;
                             if (ref != null) {
-                                id = ref.getId();
-                                if (!ref.getCollectionName().equals(fld.getType().getName())) {
+                                id = ref.get("id");
+                                if (!ref.get("collection").equals(fld.getType().getName())) {
                                     log.warn("Reference to different object?! - continuing anyway");
 
                                 }
@@ -652,12 +647,12 @@ public class ObjectMapperImpl implements ObjectMapper {
                     }
                 } else if (annotationHelper.isAnnotationPresentInHierarchy(fld.getType(), Entity.class) || annotationHelper.isAnnotationPresentInHierarchy(fld.getType(), Embedded.class)) {
                     //entity! embedded
-                    value = unmarshall(fld.getType(), (DBObject) valueFromDb);
+                    value = unmarshall(fld.getType(), (HashMap<String, Object>) valueFromDb);
 //                    List lst = new ArrayList<Object>();
 //                    lst.add(value);
 //                    morphium.firePostLoad(lst);
                 } else if (Map.class.isAssignableFrom(fld.getType())) {
-                    BasicDBObject map = (BasicDBObject) valueFromDb;
+                    Map<String, Object> map = (Map<String, Object>) valueFromDb;
                     value = createMap(map);
                 } else if (Collection.class.isAssignableFrom(fld.getType()) || fld.getType().isArray()) {
                     if (fld.getType().equals(byte[].class)) {
@@ -705,7 +700,7 @@ public class ObjectMapperImpl implements ObjectMapper {
                                 Collections.addAll(lst, (Object[]) valueFromDb);
                             }
                         } else {
-                            BasicDBList l = (BasicDBList) valueFromDb;
+                            List<Map<String, Object>> l = (List<Map<String, Object>>) valueFromDb;
                             if (l != null) {
                                 fillList(fld, l, lst, ret);
                             }
@@ -789,28 +784,28 @@ public class ObjectMapperImpl implements ObjectMapper {
 
     }
 
-    private Map createMap(BasicDBObject dbObject) {
+    private Map createMap(Map<String, Object> dbObject) {
         Map retMap = new HashMap(dbObject);
         if (dbObject != null) {
             for (String n : dbObject.keySet()) {
 
-                if (dbObject.get(n) instanceof BasicDBObject) {
+                if (dbObject.get(n) instanceof Map<String, Object>) {
                     Object val = dbObject.get(n);
-                    if (((BasicDBObject) val).containsField("class_name") || ((BasicDBObject) val).containsField("className")) {
+                    if (((Map<String, Object>) val).containsField("class_name") || ((Map<String, Object>) val).containsField("className")) {
                         //Entity to map!
-                        String cn = (String) ((BasicDBObject) val).get("class_name");
+                        String cn = (String) ((Map<String, Object>) val).get("class_name");
                         if (cn == null) {
-                            cn = (String) ((BasicDBObject) val).get("className");
+                            cn = (String) ((Map<String, Object>) val).get("className");
                         }
                         try {
                             Class ecls = Class.forName(cn);
-                            Object obj = unmarshall(ecls, (DBObject) dbObject.get(n));
+                            Object obj = unmarshall(ecls, (HashMap<String, Object>) dbObject.get(n));
                             if (obj != null) retMap.put(n, obj);
                         } catch (ClassNotFoundException e) {
                             throw new RuntimeException(e);
                         }
-                    } else if (((BasicDBObject) val).containsField("_b64data")) {
-                        String d = (String) ((BasicDBObject) val).get("_b64data");
+                    } else if (((Map<String, Object>) val).containsField("_b64data")) {
+                        String d = (String) ((Map<String, Object>) val).get("_b64data");
                         BASE64Decoder dec = new BASE64Decoder();
                         ObjectInputStream in = null;
                         try {
@@ -824,10 +819,10 @@ public class ObjectMapperImpl implements ObjectMapper {
 
                     } else {
                         //maybe a map of maps? --> recurse
-                        retMap.put(n, createMap((BasicDBObject) val));
+                        retMap.put(n, createMap((Map<String, Object>) val));
                     }
-                } else if (dbObject.get(n) instanceof BasicDBList) {
-                    BasicDBList lst = (BasicDBList) dbObject.get(n);
+                } else if (dbObject.get(n) instanceof List<Map<String, Object>>) {
+                    List<Map<String, Object>> lst = (List<Map<String, Object>>) dbObject.get(n);
                     List mapValue = createList(lst);
                     retMap.put(n, mapValue);
                 }
@@ -838,24 +833,24 @@ public class ObjectMapperImpl implements ObjectMapper {
         return retMap;
     }
 
-    private List createList(BasicDBList lst) {
+    private List createList(List<Map<String, Object>> lst) {
         List mapValue = new ArrayList();
         for (Object li : lst) {
-            if (li instanceof BasicDBObject) {
-                if (((BasicDBObject) li).containsField("class_name") || ((BasicDBObject) li).containsField("className")) {
-                    String cn = (String) ((BasicDBObject) li).get("class_name");
+            if (li instanceof Map<String, Object>) {
+                if (((Map<String, Object>) li).containsField("class_name") || ((Map<String, Object>) li).containsField("className")) {
+                    String cn = (String) ((Map<String, Object>) li).get("class_name");
                     if (cn == null) {
-                        cn = (String) ((BasicDBObject) li).get("className");
+                        cn = (String) ((Map<String, Object>) li).get("className");
                     }
                     try {
                         Class ecls = Class.forName(cn);
-                        Object obj = unmarshall(ecls, (DBObject) li);
+                        Object obj = unmarshall(ecls, (HashMap<String, Object>) li);
                         if (obj != null) mapValue.add(obj);
                     } catch (ClassNotFoundException e) {
                         throw new RuntimeException(e);
                     }
-                } else if (((BasicDBObject) li).containsField("_b64data")) {
-                    String d = (String) ((BasicDBObject) li).get("_b64data");
+                } else if (((Map<String, Object>) li).containsField("_b64data")) {
+                    String d = (String) ((Map<String, Object>) li).get("_b64data");
                     BASE64Decoder dec = new BASE64Decoder();
                     ObjectInputStream in = null;
                     try {
@@ -869,10 +864,10 @@ public class ObjectMapperImpl implements ObjectMapper {
                 } else {
 
 
-                    mapValue.add(createMap((BasicDBObject) li));
+                    mapValue.add(createMap((Map<String, Object>) li));
                 }
-            } else if (li instanceof BasicDBList) {
-                mapValue.add(createList((BasicDBList) li));
+            } else if (li instanceof List<Map<String, Object>>) {
+                mapValue.add(createList((List<Map<String, Object>>) li));
             } else {
                 mapValue.add(li);
             }
@@ -881,25 +876,25 @@ public class ObjectMapperImpl implements ObjectMapper {
     }
 
     @SuppressWarnings({"unchecked", "ConstantConditions"})
-    private void fillList(Field forField, BasicDBList fromDB, List toFillIn, Object containerEntity) {
+    private void fillList(Field forField, List<Map<String, Object>> fromDB, List toFillIn, Object containerEntity) {
         for (Object val : fromDB) {
-            if (val instanceof BasicDBObject) {
-                if (((BasicDBObject) val).containsField("class_name") || ((BasicDBObject) val).containsField("className")) {
+            if (val instanceof Map<String, Object>) {
+                if (((Map<String, Object>) val).containsField("class_name") || ((Map<String, Object>) val).containsField("className")) {
                     //Entity to map!
-                    String cn = (String) ((BasicDBObject) val).get("class_name");
+                    String cn = (String) ((Map<String, Object>) val).get("class_name");
                     if (cn == null) {
-                        cn = (String) ((BasicDBObject) val).get("className");
+                        cn = (String) ((Map<String, Object>) val).get("className");
                     }
                     try {
                         Class ecls = Class.forName(cn);
-                        Object um = unmarshall(ecls, (DBObject) val);
+                        Object um = unmarshall(ecls, (HashMap<String, Object>) val);
                         if (um != null) toFillIn.add(um);
                     } catch (ClassNotFoundException e) {
                         throw new RuntimeException(e);
                     }
-                } else if (((BasicDBObject) val).containsField("_b64data")) {
-                    String d = (String) ((BasicDBObject) val).get("_b64data");
-                    if (d == null) d = (String) ((BasicDBObject) val).get("b64Data");
+                } else if (((Map<String, Object>) val).containsField("_b64data")) {
+                    String d = (String) ((Map<String, Object>) val).get("_b64data");
+                    if (d == null) d = (String) ((Map<String, Object>) val).get("b64Data");
                     BASE64Decoder dec = new BASE64Decoder();
                     ObjectInputStream in = null;
                     try {
@@ -922,7 +917,7 @@ public class ObjectMapperImpl implements ObjectMapper {
                         Entity entity = annotationHelper.getAnnotationFromHierarchy(cls, Entity.class); //(Entity) sc.getAnnotation(Entity.class);
                         Embedded embedded = annotationHelper.getAnnotationFromHierarchy(cls, Embedded.class);//(Embedded) sc.getAnnotation(Embedded.class);
                         if (entity != null || embedded != null)
-                            val = unmarshall(cls, (DBObject) val);
+                            val = unmarshall(cls, (HashMap<String, Object>) val);
                     }
                     //Probably an "normal" map
                     toFillIn.add(val);
@@ -940,10 +935,10 @@ public class ObjectMapperImpl implements ObjectMapper {
                     toFillIn.add(val);
                 }
 
-            } else if (val instanceof BasicDBList) {
+            } else if (val instanceof List<Map<String, Object>>) {
                 //list in list
                 ArrayList lt = new ArrayList();
-                fillList(forField, (BasicDBList) val, lt, containerEntity);
+                fillList(forField, (List<Map<String, Object>>) val, lt, containerEntity);
                 toFillIn.add(lt);
             } else if (val instanceof DBRef) {
                 try {
