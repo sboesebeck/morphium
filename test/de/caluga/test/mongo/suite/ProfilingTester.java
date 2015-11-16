@@ -26,7 +26,7 @@ public class ProfilingTester extends MongoTest {
                 if (query.getServer() == null) {
                     log.info("did not get Server in query...");
                 } else {
-                    log.info("Read from Server: " + query.getServer().getHost() + ":" + query.getServer().getPort());
+                    log.info("Read from Server: " + query.getServer());
                 }
                 readAccess = true;
                 readTime = time;

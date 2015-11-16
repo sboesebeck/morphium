@@ -1,8 +1,8 @@
 package de.caluga.test.mongo.suite;
 
-import com.mongodb.WriteConcern;
 import de.caluga.morphium.MorphiumSingleton;
 import de.caluga.morphium.annotations.AdditionalData;
+import de.caluga.morphium.driver.WriteConcern;
 import org.junit.Test;
 
 import java.util.HashMap;

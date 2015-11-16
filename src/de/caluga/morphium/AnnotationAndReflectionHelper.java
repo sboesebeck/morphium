@@ -546,6 +546,8 @@ public class AnnotationAndReflectionHelper {
                                 throw new RuntimeException("could not set field " + fld + ": Field has type " + f.getType().toString() + " got type " + value.getClass().toString());
                             }
 
+                        } else {
+                            log.error("Could not set value!!!");
                         }
                     }
                     if (log.isDebugEnabled()) {
