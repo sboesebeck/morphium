@@ -92,25 +92,26 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
 
 
     public void addToWriteQueue(Class<?> type, String collectionName, BufferedBulkOp r, AsyncOperationCallback c, AsyncOperationType t) {
+        if (collectionName == null) collectionName = morphium.getMapper().getCollectionName(type);
+        WriteBufferEntry wb = new WriteBufferEntry(type, collectionName, r, System.currentTimeMillis(), c, t);
+        WriteBuffer w = morphium.getARHelper().getAnnotationFromHierarchy(type, WriteBuffer.class);
+        int size = 0;
+        int timeout = morphium.getConfig().getWriteBufferTime();
+        WriteBuffer.STRATEGY strategy = WriteBuffer.STRATEGY.JUST_WARN;
+        boolean ordered = false;
+        if (w != null) {
+            ordered = w.ordered();
+            size = w.size();
+            strategy = w.strategy();
+        }
         synchronized (opLog) {
-            WriteBufferEntry wb = new WriteBufferEntry(type, collectionName, r, System.currentTimeMillis(), c, t);
             if (opLog.get(type) == null) {
                 opLog.put(type, new Vector<WriteBufferEntry>());
             }
-            WriteBuffer w = morphium.getARHelper().getAnnotationFromHierarchy(type, WriteBuffer.class);
-            int size = 0;
-            int timeout = morphium.getConfig().getWriteBufferTime();
-            WriteBuffer.STRATEGY strategy = WriteBuffer.STRATEGY.JUST_WARN;
 
-            boolean ordered = false;
-            if (w != null) {
-                ordered = w.ordered();
-                size = w.size();
-                strategy = w.strategy();
-            }
             if (size > 0 && opLog.get(type).size() > size) {
                 logger.warn("WARNING: Write buffer for type " + type.getName() + " maximum exceeded: " + opLog.get(type).size() + " entries now, max is " + size);
-                BulkRequestContext ctx = morphium.getDriver().createBulkContext(morphium.getConfig().getDatabase(), morphium.getMapper().getCollectionName(type), ordered, morphium.getWriteConcernForClass(type));
+                BulkRequestContext ctx = morphium.getDriver().createBulkContext(morphium.getConfig().getDatabase(), collectionName, ordered, morphium.getWriteConcernForClass(type));
                 switch (strategy) {
                     case JUST_WARN:
                         opLog.get(type).add(wb);
@@ -851,6 +852,7 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
     @Override
     protected void finalize() throws Throwable {
         onShutdown(morphium);
+
         super.finalize();
     }
 
@@ -858,6 +860,7 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
     public void onShutdown(Morphium m) {
         logger.info("Stopping housekeeping thread");
         running = false;
+        flush();
         try {
             Thread.sleep((morphium.getConfig().getWriteBufferTimeGranularity()));
 
