@@ -17,7 +17,7 @@ public class AliasesTest extends MongoTest {
     public void aliasTest() throws Exception {
         Query<ComplexObject> q = MorphiumSingleton.get().createQueryFor(ComplexObject.class).f("last_changed").eq(new Date());
         assert (q != null) : "Null Query?!?!?";
-        assert (q.toQueryObject().toString().startsWith("{ \"changed\" :")) : "Wrong query: " + q.toQueryObject().toString();
+        assert (q.toQueryObject().toString().startsWith("{changed=")) : "Wrong query: " + q.toQueryObject().toString();
         log.info("All ok");
     }
 }

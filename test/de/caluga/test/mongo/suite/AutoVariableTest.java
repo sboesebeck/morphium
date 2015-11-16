@@ -149,6 +149,12 @@ public class AutoVariableTest extends MongoTest {
     @Test
     public void testCTNonOjbectId() throws Exception {
         MorphiumSingleton.get().dropCollection(CTimeTestStringId.class);
+        log.info("Waiting for collection to be dropped...");
+        while (MorphiumSingleton.get().getDriver().exists(MorphiumSingleton.get().getConfig().getDatabase(), MorphiumSingleton.get().getMapper().getCollectionName(CTimeTestStringId.class))) {
+            Thread.sleep(100);
+            log.info("... waiting...");
+        }
+//        Thread.sleep(1000);
         CTimeTestStringId record = new CTimeTestStringId();
         record.mongoId = "12345";
         record.value = "v1";
@@ -161,7 +167,7 @@ public class AutoVariableTest extends MongoTest {
         MorphiumSingleton.get().store(record);
 
         record = new CTimeTestStringId();
-        record.mongoId = "12346";
+        record.mongoId = "12347";
         record.value = "v3";
         MorphiumSingleton.get().store(record);
 

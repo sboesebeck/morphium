@@ -39,7 +39,7 @@ public class BufferedWriterTest extends MongoTest {
 
         waitForAsyncOperationToStart(10000);
         waitForWrites();
-
+        Thread.sleep(1000);
         q = MorphiumSingleton.get().createQueryFor(BufferedBySizeObject.class);
         assert (q.countAll() == 3);
         for (BufferedBySizeObject o : q.asList()) {
@@ -66,7 +66,7 @@ public class BufferedWriterTest extends MongoTest {
 
         waitForAsyncOperationToStart(10000);
         waitForWrites();
-
+        Thread.sleep(1000);
         q = MorphiumSingleton.get().createQueryFor(BufferedBySizeObject.class);
         assert (q.countAll() == 1) : "Counted " + q.countAll();
         BufferedBySizeObject o = q.get();
