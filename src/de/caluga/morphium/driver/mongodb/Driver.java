@@ -16,7 +16,8 @@ import de.caluga.morphium.driver.MorphiumDriverException;
 import de.caluga.morphium.driver.MorphiumDriverOperation;
 import de.caluga.morphium.driver.ReadPreference;
 import de.caluga.morphium.driver.bulk.BulkRequestContext;
-import org.bson.Document;
+import org.bson.*;
+import org.bson.types.BSONTimestamp;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -366,12 +367,26 @@ public class Driver implements MorphiumDriver {
     }
 
     @Override
-    public Map<String, Object> getStats() throws MorphiumDriverException {
+    public Map<String, Object> getReplsetStatus() throws MorphiumDriverException {
         return new DriverHelper().doCall(new MorphiumDriverOperation() {
             @Override
             public Map<String, Object> execute() {
-                Document ret = mongo.getDatabase("admin").runCommand(new BasicDBObject("stats", 1));
-                return ret;
+                Document ret = mongo.getDatabase("admin").runCommand(new BasicDBObject("replSetGetStatus", 1));
+
+                return convertBSON(ret);
+            }
+
+        }, retriesOnNetworkError, sleepBetweenErrorRetries);
+//        return null;
+    }
+
+    @Override
+    public Map<String, Object> getDBStats(String db) throws MorphiumDriverException {
+        return new DriverHelper().doCall(new MorphiumDriverOperation() {
+            @Override
+            public Map<String, Object> execute() {
+                Document ret = mongo.getDatabase(db).runCommand(new BasicDBObject("dbstats", 1));
+                return convertBSON(ret);
             }
 
         }, retriesOnNetworkError, sleepBetweenErrorRetries);
@@ -391,7 +406,7 @@ public class Driver implements MorphiumDriver {
             @Override
             public Map<String, Object> execute() {
                 Document ret = mongo.getDatabase(db).runCommand(new BasicDBObject(cmd));
-                return ret;
+                return convertBSON(ret);
             }
 
         }, retriesOnNetworkError, sleepBetweenErrorRetries);
@@ -421,19 +436,72 @@ public class Driver implements MorphiumDriver {
                 else ret.batchSize(defaultBatchSize);
                 List<Map<String, Object>> values = new ArrayList<>();
                 for (DBObject d : ret) {
-                    values.add((BasicDBObject) d);
+                    Map<String, Object> obj = convertBSON((BasicDBObject) d);
+                    values.add(obj);
                 }
                 Map<String, Object> r = new HashMap<String, Object>();
                 r.put("result", values);
 
                 if (findMetaData != null) {
-                    findMetaData.put("server", ret.getServerAddress().getHost() + ":" + ret.getServerAddress().getPort());
+                    if (ret.getServerAddress() != null)
+                        findMetaData.put("server", ret.getServerAddress().getHost() + ":" + ret.getServerAddress().getPort());
                     findMetaData.put("cursorId", ret.getCursorId());
                     findMetaData.put("collection", ret.getCollection().getName());
                 }
                 return r;
             }
         }, retriesOnNetworkError, sleepBetweenErrorRetries).get("result");
+    }
+
+    private Map<String, Object> convertBSON(Map d) {
+        Map<String, Object> obj = new HashMap<String, Object>();
+
+        for (Object k : d.keySet()) {
+            Object value = d.get(k);
+            if (value instanceof BsonTimestamp) {
+                value = (((BsonTimestamp) value).getTime() * 1000);
+            } else if (value instanceof BSONTimestamp) {
+                value = (((BSONTimestamp) value).getTime() * 1000);
+            } else if (value instanceof BsonDocument) {
+                value = convertBSON((Map) value);
+            } else if (value instanceof BsonBoolean) {
+                value = ((BsonBoolean) value).getValue();
+            } else if (value instanceof BsonDateTime) {
+                value = ((BsonDateTime) value).getValue();
+            } else if (value instanceof BsonInt64) {
+                value = ((BsonInt32) value).getValue();
+            } else if (value instanceof BsonInt64) {
+                value = ((BsonInt32) value).getValue();
+            } else if (value instanceof BsonDouble) {
+                value = ((BsonDouble) value).getValue();
+            } else if (value instanceof BasicDBList) {
+                Map m = new HashMap<>();
+                m.put("list", new ArrayList(((BasicDBList) value)));
+                value = convertBSON(m).get("list");
+            } else if (value instanceof BasicBSONObject) {
+                value = convertBSON((Map) value);
+            } else if (value instanceof BsonString) {
+                value = value.toString();
+            } else if (value instanceof List) {
+                List v = new ArrayList<>();
+
+                for (Object o : (List) value) {
+                    if (o instanceof BSON || o instanceof BsonValue || o instanceof Map)
+                        v.add(convertBSON((Map) o));
+                    else
+                        v.add(o);
+                }
+                value = v;
+            } else if (value instanceof BsonArray) {
+                Map m = new HashMap<>();
+                m.put("list", new ArrayList(((BsonArray) value).getValues()));
+                value = convertBSON(m).get("list");
+            } else if (value instanceof BSONObject) {
+                value = convertBSON((Map) value);
+            }
+            obj.put(k.toString(), value);
+        }
+        return obj;
     }
 
 
@@ -799,9 +867,7 @@ public class Driver implements MorphiumDriver {
         DBCollection collection = mongo.getDB(db).getCollection(coll);
         GroupCommand cmd = new GroupCommand(collection,
                 k, new BasicDBObject(query), ini, jsReduce, jsFinalize);
-        Map<String, Object> ret = new HashMap<>();
-        ret.putAll((Map<? extends String, ?>) cmd);
-        return ret;
+        return convertBSON((Map<? extends String, ?>) cmd);
     }
 
     @Override

@@ -12,7 +12,9 @@ import de.caluga.morphium.cache.CacheHousekeeper;
 import de.caluga.morphium.cache.MorphiumCache;
 import de.caluga.morphium.driver.MorphiumDriver;
 import de.caluga.morphium.driver.MorphiumDriverException;
+import de.caluga.morphium.driver.ReadPreference;
 import de.caluga.morphium.driver.WriteConcern;
+import de.caluga.morphium.driver.bulk.BulkRequestContext;
 import de.caluga.morphium.driver.mongodb.Driver;
 import de.caluga.morphium.query.MongoField;
 import de.caluga.morphium.query.Query;
@@ -163,7 +165,8 @@ public class Morphium {
         for (StatisticKeys k : StatisticKeys.values()) {
             stats.put(k, new StatisticValue());
         }
-        if (config.getDb() == null) {
+
+        if (morphiumDriver == null) {
             Runtime.getRuntime().addShutdownHook(new Thread() {
                 public void run() {
                     try {
@@ -202,9 +205,10 @@ public class Morphium {
                 throw new RuntimeException("Error - no server address specified!");
             }
 
-
-            morphiumDriver.setCredentials(config.getMongoLogin(), config.getDatabase(), config.getMongoPassword().toCharArray());
-            morphiumDriver.setCredentials(config.getMongoAdminUser(), "system", config.getMongoAdminPwd().toCharArray());
+            if (config.getMongoLogin() != null && config.getMongoPassword() != null)
+                morphiumDriver.setCredentials(config.getMongoLogin(), config.getDatabase(), config.getMongoPassword().toCharArray());
+            if (config.getMongoAdminUser() != null && config.getMongoAdminPwd() != null)
+                morphiumDriver.setCredentials(config.getMongoAdminUser(), "system", config.getMongoAdminPwd().toCharArray());
 
             String[] seed = new String[config.getAdr().size()];
             for (int i = 0; i < seed.length; i++) {
@@ -213,6 +217,12 @@ public class Morphium {
             morphiumDriver.setHostSeed(seed);
 
             morphiumDriver.setDefaultReadPreference(config.getDefaultReadPreference());
+            try {
+                morphiumDriver.connect(config.getRequiredReplicaSetName());
+            } catch (MorphiumDriverException e) {
+                //TODO: Implement Handling
+                throw new RuntimeException(e);
+            }
         }
 
         cacheHousekeeper = new CacheHousekeeper(this, 5000, config.getGlobalCacheValidTime());
@@ -1412,6 +1422,21 @@ public class Morphium {
 //            throw (new RuntimeException(e));
 //        }
 //    }
+
+
+    public ReadPreference getReadPreferenceForClass(Class<?> cls) {
+        DefaultReadPreference rp = annotationHelper.getAnnotationFromHierarchy(cls, DefaultReadPreference.class);
+        if (rp == null) return config.getDefaultReadPreference();
+        return rp.value().getPref();
+    }
+
+    public BulkRequestContext createBulkRequestContext(String collection, boolean ordered) {
+        return getDriver().createBulkContext(config.getDatabase(), collection, ordered, null);
+    }
+
+    public BulkRequestContext createBulkRequestContext(Class<?> type, boolean ordered) {
+        return getDriver().createBulkContext(config.getDatabase(), getMapper().getCollectionName(type), ordered, getWriteConcernForClass(type));
+    }
 
     @SuppressWarnings("ConstantConditions")
     public WriteConcern getWriteConcernForClass(Class<?> cls) {

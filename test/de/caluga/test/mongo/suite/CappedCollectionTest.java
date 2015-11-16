@@ -23,7 +23,7 @@ public class CappedCollectionTest extends MongoTest {
         MorphiumSingleton.get().store(cc);
 
 
-        assert (MorphiumSingleton.get().getDatabase().getCollection("capped_col").isCapped());
+        assert (MorphiumSingleton.get().getDriver().isCapped(MorphiumSingleton.getConfig().getDatabase(), "capped_col"));
         //storing more than max entries
         for (int i = 0; i < 1000; i++) {
             cc = new CappedCol();
@@ -55,7 +55,7 @@ public class CappedCollectionTest extends MongoTest {
         }
 
         MorphiumSingleton.get().storeList(lst);
-        assert (MorphiumSingleton.get().getDatabase().getCollection("capped_col").isCapped());
+        assert (MorphiumSingleton.get().getDriver().isCapped(MorphiumSingleton.getConfig().getDatabase(), "capped_col"));
         assert (MorphiumSingleton.get().createQueryFor(CappedCol.class).countAll() <= 10);
         for (CappedCol cp : MorphiumSingleton.get().createQueryFor(CappedCol.class).sort("counter").asIterable(10)) {
             log.info("Capped: " + cp.getCounter() + " - " + cp.getValue());
@@ -71,7 +71,7 @@ public class CappedCollectionTest extends MongoTest {
 
         MorphiumSingleton.get().convertToCapped(UncachedObject.class, 100, null);
 
-        assert (MorphiumSingleton.get().getDatabase().getCollection("uncached_object").isCapped());
+        assert (MorphiumSingleton.get().getDriver().isCapped(MorphiumSingleton.getConfig().getDatabase(), "capped_col"));
         assert (MorphiumSingleton.get().createQueryFor(UncachedObject.class).countAll() <= 100);
     }
 

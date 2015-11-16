@@ -4,9 +4,9 @@ import de.caluga.morphium.AnnotationAndReflectionHelper;
 import de.caluga.morphium.Logger;
 import de.caluga.morphium.MorphiumConfig;
 import de.caluga.morphium.MorphiumSingleton;
-import de.caluga.morphium.annotations.ReadPreferenceLevel;
 import de.caluga.morphium.async.AsyncOperationCallback;
 import de.caluga.morphium.async.AsyncOperationType;
+import de.caluga.morphium.driver.ReadPreference;
 import de.caluga.morphium.messaging.Msg;
 import de.caluga.morphium.query.PrefetchingMorphiumIterator;
 import de.caluga.morphium.query.Query;
@@ -149,7 +149,7 @@ public class MongoTest {
 //            cfg.setMongoAdminPwd("admin");
 
                 cfg.setMaxAutoReconnectTime(5000);
-                cfg.setDefaultReadPreference(ReadPreferenceLevel.NEAREST);
+                cfg.setDefaultReadPreference(ReadPreference.nearest());
                 p.putAll(cfg.asProperties());
                 p.put("failovertest", "false");
                 cfg.setBlockingThreadsMultiplier(100);

@@ -69,7 +69,7 @@ public class SortingTest extends MongoTest {
 
         q = MorphiumSingleton.get().createQueryFor(UncachedObject.class);
         q = q.f("value").eq("Random value");
-        Map<String, Object> order = new HashMap<>();
+        Map<String, Integer> order = new HashMap<>();
         order.put("counter", -1);
         q = q.sort(order);
 
@@ -105,7 +105,7 @@ public class SortingTest extends MongoTest {
 
         q = MorphiumSingleton.get().createQueryFor(UncachedObject.class);
         q = q.f("value").eq("Random value");
-        Map<String, Object> order = new HashMap<>();
+        Map<String, Integer> order = new HashMap<>();
         order.put("counter", 1);
         q = q.sort(order);
 
