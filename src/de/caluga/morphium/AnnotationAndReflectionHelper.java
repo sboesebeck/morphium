@@ -6,10 +6,7 @@ import de.caluga.morphium.annotations.caching.WriteBuffer;
 import de.caluga.morphium.annotations.lifecycle.Lifecycle;
 
 import java.lang.annotation.Annotation;
-import java.lang.reflect.Field;
-import java.lang.reflect.InvocationTargetException;
-import java.lang.reflect.Method;
-import java.lang.reflect.Modifier;
+import java.lang.reflect.*;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.*;
@@ -545,7 +542,17 @@ public class AnnotationAndReflectionHelper {
                             } else {
                                 throw new RuntimeException("could not set field " + fld + ": Field has type " + f.getType().toString() + " got type " + value.getClass().toString());
                             }
-
+                        } else if (f.getType().isArray() && value instanceof List) {
+                            Object arr = Array.newInstance(f.getType(), ((List) value).size());
+                            int idx = 0;
+                            for (Object io : ((List) value)) {
+                                try {
+                                    Array.set(arr, idx, io);
+                                } catch (Exception e1) {
+                                    Array.set(arr, idx, ((Integer) io).byteValue());
+                                }
+                            }
+                            f.set(o, arr);
                         } else {
                             log.error("Could not set value!!!");
                         }

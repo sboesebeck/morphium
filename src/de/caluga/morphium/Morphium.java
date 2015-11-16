@@ -1469,13 +1469,13 @@ public class Morphium {
             for (ReplicaSetNode node : s.getMembers()) {
                 if (node.getState() == 1) {
                     //Master
-                    masterOpTime = node.getOptime().getTime();
+                    masterOpTime = node.getOptime();
                 }
             }
             for (ReplicaSetNode node : s.getMembers()) {
                 if (node.getState() == 2) {
                     //Master
-                    int tm = node.getOptime().getTime() - masterOpTime;
+                    int tm = node.getOptime() - masterOpTime;
                     if (maxReplLag < tm) {
                         maxReplLag = tm;
                     }
