@@ -1,11 +1,11 @@
 package de.caluga.test.mongo.suite;
 
-import com.mongodb.WriteConcern;
 import de.caluga.morphium.Logger;
 import de.caluga.morphium.MorphiumSingleton;
 import de.caluga.morphium.annotations.Entity;
 import de.caluga.morphium.annotations.SafetyLevel;
 import de.caluga.morphium.annotations.WriteSafety;
+import de.caluga.morphium.driver.WriteConcern;
 import org.junit.Test;
 
 /**
@@ -34,8 +34,8 @@ public class ReplicaSetStatusTest extends MongoTest {
         WriteConcern w = MorphiumSingleton.get().getWriteConcernForClass(SecureObject.class);
         int c = MorphiumSingleton.get().getCurrentRSState().getActiveNodes();
         assert (w.getW() == c) : "W=" + w.getW() + " but should be: " + c;
-        assert (w.getJ());
-        assert (!w.getFsync());
+        assert (w.isJ());
+        assert (!w.isFsync());
         assert (w.getWtimeout() == 10000);
 //        assert (w.raiseNetworkErrors());
     }

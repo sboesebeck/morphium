@@ -1,9 +1,10 @@
 package de.caluga.test.mongo.suite;
 
-import com.mongodb.DBObject;
 import de.caluga.morphium.MorphiumSingleton;
 import de.caluga.morphium.query.Query;
 import org.junit.Test;
+
+import java.util.Map;
 
 /**
  * User: Stpehan Bösebeck
@@ -23,8 +24,8 @@ public class QueryImplTest extends MongoTest {
                 q.q().f("counter").gte(10),
                 q.q().f("counter").lt(15).f("counter").gt(10).f("value").eq("hallo").f("value").ne("test")
         );
-        DBObject dbObject = q.toQueryObject();
-        assert (dbObject != null) : "DBObject created is null?";
+        Map<String, Object> dbObject = q.toQueryObject();
+        assert (dbObject != null) : "Map<String,Object> created is null?";
 
         String str = dbObject.toString();
         assert (str != null) : "ToString is NULL?!?!?";

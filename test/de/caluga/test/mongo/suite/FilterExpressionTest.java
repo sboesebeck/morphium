@@ -1,6 +1,5 @@
 package de.caluga.test.mongo.suite;
 
-import com.mongodb.DBObject;
 import de.caluga.morphium.FilterExpression;
 import org.junit.Before;
 import org.junit.Test;
@@ -30,8 +29,8 @@ public class FilterExpressionTest {
     @Test
     public void testNullValue() {
         fe.setValue(null);
-        DBObject dbObject = fe.dbObject();
-        assert (dbObject.containsField("field"));
+        Map<String, Object> dbObject = fe.dbObject();
+        assert (dbObject.containsKey("field"));
         assert (dbObject.get("field") == null);
     }
 
@@ -50,7 +49,7 @@ public class FilterExpressionTest {
 
     @Test
     public void testDBObjectWithSingleValue() {
-        Map map = fe.dbObject().toMap();
+        Map map = fe.dbObject();
 
         String key = (String) map.keySet().iterator().next();
         String value = (String) map.values().iterator().next();
@@ -70,7 +69,7 @@ public class FilterExpressionTest {
         enumFilter.setField("field");
         enumFilter.setValue(testEnum);
 
-        Map map = enumFilter.dbObject().toMap();
+        Map map = enumFilter.dbObject();
 
         String key = (String) map.keySet().iterator().next();
         String value = (String) map.values().iterator().next();
@@ -86,13 +85,13 @@ public class FilterExpressionTest {
 
         assert ("field".equals(fe.getField()));
 
-        Map map = fe.dbObject().toMap();
+        Map map = fe.dbObject();
         assert (map.keySet().size() == 1);
         assert (map.keySet().iterator().next().equals("field"));
         assert (map.values().size() == 1);
 
-        DBObject fetchedDBObject = (DBObject) map.values().iterator().next();
-        Map fetchedMap = fetchedDBObject.toMap();
+        Map<String, Object> fetchedDBObject = (Map<String, Object>) map.values().iterator().next();
+        Map fetchedMap = fetchedDBObject;
         Set fetchedKeys = fetchedMap.keySet();
 
         assert (fetchedKeys.contains("child1Field") && fetchedKeys.contains("child2Field"));

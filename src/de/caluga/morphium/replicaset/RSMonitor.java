@@ -85,9 +85,10 @@ public class RSMonitor {
 //                }
 
 
-                Map<String, Object> res = morphium.getDriver().getStats();
+                Map<String, Object> res = morphium.getDriver().getReplsetStatus();
                 de.caluga.morphium.replicaset.ReplicaSetStatus status = morphium.getMapper().unmarshall(de.caluga.morphium.replicaset.ReplicaSetStatus.class, res);
                 if (full) {
+                    Map<String, Object> findMetaData = new HashMap<>();
                     List<Map<String, Object>> stats = morphium.getDriver().find("local", "system.replset", new HashMap<String, Object>(), null, null, 0, 10, 10, null, findMetaData);
                     if (stats == null || stats.size() == 0) {
                         logger.info("could not get replicaset status");

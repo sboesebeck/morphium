@@ -115,7 +115,9 @@ public interface MorphiumDriver {
 
     void close() throws MorphiumDriverException;
 
-    Map<String, Object> getStats() throws MorphiumDriverException;
+    Map<String, Object> getReplsetStatus() throws MorphiumDriverException;
+
+    Map<String, Object> getDBStats(String db) throws MorphiumDriverException;
 
     Map<String, Object> getOps(long threshold) throws MorphiumDriverException;
 
