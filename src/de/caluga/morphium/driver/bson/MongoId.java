@@ -43,6 +43,27 @@ public class MongoId {
         machineId = THE_MACHINE_ID;
     }
 
+    public MongoId(String hexString) {
+        this(hexToByte(hexString));
+    }
+
+    public MongoId(byte[] bytes) {
+        this(bytes, 0);
+    }
+
+    private static byte[] hexToByte(String s) {
+        if (s == null || s.length() != 12 || s.matches("[g-zG-Z\\W]")) {
+            throw new IllegalArgumentException("no hex string: " + s);
+        } else {
+            byte[] b = new byte[12];
+
+            for (int i = 0; i < b.length; ++i) {
+                b[i] = (byte) Integer.parseInt(s.substring(i * 2, i * 2 + 2), 16);
+            }
+
+            return b;
+        }
+    }
     private MongoId(short pid, int c, int ts) {
         this.pid = pid;
         counter = c;
@@ -56,15 +77,24 @@ public class MongoId {
         } else if (idx + 12 >= bytes.length) {
             throw new IllegalArgumentException("not enough data, 12 bytes needed");
         } else {
-            this.timestamp = readInt(bytes, idx);
-            this.machineId = readInt(new byte[]{(byte) 0, bytes[idx + 4], bytes[idx + 5], bytes[idx + 6]}, 0);
-            this.pid = (short) readInt(new byte[]{(byte) 0, (byte) 0, bytes[idx + 7], bytes[idx + 8]}, 0);
-            this.counter = readInt(new byte[]{(byte) 0, bytes[idx + 9], bytes[idx + 10], bytes[idx + 11]}, 0);
+            this.timestamp = readInt(bytes, idx, 4);
+            this.machineId = readInt(bytes, idx + 4, 3);
+            this.pid = (short) readInt(bytes, idx + 7, 2);
+            this.counter = readInt(bytes, idx + 9, 3);
         }
     }
 
-    private int readInt(byte[] bytes, int idx) {
-        return bytes[idx] << 24 | (bytes[idx + 1] & 0xFF) << 16 | (bytes[idx + 2] & 0xFF) << 8 | (bytes[idx + 3] & 0xFF);
+    private int readInt(byte[] bytes, int idx, int len) {
+        switch (len) {
+            case 4:
+                return bytes[idx] << 24 | (bytes[idx + 1] & 0xFF) << 16 | (bytes[idx + 2] & 0xFF) << 8 | (bytes[idx + 3] & 0xFF);
+            case 3:
+                return (bytes[idx + 1] & 0xFF) << 16 | (bytes[idx + 2] & 0xFF) << 8 | (bytes[idx + 3] & 0xFF);
+            case 2:
+                return (bytes[idx + 2] & 0xFF) << 8 | (bytes[idx + 3] & 0xFF);
+            default:
+                return 0;
+        }
 
     }
 
@@ -171,6 +201,9 @@ public class MongoId {
         return machineId;
     }
 
+    public long getTime() {
+        return timestamp * 1000;
+    }
 
     public String toString() {
         String[] chars = {"0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "A", "B", "C", "D", "E", "F",};

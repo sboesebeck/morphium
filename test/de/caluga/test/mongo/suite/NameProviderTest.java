@@ -1,6 +1,5 @@
 package de.caluga.test.mongo.suite;
 
-import com.mongodb.DBCollection;
 import de.caluga.morphium.*;
 import de.caluga.morphium.annotations.Entity;
 import de.caluga.morphium.annotations.Id;
@@ -37,8 +36,8 @@ public class NameProviderTest extends MongoTest {
         waitForWrites();
         String colName = MorphiumSingleton.get().getMapper().getCollectionName(LogObject.class);
         assert (colName.endsWith("_Test"));
-        DBCollection col = MorphiumSingleton.get().getDatabase().getCollection(colName);
-        long count = col.getCount();
+//        DBCollection col = MorphiumSingleton.get().getDatabase().getCollection(colName);
+        long count = MorphiumSingleton.get().createQueryFor(LogObject.class, colName).countAll();
         assert (count == 100) : "Error - did not store?? " + count;
     }
 

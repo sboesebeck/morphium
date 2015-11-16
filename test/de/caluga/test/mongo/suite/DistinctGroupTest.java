@@ -1,12 +1,12 @@
 package de.caluga.test.mongo.suite;
 
-import com.mongodb.DBObject;
 import de.caluga.morphium.MorphiumSingleton;
 import org.junit.Test;
 
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * User: Stephan Bösebeck
@@ -44,7 +44,7 @@ public class DistinctGroupTest extends MongoTest {
         HashMap<String, Object> initial = new HashMap<>();
         initial.put("count", 0);
         initial.put("sum", 0);
-        DBObject ret = MorphiumSingleton.get().group(MorphiumSingleton.get().createQueryFor(UncachedObject.class), initial,
+        Map<String, Object> ret = MorphiumSingleton.get().group(MorphiumSingleton.get().createQueryFor(UncachedObject.class), initial,
                 "data.count++; data.sum+=obj.counter;", "data.avg=data.sum/data.count;");
         log.info("got DBObject: " + ret);
 

@@ -1,13 +1,14 @@
 package de.caluga.test.mongo.suite;
 
-import com.mongodb.BasicDBObject;
-import com.mongodb.DBCursor;
-import com.mongodb.DBObject;
 import de.caluga.morphium.MorphiumSingleton;
 import de.caluga.morphium.annotations.ReadOnly;
 import de.caluga.morphium.annotations.WriteOnly;
 import de.caluga.morphium.query.Query;
 import org.junit.Test;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
 
 /**
  * Created with IntelliJ IDEA.
@@ -43,9 +44,10 @@ public class FieldListTest extends MongoTest {
         MorphiumSingleton.get().reread(wo);
         assert (wo.writeOnlyValue == null) : "read from db: " + wo.writeOnlyValue;
 
-        DBCursor cursor = MorphiumSingleton.get().getDatabase().getCollection("write_only_object").find(new BasicDBObject("_id", wo.getMongoId()));
-        DBObject obj = cursor.next();
-        cursor.close();
+
+        List<Map<String, Object>> lst = MorphiumSingleton.get().getDriver().find(MorphiumSingleton.get().getConfig().getDatabase(), "write_only_object",
+                MorphiumSingleton.get().getMap("_id", wo.getMongoId()), null, null, 0, 1000, 1000, null, null);
+        Map<String, Object> obj = lst.get(0);
         assert (obj.get("write_only_value").equals("write only"));
 
     }
@@ -70,9 +72,11 @@ public class FieldListTest extends MongoTest {
         assert (ro.readOnlyValue == null);
 
         //forcing store of a value
-        DBObject marshall = MorphiumSingleton.get().getMapper().marshall(ro);
+        Map<String, Object> marshall = MorphiumSingleton.get().getMapper().marshall(ro);
         marshall.put("read_only_value", "stored in db");
-        MorphiumSingleton.get().getDatabase().getCollection("read_only_object").save(marshall);
+        List<Map<String, Object>> lst = new ArrayList<>();
+        lst.add(marshall);
+        MorphiumSingleton.get().getDriver().insert(MorphiumSingleton.get().getConfig().getDatabase(), "read_only_object", lst, null);
 
         MorphiumSingleton.get().reread(ro);
         assert (ro.readOnlyValue.equals("stored in db"));

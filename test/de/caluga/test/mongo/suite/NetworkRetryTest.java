@@ -1,13 +1,12 @@
 package de.caluga.test.mongo.suite;
 
-import com.mongodb.BasicDBObject;
-import com.mongodb.DBObject;
 import de.caluga.morphium.MorphiumSingleton;
 import de.caluga.morphium.query.Query;
 import org.junit.Test;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 /**
  * User: Stephan Bösebeck
@@ -64,7 +63,7 @@ public class NetworkRetryTest extends MongoTest {
         log.info("Now disconnect some mongo nodes, please");
         for (int i = 0; i < 1000; i++) {
             Query<UncachedObject> q = MorphiumSingleton.get().createQueryFor(UncachedObject.class);
-            DBObject o = new BasicDBObject("counter", i + 1);
+            Map<String, Object> o = MorphiumSingleton.get().getMap("counter", i + 1);
             List<UncachedObject> lst = q.complexQuery(o);
             log.info("read " + i);
             assert (lst.get(0).getCounter() == i + 1);
