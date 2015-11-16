@@ -50,7 +50,7 @@ public class BsonTest extends BaseTest {
     public void mongoIdTest() throws Exception {
         List<MongoId> lst = new ArrayList<>();
         log.info("Creating...");
-        for (int i = 0; i < 1000; i++) {
+        for (int i = 0; i < 100000; i++) {
             MongoId id = new MongoId();
             assert (!lst.contains(id));
             lst.add(id);

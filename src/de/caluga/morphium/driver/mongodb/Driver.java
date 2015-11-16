@@ -657,6 +657,39 @@ public class Driver implements MorphiumDriver {
     }
 
     @Override
+    public void store(String db, String collection, List<Map<String, Object>> objs, de.caluga.morphium.driver.WriteConcern wc) throws MorphiumDriverException {
+        List<Map<String, Object>> isnew = new ArrayList<>();
+        final List<Map<String, Object>> notnew = new ArrayList<>();
+        for (Map<String, Object> o : objs) {
+            if (o.get("_id") == null) {
+                //isnew!!!
+                isnew.add(o);
+            } else {
+                notnew.add(o);
+            }
+        }
+        insert(db, collection, isnew, wc);
+        new DriverHelper().doCall(new MorphiumDriverOperation() {
+            @Override
+            public Map<String, Object> execute() {
+                MongoCollection c = mongo.getDatabase(db).getCollection(collection);
+
+                for (Map<String, Object> toUpdate : notnew) {
+                    UpdateOptions o = new UpdateOptions();
+                    o.upsert(true);
+                    Document filter = new Document();
+                    filter.put("_id", toUpdate.get("_id"));
+//                    toUpdate.remove("_id");
+                    Document update = new Document("$set", notnew.get(0));
+                    c.updateOne(filter, update, o);
+                }
+
+                return null;
+            }
+        }, retriesOnNetworkError, sleepBetweenErrorRetries);
+    }
+
+    @Override
     public void insert(String db, String collection, List<Map<String, Object>> objs, de.caluga.morphium.driver.WriteConcern wc) throws MorphiumDriverException {
         if (objs == null || objs.size() == 0) return;
         final List<Document> lst = new ArrayList<>();

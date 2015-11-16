@@ -79,10 +79,10 @@ public class AsyncOperationTest extends MongoTest {
         q.asList(new AsyncOperationCallback<UncachedObject>() {
             @Override
             public void onOperationSucceeded(AsyncOperationType type, Query<UncachedObject> q, long duration, List<UncachedObject> result, UncachedObject entity, Object... param) {
+                asyncCall = true;
                 log.info("got read answer");
                 assert (result != null) : "Error";
                 assert (result.size() == 100) : "Error";
-                asyncCall = true;
             }
 
             @Override
@@ -110,18 +110,22 @@ public class AsyncOperationTest extends MongoTest {
         q.countAll(new AsyncOperationCallback<UncachedObject>() {
             @Override
             public void onOperationSucceeded(AsyncOperationType type, Query<UncachedObject> q, long duration, List<UncachedObject> result, UncachedObject entity, Object... param) {
+                asyncCall = true;
+                log.info("got async callback!");
                 assert (param != null && param[0] != null);
                 assert (param[0].equals((long) 100));
-                asyncCall = true;
             }
 
             @Override
             public void onOperationError(AsyncOperationType type, Query<UncachedObject> q, long duration, String error, Throwable t, UncachedObject entity, Object... param) {
                 //To change body of implemented methods use File | Settings | File Templates.
+                log.error("got async error callback", t);
+                assert (false);
             }
         });
         //waiting for thread to become active
         waitForAsyncOperationToStart(1000000);
+        Thread.sleep(2000);
         int count = 0;
         while (q.getNumberOfPendingRequests() > 0) {
             count++;

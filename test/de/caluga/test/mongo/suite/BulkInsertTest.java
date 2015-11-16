@@ -104,6 +104,7 @@ public class BulkInsertTest extends MongoTest {
 
                 @Override
                 public void onOperationError(AsyncOperationType type, Query<UncachedObject> q, long duration, String error, Throwable t, UncachedObject entity, Object... param) {
+                    log.error("Got async error - should not be!!!");
                     asyncSuccess = false;
                 }
             });
