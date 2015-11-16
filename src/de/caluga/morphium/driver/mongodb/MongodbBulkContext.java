@@ -3,6 +3,7 @@ package de.caluga.morphium.driver.mongodb;
 import com.mongodb.bulk.BulkWriteResult;
 import com.mongodb.client.model.*;
 import de.caluga.morphium.Logger;
+import de.caluga.morphium.driver.ReadPreference;
 import de.caluga.morphium.driver.WriteConcern;
 import de.caluga.morphium.driver.bulk.*;
 import org.bson.Document;
@@ -127,6 +128,6 @@ public class MongodbBulkContext extends BulkRequestContext {
     private BulkWriteResult commitWrite(List<WriteModel<? extends Document>> lst) {
         BulkWriteOptions bulkWriteOptions = new BulkWriteOptions();
         bulkWriteOptions.ordered(ordered);
-        return driver.getCollection(driver.getDb(db), collection, null, wc).bulkWrite(lst, bulkWriteOptions);
+        return driver.getCollection(driver.getDb(db), collection, ReadPreference.nearest(), wc).bulkWrite(lst, bulkWriteOptions);
     }
 }
