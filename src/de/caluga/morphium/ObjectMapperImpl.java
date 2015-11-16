@@ -21,7 +21,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
  * User: Stpehan Bösebeck
  * Date: 26.03.12
  * Time: 19:36
- * <p/>
+ * <p>
  */
 @SuppressWarnings({"ConstantConditions", "MismatchedQueryAndUpdateOfCollection", "unchecked", "MismatchedReadAndWriteOfArray"})
 public class ObjectMapperImpl implements ObjectMapper {
@@ -687,90 +687,84 @@ public class ObjectMapperImpl implements ObjectMapper {
                     Map<String, Object> map = (Map<String, Object>) valueFromDb;
                     value = createMap(map);
                 } else if (Collection.class.isAssignableFrom(fld.getType()) || fld.getType().isArray()) {
-                    if (fld.getType().equals(byte[].class)) {
-                        //binary data
-                        if (log.isDebugEnabled())
-                            log.debug("Reading in binary data object");
-                        value = valueFromDb;
 
+                    List lst = new ArrayList();
+                    if (valueFromDb.getClass().isArray()) {
+                        //a real array!
+                        if (valueFromDb.getClass().getComponentType().isPrimitive()) {
+                            if (valueFromDb.getClass().getComponentType().equals(int.class)) {
+                                for (int i : (int[]) valueFromDb) {
+                                    lst.add(i);
+                                }
+                            } else if (valueFromDb.getClass().getComponentType().equals(double.class)) {
+                                for (double i : (double[]) valueFromDb) {
+                                    lst.add(i);
+                                }
+                            } else if (valueFromDb.getClass().getComponentType().equals(float.class)) {
+                                for (float i : (float[]) valueFromDb) {
+                                    lst.add(i);
+                                }
+                            } else if (valueFromDb.getClass().getComponentType().equals(boolean.class)) {
+                                for (boolean i : (boolean[]) valueFromDb) {
+                                    lst.add(i);
+                                }
+                            } else if (valueFromDb.getClass().getComponentType().equals(byte.class)) {
+                                for (byte i : (byte[]) valueFromDb) {
+                                    lst.add(i);
+                                }
+                            } else if (valueFromDb.getClass().getComponentType().equals(char.class)) {
+                                for (char i : (char[]) valueFromDb) {
+                                    lst.add(i);
+                                }
+                            } else if (valueFromDb.getClass().getComponentType().equals(long.class)) {
+                                for (long i : (long[]) valueFromDb) {
+                                    lst.add(i);
+                                }
+                            }
+                        } else {
+                            Collections.addAll(lst, (Object[]) valueFromDb);
+                        }
                     } else {
+                        List<Map<String, Object>> l = (List<Map<String, Object>>) valueFromDb;
+                        if (l != null) {
+                            fillList(fld, l, lst, ret);
+                        }
+                    }
+                    if (fld.getType().isArray()) {
+                        Object arr = Array.newInstance(fld.getType().getComponentType(), lst.size());
+                        for (int i = 0; i < lst.size(); i++) {
+                            if (fld.getType().getComponentType().isPrimitive()) {
+                                if (fld.getType().getComponentType().equals(int.class)) {
+                                    Array.set(arr, i, ((Integer) lst.get(i)).intValue());
+                                } else if (fld.getType().getComponentType().equals(long.class)) {
+                                    Array.set(arr, i, ((Long) lst.get(i)).longValue());
+                                } else if (fld.getType().getComponentType().equals(float.class)) {
+                                    //Driver sends doubles instead of floats
+                                    Array.set(arr, i, ((Double) lst.get(i)).floatValue());
 
-                        List lst = new ArrayList();
-                        if (valueFromDb.getClass().isArray()) {
-                            //a real array!
-                            if (valueFromDb.getClass().getComponentType().isPrimitive()) {
-                                if (valueFromDb.getClass().getComponentType().equals(int.class)) {
-                                    for (int i : (int[]) valueFromDb) {
-                                        lst.add(i);
-                                    }
-                                } else if (valueFromDb.getClass().getComponentType().equals(double.class)) {
-                                    for (double i : (double[]) valueFromDb) {
-                                        lst.add(i);
-                                    }
-                                } else if (valueFromDb.getClass().getComponentType().equals(float.class)) {
-                                    for (float i : (float[]) valueFromDb) {
-                                        lst.add(i);
-                                    }
-                                } else if (valueFromDb.getClass().getComponentType().equals(boolean.class)) {
-                                    for (boolean i : (boolean[]) valueFromDb) {
-                                        lst.add(i);
-                                    }
-                                } else if (valueFromDb.getClass().getComponentType().equals(byte.class)) {
-                                    for (byte i : (byte[]) valueFromDb) {
-                                        lst.add(i);
-                                    }
-                                } else if (valueFromDb.getClass().getComponentType().equals(char.class)) {
-                                    for (char i : (char[]) valueFromDb) {
-                                        lst.add(i);
-                                    }
-                                } else if (valueFromDb.getClass().getComponentType().equals(long.class)) {
-                                    for (long i : (long[]) valueFromDb) {
-                                        lst.add(i);
-                                    }
+                                } else if (fld.getType().getComponentType().equals(double.class)) {
+                                    Array.set(arr, i, ((Double) lst.get(i)).doubleValue());
+
+                                } else if (fld.getType().getComponentType().equals(byte.class)) {
+                                    Array.set(arr, i, ((Integer) lst.get(i)).byteValue());
+                                } else if (fld.getType().getComponentType().equals(boolean.class)) {
+                                    Array.set(arr, i, ((Boolean) lst.get(i)).booleanValue());
+
                                 }
                             } else {
-                                Collections.addAll(lst, (Object[]) valueFromDb);
-                            }
-                        } else {
-                            List<Map<String, Object>> l = (List<Map<String, Object>>) valueFromDb;
-                            if (l != null) {
-                                fillList(fld, l, lst, ret);
+                                Array.set(arr, i, lst.get(i));
                             }
                         }
-                        if (fld.getType().isArray()) {
-                            Object arr = Array.newInstance(fld.getType().getComponentType(), lst.size());
-                            for (int i = 0; i < lst.size(); i++) {
-                                if (fld.getType().getComponentType().isPrimitive()) {
-                                    if (fld.getType().getComponentType().equals(int.class)) {
-                                        Array.set(arr, i, ((Integer) lst.get(i)).intValue());
-                                    } else if (fld.getType().getComponentType().equals(long.class)) {
-                                        Array.set(arr, i, ((Long) lst.get(i)).longValue());
-                                    } else if (fld.getType().getComponentType().equals(float.class)) {
-                                        //Driver sends doubles instead of floats
-                                        Array.set(arr, i, ((Double) lst.get(i)).floatValue());
-
-                                    } else if (fld.getType().getComponentType().equals(double.class)) {
-                                        Array.set(arr, i, ((Double) lst.get(i)).doubleValue());
-
-                                    } else if (fld.getType().getComponentType().equals(boolean.class)) {
-                                        Array.set(arr, i, ((Boolean) lst.get(i)).booleanValue());
-
-                                    }
-                                } else {
-                                    Array.set(arr, i, lst.get(i));
-                                }
-                            }
-                            value = arr;
-                        } else {
-                            value = lst;
-                        }
-
-
+                        value = arr;
+                    } else {
+                        value = lst;
                     }
+
+
                 } else if (fld.getType().isEnum()) {
                     value = Enum.valueOf((Class<? extends Enum>) fld.getType(), (String) valueFromDb);
                 } else if (hasCustomMapper(fld.getType())) {
-                    value=customMapper.get(fld.getType()).unmarshall(valueFromDb);
+                    value = customMapper.get(fld.getType()).unmarshall(valueFromDb);
                 } else {
                     value = valueFromDb;
                 }

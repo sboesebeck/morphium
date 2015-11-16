@@ -138,6 +138,18 @@ public interface MorphiumDriver {
      */
     void insert(String db, String collection, List<Map<String, Object>> objs, WriteConcern wc) throws MorphiumDriverException;
 
+    /**
+     * store - if id == null, create it...
+     *
+     * @param db
+     * @param collection
+     * @param objs
+     * @param wc
+     * @throws MorphiumDriverException
+     */
+    void store(String db, String collection, List<Map<String, Object>> objs, WriteConcern wc) throws MorphiumDriverException;
+
+
     Map<String, Object> update(String db, String collection, Map<String, Object> query, Map<String, Object> op, boolean multiple, boolean upsert, WriteConcern wc) throws MorphiumDriverException;
 
     Map<String, Object> delete(String db, String collection, Map<String, Object> query, boolean multiple, WriteConcern wc) throws MorphiumDriverException;
