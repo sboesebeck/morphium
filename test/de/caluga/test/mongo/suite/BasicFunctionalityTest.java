@@ -189,6 +189,7 @@ public class BasicFunctionalityTest extends MongoTest {
             o.setValue("Uncached " + i);
             MorphiumSingleton.get().store(o);
         }
+        Thread.sleep(1000);
         Query<UncachedObject> q = MorphiumSingleton.get().createQueryFor(UncachedObject.class);
         q = q.f("counter").exists().f("value").eq("Uncached 1");
         long c = q.countAll();
@@ -272,7 +273,7 @@ public class BasicFunctionalityTest extends MongoTest {
 
 
     @Test
-    public void uncachedSingeTest() {
+    public void uncachedSingeTest() throws Exception {
         log.info("Storing Uncached objects...");
 
         long start = System.currentTimeMillis();
@@ -286,7 +287,7 @@ public class BasicFunctionalityTest extends MongoTest {
         long dur = System.currentTimeMillis() - start;
         log.info("Storing single took " + dur + " ms");
 //        assert (dur < NO_OBJECTS * 5) : "Storing took way too long";
-
+        Thread.sleep(500);
         log.info("Searching for objects");
 
         checkUncached();
