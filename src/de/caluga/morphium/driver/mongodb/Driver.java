@@ -659,9 +659,9 @@ public class Driver implements MorphiumDriver {
     @Override
     public void insert(String db, String collection, List<Map<String, Object>> objs, de.caluga.morphium.driver.WriteConcern wc) throws MorphiumDriverException {
         if (objs == null || objs.size() == 0) return;
-        final List<BasicDBObject> lst = new ArrayList<>();
+        final List<Document> lst = new ArrayList<>();
         for (Map<String, Object> o : objs) {
-            lst.add(new BasicDBObject(o));
+            lst.add(new Document(o));
         }
 
         new DriverHelper().doCall(new MorphiumDriverOperation() {

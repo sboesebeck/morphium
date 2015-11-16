@@ -302,7 +302,7 @@ public class BasicFunctionalityTest extends MongoTest {
         assert (em != null);
     }
     @Test
-    public void uncachedListTest() {
+    public void uncachedListTest() throws Exception {
         MorphiumSingleton.get().clearCollection(UncachedObject.class);
         log.info("Preparing a list...");
 
@@ -317,6 +317,7 @@ public class BasicFunctionalityTest extends MongoTest {
         MorphiumSingleton.get().storeList(lst);
         long dur = System.currentTimeMillis() - start;
         log.info("Storing a list  took " + dur + " ms");
+        Thread.sleep(1000);
         checkUncached();
         assert (MorphiumSingleton.get().getStatistics().get("X-Entries for: de.caluga.test.mongo.suite.UncachedObject") == null) : "Cached Uncached Object?!?!?!";
 
