@@ -2060,8 +2060,12 @@ public class Morphium {
         if (cacheHousekeeper.isAlive()) {
             cacheHousekeeper.interrupt();
         }
-
-        config.getDb().getMongo().close();
+        try {
+            getDriver().close();
+        } catch (MorphiumDriverException e) {
+            e.printStackTrace();
+        }
+//        config.getDb().getMongo().close();
         config = null;
 //        MorphiumSingleton.reset();
     }

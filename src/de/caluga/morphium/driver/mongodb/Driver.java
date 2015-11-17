@@ -372,7 +372,13 @@ public class Driver implements MorphiumDriver {
             @Override
             public Map<String, Object> execute() {
                 Document ret = mongo.getDatabase("admin").runCommand(new BasicDBObject("replSetGetStatus", 1));
-
+                List<Document> mem = (List) ret.get("members");
+                if (mem == null) return null;
+                for (Document d : mem) {
+                    if (d.get("optime") instanceof Map) {
+                        d.put("optime", ((Map<String, Document>) d.get("optime")).get("ts"));
+                    }
+                }
                 return convertBSON(ret);
             }
 
@@ -496,6 +502,8 @@ public class Driver implements MorphiumDriver {
                 Map m = new HashMap<>();
                 m.put("list", new ArrayList(((BsonArray) value).getValues()));
                 value = convertBSON(m).get("list");
+            } else if (value instanceof Document) {
+                value = convertBSON((Map) value);
             } else if (value instanceof BSONObject) {
                 value = convertBSON((Map) value);
             }
@@ -830,9 +838,9 @@ public class Driver implements MorphiumDriver {
             @Override
             public Map<String, Object> execute() {
                 final Map<String, Object> ret = new HashMap<String, Object>();
-                for (String c : mongo.getDatabase(db).listCollectionNames()) {
-                    if (c.equals(db)) return ret;
-                }
+
+                Document result = mongo.getDatabase(db).runCommand(new Document("listCollections", 1));
+                result.get("first_batch");
                 return null;
             }
         }, retriesOnNetworkError, sleepBetweenErrorRetries);

@@ -108,7 +108,7 @@ public class MongoTest {
             if (p.getProperty("database") != null) {
                 cfg = MorphiumConfig.fromProperties(p);
                 cfg.setMaxConnections(100);
-                cfg.setBlockingThreadsMultiplier(100);
+                cfg.setBlockingThreadsMultiplier(2);
             } else {
                 //creating default config
                 cfg = new MorphiumConfig("morphium_test", 2055, 50000, 5000);
@@ -121,7 +121,7 @@ public class MongoTest {
                 cfg.setMaxAutoReconnectTime(500);
                 cfg.setMaxConnectionLifeTime(60000);
                 cfg.setMaxConnectionIdleTime(30000);
-                cfg.setMaxConnections(2000);
+                cfg.setMaxConnections(100);
                 cfg.setMinConnectionsPerHost(1);
                 cfg.setAutoreconnect(true);
                 cfg.setMaximumRetriesBufferedWriter(1000);
@@ -152,7 +152,7 @@ public class MongoTest {
                 cfg.setDefaultReadPreference(ReadPreference.nearest());
                 p.putAll(cfg.asProperties());
                 p.put("failovertest", "false");
-                cfg.setBlockingThreadsMultiplier(100);
+                cfg.setBlockingThreadsMultiplier(2);
                 storeProps();
             }
             cfg.setGlobalLogLevel(3);
