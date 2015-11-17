@@ -4,8 +4,8 @@ import de.caluga.morphium.MorphiumSingleton;
 import de.caluga.morphium.PartiallyUpdateable;
 import de.caluga.morphium.annotations.*;
 import de.caluga.morphium.annotations.caching.Cache;
+import de.caluga.morphium.driver.bson.MorphiumId;
 import de.caluga.morphium.query.Query;
-import org.bson.types.ObjectId;
 import org.junit.Test;
 
 import java.util.List;
@@ -76,7 +76,7 @@ public class PartialUpdateTests extends MongoTest {
         private int value;
 
         @Id
-        private ObjectId id;
+        private MorphiumId id;
 
         @PartialUpdate("value")
         public void inc() {

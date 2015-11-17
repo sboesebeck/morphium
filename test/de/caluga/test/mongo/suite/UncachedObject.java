@@ -6,7 +6,7 @@ package de.caluga.test.mongo.suite;
 
 import de.caluga.morphium.annotations.*;
 import de.caluga.morphium.annotations.caching.NoCache;
-import org.bson.types.ObjectId;
+import de.caluga.morphium.driver.bson.MorphiumId;
 
 /**
  * @author stephan
@@ -32,7 +32,7 @@ public class UncachedObject {
     private boolean[] boolData;
 
     @Id
-    private ObjectId mongoId;
+    private MorphiumId morphiumId;
 
     public double getDval() {
         return dval;
@@ -108,16 +108,16 @@ public class UncachedObject {
     }
 
 
-    public ObjectId getMongoId() {
-        return mongoId;
+    public MorphiumId getMorphiumId() {
+        return morphiumId;
     }
 
-    public void setMongoId(ObjectId mongoId) {
-        this.mongoId = mongoId;
+    public void setMorphiumId(MorphiumId morphiumId) {
+        this.morphiumId = morphiumId;
     }
 
     public String toString() {
-        return "Counter: " + counter + " Value: " + value + " MongoId: " + mongoId;
+        return "Counter: " + counter + " Value: " + value + " MongoId: " + morphiumId;
     }
 
     @Override
@@ -128,7 +128,7 @@ public class UncachedObject {
         UncachedObject that = (UncachedObject) o;
 
         if (counter != that.counter) return false;
-        return !(mongoId != null ? !mongoId.equals(that.mongoId) : that.mongoId != null) && !(value != null ? !value.equals(that.value) : that.value != null);
+        return !(morphiumId != null ? !morphiumId.equals(that.morphiumId) : that.morphiumId != null) && !(value != null ? !value.equals(that.value) : that.value != null);
 
     }
 
@@ -136,7 +136,7 @@ public class UncachedObject {
     public int hashCode() {
         int result = value != null ? value.hashCode() : 0;
         result = 31 * result + counter;
-        result = 31 * result + (mongoId != null ? mongoId.hashCode() : 0);
+        result = 31 * result + (morphiumId != null ? morphiumId.hashCode() : 0);
         return result;
     }
 

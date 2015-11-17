@@ -14,7 +14,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 /**
  * TODO: Add Documentation here
  **/
-public class MongoId {
+public class MorphiumId {
 
     private final static int THE_MACHINE_ID;
     private int machineId;
@@ -33,7 +33,7 @@ public class MongoId {
         }
     }
 
-    public MongoId() {
+    public MorphiumId() {
         long start = System.currentTimeMillis();
 
         pid = createPID();
@@ -43,16 +43,16 @@ public class MongoId {
         machineId = THE_MACHINE_ID;
     }
 
-    public MongoId(String hexString) {
+    public MorphiumId(String hexString) {
         this(hexToByte(hexString));
     }
 
-    public MongoId(byte[] bytes) {
+    public MorphiumId(byte[] bytes) {
         this(bytes, 0);
     }
 
     private static byte[] hexToByte(String s) {
-        if (s == null || s.length() != 12 || s.matches("[g-zG-Z\\W]")) {
+        if (s == null || s.length() != 24 || s.matches("[g-zG-Z]")) {
             throw new IllegalArgumentException("no hex string: " + s);
         } else {
             byte[] b = new byte[12];
@@ -64,17 +64,18 @@ public class MongoId {
             return b;
         }
     }
-    private MongoId(short pid, int c, int ts) {
+
+    private MorphiumId(short pid, int c, int ts) {
         this.pid = pid;
         counter = c;
         timestamp = ts;
         machineId = THE_MACHINE_ID;
     }
 
-    public MongoId(byte[] bytes, int idx) {
+    public MorphiumId(byte[] bytes, int idx) {
         if (bytes == null) {
             throw new IllegalArgumentException();
-        } else if (idx + 12 >= bytes.length) {
+        } else if (idx + 12 > bytes.length) {
             throw new IllegalArgumentException("not enough data, 12 bytes needed");
         } else {
             this.timestamp = readInt(bytes, idx, 4);
@@ -89,9 +90,9 @@ public class MongoId {
             case 4:
                 return bytes[idx] << 24 | (bytes[idx + 1] & 0xFF) << 16 | (bytes[idx + 2] & 0xFF) << 8 | (bytes[idx + 3] & 0xFF);
             case 3:
-                return (bytes[idx + 1] & 0xFF) << 16 | (bytes[idx + 2] & 0xFF) << 8 | (bytes[idx + 3] & 0xFF);
+                return (bytes[idx] & 0xFF) << 16 | (bytes[idx + 1] & 0xFF) << 8 | (bytes[idx + 2] & 0xFF);
             case 2:
-                return (bytes[idx + 2] & 0xFF) << 8 | (bytes[idx + 3] & 0xFF);
+                return (bytes[idx] & 0xFF) << 8 | (bytes[idx + 1] & 0xFF);
             default:
                 return 0;
         }
@@ -102,14 +103,14 @@ public class MongoId {
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (!(o instanceof MongoId)) return false;
+        if (!(o instanceof MorphiumId)) return false;
 
-        MongoId mongoId = (MongoId) o;
+        MorphiumId morphiumId = (MorphiumId) o;
 
-        if (machineId != mongoId.machineId) return false;
-        if (pid != mongoId.pid) return false;
-        if (counter != mongoId.counter) return false;
-        return timestamp == mongoId.timestamp;
+        if (machineId != morphiumId.machineId) return false;
+        if (pid != morphiumId.pid) return false;
+        if (counter != morphiumId.counter) return false;
+        return timestamp == morphiumId.timestamp;
 
     }
 
@@ -159,7 +160,7 @@ public class MongoId {
                     processId = (short) pName.hashCode();
                 }
             } catch (Throwable t) {
-                new Logger(MongoId.class).error("could not get processID - using random fallback");
+                new Logger(MorphiumId.class).error("could not get processID - using random fallback");
                 processId = (short) new SecureRandom().nextInt();
             }
             threadPid = new ThreadLocal<>();
@@ -192,7 +193,7 @@ public class MongoId {
             }
             machineId = b.toString().hashCode();
         } catch (Throwable t) {
-            new Logger(MongoId.class).error("error accessing nics to create machine identifier... using fallback", t);
+            new Logger(MorphiumId.class).error("error accessing nics to create machine identifier... using fallback", t);
         }
 
         if (machineId == 0) machineId = (new SecureRandom().nextInt());

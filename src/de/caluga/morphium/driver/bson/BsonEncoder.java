@@ -127,10 +127,10 @@ public class BsonEncoder {
             writeByte(0); //subtype
 
             writeBytes(data);
-        } else if (MongoId.class.isAssignableFrom(v.getClass())) {
+        } else if (MorphiumId.class.isAssignableFrom(v.getClass())) {
             writeByte(7);
             cString(n);
-            writeBytes(((MongoId) v).getBytes());
+            writeBytes(((MorphiumId) v).getBytes());
 
         } else if (v.getClass().isAssignableFrom(Boolean.class)) {
             boolean b = (Boolean) v;

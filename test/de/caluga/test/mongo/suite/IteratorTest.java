@@ -1,9 +1,9 @@
 package de.caluga.test.mongo.suite;
 
 import de.caluga.morphium.MorphiumSingleton;
+import de.caluga.morphium.driver.bson.MorphiumId;
 import de.caluga.morphium.query.MorphiumIterator;
 import de.caluga.morphium.query.Query;
-import org.bson.types.ObjectId;
 import org.junit.Test;
 
 import java.util.ArrayList;
@@ -19,7 +19,7 @@ import java.util.Vector;
  */
 public class IteratorTest extends MongoTest {
 
-    private Vector<ObjectId> data = new Vector<>();
+    private Vector<MorphiumId> data = new Vector<>();
 
     private int runningThreads = 0;
 
@@ -47,8 +47,8 @@ public class IteratorTest extends MongoTest {
                             int cnt = 0;
                             while (it.hasNext()) {
                                 UncachedObject uc = it.next();
-                                assert (!data.contains(uc.getMongoId()));
-                                data.add(uc.getMongoId());
+                                assert (!data.contains(uc.getMorphiumId()));
+                                data.add(uc.getMorphiumId());
                                 cnt++;
                                 if (cnt % 1000 == 0) {
                                     log.info("Got " + cnt);
@@ -451,8 +451,8 @@ public class IteratorTest extends MongoTest {
             long start = System.currentTimeMillis();
             for (UncachedObject o : it) {
                 count++;
-                if (hash.get(o.getMongoId().toString()) == null) {
-                    hash.put(o.getMongoId().toString(), "found");
+                if (hash.get(o.getMorphiumId().toString()) == null) {
+                    hash.put(o.getMorphiumId().toString(), "found");
                 } else {
                     log.error("Element read multiple times. Number " + count);
                     error = true;

@@ -2,7 +2,7 @@ package de.caluga.test.mongo.suite;
 
 import de.caluga.morphium.MorphiumSingleton;
 import de.caluga.morphium.annotations.*;
-import org.bson.types.ObjectId;
+import de.caluga.morphium.driver.bson.MorphiumId;
 import org.junit.Test;
 
 import java.util.ArrayList;
@@ -69,12 +69,12 @@ public class ListOfListTests extends MongoTest {
     @Entity
     public static class ListTypes {
         @Id
-        private ObjectId id;
+        private MorphiumId id;
         private List<String> stringList;
         private List<UncachedObject> ucList;
         private List<List<UncachedObject>> ucLstList;
 
-        public ObjectId getId() {
+        public MorphiumId getId() {
             return id;
         }
 
@@ -86,7 +86,7 @@ public class ListOfListTests extends MongoTest {
             this.ucLstList = ucLstList;
         }
 
-        public void setId(ObjectId id) {
+        public void setId(MorphiumId id) {
             this.id = id;
         }
 
@@ -112,7 +112,7 @@ public class ListOfListTests extends MongoTest {
     @DefaultReadPreference(ReadPreferenceLevel.PRIMARY)
     public static class LoLType {
         @Id
-        private ObjectId id;
+        private MorphiumId id;
 
         private List<List<String>> lst;
 

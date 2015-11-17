@@ -46,7 +46,7 @@ public class FieldListTest extends MongoTest {
 
 
         List<Map<String, Object>> lst = MorphiumSingleton.get().getDriver().find(MorphiumSingleton.get().getConfig().getDatabase(), "write_only_object",
-                MorphiumSingleton.get().getMap("_id", wo.getMongoId()), null, null, 0, 1000, 1000, null, null);
+                MorphiumSingleton.get().getMap("_id", wo.getMorphiumId()), null, null, 0, 1000, 1000, null, null);
         Map<String, Object> obj = lst.get(0);
         assert (obj.get("write_only_value").equals("write only"));
 

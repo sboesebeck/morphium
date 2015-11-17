@@ -8,7 +8,7 @@ import de.caluga.morphium.MongoType;
 import de.caluga.morphium.ObjectMapper;
 import de.caluga.morphium.annotations.Entity;
 import de.caluga.morphium.annotations.Reference;
-import org.bson.types.ObjectId;
+import de.caluga.morphium.driver.bson.MorphiumId;
 
 import java.lang.reflect.Field;
 import java.util.ArrayList;
@@ -76,10 +76,10 @@ public class MongoFieldImpl<T> implements MongoField<T> {
         if (val != null) {
             Class<?> cls = val.getClass();
             Field field = mapper.getMorphium().getARHelper().getField(query.getType(), fldStr);
-            if (mapper.getMorphium().getARHelper().isAnnotationPresentInHierarchy(cls, Entity.class) || val instanceof ObjectId) {
+            if (mapper.getMorphium().getARHelper().isAnnotationPresentInHierarchy(cls, Entity.class) || val instanceof MorphiumId) {
                 if (field.isAnnotationPresent(Reference.class)) {
                     Object id;
-                    if (val instanceof ObjectId) {
+                    if (val instanceof MorphiumId) {
                         id = val;
                     } else {
                         id = mapper.getMorphium().getARHelper().getId(val);
@@ -100,11 +100,11 @@ public class MongoFieldImpl<T> implements MongoField<T> {
 
             }
             if (field != null) {
-                if (val instanceof ObjectId && field.getType().equals(String.class)) {
+                if (val instanceof MorphiumId && field.getType().equals(String.class)) {
                     val = val.toString();
-                } else if (val instanceof String && field.getType().equals(ObjectId.class)) {
+                } else if (val instanceof String && field.getType().equals(MorphiumId.class)) {
                     try {
-                        val = new ObjectId((String) val);
+                        val = new MorphiumId((String) val);
                     } catch (Exception ignored) {
                     }
                 }
