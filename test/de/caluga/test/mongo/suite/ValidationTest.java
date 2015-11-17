@@ -3,8 +3,8 @@ package de.caluga.test.mongo.suite;
 import de.caluga.morphium.MorphiumSingleton;
 import de.caluga.morphium.annotations.Entity;
 import de.caluga.morphium.annotations.Id;
+import de.caluga.morphium.driver.bson.MorphiumId;
 import junit.framework.Assert;
-import org.bson.types.ObjectId;
 import org.junit.Test;
 
 import javax.validation.ConstraintViolationException;
@@ -121,7 +121,7 @@ public class ValidationTest extends MongoTest {
     public class ListValidationTestObject {
         private List<ValidationTestObject> lst;
         @Id
-        private ObjectId id;
+        private MorphiumId id;
 
         public List<ValidationTestObject> getLst() {
             return lst;

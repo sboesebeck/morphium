@@ -4,8 +4,8 @@ import de.caluga.morphium.*;
 import de.caluga.morphium.annotations.Entity;
 import de.caluga.morphium.annotations.Id;
 import de.caluga.morphium.annotations.Reference;
+import de.caluga.morphium.driver.bson.MorphiumId;
 import de.caluga.morphium.query.Query;
-import org.bson.types.ObjectId;
 import org.junit.Test;
 
 import java.util.ArrayList;
@@ -261,9 +261,9 @@ public class LazyLoadingTest extends MongoTest {
         log.info("Stored object");
 
 
-        DereferencingListener<Object, LazyLoadingObject, ObjectId> refListener = new DereferencingListener<Object, LazyLoadingObject, ObjectId>() {
+        DereferencingListener<Object, LazyLoadingObject, MorphiumId> refListener = new DereferencingListener<Object, LazyLoadingObject, MorphiumId>() {
             @Override
-            public void wouldDereference(LazyLoadingObject entiyIncludingReference, String fieldInEntity, ObjectId id, Class<Object> typeReferenced, boolean lazy) throws MorphiumAccessVetoException {
+            public void wouldDereference(LazyLoadingObject entiyIncludingReference, String fieldInEntity, MorphiumId id, Class<Object> typeReferenced, boolean lazy) throws MorphiumAccessVetoException {
                 wouldDeref = true;
                 assert (lazy);
                 assert (!typeReferenced.equals(Object.class));
@@ -309,7 +309,7 @@ public class LazyLoadingTest extends MongoTest {
 
         protected int value;
         @Id
-        ObjectId id;
+        MorphiumId id;
         @Reference
         SimpleEntity ref;
         @Reference(lazyLoading = true)
@@ -346,11 +346,11 @@ public class LazyLoadingTest extends MongoTest {
             this.ref = ref;
         }
 
-        public ObjectId getId() {
+        public MorphiumId getId() {
             return id;
         }
 
-        public void setId(ObjectId id) {
+        public void setId(MorphiumId id) {
             this.id = id;
         }
     }

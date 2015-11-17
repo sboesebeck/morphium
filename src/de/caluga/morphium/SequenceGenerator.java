@@ -1,10 +1,9 @@
 package de.caluga.morphium;
 
 import de.caluga.morphium.driver.MorphiumDriverException;
+import de.caluga.morphium.driver.bson.MorphiumId;
 import de.caluga.morphium.query.Query;
-import org.bson.types.ObjectId;
 
-import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
@@ -70,7 +69,8 @@ public class SequenceGenerator {
                 Sequence s = new Sequence();
                 s.setCurrentValue(startValue - inc);
                 s.setName(name);
-                s.setId(new ObjectId(new Date(0l), name.hashCode() & 0xffffff));
+//                s.setId(new MongoId(new Date(0l), name.hashCode() & 0xffffff));
+                s.setId(new MorphiumId());
                 morphium.storeNoCache(s);
                 //inserted
             }

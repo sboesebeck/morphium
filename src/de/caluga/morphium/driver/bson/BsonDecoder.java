@@ -86,8 +86,8 @@ public class BsonDecoder {
                     //undefined / deprecated
                     throw new RuntimeException("deprecated type detected!");
                 case 0x07:
-                    //ObjectId
-                    value = new MongoId(in, idx);
+                    //MongoId
+                    value = new MorphiumId(in, idx);
                     idx += 12;
                     break;
                 case 0x08:

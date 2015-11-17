@@ -24,7 +24,7 @@ public class DeleteTest extends MongoTest {
         assert (c == 9);
         List<UncachedObject> lst = MorphiumSingleton.get().createQueryFor(UncachedObject.class).asList();
         for (UncachedObject uc : lst) {
-            assert (!uc.getMongoId().equals(u.getMongoId()));
+            assert (!uc.getMorphiumId().equals(u.getMorphiumId()));
         }
     }
 
@@ -39,7 +39,7 @@ public class DeleteTest extends MongoTest {
         assert (c == 9);
         List<UncachedObject> lst = MorphiumSingleton.get().createQueryFor(UncachedObject.class).asList();
         for (UncachedObject uc : lst) {
-            assert (!uc.getMongoId().equals(u.getMongoId()));
+            assert (!uc.getMorphiumId().equals(u.getMorphiumId()));
         }
     }
 

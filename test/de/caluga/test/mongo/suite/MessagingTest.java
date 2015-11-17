@@ -1,12 +1,12 @@
 package de.caluga.test.mongo.suite;
 
 import de.caluga.morphium.MorphiumSingleton;
+import de.caluga.morphium.driver.bson.MorphiumId;
 import de.caluga.morphium.messaging.MessageListener;
 import de.caluga.morphium.messaging.Messaging;
 import de.caluga.morphium.messaging.Msg;
 import de.caluga.morphium.messaging.MsgType;
 import de.caluga.morphium.query.Query;
-import org.bson.types.ObjectId;
 import org.junit.Test;
 
 import java.util.*;
@@ -27,7 +27,7 @@ public class MessagingTest extends MongoTest {
 
     public boolean error = false;
 
-    public ObjectId lastMsgId;
+    public MorphiumId lastMsgId;
 
     public int procCounter = 0;
 
@@ -88,7 +88,7 @@ public class MessagingTest extends MongoTest {
     public void testMsgLifecycle() throws Exception {
         Msg m = new Msg();
         m.setSender("Meine wunderbare ID " + System.currentTimeMillis());
-        m.setMsgId(new ObjectId());
+        m.setMsgId(new MorphiumId());
         m.setName("A name");
         MorphiumSingleton.get().store(m);
         Thread.sleep(5000);
@@ -198,7 +198,7 @@ public class MessagingTest extends MongoTest {
         log.info("Dig not get own message - cool!");
 
         Msg m = new Msg("meine Message", MsgType.SINGLE, "The Message", "value is a string", 5000);
-        m.setMsgId(new ObjectId());
+        m.setMsgId(new MorphiumId());
         m.setSender("Another sender");
 
         MorphiumSingleton.get().store(m);
@@ -569,7 +569,7 @@ public class MessagingTest extends MongoTest {
         });
 
         Msg question = new Msg("QMsg", "This is the message text", "A question param");
-        question.setMsgId(new ObjectId());
+        question.setMsgId(new MorphiumId());
         lastMsgId = question.getMsgId();
         onlyAnswers.storeMessage(question);
 
@@ -604,7 +604,7 @@ public class MessagingTest extends MongoTest {
         MorphiumSingleton.get().clearCollection(Msg.class);
         List<Messaging> systems = new ArrayList<>();
 
-        final Map<ObjectId, Integer> processedMessages = new Hashtable<>();
+        final Map<MorphiumId, Integer> processedMessages = new Hashtable<>();
 
         for (int i = 0; i < numberOfWorkers; i++) {
             //creating messaging instances
@@ -667,7 +667,7 @@ public class MessagingTest extends MongoTest {
         log.info("done");
 
         assert (processedMessages.size() == numberOfMessages) : "sent " + numberOfMessages + " messages, but only " + processedMessages.size() + " were recieved?";
-        for (ObjectId id : processedMessages.keySet()) {
+        for (MorphiumId id : processedMessages.keySet()) {
             assert (processedMessages.get(id) == numberOfWorkers - 1) : "Message " + id + " was not recieved by all " + (numberOfWorkers - 1) + " other workers? only by " + processedMessages.get(id);
         }
         assert (procCounter == numberOfMessages * (numberOfWorkers - 1)) : "Still processing messages?!?!?";

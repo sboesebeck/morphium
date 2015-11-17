@@ -133,7 +133,7 @@ public class ListTests extends MongoTest {
 
         MorphiumSingleton.get().storeList(lst);
 
-        assert (lst.get(0).getMongoId() != null);
+        assert (lst.get(0).getMorphiumId() != null);
 
         lst.get(0).setCounter(999);
 

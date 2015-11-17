@@ -2,7 +2,7 @@ package de.caluga.test.mongo.suite;
 
 import de.caluga.morphium.annotations.*;
 import de.caluga.morphium.annotations.caching.NoCache;
-import org.bson.types.ObjectId;
+import de.caluga.morphium.driver.bson.MorphiumId;
 
 /**
  * User: Stpehan Bösebeck
@@ -18,7 +18,7 @@ import org.bson.types.ObjectId;
 @WriteSafety(level = SafetyLevel.WAIT_FOR_ALL_SLAVES)
 public class ComplexObject {
     @Id
-    private ObjectId id;
+    private MorphiumId id;
 
     @Aliases({"last_changed", "lastChanged"})
     @LastChange
@@ -88,11 +88,11 @@ public class ComplexObject {
         this.lastAccess = lastAccess;
     }
 
-    public ObjectId getId() {
+    public MorphiumId getId() {
         return id;
     }
 
-    public void setId(ObjectId id) {
+    public void setId(MorphiumId id) {
         this.id = id;
     }
 
@@ -140,7 +140,7 @@ public class ComplexObject {
     public String toString() {
         return "ComplexObject{" +
                 "id=" + id +
-                ", ref=" + (ref != null ? ref.getMongoId().toString() : "null") +
+                ", ref=" + (ref != null ? ref.getMorphiumId().toString() : "null") +
                 ", entityEmbedded=" + entityEmbeded +
                 ", einText='" + einText + '\'' +
                 ", trans='" + trans + '\'' +

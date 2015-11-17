@@ -20,7 +20,7 @@ import static java.lang.annotation.ElementType.FIELD;
  * ...
  * }
  * </code>
- * if you use a non-ObjectId-Field or create the IDs in code, you should set checkForNew to true. Otherwise creationtime won't be set.
+ * if you use a non-MongoId-Field or create the IDs in code, you should set checkForNew to true. Otherwise creationtime won't be set.
  */
 @Target({FIELD, ElementType.TYPE})
 @Retention(RetentionPolicy.RUNTIME)

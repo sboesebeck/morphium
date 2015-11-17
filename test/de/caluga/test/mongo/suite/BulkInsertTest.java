@@ -75,7 +75,7 @@ public class BulkInsertTest extends MongoTest {
         }
         log.info("List prepared...");
         MorphiumSingleton.get().storeList(lst);
-        assert (lst.get(0).getMongoId() != null);
+        assert (lst.get(0).getMorphiumId() != null);
         dur = System.currentTimeMillis() - start;
         if ((MorphiumSingleton.get().getWriteBufferCount() != 0)) {
             throw new AssertionError("WriteBufferCount not 0!? Buffered:" + MorphiumSingleton.get().getBufferedWriterBufferCount());

@@ -4,8 +4,8 @@ import de.caluga.morphium.MorphiumSingleton;
 import de.caluga.morphium.annotations.*;
 import de.caluga.morphium.annotations.caching.NoCache;
 import de.caluga.morphium.annotations.caching.WriteBuffer;
+import de.caluga.morphium.driver.bson.MorphiumId;
 import de.caluga.morphium.query.Query;
-import org.bson.types.ObjectId;
 import org.junit.Test;
 
 import java.util.ArrayList;
@@ -181,16 +181,16 @@ public class GeoSearchTests extends MongoTest {
     @Entity
     public static class Place {
         @Id
-        private ObjectId id;
+        private MorphiumId id;
 
         public List<Double> position;
         public String name;
 
-        public ObjectId getId() {
+        public MorphiumId getId() {
             return id;
         }
 
-        public void setId(ObjectId id) {
+        public void setId(MorphiumId id) {
             this.id = id;
         }
 
