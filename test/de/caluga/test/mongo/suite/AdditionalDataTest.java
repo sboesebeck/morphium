@@ -71,7 +71,7 @@ public class AdditionalDataTest extends MongoTest {
         MorphiumSingleton.get().store(d);
 
         log.info(str);
-
+        Thread.sleep(1000);
         d2 = MorphiumSingleton.get().findById(AddDat.class, d.getMongoId());
 
         assert (d2.additionals != null);
