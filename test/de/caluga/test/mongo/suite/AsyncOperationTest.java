@@ -139,7 +139,10 @@ public class AsyncOperationTest extends MongoTest {
     public void testAsyncWriter() throws Exception {
         MorphiumSingleton.get().clearCollection(AsyncObject.class);
         long start = System.currentTimeMillis();
-        for (int i = 0; i < 1000; i++) {
+        for (int i = 0; i < 500; i++) {
+            if (i % 100 == 0) {
+                log.info("Stored " + i + " objects");
+            }
             AsyncObject ao = new AsyncObject();
             ao.setCounter(i);
             ao.setValue("Async write");
