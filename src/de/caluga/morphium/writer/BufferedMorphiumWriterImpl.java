@@ -6,12 +6,12 @@ import de.caluga.morphium.*;
 import de.caluga.morphium.annotations.caching.WriteBuffer;
 import de.caluga.morphium.async.AsyncOperationCallback;
 import de.caluga.morphium.async.AsyncOperationType;
+import de.caluga.morphium.driver.bson.MorphiumId;
 import de.caluga.morphium.driver.bulk.BulkRequestContext;
 import de.caluga.morphium.driver.bulk.DeleteBulkRequest;
 import de.caluga.morphium.driver.bulk.InsertBulkRequest;
 import de.caluga.morphium.driver.bulk.UpdateBulkRequest;
 import de.caluga.morphium.query.Query;
-import org.bson.types.ObjectId;
 
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
@@ -170,8 +170,8 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
             public void exec(BulkRequestContext ctx) {
                 //do nothing
                 boolean isNew = morphium.getARHelper().getId(o) == null;
-                if (!isNew && !morphium.getARHelper().getIdField(o).getType().equals(ObjectId.class)) {
-                    //need to check if type is not ObjectId
+                if (!isNew && !morphium.getARHelper().getIdField(o).getType().equals(MorphiumId.class)) {
+                    //need to check if type is not MongoId
                     isNew = (morphium.createQueryFor(o.getClass()).f("_id").eq(morphium.getId(o)).countAll() == 0);
                 }
                 morphium.firePreStoreEvent(o, isNew);

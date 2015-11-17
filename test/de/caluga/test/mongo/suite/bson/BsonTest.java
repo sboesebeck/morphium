@@ -5,10 +5,12 @@ package de.caluga.test.mongo.suite.bson;/**
 import de.caluga.morphium.Logger;
 import de.caluga.morphium.driver.bson.BsonDecoder;
 import de.caluga.morphium.driver.bson.BsonEncoder;
-import de.caluga.morphium.driver.bson.MongoId;
+import de.caluga.morphium.driver.bson.MorphiumId;
 import org.junit.Test;
 
 import java.util.*;
+
+;
 
 /**
  * TODO: Add Documentation here
@@ -23,7 +25,7 @@ public class BsonTest extends BaseTest {
 
         Map<String, Object> doc = new HashMap<>();
 
-        doc.put("_id", new MongoId());
+        doc.put("_id", new MorphiumId());
         doc.put("counter", 123);
         doc.put("value", "a value");
 
@@ -48,10 +50,10 @@ public class BsonTest extends BaseTest {
 
     @Test
     public void mongoIdTest() throws Exception {
-        List<MongoId> lst = new ArrayList<>();
+        List<MorphiumId> lst = new ArrayList<>();
         log.info("Creating...");
         for (int i = 0; i < 100000; i++) {
-            MongoId id = new MongoId();
+            MorphiumId id = new MorphiumId();
             assert (!lst.contains(id));
             lst.add(id);
         }
@@ -63,7 +65,7 @@ public class BsonTest extends BaseTest {
     public void encodeTest() throws Exception {
         Map<String, Object> doc = new HashMap<>();
 
-        doc.put("_id", new MongoId());
+        doc.put("_id", new MorphiumId());
         doc.put("counter", 123);
         doc.put("value", "a value");
 

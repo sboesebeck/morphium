@@ -6,10 +6,10 @@ import de.caluga.morphium.async.AsyncOperationCallback;
 import de.caluga.morphium.async.AsyncOperationType;
 import de.caluga.morphium.driver.MorphiumDriverException;
 import de.caluga.morphium.driver.WriteConcern;
+import de.caluga.morphium.driver.bson.MorphiumId;
 import de.caluga.morphium.driver.bulk.BulkRequestContext;
 import de.caluga.morphium.driver.bulk.UpdateBulkRequest;
 import de.caluga.morphium.query.Query;
-import org.bson.types.ObjectId;
 
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
@@ -105,7 +105,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                     if (morphium.isAutoValuesEnabledForThread()) {
                         CreationTime creationTime = morphium.getARHelper().getAnnotationFromHierarchy(type, CreationTime.class);
                         if (id != null && (morphium.getConfig().isCheckForNew() || (creationTime != null && creationTime.checkForNew()))
-                                && !morphium.getARHelper().getIdField(o).getType().equals(ObjectId.class)) {
+                                && !morphium.getARHelper().getIdField(o).getType().equals(MorphiumId.class)) {
                             //check if it exists
                             reread = morphium.findById(o.getClass(), id);
                             isNew = reread == null;
@@ -159,9 +159,11 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                             if (fld.getType().equals(marshall.get("_id").getClass())) {
                                 fld.set(o, marshall.get("_id"));
                             } else {
-                                logger.warn("got default generated key, but ID-Field is not of type ObjectID... trying string conversion");
+                                //Driver abstraction makes id conversion necessary!
                                 if (fld.getType().equals(String.class)) {
                                     fld.set(o, marshall.get("_id").toString());
+                                } else if (fld.getType().equals(MorphiumId.class)) {
+                                    fld.set(o, new MorphiumId(marshall.get("_id").toString()));
                                 } else {
                                     throw new IllegalArgumentException("cannot convert ID for given object - id type is: " + fld.getType().getName() + "! Please set ID before write");
                                 }
@@ -235,7 +237,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                         aNew = reread == null;
                     } else {
                         if (reread == null) {
-                            aNew = (id instanceof ObjectId && id == null); //if id null, is new. if id!=null probably not, if type is objectId
+                            aNew = (id instanceof MorphiumId && id == null); //if id null, is new. if id!=null probably not, if type is objectId
                         } else {
                             Object value = field.get(reread);
                             field.set(o, value);
@@ -343,7 +345,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                 if (morphium.isAutoValuesEnabledForThread()) {
                     CreationTime creationTime = morphium.getARHelper().getAnnotationFromHierarchy(record.getClass(), CreationTime.class);
                     if (!isn && (morphium.getConfig().isCheckForNew() || (creationTime != null && creationTime.checkForNew()))
-                            && !morphium.getARHelper().getIdField(record).getType().equals(ObjectId.class)) {
+                            && !morphium.getARHelper().getIdField(record).getType().equals(MorphiumId.class)) {
                         //check if it exists
                         reread = morphium.findById(record.getClass(), id);
                         isn = reread == null;
@@ -464,8 +466,8 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                             }
                         }
                         if (isn) {
-                            if (!morphium.getARHelper().getIdField(o).getType().equals(ObjectId.class) && morphium.getId(o) == null) {
-                                throw new IllegalArgumentException("Cannot automatically set non -ObjectId IDs");
+                            if (!morphium.getARHelper().getIdField(o).getType().equals(MorphiumId.class) && morphium.getId(o) == null) {
+                                throw new IllegalArgumentException("Cannot automatically set non -MongoId IDs");
                             }
                             isNew.put(o, true);
                         } else {
@@ -519,7 +521,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                                         logger.error("cannot update mongo_id...");
                                     } else {
                                         try {
-                                            morphium.getARHelper().getIdField(entity).set(entity, o.get("_id"));
+                                            morphium.getARHelper().getIdField(entity).set(entity, new MorphiumId(o.get("_id").toString()));
                                         } catch (Exception e) {
                                             logger.error("Setting of mongo_id failed", e);
                                         }
@@ -568,7 +570,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
 //            logger.warn("cannot cap collection for class " + c.getName() + " not @Capped");
             return;
         }
-        cmd.put("autoIndexId", (morphium.getARHelper().getIdField(c).getType().equals(ObjectId.class)));
+        cmd.put("autoIndexId", (morphium.getARHelper().getIdField(c).getType().equals(MorphiumId.class)));
         try {
             morphium.getDriver().runCommand(morphium.getConfig().getDatabase(), cmd);
         } catch (MorphiumDriverException e) {
@@ -606,7 +608,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                             cmd.put("size", capped.maxSize());
                             cmd.put("max", capped.maxEntries());
                         }
-                        cmd.put("autoIndexId", (morphium.getARHelper().getIdField(c).getType().equals(ObjectId.class)));
+                        cmd.put("autoIndexId", (morphium.getARHelper().getIdField(c).getType().equals(MorphiumId.class)));
                         morphium.getDriver().runCommand(getDbName(), cmd);
                     } else {
                         Capped capped = morphium.getARHelper().getAnnotationFromHierarchy(c, Capped.class);

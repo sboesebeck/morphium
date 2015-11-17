@@ -5,8 +5,8 @@ import de.caluga.morphium.MorphiumSingleton;
 import de.caluga.morphium.annotations.*;
 import de.caluga.morphium.annotations.caching.NoCache;
 import de.caluga.morphium.annotations.lifecycle.*;
+import de.caluga.morphium.driver.bson.MorphiumId;
 import de.caluga.morphium.query.Query;
-import org.bson.types.ObjectId;
 import org.junit.Test;
 
 /**
@@ -61,7 +61,7 @@ public class LifecycleTest extends MongoTest {
     @Lifecycle
     public static class LfTestObj {
         @Id
-        private ObjectId id;
+        private MorphiumId id;
         private String value;
 
         public String getValue() {
@@ -72,11 +72,11 @@ public class LifecycleTest extends MongoTest {
             this.value = value;
         }
 
-        public ObjectId getId() {
+        public MorphiumId getId() {
             return id;
         }
 
-        public void setId(ObjectId id) {
+        public void setId(MorphiumId id) {
             this.id = id;
         }
 
@@ -127,7 +127,7 @@ public class LifecycleTest extends MongoTest {
     @Lifecycle
     public static class EntityPostLoad {
         @Id
-        ObjectId id;
+        MorphiumId id;
         @Transient
         public String testPostLoad, testPostLoadValue;
         public EmbeddedPostLoad emb;

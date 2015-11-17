@@ -5,7 +5,7 @@ import de.caluga.morphium.annotations.*;
 import de.caluga.morphium.annotations.caching.NoCache;
 import de.caluga.morphium.annotations.lifecycle.Lifecycle;
 import de.caluga.morphium.annotations.lifecycle.PreStore;
-import org.bson.types.ObjectId;
+import de.caluga.morphium.driver.bson.MorphiumId;
 
 import java.util.*;
 
@@ -49,7 +49,7 @@ public class Msg {
     @Index
     private List<String> processedBy;
     @Id
-    private ObjectId msgId;
+    private MorphiumId msgId;
     @Index
     private String lockedBy;
     @Index
@@ -186,11 +186,11 @@ public class Msg {
         this.inAnswerTo = inAnswerTo;
     }
 
-    public ObjectId getMsgId() {
+    public MorphiumId getMsgId() {
         return msgId;
     }
 
-    public void setMsgId(ObjectId msgId) {
+    public void setMsgId(MorphiumId msgId) {
         this.msgId = msgId;
     }
 

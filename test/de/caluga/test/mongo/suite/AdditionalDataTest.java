@@ -32,7 +32,7 @@ public class AdditionalDataTest extends MongoTest {
         d.setAdditionals(additional);
         MorphiumSingleton.get().store(d);
         System.out.println("Stored some additional data!");
-        AddDat d2 = MorphiumSingleton.get().findById(AddDat.class, d.getMongoId());
+        AddDat d2 = MorphiumSingleton.get().findById(AddDat.class, d.getMorphiumId());
         assert (d2.additionals != null);
         assert (d2.additionals.get("102-92-93").equals(3234));
         assert (((Map) d2.additionals.get("test")).get("tst").equals("tst"));
@@ -72,7 +72,7 @@ public class AdditionalDataTest extends MongoTest {
 
         log.info(str);
         Thread.sleep(1000);
-        d2 = MorphiumSingleton.get().findById(AddDat.class, d.getMongoId());
+        d2 = MorphiumSingleton.get().findById(AddDat.class, d.getMorphiumId());
 
         assert (d2.additionals != null);
         assert (d2.additionals.get("object") != null);

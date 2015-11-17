@@ -5,8 +5,8 @@ import de.caluga.morphium.annotations.Entity;
 import de.caluga.morphium.annotations.Id;
 import de.caluga.morphium.annotations.ReadPreferenceLevel;
 import de.caluga.morphium.annotations.caching.NoCache;
+import de.caluga.morphium.driver.bson.MorphiumId;
 import de.caluga.morphium.query.Query;
-import org.bson.types.ObjectId;
 import org.junit.Test;
 
 /**
@@ -21,7 +21,7 @@ public class ArrayTest extends MongoTest {
     @NoCache
     public static class ArrayTestObj {
         @Id
-        private ObjectId id;
+        private MorphiumId id;
         private String name;
         private int[] intArr;
         private String[] stringArr;

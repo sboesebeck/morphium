@@ -6,11 +6,14 @@ import de.caluga.morphium.ObjectMapper;
 import de.caluga.morphium.ObjectMapperImpl;
 import de.caluga.morphium.annotations.Entity;
 import de.caluga.morphium.annotations.Id;
-import org.bson.types.ObjectId;
+import de.caluga.morphium.driver.bson.MorphiumId;
 import org.junit.Test;
 
 import java.math.BigInteger;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 /**
  * User: Stpehan Bösebeck
@@ -162,9 +165,9 @@ public class ObjectMapperTest extends MongoTest {
         UncachedObject o = new UncachedObject();
         o.setCounter(12345);
         o.setValue("This \" is $ test");
-        o.setMongoId(new ObjectId(new Date()));
+        o.setMorphiumId(new MorphiumId());
         Object id = an.getId(o);
-        assert (id.equals(o.getMongoId())) : "IDs not equal!";
+        assert (id.equals(o.getMorphiumId())) : "IDs not equal!";
     }
 
 
@@ -215,16 +218,16 @@ public class ObjectMapperTest extends MongoTest {
         co.setEmbed(eo);
 
         co.setEntityEmbeded(o);
-        ObjectId embedId = o.getMongoId();
+        MorphiumId embedId = o.getMorphiumId();
 
         o = new UncachedObject();
         o.setCounter(12345);
         o.setValue("Referenced value");
-//        o.setMongoId(new ObjectId(new Date()));
+//        o.setMongoId(new MongoId(new Date()));
         MorphiumSingleton.get().store(o);
 
         co.setRef(o);
-        co.setId(new ObjectId(new Date()));
+        co.setId(new MorphiumId());
         String st = co.toString();
         System.out.println("Referenced object: " + om.marshall(o).toString());
         Map<String, Object> marshall = om.marshall(co);
@@ -233,8 +236,8 @@ public class ObjectMapperTest extends MongoTest {
 
         //Unmarshalling stuff
         co = om.unmarshall(ComplexObject.class, marshall);
-        assert (co.getEntityEmbeded().getMongoId() == null) : "Embeded entity got a mongoID?!?!?!";
-        co.getEntityEmbeded().setMongoId(embedId);  //need to set ID manually, as it won't be stored!
+        assert (co.getEntityEmbeded().getMorphiumId() == null) : "Embeded entity got a mongoID?!?!?!";
+        co.getEntityEmbeded().setMorphiumId(embedId);  //need to set ID manually, as it won't be stored!
         String st2 = co.toString();
         assert (st.equals(st2)) : "Strings not equal?\n" + st + "\n" + st2;
         assert (co.getEmbed() != null) : "Embedded value not found!";
@@ -327,7 +330,7 @@ public class ObjectMapperTest extends MongoTest {
         UncachedObject o = new UncachedObject();
         o.setCounter(42);
         o.setValue("The meaning of life");
-        o.setMongoId(new ObjectId(new Date()));
+        o.setMorphiumId(new MorphiumId());
         Map<String, Object> marshall = null;
         ObjectMapperImpl om = (ObjectMapperImpl) MorphiumSingleton.get().getMapper();
         long start = System.currentTimeMillis();
@@ -353,7 +356,7 @@ public class ObjectMapperTest extends MongoTest {
         CachedObject o = new CachedObject();
         o.setCounter(42);
         o.setValue("The meaning of life");
-        o.setId(new ObjectId(new Date()));
+        o.setId(new MorphiumId());
         Map<String, Object> marshall = null;
         ObjectMapperImpl om = (ObjectMapperImpl) MorphiumSingleton.get().getMapper();
         long start = System.currentTimeMillis();
@@ -382,7 +385,7 @@ public class ObjectMapperTest extends MongoTest {
         em.setName("Embedded1");
         em.setValue("test");
         em.setTest(424242);
-        o.setId(new ObjectId(new Date()));
+        o.setId(new MorphiumId());
         o.setEmbed(em);
         o.setChanged(System.currentTimeMillis());
         o.setCreated(System.currentTimeMillis());
@@ -420,7 +423,7 @@ public class ObjectMapperTest extends MongoTest {
         em.setName("Embedded1");
         em.setValue("test");
         em.setTest(424242);
-        o.setId(new ObjectId(new Date()));
+        o.setId(new MorphiumId());
         o.setEmbed(em);
         o.setChanged(System.currentTimeMillis());
         o.setCreated(System.currentTimeMillis());
@@ -466,7 +469,7 @@ public class ObjectMapperTest extends MongoTest {
         em.setName("Embedded1");
         em.setValue("test");
         em.setTest(424242);
-        o.setId(new ObjectId(new Date()));
+        o.setId(new MorphiumId());
         o.setEmbed(em);
         o.setChanged(System.currentTimeMillis());
         o.setCreated(System.currentTimeMillis());
@@ -556,7 +559,7 @@ public class ObjectMapperTest extends MongoTest {
     @Entity
     public static class BIObject {
         @Id
-        public ObjectId id;
+        public MorphiumId id;
         public String value;
         public BigInteger biValue;
 

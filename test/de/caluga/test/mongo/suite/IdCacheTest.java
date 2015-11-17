@@ -1,8 +1,8 @@
 package de.caluga.test.mongo.suite;
 
 import de.caluga.morphium.MorphiumSingleton;
+import de.caluga.morphium.driver.bson.MorphiumId;
 import de.caluga.morphium.query.Query;
-import org.bson.types.ObjectId;
 import org.junit.Test;
 
 import java.util.List;
@@ -35,7 +35,7 @@ public class IdCacheTest extends MongoTest {
         assert (MorphiumSingleton.get().getCache().cloneIdCache().size() > 0);
         assert (MorphiumSingleton.get().getCache().cloneIdCache().get(CachedObject.class).size() > 0);
         Thread.sleep(1000);
-        ObjectId id = lst.get(0).getId();
+        MorphiumId id = lst.get(0).getId();
         CachedObject c = MorphiumSingleton.get().findById(CachedObject.class, id);
         assert (lst.get(0) == c) : "Object differ?";
 
