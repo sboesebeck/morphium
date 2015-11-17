@@ -121,7 +121,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                     if (coll == null) {
                         coll = morphium.getMapper().getCollectionName(type);
                     }
-                    if (!morphium.getDriver().exists(coll)) {
+                    if (!morphium.getDriver().exists(getDbName(), coll)) {
                         if (logger.isDebugEnabled())
                             logger.debug("Collection " + coll + " does not exist - ensuring indices");
                         createCappedColl(o.getClass());
@@ -752,14 +752,15 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                     tries++;
                     executor.submit(r);
                     retry = false;
-//                } catch (OutOfMemoryError ignored) {
+                } catch (OutOfMemoryError ignored) {
+                    logger.error(tries + " - Got OutOfMemory Erro, retrying...", ignored);
                 } catch (java.util.concurrent.RejectedExecutionException e) {
                     if (tries > maximumRetries) {
                         throw new RuntimeException("Could not write - not even after " + maximumRetries + " and pause of " + pause + "ms", e);
                     }
-                    if (logger.isDebugEnabled()) {
-                        logger.warn("thread pool exceeded - waiting");
-                    }
+//                    if (logger.isDebugEnabled()) {
+//                        logger.warn("thread pool exceeded - waiting");
+//                    }
                     try {
                         Thread.sleep(pause);
                     } catch (InterruptedException ignored) {
