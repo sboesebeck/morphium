@@ -5,7 +5,7 @@ import de.caluga.morphium.annotations.Entity;
 import de.caluga.morphium.annotations.Id;
 import de.caluga.morphium.annotations.SafetyLevel;
 import de.caluga.morphium.annotations.WriteSafety;
-import org.bson.types.ObjectId;
+import de.caluga.morphium.driver.bson.MorphiumId;
 import org.junit.Test;
 
 /**
@@ -68,14 +68,14 @@ public class NameProviderTest extends MongoTest {
         private int level;
         private long timestamp;
         @Id
-        private ObjectId id;
+        private MorphiumId id;
 
 
-        public ObjectId getId() {
+        public MorphiumId getId() {
             return id;
         }
 
-        public void setLog(ObjectId log) {
+        public void setLog(MorphiumId log) {
             this.id = log;
         }
 

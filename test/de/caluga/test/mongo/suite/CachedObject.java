@@ -7,7 +7,9 @@ package de.caluga.test.mongo.suite;
 import de.caluga.morphium.annotations.*;
 import de.caluga.morphium.annotations.caching.Cache;
 import de.caluga.morphium.annotations.caching.WriteBuffer;
-import org.bson.types.ObjectId;
+import de.caluga.morphium.driver.bson.MorphiumId;
+
+;
 
 /**
  * @author stephan
@@ -23,17 +25,17 @@ public class CachedObject {
     private int counter;
 
     @Id
-    private ObjectId id;
+    private MorphiumId id;
 
     public int getCounter() {
         return counter;
     }
 
-    public ObjectId getId() {
+    public MorphiumId getId() {
         return id;
     }
 
-    public void setId(ObjectId id) {
+    public void setId(MorphiumId id) {
         this.id = id;
     }
 

@@ -7,7 +7,7 @@ import de.caluga.morphium.ObjectMapper;
 import de.caluga.morphium.annotations.Entity;
 import de.caluga.morphium.annotations.Id;
 import de.caluga.morphium.annotations.caching.NoCache;
-import org.bson.types.ObjectId;
+import de.caluga.morphium.driver.bson.MorphiumId;
 import org.junit.Test;
 
 import java.util.List;
@@ -55,7 +55,7 @@ public class PolymorphismTest extends MongoTest {
         private String poly;
 
         @Id
-        private ObjectId id;
+        private MorphiumId id;
 
         public String getPoly() {
             return poly;

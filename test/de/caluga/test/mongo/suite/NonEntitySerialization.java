@@ -3,7 +3,7 @@ package de.caluga.test.mongo.suite;
 import de.caluga.morphium.MorphiumSingleton;
 import de.caluga.morphium.annotations.Entity;
 import de.caluga.morphium.annotations.Id;
-import org.bson.types.ObjectId;
+import de.caluga.morphium.driver.bson.MorphiumId;
 import org.junit.Test;
 
 import java.io.Serializable;
@@ -99,15 +99,15 @@ public class NonEntitySerialization extends MongoTest {
     @Entity
     public static class NonEntityContainer {
         @Id
-        private ObjectId id;
+        private MorphiumId id;
         private List<Object> list;
         private HashMap<String, Object> map;
 
-        public ObjectId getId() {
+        public MorphiumId getId() {
             return id;
         }
 
-        public void setId(ObjectId id) {
+        public void setId(MorphiumId id) {
             this.id = id;
         }
 

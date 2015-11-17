@@ -5,7 +5,7 @@ import de.caluga.morphium.annotations.Entity;
 import de.caluga.morphium.annotations.Id;
 import de.caluga.morphium.annotations.Index;
 import de.caluga.morphium.annotations.Property;
-import org.bson.types.ObjectId;
+import de.caluga.morphium.driver.bson.MorphiumId;
 import org.junit.Test;
 
 import java.util.ArrayList;
@@ -160,7 +160,7 @@ public class IndexTest extends MongoTest {
         private List<Integer> lst;
 
         @Id
-        ObjectId id;
+        MorphiumId id;
 
         public IndexedObject() {
         }
@@ -186,11 +186,11 @@ public class IndexTest extends MongoTest {
             this.name = name;
         }
 
-        public ObjectId getId() {
+        public MorphiumId getId() {
             return id;
         }
 
-        public void setId(ObjectId id) {
+        public void setId(MorphiumId id) {
             this.id = id;
         }
 

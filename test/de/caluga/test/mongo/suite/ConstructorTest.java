@@ -51,7 +51,7 @@ public class ConstructorTest {
 
         assert (m2.createQueryFor(UncachedObject.class).countAll() >= 1);
 
-        assert (m2.findById(UncachedObject.class, o.getMongoId()) != null);
+        assert (m2.findById(UncachedObject.class, o.getMorphiumId()) != null);
 
         m2.close();
         assert (m.createQueryFor(UncachedObject.class).countAll() >= 1);

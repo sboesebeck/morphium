@@ -2,7 +2,7 @@ package de.caluga.test.mongo.suite;
 
 import de.caluga.morphium.annotations.*;
 import de.caluga.morphium.annotations.caching.NoCache;
-import org.bson.types.ObjectId;
+import de.caluga.morphium.driver.bson.MorphiumId;
 
 import java.util.List;
 
@@ -17,7 +17,7 @@ import java.util.List;
 @WriteSafety(waitForJournalCommit = true, level = SafetyLevel.WAIT_FOR_ALL_SLAVES)
 public class LazyLoadingObject {
     @Id
-    private ObjectId id;
+    private MorphiumId id;
 
     @Reference(lazyLoading = true)
     private UncachedObject lazyUncached;
@@ -39,11 +39,11 @@ public class LazyLoadingObject {
         this.lazyLst = lazyLst;
     }
 
-    public ObjectId getId() {
+    public MorphiumId getId() {
         return id;
     }
 
-    public void setId(ObjectId id) {
+    public void setId(MorphiumId id) {
         this.id = id;
     }
 

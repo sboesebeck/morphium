@@ -3,8 +3,8 @@ package de.caluga.test.mongo.suite;
 import de.caluga.morphium.MorphiumSingleton;
 import de.caluga.morphium.annotations.*;
 import de.caluga.morphium.annotations.caching.NoCache;
+import de.caluga.morphium.driver.bson.MorphiumId;
 import de.caluga.morphium.query.Query;
-import org.bson.types.ObjectId;
 import org.junit.Test;
 
 import java.util.ArrayList;
@@ -212,7 +212,7 @@ public class AutoVariableTest extends MongoTest {
     @WriteSafety(level = SafetyLevel.WAIT_FOR_ALL_SLAVES)
     public static class LCTest {
         @Id
-        private ObjectId mongoId;
+        private MorphiumId morphiumId;
         private String value;
         @LastChange
         private long lastChange;
@@ -227,7 +227,7 @@ public class AutoVariableTest extends MongoTest {
     @LastAccess
     public static class LATest {
         @Id
-        private ObjectId mongoId;
+        private MorphiumId morphiumId;
         private String value;
         @LastAccess
         private long lastAccess;
@@ -242,7 +242,7 @@ public class AutoVariableTest extends MongoTest {
     @CreationTime(checkForNew = false)
     public static class CTimeTest {
         @Id
-        private ObjectId mongoId;
+        private MorphiumId morphiumId;
         private String value;
         private String additional;
         private List<String> lst;

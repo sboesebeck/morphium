@@ -7,8 +7,8 @@ import de.caluga.morphium.MorphiumSingleton;
 import de.caluga.morphium.annotations.*;
 import de.caluga.morphium.annotations.caching.NoCache;
 import de.caluga.morphium.annotations.lifecycle.Lifecycle;
+import de.caluga.morphium.driver.bson.MorphiumId;
 import de.caluga.morphium.query.Query;
-import org.bson.types.ObjectId;
 import org.junit.Test;
 
 import java.util.ArrayList;
@@ -97,9 +97,9 @@ public class ReferenceTest extends MongoTest {
         ReferenceContainer rcRead = q.get(); //should only be one...
 
         assert (rcRead.getId().equals(rc.getId())) : "ID's different?!?!?";
-        assert (rcRead.getUc().getMongoId().equals(rc.getUc().getMongoId())) : "Uc's Id's different?!?!";
+        assert (rcRead.getUc().getMorphiumId().equals(rc.getUc().getMorphiumId())) : "Uc's Id's different?!?!";
         assert (rcRead.getCo().getId().equals(rc.getCo().getId())) : "Co's id's different";
-        assert (rcRead.getLazyUc().getMongoId().equals(rc.getLazyUc().getMongoId())) : "lazy refs Ids differ";
+        assert (rcRead.getLazyUc().getMorphiumId().equals(rc.getLazyUc().getMorphiumId())) : "lazy refs Ids differ";
         assert (rcRead.getLst().size() == rc.getLst().size()) : "Size of lists differ?";
         assert (rcRead.getLzyLst().get(0).getClass().getName().contains("$EnhancerByCGLIB$")) : "List not lazy?";
         assert (rcRead.getLzyLst().get(0).getCounter() == rc.getLzyLst().get(0).getCounter()) : "Counter different?!?";
@@ -204,7 +204,7 @@ public class ReferenceTest extends MongoTest {
     @Entity
     public static class SimpleDoublyLinkedEntity {
         @Id
-        ObjectId id;
+        MorphiumId id;
         @Reference(lazyLoading = true, automaticStore = false)
         SimpleDoublyLinkedEntity prev, next;
         int value;
@@ -272,7 +272,7 @@ public class ReferenceTest extends MongoTest {
     @NoCache
     public static class ReferenceContainer {
         @Id
-        private ObjectId id;
+        private MorphiumId id;
 
         @Reference
         private UncachedObject uc;
@@ -296,11 +296,11 @@ public class ReferenceTest extends MongoTest {
             this.lzyLst = lzyLst;
         }
 
-        public ObjectId getId() {
+        public MorphiumId getId() {
             return id;
         }
 
-        public void setId(ObjectId id) {
+        public void setId(MorphiumId id) {
             this.id = id;
         }
 

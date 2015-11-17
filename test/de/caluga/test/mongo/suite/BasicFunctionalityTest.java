@@ -229,9 +229,9 @@ public class BasicFunctionalityTest extends MongoTest {
             last = o;
         }
 
-        assert (last.getMongoId() != null) : "ID null?!?!?";
+        assert (last.getMorphiumId() != null) : "ID null?!?!?";
 
-        UncachedObject uc = MorphiumSingleton.get().findById(UncachedObject.class, last.getMongoId());
+        UncachedObject uc = MorphiumSingleton.get().findById(UncachedObject.class, last.getMorphiumId());
         assert (uc != null) : "Not found?!?";
         assert (uc.getCounter() == last.getCounter()) : "Different Object? " + uc.getCounter() + " != " + last.getCounter();
 

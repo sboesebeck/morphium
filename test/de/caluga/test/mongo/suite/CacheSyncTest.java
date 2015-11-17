@@ -11,11 +11,11 @@ import de.caluga.morphium.annotations.caching.WriteBuffer;
 import de.caluga.morphium.cache.CacheSyncListener;
 import de.caluga.morphium.cache.CacheSyncVetoException;
 import de.caluga.morphium.cache.CacheSynchronizer;
+import de.caluga.morphium.driver.bson.MorphiumId;
 import de.caluga.morphium.messaging.MessageListener;
 import de.caluga.morphium.messaging.Messaging;
 import de.caluga.morphium.messaging.Msg;
 import de.caluga.morphium.query.Query;
-import org.bson.types.ObjectId;
 import org.junit.Test;
 
 /**
@@ -69,7 +69,7 @@ public class CacheSyncTest extends MongoTest {
         assert (MorphiumSingleton.get().getStatistics().get(StatisticKeys.CACHE_ENTRIES.name()) > 0) : "Cache entries not set? " + MorphiumSingleton.get().getStatistics().get(StatisticKeys.CACHE_ENTRIES.name());
         Query<CachedObject> c = MorphiumSingleton.get().createQueryFor(CachedObject.class);
         c = c.f("counter").eq(10);
-        ObjectId id = c.get().getId();
+        MorphiumId id = c.get().getId();
         Double cnt = MorphiumSingleton.get().getStatistics().get(StatisticKeys.CACHE_ENTRIES.name());
         MorphiumSingleton.get().getCache().removeEntryFromCache(CachedObject.class, id);
         Double cnt2 = MorphiumSingleton.get().getStatistics().get(StatisticKeys.CACHE_ENTRIES.name());

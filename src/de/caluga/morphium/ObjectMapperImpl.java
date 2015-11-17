@@ -1,7 +1,7 @@
 package de.caluga.morphium;
 
 import de.caluga.morphium.annotations.*;
-import de.caluga.morphium.driver.bson.MongoId;
+import de.caluga.morphium.driver.bson.MorphiumId;
 import de.caluga.morphium.mapping.BigIntegerTypeMapper;
 import de.caluga.morphium.query.Query;
 import org.json.simple.parser.ContainerFactory;
@@ -656,21 +656,21 @@ public class ObjectMapperImpl implements ObjectMapper {
                     value = o.get("_id");
                     if (!value.getClass().equals(fld.getType())) {
                         log.warn("read value and field type differ...");
-                        if (fld.getType().equals(MongoId.class)) {
+                        if (fld.getType().equals(MorphiumId.class)) {
                             log.warn("trying objectID conversion");
                             if (value.getClass().equals(String.class)) {
                                 try {
-                                    value = new MongoId((String) value);
+                                    value = new MorphiumId((String) value);
                                 } catch (Exception e) {
                                     log.error("Id conversion failed - setting returning null", e);
                                     return null;
                                 }
                             }
-                        } else if (value.getClass().equals(MongoId.class)) {
+                        } else if (value.getClass().equals(MorphiumId.class)) {
                             if (fld.getType().equals(String.class)) {
                                 value = value.toString();
                             } else if (fld.getType().equals(Long.class) || fld.getType().equals(long.class)) {
-                                value = ((MongoId) value).getTime();
+                                value = ((MorphiumId) value).getTime();
                             } else {
                                 log.error("cannot convert - ID IS SET TO NULL. Type read from db is " + value.getClass().getName() + " - expected value is " + fld.getType().getName());
                                 return null;
@@ -780,12 +780,12 @@ public class ObjectMapperImpl implements ObjectMapper {
                 if (o.get("_id") != null) {  //Embedded entitiy?
                     if (o.get("_id").getClass().equals(field.getType())) {
                         field.set(ret, o.get("_id"));
-                    } else if (field.getType().equals(String.class) && o.get("_id").getClass().equals(MongoId.class)) {
+                    } else if (field.getType().equals(String.class) && o.get("_id").getClass().equals(MorphiumId.class)) {
                         log.warn("ID type missmatch - field is string but got objectId from mongo - converting");
                         field.set(ret, o.get("_id").toString());
-                    } else if (field.getType().equals(MongoId.class) && o.get("_id").getClass().equals(String.class)) {
-                        log.warn("ID type missmatch - field is objectId but got string from db - trying conversion");
-                        field.set(ret, new MongoId((String) o.get("_id")));
+                    } else if (field.getType().equals(MorphiumId.class) && o.get("_id").getClass().equals(String.class)) {
+//                        log.warn("ID type missmatch - field is objectId but got string from db - trying conversion");
+                        field.set(ret, new MorphiumId((String) o.get("_id")));
                     } else {
                         log.error("ID type missmatch");
                         throw new IllegalArgumentException("ID type missmatch. Field in '" + ret.getClass().toString() + "' is '" + field.getType().toString() + "' but we got '" + o.get("_id").getClass().toString() + "' from Mongo!");
@@ -948,7 +948,7 @@ public class ObjectMapperImpl implements ObjectMapper {
                     //Probably an "normal" map
                     toFillIn.add(val);
                 }
-            } else if (val instanceof MongoId) {
+            } else if (val instanceof MorphiumId) {
                 if (forField.getGenericType() instanceof ParameterizedType) {
                     //have a list of something
                     ParameterizedType listType = (ParameterizedType) forField.getGenericType();

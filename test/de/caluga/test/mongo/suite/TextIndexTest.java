@@ -5,8 +5,8 @@ import de.caluga.morphium.annotations.Entity;
 import de.caluga.morphium.annotations.Id;
 import de.caluga.morphium.annotations.Index;
 import de.caluga.morphium.annotations.ReadOnly;
+import de.caluga.morphium.driver.bson.MorphiumId;
 import de.caluga.morphium.query.Query;
-import org.bson.types.ObjectId;
 import org.junit.Test;
 
 import java.util.List;
@@ -113,7 +113,7 @@ public class TextIndexTest extends MongoTest {
     @Index(value = {"vorname:text,nachname:text,anrede:text,description:text", "age:1"}, options = {"name:myIdx"})
     public static class Person {
         @Id
-        private ObjectId id;
+        private MorphiumId id;
         private String vorname;
         private String nachname;
         private String anrede;
@@ -150,11 +150,11 @@ public class TextIndexTest extends MongoTest {
             this.description = description;
         }
 
-        public ObjectId getId() {
+        public MorphiumId getId() {
             return id;
         }
 
-        public void setId(ObjectId id) {
+        public void setId(MorphiumId id) {
             this.id = id;
         }
 

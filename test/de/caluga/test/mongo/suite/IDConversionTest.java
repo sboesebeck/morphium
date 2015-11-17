@@ -1,8 +1,8 @@
 package de.caluga.test.mongo.suite;
 
 import de.caluga.morphium.MorphiumSingleton;
+import de.caluga.morphium.driver.bson.MorphiumId;
 import de.caluga.morphium.query.QueryImpl;
-import org.bson.types.ObjectId;
 import org.junit.Test;
 
 /**
@@ -19,7 +19,7 @@ public class IDConversionTest extends MongoTest {
         qu.setMorphium(MorphiumSingleton.get());
         qu.setType(UncachedObject.class);
         qu.setCollectionName("uncached");
-        qu.f("_id").eq(new ObjectId().toString());
+        qu.f("_id").eq(new MorphiumId().toString());
 
         System.out.println(qu.toQueryObject().toString());
         assert (qu.toQueryObject().toString().contains("$oid"));
@@ -28,7 +28,7 @@ public class IDConversionTest extends MongoTest {
         qu.setMorphium(MorphiumSingleton.get());
         qu.setType(UncachedObject.class);
         qu.setCollectionName("uncached");
-        qu.f("value").eq(new ObjectId());
+        qu.f("value").eq(new MorphiumId());
         System.out.println(qu.toQueryObject().toString());
         assert (!qu.toQueryObject().toString().contains("$oid"));
     }
