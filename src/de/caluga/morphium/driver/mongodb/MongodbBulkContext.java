@@ -3,6 +3,7 @@ package de.caluga.morphium.driver.mongodb;
 import com.mongodb.bulk.BulkWriteResult;
 import com.mongodb.client.model.*;
 import de.caluga.morphium.Logger;
+import de.caluga.morphium.Morphium;
 import de.caluga.morphium.driver.ReadPreference;
 import de.caluga.morphium.driver.WriteConcern;
 import de.caluga.morphium.driver.bulk.*;
@@ -30,21 +31,43 @@ public class MongodbBulkContext extends BulkRequestContext {
 
     private List<BulkRequest> requests;
 
-    public MongodbBulkContext(String db, String collection, Driver driver, boolean ordered, int batchSize, WriteConcern wc) {
+    public MongodbBulkContext(Morphium m, String db, String collection, Driver driver, boolean ordered, int batchSize, WriteConcern wc) {
+        super(m);
         this.driver = driver;
         this.ordered = ordered;
         this.db = db;
         this.collection = collection;
         this.wc = wc;
-        this.batchSize = batchSize;
+        setBatchSize(batchSize);
 
         requests = new ArrayList<>();
     }
 
-    @Override
     public void addRequest(BulkRequest br) {
         requests.add(br);
     }
+
+    @Override
+    public UpdateBulkRequest addUpdateBulkRequest() {
+        UpdateBulkRequest up = new UpdateBulkRequest();
+        addRequest(up);
+        return up;
+    }
+
+    @Override
+    public InsertBulkRequest addInsertBulkReqpest(List<Map<String, Object>> toInsert) {
+        InsertBulkRequest in = new InsertBulkRequest(toInsert);
+        addRequest(in);
+        return in;
+    }
+
+    @Override
+    public DeleteBulkRequest addDeleteBulkRequest() {
+        DeleteBulkRequest del = new DeleteBulkRequest();
+        addRequest(del);
+        return del;
+    }
+
 
     @Override
     public Map<String, Object> execute() {
@@ -57,7 +80,6 @@ public class MongodbBulkContext extends BulkRequestContext {
             if (br instanceof InsertBulkRequest) {
                 //Insert...
                 InsertBulkRequest ib = (InsertBulkRequest) br;
-
                 for (Map<String, Object> o : ib.getToInsert()) {
                     Document document = new Document(o);
                     lst.add(new InsertOneModel<>(document));

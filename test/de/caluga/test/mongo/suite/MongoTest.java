@@ -1,9 +1,6 @@
 package de.caluga.test.mongo.suite;
 
-import de.caluga.morphium.AnnotationAndReflectionHelper;
-import de.caluga.morphium.Logger;
-import de.caluga.morphium.MorphiumConfig;
-import de.caluga.morphium.MorphiumSingleton;
+import de.caluga.morphium.*;
 import de.caluga.morphium.async.AsyncOperationCallback;
 import de.caluga.morphium.async.AsyncOperationType;
 import de.caluga.morphium.driver.ReadPreference;
@@ -31,6 +28,7 @@ import java.util.logging.Level;
 public class MongoTest {
     protected Logger log;
     private static Properties props;
+    public static Morphium morphium;
 
     public MongoTest() {
         log = new Logger(getClass().getName());
@@ -164,7 +162,7 @@ public class MongoTest {
             cfg.setLogLevelForPrefix("de.caluga.test", 5);
             cfg.setLogSyncedForPrefix("de.caluga.test", true);
             MorphiumSingleton.setConfig(cfg);
-            MorphiumSingleton.get();
+            morphium = MorphiumSingleton.get();
 
 //            MorphiumSingleton.get().addListener(new MorphiumStorageAdapter() {
 //                @Override

@@ -8,6 +8,7 @@ import de.caluga.morphium.aggregation.Aggregator;
 import de.caluga.morphium.annotations.*;
 import de.caluga.morphium.annotations.lifecycle.*;
 import de.caluga.morphium.async.AsyncOperationCallback;
+import de.caluga.morphium.bulk.MorphiumBulkContext;
 import de.caluga.morphium.cache.CacheHousekeeper;
 import de.caluga.morphium.cache.MorphiumCache;
 import de.caluga.morphium.driver.MorphiumDriver;
@@ -15,7 +16,6 @@ import de.caluga.morphium.driver.MorphiumDriverException;
 import de.caluga.morphium.driver.ReadPreference;
 import de.caluga.morphium.driver.WriteConcern;
 import de.caluga.morphium.driver.bson.MorphiumId;
-import de.caluga.morphium.driver.bulk.BulkRequestContext;
 import de.caluga.morphium.driver.mongodb.Driver;
 import de.caluga.morphium.query.MongoField;
 import de.caluga.morphium.query.Query;
@@ -1096,10 +1096,52 @@ public class Morphium {
 
     @SuppressWarnings({"unchecked", "UnusedDeclaration"})
     public String toJsonString(Object o) {
-        Map<String, Object> db = objectMapper.marshall(o);
-        if (db.get("_id") != null)
-            db.put("_id", db.get("_id").toString());
-        return db.toString();
+
+        StringBuilder b = new StringBuilder();
+        boolean comma = false;
+        if (o instanceof Collection) {
+            b.append(" [ ");
+
+            for (Object obj : ((Collection) o)) {
+                if (comma) b.append(", ");
+                comma = true;
+                b.append(toJsonString(obj));
+            }
+        } else if (!(o instanceof Map)) {
+            return o.toString();
+        }
+        Map<String, Object> db = (Map<String, Object>) o;
+
+        b.append("{ ");
+        comma = false;
+        for (Map.Entry<String, Object> e : db.entrySet()) {
+            if (comma) {
+                b.append(", ");
+            }
+
+            comma = true;
+            b.append("\"");
+            b.append(e.getKey());
+            b.append("\"");
+
+            b.append(" : ");
+            if (e.getValue() == null) {
+                b.append(" null");
+            } else if (e.getValue() instanceof String) {
+                b.append("\"");
+                b.append(e.getValue());
+                b.append("\"");
+            } else if (e.getValue().getClass().isEnum()) {
+                b.append("\"");
+                b.append(e.getValue().toString());
+                b.append("\"");
+            } else {
+                b.append(toJsonString(e.getValue()));
+            }
+
+        }
+        b.append(" } ");
+        return b.toString();
     }
 
 
@@ -1199,7 +1241,7 @@ public class Morphium {
     }
 
     ///Event handling
-    public void firePreStoreEvent(Object o, boolean isNew) {
+    public void firePreStore(Object o, boolean isNew) {
         if (o == null) return;
         for (MorphiumStorageListener l : listeners) {
             l.preStore(this, o, isNew);
@@ -1208,7 +1250,7 @@ public class Morphium {
 
     }
 
-    public void firePostStoreEvent(Object o, boolean isNew) {
+    public void firePostStore(Object o, boolean isNew) {
         for (MorphiumStorageListener l : listeners) {
             l.postStore(this, o, isNew);
         }
@@ -1217,7 +1259,7 @@ public class Morphium {
 
     }
 
-    public void firePreDropEvent(Class cls) {
+    public void firePreDrop(Class cls) {
         for (MorphiumStorageListener l : listeners) {
             l.preDrop(this, cls);
         }
@@ -1249,7 +1291,7 @@ public class Morphium {
     }
 
 
-    public void firePreStoreEvent(Map<Object, Boolean> isNew) {
+    public void firePreStore(Map<Object, Boolean> isNew) {
         for (MorphiumStorageListener l : listeners) {
             l.preStore(this, isNew);
         }
@@ -1430,13 +1472,14 @@ public class Morphium {
         return rp.value().getPref();
     }
 
-    public BulkRequestContext createBulkRequestContext(String collection, boolean ordered) {
-        return getDriver().createBulkContext(config.getDatabase(), collection, ordered, null);
+    public MorphiumBulkContext createBulkRequestContext(Class<?> type, boolean ordered) {
+        return new MorphiumBulkContext(getDriver().createBulkContext(this, config.getDatabase(), getMapper().getCollectionName(type), ordered, getWriteConcernForClass(type)));
     }
 
-    public BulkRequestContext createBulkRequestContext(Class<?> type, boolean ordered) {
-        return getDriver().createBulkContext(config.getDatabase(), getMapper().getCollectionName(type), ordered, getWriteConcernForClass(type));
+    public MorphiumBulkContext createBulkRequestContext(String collection, boolean ordered) {
+        return new MorphiumBulkContext(getDriver().createBulkContext(this, config.getDatabase(), collection, ordered, null));
     }
+
 
     @SuppressWarnings("ConstantConditions")
     public WriteConcern getWriteConcernForClass(Class<?> cls) {

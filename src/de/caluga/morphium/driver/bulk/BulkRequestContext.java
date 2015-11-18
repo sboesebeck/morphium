@@ -2,6 +2,9 @@ package de.caluga.morphium.driver.bulk;/**
  * Created by stephan on 13.11.15.
  */
 
+import de.caluga.morphium.Morphium;
+
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -9,7 +12,16 @@ import java.util.Map;
  **/
 public abstract class BulkRequestContext {
     private boolean odererd = false;
-    public int batchSize;
+    private int batchSize;
+    private Morphium morphium;
+
+    public BulkRequestContext(Morphium m) {
+        morphium = m;
+    }
+
+    public Morphium getMorphium() {
+        return morphium;
+    }
 
     public boolean isOdererd() {
         return odererd;
@@ -27,8 +39,12 @@ public abstract class BulkRequestContext {
         this.batchSize = batchSize;
     }
 
-    public abstract void addRequest(BulkRequest br);
-
     public abstract Map<String, Object> execute();
+
+    public abstract UpdateBulkRequest addUpdateBulkRequest();
+
+    public abstract InsertBulkRequest addInsertBulkReqpest(List<Map<String, Object>> toInsert);
+
+    public abstract DeleteBulkRequest addDeleteBulkRequest();
 
 }
