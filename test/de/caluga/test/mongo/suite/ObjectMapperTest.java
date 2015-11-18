@@ -145,8 +145,10 @@ public class ObjectMapperTest extends MongoTest {
         o.setCounter(12345);
         o.setValue("This \" is $ test");
         Map<String, Object> dbo = om.marshall(o);
-        System.out.println("Marshalling was: " + dbo.toString());
-        assert (dbo.toString().equals("{ \"value\" : \"This \\\" is $ test\" , \"counter\" : 12345 , \"dval\" : 0.0}")) : "String creation failed?" + dbo.toString();
+
+        String s = MorphiumSingleton.get().toJsonString(dbo);
+        System.out.println("Marshalling was: " + s);
+        assert (s.equals("{ \"dval\" : 0.0, \"counter\" : 12345, \"value\" : \"This \" is $ test\" } ")) : "String creation failed?" + s;
     }
 
     @Test
@@ -228,17 +230,17 @@ public class ObjectMapperTest extends MongoTest {
 
         co.setRef(o);
         co.setId(new MorphiumId());
-        String st = co.toString();
-        System.out.println("Referenced object: " + om.marshall(o).toString());
+        String st = MorphiumSingleton.get().toJsonString(co);
+        System.out.println("Referenced object: " + MorphiumSingleton.get().toJsonString(om.marshall(o)));
         Map<String, Object> marshall = om.marshall(co);
-        System.out.println("Complex object: " + marshall.toString());
+        System.out.println("Complex object: " + MorphiumSingleton.get().toJsonString(marshall));
 
 
         //Unmarshalling stuff
         co = om.unmarshall(ComplexObject.class, marshall);
         assert (co.getEntityEmbeded().getMorphiumId() == null) : "Embeded entity got a mongoID?!?!?!";
         co.getEntityEmbeded().setMorphiumId(embedId);  //need to set ID manually, as it won't be stored!
-        String st2 = co.toString();
+        String st2 = MorphiumSingleton.get().toJsonString(co);
         assert (st.equals(st2)) : "Strings not equal?\n" + st + "\n" + st2;
         assert (co.getEmbed() != null) : "Embedded value not found!";
 
@@ -275,7 +277,7 @@ public class ObjectMapperTest extends MongoTest {
         Map<String, Object> marshall = om.marshall(o);
         String m = marshall.toString();
 
-        assert (m.equals("{ \"name\" : \"Simple List\" , \"list_value\" : [ \"A Value\" , 27.0 , { \"counter\" : 0 , \"dval\" : 0.0 , \"class_name\" : \"de.caluga.test.mongo.suite.UncachedObject\"}]}")) : "Marshall not ok: " + m;
+        assert (m.equals("{list_value=[A Value, 27.0, {dval=0.0, counter=0, class_name=de.caluga.test.mongo.suite.UncachedObject}], name=Simple List}")) : "Marshall not ok: " + m;
 
         MapListObject mo = om.unmarshall(MapListObject.class, marshall);
         System.out.println("Mo: " + mo.getName());
@@ -306,9 +308,9 @@ public class ObjectMapperTest extends MongoTest {
 
         ObjectMapperImpl om = (ObjectMapperImpl) MorphiumSingleton.get().getMapper();
         Map<String, Object> marshall = om.marshall(o);
-        String m = marshall.toString();
+        String m = MorphiumSingleton.get().toJsonString(marshall);
         System.out.println("Marshalled object: " + m);
-        assert (m.equals("{ \"name\" : \"A map-value\" , \"map_value\" : { \"a_string\" : \"This is a string\" , \"a primitive value\" : 42 , \"double\" : 42.0 , \"null\" :  null  , \"Entity\" : { \"counter\" : 0 , \"dval\" : 0.0 , \"class_name\" : \"de.caluga.test.mongo.suite.UncachedObject\"}}}")) : "Value not marshalled coorectly";
+        assert (m.equals("{ \"map_value\" : { \"Entity\" : { \"dval\" : 0.0, \"counter\" : 0, \"class_name\" : \"de.caluga.test.mongo.suite.UncachedObject\" } , \"a primitive value\" : 42, \"null\" :  null, \"double\" : 42.0, \"a_string\" : \"This is a string\" } , \"name\" : \"A map-value\" } ")) : "Value not marshalled coorectly";
 
         MapListObject mo = om.unmarshall(MapListObject.class, marshall);
         assert (mo.getName().equals("A map-value")) : "Name error";
@@ -511,7 +513,7 @@ public class ObjectMapperTest extends MongoTest {
     @Test
     public void noDefaultConstructorTest() throws Exception {
         NoDefaultConstructorUncachedObject o = new NoDefaultConstructorUncachedObject("test", 15);
-        String serialized = MorphiumSingleton.get().getMapper().marshall(o).toString();
+        String serialized = MorphiumSingleton.get().toJsonString(MorphiumSingleton.get().getMapper().marshall(o));
         log.info("Serialized... " + serialized);
 
         o = MorphiumSingleton.get().getMapper().unmarshall(NoDefaultConstructorUncachedObject.class, serialized);
@@ -540,9 +542,8 @@ public class ObjectMapperTest extends MongoTest {
         o.uc = new NoDefaultConstructorUncachedObject("v", 123);
 
         Map<String, Object> dbo = m.marshall(o);
-        o = m.unmarshall(MappedObject.class, dbo.toString());
+        o = m.unmarshall(MappedObject.class, MorphiumSingleton.get().toJsonString(dbo));
 
-        assert (!(o.aMap instanceof Map));
         assert (o.aMap.get("test") != null);
     }
 
