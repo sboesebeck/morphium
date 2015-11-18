@@ -11,6 +11,7 @@ import com.mongodb.client.model.UpdateOptions;
 import com.mongodb.client.result.DeleteResult;
 import com.mongodb.client.result.UpdateResult;
 import de.caluga.morphium.Logger;
+import de.caluga.morphium.Morphium;
 import de.caluga.morphium.driver.MorphiumDriver;
 import de.caluga.morphium.driver.MorphiumDriverException;
 import de.caluga.morphium.driver.MorphiumDriverOperation;
@@ -474,10 +475,10 @@ public class Driver implements MorphiumDriver {
                 value = ((BsonBoolean) value).getValue();
             } else if (value instanceof BsonDateTime) {
                 value = ((BsonDateTime) value).getValue();
-            } else if (value instanceof BsonInt64) {
+            } else if (value instanceof BsonInt32) {
                 value = ((BsonInt32) value).getValue();
             } else if (value instanceof BsonInt64) {
-                value = ((BsonInt32) value).getValue();
+                value = ((BsonInt64) value).getValue();
             } else if (value instanceof BsonDouble) {
                 value = ((BsonDouble) value).getValue();
             } else if (value instanceof ObjectId) {
@@ -989,8 +990,8 @@ public class Driver implements MorphiumDriver {
     }
 
     @Override
-    public BulkRequestContext createBulkContext(String db, String collection, boolean ordered, de.caluga.morphium.driver.WriteConcern wc) {
-        return new MongodbBulkContext(db, collection, this, ordered, defaultBatchSize, wc);
+    public BulkRequestContext createBulkContext(Morphium m, String db, String collection, boolean ordered, de.caluga.morphium.driver.WriteConcern wc) {
+        return new MongodbBulkContext(m, db, collection, this, ordered, defaultBatchSize, wc);
     }
 
 

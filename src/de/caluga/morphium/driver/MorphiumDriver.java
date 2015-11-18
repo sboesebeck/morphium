@@ -2,6 +2,7 @@ package de.caluga.morphium.driver;/**
  * Created by stephan on 15.10.15.
  */
 
+import de.caluga.morphium.Morphium;
 import de.caluga.morphium.driver.bulk.BulkRequestContext;
 import de.caluga.morphium.driver.mongodb.Maximums;
 
@@ -188,7 +189,7 @@ public interface MorphiumDriver {
 
     boolean isCapped(String db, String coll) throws MorphiumDriverException;
 
-    BulkRequestContext createBulkContext(String db, String collection, boolean ordered, WriteConcern wc);
+    BulkRequestContext createBulkContext(Morphium m, String db, String collection, boolean ordered, WriteConcern wc);
 
     void createIndex(String db, String collection, Map<String, Object> index, Map<String, Object> options) throws MorphiumDriverException;
 }

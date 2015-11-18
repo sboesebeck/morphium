@@ -50,7 +50,7 @@ public class CacheListenerTest extends MongoTest {
         }
         waitForWrites();
         assert (wouldAdd);
-        Thread.sleep(100);
+        Thread.sleep(1100);
 
         super.createCachedObjects(10);
         assert (wouldClear);
