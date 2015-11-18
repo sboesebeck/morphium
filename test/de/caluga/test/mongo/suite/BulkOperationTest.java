@@ -4,10 +4,11 @@ import de.caluga.morphium.Morphium;
 import de.caluga.morphium.MorphiumSingleton;
 import de.caluga.morphium.MorphiumStorageAdapter;
 import de.caluga.morphium.MorphiumStorageListener;
-import de.caluga.morphium.driver.bulk.BulkRequestContext;
-import de.caluga.morphium.driver.bulk.UpdateBulkRequest;
+import de.caluga.morphium.bulk.MorphiumBulkContext;
 import de.caluga.morphium.query.Query;
 import org.junit.Test;
+
+import java.util.Map;
 
 /**
  * Created with IntelliJ IDEA.
@@ -28,13 +29,10 @@ public class BulkOperationTest extends MongoTest {
         createUncachedObjects(100);
         waitForWrites();
 
-        BulkRequestContext c = MorphiumSingleton.get().createBulkRequestContext(UncachedObject.class, false);
-        UpdateBulkRequest up = new UpdateBulkRequest();
-        up.setCmd(MorphiumSingleton.get().getMap("$set", MorphiumSingleton.get().getMap("counter", 999)));
-        up.setMultiple(true);
-        up.setUpsert(true);
-        up.setQuery(MorphiumSingleton.get().createQueryFor(UncachedObject.class).f("counter").gte(0).toQueryObject());
-        c.execute();
+        MorphiumBulkContext c = MorphiumSingleton.get().createBulkRequestContext(UncachedObject.class, false);
+//        UpdateBulkRequest up = c
+        c.addSetRequest(MorphiumSingleton.get().createQueryFor(UncachedObject.class).f("counter").gte(0), "counter", 999, true, true);
+        Map<String, Object> ret = c.runBulk();
         Thread.sleep(500);
 
         for (UncachedObject o : MorphiumSingleton.get().createQueryFor(UncachedObject.class).asList()) {
@@ -46,9 +44,11 @@ public class BulkOperationTest extends MongoTest {
 //    @Test
 //    public void bulkUpsertTest() throws Exception {
 //        MorphiumSingleton.get().dropCollection(UncachedObject.class);
-//        BulkOperationContextMongo c = new BulkOperationContextMongo(MorphiumSingleton.get(), false);
-//        BulkRequestWrapper wrapper = c.addFind(MorphiumSingleton.get().createQueryFor(UncachedObject.class).f("counter").eq(50));
-//        wrapper = wrapper.upsert();
+//        BulkRequestContext c =MorphiumSingleton.get().createBulkRequestContext(UncachedObject.class,false);
+//        UpdateBulkRequest up=c.addUpdateBulkRequest();
+//        up.setQuery(MorphiumSingleton.get().createQueryFor(UncachedObject.class).f("counter").eq(50).toQueryObject());
+//        up.setUpsert(true);
+//        up.setCmd(MorphiumSingleton.get().getMap("$inc"));
 //        wrapper.inc("counter", 1, true);
 //
 //        BulkWriteResult res = c.execute();
@@ -66,7 +66,7 @@ public class BulkOperationTest extends MongoTest {
 //    @Test
 //    public void bulkMultiUpsertTest() throws Exception {
 //        MorphiumSingleton.get().dropCollection(UncachedObject.class);
-//        BulkOperationContextMongo c = new BulkOperationContextMongo(MorphiumSingleton.get(), true); //needs to be ordered
+//        BulkRequestContext c = new BulkRequestContext(MorphiumSingleton.get(), true); //needs to be ordered
 //        BulkRequestWrapper wrapper = c.addFind(MorphiumSingleton.get().createQueryFor(UncachedObject.class).f("counter").eq(50));
 //        wrapper = wrapper.upsert();
 //        wrapper.inc("counter", 1, false);
@@ -105,7 +105,7 @@ public class BulkOperationTest extends MongoTest {
 //        MorphiumSingleton.get().dropCollection(UncachedObject.class);
 //
 //        for (int j = 0; j < 2; j++) {
-//            BulkOperationContextMongo ctx = new BulkOperationContextMongo(MorphiumSingleton.get(), false);
+//            BulkRequestContext ctx =MorphiumSingleton.get().createBulkRequestContext(UncachedObject.class,false);
 //            for (int i = 0; i < 5000; i++) {
 //                UncachedObject o = new UncachedObject();
 //                o.setCounter(i);
@@ -130,7 +130,7 @@ public class BulkOperationTest extends MongoTest {
 //
 //        createUncachedObjects(100);
 //
-//        BulkOperationContextMongo c = new BulkOperationContextMongo(MorphiumSingleton.get(), false);
+//        BulkRequestContext c =MorphiumSingleton.get().createBulkRequestContext(UncachedObject.class,false);
 //        BulkRequestWrapper wrapper = c.addFind(MorphiumSingleton.get().createQueryFor(UncachedObject.class).f("counter").gte(50));
 //        wrapper.set("counter", 999, true);
 //
@@ -143,21 +143,16 @@ public class BulkOperationTest extends MongoTest {
 //        }
 //
 //    }
-//
+
 
     @Test
     public void incTest() throws Exception {
         MorphiumSingleton.get().dropCollection(UncachedObject.class);
         createUncachedObjects(100);
 
-        BulkRequestContext c = MorphiumSingleton.get().createBulkRequestContext(UncachedObject.class, false);
-        UpdateBulkRequest up = new UpdateBulkRequest();
-        up.setCmd(MorphiumSingleton.get().getMap("$inc", MorphiumSingleton.get().getMap("counter", 1000)));
-        up.setMultiple(true);
-        up.setUpsert(true);
-        up.setQuery(MorphiumSingleton.get().createQueryFor(UncachedObject.class).f("counter").gte(0).toQueryObject());
-        c.execute();
-        Thread.sleep(500);
+        MorphiumBulkContext c = MorphiumSingleton.get().createBulkRequestContext(UncachedObject.class, false);
+        c.addIncRequest(MorphiumSingleton.get().createQueryFor(UncachedObject.class).f("counter").gte(0), "counter", 1000, true, true);
+        Thread.sleep(1500);
 
         for (UncachedObject o : MorphiumSingleton.get().createQueryFor(UncachedObject.class).asList()) {
             assert (o.getCounter() > 1000) : "Counter is " + o.getCounter();

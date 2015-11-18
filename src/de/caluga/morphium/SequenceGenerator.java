@@ -91,7 +91,12 @@ public class SequenceGenerator {
     }
 
     public long getNextValue() {
-        return getNextValue(0);
+        try {
+            return getNextValue(0);
+        } catch (RecursionException e) {
+            log.error("REcursion failed, retrying...");
+            return getNextValue(0);
+        }
     }
 
     private synchronized long getNextValue(int recLevel) {
@@ -108,10 +113,14 @@ public class SequenceGenerator {
                 log.error("Was locked for more than 30s - assuming error, resetting lock");
                 sequence.setLockedBy(null);
                 morphium.store(sequence);
+                try {
+                    Thread.sleep(1000);
+                } catch (InterruptedException e) {
+                }
                 if (log.isDebugEnabled()) {
                     log.debug("overwriting lock for locked sequence " + name);
                 }
-                return getNextValue(1);
+                throw new RecursionException();
             }
             throw new RuntimeException("Getting lock on sequence " + name + " failed!");
         }
@@ -129,7 +138,7 @@ public class SequenceGenerator {
         if (seq.countAll() == 0) {
             //locking failed... wait a moment, try again
 //            if (log.isDebugEnabled()) {
-            log.warn("Locking failed - recursing");
+            log.warn("Locking failed on level " + recLevel + " - recursing.");
 //            }
             try {
                 Thread.sleep(1000);
@@ -202,5 +211,9 @@ public class SequenceGenerator {
 
     public void setMorphium(Morphium morphium) {
         this.morphium = morphium;
+    }
+
+
+    public class RecursionException extends RuntimeException {
     }
 }
