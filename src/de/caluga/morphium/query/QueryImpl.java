@@ -191,7 +191,7 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
             T unmarshall = morphium.getMapper().unmarshall(type, in);
             if (unmarshall != null) ret.add(unmarshall);
         }
-        srv = findMetaData.get("server").toString();
+        srv = (String) findMetaData.get("server");
         morphium.fireProfilingReadEvent(this, System.currentTimeMillis() - start, ReadAccessType.AS_LIST);
         if (useCache) {
             morphium.getCache().addToCache(ck, type, ret);
