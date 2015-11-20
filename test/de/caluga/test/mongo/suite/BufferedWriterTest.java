@@ -7,6 +7,7 @@ import de.caluga.morphium.annotations.Id;
 import de.caluga.morphium.annotations.caching.NoCache;
 import de.caluga.morphium.annotations.caching.WriteBuffer;
 import de.caluga.morphium.query.Query;
+import de.caluga.morphium.writer.BufferedMorphiumWriterImpl;
 import org.junit.Test;
 
 /**
@@ -54,15 +55,21 @@ public class BufferedWriterTest extends MongoTest {
 
         waitForAsyncOperationToStart(10000);
         waitForWrites();
+        BufferedMorphiumWriterImpl wr = (BufferedMorphiumWriterImpl) morphium.getWriterForClass(BufferedBySizeObject.class);
 
         Query<BufferedBySizeObject> q = MorphiumSingleton.get().createQueryFor(BufferedBySizeObject.class).f("counter").eq(100);
         MorphiumSingleton.get().inc(q, "dval", 1, true, false);
+//        assert(wr.writeBufferCount()>1);
 
         q = MorphiumSingleton.get().createQueryFor(BufferedBySizeObject.class).f("counter").eq(100);
         MorphiumSingleton.get().inc(q, "dval", 1.0, true, false);
+//        assert(wr.writeBufferCount()>1);
 
         q = MorphiumSingleton.get().createQueryFor(BufferedBySizeObject.class).f("counter").eq(100);
         MorphiumSingleton.get().dec(q, "dval", 1.0, true, false);
+//        assert(wr.writeBufferCount()>1);
+
+
 
         waitForAsyncOperationToStart(10000);
         waitForWrites();
@@ -288,7 +295,7 @@ public class BufferedWriterTest extends MongoTest {
 
     }
 
-    @WriteBuffer(size = 150)
+    @WriteBuffer(size = 150, timeout = 3000)
     public static class BufferedBySizeObject extends UncachedObject {
 
     }
