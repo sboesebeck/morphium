@@ -7,7 +7,13 @@ import de.caluga.morphium.Logger;
 import de.caluga.morphium.driver.MorphiumDriverException;
 import de.caluga.morphium.driver.MorphiumDriverNetworkException;
 import de.caluga.morphium.driver.MorphiumDriverOperation;
+import de.caluga.morphium.driver.bson.MorphiumId;
+import org.bson.types.ObjectId;
 
+import java.lang.reflect.Array;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -37,7 +43,9 @@ public class DriverHelper {
         if (e instanceof DuplicateKeyException) {
             throw new MorphiumDriverException("Duplicate Key", e);
         }
-        if (e instanceof MongoExecutionTimeoutException || e instanceof MongoTimeoutException || e instanceof MongoSocketReadTimeoutException
+        if (e instanceof MongoExecutionTimeoutException
+                || e instanceof MongoTimeoutException
+                || e instanceof MongoSocketReadTimeoutException
                 || e instanceof MongoWaitQueueFullException
                 || e instanceof MongoWriteConcernException
                 || e instanceof MongoSocketReadException
@@ -64,6 +72,47 @@ public class DriverHelper {
             }
         } else {
             throw (new MorphiumDriverException("internal error", e));
+        }
+    }
+
+    public void replaceMorphiumIdByObjectId(Object in) {
+        if (in instanceof Map) {
+            Map<String, Object> m = (Map) in;
+            Map<String, Object> toSet = new HashMap<>();
+            try {
+                for (Map.Entry e : m.entrySet()) {
+                    if (e.getValue() instanceof MorphiumId) {
+                        toSet.put((String) e.getKey(), new ObjectId(((MorphiumId) e.getValue()).toString()));
+                    } else if (e.getValue() instanceof Collection) {
+                        for (Object o : (Collection) e.getValue()) {
+                            if (o instanceof Map) {
+                                replaceMorphiumIdByObjectId((Map) o);
+                            } else if (o instanceof List) {
+                                replaceMorphiumIdByObjectId(o);
+                            } else if (o.getClass().isArray()) {
+                                replaceMorphiumIdByObjectId(o);
+                            }
+                        }
+                    } else {
+                        replaceMorphiumIdByObjectId(e.getValue());
+                    }
+                }
+                for (Map.Entry<String, Object> e : toSet.entrySet()) {
+                    ((Map) in).put(e.getKey(), e.getValue());
+                }
+
+            } catch (Exception e) {
+                //TODO: Implement Handling
+//                throw new RuntimeException(e);
+            }
+        } else if (in instanceof Collection) {
+            Collection c = (Collection) in;
+            c.forEach(this::replaceMorphiumIdByObjectId);
+        } else if (in.getClass().isArray()) {
+
+            for (int i = 0; i < Array.getLength(in); i++) {
+                replaceMorphiumIdByObjectId(Array.get(in, i));
+            }
         }
     }
 }

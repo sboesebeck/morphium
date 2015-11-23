@@ -89,6 +89,9 @@ public class MorphiumBulkContext<T> {
                     case "$set":
                         ctx.getMorphium().firePreUpdateEvent(query.getType(), MorphiumStorageListener.UpdateTypes.SET);
                         break;
+                    case "$inc":
+                        ctx.getMorphium().firePreUpdateEvent(query.getType(), MorphiumStorageListener.UpdateTypes.INC);
+                        break;
                     case "$unset":
                         ctx.getMorphium().firePreUpdateEvent(query.getType(), MorphiumStorageListener.UpdateTypes.UNSET);
                         break;
@@ -128,6 +131,9 @@ public class MorphiumBulkContext<T> {
             public void run() {
                 switch (command) {
                     case "$set":
+                        ctx.getMorphium().firePostUpdateEvent(query.getType(), MorphiumStorageListener.UpdateTypes.SET);
+                        break;
+                    case "$inc":
                         ctx.getMorphium().firePostUpdateEvent(query.getType(), MorphiumStorageListener.UpdateTypes.SET);
                         break;
                     case "$unset":

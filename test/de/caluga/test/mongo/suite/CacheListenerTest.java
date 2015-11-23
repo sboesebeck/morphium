@@ -18,6 +18,7 @@ public class CacheListenerTest extends MongoTest {
     boolean wouldClear = false;
     boolean wouldRemove = false;
 
+
     @Test
     public void callbackTest() throws Exception {
         CacheListener cl = new CacheListener() {
@@ -29,6 +30,7 @@ public class CacheListenerTest extends MongoTest {
 
             @Override
             public <T> boolean wouldClearCache(Class<T> affectedEntityType) {
+                log.info("Would clear cache!");
                 wouldClear = true;
                 return true;
             }
@@ -50,9 +52,11 @@ public class CacheListenerTest extends MongoTest {
         }
         waitForWrites();
         assert (wouldAdd);
-        Thread.sleep(1100);
 
         super.createCachedObjects(10);
+        waitForWrites();
+        log.info("Waiting for would clear message");
+        Thread.sleep(3500);
         assert (wouldClear);
 
         MorphiumSingleton.get().getCache().removeCacheListener(cl);
