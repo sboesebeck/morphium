@@ -6,8 +6,10 @@ import de.caluga.morphium.Logger;
 import de.caluga.morphium.Morphium;
 import de.caluga.morphium.driver.ReadPreference;
 import de.caluga.morphium.driver.WriteConcern;
+import de.caluga.morphium.driver.bson.MorphiumId;
 import de.caluga.morphium.driver.bulk.*;
 import org.bson.Document;
+import org.bson.types.ObjectId;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -75,11 +77,12 @@ public class MongodbBulkContext extends BulkRequestContext {
         Map<Document, Map<String, Object>> inserts = new HashMap<>();
         int count = 0;
         List<BulkWriteResult> results = new ArrayList<>();
-
+        DriverHelper helper = new DriverHelper();
         for (BulkRequest br : requests) {
             if (br instanceof InsertBulkRequest) {
                 //Insert...
                 InsertBulkRequest ib = (InsertBulkRequest) br;
+                helper.replaceMorphiumIdByObjectId(ib.getToInsert());
                 for (Map<String, Object> o : ib.getToInsert()) {
                     Document document = new Document(o);
                     lst.add(new InsertOneModel<>(document));
@@ -88,6 +91,7 @@ public class MongodbBulkContext extends BulkRequestContext {
 
             } else if (br instanceof DeleteBulkRequest) {
                 DeleteBulkRequest dbr = (DeleteBulkRequest) br;
+                helper.replaceMorphiumIdByObjectId(((DeleteBulkRequest) br).getQuery());
                 if (dbr.isMultiple()) {
                     lst.add(new DeleteManyModel<>(new Document(dbr.getQuery())));
                 } else {
@@ -96,10 +100,15 @@ public class MongodbBulkContext extends BulkRequestContext {
             } else {
                 //update
                 UpdateBulkRequest up = (UpdateBulkRequest) br;
+                UpdateOptions upd = new UpdateOptions();
+                upd.upsert(up.isUpsert());
+                helper.replaceMorphiumIdByObjectId(up.getQuery());
+                helper.replaceMorphiumIdByObjectId(up.getCmd());
                 if (up.isMultiple()) {
-                    lst.add(new UpdateManyModel(new Document(up.getQuery()), new Document(up.getCmd())));
+                    UpdateManyModel updateModel = new UpdateManyModel(new Document(up.getQuery()), new Document(up.getCmd()), upd);
+                    lst.add(updateModel);
                 } else {
-                    lst.add(new UpdateOneModel(new Document(up.getQuery()), new Document(up.getCmd())));
+                    lst.add(new UpdateOneModel(new Document(up.getQuery()), new Document(up.getCmd()), upd));
                 }
             }
             count++;
@@ -117,7 +126,11 @@ public class MongodbBulkContext extends BulkRequestContext {
 
         if (inserts.size() != 0) {
             for (Map.Entry<Document, Map<String, Object>> e : inserts.entrySet()) {
-                e.getValue().put("_id", e.getKey().get("_id"));
+                Object id = e.getKey().get("_id");
+                if (id instanceof ObjectId) {
+                    id = new MorphiumId(((ObjectId) id).toHexString());
+                }
+                e.getValue().put("_id", id);
                 if (e.getValue().get("_id") == null) {
                     log.fatal("objects were stored, but no _id returned!!!!!!!!!");
                 }

@@ -152,6 +152,7 @@ public class BulkOperationTest extends MongoTest {
 
         MorphiumBulkContext c = MorphiumSingleton.get().createBulkRequestContext(UncachedObject.class, false);
         c.addIncRequest(MorphiumSingleton.get().createQueryFor(UncachedObject.class).f("counter").gte(0), "counter", 1000, true, true);
+        c.runBulk();
         Thread.sleep(1500);
 
         for (UncachedObject o : MorphiumSingleton.get().createQueryFor(UncachedObject.class).asList()) {
@@ -189,6 +190,7 @@ public class BulkOperationTest extends MongoTest {
         MorphiumSingleton.get().addListener(listener);
         preUpdate = postUpdate = preRemove = postRemove = false;
         incTest();
+        Thread.sleep(1500);
         assert (preUpdate);
         assert (postUpdate);
         MorphiumSingleton.get().removeListener(listener);
