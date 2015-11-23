@@ -506,7 +506,8 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                                     //bulk update
 
                                     UpdateBulkRequest up = bulkWriteOperation.addUpdateBulkRequest();
-                                    up.setQuery(morphium.getMap("_id", morphium.getARHelper().getId(record)));
+                                    Object id = morphium.getARHelper().getId(record);
+                                    up.setQuery(morphium.getMap("_id", id));
                                     up.setUpsert(true);
                                     up.setCmd(morphium.getMap("$set", marshall));
                                 }
@@ -523,12 +524,8 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                                         logger.error("cannot update mongo_id...");
                                     } else {
                                         try {
-                                            if (morphium.getARHelper().getIdField(entity).getType().equals(MorphiumId.class)) {
-                                                morphium.getARHelper().getIdField(entity).set(entity, new MorphiumId(o.get("_id").toString()));
-                                            } else {
                                                 morphium.getARHelper().getIdField(entity).set(entity, o.get("_id"));
 
-                                            }
                                         } catch (Exception e) {
                                             logger.error("Setting of mongo_id failed", e);
                                         }

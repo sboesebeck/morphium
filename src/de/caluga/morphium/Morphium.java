@@ -1540,7 +1540,6 @@ public class Morphium {
 
             }
             //Wait for all active slaves (-1 for the timeout bug)
-            //TODO: remove -1 or think of something different
             w = activeNodes;
             if (timeout > 0 && timeout < maxReplLag * 1000) {
                 logger.warn("Timeout is set smaller than replication lag - increasing to replication_lag time * 3");
