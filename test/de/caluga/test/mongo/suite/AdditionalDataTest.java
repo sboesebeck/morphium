@@ -31,6 +31,7 @@ public class AdditionalDataTest extends MongoTest {
         additional.put("test", dat);
         d.setAdditionals(additional);
         MorphiumSingleton.get().store(d);
+        Thread.sleep(100);
         System.out.println("Stored some additional data!");
         AddDat d2 = MorphiumSingleton.get().findById(AddDat.class, d.getMorphiumId());
         assert (d2.additionals != null);
@@ -86,7 +87,10 @@ public class AdditionalDataTest extends MongoTest {
         d.setCounter(999);
         d.setAdditionals(null);
         MorphiumSingleton.get().store(d);
-
+        Thread.sleep(100);
+        AddDat d2 = MorphiumSingleton.get().findById(AddDat.class, d.getMorphiumId());
+        assert (d2 != null);
+        assert (d2.additionals == null || d2.additionals.size() == 0);
     }
 
     public static class AddDat extends UncachedObject {

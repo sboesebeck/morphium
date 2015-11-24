@@ -137,10 +137,14 @@ public class AsyncOperationTest extends MongoTest {
 
     @Test
     public void testAsyncWriter() throws Exception {
-        MorphiumSingleton.get().clearCollection(AsyncObject.class);
+        MorphiumSingleton.get().dropCollection(AsyncObject.class);
+        morphium.ensureIndicesFor(AsyncObject.class);
+        Thread.sleep(1000);
+        assert (morphium.getDriver().exists("morphium_test", "async_object"));
+
         long start = System.currentTimeMillis();
         for (int i = 0; i < 500; i++) {
-            if (i % 100 == 0) {
+            if (i % 10 == 0) {
                 log.info("Stored " + i + " objects");
             }
             AsyncObject ao = new AsyncObject();
@@ -152,6 +156,9 @@ public class AsyncOperationTest extends MongoTest {
         long end = System.currentTimeMillis();
         assert (end - start < 8000);
         waitForWrites();
+        Thread.sleep(100);
+        assert (morphium.createQueryFor(AsyncObject.class).countAll() != 0);
+        assert (morphium.createQueryFor(AsyncObject.class).countAll() == 500);
     }
 
     @Test

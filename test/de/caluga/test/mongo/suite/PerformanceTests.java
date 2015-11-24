@@ -32,6 +32,29 @@ public class PerformanceTests {
 
     }
 
+    @Test
+    public void testCreattion() throws Exception {
+        long start = System.currentTimeMillis();
+        for (int i = 0; i < 1000000; i++) {
+            new Vector<String>();
+        }
+        long dur = System.currentTimeMillis() - start;
+        System.out.println("Duration vector   : " + dur + "ms");
+
+        start = System.currentTimeMillis();
+        for (int i = 0; i < 1000000; i++) {
+            new ArrayList<String>();
+        }
+        dur = System.currentTimeMillis() - start;
+        System.out.println("Duration ArrayList: " + dur + "ms");
+        start = System.currentTimeMillis();
+        for (int i = 0; i < 1000000; i++) {
+            new LinkedList<String>();
+        }
+        dur = System.currentTimeMillis() - start;
+        System.out.println("Duration LinkedList: " + dur + "ms");
+    }
+
     private void testIt(final List<String> lst) {
         long start = System.currentTimeMillis();
         int threads = 300;
