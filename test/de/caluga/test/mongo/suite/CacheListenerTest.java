@@ -21,7 +21,8 @@ public class CacheListenerTest extends MongoTest {
 
     @Test
     public void callbackTest() throws Exception {
-        CacheListener cl = new CacheListener() {
+        CacheListener cl;
+        cl = new CacheListener() {
             @Override
             public <T> CacheObject<T> wouldAddToCache(CacheObject<T> toCache) {
                 wouldAdd = true;
@@ -41,25 +42,29 @@ public class CacheListenerTest extends MongoTest {
                 return true;
             }
         };
-        MorphiumSingleton.get().getCache().addCacheListener(cl);
-        assert (MorphiumSingleton.get().getCache().isListenerRegistered(cl));
+        try {
+            MorphiumSingleton.get().getCache().addCacheListener(cl);
+            assert (MorphiumSingleton.get().getCache().isListenerRegistered(cl));
 
 
-        super.createCachedObjects(100);
+            super.createCachedObjects(100);
 
-        for (int i = 0; i < 10; i++) {
-            MorphiumSingleton.get().createQueryFor(CachedObject.class).f("counter").lte(i).asList();
+            for (int i = 0; i < 10; i++) {
+                MorphiumSingleton.get().createQueryFor(CachedObject.class).f("counter").lte(i).asList();
+            }
+            waitForWrites();
+            assert (wouldAdd);
+
+            super.createCachedObjects(10);
+            waitForWrites();
+            log.info("Waiting for would clear message");
+            Thread.sleep(1500);
+            assert (wouldClear);
+        } finally {
+            MorphiumSingleton.get().getCache().removeCacheListener(cl);
+
         }
-        waitForWrites();
-        assert (wouldAdd);
 
-        super.createCachedObjects(10);
-        waitForWrites();
-        log.info("Waiting for would clear message");
-        Thread.sleep(3500);
-        assert (wouldClear);
-
-        MorphiumSingleton.get().getCache().removeCacheListener(cl);
 
 
     }

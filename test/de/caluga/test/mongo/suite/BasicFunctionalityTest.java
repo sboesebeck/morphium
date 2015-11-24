@@ -230,7 +230,7 @@ public class BasicFunctionalityTest extends MongoTest {
         }
 
         assert (last.getMorphiumId() != null) : "ID null?!?!?";
-
+        Thread.sleep(1000);
         UncachedObject uc = MorphiumSingleton.get().findById(UncachedObject.class, last.getMorphiumId());
         assert (uc != null) : "Not found?!?";
         assert (uc.getCounter() == last.getCounter()) : "Different Object? " + uc.getCounter() + " != " + last.getCounter();
