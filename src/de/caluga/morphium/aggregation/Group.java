@@ -1,9 +1,7 @@
 package de.caluga.morphium.aggregation;
 
-import com.mongodb.BasicDBObject;
-import com.mongodb.DBObject;
-
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -17,63 +15,63 @@ import java.util.Map;
 @SuppressWarnings("UnusedDeclaration")
 public class Group<T, R> {
     private Aggregator<T, R> aggregator;
-    private BasicDBObject id;
+    private Map<String, Object> id;
 
-    private List<BasicDBObject> operators = new ArrayList<>();
+    private List<Map<String, Object>> operators = new ArrayList<>();
 
-    public Group(Aggregator<T, R> ag, Map<String, String> idSubObject) {
-        aggregator = ag;
-        id = new BasicDBObject("_id", new BasicDBObject(idSubObject));
+    private Map<String, Object> getMap(String key, Object value) {
+        Map<String, Object> ret = new HashMap<>();
+        ret.put(key, value);
+        return ret;
     }
-
     public Group(Aggregator<T, R> ag, String id) {
         aggregator = ag;
-        this.id = new BasicDBObject("_id", id);
+        this.id = getMap("_id", id);
     }
 
-    public Group(Aggregator<T, R> ag, BasicDBObject id) {
+    public Group(Aggregator<T, R> ag, Map<String, Object> id) {
         aggregator = ag;
-        this.id = new BasicDBObject("_id", new BasicDBObject(id));
+        this.id = getMap("_id", id);
     }
 
-    public Group<T, R> addToSet(BasicDBObject param) {
-        BasicDBObject o = new BasicDBObject("$addToSet", param);
+    public Group<T, R> addToSet(Map<String, Object> param) {
+        Map<String, Object> o = getMap("$addToSet", param);
         operators.add(o);
         return this;
     } //don't know what this actually should do???
 
     public Group<T, R> first(String name, Object p) {
-        BasicDBObject o = new BasicDBObject(name, new BasicDBObject("$first", p));
+        Map<String, Object> o = getMap(name, getMap("$first", p));
         operators.add(o);
         return this;
     }
 
     public Group<T, R> last(String name, Object p) {
-        BasicDBObject o = new BasicDBObject(name, new BasicDBObject("$last", p));
+        Map<String, Object> o = getMap(name, getMap("$last", p));
         operators.add(o);
         return this;
     }
 
     public Group<T, R> max(String name, Object p) {
-        BasicDBObject o = new BasicDBObject(name, new BasicDBObject("$max", p));
+        Map<String, Object> o = getMap(name, getMap("$max", p));
         operators.add(o);
         return this;
     }
 
     public Group<T, R> min(String name, Object p) {
-        BasicDBObject o = new BasicDBObject(name, new BasicDBObject("$min", p));
+        Map<String, Object> o = getMap(name, getMap("$min", p));
         operators.add(o);
         return this;
     }
 
     public Group<T, R> avg(String name, Object p) {
-        BasicDBObject o = new BasicDBObject(name, new BasicDBObject("$avg", p));
+        Map<String, Object> o = getMap(name, getMap("$avg", p));
         operators.add(o);
         return this;
     }
 
     public Group<T, R> push(String name, Object p) {
-        BasicDBObject o = new BasicDBObject(name, new BasicDBObject("$push", p));
+        Map<String, Object> o = getMap(name, getMap("$push", p));
         operators.add(o);
         return this;
     }
@@ -88,7 +86,7 @@ public class Group<T, R> {
     }
 
     public Group<T, R> sum(String name, Object p) {
-        BasicDBObject o = new BasicDBObject(name, new BasicDBObject("$sum", p));
+        Map<String, Object> o = getMap(name, getMap("$sum", p));
         operators.add(o);
         return this;
     }
@@ -98,17 +96,17 @@ public class Group<T, R> {
     }
 
     public Aggregator<T, R> end() {
-        BasicDBObject params = new BasicDBObject();
-        params.putAll((DBObject) id);
-        for (BasicDBObject o : operators) {
-            params.putAll((DBObject) o);
+        Map<String, Object> params = new HashMap<>();
+        params.putAll((Map<String, Object>) id);
+        for (Map<String, Object> o : operators) {
+            params.putAll((Map<String, Object>) o);
         }
-        DBObject obj = new BasicDBObject("$group", params);
+        Map<String, Object> obj = getMap("$group", params);
         aggregator.addOperator(obj);
         return aggregator;
     }
 
-    public List<BasicDBObject> getOperators() {
+    public List<Map<String, Object>> getOperators() {
         return operators;
     }
 }
