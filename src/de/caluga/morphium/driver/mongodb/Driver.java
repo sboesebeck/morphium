@@ -935,9 +935,38 @@ public class Driver implements MorphiumDriver {
 
 
     @Override
-    public Map<String, Object> aggregate(String db, String collection, List<Map<String, Object>> pipeline,
-                                         boolean explain, boolean allowDiskUse, ReadPreference readPreference) throws MorphiumDriverException {
-        throw new RuntimeException("not implemented yet");
+    public List<Map<String, Object>> aggregate(String db, String collection, List<Map<String, Object>> pipeline,
+                                               boolean explain, boolean allowDiskUse, ReadPreference readPreference) throws MorphiumDriverException {
+        List list = new ArrayList<>();
+
+        for (Map<String, Object> p : pipeline) {
+            list.add(new BasicDBObject(p));
+        }
+
+        AggregationOptions opts = AggregationOptions.builder().allowDiskUse(allowDiskUse).build();
+
+
+        if (explain) {
+            CommandResult ret = getColl(mongo.getDB(db), collection, getDefaultReadPreference(), null).explainAggregate(list, opts);
+            List<Map<String, Object>> o = new ArrayList<>();
+            o.add(new HashMap<>(ret));
+            return o;
+        } else {
+            Cursor ret = getColl(mongo.getDB(db), collection, getDefaultReadPreference(), null).aggregate(list, opts);
+            List<Map<String, Object>> result = new ArrayList<>();
+
+            while (ret.hasNext()) {
+                DBObject doc = ret.next();
+                if (doc instanceof Map) {
+                    result.add(convertBSON(new HashMap<>((Map) doc)));
+                } else {
+                    throw new MorphiumDriverException("Something went terribly wrong!", null);
+                }
+            }
+            return result;
+
+        }
+
     }
 
     @Override
