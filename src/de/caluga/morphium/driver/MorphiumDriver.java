@@ -171,8 +171,6 @@ public interface MorphiumDriver {
 
     Map<String, Object> group(String db, String coll, Map<String, Object> query, Map<String, Object> initial, String jsReduce, String jsFinalize, ReadPreference rp, String... keys);
 
-    Map<String, Object> killCursors(String db, String collection, List<Long> cursorIds) throws MorphiumDriverException;
-
     Map<String, Object> aggregate(String db, String collection, List<Map<String, Object>> pipeline, boolean explain, boolean allowDiskUse, ReadPreference readPreference) throws MorphiumDriverException;
 
     boolean isSocketKeepAlive();
