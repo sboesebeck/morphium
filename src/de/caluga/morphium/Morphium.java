@@ -1732,6 +1732,10 @@ public class Morphium {
         getCache().clearCachefor(cls);
     }
 
+    public void clearCacheforClassIfNecessary(Class<?> cls) {
+        getCache().clearCacheIfNecessary(cls);
+    }
+
     public <T> void storeNoCache(T lst) {
         storeNoCache(lst, getMapper().getCollectionName(lst.getClass()), null);
     }
