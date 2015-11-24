@@ -67,6 +67,7 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
                 }
                 entry.getToRun().queue(bulkByCollectionName.get(entry.getCollectionName()));
                 entry.getCb().onOperationSucceeded(entry.getType(), null, 0, null, null);
+
             } catch (RejectedExecutionException e) {
                 logger.info("too much load - add write to next run");
                 didNotWrite.add(entry);
@@ -85,6 +86,9 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
             }
         } catch (Exception e) {
             logger.error("Error during exeecution of unordered bulk",e);
+        }
+        for (WriteBufferEntry entry : localQueue) {
+            morphium.clearCacheforClassIfNecessary(entry.getEntityType());
         }
 
         return didNotWrite;
@@ -197,7 +201,7 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
 
                     }
                 }
-                morphium.getCache().clearCacheIfNecessary(o.getClass());
+//                morphium.clearCacheforClassIfNecessary(o.getClass());
                 morphium.firePostStore(o, isNew);
             }
 
