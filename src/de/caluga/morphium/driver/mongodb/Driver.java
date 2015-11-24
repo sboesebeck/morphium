@@ -855,13 +855,18 @@ public class Driver implements MorphiumDriver {
                 final Map<String, Object> ret = new HashMap<String, Object>();
 
                 Document result = mongo.getDatabase(db).runCommand(new Document("listCollections", 1));
-                result.get("first_batch");
+                ArrayList<Document> batch = (ArrayList<Document>) (((Map) result.get("cursor")).get("firstBatch"));
+                for (Document d : batch) {
+                    if (d.get("name").equals(collection)) {
+                        return d;
+                    }
+                }
                 return null;
             }
         }, retriesOnNetworkError, sleepBetweenErrorRetries);
 
 
-        return found != null;
+        return found != null && found.size() != 0;
     }
 
     @Override
