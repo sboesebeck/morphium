@@ -2132,7 +2132,7 @@ public class Morphium {
     }
 
     public <T, R> List<R> aggregate(Aggregator<T, R> a) {
-        throw new RuntimeException("Not implemented yet");
+
 //        DBCollection coll = null;
 //        for (int i = 0; i < getConfig().getRetriesOnNetworkError(); i++) {
 //            try {
@@ -2144,7 +2144,18 @@ public class Morphium {
 //                handleNetworkError(i, e);
 //            }
 //        }
-//        List<Map<String, Object>> agList = a.toAggregationList();
+        List<Map<String, Object>> agList = a.toAggregationList();
+        try {
+            List<Map<String, Object>> ret = getDriver().aggregate(config.getDatabase(), a.getCollectionName(), agList, a.isExplain(), a.isUseDisk(), getReadPreferenceForClass(a.getSearchType()));
+            List<R> result = new ArrayList<>();
+            for (Map<String, Object> dbObj : ret) {
+                result.add(getMapper().unmarshall(a.getResultType(), dbObj));
+            }
+            return result;
+        } catch (MorphiumDriverException e) {
+            //TODO: Implement Handling
+            throw new RuntimeException(e);
+        }
 //        Map<String, Object> first = agList.get(0);
 //        agList.remove(0);
 //        AggregationOutput resp = null;
