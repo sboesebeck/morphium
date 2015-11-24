@@ -933,11 +933,6 @@ public class Driver implements MorphiumDriver {
         return convertBSON((Map<? extends String, ?>) cmd);
     }
 
-    @Override
-    public Map<String, Object> killCursors(String db, String collection, List<Long> cursorIds) throws
-            MorphiumDriverException {
-        throw new RuntimeException("not implemented yet");
-    }
 
     @Override
     public Map<String, Object> aggregate(String db, String collection, List<Map<String, Object>> pipeline,
