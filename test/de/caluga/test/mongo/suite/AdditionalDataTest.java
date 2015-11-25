@@ -87,7 +87,7 @@ public class AdditionalDataTest extends MongoTest {
         d.setCounter(999);
         d.setAdditionals(null);
         morphium.store(d);
-        Thread.sleep(100);
+        Thread.sleep(500);
         AddDat d2 = morphium.findById(AddDat.class, d.getMorphiumId());
         assert (d2 != null);
         assert (d2.additionals == null || d2.additionals.size() == 0);
