@@ -1,6 +1,6 @@
 package de.caluga.test.mongo.suite;
 
-import de.caluga.morphium.MorphiumSingleton;
+import de.caluga.test.mongo.suite.data.UncachedObject;
 import org.junit.Test;
 
 import java.util.ArrayList;
@@ -24,14 +24,14 @@ public class DistinctGroupTest extends MongoTest {
             uc.setValue("Value " + (i % 2));
             lst.add(uc);
         }
-        MorphiumSingleton.get().storeList(lst);
+        morphium.storeList(lst);
 
-        List values = MorphiumSingleton.get().distinct("counter", UncachedObject.class);
+        List values = morphium.distinct("counter", UncachedObject.class);
         assert (values.size() == 3) : "Size wrong: " + values.size();
         for (Object o : values) {
             log.info("counter: " + o.toString());
         }
-        values = MorphiumSingleton.get().distinct("value", UncachedObject.class);
+        values = morphium.distinct("value", UncachedObject.class);
         assert (values.size() == 2) : "Size wrong: " + values.size();
         for (Object o : values) {
             log.info("Value: " + o.toString());
@@ -44,7 +44,7 @@ public class DistinctGroupTest extends MongoTest {
         HashMap<String, Object> initial = new HashMap<>();
         initial.put("count", 0);
         initial.put("sum", 0);
-        Map<String, Object> ret = MorphiumSingleton.get().group(MorphiumSingleton.get().createQueryFor(UncachedObject.class), initial,
+        Map<String, Object> ret = morphium.group(morphium.createQueryFor(UncachedObject.class), initial,
                 "data.count++; data.sum+=obj.counter;", "data.avg=data.sum/data.count;");
         log.info("got DBObject: " + ret);
 

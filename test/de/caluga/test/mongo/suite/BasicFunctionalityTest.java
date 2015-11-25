@@ -6,12 +6,14 @@ package de.caluga.test.mongo.suite;
 
 import de.caluga.morphium.AnnotationAndReflectionHelper;
 import de.caluga.morphium.Logger;
-import de.caluga.morphium.MorphiumSingleton;
 import de.caluga.morphium.StatisticKeys;
 import de.caluga.morphium.annotations.Embedded;
 import de.caluga.morphium.annotations.Entity;
 import de.caluga.morphium.annotations.Id;
 import de.caluga.morphium.query.Query;
+import de.caluga.test.mongo.suite.data.CachedObject;
+import de.caluga.test.mongo.suite.data.EmbeddedObject;
+import de.caluga.test.mongo.suite.data.UncachedObject;
 import org.junit.Test;
 
 import java.lang.reflect.Field;
@@ -32,7 +34,7 @@ public class BasicFunctionalityTest extends MongoTest {
 
     @Test
     public void subObjectQueryTest() throws Exception {
-        Query<ComplexObject> q = MorphiumSingleton.get().createQueryFor(ComplexObject.class);
+        Query<ComplexObject> q = morphium.createQueryFor(ComplexObject.class);
 
         q = q.f("embed.testValueLong").eq(null).f("entityEmbeded.binaryData").eq(null);
         String queryString = q.toQueryObject().toString();
@@ -46,7 +48,7 @@ public class BasicFunctionalityTest extends MongoTest {
 
     @Test(expected = IllegalArgumentException.class)
     public void subObjectQueryTestUnknownField() throws Exception {
-        Query<ComplexObject> q = MorphiumSingleton.get().createQueryFor(ComplexObject.class);
+        Query<ComplexObject> q = morphium.createQueryFor(ComplexObject.class);
 
         q = q.f("embed.testValueLong").eq(null).f("entityEmbeded.binaryData.non_existent").eq(null);
         String queryString = q.toQueryObject().toString();
@@ -59,9 +61,9 @@ public class BasicFunctionalityTest extends MongoTest {
             UncachedObject o = new UncachedObject();
             o.setCounter(i);
             o.setValue("Uncached " + i % 2);
-            MorphiumSingleton.get().store(o);
+            morphium.store(o);
         }
-        Query<UncachedObject> q = MorphiumSingleton.get().createQueryFor(UncachedObject.class);
+        Query<UncachedObject> q = morphium.createQueryFor(UncachedObject.class);
         q = q.f("counter").gt(0).sort("-counter", "value");
         List<UncachedObject> lst = q.asList();
         assert (!lst.get(0).getValue().equals(lst.get(1).getValue()));
@@ -71,10 +73,10 @@ public class BasicFunctionalityTest extends MongoTest {
         assert (lst2.get(0).getValue().equals(lst2.get(1).getValue()));
         log.info("Sorted");
 
-        q = MorphiumSingleton.get().createQueryFor(UncachedObject.class);
+        q = morphium.createQueryFor(UncachedObject.class);
         q = q.f("counter").gt(0).limit(5).sort("-counter");
         int st = q.asList().size();
-        q = MorphiumSingleton.get().createQueryFor(UncachedObject.class);
+        q = morphium.createQueryFor(UncachedObject.class);
         q = q.f("counter").gt(0).sort("-counter").limit(5);
         assert (st == q.asList().size()) : "List length differ?";
 
@@ -113,10 +115,10 @@ public class BasicFunctionalityTest extends MongoTest {
         }
         o.setBoolData(bd);
 
-        MorphiumSingleton.get().store(o);
+        morphium.store(o);
 
 
-        MorphiumSingleton.get().reread(o);
+        morphium.reread(o);
 
         for (int i = 0; i < o.getIntData().length; i++) {
             assert (o.getIntData()[i] == binaryData[i]);
@@ -148,11 +150,11 @@ public class BasicFunctionalityTest extends MongoTest {
             binaryData[i] = (byte) i;
         }
         o.setBinaryData(binaryData);
-        MorphiumSingleton.get().store(o);
+        morphium.store(o);
 
         waitForAsyncOperationToStart(1000000);
         waitForWrites();
-        MorphiumSingleton.get().reread(o);
+        morphium.reread(o);
         for (int i = 0; i < o.getBinaryData().length; i++) {
             assert (o.getBinaryData()[i] == binaryData[i]);
         }
@@ -165,9 +167,9 @@ public class BasicFunctionalityTest extends MongoTest {
             UncachedObject o = new UncachedObject();
             o.setCounter(i);
             o.setValue("Uncached " + i);
-            MorphiumSingleton.get().store(o);
+            morphium.store(o);
         }
-        Query<UncachedObject> q = MorphiumSingleton.get().createQueryFor(UncachedObject.class);
+        Query<UncachedObject> q = morphium.createQueryFor(UncachedObject.class);
         q.where("this.counter<10").f("counter").gt(5);
         log.info(q.toQueryObject().toString());
 
@@ -176,7 +178,7 @@ public class BasicFunctionalityTest extends MongoTest {
             assert (o.getCounter() < 10 && o.getCounter() > 5) : "Counter is wrong: " + o.getCounter();
         }
 
-        assert (MorphiumSingleton.get().getStatistics().get("X-Entries for: de.caluga.test.mongo.suite.UncachedObject") == null) : "Cached Uncached Object?!?!?!";
+        assert (morphium.getStatistics().get("X-Entries for: de.caluga.test.mongo.suite.data.UncachedObject") == null) : "Cached Uncached Object?!?!?!";
 
 
     }
@@ -187,10 +189,10 @@ public class BasicFunctionalityTest extends MongoTest {
             UncachedObject o = new UncachedObject();
             o.setCounter(i);
             o.setValue("Uncached " + i);
-            MorphiumSingleton.get().store(o);
+            morphium.store(o);
         }
         Thread.sleep(1000);
-        Query<UncachedObject> q = MorphiumSingleton.get().createQueryFor(UncachedObject.class);
+        Query<UncachedObject> q = morphium.createQueryFor(UncachedObject.class);
         q = q.f("counter").exists().f("value").eq("Uncached 1");
         long c = q.countAll();
         assert (c == 1);
@@ -205,9 +207,9 @@ public class BasicFunctionalityTest extends MongoTest {
             UncachedObject o = new UncachedObject();
             o.setCounter(i);
             o.setValue("Uncached " + i);
-            MorphiumSingleton.get().store(o);
+            morphium.store(o);
         }
-        Query<UncachedObject> q = MorphiumSingleton.get().createQueryFor(UncachedObject.class);
+        Query<UncachedObject> q = morphium.createQueryFor(UncachedObject.class);
         q = q.f("counter").notExists().f("value").eq("Uncached 1");
         long c = q.countAll();
         assert (c == 0);
@@ -225,17 +227,28 @@ public class BasicFunctionalityTest extends MongoTest {
             UncachedObject o = new UncachedObject();
             o.setCounter(i);
             o.setValue("Uncached " + i);
-            MorphiumSingleton.get().store(o);
+            morphium.store(o);
             last = o;
         }
 
         assert (last.getMorphiumId() != null) : "ID null?!?!?";
         Thread.sleep(1000);
-        UncachedObject uc = MorphiumSingleton.get().findById(UncachedObject.class, last.getMorphiumId());
+        UncachedObject uc = morphium.findById(UncachedObject.class, last.getMorphiumId());
         assert (uc != null) : "Not found?!?";
         assert (uc.getCounter() == last.getCounter()) : "Different Object? " + uc.getCounter() + " != " + last.getCounter();
 
     }
+
+//    @Test
+//    public void currentOpTest() throws Exception{
+//        new Thread() {
+//            public void run() {
+//                createUncachedObjects(1000);
+//            }
+//        }.start();
+//        List<Map<String, Object>> lst = morphium.getDriver().find("local", "$cmd.sys.inprog", new HashMap<String, Object>(), null, null, 0, 1000, 1000, null, null);
+//        log.info("got: "+lst.size());
+//    }
 
     @Test
     public void orTest() {
@@ -247,10 +260,10 @@ public class BasicFunctionalityTest extends MongoTest {
             UncachedObject o = new UncachedObject();
             o.setCounter(i);
             o.setValue("Uncached " + i);
-            MorphiumSingleton.get().store(o);
+            morphium.store(o);
         }
 
-        Query<UncachedObject> q = MorphiumSingleton.get().createQueryFor(UncachedObject.class);
+        Query<UncachedObject> q = morphium.createQueryFor(UncachedObject.class);
         q.or(q.q().f("counter").lt(10), q.q().f("value").eq("Uncached 50"));
         log.info("Query string: " + q.toQueryObject().toString());
         List<UncachedObject> lst = q.asList();
@@ -264,10 +277,10 @@ public class BasicFunctionalityTest extends MongoTest {
             UncachedObject uc = new UncachedObject();
             uc.setCounter(i);
             uc.setValue("Complex Query Test " + i);
-            MorphiumSingleton.get().store(uc);
+            morphium.store(uc);
         }
 
-        assert (MorphiumSingleton.get().getStatistics().get("X-Entries for: de.caluga.test.mongo.suite.UncachedObject") == null) : "Cached Uncached Object?!?!?!";
+        assert (morphium.getStatistics().get("X-Entries for: de.caluga.test.mongo.suite.data.UncachedObject") == null) : "Cached Uncached Object?!?!?!";
 
     }
 
@@ -282,7 +295,7 @@ public class BasicFunctionalityTest extends MongoTest {
             UncachedObject o = new UncachedObject();
             o.setCounter(i);
             o.setValue("Uncached " + i);
-            MorphiumSingleton.get().store(o);
+            morphium.store(o);
         }
         long dur = System.currentTimeMillis() - start;
         log.info("Storing single took " + dur + " ms");
@@ -291,20 +304,20 @@ public class BasicFunctionalityTest extends MongoTest {
         log.info("Searching for objects");
 
         checkUncached();
-        assert (MorphiumSingleton.get().getStatistics().get("X-Entries for: de.caluga.test.mongo.suite.UncachedObject") == null) : "Cached Uncached Object?!?!?!";
+        assert (morphium.getStatistics().get("X-Entries for: de.caluga.test.mongo.suite.data.UncachedObject") == null) : "Cached Uncached Object?!?!?!";
 
     }
 
     @Test
     public void testAnnotationCache() throws Exception {
-        Entity e = MorphiumSingleton.get().getARHelper().getAnnotationFromHierarchy(EmbeddedObject.class, Entity.class);
+        Entity e = morphium.getARHelper().getAnnotationFromHierarchy(EmbeddedObject.class, Entity.class);
         assert (e == null);
-        Embedded em = MorphiumSingleton.get().getARHelper().getAnnotationFromHierarchy(EmbeddedObject.class, Embedded.class);
+        Embedded em = morphium.getARHelper().getAnnotationFromHierarchy(EmbeddedObject.class, Embedded.class);
         assert (em != null);
     }
     @Test
     public void uncachedListTest() throws Exception {
-        MorphiumSingleton.get().clearCollection(UncachedObject.class);
+        morphium.clearCollection(UncachedObject.class);
         log.info("Preparing a list...");
 
         long start = System.currentTimeMillis();
@@ -315,12 +328,12 @@ public class BasicFunctionalityTest extends MongoTest {
             o.setValue("Uncached " + i);
             lst.add(o);
         }
-        MorphiumSingleton.get().storeList(lst);
+        morphium.storeList(lst);
         long dur = System.currentTimeMillis() - start;
         log.info("Storing a list  took " + dur + " ms");
         Thread.sleep(1000);
         checkUncached();
-        assert (MorphiumSingleton.get().getStatistics().get("X-Entries for: de.caluga.test.mongo.suite.UncachedObject") == null) : "Cached Uncached Object?!?!?!";
+        assert (morphium.getStatistics().get("X-Entries for: de.caluga.test.mongo.suite.data.UncachedObject") == null) : "Cached Uncached Object?!?!?!";
 
     }
 
@@ -329,7 +342,7 @@ public class BasicFunctionalityTest extends MongoTest {
         long dur;
         start = System.currentTimeMillis();
         for (int i = 1; i <= NO_OBJECTS; i++) {
-            Query<UncachedObject> q = MorphiumSingleton.get().createQueryFor(UncachedObject.class);
+            Query<UncachedObject> q = morphium.createQueryFor(UncachedObject.class);
             q.f("counter").eq(i);
             List<UncachedObject> l = q.asList();
             assert (l != null && l.size() > 0) : "Nothing found!?!?!?!? Value: " + i;
@@ -350,7 +363,7 @@ public class BasicFunctionalityTest extends MongoTest {
         for (int idx = 1; idx <= NO_OBJECTS * 3.5; idx++) {
             int i = (int) (Math.random() * (double) NO_OBJECTS);
             if (i == 0) i = 1;
-            Query<CachedObject> q = MorphiumSingleton.get().createQueryFor(CachedObject.class);
+            Query<CachedObject> q = morphium.createQueryFor(CachedObject.class);
             q.f("counter").eq(i);
             List<CachedObject> l = q.asList();
             assert (l != null && l.size() > 0) : "Nothing found!?!?!?!? " + i;
@@ -361,7 +374,7 @@ public class BasicFunctionalityTest extends MongoTest {
         }
         dur = System.currentTimeMillis() - start;
         log.info("Searching  took " + dur + " ms");
-        log.info("Cache Hits Percentage: " + MorphiumSingleton.get().getStatistics().get(StatisticKeys.CHITSPERC.name()) + "%");
+        log.info("Cache Hits Percentage: " + morphium.getStatistics().get(StatisticKeys.CHITSPERC.name()) + "%");
     }
 
 
@@ -373,7 +386,7 @@ public class BasicFunctionalityTest extends MongoTest {
             CachedObject o = new CachedObject();
             o.setCounter(i);
             o.setValue("Cached " + i);
-            MorphiumSingleton.get().store(o);
+            morphium.store(o);
         }
 
         long dur = System.currentTimeMillis() - start;
@@ -383,10 +396,10 @@ public class BasicFunctionalityTest extends MongoTest {
         dur = System.currentTimeMillis() - start;
         log.info("Storing took " + dur + " ms overall");
         randomCheck();
-        Map<String, Double> statistics = MorphiumSingleton.get().getStatistics();
-        Double uc = statistics.get("X-Entries for: de.caluga.test.mongo.suite.UncachedObject");
+        Map<String, Double> statistics = morphium.getStatistics();
+        Double uc = statistics.get("X-Entries for: de.caluga.test.mongo.suite.data.UncachedObject");
         assert (uc == null || uc == 0) : "Cached Uncached Object?!?!?!";
-        assert (statistics.get("X-Entries for: de.caluga.test.mongo.suite.CachedObject") > 0) : "No Cached Object cached?!?!?!";
+        assert (statistics.get("X-Entries for: de.caluga.test.mongo.suite.data.CachedObject") > 0) : "No Cached Object cached?!?!?!";
 
     }
 
@@ -395,8 +408,8 @@ public class BasicFunctionalityTest extends MongoTest {
     public void checkListWriting() {
         List<CachedObject> lst = new ArrayList<>();
         try {
-            MorphiumSingleton.get().store(lst);
-            MorphiumSingleton.get().storeBuffered(lst);
+            morphium.store(lst);
+            morphium.storeBuffered(lst);
         } catch (Exception e) {
             log.info("Got exception, good!");
             return;
@@ -406,21 +419,21 @@ public class BasicFunctionalityTest extends MongoTest {
 
     @Test
     public void checkToStringUniqueness() {
-        Query<CachedObject> q = MorphiumSingleton.get().createQueryFor(CachedObject.class);
+        Query<CachedObject> q = morphium.createQueryFor(CachedObject.class);
         q = q.f("value").eq("Test").f("counter").gt(5);
         String t = q.toString();
         log.info("Tostring: " + q.toString());
-        q = MorphiumSingleton.get().createQueryFor(CachedObject.class);
+        q = morphium.createQueryFor(CachedObject.class);
         q = q.f("counter").gt(5).f("value").eq("Test");
         String s = q.toString();
         if (!s.equals(t)) {
             log.warn("Warning: order is important s=" + s + " and t=" + t);
         }
 
-        q = MorphiumSingleton.get().createQueryFor(CachedObject.class);
+        q = morphium.createQueryFor(CachedObject.class);
         q = q.f("counter").gt(5).sort("counter", "-value");
         t = q.toString();
-        q = MorphiumSingleton.get().createQueryFor(CachedObject.class);
+        q = morphium.createQueryFor(CachedObject.class);
         q = q.f("counter").gt(5);
         s = q.toString();
         assert (!t.equals(s)) : "Values should not be equal: s=" + s + " t=" + t;
@@ -448,7 +461,7 @@ public class BasicFunctionalityTest extends MongoTest {
         }
         log.info("Writing " + cached + " Cached and " + uncached + " uncached objects!");
 
-        MorphiumSingleton.get().storeList(tst);
+        morphium.storeList(tst);
         waitForAsyncOperationToStart(1000000);
         waitForWrites();
         //Still waiting - storing lists is not shown in number of write buffer entries
@@ -457,9 +470,9 @@ public class BasicFunctionalityTest extends MongoTest {
 //        } catch (InterruptedException e) {
 //            throw new RuntimeException(e);
 //        }
-        Query<UncachedObject> qu = MorphiumSingleton.get().createQueryFor(UncachedObject.class);
+        Query<UncachedObject> qu = morphium.createQueryFor(UncachedObject.class);
         assert (qu.countAll() == uncached) : "Difference in object count for cached objects. Wrote " + uncached + " found: " + qu.countAll();
-        Query<CachedObject> q = MorphiumSingleton.get().createQueryFor(CachedObject.class);
+        Query<CachedObject> q = morphium.createQueryFor(CachedObject.class);
         assert (q.countAll() == cached) : "Difference in object count for cached objects. Wrote " + cached + " found: " + q.countAll();
 
     }
@@ -467,7 +480,7 @@ public class BasicFunctionalityTest extends MongoTest {
 
     @Test
     public void arHelperTest() {
-        AnnotationAndReflectionHelper annotationHelper = MorphiumSingleton.get().getARHelper();
+        AnnotationAndReflectionHelper annotationHelper = morphium.getARHelper();
         long start = System.currentTimeMillis();
         for (int i = 0; i < 500000; i++)
             annotationHelper.isAnnotationPresentInHierarchy(UncachedObject.class, Entity.class);

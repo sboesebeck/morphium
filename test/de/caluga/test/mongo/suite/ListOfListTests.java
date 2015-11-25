@@ -1,8 +1,8 @@
 package de.caluga.test.mongo.suite;
 
-import de.caluga.morphium.MorphiumSingleton;
 import de.caluga.morphium.annotations.*;
 import de.caluga.morphium.driver.bson.MorphiumId;
+import de.caluga.test.mongo.suite.data.UncachedObject;
 import org.junit.Test;
 
 import java.util.ArrayList;
@@ -17,7 +17,7 @@ import java.util.List;
 public class ListOfListTests extends MongoTest {
     @Test
     public void storeListOfLists() throws Exception {
-        MorphiumSingleton.get().clearCollection(LoLType.class);
+        morphium.clearCollection(LoLType.class);
         List<List<String>> val = new ArrayList<>();
         List<String> v1 = new ArrayList<>();
         v1.add("v1 - 1");
@@ -38,9 +38,9 @@ public class ListOfListTests extends MongoTest {
 
         LoLType l = new LoLType();
         l.setLst(val);
-        MorphiumSingleton.get().store(l);
+        morphium.store(l);
 
-        LoLType l2 = MorphiumSingleton.get().createQueryFor(LoLType.class).f("id").eq(l.id).get();
+        LoLType l2 = morphium.createQueryFor(LoLType.class).f("id").eq(l.id).get();
         assert (l2.lst.size() == l.lst.size()) : "Error in list sizes";
         assert (l2.lst.get(0).size() == l.lst.get(0).size()) : "error in sublist sizes";
         assert (l2.lst.get(1).get(0).equals(l.lst.get(1).get(0))) : "error in sublist values";
@@ -51,12 +51,12 @@ public class ListOfListTests extends MongoTest {
     public void jsonListTest() throws Exception {
 
         String s = "{ \"_id\" : \"5321be491c26b5f02eec7bd7\" , \"string_list\" : [ \"Hi\" , \"Ho\"] , \"uc_list\" : [ { \"counter\" : 5 } , { \"counter\" : 7} , { \"counter\" : 12 }]}";
-        ListTypes l = MorphiumSingleton.get().getMapper().unmarshall(ListTypes.class, s);
+        ListTypes l = morphium.getMapper().unmarshall(ListTypes.class, s);
         System.out.println(l.getStringList().get(0));
         UncachedObject u = l.getUcList().get(0);
 
         s = "{ \"_id\" : \"5321be491c26b5f02eec7bd7\" , \"string_list\" : [ \"Hi\" , \"Ho\"] , \"uc_list\" : [ { \"counter\" : 10 } , { \"counter\" : 12 } , { \"counter\" : 22 }],\"uc_lst_list\" : [[ { \"counter\" : 0 } , { \"counter\" : 1 } , { \"counter\" : 2 }]]}";
-        l = MorphiumSingleton.get().getMapper().unmarshall(ListTypes.class, s);
+        l = morphium.getMapper().unmarshall(ListTypes.class, s);
         System.out.println(l.getStringList().get(0));
         u = l.getUcList().get(0);
         List<UncachedObject> lst = l.getUcLstList().get(0);

@@ -6,6 +6,7 @@ import de.caluga.morphium.annotations.SafetyLevel;
 import de.caluga.morphium.annotations.WriteSafety;
 import de.caluga.morphium.annotations.caching.NoCache;
 import de.caluga.morphium.driver.bson.MorphiumId;
+import de.caluga.test.mongo.suite.data.TestEnum;
 
 import java.util.List;
 

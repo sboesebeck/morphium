@@ -1,8 +1,8 @@
 package de.caluga.test.mongo.suite;
 
-import de.caluga.morphium.MorphiumSingleton;
 import de.caluga.morphium.annotations.ReadPreferenceLevel;
 import de.caluga.morphium.query.Query;
+import de.caluga.test.mongo.suite.data.UncachedObject;
 import org.junit.Test;
 
 /**
@@ -17,7 +17,7 @@ public class WhereTest extends MongoTest {
     public void testWhere() throws Exception {
         super.createUncachedObjects(100);
 
-        Query<UncachedObject> q = MorphiumSingleton.get().createQueryFor(UncachedObject.class);
+        Query<UncachedObject> q = morphium.createQueryFor(UncachedObject.class);
         q = q.where("this.count > 0");
         q.setReadPreferenceLevel(ReadPreferenceLevel.NEAREST);
         q.get();
@@ -48,7 +48,7 @@ public class WhereTest extends MongoTest {
 //        Mongo mongo = new Mongo(adr, o);
 //        mongo.setReadPreference(ReadPreference.PRIMARY);
 //
-//        ReplicaSetStatus s = MorphiumSingleton.get().getReplicaSetStatus(true);
+//        ReplicaSetStatus s = morphium.getReplicaSetStatus(true);
 //        System.out.println("Active nodes: " + s.getActiveNodes());
 //        BasicDBObject obj = new BasicDBObject();
 //        obj.put("var", "value");

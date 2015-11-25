@@ -1,7 +1,7 @@
 package de.caluga.test.mongo.suite;
 
-import de.caluga.morphium.MorphiumSingleton;
 import de.caluga.morphium.query.Query;
+import de.caluga.test.mongo.suite.data.UncachedObject;
 import org.junit.Test;
 
 import java.util.Map;
@@ -17,7 +17,7 @@ public class QueryImplTest extends MongoTest {
     @Test
     public void testQuery() {
 
-        Query<UncachedObject> q = MorphiumSingleton.get().createQueryFor(UncachedObject.class);
+        Query<UncachedObject> q = morphium.createQueryFor(UncachedObject.class);
 
 
         q.or(q.q().f("counter").lte(15),
@@ -60,7 +60,7 @@ public class QueryImplTest extends MongoTest {
 
     @Test
     public void testOrder() {
-        Query<UncachedObject> q = MorphiumSingleton.get().createQueryFor(UncachedObject.class);
+        Query<UncachedObject> q = morphium.createQueryFor(UncachedObject.class);
         q = q.f("counter").lt(1000).f("value").eq("test");
         String str = q.toQueryObject().toString();
         log.info("Query1: " + str);
@@ -87,7 +87,7 @@ public class QueryImplTest extends MongoTest {
 
     @Test
     public void testToString() {
-        Query<ListContainer> q = MorphiumSingleton.get().createQueryFor(ListContainer.class);
+        Query<ListContainer> q = morphium.createQueryFor(ListContainer.class);
         q = q.f(ListContainer.Fields.longList).size(10);
         String qStr = q.toString();
         log.info("ToString: " + qStr);
@@ -104,17 +104,17 @@ public class QueryImplTest extends MongoTest {
             lc.addLong((long) i);
         }
         lc.setName("A test");
-        MorphiumSingleton.get().store(lc);
+        morphium.store(lc);
 
         lc = new ListContainer();
         for (int i = 0; i < 5; i++) {
             lc.addLong((long) i);
         }
         lc.setName("A test2");
-        MorphiumSingleton.get().store(lc);
+        morphium.store(lc);
 
 
-        Query<ListContainer> q = MorphiumSingleton.get().createQueryFor(ListContainer.class);
+        Query<ListContainer> q = morphium.createQueryFor(ListContainer.class);
         q = q.f(ListContainer.Fields.longList).size(10);
         lc = q.get();
         assert (lc.getLongList().size() == 10);

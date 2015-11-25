@@ -1,6 +1,5 @@
 package de.caluga.test.mongo.suite;
 
-import de.caluga.morphium.MorphiumSingleton;
 import de.caluga.morphium.annotations.Entity;
 import de.caluga.morphium.annotations.Id;
 import de.caluga.morphium.driver.bson.MorphiumId;
@@ -23,10 +22,10 @@ public class NonEntitySerialization extends MongoTest {
         ne.setInteger(42);
         ne.setValue("Thank you for the fish");
 
-        Map<String, Object> obj = MorphiumSingleton.get().getMapper().marshall(ne);
+        Map<String, Object> obj = morphium.getMapper().marshall(ne);
         log.info(obj.toString());
 
-        NonEntity ne2 = MorphiumSingleton.get().getMapper().unmarshall(NonEntity.class, obj);
+        NonEntity ne2 = morphium.getMapper().unmarshall(NonEntity.class, obj);
         assert (ne2.getInteger() == 42);
         log.info("Successful read:" + ne2.toString());
     }
@@ -42,20 +41,20 @@ public class NonEntitySerialization extends MongoTest {
         nc.getList().add(ne);
         nc.getList().add("Some string");
 
-        Map<String, Object> obj = MorphiumSingleton.get().getMapper().marshall(nc);
+        Map<String, Object> obj = morphium.getMapper().marshall(nc);
 
-        NonEntityContainer nc2 = MorphiumSingleton.get().getMapper().unmarshall(NonEntityContainer.class, obj);
+        NonEntityContainer nc2 = morphium.getMapper().unmarshall(NonEntityContainer.class, obj);
         assert (nc2.getList().get(0) != null);
         NonEntity ne2 = (NonEntity) nc2.getList().get(0);
         assert (ne2.getInteger() == 42);
 
         //now store to Mongo
-        MorphiumSingleton.get().dropCollection(NonEntityContainer.class);
-        MorphiumSingleton.get().store(nc);
+        morphium.dropCollection(NonEntityContainer.class);
+        morphium.store(nc);
 
         Thread.sleep(1000);
 
-        nc2 = MorphiumSingleton.get().findById(NonEntityContainer.class, nc.getId());
+        nc2 = morphium.findById(NonEntityContainer.class, nc.getId());
         assert (nc2.getList().get(0) != null);
         ne2 = (NonEntity) nc2.getList().get(0);
         assert (ne2.getInteger() == 42);
@@ -76,20 +75,20 @@ public class NonEntitySerialization extends MongoTest {
         nc.getMap().put("String", "The question is...");
 
 
-        Map<String, Object> obj = MorphiumSingleton.get().getMapper().marshall(nc);
+        Map<String, Object> obj = morphium.getMapper().marshall(nc);
 
-        NonEntityContainer nc2 = MorphiumSingleton.get().getMapper().unmarshall(NonEntityContainer.class, obj);
+        NonEntityContainer nc2 = morphium.getMapper().unmarshall(NonEntityContainer.class, obj);
         assert (nc2.getMap().get("Serialized") != null);
         NonEntity ne2 = (NonEntity) nc2.getMap().get("Serialized");
         assert (ne2.getInteger() == 42);
 
         //now store to Mongo
-        MorphiumSingleton.get().dropCollection(NonEntityContainer.class);
-        MorphiumSingleton.get().store(nc);
+        morphium.dropCollection(NonEntityContainer.class);
+        morphium.store(nc);
 
         Thread.sleep(1000);
 
-        nc2 = MorphiumSingleton.get().findById(NonEntityContainer.class, nc.getId());
+        nc2 = morphium.findById(NonEntityContainer.class, nc.getId());
         assert (nc2.getMap().get("Serialized") != null);
         ne2 = (NonEntity) nc2.getMap().get("Serialized");
         assert (ne2.getInteger() == 42);

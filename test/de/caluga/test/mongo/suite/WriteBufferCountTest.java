@@ -1,9 +1,9 @@
 package de.caluga.test.mongo.suite;
 
-import de.caluga.morphium.MorphiumSingleton;
 import de.caluga.morphium.async.AsyncOperationCallback;
 import de.caluga.morphium.async.AsyncOperationType;
 import de.caluga.morphium.query.Query;
+import de.caluga.test.mongo.suite.data.UncachedObject;
 import org.junit.Test;
 
 import java.lang.management.ManagementFactory;
@@ -32,7 +32,7 @@ public class WriteBufferCountTest extends MongoTest {
             lst.add(uc);
         }
 
-        MorphiumSingleton.get().store(lst, new AsyncOperationCallback<UncachedObject>() {
+        morphium.store(lst, new AsyncOperationCallback<UncachedObject>() {
             @Override
             public void onOperationSucceeded(AsyncOperationType type, Query<UncachedObject> q, long duration, List<UncachedObject> result, UncachedObject entity, Object... param) {
                 log.info("finished after " + duration);
@@ -44,15 +44,15 @@ public class WriteBufferCountTest extends MongoTest {
             }
         });
         waitForWriteProcessToBeScheduled();
-        int c = MorphiumSingleton.get().getWriteBufferCount();
+        int c = morphium.getWriteBufferCount();
         assert (c != 0);
     }
 
     private int waitForWriteProcessToBeScheduled() {
         int cnt = 0;
-        int c = MorphiumSingleton.get().getWriteBufferCount();
+        int c = morphium.getWriteBufferCount();
         while (c == 0) {
-            c = MorphiumSingleton.get().getWriteBufferCount();
+            c = morphium.getWriteBufferCount();
             ++cnt;
             Thread.yield();
             assert (cnt < 1000000);
