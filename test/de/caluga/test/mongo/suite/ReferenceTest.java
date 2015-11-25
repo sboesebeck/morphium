@@ -10,10 +10,13 @@ import de.caluga.morphium.driver.bson.MorphiumId;
 import de.caluga.morphium.query.Query;
 import de.caluga.test.mongo.suite.data.CachedObject;
 import de.caluga.test.mongo.suite.data.UncachedObject;
+import org.bson.types.ObjectId;
 import org.junit.Test;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * User: Stephan Bösebeck
@@ -118,6 +121,32 @@ public class ReferenceTest extends MongoTest {
         assert (rcRead.getUc().getCounter() != toSearchFor2.getCounter());
         assert (rcRead.getCo() != null);
         assert (rcRead.getId().equals(rc.getId()));
+    }
+
+    @Test
+    public void backwardCompatibilityTest() throws Exception {
+        morphium.dropCollection(ReferenceContainer.class);
+        createUncachedObjects(100);
+        Thread.sleep(200);
+        UncachedObject referenced = morphium.createQueryFor(UncachedObject.class).get();
+        Map<String, Object> reference = new HashMap<>();
+        reference.put("collectionName", UncachedObject.class.getName());
+        reference.put("id", new ObjectId(referenced.getMorphiumId().toString()));
+
+        Map<String, Object> rc = new HashMap<>();
+        rc.put("uc", reference);
+
+        List<Map<String, Object>> lst = new ArrayList<>();
+        lst.add(rc);
+        morphium.getDriver().store(morphium.getConfig().getDatabase(), "reference_container", lst, null);
+        Thread.sleep(100);
+
+        assert (morphium.createQueryFor(ReferenceContainer.class).countAll() == 1);
+        ReferenceContainer container = morphium.createQueryFor(ReferenceContainer.class).get();
+        assert (container.uc != null);
+        assert (container.uc.getMorphiumId().equals(referenced.getMorphiumId()));
+        assert (container.uc.getCounter() == referenced.getCounter());
+
     }
 
 

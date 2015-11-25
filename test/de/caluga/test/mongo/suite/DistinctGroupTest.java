@@ -25,7 +25,7 @@ public class DistinctGroupTest extends MongoTest {
             lst.add(uc);
         }
         morphium.storeList(lst);
-
+        Thread.sleep(500);
         List values = morphium.distinct("counter", UncachedObject.class);
         assert (values.size() == 3) : "Size wrong: " + values.size();
         for (Object o : values) {

@@ -345,6 +345,7 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
             }
         } else {
             cf = morphium.getARHelper().getFieldName(clz, f);
+
         }
         if (additionalDataPresent) {
             log.debug("Additional data is available, not checking field");
