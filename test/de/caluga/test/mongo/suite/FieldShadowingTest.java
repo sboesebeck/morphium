@@ -1,5 +1,6 @@
 package de.caluga.test.mongo.suite;
 
+import de.caluga.morphium.Utils;
 import de.caluga.test.mongo.suite.data.UncachedObject;
 import org.junit.Test;
 
@@ -10,7 +11,7 @@ public class FieldShadowingTest extends MongoTest {
     public void shadowFieldTest() throws Exception {
         Shadowed it = new Shadowed();
         it.value = "A test";
-        String marshall = morphium.toJsonString(morphium.getMapper().marshall(it));
+        String marshall = Utils.toJsonString(morphium.getMapper().marshall(it));
         log.info(marshall);
         assert (marshall.contains("A test"));
 
@@ -19,7 +20,7 @@ public class FieldShadowingTest extends MongoTest {
 
         ReShadowed rs = new ReShadowed();
         rs.value = "A 2nd test";
-        marshall = morphium.toJsonString(morphium.getMapper().marshall(rs));
+        marshall = Utils.toJsonString(morphium.getMapper().marshall(rs));
         assert (marshall.contains("A 2nd test"));
 
     }
