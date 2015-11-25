@@ -1,6 +1,5 @@
 package de.caluga.test.mongo.suite;
 
-import de.caluga.morphium.MorphiumSingleton;
 import de.caluga.morphium.annotations.Entity;
 import de.caluga.morphium.annotations.SafetyLevel;
 import de.caluga.morphium.annotations.WriteSafety;
@@ -8,6 +7,7 @@ import de.caluga.morphium.annotations.caching.AsyncWrites;
 import de.caluga.morphium.async.AsyncOperationCallback;
 import de.caluga.morphium.async.AsyncOperationType;
 import de.caluga.morphium.query.Query;
+import de.caluga.test.mongo.suite.data.UncachedObject;
 import org.junit.Test;
 
 import java.util.List;
@@ -32,9 +32,9 @@ public class AsyncOperationTest extends MongoTest {
         log.info("Uncached object preparation");
         super.createUncachedObjects(1000);
         waitForWrites();
-        Query<UncachedObject> uc = MorphiumSingleton.get().createQueryFor(UncachedObject.class);
+        Query<UncachedObject> uc = morphium.createQueryFor(UncachedObject.class);
         uc = uc.f("counter").lt(100);
-        MorphiumSingleton.get().delete(uc, new AsyncOperationCallback<Query<UncachedObject>>() {
+        morphium.delete(uc, new AsyncOperationCallback<Query<UncachedObject>>() {
             @Override
             public void onOperationSucceeded(AsyncOperationType type, Query<Query<UncachedObject>> q, long duration, List<Query<UncachedObject>> result, Query<UncachedObject> entity, Object... param) {
                 log.info("Objects deleted");
@@ -48,7 +48,7 @@ public class AsyncOperationTest extends MongoTest {
 
         uc = uc.q();
         uc.f("counter").mod(3, 2);
-        MorphiumSingleton.get().set(uc, "counter", 0, false, true, new AsyncOperationCallback<UncachedObject>() {
+        morphium.set(uc, "counter", 0, false, true, new AsyncOperationCallback<UncachedObject>() {
             @Override
             public void onOperationSucceeded(AsyncOperationType type, Query<UncachedObject> q, long duration, List<UncachedObject> result, UncachedObject entity, Object... param) {
                 log.info("Objects updated");
@@ -65,7 +65,7 @@ public class AsyncOperationTest extends MongoTest {
         waitForWrites();
         Thread.sleep(1000);
 
-        assert MorphiumSingleton.get().createQueryFor(UncachedObject.class).f("counter").eq(0).countAll() > 0;
+        assert morphium.createQueryFor(UncachedObject.class).f("counter").eq(0).countAll() > 0;
         assert (asyncCall);
     }
 
@@ -74,7 +74,7 @@ public class AsyncOperationTest extends MongoTest {
     public void asyncReadTest() throws Exception {
         asyncCall = false;
         createUncachedObjects(100);
-        Query<UncachedObject> q = MorphiumSingleton.get().createQueryFor(UncachedObject.class);
+        Query<UncachedObject> q = morphium.createQueryFor(UncachedObject.class);
         q = q.f("counter").lt(1000);
         q.asList(new AsyncOperationCallback<UncachedObject>() {
             @Override
@@ -105,7 +105,7 @@ public class AsyncOperationTest extends MongoTest {
     public void asyncCountTest() throws Exception {
         asyncCall = false;
         createUncachedObjects(100);
-        Query<UncachedObject> q = MorphiumSingleton.get().createQueryFor(UncachedObject.class);
+        Query<UncachedObject> q = morphium.createQueryFor(UncachedObject.class);
         q = q.f("counter").lt(1000);
         q.countAll(new AsyncOperationCallback<UncachedObject>() {
             @Override
@@ -137,7 +137,7 @@ public class AsyncOperationTest extends MongoTest {
 
     @Test
     public void testAsyncWriter() throws Exception {
-        MorphiumSingleton.get().dropCollection(AsyncObject.class);
+        morphium.dropCollection(AsyncObject.class);
         morphium.ensureIndicesFor(AsyncObject.class);
         Thread.sleep(1000);
         assert (morphium.getDriver().exists("morphium_test", "async_object"));
@@ -150,7 +150,7 @@ public class AsyncOperationTest extends MongoTest {
             AsyncObject ao = new AsyncObject();
             ao.setCounter(i);
             ao.setValue("Async write");
-            MorphiumSingleton.get().store(ao);
+            morphium.store(ao);
         }
 
         long end = System.currentTimeMillis();
@@ -165,10 +165,10 @@ public class AsyncOperationTest extends MongoTest {
     public void asyncErrorHandling() throws Exception {
         log.info("upcoming Error Message + Exception is expected");
         WrongObject wo = new WrongObject();
-        MorphiumSingleton.get().store(wo);
+        morphium.store(wo);
 
         callback = false;
-        MorphiumSingleton.get().store(wo, new AsyncOperationCallback<WrongObject>() {
+        morphium.store(wo, new AsyncOperationCallback<WrongObject>() {
             @Override
             public void onOperationSucceeded(AsyncOperationType type, Query<WrongObject> q, long duration, List<WrongObject> result, WrongObject entity, Object... param) {
 

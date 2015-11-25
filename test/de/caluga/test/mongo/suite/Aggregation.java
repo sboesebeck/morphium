@@ -2,11 +2,11 @@ package de.caluga.test.mongo.suite;
 
 import com.mongodb.BasicDBList;
 import com.mongodb.BasicDBObject;
-import de.caluga.morphium.MorphiumSingleton;
 import de.caluga.morphium.aggregation.Aggregator;
 import de.caluga.morphium.annotations.Embedded;
 import de.caluga.morphium.annotations.Property;
 import de.caluga.morphium.query.Query;
+import de.caluga.test.mongo.suite.data.UncachedObject;
 import org.junit.Test;
 
 import java.util.HashMap;
@@ -24,12 +24,12 @@ public class Aggregation extends MongoTest {
     public void aggregatorTest() throws Exception {
         createUncachedObjects(1000);
 
-        Aggregator<UncachedObject, Aggregate> a = MorphiumSingleton.get().createAggregator(UncachedObject.class, Aggregate.class);
+        Aggregator<UncachedObject, Aggregate> a = morphium.createAggregator(UncachedObject.class, Aggregate.class);
         assert (a.getResultType() != null);
         //eingangsdaten reduzieren
         a = a.project("counter");
         //Filtern
-        a = a.match(MorphiumSingleton.get().createQueryFor(UncachedObject.class).f("counter").gt(100));
+        a = a.match(morphium.createQueryFor(UncachedObject.class).f("counter").gt(100));
         //Sortieren - für $first/$last
         a = a.sort("counter");
         //limit der Daten
@@ -63,7 +63,7 @@ public class Aggregation extends MongoTest {
         createUncachedObjects(10000);
         log.info("done... starting");
         long start = System.currentTimeMillis();
-        Query<UncachedObject> q = MorphiumSingleton.get().createQueryFor(UncachedObject.class);
+        Query<UncachedObject> q = morphium.createQueryFor(UncachedObject.class);
         HashMap<Integer, Integer> sum = new HashMap<>();
         HashMap<Integer, Integer> anz = new HashMap<>();
         q = q.sort("counter");
@@ -94,7 +94,7 @@ public class Aggregation extends MongoTest {
 
         log.info("Starting test with Aggregation:");
         start = System.currentTimeMillis();
-        Aggregator<UncachedObject, Aggregate> a = MorphiumSingleton.get().createAggregator(UncachedObject.class, Aggregate.class);
+        Aggregator<UncachedObject, Aggregate> a = morphium.createAggregator(UncachedObject.class, Aggregate.class);
         assert (a.getResultType() != null);
         BasicDBList params = new BasicDBList();
         params.add("$counter");

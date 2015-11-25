@@ -1,7 +1,6 @@
 package de.caluga.test.mongo.suite;
 
 import de.caluga.morphium.Morphium;
-import de.caluga.morphium.MorphiumSingleton;
 import org.junit.Test;
 
 import java.util.Map;
@@ -17,7 +16,7 @@ public class ServerStatusTest extends MongoTest {
 
     @Test
     public void getServerStatus() throws Exception {
-        Morphium m = MorphiumSingleton.get();
+        Morphium m = morphium;
         Map res = m.execCommand("serverStatus");
 
         System.out.println(res.toString());

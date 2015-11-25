@@ -1,8 +1,8 @@
 package de.caluga.test.mongo.suite;
 
-import de.caluga.morphium.MorphiumSingleton;
 import de.caluga.morphium.cache.CacheListener;
 import de.caluga.morphium.cache.CacheObject;
+import de.caluga.test.mongo.suite.data.CachedObject;
 import org.junit.Test;
 
 /**
@@ -43,14 +43,14 @@ public class CacheListenerTest extends MongoTest {
             }
         };
         try {
-            MorphiumSingleton.get().getCache().addCacheListener(cl);
-            assert (MorphiumSingleton.get().getCache().isListenerRegistered(cl));
+            morphium.getCache().addCacheListener(cl);
+            assert (morphium.getCache().isListenerRegistered(cl));
 
 
             super.createCachedObjects(100);
 
             for (int i = 0; i < 10; i++) {
-                MorphiumSingleton.get().createQueryFor(CachedObject.class).f("counter").lte(i).asList();
+                morphium.createQueryFor(CachedObject.class).f("counter").lte(i).asList();
             }
             waitForWrites();
             assert (wouldAdd);
@@ -61,7 +61,7 @@ public class CacheListenerTest extends MongoTest {
             Thread.sleep(1500);
             assert (wouldClear);
         } finally {
-            MorphiumSingleton.get().getCache().removeCacheListener(cl);
+            morphium.getCache().removeCacheListener(cl);
 
         }
 

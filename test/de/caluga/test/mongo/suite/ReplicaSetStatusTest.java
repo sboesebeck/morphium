@@ -1,11 +1,11 @@
 package de.caluga.test.mongo.suite;
 
 import de.caluga.morphium.Logger;
-import de.caluga.morphium.MorphiumSingleton;
 import de.caluga.morphium.annotations.Entity;
 import de.caluga.morphium.annotations.SafetyLevel;
 import de.caluga.morphium.annotations.WriteSafety;
 import de.caluga.morphium.driver.WriteConcern;
+import de.caluga.test.mongo.suite.data.UncachedObject;
 import org.junit.Test;
 
 /**
@@ -20,19 +20,19 @@ public class ReplicaSetStatusTest extends MongoTest {
     @Test
     public void testReplicaSetMonitoring() throws Exception {
         int cnt = 0;
-        while (MorphiumSingleton.get().getCurrentRSState() == null) {
+        while (morphium.getCurrentRSState() == null) {
             cnt++;
             assert (cnt < 7);
             Thread.sleep(1000);
         }
 
-        log.info("got status: " + MorphiumSingleton.get().getCurrentRSState().getActiveNodes());
+        log.info("got status: " + morphium.getCurrentRSState().getActiveNodes());
     }
 
     @Test
     public void testWriteConcern() throws Exception {
-        WriteConcern w = MorphiumSingleton.get().getWriteConcernForClass(SecureObject.class);
-        int c = MorphiumSingleton.get().getCurrentRSState().getActiveNodes();
+        WriteConcern w = morphium.getWriteConcernForClass(SecureObject.class);
+        int c = morphium.getCurrentRSState().getActiveNodes();
         assert (w.getW() == c) : "W=" + w.getW() + " but should be: " + c;
         assert (w.isJ());
         assert (!w.isFsync());

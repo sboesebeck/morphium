@@ -1,8 +1,8 @@
 package de.caluga.test.mongo.suite;
 
-import de.caluga.morphium.MorphiumSingleton;
 import de.caluga.morphium.annotations.AdditionalData;
 import de.caluga.morphium.driver.WriteConcern;
+import de.caluga.test.mongo.suite.data.UncachedObject;
 import org.junit.Test;
 
 import java.util.HashMap;
@@ -18,8 +18,8 @@ public class AdditionalDataTest extends MongoTest {
 
     @Test
     public void additionalData() throws Exception {
-        MorphiumSingleton.get().dropCollection(AddDat.class);
-        WriteConcern w = MorphiumSingleton.get().getWriteConcernForClass(AddDat.class);
+        morphium.dropCollection(AddDat.class);
+        WriteConcern w = morphium.getWriteConcernForClass(AddDat.class);
         System.out.println("W: " + w);
         AddDat d = new AddDat();
         d.setCounter(999);
@@ -30,10 +30,10 @@ public class AdditionalDataTest extends MongoTest {
         dat.put("tst2", "tst2");
         additional.put("test", dat);
         d.setAdditionals(additional);
-        MorphiumSingleton.get().store(d);
+        morphium.store(d);
         Thread.sleep(2000);
         System.out.println("Stored some additional data!");
-        AddDat d2 = MorphiumSingleton.get().findById(AddDat.class, d.getMorphiumId());
+        AddDat d2 = morphium.findById(AddDat.class, d.getMorphiumId());
         assert (d2.additionals != null);
         assert (d2.additionals.get("102-92-93").equals(3234));
         assert (((Map) d2.additionals.get("test")).get("tst").equals("tst"));
@@ -43,8 +43,8 @@ public class AdditionalDataTest extends MongoTest {
 
     @Test
     public void additionalDateCompex() throws Exception {
-        MorphiumSingleton.get().dropCollection(AddDat.class);
-        WriteConcern w = MorphiumSingleton.get().getWriteConcernForClass(AddDat.class);
+        morphium.dropCollection(AddDat.class);
+        WriteConcern w = morphium.getWriteConcernForClass(AddDat.class);
         System.out.println("W: " + w);
         AddDat d = new AddDat();
         d.setCounter(999);
@@ -68,12 +68,12 @@ public class AdditionalDataTest extends MongoTest {
         additional.put("addit", d2);
         d.setAdditionals(additional);
 
-        String str = MorphiumSingleton.get().getMapper().marshall(d).toString();
-        MorphiumSingleton.get().store(d);
+        String str = morphium.getMapper().marshall(d).toString();
+        morphium.store(d);
 
         log.info(str);
         Thread.sleep(2000);
-        d2 = MorphiumSingleton.get().findById(AddDat.class, d.getMorphiumId());
+        d2 = morphium.findById(AddDat.class, d.getMorphiumId());
 
         assert (d2.additionals != null);
         assert (d2.additionals.get("object") != null);
@@ -86,9 +86,9 @@ public class AdditionalDataTest extends MongoTest {
         AddDat d = new AddDat();
         d.setCounter(999);
         d.setAdditionals(null);
-        MorphiumSingleton.get().store(d);
+        morphium.store(d);
         Thread.sleep(100);
-        AddDat d2 = MorphiumSingleton.get().findById(AddDat.class, d.getMorphiumId());
+        AddDat d2 = morphium.findById(AddDat.class, d.getMorphiumId());
         assert (d2 != null);
         assert (d2.additionals == null || d2.additionals.size() == 0);
     }

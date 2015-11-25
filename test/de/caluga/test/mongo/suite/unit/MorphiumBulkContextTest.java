@@ -5,7 +5,7 @@ import de.caluga.morphium.async.AsyncOperationType;
 import de.caluga.morphium.bulk.MorphiumBulkContext;
 import de.caluga.morphium.query.Query;
 import de.caluga.test.mongo.suite.MongoTest;
-import de.caluga.test.mongo.suite.UncachedObject;
+import de.caluga.test.mongo.suite.data.UncachedObject;
 import org.junit.Test;
 
 import java.util.ArrayList;

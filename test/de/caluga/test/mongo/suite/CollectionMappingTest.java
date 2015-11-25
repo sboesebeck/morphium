@@ -1,6 +1,6 @@
 package de.caluga.test.mongo.suite;
 
-import de.caluga.morphium.MorphiumSingleton;
+import de.caluga.test.mongo.suite.data.CachedObject;
 import org.junit.Test;
 
 /**
@@ -12,9 +12,9 @@ import org.junit.Test;
 public class CollectionMappingTest extends MongoTest {
     @Test
     public void collectionMappingTest() throws Exception {
-        String n = MorphiumSingleton.get().getMapper().getCollectionName(CachedObject.class);
+        String n = morphium.getMapper().getCollectionName(CachedObject.class);
         assert (n.equals("cached_object")) : "Collection wrong";
-        n = MorphiumSingleton.get().getMapper().getCollectionName(ComplexObject.class);
+        n = morphium.getMapper().getCollectionName(ComplexObject.class);
         assert (n.equals("ComplexObject")) : "Collection wrong";
 
     }

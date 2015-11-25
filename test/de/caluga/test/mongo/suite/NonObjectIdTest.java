@@ -1,8 +1,8 @@
 package de.caluga.test.mongo.suite;
 
-import de.caluga.morphium.MorphiumSingleton;
 import de.caluga.morphium.annotations.Entity;
 import de.caluga.morphium.annotations.Id;
+import de.caluga.test.mongo.suite.data.Person;
 import org.junit.Test;
 
 import java.util.Date;
@@ -23,30 +23,30 @@ public class NonObjectIdTest extends MongoTest {
         p.setId("ABC123");
         p.setBirthday(new Date());
         p.setName("1st Test");
-        MorphiumSingleton.get().store(p);
+        morphium.store(p);
 
         p = new Person();
         p.setId("BBC123");
         p.setBirthday(new Date());
         p.setName("2nd Test");
-        MorphiumSingleton.get().store(p);
+        morphium.store(p);
         waitForAsyncOperationToStart(100);
         waitForWrites();
 
         p.setName("CHANGED");
-        MorphiumSingleton.get().store(p);
+        morphium.store(p);
 
 
         p = new Person();
         p.setBirthday(new Date());
         p.setName("no ID");
-        MorphiumSingleton.get().store(p);
+        morphium.store(p);
         waitForAsyncOperationToStart(100);
         waitForWrites();
 
-        long cnt = MorphiumSingleton.get().createQueryFor(Person.class).countAll();
+        long cnt = morphium.createQueryFor(Person.class).countAll();
         assert (cnt == 3) : "Count wrong: " + cnt;
-        assert (MorphiumSingleton.get().findById(Person.class, "BBC123").getName().equals("CHANGED"));
+        assert (morphium.findById(Person.class, "BBC123").getName().equals("CHANGED"));
 
     }
 
@@ -55,7 +55,7 @@ public class NonObjectIdTest extends MongoTest {
         Tst t = new Tst();
         t.str = "test-a-string";
 
-        MorphiumSingleton.get().store(t); //will fail
+        morphium.store(t); //will fail
     }
 
     @Entity

@@ -1,11 +1,12 @@
 package de.caluga.test.mongo.suite;
 
-import de.caluga.morphium.MorphiumSingleton;
 import de.caluga.morphium.annotations.DefaultReadPreference;
 import de.caluga.morphium.annotations.Embedded;
 import de.caluga.morphium.annotations.Index;
 import de.caluga.morphium.annotations.ReadPreferenceLevel;
 import de.caluga.morphium.query.Query;
+import de.caluga.test.mongo.suite.data.MapListObject;
+import de.caluga.test.mongo.suite.data.UncachedObject;
 import org.junit.Test;
 
 import java.util.ArrayList;
@@ -22,7 +23,7 @@ import java.util.Map;
 public class MapListTest extends MongoTest {
     @Test
     public void mapListTest() {
-        MorphiumSingleton.get().dropCollection(MapListObject.class);
+        morphium.dropCollection(MapListObject.class);
 
         MapListObject o = new MapListObject();
         Map<String, Object> map = new HashMap<>();
@@ -48,16 +49,16 @@ public class MapListTest extends MongoTest {
         lst.add(1);
         listMap.put("zweihundert", lst);
         o.setMapListValue(listMap);
-        MorphiumSingleton.get().store(o);
+        morphium.store(o);
 
-        MapListObject ml = MorphiumSingleton.get().findById(MapListObject.class, o.getId());
+        MapListObject ml = morphium.findById(MapListObject.class, o.getId());
         assert (ml.getMapListValue().get("eins-fuenf-drei").size() == 3);
         assert (ml.getMapListValue().get("zweihundert").size() == 4);
     }
 
     @Test
     public void mapListEmbTest() throws Exception {
-        MorphiumSingleton.get().dropCollection(MapListObject.class);
+        morphium.dropCollection(MapListObject.class);
 
         CMapListObject o = new CMapListObject();
         Map<String, Object> map = new HashMap<>();
@@ -103,9 +104,9 @@ public class MapListTest extends MongoTest {
 
         o.setMap1(map1);
 
-        MorphiumSingleton.get().store(o);
+        morphium.store(o);
 
-        CMapListObject ml = MorphiumSingleton.get().findById(CMapListObject.class, o.getId());
+        CMapListObject ml = morphium.findById(CMapListObject.class, o.getId());
         assert (ml != null) : "Not Found?!?!?!?";
         assert (ml.getMapListValue().get("eins-fuenf-drei").size() == 3);
         assert (ml.getMapListValue().get("zweihundert").size() == 4);
@@ -117,7 +118,7 @@ public class MapListTest extends MongoTest {
 
     @Test
     public void testComplexList() throws Exception {
-        MorphiumSingleton.get().dropCollection(MapListObject.class);
+        morphium.dropCollection(MapListObject.class);
 
         CMapListObject o = new CMapListObject();
         List<Map<String, String>> lst = new ArrayList<>();
@@ -132,9 +133,9 @@ public class MapListTest extends MongoTest {
         lst.add(strMap);
 
         o.setMap7(lst);
-        MorphiumSingleton.get().store(o);
+        morphium.store(o);
 
-        CMapListObject ml = MorphiumSingleton.get().findById(CMapListObject.class, o.getId());
+        CMapListObject ml = morphium.findById(CMapListObject.class, o.getId());
         assert (ml != null) : "Not Found?!?!?!?";
         assert (ml.getMap7().get(0).get("tst1").equals("bla"));
         assert (ml.getMap7().get(1).get("tst2-2").equals("blub"));
@@ -142,7 +143,7 @@ public class MapListTest extends MongoTest {
 
     @Test
     public void testMapOfListsString() throws Exception {
-        MorphiumSingleton.get().dropCollection(MapListObject.class);
+        morphium.dropCollection(MapListObject.class);
 
         CMapListObject o = new CMapListObject();
         Map<String, List<String>> m = new HashMap<>();
@@ -158,16 +159,16 @@ public class MapListTest extends MongoTest {
         m.put("m2", lst);
         o.setMap3(m);
 
-        MorphiumSingleton.get().store(o);
+        morphium.store(o);
 
-        CMapListObject ml = MorphiumSingleton.get().findById(CMapListObject.class, o.getId());
+        CMapListObject ml = morphium.findById(CMapListObject.class, o.getId());
         assert (ml.getMap3().get("m1").get(1).equals("fasel"));
         assert (ml.getMap3().get("m2").get(2).equals("grin"));
     }
 
     @Test
     public void testMapOfListsEmb() throws Exception {
-        MorphiumSingleton.get().dropCollection(MapListObject.class);
+        morphium.dropCollection(MapListObject.class);
 
         CMapListObject o = new CMapListObject();
         Map<String, List<EmbObj>> m = new HashMap<>();
@@ -183,9 +184,9 @@ public class MapListTest extends MongoTest {
         m.put("m2", lst);
         o.setMap4(m);
 
-        MorphiumSingleton.get().store(o);
+        morphium.store(o);
 
-        Query<CMapListObject> q = MorphiumSingleton.get().createQueryFor(CMapListObject.class).f("id").eq(o.getId());
+        Query<CMapListObject> q = morphium.createQueryFor(CMapListObject.class).f("id").eq(o.getId());
         q.setReadPreferenceLevel(ReadPreferenceLevel.PRIMARY);
         CMapListObject ml = q.get();
         assert (ml.getMap4().get("m1").get(1).getTest().equals("fasel"));
@@ -196,7 +197,7 @@ public class MapListTest extends MongoTest {
 
     @Test
     public void testMapOfMaps() throws Exception {
-        MorphiumSingleton.get().dropCollection(MapListObject.class);
+        morphium.dropCollection(MapListObject.class);
 
         CMapListObject o = new CMapListObject();
         Map<String, Map<String, String>> m = new HashMap<>();
@@ -215,16 +216,16 @@ public class MapListTest extends MongoTest {
 
         o.setMap5(m);
 
-        MorphiumSingleton.get().store(o);
+        morphium.store(o);
 
-        CMapListObject ml = MorphiumSingleton.get().findById(CMapListObject.class, o.getId());
+        CMapListObject ml = morphium.findById(CMapListObject.class, o.getId());
         assert (ml.getMap5().get("test").get("bla").equals("fasel"));
         assert (ml.getMap5().get("translate").get("foo").equals("bla"));
     }
 
     @Test
     public void testMapOfMapEmbObj() throws Exception {
-        MorphiumSingleton.get().dropCollection(MapListObject.class);
+        morphium.dropCollection(MapListObject.class);
 
         CMapListObject o = new CMapListObject();
         Map<String, Map<String, EmbObj>> m = new HashMap<>();
@@ -243,16 +244,16 @@ public class MapListTest extends MongoTest {
 
         o.setMap5a(m);
 
-        MorphiumSingleton.get().store(o);
+        morphium.store(o);
 
-        CMapListObject ml = MorphiumSingleton.get().findById(CMapListObject.class, o.getId());
+        CMapListObject ml = morphium.findById(CMapListObject.class, o.getId());
         assert (ml.getMap5a().get("test").get("bla").getTest().equals("fasel"));
         assert (ml.getMap5a().get("translate").get("foo").getTest().equals("bla"));
     }
 
     @Test
     public void testListOfListOfMap() throws Exception {
-        MorphiumSingleton.get().dropCollection(MapListObject.class);
+        morphium.dropCollection(MapListObject.class);
 
         CMapListObject o = new CMapListObject();
         List<List<Map<String, String>>> lst = new ArrayList<>();
@@ -287,15 +288,15 @@ public class MapListTest extends MongoTest {
         lst.add(l2);
         o.setMap7a(lst);
 
-        MorphiumSingleton.get().store(o);
+        morphium.store(o);
 
-        CMapListObject ml = MorphiumSingleton.get().findById(CMapListObject.class, o.getId());
+        CMapListObject ml = morphium.findById(CMapListObject.class, o.getId());
         assert (ml.getMap7a().get(1).get(0).get("k15").equals("v1"));
     }
 
     @Test
     public void testMapListMapEmb() throws Exception {
-        MorphiumSingleton.get().dropCollection(MapListObject.class);
+        morphium.dropCollection(MapListObject.class);
         CMapListObject o = new CMapListObject();
         Map<String, List<Map<String, EmbObj>>> map = new HashMap<>();
         List<Map<String, EmbObj>> lst = new ArrayList<>();
@@ -330,9 +331,9 @@ public class MapListTest extends MongoTest {
         map.put("list1", lst);
         o.setMap6a(map);
 
-        MorphiumSingleton.get().store(o);
+        morphium.store(o);
 
-        CMapListObject ml = MorphiumSingleton.get().findById(CMapListObject.class, o.getId());
+        CMapListObject ml = morphium.findById(CMapListObject.class, o.getId());
         assert (ml.getMap6a().get("list1").get(0).get("map1-v2").getTest().equals("test2"));
     }
 

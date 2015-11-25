@@ -4,7 +4,6 @@ package de.caluga.test.mongo.suite;/**
 
 import de.caluga.morphium.Logger;
 import de.caluga.morphium.LoggerDelegate;
-import de.caluga.morphium.MorphiumSingleton;
 import org.junit.Test;
 
 /**
@@ -24,7 +23,7 @@ public class LogTest extends MongoTest {
 
     @Test
     public void logDelegateTest() {
-        MorphiumSingleton.get().getConfig().setLogFileForPrefix("logDelegateTest", "class:" + TestLogDelegate.class.getName());
+        morphium.getConfig().setLogFileForPrefix("logDelegateTest", "class:" + TestLogDelegate.class.getName());
         Logger l = new Logger("logDelegateTest");
         assert (l.getFile().equals("class:" + TestLogDelegate.class.getName()));
         l.fatal("Just a testmessage");
@@ -35,7 +34,7 @@ public class LogTest extends MongoTest {
 
     @Test
     public void logPrefixTest() {
-        MorphiumSingleton.get().getConfig().setLogFileForPrefix("test", "class:" + TestLogDelegate.class.getName());
+        morphium.getConfig().setLogFileForPrefix("test", "class:" + TestLogDelegate.class.getName());
         Logger l = new Logger("test.my.class");
         assert (l.getFile().equals("class:" + TestLogDelegate.class.getName()));
 

@@ -1,7 +1,6 @@
 package de.caluga.test.mongo.suite;
 
 import de.caluga.morphium.MorphiumConfig;
-import de.caluga.morphium.MorphiumSingleton;
 import org.junit.Test;
 
 import java.util.Properties;
@@ -17,7 +16,7 @@ import java.util.Properties;
 public class MorphiumConfigTest extends MongoTest {
     @Test
     public void testToString() throws Exception {
-        String cfg = MorphiumSingleton.get().getConfig().toString();
+        String cfg = morphium.getConfig().toString();
         log.info("Config: " + cfg);
 
         MorphiumConfig c = MorphiumConfig.createFromJson(cfg);
@@ -83,14 +82,14 @@ public class MorphiumConfigTest extends MongoTest {
 
     @Test
     public void testToProperties() throws Exception {
-        Properties p = MorphiumSingleton.get().getConfig().asProperties();
+        Properties p = morphium.getConfig().asProperties();
         for (Object k : p.keySet()) {
             log.info("Key: " + k + " Value: " + p.get(k));
         }
         p.store(System.out, "testproperties");
 
         MorphiumConfig cfg = MorphiumConfig.fromProperties(p);
-        assert (cfg.getDatabase().equals(MorphiumSingleton.get().getConfig().getDatabase()));
+        assert (cfg.getDatabase().equals(morphium.getConfig().getDatabase()));
         assert (cfg.getAdr().size() == 3);
         assert (cfg.getQueryClass() != null);
     }
