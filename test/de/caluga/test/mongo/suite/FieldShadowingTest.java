@@ -1,6 +1,6 @@
 package de.caluga.test.mongo.suite;
 
-import de.caluga.morphium.MorphiumSingleton;
+import de.caluga.test.mongo.suite.data.UncachedObject;
 import org.junit.Test;
 
 @SuppressWarnings("AssertWithSideEffects")
@@ -10,15 +10,16 @@ public class FieldShadowingTest extends MongoTest {
     public void shadowFieldTest() throws Exception {
         Shadowed it = new Shadowed();
         it.value = "A test";
-        String marshall = MorphiumSingleton.get().getMapper().marshall(it).toString();
+        String marshall = morphium.toJsonString(morphium.getMapper().marshall(it));
         log.info(marshall);
         assert (marshall.contains("A test"));
 
-        assert (MorphiumSingleton.get().getMapper().unmarshall(Shadowed.class, marshall).value != null);
+        assert (morphium.getMapper().unmarshall(Shadowed.class, marshall).value != null);
+        assert (morphium.getMapper().unmarshall(Shadowed.class, marshall).value.equals("A test"));
 
         ReShadowed rs = new ReShadowed();
         rs.value = "A 2nd test";
-        marshall = MorphiumSingleton.get().getMapper().marshall(rs).toString();
+        marshall = morphium.toJsonString(morphium.getMapper().marshall(rs));
         assert (marshall.contains("A 2nd test"));
 
     }

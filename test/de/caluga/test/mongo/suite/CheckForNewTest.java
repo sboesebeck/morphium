@@ -1,6 +1,5 @@
 package de.caluga.test.mongo.suite;
 
-import de.caluga.morphium.MorphiumSingleton;
 import de.caluga.morphium.annotations.CreationTime;
 import de.caluga.morphium.annotations.Entity;
 import de.caluga.morphium.annotations.Id;
@@ -19,20 +18,20 @@ public class CheckForNewTest extends MongoTest {
 
     @Test
     public void testCheckForNew() throws Exception {
-        MorphiumSingleton.get().getConfig().setCheckForNew(true);
-        MorphiumSingleton.get().delete(MorphiumSingleton.get().createQueryFor(TestID.class));
+        morphium.getConfig().setCheckForNew(true);
+        morphium.delete(morphium.createQueryFor(TestID.class));
 
         TestID tst = new TestID();
         tst.theId = "1";
         tst.theValue = "value";
-        MorphiumSingleton.get().store(tst);
+        morphium.store(tst);
         assert (tst.created != null);
 
 
         tst = new TestID();
         tst.theId = "2";
         tst.theValue = "value2";
-        MorphiumSingleton.get().store(tst);
+        morphium.store(tst);
         assert (tst.created != null);
 
         Date cr = tst.created;
@@ -40,29 +39,29 @@ public class CheckForNewTest extends MongoTest {
         tst = new TestID();
         tst.theId = "2";
         tst.theValue = "value";
-        MorphiumSingleton.get().store(tst);
+        morphium.store(tst);
         assert (tst.created != null);
         assert (tst.created.equals(cr));
-        MorphiumSingleton.get().getConfig().setCheckForNew(false);
+        morphium.getConfig().setCheckForNew(false);
     }
 
 
     @Test
     public void testCheckForNew2() throws Exception {
-        MorphiumSingleton.get().getConfig().setCheckForNew(false);
-        MorphiumSingleton.get().delete(MorphiumSingleton.get().createQueryFor(TestID2.class));
+        morphium.getConfig().setCheckForNew(false);
+        morphium.delete(morphium.createQueryFor(TestID2.class));
 
         TestID2 tst = new TestID2();
         tst.theId = "1";
         tst.theValue = "value";
-        MorphiumSingleton.get().store(tst);
+        morphium.store(tst);
         assert (tst.created != null);
 
 
         tst = new TestID2();
         tst.theId = "2";
         tst.theValue = "value2";
-        MorphiumSingleton.get().store(tst);
+        morphium.store(tst);
         assert (tst.created != null);
 
         Date cr = tst.created;
@@ -70,7 +69,7 @@ public class CheckForNewTest extends MongoTest {
         tst = new TestID2();
         tst.theId = "2";
         tst.theValue = "value";
-        MorphiumSingleton.get().store(tst);
+        morphium.store(tst);
         assert (tst.created != null);
         assert (tst.created.equals(cr));
 

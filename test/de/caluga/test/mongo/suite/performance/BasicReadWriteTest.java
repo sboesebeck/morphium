@@ -2,10 +2,8 @@ package de.caluga.test.mongo.suite.performance;/**
  * Created by stephan on 21.10.15.
  */
 
-import de.caluga.morphium.Morphium;
-import de.caluga.morphium.MorphiumSingleton;
 import de.caluga.test.mongo.suite.MongoTest;
-import de.caluga.test.mongo.suite.UncachedObject;
+import de.caluga.test.mongo.suite.data.UncachedObject;
 import org.junit.Test;
 
 import java.util.ArrayList;
@@ -17,7 +15,6 @@ import java.util.List;
 public class BasicReadWriteTest extends MongoTest {
     @Test
     public void basicReadTest() {
-        Morphium morphium = MorphiumSingleton.get();
         morphium.dropCollection(UncachedObject.class);
 
         createUncachedObjects(10000);
@@ -41,7 +38,6 @@ public class BasicReadWriteTest extends MongoTest {
 
     @Test
     public void basicWriteTest() {
-        Morphium morphium = MorphiumSingleton.get();
         morphium.dropCollection(UncachedObject.class);
         log.info("Creating objects sequentially...");
         long start = System.currentTimeMillis();

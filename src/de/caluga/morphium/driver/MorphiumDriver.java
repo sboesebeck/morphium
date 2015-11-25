@@ -165,7 +165,7 @@ public interface MorphiumDriver {
 
     boolean exists(String db, String collection) throws MorphiumDriverException;
 
-    Map<String, Object> getIndexes(String db, String collection) throws MorphiumDriverException;
+    List<Map<String, Object>> getIndexes(String db, String collection) throws MorphiumDriverException;
 
     List<String> getCollectionNames(String db) throws MorphiumDriverException;
 

@@ -3,7 +3,6 @@ package de.caluga.morphium.driver.mongodb;/**
  */
 
 import com.mongodb.*;
-import com.mongodb.client.DistinctIterable;
 import com.mongodb.client.MongoCollection;
 import com.mongodb.client.MongoDatabase;
 import com.mongodb.client.model.InsertManyOptions;
@@ -834,8 +833,8 @@ public class Driver implements MorphiumDriver {
         new DriverHelper().doCall(new MorphiumDriverOperation() {
             @Override
             public Map<String, Object> execute() {
-                DistinctIterable<Object> it = mongo.getDatabase(db).getCollection(collection).distinct(field, null);
-                it = it.filter(new Document(filter));
+                List it = getColl(mongo.getDB(db), collection, getDefaultReadPreference(), null).distinct(field, new BasicDBObject(filter));
+//                it = it.filter(new Document(filter));
                 for (Object value : it) {
                     ret.add(it);
                 }
@@ -870,8 +869,8 @@ public class Driver implements MorphiumDriver {
     }
 
     @Override
-    public Map<String, Object> getIndexes(String db, String collection) throws MorphiumDriverException {
-        return new DriverHelper().doCall(new MorphiumDriverOperation() {
+    public List<Map<String, Object>> getIndexes(String db, String collection) throws MorphiumDriverException {
+        return (List<Map<String, Object>>) new DriverHelper().doCall(new MorphiumDriverOperation() {
             @Override
             public Map<String, Object> execute() {
                 List<Map<String, Object>> values = new ArrayList<>();
@@ -882,7 +881,7 @@ public class Driver implements MorphiumDriver {
                 ret.put("values", values);
                 return ret;
             }
-        }, retriesOnNetworkError, sleepBetweenErrorRetries);
+        }, retriesOnNetworkError, sleepBetweenErrorRetries).get("values");
 
     }
 
@@ -930,7 +929,8 @@ public class Driver implements MorphiumDriver {
         DBCollection collection = mongo.getDB(db).getCollection(coll);
         GroupCommand cmd = new GroupCommand(collection,
                 k, new BasicDBObject(query), ini, jsReduce, jsFinalize);
-        return convertBSON((Map<? extends String, ?>) cmd);
+
+        return convertBSON((Map<? extends String, ?>) cmd.toDBObject());
     }
 
 

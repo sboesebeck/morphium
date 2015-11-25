@@ -1,7 +1,7 @@
 package de.caluga.test.mongo.suite;
 
-import de.caluga.morphium.MorphiumSingleton;
 import de.caluga.morphium.query.Query;
+import de.caluga.test.mongo.suite.data.UncachedObject;
 import org.junit.Test;
 
 import java.util.ArrayList;
@@ -35,9 +35,9 @@ public class SortingTest extends MongoTest {
         uc.setCounter(7599);
         lst.add(uc);
         log.info("Sending bulk write...");
-        MorphiumSingleton.get().storeList(lst);
+        morphium.storeList(lst);
         log.info("Wrote it... waiting for batch to be stored");
-        while (MorphiumSingleton.get().createQueryFor(UncachedObject.class).countAll() < 5000) {
+        while (morphium.createQueryFor(UncachedObject.class).countAll() < 5000) {
             log.info("Waiting...");
             try {
                 Thread.sleep(500);
@@ -51,7 +51,7 @@ public class SortingTest extends MongoTest {
     public void sortTestDescending() throws Exception {
         prepare();
         log.info("Sorting objects...");
-        Query<UncachedObject> q = MorphiumSingleton.get().createQueryFor(UncachedObject.class);
+        Query<UncachedObject> q = morphium.createQueryFor(UncachedObject.class);
         q = q.f("value").eq("Random value");
         q = q.sort("-counter");
         long start = System.currentTimeMillis();
@@ -67,7 +67,7 @@ public class SortingTest extends MongoTest {
         assert (lastValue == -1) : "Last value wrong: " + lastValue;
 
 
-        q = MorphiumSingleton.get().createQueryFor(UncachedObject.class);
+        q = morphium.createQueryFor(UncachedObject.class);
         q = q.f("value").eq("Random value");
         Map<String, Integer> order = new HashMap<>();
         order.put("counter", -1);
@@ -89,7 +89,7 @@ public class SortingTest extends MongoTest {
     public void sortTestAscending() throws Exception {
         prepare();
 
-        Query<UncachedObject> q = MorphiumSingleton.get().createQueryFor(UncachedObject.class);
+        Query<UncachedObject> q = morphium.createQueryFor(UncachedObject.class);
         q = q.f("value").eq("Random value");
         q = q.sort("counter");
 
@@ -103,7 +103,7 @@ public class SortingTest extends MongoTest {
         assert (lastValue == 7599) : "Last value wrong: " + lastValue;
 
 
-        q = MorphiumSingleton.get().createQueryFor(UncachedObject.class);
+        q = morphium.createQueryFor(UncachedObject.class);
         q = q.f("value").eq("Random value");
         Map<String, Integer> order = new HashMap<>();
         order.put("counter", 1);
@@ -125,7 +125,7 @@ public class SortingTest extends MongoTest {
     public void sortTestLimit() throws Exception {
         prepare();
 
-        Query<UncachedObject> q = MorphiumSingleton.get().createQueryFor(UncachedObject.class);
+        Query<UncachedObject> q = morphium.createQueryFor(UncachedObject.class);
         q = q.f("value").eq("Random value");
         q = q.sort("counter");
         q.limit(1);
@@ -133,7 +133,7 @@ public class SortingTest extends MongoTest {
         assert (lst.size() == 1) : "List sizer wrong: " + lst.size();
         assert (lst.get(0).getCounter() == -1) : "Smalest value wrong, should be -1, is " + lst.get(0).getCounter();
 
-        q = MorphiumSingleton.get().createQueryFor(UncachedObject.class);
+        q = morphium.createQueryFor(UncachedObject.class);
         q = q.f("value").eq("Random value");
         q = q.sort("-counter");
         UncachedObject uc = q.get();

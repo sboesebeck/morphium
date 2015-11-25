@@ -76,6 +76,7 @@ public class DriverHelper {
     }
 
     public void replaceMorphiumIdByObjectId(Object in) {
+        if (in == null) return;
         if (in instanceof Map) {
             Map<String, Object> m = (Map) in;
             Map<String, Object> toSet = new HashMap<>();
@@ -102,6 +103,7 @@ public class DriverHelper {
                 }
 
             } catch (Exception e) {
+                logger.fatal("Error replacing mongoid", e);
                 //TODO: Implement Handling
 //                throw new RuntimeException(e);
             }

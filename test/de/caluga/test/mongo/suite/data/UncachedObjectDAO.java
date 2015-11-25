@@ -1,7 +1,7 @@
-package de.caluga.test.mongo.suite;
+package de.caluga.test.mongo.suite.data;
 
 import de.caluga.morphium.DAO;
-import de.caluga.morphium.MorphiumSingleton;
+import de.caluga.morphium.Morphium;
 
 import java.util.List;
 
@@ -17,8 +17,8 @@ public class UncachedObjectDAO extends DAO<UncachedObject> {
     }
 
 
-    public UncachedObjectDAO() {
-        super(MorphiumSingleton.get(), UncachedObject.class);
+    public UncachedObjectDAO(Morphium m) {
+        super(m, UncachedObject.class);
     }
 
 

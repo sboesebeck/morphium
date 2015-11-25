@@ -305,8 +305,9 @@ public class ObjectMapperImpl implements ObjectMapper {
                                     if (morphium == null) {
                                         throw new RuntimeException("cannot set dbRef - morphium is not set");
                                     }
-                                    Map<String, Object> ref = morphium.getMap(annotationHelper.getRealClass(rec.getClass()).getName(), id);
-                                    lst.add(ref);
+                                    MorphiumReference ref = new MorphiumReference(annotationHelper.getRealClass(rec.getClass()).getName(), id);
+
+                                    lst.add(marshall(ref));
                                 } else {
                                     lst.add(null);
                                 }
@@ -611,7 +612,7 @@ public class ObjectMapperImpl implements ObjectMapper {
                     continue;
                 }
                 Object value = null;
-                if (!Map.class.isAssignableFrom(fld.getType()) && !Collection.class.isAssignableFrom(fld.getType()) && fld.isAnnotationPresent(Reference.class)) {
+                if (!Collection.class.isAssignableFrom(fld.getType()) && fld.isAnnotationPresent(Reference.class)) {
                     //A reference - only id stored
                     Reference reference = fld.getAnnotation(Reference.class);
                     if (morphium == null) {
@@ -622,12 +623,10 @@ public class ObjectMapperImpl implements ObjectMapper {
                             id = valueFromDb;
                         } else {
                             Map<String, Object> ref = (Map<String, Object>) valueFromDb;
-                            if (ref != null) {
-                                id = ref.get("id");
-                                if (!ref.get("collection").equals(fld.getType().getName())) {
-                                    log.warn("Reference to different object?! - continuing anyway");
-
-                                }
+                            MorphiumReference r = unmarshall(MorphiumReference.class, ref);
+                            id = r.getId();
+                            if (!r.getClassName().equals(fld.getType().getName())) {
+                                log.warn("Class name in reference differs from real classname?!?!?! read: " + r.getClassName() + " but should be " + fld.getType().getName());
                             }
                         }
                         if (id != null) {
@@ -635,6 +634,9 @@ public class ObjectMapperImpl implements ObjectMapper {
                                 List<String> lst = annotationHelper.getFields(fld.getType(), Id.class);
                                 if (lst.size() == 0)
                                     throw new IllegalArgumentException("Referenced object does not have an ID? Is it an Entity?");
+                                if (id instanceof String && annotationHelper.getField(fld.getType(), lst.get(0)).getType().equals(MorphiumId.class)) {
+                                    id = new MorphiumId(id.toString());
+                                }
                                 value = morphium.createLazyLoadedEntity(fld.getType(), id, ret, f);
                             } else {
 //                                Query q = morphium.createQueryFor(fld.getSearchType());
@@ -903,6 +905,28 @@ public class ObjectMapperImpl implements ObjectMapper {
 
     @SuppressWarnings({"unchecked", "ConstantConditions"})
     private void fillList(Field forField, List<Map<String, Object>> fromDB, List toFillIn, Object containerEntity) {
+        if (forField.isAnnotationPresent(Reference.class)) {
+            Reference ref = forField.getAnnotation(Reference.class);
+            for (Map<String, Object> obj : fromDB) {
+                MorphiumReference r = unmarshall(MorphiumReference.class, obj);
+                Class type = null;
+                try {
+                    type = Class.forName(r.getClassName());
+                } catch (ClassNotFoundException e) {
+                    throw new RuntimeException(e);
+                }
+                if (ref.lazyLoading()) {
+                    if (r.getId() instanceof String && morphium.getARHelper().getIdField(type).getType().equals(MorphiumId.class)) {
+                        r.setId(new MorphiumId(r.getId().toString()));
+                    }
+                    toFillIn.add(morphium.createLazyLoadedEntity(type, r.getId(), containerEntity, forField.getName()));
+                } else {
+                    toFillIn.add(morphium.findById(type, r.getId()));
+                }
+
+            }
+            return;
+        }
         for (Object val : fromDB) {
             if (val instanceof Map) {
                 if (((Map<String, Object>) val).containsKey("class_name") || ((Map<String, Object>) val).containsKey("className")) {

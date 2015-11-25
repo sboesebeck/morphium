@@ -3,12 +3,13 @@ package de.caluga.test.mongo.suite;
 import de.caluga.morphium.DereferencingListener;
 import de.caluga.morphium.Morphium;
 import de.caluga.morphium.MorphiumAccessVetoException;
-import de.caluga.morphium.MorphiumSingleton;
 import de.caluga.morphium.annotations.*;
 import de.caluga.morphium.annotations.caching.NoCache;
 import de.caluga.morphium.annotations.lifecycle.Lifecycle;
 import de.caluga.morphium.driver.bson.MorphiumId;
 import de.caluga.morphium.query.Query;
+import de.caluga.test.mongo.suite.data.CachedObject;
+import de.caluga.test.mongo.suite.data.UncachedObject;
 import org.junit.Test;
 
 import java.util.ArrayList;
@@ -28,23 +29,23 @@ public class ReferenceTest extends MongoTest {
 
     @Test
     public void storeReferenceTest() throws Exception {
-        MorphiumSingleton.get().dropCollection(ReferenceContainer.class);
+        morphium.dropCollection(ReferenceContainer.class);
 
         UncachedObject uc1 = new UncachedObject();
         uc1.setCounter(1);
         uc1.setValue("Uncached 1");
-        MorphiumSingleton.get().store(uc1);
+        morphium.store(uc1);
 
         UncachedObject uc2 = new UncachedObject();
         uc2.setCounter(1);
         uc2.setValue("Uncached 2");
-        MorphiumSingleton.get().store(uc2);
+        morphium.store(uc2);
 
 
         CachedObject co = new CachedObject();
         co.setCounter(3);
         co.setValue("Cached 3");
-        MorphiumSingleton.get().storeNoCache(co);
+        morphium.storeNoCache(co);
         //Making sure it's stored yet
 
         ReferenceContainer rc = new ReferenceContainer();
@@ -63,7 +64,7 @@ public class ReferenceTest extends MongoTest {
                 toSearchFor = uc;
             lst.add(uc);
         }
-        MorphiumSingleton.get().storeList(lst);
+        morphium.storeList(lst);
         rc.setLst(lst);
 
         UncachedObject toSearchFor2 = null;
@@ -82,17 +83,17 @@ public class ReferenceTest extends MongoTest {
         rc.setLzyLst(lst);
 
 
-        MorphiumSingleton.get().store(rc); //stored
+        morphium.store(rc); //stored
 
 
         ReferenceContainer rc2 = new ReferenceContainer();
         rc2.setLst(new ArrayList<UncachedObject>());
         rc2.setUc(toSearchFor);
-        MorphiumSingleton.get().store(rc2);
+        morphium.store(rc2);
 
         //read from db....
 
-        Query<ReferenceContainer> q = MorphiumSingleton.get().createQueryFor(ReferenceContainer.class);
+        Query<ReferenceContainer> q = morphium.createQueryFor(ReferenceContainer.class);
         q.f("uc").eq(uc1);
         ReferenceContainer rcRead = q.get(); //should only be one...
 
@@ -104,14 +105,14 @@ public class ReferenceTest extends MongoTest {
         assert (rcRead.getLzyLst().get(0).getClass().getName().contains("$EnhancerByCGLIB$")) : "List not lazy?";
         assert (rcRead.getLzyLst().get(0).getCounter() == rc.getLzyLst().get(0).getCounter()) : "Counter different?!?";
 
-        q = MorphiumSingleton.get().createQueryFor(ReferenceContainer.class).f("lst").eq(toSearchFor);
+        q = morphium.createQueryFor(ReferenceContainer.class).f("lst").eq(toSearchFor);
         rcRead = q.get();
         assert (rcRead != null);
         assert (rcRead.getUc().getCounter() != toSearchFor.getCounter());
         assert (rcRead.getCo() != null);
         assert (rcRead.getId().equals(rc.getId()));
 
-        q = MorphiumSingleton.get().createQueryFor(ReferenceContainer.class).f("lzyLst").eq(toSearchFor2);
+        q = morphium.createQueryFor(ReferenceContainer.class).f("lzyLst").eq(toSearchFor2);
         rcRead = q.get();
         assert (rcRead != null);
         assert (rcRead.getUc().getCounter() != toSearchFor2.getCounter());
@@ -136,27 +137,27 @@ public class ReferenceTest extends MongoTest {
             }
         };
 
-        MorphiumSingleton.get().addDereferencingListener(deRef);
+        morphium.addDereferencingListener(deRef);
 
 
         //Creating a testObject;
-        MorphiumSingleton.get().dropCollection(ReferenceContainer.class);
+        morphium.dropCollection(ReferenceContainer.class);
         UncachedObject uc1 = new UncachedObject();
 
         uc1.setCounter(1);
         uc1.setValue("Uncached 1");
-        MorphiumSingleton.get().store(uc1);
+        morphium.store(uc1);
 
         UncachedObject uc2 = new UncachedObject();
         uc2.setCounter(1);
         uc2.setValue("Uncached 2");
-        MorphiumSingleton.get().store(uc2);
+        morphium.store(uc2);
 
 
         CachedObject co = new CachedObject();
         co.setCounter(3);
         co.setValue("Cached 3");
-        MorphiumSingleton.get().storeNoCache(co);
+        morphium.storeNoCache(co);
         //Making sure it's stored yet
 
         ReferenceContainer rc = new ReferenceContainer();
@@ -174,7 +175,7 @@ public class ReferenceTest extends MongoTest {
             if (i == 4)
                 lst.add(uc);
         }
-        MorphiumSingleton.get().storeList(lst);
+        morphium.storeList(lst);
         rc.setLst(lst);
 
         UncachedObject toSearchFor2 = null;
@@ -192,9 +193,9 @@ public class ReferenceTest extends MongoTest {
         rc.setLzyLst(lst);
 
 
-        MorphiumSingleton.get().store(rc); //stored
+        morphium.store(rc); //stored
 
-        ReferenceContainer rcRead = MorphiumSingleton.get().createQueryFor(ReferenceContainer.class).get();
+        ReferenceContainer rcRead = morphium.createQueryFor(ReferenceContainer.class).get();
 
         assert (wouldDeref = true);
         assert (didDeref = true);
@@ -236,7 +237,7 @@ public class ReferenceTest extends MongoTest {
 
     @Test
     public void testSimpleDoublyLinkedStructure() {
-        Morphium m = MorphiumSingleton.get();
+        Morphium m = morphium;
         m.clearCollection(SimpleDoublyLinkedEntity.class);
         SimpleDoublyLinkedEntity e1 = new SimpleDoublyLinkedEntity(1);
         SimpleDoublyLinkedEntity e2 = new SimpleDoublyLinkedEntity(2);

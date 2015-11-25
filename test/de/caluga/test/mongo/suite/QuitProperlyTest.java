@@ -4,6 +4,8 @@ package de.caluga.test.mongo.suite;/**
 
 import de.caluga.morphium.Morphium;
 import de.caluga.morphium.MorphiumConfig;
+import de.caluga.test.mongo.suite.data.CachedObject;
+import de.caluga.test.mongo.suite.data.UncachedObject;
 
 /**
  * TODO: Add Documentation here
