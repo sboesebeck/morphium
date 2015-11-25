@@ -196,7 +196,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                                     String msg = (String) m.invoke(v);
                                     m = v.getClass().getMethod("getRootBean");
                                     Object bean = m.invoke(v);
-                                    String s = morphium.toJsonString(bean);
+                                    String s = Utils.toJsonString(bean);
                                     String type = bean.getClass().getName();
                                     m = v.getClass().getMethod("getInvalidValue");
                                     Object invalidValue = m.invoke(v);

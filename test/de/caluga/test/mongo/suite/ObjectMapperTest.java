@@ -3,6 +3,7 @@ package de.caluga.test.mongo.suite;
 import de.caluga.morphium.AnnotationAndReflectionHelper;
 import de.caluga.morphium.ObjectMapper;
 import de.caluga.morphium.ObjectMapperImpl;
+import de.caluga.morphium.Utils;
 import de.caluga.morphium.annotations.Entity;
 import de.caluga.morphium.annotations.Id;
 import de.caluga.morphium.driver.bson.MorphiumId;
@@ -149,7 +150,7 @@ public class ObjectMapperTest extends MongoTest {
         o.setValue("This \" is $ test");
         Map<String, Object> dbo = om.marshall(o);
 
-        String s = morphium.toJsonString(dbo);
+        String s = Utils.toJsonString(dbo);
         System.out.println("Marshalling was: " + s);
         assert (s.equals("{ \"dval\" : 0.0, \"counter\" : 12345, \"value\" : \"This \" is $ test\" } ")) : "String creation failed?" + s;
     }
@@ -233,17 +234,17 @@ public class ObjectMapperTest extends MongoTest {
 
         co.setRef(o);
         co.setId(new MorphiumId());
-        String st = morphium.toJsonString(co);
-        System.out.println("Referenced object: " + morphium.toJsonString(om.marshall(o)));
+        String st = Utils.toJsonString(co);
+        System.out.println("Referenced object: " + Utils.toJsonString(om.marshall(o)));
         Map<String, Object> marshall = om.marshall(co);
-        System.out.println("Complex object: " + morphium.toJsonString(marshall));
+        System.out.println("Complex object: " + Utils.toJsonString(marshall));
 
 
         //Unmarshalling stuff
         co = om.unmarshall(ComplexObject.class, marshall);
         assert (co.getEntityEmbeded().getMorphiumId() == null) : "Embeded entity got a mongoID?!?!?!";
         co.getEntityEmbeded().setMorphiumId(embedId);  //need to set ID manually, as it won't be stored!
-        String st2 = morphium.toJsonString(co);
+        String st2 = Utils.toJsonString(co);
         assert (st.equals(st2)) : "Strings not equal?\n" + st + "\n" + st2;
         assert (co.getEmbed() != null) : "Embedded value not found!";
 
@@ -311,7 +312,7 @@ public class ObjectMapperTest extends MongoTest {
 
         ObjectMapperImpl om = (ObjectMapperImpl) morphium.getMapper();
         Map<String, Object> marshall = om.marshall(o);
-        String m = morphium.toJsonString(marshall);
+        String m = Utils.toJsonString(marshall);
         System.out.println("Marshalled object: " + m);
         assert (m.equals("{ \"map_value\" : { \"Entity\" : { \"dval\" : 0.0, \"counter\" : 0, \"class_name\" : \"de.caluga.test.mongo.suite.data.UncachedObject\" } , \"a primitive value\" : 42, \"null\" :  null, \"double\" : 42.0, \"a_string\" : \"This is a string\" } , \"name\" : \"A map-value\" } ")) : "Value not marshalled coorectly";
 
@@ -516,7 +517,7 @@ public class ObjectMapperTest extends MongoTest {
     @Test
     public void noDefaultConstructorTest() throws Exception {
         NoDefaultConstructorUncachedObject o = new NoDefaultConstructorUncachedObject("test", 15);
-        String serialized = morphium.toJsonString(morphium.getMapper().marshall(o));
+        String serialized = Utils.toJsonString(morphium.getMapper().marshall(o));
         log.info("Serialized... " + serialized);
 
         o = morphium.getMapper().unmarshall(NoDefaultConstructorUncachedObject.class, serialized);
@@ -545,7 +546,7 @@ public class ObjectMapperTest extends MongoTest {
         o.uc = new NoDefaultConstructorUncachedObject("v", 123);
 
         Map<String, Object> dbo = m.marshall(o);
-        o = m.unmarshall(MappedObject.class, morphium.toJsonString(dbo));
+        o = m.unmarshall(MappedObject.class, Utils.toJsonString(dbo));
 
         assert (o.aMap.get("test") != null);
     }
