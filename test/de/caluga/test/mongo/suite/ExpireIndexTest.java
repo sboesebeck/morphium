@@ -24,6 +24,7 @@ public class ExpireIndexTest extends MongoTest {
             u.setValue("V" + i);
             morphium.store(u);
         }
+        Thread.sleep(500);
         assert (morphium.createQueryFor(UCobj.class).countAll() == 100);
         log.info("Waiting for mongo to clear it");
         Thread.sleep(65000);

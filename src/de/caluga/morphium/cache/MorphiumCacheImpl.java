@@ -6,7 +6,6 @@ import de.caluga.morphium.annotations.caching.Cache;
 import de.caluga.morphium.query.Query;
 
 import java.util.*;
-import java.util.concurrent.CopyOnWriteArrayList;
 
 /**
  * User: Stephan Bösebeck
@@ -27,7 +26,7 @@ public class MorphiumCacheImpl implements MorphiumCache {
     public MorphiumCacheImpl() {
         cache = new HashMap<>();
         idCache = new HashMap<>();
-        cacheListeners = new CopyOnWriteArrayList<>();
+        cacheListeners = new Vector<>();
     }
 
     @Override

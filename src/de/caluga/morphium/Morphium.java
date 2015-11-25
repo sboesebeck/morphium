@@ -1929,16 +1929,28 @@ public class Morphium {
      * @param o - Object to store
      */
     public <T> void store(T o) {
+        if (o instanceof List) {
+            storeList((List) o);
+        } else if (o instanceof Collection) {
+            storeList(new ArrayList<>((Collection) o));
+        }
         store(o, null);
     }
 
     public <T> void store(T o, final AsyncOperationCallback<T> callback) {
+        if (o instanceof List) {
+            storeList((List) o, callback);
+        } else if (o instanceof Collection) {
+            storeList(new ArrayList<>((Collection) o), callback);
+        }
         store(o, getMapper().getCollectionName(o.getClass()), callback);
     }
 
     public <T> void store(T o, String collection, final AsyncOperationCallback<T> callback) {
         if (o instanceof List) {
-            throw new RuntimeException("Lists need to be stored with storeList");
+            storeList((List) o, collection, callback);
+        } else if (o instanceof Collection) {
+            storeList(new ArrayList<>((Collection) o), collection, callback);
         }
 
         getWriterForClass(o.getClass()).store(o, collection, callback);
