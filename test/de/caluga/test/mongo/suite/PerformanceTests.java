@@ -4,16 +4,107 @@ package de.caluga.test.mongo.suite;/**
 
 import org.junit.Test;
 
-import java.util.ArrayList;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.Vector;
+import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * TODO: Add Documentation here
  **/
 public class PerformanceTests {
     int threadCount = 0;
+
+
+    @Test
+    public void hashmapVsHashtableTest() throws Exception {
+        System.out.println("Testing with HashMap: ");
+        testIt(new HashMap<String, Object>());
+
+        System.out.println("\nTesting with Hashtable: ");
+        testIt(new Hashtable<String, Object>());
+
+        System.out.println("\nTesting with LinkedHashmap: ");
+        testIt(new LinkedHashMap<String, Object>());
+
+        System.out.println("\nTesting with ConcurrentMap: ");
+        testIt(new ConcurrentHashMap<String, Object>());
+
+
+    }
+
+    private void testIt(final Map<String, Object> map) {
+        long start = System.currentTimeMillis();
+        int threads = 300;
+        threadCount = 0;
+        List<Thread> thr = new ArrayList<>();
+        for (int i = 0; i < threads; i++) {
+            final int j = i;
+            Thread t = new Thread() {
+                public void run() {
+                    for (int k = 0; k < 1000; k++) {
+//                        synchronized (map) {
+                        try {
+                            map.put("hello " + j + " - " + k, j + k);
+                        } catch (Throwable e) {
+                            //ignore
+                        }
+//                        }
+                    }
+                    threadCount++;
+                }
+            };
+            thr.add(t);
+            t.start();
+        }
+        System.out.println("Waiting for threads...");
+        for (Thread t : thr)
+            try {
+                t.join(1000);
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+
+        long dur = System.currentTimeMillis() - start;
+        System.out.println("write took : " + dur);
+        System.out.println("Counting   : " + map.size() + " missing: " + ((threads * 1000) - map.size()));
+        threadCount = 0;
+        thr = new ArrayList<>();
+        start = System.currentTimeMillis();
+
+        for (int i = 0; i < threads; i++) {
+            final int j = i;
+            Thread t = new Thread() {
+                public void run() {
+                    for (int k = 0; k < 1000; k++) {
+//                        synchronized (map) {
+                        try {
+                            map.get("hello " + j + " - " + k);
+                        } catch (Throwable e) {
+                            //ignore
+                        }
+//                        }
+                    }
+                    threadCount++;
+                }
+            };
+            thr.add(t);
+            t.start();
+        }
+//        System.out.println("Waiting for threads...");
+
+        for (Thread t : thr)
+            try {
+                t.join(1000);
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+//        while (threadCount < threads) {
+//            System.out.println("Waiting for reads..");
+//            Thread.yield();
+//        }
+        dur = System.currentTimeMillis() - start;
+        System.out.println("read took : " + dur);
+    }
+
 
     @Test
     public void testit() throws Exception {
@@ -33,7 +124,7 @@ public class PerformanceTests {
     }
 
     @Test
-    public void testCreattion() throws Exception {
+    public void testCreation() throws Exception {
         long start = System.currentTimeMillis();
         for (int i = 0; i < 1000000; i++) {
             new Vector<String>();
@@ -59,56 +150,66 @@ public class PerformanceTests {
         long start = System.currentTimeMillis();
         int threads = 300;
         threadCount = 0;
+        List<Thread> thr = new ArrayList<>();
         for (int i = 0; i < threads; i++) {
             final int j = i;
-            new Thread() {
+            Thread t = new Thread() {
                 public void run() {
                     for (int k = 0; k < 1000; k++) {
 //                        synchronized (lst) {
                         try {
                             lst.add("hello " + j + " - " + k);
-                        } catch (Exception e) {
+                        } catch (Throwable e) {
                             //ignore
                         }
 //                        }
                     }
                     threadCount++;
                 }
-            }.start();
+            };
+            thr.add(t);
+            t.start();
         }
 
-        while (threadCount < threads) {
-//            System.out.println("Waiting..");
-            Thread.yield();
-        }
+        for (Thread t : thr)
+            try {
+                t.join();
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
         long dur = System.currentTimeMillis() - start;
         System.out.println("write took : " + dur);
         System.out.println("Counting   : " + lst.size() + " missing: " + ((threads * 1000) - lst.size()));
+        thr = new ArrayList<>();
         threadCount = 0;
         start = System.currentTimeMillis();
         for (int i = 0; i < threads; i++) {
             final int j = i;
-            new Thread() {
+            Thread t = new Thread() {
                 public void run() {
                     for (int k = 0; k < 1000; k++) {
 //                        synchronized (lst) {
                         try {
                             if (j * 1000 + k < lst.size())
                                 lst.get(j * 1000 + k);
-                        } catch (Exception e) {
+                        } catch (Throwable e) {
                             //ignore
                         }
 //                        }
                     }
                     threadCount++;
                 }
-            }.start();
+            };
+            thr.add(t);
+            t.start();
         }
 
-        while (threadCount < threads) {
-//            System.out.println("Waiting for reads..");
-            Thread.yield();
-        }
+        for (Thread t : thr)
+            try {
+                t.join();
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
         dur = System.currentTimeMillis() - start;
         System.out.println("read took : " + dur);
     }

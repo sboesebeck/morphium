@@ -67,7 +67,7 @@ public class ListTests extends MongoTest {
             assert (lst2.getRefList().get(i).equals(lst.getRefList().get(i))) : "reference list differ? - " + i;
         }
 
-
+        Thread.sleep(1000);
         q = morphium.createQueryFor(ListContainer.class).f("refList").eq(lst2.getRefList().get(0));
         assert (q.countAll() != 0);
         log.info("found " + q.countAll() + " entries");

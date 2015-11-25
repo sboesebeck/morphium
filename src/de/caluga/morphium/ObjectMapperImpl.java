@@ -511,6 +511,7 @@ public class ObjectMapperImpl implements ObjectMapper {
     @SuppressWarnings("unchecked")
     @Override
     public <T> T unmarshall(Class<? extends T> theClass, Map<String, Object> o) {
+        if (o == null) return null;
         Class cls = theClass;
         try {
             if (hasCustomMapper(cls)) {
@@ -619,11 +620,19 @@ public class ObjectMapperImpl implements ObjectMapper {
                         log.fatal("Morphium not set - could not de-reference!");
                     } else {
                         Object id = null;
-                        if (valueFromDb instanceof Object) {
+                        if (!(valueFromDb instanceof Map)) {
                             id = valueFromDb;
                         } else {
                             Map<String, Object> ref = (Map<String, Object>) valueFromDb;
                             MorphiumReference r = unmarshall(MorphiumReference.class, ref);
+                            String n = "collection_name";
+                            if (ref.get(n) == null) {
+                                n = "collectionName";
+                            }
+                            if (ref.get(n) != null && r.getClassName() == null) {
+                                r.setClassName((String) ref.get(n));
+                            }
+
                             id = r.getId();
                             if (!r.getClassName().equals(fld.getType().getName())) {
                                 log.warn("Class name in reference differs from real classname?!?!?! read: " + r.getClassName() + " but should be " + fld.getType().getName());
@@ -908,6 +917,11 @@ public class ObjectMapperImpl implements ObjectMapper {
         if (forField.isAnnotationPresent(Reference.class)) {
             Reference ref = forField.getAnnotation(Reference.class);
             for (Map<String, Object> obj : fromDB) {
+                if (obj == null) {
+                    toFillIn.add(null);
+                    continue;
+                }
+                ;
                 MorphiumReference r = unmarshall(MorphiumReference.class, obj);
                 Class type = null;
                 try {

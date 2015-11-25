@@ -4,6 +4,7 @@ package de.caluga.morphium.driver.mongodb;/**
 
 import com.mongodb.*;
 import de.caluga.morphium.Logger;
+import de.caluga.morphium.MorphiumReference;
 import de.caluga.morphium.driver.MorphiumDriverException;
 import de.caluga.morphium.driver.MorphiumDriverNetworkException;
 import de.caluga.morphium.driver.MorphiumDriverOperation;
@@ -84,8 +85,12 @@ public class DriverHelper {
                 for (Map.Entry e : m.entrySet()) {
                     if (e.getValue() instanceof MorphiumId) {
                         toSet.put((String) e.getKey(), new ObjectId(((MorphiumId) e.getValue()).toString()));
+
+                    } else if (e.getValue() instanceof MorphiumReference) {
+                        toSet.put((String) e.getKey(), new ObjectId(((MorphiumReference) e.getValue()).getId().toString()));
                     } else if (e.getValue() instanceof Collection) {
                         for (Object o : (Collection) e.getValue()) {
+                            if (o == null) continue;
                             if (o instanceof Map) {
                                 replaceMorphiumIdByObjectId((Map) o);
                             } else if (o instanceof List) {

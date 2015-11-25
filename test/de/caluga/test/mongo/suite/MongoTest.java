@@ -242,6 +242,10 @@ public class MongoTest {
             }
         }
         morphium.storeList(lst);
+        try {
+            Thread.sleep(200); //For Wiredtiger!
+        } catch (InterruptedException e) {
+        }
     }
 
     public void createCachedObjects(int amount) {
