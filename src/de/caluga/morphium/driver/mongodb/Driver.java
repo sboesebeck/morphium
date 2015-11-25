@@ -409,7 +409,7 @@ public class Driver implements MorphiumDriver {
 
     @Override
     public Map<String, Object> runCommand(String db, Map<String, Object> cmd) throws MorphiumDriverException {
-
+        new DriverHelper().replaceMorphiumIdByObjectId(cmd);
         return new DriverHelper().doCall(new MorphiumDriverOperation() {
             @Override
             public Map<String, Object> execute() {
@@ -663,6 +663,7 @@ public class Driver implements MorphiumDriver {
 
     @Override
     public long count(String db, String collection, Map<String, Object> query, ReadPreference rp) {
+        new DriverHelper().replaceMorphiumIdByObjectId(query);
         MongoDatabase database = mongo.getDatabase(db);
         MongoCollection<Document> coll = getCollection(database, collection, rp, null);
         return coll.count(new BasicDBObject(query));
@@ -938,7 +939,7 @@ public class Driver implements MorphiumDriver {
     public List<Map<String, Object>> aggregate(String db, String collection, List<Map<String, Object>> pipeline,
                                                boolean explain, boolean allowDiskUse, ReadPreference readPreference) throws MorphiumDriverException {
         List list = new ArrayList<>();
-
+        new DriverHelper().replaceMorphiumIdByObjectId(pipeline);
         for (Map<String, Object> p : pipeline) {
             list.add(new BasicDBObject(p));
         }
