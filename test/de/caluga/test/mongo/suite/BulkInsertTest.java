@@ -113,6 +113,7 @@ public class BulkInsertTest extends MongoTest {
         waitForWrites();
         long dur = System.currentTimeMillis() - start;
         log.info("storing objects one by one async took " + dur + " ms");
+        Thread.sleep(1000);
         assert (asyncSuccess);
         assert (asyncCall);
 
