@@ -1,6 +1,5 @@
 package de.caluga.test.mongo.suite;
 
-import de.caluga.morphium.MorphiumSingleton;
 import de.caluga.morphium.Sequence;
 import de.caluga.morphium.SequenceGenerator;
 import org.junit.Test;
@@ -17,8 +16,8 @@ import java.util.Vector;
 public class SequenceTest extends MongoTest {
     @Test
     public void singleSequenceTest() throws Exception {
-        MorphiumSingleton.get().dropCollection(Sequence.class);
-        SequenceGenerator sg = new SequenceGenerator(MorphiumSingleton.get(), "tstseq", 1, 1);
+        morphium.dropCollection(Sequence.class);
+        SequenceGenerator sg = new SequenceGenerator(morphium, "tstseq", 1, 1);
         long v = sg.getNextValue();
         assert (v == 1) : "Value wrong: " + v;
         v = sg.getNextValue();
@@ -27,9 +26,9 @@ public class SequenceTest extends MongoTest {
 
     @Test
     public void multiSequenceTest() throws Exception {
-        MorphiumSingleton.get().dropCollection(Sequence.class);
-        SequenceGenerator sg1 = new SequenceGenerator(MorphiumSingleton.get(), "tstseq1", 1, 1);
-        SequenceGenerator sg2 = new SequenceGenerator(MorphiumSingleton.get(), "tstseq2", 1, 1);
+        morphium.dropCollection(Sequence.class);
+        SequenceGenerator sg1 = new SequenceGenerator(morphium, "tstseq1", 1, 1);
+        SequenceGenerator sg2 = new SequenceGenerator(morphium, "tstseq2", 1, 1);
         long v = sg1.getNextValue();
         assert (v == 1) : "Value wrong: " + v;
         v = sg2.getNextValue();
@@ -45,13 +44,13 @@ public class SequenceTest extends MongoTest {
 
     @Test
     public void errorLockedSequenceTest() throws Exception {
-        MorphiumSingleton.get().dropCollection(Sequence.class);
-        SequenceGenerator sg = new SequenceGenerator(MorphiumSingleton.get(), "test", 1, 1);
+        morphium.dropCollection(Sequence.class);
+        SequenceGenerator sg = new SequenceGenerator(morphium, "test", 1, 1);
         sg.getNextValue(); //initializing
 
-        Sequence s = MorphiumSingleton.get().createQueryFor(Sequence.class).f("name").eq("test").get();
+        Sequence s = morphium.createQueryFor(Sequence.class).f("name").eq("test").get();
         s.setLockedBy("noone");
-        MorphiumSingleton.get().store(s);
+        morphium.store(s);
         waitForWrites();
         //now sequence is blocked by someone else... waiting 30s
         long v = sg.getNextValue();
@@ -63,11 +62,11 @@ public class SequenceTest extends MongoTest {
 
     @Test
     public void massiveMultiSequenceTest() throws Exception {
-        MorphiumSingleton.get().dropCollection(Sequence.class);
+        morphium.dropCollection(Sequence.class);
         Vector<SequenceGenerator> gens = new Vector<>();
         //creating lots of sequences
         for (int i = 0; i < 10; i++) {
-            SequenceGenerator sg1 = new SequenceGenerator(MorphiumSingleton.get(), "tstseq_" + i, i % 3 + 1, i);
+            SequenceGenerator sg1 = new SequenceGenerator(morphium, "tstseq_" + i, i % 3 + 1, i);
             gens.add(sg1);
         }
 
@@ -85,8 +84,8 @@ public class SequenceTest extends MongoTest {
 
     @Test
     public void massiveParallelSingleSequenceTest() throws Exception {
-        MorphiumSingleton.get().dropCollection(Sequence.class);
-        final SequenceGenerator sg1 = new SequenceGenerator(MorphiumSingleton.get(), "tstseq", 1, 0);
+        morphium.dropCollection(Sequence.class);
+        final SequenceGenerator sg1 = new SequenceGenerator(morphium, "tstseq", 1, 0);
         Vector<Thread> thr = new Vector<>();
         final Vector<Long> data = new Vector<>();
         for (int i = 0; i < 10; i++) {
@@ -121,11 +120,11 @@ public class SequenceTest extends MongoTest {
 
     @Test
     public void massiveParallelMultiSequenceTest() throws Exception {
-        MorphiumSingleton.get().dropCollection(Sequence.class);
+        morphium.dropCollection(Sequence.class);
         Vector<SequenceGenerator> gens = new Vector<>();
         //creating lots of sequences
         for (int i = 0; i < 20; i++) {
-            SequenceGenerator sg1 = new SequenceGenerator(MorphiumSingleton.get(), "tstseq_" + i, i % 3 + 1, i);
+            SequenceGenerator sg1 = new SequenceGenerator(morphium, "tstseq_" + i, i % 3 + 1, i);
             gens.add(sg1);
         }
 

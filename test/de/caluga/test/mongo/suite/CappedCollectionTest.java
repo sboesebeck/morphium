@@ -2,6 +2,7 @@ package de.caluga.test.mongo.suite;
 
 import de.caluga.morphium.MorphiumSingleton;
 import de.caluga.morphium.annotations.Capped;
+import de.caluga.test.mongo.suite.data.UncachedObject;
 import org.junit.Test;
 
 import java.util.ArrayList;
@@ -15,25 +16,25 @@ public class CappedCollectionTest extends MongoTest {
 
     @Test
     public void testCreationOfCappedCollection() throws Exception {
-        MorphiumSingleton.get().dropCollection(CappedCol.class);
+        morphium.dropCollection(CappedCol.class);
 
         CappedCol cc = new CappedCol();
         cc.setValue("A value");
         cc.setCounter(-1);
-        MorphiumSingleton.get().store(cc);
+        morphium.store(cc);
 
 
-        assert (MorphiumSingleton.get().getDriver().isCapped(MorphiumSingleton.getConfig().getDatabase(), "capped_col"));
+        assert (morphium.getDriver().isCapped(MorphiumSingleton.getConfig().getDatabase(), "capped_col"));
         //storing more than max entries
         for (int i = 0; i < 1000; i++) {
             cc = new CappedCol();
             cc.setValue("Value " + i);
             cc.setCounter(i);
-            MorphiumSingleton.get().store(cc);
+            morphium.store(cc);
         }
 
-        assert (MorphiumSingleton.get().createQueryFor(CappedCol.class).countAll() <= 10);
-        for (CappedCol cp : MorphiumSingleton.get().createQueryFor(CappedCol.class).sort("counter").asIterable(10)) {
+        assert (morphium.createQueryFor(CappedCol.class).countAll() <= 10);
+        for (CappedCol cp : morphium.createQueryFor(CappedCol.class).sort("counter").asIterable(10)) {
             log.info("Capped: " + cp.getCounter() + " - " + cp.getValue());
         }
 
@@ -42,7 +43,7 @@ public class CappedCollectionTest extends MongoTest {
 
     @Test
     public void testListCreationOfCappedCollection() throws Exception {
-        MorphiumSingleton.get().dropCollection(CappedCol.class);
+        morphium.dropCollection(CappedCol.class);
 
         List<CappedCol> lst = new ArrayList<>();
 
@@ -54,10 +55,10 @@ public class CappedCollectionTest extends MongoTest {
             lst.add(cc);
         }
 
-        MorphiumSingleton.get().storeList(lst);
-        assert (MorphiumSingleton.get().getDriver().isCapped(MorphiumSingleton.getConfig().getDatabase(), "capped_col"));
-        assert (MorphiumSingleton.get().createQueryFor(CappedCol.class).countAll() <= 10);
-        for (CappedCol cp : MorphiumSingleton.get().createQueryFor(CappedCol.class).sort("counter").asIterable(10)) {
+        morphium.storeList(lst);
+        assert (morphium.getDriver().isCapped(MorphiumSingleton.getConfig().getDatabase(), "capped_col"));
+        assert (morphium.createQueryFor(CappedCol.class).countAll() <= 10);
+        for (CappedCol cp : morphium.createQueryFor(CappedCol.class).sort("counter").asIterable(10)) {
             log.info("Capped: " + cp.getCounter() + " - " + cp.getValue());
         }
 
@@ -66,13 +67,13 @@ public class CappedCollectionTest extends MongoTest {
 
     @Test
     public void convertToCappedTest() throws Exception {
-        MorphiumSingleton.get().dropCollection(UncachedObject.class);
+        morphium.dropCollection(UncachedObject.class);
         createUncachedObjects(1000);
 
-        MorphiumSingleton.get().convertToCapped(UncachedObject.class, 100, null);
+        morphium.convertToCapped(UncachedObject.class, 100, null);
 
-        assert (MorphiumSingleton.get().getDriver().isCapped(MorphiumSingleton.getConfig().getDatabase(), "capped_col"));
-        assert (MorphiumSingleton.get().createQueryFor(UncachedObject.class).countAll() <= 100);
+        assert (morphium.getDriver().isCapped(MorphiumSingleton.getConfig().getDatabase(), "uncached_object"));
+        assert (morphium.createQueryFor(UncachedObject.class).countAll() <= 100);
     }
 
 

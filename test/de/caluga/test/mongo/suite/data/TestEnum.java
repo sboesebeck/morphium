@@ -1,4 +1,4 @@
-package de.caluga.test.mongo.suite;
+package de.caluga.test.mongo.suite.data;
 
 /**
  * User: Stephan Bösebeck

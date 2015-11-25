@@ -2,7 +2,7 @@
  * To change this template, choose Tools | Templates
  * and open the template in the editor.
  */
-package de.caluga.test.mongo.suite;
+package de.caluga.test.mongo.suite.data;
 
 import de.caluga.morphium.annotations.*;
 import de.caluga.morphium.annotations.caching.Cache;

@@ -7,6 +7,9 @@ import de.caluga.morphium.driver.ReadPreference;
 import de.caluga.morphium.messaging.Msg;
 import de.caluga.morphium.query.PrefetchingMorphiumIterator;
 import de.caluga.morphium.query.Query;
+import de.caluga.test.mongo.suite.data.CachedObject;
+import de.caluga.test.mongo.suite.data.Person;
+import de.caluga.test.mongo.suite.data.UncachedObject;
 
 import java.io.File;
 import java.io.FileReader;
@@ -164,7 +167,7 @@ public class MongoTest {
             MorphiumSingleton.setConfig(cfg);
             morphium = MorphiumSingleton.get();
 
-//            MorphiumSingleton.get().addListener(new MorphiumStorageAdapter() {
+//            morphium.addListener(new MorphiumStorageAdapter() {
 //                @Override
 //                public void preStore(Morphium m, Object r, boolean isNew) {
 //                    if (m.getARHelper().isBufferedWrite(r.getClass())) {
@@ -214,12 +217,12 @@ public class MongoTest {
     @org.junit.AfterClass
     public static void tearDownClass() throws Exception {
         new Logger(MongoTest.class).info("NOT Shutting down - might be reused!");
-//        MorphiumSingleton.get().close();
+//        morphium.close();
     }
 
     public boolean waitForAsyncOperationToStart(int maxWaits) {
         int cnt = 0;
-        while (MorphiumSingleton.get().getWriteBufferCount() == 0) {
+        while (morphium.getWriteBufferCount() == 0) {
             Thread.yield();
             if (cnt++ > maxWaits) return false;
         }
@@ -234,11 +237,11 @@ public class MongoTest {
             uc.setValue("v");
             lst.add(uc);
             if (i % 1000 == 999) {
-                MorphiumSingleton.get().storeList(lst);
+                morphium.storeList(lst);
                 lst.clear();
             }
         }
-        MorphiumSingleton.get().storeList(lst);
+        morphium.storeList(lst);
     }
 
     public void createCachedObjects(int amount) {
@@ -249,7 +252,7 @@ public class MongoTest {
             uc.setValue("v");
             lst.add(uc);
         }
-        MorphiumSingleton.get().storeList(lst);
+        morphium.storeList(lst);
         try {
             Thread.sleep(500);
         } catch (InterruptedException e) {
@@ -273,22 +276,22 @@ public class MongoTest {
                     log.error("Error: " + error, t);
                 }
             };
-            MorphiumSingleton.get().dropCollection(UncachedObject.class, cb);
-            MorphiumSingleton.get().dropCollection(CachedObject.class, cb);
-            MorphiumSingleton.get().dropCollection(ComplexObject.class, cb);
-            MorphiumSingleton.get().dropCollection(EnumEntity.class, cb);
-            MorphiumSingleton.get().dropCollection(Msg.class, cb);
-            MorphiumSingleton.get().dropCollection(Person.class, cb);
-//            MorphiumSingleton.get().ensureIndex(UncachedObject.class, "counter", "value");
-//            MorphiumSingleton.get().ensureIndex(CachedObject.class, "counter", "value");
+            morphium.dropCollection(UncachedObject.class, cb);
+            morphium.dropCollection(CachedObject.class, cb);
+            morphium.dropCollection(ComplexObject.class, cb);
+            morphium.dropCollection(EnumEntity.class, cb);
+            morphium.dropCollection(Msg.class, cb);
+            morphium.dropCollection(Person.class, cb);
+//            morphium.ensureIndex(UncachedObject.class, "counter", "value");
+//            morphium.ensureIndex(CachedObject.class, "counter", "value");
             waitForAsyncOperationToStart(1000);
             waitForWrites();
 //            Thread.sleep(1000);
             int count = 0;
             while (count < 10) {
                 count++;
-                Map<String, Double> stats = MorphiumSingleton.get().getStatistics();
-                Double ent = stats.get("X-Entries for: de.caluga.test.mongo.suite.CachedObject");
+                Map<String, Double> stats = morphium.getStatistics();
+                Double ent = stats.get("X-Entries for: de.caluga.test.mongo.suite.data.CachedObject");
                 if (ent == null || ent == 0) {
                     break;
                 }
@@ -308,19 +311,19 @@ public class MongoTest {
     @org.junit.After
     public void tearDown() throws Exception {
         log.info("Cleaning up...");
-        MorphiumSingleton.get().dropCollection(UncachedObject.class);
-        MorphiumSingleton.get().dropCollection(CachedObject.class);
-        MorphiumSingleton.get().dropCollection(Msg.class);
+        morphium.dropCollection(UncachedObject.class);
+        morphium.dropCollection(CachedObject.class);
+        morphium.dropCollection(Msg.class);
         waitForWrites();
         log.info("done...");
     }
 
     public void waitForWrites() {
         int count = 0;
-        while (MorphiumSingleton.get().getWriteBufferCount() > 0) {
+        while (morphium.getWriteBufferCount() > 0) {
             count++;
             if (count % 100 == 0)
-                log.info("still " + MorphiumSingleton.get().getWriteBufferCount() + " writers active (" + MorphiumSingleton.get().getBufferedWriterBufferCount() + " + " + MorphiumSingleton.get().getWriterBufferCount() + ")");
+                log.info("still " + morphium.getWriteBufferCount() + " writers active (" + morphium.getBufferedWriterBufferCount() + " + " + morphium.getWriterBufferCount() + ")");
             try {
                 Thread.sleep(100);
             } catch (InterruptedException ex) {

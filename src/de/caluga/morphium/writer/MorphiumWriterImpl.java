@@ -140,7 +140,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                     objs.add(marshall);
                     try {
 
-                        morphium.getDriver().store(morphium.getConfig().getDatabase(), morphium.getMapper().getCollectionName(type), objs, wc);
+                        morphium.getDriver().store(morphium.getConfig().getDatabase(), coll, objs, wc);
                     } catch (Throwable t) {
                         throw new RuntimeException(t);
                     }
@@ -584,7 +584,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
     private void createCappedColl(Class c) {
         if (logger.isDebugEnabled())
             logger.debug("Collection does not exist - ensuring indices / capped status");
-        Map<String, Object> cmd = new HashMap<String, Object>();
+        Map<String, Object> cmd = new LinkedHashMap<>();
         cmd.put("create", morphium.getMapper().getCollectionName(c));
         Capped capped = morphium.getARHelper().getAnnotationFromHierarchy(c, Capped.class);
         if (capped != null) {
@@ -625,7 +625,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                     if (!morphium.getDriver().exists(morphium.getConfig().getDatabase(), coll)) {
                         if (logger.isDebugEnabled())
                             logger.debug("Collection does not exist - ensuring indices / capped status");
-                        Map<String, Object> cmd = new HashMap<String, Object>();
+                        Map<String, Object> cmd = new LinkedHashMap<>();
                         cmd.put("create", coll);
                         Capped capped = morphium.getARHelper().getAnnotationFromHierarchy(c, Capped.class);
                         if (capped != null) {

@@ -1,7 +1,6 @@
 package de.caluga.test.mongo.suite;
 
 import de.caluga.morphium.Morphium;
-import de.caluga.morphium.MorphiumSingleton;
 import de.caluga.morphium.annotations.*;
 import de.caluga.morphium.annotations.caching.NoCache;
 import de.caluga.morphium.annotations.lifecycle.*;
@@ -29,28 +28,28 @@ public class LifecycleTest extends MongoTest {
     public void lifecycleTest() {
         LfTestObj obj = new LfTestObj();
         obj.setValue("Ein Test");
-        MorphiumSingleton.get().store(obj);
+        morphium.store(obj);
         assert (preStore) : "Something went wrong: Prestore";
         assert (postStore) : "Something went wrong: poststore";
 
-        Query<LfTestObj> q = MorphiumSingleton.get().createQueryFor(LfTestObj.class);
+        Query<LfTestObj> q = morphium.createQueryFor(LfTestObj.class);
         q.setReadPreferenceLevel(ReadPreferenceLevel.PRIMARY);
         q.f("value").eq("Ein Test");
         obj = q.get(); //should trigger
 
         assert (postLoad) : "Something went wrong: postload";
 
-        MorphiumSingleton.get().set(obj, "value", "test beendet");
+        morphium.set(obj, "value", "test beendet");
         waitForWrites();
         assert (preUpdate);
         assert (postUpdate);
-        MorphiumSingleton.get().delete(obj);
+        morphium.delete(obj);
         assert (preRemove) : "Pre remove not called";
         assert (postRemove) : "Post remove not called";
 
         preUpdate = false;
         postUpdate = false;
-        MorphiumSingleton.get().set(q, "value", "a test - lifecycle won't be called");
+        morphium.set(q, "value", "a test - lifecycle won't be called");
         assert (!preUpdate);
         assert (!postUpdate);
 
@@ -197,7 +196,7 @@ public class LifecycleTest extends MongoTest {
     @Test
     public void testLazyLoading() {
 
-        Morphium m = MorphiumSingleton.get();
+        Morphium m = morphium;
         m.clearCollection(EntityPostLoad.class);
 
         EntityPostLoad e = new EntityPostLoad("test");

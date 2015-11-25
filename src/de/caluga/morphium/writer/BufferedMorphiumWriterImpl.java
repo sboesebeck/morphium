@@ -594,7 +594,7 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
         addToWriteQueue(o.getClass(), collection, new BufferedBulkOp() {
             @Override
             public void queue(BulkRequestContext ctx) {
-                Query q = morphium.createQueryFor(o.getClass()).f(morphium.getARHelper().getIdFieldName(o.getClass())).eq(morphium.getARHelper().getId(o));
+                Query q = morphium.createQueryFor(o.getClass()).f(morphium.getARHelper().getIdFieldName(o)).eq(morphium.getARHelper().getId(o));
                 if (collection != null) q.setCollectionName(collection);
                 morphium.firePreRemoveEvent(q);
                 DeleteBulkRequest r = ctx.addDeleteBulkRequest();

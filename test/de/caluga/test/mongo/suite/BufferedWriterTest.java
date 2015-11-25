@@ -1,13 +1,14 @@
 package de.caluga.test.mongo.suite;
 
 import de.caluga.morphium.Morphium;
-import de.caluga.morphium.MorphiumSingleton;
 import de.caluga.morphium.annotations.Entity;
 import de.caluga.morphium.annotations.Id;
 import de.caluga.morphium.annotations.caching.NoCache;
 import de.caluga.morphium.annotations.caching.WriteBuffer;
 import de.caluga.morphium.query.Query;
 import de.caluga.morphium.writer.BufferedMorphiumWriterImpl;
+import de.caluga.test.mongo.suite.data.EmbeddedObject;
+import de.caluga.test.mongo.suite.data.UncachedObject;
 import org.junit.Test;
 
 /**
@@ -21,27 +22,27 @@ public class BufferedWriterTest extends MongoTest {
 
     @Test
     public void testWriteBufferUpsert() throws Exception {
-        MorphiumSingleton.get().dropCollection(BufferedBySizeObject.class);
+        morphium.dropCollection(BufferedBySizeObject.class);
 
         waitForAsyncOperationToStart(10000);
         waitForWrites();
 
-        Query<BufferedBySizeObject> q = MorphiumSingleton.get().createQueryFor(BufferedBySizeObject.class).f("counter").eq(100);
-        MorphiumSingleton.get().inc(q, "counter", 1, true, false);
+        Query<BufferedBySizeObject> q = morphium.createQueryFor(BufferedBySizeObject.class).f("counter").eq(100);
+        morphium.inc(q, "counter", 1, true, false);
 
-        q = MorphiumSingleton.get().createQueryFor(BufferedBySizeObject.class).f("counter").eq(101);
-        MorphiumSingleton.get().inc(q, "counter", 1.0, true, false);
+        q = morphium.createQueryFor(BufferedBySizeObject.class).f("counter").eq(101);
+        morphium.inc(q, "counter", 1.0, true, false);
 
-        q = MorphiumSingleton.get().createQueryFor(BufferedBySizeObject.class).f("counter").eq(201);
-        MorphiumSingleton.get().dec(q, "counter", 1.0, true, false);
+        q = morphium.createQueryFor(BufferedBySizeObject.class).f("counter").eq(201);
+        morphium.dec(q, "counter", 1.0, true, false);
 
-        q = MorphiumSingleton.get().createQueryFor(BufferedBySizeObject.class).f("counter").eq(300);
-        MorphiumSingleton.get().set(q, "counter", 1, true, false);
+        q = morphium.createQueryFor(BufferedBySizeObject.class).f("counter").eq(300);
+        morphium.set(q, "counter", 1, true, false);
 
         waitForAsyncOperationToStart(10000);
         waitForWrites();
         Thread.sleep(3000);
-        q = MorphiumSingleton.get().createQueryFor(BufferedBySizeObject.class);
+        q = morphium.createQueryFor(BufferedBySizeObject.class);
         assert (q.countAll() == 3);
         for (BufferedBySizeObject o : q.asList()) {
             log.info("Counter: " + o.getCounter());
@@ -51,22 +52,22 @@ public class BufferedWriterTest extends MongoTest {
 
     @Test
     public void testWriteBufferIncs() throws Exception {
-        MorphiumSingleton.get().dropCollection(BufferedBySizeObject.class);
+        morphium.dropCollection(BufferedBySizeObject.class);
 
         waitForAsyncOperationToStart(10000);
         waitForWrites();
         BufferedMorphiumWriterImpl wr = (BufferedMorphiumWriterImpl) morphium.getWriterForClass(BufferedBySizeObject.class);
 
-        Query<BufferedBySizeObject> q = MorphiumSingleton.get().createQueryFor(BufferedBySizeObject.class).f("counter").eq(100);
-        MorphiumSingleton.get().inc(q, "dval", 1, true, false);
+        Query<BufferedBySizeObject> q = morphium.createQueryFor(BufferedBySizeObject.class).f("counter").eq(100);
+        morphium.inc(q, "dval", 1, true, false);
 //        assert(wr.writeBufferCount()>1);
 
-        q = MorphiumSingleton.get().createQueryFor(BufferedBySizeObject.class).f("counter").eq(100);
-        MorphiumSingleton.get().inc(q, "dval", 1.0, true, false);
+        q = morphium.createQueryFor(BufferedBySizeObject.class).f("counter").eq(100);
+        morphium.inc(q, "dval", 1.0, true, false);
 //        assert(wr.writeBufferCount()>1);
 
-        q = MorphiumSingleton.get().createQueryFor(BufferedBySizeObject.class).f("counter").eq(100);
-        MorphiumSingleton.get().dec(q, "dval", 1.0, true, false);
+        q = morphium.createQueryFor(BufferedBySizeObject.class).f("counter").eq(100);
+        morphium.dec(q, "dval", 1.0, true, false);
 //        assert(wr.writeBufferCount()>1);
 
 
@@ -74,7 +75,7 @@ public class BufferedWriterTest extends MongoTest {
         waitForAsyncOperationToStart(10000);
         waitForWrites();
         Thread.sleep(3000);
-        q = MorphiumSingleton.get().createQueryFor(BufferedBySizeObject.class);
+        q = morphium.createQueryFor(BufferedBySizeObject.class);
         assert (q.countAll() == 1) : "Counted " + q.countAll();
         BufferedBySizeObject o = q.get();
         log.info("Counter: " + o.getCounter());
@@ -84,7 +85,7 @@ public class BufferedWriterTest extends MongoTest {
 
     @Test
     public void testWriteBufferBySizeWithWriteNewStrategy() throws Exception {
-        MorphiumSingleton.get().dropCollection(BufferedBySizeWriteNewObject.class);
+        morphium.dropCollection(BufferedBySizeWriteNewObject.class);
         waitForAsyncOperationToStart(10000);
         waitForWrites();
         int amount = 1500;
@@ -92,15 +93,15 @@ public class BufferedWriterTest extends MongoTest {
             BufferedBySizeWriteNewObject bo = new BufferedBySizeWriteNewObject();
             bo.setCounter(i);
             bo.setValue("a value");
-            MorphiumSingleton.get().store(bo);
+            morphium.store(bo);
         }
         long start = System.currentTimeMillis();
         long l = System.currentTimeMillis() - start;
         while (true) {
 
-            long count = MorphiumSingleton.get().createQueryFor(BufferedBySizeWriteNewObject.class).countAll();
+            long count = morphium.createQueryFor(BufferedBySizeWriteNewObject.class).countAll();
             if (count == amount) break;
-            log.info("Amount written: " + count + " but Write buffer: " + MorphiumSingleton.get().getWriteBufferCount());
+            log.info("Amount written: " + count + " but Write buffer: " + morphium.getWriteBufferCount());
             Thread.sleep(1000);
         }
         log.info("All written " + amount);
@@ -108,19 +109,19 @@ public class BufferedWriterTest extends MongoTest {
 
     @Test
     public void testWriteBufferBySize() throws Exception {
-        MorphiumSingleton.get().dropCollection(BufferedBySizeObject.class);
+        morphium.dropCollection(BufferedBySizeObject.class);
         int amount = 1500;
         for (int i = 0; i < amount; i++) {
             BufferedBySizeObject bo = new BufferedBySizeObject();
             bo.setCounter(i);
             bo.setValue("a value");
-            MorphiumSingleton.get().store(bo);
+            morphium.store(bo);
         }
         long start = System.currentTimeMillis();
         while (true) {
 
-            long count = MorphiumSingleton.get().createQueryFor(BufferedBySizeObject.class).countAll();
-            int writeBufferCount = MorphiumSingleton.get().getWriteBufferCount();
+            long count = morphium.createQueryFor(BufferedBySizeObject.class).countAll();
+            int writeBufferCount = morphium.getWriteBufferCount();
             System.out.println("Amount written: " + count + " but Write buffer: " + writeBufferCount);
             Thread.sleep(10);
             if (writeBufferCount == 0) break;
@@ -130,21 +131,21 @@ public class BufferedWriterTest extends MongoTest {
 
     @Test
     public void testWriteBufferByTime() throws Exception {
-        MorphiumSingleton.get().dropCollection(BufferedByTimeObject.class);
+        morphium.dropCollection(BufferedByTimeObject.class);
         int amount = 1500;
         for (int i = 0; i < amount; i++) {
             BufferedByTimeObject bo = new BufferedByTimeObject();
             bo.setCounter(i);
             bo.setValue("a value");
-            MorphiumSingleton.get().store(bo);
+            morphium.store(bo);
         }
         long start = System.currentTimeMillis();
         while (true) {
 
-            long count = MorphiumSingleton.get().createQueryFor(BufferedByTimeObject.class).countAll();
+            long count = morphium.createQueryFor(BufferedByTimeObject.class).countAll();
             if (count == amount) break;
-            System.out.println("Amount written: " + count + " but Write buffer: " + MorphiumSingleton.get().getWriteBufferCount());
-//            assert (MorphiumSingleton.get().getWriteBufferCount() != 0);
+            System.out.println("Amount written: " + count + " but Write buffer: " + morphium.getWriteBufferCount());
+//            assert (morphium.getWriteBufferCount() != 0);
             Thread.sleep(100);
         }
         assert (System.currentTimeMillis() - start < 120000);
@@ -152,7 +153,7 @@ public class BufferedWriterTest extends MongoTest {
 
     @Test
     public void testWriteBufferBySizeWithDelOldStrategy() throws Exception {
-        MorphiumSingleton.get().dropCollection(BufferedBySizeDelOldObject.class);
+        morphium.dropCollection(BufferedBySizeDelOldObject.class);
         waitForAsyncOperationToStart(10000);
         waitForWrites();
         int amount = 1500;
@@ -160,17 +161,17 @@ public class BufferedWriterTest extends MongoTest {
             BufferedBySizeDelOldObject bo = new BufferedBySizeDelOldObject();
             bo.setCounter(i);
             bo.setValue("a value");
-            MorphiumSingleton.get().store(bo);
+            morphium.store(bo);
         }
         log.info("Writes prepared - waiting");
         Thread.sleep(4000);
-        long count = MorphiumSingleton.get().createQueryFor(BufferedBySizeDelOldObject.class).countAll();
+        long count = morphium.createQueryFor(BufferedBySizeDelOldObject.class).countAll();
         log.info("Amount written: " + count);
     }
 
     @Test
     public void testWriteBufferBySizeWithIngoreNewStrategy() throws Exception {
-        MorphiumSingleton.get().dropCollection(BufferedBySizeIgnoreNewObject.class);
+        morphium.dropCollection(BufferedBySizeIgnoreNewObject.class);
         waitForAsyncOperationToStart(10000);
         waitForWrites();
         int amount = 1500;
@@ -178,17 +179,17 @@ public class BufferedWriterTest extends MongoTest {
             BufferedBySizeIgnoreNewObject bo = new BufferedBySizeIgnoreNewObject();
             bo.setCounter(i);
             bo.setValue("a value");
-            MorphiumSingleton.get().store(bo);
+            morphium.store(bo);
         }
         log.info("Writes prepared - waiting");
         Thread.sleep(4000);
-        long count = MorphiumSingleton.get().createQueryFor(BufferedBySizeIgnoreNewObject.class).countAll();
+        long count = morphium.createQueryFor(BufferedBySizeIgnoreNewObject.class).countAll();
         assert (count < 1500);
     }
 
     @Test
     public void testComplexObject() throws Exception {
-        Morphium m = MorphiumSingleton.get();
+        Morphium m = morphium;
         m.dropCollection(ComplexObjectBuffered.class);
         for (int i = 0; i < 100; i++) {
             ComplexObjectBuffered buf = new ComplexObjectBuffered();
@@ -211,7 +212,7 @@ public class BufferedWriterTest extends MongoTest {
 
     @Test
     public void testNonObjectIdID() throws Exception {
-        Morphium m = MorphiumSingleton.get();
+        Morphium m = morphium;
         m.dropCollection(SimpleObject.class);
         for (int i = 0; i < 100; i++) {
             SimpleObject so = new SimpleObject();

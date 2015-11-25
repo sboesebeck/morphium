@@ -1,11 +1,17 @@
 package de.caluga.test.mongo.suite;
 
-import de.caluga.morphium.*;
+import de.caluga.morphium.DereferencingListener;
+import de.caluga.morphium.Morphium;
+import de.caluga.morphium.MorphiumAccessVetoException;
+import de.caluga.morphium.StatisticKeys;
 import de.caluga.morphium.annotations.Entity;
 import de.caluga.morphium.annotations.Id;
 import de.caluga.morphium.annotations.Reference;
 import de.caluga.morphium.driver.bson.MorphiumId;
 import de.caluga.morphium.query.Query;
+import de.caluga.test.mongo.suite.data.CachedObject;
+import de.caluga.test.mongo.suite.data.LazyLoadingObject;
+import de.caluga.test.mongo.suite.data.UncachedObject;
 import org.junit.Test;
 
 import java.util.ArrayList;
@@ -25,36 +31,36 @@ public class LazyLoadingTest extends MongoTest {
 
     @Test
     public void deRefTest() throws Exception {
-        MorphiumSingleton.get().clearCollection(LazyLoadingObject.class);
+        morphium.clearCollection(LazyLoadingObject.class);
         LazyLoadingObject lz = new LazyLoadingObject();
         UncachedObject o = new UncachedObject();
         o.setCounter(15);
         o.setValue("A uncached value");
-        MorphiumSingleton.get().store(o);
+        morphium.store(o);
 
         CachedObject co = new CachedObject();
         co.setCounter(22);
         co.setValue("A cached Value");
-        MorphiumSingleton.get().store(co);
+        morphium.store(co);
 
         waitForWrites();
 
         lz.setName("Lazy");
         lz.setLazyCached(co);
         lz.setLazyUncached(o);
-        MorphiumSingleton.get().store(lz);
+        morphium.store(lz);
 
         waitForWrites();
-        Query<LazyLoadingObject> q = MorphiumSingleton.get().createQueryFor(LazyLoadingObject.class);
+        Query<LazyLoadingObject> q = morphium.createQueryFor(LazyLoadingObject.class);
         q = q.f("name").eq("Lazy");
         LazyLoadingObject lzRead = q.get();
-        Object id = MorphiumSingleton.get().getId(lzRead);
+        Object id = morphium.getId(lzRead);
         assert (id != null);
         assert (lzRead.getLazyUncached().getCounter() == 15);
         assert (lzRead.getLazyUncached().getValue().equals("A uncached value"));
         co = lzRead.getLazyCached();
         Thread.sleep(1000);
-        id = MorphiumSingleton.get().getId(co);
+        id = morphium.getId(co);
         assert (co.getCounter() == 22);
         assert (id != null);
 
@@ -62,21 +68,21 @@ public class LazyLoadingTest extends MongoTest {
 
     @Test
     public void lazyLoadingTest() throws Exception {
-        Query<LazyLoadingObject> q = MorphiumSingleton.get().createQueryFor(LazyLoadingObject.class);
+        Query<LazyLoadingObject> q = morphium.createQueryFor(LazyLoadingObject.class);
         //clean
-        MorphiumSingleton.get().delete(q);
+        morphium.delete(q);
 
 
         LazyLoadingObject lz = new LazyLoadingObject();
         UncachedObject o = new UncachedObject();
         o.setCounter(15);
         o.setValue("A uncached value");
-        MorphiumSingleton.get().store(o);
+        morphium.store(o);
 
         CachedObject co = new CachedObject();
         co.setCounter(22);
         co.setValue("A cached Value");
-        MorphiumSingleton.get().store(co);
+        morphium.store(co);
 
         waitForWrites();
 
@@ -93,7 +99,7 @@ public class LazyLoadingTest extends MongoTest {
         }
         lz.setLazyLst(lst);
 
-        MorphiumSingleton.get().store(lz);
+        morphium.store(lz);
 
         waitForWrites();
 
@@ -106,26 +112,26 @@ public class LazyLoadingTest extends MongoTest {
         assert (lzRead != null) : "Not found????";
         log.info("LZRead: " + lzRead.getClass().getName());
         assert (!lzRead.getClass().getName().contains("$EnhancerByCGLIB$")) : "Lazy loader in Root-Object?";
-        Double rd = MorphiumSingleton.get().getStatistics().get(StatisticKeys.READS.name());
+        Double rd = morphium.getStatistics().get(StatisticKeys.READS.name());
         if (rd == null) rd = 0.0;
-        //Field f=MorphiumSingleton.get().getConfig().getMapper().getField(LazyLoadingObject.class,"lazy_uncached");
+        //Field f=morphium.getConfig().getMapper().getField(LazyLoadingObject.class,"lazy_uncached");
 
         int cnt = lzRead.getLazyUncached().getCounter();
         log.info("uncached: " + lzRead.getLazyUncached().getClass().getName());
         assert (lzRead.getLazyUncached().getClass().getName().contains("$EnhancerByCGLIB$")) : "Not lazy loader?";
 
         assert (cnt == o.getCounter()) : "Counter not equal";
-        double rd2 = MorphiumSingleton.get().getStatistics().get(StatisticKeys.READS.name());
+        double rd2 = morphium.getStatistics().get(StatisticKeys.READS.name());
         assert (rd2 > rd) : "No read?";
 
-        rd = MorphiumSingleton.get().getStatistics().get(StatisticKeys.READS.name());
-        double crd = MorphiumSingleton.get().getStatistics().get(StatisticKeys.CACHE_ENTRIES.name());
+        rd = morphium.getStatistics().get(StatisticKeys.READS.name());
+        double crd = morphium.getStatistics().get(StatisticKeys.CACHE_ENTRIES.name());
         cnt = lzRead.getLazyCached().getCounter();
         assert (cnt == co.getCounter()) : "Counter (cached) not equal";
-        rd2 = MorphiumSingleton.get().getStatistics().get(StatisticKeys.READS.name());
-        assert (MorphiumSingleton.get().getStatistics().get(StatisticKeys.CACHE_ENTRIES.name()) > crd) : "Not cached?";
+        rd2 = morphium.getStatistics().get(StatisticKeys.READS.name());
+        assert (morphium.getStatistics().get(StatisticKeys.CACHE_ENTRIES.name()) > crd) : "Not cached?";
         assert (rd2 > rd) : "No read?";
-        log.info("Cache Entries:" + MorphiumSingleton.get().getStatistics().get(StatisticKeys.CACHE_ENTRIES.name()));
+        log.info("Cache Entries:" + morphium.getStatistics().get(StatisticKeys.CACHE_ENTRIES.name()));
 
         assert (lzRead.getLazyLst().size() == lz.getLazyLst().size()) : "List sizes differ?!?!";
         for (UncachedObject uc : lzRead.getLazyLst()) {
@@ -139,9 +145,9 @@ public class LazyLoadingTest extends MongoTest {
 
     @Test
     public void lazyLoadingPerformanceTest() throws Exception {
-        Query<LazyLoadingObject> q = MorphiumSingleton.get().createQueryFor(LazyLoadingObject.class);
+        Query<LazyLoadingObject> q = morphium.createQueryFor(LazyLoadingObject.class);
         //clean
-        MorphiumSingleton.get().delete(q);
+        morphium.delete(q);
 
         log.info("Creating lots of lazyobjects");
         int numberOfObjects = 20;
@@ -150,12 +156,12 @@ public class LazyLoadingTest extends MongoTest {
             UncachedObject o = new UncachedObject();
             o.setCounter(i * 2 + 50);
             o.setValue("A uncached value " + i);
-            MorphiumSingleton.get().store(o);
+            morphium.store(o);
 
             CachedObject co = new CachedObject();
             co.setCounter(i + numberOfObjects);
             co.setValue("A cached Value " + i);
-            MorphiumSingleton.get().store(co);
+            morphium.store(co);
 
             waitForWrites();
 
@@ -163,7 +169,7 @@ public class LazyLoadingTest extends MongoTest {
             lz.setLazyCached(co);
             lz.setLazyUncached(o);
             log.info("Storing...");
-            MorphiumSingleton.get().store(lz);
+            morphium.store(lz);
             log.info("Stored object " + i + "/" + 20);
 
         }
@@ -175,31 +181,31 @@ public class LazyLoadingTest extends MongoTest {
             UncachedObject o = new UncachedObject();
             o.setCounter(i * 2 + 50);
             o.setValue("A uncached value " + i);
-            MorphiumSingleton.get().store(o);
+            morphium.store(o);
             co.setRef(o);
 
             CachedObject cmo = new CachedObject();
             cmo.setCounter(i + numberOfObjects);
             cmo.setValue("A cached Value " + i);
-            MorphiumSingleton.get().store(co);
+            morphium.store(co);
 
             waitForWrites();
 
             co.setcRef(cmo);
 
-            MorphiumSingleton.get().store(co);
+            morphium.store(co);
         }
         log.info("done");
 
         log.info("Reading in the not-lazy objects");
         long start = System.currentTimeMillis();
-        MorphiumSingleton.get().readAll(ComplexObject.class);
+        morphium.readAll(ComplexObject.class);
         long dur = System.currentTimeMillis() - start;
         log.info("Reading all took: " + dur + "ms ");
 
         log.info("now reading in the lazy objects");
         start = System.currentTimeMillis();
-        List<LazyLoadingObject> lzlst = MorphiumSingleton.get().readAll(LazyLoadingObject.class);
+        List<LazyLoadingObject> lzlst = morphium.readAll(LazyLoadingObject.class);
         dur = System.currentTimeMillis() - start;
         log.info("Reading all lazy took: " + dur + "ms (" + lzlst.size() + " objects)");
 
@@ -207,7 +213,7 @@ public class LazyLoadingTest extends MongoTest {
         start = System.currentTimeMillis();
 
         for (int i = 0; i < numberOfObjects; i++) {
-            Query<ComplexObject> coq = MorphiumSingleton.get().createQueryFor(ComplexObject.class);
+            Query<ComplexObject> coq = morphium.createQueryFor(ComplexObject.class);
             coq = coq.f("einText").eq("Txt " + i);
             coq.get(); //should only be one!!!
         }
@@ -219,7 +225,7 @@ public class LazyLoadingTest extends MongoTest {
         //Store them to prefent finalizer() to be called causing the lazy loading to take place
         List<LazyLoadingObject> storage = new ArrayList<>();
         for (int i = 0; i < numberOfObjects; i++) {
-            Query<LazyLoadingObject> coq = MorphiumSingleton.get().createQueryFor(LazyLoadingObject.class);
+            Query<LazyLoadingObject> coq = morphium.createQueryFor(LazyLoadingObject.class);
             coq = coq.f("name").eq("Lazy " + i);
 //            storage.add(coq.get()); //should only be one!!!
             coq.get();
@@ -231,21 +237,21 @@ public class LazyLoadingTest extends MongoTest {
 
     @Test
     public void deReferenceListenerTest() {
-        Query<LazyLoadingObject> q = MorphiumSingleton.get().createQueryFor(LazyLoadingObject.class);
+        Query<LazyLoadingObject> q = morphium.createQueryFor(LazyLoadingObject.class);
         //clean
-        MorphiumSingleton.get().delete(q);
+        morphium.delete(q);
 
         log.info("Creating...");
         LazyLoadingObject lz = new LazyLoadingObject();
         UncachedObject o = new UncachedObject();
         o.setCounter(11);
         o.setValue("A uncached value");
-        MorphiumSingleton.get().store(o);
+        morphium.store(o);
 
         CachedObject co = new CachedObject();
         co.setCounter(112);
         co.setValue("A cached Value");
-        MorphiumSingleton.get().store(co);
+        morphium.store(co);
 
         waitForWrites();
 
@@ -257,13 +263,14 @@ public class LazyLoadingTest extends MongoTest {
         List<UncachedObject> lst = new ArrayList<>();
         lst.add(o);
         lz.setLazyLst(lst);
-        MorphiumSingleton.get().store(lz);
+        morphium.store(lz);
         log.info("Stored object");
 
 
         DereferencingListener<Object, LazyLoadingObject, MorphiumId> refListener = new DereferencingListener<Object, LazyLoadingObject, MorphiumId>() {
             @Override
             public void wouldDereference(LazyLoadingObject entiyIncludingReference, String fieldInEntity, MorphiumId id, Class<Object> typeReferenced, boolean lazy) throws MorphiumAccessVetoException {
+                log.info("Would dereference...");
                 wouldDeref = true;
                 assert (lazy);
                 assert (!typeReferenced.equals(Object.class));
@@ -278,7 +285,7 @@ public class LazyLoadingTest extends MongoTest {
                 return referencedObject;
             }
         };
-        MorphiumSingleton.get().addDereferencingListener(refListener);
+        morphium.addDereferencingListener(refListener);
         lz = q.get();
         lz.getLazyCached().getCounter();
         assert (wouldDeref);
@@ -298,7 +305,7 @@ public class LazyLoadingTest extends MongoTest {
         lz.getLazyLst().get(0).getCounter();
         assert (wouldDeref);
         assert (didDeref);
-        MorphiumSingleton.get().removeDerrferencingListener(refListener);
+        morphium.removeDerrferencingListener(refListener);
 
 
     }
@@ -358,7 +365,7 @@ public class LazyLoadingTest extends MongoTest {
 
     @Test
     public void testLazyRef() {
-        Morphium m = MorphiumSingleton.get();
+        Morphium m = morphium;
         m.clearCollection(SimpleEntity.class);
 
         SimpleEntity s1 = new SimpleEntity(1);
