@@ -673,7 +673,7 @@ public class MorphiumConfig {
     public String toString() {
         updateAdditionals();
         try {
-            return getOmClass().newInstance().marshall(this).toString();
+            return Utils.toJsonString(getOmClass().newInstance().marshall(this));
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
