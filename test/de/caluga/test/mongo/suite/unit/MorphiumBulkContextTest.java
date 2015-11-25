@@ -252,7 +252,7 @@ public class MorphiumBulkContextTest extends MongoTest {
     @Test
     public void testAddPopRequest1() throws Exception {
         MorphiumBulkContext<UncachedObject> c = morphium.createBulkRequestContext(UncachedObject.class, false);
-        c.addPopRequest(morphium.createQueryFor(UncachedObject.class), "counter", false);
+        c.addPopRequest(morphium.createQueryFor(UncachedObject.class), "counter", false, false);
         assert (c.getNumberOfRequests() == 1);
     }
 
