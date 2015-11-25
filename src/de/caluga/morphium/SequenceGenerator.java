@@ -120,7 +120,7 @@ public class SequenceGenerator {
                 if (log.isDebugEnabled()) {
                     log.debug("overwriting lock for locked sequence " + name);
                 }
-                throw new RecursionException();
+                return getNextValue(1);
             }
             throw new RuntimeException("Getting lock on sequence " + name + " failed!");
         }
