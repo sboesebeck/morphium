@@ -812,7 +812,7 @@ public class AnnotationAndReflectionHelper {
                 Field f1 = on.getClass().getDeclaredField("CGLIB$CALLBACK_0");
                 f1.setAccessible(true);
                 Object delegate = f1.get(on);
-                Method m = delegate.getClass().getMethod("__getDeref");
+                Method m = delegate.getClass().getMethod("__getPureDeref");
                 on = m.invoke(delegate);
                 if (on == null) return;
             } catch (Exception e) {
