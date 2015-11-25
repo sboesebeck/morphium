@@ -118,131 +118,157 @@ public class MorphiumBulkContextTest extends MongoTest {
 
     @Test
     public void testAddSetRequest() throws Exception {
-
+        MorphiumBulkContext<UncachedObject> c = morphium.createBulkRequestContext(UncachedObject.class, false);
+        c.addSetRequest(morphium.createQueryFor(UncachedObject.class), "counter", 1, false, false);
+        assert (c.getNumberOfRequests() == 1);
     }
 
     @Test
     public void testAddUnSetRequest() throws Exception {
-
+        MorphiumBulkContext<UncachedObject> c = morphium.createBulkRequestContext(UncachedObject.class, false);
+        c.addUnsetRequest(morphium.createQueryFor(UncachedObject.class), "counter", 1, false, false);
+        assert (c.getNumberOfRequests() == 1);
     }
 
     @Test
     public void testAddSetRequest1() throws Exception {
-
+        MorphiumBulkContext<UncachedObject> c = morphium.createBulkRequestContext(UncachedObject.class, false);
+        c.addSetRequest(morphium.createQueryFor(UncachedObject.class), morphium.getMap("counter", 1), false, false);
+        assert (c.getNumberOfRequests() == 1);
     }
 
     @Test
     public void testAddUnsetRequest() throws Exception {
-
+        MorphiumBulkContext<UncachedObject> c = morphium.createBulkRequestContext(UncachedObject.class, false);
+        c.addUnsetRequest(morphium.createQueryFor(UncachedObject.class), "counter", 1, false, false);
+        assert (c.getNumberOfRequests() == 1);
     }
 
     @Test
     public void testAddIncRequest() throws Exception {
-
+        MorphiumBulkContext<UncachedObject> c = morphium.createBulkRequestContext(UncachedObject.class, false);
+        c.addIncRequest(morphium.createQueryFor(UncachedObject.class), "counter", 1, false, false);
+        assert (c.getNumberOfRequests() == 1);
     }
 
     @Test
     public void testAddIncRequest1() throws Exception {
-
+        MorphiumBulkContext<UncachedObject> c = morphium.createBulkRequestContext(UncachedObject.class, false);
+        c.addSetRequest(morphium.createQueryFor(UncachedObject.class), morphium.getMap("counter", 1), false, false);
+        assert (c.getNumberOfRequests() == 1);
     }
 
     @Test
     public void testAddCurrentDateRequest() throws Exception {
-
+        MorphiumBulkContext<UncachedObject> c = morphium.createBulkRequestContext(UncachedObject.class, false);
+        c.addCurrentDateRequest(morphium.createQueryFor(UncachedObject.class), false, false, "counter");
+        assert (c.getNumberOfRequests() == 1);
     }
 
     @Test
     public void testAddCurrentDateRequest1() throws Exception {
-
+        MorphiumBulkContext<UncachedObject> c = morphium.createBulkRequestContext(UncachedObject.class, false);
+        c.addCurrentDateRequest(new UncachedObject(), "counter", false);
+        assert (c.getNumberOfRequests() == 1);
     }
 
     @Test
     public void testAddMinRequest() throws Exception {
-
+        MorphiumBulkContext<UncachedObject> c = morphium.createBulkRequestContext(UncachedObject.class, false);
+        c.addMinRequest(morphium.createQueryFor(UncachedObject.class), "counter", 123, false, false);
+        assert (c.getNumberOfRequests() == 1);
     }
 
     @Test
     public void testAddMinRequest1() throws Exception {
-
+        MorphiumBulkContext<UncachedObject> c = morphium.createBulkRequestContext(UncachedObject.class, false);
+        c.addMinRequest(morphium.createQueryFor(UncachedObject.class), morphium.getMap("counter", 123), false, false);
+        assert (c.getNumberOfRequests() == 1);
     }
 
     @Test
     public void testAddMinRequest2() throws Exception {
-
+        MorphiumBulkContext<UncachedObject> c = morphium.createBulkRequestContext(UncachedObject.class, false);
+        c.addMinRequest(new UncachedObject(), "counter", 123, false);
+        assert (c.getNumberOfRequests() == 1);
     }
 
     @Test
     public void testAddMaxRequest() throws Exception {
-
+        MorphiumBulkContext<UncachedObject> c = morphium.createBulkRequestContext(UncachedObject.class, false);
+        c.addMaxRequest(morphium.createQueryFor(UncachedObject.class), "counter", 123, false, false);
+        assert (c.getNumberOfRequests() == 1);
     }
 
     @Test
     public void testAddMaxRequest1() throws Exception {
-
+        MorphiumBulkContext<UncachedObject> c = morphium.createBulkRequestContext(UncachedObject.class, false);
+        c.addMaxRequest(morphium.createQueryFor(UncachedObject.class), morphium.getMap("counter", 123), false, false);
+        assert (c.getNumberOfRequests() == 1);
     }
 
     @Test
     public void testAddMaxRequest2() throws Exception {
-
+        MorphiumBulkContext<UncachedObject> c = morphium.createBulkRequestContext(UncachedObject.class, false);
+        c.addMaxRequest(new UncachedObject(), "counter", 123, false);
+        assert (c.getNumberOfRequests() == 1);
     }
 
     @Test
     public void testAddRenameRequest() throws Exception {
-
+        MorphiumBulkContext<UncachedObject> c = morphium.createBulkRequestContext(UncachedObject.class, false);
+        c.addRenameRequest(morphium.createQueryFor(UncachedObject.class), "counter", "new_counter", false, false);
+        assert (c.getNumberOfRequests() == 1);
     }
 
     @Test
     public void testAddRenameRequest1() throws Exception {
-
+        MorphiumBulkContext<UncachedObject> c = morphium.createBulkRequestContext(UncachedObject.class, false);
+        c.addRenameRequest(new UncachedObject(), "counter", "new_counter", false);
+        assert (c.getNumberOfRequests() == 1);
     }
 
     @Test
     public void testAddMulRequest() throws Exception {
-
+        MorphiumBulkContext<UncachedObject> c = morphium.createBulkRequestContext(UncachedObject.class, false);
+        c.addMulRequest(morphium.createQueryFor(UncachedObject.class), "counter", 123, false, false);
+        assert (c.getNumberOfRequests() == 1);
     }
 
     @Test
     public void testAddMulRequest1() throws Exception {
-
+        MorphiumBulkContext<UncachedObject> c = morphium.createBulkRequestContext(UncachedObject.class, false);
+        c.addMulRequest(new UncachedObject(), "counter", 123, false);
+        assert (c.getNumberOfRequests() == 1);
     }
 
     @Test
     public void testAddPopRequest() throws Exception {
-
+        MorphiumBulkContext<UncachedObject> c = morphium.createBulkRequestContext(UncachedObject.class, false);
+        c.addPopRequest(new UncachedObject(), "counter", false);
+        assert (c.getNumberOfRequests() == 1);
     }
 
     @Test
     public void testAddPopRequest1() throws Exception {
-
+        MorphiumBulkContext<UncachedObject> c = morphium.createBulkRequestContext(UncachedObject.class, false);
+        c.addPopRequest(morphium.createQueryFor(UncachedObject.class), "counter", false);
+        assert (c.getNumberOfRequests() == 1);
     }
 
     @Test
     public void testAddPushRequest() throws Exception {
-
+        MorphiumBulkContext<UncachedObject> c = morphium.createBulkRequestContext(UncachedObject.class, false);
+        c.addPushRequest(new UncachedObject(), "counter", "value", false);
+        assert (c.getNumberOfRequests() == 1);
     }
 
     @Test
     public void testAddPushRequest1() throws Exception {
-
+        MorphiumBulkContext<UncachedObject> c = morphium.createBulkRequestContext(UncachedObject.class, false);
+        c.addPushRequest(morphium.createQueryFor(UncachedObject.class), "counter", "value", false, false);
+        assert (c.getNumberOfRequests() == 1);
     }
 
-    @Test
-    public void testAddSetRequest2() throws Exception {
 
-    }
-
-    @Test
-    public void testAddUnsetRequest1() throws Exception {
-
-    }
-
-    @Test
-    public void testAddIncRequest2() throws Exception {
-
-    }
-
-    @Test
-    public void testAddPushRequest2() throws Exception {
-
-    }
 }
