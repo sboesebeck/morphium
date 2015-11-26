@@ -4,6 +4,7 @@ package de.caluga.morphium.bulk;/**
 
 import de.caluga.morphium.Logger;
 import de.caluga.morphium.MorphiumStorageListener;
+import de.caluga.morphium.Utils;
 import de.caluga.morphium.async.AsyncOperationCallback;
 import de.caluga.morphium.async.AsyncOperationType;
 import de.caluga.morphium.driver.bulk.BulkRequestContext;
@@ -79,7 +80,7 @@ public class MorphiumBulkContext<T> {
         UpdateBulkRequest up = ctx.addUpdateBulkRequest();
         up.setQuery(query.toQueryObject());
         up.setUpsert(upsert);
-        up.setCmd(ctx.getMorphium().getMap(command, values));
+        up.setCmd(Utils.getMap(command, values));
         up.setMultiple(multiple);
 
         preEvents.add(new Runnable() {
@@ -209,7 +210,7 @@ public class MorphiumBulkContext<T> {
 
     public void addDeleteRequest(T entity) {
         DeleteBulkRequest del = ctx.addDeleteBulkRequest();
-        del.setQuery(ctx.getMorphium().getMap("_id", ctx.getMorphium().getARHelper().getId(entity)));
+        del.setQuery(Utils.getMap("_id", ctx.getMorphium().getARHelper().getId(entity)));
         del.setMultiple(false);
         preEvents.add(new Runnable() {
             @Override
@@ -261,6 +262,19 @@ public class MorphiumBulkContext<T> {
         up.setUpsert(upsert);
         up.setMultiple(multiple);
         up.setCmd(command);
+        preEvents.add(new Runnable() {
+            @Override
+            public void run() {
+                ctx.getMorphium().firePreUpdateEvent(query.getType(), MorphiumStorageListener.UpdateTypes.CUSTOM);
+            }
+        });
+
+        postEvents.add(new Runnable() {
+            @Override
+            public void run() {
+                ctx.getMorphium().firePostUpdateEvent(query.getType(), MorphiumStorageListener.UpdateTypes.CUSTOM);
+            }
+        });
     }
 
     public void addSetRequest(T obj, String field, Object value, boolean upsert) {
@@ -272,15 +286,15 @@ public class MorphiumBulkContext<T> {
     }
 
     public void addSetRequest(Query<T> query, String field, Object value, boolean upsert, boolean multiple) {
-        createUpdateRequest(query, "$set", ctx.getMorphium().getMap(field, value), upsert, multiple);
+        createUpdateRequest(query, "$set", Utils.getMap(field, value), upsert, multiple);
     }
 
     public void addUnsetRequest(Query<T> query, String field, Object value, boolean upsert, boolean multiple) {
-        createUpdateRequest(query, "$unset", ctx.getMorphium().getMap(field, value), upsert, multiple);
+        createUpdateRequest(query, "$unset", Utils.getMap(field, value), upsert, multiple);
     }
 
     public void addIncRequest(Query<T> query, String field, Number value, boolean upsert, boolean multiple) {
-        createUpdateRequest(query, "$inc", ctx.getMorphium().getMap(field, value), upsert, multiple);
+        createUpdateRequest(query, "$inc", Utils.getMap(field, value), upsert, multiple);
     }
 
     public void addIncRequest(T obj, String field, Number value, boolean upsert) {
@@ -300,7 +314,7 @@ public class MorphiumBulkContext<T> {
     }
 
     public void addMinRequest(Query<T> query, String field, Object value, boolean upsert, boolean multiple) {
-        createUpdateRequest(query, "$min", ctx.getMorphium().getMap(field, value), upsert, multiple);
+        createUpdateRequest(query, "$min", Utils.getMap(field, value), upsert, multiple);
     }
 
     public void addMinRequest(Query<T> query, Map<String, Object> toSet, boolean upsert, boolean multiple) {
@@ -312,7 +326,7 @@ public class MorphiumBulkContext<T> {
     }
 
     public void addMaxRequest(Query<T> query, String field, Object value, boolean upsert, boolean multiple) {
-        createUpdateRequest(query, "$max", ctx.getMorphium().getMap(field, value), upsert, multiple);
+        createUpdateRequest(query, "$max", Utils.getMap(field, value), upsert, multiple);
     }
 
     public void addMaxRequest(Query<T> query, Map<String, Object> toSet, boolean upsert, boolean multiple) {
@@ -324,7 +338,7 @@ public class MorphiumBulkContext<T> {
     }
 
     public void addRenameRequest(Query<T> query, String field, String newName, boolean upsert, boolean multiple) {
-        createUpdateRequest(query, "$rename", ctx.getMorphium().getMap(field, newName), upsert, multiple);
+        createUpdateRequest(query, "$rename", Utils.getMap(field, newName), upsert, multiple);
     }
 
     public void addRenameRequest(T obj, String field, String newName, boolean upsert) {
@@ -332,7 +346,7 @@ public class MorphiumBulkContext<T> {
     }
 
     public void addMulRequest(Query<T> query, String field, Number value, boolean upsert, boolean multiple) {
-        createUpdateRequest(query, "$mul", ctx.getMorphium().getMap(field, value), upsert, multiple);
+        createUpdateRequest(query, "$mul", Utils.getMap(field, value), upsert, multiple);
     }
 
     public void addMulRequest(T obj, String field, Number value, boolean upsert) {
@@ -340,7 +354,7 @@ public class MorphiumBulkContext<T> {
     }
 
     public void addPopRequest(Query<T> query, String field, boolean upsert, boolean multiple) {
-        createUpdateRequest(query, "$pop", ctx.getMorphium().getMap(field, 1), upsert, multiple);
+        createUpdateRequest(query, "$pop", Utils.getMap(field, 1), upsert, multiple);
     }
 
     public void addPopRequest(T obj, String field, boolean upsert) {
@@ -348,7 +362,7 @@ public class MorphiumBulkContext<T> {
     }
 
     public void addPushRequest(Query<T> query, String field, Object value, boolean upsert, boolean multiple) {
-        createUpdateRequest(query, "$push", ctx.getMorphium().getMap(field, value), upsert, multiple);
+        createUpdateRequest(query, "$push", Utils.getMap(field, value), upsert, multiple);
     }
 
     public void addPushRequest(T obj, String field, Object value, boolean upsert) {
@@ -369,7 +383,7 @@ public class MorphiumBulkContext<T> {
     }
 
     public void addPushRequest(Query<T> query, String field, List<Object> value, boolean upsert, boolean multiple) {
-        createUpdateRequest(query, "$push", ctx.getMorphium().getMap(field, value), upsert, multiple);
+        createUpdateRequest(query, "$push", Utils.getMap(field, value), upsert, multiple);
     }
 
 

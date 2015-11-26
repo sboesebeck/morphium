@@ -382,8 +382,8 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                                 //single update
                                 //                WriteResult result = null;
                                 cnt++;
-                                //                up.updateOne(morphium.getMap("$set", marshall));
-                                //                BulkUpdateRequestBuilder up = bulkWriteOperation.find(morphium.getMap("_id", morphium.getARHelper().getId(record))).upsert();
+                                //                up.updateOne(Utils.getMap("$set", marshall));
+                                //                BulkUpdateRequestBuilder up = bulkWriteOperation.find(Utils.getMap("_id", morphium.getARHelper().getId(record))).upsert();
 
                                 Map<String, Object> query = new HashMap<>();
                                 query.put("_id", morphium.getARHelper().getId(record));
@@ -528,9 +528,9 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
 
                                     UpdateBulkRequest up = bulkWriteOperation.addUpdateBulkRequest();
                                     Object id = morphium.getARHelper().getId(record);
-                                    up.setQuery(morphium.getMap("_id", id));
+                                    up.setQuery(Utils.getMap("_id", id));
                                     up.setUpsert(true);
-                                    up.setCmd(morphium.getMap("$set", marshall));
+                                    up.setCmd(Utils.getMap("$set", marshall));
                                 }
                             }
 
@@ -702,7 +702,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                 }
                 String fieldName = morphium.getARHelper().getFieldName(cls, field);
 
-                Map<String, Object> update = morphium.getMap("$set", morphium.getMap(fieldName, value.getClass().isEnum() ? value.toString() : value));
+                Map<String, Object> update = Utils.getMap("$set", Utils.getMap(fieldName, value.getClass().isEnum() ? value.toString() : value));
                 List<String> lastChangeFields = morphium.getARHelper().getFields(cls, LastChange.class);
                 if (lastChangeFields != null && lastChangeFields.size() != 0) {
                     for (String fL : lastChangeFields) {
@@ -866,7 +866,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                 }
 
 
-                update = morphium.getMap("$set", update);
+                update = Utils.getMap("$set", update);
                 WriteConcern wc = morphium.getWriteConcernForClass(type);
                 long start = System.currentTimeMillis();
                 try {
@@ -1061,7 +1061,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                 }
                 String fieldName = morphium.getARHelper().getFieldName(cls, field);
 
-                Map<String, Object> update = morphium.getMap("$inc", morphium.getMap(fieldName, amount));
+                Map<String, Object> update = Utils.getMap("$inc", Utils.getMap(fieldName, amount));
                 WriteConcern wc = morphium.getWriteConcernForClass(toInc.getClass());
 
                 long start = System.currentTimeMillis();
@@ -1176,7 +1176,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                 morphium.firePreUpdateEvent(morphium.getARHelper().getRealClass(cls), MorphiumStorageListener.UpdateTypes.INC);
                 String coll = query.getCollectionName();
                 String fieldName = morphium.getARHelper().getFieldName(cls, field);
-                Map<String, Object> update = morphium.getMap("$inc", morphium.getMap(fieldName, amount));
+                Map<String, Object> update = Utils.getMap("$inc", Utils.getMap(fieldName, amount));
                 Map<String, Object> qobj = query.toQueryObject();
                 if (upsert) {
                     qobj = morphium.simplifyQueryObject(qobj);
@@ -1236,7 +1236,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                     String fieldName = morphium.getARHelper().getFieldName(cls, ef.getKey());
                     toSet.put(fieldName, marshallIfNecessary(ef.getValue()));
                 }
-                Map<String, Object> update = morphium.getMap("$set", toSet);
+                Map<String, Object> update = Utils.getMap("$set", toSet);
                 Map<String, Object> qobj = query.toQueryObject();
                 if (upsert) {
                     qobj = morphium.simplifyQueryObject(qobj);
@@ -1325,7 +1325,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                 for (String f : fields) {
                     toSet.put(f, ""); //value is ignored
                 }
-                Map<String, Object> update = morphium.getMap("$unset", toSet);
+                Map<String, Object> update = Utils.getMap("$unset", toSet);
                 WriteConcern wc = morphium.getWriteConcernForClass(cls);
                 long start = System.currentTimeMillis();
                 try {
@@ -1384,7 +1384,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                 }
                 String fieldName = morphium.getARHelper().getFieldName(cls, field);
 
-                Map<String, Object> update = morphium.getMap("$unset", morphium.getMap(fieldName, 1));
+                Map<String, Object> update = Utils.getMap("$unset", Utils.getMap(fieldName, 1));
                 WriteConcern wc = morphium.getWriteConcernForClass(toSet.getClass());
 
                 long start = System.currentTimeMillis();
@@ -1397,7 +1397,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
 
                     List<String> lastChangeFields = morphium.getARHelper().getFields(cls, LastChange.class);
                     if (lastChangeFields != null && lastChangeFields.size() != 0) {
-                        update = morphium.getMap("$set", new HashMap<String, Object>());
+                        update = Utils.getMap("$set", new HashMap<String, Object>());
                         for (String fL : lastChangeFields) {
                             Field fld = morphium.getARHelper().getField(cls, fL);
                             if (fld.getType().equals(Date.class)) {
@@ -1463,7 +1463,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                 }
                 String fieldName = morphium.getARHelper().getFieldName(cls, field);
 
-                Map<String, Object> update = morphium.getMap("$pop", morphium.getMap(fieldName, first ? -1 : 1));
+                Map<String, Object> update = Utils.getMap("$pop", Utils.getMap(fieldName, first ? -1 : 1));
                 WriteConcern wc = morphium.getWriteConcernForClass(obj.getClass());
 
                 long start = System.currentTimeMillis();
@@ -1476,7 +1476,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
 
                     List<String> lastChangeFields = morphium.getARHelper().getFields(cls, LastChange.class);
                     if (lastChangeFields != null && lastChangeFields.size() != 0) {
-                        update = morphium.getMap("$set", new HashMap<String, Object>());
+                        update = Utils.getMap("$set", new HashMap<String, Object>());
                         for (String fL : lastChangeFields) {
                             Field fld = morphium.getARHelper().getField(cls, fL);
                             if (fld.getType().equals(Date.class)) {
@@ -1541,8 +1541,8 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                 Object v = marshallIfNecessary(value);
 
                 String fieldName = morphium.getARHelper().getFieldName(cls, field);
-                Map<String, Object> set = morphium.getMap(fieldName, v.getClass().isEnum() ? v.toString() : v);
-                Map<String, Object> update = morphium.getMap(push ? "$push" : "$pull", set);
+                Map<String, Object> set = Utils.getMap(fieldName, v.getClass().isEnum() ? v.toString() : v);
+                Map<String, Object> update = Utils.getMap(push ? "$push" : "$pull", set);
 
                 long start = System.currentTimeMillis();
 
@@ -1697,8 +1697,8 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                     }
 
                     field = morphium.getARHelper().getFieldName(cls, field);
-                    Map<String, Object> set = morphium.getMap(field, value);
-                    Map<String, Object> update = morphium.getMap(push ? "$pushAll" : "$pullAll", set);
+                    Map<String, Object> set = Utils.getMap(field, value);
+                    Map<String, Object> update = Utils.getMap(push ? "$pushAll" : "$pullAll", set);
 
                     List<String> lastChangeFields = morphium.getARHelper().getFields(cls, LastChange.class);
                     if (lastChangeFields != null && lastChangeFields.size() != 0) {

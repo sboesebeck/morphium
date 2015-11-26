@@ -191,7 +191,7 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
                     up.setUpsert(false);
                     up.setQuery((morphium.createQueryFor(o.getClass()).f(morphium.getARHelper().getIdFieldName(o)).eq(morphium.getARHelper().getId(o))).toQueryObject());
                     Map<String, Object> cmd = new HashMap<String, Object>();
-                    up.setCmd(morphium.getMap("$set", cmd));
+                    up.setCmd(Utils.getMap("$set", cmd));
                     for (String f : morphium.getARHelper().getFields(o.getClass())) {
                         try {
                             cmd.put(morphium.getARHelper().getFieldName(o.getClass(), f), morphium.getMapper().marshallIfNecessary(morphium.getARHelper().getField(o.getClass(), f).get(o)));
@@ -270,7 +270,7 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
                 r.setUpsert(false);
                 r.setQuery(query.toQueryObject());
                 Map<String, Object> set = new HashMap<String, Object>();
-                r.setCmd(morphium.getMap("$set", set));
+                r.setCmd(Utils.getMap("$set", set));
                 for (String f : flds) {
                     String fld = morphium.getARHelper().getFieldName(query.getType(), f);
                     set.put(fld, morphium.getARHelper().getValue(ent, f));
@@ -302,7 +302,7 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
                 wr.setQuery(query.toQueryObject());
                 morphium.getCache().clearCacheIfNecessary(toSet.getClass());
                 String fld = morphium.getARHelper().getFieldName(query.getType(), field);
-                wr.setCmd(morphium.getMap("$set", morphium.getMap(fld, value)));
+                wr.setCmd(Utils.getMap("$set", Utils.getMap(fld, value)));
                 morphium.firePostUpdateEvent(toSet.getClass(), MorphiumStorageListener.UpdateTypes.SET);
             }
 
@@ -329,7 +329,7 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
                 morphium.getCache().clearCacheIfNecessary(query.getType());
                 wr.setQuery(query.toQueryObject());
                 Map<String, Object> set = new HashMap<String, Object>();
-                wr.setCmd(morphium.getMap("$set", set));
+                wr.setCmd(Utils.getMap("$set", set));
                 for (Map.Entry kv : values.entrySet()) {
                     String fld = morphium.getARHelper().getFieldName(query.getType(), kv.getKey().toString());
                     set.put(fld, kv.getValue());
@@ -356,7 +356,7 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
                 wr.setQuery(query.toQueryObject());
                 wr.setUpsert(upsert);
                 Map<String, Object> inc = new HashMap<String, Object>();
-                wr.setCmd(morphium.getMap("$inc", inc));
+                wr.setCmd(Utils.getMap("$inc", inc));
                 morphium.getCache().clearCacheIfNecessary(query.getType());
                 for (Map.Entry kv : fieldsToInc.entrySet()) {
                     String fld = morphium.getARHelper().getFieldName(query.getType(), kv.getKey().toString());
@@ -383,7 +383,7 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
 
                 UpdateBulkRequest wr = ctx.addUpdateBulkRequest();
                 String fieldName = morphium.getARHelper().getFieldName(query.getType(), field);
-                wr.setCmd(morphium.getMap("$inc", morphium.getMap(fieldName, amount)));
+                wr.setCmd(Utils.getMap("$inc", Utils.getMap(fieldName, amount)));
                 wr.setUpsert(upsert);
                 wr.setMultiple(multiple);
                 wr.setQuery(query.toQueryObject());
@@ -414,7 +414,7 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
                 q.setCollectionName(collection);
                 UpdateBulkRequest wr = ctx.addUpdateBulkRequest();
                 String fieldName = morphium.getARHelper().getFieldName(obj.getClass(), field);
-                wr.setCmd(morphium.getMap("$inc", morphium.getMap(fieldName, amount)));
+                wr.setCmd(Utils.getMap("$inc", Utils.getMap(fieldName, amount)));
                 wr.setUpsert(false);
                 wr.setMultiple(false);
                 wr.setQuery(q.toQueryObject());
@@ -447,7 +447,7 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
                 wr.setMultiple(false);
                 morphium.getCache().clearCacheIfNecessary(obj.getClass());
                 String fld = morphium.getARHelper().getFieldName(obj.getClass(), field);
-                wr.setCmd(morphium.getMap("$pop", morphium.getMap(fld, first)));
+                wr.setCmd(Utils.getMap("$pop", Utils.getMap(fld, first)));
                 morphium.firePostUpdateEvent(obj.getClass(), MorphiumStorageListener.UpdateTypes.POP);
             }
 
@@ -629,11 +629,11 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
                 String fld = morphium.getARHelper().getFieldName(q.getType(), field);
                 if (push) {
                     morphium.firePreUpdateEvent(q.getType(), MorphiumStorageListener.UpdateTypes.PUSH);
-                    r.setCmd(morphium.getMap("$push", morphium.getMap(field, value)));
+                    r.setCmd(Utils.getMap("$push", Utils.getMap(field, value)));
                     morphium.firePostUpdateEvent(q.getType(), MorphiumStorageListener.UpdateTypes.PUSH);
                 } else {
                     morphium.firePreUpdateEvent(q.getType(), MorphiumStorageListener.UpdateTypes.PULL);
-                    r.setCmd(morphium.getMap("$pull", morphium.getMap(field, value)));
+                    r.setCmd(Utils.getMap("$pull", Utils.getMap(field, value)));
                     morphium.firePostUpdateEvent(q.getType(), MorphiumStorageListener.UpdateTypes.PULL);
                 }
 //                ctx.addRequest(r);
@@ -668,7 +668,7 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
                     r.setQuery(q.toQueryObject());
                     r.setUpsert(upsert);
                     r.setMultiple(multiple);
-                    r.setCmd(morphium.getMap("$push", morphium.getMap(fld, o)));
+                    r.setCmd(Utils.getMap("$push", Utils.getMap(fld, o)));
 //                        ctx.addRequest(r);
                 }
                 if (push) {
@@ -698,7 +698,7 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
                 wr.setMultiple(false);
                 wr.setUpsert(false);
                 String fld = morphium.getARHelper().getFieldName(obj.getClass(), field);
-                wr.setCmd(morphium.getMap("$unset", morphium.getMap(fld, "")));
+                wr.setCmd(Utils.getMap("$unset", Utils.getMap(fld, "")));
                 morphium.getCache().clearCacheIfNecessary(obj.getClass());
 //                ctx.addRequest(wr);
             }
@@ -723,7 +723,7 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
                 wr.setMultiple(false);
                 wr.setUpsert(false);
                 String fld = morphium.getARHelper().getFieldName(query.getType(), field);
-                wr.setCmd(morphium.getMap("$unset", morphium.getMap(fld, "")));
+                wr.setCmd(Utils.getMap("$unset", Utils.getMap(fld, "")));
 //                ctx.addRequest(wr);
                 morphium.getCache().clearCacheIfNecessary(query.getType());
                 morphium.firePostUpdateEvent(query.getType(), MorphiumStorageListener.UpdateTypes.UNSET);
@@ -748,7 +748,7 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
                 wr.setMultiple(false);
                 wr.setUpsert(false);
                 Map<String, Object> unset = new HashMap<>();
-                wr.setCmd(morphium.getMap("$unset", unset));
+                wr.setCmd(Utils.getMap("$unset", unset));
 //                ctx.addRequest(wr);
 
 //                BulkRequestWrapper wr = ctx.addFind(query);

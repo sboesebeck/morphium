@@ -16,7 +16,7 @@ public class SkipLimitTest extends MongoTest {
     public void skipTest() throws Exception {
         createUncachedObjects(100);
         UncachedObject o = morphium.createQueryFor(UncachedObject.class).f("counter").lt(100).skip(10).sort("counter").get();
-        assert (o.getCounter() == 11);
+        assert (o.getCounter() == 11) : "Counter is " + o.getCounter();
 
     }
 

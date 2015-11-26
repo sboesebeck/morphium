@@ -14,7 +14,7 @@ import java.util.Map;
  * User: Stephan Bösebeck
  * Date: 09.05.12
  * Time: 10:46
- * <p/>
+ * <p>
  */
 public class UpdateTest extends MongoTest {
     @Test
@@ -94,6 +94,7 @@ public class UpdateTest extends MongoTest {
         q = q.f("value").eq("Uncached " + 5);
         UncachedObject uc = q.get();
         morphium.dec(uc, "counter", 1);
+        Thread.sleep(300);
 
         assert (uc.getCounter() == 4) : "Counter is not correct: " + uc.getCounter();
 
@@ -101,7 +102,7 @@ public class UpdateTest extends MongoTest {
         q = morphium.createQueryFor(UncachedObject.class);
         q = q.f("counter").gte(40).f("counter").lte(55).sort("counter");
         morphium.dec(q, "counter", 40);
-
+        Thread.sleep(300);
         uc = q.get();
         assert (uc.getCounter() == 41) : "Counter is wrong: " + uc.getCounter();
 
@@ -109,6 +110,7 @@ public class UpdateTest extends MongoTest {
         q = morphium.createQueryFor(UncachedObject.class);
         q = q.f("counter").gt(40).f("counter").lte(55);
         morphium.dec(q, "counter", 40, false, true);
+        Thread.sleep(300);
 
         q = morphium.createQueryFor(UncachedObject.class);
         q = q.f("counter").gt(0).f("counter").lte(55);
@@ -128,10 +130,11 @@ public class UpdateTest extends MongoTest {
             o.setValue("Uncached " + i);
             morphium.store(o);
         }
-
+        Thread.sleep(100);
         Query<UncachedObject> q = morphium.createQueryFor(UncachedObject.class);
         q = q.f("value").eq("unexistent");
         morphium.set(q, "counter", 999, true, false);
+        Thread.sleep(100);
         UncachedObject uc = q.get(); //should now work
 
         assert (uc != null) : "Not found?!?!?";
@@ -157,6 +160,7 @@ public class UpdateTest extends MongoTest {
     public enum Value {
         v1, v2, v3
     }
+
     @Test
     public void pushTest() throws Exception {
         morphium.dropCollection(ListContainer.class);
@@ -211,10 +215,12 @@ public class UpdateTest extends MongoTest {
         createUncachedObjects(100);
         Query<UncachedObject> q = morphium.createQueryFor(UncachedObject.class).f("counter").eq(50);
         morphium.unsetQ(q, "value");
+        Thread.sleep(300);
         UncachedObject uc = q.get();
         assert (uc.getValue() == null);
         q = morphium.createQueryFor(UncachedObject.class).f("counter").gt(90);
         morphium.unsetQ(q, false, "value");
+        Thread.sleep(300);
         List<UncachedObject> lst = q.asList();
         boolean found = false;
         for (UncachedObject u : lst) {
@@ -225,6 +231,7 @@ public class UpdateTest extends MongoTest {
         }
         assert (found);
         morphium.unsetQ(q, true, "binary_data", "bool_data", "value");
+        Thread.sleep(300);
         lst = q.asList();
         for (UncachedObject u : lst) {
             assert (u.getValue() == null);

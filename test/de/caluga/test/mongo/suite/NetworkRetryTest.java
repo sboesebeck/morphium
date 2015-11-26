@@ -1,5 +1,6 @@
 package de.caluga.test.mongo.suite;
 
+import de.caluga.morphium.Utils;
 import de.caluga.morphium.query.Query;
 import de.caluga.test.mongo.suite.data.UncachedObject;
 import org.junit.Test;
@@ -63,7 +64,7 @@ public class NetworkRetryTest extends MongoTest {
         log.info("Now disconnect some mongo nodes, please");
         for (int i = 0; i < 1000; i++) {
             Query<UncachedObject> q = morphium.createQueryFor(UncachedObject.class);
-            Map<String, Object> o = morphium.getMap("counter", i + 1);
+            Map<String, Object> o = Utils.getMap("counter", i + 1);
             List<UncachedObject> lst = q.complexQuery(o);
             log.info("read " + i);
             assert (lst.get(0).getCounter() == i + 1);
