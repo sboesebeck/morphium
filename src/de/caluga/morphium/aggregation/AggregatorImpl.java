@@ -2,6 +2,7 @@ package de.caluga.morphium.aggregation;
 
 import com.mongodb.BasicDBObject;
 import de.caluga.morphium.Morphium;
+import de.caluga.morphium.Utils;
 import de.caluga.morphium.async.AsyncOperationCallback;
 import de.caluga.morphium.async.AsyncOperationType;
 import de.caluga.morphium.query.Query;
@@ -85,14 +86,14 @@ public class AggregatorImpl<T, R> implements Aggregator<T, R> {
 
     @Override
     public Aggregator<T, R> project(Map<String, Object> m) {
-        Map<String, Object> o = morphium.getMap("$project", m);
+        Map<String, Object> o = Utils.getMap("$project", m);
         params.add(o);
         return this;
     }
 
     @Override
     public Aggregator<T, R> match(Query<T> q) {
-        Map<String, Object> o = morphium.getMap("$match", q.toQueryObject());
+        Map<String, Object> o = Utils.getMap("$match", q.toQueryObject());
         collectionName = q.getCollectionName();
         params.add(o);
         return this;
@@ -100,21 +101,21 @@ public class AggregatorImpl<T, R> implements Aggregator<T, R> {
 
     @Override
     public Aggregator<T, R> limit(int num) {
-        Map<String, Object> o = morphium.getMap("$limit", num);
+        Map<String, Object> o = Utils.getMap("$limit", num);
         params.add(o);
         return this;
     }
 
     @Override
     public Aggregator<T, R> skip(int num) {
-        Map<String, Object> o = morphium.getMap("$skip", num);
+        Map<String, Object> o = Utils.getMap("$skip", num);
         params.add(o);
         return this;
     }
 
     @Override
     public Aggregator<T, R> unwind(String listField) {
-        Map<String, Object> o = morphium.getMap("$unwind", listField);
+        Map<String, Object> o = Utils.getMap("$unwind", listField);
         params.add(o);
         return this;
     }
@@ -146,7 +147,7 @@ public class AggregatorImpl<T, R> implements Aggregator<T, R> {
 
     @Override
     public Aggregator<T, R> sort(Map<String, Integer> sort) {
-        Map<String, Object> o = morphium.getMap("$sort", new BasicDBObject(sort));
+        Map<String, Object> o = Utils.getMap("$sort", new BasicDBObject(sort));
         params.add(o);
         return this;
     }

@@ -1853,17 +1853,6 @@ public class Morphium {
         return lst;
     }
 
-    public Map<String, Object> getMap(String key, Object value) {
-        HashMap<String, Object> ret = new HashMap<>();
-        ret.put(key, value);
-        return ret;
-    }
-
-    public Map<String, Integer> getIntMap(String key, Integer value) {
-        HashMap<String, Integer> ret = new HashMap<>();
-        ret.put(key, value);
-        return ret;
-    }
 
     public void ensureIndex(Class<?> cls, String... fldStr) {
         ensureIndex(cls, null, fldStr);

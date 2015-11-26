@@ -3,6 +3,7 @@ package de.caluga.morphium;/**
  */
 
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.Map;
 
 /**
@@ -23,6 +24,8 @@ public class Utils {
                 comma = true;
                 b.append(toJsonString(obj));
             }
+            b.append("]");
+            return b.toString();
         } else if (!(o instanceof Map)) {
             return o.toString();
         }
@@ -59,4 +62,17 @@ public class Utils {
         b.append(" } ");
         return b.toString();
     }
+
+    public static Map<String, Object> getMap(String key, Object value) {
+        HashMap<String, Object> ret = new HashMap<>();
+        ret.put(key, value);
+        return ret;
+    }
+
+    public static Map<String, Integer> getIntMap(String key, Integer value) {
+        HashMap<String, Integer> ret = new HashMap<>();
+        ret.put(key, value);
+        return ret;
+    }
+
 }

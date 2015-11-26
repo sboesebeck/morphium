@@ -181,7 +181,7 @@ public class ObjectMapperImpl implements ObjectMapper {
         if (hasCustomMapper(c)) {
             Object ret = customMapper.get(c).marshall(o);
             if (!(ret instanceof Map)) {
-                return morphium.getMap("value", ret);
+                return Utils.getMap("value", ret);
             }
             return (Map<String, Object>) ret;
         }
