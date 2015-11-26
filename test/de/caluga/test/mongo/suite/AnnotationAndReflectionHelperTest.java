@@ -1,7 +1,10 @@
 package de.caluga.test.mongo.suite;
 
 import de.caluga.morphium.AnnotationAndReflectionHelper;
+import de.caluga.morphium.Morphium;
 import de.caluga.morphium.annotations.Entity;
+import de.caluga.morphium.annotations.Id;
+import de.caluga.morphium.annotations.Index;
 import de.caluga.morphium.annotations.caching.Cache;
 import de.caluga.morphium.driver.bson.MorphiumId;
 import de.caluga.test.mongo.suite.data.CachedObject;
@@ -126,81 +129,42 @@ public class AnnotationAndReflectionHelperTest {
 
     @Test
     public void testGetFields() throws Exception {
-
+        assert (arHelper.getFields(UncachedObject.class, Id.class).size() == 1);
+        assert (arHelper.getFields(UncachedObject.class, Index.class).size() == 2);
     }
 
     @Test
     public void testGetRealObject() throws Exception {
-
+        Morphium m = new Morphium();
+        Object pr = m.createPartiallyUpdateableEntity(new UncachedObject());
+        assert (arHelper.getRealObject(pr).getClass().equals(UncachedObject.class));
     }
 
     @Test
     public void testGetTypeOfField() throws Exception {
-
+        assert (arHelper.getTypeOfField(UncachedObject.class, "value").equals(String.class));
     }
 
     @Test
     public void testStoresLastChange() throws Exception {
-
+        assert (!arHelper.storesLastChange(UncachedObject.class));
+        assert (arHelper.storesLastChange(AutoVariableTest.LCTest.class));
     }
 
     @Test
     public void testStoresLastAccess() throws Exception {
-
+        assert (!arHelper.storesLastAccess(UncachedObject.class));
+        assert (arHelper.storesLastAccess(AutoVariableTest.LATest.class));
     }
 
     @Test
     public void testStoresCreation() throws Exception {
-
-    }
-
-    @Test
-    public void testGetLongValue() throws Exception {
-
-    }
-
-    @Test
-    public void testGetStringValue() throws Exception {
-
-    }
-
-    @Test
-    public void testGetDateValue() throws Exception {
-
-    }
-
-    @Test
-    public void testGetDoubleValue() throws Exception {
-
+        assert (!arHelper.storesCreation(UncachedObject.class));
+        assert (arHelper.storesCreation(AutoVariableTest.CTimeTest.class));
     }
 
     @Test
     public void testGetAllAnnotationsFromHierachy() throws Exception {
-
-    }
-
-    @Test
-    public void testGetLastChangeField() throws Exception {
-
-    }
-
-    @Test
-    public void testGetLastAccessField() throws Exception {
-
-    }
-
-    @Test
-    public void testGetCreationTimeField() throws Exception {
-
-    }
-
-    @Test
-    public void testCallLifecycleMethod() throws Exception {
-
-    }
-
-    @Test
-    public void testIsAsyncWrite() throws Exception {
-
+        assert (arHelper.getAllAnnotationsFromHierachy(UncachedObject.class).size() == 4) : "wrong: " + arHelper.getAllAnnotationsFromHierachy(UncachedObject.class).size();
     }
 }
