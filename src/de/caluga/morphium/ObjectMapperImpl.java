@@ -15,7 +15,6 @@ import java.io.*;
 import java.lang.reflect.*;
 import java.math.BigInteger;
 import java.util.*;
-import java.util.concurrent.CopyOnWriteArrayList;
 
 /**
  * User: Stpehan Bösebeck
@@ -26,7 +25,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
 @SuppressWarnings({"ConstantConditions", "MismatchedQueryAndUpdateOfCollection", "unchecked", "MismatchedReadAndWriteOfArray"})
 public class ObjectMapperImpl implements ObjectMapper {
     private static Logger log = new Logger(ObjectMapperImpl.class);
-    private volatile HashMap<Class<?>, NameProvider> nameProviders;
+    private volatile Map<Class<?>, NameProvider> nameProviders;
     private volatile AnnotationAndReflectionHelper annotationHelper = new AnnotationAndReflectionHelper(true);
     private Morphium morphium;
     private JSONParser jsonParser = new JSONParser();
@@ -38,8 +37,8 @@ public class ObjectMapperImpl implements ObjectMapper {
 
     public ObjectMapperImpl() {
 
-        nameProviders = new HashMap<>();
-        mongoTypes = new CopyOnWriteArrayList<>();
+        nameProviders = new Hashtable<>();
+        mongoTypes = new Vector<>();
 
         mongoTypes.add(String.class);
         mongoTypes.add(Character.class);
@@ -50,7 +49,7 @@ public class ObjectMapperImpl implements ObjectMapper {
         mongoTypes.add(Date.class);
         mongoTypes.add(Boolean.class);
         mongoTypes.add(Byte.class);
-        customMapper = new HashMap<>();
+        customMapper = new Hashtable<>();
         customMapper.put(BigInteger.class, new BigIntegerTypeMapper());
 
 
@@ -85,9 +84,7 @@ public class ObjectMapperImpl implements ObjectMapper {
      * @param np  - the NameProvider for that class
      */
     public void setNameProviderForClass(Class<?> cls, NameProvider np) {
-        HashMap<Class<?>, NameProvider> nps = (HashMap) ((HashMap) nameProviders).clone();
-        nps.put(cls, np);
-        nameProviders = nps;
+        nameProviders.put(cls, np);
     }
 
     public NameProvider getNameProviderForClass(Class<?> cls) {
