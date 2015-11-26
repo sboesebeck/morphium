@@ -109,7 +109,7 @@ public class SequenceGenerator {
         Sequence sequence = seq.get();
         if (recLevel > 30) {
             log.error("Could not get lock on Sequence " + name + " Checking timestamp...");
-            if (System.currentTimeMillis() - sequence.getLockedAt() > 1000 * 10) {
+            if (System.currentTimeMillis() - sequence.getLockedAt() > 1000 * 5) {
                 log.error("Was locked for more than 30s - assuming error, resetting lock");
                 sequence.setLockedBy(null);
                 morphium.store(sequence);

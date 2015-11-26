@@ -1,5 +1,6 @@
 package de.caluga.test.mongo.suite;
 
+import de.caluga.morphium.Utils;
 import de.caluga.morphium.annotations.ReadOnly;
 import de.caluga.morphium.annotations.WriteOnly;
 import de.caluga.morphium.query.Query;
@@ -46,7 +47,7 @@ public class FieldListTest extends MongoTest {
 
 
         List<Map<String, Object>> lst = morphium.getDriver().find(morphium.getConfig().getDatabase(), "write_only_object",
-                morphium.getMap("_id", wo.getMorphiumId()), null, null, 0, 1000, 1000, null, null);
+                Utils.getMap("_id", wo.getMorphiumId()), null, null, 0, 1000, 1000, null, null);
         Map<String, Object> obj = lst.get(0);
         assert (obj.get("write_only_value").equals("write only"));
 

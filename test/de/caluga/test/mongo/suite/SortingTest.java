@@ -37,7 +37,7 @@ public class SortingTest extends MongoTest {
         log.info("Sending bulk write...");
         morphium.storeList(lst);
         log.info("Wrote it... waiting for batch to be stored");
-        while (morphium.createQueryFor(UncachedObject.class).countAll() < 5000) {
+        while (morphium.createQueryFor(UncachedObject.class).countAll() < 5002) {
             log.info("Waiting...");
             try {
                 Thread.sleep(500);
@@ -130,7 +130,7 @@ public class SortingTest extends MongoTest {
         q = q.sort("counter");
         q.limit(1);
         List<UncachedObject> lst = q.asList();
-        assert (lst.size() == 1) : "List sizer wrong: " + lst.size();
+        assert (lst.size() == 1) : "List size wrong: " + lst.size();
         assert (lst.get(0).getCounter() == -1) : "Smalest value wrong, should be -1, is " + lst.get(0).getCounter();
 
         q = morphium.createQueryFor(UncachedObject.class);
