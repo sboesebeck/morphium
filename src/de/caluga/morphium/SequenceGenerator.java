@@ -109,12 +109,12 @@ public class SequenceGenerator {
         Sequence sequence = seq.get();
         if (recLevel > 30) {
             log.error("Could not get lock on Sequence " + name + " Checking timestamp...");
-            if (System.currentTimeMillis() - sequence.getLockedAt() > 1000 * 30) {
+            if (System.currentTimeMillis() - sequence.getLockedAt() > 1000 * 10) {
                 log.error("Was locked for more than 30s - assuming error, resetting lock");
                 sequence.setLockedBy(null);
                 morphium.store(sequence);
                 try {
-                    Thread.sleep(1000);
+                    Thread.sleep(500);
                 } catch (InterruptedException e) {
                 }
                 if (log.isDebugEnabled()) {
@@ -141,7 +141,7 @@ public class SequenceGenerator {
             log.warn("Locking failed on level " + recLevel + " - recursing.");
 //            }
             try {
-                Thread.sleep(1000);
+                Thread.sleep(300);
             } catch (InterruptedException ignored) {
             }
             return getNextValue(recLevel + 1);
