@@ -27,10 +27,10 @@ public class AnnotationAndReflectionHelper {
         }
     };
     private Logger log = new Logger(AnnotationAndReflectionHelper.class);
-    private Map<String, Field> fieldCache = new HashMap<>();
-    private Map<Class<?>, Class<?>> realClassCache = new HashMap<>();
-    private Map<Class<?>, List<Field>> fieldListCache = new HashMap<>();
-    private Map<String, List<String>> fieldAnnotationListCache = new HashMap<>();
+    private Map<String, Field> fieldCache = new Hashtable<>();
+    private Map<Class<?>, Class<?>> realClassCache = new Hashtable<>();
+    private Map<Class<?>, List<Field>> fieldListCache = new Hashtable<>();
+    private Map<String, List<String>> fieldAnnotationListCache = new Hashtable<>();
     private Map<Class<?>, Map<Class<? extends Annotation>, Method>> lifeCycleMethods;
     private Map<Class<?>, Boolean> hasAdditionalData;
     private Map<Class<?>, Map<Class<? extends Annotation>, Annotation>> annotationCache;
@@ -39,10 +39,10 @@ public class AnnotationAndReflectionHelper {
 
     public AnnotationAndReflectionHelper(boolean convertCamelCase) {
         this.ccc = convertCamelCase;
-        lifeCycleMethods = new HashMap<>();
-        hasAdditionalData = new HashMap<>();
-        annotationCache = new HashMap<>();
-        fieldNameCache = new HashMap<>();
+        lifeCycleMethods = new Hashtable<>();
+        hasAdditionalData = new Hashtable<>();
+        annotationCache = new Hashtable<>();
+        fieldNameCache = new Hashtable<>();
     }
 
     public <T extends Annotation> boolean isAnnotationPresentInHierarchy(Class<?> cls, Class<? extends T> anCls) {
@@ -89,9 +89,8 @@ public class AnnotationAndReflectionHelper {
             return (T) annotationCache.get(cls).get(anCls);
         }
         T ret = null;
-        Map<Class<?>, Map<Class<? extends Annotation>, Annotation>> m = (HashMap) ((HashMap) annotationCache).clone();
-        if (m.get(cls) == null)
-            m.put(cls, new HashMap<Class<? extends Annotation>, Annotation>());
+        if (annotationCache.get(cls) == null)
+            annotationCache.put(cls, new HashMap<Class<? extends Annotation>, Annotation>());
 
         ret = cls.getAnnotation(anCls);
         if (ret == null) {
@@ -124,19 +123,18 @@ public class AnnotationAndReflectionHelper {
         }
         if (ret == null) {
             //annotation not present in hierarchy, store marker
-            m.get(cls).put(anCls, annotationNotPresent);
+            annotationCache.get(cls).put(anCls, annotationNotPresent);
         } else {
             //found it, keep it in cache
-            m.get(cls).put(anCls, ret);
+            annotationCache.get(cls).put(anCls, ret);
         }
-        annotationCache = m;
         return ret;
     }
 
     public boolean hasAdditionalData(Class clz) {
         if (hasAdditionalData.get(clz) == null) {
             List<String> lst = getFields(clz, AdditionalData.class);
-            HashMap m = (HashMap) ((HashMap) hasAdditionalData).clone();
+            Map m = hasAdditionalData; // (HashMap) ((HashMap) hasAdditionalData).clone();
             m.put(clz, (lst != null && lst.size() > 0));
             hasAdditionalData = m;
         }
@@ -197,7 +195,7 @@ public class AnnotationAndReflectionHelper {
                 ret = convertCamelCase(ret);
             }
         }
-        HashMap<Class<?>, Map<String, String>> m = (HashMap) ((HashMap) fieldNameCache).clone();
+        Map<Class<?>, Map<String, String>> m = fieldNameCache; // (HashMap) ((HashMap) fieldNameCache).clone();
         if (!m.containsKey(cls)) {
             m.put(cls, new HashMap<String, String>());
         }
@@ -279,9 +277,7 @@ public class AnnotationAndReflectionHelper {
 //            Class c = hierachy.get(i);
             Collections.addAll(ret, c.getDeclaredFields());
         }
-        HashMap<Class<?>, List<Field>> flc = (HashMap) ((HashMap) fieldListCache).clone();
-        flc.put(clz, ret);
-        fieldListCache = flc;
+        fieldListCache.put(clz, ret);
         return ret;
     }
 
@@ -300,7 +296,7 @@ public class AnnotationAndReflectionHelper {
         if (val != null) {
             return val;
         }
-        HashMap<String, Field> fc = (HashMap) ((HashMap) fieldCache).clone();
+        Map<String, Field> fc = fieldCache; //(HashMap) ((HashMap) fieldCache).clone();
         Class cls = getRealClass(clz);
         List<Field> flds = getAllFields(cls);
         Field ret = null;
@@ -634,7 +630,7 @@ public class AnnotationAndReflectionHelper {
         if (strings != null) {
             return strings;
         }
-        HashMap<String, List<String>> fa = (HashMap) ((HashMap) fieldAnnotationListCache).clone();
+        Map<String, List<String>> fa = fieldAnnotationListCache; // (HashMap) ((HashMap) fieldAnnotationListCache).clone();
         List<String> ret = new ArrayList<>();
         Class sc = cls;
         sc = getRealClass(sc);
@@ -866,7 +862,7 @@ public class AnnotationAndReflectionHelper {
                 methods.put(a.annotationType(), m);
             }
         }
-        HashMap<Class<?>, Map<Class<? extends Annotation>, Method>> lc = (HashMap) ((HashMap) lifeCycleMethods).clone();
+        Map<Class<?>, Map<Class<? extends Annotation>, Method>> lc = lifeCycleMethods;  //(HashMap) ((HashMap) lifeCycleMethods).clone();
         lc.put(cls, methods);
         if (methods.get(type) != null) {
             try {
