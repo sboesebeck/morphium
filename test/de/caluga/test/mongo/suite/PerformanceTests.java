@@ -25,7 +25,7 @@ public class PerformanceTests {
         System.out.println("\nTesting with LinkedHashmap: ");
         testIt(new LinkedHashMap<String, Object>());
 
-        System.out.println("\nTesting with ConcurrentMap: ");
+        System.out.println("\nTesting with ConcurrentHashMap: ");
         testIt(new ConcurrentHashMap<String, Object>());
 
 
@@ -64,8 +64,11 @@ public class PerformanceTests {
             }
 
         long dur = System.currentTimeMillis() - start;
-        System.out.println("write took : " + dur);
-        System.out.println("Counting   : " + map.size() + " missing: " + ((threads * 1000) - map.size()));
+        System.out.println("write took          : " + dur);
+        int max = (threads * 1000);
+        int missing = max - map.size();
+        System.out.println("Counting            : " + map.size() + " missing: " + missing);
+
         threadCount = 0;
         thr = new ArrayList<>();
         start = System.currentTimeMillis();
@@ -102,12 +105,14 @@ public class PerformanceTests {
 //            Thread.yield();
 //        }
         dur = System.currentTimeMillis() - start;
-        System.out.println("read took : " + dur);
+        double all = ((double) missing) / ((double) max / (double) dur);
+        System.out.println("read took           : " + dur);
+        System.out.println("addition for missing: " + all + "ms");
     }
 
 
     @Test
-    public void testit() throws Exception {
+    public void testListVsVector() throws Exception {
         List<String> lst = new ArrayList<>();
         System.out.println("\nTesting with ArraList");
         testIt(lst);
