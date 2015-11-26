@@ -82,7 +82,7 @@ public class CacheHousekeeper extends Thread {
         while (running) {
             try {
                 Map<Class, List<String>> toDelete = new HashMap<>();
-                Map<Class<?>, Map<String, CacheElement>> cache = morphium.getCache().cloneCache();
+                Map<Class<?>, Map<String, CacheElement>> cache = morphium.getCache().getCache();
                 for (Map.Entry<Class<?>, Map<String, CacheElement>> es : cache.entrySet()) {
                     Class<?> clz = es.getKey();
                     Map<String, CacheElement> ch = null;
@@ -250,7 +250,7 @@ public class CacheHousekeeper extends Thread {
 
                 }
 
-                Map<Class<?>, Map<Object, Object>> idCacheClone = morphium.getCache().cloneIdCache();
+                Map<Class<?>, Map<Object, Object>> idCacheClone = morphium.getCache().getIdCache();
                 for (Map.Entry<Class, List<String>> et : toDelete.entrySet()) {
                     Class cls = et.getKey();
 

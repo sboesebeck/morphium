@@ -24,8 +24,8 @@ public class MorphiumCacheImpl implements MorphiumCache {
     private Logger logger = new Logger(MorphiumCacheImpl.class);
 
     public MorphiumCacheImpl() {
-        cache = new HashMap<>();
-        idCache = new HashMap<>();
+        cache = new Hashtable<>();
+        idCache = new Hashtable<>();
         cacheListeners = new Vector<>();
     }
 
@@ -71,26 +71,26 @@ public class MorphiumCacheImpl implements MorphiumCache {
         }
         if (!k.endsWith("idlist")) {
             //copy from idCache
-            Map<Class<?>, Map<Object, Object>> idCacheClone = cloneIdCache();
+            Map<Class<?>, Map<Object, Object>> idCacheClone = idCache; // getIdCache();
             for (T record : ret) {
                 if (idCacheClone.get(type) == null) {
                     idCacheClone.put(type, new Hashtable<>());
                 }
                 idCacheClone.get(type).put(annotationHelper.getId(record), record);
             }
-            setIdCache(idCacheClone);
+//            setIdCache(idCacheClone);
         }
 
         CacheElement<T> e = new CacheElement<>(ret);
         e.setLru(System.currentTimeMillis());
-        Map<Class<?>, Map<String, CacheElement>> cl = (Map<Class<?>, Map<String, CacheElement>>) (((HashMap) cache).clone());
-        if (cl.get(type) == null) {
-            cl.put(type, new HashMap<String, CacheElement>());
+        //Map<Class<?>, Map<String, CacheElement>> cl =  (Map<Class<?>, Map<String, CacheElement>>) (((HashMap) cache).clone());
+        if (cache.get(type) == null) {
+            cache.put(type, new Hashtable<>());
         }
-        cl.get(type).put(k, e);
+        cache.get(type).put(k, e);
 
         //atomar execution of this operand - no synchronization needed
-        cache = cl;
+//        cache = cl;
 
     }
 
@@ -150,14 +150,14 @@ public class MorphiumCacheImpl implements MorphiumCache {
 
     @SuppressWarnings("unchecked")
     @Override
-    public Map<Class<?>, Map<String, CacheElement>> cloneCache() {
-        return (Map<Class<?>, Map<String, CacheElement>>) (((HashMap) cache).clone());
+    public Map<Class<?>, Map<String, CacheElement>> getCache() {
+        return cache; //(Map<Class<?>, Map<String, CacheElement>>) (((Hashtable) cache).clone());
     }
 
     @SuppressWarnings("unchecked")
     @Override
-    public Map<Class<?>, Map<Object, Object>> cloneIdCache() {
-        return (Map<Class<?>, Map<Object, Object>>) (((HashMap) idCache).clone());
+    public Map<Class<?>, Map<Object, Object>> getIdCache() {
+        return idCache; //(Map<Class<?>, Map<Object, Object>>) (((Hashtable) idCache).clone());
     }
 
     @SuppressWarnings("unchecked")
@@ -221,7 +221,7 @@ public class MorphiumCacheImpl implements MorphiumCache {
 
     @Override
     public void resetCache() {
-        setCache(new HashMap<Class<?>, Map<String, CacheElement>>());
+        setCache(new Hashtable<Class<?>, Map<String, CacheElement>>());
     }
 
     @Override
@@ -232,23 +232,23 @@ public class MorphiumCacheImpl implements MorphiumCache {
     @SuppressWarnings("unchecked")
     @Override
     public void removeEntryFromCache(Class cls, Object id) {
-        Map<Class<?>, Map<String, CacheElement>> c = cloneCache();
-        Map<Class<?>, Map<Object, Object>> idc = cloneIdCache();
-        if (idc.get(cls) != null && idc.get(cls).get(id) != null) {
+//        Map<Class<?>, Map<String, CacheElement>> c = getCache();
+//        Map<Class<?>, Map<Object, Object>> idc = getIdCache();
+        if (idCache.get(cls) != null && idCache.get(cls).get(id) != null) {
             for (CacheListener cl : cacheListeners) {
-                if (!cl.wouldRemoveEntryFromCache(cls, id, idc.get(cls).get(id))) {
+                if (!cl.wouldRemoveEntryFromCache(cls, id, idCache.get(cls).get(id))) {
                     logger.info("Not removing from cache due to veto from CacheListener " + cl.getClass().getName());
                     return;
                 }
             }
         }
-        idc.get(cls).remove(id);
+        idCache.get(cls).remove(id);
 
         ArrayList<String> toRemove = new ArrayList<>();
-        for (String key : c.get(cls).keySet()) {
+        for (String key : cache.get(cls).keySet()) {
 
-            if (c.get(cls).get(key) != null) {
-                for (Object el : c.get(cls).get(key).getFound()) {
+            if (cache.get(cls).get(key) != null) {
+                for (Object el : cache.get(cls).get(key).getFound()) {
                     Object lid = annotationHelper.getId(el);
                     if (lid == null) {
                         logger.error("Null id in CACHE?");
@@ -263,10 +263,10 @@ public class MorphiumCacheImpl implements MorphiumCache {
             }
         }
         for (String k : toRemove) {
-            c.get(cls).remove(k);
+            cache.get(cls).remove(k);
         }
-        setCache(c);
-        setIdCache(idc);
+//        setCache(c);
+//        setIdCache(idc);
     }
 
     @Override
