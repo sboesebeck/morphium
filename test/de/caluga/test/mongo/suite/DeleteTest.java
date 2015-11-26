@@ -37,6 +37,7 @@ public class DeleteTest extends MongoTest {
         assert (c == 10);
         UncachedObject u = morphium.createQueryFor(UncachedObject.class).get();
         morphium.delete(morphium.createQueryFor(UncachedObject.class).f("counter").eq(u.getCounter()));
+        Thread.sleep(400);
         c = morphium.createQueryFor(UncachedObject.class).countAll();
         assert (c == 9);
         List<UncachedObject> lst = morphium.createQueryFor(UncachedObject.class).asList();

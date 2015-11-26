@@ -1,8 +1,10 @@
 package de.caluga.test.mongo.suite.unit;
 
+import de.caluga.morphium.Utils;
 import de.caluga.morphium.async.AsyncOperationCallback;
 import de.caluga.morphium.async.AsyncOperationType;
 import de.caluga.morphium.bulk.MorphiumBulkContext;
+import de.caluga.morphium.driver.bson.MorphiumId;
 import de.caluga.morphium.query.Query;
 import de.caluga.test.mongo.suite.MongoTest;
 import de.caluga.test.mongo.suite.data.UncachedObject;
@@ -84,7 +86,8 @@ public class MorphiumBulkContextTest extends MongoTest {
         MorphiumBulkContext<UncachedObject> c = morphium.createBulkRequestContext(UncachedObject.class, false);
         c.addDeleteRequest(new ArrayList<>());
         assert (c.getNumberOfRequests() == 0);
-        UncachedObject uc = morphium.createQueryFor(UncachedObject.class).f("counter").eq(40).get();
+        UncachedObject uc = new UncachedObject();//morphium.createQueryFor(UncachedObject.class).f("counter").eq(40).get();
+        uc.setMorphiumId(new MorphiumId());
         ArrayList<UncachedObject> lst = new ArrayList<>();
         lst.add(uc);
         c.addDeleteRequest(lst);
@@ -95,7 +98,9 @@ public class MorphiumBulkContextTest extends MongoTest {
     @Test
     public void testAddDeleteRequest1() throws Exception {
         MorphiumBulkContext<UncachedObject> c = morphium.createBulkRequestContext(UncachedObject.class, false);
-        c.addDeleteRequest(morphium.createQueryFor(UncachedObject.class).f("counter").eq(30).get());
+        UncachedObject uc = new UncachedObject();//morphium.createQueryFor(UncachedObject.class).f("counter").eq(40).get();
+        uc.setMorphiumId(new MorphiumId());
+        c.addDeleteRequest(uc);
         assert (c.getNumberOfRequests() == 1);
 
     }
@@ -111,7 +116,7 @@ public class MorphiumBulkContextTest extends MongoTest {
     @Test
     public void testAddCustomUpdateRequest() throws Exception {
         MorphiumBulkContext<UncachedObject> c = morphium.createBulkRequestContext(UncachedObject.class, false);
-        c.addCustomUpdateRequest(morphium.createQueryFor(UncachedObject.class).f("counter").eq(20), morphium.getMap("$set", morphium.getMap("counter", -20)), false, false);
+        c.addCustomUpdateRequest(morphium.createQueryFor(UncachedObject.class).f("counter").eq(20), Utils.getMap("$set", Utils.getMap("counter", -20)), false, false);
         assert (c.getNumberOfRequests() == 1);
         
     }
@@ -133,7 +138,7 @@ public class MorphiumBulkContextTest extends MongoTest {
     @Test
     public void testAddSetRequest1() throws Exception {
         MorphiumBulkContext<UncachedObject> c = morphium.createBulkRequestContext(UncachedObject.class, false);
-        c.addSetRequest(morphium.createQueryFor(UncachedObject.class), morphium.getMap("counter", 1), false, false);
+        c.addSetRequest(morphium.createQueryFor(UncachedObject.class), Utils.getMap("counter", 1), false, false);
         assert (c.getNumberOfRequests() == 1);
     }
 
@@ -154,7 +159,7 @@ public class MorphiumBulkContextTest extends MongoTest {
     @Test
     public void testAddIncRequest1() throws Exception {
         MorphiumBulkContext<UncachedObject> c = morphium.createBulkRequestContext(UncachedObject.class, false);
-        c.addSetRequest(morphium.createQueryFor(UncachedObject.class), morphium.getMap("counter", 1), false, false);
+        c.addSetRequest(morphium.createQueryFor(UncachedObject.class), Utils.getMap("counter", 1), false, false);
         assert (c.getNumberOfRequests() == 1);
     }
 
@@ -182,7 +187,7 @@ public class MorphiumBulkContextTest extends MongoTest {
     @Test
     public void testAddMinRequest1() throws Exception {
         MorphiumBulkContext<UncachedObject> c = morphium.createBulkRequestContext(UncachedObject.class, false);
-        c.addMinRequest(morphium.createQueryFor(UncachedObject.class), morphium.getMap("counter", 123), false, false);
+        c.addMinRequest(morphium.createQueryFor(UncachedObject.class), Utils.getMap("counter", 123), false, false);
         assert (c.getNumberOfRequests() == 1);
     }
 
@@ -203,7 +208,7 @@ public class MorphiumBulkContextTest extends MongoTest {
     @Test
     public void testAddMaxRequest1() throws Exception {
         MorphiumBulkContext<UncachedObject> c = morphium.createBulkRequestContext(UncachedObject.class, false);
-        c.addMaxRequest(morphium.createQueryFor(UncachedObject.class), morphium.getMap("counter", 123), false, false);
+        c.addMaxRequest(morphium.createQueryFor(UncachedObject.class), Utils.getMap("counter", 123), false, false);
         assert (c.getNumberOfRequests() == 1);
     }
 
