@@ -19,9 +19,9 @@ public interface MorphiumCache {
 
     <T> List<T> getFromCache(Class<? extends T> type, String k);
 
-    Map<Class<?>, Map<String, CacheElement>> cloneCache();
+    Map<Class<?>, Map<String, CacheElement>> getCache();
 
-    Map<Class<?>, Map<Object, Object>> cloneIdCache();
+    Map<Class<?>, Map<Object, Object>> getIdCache();
 
     void clearCachefor(Class<?> cls);
 

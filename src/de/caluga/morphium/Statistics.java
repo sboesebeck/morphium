@@ -19,7 +19,7 @@ public class Statistics extends HashMap<String, Double> {
             super.put(et.getKey().name(), (double) et.getValue().get());
         }
         double entries = 0;
-        Map<Class<?>, Map<String, CacheElement>> cc = morphium.getCache().cloneCache();
+        Map<Class<?>, Map<String, CacheElement>> cc = morphium.getCache().getCache();
         for (Map.Entry<Class<?>, Map<String, CacheElement>> en : cc.entrySet()) {
             Map<String, CacheElement> lst = en.getValue();
             entries += lst.size();
