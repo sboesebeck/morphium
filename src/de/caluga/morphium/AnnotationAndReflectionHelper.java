@@ -10,6 +10,7 @@ import java.lang.reflect.*;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * User: Stephan Bösebeck
@@ -27,10 +28,10 @@ public class AnnotationAndReflectionHelper {
         }
     };
     private Logger log = new Logger(AnnotationAndReflectionHelper.class);
-    private Map<String, Field> fieldCache = new Hashtable<>();
-    private Map<Class<?>, Class<?>> realClassCache = new Hashtable<>();
-    private Map<Class<?>, List<Field>> fieldListCache = new Hashtable<>();
-    private Map<String, List<String>> fieldAnnotationListCache = new Hashtable<>();
+    private Map<String, Field> fieldCache = new ConcurrentHashMap<>();
+    private Map<Class<?>, Class<?>> realClassCache = new ConcurrentHashMap<>();
+    private Map<Class<?>, List<Field>> fieldListCache = new ConcurrentHashMap<>();
+    private Map<String, List<String>> fieldAnnotationListCache = new ConcurrentHashMap<>();
     private Map<Class<?>, Map<Class<? extends Annotation>, Method>> lifeCycleMethods;
     private Map<Class<?>, Boolean> hasAdditionalData;
     private Map<Class<?>, Map<Class<? extends Annotation>, Annotation>> annotationCache;
@@ -39,10 +40,10 @@ public class AnnotationAndReflectionHelper {
 
     public AnnotationAndReflectionHelper(boolean convertCamelCase) {
         this.ccc = convertCamelCase;
-        lifeCycleMethods = new Hashtable<>();
-        hasAdditionalData = new Hashtable<>();
-        annotationCache = new Hashtable<>();
-        fieldNameCache = new Hashtable<>();
+        lifeCycleMethods = new ConcurrentHashMap<>();
+        hasAdditionalData = new ConcurrentHashMap<>();
+        annotationCache = new ConcurrentHashMap<>();
+        fieldNameCache = new ConcurrentHashMap<>();
     }
 
     public <T extends Annotation> boolean isAnnotationPresentInHierarchy(Class<?> cls, Class<? extends T> anCls) {

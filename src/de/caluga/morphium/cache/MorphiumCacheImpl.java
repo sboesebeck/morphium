@@ -5,7 +5,11 @@ import de.caluga.morphium.Logger;
 import de.caluga.morphium.annotations.caching.Cache;
 import de.caluga.morphium.query.Query;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.Vector;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * User: Stephan Bösebeck
@@ -24,8 +28,8 @@ public class MorphiumCacheImpl implements MorphiumCache {
     private Logger logger = new Logger(MorphiumCacheImpl.class);
 
     public MorphiumCacheImpl() {
-        cache = new Hashtable<>();
-        idCache = new Hashtable<>();
+        cache = new ConcurrentHashMap<>();
+        idCache = new ConcurrentHashMap<>();
         cacheListeners = new Vector<>();
     }
 
@@ -74,7 +78,7 @@ public class MorphiumCacheImpl implements MorphiumCache {
             Map<Class<?>, Map<Object, Object>> idCacheClone = idCache; // getIdCache();
             for (T record : ret) {
                 if (idCacheClone.get(type) == null) {
-                    idCacheClone.put(type, new Hashtable<>());
+                    idCacheClone.put(type, new ConcurrentHashMap<>());
                 }
                 idCacheClone.get(type).put(annotationHelper.getId(record), record);
             }
@@ -85,7 +89,7 @@ public class MorphiumCacheImpl implements MorphiumCache {
         e.setLru(System.currentTimeMillis());
         //Map<Class<?>, Map<String, CacheElement>> cl =  (Map<Class<?>, Map<String, CacheElement>>) (((HashMap) cache).clone());
         if (cache.get(type) == null) {
-            cache.put(type, new Hashtable<>());
+            cache.put(type, new ConcurrentHashMap<>());
         }
         cache.get(type).put(k, e);
 
@@ -151,13 +155,13 @@ public class MorphiumCacheImpl implements MorphiumCache {
     @SuppressWarnings("unchecked")
     @Override
     public Map<Class<?>, Map<String, CacheElement>> getCache() {
-        return cache; //(Map<Class<?>, Map<String, CacheElement>>) (((Hashtable) cache).clone());
+        return cache; //(Map<Class<?>, Map<String, CacheElement>>) (((ConcurrentHashMap) cache).clone());
     }
 
     @SuppressWarnings("unchecked")
     @Override
     public Map<Class<?>, Map<Object, Object>> getIdCache() {
-        return idCache; //(Map<Class<?>, Map<Object, Object>>) (((Hashtable) idCache).clone());
+        return idCache; //(Map<Class<?>, Map<Object, Object>>) (((ConcurrentHashMap) idCache).clone());
     }
 
     @SuppressWarnings("unchecked")
@@ -221,7 +225,7 @@ public class MorphiumCacheImpl implements MorphiumCache {
 
     @Override
     public void resetCache() {
-        setCache(new Hashtable<Class<?>, Map<String, CacheElement>>());
+        setCache(new ConcurrentHashMap<Class<?>, Map<String, CacheElement>>());
     }
 
     @Override
