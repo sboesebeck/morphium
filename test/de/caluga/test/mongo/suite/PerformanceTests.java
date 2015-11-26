@@ -16,62 +16,40 @@ public class PerformanceTests {
 
     @Test
     public void hashmapVsHashtableTest() throws Exception {
+        int retries = 20;
+
         System.out.println("Testing with HashMap: ");
-        testIt(new HashMap<String, Object>());
+        repeatTest(retries, new HashMap<>());
+        System.out.println("\nTesting with LinkedHashmap: ");
+        repeatTest(retries, new LinkedHashMap<String, Object>());
+
 
         System.out.println("\nTesting with Hashtable: ");
-        testIt(new Hashtable<String, Object>());
-
-        System.out.println("\nTesting with LinkedHashmap: ");
-        testIt(new LinkedHashMap<String, Object>());
-
+        repeatTest(retries, new Hashtable<String, Object>());
         System.out.println("\nTesting with ConcurrentHashMap: ");
-        testIt(new ConcurrentHashMap<String, Object>());
+        repeatTest(retries, new ConcurrentHashMap<String, Object>());
 
 
     }
 
-    private void testIt(final Map<String, Object> map) {
-        long start = System.currentTimeMillis();
-        int threads = 300;
+    private void repeatTest(int retries, Map<String, Object> m) {
+        long durWr = 0;
+        long durRd = 0;
+        for (int i = 0; i < retries; i++) {
+            m.clear();
+            durWr += testWrite(m);
+            durRd += testRead(m);
+        }
+        System.out.println("Average write duration: " + (durWr / retries) + " ms");
+        System.out.println("Average read duration: " + (durRd / retries) + " ms");
+    }
+
+    private long testRead(final Map<String, Object> map) {
+        long threads = 300;
+        long dur = 0;
         threadCount = 0;
         List<Thread> thr = new ArrayList<>();
-        for (int i = 0; i < threads; i++) {
-            final int j = i;
-            Thread t = new Thread() {
-                public void run() {
-                    for (int k = 0; k < 1000; k++) {
-//                        synchronized (map) {
-                        try {
-                            map.put("hello " + j + " - " + k, j + k);
-                        } catch (Throwable e) {
-                            //ignore
-                        }
-//                        }
-                    }
-                    threadCount++;
-                }
-            };
-            thr.add(t);
-            t.start();
-        }
-        System.out.println("Waiting for threads...");
-        for (Thread t : thr)
-            try {
-                t.join(1000);
-            } catch (InterruptedException e) {
-                e.printStackTrace();
-            }
-
-        long dur = System.currentTimeMillis() - start;
-        System.out.println("write took          : " + dur);
-        int max = (threads * 1000);
-        int missing = max - map.size();
-        System.out.println("Counting            : " + map.size() + " missing: " + missing);
-
-        threadCount = 0;
-        thr = new ArrayList<>();
-        start = System.currentTimeMillis();
+        long start = System.currentTimeMillis();
 
         for (int i = 0; i < threads; i++) {
             final int j = i;
@@ -105,9 +83,50 @@ public class PerformanceTests {
 //            Thread.yield();
 //        }
         dur = System.currentTimeMillis() - start;
-        double all = ((double) missing) / ((double) max / (double) dur);
-        System.out.println("read took           : " + dur);
-        System.out.println("addition for missing: " + all + "ms");
+//        System.out.println("read took           : " + dur);
+        return dur;
+    }
+
+
+    private long testWrite(final Map<String, Object> map) {
+        long start = System.currentTimeMillis();
+        int threads = 300;
+        threadCount = 0;
+        List<Thread> thr = new ArrayList<>();
+        for (int i = 0; i < threads; i++) {
+            final int j = i;
+            Thread t = new Thread() {
+                public void run() {
+                    for (int k = 0; k < 1000; k++) {
+//                        synchronized (map) {
+                        try {
+                            map.put("hello " + j + " - " + k, j + k);
+                        } catch (Throwable e) {
+                            //ignore
+                        }
+//                        }
+                    }
+                    threadCount++;
+                }
+            };
+            thr.add(t);
+            t.start();
+        }
+//        System.out.println("Waiting for threads...");
+        for (Thread t : thr)
+            try {
+                t.join(1000);
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+
+        long dur = System.currentTimeMillis() - start;
+//        System.out.println("write took          : " + dur);
+        int max = (threads * 1000);
+        int missing = max - map.size();
+//        System.out.println("Counting            : " + map.size() + " missing: " + missing);
+
+        return dur;
     }
 
 
@@ -115,15 +134,15 @@ public class PerformanceTests {
     public void testListVsVector() throws Exception {
         List<String> lst = new ArrayList<>();
         System.out.println("\nTesting with ArraList");
-        testIt(lst);
+        testWrite(lst);
 
         lst = new Vector<>();
         System.out.println("\nTesting with Vector");
-        testIt(lst);
+        testWrite(lst);
 
         lst = new LinkedList<>();
         System.out.println("\nTesting with LinkedList");
-        testIt(lst);
+        testWrite(lst);
 
 
     }
@@ -151,7 +170,7 @@ public class PerformanceTests {
         System.out.println("Duration LinkedList: " + dur + "ms");
     }
 
-    private void testIt(final List<String> lst) {
+    private void testWrite(final List<String> lst) {
         long start = System.currentTimeMillis();
         int threads = 300;
         threadCount = 0;
