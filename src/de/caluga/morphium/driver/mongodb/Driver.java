@@ -689,6 +689,7 @@ public class Driver implements MorphiumDriver {
             public Map<String, Object> execute() {
                 MongoCollection c = mongo.getDatabase(db).getCollection(collection);
 
+//                mongo.getDB(db).getCollection(collection).save()
                 for (Map<String, Object> toUpdate : notnew) {
                     UpdateOptions o = new UpdateOptions();
                     o.upsert(true);
@@ -696,8 +697,8 @@ public class Driver implements MorphiumDriver {
 
                     filter.put("_id", toUpdate.get("_id"));
 //                    toUpdate.remove("_id");
-                    Document update = new Document("$set", toUpdate);
-                    c.updateOne(filter, update, o);
+//                    Document update = new Document("$set", toUpdate);
+                    c.replaceOne(filter, new Document(toUpdate), o);
                 }
 
                 return null;
