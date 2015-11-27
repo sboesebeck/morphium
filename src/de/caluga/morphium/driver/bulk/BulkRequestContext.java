@@ -43,6 +43,8 @@ public abstract class BulkRequestContext {
 
     public abstract UpdateBulkRequest addUpdateBulkRequest();
 
+    public abstract StoreBulkRequest addStoreBulkRequest(List<Map<String, Object>> toStore);
+
     public abstract InsertBulkRequest addInsertBulkReqpest(List<Map<String, Object>> toInsert);
 
     public abstract DeleteBulkRequest addDeleteBulkRequest();

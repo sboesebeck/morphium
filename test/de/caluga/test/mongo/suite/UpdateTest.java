@@ -34,7 +34,7 @@ public class UpdateTest extends MongoTest {
         toInc.put("counter", 10.0);
         toInc.put("counter2", 0.5);
         morphium.inc(q, toInc, false, true, null);
-
+        Thread.sleep(1000);
         assert (q.get().getCounter() == 15) : "counter is:" + q.get().getCounter();
         assert (q.get().getCounter2() == 3);
         morphium.inc(q, toInc, false, true, null);
