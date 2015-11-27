@@ -8,7 +8,6 @@ import de.caluga.morphium.driver.MorphiumDriverException;
 import de.caluga.morphium.driver.WriteConcern;
 import de.caluga.morphium.driver.bson.MorphiumId;
 import de.caluga.morphium.driver.bulk.BulkRequestContext;
-import de.caluga.morphium.driver.bulk.UpdateBulkRequest;
 import de.caluga.morphium.query.Query;
 
 import java.lang.reflect.Field;
@@ -345,14 +344,14 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                         WriteConcern wc = morphium.getWriteConcernForClass(lst.get(0).getClass());
 
 //        BulkWriteOperation bulkWriteOperation = collection.initializeUnorderedBulkOperation();
-                        BulkRequestContext bulk = morphium.getDriver().createBulkContext(morphium, morphium.getConfig().getDatabase(), collectionName, false, wc);
+//                        BulkRequestContext bulk = morphium.getDriver().createBulkContext(morphium, morphium.getConfig().getDatabase(), collectionName, false, wc);
                         HashMap<Object, Boolean> isNew = new HashMap<>();
                         if (!morphium.getDriver().exists(morphium.getConfig().getDatabase(), collectionName)) {
                             logger.warn("collection does not exist while storing list -  taking first element of list to ensure indices");
                             morphium.ensureIndicesFor((Class<T>) lst.get(0).getClass(), collectionName, callback);
                         }
                         long start = System.currentTimeMillis();
-                        int cnt = 0;
+//                        int cnt = 0;
                         List<Class<?>> types = new ArrayList<>();
                         for (Object record : lst) {
                             Map<String, Object> marshall = morphium.getMapper().marshall(record);
@@ -376,42 +375,10 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                             isNew.put(record, isn);
 
                             if (!types.contains(record.getClass())) types.add(record.getClass());
-                            if (isNew.get(record)) {
-                                dbLst.add(marshall);
-                            } else {
-                                //single update
-                                //                WriteResult result = null;
-                                cnt++;
-                                //                up.updateOne(Utils.getMap("$set", marshall));
-                                //                BulkUpdateRequestBuilder up = bulkWriteOperation.find(Utils.getMap("_id", morphium.getARHelper().getId(record))).upsert();
-
-                                Map<String, Object> query = new HashMap<>();
-                                query.put("_id", morphium.getARHelper().getId(record));
-                                Map<String, Object> cmd = new HashMap<>();
-                                cmd.put("$set", marshall);
-                                UpdateBulkRequest up = bulk.addUpdateBulkRequest();
-                                up.setCmd(cmd);
-                                up.setQuery(query);
-                                up.setMultiple(false);
-                                up.setUpsert(false);
-                            }
+                            dbLst.add(marshall);
                         }
                         morphium.firePreStore(isNew);
-                        if (cnt > 0) {
-                            try {
-                                //storing updates
-                                if (wc == null) {
-                                    bulk.execute();
-                                    //                        bulkWriteOperation.execute();
-                                } else {
-                                    //                        bulkWriteOperation.execute(wc);
-                                }
-                            } catch (Exception e) {
-                            }
-                            for (Class<?> c : types) {
-                                morphium.getCache().clearCacheIfNecessary(c);
-                            }
-                        }
+
 
                         long dur = System.currentTimeMillis() - start;
                         morphium.fireProfilingWriteEvent(lst.get(0).getClass(), lst, dur, false, WriteAccessType.BULK_UPDATE);
@@ -420,6 +387,9 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
 
                         morphium.getDriver().store(morphium.getConfig().getDatabase(), collectionName, dbLst, wc);
                         dur = System.currentTimeMillis() - start;
+                        for (Class<?> c : types) {
+                            morphium.getCache().clearCacheIfNecessary(c);
+                        }
                         //bulk insert
                         morphium.fireProfilingWriteEvent(lst.get(0).getClass(), dbLst, dur, true, WriteAccessType.BULK_INSERT);
                         morphium.firePostStore(isNew);
@@ -514,28 +484,15 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                             }
 
 
-                            BulkRequestContext bulkWriteOperation = morphium.getDriver().createBulkContext(morphium, morphium.getConfig().getDatabase(), coll, false, wc);
-                            long start = System.currentTimeMillis();
 
                             HashMap<Integer, Object> mapMarshalledNewObjects = new HashMap<>();
                             for (Object record : es.getValue()) {
                                 Map<String, Object> marshall = morphium.getMapper().marshall(record);
-                                if (isNew.get(record)) {
-                                    dbLst.add(marshall);
-                                    mapMarshalledNewObjects.put(dbLst.size() - 1, record);
-                                } else {
-                                    //bulk update
-
-                                    UpdateBulkRequest up = bulkWriteOperation.addUpdateBulkRequest();
-                                    Object id = morphium.getARHelper().getId(record);
-                                    up.setQuery(Utils.getMap("_id", id));
-                                    up.setUpsert(true);
-                                    up.setCmd(Utils.getMap("$set", marshall));
-                                }
+                                dbLst.add(marshall);
+                                mapMarshalledNewObjects.put(dbLst.size() - 1, record);
                             }
 
-                            executeWriteBatch(es.getValue(), c, wc, bulkWriteOperation, start);
-                            start = System.currentTimeMillis();
+                            long start = System.currentTimeMillis();
                             if (dbLst.size() > 0) {
                                 morphium.getDriver().store(morphium.getConfig().getDatabase(), coll, dbLst, wc);
 //                                doStoreList(dbLst, wc, coll);
@@ -545,7 +502,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                                         logger.error("cannot update mongo_id...");
                                     } else {
                                         try {
-                                                morphium.getARHelper().getIdField(entity).set(entity, o.get("_id"));
+                                            morphium.getARHelper().getIdField(entity).set(entity, o.get("_id"));
 
                                         } catch (Exception e) {
                                             logger.error("Setting of mongo_id failed", e);
@@ -1211,10 +1168,10 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
      * Upsert should consist of single and-queries, which will be used to generate the object to create, unless
      * it already exists. look at Mongodb-query documentation as well
      *
-     * @param query            - query to specify which objects should be set
-     * @param values           - map fieldName->Value, which values are to be set!
-     * @param upsert - insert, if it does not exist (query needs to be simple!)
-     * @param multiple         - update several documents, if false, only first hit will be updated
+     * @param query    - query to specify which objects should be set
+     * @param values   - map fieldName->Value, which values are to be set!
+     * @param upsert   - insert, if it does not exist (query needs to be simple!)
+     * @param multiple - update several documents, if false, only first hit will be updated
      */
     @Override
     public <T> void set(final Query<T> query, final Map<String, Object> values, final boolean upsert, final boolean multiple, AsyncOperationCallback<T> callback) {
