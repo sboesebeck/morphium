@@ -672,7 +672,6 @@ public class Driver implements MorphiumDriver {
 
     @Override
     public void store(String db, String collection, List<Map<String, Object>> objs, de.caluga.morphium.driver.WriteConcern wc) throws MorphiumDriverException {
-        new DriverHelper().replaceMorphiumIdByObjectId(objs);
         List<Map<String, Object>> isnew = new ArrayList<>();
         final List<Map<String, Object>> notnew = new ArrayList<>();
         for (Map<String, Object> o : objs) {
@@ -687,6 +686,7 @@ public class Driver implements MorphiumDriver {
         new DriverHelper().doCall(new MorphiumDriverOperation() {
             @Override
             public Map<String, Object> execute() {
+
                 MongoCollection c = mongo.getDatabase(db).getCollection(collection);
 
 //                mongo.getDB(db).getCollection(collection).save()
@@ -695,10 +695,14 @@ public class Driver implements MorphiumDriver {
                     o.upsert(true);
                     Document filter = new Document();
 
-                    filter.put("_id", toUpdate.get("_id"));
+                    Object id = toUpdate.get("_id");
+                    if (id instanceof MorphiumId) id = new ObjectId(id.toString());
+                    filter.put("_id", id);
 //                    toUpdate.remove("_id");
 //                    Document update = new Document("$set", toUpdate);
-                    c.replaceOne(filter, new Document(toUpdate), o);
+                    Document tDocument = new Document(toUpdate);
+                    tDocument.remove("_id"); //not needed
+                    c.replaceOne(filter, tDocument, o);
                 }
 
                 return null;

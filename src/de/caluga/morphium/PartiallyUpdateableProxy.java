@@ -29,6 +29,11 @@ public class PartiallyUpdateableProxy<T> implements MethodInterceptor, Partially
         return reference;
     }
 
+    public T __getPureDeref() {
+        //do nothing - will be intercepted
+        return reference;
+    }
+
     @Override
     public List<String> getAlteredFields() {
         return updateableFields;
