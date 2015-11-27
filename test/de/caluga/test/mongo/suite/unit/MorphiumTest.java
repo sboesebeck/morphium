@@ -1,7 +1,16 @@
 package de.caluga.test.mongo.suite.unit;
 
+import de.caluga.morphium.MorphiumConfig;
+import de.caluga.morphium.MorphiumStorageAdapter;
+import de.caluga.morphium.TypeMapper;
+import de.caluga.morphium.async.AsyncOperationCallback;
+import de.caluga.morphium.async.AsyncOperationType;
+import de.caluga.morphium.query.Query;
 import de.caluga.test.mongo.suite.MongoTest;
+import de.caluga.test.mongo.suite.data.UncachedObject;
 import org.junit.Test;
+
+import java.util.List;
 
 /**
  * Created by stephan on 26.11.15.
@@ -10,87 +19,151 @@ public class MorphiumTest extends MongoTest {
 
     @Test
     public void testGetConfig() throws Exception {
-
+        assert (morphium.getConfig() != null);
+        assert (morphium.getConfig().getDatabase() != null);
+        assert (morphium.getConfig().getDatabase().equals("morphium_test"));
     }
 
     @Test
     public void testGetAsyncOperationsThreadPool() throws Exception {
-
+        assert (morphium.getAsyncOperationsThreadPool() != null);
     }
 
-    @Test
+    @Test(expected = RuntimeException.class)
     public void testSetConfig() throws Exception {
-
+        morphium.setConfig(new MorphiumConfig());
     }
 
     @Test
     public void testRegisterTypeMapper() throws Exception {
+        TypeMapper m = new TypeMapper() {
+            @Override
+            public Object marshall(Object o) {
+                return null;
+            }
 
-    }
+            @Override
+            public Object unmarshall(Object d) {
+                return null;
+            }
+        };
+        morphium.registerTypeMapper(UncachedObject.class, m);
+        assert (morphium.getMapper().marshall(new UncachedObject()) == null);
 
-    @Test
-    public void testDeregisterTypeMapper() throws Exception {
+        morphium.deregisterTypeMapper(UncachedObject.class);
+        assert (morphium.getMapper().marshall(new UncachedObject()) != null);
 
     }
 
     @Test
     public void testGetCache() throws Exception {
-
+        assert (morphium.getCache() != null);
     }
 
     @Test
     public void testAddListener() throws Exception {
-
-    }
-
-    @Test
-    public void testRemoveListener() throws Exception {
-
+        MorphiumStorageAdapter lst = new MorphiumStorageAdapter() {
+        };
+        morphium.addListener(lst);
+        morphium.removeListener(lst);
     }
 
     @Test
     public void testGetDriver() throws Exception {
-
+        assert (morphium.getDriver() != null);
     }
 
     @Test
     public void testFindByTemplate() throws Exception {
-
+        createUncachedObjects(100);
+        UncachedObject o = new UncachedObject();
+        o.setCounter(50);
+        List<UncachedObject> uc = morphium.findByTemplate(o, "counter");
+        assert (uc.size() == 1);
+        assert (uc.get(0).getCounter() == 50);
     }
 
     @Test
     public void testUnset() throws Exception {
-
+        createUncachedObjects(100);
+        UncachedObject uc = morphium.findByField(UncachedObject.class, "counter", 50).get(0);
+        morphium.unset(uc, UncachedObject.Fields.value);
+        uc = morphium.reread(uc);
+        assert (uc.getValue() == null);
     }
 
     @Test
     public void testUnset1() throws Exception {
-
+        createUncachedObjects(100);
+        UncachedObject uc = morphium.findByField(UncachedObject.class, UncachedObject.Fields.counter, 50).get(0);
+        morphium.unset(uc, "value");
+        uc = morphium.reread(uc);
+        assert (uc.getValue() == null);
     }
 
     @Test
     public void testUnset2() throws Exception {
+        createUncachedObjects(100);
+        UncachedObject uc = morphium.findByField(UncachedObject.class, UncachedObject.Fields.counter, 50).get(0);
+        morphium.unset(uc, UncachedObject.Fields.value, new AsyncOperationCallback<UncachedObject>() {
+            @Override
+            public void onOperationSucceeded(AsyncOperationType type, Query<UncachedObject> q, long duration, List<UncachedObject> result, UncachedObject entity, Object... param) {
+            }
 
+            @Override
+            public void onOperationError(AsyncOperationType type, Query<UncachedObject> q, long duration, String error, Throwable t, UncachedObject entity, Object... param) {
+            }
+        });
+        waitForAsyncOperationToStart(1000000);
+        uc = morphium.reread(uc);
+        assert (uc.getValue() == null);
     }
 
     @Test
     public void testUnset3() throws Exception {
-
+        createUncachedObjects(100);
+        UncachedObject uc = morphium.findByField(UncachedObject.class, UncachedObject.Fields.counter, 50).get(0);
+        morphium.unset(uc, "uncached_object", UncachedObject.Fields.value);
+        uc = morphium.reread(uc);
+        assert (uc.getValue() == null);
     }
 
     @Test
     public void testUnsetQ() throws Exception {
-
+        createUncachedObjects(100);
+        Query<UncachedObject> q = morphium.createQueryFor(UncachedObject.class).f("count").eq(50);
+        morphium.unsetQ(q, "value");
+        UncachedObject uc = q.get();
+        assert (uc.getValue() == null);
     }
 
     @Test
     public void testUnsetQ1() throws Exception {
+        createUncachedObjects(100);
+        Query<UncachedObject> q = morphium.createQueryFor(UncachedObject.class).f("count").eq(50);
+        morphium.unsetQ(q, new AsyncOperationCallback<UncachedObject>() {
+            @Override
+            public void onOperationSucceeded(AsyncOperationType type, Query<UncachedObject> q, long duration, List<UncachedObject> result, UncachedObject entity, Object... param) {
 
+            }
+
+            @Override
+            public void onOperationError(AsyncOperationType type, Query<UncachedObject> q, long duration, String error, Throwable t, UncachedObject entity, Object... param) {
+
+            }
+        }, "value");
+        waitForAsyncOperationToStart(100000);
+        UncachedObject uc = q.get();
+        assert (uc.getValue() == null);
     }
 
     @Test
     public void testUnsetQ2() throws Exception {
-
+        createUncachedObjects(100);
+        Query<UncachedObject> q = morphium.createQueryFor(UncachedObject.class).f("count").lt(50);
+        morphium.unsetQ(q, true, "value");
+        UncachedObject uc = q.get();
+        assert (uc.getValue() == null);
     }
 
     @Test

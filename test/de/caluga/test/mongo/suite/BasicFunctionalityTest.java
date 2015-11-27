@@ -63,6 +63,7 @@ public class BasicFunctionalityTest extends MongoTest {
             o.setValue("Uncached " + i % 2);
             morphium.store(o);
         }
+        Thread.sleep(600);
         Query<UncachedObject> q = morphium.createQueryFor(UncachedObject.class);
         q = q.f("counter").gt(0).sort("-counter", "value");
         List<UncachedObject> lst = q.asList();
@@ -300,7 +301,7 @@ public class BasicFunctionalityTest extends MongoTest {
         long dur = System.currentTimeMillis() - start;
         log.info("Storing single took " + dur + " ms");
 //        assert (dur < NO_OBJECTS * 5) : "Storing took way too long";
-        Thread.sleep(500);
+        Thread.sleep(1500);
         log.info("Searching for objects");
 
         checkUncached();

@@ -243,7 +243,7 @@ public class MongoTest {
         }
         morphium.storeList(lst);
         try {
-            Thread.sleep(200); //For Wiredtiger!
+            Thread.sleep(1200); //For Wiredtiger!
         } catch (InterruptedException e) {
         }
     }
