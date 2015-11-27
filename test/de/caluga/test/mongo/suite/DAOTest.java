@@ -21,7 +21,7 @@ public class DAOTest extends MongoTest {
             o.setValue("Uncached " + i);
             morphium.store(o);
         }
-
+        Thread.sleep(1000);
         UncachedObjectDAO dao = new UncachedObjectDAO(morphium);
         List<UncachedObject> lst = dao.getAll();
         assert (lst.size() == 100) : "Wrong element count: " + lst.size();

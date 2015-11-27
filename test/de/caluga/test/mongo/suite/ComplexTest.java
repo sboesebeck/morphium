@@ -12,7 +12,7 @@ import java.util.List;
  * User: Stpehan Bösebeck
  * Date: 29.03.12
  * Time: 15:56
- * <p/>
+ * <p>
  * testing compley queryies on Morphium
  */
 public class ComplexTest extends MongoTest {
@@ -120,14 +120,14 @@ public class ComplexTest extends MongoTest {
 
 
     @Test
-    public void testNorQuery() {
+    public void testNorQuery() throws Exception {
         for (int i = 1; i <= 100; i++) {
             UncachedObject o = new UncachedObject();
             o.setCounter(i);
             o.setValue("Uncached " + i);
             morphium.store(o);
         }
-
+        Thread.sleep(500);
         Query<UncachedObject> q = morphium.createQueryFor(UncachedObject.class);
         q.nor(q.q().f("counter").lt(90), q.q().f("counter").gt(95));
         log.info("Query: " + q.toQueryObject().toString());

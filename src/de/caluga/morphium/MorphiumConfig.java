@@ -1,7 +1,6 @@
 package de.caluga.morphium;
 
 
-import com.mongodb.DB;
 import com.mongodb.ServerAddress;
 import com.mongodb.Tag;
 import com.mongodb.TagSet;
@@ -42,8 +41,6 @@ public class MorphiumConfig {
     private int globalCacheValidTime = 5000;
     private int writeCacheTimeout = 5000;
     private String database;
-    @Transient
-    private DB db = null;
     @Transient
     private MorphiumWriter writer;
     @Transient
@@ -394,13 +391,6 @@ public class MorphiumConfig {
         this.bufferedWriter = bufferedWriter;
     }
 
-    public DB getDb() {
-        return db;
-    }
-
-    public void setDb(DB db) {
-        this.db = db;
-    }
 
     public MorphiumWriter getWriter() {
         if (writer == null) {

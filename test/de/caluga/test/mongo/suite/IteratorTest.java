@@ -346,7 +346,6 @@ public class IteratorTest extends MongoTest {
     @Test
     public void basicIteratorTest() throws Exception {
         createUncachedObjects(1000);
-
         Query<UncachedObject> qu = getUncachedObjectQuery();
         long start = System.currentTimeMillis();
         MorphiumIterator<UncachedObject> it = qu.asIterable(2);
