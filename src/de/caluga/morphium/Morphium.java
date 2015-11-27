@@ -340,13 +340,24 @@ public class Morphium {
 
     @SuppressWarnings({"unchecked", "UnusedDeclaration"})
     public <T> void unset(T toSet, Enum field) {
-        unset(toSet, field.name(), null);
+        unset(toSet, field.name(), (AsyncOperationCallback) null);
     }
 
     public <T> void unset(final T toSet, final String field) {
-        unset(toSet, field, null);
+        unset(toSet, field, (AsyncOperationCallback) null);
     }
 
+    public <T> void unset(final T toSet, final Enum field, final AsyncOperationCallback<T> callback) {
+        unset(toSet, field.name(), callback);
+    }
+
+    public <T> void unset(final T toSet, String collection, final Enum field) {
+        unset(toSet, collection, field.name(), null);
+    }
+
+    public <T> void unset(final T toSet, String collection, final Enum field, final AsyncOperationCallback<T> callback) {
+        unset(toSet, collection, field.name(), callback);
+    }
     public <T> void unset(final T toSet, final String field, final AsyncOperationCallback<T> callback) {
         unset(toSet, getMapper().getCollectionName(toSet.getClass()), field, callback);
     }
