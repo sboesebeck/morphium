@@ -4,6 +4,7 @@ import com.mongodb.bulk.BulkWriteResult;
 import com.mongodb.client.model.*;
 import de.caluga.morphium.Logger;
 import de.caluga.morphium.Morphium;
+import de.caluga.morphium.Utils;
 import de.caluga.morphium.driver.ReadPreference;
 import de.caluga.morphium.driver.WriteConcern;
 import de.caluga.morphium.driver.bson.MorphiumId;
@@ -64,6 +65,13 @@ public class MongodbBulkContext extends BulkRequestContext {
     }
 
     @Override
+    public StoreBulkRequest addStoreBulkRequest(List<Map<String, Object>> toStore) {
+        StoreBulkRequest store = new StoreBulkRequest(toStore);
+        addRequest(store);
+        return store;
+    }
+
+    @Override
     public DeleteBulkRequest addDeleteBulkRequest() {
         DeleteBulkRequest del = new DeleteBulkRequest();
         addRequest(del);
@@ -89,6 +97,14 @@ public class MongodbBulkContext extends BulkRequestContext {
                     inserts.put(document, o);
                 }
 
+            } else if (br instanceof StoreBulkRequest) {
+                StoreBulkRequest ib = (StoreBulkRequest) br;
+                helper.replaceMorphiumIdByObjectId(ib.getToInsert());
+                for (Map<String, Object> o : ib.getToInsert()) {
+                    Document document = new Document(o);
+                    lst.add(new ReplaceOneModel<>(new Document(Utils.getMap("_id", o.get("_id"))), document));
+                    inserts.put(document, o);
+                }
             } else if (br instanceof DeleteBulkRequest) {
                 DeleteBulkRequest dbr = (DeleteBulkRequest) br;
                 helper.replaceMorphiumIdByObjectId(((DeleteBulkRequest) br).getQuery());
