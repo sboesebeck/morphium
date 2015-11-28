@@ -50,10 +50,10 @@ public class MorphiumTest extends MongoTest {
             }
         };
         morphium.registerTypeMapper(UncachedObject.class, m);
-        assert (morphium.getMapper().marshall(new UncachedObject()) == null);
+        assert (morphium.getMapper().marshall(new UncachedObject()).containsKey("value"));
 
         morphium.deregisterTypeMapper(UncachedObject.class);
-        assert (morphium.getMapper().marshall(new UncachedObject()) != null);
+        assert (!morphium.getMapper().marshall(new UncachedObject()).containsKey("value"));
 
     }
 
@@ -117,6 +117,7 @@ public class MorphiumTest extends MongoTest {
             }
         });
         waitForAsyncOperationToStart(1000000);
+        Thread.sleep(1000);
         uc = morphium.reread(uc);
         assert (uc.getValue() == null);
     }
@@ -133,7 +134,7 @@ public class MorphiumTest extends MongoTest {
     @Test
     public void testUnsetQ() throws Exception {
         createUncachedObjects(100);
-        Query<UncachedObject> q = morphium.createQueryFor(UncachedObject.class).f("count").eq(50);
+        Query<UncachedObject> q = morphium.createQueryFor(UncachedObject.class).f("counter").eq(50);
         morphium.unsetQ(q, "value");
         UncachedObject uc = q.get();
         assert (uc.getValue() == null);
@@ -142,7 +143,7 @@ public class MorphiumTest extends MongoTest {
     @Test
     public void testUnsetQ1() throws Exception {
         createUncachedObjects(100);
-        Query<UncachedObject> q = morphium.createQueryFor(UncachedObject.class).f("count").eq(50);
+        Query<UncachedObject> q = morphium.createQueryFor(UncachedObject.class).f("counter").eq(50);
         morphium.unsetQ(q, new AsyncOperationCallback<UncachedObject>() {
             @Override
             public void onOperationSucceeded(AsyncOperationType type, Query<UncachedObject> q, long duration, List<UncachedObject> result, UncachedObject entity, Object... param) {
@@ -155,6 +156,7 @@ public class MorphiumTest extends MongoTest {
             }
         }, "value");
         waitForAsyncOperationToStart(100000);
+        Thread.sleep(1000);
         UncachedObject uc = q.get();
         assert (uc.getValue() == null);
     }
@@ -162,7 +164,7 @@ public class MorphiumTest extends MongoTest {
     @Test
     public void testUnsetQ2() throws Exception {
         createUncachedObjects(100);
-        Query<UncachedObject> q = morphium.createQueryFor(UncachedObject.class).f("count").lt(50);
+        Query<UncachedObject> q = morphium.createQueryFor(UncachedObject.class).f("counter").lt(50);
         morphium.unsetQ(q, true, "value");
         UncachedObject uc = q.get();
         assert (uc.getValue() == null);
@@ -171,7 +173,7 @@ public class MorphiumTest extends MongoTest {
     @Test
     public void testUnsetQ3() throws Exception {
         createUncachedObjects(100);
-        Query<UncachedObject> q = morphium.createQueryFor(UncachedObject.class).f("count").eq(50);
+        Query<UncachedObject> q = morphium.createQueryFor(UncachedObject.class).f("counter").eq(50);
         morphium.unsetQ(q, UncachedObject.Fields.value);
         UncachedObject uc = q.get();
         assert (uc.getValue() == null);
@@ -181,7 +183,7 @@ public class MorphiumTest extends MongoTest {
     @Test
     public void testUnsetQ4() throws Exception {
         createUncachedObjects(100);
-        Query<UncachedObject> q = morphium.createQueryFor(UncachedObject.class).f("count").lt(50);
+        Query<UncachedObject> q = morphium.createQueryFor(UncachedObject.class).f("counter").lt(50);
         morphium.unsetQ(q, true, UncachedObject.Fields.value);
         UncachedObject uc = q.get();
         assert (uc.getValue() == null);
@@ -190,7 +192,7 @@ public class MorphiumTest extends MongoTest {
     @Test
     public void testUnsetQ5() throws Exception {
         createUncachedObjects(100);
-        Query<UncachedObject> q = morphium.createQueryFor(UncachedObject.class).f("count").eq(50);
+        Query<UncachedObject> q = morphium.createQueryFor(UncachedObject.class).f("counter").eq(50);
         morphium.unsetQ(q, new AsyncOperationCallback<UncachedObject>() {
             @Override
             public void onOperationSucceeded(AsyncOperationType type, Query<UncachedObject> q, long duration, List<UncachedObject> result, UncachedObject entity, Object... param) {
@@ -211,7 +213,7 @@ public class MorphiumTest extends MongoTest {
     @Test
     public void testUnsetQ6() throws Exception {
         createUncachedObjects(100);
-        Query<UncachedObject> q = morphium.createQueryFor(UncachedObject.class).f("count").eq(50);
+        Query<UncachedObject> q = morphium.createQueryFor(UncachedObject.class).f("counter").eq(50);
         morphium.unsetQ(q, new AsyncOperationCallback<UncachedObject>() {
             @Override
             public void onOperationSucceeded(AsyncOperationType type, Query<UncachedObject> q, long duration, List<UncachedObject> result, UncachedObject entity, Object... param) {
@@ -232,7 +234,7 @@ public class MorphiumTest extends MongoTest {
     @Test
     public void testUnsetQ7() throws Exception {
         createUncachedObjects(100);
-        Query<UncachedObject> q = morphium.createQueryFor(UncachedObject.class).f("count").lt(50);
+        Query<UncachedObject> q = morphium.createQueryFor(UncachedObject.class).f("counter").lt(50);
         morphium.unsetQ(q, true, new AsyncOperationCallback<UncachedObject>() {
             @Override
             public void onOperationSucceeded(AsyncOperationType type, Query<UncachedObject> q, long duration, List<UncachedObject> result, UncachedObject entity, Object... param) {
@@ -305,12 +307,12 @@ public class MorphiumTest extends MongoTest {
 
     @Test
     public void testExecCommand() throws Exception {
-        morphium.execCommand(Utils.getMap("stats", 1));
+        morphium.execCommand(Utils.getMap("dbstats", 1));
     }
 
     @Test
     public void testExecCommand1() throws Exception {
-        morphium.execCommand("replSetStats");
+        morphium.execCommand("version");
     }
 
     @Test
