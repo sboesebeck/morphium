@@ -21,10 +21,7 @@ import org.bson.*;
 import org.bson.types.BSONTimestamp;
 import org.bson.types.ObjectId;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 /**
  * TODO: Add Documentation here
@@ -1023,11 +1020,20 @@ public class Driver implements MorphiumDriver {
         this.sleepBetweenErrorRetries = sleepBetweenErrorRetries;
     }
 
+    public Map<String, Object> getCollectionStats(String db, String coll, int scale, boolean verbose) throws MorphiumDriverException {
+        Map<String, Object> cmd = new LinkedHashMap<>();
+        cmd.put("collStats", coll);
+        cmd.put("scale", scale);
+        cmd.put("verbose", verbose);
+        cmd = runCommand(db, cmd);
+        return cmd;
+    }
 
     @Override
     public boolean isCapped(String db, String coll) throws MorphiumDriverException {
-        //TODO: Change to new syntax? Using Command?
-        return mongo.getDB(db).getCollection(coll).isCapped();
+        Object capped = getCollectionStats(db, coll, 1024, false).get("capped");
+        if (capped instanceof String) return capped.equals("true");
+        return capped.equals(Boolean.TRUE) || capped.equals(1) || capped.equals(true);
     }
 
     @Override
