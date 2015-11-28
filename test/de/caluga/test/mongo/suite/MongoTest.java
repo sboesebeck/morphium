@@ -242,9 +242,13 @@ public class MongoTest {
             }
         }
         morphium.storeList(lst);
-        try {
-            Thread.sleep(1200); //For Wiredtiger!
-        } catch (InterruptedException e) {
+        Query<UncachedObject> q = morphium.createQueryFor(UncachedObject.class);
+        while (q.countAll() != amount) {
+            log.info("Waiting for data to be stored..." + q.countAll());
+            try {
+                Thread.sleep(100);
+            } catch (InterruptedException e) {
+            }
         }
     }
 
