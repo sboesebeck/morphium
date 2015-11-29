@@ -113,6 +113,7 @@ public class RSMonitor {
                 //de-referencing list
                 List lst = status.getMembers();
                 List<ReplicaSetNode> members = new ArrayList<>();
+                if (lst != null)
                 for (Object l : lst) {
 //                    DBObject o = (DBObject) l;
                     ReplicaSetNode n = (ReplicaSetNode) l;//objectMapper.unmarshall(ReplicaSetNode.class, o);
