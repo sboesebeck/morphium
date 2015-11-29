@@ -14,6 +14,7 @@ import de.caluga.morphium.annotations.Transient;
 import de.caluga.morphium.cache.MorphiumCache;
 import de.caluga.morphium.cache.MorphiumCacheImpl;
 import de.caluga.morphium.driver.ReadPreference;
+import de.caluga.morphium.driver.mongodb.Driver;
 import de.caluga.morphium.query.*;
 import de.caluga.morphium.writer.AsyncWriterImpl;
 import de.caluga.morphium.writer.BufferedMorphiumWriterImpl;
@@ -113,6 +114,8 @@ public class MorphiumConfig {
     private Class<? extends MongoField> fieldImplClass = MongoFieldImpl.class;
     @Transient
     private ReadPreference defaultReadPreference;
+
+    private String driverClass;
     private int acceptableLatencyDifference = 15;
     private int threadPoolMessagingCoreSize = 0;
     private int threadPoolMessagingMaxSize = 100;
@@ -134,6 +137,15 @@ public class MorphiumConfig {
 
     private String defaultTags;
     private String requiredReplicaSetName = null;
+
+    public String getDriverClass() {
+        if (driverClass == null) driverClass = Driver.class.getName();
+        return driverClass;
+    }
+
+    public void setDriverClass(String driverClass) {
+        this.driverClass = driverClass;
+    }
 
     public MorphiumConfig(Properties prop) {
         AnnotationAndReflectionHelper an = new AnnotationAndReflectionHelper(true); //settings always convert camel case
