@@ -1,5 +1,6 @@
 package de.caluga.morphium.query;
 
+import de.caluga.morphium.AnnotationAndReflectionHelper;
 import de.caluga.morphium.FilterExpression;
 import de.caluga.morphium.Morphium;
 import de.caluga.morphium.annotations.ReadPreferenceLevel;
@@ -211,6 +212,10 @@ public interface Query<T> extends Cloneable {
     Query<T> q();
 
     List<T> complexQuery(Map<String, Object> query);
+
+    AnnotationAndReflectionHelper getARHelper();
+
+    void setARHelpter(AnnotationAndReflectionHelper ar);
 
     /**
      * just sends the given query to the MongoDBDriver and masrhalls objects as listed

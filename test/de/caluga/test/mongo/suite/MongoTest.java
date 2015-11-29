@@ -4,6 +4,7 @@ import de.caluga.morphium.*;
 import de.caluga.morphium.async.AsyncOperationCallback;
 import de.caluga.morphium.async.AsyncOperationType;
 import de.caluga.morphium.driver.ReadPreference;
+import de.caluga.morphium.driver.inmem.InMemoryDriver;
 import de.caluga.morphium.messaging.Msg;
 import de.caluga.morphium.query.PrefetchingMorphiumIterator;
 import de.caluga.morphium.query.Query;
@@ -114,8 +115,8 @@ public class MongoTest {
                 //creating default config
                 cfg = new MorphiumConfig("morphium_test", 2055, 50000, 5000);
                 cfg.addHost("localhost", 27017);
-                cfg.addHost("localhost", 27018);
-                cfg.addHost("localhost", 27019);
+//                cfg.addHost("localhost", 27018);
+//                cfg.addHost("localhost", 27019);
                 cfg.setWriteCacheTimeout(100);
                 cfg.setConnectionTimeout(2000);
                 cfg.setMaxWaitTime(2000);
@@ -164,6 +165,9 @@ public class MongoTest {
             cfg.setLogLevelForClass(PrefetchingMorphiumIterator.class, 3);
             cfg.setLogLevelForPrefix("de.caluga.test", 5);
             cfg.setLogSyncedForPrefix("de.caluga.test", true);
+
+            cfg.setDriverClass(InMemoryDriver.class.getName());
+
             MorphiumSingleton.setConfig(cfg);
             morphium = MorphiumSingleton.get();
 
