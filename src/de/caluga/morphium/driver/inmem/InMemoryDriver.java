@@ -1,5 +1,6 @@
 package de.caluga.morphium.driver.inmem;
 
+import de.caluga.morphium.Logger;
 import de.caluga.morphium.Morphium;
 import de.caluga.morphium.driver.MorphiumDriver;
 import de.caluga.morphium.driver.MorphiumDriverException;
@@ -9,10 +10,7 @@ import de.caluga.morphium.driver.bson.MorphiumId;
 import de.caluga.morphium.driver.bulk.*;
 import de.caluga.morphium.driver.mongodb.Maximums;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
@@ -23,7 +21,7 @@ import java.util.concurrent.ConcurrentHashMap;
  * TODO: Add documentation here
  */
 public class InMemoryDriver implements MorphiumDriver {
-
+    private Logger log = new Logger(InMemoryDriver.class);
     // DBName => Collection => List of documents
     private Map<String, Map<String, List<Map<String, Object>>>> database = new ConcurrentHashMap<>();
 
@@ -289,7 +287,7 @@ public class InMemoryDriver implements MorphiumDriver {
     @Override
     public Map<String, Object> getDBStats(String db) throws MorphiumDriverException {
         Map<String, Object> ret = new HashMap<>();
-        ret.put("collections", database.get(db).size());
+        ret.put("collections", getDB(db).size());
 
 
         return ret;
@@ -305,25 +303,98 @@ public class InMemoryDriver implements MorphiumDriver {
         return null;
     }
 
+
+    private boolean matchesQuery(Map<String, Object> query, Map<String, Object> toCheck) {
+        boolean matches = false;
+        for (String key : query.keySet()) {
+            if (key.equals("$and")) {
+                //list of field queries
+                List<Map<String, Object>> lst = ((List<Map<String, Object>>) query.get(key));
+                for (Map<String, Object> q : lst) {
+                    if (!matchesQuery(toCheck, q)) return false;
+                }
+                return true;
+            } else if (key.equals("$or")) {
+                //list of or queries
+                List<Map<String, Object>> lst = ((List<Map<String, Object>>) query.get(key));
+                for (Map<String, Object> q : lst) {
+                    if (matchesQuery(toCheck, q)) return true;
+                }
+                return false;
+
+            } else {
+                //field check
+                if (query.get(key) instanceof Map) {
+                    //probably a query operand
+                    Map<String, Object> q = (Map<String, Object>) query.get(key);
+                    assert (q.size() == 1);
+                    for (String k : q.keySet()) {
+                        switch (k) {
+                            case "$lt":
+                                return ((Comparable) toCheck.get(key)).compareTo(q.get(k)) < 0;
+                            case "$lte":
+                                return ((Comparable) toCheck.get(key)).compareTo(q.get(k)) <= 0;
+                            case "$gt":
+                                return ((Comparable) toCheck.get(key)).compareTo(q.get(k)) > 0;
+                            case "$gte":
+                                return ((Comparable) toCheck.get(key)).compareTo(q.get(k)) >= 0;
+                            case "$in":
+                                for (Object v : (List) q.get(k)) {
+                                    if (toCheck.get(key).equals(v)) return true;
+                                }
+                                return false;
+                            default:
+                                throw new RuntimeException("Unknown Operator " + k);
+                        }
+
+                    }
+                } else {
+                    //value comparison - should only be one here
+                    assert (query.size() == 1);
+                    return toCheck.get(key).equals(query.get(key));
+                }
+            }
+        }
+        return matches;
+    }
+
     @Override
     public List<Map<String, Object>> find(String db, String collection, Map<String, Object> query, Map<String, Integer> sort, Map<String, Object> projection, int skip, int limit, int batchSize, ReadPreference rp, Map<String, Object> findMetaData) throws MorphiumDriverException {
-        List<Map<String, Object>> data = database.get(db).get(collection);
+        List<Map<String, Object>> data = getCollection(db, collection);
         List<Map<String, Object>> ret = new ArrayList<>();
+        int count = 0;
         for (Map<String, Object> o : data) {
+            count++;
+            if (count < skip) {
+                continue;
+            }
+            if (matchesQuery(query, o)) ret.add(o);
+            if (limit > 0 && ret.size() >= limit) break;
 
+            //todo add projection
+            //todo add sort
         }
 
-        return null;
+        return ret;
     }
 
     @Override
     public long count(String db, String collection, Map<String, Object> query, ReadPreference rp) throws MorphiumDriverException {
-        return 0;
+        List<Map<String, Object>> data = getCollection(db, collection);
+        if (query.size() == 0) {
+            return data.size();
+        }
+        long cnt = 0;
+        for (Map<String, Object> o : data) {
+            if (matchesQuery(query, o)) cnt++;
+        }
+
+        return cnt;
     }
 
     public List<Map<String, Object>> findByFieldValue(String db, String coll, String field, Object value) {
         List<Map<String, Object>> ret = new ArrayList<>();
-        for (Map<String, Object> obj : database.get(db).get(coll)) {
+        for (Map<String, Object> obj : getCollection(db, coll)) {
             if (obj.get(field).equals(value)) {
                 ret.add(obj);
             }
@@ -337,7 +408,7 @@ public class InMemoryDriver implements MorphiumDriver {
             if (findByFieldValue(db, collection, "_id", o.get("_id")).size() != 0)
                 throw new MorphiumDriverException("Duplicate _id!", null);
         }
-        database.get(db).get(collection).addAll(objs);
+        getCollection(db, collection).addAll(objs);
     }
 
     @Override
@@ -345,30 +416,125 @@ public class InMemoryDriver implements MorphiumDriver {
         for (Map<String, Object> o : objs) {
             if (o.get("_id") == null) {
                 o.put("_id", new MorphiumId());
-                database.get(db).get(collection).add(o);
+                getCollection(db, collection).add(o);
                 continue;
             }
             List<Map<String, Object>> srch = findByFieldValue(db, collection, "_id", o.get("_id"));
             if (srch.size() != 0) {
-                database.get(db).get(collection).remove(srch.get(0));
+                getCollection(db, collection).remove(srch.get(0));
             }
-            database.get(db).get(collection).add(o);
+            getCollection(db, collection).add(o);
         }
+    }
+
+    private Map<String, List<Map<String, Object>>> getDB(String db) {
+        if (database.get(db) == null) {
+            database.put(db, new ConcurrentHashMap<>());
+        }
+        return database.get(db);
     }
 
     @Override
     public Map<String, Object> update(String db, String collection, Map<String, Object> query, Map<String, Object> op, boolean multiple, boolean upsert, WriteConcern wc) throws MorphiumDriverException {
-        return null;
+        List<Map<String, Object>> lst = find(db, collection, query, null, null, 0, multiple ? 0 : 1, 1000, null, null);
+        if (upsert && (lst == null || lst.size() == 0)) {
+            //TODO upserting
+            throw new RuntimeException("Upsert not implemented yet!");
+        }
+        for (Map<String, Object> obj : lst) {
+            for (String operand : op.keySet()) {
+                Map<String, Object> cmd = (Map<String, Object>) op.get(operand);
+                switch (operand) {
+                    case "$set":
+                        for (Map.Entry<String, Object> entry : cmd.entrySet()) {
+                            obj.put(entry.getKey(), entry.getValue());
+                        }
+                        break;
+                    case "$unset":
+                        for (Map.Entry<String, Object> entry : cmd.entrySet()) {
+                            obj.remove(entry.getKey());
+                        }
+                        break;
+                    case "$inc":
+                        for (Map.Entry<String, Object> entry : cmd.entrySet()) {
+                            Object value = obj.get(entry.getKey());
+                            if (value instanceof Integer) {
+                                value = (Integer) value + ((Integer) entry.getValue());
+                            } else if (value instanceof Double) {
+                                value = (Double) value + ((Double) entry.getValue());
+                            } else if (value instanceof Float) {
+                                value = (Float) value + ((Float) entry.getValue());
+                            } else if (value instanceof Long) {
+                                value = (Long) value + ((Long) entry.getValue());
+
+                            }
+                            obj.put(entry.getKey(), value);
+                        }
+                        break;
+                    case "$mul":
+                        for (Map.Entry<String, Object> entry : cmd.entrySet()) {
+                            Object value = obj.get(entry.getKey());
+                            if (value instanceof Integer) {
+                                value = (Integer) value * ((Integer) entry.getValue());
+                            } else if (value instanceof Double) {
+                                value = (Double) value * ((Double) entry.getValue());
+                            } else if (value instanceof Float) {
+                                value = (Float) value * ((Float) entry.getValue());
+                            } else if (value instanceof Long) {
+                                value = (Long) value * ((Long) entry.getValue());
+                            }
+                            obj.put(entry.getKey(), value);
+                        }
+                        break;
+                    case "$rename":
+                        for (Map.Entry<String, Object> entry : cmd.entrySet()) {
+                            obj.put((String) entry.getValue(), obj.get(entry.getKey()));
+                            obj.remove(entry.getKey());
+                        }
+                        break;
+                    case "$min":
+                        for (Map.Entry<String, Object> entry : cmd.entrySet()) {
+                            Comparable value = (Comparable) obj.get(entry.getKey());
+                            if (value.compareTo(entry.getValue()) > 0) {
+                                obj.put(entry.getKey(), entry.getValue());
+                            }
+                        }
+                        break;
+                    case "$max":
+                        for (Map.Entry<String, Object> entry : cmd.entrySet()) {
+                            Comparable value = (Comparable) obj.get(entry.getKey());
+                            if (value.compareTo(entry.getValue()) < 0) {
+                                obj.put(entry.getKey(), entry.getValue());
+                            }
+                        }
+                        break;
+                    default:
+                        throw new RuntimeException("unknown operand " + operand);
+                }
+            }
+        }
+        return new HashMap<>();
     }
 
     @Override
     public Map<String, Object> delete(String db, String collection, Map<String, Object> query, boolean multiple, WriteConcern wc) throws MorphiumDriverException {
-        return null;
+        List<Map<String, Object>> toDel = find(db, collection, query, null, null, 0, multiple ? 0 : 1, 10000, null, null);
+        for (Map<String, Object> o : toDel) {
+            getCollection(db, collection).remove(o);
+        }
+        return new HashMap<>();
+    }
+
+    private List<Map<String, Object>> getCollection(String db, String collection) {
+        if (getDB(db).get(collection) == null) {
+            getDB(db).put(collection, new Vector<>());
+        }
+        return getDB(db).get(collection);
     }
 
     @Override
     public void drop(String db, String collection, WriteConcern wc) throws MorphiumDriverException {
-        database.get(db).remove(collection);
+        getDB(db).remove(collection);
     }
 
     @Override
@@ -388,7 +554,7 @@ public class InMemoryDriver implements MorphiumDriver {
 
     @Override
     public boolean exists(String db, String collection) throws MorphiumDriverException {
-        return database.get(db).containsKey(collection);
+        return getDB(db).containsKey(collection);
     }
 
     @Override
@@ -449,35 +615,66 @@ public class InMemoryDriver implements MorphiumDriver {
     @Override
     public BulkRequestContext createBulkContext(Morphium m, String db, String collection, boolean ordered, WriteConcern wc) {
         return new BulkRequestContext(m) {
+            List<BulkRequest> requests = new ArrayList<>();
+
             @Override
             public Map<String, Object> execute() {
-                return null;
+                try {
+                    for (BulkRequest r : requests) {
+                        if (r instanceof InsertBulkRequest) {
+                            insert(db, collection, ((InsertBulkRequest) r).getToInsert(), null);
+                        } else if (r instanceof StoreBulkRequest) {
+                            store(db, collection, ((StoreBulkRequest) r).getToInsert(), null);
+                        } else if (r instanceof UpdateBulkRequest) {
+                            UpdateBulkRequest up = (UpdateBulkRequest) r;
+                            update(db, collection, up.getQuery(), up.getCmd(), up.isMultiple(), up.isUpsert(), null);
+                        } else if (r instanceof DeleteBulkRequest) {
+                            delete(db, collection, ((DeleteBulkRequest) r).getQuery(), ((DeleteBulkRequest) r).isMultiple(), null);
+                        } else {
+                            throw new RuntimeException("Unknown operation " + r.getClass().getName());
+                        }
+                    }
+                } catch (MorphiumDriverException e) {
+                    log.error("Got exception: ", e);
+                }
+                return new HashMap<>();
+
             }
 
             @Override
             public UpdateBulkRequest addUpdateBulkRequest() {
-                return null;
+                UpdateBulkRequest up = new UpdateBulkRequest();
+                requests.add(up);
+                return up;
             }
 
             @Override
             public StoreBulkRequest addStoreBulkRequest(List<Map<String, Object>> toStore) {
-                return null;
+                StoreBulkRequest store = new StoreBulkRequest(toStore);
+                requests.add(store);
+                return store;
+
             }
 
             @Override
             public InsertBulkRequest addInsertBulkReqpest(List<Map<String, Object>> toInsert) {
-                return null;
+                InsertBulkRequest in = new InsertBulkRequest(toInsert);
+                requests.add(in);
+                return in;
             }
 
             @Override
             public DeleteBulkRequest addDeleteBulkRequest() {
-                return null;
+                DeleteBulkRequest del = new DeleteBulkRequest();
+                requests.add(del);
+                return del;
             }
         };
     }
 
     @Override
     public void createIndex(String db, String collection, Map<String, Object> index, Map<String, Object> options) throws MorphiumDriverException {
+        //TODO: implement hashmap access for this
 
     }
 }

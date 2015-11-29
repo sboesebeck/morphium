@@ -41,6 +41,7 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
     private Map<String, Object> additionalFields;
 
     private String tags;
+    private AnnotationAndReflectionHelper arHelper;
 
     public QueryImpl() {
 
@@ -122,7 +123,7 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
     @Override
     public void setMorphium(Morphium m) {
         morphium = m;
-
+        setARHelpter(m.getARHelper());
         andExpr = new ArrayList<>();
         orQueries = new ArrayList<>();
         norQueries = new ArrayList<>();
@@ -166,8 +167,22 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
     }
 
     @Override
+    public AnnotationAndReflectionHelper getARHelper() {
+        if (arHelper == null) {
+            arHelper = morphium.getARHelper();
+        }
+        return arHelper;
+    }
+
+    @Override
+    public void setARHelpter(AnnotationAndReflectionHelper ar) {
+        arHelper = ar;
+    }
+    
+
+    @Override
     public List<T> complexQuery(Map<String, Object> query, Map<String, Integer> sort, int skip, int limit) {
-        Cache ca = morphium.getARHelper().getAnnotationFromHierarchy(type, Cache.class); //type.getAnnotation(Cache.class);
+        Cache ca = getARHelper().getAnnotationFromHierarchy(type, Cache.class); //type.getAnnotation(Cache.class);
         boolean useCache = ca != null && ca.readCache() && morphium.isReadCacheEnabledForThread();
         String ck = morphium.getCache().getCacheKey(query, sort, getCollectionName(), skip, limit);
         if (useCache && morphium.getCache().isCached(type, ck)) {
@@ -200,10 +215,10 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
     }
 
     private Map<String, Object> getFieldListForQuery() {
-        List<Field> fldlst = morphium.getARHelper().getAllFields(type);
+        List<Field> fldlst = getARHelper().getAllFields(type);
         Map<String, Object> lst = new HashMap<>();
         lst.put("_id", 1);
-        Entity e = morphium.getARHelper().getAnnotationFromHierarchy(type, Entity.class);
+        Entity e = getARHelper().getAnnotationFromHierarchy(type, Entity.class);
         if (e.polymorph()) {
 //            lst.put("class_name", 1);
             return new HashMap<>();
@@ -218,7 +233,7 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
                     lst = new HashMap<>();
                     break;
                 }
-                String n = morphium.getARHelper().getFieldName(type, f.getName());
+                String n = getARHelper().getFieldName(type, f.getName());
                 lst.put(n, 1);
             }
         }
@@ -316,8 +331,8 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
         if (f.contains(".")) {
             String[] fieldNames = f.split("\\.");
             for (String fieldName : fieldNames) {
-                String fieldNameInstance = morphium.getARHelper().getFieldName(clz, fieldName);
-                Field field = morphium.getARHelper().getField(clz, fieldNameInstance);
+                String fieldNameInstance = getARHelper().getFieldName(clz, fieldName);
+                Field field = getARHelper().getField(clz, fieldNameInstance);
                 if (field == null) {
                     throw new IllegalArgumentException("Field " + fieldNameInstance + " not found!");
                 }
@@ -344,7 +359,7 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
                 cf = fieldPath.substring(0, fieldPath.length() - 1);
             }
         } else {
-            cf = morphium.getARHelper().getFieldName(clz, f);
+            cf = getARHelper().getFieldName(clz, f);
 
         }
         if (additionalDataPresent) {
@@ -424,7 +439,7 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
                 val = 1;
             }
             if (!fld.contains(".") && !fld.startsWith("$")) {
-                fld = morphium.getARHelper().getFieldName(type, fld);
+                fld = getARHelper().getFieldName(type, fld);
             }
             m.put(fld, val);
         }
@@ -435,7 +450,7 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
     public Query<T> sort(Enum... naturalOrder) {
         Map<String, Integer> m = new LinkedHashMap<>();
         for (Enum i : naturalOrder) {
-            String fld = morphium.getARHelper().getFieldName(type, i.name());
+            String fld = getARHelper().getFieldName(type, i.name());
             m.put(fld, 1);
         }
         return sort(m);
@@ -561,11 +576,11 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
     @Override
     public void setType(Class<? extends T> type) {
         this.type = type;
-        DefaultReadPreference pr = morphium.getARHelper().getAnnotationFromHierarchy(type, DefaultReadPreference.class);
+        DefaultReadPreference pr = getARHelper().getAnnotationFromHierarchy(type, DefaultReadPreference.class);
         if (pr != null) {
             setReadPreferenceLevel(pr.value());
         }
-        List<String> fields = morphium.getARHelper().getFields(type, AdditionalData.class);
+        List<String> fields = getARHelper().getFields(type, AdditionalData.class);
         additionalDataPresent = fields != null && fields.size() != 0;
     }
 
@@ -590,7 +605,7 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
     @Override
     public List<T> asList() {
         morphium.inc(StatisticKeys.READS);
-        Cache c = morphium.getARHelper().getAnnotationFromHierarchy(type, Cache.class); //type.getAnnotation(Cache.class);
+        Cache c = getARHelper().getAnnotationFromHierarchy(type, Cache.class); //type.getAnnotation(Cache.class);
         boolean useCache = c != null && c.readCache() && morphium.isReadCacheEnabledForThread();
 
         String ck = morphium.getCache().getCacheKey(this);
@@ -686,10 +701,10 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
     private void updateLastAccess(T unmarshall) {
         if (!autoValuesEnabled) return;
         if (!morphium.isAutoValuesEnabledForThread()) return;
-        if (morphium.getARHelper().isAnnotationPresentInHierarchy(type, LastAccess.class)) {
-            List<String> lst = morphium.getARHelper().getFields(type, LastAccess.class);
+        if (getARHelper().isAnnotationPresentInHierarchy(type, LastAccess.class)) {
+            List<String> lst = getARHelper().getFields(type, LastAccess.class);
             for (String ctf : lst) {
-                Field f = morphium.getARHelper().getField(type, ctf);
+                Field f = getARHelper().getField(type, ctf);
                 if (f != null) {
                     try {
                         long currentTime = System.currentTimeMillis();
@@ -705,7 +720,7 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
                         }
                         ObjectMapper mapper = morphium.getMapper();
                         String collName = mapper.getCollectionName(unmarshall.getClass());
-                        Object id = morphium.getARHelper().getId(unmarshall);
+                        Object id = getARHelper().getId(unmarshall);
                         //Cannot use store, as this would trigger an update of last changed...
                         morphium.getDriver().update(morphium.getConfig().getDatabase(), getCollectionName(), Utils.getMap("_id", id), Utils.getMap("$set", Utils.getMap(ctf, currentTime)), false, false, null);
 //                        morphium.getDatabase().getCollection(collName).update(new HashMap<String, Object>("_id", id), new HashMap<String, Object>("$set", new HashMap<String, Object>(ctf, currentTime)));
@@ -747,7 +762,7 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
 
     @Override
     public T getById(Object id) {
-        List<String> flds = morphium.getARHelper().getFields(type, Id.class);
+        List<String> flds = getARHelper().getFields(type, Id.class);
         if (flds == null || flds.isEmpty()) {
             throw new RuntimeException("Type does not have an ID-Field? " + type.getSimpleName());
         }
@@ -779,7 +794,7 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
 
     @Override
     public T get() {
-        Cache c = morphium.getARHelper().getAnnotationFromHierarchy(type, Cache.class); //type.getAnnotation(Cache.class);
+        Cache c = getARHelper().getAnnotationFromHierarchy(type, Cache.class); //type.getAnnotation(Cache.class);
         boolean useCache = c != null && c.readCache() && morphium.isReadCacheEnabledForThread();
         String ck = morphium.getCache().getCacheKey(this);
         morphium.inc(StatisticKeys.READS);
@@ -866,7 +881,7 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
 
     @Override
     public <R> List<R> idList() {
-        Cache c = morphium.getARHelper().getAnnotationFromHierarchy(type, Cache.class);//type.getAnnotation(Cache.class);
+        Cache c = getARHelper().getAnnotationFromHierarchy(type, Cache.class);//type.getAnnotation(Cache.class);
         boolean useCache = c != null && c.readCache() && morphium.isReadCacheEnabledForThread();
         List<R> ret = new ArrayList<>();
         String ck = morphium.getCache().getCacheKey(this);
@@ -1073,7 +1088,7 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
         if (fieldList == null) {
             fieldList = new HashMap<String, Integer>();
         }
-        String n = morphium.getARHelper().getFieldName(type, f);
+        String n = getARHelper().getFieldName(type, f);
         fieldList.put(n, 1);
     }
 

@@ -16,8 +16,8 @@ import de.caluga.morphium.driver.MorphiumDriverException;
 import de.caluga.morphium.driver.ReadPreference;
 import de.caluga.morphium.driver.WriteConcern;
 import de.caluga.morphium.driver.bson.MorphiumId;
-import de.caluga.morphium.driver.mongodb.Driver;
 import de.caluga.morphium.query.MongoField;
+import de.caluga.morphium.query.MongoFieldImpl;
 import de.caluga.morphium.query.Query;
 import de.caluga.morphium.replicaset.RSMonitor;
 import de.caluga.morphium.replicaset.ReplicaSetNode;
@@ -178,7 +178,11 @@ public class Morphium {
             });
 
 
-            morphiumDriver = new Driver();
+            try {
+                morphiumDriver = (MorphiumDriver) Class.forName(config.getDriverClass()).newInstance();
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            }
             morphiumDriver.setSocketTimeout(config.getSocketTimeout());
             morphiumDriver.setConnectionTimeout(config.getConnectionTimeout());
             morphiumDriver.setMaxConnectionsPerHost(config.getMaxConnections());
@@ -305,6 +309,10 @@ public class Morphium {
 
     public MorphiumDriver getDriver() {
         return morphiumDriver;
+    }
+
+    public void setDriver(MorphiumDriver drv) {
+        morphiumDriver = drv;
     }
 
 
@@ -2164,6 +2172,7 @@ public class Morphium {
 
     @SuppressWarnings("unchecked")
     public <T> MongoField<T> createMongoField() {
+        if (config == null) return new MongoFieldImpl<>();
         try {
             return (MongoField<T>) config.getFieldImplClass().newInstance();
         } catch (InstantiationException | IllegalAccessException e) {
