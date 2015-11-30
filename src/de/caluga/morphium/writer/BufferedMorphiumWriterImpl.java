@@ -59,7 +59,8 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
 //        BulkRequestContext ctx = morphium.getDriver().createBulkContext(morphium.getConfig().getDatabase(), "", false, null);
 //        BulkRequestContext octx = morphium.getDriver().createBulkContext(morphium.getConfig().getDatabase(), "", true, null);
 
-        for (WriteBufferEntry entry : localQueue) {
+        for (int i = 0; i < localQueue.size(); i++) {
+            WriteBufferEntry entry = localQueue.get(i);
             try {
                 if (bulkByCollectionName.get(entry.getCollectionName()) == null) {
                     WriteBuffer w = morphium.getARHelper().getAnnotationFromHierarchy(entry.getEntityType(), WriteBuffer.class);
@@ -87,7 +88,9 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
         } catch (Exception e) {
             logger.error("Error during exeecution of unordered bulk",e);
         }
-        for (WriteBufferEntry entry : localQueue) {
+
+        for (int i = 0; i < localQueue.size(); i++) {
+            WriteBufferEntry entry = localQueue.get(i);
             morphium.clearCacheforClassIfNecessary(entry.getEntityType());
         }
 
@@ -108,7 +111,7 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
             size = w.size();
             strategy = w.strategy();
         }
-        synchronized (opLog) {
+//        synchronized (opLog) {
             if (opLog.get(type) == null) {
                 opLog.put(type, new Vector<WriteBufferEntry>());
             }
@@ -152,7 +155,8 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
                         if (logger.isDebugEnabled()) {
                             logger.debug("Deleting oldest entry");
                         }
-                        opLog.get(type).remove(0);
+                        if (opLog.get(type).size() != 0)
+                            opLog.get(type).remove(0);
                         opLog.get(type).add(wb);
                         return;
                 }
@@ -161,7 +165,7 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
             } else {
                 opLog.get(type).add(wb);
             }
-        }
+//        }
     }
 
     @Override
@@ -468,7 +472,7 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
                     try {
                         //processing and clearing write cache...
                         List<Class<?>> localBuffer = new ArrayList<>();
-                        synchronized (opLog) {
+//                        synchronized (opLog) {
                             for (Class<?> clz : opLog.keySet()) {
                                 localBuffer.add(clz);
                             }
@@ -506,7 +510,7 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
                             }
 
 
-                        }
+//                        }
                     } catch (Exception e) {
                         logger.info("Got exception during write buffer handling!", e);
                     }
@@ -816,11 +820,11 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
     @Override
     public int writeBufferCount() {
         int cnt = 0;
-        synchronized (opLog) {
+//        synchronized (opLog) {
             for (List<WriteBufferEntry> lst : opLog.values()) {
                 cnt += lst.size();
             }
-        }
+//        }
         return cnt;
     }
 
@@ -832,7 +836,7 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
     @Override
     public void flush() {
         List<Class<?>> localBuffer = new ArrayList<>();
-        synchronized (opLog) {
+//        synchronized (opLog) {
             for (Class<?> clz : opLog.keySet()) {
                 localBuffer.add(clz);
             }
@@ -842,7 +846,7 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
                 }
                 opLog.get(clz).addAll(flushQueueToMongo(opLog.get(clz)));
             }
-        }
+//        }
     }
 
     @Override
