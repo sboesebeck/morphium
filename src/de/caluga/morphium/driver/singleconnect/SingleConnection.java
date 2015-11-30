@@ -238,13 +238,13 @@ public class SingleConnection implements MorphiumDriver {
 
                             numRead = in.read(inBuffer, 0, 4);
                             int size = OpReply.readInt(inBuffer, 0);
-                            byte buf[] = new byte[size + 4];
-                            buf[0] = ((byte) ((size) & 0xff));
-                            buf[1] = (((byte) ((size >> 8) & 0xff)));
-                            buf[2] = (((byte) ((size >> 16) & 0xff)));
-                            buf[3] = (((byte) ((size >> 24) & 0xff)));
+                            byte buf[] = new byte[size];
+                            buf[0] = inBuffer[0];
+                            buf[1] = inBuffer[1];
+                            buf[2] = inBuffer[2];
+                            buf[3] = inBuffer[3];
 
-                            numRead = in.read(buf, 4, size);
+                            numRead = in.read(buf, 4, size - 4);
                             OpReply reply = new OpReply();
                             try {
                                 reply.parse(buf);
@@ -354,7 +354,6 @@ public class SingleConnection implements MorphiumDriver {
     public List<Map<String, Object>> find(String db, String collection, Map<String, Object> query, Map<String, Integer> sort, Map<String, Object> projection, int skip, int limit, int batchSize, ReadPreference rp, Map<String, Object> findMetaData) throws MorphiumDriverException {
 
         OpQuery q = new OpQuery();
-        q.setColl(collection);
         q.setDb(db);
         q.setColl("$cmd");
         q.setLimit(1);
@@ -379,18 +378,45 @@ public class SingleConnection implements MorphiumDriver {
 
         boolean wait = true;
         OpReply reply = null;
+        int waitingfor = q.getReqId();
+        List<Map<String, Object>> ret = new ArrayList<>();
         while (wait) {
             for (int i = 0; i < replies.size(); i++) {
-                if (replies.get(i).getInReplyTo() == q.getReqId()) {
+                if (replies.get(i).getInReplyTo() == waitingfor) {
                     reply = replies.get(i);
-                    wait = false;
-                    break;
+
+                    Map<String, Object> cursor = (Map<String, Object>) reply.getDocuments().get(0).get("cursor");
+                    if (cursor.get("firstBatch") != null) {
+                        ret.addAll((List) cursor.get("firstBatch"));
+                    } else if (cursor.get("nextBatch") != null) {
+                        ret.addAll((List) cursor.get("nextBatch"));
+                    }
+                    if (((Long) cursor.get("id")) != 0) {
+                        System.out.println("getting next batch for cursor " + cursor.get("id"));
+                        //there is more! Sending getMore!
+                        q = new OpQuery();
+                        q.setColl("$cmd");
+                        q.setDb(db);
+                        q.setReqId(++rqid);
+                        q.setSkip(0);
+                        q.setLimit(1);
+                        doc = new LinkedHashMap<>();
+                        doc.put("getMore", cursor.get("id"));
+                        doc.put("collection", collection);
+                        doc.put("batchSize", batchSize);
+                        q.setDoc(doc);
+                        waitingfor = q.getReqId();
+                        sendQuery(q);
+                    } else {
+                        wait = false;
+                        break;
+                    }
                 }
             }
         }
 
 
-        return reply.getDocuments();
+        return ret;
     }
 
     private void sendQuery(OpQuery q) {
@@ -409,40 +435,108 @@ public class SingleConnection implements MorphiumDriver {
 
     @Override
     public void insert(String db, String collection, List<Map<String, Object>> objs, WriteConcern wc) throws MorphiumDriverException {
-        OpQuery op = new OpQuery();
-        op.setInReplyTo(0);
-        op.setDb(db);
-        op.setColl("$cmd");
-        HashMap<String, Object> map = new LinkedHashMap<>();
-        map.put("insert", collection);
+        int idx = 0;
         for (Map<String, Object> o : objs) {
             if (o.get("_id") == null) o.put("_id", new MorphiumId());
         }
-        map.put("documents", objs);
+
+        while (idx < objs.size()) {
+            OpQuery op = new OpQuery();
+            op.setInReplyTo(0);
+            op.setReqId(++rqid);
+            op.setDb(db);
+            op.setColl("$cmd");
+            HashMap<String, Object> map = new LinkedHashMap<>();
+            map.put("insert", collection);
+
+            List<Map<String, Object>> docs = new ArrayList<>();
+            for (int i = idx; i < idx + 1000 && i < objs.size(); i++) {
+                docs.add(objs.get(i));
+            }
+            idx += docs.size();
+            map.put("documents", docs);
+            map.put("ordered", false);
+            map.put("writeConcern", new HashMap<String, Object>());
+            op.setDoc(map);
+
+            sendQuery(op);
+        }
+    }
+
+    @Override
+    public void store(String db, String collection, List<Map<String, Object>> objs, WriteConcern wc) throws MorphiumDriverException {
+        OpQuery op = new OpQuery();
+        op.setInReplyTo(0);
+        op.setReqId(++rqid);
+        op.setDb(db);
+        op.setColl("$cmd");
+        HashMap<String, Object> map = new LinkedHashMap<>();
+        map.put("update", collection);
+        List<Map<String, Object>> update = new ArrayList<>();
+        for (Map<String, Object> o : objs) {
+            if (o.get("_id") == null) o.put("_id", new MorphiumId());
+            HashMap<String, Object> set = new HashMap<>();
+            set.put("$set", o);
+            update.add(set);
+        }
+        map.put("updates", update);
         map.put("ordered", false);
-        map.put("writeconcern", new HashMap<String, Object>());
+        map.put("writeConcern", new HashMap<String, Object>());
         op.setDoc(map);
 
         sendQuery(op);
     }
 
     @Override
-    public void store(String db, String collection, List<Map<String, Object>> objs, WriteConcern wc) throws MorphiumDriverException {
+    public Map<String, Object> update(String db, String collection, Map<String, Object> query, Map<String, Object> ops, boolean multiple, boolean upsert, WriteConcern wc) throws MorphiumDriverException {
+        OpQuery op = new OpQuery();
+        op.setInReplyTo(0);
+        op.setReqId(++rqid);
+        op.setDb(db);
+        op.setColl("$cmd");
+        HashMap<String, Object> map = new LinkedHashMap<>();
+        map.put("update", collection);
+        map.put("updates", ops);
+        map.put("ordered", false);
+        map.put("writeConcern", new HashMap<String, Object>());
+        op.setDoc(map);
 
-    }
-
-    @Override
-    public Map<String, Object> update(String db, String collection, Map<String, Object> query, Map<String, Object> op, boolean multiple, boolean upsert, WriteConcern wc) throws MorphiumDriverException {
+        sendQuery(op);
         return null;
     }
 
     @Override
     public Map<String, Object> delete(String db, String collection, Map<String, Object> query, boolean multiple, WriteConcern wc) throws MorphiumDriverException {
+        OpQuery op = new OpQuery();
+        op.setInReplyTo(0);
+        op.setReqId(++rqid);
+        op.setDb(db);
+        op.setColl("$cmd");
+        HashMap<String, Object> map = new LinkedHashMap<>();
+        map.put("delete", collection);
+        List<Map<String, Object>> cmd = new ArrayList<>();
+        cmd.add(query);
+        map.put("deletes", cmd);
+        map.put("ordered", false);
+        map.put("writeConcern", new HashMap<String, Object>());
+        op.setDoc(map);
+
+        sendQuery(op);
         return null;
     }
 
     @Override
     public void drop(String db, String collection, WriteConcern wc) throws MorphiumDriverException {
+        OpQuery op = new OpQuery();
+        op.setInReplyTo(0);
+        op.setReqId(++rqid);
+
+        op.setDb(db);
+        op.setColl("$cmd");
+        HashMap<String, Object> map = new LinkedHashMap<>();
+        map.put("drop", collection);
+        op.setDoc(map);
+        sendQuery(op);
 
     }
 

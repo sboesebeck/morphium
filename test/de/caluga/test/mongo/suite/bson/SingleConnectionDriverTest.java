@@ -3,6 +3,7 @@ package de.caluga.test.mongo.suite.bson;/**
  */
 
 import de.caluga.morphium.ObjectMapperImpl;
+import de.caluga.morphium.Utils;
 import de.caluga.morphium.driver.singleconnect.SingleConnection;
 import de.caluga.test.mongo.suite.data.UncachedObject;
 import org.junit.Test;
@@ -22,8 +23,12 @@ public class SingleConnectionDriverTest {
         SingleConnection drv = new SingleConnection();
         drv.setHostSeed("localhost:27017");
         drv.connect();
+
+        drv.drop("morphium_test", "tst", null);
+
+
         List<Map<String, Object>> lst = new ArrayList<>();
-        for (int i = 0; i < 100; i++) {
+        for (int i = 0; i < 1002; i++) {
             UncachedObject uc = new UncachedObject();
             uc.setCounter(i);
             uc.setValue("V:" + i);
@@ -31,7 +36,15 @@ public class SingleConnectionDriverTest {
         }
         drv.insert("morphium_test", "tst", lst, null);
 
+//        Thread.sleep(1000);
+
         lst = drv.find("morphium_test", "tst", new HashMap<String, Object>(), null, null, 0, 0, 1000, null, null);
         System.out.println("List: " + lst.size());
+        assert (lst.size() == 1002);
+
+        drv.delete("morphium_test", "tst", Utils.getMap("counter", 100), false, null);
+//        Thread.sleep(1000);
+        lst = drv.find("morphium_test", "tst", new HashMap<String, Object>(), null, null, 0, 0, 1000, null, null);
+        assert (lst.size() == 1001);
     }
 }
