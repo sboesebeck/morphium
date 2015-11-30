@@ -114,7 +114,7 @@ public abstract class WireProtocolMessage {
     }
 
     public static int readInt(byte[] bytes, int idx) {
-        return bytes[idx] | (bytes[idx + 1] << 8) | (bytes[idx + 2] << 16) | (bytes[idx + 3] << 24);
+        return (bytes[idx] & 0xff) | ((bytes[idx + 1] & 0xff) << 8) | ((bytes[idx + 2] & 0xff) << 16) | ((bytes[idx + 3] & 0xff) << 24);
     }
 
     public static long readLong(byte[] bytes, int idx) {
