@@ -18,7 +18,6 @@ public class BsonDecoder {
     }
 
     public int decodeDocumentIn(Map<String, Object> ret, byte[] in, int startIndex) throws UnsupportedEncodingException {
-
         int sz = readInt(in, startIndex);
         if (sz > in.length)
             throw new RuntimeException("error - size differs! read " + sz + " but buffer is " + in.length);
@@ -185,7 +184,7 @@ public class BsonDecoder {
 
 
     public int readInt(byte[] bytes, int idx) {
-        return bytes[idx] | (bytes[idx + 1] & 0xFF) << 8 | (bytes[idx + 2] & 0xFF) << 16 | ((bytes[idx + 3] & 0xFF) << 24);
+        return (bytes[idx] & 0xFF) | (bytes[idx + 1] & 0xFF) << 8 | (bytes[idx + 2] & 0xFF) << 16 | ((bytes[idx + 3] & 0xFF) << 24);
 
     }
 

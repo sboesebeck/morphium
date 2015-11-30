@@ -3,6 +3,7 @@ package de.caluga.test.mongo.suite.bson;/**
  */
 
 import de.caluga.morphium.Logger;
+import de.caluga.morphium.Utils;
 import de.caluga.morphium.driver.bson.BsonDecoder;
 import de.caluga.morphium.driver.bson.BsonEncoder;
 import de.caluga.morphium.driver.bson.MorphiumId;
@@ -39,8 +40,8 @@ public class BsonTest extends BaseTest {
 
         byte[] bytes = BsonEncoder.encodeDocument(doc);
 
-        log.error(getHex(bytes));
-//        System.err.println(getHex(bytes));
+        log.error(Utils.getHex(bytes));
+//        System.err.println(Utils.getHex(bytes));
 
         BsonDecoder dec = new BsonDecoder();
         Map<String, Object> aDoc = dec.decodeDocument(bytes);
@@ -79,8 +80,8 @@ public class BsonTest extends BaseTest {
 
         byte[] bytes = BsonEncoder.encodeDocument(doc);
 
-        log.error(getHex(bytes));
-        System.err.println(getHex(bytes));
+        log.error(Utils.getHex(bytes));
+        System.err.println(Utils.getHex(bytes));
 
     }
 
