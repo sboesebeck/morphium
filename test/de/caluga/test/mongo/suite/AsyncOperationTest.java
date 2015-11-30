@@ -58,14 +58,15 @@ public class AsyncOperationTest extends MongoTest {
 
             @Override
             public void onOperationError(AsyncOperationType type, Query<UncachedObject> q, long duration, String error, Throwable t, UncachedObject entity, Object... param) {
-                log.info("Objects update error");
+                log.info("Objects update error", t);
             }
         });
 
         waitForWrites();
         Thread.sleep(1000);
 
-        assert morphium.createQueryFor(UncachedObject.class).f("counter").eq(0).countAll() > 0;
+        long counter = morphium.createQueryFor(UncachedObject.class).f("counter").eq(0).countAll();
+        assert counter > 0 : "Counter is: " + counter;
         assert (asyncCall);
     }
 
