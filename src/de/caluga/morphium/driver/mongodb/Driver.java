@@ -58,6 +58,18 @@ public class Driver implements MorphiumDriver {
     private MongoClient mongo;
     private Maximums maximums;
 
+    private boolean replicaset;
+
+    @Override
+    public boolean isReplicaset() {
+        return replicaset;
+    }
+
+    @Override
+    public void setReplicaset(boolean replicaset) {
+        this.replicaset = replicaset;
+    }
+
     @Override
     public void setCredentials(String db, String login, char[] pwd) {
         String[] cred = new String[2];

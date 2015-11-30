@@ -56,6 +56,7 @@ public class MorphiumConfig {
     private boolean globalJ = false;
     private boolean checkForNew = false;
     private int writeTimeout = 0;
+    private boolean replicaset = true;
 
     private int globalLogLevel = 0;
     private boolean globalLogSynced = false;
@@ -137,6 +138,14 @@ public class MorphiumConfig {
 
     private String defaultTags;
     private String requiredReplicaSetName = null;
+
+    public boolean isReplicaset() {
+        return replicaset;
+    }
+
+    public void setReplicaset(boolean replicaset) {
+        this.replicaset = replicaset;
+    }
 
     public String getDriverClass() {
         if (driverClass == null) driverClass = Driver.class.getName();
