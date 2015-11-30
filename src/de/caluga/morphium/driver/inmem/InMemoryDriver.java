@@ -307,17 +307,18 @@ public class InMemoryDriver implements MorphiumDriver {
 
     @Override
     public Map<String, Object> getOps(long threshold) throws MorphiumDriverException {
-        return null;
+        throw new RuntimeException("not working on memory");
     }
 
     @Override
     public Map<String, Object> runCommand(String db, Map<String, Object> cmd) throws MorphiumDriverException {
-        return null;
+        throw new RuntimeException("not working on memory");
     }
 
 
     private boolean matchesQuery(Map<String, Object> query, Map<String, Object> toCheck) {
         boolean matches = false;
+        if (query.size() == 0) return true;
         if (query.containsKey("$where")) throw new RuntimeException("$where not implemented yet");
         for (String key : query.keySet()) {
             if (key.equals("$and")) {
@@ -352,7 +353,11 @@ public class InMemoryDriver implements MorphiumDriver {
                             case "$gte":
                                 return ((Comparable) toCheck.get(key)).compareTo(q.get(k)) >= 0;
                             case "$mod":
-
+                                Number n = (Number) toCheck.get(key);
+                                List arr = (List) q.get(k);
+                                int div = ((Integer) arr.get(0));
+                                int rem = ((Integer) arr.get(1));
+                                return n.intValue() % div == rem;
                             case "$ne":
                                 return ((Comparable) toCheck.get(key)).compareTo(q.get(k)) != 0;
                             case "$exists":
@@ -385,15 +390,21 @@ public class InMemoryDriver implements MorphiumDriver {
 
     @Override
     public List<Map<String, Object>> find(String db, String collection, Map<String, Object> query, Map<String, Integer> sort, Map<String, Object> projection, int skip, int limit, int batchSize, ReadPreference rp, Map<String, Object> findMetaData) throws MorphiumDriverException {
+        return find(db, collection, query, sort, projection, skip, limit, false);
+    }
+
+
+    private List<Map<String, Object>> find(String db, String collection, Map<String, Object> query, Map<String, Integer> sort, Map<String, Object> projection, int skip, int limit, boolean internal) throws MorphiumDriverException {
         List<Map<String, Object>> data = getCollection(db, collection);
         List<Map<String, Object>> ret = new ArrayList<>();
         int count = 0;
-        for (Map<String, Object> o : data) {
+        for (int i = 0; i < data.size(); i++) {
+            Map<String, Object> o = data.get(i);
             count++;
             if (count < skip) {
                 continue;
             }
-            if (matchesQuery(query, o)) ret.add(new HashMap<String, Object>(o));
+            if (matchesQuery(query, o)) ret.add(internal ? o : new HashMap<String, Object>(o));
             if (limit > 0 && ret.size() >= limit) break;
 
             //todo add projection
@@ -433,7 +444,10 @@ public class InMemoryDriver implements MorphiumDriver {
 
     public List<Map<String, Object>> findByFieldValue(String db, String coll, String field, Object value) {
         List<Map<String, Object>> ret = new ArrayList<>();
-        for (Map<String, Object> obj : getCollection(db, coll)) {
+
+        List<Map<String, Object>> data = getCollection(db, coll);
+        for (int i = 0; i < data.size(); i++) {
+            Map<String, Object> obj = data.get(i);
             if (obj.get(field) == null && value != null) continue;
             if (obj.get(field) == null && value == null) {
                 ret.add(new HashMap<String, Object>(obj));
@@ -479,7 +493,7 @@ public class InMemoryDriver implements MorphiumDriver {
 
     @Override
     public Map<String, Object> update(String db, String collection, Map<String, Object> query, Map<String, Object> op, boolean multiple, boolean upsert, WriteConcern wc) throws MorphiumDriverException {
-        List<Map<String, Object>> lst = find(db, collection, query, null, null, 0, multiple ? 0 : 1, 1000, null, null);
+        List<Map<String, Object>> lst = find(db, collection, query, null, null, 0, multiple ? 0 : 1, true);
         if (upsert && (lst == null || lst.size() == 0)) {
             //TODO upserting
             throw new RuntimeException("Upsert not implemented yet!");
@@ -617,7 +631,7 @@ public class InMemoryDriver implements MorphiumDriver {
 
     @Override
     public List<Map<String, Object>> aggregate(String db, String collection, List<Map<String, Object>> pipeline, boolean explain, boolean allowDiskUse, ReadPreference readPreference) throws MorphiumDriverException {
-        return null;
+        throw new RuntimeException("Aggregate not possible in memory!");
     }
 
     @Override
