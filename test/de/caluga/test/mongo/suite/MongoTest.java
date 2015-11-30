@@ -167,6 +167,7 @@ public class MongoTest {
             cfg.setLogSyncedForPrefix("de.caluga.test", true);
 
             cfg.setDriverClass(InMemoryDriver.class.getName());
+            cfg.setReplicaset(false);
 
             MorphiumSingleton.setConfig(cfg);
             morphium = MorphiumSingleton.get();

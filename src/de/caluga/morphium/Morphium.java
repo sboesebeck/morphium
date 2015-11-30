@@ -1397,7 +1397,7 @@ public class Morphium {
 
 
     public boolean isReplicaSet() {
-        return config.getAdr().size() > 1;
+        return config.isReplicaset();
     }
 
 //

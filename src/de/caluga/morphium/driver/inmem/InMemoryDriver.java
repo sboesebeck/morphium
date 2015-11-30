@@ -25,9 +25,21 @@ public class InMemoryDriver implements MorphiumDriver {
     // DBName => Collection => List of documents
     private Map<String, Map<String, List<Map<String, Object>>>> database = new ConcurrentHashMap<>();
 
+    private boolean replicaset = false;
+
     @Override
     public void setCredentials(String db, String login, char[] pwd) {
 
+    }
+
+    @Override
+    public boolean isReplicaset() {
+        return replicaset;
+    }
+
+    @Override
+    public void setReplicaset(boolean replicaset) {
+        this.replicaset = replicaset;
     }
 
     @Override
@@ -306,19 +318,20 @@ public class InMemoryDriver implements MorphiumDriver {
 
     private boolean matchesQuery(Map<String, Object> query, Map<String, Object> toCheck) {
         boolean matches = false;
+        if (query.containsKey("$where")) throw new RuntimeException("$where not implemented yet");
         for (String key : query.keySet()) {
             if (key.equals("$and")) {
                 //list of field queries
                 List<Map<String, Object>> lst = ((List<Map<String, Object>>) query.get(key));
                 for (Map<String, Object> q : lst) {
-                    if (!matchesQuery(toCheck, q)) return false;
+                    if (!matchesQuery(q, toCheck)) return false;
                 }
                 return true;
             } else if (key.equals("$or")) {
                 //list of or queries
                 List<Map<String, Object>> lst = ((List<Map<String, Object>>) query.get(key));
                 for (Map<String, Object> q : lst) {
-                    if (matchesQuery(toCheck, q)) return true;
+                    if (matchesQuery(q, toCheck)) return true;
                 }
                 return false;
 
@@ -338,6 +351,18 @@ public class InMemoryDriver implements MorphiumDriver {
                                 return ((Comparable) toCheck.get(key)).compareTo(q.get(k)) > 0;
                             case "$gte":
                                 return ((Comparable) toCheck.get(key)).compareTo(q.get(k)) >= 0;
+                            case "$mod":
+
+                            case "$ne":
+                                return ((Comparable) toCheck.get(key)).compareTo(q.get(k)) != 0;
+                            case "$exists":
+
+                                boolean exists = (toCheck.containsKey(key));
+                                if (q.get(k).equals(Boolean.TRUE) || q.get(k).equals("true") || q.get(k).equals(1)) {
+                                    return exists;
+                                } else {
+                                    return !exists;
+                                }
                             case "$in":
                                 for (Object v : (List) q.get(k)) {
                                     if (toCheck.get(key).equals(v)) return true;
@@ -368,11 +393,25 @@ public class InMemoryDriver implements MorphiumDriver {
             if (count < skip) {
                 continue;
             }
-            if (matchesQuery(query, o)) ret.add(o);
+            if (matchesQuery(query, o)) ret.add(new HashMap<String, Object>(o));
             if (limit > 0 && ret.size() >= limit) break;
 
             //todo add projection
-            //todo add sort
+        }
+
+        if (sort != null) {
+            ret.sort(new Comparator<Map<String, Object>>() {
+                @Override
+                public int compare(Map<String, Object> o1, Map<String, Object> o2) {
+                    for (String f : sort.keySet()) {
+                        if (o1.get(f).equals(o2.get(f))) {
+                            continue;
+                        }
+                        return ((Comparable) o1.get(f)).compareTo(o2.get(f)) * sort.get(f);
+                    }
+                    return 0;
+                }
+            });
         }
 
         return ret;
@@ -395,8 +434,11 @@ public class InMemoryDriver implements MorphiumDriver {
     public List<Map<String, Object>> findByFieldValue(String db, String coll, String field, Object value) {
         List<Map<String, Object>> ret = new ArrayList<>();
         for (Map<String, Object> obj : getCollection(db, coll)) {
-            if (obj.get(field).equals(value)) {
-                ret.add(obj);
+            if (obj.get(field) == null && value != null) continue;
+            if (obj.get(field) == null && value == null) {
+                ret.add(new HashMap<String, Object>(obj));
+            } else if (obj.get(field).equals(value)) {
+                ret.add(new HashMap<String, Object>(obj));
             }
         }
         return ret;
@@ -405,6 +447,7 @@ public class InMemoryDriver implements MorphiumDriver {
     @Override
     public void insert(String db, String collection, List<Map<String, Object>> objs, WriteConcern wc) throws MorphiumDriverException {
         for (Map<String, Object> o : objs) {
+            if (o.get("_id") == null) o.put("_id", new MorphiumId());
             if (findByFieldValue(db, collection, "_id", o.get("_id")).size() != 0)
                 throw new MorphiumDriverException("Duplicate _id!", null);
         }
