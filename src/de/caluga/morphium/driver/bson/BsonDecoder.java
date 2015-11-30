@@ -161,7 +161,7 @@ public class BsonDecoder {
                     break;
                 case 0x11:
                     //timestamp - internal
-                    throw new RuntimeException("Got internaltimestamp");
+//                    throw new RuntimeException("Got internaltimestamp");
                 case 0x12:
                     //64 bit long
                     value = readLong(in, idx);
