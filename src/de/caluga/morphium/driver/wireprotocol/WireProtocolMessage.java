@@ -113,11 +113,11 @@ public abstract class WireProtocolMessage {
         to.write(((byte) ((value >> 24) & 0xff)));
     }
 
-    public int readInt(byte[] bytes, int idx) {
+    public static int readInt(byte[] bytes, int idx) {
         return bytes[idx] | (bytes[idx + 1] << 8) | (bytes[idx + 2] << 16) | (bytes[idx + 3] << 24);
     }
 
-    public long readLong(byte[] bytes, int idx) {
+    public static long readLong(byte[] bytes, int idx) {
         return ((long) ((bytes[idx] & 0xFF))) |
                 ((long) ((bytes[idx + 1] & 0xFF)) << 8) |
                 ((long) (bytes[idx + 2] & 0xFF) << 16) |
