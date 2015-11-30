@@ -748,13 +748,13 @@ public class ObjectMapperImpl implements ObjectMapper {
                                     Array.set(arr, i, ((Long) lst.get(i)).longValue());
                                 } else if (fld.getType().getComponentType().equals(float.class)) {
                                     //Driver sends doubles instead of floats
-                                    Array.set(arr, i, ((Double) lst.get(i)).floatValue());
+                                    Array.set(arr, i, ((Float) lst.get(i)).floatValue());
 
                                 } else if (fld.getType().getComponentType().equals(double.class)) {
                                     Array.set(arr, i, ((Double) lst.get(i)).doubleValue());
 
                                 } else if (fld.getType().getComponentType().equals(byte.class)) {
-                                    Array.set(arr, i, ((Integer) lst.get(i)).byteValue());
+                                    Array.set(arr, i, ((Byte) lst.get(i)).byteValue());
                                 } else if (fld.getType().getComponentType().equals(boolean.class)) {
                                     Array.set(arr, i, ((Boolean) lst.get(i)).booleanValue());
 

@@ -163,7 +163,6 @@ public class BasicFunctionalityTest extends MongoTest {
 
     @Test
     public void whereTest() throws Exception {
-
         for (int i = 1; i <= NO_OBJECTS; i++) {
             UncachedObject o = new UncachedObject();
             o.setCounter(i);
@@ -196,7 +195,7 @@ public class BasicFunctionalityTest extends MongoTest {
         Query<UncachedObject> q = morphium.createQueryFor(UncachedObject.class);
         q = q.f("counter").exists().f("value").eq("Uncached 1");
         long c = q.countAll();
-        assert (c == 1);
+        assert (c == 1) : "Count wrong: " + c;
 
         UncachedObject o = q.get();
         assert (o.getCounter() == 1);

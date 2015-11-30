@@ -16,6 +16,10 @@ public interface MorphiumDriver {
 
     void setCredentials(String db, String login, char[] pwd);
 
+    boolean isReplicaset();
+
+    void setReplicaset(boolean replicaset);
+
     String[] getCredentials(String db);
 
     boolean isDefaultFsync();
