@@ -1,6 +1,7 @@
 package de.caluga.test.mongo.suite.bson;
 
 import de.caluga.morphium.Logger;
+import de.caluga.morphium.Utils;
 import de.caluga.morphium.driver.wireprotocol.OpQuery;
 import de.caluga.morphium.driver.wireprotocol.OpReply;
 import org.junit.Test;
@@ -93,29 +94,23 @@ public class ConnectTest extends BaseTest {
         }
         log.info("read: " + numRead + " bytes");
 
-        log.info("\n" + getHex(inBuffer, numRead));
+        log.info("\n" + Utils.getHex(inBuffer, numRead));
 
 
         OpReply reply = new OpReply();
         reply.parse(inBuffer);
 
-        log.info("reqId (rcv) :       " + getHex(reply.getReqId()));
-        log.info("inRepl (rcv):       " + getHex(reply.getInReplyTo()));
-        log.info("flags (flags):      " + getHex(reply.getFlags()));
-        log.info("cursor (rc):" + getHex(reply.getCursorId()));
-        log.info("startFrom (rcv):    " + getHex(reply.getStartFrom()));
-        log.info("sored docs    :     " + getHex(reply.getDocuments().size()));
+        log.info("reqId (rcv) :       " + Utils.getHex(reply.getReqId()));
+        log.info("inRepl (rcv):       " + Utils.getHex(reply.getInReplyTo()));
+        log.info("flags (flags):      " + Utils.getHex(reply.getFlags()));
+        log.info("cursor (rc):" + Utils.getHex(reply.getCursorId()));
+        log.info("startFrom (rcv):    " + Utils.getHex(reply.getStartFrom()));
+        log.info("sored docs    :     " + Utils.getHex(reply.getDocuments().size()));
 
 
     }
 
 
-    private String getHex(long i) {
-        return (getHex((byte) (i >> 56 & 0xff)) + getHex((byte) (i >> 48 & 0xff)) + getHex((byte) (i >> 40 & 0xff)) + getHex((byte) (i >> 32 & 0xff)) + getHex((byte) (i >> 24 & 0xff)) + getHex((byte) (i >> 16 & 0xff)) + getHex((byte) (i >> 8 & 0xff)) + getHex((byte) (i & 0xff)));
-    }
 
-    private String getHex(int i) {
-        return (getHex((byte) (i >> 24 & 0xff)) + getHex((byte) (i >> 16 & 0xff)) + getHex((byte) (i >> 8 & 0xff)) + getHex((byte) (i & 0xff)));
-    }
 
 }
