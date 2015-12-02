@@ -11,9 +11,7 @@ import com.mongodb.client.result.DeleteResult;
 import com.mongodb.client.result.UpdateResult;
 import de.caluga.morphium.Logger;
 import de.caluga.morphium.Morphium;
-import de.caluga.morphium.driver.MorphiumDriver;
-import de.caluga.morphium.driver.MorphiumDriverException;
-import de.caluga.morphium.driver.MorphiumDriverOperation;
+import de.caluga.morphium.driver.*;
 import de.caluga.morphium.driver.ReadPreference;
 import de.caluga.morphium.driver.bson.MorphiumId;
 import de.caluga.morphium.driver.bulk.BulkRequestContext;
@@ -63,11 +61,6 @@ public class Driver implements MorphiumDriver {
     @Override
     public boolean isReplicaset() {
         return replicaset;
-    }
-
-    @Override
-    public void setReplicaset(boolean replicaset) {
-        this.replicaset = replicaset;
     }
 
     @Override
@@ -276,7 +269,7 @@ public class Driver implements MorphiumDriver {
     public void connect(String replicasetName) throws MorphiumDriverException {
         try {
             MongoClientOptions.Builder o = MongoClientOptions.builder();
-            WriteConcern w = new WriteConcern(getDefaultW(), getWriteTimeout(), isDefaultFsync(), isDefaultJ());
+            com.mongodb.WriteConcern w = new com.mongodb.WriteConcern(getDefaultW(), getWriteTimeout(), isDefaultFsync(), isDefaultJ());
             o.writeConcern(w);
             o.socketTimeout(getSocketTimeout());
             o.connectTimeout(getConnectionTimeout());
@@ -315,6 +308,10 @@ public class Driver implements MorphiumDriver {
                     adrLst.add(new ServerAddress(h));
                 }
                 mongo = new MongoClient(adrLst, lst, o.build());
+            }
+            Document res = mongo.getDatabase("local").runCommand(new BasicDBObject("isMaster", true));
+            if (res.get("setName") != null) {
+                replicaset = true;
             }
         } catch (Exception e) {
             throw new MorphiumDriverException("Error creating connection to mongo", e);
@@ -585,14 +582,14 @@ public class Driver implements MorphiumDriver {
         }
 
         if (wc != null) {
-            WriteConcern writeConcern;
+            com.mongodb.WriteConcern writeConcern;
             if (wc.getW() < 0) {
                 //majority
-                writeConcern = WriteConcern.MAJORITY;
+                writeConcern = com.mongodb.WriteConcern.MAJORITY;
                 writeConcern = writeConcern.withFsync(wc.isFsync());
                 writeConcern = writeConcern.withJ(wc.isJ());
             } else {
-                writeConcern = new WriteConcern(wc.getW(), wc.getWtimeout(), wc.isFsync(), wc.isJ());
+                writeConcern = new com.mongodb.WriteConcern(wc.getW(), wc.getWtimeout(), wc.isFsync(), wc.isJ());
             }
             coll.setWriteConcern(writeConcern);
         }
@@ -655,14 +652,14 @@ public class Driver implements MorphiumDriver {
         }
 
         if (wc != null) {
-            WriteConcern writeConcern;
+            com.mongodb.WriteConcern writeConcern;
             if (wc.getW() < 0) {
                 //majority
-                writeConcern = WriteConcern.MAJORITY;
+                writeConcern = com.mongodb.WriteConcern.MAJORITY;
                 writeConcern = writeConcern.withFsync(wc.isFsync());
                 writeConcern = writeConcern.withJ(wc.isJ());
             } else {
-                writeConcern = new WriteConcern(wc.getW(), wc.getWtimeout(), wc.isFsync(), wc.isJ());
+                writeConcern = new com.mongodb.WriteConcern(wc.getW(), wc.getWtimeout(), wc.isFsync(), wc.isJ());
             }
             coll = coll.withWriteConcern(writeConcern);
         }
@@ -823,7 +820,7 @@ public class Driver implements MorphiumDriver {
             public Map<String, Object> execute() {
                 MongoDatabase database = mongo.getDatabase(db);
                 if (wc != null) {
-                    WriteConcern writeConcern = new WriteConcern(wc.getW(), wc.getWtimeout(), wc.isFsync(), wc.isJ());
+                    com.mongodb.WriteConcern writeConcern = new com.mongodb.WriteConcern(wc.getW(), wc.getWtimeout(), wc.isFsync(), wc.isJ());
                     database = database.withWriteConcern(writeConcern);
                 }
                 database.drop();
