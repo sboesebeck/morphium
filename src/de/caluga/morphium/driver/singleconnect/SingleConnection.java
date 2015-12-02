@@ -435,7 +435,7 @@ public class SingleConnection implements MorphiumDriver {
 
     @Override
     public Map<String, Object> runCommand(String db, Map<String, Object> cmd) throws MorphiumDriverException {
-        return new DriverHelper().doCall(new MorphiumDriverOperation() {
+        return new NetworkCallHelper().doCall(new MorphiumDriverOperation() {
             @Override
             public Map<String, Object> execute() {
                 OpQuery q = new OpQuery();
@@ -469,7 +469,7 @@ public class SingleConnection implements MorphiumDriver {
     public List<Map<String, Object>> find(String db, String collection, Map<String, Object> query, Map<String, Integer> s, Map<String, Object> projection, int skip, int limit, int batchSize, ReadPreference rp, Map<String, Object> findMetaData) throws MorphiumDriverException {
         if (s == null) s = new HashMap<>();
         final Map<String, Integer> sort = s;
-        return (List<Map<String, Object>>) new DriverHelper().doCall(new MorphiumDriverOperation() {
+        return (List<Map<String, Object>>) new NetworkCallHelper().doCall(new MorphiumDriverOperation() {
             @Override
             public Map<String, Object> execute() throws MorphiumDriverNetworkException {
                 OpQuery q = new OpQuery();

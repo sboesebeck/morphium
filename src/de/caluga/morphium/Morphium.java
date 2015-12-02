@@ -207,7 +207,7 @@ public class Morphium {
             if (config.getGlobalLogFile() != null) {
                 System.getProperties().put("morphium.log.file", config.getGlobalLogFile());
             }
-            if (config.getAdr().isEmpty()) {
+            if (config.getHosts().isEmpty()) {
                 throw new RuntimeException("Error - no server address specified!");
             }
 
@@ -216,9 +216,9 @@ public class Morphium {
             if (config.getMongoAdminUser() != null && config.getMongoAdminPwd() != null)
                 morphiumDriver.setCredentials(config.getMongoAdminUser(), "system", config.getMongoAdminPwd().toCharArray());
 
-            String[] seed = new String[config.getAdr().size()];
+            String[] seed = new String[config.getHosts().size()];
             for (int i = 0; i < seed.length; i++) {
-                seed[i] = config.getAdr().get(i).getHost() + ":" + config.getAdr().get(i).getPort();
+                seed[i] = config.getHosts().get(i);
             }
             morphiumDriver.setHostSeed(seed);
 

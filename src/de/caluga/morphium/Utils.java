@@ -66,8 +66,8 @@ public class Utils {
         return b.toString();
     }
 
-    public static Map<String, Object> getMap(String key, Object value) {
-        HashMap<String, Object> ret = new HashMap<>();
+    public static <K, V> Map<K, V> getMap(K key, V value) {
+        HashMap<K, V> ret = new HashMap<>();
         ret.put(key, value);
         return ret;
     }
