@@ -46,7 +46,7 @@ public class SingleConnectionDriverTest {
         cfg.setMaxWaitTime(3000);
         m = new Morphium(cfg);
 //        m.getDriver().connect();
-        Thread.sleep(10000);
+//        Thread.sleep(10000);
         log.info("Testing with SingeConnect driver:");
         doTest(m);
 
@@ -114,6 +114,10 @@ public class SingleConnectionDriverTest {
         dur = System.currentTimeMillis() - start;
         log.info("count took:  " + dur);
         assert (count == countObjs - 1);
+        start = System.currentTimeMillis();
+        count = m.createQueryFor(UncachedObject.class).countAll();
+        dur = System.currentTimeMillis() - start;
+        log.info("count took:  " + dur);
         totalTime = System.currentTimeMillis() - totalTime;
         log.info(" ====> In Total " + totalTime + "ms\n");
     }
