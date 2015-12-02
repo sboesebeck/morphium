@@ -12,6 +12,9 @@ public class MorphiumDriverException extends Exception {
     private String db;
     private Map<String, Object> query;
 
+    public MorphiumDriverException(String message) {
+        super(message);
+    }
     public MorphiumDriverException(String message, Throwable cause) {
         super(message, cause);
     }

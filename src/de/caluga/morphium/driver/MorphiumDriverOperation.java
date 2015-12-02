@@ -7,7 +7,7 @@ import java.util.Map;
  */
 public interface MorphiumDriverOperation {
 
-    public Map<String, Object> execute();
+    public Map<String, Object> execute() throws MorphiumDriverNetworkException;
 
     public String toString();
 }

@@ -43,8 +43,10 @@ public class SingleConnectionDriverTest {
         cfg.addHost("localhost");
         cfg.setReplicaset(false);
         cfg.setDriverClass(SingleConnection.class.getName());
-        cfg.setMaxWaitTime(1000);
+        cfg.setMaxWaitTime(3000);
         m = new Morphium(cfg);
+//        m.getDriver().connect();
+        Thread.sleep(10000);
         log.info("Testing with SingeConnect driver:");
         doTest(m);
 
@@ -58,6 +60,7 @@ public class SingleConnectionDriverTest {
         cfg.addHost("localhost");
         cfg.setReplicaset(false);
         m = new Morphium(cfg);
+        doTest(m);
         doTest(m);
         m.close();
 
@@ -85,11 +88,15 @@ public class SingleConnectionDriverTest {
             lst.add(uc);
         }
         m.storeList(lst);
-        long c = m.createQueryFor(UncachedObject.class).countAll();
         long dur = System.currentTimeMillis() - start;
+        log.info("Write Took:  " + dur);
+
+        start = System.currentTimeMillis();
+        long c = m.createQueryFor(UncachedObject.class).countAll();
+        dur = System.currentTimeMillis() - start;
+        log.info("Count took:  " + dur);
         assert (c == countObjs);
 //        log.info("Counter=="+c);
-        log.info("Write Took:  " + dur);
 
         start = System.currentTimeMillis();
         lst = m.createQueryFor(UncachedObject.class).asList();
@@ -293,6 +300,7 @@ public class SingleConnectionDriverTest {
         Morphium m = new Morphium("localhost", "morphium_test");
         Query q = m.createQueryFor(UncachedObject.class);
         q.f("counter").eq(100);
+        m.getDriver().runCommand(m.getConfig().getDatabase(), Utils.getMap("isMaster", true));
         q.countAll();
     }
 }

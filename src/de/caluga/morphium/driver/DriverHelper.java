@@ -1,13 +1,10 @@
-package de.caluga.morphium.driver.mongodb;/**
+package de.caluga.morphium.driver;/**
  * Created by stephan on 09.11.15.
  */
 
 import com.mongodb.*;
 import de.caluga.morphium.Logger;
 import de.caluga.morphium.MorphiumReference;
-import de.caluga.morphium.driver.MorphiumDriverException;
-import de.caluga.morphium.driver.MorphiumDriverNetworkException;
-import de.caluga.morphium.driver.MorphiumDriverOperation;
 import de.caluga.morphium.driver.bson.MorphiumId;
 import org.bson.types.ObjectId;
 
