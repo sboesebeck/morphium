@@ -24,7 +24,7 @@ import java.util.logging.Level;
  **/
 public class SingleConnectionDriverTest {
 
-    private static int countObjs = 120000;
+    private static int countObjs = 12000;
     private Logger log = new Logger(SingleConnectionDriverTest.class);
 
     @BeforeClass
