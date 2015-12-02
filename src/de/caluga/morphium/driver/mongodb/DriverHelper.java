@@ -1,10 +1,12 @@
-package de.caluga.morphium.driver;/**
+package de.caluga.morphium.driver.mongodb;/**
  * Created by stephan on 09.11.15.
  */
 
-import com.mongodb.*;
 import de.caluga.morphium.Logger;
 import de.caluga.morphium.MorphiumReference;
+import de.caluga.morphium.driver.MorphiumDriverException;
+import de.caluga.morphium.driver.MorphiumDriverNetworkException;
+import de.caluga.morphium.driver.MorphiumDriverOperation;
 import de.caluga.morphium.driver.bson.MorphiumId;
 import org.bson.types.ObjectId;
 
@@ -38,27 +40,26 @@ public class DriverHelper {
         if (e.getClass().getName().equals("javax.validation.ConstraintViolationException")) {
             throw (new MorphiumDriverException("Validation error", e));
         }
-        if (e instanceof DuplicateKeyException) {
+        if (e.getClass().getName().contains("DuplicateKeyException")) {
             throw new MorphiumDriverException("Duplicate Key", e);
         }
-        //todo remove mongodb dependency!
-        if (e instanceof MongoExecutionTimeoutException
-                || e instanceof MorphiumDriverNetworkException
-                || e instanceof MongoTimeoutException
-                || e instanceof MongoSocketReadTimeoutException
-                || e instanceof MongoWaitQueueFullException
-                || e instanceof MongoWriteConcernException
-                || e instanceof MongoSocketReadException
-                || e instanceof MongoSocketOpenException
-                || e instanceof MongoSocketClosedException
-                || e instanceof MongoSocketException
-                || e instanceof MongoNotPrimaryException
-                || e instanceof MongoInterruptedException
+        if (e.getClass().getName().contains("MongoExecutionTimeoutException")
+                || e.getClass().getName().contains("MorphiumDriverNetworkException")
+                || e.getClass().getName().contains("MongoTimeoutException")
+                || e.getClass().getName().contains("MongoSocketReadTimeoutException")
+                || e.getClass().getName().contains("MongoWaitQueueFullException")
+                || e.getClass().getName().contains("MongoWriteConcernException")
+                || e.getClass().getName().contains("MongoSocketReadException")
+                || e.getClass().getName().contains("MongoSocketOpenException")
+                || e.getClass().getName().contains("MongoSocketClosedException")
+                || e.getClass().getName().contains("MongoSocketException")
+                || e.getClass().getName().contains("MongoNotPrimaryException")
+                || e.getClass().getName().contains("MongoInterruptedException")
                 || e.getMessage() != null && (e.getMessage().equals("can't find a master")
                 || e.getMessage().startsWith("No replica set members available in")
                 || e.getMessage().equals("not talking to master and retries used up"))
-                || (e instanceof WriteConcernException && e.getMessage() != null && e.getMessage().contains("not master"))
-                || e instanceof MongoException) {
+                || (e.getClass().getName().contains("WriteConcernException") && e.getMessage() != null && e.getMessage().contains("not master"))
+                || e.getClass().getName().contains("MongoException")) {
             if (i + 1 < max) {
                 logger.warn("Retry because of network error: " + e.getMessage());
                 try {

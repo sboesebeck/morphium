@@ -1,6 +1,5 @@
 package de.caluga.morphium.aggregation;
 
-import com.mongodb.BasicDBObject;
 import de.caluga.morphium.Morphium;
 import de.caluga.morphium.Utils;
 import de.caluga.morphium.async.AsyncOperationCallback;
@@ -147,7 +146,7 @@ public class AggregatorImpl<T, R> implements Aggregator<T, R> {
 
     @Override
     public Aggregator<T, R> sort(Map<String, Integer> sort) {
-        Map<String, Object> o = Utils.getMap("$sort", new BasicDBObject(sort));
+        Map<String, Object> o = Utils.getMap("$sort", sort);
         params.add(o);
         return this;
     }
