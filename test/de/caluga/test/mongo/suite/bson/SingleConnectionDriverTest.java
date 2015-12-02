@@ -78,7 +78,6 @@ public class SingleConnectionDriverTest {
     public void doTest(Morphium m) throws Exception {
         long totalTime = System.currentTimeMillis();
         m.dropCollection(UncachedObject.class);
-        Thread.sleep(1000);
         long start = System.currentTimeMillis();
         List<UncachedObject> lst = new ArrayList<>();
         for (int i = 0; i < countObjs; i++) {
