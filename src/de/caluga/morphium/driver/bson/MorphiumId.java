@@ -149,7 +149,7 @@ public class MorphiumId {
     }
 
     private static short createPID() {
-        if (threadPid == null || threadPid.get() == null) {
+//        if (threadPid == null || threadPid.get() == null) {
 
             short processId;
             try {
@@ -163,11 +163,12 @@ public class MorphiumId {
                 new Logger(MorphiumId.class).error("could not get processID - using random fallback");
                 processId = (short) new SecureRandom().nextInt();
             }
-            threadPid = new ThreadLocal<>();
-            threadPid.set(processId);
-        }
-
-        return threadPid.get();
+//            threadPid = new ThreadLocal<>();
+//            threadPid.set(processId);
+        return processId;
+//        }
+//
+//        return threadPid.get();
     }
 
 

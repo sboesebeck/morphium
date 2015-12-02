@@ -7,6 +7,7 @@ import de.caluga.morphium.driver.bson.MorphiumId;
 import de.caluga.morphium.driver.inmem.InMemoryDriver;
 import de.caluga.morphium.driver.mongodb.Driver;
 import de.caluga.morphium.driver.singleconnect.SingleConnection;
+import de.caluga.morphium.driver.singleconnect.SingleConnectionDirect;
 import de.caluga.morphium.driver.wireprotocol.OpQuery;
 import de.caluga.morphium.query.Query;
 import de.caluga.test.mongo.suite.data.UncachedObject;
@@ -36,6 +37,54 @@ public class SingleConnectionDriverTest {
         l.setLevel(Level.SEVERE);
     }
 
+
+    @Test
+    public void speedCompareMultithread() throws Exception {
+        Morphium m = null;
+        MorphiumConfig cfg = new MorphiumConfig("morphium_test", 100, 1000, 1000);
+        cfg.addHost("localhost");
+        cfg.setReplicaset(false);
+        cfg.setDriverClass(SingleConnection.class.getName());
+        cfg.setMaxWaitTime(3000);
+        m = new Morphium(cfg);
+//        m.getDriver().connect();
+//        Thread.sleep(10000);
+        log.info("Testing multithreadded with SingeConnect driver:");
+        multithreadTest(m);
+        m.close();
+
+        cfg = new MorphiumConfig("morphium_test", 100, 1000, 1000);
+        cfg.addHost("localhost");
+        cfg.setReplicaset(false);
+        cfg.setDriverClass(SingleConnection.class.getName());
+        cfg.setMaxWaitTime(3000);
+        m = new Morphium(cfg);
+//        m.getDriver().connect();
+//        Thread.sleep(10000);
+        log.info("Testing multithreadded with SingeConnectDirect driver:");
+        multithreadTest(m);
+        m.close();
+
+        cfg = new MorphiumConfig("morphium_test", 100, 1000, 1000);
+        cfg.addHost("localhost");
+        cfg.setReplicaset(false);
+        m = new Morphium(cfg);
+
+        log.info("Testing multithreadded with mongodb driver:");
+        multithreadTest(m);
+        m.close();
+
+        cfg = new MorphiumConfig("morphium_test", 100, 1000, 1000);
+        cfg.setDriverClass(InMemoryDriver.class.getName());
+        cfg.addHost("localhost");
+        cfg.setReplicaset(false);
+        m = new Morphium(cfg);
+        log.info("Testing with inMemory driver:");
+        multithreadTest(m);
+        m.close();
+
+    }
+
     @Test
     public void speedCompare() throws Exception {
         Morphium m = null;
@@ -49,11 +98,24 @@ public class SingleConnectionDriverTest {
 //        Thread.sleep(10000);
         log.info("Testing with SingeConnect driver:");
         doTest(m);
-
         doTest(m);
 
         m.close();
 
+
+        cfg = new MorphiumConfig("morphium_test", 100, 1000, 1000);
+        cfg.addHost("localhost");
+        cfg.setReplicaset(false);
+        cfg.setDriverClass(SingleConnectionDirect.class.getName());
+        cfg.setMaxWaitTime(3000);
+        m = new Morphium(cfg);
+//        m.getDriver().connect();
+//        Thread.sleep(10000);
+        log.info("Testing with SingeConnectDirect driver:");
+        doTest(m);
+        doTest(m);
+
+        m.close();
 
         log.info("Testing with mongodb driver:");
         cfg = new MorphiumConfig("morphium_test", 100, 1000, 1000);
@@ -62,7 +124,7 @@ public class SingleConnectionDriverTest {
         m = new Morphium(cfg);
         doTest(m);
         doTest(m);
-        m.close();
+
 
         cfg = new MorphiumConfig("morphium_test", 100, 1000, 1000);
         cfg.setDriverClass(InMemoryDriver.class.getName());
@@ -72,6 +134,59 @@ public class SingleConnectionDriverTest {
         log.info("Testing with inMemory driver:");
         doTest(m);
         m.close();
+
+    }
+
+
+    public void multithreadTest(Morphium m) throws Exception {
+        long startTotal = System.currentTimeMillis();
+        long start = System.currentTimeMillis();
+        m.dropCollection(UncachedObject.class);
+        List<Thread> threads = new Vector<>();
+        for (int i = 0; i < 30; i++) {
+            final int t = i;
+            Thread thr = new Thread() {
+                public void run() {
+                    for (int j = 0; j < 100; j++) {
+                        UncachedObject uc = new UncachedObject();
+                        uc.setCounter(t * 100 + j);
+                        uc.setValue("By thread " + t);
+                        m.store(uc);
+                    }
+//                    log.info("Thread " + t + " finished!");
+                }
+            };
+            threads.add(thr);
+            thr.start();
+        }
+        for (Thread t : threads) t.join();
+        long dur = System.currentTimeMillis() - start;
+        log.info("Storing took " + dur);
+
+        start = System.currentTimeMillis();
+
+        for (int i = 0; i < 30; i++) {
+            final int t = i;
+            Thread thr = new Thread() {
+                public void run() {
+                    for (int j = 0; j < 100; j++) {
+                        Query<UncachedObject> q = m.createQueryFor(UncachedObject.class);
+                        q.f("counter").eq(t * 100 + j);
+                        UncachedObject uc = q.get();
+                    }
+//                    log.info("Thread " + t + " finished!");
+                }
+            };
+            threads.add(thr);
+            thr.start();
+        }
+        for (Thread t : threads) t.join();
+        dur = System.currentTimeMillis() - start;
+        log.info("Reading took " + dur);
+
+        dur = System.currentTimeMillis() - startTotal;
+        log.info("Overall dur " + dur);
+
 
     }
 
