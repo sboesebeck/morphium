@@ -12,6 +12,10 @@ public class MorphiumDriverNetworkException extends MorphiumDriverException {
         super(msg, t, collection, db, query);
     }
 
+    public MorphiumDriverNetworkException(String message) {
+        super(message);
+    }
+
     public MorphiumDriverNetworkException(String message, Throwable cause) {
         super(message, cause);
     }
