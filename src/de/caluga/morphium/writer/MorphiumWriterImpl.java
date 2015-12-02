@@ -410,6 +410,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
 
     @Override
     public <T> void store(final List<T> lst, AsyncOperationCallback<T> callback) {
+
         if (!lst.isEmpty()) {
             WriterTask r = new WriterTask() {
                 private AsyncOperationCallback<T> callback;
@@ -420,6 +421,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                 }
 
                 public void run() {
+//                    System.out.println(System.currentTimeMillis()+" -  storing" );
                     HashMap<Class, List<Object>> sorted = new HashMap<>();
                     HashMap<Object, Boolean> isNew = new HashMap<>();
                     int cnt = 0;
@@ -494,10 +496,14 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
 
                             long start = System.currentTimeMillis();
                             if (dbLst.size() > 0) {
+//                                System.out.println(System.currentTimeMillis()+" -  driver call" );
                                 morphium.getDriver().store(morphium.getConfig().getDatabase(), coll, dbLst, wc);
+//                                System.out.println(System.currentTimeMillis()+" -  driver finish" );
 //                                doStoreList(dbLst, wc, coll);
+//                                System.out.println(System.currentTimeMillis()+" -  updating ids" );
+                                int idx = 0;
                                 for (Map<String, Object> o : dbLst) {
-                                    Object entity = mapMarshalledNewObjects.get(dbLst.indexOf(o));
+                                    Object entity = mapMarshalledNewObjects.get(idx++);
                                     if (entity == null) {
                                         logger.error("cannot update mongo_id...");
                                     } else {
@@ -509,6 +515,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                                         }
                                     }
                                 }
+//                                System.out.println(System.currentTimeMillis()+" -  finish" );
                             }
                             morphium.getCache().clearCacheIfNecessary(c);
                             long dur = System.currentTimeMillis() - start;
@@ -530,10 +537,12 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                         if (callback == null) throw new RuntimeException(e);
                         callback.onOperationError(AsyncOperationType.WRITE, null, System.currentTimeMillis() - allStart, e.getMessage(), e, null, lst);
                     }
+//                    System.out.println(System.currentTimeMillis()+" -  finish" );
                 }
             };
             submitAndBlockIfNecessary(callback, r);
         }
+
 
     }
 
@@ -1744,7 +1753,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                         co = morphium.getMapper().getCollectionName(cls);
                     }
                     try {
-                        morphium.getDriver().drop(getDbName(), null);
+                        morphium.getDriver().drop(getDbName(), co, null);
                     } catch (MorphiumDriverException e) {
                         //TODO: Implement Handling
                         throw new RuntimeException(e);
