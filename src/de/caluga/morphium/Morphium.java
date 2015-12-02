@@ -105,7 +105,9 @@ public class Morphium {
         } catch (UnknownHostException e) {
             throw new RuntimeException(e);
         }
+        cfg.setReplicaset(false);
         setConfig(cfg);
+
     }
 
 

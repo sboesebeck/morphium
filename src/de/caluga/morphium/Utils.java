@@ -12,7 +12,7 @@ import java.util.Map;
  **/
 public class Utils {
 
-    private static String[] chars = {"0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "A", "B", "C", "D", "E", "F",};
+    public static String[] hexChars = {"0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "A", "B", "C", "D", "E", "F",};
 
     @SuppressWarnings({"unchecked", "UnusedDeclaration"})
     public static String toJsonString(Object o) {
@@ -147,9 +147,9 @@ public class Utils {
     public static String getHex(byte by) {
         String ret = "";
         int idx = (by >>> 4) & 0x0f;
-        ret += chars[idx];
+        ret += hexChars[idx];
         idx = by & 0x0f;
-        ret += chars[idx];
+        ret += hexChars[idx];
         return ret;
     }
 

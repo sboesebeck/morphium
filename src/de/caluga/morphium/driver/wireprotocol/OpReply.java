@@ -24,10 +24,12 @@ public class OpReply extends WireProtocolMessage {
     long cursorId;
     int startFrom;
     int numReturned;
+    byte[] readBytes;
     List<Map<String, Object>> documents;
 
 
     public void parse(byte[] bytes) throws UnsupportedEncodingException {
+        readBytes = bytes;
         parse(bytes, 0);
     }
 
