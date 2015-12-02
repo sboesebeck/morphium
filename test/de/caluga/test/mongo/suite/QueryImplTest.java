@@ -59,6 +59,16 @@ public class QueryImplTest extends MongoTest {
         System.out.println("Query: " + str);
     }
 
+
+    @Test
+    public void testComplexAndOr() {
+        Query<UncachedObject> q = morphium.createQueryFor(UncachedObject.class);
+        q = q.f("counter").lt(100).or(q.q().f("counter").eq(50), q.q().f("counter").eq(101));
+        String s = Utils.toJsonString(q.toQueryObject());
+        log.info("Query: " + s);
+        assert (s.trim().equals("{ \"$and\" :  [ { \"counter\" : { \"$lt\" : 100 }  } , { \"$or\" :  [ { \"counter\" : 50 } , { \"counter\" : 101 } ] } ] }"));
+    }
+
     @Test
     public void testOrder() {
         Query<UncachedObject> q = morphium.createQueryFor(UncachedObject.class);
