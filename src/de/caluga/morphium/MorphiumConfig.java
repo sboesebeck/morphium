@@ -1,9 +1,6 @@
 package de.caluga.morphium;
 
 
-import com.mongodb.ServerAddress;
-import com.mongodb.Tag;
-import com.mongodb.TagSet;
 import de.caluga.morphium.aggregation.Aggregator;
 import de.caluga.morphium.aggregation.AggregatorFactory;
 import de.caluga.morphium.aggregation.AggregatorFactoryImpl;
@@ -104,8 +101,6 @@ public class MorphiumConfig {
     boolean bufferedWritesEnabled = true;
     boolean camelCaseConversionEnabled = true;
 
-    @Transient
-    private List<ServerAddress> adr = new ArrayList<>();
     //securitysettings
 //    private Class<? extends Object> userClass, roleClass, aclClass;
     private String mongoAdminUser, mongoAdminPwd; //THE superuser!
@@ -135,6 +130,9 @@ public class MorphiumConfig {
     private int localThreashold = 0;
     private int maxConnectionIdleTime = 10000;
     private int maxConnectionLifeTime = 60000;
+
+
+    private List<String> hostSeed = new ArrayList<>();
 
     private String defaultTags;
     private String requiredReplicaSetName = null;
@@ -193,8 +191,6 @@ public class MorphiumConfig {
 
     public MorphiumConfig(String db, int maxConnections, int globalCacheValidTime, int housekeepingTimeout) {
         database = db;
-        adr = new ArrayList<>();
-
         this.maxConnections = maxConnections;
         this.globalCacheValidTime = globalCacheValidTime;
         this.housekeepingTimeout = housekeepingTimeout;
@@ -528,16 +524,6 @@ public class MorphiumConfig {
         this.writeCacheTimeout = writeCacheTimeout;
     }
 
-    public List<ServerAddress> getAdr() {
-        return adr;
-    }
-
-    /**
-     * add addresses to your servers here. Depending on isREplicaSet() and isPaired() one ore more server addresses are needed
-     */
-    public void setAdr(List<ServerAddress> adr) {
-        this.adr = adr;
-    }
 
     /**
      * setting hosts as Host:Port
@@ -545,33 +531,21 @@ public class MorphiumConfig {
      * @param str list of hosts, with or without port
      */
     public void setHosts(List<String> str) throws UnknownHostException {
-        adr.clear();
-
-        for (String s : str) {
-            s = s.replaceAll(" ", "");
-            String[] h = s.split(":");
-            if (h.length == 1) {
-                addHost(h[0], 27017);
-            } else {
-                addHost(h[0], Integer.parseInt(h[1]));
-            }
-        }
+        hostSeed = str;
     }
 
     public void setHosts(List<String> str, List<Integer> ports) throws UnknownHostException {
-        adr.clear();
+        hostSeed.clear();
         for (int i = 0; i < str.size(); i++) {
-            String host = str.get(i).replaceAll(" ", "");
-            if (ports.size() < i) {
-                addHost(host, 27017);
-            } else {
-                addHost(host, ports.get(i));
-            }
+            String host = str.get(i).replaceAll(" ", "") + ":" + ports.get(i);
+            hostSeed.add(host);
         }
     }
 
+    public List<String> getHosts() {
+        return hostSeed;
+    }
     public void setHosts(String hostPorts) throws UnknownHostException {
-        adr.clear();
         String h[] = hostPorts.split(",");
         for (String host : h) {
             addHost(host);
@@ -579,7 +553,6 @@ public class MorphiumConfig {
     }
 
     public void setHosts(String hosts, String ports) throws UnknownHostException {
-        adr.clear();
         hosts = hosts.replaceAll(" ", "");
         ports = ports.replaceAll(" ", "");
         String h[] = hosts.split(",");
@@ -594,31 +567,13 @@ public class MorphiumConfig {
 
     }
 
-    /**
-     * add addresses to your servers here. Depending on isREplicaSet() and isPaired() one ore more server addresses are needed
-     * use addHost instead
-     */
-    @Deprecated
-    public void addAddress(String host, int port) throws UnknownHostException {
-        addHost(host, port);
-    }
+
 
     public void addHost(String host, int port) throws UnknownHostException {
-        host = host.replaceAll(" ", "");
-        ServerAddress sa = new ServerAddress(host, port);
-        adr.add(sa);
+        host = host.replaceAll(" ", "") + ":" + port;
+        hostSeed.add(host);
     }
 
-    /**
-     * use addhost instead
-     *
-     * @param host
-     * @throws UnknownHostException
-     */
-    @Deprecated
-    public void addAddress(String host) throws UnknownHostException {
-        addHost(host);
-    }
 
     public void addHost(String host) throws UnknownHostException {
         host = host.replaceAll(" ", "");
@@ -730,14 +685,6 @@ public class MorphiumConfig {
         if (!defaults.getQueryFact().getClass().equals(getQueryFact().getClass())) {
             p.put("queryFact_I_ClassName", getQueryFact().getClass().getName());
         }
-        StringBuilder b = new StringBuilder();
-        String del = "";
-        for (ServerAddress a : getAdr()) {
-            b.append(del);
-            b.append(a.getHost()).append(":").append(a.getPort());
-            del = ", ";
-        }
-        p.put("hosts", b.toString());
     }
 
     public MorphiumWriter getAsyncWriter() {
@@ -1120,15 +1067,15 @@ public class MorphiumConfig {
     }
 
 
-    public TagSet getDefaultTagSet() {
+    public List<Map<String, String>> getDefaultTagSet() {
         if (defaultTags == null) return null;
-        List<Tag> tagList = new ArrayList<>();
+        List<Map<String, String>> tagList = new ArrayList<>();
 
         for (String t : defaultTags.split(",")) {
             String[] tag = t.split(":");
-            tagList.add(new Tag(tag[0], tag[1]));
+            tagList.add(Utils.getMap(tag[0], tag[1]));
         }
-        return new TagSet(tagList);
+        return tagList;
     }
 
 }

@@ -310,7 +310,7 @@ public class CacheSyncTest extends MongoTest {
 
         Morphium m1 = morphium;
         MorphiumConfig cfg2 = new MorphiumConfig();
-        cfg2.setAdr(m1.getConfig().getAdr());
+        cfg2.setHosts(m1.getConfig().getHosts());
         cfg2.setDatabase(m1.getConfig().getDatabase());
 
         Morphium m2 = new Morphium(cfg2);
