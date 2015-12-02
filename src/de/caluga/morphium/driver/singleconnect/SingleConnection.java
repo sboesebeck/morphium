@@ -4,6 +4,7 @@ package de.caluga.morphium.driver.singleconnect;/**
 
 import de.caluga.morphium.Logger;
 import de.caluga.morphium.Morphium;
+import de.caluga.morphium.Utils;
 import de.caluga.morphium.driver.*;
 import de.caluga.morphium.driver.bson.MorphiumId;
 import de.caluga.morphium.driver.bulk.BulkRequestContext;
@@ -16,6 +17,7 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.Socket;
 import java.util.*;
+import java.util.stream.Collectors;
 
 /**
  * TODO: Add Documentation here
@@ -33,20 +35,31 @@ public class SingleConnection implements MorphiumDriver {
     private boolean keepAlive = true;
     private int soTimeout = 1000;
 
+    private Map<String, Map<String, char[]>> credentials;
+    private int maxBsonObjectSize;
+    private int maxMessageSize;
+    private int maxWriteBatchSize;
+    private ReadPreference defaultRP;
+    private boolean replicaSet = false;
+    private String replicaSetName = null;
+    private int retriesOnNetworkError = 2;
+    private int sleepBetweenRetries = 100;
+
     @Override
     public void setCredentials(String db, String login, char[] pwd) {
-
+        if (credentials == null) {
+            credentials = new HashMap<>();
+        }
+        Map<String, char[]> cred = new HashMap<>();
+        cred.put(login, pwd);
+        credentials.put(db, cred);
     }
 
     @Override
     public boolean isReplicaset() {
-        return false;
+        return replicaSet;
     }
 
-    @Override
-    public void setReplicaset(boolean replicaset) {
-
-    }
 
     @Override
     public String[] getCredentials(String db) {
@@ -239,7 +252,7 @@ public class SingleConnection implements MorphiumDriver {
     }
 
     @Override
-    public void connect() throws MorphiumDriverException {
+    public void connect(String replSet) throws MorphiumDriverException {
         try {
             s = new Socket("localhost", 27017);
             s.setKeepAlive(keepAlive);
@@ -247,11 +260,12 @@ public class SingleConnection implements MorphiumDriver {
             out = s.getOutputStream();
             in = s.getInputStream();
 
+
             //Reader
             new Thread() {
                 public void run() {
                     byte[] inBuffer = new byte[16];
-                    while (true) {
+                    while (s != null && s.isConnected()) {
                         int numRead = 0;
                         try {
 
@@ -292,11 +306,34 @@ public class SingleConnection implements MorphiumDriver {
                                 log.error("Could not read");
                             }
                         } catch (IOException e) {
-                            e.printStackTrace();
+//                            e.printStackTrace();
+                            break; //probably best!
                         }
                     }
+                    log.info("reply-thread terminated!");
                 }
             }.start();
+            try {
+                Map<String, Object> result = runCommand("local", Utils.getMap("isMaster", true));
+                log.info("Got result");
+                if (!result.get("ismaster").equals(true)) {
+                    close();
+                    throw new RuntimeException("Cannot run with secondary connection only!");
+                }
+                replicaSetName = (String) result.get("setName");
+                if (replSet != null && !replicaSetName.equals(replicaSetName)) {
+                    throw new MorphiumDriverException("Replicaset name is wrong - connected to " + replicaSetName + " should be " + replSet);
+                }
+                //"maxBsonObjectSize" : 16777216,
+//                "maxMessageSizeBytes" : 48000000,
+//                        "maxWriteBatchSize" : 1000,
+                maxBsonObjectSize = ((Integer) result.get("maxBsonObjectSize")).intValue();
+                maxMessageSize = ((Integer) result.get("maxMessageSizeBytes")).intValue();
+                maxWriteBatchSize = ((Integer) result.get("maxWriteBatchSize")).intValue();
+
+            } catch (MorphiumDriverException e) {
+                e.printStackTrace();
+            }
         } catch (IOException e) {
             throw new MorphiumDriverNetworkException("connection failed", e);
         }
@@ -304,24 +341,28 @@ public class SingleConnection implements MorphiumDriver {
 
     @Override
     public void setDefaultReadPreference(ReadPreference rp) {
-
+        defaultRP = rp;
     }
 
     @Override
-    public void connect(String replicasetName) throws MorphiumDriverException {
-        connect();
+    public void connect() throws MorphiumDriverException {
+        connect(null);
 
     }
 
 
     @Override
     public Maximums getMaximums() {
-        return null;
+        Maximums max = new Maximums();
+        max.setMaxBsonSize(maxBsonObjectSize);
+        max.setMaxMessageSize(maxMessageSize);
+        max.setMaxWriteBatchSize(maxWriteBatchSize);
+        return max;
     }
 
     @Override
     public boolean isConnected() {
-        return s.isConnected();
+        return s != null && s.isConnected();
     }
 
     @Override
@@ -346,27 +387,35 @@ public class SingleConnection implements MorphiumDriver {
 
     @Override
     public void setRetriesOnNetworkError(int r) {
-
+        if (r < 1) r = 1;
+        retriesOnNetworkError = r;
     }
 
     @Override
     public int getRetriesOnNetworkError() {
-        return 0;
+        return retriesOnNetworkError;
     }
 
     @Override
     public void setSleepBetweenErrorRetries(int s) {
-
+        if (s < 100) s = 100;
+        sleepBetweenRetries = s;
     }
 
     @Override
     public int getSleepBetweenErrorRetries() {
-        return 0;
+        return sleepBetweenRetries;
     }
 
     @Override
     public void close() throws MorphiumDriverException {
-
+        try {
+            s.close();
+            s = null;
+            out.close();
+            in.close();
+        } catch (Exception e) {
+        }
     }
 
     @Override
@@ -386,39 +435,82 @@ public class SingleConnection implements MorphiumDriver {
 
     @Override
     public Map<String, Object> runCommand(String db, Map<String, Object> cmd) throws MorphiumDriverException {
-        return null;
+        return new DriverHelper().doCall(new MorphiumDriverOperation() {
+            @Override
+            public Map<String, Object> execute() {
+                OpQuery q = new OpQuery();
+                q.setDb(db);
+                q.setColl("$cmd");
+                q.setLimit(1);
+                q.setSkip(0);
+                q.setReqId(++rqid);
+
+                Map<String, Object> doc = new LinkedHashMap<>();
+                doc.putAll(cmd);
+                q.setDoc(doc);
+                q.setFlags(0);
+                q.setInReplyTo(0);
+
+                sendQuery(q);
+                OpReply rep = null;
+                try {
+                    rep = waitForReply(db, null, null, q.getReqId());
+                } catch (MorphiumDriverException e) {
+                    e.printStackTrace();
+                }
+                if (rep.getDocuments() == null) return null;
+                return rep.getDocuments().get(0);
+            }
+        }, getRetriesOnNetworkError(), getSleepBetweenErrorRetries());
+
     }
 
     @Override
-    public List<Map<String, Object>> find(String db, String collection, Map<String, Object> query, Map<String, Integer> sort, Map<String, Object> projection, int skip, int limit, int batchSize, ReadPreference rp, Map<String, Object> findMetaData) throws MorphiumDriverException {
+    public List<Map<String, Object>> find(String db, String collection, Map<String, Object> query, Map<String, Integer> s, Map<String, Object> projection, int skip, int limit, int batchSize, ReadPreference rp, Map<String, Object> findMetaData) throws MorphiumDriverException {
+        if (s == null) s = new HashMap<>();
+        final Map<String, Integer> sort = s;
+        return (List<Map<String, Object>>) new DriverHelper().doCall(new MorphiumDriverOperation() {
+            @Override
+            public Map<String, Object> execute() throws MorphiumDriverNetworkException {
+                OpQuery q = new OpQuery();
+                q.setDb(db);
+                q.setColl("$cmd");
+                q.setLimit(1);
+                q.setSkip(0);
+                q.setReqId(++rqid);
 
-        OpQuery q = new OpQuery();
-        q.setDb(db);
-        q.setColl("$cmd");
-        q.setLimit(1);
-        q.setSkip(0);
-        q.setReqId(++rqid);
+                Map<String, Object> doc = new LinkedHashMap<>();
+                doc.put("find", collection);
+                if (limit > 0)
+                    doc.put("limit", limit);
+                doc.put("skip", skip);
+                if (query.size() != 0)
+                    doc.put("filter", query);
+                doc.put("sort", sort);
 
-        Map<String, Object> doc = new LinkedHashMap<>();
-        doc.put("find", collection);
-        if (limit > 0)
-            doc.put("limit", limit);
-        doc.put("skip", skip);
-        if (query.size() != 0)
-            doc.put("filter", query);
-        if (sort == null) sort = new HashMap<>();
-        doc.put("sort", sort);
+                q.setDoc(doc);
+                q.setFlags(0);
+                q.setInReplyTo(0);
 
-        q.setDoc(doc);
-        q.setFlags(0);
-        q.setInReplyTo(0);
+                sendQuery(q);
 
-        sendQuery(q);
+                boolean wait = true;
+                OpReply reply = null;
+                int waitingfor = q.getReqId();
+                List<Map<String, Object>> ret = readBatches(waitingfor, db, collection, batchSize);
+                return Utils.getMap("values", ret);
+            }
+        }, getRetriesOnNetworkError(), getSleepBetweenErrorRetries()).get("values");
 
-        boolean wait = true;
-        OpReply reply = null;
-        int waitingfor = q.getReqId();
+    }
+
+    private List<Map<String, Object>> readBatches(int waitingfor, String db, String collection, int batchSize) throws MorphiumDriverNetworkException {
         List<Map<String, Object>> ret = new ArrayList<>();
+        OpReply reply;
+        OpQuery q;
+        Map<String, Object> doc;
+        long start = System.currentTimeMillis();
+        boolean wait = true;
         while (wait) {
             for (int i = 0; i < replies.size(); i++) {
                 if (replies.get(i).getInReplyTo() == waitingfor) {
@@ -453,9 +545,10 @@ public class SingleConnection implements MorphiumDriver {
                     }
                 }
             }
+            if (System.currentTimeMillis() - start > maxWait) {
+                throw new MorphiumDriverNetworkException("Did not get message in time", null);
+            }
         }
-
-
         return ret;
     }
 
@@ -660,7 +753,21 @@ public class SingleConnection implements MorphiumDriver {
 
     @Override
     public void drop(String db, WriteConcern wc) throws MorphiumDriverException {
+        OpQuery op = new OpQuery();
+        op.setInReplyTo(0);
+        op.setReqId(++rqid);
 
+        op.setDb(db);
+        op.setColl("$cmd");
+        HashMap<String, Object> map = new LinkedHashMap<>();
+        map.put("drop", 1);
+        op.setDoc(map);
+        sendQuery(op);
+        try {
+            waitForReply(db, null, null, op.getReqId());
+        } catch (Exception e) {
+            log.error("Drop failed! " + e.getMessage());
+        }
     }
 
     @Override
@@ -675,7 +782,26 @@ public class SingleConnection implements MorphiumDriver {
 
     @Override
     public boolean exists(String db, String collection) throws MorphiumDriverException {
-        return true;
+        Map<String, Object> cmd = new LinkedHashMap<>();
+        cmd.put("listCollections", 1);
+        OpQuery q = new OpQuery();
+        q.setDb(db);
+        q.setColl("$cmd");
+        q.setLimit(1);
+        q.setSkip(0);
+        q.setReqId(++rqid);
+
+        q.setDoc(cmd);
+        q.setFlags(0);
+        q.setInReplyTo(0);
+
+        sendQuery(q);
+
+        List<Map<String, Object>> ret = readBatches(q.getReqId(), db, null, maxWriteBatchSize);
+        for (Map<String, Object> c : ret) {
+            if (c.get("name").equals(collection)) return true;
+        }
+        return false;
     }
 
     @Override
@@ -685,7 +811,23 @@ public class SingleConnection implements MorphiumDriver {
 
     @Override
     public List<String> getCollectionNames(String db) throws MorphiumDriverException {
-        return null;
+        Map<String, Object> cmd = new LinkedHashMap<>();
+        cmd.put("listCollections", 1);
+        OpQuery q = new OpQuery();
+        q.setDb(db);
+        q.setColl("$cmd");
+        q.setLimit(1);
+        q.setSkip(0);
+        q.setReqId(++rqid);
+
+        q.setDoc(cmd);
+        q.setFlags(0);
+        q.setInReplyTo(0);
+
+        sendQuery(q);
+
+        List<Map<String, Object>> ret = readBatches(q.getReqId(), db, null, maxWriteBatchSize);
+        return ret.stream().map(c -> (String) c.get("name")).collect(Collectors.toList());
     }
 
     @Override
@@ -740,6 +882,14 @@ public class SingleConnection implements MorphiumDriver {
 
     @Override
     public void createIndex(String db, String collection, Map<String, Object> index, Map<String, Object> options) throws MorphiumDriverException {
+        Map<String, Object> cmd = new LinkedHashMap<>();
+        cmd.put("createIndexes", collection);
+        List<Map<String, Object>> lst = new ArrayList<>();
+        lst.add(index);
+        cmd.put("indexes", lst);
+        if (options != null)
+            cmd.put("options", options);
+        runCommand(db, cmd);
 
     }
 }

@@ -34,12 +34,7 @@ public class InMemoryDriver implements MorphiumDriver {
 
     @Override
     public boolean isReplicaset() {
-        return replicaset;
-    }
-
-    @Override
-    public void setReplicaset(boolean replicaset) {
-        this.replicaset = replicaset;
+        return false;
     }
 
     @Override
