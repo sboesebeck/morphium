@@ -114,9 +114,11 @@ public class Logger {
     }
 
     public void setFile(String v) {
+        if (!file.equals("-") && !file.equals("STDOUT") && !file.equals("STDERR ")) {
+            out.flush();
+            out.close();
+        }
         this.file = v;
-        out.flush();
-        out.close();
         if (file == null || file.equals("-") || file.equalsIgnoreCase("STDOUT")) {
             out = new PrintWriter(new OutputStreamWriter(System.out));
         } else if (file.equalsIgnoreCase("STDERR")) {
@@ -335,7 +337,7 @@ public class Logger {
             out.print(st[idx].getMethodName());
             out.print("():");
             out.print(st[idx].getLineNumber());
-            out.print(" - ");
+            out.print("\t");
             if (msg != null) {
                 out.print(msg);
             }
