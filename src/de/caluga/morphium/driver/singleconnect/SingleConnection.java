@@ -885,10 +885,20 @@ public class SingleConnection implements MorphiumDriver {
         Map<String, Object> cmd = new LinkedHashMap<>();
         cmd.put("createIndexes", collection);
         List<Map<String, Object>> lst = new ArrayList<>();
-        lst.add(index);
-        cmd.put("indexes", lst);
+        Map<String, Object> idx = new HashMap<>();
+        idx.put("key", index);
+        String key = "";
+        for (String k : index.keySet()) {
+            key += k;
+            key += "-";
+            key += index.get(k);
+        }
+
+        idx.put("name", "idx_" + key);
         if (options != null)
-            cmd.put("options", options);
+            idx.putAll(options);
+        lst.add(idx);
+        cmd.put("indexes", lst);
         runCommand(db, cmd);
 
     }

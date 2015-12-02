@@ -41,7 +41,9 @@ public class DriverHelper {
         if (e instanceof DuplicateKeyException) {
             throw new MorphiumDriverException("Duplicate Key", e);
         }
+        //todo remove mongodb dependency!
         if (e instanceof MongoExecutionTimeoutException
+                || e instanceof MorphiumDriverNetworkException
                 || e instanceof MongoTimeoutException
                 || e instanceof MongoSocketReadTimeoutException
                 || e instanceof MongoWaitQueueFullException
