@@ -1,4 +1,6 @@
-package de.caluga.morphium.driver.singleconnect;
+package de.caluga.morphium.driver.singleconnect;/**
+ * Created by stephan on 30.11.15.
+ */
 
 import de.caluga.morphium.Logger;
 import de.caluga.morphium.Morphium;
@@ -6,7 +8,6 @@ import de.caluga.morphium.Utils;
 import de.caluga.morphium.driver.*;
 import de.caluga.morphium.driver.bson.MorphiumId;
 import de.caluga.morphium.driver.bulk.BulkRequestContext;
-import de.caluga.morphium.driver.mongodb.Maximums;
 import de.caluga.morphium.driver.wireprotocol.OpQuery;
 import de.caluga.morphium.driver.wireprotocol.OpReply;
 
@@ -18,225 +19,17 @@ import java.util.*;
 import java.util.stream.Collectors;
 
 /**
- * User: Stephan Bösebeck
- * Date: 02.12.15
- * Time: 23:47
- * <p>
- * TODO: Add documentation here
- */
-public class SingleConnectionDirect implements MorphiumDriver {
+ * TODO: Add Documentation here
+ **/
+public class ThreaddedBase extends DriverBase {
 
-    private Logger log = new Logger(SingleConnection.class);
+    private Logger log = new Logger(ThreaddedBase.class);
     private Socket s;
     private OutputStream out;
     private InputStream in;
 
-    //    private Vector<OpReply> replies = new Vector<>();
-    private volatile int rqid = 10000;
-    private int maxWait = 1000;
-    private boolean keepAlive = true;
-    private int soTimeout = 1000;
+    private Vector<OpReply> replies = new Vector<>();
 
-    private Map<String, Map<String, char[]>> credentials;
-    private int maxBsonObjectSize;
-    private int maxMessageSize = 16 * 1024 * 1024;
-    private int maxWriteBatchSize = 1000;
-    private ReadPreference defaultRP;
-    private boolean replicaSet = false;
-    private String replicaSetName = null;
-    private int retriesOnNetworkError = 5;
-    private int sleepBetweenRetries = 100;
-
-    @Override
-    public void setCredentials(String db, String login, char[] pwd) {
-        if (credentials == null) {
-            credentials = new HashMap<>();
-        }
-        Map<String, char[]> cred = new HashMap<>();
-        cred.put(login, pwd);
-        credentials.put(db, cred);
-    }
-
-    @Override
-    public boolean isReplicaset() {
-        return replicaSet;
-    }
-
-
-    @Override
-    public String[] getCredentials(String db) {
-        return new String[0];
-    }
-
-    @Override
-    public boolean isDefaultFsync() {
-        return false;
-    }
-
-    @Override
-    public String[] getHostSeed() {
-        return new String[0];
-    }
-
-    @Override
-    public int getMaxConnectionsPerHost() {
-        return 0;
-    }
-
-    @Override
-    public int getMinConnectionsPerHost() {
-        return 0;
-    }
-
-    @Override
-    public int getMaxConnectionLifetime() {
-        return 0;
-    }
-
-    @Override
-    public int getMaxConnectionIdleTime() {
-        return 0;
-    }
-
-    @Override
-    public int getSocketTimeout() {
-        return soTimeout;
-    }
-
-    @Override
-    public int getConnectionTimeout() {
-        return 0;
-    }
-
-    @Override
-    public int getDefaultW() {
-        return 0;
-    }
-
-    @Override
-    public int getMaxBlockintThreadMultiplier() {
-        return 0;
-    }
-
-    @Override
-    public int getHeartbeatFrequency() {
-        return 0;
-    }
-
-    @Override
-    public void setHeartbeatSocketTimeout(int heartbeatSocketTimeout) {
-
-    }
-
-    @Override
-    public void setUseSSL(boolean useSSL) {
-
-    }
-
-    @Override
-    public void setHeartbeatFrequency(int heartbeatFrequency) {
-
-    }
-
-    @Override
-    public void setWriteTimeout(int writeTimeout) {
-
-    }
-
-    @Override
-    public void setDefaultBatchSize(int defaultBatchSize) {
-
-    }
-
-    @Override
-    public void setCredentials(Map<String, String[]> credentials) {
-
-    }
-
-    @Override
-    public int getHeartbeatSocketTimeout() {
-        return 0;
-    }
-
-    @Override
-    public boolean isUseSSL() {
-        return false;
-    }
-
-    @Override
-    public boolean isDefaultJ() {
-        return false;
-    }
-
-    @Override
-    public int getWriteTimeout() {
-        return 0;
-    }
-
-    @Override
-    public int getLocalThreshold() {
-        return 0;
-    }
-
-    @Override
-    public void setHostSeed(String... host) {
-
-    }
-
-    @Override
-    public void setMaxConnectionsPerHost(int mx) {
-
-    }
-
-    @Override
-    public void setMinConnectionsPerHost(int mx) {
-
-    }
-
-    @Override
-    public void setMaxConnectionLifetime(int timeout) {
-
-    }
-
-    @Override
-    public void setMaxConnectionIdleTime(int time) {
-
-    }
-
-    @Override
-    public void setSocketTimeout(int timeout) {
-        soTimeout = timeout;
-    }
-
-    @Override
-    public void setConnectionTimeout(int timeout) {
-
-    }
-
-    @Override
-    public void setDefaultW(int w) {
-
-    }
-
-    @Override
-    public void setMaxBlockingThreadMultiplier(int m) {
-
-    }
-
-    @Override
-    public void heartBeatFrequency(int t) {
-
-    }
-
-    @Override
-    public void heartBeatSocketTimeout(int t) {
-
-    }
-
-    @Override
-    public void useSsl(boolean ssl) {
-
-    }
 
 
     private void reconnect() {
@@ -257,12 +50,64 @@ public class SingleConnectionDirect implements MorphiumDriver {
     public void connect(String replSet) throws MorphiumDriverException {
         try {
             s = new Socket("localhost", 27017);
-            s.setKeepAlive(keepAlive);
-            s.setSoTimeout(soTimeout);
+            s.setKeepAlive(isSocketKeepAlive());
+            s.setSoTimeout(getSoTimeout());
             out = s.getOutputStream();
             in = s.getInputStream();
 
 
+            //Reader
+            new Thread() {
+                public void run() {
+                    byte[] inBuffer = new byte[16];
+                    while (s != null && s.isConnected()) {
+                        int numRead = 0;
+                        try {
+
+                            numRead = in.read(inBuffer, 0, 16);
+                            int size = OpReply.readInt(inBuffer, 0);
+                            if (size == 0) {
+                                log.info("Error - null size!");
+                                reconnect();
+                                break;
+
+                            }
+                            if (size > 16 * 1024 * 1024) {
+                                log.info("Error - size too big! " + size);
+                                continue;
+                            }
+                            int opcode = OpReply.readInt(inBuffer, 12);
+                            if (opcode != 1) {
+                                log.info("illegal opcode! " + opcode);
+                                continue;
+                            }
+                            byte buf[] = new byte[size];
+                            for (int i = 0; i < 16; i++) {
+                                buf[i] = inBuffer[i];
+                            }
+
+                            numRead = in.read(buf, 16, size - 16);
+                            OpReply reply = new OpReply();
+                            try {
+                                reply.parse(buf);
+                                if (!reply.getDocuments().get(0).get("ok").equals(1)) {
+                                    if (reply.getDocuments().get(0).get("code") != null) {
+                                        log.info("Error " + reply.getDocuments().get(0).get("code"));
+                                        log.info("Error " + reply.getDocuments().get(0).get("errmsg"));
+                                    }
+                                }
+                                replies.add(reply);
+                            } catch (Exception e) {
+                                log.error("Could not read");
+                            }
+                        } catch (IOException e) {
+//                            e.printStackTrace();
+                            break; //probably best!
+                        }
+                    }
+                    log.info("reply-thread terminated!");
+                }
+            }.start();
             try {
                 Map<String, Object> result = runCommand("local", Utils.getMap("isMaster", true));
                 log.info("Got result");
@@ -270,16 +115,16 @@ public class SingleConnectionDirect implements MorphiumDriver {
                     close();
                     throw new RuntimeException("Cannot run with secondary connection only!");
                 }
-                replicaSetName = (String) result.get("setName");
-                if (replSet != null && !replicaSetName.equals(replicaSetName)) {
-                    throw new MorphiumDriverException("Replicaset name is wrong - connected to " + replicaSetName + " should be " + replSet);
+                setReplicaSetName((String) result.get("setName"));
+                if (replSet != null && !replSet.equals(getReplicaSetName())) {
+                    throw new MorphiumDriverException("Replicaset name is wrong - connected to " + getReplicaSetName() + " should be " + replSet);
                 }
                 //"maxBsonObjectSize" : 16777216,
 //                "maxMessageSizeBytes" : 48000000,
 //                        "maxWriteBatchSize" : 1000,
-                maxBsonObjectSize = ((Integer) result.get("maxBsonObjectSize")).intValue();
-                maxMessageSize = ((Integer) result.get("maxMessageSizeBytes")).intValue();
-                maxWriteBatchSize = ((Integer) result.get("maxWriteBatchSize")).intValue();
+                setMaxBsonObjectSize(((Integer) result.get("maxBsonObjectSize")).intValue());
+                setMaxMessageSize(((Integer) result.get("maxMessageSizeBytes")).intValue());
+                setMaxWriteBatchSize(((Integer) result.get("maxWriteBatchSize")).intValue());
 
             } catch (MorphiumDriverException e) {
                 e.printStackTrace();
@@ -289,58 +134,6 @@ public class SingleConnectionDirect implements MorphiumDriver {
         }
     }
 
-    private synchronized OpReply getReply() throws MorphiumDriverNetworkException {
-        byte[] inBuffer = new byte[16];
-        int numRead = 0;
-        try {
-
-            numRead = in.read(inBuffer, 0, 16);
-            int size = OpReply.readInt(inBuffer, 0);
-            if (size == 0) {
-                log.info("Error - null size!");
-                throw new MorphiumDriverNetworkException("Got garbage message!");
-            }
-            if (size > maxMessageSize) {
-                log.error("Error - size too big! " + size);
-                throw new MorphiumDriverNetworkException("Got garbage message - size too big!");
-            }
-            int opcode = OpReply.readInt(inBuffer, 12);
-            if (opcode != 1) {
-                log.info("illegal opcode! " + opcode);
-                throw new MorphiumDriverNetworkException("Illegal opcode should be 1 but is " + opcode);
-            }
-            byte buf[] = new byte[size];
-            for (int i = 0; i < 16; i++) {
-                buf[i] = inBuffer[i];
-            }
-
-            numRead = in.read(buf, 16, size - 16);
-            OpReply reply = new OpReply();
-            try {
-                reply.parse(buf);
-                if (!reply.getDocuments().get(0).get("ok").equals(1)) {
-                    if (reply.getDocuments().get(0).get("code") != null) {
-                        log.info("Error " + reply.getDocuments().get(0).get("code"));
-                        log.info("Error " + reply.getDocuments().get(0).get("errmsg"));
-                    }
-                }
-                return reply;
-            } catch (Exception e) {
-                log.error("Could not read");
-                throw new MorphiumDriverNetworkException("could not read from socket", e);
-            } finally {
-//                throw new MorphiumDriverNetworkException("Should not reach here!");
-            }
-        } catch (IOException e) {
-            throw new MorphiumDriverNetworkException("could not read from socket", e);
-        }
-    }
-
-    @Override
-    public void setDefaultReadPreference(ReadPreference rp) {
-        defaultRP = rp;
-    }
-
     @Override
     public void connect() throws MorphiumDriverException {
         connect(null);
@@ -348,61 +141,12 @@ public class SingleConnectionDirect implements MorphiumDriver {
     }
 
 
-    @Override
-    public Maximums getMaximums() {
-        Maximums max = new Maximums();
-        max.setMaxBsonSize(maxBsonObjectSize);
-        max.setMaxMessageSize(maxMessageSize);
-        max.setMaxWriteBatchSize(maxWriteBatchSize);
-        return max;
-    }
 
     @Override
     public boolean isConnected() {
         return s != null && s.isConnected();
     }
 
-    @Override
-    public void setDefaultJ(boolean j) {
-
-    }
-
-    @Override
-    public void setDefaultWriteTimeout(int wt) {
-
-    }
-
-    @Override
-    public void setLocalThreshold(int thr) {
-
-    }
-
-    @Override
-    public void setDefaultFsync(boolean j) {
-
-    }
-
-    @Override
-    public void setRetriesOnNetworkError(int r) {
-        if (r < 1) r = 1;
-        retriesOnNetworkError = r;
-    }
-
-    @Override
-    public int getRetriesOnNetworkError() {
-        return retriesOnNetworkError;
-    }
-
-    @Override
-    public void setSleepBetweenErrorRetries(int s) {
-        if (s < 100) s = 100;
-        sleepBetweenRetries = s;
-    }
-
-    @Override
-    public int getSleepBetweenErrorRetries() {
-        return sleepBetweenRetries;
-    }
 
     @Override
     public void close() throws MorphiumDriverException {
@@ -440,7 +184,7 @@ public class SingleConnectionDirect implements MorphiumDriver {
                 q.setColl("$cmd");
                 q.setLimit(1);
                 q.setSkip(0);
-                q.setReqId(++rqid);
+                q.setReqId(getNextId());
 
                 Map<String, Object> doc = new LinkedHashMap<>();
                 doc.putAll(cmd);
@@ -448,15 +192,12 @@ public class SingleConnectionDirect implements MorphiumDriver {
                 q.setFlags(0);
                 q.setInReplyTo(0);
 
-                OpReply rep;
-                synchronized (SingleConnectionDirect.this) {
-                    sendQuery(q);
-                    rep = null;
-                    try {
-                        rep = waitForReply(db, null, null, q.getReqId());
-                    } catch (MorphiumDriverException e) {
-                        e.printStackTrace();
-                    }
+                sendQuery(q);
+                OpReply rep = null;
+                try {
+                    rep = waitForReply(db, null, null, q.getReqId());
+                } catch (MorphiumDriverException e) {
+                    e.printStackTrace();
                 }
                 if (rep.getDocuments() == null) return null;
                 return rep.getDocuments().get(0);
@@ -477,7 +218,7 @@ public class SingleConnectionDirect implements MorphiumDriver {
                 q.setColl("$cmd");
                 q.setLimit(1);
                 q.setSkip(0);
-                q.setReqId(++rqid);
+                q.setReqId(getNextId());
 
                 Map<String, Object> doc = new LinkedHashMap<>();
                 doc.put("find", collection);
@@ -492,14 +233,12 @@ public class SingleConnectionDirect implements MorphiumDriver {
                 q.setFlags(0);
                 q.setInReplyTo(0);
 
-                List<Map<String, Object>> ret = null;
-                synchronized (SingleConnectionDirect.this) {
-                    sendQuery(q);
+                sendQuery(q);
 
-                    OpReply reply = null;
-                    int waitingfor = q.getReqId();
-                    ret = readBatches(waitingfor, db, collection, batchSize);
-                }
+                boolean wait = true;
+                OpReply reply = null;
+                int waitingfor = q.getReqId();
+                List<Map<String, Object>> ret = readBatches(waitingfor, db, collection, batchSize);
                 return Utils.getMap("values", ret);
             }
         }, getRetriesOnNetworkError(), getSleepBetweenErrorRetries()).get("values");
@@ -511,44 +250,50 @@ public class SingleConnectionDirect implements MorphiumDriver {
         OpReply reply;
         OpQuery q;
         Map<String, Object> doc;
-        boolean hasMore = true;
-        while (true) {
-            reply = getReply();
-            if (reply.getInReplyTo() != waitingfor)
-                throw new MorphiumDriverNetworkException("Wrong answer - waiting for " + waitingfor + " but got " + reply.getInReplyTo());
+        long start = System.currentTimeMillis();
+        boolean wait = true;
+        while (wait) {
+            for (int i = 0; i < replies.size(); i++) {
+                if (replies.get(i).getInReplyTo() == waitingfor) {
+                    reply = replies.get(i);
 //                    replies.remove(i);
-            Map<String, Object> cursor = (Map<String, Object>) reply.getDocuments().get(0).get("cursor");
-            if (cursor.get("firstBatch") != null) {
-                ret.addAll((List) cursor.get("firstBatch"));
-            } else if (cursor.get("nextBatch") != null) {
-                ret.addAll((List) cursor.get("nextBatch"));
-            }
-            if (((Long) cursor.get("id")) != 0) {
+                    Map<String, Object> cursor = (Map<String, Object>) reply.getDocuments().get(0).get("cursor");
+                    if (cursor.get("firstBatch") != null) {
+                        ret.addAll((List) cursor.get("firstBatch"));
+                    } else if (cursor.get("nextBatch") != null) {
+                        ret.addAll((List) cursor.get("nextBatch"));
+                    }
+                    if (((Long) cursor.get("id")) != 0) {
 //                        log.info("getting next batch for cursor " + cursor.get("id"));
-                //there is more! Sending getMore!
-                //there is more! Sending getMore!
-                q = new OpQuery();
-                q.setColl("$cmd");
-                q.setDb(db);
-                q.setReqId(++rqid);
-                q.setSkip(0);
-                q.setLimit(1);
-                doc = new LinkedHashMap<>();
-                doc.put("getMore", cursor.get("id"));
-                doc.put("collection", collection);
-                doc.put("batchSize", batchSize);
-                q.setDoc(doc);
-                waitingfor = q.getReqId();
-                sendQuery(q);
-            } else {
-                break;
+                        //there is more! Sending getMore!
+                        //there is more! Sending getMore!
+                        q = new OpQuery();
+                        q.setColl("$cmd");
+                        q.setDb(db);
+                        q.setReqId(getNextId());
+                        q.setSkip(0);
+                        q.setLimit(1);
+                        doc = new LinkedHashMap<>();
+                        doc.put("getMore", cursor.get("id"));
+                        doc.put("collection", collection);
+                        doc.put("batchSize", batchSize);
+                        q.setDoc(doc);
+                        waitingfor = q.getReqId();
+                        sendQuery(q);
+                    } else {
+                        wait = false;
+                        break;
+                    }
+                }
+            }
+            if (System.currentTimeMillis() - start > getMaxWait()) {
+                throw new MorphiumDriverNetworkException("Did not get message in time", null);
             }
         }
-
         return ret;
     }
 
-    private void sendQuery(OpQuery q) {
+    private synchronized void sendQuery(OpQuery q) {
         try {
             out.write(q.bytes());
             out.flush();
@@ -564,7 +309,7 @@ public class SingleConnectionDirect implements MorphiumDriver {
         q.setColl("$cmd");
         q.setLimit(1);
         q.setSkip(0);
-        q.setReqId(++rqid);
+        q.setReqId(getNextId());
 
         Map<String, Object> doc = new LinkedHashMap<>();
         doc.put("count", collection);
@@ -573,11 +318,8 @@ public class SingleConnectionDirect implements MorphiumDriver {
         q.setFlags(0);
         q.setInReplyTo(0);
 
-        OpReply rep = null;
-        synchronized (SingleConnectionDirect.this) {
-            sendQuery(q);
-            rep = waitForReply(db, collection, query, q.getReqId());
-        }
+        sendQuery(q);
+        OpReply rep = waitForReply(db, collection, query, q.getReqId());
         return (Integer) rep.getDocuments().get(0).get("n");
     }
 
@@ -591,7 +333,7 @@ public class SingleConnectionDirect implements MorphiumDriver {
         while (idx < objs.size()) {
             OpQuery op = new OpQuery();
             op.setInReplyTo(0);
-            op.setReqId(++rqid);
+            op.setReqId(getNextId());
             op.setDb(db);
             op.setColl("$cmd");
             HashMap<String, Object> map = new LinkedHashMap<>();
@@ -607,10 +349,8 @@ public class SingleConnectionDirect implements MorphiumDriver {
             map.put("writeConcern", new HashMap<String, Object>());
             op.setDoc(map);
 
-            synchronized (SingleConnectionDirect.this) {
-                sendQuery(op);
-                waitForReply(db, collection, null, op.getReqId());
-            }
+            sendQuery(op);
+            waitForReply(db, collection, null, op.getReqId());
         }
     }
 
@@ -619,7 +359,7 @@ public class SingleConnectionDirect implements MorphiumDriver {
         List<Map<String, Object>> toInsert = new ArrayList<>();
         OpQuery op = new OpQuery();
         op.setInReplyTo(0);
-        op.setReqId(++rqid);
+        op.setReqId(getNextId());
         op.setDb(db);
         op.setColl("$cmd");
         HashMap<String, Object> map = new LinkedHashMap<>();
@@ -641,13 +381,10 @@ public class SingleConnectionDirect implements MorphiumDriver {
         map.put("writeConcern", new HashMap<String, Object>());
         op.setDoc(map);
 
+        if (update.size() != 0) {
+            sendQuery(op);
 
-        synchronized (SingleConnectionDirect.this) {
-            if (update.size() != 0) {
-                sendQuery(op);
-
-                OpReply reply = waitForReply(db, collection, null, op.getReqId());
-            }
+            OpReply reply = waitForReply(db, collection, null, op.getReqId());
         }
         insert(db, collection, toInsert, wc);
 
@@ -657,7 +394,7 @@ public class SingleConnectionDirect implements MorphiumDriver {
     public Map<String, Object> update(String db, String collection, Map<String, Object> query, Map<String, Object> ops, boolean multiple, boolean upsert, WriteConcern wc) throws MorphiumDriverException {
         OpQuery op = new OpQuery();
         op.setInReplyTo(0);
-        op.setReqId(++rqid);
+        op.setReqId(getNextId());
         op.setDb(db);
         op.setColl("$cmd");
         HashMap<String, Object> map = new LinkedHashMap<>();
@@ -676,7 +413,7 @@ public class SingleConnectionDirect implements MorphiumDriver {
         OpQuery op = new OpQuery();
         op.setColl("$cmd");
         op.setDb(db);
-        op.setReqId(++rqid);
+        op.setReqId(getNextId());
         op.setLimit(-1);
 
         Map<String, Object> o = new LinkedHashMap<>();
@@ -698,34 +435,41 @@ public class SingleConnectionDirect implements MorphiumDriver {
         o.put("deletes", del);
         op.setDoc(o);
 
+        sendQuery(op);
 
-        synchronized (SingleConnectionDirect.this) {
-            sendQuery(op);
-
-            OpReply reply = null;
-            int waitingfor = op.getReqId();
-//        if (wc == null || wc.getW() == 0) {
+        OpReply reply = null;
+        int waitingfor = op.getReqId();
+        if (wc == null || wc.getW() == 0) {
             reply = waitForReply(db, collection, query, waitingfor);
-//        }
         }
         return null;
     }
 
     private OpReply waitForReply(String db, String collection, Map<String, Object> query, int waitingfor) throws MorphiumDriverException {
         OpReply reply = null;
-        reply = getReply();
+        boolean wait = true;
+        long start = System.currentTimeMillis();
+        while (wait) {
+            for (int i = 0; i < replies.size(); i++) {
+                reply = replies.get(i);
 //                replies.remove(i);
-        if (reply.getInReplyTo() == waitingfor) {
-            if (!reply.getDocuments().get(0).get("ok").equals(1) && !reply.getDocuments().get(0).get("ok").equals(1.0)) {
-                Object code = reply.getDocuments().get(0).get("code");
-                Object errmsg = reply.getDocuments().get(0).get("errmsg");
-                throw new MorphiumDriverException("Operation failed - error: " + code + "= " + errmsg, null, collection, db, query);
-            } else {
-                //got OK message
+                if (reply.getInReplyTo() == waitingfor) {
+                    if (!reply.getDocuments().get(0).get("ok").equals(1) && !reply.getDocuments().get(0).get("ok").equals(1.0)) {
+                        Object code = reply.getDocuments().get(0).get("code");
+                        Object errmsg = reply.getDocuments().get(0).get("errmsg");
+                        throw new MorphiumDriverException("Operation failed - error: " + code + "= " + errmsg, null, collection, db, query);
+                    } else {
+                        //got OK message
 //                        log.info("ok");
+                    }
+                    wait = false;
+                }
             }
+            if (System.currentTimeMillis() - start > getMaxWait()) {
+                throw new MorphiumDriverException("could not get message " + waitingfor + " in time (" + getMaxWait() + "ms)", null);
+            }
+            Thread.yield();
         }
-
         return reply;
     }
 
@@ -733,20 +477,18 @@ public class SingleConnectionDirect implements MorphiumDriver {
     public void drop(String db, String collection, WriteConcern wc) throws MorphiumDriverException {
         OpQuery op = new OpQuery();
         op.setInReplyTo(0);
-        op.setReqId(++rqid);
+        op.setReqId(getNextId());
 
         op.setDb(db);
         op.setColl("$cmd");
         HashMap<String, Object> map = new LinkedHashMap<>();
         map.put("drop", collection);
         op.setDoc(map);
-        synchronized (SingleConnectionDirect.this) {
-            sendQuery(op);
-            try {
-                waitForReply(db, collection, null, op.getReqId());
-            } catch (Exception e) {
-                log.error("Drop failed! " + e.getMessage());
-            }
+        sendQuery(op);
+        try {
+            waitForReply(db, collection, null, op.getReqId());
+        } catch (Exception e) {
+            log.error("Drop failed! " + e.getMessage());
         }
     }
 
@@ -754,20 +496,18 @@ public class SingleConnectionDirect implements MorphiumDriver {
     public void drop(String db, WriteConcern wc) throws MorphiumDriverException {
         OpQuery op = new OpQuery();
         op.setInReplyTo(0);
-        op.setReqId(++rqid);
+        op.setReqId(getNextId());
 
         op.setDb(db);
         op.setColl("$cmd");
         HashMap<String, Object> map = new LinkedHashMap<>();
         map.put("drop", 1);
         op.setDoc(map);
-        synchronized (SingleConnectionDirect.this) {
-            sendQuery(op);
-            try {
-                waitForReply(db, null, null, op.getReqId());
-            } catch (Exception e) {
-                log.error("Drop failed! " + e.getMessage());
-            }
+        sendQuery(op);
+        try {
+            waitForReply(db, null, null, op.getReqId());
+        } catch (Exception e) {
+            log.error("Drop failed! " + e.getMessage());
         }
     }
 
@@ -790,18 +530,15 @@ public class SingleConnectionDirect implements MorphiumDriver {
         q.setColl("$cmd");
         q.setLimit(1);
         q.setSkip(0);
-        q.setReqId(++rqid);
+        q.setReqId(getNextId());
 
         q.setDoc(cmd);
         q.setFlags(0);
         q.setInReplyTo(0);
 
-        List<Map<String, Object>> ret;
-        synchronized (SingleConnectionDirect.this) {
-            sendQuery(q);
+        sendQuery(q);
 
-            ret = readBatches(q.getReqId(), db, null, maxWriteBatchSize);
-        }
+        List<Map<String, Object>> ret = readBatches(q.getReqId(), db, null, getMaxWriteBatchSize());
         for (Map<String, Object> c : ret) {
             if (c.get("name").equals(collection)) return true;
         }
@@ -822,18 +559,15 @@ public class SingleConnectionDirect implements MorphiumDriver {
         q.setColl("$cmd");
         q.setLimit(1);
         q.setSkip(0);
-        q.setReqId(++rqid);
+        q.setReqId(getNextId());
 
         q.setDoc(cmd);
         q.setFlags(0);
         q.setInReplyTo(0);
 
-        List<Map<String, Object>> ret;
-        synchronized (SingleConnectionDirect.this) {
-            sendQuery(q);
+        sendQuery(q);
 
-            ret = readBatches(q.getReqId(), db, null, maxWriteBatchSize);
-        }
+        List<Map<String, Object>> ret = readBatches(q.getReqId(), db, null, getMaxWriteBatchSize());
         return ret.stream().map(c -> (String) c.get("name")).collect(Collectors.toList());
     }
 
@@ -845,36 +579,6 @@ public class SingleConnectionDirect implements MorphiumDriver {
     @Override
     public List<Map<String, Object>> aggregate(String db, String collection, List<Map<String, Object>> pipeline, boolean explain, boolean allowDiskUse, ReadPreference readPreference) throws MorphiumDriverException {
         return null;
-    }
-
-    @Override
-    public boolean isSocketKeepAlive() {
-        return keepAlive;
-    }
-
-    @Override
-    public void setSocketKeepAlive(boolean socketKeepAlive) {
-        keepAlive = socketKeepAlive;
-    }
-
-    @Override
-    public int getHeartbeatConnectTimeout() {
-        return 0;
-    }
-
-    @Override
-    public void setHeartbeatConnectTimeout(int heartbeatConnectTimeout) {
-
-    }
-
-    @Override
-    public int getMaxWaitTime() {
-        return this.maxWait;
-    }
-
-    @Override
-    public void setMaxWaitTime(int maxWaitTime) {
-        this.maxWait = maxWaitTime;
     }
 
     @Override
@@ -909,6 +613,4 @@ public class SingleConnectionDirect implements MorphiumDriver {
         runCommand(db, cmd);
 
     }
-
-
 }
