@@ -1,16 +1,16 @@
 package de.caluga.morphium.driver.meta;
 
+import de.caluga.morphium.Logger;
 import de.caluga.morphium.Morphium;
-import de.caluga.morphium.driver.MorphiumDriver;
-import de.caluga.morphium.driver.MorphiumDriverException;
-import de.caluga.morphium.driver.ReadPreference;
-import de.caluga.morphium.driver.WriteConcern;
+import de.caluga.morphium.Utils;
+import de.caluga.morphium.driver.*;
 import de.caluga.morphium.driver.bulk.BulkRequestContext;
-import de.caluga.morphium.driver.mongodb.Maximums;
+import de.caluga.morphium.driver.singleconnect.DriverBase;
+import de.caluga.morphium.driver.singleconnect.ThreaddedBase;
 
 import java.util.List;
 import java.util.Map;
-import java.util.Vector;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * User: Stephan Bösebeck
@@ -19,203 +19,14 @@ import java.util.Vector;
  * <p>
  * TODO: Add documentation here
  */
-public class MetaDriver implements MorphiumDriver {
-
-    Vector<MorphiumDriver> pool = new Vector<>();
-
-
-    @Override
-    public void setCredentials(String db, String login, char[] pwd) {
-
-    }
-
-    @Override
-    public boolean isReplicaset() {
-        return false;
-    }
-
-    @Override
-    public String[] getCredentials(String db) {
-        return new String[0];
-    }
-
-    @Override
-    public boolean isDefaultFsync() {
-        return false;
-    }
-
-    @Override
-    public String[] getHostSeed() {
-        return new String[0];
-    }
-
-    @Override
-    public int getMaxConnectionsPerHost() {
-        return 0;
-    }
-
-    @Override
-    public int getMinConnectionsPerHost() {
-        return 0;
-    }
-
-    @Override
-    public int getMaxConnectionLifetime() {
-        return 0;
-    }
-
-    @Override
-    public int getMaxConnectionIdleTime() {
-        return 0;
-    }
-
-    @Override
-    public int getSocketTimeout() {
-        return 0;
-    }
-
-    @Override
-    public int getConnectionTimeout() {
-        return 0;
-    }
-
-    @Override
-    public int getDefaultW() {
-        return 0;
-    }
-
-    @Override
-    public int getMaxBlockintThreadMultiplier() {
-        return 0;
-    }
-
-    @Override
-    public int getHeartbeatFrequency() {
-        return 0;
-    }
-
-    @Override
-    public void setHeartbeatSocketTimeout(int heartbeatSocketTimeout) {
-
-    }
-
-    @Override
-    public void setUseSSL(boolean useSSL) {
-
-    }
-
-    @Override
-    public void setHeartbeatFrequency(int heartbeatFrequency) {
-
-    }
-
-    @Override
-    public void setWriteTimeout(int writeTimeout) {
-
-    }
-
-    @Override
-    public void setDefaultBatchSize(int defaultBatchSize) {
-
-    }
-
-    @Override
-    public void setCredentials(Map<String, String[]> credentials) {
-
-    }
-
-    @Override
-    public int getHeartbeatSocketTimeout() {
-        return 0;
-    }
-
-    @Override
-    public boolean isUseSSL() {
-        return false;
-    }
-
-    @Override
-    public boolean isDefaultJ() {
-        return false;
-    }
-
-    @Override
-    public int getWriteTimeout() {
-        return 0;
-    }
-
-    @Override
-    public int getLocalThreshold() {
-        return 0;
-    }
-
-    @Override
-    public void setHostSeed(String... host) {
-
-    }
-
-    @Override
-    public void setMaxConnectionsPerHost(int mx) {
-
-    }
-
-    @Override
-    public void setMinConnectionsPerHost(int mx) {
-
-    }
-
-    @Override
-    public void setMaxConnectionLifetime(int timeout) {
-
-    }
-
-    @Override
-    public void setMaxConnectionIdleTime(int time) {
-
-    }
-
-    @Override
-    public void setSocketTimeout(int timeout) {
-
-    }
-
-    @Override
-    public void setConnectionTimeout(int timeout) {
-
-    }
-
-    @Override
-    public void setDefaultW(int w) {
-
-    }
-
-    @Override
-    public void setMaxBlockingThreadMultiplier(int m) {
-
-    }
-
-    @Override
-    public void heartBeatFrequency(int t) {
-
-    }
-
-    @Override
-    public void heartBeatSocketTimeout(int t) {
-
-    }
-
-    @Override
-    public void useSsl(boolean ssl) {
-
-    }
+public class MetaDriver extends DriverBase {
+    private Logger log = new Logger(MetaDriver.class);
+    private volatile static long seq;
+    private volatile Map<String, List<Connection>> driverPool = new ConcurrentHashMap<>();
+    private String currentMaster;
 
     @Override
     public void connect() throws MorphiumDriverException {
-
-    }
-
-    @Override
-    public void setDefaultReadPreference(ReadPreference rp) {
 
     }
 
@@ -225,53 +36,8 @@ public class MetaDriver implements MorphiumDriver {
     }
 
     @Override
-    public Maximums getMaximums() {
-        return null;
-    }
-
-    @Override
     public boolean isConnected() {
         return false;
-    }
-
-    @Override
-    public void setDefaultJ(boolean j) {
-
-    }
-
-    @Override
-    public void setDefaultWriteTimeout(int wt) {
-
-    }
-
-    @Override
-    public void setLocalThreshold(int thr) {
-
-    }
-
-    @Override
-    public void setDefaultFsync(boolean j) {
-
-    }
-
-    @Override
-    public void setRetriesOnNetworkError(int r) {
-
-    }
-
-    @Override
-    public int getRetriesOnNetworkError() {
-        return 0;
-    }
-
-    @Override
-    public void setSleepBetweenErrorRetries(int s) {
-
-    }
-
-    @Override
-    public int getSleepBetweenErrorRetries() {
-        return 0;
     }
 
     @Override
@@ -375,36 +141,6 @@ public class MetaDriver implements MorphiumDriver {
     }
 
     @Override
-    public boolean isSocketKeepAlive() {
-        return false;
-    }
-
-    @Override
-    public void setSocketKeepAlive(boolean socketKeepAlive) {
-
-    }
-
-    @Override
-    public int getHeartbeatConnectTimeout() {
-        return 0;
-    }
-
-    @Override
-    public void setHeartbeatConnectTimeout(int heartbeatConnectTimeout) {
-
-    }
-
-    @Override
-    public int getMaxWaitTime() {
-        return 0;
-    }
-
-    @Override
-    public void setMaxWaitTime(int maxWaitTime) {
-
-    }
-
-    @Override
     public boolean isCapped(String db, String coll) throws MorphiumDriverException {
         return false;
     }
@@ -417,5 +153,176 @@ public class MetaDriver implements MorphiumDriver {
     @Override
     public void createIndex(String db, String collection, Map<String, Object> index, Map<String, Object> options) throws MorphiumDriverException {
 
+    }
+
+    private DriverBase createDriver(String host) throws MorphiumDriverException {
+        DriverBase d = new ThreaddedBase();
+        d.setHostSeed(host); //only connecting to one host
+        d.setSocketKeepAlive(isSocketKeepAlive());
+        d.setLocalThreshold(getLocalThreshold());
+        d.setMaxWaitTime(getMaxWaitTime());
+        d.setReplicaSetName(getReplicaSetName());
+        d.setDefaultW(getDefaultW());
+        d.setDefaultReadPreference(getDefaultReadPreference());
+        d.setRetriesOnNetworkError(getRetriesOnNetworkError());
+        d.setSleepBetweenErrorRetries(getSleepBetweenErrorRetries());
+        d.connect(getReplicaSetName());
+        return d;
+    }
+
+    private Connection getMasterConnection() throws MorphiumDriverNetworkException {
+        long start = System.currentTimeMillis();
+        while (currentMaster == null) {
+            if (System.currentTimeMillis() - start > getMaxWaitTime()) {
+                throw new MorphiumDriverNetworkException("could not get Master!");
+            }
+            Thread.yield();
+
+        }
+        List<Connection> masterConnections = driverPool.get(currentMaster);
+        for (int i = 0; i < masterConnections.size(); i++) {
+            if (masterConnections.get(i).isInUse()) continue;
+
+        }
+        return null;
+    }
+
+    private Connection getConnection(ReadPreference rp) {
+        return null;
+    }
+
+    private void freeConnection(Connection c) {
+
+    }
+
+
+    private class Connection {
+        private DriverBase d;
+        private long created;
+        private long lru;
+
+        private long id;
+
+        private long optime;
+
+        private boolean inUse = false;
+        private boolean master = false;
+        private boolean ok = true;
+        private long answerTime;
+
+        public Connection(DriverBase dr) throws MorphiumDriverException {
+            this.d = dr;
+            lru = System.currentTimeMillis();
+            created = lru;
+            synchronized (Connection.class) {
+                id = ++seq;
+            }
+
+            new Thread() {
+                public void run() {
+                    while (d.isConnected()) {
+                        Map<String, Object> reply = null;
+                        try {
+                            long start = System.currentTimeMillis();
+                            reply = d.runCommand("local", Utils.getMap("isMaster", true));
+                            answerTime = System.currentTimeMillis() - start;
+                        } catch (MorphiumDriverException e) {
+                            log.error("Error with connection - exiting", e);
+                            ok = false;
+                            try {
+                                d.close();
+                            } catch (MorphiumDriverException e1) {
+                            }
+                            return;
+                        }
+                        if (reply.get("ismaster").equals(true)) {
+                            //got master connection...
+                            master = true;
+                            currentMaster = getHostSeed()[0];
+                        } else {
+                            master = false;
+                        }
+
+                        try {
+                            sleep(getHeartbeatFrequency());
+                        } catch (InterruptedException e) {
+                        }
+                    }
+                }
+            }.start();
+
+        }
+
+        public void close() throws MorphiumDriverException {
+            d.close();
+        }
+
+        public boolean isOk() {
+            return ok;
+        }
+
+        public boolean isMaster() {
+            return master;
+        }
+
+        public boolean isInUse() {
+            return inUse;
+        }
+
+        public void setInUse(boolean inUse) {
+            this.inUse = inUse;
+        }
+
+        public MorphiumDriver getD() {
+            return d;
+        }
+
+        public void setD(DriverBase d) {
+            this.d = d;
+        }
+
+        public long getCreated() {
+            return created;
+        }
+
+        public void setCreated(long created) {
+            this.created = created;
+        }
+
+        public long getLru() {
+            return lru;
+        }
+
+        public void setLru(long lru) {
+            this.lru = lru;
+        }
+
+        public long getOptime() {
+            return optime;
+        }
+
+        public void setOptime(long optime) {
+            this.optime = optime;
+        }
+
+        public long getId() {
+            return id;
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (!(o instanceof Connection)) return false;
+
+            Connection that = (Connection) o;
+
+            return id == that.id;
+
+        }
+
+        @Override
+        public int hashCode() {
+            return (int) (id ^ (id >>> 32));
+        }
     }
 }

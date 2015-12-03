@@ -6,8 +6,8 @@ import de.caluga.morphium.*;
 import de.caluga.morphium.driver.bson.MorphiumId;
 import de.caluga.morphium.driver.inmem.InMemoryDriver;
 import de.caluga.morphium.driver.mongodb.Driver;
-import de.caluga.morphium.driver.singleconnect.SingleConnection;
-import de.caluga.morphium.driver.singleconnect.SingleConnectionDirect;
+import de.caluga.morphium.driver.singleconnect.DirectBase;
+import de.caluga.morphium.driver.singleconnect.ThreaddedBase;
 import de.caluga.morphium.driver.wireprotocol.OpQuery;
 import de.caluga.morphium.query.Query;
 import de.caluga.test.mongo.suite.data.UncachedObject;
@@ -23,10 +23,10 @@ import java.util.logging.Level;
 /**
  * TODO: Add Documentation here
  **/
-public class SingleConnectionDriverTest {
+public class SingleConnectionThreaddedDriverTest {
 
-    private static int countObjs = 12000;
-    private Logger log = new Logger(SingleConnectionDriverTest.class);
+    private static int countObjs = 1200;
+    private Logger log = new Logger(SingleConnectionThreaddedDriverTest.class);
 
     @BeforeClass
     public static void setup() {
@@ -44,7 +44,7 @@ public class SingleConnectionDriverTest {
         MorphiumConfig cfg = new MorphiumConfig("morphium_test", 100, 1000, 1000);
         cfg.addHost("localhost");
         cfg.setReplicaset(false);
-        cfg.setDriverClass(SingleConnection.class.getName());
+        cfg.setDriverClass(ThreaddedBase.class.getName());
         cfg.setMaxWaitTime(3000);
         m = new Morphium(cfg);
 //        m.getDriver().connect();
@@ -56,7 +56,7 @@ public class SingleConnectionDriverTest {
         cfg = new MorphiumConfig("morphium_test", 100, 1000, 1000);
         cfg.addHost("localhost");
         cfg.setReplicaset(false);
-        cfg.setDriverClass(SingleConnection.class.getName());
+        cfg.setDriverClass(ThreaddedBase.class.getName());
         cfg.setMaxWaitTime(3000);
         m = new Morphium(cfg);
 //        m.getDriver().connect();
@@ -91,7 +91,7 @@ public class SingleConnectionDriverTest {
         MorphiumConfig cfg = new MorphiumConfig("morphium_test", 100, 1000, 1000);
         cfg.addHost("localhost");
         cfg.setReplicaset(false);
-        cfg.setDriverClass(SingleConnection.class.getName());
+        cfg.setDriverClass(ThreaddedBase.class.getName());
         cfg.setMaxWaitTime(3000);
         m = new Morphium(cfg);
 //        m.getDriver().connect();
@@ -106,7 +106,7 @@ public class SingleConnectionDriverTest {
         cfg = new MorphiumConfig("morphium_test", 100, 1000, 1000);
         cfg.addHost("localhost");
         cfg.setReplicaset(false);
-        cfg.setDriverClass(SingleConnectionDirect.class.getName());
+        cfg.setDriverClass(DirectBase.class.getName());
         cfg.setMaxWaitTime(3000);
         m = new Morphium(cfg);
 //        m.getDriver().connect();
@@ -238,7 +238,7 @@ public class SingleConnectionDriverTest {
 
     @Test
     public void crudTest() throws Exception {
-        SingleConnection drv = new SingleConnection();
+        ThreaddedBase drv = new ThreaddedBase();
         drv.setHostSeed("localhost:27017");
         drv.connect();
 
@@ -326,7 +326,7 @@ public class SingleConnectionDriverTest {
 
     @Test
     public void deleteTest() throws Exception {
-        SingleConnection drv = new SingleConnection();
+        ThreaddedBase drv = new ThreaddedBase();
         drv.setHostSeed("localhost:27017");
         drv.connect();
         drv.delete("morphium_test", "tst", Utils.getMap("counter", 100), false, null);
@@ -420,5 +420,6 @@ public class SingleConnectionDriverTest {
         q.f("counter").eq(100);
         m.getDriver().runCommand(m.getConfig().getDatabase(), Utils.getMap("isMaster", true));
         q.countAll();
+//        Thread.sleep(100000);
     }
 }
