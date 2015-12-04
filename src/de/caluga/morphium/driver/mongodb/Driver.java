@@ -11,7 +11,9 @@ import com.mongodb.client.result.DeleteResult;
 import com.mongodb.client.result.UpdateResult;
 import de.caluga.morphium.Logger;
 import de.caluga.morphium.Morphium;
-import de.caluga.morphium.driver.*;
+import de.caluga.morphium.driver.MorphiumDriver;
+import de.caluga.morphium.driver.MorphiumDriverException;
+import de.caluga.morphium.driver.MorphiumDriverOperation;
 import de.caluga.morphium.driver.ReadPreference;
 import de.caluga.morphium.driver.bson.MorphiumId;
 import de.caluga.morphium.driver.bulk.BulkRequestContext;
@@ -839,7 +841,7 @@ public class Driver implements MorphiumDriver {
 
 
     @Override
-    public List<Object> distinct(String db, String collection, String field, final Map<String, Object> filter) throws MorphiumDriverException {
+    public List<Object> distinct(String db, String collection, String field, final Map<String, Object> filter, ReadPreference rp) throws MorphiumDriverException {
         new DriverHelper().replaceMorphiumIdByObjectId(filter);
         final List<Object> ret = new ArrayList<>();
         new DriverHelper().doCall(new MorphiumDriverOperation() {

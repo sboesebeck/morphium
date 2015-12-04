@@ -21,9 +21,9 @@ import java.util.stream.Collectors;
 /**
  * TODO: Add Documentation here
  **/
-public class ThreaddedBase extends DriverBase {
+public class SingleConnectThreaddedDriver extends DriverBase {
 
-    private Logger log = new Logger(ThreaddedBase.class);
+    private Logger log = new Logger(SingleConnectThreaddedDriver.class);
     private Socket s;
     private OutputStream out;
     private InputStream in;
@@ -51,7 +51,7 @@ public class ThreaddedBase extends DriverBase {
         try {
             s = new Socket("localhost", 27017);
             s.setKeepAlive(isSocketKeepAlive());
-            s.setSoTimeout(getSoTimeout());
+            s.setSoTimeout(getSocketTimeout());
             out = s.getOutputStream();
             in = s.getInputStream();
 
@@ -286,7 +286,7 @@ public class ThreaddedBase extends DriverBase {
                     }
                 }
             }
-            if (System.currentTimeMillis() - start > getMaxWait()) {
+            if (System.currentTimeMillis() - start > getMaxWaitTime()) {
                 throw new MorphiumDriverNetworkException("Did not get message in time", null);
             }
         }
@@ -465,8 +465,8 @@ public class ThreaddedBase extends DriverBase {
                     wait = false;
                 }
             }
-            if (System.currentTimeMillis() - start > getMaxWait()) {
-                throw new MorphiumDriverException("could not get message " + waitingfor + " in time (" + getMaxWait() + "ms)", null);
+            if (System.currentTimeMillis() - start > getMaxWaitTime()) {
+                throw new MorphiumDriverException("could not get message " + waitingfor + " in time (" + getMaxWaitTime() + "ms)", null);
             }
             Thread.yield();
         }
@@ -517,7 +517,7 @@ public class ThreaddedBase extends DriverBase {
     }
 
     @Override
-    public List<Object> distinct(String db, String collection, String field, Map<String, Object> filter) throws MorphiumDriverException {
+    public List<Object> distinct(String db, String collection, String field, Map<String, Object> filter, ReadPreference rp) throws MorphiumDriverException {
         return null;
     }
 

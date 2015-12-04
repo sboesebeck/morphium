@@ -1643,7 +1643,7 @@ public class Morphium {
     @SuppressWarnings("unchecked")
     public List<Object> distinct(String key, Query q) {
         try {
-            return morphiumDriver.distinct(config.getDatabase(), q.getCollectionName(), key, q.toQueryObject());
+            return morphiumDriver.distinct(config.getDatabase(), q.getCollectionName(), key, q.toQueryObject(), getReadPreferenceForClass(q.getType()));
         } catch (MorphiumDriverException e) {
             throw new RuntimeException(e);
         }
@@ -1652,7 +1652,7 @@ public class Morphium {
     @SuppressWarnings("unchecked")
     public List<Object> distinct(String key, Class cls) {
         try {
-            return morphiumDriver.distinct(config.getDatabase(), objectMapper.getCollectionName(cls), key, new HashMap<>());
+            return morphiumDriver.distinct(config.getDatabase(), objectMapper.getCollectionName(cls), key, new HashMap<>(), getReadPreferenceForClass(cls));
         } catch (MorphiumDriverException e) {
             throw new RuntimeException(e);
         }
@@ -1661,7 +1661,7 @@ public class Morphium {
     @SuppressWarnings("unchecked")
     public List<Object> distinct(String key, String collectionName) {
         try {
-            return morphiumDriver.distinct(config.getDatabase(), collectionName, key, new HashMap<>());
+            return morphiumDriver.distinct(config.getDatabase(), collectionName, key, new HashMap<>(), config.getDefaultReadPreference());
         } catch (MorphiumDriverException e) {
             throw new RuntimeException(e);
         }
@@ -1670,7 +1670,12 @@ public class Morphium {
 
     public Map<String, Object> group(Query q, Map<String, Object> initial, String jsReduce, String jsFinalize, String... keys) {
         //TODO: readpreference
-        return morphiumDriver.group(config.getDatabase(), objectMapper.getCollectionName(q.getType()), q.toQueryObject(), initial, jsReduce, jsFinalize, null, keys);
+        try {
+            return morphiumDriver.group(config.getDatabase(), objectMapper.getCollectionName(q.getType()), q.toQueryObject(), initial, jsReduce, jsFinalize, null, keys);
+        } catch (MorphiumDriverException e) {
+            e.printStackTrace();
+        }
+        return null;
     }
 
     @SuppressWarnings("unchecked")
