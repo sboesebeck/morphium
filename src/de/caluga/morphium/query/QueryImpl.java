@@ -246,7 +246,7 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
     @Override
     public List distinct(String field) {
         try {
-            return morphium.getDriver().distinct(morphium.getConfig().getDatabase(), getCollectionName(), field, toQueryObject());
+            return morphium.getDriver().distinct(morphium.getConfig().getDatabase(), getCollectionName(), field, toQueryObject(), morphium.getReadPreferenceForClass(getType()));
         } catch (MorphiumDriverException e) {
             //TODO: Implement Handling
             throw new RuntimeException(e);
