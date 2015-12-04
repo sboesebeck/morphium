@@ -199,7 +199,7 @@ public class SingleConnectThreaddedDriver extends DriverBase {
                 } catch (MorphiumDriverException e) {
                     e.printStackTrace();
                 }
-                if (rep.getDocuments() == null) return null;
+                if (rep == null || rep.getDocuments() == null) return null;
                 return rep.getDocuments().get(0);
             }
         }, getRetriesOnNetworkError(), getSleepBetweenErrorRetries());
@@ -466,7 +466,7 @@ public class SingleConnectThreaddedDriver extends DriverBase {
                 }
             }
             if (System.currentTimeMillis() - start > getMaxWaitTime()) {
-                throw new MorphiumDriverException("could not get message " + waitingfor + " in time (" + getMaxWaitTime() + "ms)", null);
+                throw new MorphiumDriverNetworkException("could not get message " + waitingfor + " in time (" + getMaxWaitTime() + "ms)", null);
             }
             Thread.yield();
         }
