@@ -6,7 +6,7 @@ import de.caluga.morphium.Utils;
 import de.caluga.morphium.driver.*;
 import de.caluga.morphium.driver.bulk.BulkRequestContext;
 import de.caluga.morphium.driver.singleconnect.DriverBase;
-import de.caluga.morphium.driver.singleconnect.SingleConnectThreaddedDriver;
+import de.caluga.morphium.driver.singleconnect.SingleConnectDirectDriver;
 
 import java.util.ConcurrentModificationException;
 import java.util.List;
@@ -375,7 +375,7 @@ public class MetaDriver extends DriverBase {
     }
 
     private DriverBase createDriver(String host) throws MorphiumDriverException {
-        DriverBase d = new SingleConnectThreaddedDriver();
+        DriverBase d = new SingleConnectDirectDriver();
         d.setHostSeed(host); //only connecting to one host
         d.setSocketKeepAlive(isSocketKeepAlive());
         d.setLocalThreshold(getLocalThreshold());
@@ -400,10 +400,10 @@ public class MetaDriver extends DriverBase {
         }
         List<Connection> masterConnections = getConnections(host);
         Connection c = null;
-        if (connectionPool.size() == 0) {
+        if (masterConnections.size() == 0) {
             //No connection available - create one
-            while (connectionPool.size() == 0) {
-                if (connectionsInUse.get(host).size() < getMaxConnectionsPerHost()) {
+            while (masterConnections.size() == 0) {
+                if (getConnectionsInUse(host).size() < getMaxConnectionsPerHost()) {
                     c = new Connection(createDriver(host));
                     break;
                 }
@@ -466,6 +466,8 @@ public class MetaDriver extends DriverBase {
     private void freeConnection(Connection c) {
         if (c == null) return;
         getConnectionsInUse(c.getHost()).remove(c);
+        c.setInUse(false);
+
         getConnections(c.getHost()).add(c);
     }
 
@@ -495,6 +497,10 @@ public class MetaDriver extends DriverBase {
             //Housekeeping Thread
             new Thread() {
                 public void run() {
+                    if (!d.isConnected()) {
+                        log.error("Not connected!!!!");
+                        return;
+                    }
                     while (d.isConnected()) {
                         try {
                             Map<String, Object> reply = null;
