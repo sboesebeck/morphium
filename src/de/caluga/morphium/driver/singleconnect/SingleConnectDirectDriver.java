@@ -8,6 +8,7 @@ import de.caluga.morphium.driver.bson.MorphiumId;
 import de.caluga.morphium.driver.bulk.BulkRequestContext;
 import de.caluga.morphium.driver.wireprotocol.OpQuery;
 import de.caluga.morphium.driver.wireprotocol.OpReply;
+import org.bson.Document;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -155,12 +156,20 @@ public class SingleConnectDirectDriver extends DriverBase {
 
     @Override
     public Map<String, Object> getReplsetStatus() throws MorphiumDriverException {
-        return null;
+        Map<String, Object> ret = runCommand("admin", Utils.getMap("replSetGetStatus", 1));
+        List<Map<String, Object>> mem = (List) ret.get("members");
+        if (mem == null) return null;
+        for (Map<String, Object> d : mem) {
+            if (d.get("optime") instanceof Map) {
+                d.put("optime", ((Map<String, Document>) d.get("optime")).get("ts"));
+            }
+        }
+        return ret;
     }
 
     @Override
     public Map<String, Object> getDBStats(String db) throws MorphiumDriverException {
-        return null;
+        return runCommand(db, Utils.getMap("dbstats", 1));
     }
 
     @Override
@@ -297,6 +306,7 @@ public class SingleConnectDirectDriver extends DriverBase {
 
     @Override
     public long count(String db, String collection, Map<String, Object> query, ReadPreference rp) throws MorphiumDriverException {
+        //TODO: Add network call helper
         OpQuery q = new OpQuery();
         q.setDb(db);
         q.setColl("$cmd");
@@ -321,6 +331,7 @@ public class SingleConnectDirectDriver extends DriverBase {
 
     @Override
     public void insert(String db, String collection, List<Map<String, Object>> objs, WriteConcern wc) throws MorphiumDriverException {
+        //Todo Add network call helper
         int idx = 0;
         for (Map<String, Object> o : objs) {
             if (o.get("_id") == null) o.put("_id", new MorphiumId());
@@ -354,6 +365,7 @@ public class SingleConnectDirectDriver extends DriverBase {
 
     @Override
     public void store(String db, String collection, List<Map<String, Object>> objs, WriteConcern wc) throws MorphiumDriverException {
+        //Todo network call helper
         List<Map<String, Object>> toInsert = new ArrayList<>();
         OpQuery op = new OpQuery();
         op.setInReplyTo(0);
@@ -393,6 +405,7 @@ public class SingleConnectDirectDriver extends DriverBase {
 
     @Override
     public Map<String, Object> update(String db, String collection, Map<String, Object> query, Map<String, Object> ops, boolean multiple, boolean upsert, WriteConcern wc) throws MorphiumDriverException {
+        //todo network call helper
         OpQuery op = new OpQuery();
         op.setInReplyTo(0);
         op.setReqId(getNextId());
@@ -406,6 +419,10 @@ public class SingleConnectDirectDriver extends DriverBase {
         op.setDoc(map);
 
         sendQuery(op);
+        if (wc != null) {
+            OpReply res = waitForReply(db, collection, query, op.getReqId());
+            return res.getDocuments().get(0);
+        }
         return null;
     }
 
@@ -511,11 +528,38 @@ public class SingleConnectDirectDriver extends DriverBase {
 
     @Override
     public boolean exists(String db) throws MorphiumDriverException {
+        try {
+            getDBStats(db);
+            return true;
+        } catch (MorphiumDriverException e) {
+        }
         return false;
     }
 
     @Override
     public List<Object> distinct(String db, String collection, String field, Map<String, Object> filter, ReadPreference rp) throws MorphiumDriverException {
+        OpQuery op = new OpQuery();
+        op.setColl("$cmd");
+        op.setLimit(1);
+        op.setReqId(getNextId());
+        op.setSkip(0);
+
+        Map<String, Object> cmd = new LinkedHashMap<>();
+        cmd.put("distinct", collection);
+        cmd.put("field", field);
+        cmd.put("query", filter);
+        op.setDoc(cmd);
+
+        synchronized (SingleConnectDirectDriver.this) {
+            sendQuery(op);
+            try {
+                OpReply res = waitForReply(db, null, null, op.getReqId());
+                //TODO: implement
+                log.fatal("NEet to implement distinct");
+            } catch (Exception e) {
+
+            }
+        }
         return null;
     }
 
@@ -577,6 +621,41 @@ public class SingleConnectDirectDriver extends DriverBase {
 
     @Override
     public Map<String, Object> group(String db, String coll, Map<String, Object> query, Map<String, Object> initial, String jsReduce, String jsFinalize, ReadPreference rp, String... keys) {
+        OpQuery q = new OpQuery();
+        q.setDb(db);
+        q.setColl("$cmd");
+        q.setReqId(getNextId());
+        q.setSkip(0);
+        q.setLimit(1);
+
+        Map<String, Object> cmd = new LinkedHashMap<>();
+        Map<String, Object> map = Utils.getMap("ns", coll);
+
+        Map<String, Object> key = new HashMap<>();
+        for (String k : keys) key.put(k, 1);
+        map.put("key", key);
+        if (jsReduce != null) {
+            map.put("$reduce", jsReduce);
+        }
+
+        if (jsFinalize != null) {
+            map.put("finalize", jsFinalize);
+        }
+        if (initial != null) {
+            map.put("initial", initial);
+        }
+        if (query != null) map.put("cond", query);
+
+        cmd.put("group", map);
+
+        synchronized (SingleConnectDirectDriver.this) {
+            sendQuery(q);
+            try {
+                OpReply res = waitForReply(db, coll, query, q.getReqId());
+            } catch (MorphiumDriverException e) {
+
+            }
+        }
         return null;
     }
 

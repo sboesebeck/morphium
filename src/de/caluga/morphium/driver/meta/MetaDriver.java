@@ -28,12 +28,15 @@ public class MetaDriver extends DriverBase {
     private volatile Map<String, List<Connection>> connectionsInUse = new ConcurrentHashMap<>();
     private volatile String currentMaster;
     private volatile Vector<String> secondaries = new Vector<>();
+    private volatile Vector<String> tempBlockedHosts = new Vector<>();
     private volatile long fastestAnswer = 10000000;
     private volatile String fastestHost = null;
 
+    private volatile Map<String, Integer> errorCountByHost = new ConcurrentHashMap<>();
+
     private static ReadPreference primary = ReadPreference.primary();
     private static ReadPreference secondary = ReadPreference.secondary();
-    private static ReadPreference secondaryPrferred = ReadPreference.secondaryPreferred();
+    private static ReadPreference secondaryPreferred = ReadPreference.secondaryPreferred();
     private static ReadPreference primaryPreferred = ReadPreference.primaryPreferred();
     private static ReadPreference nearest = ReadPreference.primary();
 
@@ -73,6 +76,41 @@ public class MetaDriver extends DriverBase {
         if (getTotalConnectionCount() == 0) {
             throw new MorphiumDriverException("Connection failed!");
         }
+
+        //some Housekeeping
+        new Thread() {
+
+            public void run() {
+                while (isConnected()) {
+                    for (int i = secondaries.size() - 1; i >= 0; i--) {
+                        if (errorCountByHost.get(secondaries.get(i)) == null) {
+                            errorCountByHost.put(secondaries.get(i), 0);
+                        }
+                        if (errorCountByHost.get(secondaries.get(i)) > 10) {
+                            //temporary disabling host
+                            String sec = secondaries.remove(i);
+                            tempBlockedHosts.add(sec);
+                        } else {
+                            decErrorCount(secondaries.get(i));
+                        }
+
+                    }
+                    for (int i = 0; i < tempBlockedHosts.size(); i++) {
+                        if (errorCountByHost.get(tempBlockedHosts.get(i)) == 0) {
+                            String sec = tempBlockedHosts.remove(i);
+                            secondaries.add(sec);
+                        } else {
+                            decErrorCount(tempBlockedHosts.get(i));
+                        }
+                    }
+                    try {
+                        Thread.sleep(2500);
+                    } catch (InterruptedException e) {
+                    }
+                }
+            }
+        }.start();
+
 
     }
 
@@ -123,8 +161,10 @@ public class MetaDriver extends DriverBase {
         Connection c = null;
         try {
             c = getConnection(primaryPreferred);
-            Map<String, Object> ret = c.getD().getReplsetStatus();
-            return ret;
+            return c.getD().getReplsetStatus();
+        } catch (MorphiumDriverNetworkException ex) {
+            if (c != null) incErrorCount(c.getHost());
+            throw ex;
         } finally {
             freeConnection(c);
         }
@@ -135,8 +175,10 @@ public class MetaDriver extends DriverBase {
         Connection c = null;
         try {
             c = getConnection(primaryPreferred);
-            Map<String, Object> ret = c.getD().getDBStats(db);
-            return ret;
+            return c.getD().getDBStats(db);
+        } catch (MorphiumDriverNetworkException ex) {
+            if (c != null) incErrorCount(c.getHost());
+            throw ex;
         } finally {
             freeConnection(c);
         }
@@ -147,8 +189,10 @@ public class MetaDriver extends DriverBase {
         Connection c = null;
         try {
             c = getConnection(primaryPreferred);
-            Map<String, Object> ret = c.getD().getOps(threshold);
-            return ret;
+            return c.getD().getOps(threshold);
+        } catch (MorphiumDriverNetworkException ex) {
+            if (c != null) incErrorCount(c.getHost());
+            throw ex;
         } finally {
             freeConnection(c);
         }
@@ -159,8 +203,10 @@ public class MetaDriver extends DriverBase {
         Connection c = null;
         try {
             c = getConnection(primaryPreferred);
-            Map<String, Object> ret = c.getD().runCommand(db, cmd);
-            return ret;
+            return c.getD().runCommand(db, cmd);
+        } catch (MorphiumDriverNetworkException ex) {
+            if (c != null) incErrorCount(c.getHost());
+            throw ex;
         } finally {
             freeConnection(c);
         }
@@ -171,8 +217,10 @@ public class MetaDriver extends DriverBase {
         Connection c = null;
         try {
             c = getConnection(rp);
-            List<Map<String, Object>> ret = c.getD().find(db, collection, query, sort, projection, skip, limit, batchSize, rp, findMetaData);
-            return ret;
+            return c.getD().find(db, collection, query, sort, projection, skip, limit, batchSize, rp, findMetaData);
+        } catch (MorphiumDriverNetworkException ex) {
+            if (c != null) incErrorCount(c.getHost());
+            throw ex;
         } finally {
             freeConnection(c);
         }
@@ -183,8 +231,10 @@ public class MetaDriver extends DriverBase {
         Connection c = null;
         try {
             c = getConnection(rp);
-            long ret = c.getD().count(db, collection, query, rp);
-            return ret;
+            return c.getD().count(db, collection, query, rp);
+        } catch (MorphiumDriverNetworkException ex) {
+            if (c != null) incErrorCount(c.getHost());
+            throw ex;
         } finally {
             freeConnection(c);
         }
@@ -196,6 +246,9 @@ public class MetaDriver extends DriverBase {
         try {
             c = getConnection(primary);
             c.getD().insert(db, collection, objs, wc);
+        } catch (MorphiumDriverNetworkException ex) {
+            if (c != null) incErrorCount(c.getHost());
+            throw ex;
         } finally {
             freeConnection(c);
         }
@@ -207,6 +260,9 @@ public class MetaDriver extends DriverBase {
         try {
             c = getConnection(primary);
             c.getD().store(db, collection, objs, wc);
+        } catch (MorphiumDriverNetworkException ex) {
+            if (c != null) incErrorCount(c.getHost());
+            throw ex;
         } finally {
             freeConnection(c);
         }
@@ -217,8 +273,10 @@ public class MetaDriver extends DriverBase {
         Connection c = null;
         try {
             c = getConnection(primary);
-            Map<String, Object> ret = c.getD().update(db, collection, query, op, multiple, upsert, wc);
-            return ret;
+            return c.getD().update(db, collection, query, op, multiple, upsert, wc);
+        } catch (MorphiumDriverNetworkException ex) {
+            if (c != null) incErrorCount(c.getHost());
+            throw ex;
         } finally {
             freeConnection(c);
         }
@@ -229,8 +287,10 @@ public class MetaDriver extends DriverBase {
         Connection c = null;
         try {
             c = getConnection(primary);
-            Map<String, Object> ret = c.getD().delete(db, collection, query, multiple, wc);
-            return ret;
+            return c.getD().delete(db, collection, query, multiple, wc);
+        } catch (MorphiumDriverNetworkException ex) {
+            if (c != null) incErrorCount(c.getHost());
+            throw ex;
         } finally {
             freeConnection(c);
         }
@@ -243,6 +303,9 @@ public class MetaDriver extends DriverBase {
             c = getConnection(primary);
             c.getD().drop(db, collection, wc);
 
+        } catch (MorphiumDriverNetworkException ex) {
+            if (c != null) incErrorCount(c.getHost());
+            throw ex;
         } finally {
             freeConnection(c);
         }
@@ -255,6 +318,9 @@ public class MetaDriver extends DriverBase {
             c = getConnection(primary);
             c.getD().drop(db, wc);
 
+        } catch (MorphiumDriverNetworkException ex) {
+            if (c != null) incErrorCount(c.getHost());
+            throw ex;
         } finally {
             freeConnection(c);
         }
@@ -265,8 +331,10 @@ public class MetaDriver extends DriverBase {
         Connection c = null;
         try {
             c = getConnection(primaryPreferred);
-            boolean ret = c.getD().exists(db);
-            return ret;
+            return c.getD().exists(db);
+        } catch (MorphiumDriverNetworkException ex) {
+            if (c != null) incErrorCount(c.getHost());
+            throw ex;
         } finally {
             freeConnection(c);
         }
@@ -277,8 +345,10 @@ public class MetaDriver extends DriverBase {
         Connection c = null;
         try {
             c = getConnection(primaryPreferred);
-            List<Object> ret = c.getD().distinct(db, collection, field, filter, rp);
-            return ret;
+            return c.getD().distinct(db, collection, field, filter, rp);
+        } catch (MorphiumDriverNetworkException ex) {
+            if (c != null) incErrorCount(c.getHost());
+            throw ex;
         } finally {
             freeConnection(c);
         }
@@ -289,8 +359,10 @@ public class MetaDriver extends DriverBase {
         Connection c = null;
         try {
             c = getConnection(primaryPreferred);
-            boolean ret = c.getD().exists(db, collection);
-            return ret;
+            return c.getD().exists(db, collection);
+        } catch (MorphiumDriverNetworkException ex) {
+            if (c != null) incErrorCount(c.getHost());
+            throw ex;
         } finally {
             freeConnection(c);
         }
@@ -301,8 +373,10 @@ public class MetaDriver extends DriverBase {
         Connection c = null;
         try {
             c = getConnection(primaryPreferred);
-            List<Map<String, Object>> ret = c.getD().getIndexes(db, collection);
-            return ret;
+            return c.getD().getIndexes(db, collection);
+        } catch (MorphiumDriverNetworkException ex) {
+            if (c != null) incErrorCount(c.getHost());
+            throw ex;
         } finally {
             freeConnection(c);
         }
@@ -313,8 +387,10 @@ public class MetaDriver extends DriverBase {
         Connection c = null;
         try {
             c = getConnection(primaryPreferred);
-            List<String> ret = c.getD().getCollectionNames(db);
-            return ret;
+            return c.getD().getCollectionNames(db);
+        } catch (MorphiumDriverNetworkException ex) {
+            if (c != null) incErrorCount(c.getHost());
+            throw ex;
         } finally {
             freeConnection(c);
         }
@@ -325,8 +401,10 @@ public class MetaDriver extends DriverBase {
         Connection c = null;
         try {
             c = getConnection(rp);
-            Map<String, Object> ret = c.getD().group(db, coll, query, initial, jsReduce, jsFinalize, rp, keys);
-            return ret;
+            return c.getD().group(db, coll, query, initial, jsReduce, jsFinalize, rp, keys);
+        } catch (MorphiumDriverNetworkException ex) {
+            if (c != null) incErrorCount(c.getHost());
+            throw ex;
         } finally {
             freeConnection(c);
         }
@@ -338,8 +416,10 @@ public class MetaDriver extends DriverBase {
         Connection c = null;
         try {
             c = getConnection(readPreference);
-            List<Map<String, Object>> ret = c.getD().aggregate(db, collection, pipeline, explain, allowDiskUse, readPreference);
-            return ret;
+            return c.getD().aggregate(db, collection, pipeline, explain, allowDiskUse, readPreference);
+        } catch (MorphiumDriverNetworkException ex) {
+            if (c != null) incErrorCount(c.getHost());
+            throw ex;
         } finally {
             freeConnection(c);
         }
@@ -352,6 +432,9 @@ public class MetaDriver extends DriverBase {
         try {
             c = getConnection(primaryPreferred);
             return c.getD().isCapped(db, coll);
+        } catch (MorphiumDriverNetworkException ex) {
+            if (c != null) incErrorCount(c.getHost());
+            throw ex;
         } finally {
             freeConnection(c);
         }
@@ -367,8 +450,11 @@ public class MetaDriver extends DriverBase {
     public void createIndex(String db, String collection, Map<String, Object> index, Map<String, Object> options) throws MorphiumDriverException {
         Connection c = null;
         try {
-            c = getConnection(primaryPreferred);
+            c = getConnection(primary);
             c.getD().createIndex(db, collection, index, options);
+        } catch (MorphiumDriverNetworkException ex) {
+            if (c != null) incErrorCount(c.getHost());
+            throw ex;
         } finally {
             freeConnection(c);
         }
@@ -378,26 +464,23 @@ public class MetaDriver extends DriverBase {
         DriverBase d = new SingleConnectDirectDriver();
         d.setHostSeed(host); //only connecting to one host
         d.setSocketKeepAlive(isSocketKeepAlive());
+        d.setSocketTimeout(getSocketTimeout());
+        d.setConnectionTimeout(getConnectionTimeout());
+        d.setDefaultWriteTimeout(getDefaultWriteTimeout());
+        d.setSleepBetweenErrorRetries(getSleepBetweenErrorRetries());
+        d.setRetriesOnNetworkError(getRetriesOnNetworkError());
         d.setLocalThreshold(getLocalThreshold());
         d.setMaxWaitTime(getMaxWaitTime());
         d.setReplicaSetName(getReplicaSetName());
         d.setDefaultW(getDefaultW());
         d.setDefaultReadPreference(getDefaultReadPreference());
-        d.setRetriesOnNetworkError(getRetriesOnNetworkError());
-        d.setSleepBetweenErrorRetries(getSleepBetweenErrorRetries());
         d.connect(getReplicaSetName());
         return d;
     }
 
     private Connection getConnection(String host) throws MorphiumDriverException {
         long start = System.currentTimeMillis();
-        while (currentMaster == null) {
-            if (System.currentTimeMillis() - start > getMaxWaitTime()) {
-                throw new MorphiumDriverNetworkException("could not get Master!");
-            }
-            Thread.yield();
 
-        }
         List<Connection> masterConnections = getConnections(host);
         Connection c = null;
         if (masterConnections.size() == 0) {
@@ -408,7 +491,7 @@ public class MetaDriver extends DriverBase {
                     break;
                 }
                 if (System.currentTimeMillis() - start > getMaxWaitTime()) {
-                    throw new MorphiumDriverNetworkException("could not get Master!");
+                    throw new MorphiumDriverNetworkException("could not get Master! Waited >" + getMaxWaitTime() + "ms");
                 }
                 try {
                     Thread.sleep(100);
@@ -416,9 +499,19 @@ public class MetaDriver extends DriverBase {
                 }
             }
         } else {
-            c = masterConnections.remove(0); //get first available connection;
+            try {
+                c = masterConnections.remove(0); //get first available connection;
+            } catch (Exception e) {
+                try {
+                    Thread.sleep(100);
+                } catch (InterruptedException e1) {
+                }
+                //somebody was faster - retry
+                //TODO: Remove recursion!
+                return getConnection(host);
+            }
         }
-
+        if (c == null) return null;
         c.setInUse(true);
         c.touch();
         getConnectionsInUse(host).add(c);
@@ -442,7 +535,7 @@ public class MetaDriver extends DriverBase {
                 try {
                     return getMasterConnection();
                 } catch (Exception e) {
-                    log.warn("could not get master connection...");
+                    log.warn("could not get master connection...", e);
                 }
             case SECONDARY:
                 return getSecondaryConnection();
@@ -460,6 +553,14 @@ public class MetaDriver extends DriverBase {
     }
 
     private Connection getMasterConnection() throws MorphiumDriverException {
+        long start = System.currentTimeMillis();
+        while (currentMaster == null) {
+            if (System.currentTimeMillis() - start > getMaxWaitTime()) {
+                throw new MorphiumDriverNetworkException("could not get Master!");
+            }
+            Thread.yield();
+
+        }
         return getConnection(currentMaster);
     }
 
@@ -469,6 +570,24 @@ public class MetaDriver extends DriverBase {
         c.setInUse(false);
 
         getConnections(c.getHost()).add(c);
+    }
+
+    private void incErrorCount(String host) {
+        if (errorCountByHost.get(host) == null) {
+            errorCountByHost.put(host, 1);
+        } else {
+            errorCountByHost.put(host, errorCountByHost.get(host) + 1);
+        }
+
+    }
+
+    private void decErrorCount(String host) {
+        if (errorCountByHost.get(host) == null) {
+            errorCountByHost.put(host, 0);
+        } else {
+            errorCountByHost.put(host, errorCountByHost.get(host) - 1);
+        }
+
     }
 
 
@@ -503,6 +622,39 @@ public class MetaDriver extends DriverBase {
                     }
                     while (d.isConnected()) {
                         try {
+                            if (!inUse && System.currentTimeMillis() - created > getMaxConnectionLifetime()) {
+                                connectionPool.get(getHost()).remove(Connection.this);
+                                if (inUse) {
+                                    //some other thread was faster
+                                    continue;
+                                }
+                                log.debug("Maximum life time reached, killing myself");
+                                try {
+                                    d.close();
+                                } catch (MorphiumDriverException e) {
+                                }
+
+                                while (connectionPool.get(getHost()).size() < getMinConnectionsPerHost()) {
+                                    DriverBase b = createDriver(getHost());
+                                    connectionPool.get(getHost()).add(new Connection(b));
+                                }
+                                break;
+                            }
+                            if (!inUse && System.currentTimeMillis() - lru > getMaxConnectionIdleTime()) {
+                                if (connectionPool.get(getHost()).size() > getMinConnectionsPerHost()) {
+                                    connectionPool.get(getHost()).remove(Connection.this);
+                                    if (inUse) {
+                                        //some other thread won
+                                        continue;
+                                    }
+                                    try {
+                                        d.close();
+                                    } catch (MorphiumDriverException e) {
+                                    }
+                                    break;
+                                }
+
+                            }
                             Map<String, Object> reply = null;
                             try {
                                 long start = System.currentTimeMillis();
@@ -556,6 +708,8 @@ public class MetaDriver extends DriverBase {
                             return;
                         }
                     }
+                    connectionsInUse.get(getHost()).remove(Connection.this);
+                    connectionPool.get(getHost()).remove(Connection.this);
                 }
             }.start();
 
