@@ -45,6 +45,18 @@ public class MorphiumDriverSpeedTest {
         MorphiumConfig cfg = new MorphiumConfig("morphium_test", 100, 1000, 1000);
         cfg.addHost("localhost");
         cfg.setReplicaset(false);
+        cfg.setDriverClass(MetaDriver.class.getName());
+        cfg.setMaxWaitTime(30000);
+        m = new Morphium(cfg);
+//        m.getDriver().connect();
+//        Thread.sleep(10000);
+        log.info("Testing multithreadded with Metadriver:");
+        multithreadTest(m);
+        m.close();
+
+        cfg = new MorphiumConfig("morphium_test", 100, 1000, 1000);
+        cfg.addHost("localhost");
+        cfg.setReplicaset(false);
         cfg.setDriverClass(SingleConnectThreaddedDriver.class.getName());
         cfg.setMaxWaitTime(3000);
         m = new Morphium(cfg);
@@ -95,7 +107,8 @@ public class MorphiumDriverSpeedTest {
         cfg.addHost("localhost");
         cfg.setReplicaset(false);
         cfg.setDriverClass(MetaDriver.class.getName());
-        cfg.setMaxWaitTime(3000);
+        cfg.setMaxWaitTime(30000);
+        cfg.setMaxWaitTime(30000);
         m = new Morphium(cfg);
 //        m.getDriver().connect();
 //        Thread.sleep(10000);
