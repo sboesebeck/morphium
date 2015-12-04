@@ -600,7 +600,7 @@ public class InMemoryDriver implements MorphiumDriver {
     }
 
     @Override
-    public List<Object> distinct(String db, String collection, String field, Map<String, Object> filter) throws MorphiumDriverException {
+    public List<Object> distinct(String db, String collection, String field, Map<String, Object> filter, ReadPreference rp) throws MorphiumDriverException {
         return null;
     }
 
