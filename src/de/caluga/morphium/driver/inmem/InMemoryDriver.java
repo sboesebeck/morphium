@@ -33,6 +33,11 @@ public class InMemoryDriver implements MorphiumDriver {
     }
 
     @Override
+    public int getDefaultWriteTimeout() {
+        return 0;
+    }
+
+    @Override
     public boolean isReplicaset() {
         return false;
     }

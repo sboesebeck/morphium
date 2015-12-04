@@ -30,7 +30,6 @@ public abstract class DriverBase implements MorphiumDriver {
     private int retriesOnNetworkError = 5;
     private int sleepBetweenRetries = 100;
     private boolean defaultJ = false;
-    private int defaultWriteTimeout = 1000;
     private int localThreshold = 0;
     private boolean defaultFsync = false;
     private int heartbeatConnectionTimeout = 1000;
@@ -45,6 +44,7 @@ public abstract class DriverBase implements MorphiumDriver {
     private int maxConnectionLifetime = 600000;
     private int minConnectionsPerHost = 1;
     private int maxConnectionsPerHost = 100;
+    private int defaultWriteTimeout = 10000;
 
     @Override
     public void setCredentials(String db, String login, char[] pwd) {
@@ -150,6 +150,11 @@ public abstract class DriverBase implements MorphiumDriver {
     @Override
     public void setDefaultWriteTimeout(int wt) {
         defaultWriteTimeout = wt;
+    }
+
+    @Override
+    public int getDefaultWriteTimeout() {
+        return defaultWriteTimeout;
     }
 
     @Override
