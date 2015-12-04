@@ -104,6 +104,8 @@ public interface MorphiumDriver {
 
     void setDefaultWriteTimeout(int wt);
 
+    int getDefaultWriteTimeout();
+
     void setLocalThreshold(int thr);
 
     void setDefaultFsync(boolean j);
