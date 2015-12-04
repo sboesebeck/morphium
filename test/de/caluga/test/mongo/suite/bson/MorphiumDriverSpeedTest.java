@@ -47,6 +47,8 @@ public class MorphiumDriverSpeedTest {
         cfg.setReplicaset(false);
         cfg.setDriverClass(MetaDriver.class.getName());
         cfg.setMaxWaitTime(30000);
+        cfg.setMinConnectionsPerHost(1);
+        cfg.setMaxConnections(100);
         m = new Morphium(cfg);
 //        m.getDriver().connect();
 //        Thread.sleep(10000);
@@ -58,6 +60,8 @@ public class MorphiumDriverSpeedTest {
         cfg.addHost("localhost");
         cfg.setReplicaset(false);
         cfg.setDriverClass(SingleConnectThreaddedDriver.class.getName());
+        cfg.setMinConnectionsPerHost(1);
+        cfg.setMaxConnections(100);
         cfg.setMaxWaitTime(3000);
         m = new Morphium(cfg);
 //        m.getDriver().connect();
@@ -70,6 +74,8 @@ public class MorphiumDriverSpeedTest {
         cfg.addHost("localhost");
         cfg.setReplicaset(false);
         cfg.setDriverClass(SingleConnectDirectDriver.class.getName());
+        cfg.setMinConnectionsPerHost(1);
+        cfg.setMaxConnections(100);
         cfg.setMaxWaitTime(3000);
         m = new Morphium(cfg);
 //        m.getDriver().connect();
@@ -81,6 +87,8 @@ public class MorphiumDriverSpeedTest {
         cfg = new MorphiumConfig("morphium_test", 100, 1000, 1000);
         cfg.addHost("localhost");
         cfg.setReplicaset(false);
+        cfg.setMinConnectionsPerHost(1);
+        cfg.setMaxConnections(100);
         m = new Morphium(cfg);
 
         log.info("Testing multithreadded with mongodb driver:");
