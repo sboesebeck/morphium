@@ -23,9 +23,9 @@ import java.util.stream.Collectors;
  * <p>
  * TODO: Add documentation here
  */
-public class DirectBase extends DriverBase {
+public class SingleConnectDirectDriver extends DriverBase {
 
-    private Logger log = new Logger(ThreaddedBase.class);
+    private Logger log = new Logger(SingleConnectThreaddedDriver.class);
     private Socket s;
     private OutputStream out;
     private InputStream in;
@@ -187,7 +187,7 @@ public class DirectBase extends DriverBase {
                 q.setInReplyTo(0);
 
                 OpReply rep;
-                synchronized (DirectBase.this) {
+                synchronized (SingleConnectDirectDriver.this) {
                     sendQuery(q);
                     rep = null;
                     try {
@@ -231,7 +231,7 @@ public class DirectBase extends DriverBase {
                 q.setInReplyTo(0);
 
                 List<Map<String, Object>> ret = null;
-                synchronized (DirectBase.this) {
+                synchronized (SingleConnectDirectDriver.this) {
                     sendQuery(q);
 
                     OpReply reply = null;
@@ -312,7 +312,7 @@ public class DirectBase extends DriverBase {
         q.setInReplyTo(0);
 
         OpReply rep = null;
-        synchronized (DirectBase.this) {
+        synchronized (SingleConnectDirectDriver.this) {
             sendQuery(q);
             rep = waitForReply(db, collection, query, q.getReqId());
         }
@@ -345,7 +345,7 @@ public class DirectBase extends DriverBase {
             map.put("writeConcern", new HashMap<String, Object>());
             op.setDoc(map);
 
-            synchronized (DirectBase.this) {
+            synchronized (SingleConnectDirectDriver.this) {
                 sendQuery(op);
                 waitForReply(db, collection, null, op.getReqId());
             }
@@ -380,7 +380,7 @@ public class DirectBase extends DriverBase {
         op.setDoc(map);
 
 
-        synchronized (DirectBase.this) {
+        synchronized (SingleConnectDirectDriver.this) {
             if (update.size() != 0) {
                 sendQuery(op);
 
@@ -437,7 +437,7 @@ public class DirectBase extends DriverBase {
         op.setDoc(o);
 
 
-        synchronized (DirectBase.this) {
+        synchronized (SingleConnectDirectDriver.this) {
             sendQuery(op);
 
             OpReply reply = null;
@@ -478,7 +478,7 @@ public class DirectBase extends DriverBase {
         HashMap<String, Object> map = new LinkedHashMap<>();
         map.put("drop", collection);
         op.setDoc(map);
-        synchronized (DirectBase.this) {
+        synchronized (SingleConnectDirectDriver.this) {
             sendQuery(op);
             try {
                 waitForReply(db, collection, null, op.getReqId());
@@ -499,7 +499,7 @@ public class DirectBase extends DriverBase {
         HashMap<String, Object> map = new LinkedHashMap<>();
         map.put("drop", 1);
         op.setDoc(map);
-        synchronized (DirectBase.this) {
+        synchronized (SingleConnectDirectDriver.this) {
             sendQuery(op);
             try {
                 waitForReply(db, null, null, op.getReqId());
@@ -515,7 +515,7 @@ public class DirectBase extends DriverBase {
     }
 
     @Override
-    public List<Object> distinct(String db, String collection, String field, Map<String, Object> filter) throws MorphiumDriverException {
+    public List<Object> distinct(String db, String collection, String field, Map<String, Object> filter, ReadPreference rp) throws MorphiumDriverException {
         return null;
     }
 
@@ -535,7 +535,7 @@ public class DirectBase extends DriverBase {
         q.setInReplyTo(0);
 
         List<Map<String, Object>> ret;
-        synchronized (DirectBase.this) {
+        synchronized (SingleConnectDirectDriver.this) {
             sendQuery(q);
 
             ret = readBatches(q.getReqId(), db, null, getMaxWriteBatchSize());
@@ -567,7 +567,7 @@ public class DirectBase extends DriverBase {
         q.setInReplyTo(0);
 
         List<Map<String, Object>> ret;
-        synchronized (DirectBase.this) {
+        synchronized (SingleConnectDirectDriver.this) {
             sendQuery(q);
 
             ret = readBatches(q.getReqId(), db, null, getMaxWriteBatchSize());
