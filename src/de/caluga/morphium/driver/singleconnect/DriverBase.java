@@ -34,6 +34,17 @@ public abstract class DriverBase implements MorphiumDriver {
     private int localThreshold = 0;
     private boolean defaultFsync = false;
     private int heartbeatConnectionTimeout = 1000;
+    private String[] hostSeed;
+    private int heartbeatSocketTimeout = 1000;
+    private int heartbeatFrequency = 2000;
+    private boolean useSSL = false;
+    private int maxBlockingThreadsMultiplier = 5;
+    private int defaultW = 1;
+    private int connectionTimeout = 1000;
+    private int maxConnectionIdleTime = 100000;
+    private int maxConnectionLifetime = 600000;
+    private int minConnectionsPerHost = 1;
+    private int maxConnectionsPerHost = 100;
 
     @Override
     public void setCredentials(String db, String login, char[] pwd) {
@@ -195,27 +206,27 @@ public abstract class DriverBase implements MorphiumDriver {
 
     @Override
     public String[] getHostSeed() {
-        return new String[0];
+        return hostSeed;
     }
 
     @Override
     public int getMaxConnectionsPerHost() {
-        return 0;
+        return maxConnectionsPerHost;
     }
 
     @Override
     public int getMinConnectionsPerHost() {
-        return 0;
+        return minConnectionsPerHost;
     }
 
     @Override
     public int getMaxConnectionLifetime() {
-        return 0;
+        return maxConnectionLifetime;
     }
 
     @Override
     public int getMaxConnectionIdleTime() {
-        return 0;
+        return maxConnectionIdleTime;
     }
 
     @Override
@@ -225,27 +236,27 @@ public abstract class DriverBase implements MorphiumDriver {
 
     @Override
     public int getConnectionTimeout() {
-        return 0;
+        return connectionTimeout;
     }
 
     @Override
     public int getDefaultW() {
-        return 0;
+        return defaultW;
     }
 
     @Override
     public int getMaxBlockintThreadMultiplier() {
-        return 0;
+        return maxBlockingThreadsMultiplier;
     }
 
     @Override
     public int getHeartbeatFrequency() {
-        return 0;
+        return heartbeatFrequency;
     }
 
     @Override
     public void setHeartbeatSocketTimeout(int heartbeatSocketTimeout) {
-
+        this.heartbeatSocketTimeout = heartbeatSocketTimeout;
     }
 
 
@@ -289,52 +300,52 @@ public abstract class DriverBase implements MorphiumDriver {
 
     @Override
     public int getHeartbeatSocketTimeout() {
-        return 0;
+        return heartbeatSocketTimeout;
     }
 
     @Override
     public boolean isUseSSL() {
-        return false;
+        return useSSL;
     }
 
     @Override
     public boolean isDefaultJ() {
-        return false;
+        return defaultJ;
     }
 
     @Override
     public int getWriteTimeout() {
-        return 0;
+        return defaultWriteTimeout;
     }
 
     @Override
     public int getLocalThreshold() {
-        return 0;
+        return localThreshold;
     }
 
     @Override
     public void setHostSeed(String... host) {
-
+        hostSeed = host;
     }
 
     @Override
     public void setMaxConnectionsPerHost(int mx) {
-
+        maxConnectionsPerHost = mx;
     }
 
     @Override
     public void setMinConnectionsPerHost(int mx) {
-
+        minConnectionsPerHost = mx;
     }
 
     @Override
     public void setMaxConnectionLifetime(int timeout) {
-
+        maxConnectionLifetime = timeout;
     }
 
     @Override
     public void setMaxConnectionIdleTime(int time) {
-
+        maxConnectionIdleTime = time;
     }
 
     @Override
@@ -344,32 +355,32 @@ public abstract class DriverBase implements MorphiumDriver {
 
     @Override
     public void setConnectionTimeout(int timeout) {
-
+        connectionTimeout = timeout;
     }
 
     @Override
     public void setDefaultW(int w) {
-
+        defaultW = w;
     }
 
     @Override
     public void setMaxBlockingThreadMultiplier(int m) {
-
+        maxBlockingThreadsMultiplier = m;
     }
 
     @Override
     public void heartBeatFrequency(int t) {
-
+        heartbeatFrequency = t;
     }
 
     @Override
     public void heartBeatSocketTimeout(int t) {
-
+        heartbeatSocketTimeout = t;
     }
 
     @Override
     public void useSsl(boolean ssl) {
-
+        useSSL = ssl;
     }
 
 
