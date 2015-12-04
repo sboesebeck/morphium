@@ -358,6 +358,11 @@ public class Driver implements MorphiumDriver {
     }
 
     @Override
+    public int getDefaultWriteTimeout() {
+        return writeTimeout;
+    }
+
+    @Override
     public void setLocalThreshold(int thr) {
         localThreshold = thr;
     }
