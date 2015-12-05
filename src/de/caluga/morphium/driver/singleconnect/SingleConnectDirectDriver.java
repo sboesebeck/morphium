@@ -307,27 +307,32 @@ public class SingleConnectDirectDriver extends DriverBase {
 
     @Override
     public long count(String db, String collection, Map<String, Object> query, ReadPreference rp) throws MorphiumDriverException {
-        //TODO: Add network call helper
-        OpQuery q = new OpQuery();
-        q.setDb(db);
-        q.setColl("$cmd");
-        q.setLimit(1);
-        q.setSkip(0);
-        q.setReqId(getNextId());
+        Map<String, Object> ret = new NetworkCallHelper().doCall(new MorphiumDriverOperation() {
+            @Override
+            public Map<String, Object> execute() throws MorphiumDriverException {
+                OpQuery q = new OpQuery();
+                q.setDb(db);
+                q.setColl("$cmd");
+                q.setLimit(1);
+                q.setSkip(0);
+                q.setReqId(getNextId());
 
-        Map<String, Object> doc = new LinkedHashMap<>();
-        doc.put("count", collection);
-        doc.put("query", query);
-        q.setDoc(doc);
-        q.setFlags(0);
-        q.setInReplyTo(0);
+                Map<String, Object> doc = new LinkedHashMap<>();
+                doc.put("count", collection);
+                doc.put("query", query);
+                q.setDoc(doc);
+                q.setFlags(0);
+                q.setInReplyTo(0);
 
-        OpReply rep = null;
-        synchronized (SingleConnectDirectDriver.this) {
-            sendQuery(q);
-            rep = waitForReply(db, collection, query, q.getReqId());
-        }
-        return (Integer) rep.getDocuments().get(0).get("n");
+                OpReply rep = null;
+                synchronized (SingleConnectDirectDriver.this) {
+                    sendQuery(q);
+                    rep = waitForReply(db, collection, query, q.getReqId());
+                }
+                return Utils.getMap("count", (Integer) rep.getDocuments().get(0).get("n"));
+            }
+        }, getRetriesOnNetworkError(), getSleepBetweenErrorRetries());
+        return (long) ret.get("count");
     }
 
     @Override
