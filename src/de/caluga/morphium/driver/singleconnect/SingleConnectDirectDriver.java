@@ -47,6 +47,7 @@ public class SingleConnectDirectDriver extends DriverBase {
             e.printStackTrace();
         }
     }
+
     @Override
     public void connect(String replSet) throws MorphiumDriverException {
         try {
@@ -565,25 +566,7 @@ public class SingleConnectDirectDriver extends DriverBase {
 
     @Override
     public boolean exists(String db, String collection) throws MorphiumDriverException {
-        Map<String, Object> cmd = new LinkedHashMap<>();
-        cmd.put("listCollections", 1);
-        OpQuery q = new OpQuery();
-        q.setDb(db);
-        q.setColl("$cmd");
-        q.setLimit(1);
-        q.setSkip(0);
-        q.setReqId(getNextId());
-
-        q.setDoc(cmd);
-        q.setFlags(0);
-        q.setInReplyTo(0);
-
-        List<Map<String, Object>> ret;
-        synchronized (SingleConnectDirectDriver.this) {
-            sendQuery(q);
-
-            ret = readBatches(q.getReqId(), db, null, getMaxWriteBatchSize());
-        }
+        List<Map<String, Object>> ret = getCollectionInfo(db, collection);
         for (Map<String, Object> c : ret) {
             if (c.get("name").equals(collection)) return true;
         }
@@ -592,13 +575,8 @@ public class SingleConnectDirectDriver extends DriverBase {
 
     @Override
     public List<Map<String, Object>> getIndexes(String db, String collection) throws MorphiumDriverException {
-        return null;
-    }
-
-    @Override
-    public List<String> getCollectionNames(String db) throws MorphiumDriverException {
         Map<String, Object> cmd = new LinkedHashMap<>();
-        cmd.put("listCollections", 1);
+        cmd.put("listIndexes", 1);
         OpQuery q = new OpQuery();
         q.setDb(db);
         q.setColl("$cmd");
@@ -616,7 +594,39 @@ public class SingleConnectDirectDriver extends DriverBase {
 
             ret = readBatches(q.getReqId(), db, null, getMaxWriteBatchSize());
         }
+        return ret;
+    }
+
+    @Override
+    public List<String> getCollectionNames(String db) throws MorphiumDriverException {
+        List<Map<String, Object>> ret = getCollectionInfo(db, null);
         return ret.stream().map(c -> (String) c.get("name")).collect(Collectors.toList());
+    }
+
+    private List<Map<String, Object>> getCollectionInfo(String db, String collection) throws MorphiumDriverNetworkException {
+        Map<String, Object> cmd = new LinkedHashMap<>();
+        cmd.put("listCollections", 1);
+        OpQuery q = new OpQuery();
+        q.setDb(db);
+        q.setColl("$cmd");
+        q.setLimit(1);
+        q.setSkip(0);
+        q.setReqId(getNextId());
+
+        if (collection != null) {
+            cmd.put("filter", Utils.getMap("name", collection));
+        }
+        q.setDoc(cmd);
+        q.setFlags(0);
+        q.setInReplyTo(0);
+
+        List<Map<String, Object>> ret;
+        synchronized (SingleConnectDirectDriver.this) {
+            sendQuery(q);
+
+            ret = readBatches(q.getReqId(), db, null, getMaxWriteBatchSize());
+        }
+        return ret;
     }
 
     @Override
@@ -661,12 +671,41 @@ public class SingleConnectDirectDriver extends DriverBase {
 
     @Override
     public List<Map<String, Object>> aggregate(String db, String collection, List<Map<String, Object>> pipeline, boolean explain, boolean allowDiskUse, ReadPreference readPreference) throws MorphiumDriverException {
-        return null;
+        OpQuery q = new OpQuery();
+        q.setDb(db);
+        q.setColl("$cmd");
+        q.setReqId(getNextId());
+        q.setSkip(0);
+        q.setLimit(1);
+
+        Map<String, Object> doc = new LinkedHashMap<>();
+        doc.put("aggregate", collection);
+        doc.put("pipeline", pipeline);
+        doc.put("explain", explain);
+        doc.put("allowDiskUse", allowDiskUse);
+
+        q.setDoc(doc);
+
+        synchronized (SingleConnectDirectDriver.this) {
+            sendQuery(q);
+            List<Map<String, Object>> lst = readBatches(q.getReqId(), db, collection, getMaxWriteBatchSize());
+            return lst;
+        }
     }
 
 
     @Override
     public boolean isCapped(String db, String coll) throws MorphiumDriverException {
+        List<Map<String, Object>> lst = getCollectionInfo(db, coll);
+        try {
+            if (lst.size() != 0 && lst.get(0).get("name").equals(coll)) {
+                Object capped = ((Map) lst.get(0).get("options")).get("capped");
+                if (capped == null) return false;
+                return capped.equals(true);
+            }
+        } catch (Exception e) {
+            log.error(e);
+        }
         return false;
     }
 
