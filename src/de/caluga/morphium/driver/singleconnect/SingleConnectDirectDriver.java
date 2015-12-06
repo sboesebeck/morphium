@@ -219,7 +219,7 @@ public class SingleConnectDirectDriver extends DriverBase {
         final Map<String, Integer> sort = s;
         return (List<Map<String, Object>>) new NetworkCallHelper().doCall(new MorphiumDriverOperation() {
             @Override
-            public Map<String, Object> execute() throws MorphiumDriverNetworkException {
+            public Map<String, Object> execute() throws MorphiumDriverException {
                 OpQuery q = new OpQuery();
                 q.setDb(db);
                 q.setColl("$cmd");
@@ -254,7 +254,7 @@ public class SingleConnectDirectDriver extends DriverBase {
 
     }
 
-    private List<Map<String, Object>> readBatches(int waitingfor, String db, String collection, int batchSize) throws MorphiumDriverNetworkException {
+    private List<Map<String, Object>> readBatches(int waitingfor, String db, String collection, int batchSize) throws MorphiumDriverException {
         List<Map<String, Object>> ret = new ArrayList<>();
         OpReply reply;
         OpQuery q;
@@ -266,6 +266,13 @@ public class SingleConnectDirectDriver extends DriverBase {
                 throw new MorphiumDriverNetworkException("Wrong answer - waiting for " + waitingfor + " but got " + reply.getInReplyTo());
 //                    replies.remove(i);
             Map<String, Object> cursor = (Map<String, Object>) reply.getDocuments().get(0).get("cursor");
+            if (cursor == null) {
+                //trying result
+                if (reply.getDocuments().get(0).get("result") != null) {
+                    return (List<Map<String, Object>>) reply.getDocuments().get(0).get("result");
+                }
+                throw new MorphiumDriverException("did not get any data, cursor == null!");
+            }
             if (cursor.get("firstBatch") != null) {
                 ret.addAll((List) cursor.get("firstBatch"));
             } else if (cursor.get("nextBatch") != null) {
@@ -332,7 +339,7 @@ public class SingleConnectDirectDriver extends DriverBase {
                 return Utils.getMap("count", (Integer) rep.getDocuments().get(0).get("n"));
             }
         }, getRetriesOnNetworkError(), getSleepBetweenErrorRetries());
-        return (long) ret.get("count");
+        return ((int) ret.get("count"));
     }
 
     @Override
@@ -419,7 +426,10 @@ public class SingleConnectDirectDriver extends DriverBase {
         op.setColl("$cmd");
         HashMap<String, Object> map = new LinkedHashMap<>();
         map.put("update", collection);
-        map.put("updates", ops);
+        map.put("q", query);
+        List<Map<String, Object>> opsLst = new ArrayList<>();
+        opsLst.add(ops);
+        map.put("updates", opsLst);
         map.put("ordered", false);
         map.put("writeConcern", new HashMap<String, Object>());
         op.setDoc(map);
@@ -608,7 +618,7 @@ public class SingleConnectDirectDriver extends DriverBase {
         return ret.stream().map(c -> (String) c.get("name")).collect(Collectors.toList());
     }
 
-    private List<Map<String, Object>> getCollectionInfo(String db, String collection) throws MorphiumDriverNetworkException {
+    private List<Map<String, Object>> getCollectionInfo(String db, String collection) throws MorphiumDriverException {
         Map<String, Object> cmd = new LinkedHashMap<>();
         cmd.put("listCollections", 1);
         OpQuery q = new OpQuery();
