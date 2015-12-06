@@ -4,6 +4,7 @@ package de.caluga.test.mongo.suite.bson;/**
 
 import de.caluga.morphium.*;
 import de.caluga.morphium.driver.bson.MorphiumId;
+import de.caluga.morphium.driver.bulk.BulkRequestContext;
 import de.caluga.morphium.driver.inmem.InMemoryDriver;
 import de.caluga.morphium.driver.meta.MetaDriver;
 import de.caluga.morphium.driver.mongodb.Driver;
@@ -457,8 +458,16 @@ public class MorphiumDriverSpeedTest {
         Morphium m = new Morphium("localhost", "morphium_test");
         Query q = m.createQueryFor(UncachedObject.class);
         q.f("counter").eq(100);
-        m.getDriver().runCommand(m.getConfig().getDatabase(), Utils.getMap("isMaster", true));
-        q.countAll();
-//        Thread.sleep(100000);
+        BulkRequestContext op = m.getDriver().createBulkContext(m, "morphium_test", "tst", false, null);
+        List<Map<String, Object>> lst = new ArrayList<>();
+        for (int i = 0; i < countObjs; i++) {
+            UncachedObject uc = new UncachedObject();
+            uc.setCounter(i);
+            uc.setValue("V:" + i);
+            lst.add(new ObjectMapperImpl().marshall(uc));
+        }
+        op.addInsertBulkReqpest(lst);
+        op.execute();
+        Thread.sleep(100000);
     }
 }
