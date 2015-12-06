@@ -16,7 +16,7 @@ import java.util.List;
 /**
  * Created by stephan on 18.11.15.
  */
-public class MorphiumBulkContextTest extends MongoTest {
+public class BulkContextTest extends MongoTest {
     boolean cb = false;
     @Test
     public void testRunBulk() throws Exception {

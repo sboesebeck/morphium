@@ -3,6 +3,7 @@ package de.caluga.morphium.driver.bulk;/**
  */
 
 import de.caluga.morphium.Morphium;
+import de.caluga.morphium.driver.MorphiumDriverException;
 
 import java.util.List;
 import java.util.Map;
@@ -39,7 +40,7 @@ public abstract class BulkRequestContext {
         this.batchSize = batchSize;
     }
 
-    public abstract Map<String, Object> execute();
+    public abstract Map<String, Object> execute() throws MorphiumDriverException;
 
     public abstract UpdateBulkRequest addUpdateBulkRequest();
 

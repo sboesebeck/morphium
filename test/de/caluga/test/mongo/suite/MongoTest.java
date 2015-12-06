@@ -4,7 +4,7 @@ import de.caluga.morphium.*;
 import de.caluga.morphium.async.AsyncOperationCallback;
 import de.caluga.morphium.async.AsyncOperationType;
 import de.caluga.morphium.driver.ReadPreference;
-import de.caluga.morphium.driver.inmem.InMemoryDriver;
+import de.caluga.morphium.driver.meta.MetaDriver;
 import de.caluga.morphium.messaging.Msg;
 import de.caluga.morphium.query.PrefetchingMorphiumIterator;
 import de.caluga.morphium.query.Query;
@@ -166,7 +166,11 @@ public class MongoTest {
             cfg.setLogLevelForPrefix("de.caluga.test", 5);
             cfg.setLogSyncedForPrefix("de.caluga.test", true);
 
-            cfg.setDriverClass(InMemoryDriver.class.getName());
+            //InMemoryTest
+//            cfg.setDriverClass(InMemoryDriver.class.getName());
+            //MetaDriverTEst
+            cfg.setDriverClass(MetaDriver.class.getName());
+//            cfg.setDriverClass(InMemoryDriver.class.getName());
             cfg.setReplicaset(false);
 
             MorphiumSingleton.setConfig(cfg);

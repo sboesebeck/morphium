@@ -5,6 +5,7 @@ import de.caluga.morphium.Morphium;
 import de.caluga.morphium.Utils;
 import de.caluga.morphium.driver.*;
 import de.caluga.morphium.driver.bulk.BulkRequestContext;
+import de.caluga.morphium.driver.singleconnect.BulkContext;
 import de.caluga.morphium.driver.singleconnect.DriverBase;
 import de.caluga.morphium.driver.singleconnect.SingleConnectDirectDriver;
 
@@ -442,8 +443,7 @@ public class MetaDriver extends DriverBase {
 
     @Override
     public BulkRequestContext createBulkContext(Morphium m, String db, String collection, boolean ordered, WriteConcern wc) {
-
-        return null;
+        return new BulkContext(m, db, collection, this, ordered, getMaxWriteBatchSize(), wc);
     }
 
     @Override
@@ -524,7 +524,7 @@ public class MetaDriver extends DriverBase {
     }
 
     private Connection getConnection(ReadPreference rp) throws MorphiumDriverException {
-
+        if (rp == null) rp = nearest;
         switch (rp.getType()) {
             case NEAREST:
                 if (fastestHost != null)
