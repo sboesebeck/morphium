@@ -7,6 +7,7 @@ import de.caluga.morphium.MorphiumStorageListener;
 import de.caluga.morphium.Utils;
 import de.caluga.morphium.async.AsyncOperationCallback;
 import de.caluga.morphium.async.AsyncOperationType;
+import de.caluga.morphium.driver.MorphiumDriverException;
 import de.caluga.morphium.driver.bulk.BulkRequestContext;
 import de.caluga.morphium.driver.bulk.DeleteBulkRequest;
 import de.caluga.morphium.driver.bulk.UpdateBulkRequest;
@@ -34,7 +35,13 @@ public class MorphiumBulkContext<T> {
 
     public Map<String, Object> runBulk() {
         firePre();
-        Map<String, Object> ret = ctx.execute();
+        Map<String, Object> ret = null;
+        try {
+            ret = ctx.execute();
+        } catch (MorphiumDriverException e) {
+            //TODO: Implement Handling
+            throw new RuntimeException(e);
+        }
         firePost();
         return ret;
     }
@@ -58,7 +65,12 @@ public class MorphiumBulkContext<T> {
     public void runBulk(AsyncOperationCallback c) {
         if (c == null) {
             firePre();
-            ctx.execute();
+            try {
+                ctx.execute();
+            } catch (MorphiumDriverException e) {
+                //TODO: Implement Handling
+                throw new RuntimeException(e);
+            }
             firePost();
         } else {
             new Thread() {

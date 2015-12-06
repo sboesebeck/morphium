@@ -4,6 +4,7 @@ import de.caluga.morphium.*;
 import de.caluga.morphium.annotations.caching.WriteBuffer;
 import de.caluga.morphium.async.AsyncOperationCallback;
 import de.caluga.morphium.async.AsyncOperationType;
+import de.caluga.morphium.driver.MorphiumDriverException;
 import de.caluga.morphium.driver.bson.MorphiumId;
 import de.caluga.morphium.driver.bulk.BulkRequestContext;
 import de.caluga.morphium.driver.bulk.DeleteBulkRequest;
@@ -158,7 +159,11 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
                         opLog.get(type).add(wb);
                         return;
                 }
-                ctx.execute();
+                try {
+                    ctx.execute();
+                } catch (MorphiumDriverException e) {
+                    throw new RuntimeException(e);
+                }
 
             } else {
                 opLog.get(type).add(wb);

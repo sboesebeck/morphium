@@ -379,7 +379,7 @@ public class BasicFunctionalityTest extends MongoTest {
 
 
     @Test
-    public void cachedWritingTest() {
+    public void cachedWritingTest() throws Exception {
         log.info("Starting background writing test - single objects");
         long start = System.currentTimeMillis();
         for (int i = 1; i <= NO_OBJECTS; i++) {
@@ -395,6 +395,7 @@ public class BasicFunctionalityTest extends MongoTest {
         waitForWrites();
         dur = System.currentTimeMillis() - start;
         log.info("Storing took " + dur + " ms overall");
+        Thread.sleep(500);
         randomCheck();
         Map<String, Double> statistics = morphium.getStatistics();
         Double uc = statistics.get("X-Entries for: de.caluga.test.mongo.suite.data.UncachedObject");

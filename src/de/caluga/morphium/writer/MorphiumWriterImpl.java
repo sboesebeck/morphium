@@ -634,7 +634,12 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
 
 
     private void executeWriteBatch(List<Object> es, Class c, WriteConcern wc, BulkRequestContext bulkCtx, long start) {
-        bulkCtx.execute();
+        try {
+            bulkCtx.execute();
+        } catch (MorphiumDriverException e) {
+            //TODO: Implement Handling
+            throw new RuntimeException(e);
+        }
         long dur = System.currentTimeMillis() - start;
         morphium.fireProfilingWriteEvent(c, es, dur, false, WriteAccessType.BULK_UPDATE);
         morphium.getCache().clearCacheIfNecessary(c);
