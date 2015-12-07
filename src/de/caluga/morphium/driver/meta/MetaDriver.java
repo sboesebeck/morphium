@@ -7,7 +7,7 @@ import de.caluga.morphium.driver.*;
 import de.caluga.morphium.driver.bulk.BulkRequestContext;
 import de.caluga.morphium.driver.singleconnect.BulkContext;
 import de.caluga.morphium.driver.singleconnect.DriverBase;
-import de.caluga.morphium.driver.singleconnect.SingleConnectDirectDriver;
+import de.caluga.morphium.driver.singleconnect.SingleConnectThreaddedDriver;
 
 import java.util.ConcurrentModificationException;
 import java.util.List;
@@ -270,6 +270,20 @@ public class MetaDriver extends DriverBase {
     }
 
     @Override
+    public Map<String, Object> update(String db, String collection, List<Map<String, Object>> updateCommand, boolean ordered, WriteConcern wc) throws MorphiumDriverException {
+        Connection c = null;
+        try {
+            c = getConnection(primary);
+            return ((DriverBase) c.getD()).update(db, collection, updateCommand, ordered, wc);
+        } catch (MorphiumDriverNetworkException ex) {
+            if (c != null) incErrorCount(c.getHost());
+            throw ex;
+        } finally {
+            freeConnection(c);
+        }
+    }
+
+    @Override
     public Map<String, Object> update(String db, String collection, Map<String, Object> query, Map<String, Object> op, boolean multiple, boolean upsert, WriteConcern wc) throws MorphiumDriverException {
         Connection c = null;
         try {
@@ -461,7 +475,7 @@ public class MetaDriver extends DriverBase {
     }
 
     private DriverBase createDriver(String host) throws MorphiumDriverException {
-        DriverBase d = new SingleConnectDirectDriver();
+        DriverBase d = new SingleConnectThreaddedDriver();
         d.setHostSeed(host); //only connecting to one host
         d.setSocketKeepAlive(isSocketKeepAlive());
         d.setSocketTimeout(getSocketTimeout());
@@ -708,8 +722,10 @@ public class MetaDriver extends DriverBase {
                             return;
                         }
                     }
-                    connectionsInUse.get(getHost()).remove(Connection.this);
-                    connectionPool.get(getHost()).remove(Connection.this);
+                    if (connectionsInUse.get(getHost()) != null)
+                        connectionsInUse.get(getHost()).remove(Connection.this);
+                    if (connectionPool.get(getHost()) != null)
+                        connectionPool.get(getHost()).remove(Connection.this);
                 }
             }.start();
 

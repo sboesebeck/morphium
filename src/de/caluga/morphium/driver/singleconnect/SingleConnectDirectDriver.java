@@ -8,7 +8,6 @@ import de.caluga.morphium.driver.bson.MorphiumId;
 import de.caluga.morphium.driver.bulk.BulkRequestContext;
 import de.caluga.morphium.driver.wireprotocol.OpQuery;
 import de.caluga.morphium.driver.wireprotocol.OpReply;
-import org.bson.Document;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -168,7 +167,7 @@ public class SingleConnectDirectDriver extends DriverBase {
                 if (mem == null) return null;
                 for (Map<String, Object> d : mem) {
                     if (d.get("optime") instanceof Map) {
-                        d.put("optime", ((Map<String, Document>) d.get("optime")).get("ts"));
+                        d.put("optime", ((Map<String, Map<String, Object>>) d.get("optime")).get("ts"));
                     }
                 }
                 return ret;
@@ -267,46 +266,47 @@ public class SingleConnectDirectDriver extends DriverBase {
         OpQuery q;
         Map<String, Object> doc;
         boolean hasMore = true;
-        while (true) {
-            reply = getReply();
-            if (reply.getInReplyTo() != waitingfor)
-                throw new MorphiumDriverNetworkException("Wrong answer - waiting for " + waitingfor + " but got " + reply.getInReplyTo());
+        synchronized (SingleConnectDirectDriver.this) {
+            while (true) {
+                reply = getReply();
+                if (reply.getInReplyTo() != waitingfor)
+                    throw new MorphiumDriverNetworkException("Wrong answer - waiting for " + waitingfor + " but got " + reply.getInReplyTo());
 //                    replies.remove(i);
-            Map<String, Object> cursor = (Map<String, Object>) reply.getDocuments().get(0).get("cursor");
-            if (cursor == null) {
-                //trying result
-                if (reply.getDocuments().get(0).get("result") != null) {
-                    return (List<Map<String, Object>>) reply.getDocuments().get(0).get("result");
+                Map<String, Object> cursor = (Map<String, Object>) reply.getDocuments().get(0).get("cursor");
+                if (cursor == null) {
+                    //trying result
+                    if (reply.getDocuments().get(0).get("result") != null) {
+                        return (List<Map<String, Object>>) reply.getDocuments().get(0).get("result");
+                    }
+                    throw new MorphiumDriverException("did not get any data, cursor == null!");
                 }
-                throw new MorphiumDriverException("did not get any data, cursor == null!");
-            }
-            if (cursor.get("firstBatch") != null) {
-                ret.addAll((List) cursor.get("firstBatch"));
-            } else if (cursor.get("nextBatch") != null) {
-                ret.addAll((List) cursor.get("nextBatch"));
-            }
-            if (((Long) cursor.get("id")) != 0) {
+                if (cursor.get("firstBatch") != null) {
+                    ret.addAll((List) cursor.get("firstBatch"));
+                } else if (cursor.get("nextBatch") != null) {
+                    ret.addAll((List) cursor.get("nextBatch"));
+                }
+                if (((Long) cursor.get("id")) != 0) {
 //                        log.info("getting next batch for cursor " + cursor.get("id"));
-                //there is more! Sending getMore!
-                //there is more! Sending getMore!
-                q = new OpQuery();
-                q.setColl("$cmd");
-                q.setDb(db);
-                q.setReqId(getNextId());
-                q.setSkip(0);
-                q.setLimit(1);
-                doc = new LinkedHashMap<>();
-                doc.put("getMore", cursor.get("id"));
-                doc.put("collection", collection);
-                doc.put("batchSize", batchSize);
-                q.setDoc(doc);
-                waitingfor = q.getReqId();
-                sendQuery(q);
-            } else {
-                break;
+                    //there is more! Sending getMore!
+                    //there is more! Sending getMore!
+                    q = new OpQuery();
+                    q.setColl("$cmd");
+                    q.setDb(db);
+                    q.setReqId(getNextId());
+                    q.setSkip(0);
+                    q.setLimit(1);
+                    doc = new LinkedHashMap<>();
+                    doc.put("getMore", cursor.get("id"));
+                    doc.put("collection", collection);
+                    doc.put("batchSize", batchSize);
+                    q.setDoc(doc);
+                    waitingfor = q.getReqId();
+                    sendQuery(q);
+                } else {
+                    break;
+                }
             }
         }
-
         return ret;
     }
 
@@ -353,7 +353,8 @@ public class SingleConnectDirectDriver extends DriverBase {
                     sendQuery(q);
                     rep = waitForReply(db, collection, query, q.getReqId());
                 }
-                return Utils.getMap("count", (Integer) rep.getDocuments().get(0).get("n"));
+                Integer n = (Integer) rep.getDocuments().get(0).get("n");
+                return Utils.getMap("count", n == null ? 0 : n);
             }
         }, getRetriesOnNetworkError(), getSleepBetweenErrorRetries());
         return ((int) ret.get("count"));
@@ -399,45 +400,36 @@ public class SingleConnectDirectDriver extends DriverBase {
     }
 
     @Override
-    public void store(String db, String collection, List<Map<String, Object>> objs, WriteConcern wc) throws
-            MorphiumDriverException {
+    public void store(String db, String collection, List<Map<String, Object>> objs, WriteConcern wc) throws MorphiumDriverException {
         new NetworkCallHelper().doCall(new MorphiumDriverOperation() {
             @Override
             public Map<String, Object> execute() throws MorphiumDriverException {
                 List<Map<String, Object>> toInsert = new ArrayList<>();
-                OpQuery op = new OpQuery();
-                op.setInReplyTo(0);
-                op.setReqId(getNextId());
-                op.setDb(db);
-                op.setColl("$cmd");
-                HashMap<String, Object> map = new LinkedHashMap<>();
-                map.put("update", collection);
+                List<Map<String, Object>> toUpdate = new ArrayList<>();
                 List<Map<String, Object>> update = new ArrayList<>();
                 for (Map<String, Object> o : objs) {
                     if (o.get("_id") == null) {
                         toInsert.add(o);
                     } else {
-                        HashMap<String, Object> set = new HashMap<>();
-                        set.put("$set", o);
-                        set.put("upsert", true);
-                        set.put("multiple", false);
-                        update.add(set);
+                        toUpdate.add(o);
                     }
                 }
-                map.put("updates", update);
-                map.put("ordered", false);
-                map.put("writeConcern", new HashMap<String, Object>());
-                op.setDoc(map);
+                List<Map<String, Object>> updateCmd = new ArrayList<>();
+                for (Map<String, Object> obj : toUpdate) {
+                    Map<String, Object> up = new HashMap<String, Object>();
+                    up.put("q", Utils.getMap("_id", obj.get("_id")));
+                    up.put("u", obj);
+                    up.put("upsert", true);
+                    up.put("multi", false);
 
-
-                synchronized (SingleConnectDirectDriver.this) {
-                    if (update.size() != 0) {
-                        sendQuery(op);
-
-                        OpReply reply = waitForReply(db, collection, null, op.getReqId());
-                    }
+                    updateCmd.add(up);
                 }
-                insert(db, collection, toInsert, wc);
+                if (updateCmd.size() > 0)
+                    update(db, collection, updateCmd, false, wc);
+
+                if (toInsert.size() > 0) {
+                    insert(db, collection, toInsert, wc);
+                }
                 return null;
             }
         }, getRetriesOnNetworkError(), getSleepBetweenErrorRetries());
@@ -445,9 +437,18 @@ public class SingleConnectDirectDriver extends DriverBase {
     }
 
     @Override
-    public Map<String, Object> update(String db, String
-            collection, Map<String, Object> query, Map<String, Object> ops, boolean multiple,
-                                      boolean upsert, WriteConcern wc) throws MorphiumDriverException {
+    public Map<String, Object> update(String db, String collection, Map<String, Object> query, Map<String, Object> ops, boolean multiple, boolean upsert, WriteConcern wc) throws MorphiumDriverException {
+        List<Map<String, Object>> opsLst = new ArrayList<>();
+        Map<String, Object> up = new HashMap<String, Object>();
+        up.put("q", query);
+        up.put("u", ops);
+        up.put("upsert", upsert);
+        up.put("multi", multiple);
+        opsLst.add(up);
+        return update(db, collection, opsLst, false, wc);
+    }
+
+    public Map<String, Object> update(String db, String collection, List<Map<String, Object>> updateCommand, boolean ordered, WriteConcern wc) throws MorphiumDriverException {
         return new NetworkCallHelper().doCall(new MorphiumDriverOperation() {
             @Override
             public Map<String, Object> execute() throws MorphiumDriverException {
@@ -458,18 +459,16 @@ public class SingleConnectDirectDriver extends DriverBase {
                 op.setColl("$cmd");
                 HashMap<String, Object> map = new LinkedHashMap<>();
                 map.put("update", collection);
-                map.put("q", query);
-                List<Map<String, Object>> opsLst = new ArrayList<>();
-                opsLst.add(ops);
-                map.put("updates", opsLst);
+                map.put("updates", updateCommand);
                 map.put("ordered", false);
                 map.put("writeConcern", new HashMap<String, Object>());
                 op.setDoc(map);
-
-                sendQuery(op);
-                if (wc != null) {
-                    OpReply res = waitForReply(db, collection, query, op.getReqId());
-                    return res.getDocuments().get(0);
+                synchronized (SingleConnectDirectDriver.this) {
+                    sendQuery(op);
+                    if (wc != null) {
+                        OpReply res = waitForReply(db, collection, null, op.getReqId());
+                        return res.getDocuments().get(0);
+                    }
                 }
                 return null;
             }
@@ -530,7 +529,7 @@ public class SingleConnectDirectDriver extends DriverBase {
             if (!reply.getDocuments().get(0).get("ok").equals(1) && !reply.getDocuments().get(0).get("ok").equals(1.0)) {
                 Object code = reply.getDocuments().get(0).get("code");
                 Object errmsg = reply.getDocuments().get(0).get("errmsg");
-                throw new MorphiumDriverException("Operation failed - error: " + code + "= " + errmsg, null, collection, db, query);
+                throw new MorphiumDriverException("Operation failed - error: " + code + " - " + errmsg, null, collection, db, query);
             } else {
                 //got OK message
 //                        log.info("ok");

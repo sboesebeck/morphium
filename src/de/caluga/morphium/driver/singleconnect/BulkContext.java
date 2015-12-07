@@ -82,25 +82,57 @@ public class BulkContext extends BulkRequestContext {
         int count = 0;
         List<Map<String, Object>> results = new ArrayList<>();
         DriverHelper helper = new DriverHelper();
+        List<Map<String, Object>> inserts = new ArrayList<>();
+        List<Map<String, Object>> stores = new ArrayList<>();
+        List<Map<String, Object>> updates = new ArrayList<>();
+
+        //TODO - add result data
         for (BulkRequest br : requests) {
-            Map<String, Object> result = null;
-            if (br instanceof InsertBulkRequest) {
+            if (br instanceof StoreBulkRequest) {
+                stores.addAll(((StoreBulkRequest) br).getToInsert());
+                if (stores.size() >= driver.getMaxWriteBatchSize()) {
+                    driver.store(db, collection, stores, wc);
+                    stores.clear();
+                }
+            } else if (br instanceof InsertBulkRequest) {
 //                //Insert...
                 InsertBulkRequest ib = (InsertBulkRequest) br;
-                helper.replaceMorphiumIdByObjectId(ib.getToInsert());
-                driver.insert(db, collection, ((InsertBulkRequest) br).getToInsert(), wc);
-//
-            } else if (br instanceof StoreBulkRequest) {
-                driver.store(db, collection, ((StoreBulkRequest) br).getToInsert(), wc);
+                inserts.addAll(((InsertBulkRequest) br).getToInsert());
+                if (inserts.size() >= driver.getMaxWriteBatchSize()) {
+                    driver.insert(db, collection, inserts, wc);
+                    inserts.clear();
+                }
             } else if (br instanceof DeleteBulkRequest) {
-                result = driver.delete(db, collection, ((DeleteBulkRequest) br).getQuery(), ((DeleteBulkRequest) br).isMultiple(), wc);
+                //no real bulk operation here
+                driver.delete(db, collection, ((DeleteBulkRequest) br).getQuery(), ((DeleteBulkRequest) br).isMultiple(), wc);
             } else {
 //                //update
                 UpdateBulkRequest up = (UpdateBulkRequest) br;
-                result = driver.update(db, collection, ((UpdateBulkRequest) br).getQuery(), up.getCmd(), up.isMultiple(), up.isUpsert(), wc);
+                Map<String, Object> cmd = new HashMap<>();
+                cmd.put("q", up.getQuery());
+                cmd.put("u", up.getCmd());
+                cmd.put("upsert", up.isUpsert());
+                cmd.put("multi", up.isMultiple());
+                updates.add(cmd);
+                if (updates.size() >= driver.getMaxWriteBatchSize()) {
+                    Map<String, Object> result = null;
+                    result = driver.update(db, collection, updates, ordered, wc);
+                    updates.clear();
+                }
             }
-            results.add(result);
             count++;
+        }
+        if (inserts.size() != 0) {
+            driver.insert(db, collection, inserts, wc);
+        }
+
+        if (stores.size() != 0) {
+            driver.store(db, collection, stores, wc);
+        }
+
+        if (updates.size() != 0) {
+            Map<String, Object> result = null;
+            result = driver.update(db, collection, updates, ordered, wc);
         }
 
 //

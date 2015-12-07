@@ -57,24 +57,26 @@ public class BufferedWriterTest extends MongoTest {
         waitForAsyncOperationToStart(10000);
         waitForWrites();
         BufferedMorphiumWriterImpl wr = (BufferedMorphiumWriterImpl) morphium.getWriterForClass(BufferedBySizeObject.class);
-
         Query<BufferedBySizeObject> q = morphium.createQueryFor(BufferedBySizeObject.class).f("counter").eq(100);
         morphium.inc(q, "dval", 1, true, false);
-//        assert(wr.writeBufferCount()>1);
+        assert (wr.writeBufferCount() >= 1);
 
         q = morphium.createQueryFor(BufferedBySizeObject.class).f("counter").eq(100);
         morphium.inc(q, "dval", 1.0, true, false);
-//        assert(wr.writeBufferCount()>1);
+        assert (wr.writeBufferCount() >= 1);
 
         q = morphium.createQueryFor(BufferedBySizeObject.class).f("counter").eq(100);
         morphium.dec(q, "dval", 1.0, true, false);
-//        assert(wr.writeBufferCount()>1);
+        assert (wr.writeBufferCount() >= 1);
 
 
-
+        while (wr.writeBufferCount() > 0) {
+            Thread.sleep(1000); //waiting
+            log.info("Waiting for writes to finish...");
+        }
         waitForAsyncOperationToStart(10000);
         waitForWrites();
-        Thread.sleep(3000);
+        Thread.sleep(5000);
         q = morphium.createQueryFor(BufferedBySizeObject.class);
         assert (q.countAll() == 1) : "Counted " + q.countAll();
         BufferedBySizeObject o = q.get();
@@ -222,7 +224,7 @@ public class BufferedWriterTest extends MongoTest {
             m.store(so);
         }
         while (m.getWriteBufferCount() != 0) Thread.sleep(100);
-        Thread.sleep(200);
+        Thread.sleep(11200);
         assert (m.createQueryFor(SimpleObject.class).countAll() == 100) : "Count is " + m.createQueryFor(SimpleObject.class).countAll();
 
         for (int i = 0; i < 100; i++) {

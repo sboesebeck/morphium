@@ -1,10 +1,13 @@
 package de.caluga.morphium.driver.singleconnect;
 
 import de.caluga.morphium.driver.MorphiumDriver;
+import de.caluga.morphium.driver.MorphiumDriverException;
 import de.caluga.morphium.driver.ReadPreference;
+import de.caluga.morphium.driver.WriteConcern;
 import de.caluga.morphium.driver.mongodb.Maximums;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -263,6 +266,8 @@ public abstract class DriverBase implements MorphiumDriver {
     public void setHeartbeatSocketTimeout(int heartbeatSocketTimeout) {
         this.heartbeatSocketTimeout = heartbeatSocketTimeout;
     }
+
+    public abstract Map<String, Object> update(String db, String collection, List<Map<String, Object>> updateCommand, boolean ordered, WriteConcern wc) throws MorphiumDriverException;
 
 
     @Override
