@@ -61,9 +61,9 @@ public class MongoTest {
 
     @org.junit.BeforeClass
     public static void setUpClass() throws Exception {
-        System.setProperty("morphium.log.level", "4");
-        System.setProperty("morphium.log.synced", "true");
-        System.setProperty("morphium.log.file", "-");
+//        System.setProperty("morphium.log.level", "4");
+//        System.setProperty("morphium.log.synced", "true");
+//        System.setProperty("morphium.log.file", "-");
         java.util.logging.Logger l = java.util.logging.Logger.getGlobal();
         l.setLevel(Level.SEVERE);
 //        l.addHandler(new Handler() {
@@ -157,7 +157,9 @@ public class MongoTest {
                 cfg.setBlockingThreadsMultiplier(2);
                 storeProps();
             }
-            cfg.setGlobalLogLevel(3);
+
+            //Setting up logging
+            cfg.setGlobalLogLevel(4);
             cfg.setGlobalLogFile("-");
             cfg.setGlobalLogSynced(true);
 
