@@ -20,7 +20,7 @@ import java.util.concurrent.RejectedExecutionException;
  * User: Stephan Bösebeck
  * Date: 11.03.13
  * Time: 11:41
- * <p/>
+ * <p>
  * Buffered Writer buffers all write requests (store, update, remove...) to mongo for a certain time. After that time the requests are
  * issued en block to mongo. Attention: this is not using BULK-Requests yet!
  */
@@ -65,6 +65,7 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
                     WriteBuffer w = morphium.getARHelper().getAnnotationFromHierarchy(entry.getEntityType(), WriteBuffer.class);
                     bulkByCollectionName.put(entry.getCollectionName(), morphium.getDriver().createBulkContext(morphium, morphium.getConfig().getDatabase(), entry.getCollectionName(), w.ordered(), morphium.getWriteConcernForClass(entry.getEntityType())));
                 }
+//                logger.info("Queueing a request of type "+entry.getType());
                 entry.getToRun().queue(bulkByCollectionName.get(entry.getCollectionName()));
                 entry.getCb().onOperationSucceeded(entry.getType(), null, 0, null, null);
 
@@ -85,7 +86,7 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
 //                logger.error("Write error: "+err.getMessage()+"\n"+err.getDetails().toString());
 //            }
         } catch (Exception e) {
-            logger.error("Error during exeecution of unordered bulk",e);
+            logger.error("Error during exeecution of unordered bulk", e);
         }
 
         for (int i = 0; i < localQueue.size(); i++) {
@@ -102,7 +103,7 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
         WriteBufferEntry wb = new WriteBufferEntry(type, collectionName, r, System.currentTimeMillis(), c, t);
         WriteBuffer w = morphium.getARHelper().getAnnotationFromHierarchy(type, WriteBuffer.class);
         int size = 0;
-        int timeout = morphium.getConfig().getWriteBufferTime();
+//        int timeout = morphium.getConfig().getWriteBufferTime();
         WriteBuffer.STRATEGY strategy = WriteBuffer.STRATEGY.JUST_WARN;
         boolean ordered = false;
         if (w != null) {
@@ -111,63 +112,72 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
             strategy = w.strategy();
         }
 //        synchronized (opLog) {
+        if (opLog.get(type) == null) {
+            synchronized (opLog) {
+                if (opLog.get(type) == null)
+                    opLog.put(type, new Vector<WriteBufferEntry>());
+            }
+        }
+
+        if (size > 0 && opLog.get(type).size() > size) {
+            logger.warn("WARNING: Write buffer for type " + type.getName() + " maximum exceeded: " + opLog.get(type).size() + " entries now, max is " + size);
+            BulkRequestContext ctx = morphium.getDriver().createBulkContext(morphium, morphium.getConfig().getDatabase(), collectionName, ordered, morphium.getWriteConcernForClass(type));
             if (opLog.get(type) == null) {
-                opLog.put(type, new Vector<WriteBufferEntry>());
+                synchronized (opLog) {
+                    if (opLog.get(type) == null)
+                        opLog.put(type, new Vector<>());
+                }
             }
-
-            if (size > 0 && opLog.get(type).size() > size) {
-                logger.warn("WARNING: Write buffer for type " + type.getName() + " maximum exceeded: " + opLog.get(type).size() + " entries now, max is " + size);
-                BulkRequestContext ctx = morphium.getDriver().createBulkContext(morphium, morphium.getConfig().getDatabase(), collectionName, ordered, morphium.getWriteConcernForClass(type));
-                switch (strategy) {
-                    case JUST_WARN:
-                        opLog.get(type).add(wb);
-                        break;
-                    case IGNORE_NEW:
-                        logger.warn("ignoring new incoming...");
-                        return;
-                    case WRITE_NEW:
-                        logger.warn("directly writing data... due to strategy setting");
-                        r.queue(ctx);
+            switch (strategy) {
+                case JUST_WARN:
+                    opLog.get(type).add(wb);
+                    break;
+                case IGNORE_NEW:
+                    logger.warn("ignoring new incoming...");
+                    return;
+                case WRITE_NEW:
+                    logger.warn("directly writing data... due to strategy setting");
+                    r.queue(ctx);
 //                        ctx.execute();
-                        break;
-                    case WRITE_OLD:
+                    break;
+                case WRITE_OLD:
 
-                        Collections.sort(opLog.get(type), new Comparator<WriteBufferEntry>() {
-                            @Override
-                            public int compare(WriteBufferEntry o1, WriteBufferEntry o2) {
-                                return Long.valueOf(o1.getTimestamp()).compareTo(o2.getTimestamp());
-                            }
-                        });
-
-                        opLog.get(type).get(0).getToRun().queue(ctx);
-                        opLog.get(type).remove(0);
-                        opLog.get(type).add(wb);
-                        break;
-                    case DEL_OLD:
-
-                        Collections.sort(opLog.get(type), new Comparator<WriteBufferEntry>() {
-                            @Override
-                            public int compare(WriteBufferEntry o1, WriteBufferEntry o2) {
-                                return Long.valueOf(o1.getTimestamp()).compareTo(o2.getTimestamp());
-                            }
-                        });
-                        if (logger.isDebugEnabled()) {
-                            logger.debug("Deleting oldest entry");
+                    Collections.sort(opLog.get(type), new Comparator<WriteBufferEntry>() {
+                        @Override
+                        public int compare(WriteBufferEntry o1, WriteBufferEntry o2) {
+                            return Long.valueOf(o1.getTimestamp()).compareTo(o2.getTimestamp());
                         }
-                        if (opLog.get(type).size() != 0)
-                            opLog.get(type).remove(0);
-                        opLog.get(type).add(wb);
-                        return;
-                }
-                try {
-                    ctx.execute();
-                } catch (MorphiumDriverException e) {
-                    throw new RuntimeException(e);
-                }
+                    });
 
-            } else {
-                opLog.get(type).add(wb);
+                    opLog.get(type).get(0).getToRun().queue(ctx);
+                    opLog.get(type).remove(0);
+                    opLog.get(type).add(wb);
+                    break;
+                case DEL_OLD:
+
+                    Collections.sort(opLog.get(type), new Comparator<WriteBufferEntry>() {
+                        @Override
+                        public int compare(WriteBufferEntry o1, WriteBufferEntry o2) {
+                            return Long.valueOf(o1.getTimestamp()).compareTo(o2.getTimestamp());
+                        }
+                    });
+                    if (logger.isDebugEnabled()) {
+                        logger.debug("Deleting oldest entry");
+                    }
+                    if (opLog.get(type).size() != 0)
+                        opLog.get(type).remove(0);
+                    opLog.get(type).add(wb);
+                    return;
             }
+            try {
+                ctx.execute();
+            } catch (MorphiumDriverException e) {
+                throw new RuntimeException(e);
+            }
+
+        } else {
+            opLog.get(type).add(wb);
+        }
 //        }
     }
 
@@ -195,7 +205,7 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
 
                     UpdateBulkRequest up = ctx.addUpdateBulkRequest();
                     up.setMultiple(false);
-                    up.setUpsert(false);
+                    up.setUpsert(true); //insert for non-objectId
                     up.setQuery((morphium.createQueryFor(o.getClass()).f(morphium.getARHelper().getIdFieldName(o)).eq(morphium.getARHelper().getId(o))).toQueryObject());
                     Map<String, Object> cmd = new HashMap<String, Object>();
                     up.setCmd(Utils.getMap("$set", cmd));
@@ -383,11 +393,11 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
             c = new AsyncOpAdapter<>();
         }
         morphium.inc(StatisticKeys.WRITES_CACHED);
+
         addToWriteQueue(query.getType(), query.getCollectionName(), new BufferedBulkOp() {
             @Override
             public void queue(BulkRequestContext ctx) {
 //                directWriter.set(toSet, collection, field, value, upsert, multiple, callback);
-
                 UpdateBulkRequest wr = ctx.addUpdateBulkRequest();
                 String fieldName = morphium.getARHelper().getFieldName(query.getType(), field);
                 wr.setCmd(Utils.getMap("$inc", Utils.getMap(fieldName, amount)));
@@ -476,41 +486,41 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
                         //processing and clearing write cache...
                         List<Class<?>> localBuffer = new ArrayList<>();
 //                        synchronized (opLog) {
-                            for (Class<?> clz : opLog.keySet()) {
-                                localBuffer.add(clz);
+                        for (Class<?> clz : opLog.keySet()) {
+                            localBuffer.add(clz);
+                        }
+
+
+                        for (Class<?> clz : localBuffer) {
+                            if (opLog.get(clz) == null || opLog.get(clz).size() == 0) {
+                                continue;
                             }
-
-
-                            for (Class<?> clz : localBuffer) {
-                                if (opLog.get(clz) == null || opLog.get(clz).size() == 0) {
-                                    continue;
-                                }
-                                WriteBuffer w = morphium.getARHelper().getAnnotationFromHierarchy(clz, WriteBuffer.class);
-                                int size = 0;
-                                int timeout = morphium.getConfig().getWriteBufferTime();
+                            WriteBuffer w = morphium.getARHelper().getAnnotationFromHierarchy(clz, WriteBuffer.class);
+                            int size = 0;
+                            int timeout = morphium.getConfig().getWriteBufferTime();
 //                                WriteBuffer.STRATEGY strategy = WriteBuffer.STRATEGY.JUST_WARN;
 
-                                if (w != null) {
-                                    size = w.size();
-                                    timeout = w.timeout();
+                            if (w != null) {
+                                size = w.size();
+                                timeout = w.timeout();
 //                                    strategy = w.strategy();
-                                }
-                                //can't be null
-                                if (timeout == -1 && size > 0 && opLog.get(clz).size() < size) {
-                                    continue; //wait for buffer to be filled
-                                }
-
-                                if (lastRun.get(clz) != null && System.currentTimeMillis() - lastRun.get(clz) < timeout) {
-                                    //timeout not reached....
-                                    continue;
-                                }
-                                lastRun.put(clz, System.currentTimeMillis());
-                                List<WriteBufferEntry> localQueue;
-                                localQueue = opLog.get(clz);
-                                opLog.put(clz, new Vector<WriteBufferEntry>());
-
-                                opLog.get(clz).addAll(flushQueueToMongo(localQueue));
                             }
+                            if (lastRun.get(clz) != null && System.currentTimeMillis() - lastRun.get(clz) > timeout) {
+                                //timeout reached....
+                                runIt(clz);
+                                continue;
+                            }
+
+                            //can't be null
+                            if (size > 0 && opLog.get(clz).size() >= size) {
+                                //size reached!
+                                runIt(clz);
+                                continue;
+                            }
+                            if (lastRun.get(clz) == null) {
+                                lastRun.put(clz, System.currentTimeMillis());
+                            }
+                        }
 
 
 //                        }
@@ -531,6 +541,24 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
                         }
                     } catch (InterruptedException e) {
                     }
+                }
+            }
+
+            private void runIt(Class<?> clz) {
+                lastRun.put(clz, System.currentTimeMillis());
+                List<WriteBufferEntry> localQueue;
+                localQueue = opLog.remove(clz);
+//                            opLog.put(clz, new Vector<WriteBufferEntry>());
+
+                List<WriteBufferEntry> c = flushQueueToMongo(localQueue);
+                if (c != null) {
+                    if (opLog.get(clz) == null) {
+                        synchronized (opLog) {
+                            if (opLog.get(clz) == null)
+                                opLog.put(clz, new Vector<>());
+                        }
+                    }
+                    opLog.get(clz).addAll(c);
                 }
             }
 
@@ -580,16 +608,16 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
         final AsyncOperationCallback<T> cb = c;
         morphium.inc(StatisticKeys.WRITES_CACHED);
         addToWriteQueue(q.getType(), q.getCollectionName(), new BufferedBulkOp() {
-                @Override
-                public void queue(BulkRequestContext ctx) {
-                    morphium.firePreRemoveEvent(q);
-                    DeleteBulkRequest r = ctx.addDeleteBulkRequest();
-                    r.setQuery(q.toQueryObject());
+            @Override
+            public void queue(BulkRequestContext ctx) {
+                morphium.firePreRemoveEvent(q);
+                DeleteBulkRequest r = ctx.addDeleteBulkRequest();
+                r.setQuery(q.toQueryObject());
 //                    ctx.addRequest(r);
-                    morphium.firePostRemoveEvent(q);
-                }
+                morphium.firePostRemoveEvent(q);
+            }
 
-            }, c, AsyncOperationType.REMOVE);
+        }, c, AsyncOperationType.REMOVE);
     }
 
     @Override
@@ -824,9 +852,9 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
     public int writeBufferCount() {
         int cnt = 0;
 //        synchronized (opLog) {
-            for (List<WriteBufferEntry> lst : opLog.values()) {
-                cnt += lst.size();
-            }
+        for (List<WriteBufferEntry> lst : opLog.values()) {
+            cnt += lst.size();
+        }
 //        }
         return cnt;
     }
@@ -840,15 +868,15 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
     public void flush() {
         List<Class<?>> localBuffer = new ArrayList<>();
 //        synchronized (opLog) {
-            for (Class<?> clz : opLog.keySet()) {
-                localBuffer.add(clz);
+        for (Class<?> clz : opLog.keySet()) {
+            localBuffer.add(clz);
+        }
+        for (Class<?> clz : localBuffer) {
+            if (opLog.get(clz) == null || opLog.get(clz).size() == 0) {
+                continue;
             }
-            for (Class<?> clz : localBuffer) {
-                if (opLog.get(clz) == null || opLog.get(clz).size() == 0) {
-                    continue;
-                }
-                opLog.get(clz).addAll(flushQueueToMongo(opLog.get(clz)));
-            }
+            opLog.get(clz).addAll(flushQueueToMongo(opLog.get(clz)));
+        }
 //        }
     }
 
