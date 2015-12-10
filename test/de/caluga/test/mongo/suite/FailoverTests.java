@@ -25,10 +25,10 @@ public class FailoverTests extends MongoTest {
 
     @Test
     public void failoverTest() throws Exception {
-        if (!getProps().getProperty("failovertest", "false").equals("true")) {
-            log.info("Not running Failover test here");
-            return;
-        }
+//        if (!getProps().getProperty("failovertest", "false").equals("true")) {
+//            log.info("Not running Failover test here");
+//            return;
+//        }
 
 
         morphium.clearCollection(UncachedObject.class);
