@@ -53,9 +53,13 @@ public class SingleConnectDirectDriver extends DriverBase {
     @Override
     public void connect(String replSet) throws MorphiumDriverException {
         try {
-            s = new Socket("localhost", 27017);
-            s.setKeepAlive(isSocketKeepAlive());
-            s.setSoTimeout(getSocketTimeout());
+            String host = getHostSeed()[0];
+            String h[] = host.split(":");
+            int port = 27017;
+            if (h.length > 1) {
+                port = Integer.parseInt(h[1]);
+            }
+            s = new Socket(h[0], port);
             out = s.getOutputStream();
             in = s.getInputStream();
 

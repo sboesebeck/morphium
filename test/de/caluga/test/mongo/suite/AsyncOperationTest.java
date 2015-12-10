@@ -34,10 +34,12 @@ public class AsyncOperationTest extends MongoTest {
         waitForWrites();
         Query<UncachedObject> uc = morphium.createQueryFor(UncachedObject.class);
         uc = uc.f("counter").lt(100);
+        log.info("deleting...");
         morphium.delete(uc, new AsyncOperationCallback<Query<UncachedObject>>() {
             @Override
             public void onOperationSucceeded(AsyncOperationType type, Query<Query<UncachedObject>> q, long duration, List<Query<UncachedObject>> result, Query<UncachedObject> entity, Object... param) {
                 log.info("Objects deleted");
+                asyncCall = true;
             }
 
             @Override
@@ -45,9 +47,12 @@ public class AsyncOperationTest extends MongoTest {
                 assert false;
             }
         });
-
+        Thread.sleep(100);
+        assert (asyncCall);
+        asyncCall = false;
         uc = uc.q();
         uc.f("counter").mod(3, 2);
+        log.info("Updating...");
         morphium.set(uc, "counter", 0, false, true, new AsyncOperationCallback<UncachedObject>() {
             @Override
             public void onOperationSucceeded(AsyncOperationType type, Query<UncachedObject> q, long duration, List<UncachedObject> result, UncachedObject entity, Object... param) {
@@ -63,7 +68,7 @@ public class AsyncOperationTest extends MongoTest {
         });
 
         waitForWrites();
-        Thread.sleep(1000);
+        Thread.sleep(100);
 
         long counter = morphium.createQueryFor(UncachedObject.class).f("counter").eq(0).countAll();
         assert counter > 0 : "Counter is: " + counter;
