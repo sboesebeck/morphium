@@ -66,6 +66,7 @@ public class SingleConnectThreaddedDriver extends DriverBase {
             new Thread() {
                 public void run() {
                     byte[] inBuffer = new byte[16];
+                    int errorcount = 0;
                     while (s != null && s.isConnected()) {
                         int numRead = 0;
                         try {
@@ -100,6 +101,20 @@ public class SingleConnectThreaddedDriver extends DriverBase {
                             OpReply reply = new OpReply();
                             try {
                                 reply.parse(buf);
+                                if (reply == null || reply.getDocuments() == null || reply.getDocuments().size() == 0) {
+                                    log.error("did not get any data... slowing down");
+                                    errorcount++;
+                                    if (errorcount > 10) {
+                                        log.error("Could not recover... exiting!");
+                                        try {
+                                            close();
+                                            break;
+                                        } catch (MorphiumDriverException e) {
+                                        }
+                                    }
+                                    Thread.sleep(500);
+                                    continue;
+                                }
                                 if (!reply.getDocuments().get(0).get("ok").equals(1)) {
                                     if (reply.getDocuments().get(0).get("code") != null) {
                                         log.debug("Error " + reply.getDocuments().get(0).get("code"));
@@ -203,6 +218,7 @@ public class SingleConnectThreaddedDriver extends DriverBase {
             public Map<String, Object> execute() throws MorphiumDriverException {
                 OpQuery q = new OpQuery();
                 q.setDb(db);
+                if (isSlaveOk()) q.setFlags(4);
                 q.setColl("$cmd");
                 q.setLimit(1);
                 q.setSkip(0);
@@ -211,7 +227,6 @@ public class SingleConnectThreaddedDriver extends DriverBase {
                 Map<String, Object> doc = new LinkedHashMap<>();
                 doc.putAll(cmd);
                 q.setDoc(doc);
-                q.setFlags(0);
                 q.setInReplyTo(0);
 
                 OpReply rep = null;
@@ -240,6 +255,7 @@ public class SingleConnectThreaddedDriver extends DriverBase {
                 q.setColl("$cmd");
                 q.setLimit(1);
                 q.setSkip(0);
+                if (isSlaveOk()) q.setFlags(4);
                 q.setReqId(getNextId());
 
                 Map<String, Object> doc = new LinkedHashMap<>();
@@ -252,7 +268,6 @@ public class SingleConnectThreaddedDriver extends DriverBase {
                 doc.put("sort", sort);
 
                 q.setDoc(doc);
-                q.setFlags(0);
                 q.setInReplyTo(0);
 
                 List<Map<String, Object>> ret = null;
@@ -299,6 +314,8 @@ public class SingleConnectThreaddedDriver extends DriverBase {
                 q.setDb(db);
                 q.setReqId(getNextId());
                 q.setSkip(0);
+                if (isSlaveOk()) q.setFlags(4);
+
                 q.setLimit(1);
                 doc = new LinkedHashMap<>();
                 doc.put("getMore", cursor.get("id"));
@@ -377,7 +394,8 @@ public class SingleConnectThreaddedDriver extends DriverBase {
                 doc.put("count", collection);
                 doc.put("query", query);
                 q.setDoc(doc);
-                q.setFlags(0);
+                if (isSlaveOk()) q.setFlags(4);
+
                 q.setInReplyTo(0);
 
                 OpReply rep = null;
@@ -491,6 +509,7 @@ public class SingleConnectThreaddedDriver extends DriverBase {
                     op.setReqId(getNextId());
                     op.setDb(db);
                     op.setColl("$cmd");
+
                     HashMap<String, Object> map = new LinkedHashMap<>();
                     map.put("update", collection);
                     map.put("updates", updateCommand.subList(idx, end));
@@ -559,7 +578,7 @@ public class SingleConnectThreaddedDriver extends DriverBase {
         if (!reply.getDocuments().get(0).get("ok").equals(1) && !reply.getDocuments().get(0).get("ok").equals(1.0)) {
             Object code = reply.getDocuments().get(0).get("code");
             Object errmsg = reply.getDocuments().get(0).get("errmsg");
-            throw new MorphiumDriverException("Operation failed - error: " + code + " - " + errmsg, null, collection, db, query);
+            throw new MorphiumDriverException("Operation failed on " + getHostSeed()[0] + " - error: " + code + " - " + errmsg, null, collection, db, query);
         }
 
         return reply;
@@ -645,6 +664,7 @@ public class SingleConnectThreaddedDriver extends DriverBase {
                 cmd.put("field", field);
                 cmd.put("query", filter);
                 op.setDoc(cmd);
+                if (isSlaveOk()) op.setFlags(4);
 
                 sendQuery(op);
                 try {
@@ -685,7 +705,8 @@ public class SingleConnectThreaddedDriver extends DriverBase {
                 q.setReqId(getNextId());
 
                 q.setDoc(cmd);
-                q.setFlags(0);
+                if (isSlaveOk()) q.setFlags(4);
+
                 q.setInReplyTo(0);
 
                 List<Map<String, Object>> ret;
@@ -720,7 +741,8 @@ public class SingleConnectThreaddedDriver extends DriverBase {
                     cmd.put("filter", Utils.getMap("name", collection));
                 }
                 q.setDoc(cmd);
-                q.setFlags(0);
+                if (isSlaveOk()) q.setFlags(4);
+
                 q.setInReplyTo(0);
 
                 List<Map<String, Object>> ret;
@@ -743,6 +765,7 @@ public class SingleConnectThreaddedDriver extends DriverBase {
                 q.setReqId(getNextId());
                 q.setSkip(0);
                 q.setLimit(1);
+                if (isSlaveOk()) q.setFlags(4);
 
                 Map<String, Object> cmd = new LinkedHashMap<>();
                 Map<String, Object> map = Utils.getMap("ns", coll);
@@ -791,6 +814,7 @@ public class SingleConnectThreaddedDriver extends DriverBase {
                 q.setReqId(getNextId());
                 q.setSkip(0);
                 q.setLimit(1);
+                if (isSlaveOk()) q.setFlags(4);
 
                 Map<String, Object> doc = new LinkedHashMap<>();
                 doc.put("aggregate", collection);
