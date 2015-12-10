@@ -59,24 +59,6 @@ public class MetaDriver extends DriverBase {
                 }
             }
         }
-        while (currentMaster == null) {
-            log.info("Waiting for master...");
-            try {
-                Thread.sleep(200);
-            } catch (InterruptedException e) {
-                e.printStackTrace();
-            }
-        }
-        if (getHostSeed().length < secondaries.size()) {
-            log.info("There are more nodes in replicaset than defined in seed...");
-        } else if (getHostSeed().length > secondaries.size()) {
-            log.info("some seed hosts were not reachable!");
-        }
-
-        if (connectionPool.size() == 0) throw new MorphiumDriverException("Could not connect");
-        if (getTotalConnectionCount() == 0) {
-            throw new MorphiumDriverException("Connection failed!");
-        }
 
         //some Housekeeping
         new Thread() {
@@ -111,6 +93,39 @@ public class MetaDriver extends DriverBase {
                 }
             }
         }.start();
+        while (currentMaster == null) {
+            log.info("Waiting for master...");
+            try {
+                Thread.sleep(200);
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+        }
+        while (connectionPool.get(currentMaster) == null || connectionPool.get(currentMaster).size() < getMinConnectionsPerHost()) {
+            log.info("no connection to current master yet! Retrying...");
+            try {
+                DriverBase d = createDriver(currentMaster);
+                d.connect();
+                getConnections(currentMaster).add(new Connection(d));
+            } catch (MorphiumDriverException e) {
+                log.error("Could not connect to master " + currentMaster, e);
+            }
+            try {
+                Thread.sleep(1000);
+            } catch (InterruptedException e) {
+
+            }
+        }
+        if (getHostSeed().length < secondaries.size()) {
+            log.info("There are more nodes in replicaset than defined in seed...");
+        } else if (getHostSeed().length > secondaries.size()) {
+            log.info("some seed hosts were not reachable!");
+        }
+
+        if (connectionPool.size() == 0) throw new MorphiumDriverException("Could not connect");
+        if (getTotalConnectionCount() == 0) {
+            throw new MorphiumDriverException("Connection failed!");
+        }
 
 
     }
@@ -691,11 +706,14 @@ public class MetaDriver extends DriverBase {
                             if (reply.get("ismaster").equals(true)) {
                                 //got master connection...
                                 master = true;
-                                currentMaster = getHostSeed()[0];
+                                currentMaster = getHost();
                             } else {
                                 master = false;
                                 if (currentMaster == null) {
                                     currentMaster = (String) reply.get("primary");
+                                }
+                                if (currentMaster == null) {
+                                    log.info("No master in replicaset!");
                                 }
                             }
 
