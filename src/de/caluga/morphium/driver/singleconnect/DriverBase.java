@@ -49,6 +49,16 @@ public abstract class DriverBase implements MorphiumDriver {
     private int maxConnectionsPerHost = 100;
     private int defaultWriteTimeout = 10000;
 
+    private boolean slaveOk = false;
+
+    public boolean isSlaveOk() {
+        return slaveOk;
+    }
+
+    public void setSlaveOk(boolean slaveOk) {
+        this.slaveOk = slaveOk;
+    }
+
     @Override
     public void setCredentials(String db, String login, char[] pwd) {
         if (credentials == null) {
