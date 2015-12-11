@@ -27,7 +27,7 @@ import java.util.logging.Level;
  **/
 public class MorphiumDriverSpeedTest {
 
-    private static int countObjs = 1200;
+    private static int countObjs = 32000;
     private Logger log = new Logger(MorphiumDriverSpeedTest.class);
 
     @BeforeClass
@@ -44,7 +44,8 @@ public class MorphiumDriverSpeedTest {
     public void speedCompareMultithread() throws Exception {
         Morphium m = null;
         MorphiumConfig cfg = new MorphiumConfig("morphium_test", 100, 1000, 1000);
-        cfg.addHost("localhost");
+        cfg.addHost("192.168.44.209:30001");
+        cfg.addHost("192.168.44.209:30002");
         cfg.setReplicaset(false);
         cfg.setDriverClass(MetaDriver.class.getName());
         cfg.setMaxWaitTime(30000);
@@ -56,6 +57,8 @@ public class MorphiumDriverSpeedTest {
         log.info("Testing multithreadded with Metadriver:");
         multithreadTest(m);
         m.close();
+        //wait for threads to finish...
+        Thread.sleep(5000);
 
         cfg = new MorphiumConfig("morphium_test", 100, 1000, 1000);
         cfg.addHost("localhost");
@@ -183,7 +186,7 @@ public class MorphiumDriverSpeedTest {
         long start = System.currentTimeMillis();
         m.dropCollection(UncachedObject.class);
         List<Thread> threads = new Vector<>();
-        for (int i = 0; i < 30; i++) {
+        for (int i = 0; i < 100; i++) {
             final int t = i;
             Thread thr = new Thread() {
                 public void run() {
@@ -199,13 +202,13 @@ public class MorphiumDriverSpeedTest {
             threads.add(thr);
             thr.start();
         }
-        for (Thread t : threads) t.join();
-        long dur = System.currentTimeMillis() - start;
-        log.info("Storing took " + dur);
+//        for (Thread t : threads) t.join();
+//        long dur = System.currentTimeMillis() - start;
+//        log.info("Storing took " + dur);
 
         start = System.currentTimeMillis();
 
-        for (int i = 0; i < 30; i++) {
+        for (int i = 0; i < 100; i++) {
             final int t = i;
             Thread thr = new Thread() {
                 public void run() {
@@ -221,10 +224,10 @@ public class MorphiumDriverSpeedTest {
             thr.start();
         }
         for (Thread t : threads) t.join();
-        dur = System.currentTimeMillis() - start;
-        log.info("Reading took " + dur);
+//        dur = System.currentTimeMillis() - start;
+//        log.info("Reading took " + dur);
 
-        dur = System.currentTimeMillis() - startTotal;
+        long dur = System.currentTimeMillis() - startTotal;
         log.info("Overall dur " + dur);
 
 
