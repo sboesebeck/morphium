@@ -72,25 +72,28 @@ public class SingleConnectThreaddedDriver extends DriverBase {
                         try {
 
                             numRead = in.read(inBuffer, 0, 16);
+                            while (numRead < 16) {
+                                numRead += in.read(inBuffer, numRead, 16 - numRead);
+                            }
+
                             int size = OpReply.readInt(inBuffer, 0);
+                            log.info("Got size: " + Utils.getHex(size));
                             if (size == 0) {
                                 log.info("Error - null size! closing connection");
-                                try {
-                                    close();
-//                                    connect(replSet);
-                                } catch (MorphiumDriverException e) {
-                                }
+                                System.exit(1);
                                 break;
 
                             }
                             if (size > 16 * 1024 * 1024) {
                                 log.info("Error - size too big! " + size);
-                                continue;
+                                System.exit(1);
+                                break;
                             }
                             int opcode = OpReply.readInt(inBuffer, 12);
                             if (opcode != 1) {
                                 log.info("illegal opcode! " + opcode);
-                                continue;
+                                System.exit(1);
+                                break;
                             }
                             byte buf[] = new byte[size];
                             for (int i = 0; i < 16; i++) {
@@ -98,6 +101,10 @@ public class SingleConnectThreaddedDriver extends DriverBase {
                             }
 
                             numRead = in.read(buf, 16, size - 16);
+                            while (numRead < size - 16) {
+                                numRead += in.read(buf, 16 + numRead, size - numRead - 16);
+                            }
+                            log.info("Read:        " + Utils.getHex(numRead + 16));
                             OpReply reply = new OpReply();
                             try {
                                 reply.parse(buf);
@@ -115,13 +122,25 @@ public class SingleConnectThreaddedDriver extends DriverBase {
                                     Thread.sleep(500);
                                     continue;
                                 }
-                                if (!reply.getDocuments().get(0).get("ok").equals(1)) {
+                                if (reply == null || reply.getDocuments() == null || reply.getDocuments().size() == 0) {
+                                    log.error("did not get a valid reply!");
+                                    Thread.sleep(500);
+                                    continue;
+                                }
+                                if (reply.getDocuments().get(0).get("ok") == null) {
+                                    log.error("Weird result! " + reply.getInReplyTo());
+                                    log.error(Utils.toJsonString(reply.getDocuments().get(0)));
+                                    System.exit(1);
+                                    continue;
+                                } else if (!reply.getDocuments().get(0).get("ok").equals(1)) {
                                     if (reply.getDocuments().get(0).get("code") != null) {
                                         log.debug("Error " + reply.getDocuments().get(0).get("code"));
                                         log.debug("Error " + reply.getDocuments().get(0).get("errmsg"));
                                     }
                                 }
-                                replies.add(reply);
+                                synchronized (replies) {
+                                    replies.add(reply);
+                                }
                             } catch (Exception e) {
                                 log.error("Could not read", e);
                             }
@@ -129,6 +148,11 @@ public class SingleConnectThreaddedDriver extends DriverBase {
 //                            e.printStackTrace();
                             break; //probably best!
                         }
+                    }
+                    try {
+                        close();
+//                                    connect(replSet);
+                    } catch (MorphiumDriverException e) {
                     }
                     log.info("reply-thread terminated!");
                 }
