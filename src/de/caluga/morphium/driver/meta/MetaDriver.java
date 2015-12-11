@@ -41,6 +41,7 @@ public class MetaDriver extends DriverBase {
     private static ReadPreference secondaryPreferred = ReadPreference.secondaryPreferred();
     private static ReadPreference primaryPreferred = ReadPreference.primaryPreferred();
     private static ReadPreference nearest = ReadPreference.primary();
+    private boolean connected = false;
 
     @Override
     public void connect() throws MorphiumDriverException {
@@ -49,19 +50,11 @@ public class MetaDriver extends DriverBase {
 
     @Override
     public void connect(String replicasetName) throws MorphiumDriverException {
+//        setMaxConnectionsPerHost(1);
         for (String h : getHostSeed()) {
-            for (int i = 0; i < getMinConnectionsPerHost(); i++) {
-                try {
-                    DriverBase d = createDriver(h);
-                    d.setSlaveOk(true);
-                    d.connect();
-                    getConnections(h).add(new Connection(d));
-                } catch (MorphiumDriverException e) {
-                    log.error("Could not connect to host " + h, e);
-                }
-            }
+            createConnectionsForPool(h);
         }
-
+        connected = true;
         //some Housekeeping
         new Thread() {
 
@@ -115,9 +108,11 @@ public class MetaDriver extends DriverBase {
                     for (String s : connectionPool.keySet()) {
                         log.info("  Host: " + s + "   " + connectionPool.get(s).size());
                     }
+                    log.info("Fastest host: " + fastestHost + " with " + fastestAnswer + "ms");
+                    log.info("current master: " + currentMaster);
 
                 }
-                log.info("Connection killed - terminating");
+                log.info("Metadriver killed - terminating housekeeping thread");
             }
         }.start();
         while (currentMaster == null) {
@@ -145,6 +140,12 @@ public class MetaDriver extends DriverBase {
         }
         if (getHostSeed().length < secondaries.size()) {
             log.info("There are more nodes in replicaset than defined in seed...");
+            for (int i = 0; i < secondaries.size(); i++) {
+                String h = secondaries.get(i);
+                if (getConnections(h).size() == 0) {
+                    createConnectionsForPool(h);
+                }
+            }
         } else if (getHostSeed().length > secondaries.size()) {
             log.info("some seed hosts were not reachable!");
         }
@@ -154,7 +155,20 @@ public class MetaDriver extends DriverBase {
             throw new MorphiumDriverException("Connection failed!");
         }
 
+        connected = true;
+    }
 
+    private void createConnectionsForPool(String h) {
+        for (int i = 0; i < getMinConnectionsPerHost(); i++) {
+            try {
+                log.info("Initial connect to host " + h);
+                DriverBase d = createDriver(h);
+                d.connect();
+                getConnections(h).add(new Connection(d));
+            } catch (MorphiumDriverException e) {
+                log.error("Could not connect to host " + h, e);
+            }
+        }
     }
 
     private int getTotalConnectionCount() {
@@ -184,22 +198,34 @@ public class MetaDriver extends DriverBase {
 
     @Override
     public boolean isConnected() {
-        return getTotalConnectionCount() != 0;
+        return connected && getTotalConnectionCount() != 0;
     }
 
     @Override
     public void close() throws MorphiumDriverException {
+        connected = false;
         for (String h : connectionPool.keySet()) {
-            for (int i = 0; i < connectionPool.get(h).size(); i++) {
-                connectionPool.get(h).get(i).getD().close();
+            while (connectionPool.get(h).size() > 0) {
+                try {
+                    Connection c = connectionPool.get(h).remove(0);
+                    c.close();
+                } catch (Exception e) {
+                }
             }
         }
         for (String h : connectionsInUse.keySet()) {
-            for (int i = 0; i < connectionsInUse.get(h).size(); i++) {
-                connectionsInUse.get(h).get(i).getD().close();
+            while (connectionsInUse.get(h).size() > 0) {
+                try {
+                    Connection c = connectionsInUse.get(h).remove(0);
+                    c.close();
+                } catch (Exception e) {
+                }
             }
         }
-
+        while (getTotalConnectionCount() > 0) {
+            log.info("Still connected?!?!? " + getTotalConnectionCount());
+            close();
+        }
     }
 
     @Override
@@ -534,6 +560,7 @@ public class MetaDriver extends DriverBase {
         d.setDefaultW(getDefaultW());
         d.setDefaultReadPreference(getDefaultReadPreference());
         d.connect(getReplicaSetName());
+        d.setSlaveOk(true);
         return d;
     }
 
@@ -542,33 +569,34 @@ public class MetaDriver extends DriverBase {
 
         List<Connection> masterConnections = getConnections(host);
         Connection c = null;
-        if (masterConnections.size() == 0) {
-            //No connection available - create one
-            while (masterConnections.size() == 0) {
-                if (getConnectionsInUse(host).size() < getMaxConnectionsPerHost()) {
-                    c = new Connection(createDriver(host));
-                    break;
-                }
-                if (System.currentTimeMillis() - start > getMaxWaitTime()) {
-                    throw new MorphiumDriverNetworkException("could not get Master! Waited >" + getMaxWaitTime() + "ms");
-                }
-                try {
-                    Thread.sleep(100);
-                } catch (InterruptedException e) {
-                }
+        while (masterConnections.size() == 0) {
+            if (getConnectionsInUse(host).size() < getMaxConnectionsPerHost()) {
+                c = new Connection(createDriver(host));
+                masterConnections.add(c);
+                break;
             }
-        } else {
+            if (System.currentTimeMillis() - start > getMaxWaitTime()) {
+                throw new MorphiumDriverNetworkException("could not get Master! Waited >" + getMaxWaitTime() + "ms");
+            }
             try {
-                c = masterConnections.remove(0); //get first available connection;
-            } catch (Exception e) {
-                try {
-                    Thread.sleep(100);
-                } catch (InterruptedException e1) {
-                }
-                //somebody was faster - retry
-                //TODO: Remove recursion!
-                return getConnection(host);
+                Thread.sleep(100);
+            } catch (InterruptedException e) {
             }
+        }
+
+        try {
+            c = masterConnections.remove(0); //get first available connection;
+            if (c == null) {
+                log.fatal("Hä?");
+            }
+        } catch (Exception e) {
+            try {
+                Thread.sleep(100);
+            } catch (InterruptedException e1) {
+            }
+            //somebody was faster - retry
+            //TODO: Remove recursion!
+            return getConnection(host);
         }
         if (c == null) return null;
         c.setInUse(true);
@@ -578,7 +606,7 @@ public class MetaDriver extends DriverBase {
     }
 
     private Connection getSecondaryConnection() throws MorphiumDriverException {
-        int idx = (int) (Math.random() * secondaries.size());
+        int idx = (int) (System.currentTimeMillis() % secondaries.size());
         return getConnection(secondaries.get(idx));
     }
 
@@ -673,7 +701,6 @@ public class MetaDriver extends DriverBase {
             }
 
 
-
             //Housekeeping Thread
             new Thread() {
                 public void run() {
@@ -689,7 +716,7 @@ public class MetaDriver extends DriverBase {
                                     //some other thread was faster
                                     continue;
                                 }
-                                log.debug("Maximum life time reached, killing myself");
+                                log.info("Maximum life time reached, killing myself");
                                 try {
                                     d.close();
                                 } catch (MorphiumDriverException e) {
@@ -718,14 +745,11 @@ public class MetaDriver extends DriverBase {
                             }
                             Map<String, Object> reply = null;
                             try {
+                                answerTime = -1;
                                 long start = System.currentTimeMillis();
                                 reply = d.runCommand("local", Utils.getMap("isMaster", true));
                                 answerTime = System.currentTimeMillis() - start;
 
-                                if (!arbiter && (fastestAnswer > answerTime || d.getHostSeed()[0].equals(fastestHost))) {
-                                    fastestAnswer = answerTime;
-                                    fastestHost = d.getHostSeed()[0];
-                                }
 
                             } catch (MorphiumDriverException e) {
                                 log.error("Error with connection - exiting", e);
@@ -737,16 +761,18 @@ public class MetaDriver extends DriverBase {
                                 return;
                             }
 
+                            if (!arbiter && reply.get("arbiterOnly") != null && reply.get("arbiterOnly").equals(true)) {
+//                                log.info("I'm an arbiter! Staying alive anyway!");
+                                if (!arbiters.contains(getHost())) arbiters.add(getHost());
+                                if (secondaries.contains(getHost())) secondaries.remove(getHost());
+//                                connectionPool.get(getHost()).remove(Connection.this);
+                                arbiter = true;
+                            }
                             if (!arbiter && reply.get("ismaster").equals(true)) {
                                 //got master connection...
                                 master = true;
                                 currentMaster = getHost();
-                            } else if (!arbiter && reply.get("arbiterOnly") != null && reply.get("arbiterOnly").equals(true)) {
-//                                log.info("I'm an arbiter! Staying alive anyway!");
-                                if (!arbiters.contains(getHost())) arbiters.add(getHost());
-                                connectionPool.get(getHost()).remove(Connection.this);
-                                arbiter = true;
-                            } else {
+                            } else if (!arbiter && reply.get("secondary").equals(true)) {
                                 master = false;
                                 if (currentMaster == null) {
                                     currentMaster = (String) reply.get("primary");
@@ -754,10 +780,26 @@ public class MetaDriver extends DriverBase {
                                 if (currentMaster == null) {
                                     log.info("No master in replicaset!");
                                 }
+                                if (!secondaries.contains(getHost()) && !tempBlockedHosts.contains(getHost()))
+                                    secondaries.add(getHost());
+                            } else {
+                                master = false;
+                                if (currentMaster == null) {
+                                    currentMaster = (String) reply.get("primary");
+                                }
                             }
 
-                            if (reply.get("hosts") != null && secondaries.size() == 0) {
-                                secondaries = new Vector<>((List<String>) reply.get("hosts"));
+                            if (reply.get("secondary").equals(false) && reply.get("ismaster").equals(false)) {
+                                //recovering?!?!?
+                                secondaries.remove(getHost());
+                            } else {
+                                if (!arbiter && (fastestAnswer > answerTime || d.getHostSeed()[0].equals(fastestHost))) {
+                                    fastestAnswer = answerTime;
+                                    fastestHost = d.getHostSeed()[0];
+                                }
+                                if (reply.get("hosts") != null && secondaries.size() == 0) {
+                                    secondaries = new Vector<>((List<String>) reply.get("hosts"));
+                                }
                             }
                             //todo: check for missing secondaries, like some that were added during runtime
                             try {
@@ -786,6 +828,9 @@ public class MetaDriver extends DriverBase {
                         connectionsInUse.get(getHost()).remove(Connection.this);
                     if (connectionPool.get(getHost()) != null)
                         connectionPool.get(getHost()).remove(Connection.this);
+                    if (isMaster() && getHost().equals(currentMaster)) {
+                        currentMaster = null;
+                    }
                 }
             }.start();
 

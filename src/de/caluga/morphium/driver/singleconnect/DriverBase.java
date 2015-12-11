@@ -151,7 +151,9 @@ public abstract class DriverBase implements MorphiumDriver {
 
 
     public int getNextId() {
-        return ++rqid;
+        synchronized (DriverBase.class) {
+            return ++rqid;
+        }
     }
 
 
