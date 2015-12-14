@@ -96,6 +96,9 @@ public class SingleConnectDirectDriver extends DriverBase {
         try {
 
             numRead = in.read(inBuffer, 0, 16);
+            while (numRead < 16) {
+                numRead += in.read(inBuffer, numRead, 16 - numRead);
+            }
             int size = OpReply.readInt(inBuffer, 0);
             if (size == 0) {
                 log.info("Error - null size!");
@@ -116,6 +119,9 @@ public class SingleConnectDirectDriver extends DriverBase {
             }
 
             numRead = in.read(buf, 16, size - 16);
+            while (numRead < size - 16) {
+                numRead += in.read(buf, 16 + numRead, size - 16 - numRead);
+            }
             OpReply reply = new OpReply();
             try {
                 reply.parse(buf);

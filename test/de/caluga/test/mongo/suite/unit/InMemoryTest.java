@@ -50,7 +50,7 @@ public class InMemoryTest {
     @Test
     public void morphiumInMemoryTest() throws Exception {
         MorphiumConfig c = new MorphiumConfig("mem_test", 1000, 1000, 10000);
-        c.addHost("localhost");
+        c.addHostToSeed("localhost");
         c.setDriverClass(InMemoryDriver.class.getName());
         Morphium m = new Morphium(c);
         UncachedObject uc = new UncachedObject();

@@ -25,4 +25,6 @@ public @interface Reference {
     boolean automaticStore() default true;
 
     boolean lazyLoading() default false;
+
+    String targetCollection() default ".";
 }
