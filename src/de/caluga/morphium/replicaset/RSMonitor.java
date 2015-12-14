@@ -129,7 +129,7 @@ public class RSMonitor {
             } catch (Exception e) {
                 logger.warn("Could not get Replicaset status: " + e.getMessage(), e);
                 logger.warn("Tried connection to: ");
-                for (String adr : morphium.getConfig().getHosts()) {
+                for (String adr : morphium.getConfig().getHostSeed()) {
                     logger.warn("   " + adr);
                 }
             }

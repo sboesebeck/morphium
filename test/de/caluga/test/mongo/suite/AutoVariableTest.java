@@ -26,7 +26,7 @@ public class AutoVariableTest extends MongoTest {
         ct.value = "A test";
 
         morphium.store(ct);
-
+        Thread.sleep(250);
         assert (ct.created != null);
         assert (ct.timestamp != 0);
 

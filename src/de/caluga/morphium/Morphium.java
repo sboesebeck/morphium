@@ -101,11 +101,11 @@ public class Morphium {
         this();
         MorphiumConfig cfg = new MorphiumConfig(db, 100, 5000, 5000);
         try {
-            cfg.addHost(host);
+            cfg.addHostToSeed(host);
         } catch (UnknownHostException e) {
             throw new RuntimeException(e);
         }
-        cfg.setReplicaset(false);
+        cfg.setReplicasetMonitoring(false);
         setConfig(cfg);
 
     }
@@ -115,7 +115,7 @@ public class Morphium {
         this();
         MorphiumConfig cfg = new MorphiumConfig(db, 100, 5000, 5000);
         try {
-            cfg.addHost(host, port);
+            cfg.addHostToSeed(host, port);
         } catch (UnknownHostException e) {
             throw new RuntimeException(e);
         }
@@ -207,7 +207,7 @@ public class Morphium {
             if (config.getGlobalLogFile() != null) {
                 System.getProperties().put("morphium.log.file", config.getGlobalLogFile());
             }
-            if (config.getHosts().isEmpty()) {
+            if (config.getHostSeed().isEmpty()) {
                 throw new RuntimeException("Error - no server address specified!");
             }
 
@@ -216,9 +216,9 @@ public class Morphium {
             if (config.getMongoAdminUser() != null && config.getMongoAdminPwd() != null)
                 morphiumDriver.setCredentials(config.getMongoAdminUser(), "system", config.getMongoAdminPwd().toCharArray());
 
-            String[] seed = new String[config.getHosts().size()];
+            String[] seed = new String[config.getHostSeed().size()];
             for (int i = 0; i < seed.length; i++) {
-                seed[i] = config.getHosts().get(i);
+                seed[i] = config.getHostSeed().get(i);
             }
             morphiumDriver.setHostSeed(seed);
 
@@ -1394,6 +1394,7 @@ public class Morphium {
     }
 
     public ReplicaSetStatus getCurrentRSState() {
+        if (rsMonitor == null) return null;
         return rsMonitor.getCurrentStatus();
     }
 
@@ -1680,12 +1681,16 @@ public class Morphium {
 
     @SuppressWarnings("unchecked")
     public <T> T findById(Class<? extends T> type, Object id) {
+        return findById(type, id, null);
+    }
+
+    public <T> T findById(Class<? extends T> type, Object id, String collection) {
         T ret = getCache().getFromIDCache(type, id);
         if (ret != null) return ret;
         List<String> ls = annotationHelper.getFields(type, Id.class);
         if (ls.size() == 0) throw new RuntimeException("Cannot find by ID on non-Entity");
 
-        return createQueryFor(type).f(ls.get(0)).eq(id).get();
+        return createQueryFor(type).setCollectionName(collection).f(ls.get(0)).eq(id).get();
     }
 
     @SuppressWarnings("unchecked")
@@ -2173,8 +2178,8 @@ public class Morphium {
     }
 
     @SuppressWarnings("unchecked")
-    public <T> T createLazyLoadedEntity(Class<? extends T> cls, Object id, Object container, String fieldName) {
-        return (T) Enhancer.create(cls, new Class[]{Serializable.class}, new LazyDeReferencingProxy(this, cls, id, container, fieldName));
+    public <T> T createLazyLoadedEntity(Class<? extends T> cls, Object id, Object container, String fieldName, String collectionName) {
+        return (T) Enhancer.create(cls, new Class[]{Serializable.class}, new LazyDeReferencingProxy(this, cls, id, container, fieldName, collectionName));
     }
 
     @SuppressWarnings("unchecked")

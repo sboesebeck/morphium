@@ -141,7 +141,7 @@ public class MorphiumConfig {
         return replicaset;
     }
 
-    public void setReplicaset(boolean replicaset) {
+    public void setReplicasetMonitoring(boolean replicaset) {
         this.replicaset = replicaset;
     }
 
@@ -166,6 +166,14 @@ public class MorphiumConfig {
                         f.set(this, Integer.parseInt((String) prop.get(f.getName())));
                     } else if (f.getType().equals(String.class)) {
                         f.set(this, prop.get(f.getName()));
+                    } else if (List.class.isAssignableFrom(f.getType())) {
+                        String lst = (String) prop.get(f.getName());
+                        List<String> l = new ArrayList<>();
+                        lst = lst.replaceAll("[\\[\\]]", "");
+                        for (String s : lst.split(",")) {
+                            l.add(s);
+                        }
+                        f.set(this, l);
                     } else if (f.getType().equals(boolean.class) || f.getType().equals(Boolean.class)) {
                         f.set(this, prop.get(f.getName()).equals("true"));
                     } else if (f.getType().equals(long.class) || f.getType().equals(Long.class)) {
@@ -219,7 +227,7 @@ public class MorphiumConfig {
             if (k.equals("hosts")) {
                 for (String adr : value.split(",")) {
                     String a[] = adr.split(":");
-                    cfg.addHost(a[0].trim(), Integer.parseInt(a[1].trim()));
+                    cfg.addHostToSeed(a[0].trim(), Integer.parseInt(a[1].trim()));
                 }
 
             } else {
@@ -530,11 +538,11 @@ public class MorphiumConfig {
      *
      * @param str list of hosts, with or without port
      */
-    public void setHosts(List<String> str) throws UnknownHostException {
+    public void setHostSeed(List<String> str) throws UnknownHostException {
         hostSeed = str;
     }
 
-    public void setHosts(List<String> str, List<Integer> ports) throws UnknownHostException {
+    public void setHostSeed(List<String> str, List<Integer> ports) throws UnknownHostException {
         hostSeed.clear();
         for (int i = 0; i < str.size(); i++) {
             String host = str.get(i).replaceAll(" ", "") + ":" + ports.get(i);
@@ -542,46 +550,48 @@ public class MorphiumConfig {
         }
     }
 
-    public List<String> getHosts() {
+    public List<String> getHostSeed() {
         return hostSeed;
     }
-    public void setHosts(String hostPorts) throws UnknownHostException {
+
+    public void setHostSeed(String hostPorts) throws UnknownHostException {
+        hostSeed.clear();
         String h[] = hostPorts.split(",");
         for (String host : h) {
-            addHost(host);
+            addHostToSeed(host);
         }
     }
 
-    public void setHosts(String hosts, String ports) throws UnknownHostException {
+    public void setHostSeed(String hosts, String ports) throws UnknownHostException {
+        hostSeed.clear();
         hosts = hosts.replaceAll(" ", "");
         ports = ports.replaceAll(" ", "");
         String h[] = hosts.split(",");
         String p[] = ports.split(",");
         for (int i = 0; i < h.length; i++) {
             if (p.length < i) {
-                addHost(h[i], 27017);
+                addHostToSeed(h[i], 27017);
             } else {
-                addHost(h[i], Integer.parseInt(p[i]));
+                addHostToSeed(h[i], Integer.parseInt(p[i]));
             }
         }
 
     }
 
 
-
-    public void addHost(String host, int port) throws UnknownHostException {
+    public void addHostToSeed(String host, int port) throws UnknownHostException {
         host = host.replaceAll(" ", "") + ":" + port;
         hostSeed.add(host);
     }
 
 
-    public void addHost(String host) throws UnknownHostException {
+    public void addHostToSeed(String host) throws UnknownHostException {
         host = host.replaceAll(" ", "");
         if (host.contains(":")) {
             String[] h = host.split(":");
-            addHost(h[0], Integer.parseInt(h[1]));
+            addHostToSeed(h[0], Integer.parseInt(h[1]));
         } else {
-            addHost(host, 27017);
+            addHostToSeed(host, 27017);
         }
     }
 

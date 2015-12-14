@@ -27,7 +27,7 @@ import java.util.logging.Level;
  **/
 public class MorphiumDriverSpeedTest {
 
-    private static int countObjs = 32000;
+    private static int countObjs = 12000;
     private Logger log = new Logger(MorphiumDriverSpeedTest.class);
 
     @BeforeClass
@@ -44,9 +44,11 @@ public class MorphiumDriverSpeedTest {
     public void speedCompareMultithread() throws Exception {
         Morphium m = null;
         MorphiumConfig cfg = new MorphiumConfig("morphium_test", 100, 1000, 1000);
-        cfg.addHost("192.168.44.209:30001");
-        cfg.addHost("192.168.44.209:30002");
-        cfg.setReplicaset(false);
+//        cfg.addHostToSeed("192.168.44.209:30001");
+//        cfg.addHostToSeed("192.168.44.209:30002");
+        cfg.addHostToSeed("localhost:27017");
+        cfg.addHostToSeed("localhost:27018");
+        cfg.setReplicasetMonitoring(false);
         cfg.setDriverClass(MetaDriver.class.getName());
         cfg.setMaxWaitTime(30000);
         cfg.setMinConnectionsPerHost(1);
@@ -61,8 +63,8 @@ public class MorphiumDriverSpeedTest {
         Thread.sleep(5000);
 
         cfg = new MorphiumConfig("morphium_test", 100, 1000, 1000);
-        cfg.addHost("localhost");
-        cfg.setReplicaset(false);
+        cfg.addHostToSeed("localhost");
+        cfg.setReplicasetMonitoring(false);
         cfg.setDriverClass(SingleConnectThreaddedDriver.class.getName());
         cfg.setMinConnectionsPerHost(1);
         cfg.setMaxConnections(100);
@@ -75,8 +77,8 @@ public class MorphiumDriverSpeedTest {
         m.close();
 
         cfg = new MorphiumConfig("morphium_test", 100, 1000, 1000);
-        cfg.addHost("localhost");
-        cfg.setReplicaset(false);
+        cfg.addHostToSeed("localhost");
+        cfg.setReplicasetMonitoring(false);
         cfg.setDriverClass(SingleConnectDirectDriver.class.getName());
         cfg.setMinConnectionsPerHost(1);
         cfg.setMaxConnections(100);
@@ -89,8 +91,8 @@ public class MorphiumDriverSpeedTest {
         m.close();
 
         cfg = new MorphiumConfig("morphium_test", 100, 1000, 1000);
-        cfg.addHost("localhost");
-        cfg.setReplicaset(false);
+        cfg.addHostToSeed("localhost");
+        cfg.setReplicasetMonitoring(false);
         cfg.setMinConnectionsPerHost(1);
         cfg.setMaxConnections(100);
         m = new Morphium(cfg);
@@ -101,8 +103,8 @@ public class MorphiumDriverSpeedTest {
 
         cfg = new MorphiumConfig("morphium_test", 100, 1000, 1000);
         cfg.setDriverClass(InMemoryDriver.class.getName());
-        cfg.addHost("localhost");
-        cfg.setReplicaset(false);
+        cfg.addHostToSeed("localhost");
+        cfg.setReplicasetMonitoring(false);
         m = new Morphium(cfg);
         log.info("Testing with inMemory driver:");
         multithreadTest(m);
@@ -116,8 +118,8 @@ public class MorphiumDriverSpeedTest {
         MorphiumConfig cfg = null;
 
         cfg = new MorphiumConfig("morphium_test", 100, 1000, 1000);
-        cfg.addHost("localhost");
-        cfg.setReplicaset(false);
+        cfg.addHostToSeed("localhost");
+        cfg.setReplicasetMonitoring(false);
         cfg.setDriverClass(MetaDriver.class.getName());
         cfg.setMaxWaitTime(30000);
         cfg.setMaxWaitTime(30000);
@@ -131,8 +133,8 @@ public class MorphiumDriverSpeedTest {
         m.close();
 
         cfg = new MorphiumConfig("morphium_test", 100, 1000, 1000);
-        cfg.addHost("localhost");
-        cfg.setReplicaset(false);
+        cfg.addHostToSeed("localhost");
+        cfg.setReplicasetMonitoring(false);
         cfg.setDriverClass(SingleConnectThreaddedDriver.class.getName());
         cfg.setMaxWaitTime(3000);
         m = new Morphium(cfg);
@@ -146,8 +148,8 @@ public class MorphiumDriverSpeedTest {
 
 
         cfg = new MorphiumConfig("morphium_test", 100, 1000, 1000);
-        cfg.addHost("localhost");
-        cfg.setReplicaset(false);
+        cfg.addHostToSeed("localhost");
+        cfg.setReplicasetMonitoring(false);
         cfg.setDriverClass(SingleConnectDirectDriver.class.getName());
         cfg.setMaxWaitTime(3000);
         m = new Morphium(cfg);
@@ -162,8 +164,8 @@ public class MorphiumDriverSpeedTest {
 
         log.info("Testing with mongodb driver:");
         cfg = new MorphiumConfig("morphium_test", 100, 1000, 1000);
-        cfg.addHost("localhost");
-        cfg.setReplicaset(false);
+        cfg.addHostToSeed("localhost");
+        cfg.setReplicasetMonitoring(false);
         m = new Morphium(cfg);
         doTest(m);
         doTest(m);
@@ -171,8 +173,8 @@ public class MorphiumDriverSpeedTest {
 
         cfg = new MorphiumConfig("morphium_test", 100, 1000, 1000);
         cfg.setDriverClass(InMemoryDriver.class.getName());
-        cfg.addHost("localhost");
-        cfg.setReplicaset(false);
+        cfg.addHostToSeed("localhost");
+        cfg.setReplicasetMonitoring(false);
         m = new Morphium(cfg);
         log.info("Testing with inMemory driver:");
         doTest(m);
@@ -471,6 +473,6 @@ public class MorphiumDriverSpeedTest {
         }
         op.addInsertBulkReqpest(lst);
         op.execute();
-        Thread.sleep(100000);
+        Thread.sleep(1000);
     }
 }
