@@ -77,7 +77,7 @@ public class SingleConnectThreaddedDriver extends DriverBase {
                             }
 
                             int size = OpReply.readInt(inBuffer, 0);
-                            log.info("Got size: " + Utils.getHex(size));
+//                            log.info("Got size: " + Utils.getHex(size));
                             if (size == 0) {
                                 log.info("Error - null size! closing connection");
                                 System.exit(1);
@@ -104,7 +104,7 @@ public class SingleConnectThreaddedDriver extends DriverBase {
                             while (numRead < size - 16) {
                                 numRead += in.read(buf, 16 + numRead, size - numRead - 16);
                             }
-                            log.info("Read:        " + Utils.getHex(numRead + 16));
+//                            log.info("Read:        " + Utils.getHex(numRead + 16));
                             OpReply reply = new OpReply();
                             try {
                                 reply.parse(buf);
@@ -289,6 +289,8 @@ public class SingleConnectThreaddedDriver extends DriverBase {
                 doc.put("skip", skip);
                 if (query.size() != 0)
                     doc.put("filter", query);
+                if (projection != null)
+                    doc.put("projection", projection);
                 doc.put("sort", sort);
 
                 q.setDoc(doc);
@@ -322,6 +324,7 @@ public class SingleConnectThreaddedDriver extends DriverBase {
                 if (reply.getDocuments().get(0).get("result") != null) {
                     return (List<Map<String, Object>>) reply.getDocuments().get(0).get("result");
                 }
+                log.error("did not get cursor. Data: " + Utils.toJsonString(reply.getDocuments().get(0)));
                 throw new MorphiumDriverException("did not get any data, cursor == null!");
             }
             if (cursor.get("firstBatch") != null) {
@@ -381,6 +384,9 @@ public class SingleConnectThreaddedDriver extends DriverBase {
 
     private void sendQuery(OpQuery q) throws MorphiumDriverException {
         boolean retry = true;
+        if (q.getDb() == null) {
+            throw new IllegalArgumentException("cannot send command without db");
+        }
         long start = System.currentTimeMillis();
         while (retry) {
             if (s == null || !s.isConnected()) {
@@ -682,10 +688,11 @@ public class SingleConnectThreaddedDriver extends DriverBase {
                 op.setLimit(1);
                 op.setReqId(getNextId());
                 op.setSkip(0);
+                op.setDb(db);
 
                 Map<String, Object> cmd = new LinkedHashMap<>();
                 cmd.put("distinct", collection);
-                cmd.put("field", field);
+                cmd.put("key", field);
                 cmd.put("query", filter);
                 op.setDoc(cmd);
                 if (isSlaveOk()) op.setFlags(4);
@@ -693,10 +700,9 @@ public class SingleConnectThreaddedDriver extends DriverBase {
                 sendQuery(op);
                 try {
                     OpReply res = waitForReply(db, null, null, op.getReqId());
-                    //TODO: implement
-                    log.fatal("Need to implement distinct");
+                    return Utils.getMap("result", res.getDocuments().get(0).get("values"));
                 } catch (Exception e) {
-
+                    log.fatal("did not get result", e);
                 }
 
                 return null;
@@ -720,7 +726,7 @@ public class SingleConnectThreaddedDriver extends DriverBase {
             @Override
             public Map<String, Object> execute() throws MorphiumDriverException {
                 Map<String, Object> cmd = new LinkedHashMap<>();
-                cmd.put("listIndexes", 1);
+                cmd.put("listIndexes", collection);
                 OpQuery q = new OpQuery();
                 q.setDb(db);
                 q.setColl("$cmd");

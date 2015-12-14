@@ -29,6 +29,8 @@ public class Utils {
             }
             b.append("]");
             return b.toString();
+        } else if (o instanceof String) {
+            return "\"" + o.toString() + "\"";
         } else if (!(o instanceof Map)) {
             return o.toString();
         }

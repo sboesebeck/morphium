@@ -1,12 +1,14 @@
 package de.caluga.test.mongo.suite;
 
-import com.mongodb.BasicDBObject;
+import de.caluga.morphium.Utils;
 import de.caluga.morphium.query.Query;
 import de.caluga.test.mongo.suite.data.EmbeddedObject;
 import de.caluga.test.mongo.suite.data.UncachedObject;
 import org.junit.Test;
 
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * User: Stpehan Bösebeck
@@ -148,8 +150,8 @@ public class ComplexTest extends MongoTest {
             morphium.store(o);
         }
 
-        BasicDBObject query = new BasicDBObject();
-        query = query.append("counter", new BasicDBObject("$lt", 10));
+        Map<String, Object> query = new HashMap<String, Object>();
+        query.put("counter", Utils.getMap("$lt", 10));
         Query<UncachedObject> q = morphium.createQueryFor(UncachedObject.class);
         List<UncachedObject> lst = q.complexQuery(query);
         assert (lst != null && !lst.isEmpty()) : "Nothing found?";

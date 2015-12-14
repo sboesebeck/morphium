@@ -293,7 +293,9 @@ public class ObjectMapperImpl implements ObjectMapper {
                                             if (morphium == null) {
                                                 throw new RuntimeException("Could not automagically store references as morphium is not set!");
                                             }
-                                            morphium.storeNoCache(rec);
+                                            String coll = r.targetCollection();
+                                            if (coll.equals(".")) coll = null;
+                                            morphium.storeNoCache(rec, coll);
                                             id = annotationHelper.getId(rec);
                                         } else {
                                             throw new IllegalArgumentException("Cannot store reference to unstored entity if automaticStore in @Reference is set to false!");
@@ -613,6 +615,7 @@ public class ObjectMapperImpl implements ObjectMapper {
                 if (!Collection.class.isAssignableFrom(fld.getType()) && fld.isAnnotationPresent(Reference.class)) {
                     //A reference - only id stored
                     Reference reference = fld.getAnnotation(Reference.class);
+                    MorphiumReference r = null;
                     if (morphium == null) {
                         log.fatal("Morphium not set - could not de-reference!");
                     } else {
@@ -621,19 +624,12 @@ public class ObjectMapperImpl implements ObjectMapper {
                             id = valueFromDb;
                         } else {
                             Map<String, Object> ref = (Map<String, Object>) valueFromDb;
-                            MorphiumReference r = unmarshall(MorphiumReference.class, ref);
-                            String n = "collection_name";
-                            if (ref.get(n) == null) {
-                                n = "collectionName";
-                            }
-                            if (ref.get(n) != null && r.getClassName() == null) {
-                                r.setClassName((String) ref.get(n));
-                            }
-
+                            r = unmarshall(MorphiumReference.class, ref);
                             id = r.getId();
-                            if (!r.getClassName().equals(fld.getType().getName())) {
-                                log.warn("Class name in reference differs from real classname?!?!?! read: " + r.getClassName() + " but should be " + fld.getType().getName());
-                            }
+                        }
+                        String collection = getCollectionName(fld.getType());
+                        if (r != null && r.getCollectionName() != null) {
+                            collection = r.getCollectionName();
                         }
                         if (id != null) {
                             if (reference.lazyLoading()) {
@@ -643,13 +639,13 @@ public class ObjectMapperImpl implements ObjectMapper {
                                 if (id instanceof String && annotationHelper.getField(fld.getType(), lst.get(0)).getType().equals(MorphiumId.class)) {
                                     id = new MorphiumId(id.toString());
                                 }
-                                value = morphium.createLazyLoadedEntity(fld.getType(), id, ret, f);
+                                value = morphium.createLazyLoadedEntity(fld.getType(), id, ret, f, collection);
                             } else {
 //                                Query q = morphium.createQueryFor(fld.getSearchType());
 //                                q.f("_id").eq(id);
                                 try {
                                     morphium.fireWouldDereference(ret, f, id, fld.getType(), false);
-                                    value = morphium.findById(fld.getType(), id);
+                                    value = morphium.findById(fld.getType(), id, collection);
                                     morphium.fireDidDereference(ret, f, value, false);
                                 } catch (MorphiumAccessVetoException e) {
                                     log.info("not dereferencing due to veto from listener", e);
@@ -926,13 +922,16 @@ public class ObjectMapperImpl implements ObjectMapper {
                 } catch (ClassNotFoundException e) {
                     throw new RuntimeException(e);
                 }
+                if (r.getCollectionName() == null) {
+                    r.setCollectionName(getCollectionName(type));
+                }
                 if (ref.lazyLoading()) {
                     if (r.getId() instanceof String && morphium.getARHelper().getIdField(type).getType().equals(MorphiumId.class)) {
                         r.setId(new MorphiumId(r.getId().toString()));
                     }
-                    toFillIn.add(morphium.createLazyLoadedEntity(type, r.getId(), containerEntity, forField.getName()));
+                    toFillIn.add(morphium.createLazyLoadedEntity(type, r.getId(), containerEntity, forField.getName(), r.getCollectionName()));
                 } else {
-                    toFillIn.add(morphium.findById(type, r.getId()));
+                    toFillIn.add(morphium.findById(type, r.getId(), r.getCollectionName()));
                 }
 
             }
