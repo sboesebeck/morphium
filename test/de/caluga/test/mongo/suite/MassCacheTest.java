@@ -269,7 +269,7 @@ public class MassCacheTest extends MongoTest {
         Map<String, Double> stats = morphium.getStatistics();
         assert (stats.get("CACHE_ENTRIES") >= 100);
         assert (stats.get("CHITS") >= 200);
-        assert (stats.get("CHITSPERC") >= 60);
+        assert (stats.get("CHITSPERC") >= 40);
     }
 
 

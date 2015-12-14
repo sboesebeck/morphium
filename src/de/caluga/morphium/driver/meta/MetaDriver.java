@@ -104,15 +104,15 @@ public class MetaDriver extends DriverBase {
                     }
 
 
-                    log.info("total connections: " + getTotalConnectionCount());
+                    log.debug("total connections: " + getTotalConnectionCount() + " / " + (getMaxConnectionsPerHost() * connectionPool.size()));
                     for (String s : connectionPool.keySet()) {
-                        log.info("  Host: " + s + "   " + connectionPool.get(s).size());
+                        log.debug("  Host: " + s + "   " + connectionPool.get(s).size() + " / " + getMaxConnectionsPerHost());
                     }
-                    log.info("Fastest host: " + fastestHost + " with " + fastestAnswer + "ms");
-                    log.info("current master: " + currentMaster);
+                    log.debug("Fastest host: " + fastestHost + " with " + fastestAnswer + "ms");
+                    log.debug("current master: " + currentMaster);
 
                 }
-                log.info("Metadriver killed - terminating housekeeping thread");
+                log.debug("Metadriver killed - terminating housekeeping thread");
             }
         }.start();
         while (currentMaster == null) {

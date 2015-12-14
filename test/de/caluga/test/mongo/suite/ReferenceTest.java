@@ -10,7 +10,6 @@ import de.caluga.morphium.driver.bson.MorphiumId;
 import de.caluga.morphium.query.Query;
 import de.caluga.test.mongo.suite.data.CachedObject;
 import de.caluga.test.mongo.suite.data.UncachedObject;
-import org.bson.types.ObjectId;
 import org.junit.Test;
 
 import java.util.ArrayList;
@@ -130,8 +129,9 @@ public class ReferenceTest extends MongoTest {
         Thread.sleep(200);
         UncachedObject referenced = morphium.createQueryFor(UncachedObject.class).get();
         Map<String, Object> reference = new HashMap<>();
-        reference.put("collectionName", UncachedObject.class.getName());
-        reference.put("id", new ObjectId(referenced.getMorphiumId().toString()));
+        reference.put("referenced_class_name", UncachedObject.class.getName());
+        reference.put("collection_name", "uncached_object");
+        reference.put("id", referenced.getMorphiumId());
 
         Map<String, Object> rc = new HashMap<>();
         rc.put("uc", reference);
@@ -139,7 +139,7 @@ public class ReferenceTest extends MongoTest {
         List<Map<String, Object>> lst = new ArrayList<>();
         lst.add(rc);
         morphium.getDriver().store(morphium.getConfig().getDatabase(), "reference_container", lst, null);
-        Thread.sleep(100);
+        Thread.sleep(1000);
 
         assert (morphium.createQueryFor(ReferenceContainer.class).countAll() == 1);
         ReferenceContainer container = morphium.createQueryFor(ReferenceContainer.class).get();

@@ -114,9 +114,9 @@ public class MongoTest {
             } else {
                 //creating default config
                 cfg = new MorphiumConfig("morphium_test", 2055, 50000, 5000);
-                cfg.addHost("localhost", 27017);
-//                cfg.addHost("localhost", 27018);
-//                cfg.addHost("localhost", 27019);
+                cfg.addHostToSeed("localhost", 27017);
+//                cfg.addHostToSeed("localhost", 27018);
+//                cfg.addHostToSeed("localhost", 27019);
                 cfg.setWriteCacheTimeout(100);
                 cfg.setConnectionTimeout(2000);
                 cfg.setMaxWaitTime(2000);
@@ -167,13 +167,14 @@ public class MongoTest {
             cfg.setLogLevelForClass(PrefetchingMorphiumIterator.class, 3);
             cfg.setLogLevelForPrefix("de.caluga.test", 5);
             cfg.setLogSyncedForPrefix("de.caluga.test", true);
+            cfg.setLogLevelForPrefix("de.caluga.morphium.driver", 5);
 
             //InMemoryTest
 //            cfg.setDriverClass(InMemoryDriver.class.getName());
             //MetaDriverTEst
             cfg.setDriverClass(MetaDriver.class.getName());
 //            cfg.setDriverClass(InMemoryDriver.class.getName());
-            cfg.setReplicaset(false);
+            cfg.setReplicasetMonitoring(true);
 
             MorphiumSingleton.setConfig(cfg);
             morphium = MorphiumSingleton.get();
