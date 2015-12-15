@@ -1,6 +1,7 @@
 package de.caluga.test.mongo.suite;
 
-import de.caluga.morphium.MorphiumSingleton;
+import de.caluga.test.mongo.suite.data.CachedObject;
+import de.caluga.test.mongo.suite.data.UncachedObject;
 import org.junit.Test;
 
 import java.util.List;
@@ -16,30 +17,32 @@ public class DeleteTest extends MongoTest {
     @Test
     public void uncachedDeleteSingle() throws Exception {
         createUncachedObjects(10);
-        long c = MorphiumSingleton.get().createQueryFor(UncachedObject.class).countAll();
+        long c = morphium.createQueryFor(UncachedObject.class).countAll();
         assert (c == 10);
-        UncachedObject u = MorphiumSingleton.get().createQueryFor(UncachedObject.class).get();
-        MorphiumSingleton.get().delete(u);
-        c = MorphiumSingleton.get().createQueryFor(UncachedObject.class).countAll();
+        UncachedObject u = morphium.createQueryFor(UncachedObject.class).get();
+        morphium.delete(u);
+        c = morphium.createQueryFor(UncachedObject.class).countAll();
         assert (c == 9);
-        List<UncachedObject> lst = MorphiumSingleton.get().createQueryFor(UncachedObject.class).asList();
+        List<UncachedObject> lst = morphium.createQueryFor(UncachedObject.class).asList();
         for (UncachedObject uc : lst) {
-            assert (!uc.getMongoId().equals(u.getMongoId()));
+            assert (!uc.getMorphiumId().equals(u.getMorphiumId()));
         }
     }
 
     @Test
     public void uncachedDeleteQuery() throws Exception {
         createUncachedObjects(10);
-        long c = MorphiumSingleton.get().createQueryFor(UncachedObject.class).countAll();
+        Thread.sleep(400);
+        long c = morphium.createQueryFor(UncachedObject.class).countAll();
         assert (c == 10);
-        UncachedObject u = MorphiumSingleton.get().createQueryFor(UncachedObject.class).get();
-        MorphiumSingleton.get().delete(MorphiumSingleton.get().createQueryFor(UncachedObject.class).f("counter").eq(u.getCounter()));
-        c = MorphiumSingleton.get().createQueryFor(UncachedObject.class).countAll();
+        UncachedObject u = morphium.createQueryFor(UncachedObject.class).get();
+        morphium.delete(morphium.createQueryFor(UncachedObject.class).f("counter").eq(u.getCounter()));
+        Thread.sleep(400);
+        c = morphium.createQueryFor(UncachedObject.class).countAll();
         assert (c == 9);
-        List<UncachedObject> lst = MorphiumSingleton.get().createQueryFor(UncachedObject.class).asList();
+        List<UncachedObject> lst = morphium.createQueryFor(UncachedObject.class).asList();
         for (UncachedObject uc : lst) {
-            assert (!uc.getMongoId().equals(u.getMongoId()));
+            assert (!uc.getMorphiumId().equals(u.getMorphiumId()));
         }
     }
 
@@ -47,20 +50,20 @@ public class DeleteTest extends MongoTest {
     public void cachedDeleteSingle() throws Exception {
         createCachedObjects(10);
         waitForWrites();
-        long c = MorphiumSingleton.get().createQueryFor(CachedObject.class).countAll();
+        long c = morphium.createQueryFor(CachedObject.class).countAll();
         assert (c == 10) : "Count is " + c;
-        CachedObject u = MorphiumSingleton.get().createQueryFor(CachedObject.class).get();
-        MorphiumSingleton.get().delete(u);
+        CachedObject u = morphium.createQueryFor(CachedObject.class).get();
+        morphium.delete(u);
         waitForWrites();
 
-        while (MorphiumSingleton.get().getStatistics().get("X-Entries for: de.caluga.test.mongo.suite.CachedObject").intValue() != 0) {
+        while (morphium.getStatistics().get("X-Entries for: de.caluga.test.mongo.suite.data.CachedObject").intValue() != 0) {
             log.info("Waiting for cache to be cleared");
             Thread.sleep(250);
         }
 
-        c = MorphiumSingleton.get().createQueryFor(CachedObject.class).countAll();
+        c = morphium.createQueryFor(CachedObject.class).countAll();
         assert (c == 9);
-        List<CachedObject> lst = MorphiumSingleton.get().createQueryFor(CachedObject.class).asList();
+        List<CachedObject> lst = morphium.createQueryFor(CachedObject.class).asList();
         for (CachedObject uc : lst) {
             assert (!uc.getId().equals(u.getId()));
         }
@@ -70,15 +73,15 @@ public class DeleteTest extends MongoTest {
     public void cachedDeleteQuery() throws Exception {
         createCachedObjects(10);
         waitForWrites();
-        long cnt = MorphiumSingleton.get().createQueryFor(CachedObject.class).countAll();
+        long cnt = morphium.createQueryFor(CachedObject.class).countAll();
         assert (cnt == 10) : "Count is " + cnt;
-        CachedObject co = MorphiumSingleton.get().createQueryFor(CachedObject.class).get();
-        MorphiumSingleton.get().delete(MorphiumSingleton.get().createQueryFor(CachedObject.class).f("counter").eq(co.getCounter()));
+        CachedObject co = morphium.createQueryFor(CachedObject.class).get();
+        morphium.delete(morphium.createQueryFor(CachedObject.class).f("counter").eq(co.getCounter()));
         waitForWrites();
         Thread.sleep(1000);
-        cnt = MorphiumSingleton.get().createQueryFor(CachedObject.class).countAll();
+        cnt = morphium.createQueryFor(CachedObject.class).countAll();
         assert (cnt == 9);
-        List<CachedObject> lst = MorphiumSingleton.get().createQueryFor(CachedObject.class).asList();
+        List<CachedObject> lst = morphium.createQueryFor(CachedObject.class).asList();
         for (CachedObject c : lst) {
             assert (!c.getId().equals(co.getId()));
         }

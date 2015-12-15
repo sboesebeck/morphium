@@ -1,11 +1,11 @@
 package de.caluga.test.mongo.suite;
 
-import de.caluga.morphium.MorphiumSingleton;
 import de.caluga.morphium.PartiallyUpdateable;
 import de.caluga.morphium.annotations.*;
 import de.caluga.morphium.annotations.caching.Cache;
+import de.caluga.morphium.driver.bson.MorphiumId;
 import de.caluga.morphium.query.Query;
-import org.bson.types.ObjectId;
+import de.caluga.test.mongo.suite.data.UncachedObject;
 import org.junit.Test;
 
 import java.util.List;
@@ -25,7 +25,7 @@ public class PartialUpdateTests extends MongoTest {
     @Test
     public void testPartialUpdates() {
         UncachedObject uo = new UncachedObject();
-        uo = MorphiumSingleton.get().createPartiallyUpdateableEntity(uo);
+        uo = morphium.createPartiallyUpdateableEntity(uo);
         assert (uo instanceof PartiallyUpdateable) : "Created proxy incorrect";
         uo.setValue("A TEST");
         List<String> alteredFields = ((PartiallyUpdateable) uo).getAlteredFields();
@@ -39,14 +39,14 @@ public class PartialUpdateTests extends MongoTest {
 
     @Test
     public void partialUpdateTest() throws Exception {
-        MorphiumSingleton.get().clearCollection(PartUpdTestObj.class);
+        morphium.clearCollection(PartUpdTestObj.class);
         PartUpdTestObj o = new PartUpdTestObj();
         o.setName("1st");
         o.setValue(5);
-        MorphiumSingleton.get().store(o);
+        morphium.store(o);
         waitForWrites();
 
-        Query<PartUpdTestObj> q = MorphiumSingleton.get().createQueryFor(PartUpdTestObj.class);
+        Query<PartUpdTestObj> q = morphium.createQueryFor(PartUpdTestObj.class);
         q = q.f("value").eq(5);
         PartUpdTestObj po = q.get();
         assert (po.getValue() == o.getValue()) : "Values different?";
@@ -54,12 +54,12 @@ public class PartialUpdateTests extends MongoTest {
         assert (po instanceof PartiallyUpdateable) : "No partial updateable?";
         po.inc();
         assert (((PartiallyUpdateable) po).getAlteredFields().contains("value")) : "Value not changed?";
-        MorphiumSingleton.get().store(po);
+        morphium.store(po);
 
         po.setName("neuer Name");
         assert (!((PartiallyUpdateable) po).getAlteredFields().contains("value")) : "Value still in altered fields?";
         assert (((PartiallyUpdateable) po).getAlteredFields().contains("name")) : "Name not changed?";
-        MorphiumSingleton.get().store(po);
+        morphium.store(po);
         waitForWrites();
         q.setReadPreferenceLevel(ReadPreferenceLevel.PRIMARY);
         po = q.q().f("value").eq(6).get();
@@ -76,7 +76,7 @@ public class PartialUpdateTests extends MongoTest {
         private int value;
 
         @Id
-        private ObjectId id;
+        private MorphiumId id;
 
         @PartialUpdate("value")
         public void inc() {

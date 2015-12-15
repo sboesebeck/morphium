@@ -1,6 +1,5 @@
 package de.caluga.test.mongo.suite;
 
-import de.caluga.morphium.MorphiumSingleton;
 import de.caluga.morphium.annotations.Entity;
 import de.caluga.morphium.annotations.SafetyLevel;
 import de.caluga.morphium.annotations.WriteSafety;
@@ -8,6 +7,7 @@ import de.caluga.morphium.annotations.caching.AsyncWrites;
 import de.caluga.morphium.async.AsyncOperationCallback;
 import de.caluga.morphium.async.AsyncOperationType;
 import de.caluga.morphium.query.Query;
+import de.caluga.test.mongo.suite.data.UncachedObject;
 import org.junit.Test;
 
 import java.util.List;
@@ -32,12 +32,14 @@ public class AsyncOperationTest extends MongoTest {
         log.info("Uncached object preparation");
         super.createUncachedObjects(1000);
         waitForWrites();
-        Query<UncachedObject> uc = MorphiumSingleton.get().createQueryFor(UncachedObject.class);
+        Query<UncachedObject> uc = morphium.createQueryFor(UncachedObject.class);
         uc = uc.f("counter").lt(100);
-        MorphiumSingleton.get().delete(uc, new AsyncOperationCallback<Query<UncachedObject>>() {
+        log.info("deleting...");
+        morphium.delete(uc, new AsyncOperationCallback<Query<UncachedObject>>() {
             @Override
             public void onOperationSucceeded(AsyncOperationType type, Query<Query<UncachedObject>> q, long duration, List<Query<UncachedObject>> result, Query<UncachedObject> entity, Object... param) {
                 log.info("Objects deleted");
+                asyncCall = true;
             }
 
             @Override
@@ -45,10 +47,13 @@ public class AsyncOperationTest extends MongoTest {
                 assert false;
             }
         });
-
+        Thread.sleep(100);
+        assert (asyncCall);
+        asyncCall = false;
         uc = uc.q();
         uc.f("counter").mod(3, 2);
-        MorphiumSingleton.get().set(uc, "counter", 0, false, true, new AsyncOperationCallback<UncachedObject>() {
+        log.info("Updating...");
+        morphium.set(uc, "counter", 0, false, true, new AsyncOperationCallback<UncachedObject>() {
             @Override
             public void onOperationSucceeded(AsyncOperationType type, Query<UncachedObject> q, long duration, List<UncachedObject> result, UncachedObject entity, Object... param) {
                 log.info("Objects updated");
@@ -58,14 +63,15 @@ public class AsyncOperationTest extends MongoTest {
 
             @Override
             public void onOperationError(AsyncOperationType type, Query<UncachedObject> q, long duration, String error, Throwable t, UncachedObject entity, Object... param) {
-                log.info("Objects update error");
+                log.info("Objects update error", t);
             }
         });
 
         waitForWrites();
-        Thread.sleep(1000);
+        Thread.sleep(100);
 
-        assert MorphiumSingleton.get().createQueryFor(UncachedObject.class).f("counter").eq(0).countAll() > 0;
+        long counter = morphium.createQueryFor(UncachedObject.class).f("counter").eq(0).countAll();
+        assert counter > 0 : "Counter is: " + counter;
         assert (asyncCall);
     }
 
@@ -74,15 +80,15 @@ public class AsyncOperationTest extends MongoTest {
     public void asyncReadTest() throws Exception {
         asyncCall = false;
         createUncachedObjects(100);
-        Query<UncachedObject> q = MorphiumSingleton.get().createQueryFor(UncachedObject.class);
+        Query<UncachedObject> q = morphium.createQueryFor(UncachedObject.class);
         q = q.f("counter").lt(1000);
         q.asList(new AsyncOperationCallback<UncachedObject>() {
             @Override
             public void onOperationSucceeded(AsyncOperationType type, Query<UncachedObject> q, long duration, List<UncachedObject> result, UncachedObject entity, Object... param) {
+                asyncCall = true;
                 log.info("got read answer");
                 assert (result != null) : "Error";
                 assert (result.size() == 100) : "Error";
-                asyncCall = true;
             }
 
             @Override
@@ -105,23 +111,27 @@ public class AsyncOperationTest extends MongoTest {
     public void asyncCountTest() throws Exception {
         asyncCall = false;
         createUncachedObjects(100);
-        Query<UncachedObject> q = MorphiumSingleton.get().createQueryFor(UncachedObject.class);
+        Query<UncachedObject> q = morphium.createQueryFor(UncachedObject.class);
         q = q.f("counter").lt(1000);
         q.countAll(new AsyncOperationCallback<UncachedObject>() {
             @Override
             public void onOperationSucceeded(AsyncOperationType type, Query<UncachedObject> q, long duration, List<UncachedObject> result, UncachedObject entity, Object... param) {
+                asyncCall = true;
+                log.info("got async callback!");
                 assert (param != null && param[0] != null);
                 assert (param[0].equals((long) 100));
-                asyncCall = true;
             }
 
             @Override
             public void onOperationError(AsyncOperationType type, Query<UncachedObject> q, long duration, String error, Throwable t, UncachedObject entity, Object... param) {
                 //To change body of implemented methods use File | Settings | File Templates.
+                log.error("got async error callback", t);
+                assert (false);
             }
         });
         //waiting for thread to become active
         waitForAsyncOperationToStart(1000000);
+        Thread.sleep(2000);
         int count = 0;
         while (q.getNumberOfPendingRequests() > 0) {
             count++;
@@ -133,28 +143,38 @@ public class AsyncOperationTest extends MongoTest {
 
     @Test
     public void testAsyncWriter() throws Exception {
-        MorphiumSingleton.get().clearCollection(AsyncObject.class);
+        morphium.dropCollection(AsyncObject.class);
+        morphium.ensureIndicesFor(AsyncObject.class);
+        Thread.sleep(1000);
+        assert (morphium.getDriver().exists("morphium_test", "async_object"));
+
         long start = System.currentTimeMillis();
-        for (int i = 0; i < 1000; i++) {
+        for (int i = 0; i < 500; i++) {
+            if (i % 10 == 0) {
+                log.info("Stored " + i + " objects");
+            }
             AsyncObject ao = new AsyncObject();
             ao.setCounter(i);
             ao.setValue("Async write");
-            MorphiumSingleton.get().store(ao);
+            morphium.store(ao);
         }
 
         long end = System.currentTimeMillis();
         assert (end - start < 8000);
         waitForWrites();
+        Thread.sleep(100);
+        assert (morphium.createQueryFor(AsyncObject.class).countAll() != 0);
+        assert (morphium.createQueryFor(AsyncObject.class).countAll() == 500);
     }
 
     @Test
     public void asyncErrorHandling() throws Exception {
         log.info("upcoming Error Message + Exception is expected");
         WrongObject wo = new WrongObject();
-        MorphiumSingleton.get().store(wo);
+        morphium.store(wo);
 
         callback = false;
-        MorphiumSingleton.get().store(wo, new AsyncOperationCallback<WrongObject>() {
+        morphium.store(wo, new AsyncOperationCallback<WrongObject>() {
             @Override
             public void onOperationSucceeded(AsyncOperationType type, Query<WrongObject> q, long duration, List<WrongObject> result, WrongObject entity, Object... param) {
 

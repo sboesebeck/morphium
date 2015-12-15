@@ -1,8 +1,7 @@
 package de.caluga.morphium.aggregation;
 
-import com.mongodb.BasicDBObject;
-import com.mongodb.DBObject;
 import de.caluga.morphium.Morphium;
+import de.caluga.morphium.Utils;
 import de.caluga.morphium.async.AsyncOperationCallback;
 import de.caluga.morphium.async.AsyncOperationType;
 import de.caluga.morphium.query.Query;
@@ -17,10 +16,32 @@ import java.util.*;
  */
 public class AggregatorImpl<T, R> implements Aggregator<T, R> {
     private Class<? extends T> type;
-    private List<DBObject> params = new ArrayList<>();
+    private List<Map<String, Object>> params = new ArrayList<>();
     private Morphium morphium;
     private Class<? extends R> rType;
+    private String collectionName;
+    private boolean useDisk = false;
+    private boolean explain = false;
 
+    @Override
+    public boolean isUseDisk() {
+        return useDisk;
+    }
+
+    @Override
+    public void setUseDisk(boolean useDisk) {
+        this.useDisk = useDisk;
+    }
+
+    @Override
+    public boolean isExplain() {
+        return explain;
+    }
+
+    @Override
+    public void setExplain(boolean explain) {
+        this.explain = explain;
+    }
 
     @Override
     public void setMorphium(Morphium m) {
@@ -52,12 +73,6 @@ public class AggregatorImpl<T, R> implements Aggregator<T, R> {
         return rType;
     }
 
-    @Override
-    public Aggregator<T, R> project(Map<String, Object> m) {
-        DBObject o = new BasicDBObject("$project", new BasicDBObject(m));
-        params.add(o);
-        return this;
-    }
 
     @Override
     public Aggregator<T, R> project(String... m) {
@@ -69,36 +84,37 @@ public class AggregatorImpl<T, R> implements Aggregator<T, R> {
     }
 
     @Override
-    public Aggregator<T, R> project(BasicDBObject m) {
-        DBObject o = new BasicDBObject("$project", new BasicDBObject(m));
+    public Aggregator<T, R> project(Map<String, Object> m) {
+        Map<String, Object> o = Utils.getMap("$project", m);
         params.add(o);
         return this;
     }
 
     @Override
     public Aggregator<T, R> match(Query<T> q) {
-        DBObject o = new BasicDBObject("$match", q.toQueryObject());
+        Map<String, Object> o = Utils.getMap("$match", q.toQueryObject());
+        collectionName = q.getCollectionName();
         params.add(o);
         return this;
     }
 
     @Override
     public Aggregator<T, R> limit(int num) {
-        DBObject o = new BasicDBObject("$limit", num);
+        Map<String, Object> o = Utils.getMap("$limit", num);
         params.add(o);
         return this;
     }
 
     @Override
     public Aggregator<T, R> skip(int num) {
-        DBObject o = new BasicDBObject("$skip", num);
+        Map<String, Object> o = Utils.getMap("$skip", num);
         params.add(o);
         return this;
     }
 
     @Override
     public Aggregator<T, R> unwind(String listField) {
-        DBObject o = new BasicDBObject("$unwind", listField);
+        Map<String, Object> o = Utils.getMap("$unwind", listField);
         params.add(o);
         return this;
     }
@@ -130,19 +146,32 @@ public class AggregatorImpl<T, R> implements Aggregator<T, R> {
 
     @Override
     public Aggregator<T, R> sort(Map<String, Integer> sort) {
-        DBObject o = new BasicDBObject("$sort", new BasicDBObject(sort));
+        Map<String, Object> o = Utils.getMap("$sort", sort);
         params.add(o);
         return this;
     }
 
     @Override
-    public Group<T, R> group(BasicDBObject id) {
-        return new Group<>(this, id);
+    public void setCollectionName(String cn) {
+        collectionName = cn;
     }
 
     @Override
-    public Group<T, R> group(Map<String, String> idSubObject) {
-        return new Group<>(this, idSubObject);
+    public String getCollectionName() {
+        if (collectionName == null) {
+            collectionName = morphium.getMapper().getCollectionName(type);
+        }
+        return collectionName;
+    }
+
+    @Override
+    public Group<T, R> group(Map<String, Object> id) {
+        return new Group(this, id);
+    }
+
+    @Override
+    public Group<T, R> groupSubObj(Map<String, String> idSubObject) {
+        return new Group(this, idSubObject);
     }
 
     @Override
@@ -151,7 +180,7 @@ public class AggregatorImpl<T, R> implements Aggregator<T, R> {
     }
 
     @Override
-    public void addOperator(DBObject o) {
+    public void addOperator(Map<String, Object> o) {
         params.add(o);
     }
 
@@ -178,7 +207,8 @@ public class AggregatorImpl<T, R> implements Aggregator<T, R> {
     }
 
     @Override
-    public List<DBObject> toAggregationList() {
+    public List<Map<String, Object>> toAggregationList() {
         return params;
     }
+
 }

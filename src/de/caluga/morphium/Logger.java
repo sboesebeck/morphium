@@ -10,6 +10,10 @@ import java.util.Map;
  * Created by stephan on 25.04.15.
  */
 public class Logger {
+    public static int defaultLevel = 1;
+    public static boolean defaultSynced = false;
+    public static String defaultFile = "-";
+
     private int level = 5;
     private String prfx;
     private DateFormat df = new SimpleDateFormat("YYYY-MM-dd HH:mm:ss.SSS");
@@ -29,9 +33,12 @@ public class Logger {
         }
 
         if (v != null) level = Integer.parseInt(v);
+        else level = defaultLevel;
 
         v = getSetting("log.file");
         if (getSetting("log.file." + name) != null) v = getSetting("log.file." + name);
+        if (v == null) v = defaultFile;
+
         if (v != null) {
             file = v;
             if (v.startsWith("class:")) {
@@ -69,6 +76,8 @@ public class Logger {
         if (getSetting("log.synced." + name) != null) v = getSetting("log.synced." + name);
         if (v != null) {
             synced = v.equals("true");
+        } else {
+            synced = defaultSynced;
         }
 
         v = getSetting("log.delegate");
@@ -105,11 +114,15 @@ public class Logger {
     }
 
     public void setFile(String v) {
+        if (!file.equals("-") && !file.equals("STDOUT") && !file.equals("STDERR ")) {
+            out.flush();
+            out.close();
+        }
         this.file = v;
-        out.flush();
-        out.close();
-        if (file == null) {
+        if (file == null || file.equals("-") || file.equalsIgnoreCase("STDOUT")) {
             out = new PrintWriter(new OutputStreamWriter(System.out));
+        } else if (file.equalsIgnoreCase("STDERR")) {
+            out = new PrintWriter(new OutputStreamWriter(System.err));
         } else {
             try {
                 out = new PrintWriter(new BufferedWriter(new FileWriter(v, true)));
@@ -324,7 +337,7 @@ public class Logger {
             out.print(st[idx].getMethodName());
             out.print("():");
             out.print(st[idx].getLineNumber());
-            out.print(" - ");
+            out.print("\t");
             if (msg != null) {
                 out.print(msg);
             }

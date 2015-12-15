@@ -1,10 +1,11 @@
 package de.caluga.test.mongo.suite;
 
-import de.caluga.morphium.MorphiumSingleton;
 import de.caluga.morphium.annotations.ReadPreferenceLevel;
 import de.caluga.morphium.async.AsyncOperationCallback;
 import de.caluga.morphium.async.AsyncOperationType;
 import de.caluga.morphium.query.Query;
+import de.caluga.test.mongo.suite.data.Person;
+import de.caluga.test.mongo.suite.data.UncachedObject;
 import org.junit.Test;
 
 import java.util.ArrayList;
@@ -24,7 +25,7 @@ public class BulkInsertTest extends MongoTest {
 
     @Test
     public void maxWriteBatchTest() throws Exception {
-        MorphiumSingleton.get().clearCollection(UncachedObject.class);
+        morphium.clearCollection(UncachedObject.class);
 
         List<UncachedObject> lst = new ArrayList<>();
         for (int i = 0; i < 4212; i++) {
@@ -33,8 +34,8 @@ public class BulkInsertTest extends MongoTest {
             u.setCounter(i);
             lst.add(u);
         }
-        MorphiumSingleton.get().storeList(lst);
-        assert (MorphiumSingleton.get().createQueryFor(UncachedObject.class).countAll() == 4212);
+        morphium.storeList(lst);
+        assert (morphium.createQueryFor(UncachedObject.class).countAll() == 4212);
 
         for (UncachedObject u : lst) {
             u.setCounter(u.getCounter() + 1000);
@@ -45,25 +46,25 @@ public class BulkInsertTest extends MongoTest {
             u.setCounter(i + 1200);
             lst.add(u);
         }
-        MorphiumSingleton.get().storeList(lst);
+        morphium.storeList(lst);
 
 
     }
 
     @Test
     public void bulkInsert() throws Exception {
-        MorphiumSingleton.get().clearCollection(UncachedObject.class);
+        morphium.clearCollection(UncachedObject.class);
         log.info("Start storing single");
         long start = System.currentTimeMillis();
         for (int i = 0; i < 100; i++) {
             UncachedObject uc = new UncachedObject();
             uc.setCounter(i + 1);
             uc.setValue("nix " + i);
-            MorphiumSingleton.get().store(uc);
+            morphium.store(uc);
         }
         long dur = System.currentTimeMillis() - start;
         log.info("storing objects one by one took " + dur + " ms");
-        MorphiumSingleton.get().clearCollection(UncachedObject.class);
+        morphium.clearCollection(UncachedObject.class);
         log.info("Start storing list");
         List<UncachedObject> lst = new ArrayList<>();
         start = System.currentTimeMillis();
@@ -74,14 +75,14 @@ public class BulkInsertTest extends MongoTest {
             lst.add(uc);
         }
         log.info("List prepared...");
-        MorphiumSingleton.get().storeList(lst);
-        assert (lst.get(0).getMongoId() != null);
+        morphium.storeList(lst);
+        assert (lst.get(0).getMorphiumId() != null);
         dur = System.currentTimeMillis() - start;
-        if ((MorphiumSingleton.get().getWriteBufferCount() != 0)) {
-            throw new AssertionError("WriteBufferCount not 0!? Buffered:" + MorphiumSingleton.get().getBufferedWriterBufferCount());
+        if ((morphium.getWriteBufferCount() != 0)) {
+            throw new AssertionError("WriteBufferCount not 0!? Buffered:" + morphium.getBufferedWriterBufferCount());
         }
         log.info("storing objects one by one took " + dur + " ms");
-        Query<UncachedObject> q = MorphiumSingleton.get().createQueryFor(UncachedObject.class);
+        Query<UncachedObject> q = morphium.createQueryFor(UncachedObject.class);
         q.setReadPreferenceLevel(ReadPreferenceLevel.PRIMARY);
         assert (q.countAll() == 100) : "Assert not all stored yet????";
 
@@ -89,14 +90,14 @@ public class BulkInsertTest extends MongoTest {
 
     @Test
     public void bulkInsertAsync() throws Exception {
-        MorphiumSingleton.get().clearCollection(UncachedObject.class);
+        morphium.clearCollection(UncachedObject.class);
         log.info("Start storing single");
         long start = System.currentTimeMillis();
         for (int i = 0; i < 100; i++) {
             UncachedObject uc = new UncachedObject();
             uc.setCounter(i + 1);
             uc.setValue("nix " + i);
-            MorphiumSingleton.get().store(uc, new AsyncOperationCallback<UncachedObject>() {
+            morphium.store(uc, new AsyncOperationCallback<UncachedObject>() {
                 @Override
                 public void onOperationSucceeded(AsyncOperationType type, Query<UncachedObject> q, long duration, List<UncachedObject> result, UncachedObject entity, Object... param) {
                     asyncCall = true;
@@ -104,6 +105,7 @@ public class BulkInsertTest extends MongoTest {
 
                 @Override
                 public void onOperationError(AsyncOperationType type, Query<UncachedObject> q, long duration, String error, Throwable t, UncachedObject entity, Object... param) {
+                    log.error("Got async error - should not be!!!");
                     asyncSuccess = false;
                 }
             });
@@ -111,10 +113,11 @@ public class BulkInsertTest extends MongoTest {
         waitForWrites();
         long dur = System.currentTimeMillis() - start;
         log.info("storing objects one by one async took " + dur + " ms");
+        Thread.sleep(1000);
         assert (asyncSuccess);
         assert (asyncCall);
 
-        MorphiumSingleton.get().clearCollection(UncachedObject.class);
+        morphium.clearCollection(UncachedObject.class);
 
         log.info("Start storing list");
         List<UncachedObject> lst = new ArrayList<>();
@@ -125,11 +128,11 @@ public class BulkInsertTest extends MongoTest {
             uc.setValue("nix " + i);
             lst.add(uc);
         }
-        MorphiumSingleton.get().storeList(lst);
+        morphium.storeList(lst);
         dur = System.currentTimeMillis() - start;
-        assert (MorphiumSingleton.get().getWriteBufferCount() == 0) : "WriteBufferCount not 0!? Buffered:" + MorphiumSingleton.get().getBufferedWriterBufferCount();
+        assert (morphium.getWriteBufferCount() == 0) : "WriteBufferCount not 0!? Buffered:" + morphium.getBufferedWriterBufferCount();
         log.info("storing objects one by one took " + dur + " ms");
-        Query<UncachedObject> q = MorphiumSingleton.get().createQueryFor(UncachedObject.class);
+        Query<UncachedObject> q = morphium.createQueryFor(UncachedObject.class);
         q.setReadPreferenceLevel(ReadPreferenceLevel.PRIMARY);
         assert (q.countAll() == 1000) : "Assert not all stored yet????";
 
@@ -138,7 +141,7 @@ public class BulkInsertTest extends MongoTest {
 
     @Test(expected = IllegalArgumentException.class)
     public void bulkInsertNonId() throws Exception {
-        MorphiumSingleton.get().dropCollection(Person.class);
+        morphium.dropCollection(Person.class);
         List<Person> prs = new ArrayList<>();
         for (int i = 0; i < 100; i++) {
             Person p = new Person();
@@ -146,6 +149,6 @@ public class BulkInsertTest extends MongoTest {
             p.setName("" + i);
             prs.add(p);
         }
-        MorphiumSingleton.get().storeList(prs);
+        morphium.storeList(prs);
     }
 }

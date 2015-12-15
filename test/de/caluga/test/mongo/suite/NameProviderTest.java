@@ -1,12 +1,15 @@
 package de.caluga.test.mongo.suite;
 
-import com.mongodb.DBCollection;
-import de.caluga.morphium.*;
+import de.caluga.morphium.DefaultNameProvider;
+import de.caluga.morphium.Morphium;
+import de.caluga.morphium.NameProvider;
+import de.caluga.morphium.ObjectMapper;
 import de.caluga.morphium.annotations.Entity;
 import de.caluga.morphium.annotations.Id;
 import de.caluga.morphium.annotations.SafetyLevel;
 import de.caluga.morphium.annotations.WriteSafety;
-import org.bson.types.ObjectId;
+import de.caluga.morphium.driver.bson.MorphiumId;
+import de.caluga.test.mongo.suite.data.UncachedObject;
 import org.junit.Test;
 
 /**
@@ -18,38 +21,38 @@ import org.junit.Test;
 public class NameProviderTest extends MongoTest {
     @Test
     public void testNameProvider() throws Exception {
-        String colName = MorphiumSingleton.get().getMapper().getCollectionName(LogObject.class);
+        String colName = morphium.getMapper().getCollectionName(LogObject.class);
         assert (colName.endsWith("_Test"));
     }
 
     @Test
     public void testStoreWithNameProvider() throws Exception {
-        MorphiumSingleton.get().dropCollection(LogObject.class);
-        MorphiumSingleton.get().dropCollection(LogObject.class, "LogObject_Test", null);
+        morphium.dropCollection(LogObject.class);
+        morphium.dropCollection(LogObject.class, "LogObject_Test", null);
         for (int i = 0; i < 100; i++) {
             LogObject lo = new LogObject();
             lo.setLevel(12);
             lo.setMsg("My Message " + i);
             lo.setTimestamp(System.currentTimeMillis());
-            MorphiumSingleton.get().store(lo);
+            morphium.store(lo);
         }
         waitForAsyncOperationToStart(1000);
         waitForWrites();
-        String colName = MorphiumSingleton.get().getMapper().getCollectionName(LogObject.class);
+        String colName = morphium.getMapper().getCollectionName(LogObject.class);
         assert (colName.endsWith("_Test"));
-        DBCollection col = MorphiumSingleton.get().getDatabase().getCollection(colName);
-        long count = col.getCount();
+//        DBCollection col = morphium.getDatabase().getCollection(colName);
+        long count = morphium.createQueryFor(LogObject.class, colName).countAll();
         assert (count == 100) : "Error - did not store?? " + count;
     }
 
 
     @Test
     public void overrideNameProviderTest() throws Exception {
-        MorphiumSingleton.get().clearCollection(UncachedObject.class);
-        MorphiumSingleton.get().getMapper().setNameProviderForClass(UncachedObject.class, new MyNp());
-        String col = MorphiumSingleton.get().getMapper().getCollectionName(UncachedObject.class);
+        morphium.clearCollection(UncachedObject.class);
+        morphium.getMapper().setNameProviderForClass(UncachedObject.class, new MyNp());
+        String col = morphium.getMapper().getCollectionName(UncachedObject.class);
         assert (col.equals("UncachedObject_Test")) : "Error - name is wrong: " + col;
-        MorphiumSingleton.get().getMapper().setNameProviderForClass(UncachedObject.class, new DefaultNameProvider());
+        morphium.getMapper().setNameProviderForClass(UncachedObject.class, new DefaultNameProvider());
     }
 
     public static class MyNp implements NameProvider {
@@ -69,14 +72,14 @@ public class NameProviderTest extends MongoTest {
         private int level;
         private long timestamp;
         @Id
-        private ObjectId id;
+        private MorphiumId id;
 
 
-        public ObjectId getId() {
+        public MorphiumId getId() {
             return id;
         }
 
-        public void setLog(ObjectId log) {
+        public void setLog(MorphiumId log) {
             this.id = log;
         }
 

@@ -12,6 +12,7 @@ import de.caluga.morphium.annotations.caching.Cache.ClearStrategy;
 import de.caluga.morphium.annotations.caching.NoCache;
 
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 
 @SuppressWarnings("UnusedDeclaration")
 public class CacheHousekeeper extends Thread {
@@ -31,7 +32,7 @@ public class CacheHousekeeper extends Thread {
         gcTimeout = globalCacheTimout;
         morphium = m;
         annotationHelper = m.getARHelper();
-        validTimeForClass = new HashMap<>();
+        validTimeForClass = new ConcurrentHashMap<>();
         setDaemon(true);
 
         //Last use Configuration manager to read out cache configurations from Mongo!
@@ -63,9 +64,7 @@ public class CacheHousekeeper extends Thread {
     }
 
     public void setValidCacheTime(Class<?> cls, int timeout) {
-        HashMap<Class<?>, Integer> v = (HashMap) ((HashMap) validTimeForClass).clone();
-        v.put(cls, timeout);
-        validTimeForClass = v;
+        validTimeForClass.put(cls, timeout);
     }
 
     public Integer getValidCacheTime(Class<?> cls) {
@@ -82,10 +81,10 @@ public class CacheHousekeeper extends Thread {
         while (running) {
             try {
                 Map<Class, List<String>> toDelete = new HashMap<>();
-                Map<Class<?>, Map<String, CacheElement>> cache = morphium.getCache().cloneCache();
+                Map<Class<?>, Map<String, CacheElement>> cache = morphium.getCache().getCache();
                 for (Map.Entry<Class<?>, Map<String, CacheElement>> es : cache.entrySet()) {
                     Class<?> clz = es.getKey();
-                    Map<String, CacheElement> ch = (Map<String, CacheElement>) ((HashMap) es.getValue()).clone();
+                    Map<String, CacheElement> ch = es.getValue();
 
 
                     int maxEntries = -1;
@@ -172,7 +171,7 @@ public class CacheHousekeeper extends Thread {
                             fifoTime.get(fifo).add(k);
                         }
                     }
-                    cache.put(clz, ch);
+//                    cache.put(clz, ch);
                     if (maxEntries > 0 && cache.get(clz).size() - del > maxEntries) {
                         Long[] array;
                         int idx;
@@ -239,25 +238,25 @@ public class CacheHousekeeper extends Thread {
 
                 }
 
-                Map<Class<?>, Map<Object, Object>> idCacheClone = morphium.getCache().cloneIdCache();
+//                Map<Class<?>, Map<Object, Object>> idCacheClone = morphium.getCache().getIdCache();
                 for (Map.Entry<Class, List<String>> et : toDelete.entrySet()) {
                     Class cls = et.getKey();
 
-                    boolean inIdCache = idCacheClone.get(cls) != null;
+                    boolean inIdCache = morphium.getCache().getIdCache().get(cls) != null;
 
                     for (String k : et.getValue()) {
                         if (k.endsWith("idlist")) continue;
                         if (inIdCache) {
                             //remove objects from id cache
                             for (Object f : cache.get(cls).get(k).getFound()) {
-                                idCacheClone.get(cls).remove(morphium.getId(f));
+                                morphium.getCache().getIdCache().get(cls).remove(morphium.getId(f));
                             }
                         }
                         cache.get(cls).remove(k);
                     }
                 }
-                morphium.getCache().setCache(cache);
-                morphium.getCache().setIdCache(idCacheClone);
+//                morphium.getCache().setCache(cache);
+//                morphium.getCache().setIdCache(idCacheClone);
 
 
             } catch (Throwable e) {

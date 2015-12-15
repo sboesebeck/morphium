@@ -3,6 +3,7 @@ package de.caluga.test.mongo.suite;
 import de.caluga.morphium.AnnotationAndReflectionHelper;
 import de.caluga.morphium.ObjectMapperImpl;
 import de.caluga.morphium.annotations.Entity;
+import de.caluga.test.mongo.suite.data.UncachedObject;
 import org.junit.Test;
 
 /**

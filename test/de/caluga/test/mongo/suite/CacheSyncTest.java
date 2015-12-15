@@ -2,7 +2,6 @@ package de.caluga.test.mongo.suite;
 
 import de.caluga.morphium.Morphium;
 import de.caluga.morphium.MorphiumConfig;
-import de.caluga.morphium.MorphiumSingleton;
 import de.caluga.morphium.StatisticKeys;
 import de.caluga.morphium.annotations.SafetyLevel;
 import de.caluga.morphium.annotations.WriteSafety;
@@ -11,11 +10,12 @@ import de.caluga.morphium.annotations.caching.WriteBuffer;
 import de.caluga.morphium.cache.CacheSyncListener;
 import de.caluga.morphium.cache.CacheSyncVetoException;
 import de.caluga.morphium.cache.CacheSynchronizer;
+import de.caluga.morphium.driver.bson.MorphiumId;
 import de.caluga.morphium.messaging.MessageListener;
 import de.caluga.morphium.messaging.Messaging;
 import de.caluga.morphium.messaging.Msg;
 import de.caluga.morphium.query.Query;
-import org.bson.types.ObjectId;
+import de.caluga.test.mongo.suite.data.CachedObject;
 import org.junit.Test;
 
 /**
@@ -33,12 +33,12 @@ public class CacheSyncTest extends MongoTest {
 
     @Test
     public void sendClearMsgTest() throws Exception {
-        MorphiumSingleton.get().dropCollection(Msg.class);
-        Messaging msg = new Messaging(MorphiumSingleton.get(), 100, true);
+        morphium.dropCollection(Msg.class);
+        Messaging msg = new Messaging(morphium, 100, true);
         msg.start();
-        CacheSynchronizer cs = new CacheSynchronizer(msg, MorphiumSingleton.get());
+        CacheSynchronizer cs = new CacheSynchronizer(msg, morphium);
 
-        Query<Msg> q = MorphiumSingleton.get().createQueryFor(Msg.class);
+        Query<Msg> q = morphium.createQueryFor(Msg.class);
         long cnt = q.countAll();
         assert (cnt == 0) : "Already a message?!?! " + cnt;
 
@@ -57,55 +57,55 @@ public class CacheSyncTest extends MongoTest {
             CachedObject o = new CachedObject();
             o.setCounter(i);
             o.setValue("a value");
-            MorphiumSingleton.get().store(o);
+            morphium.store(o);
         }
         waitForWrites();
         for (int i = 0; i < 100; i++) {
-            Query<CachedObject> c = MorphiumSingleton.get().createQueryFor(CachedObject.class);
+            Query<CachedObject> c = morphium.createQueryFor(CachedObject.class);
             c = c.f("counter").eq(i);
             c.asList();
         }
-        assert (MorphiumSingleton.get().getStatistics().get(StatisticKeys.CACHE_ENTRIES.name()) != null) : "Cache entries not set?";
-        assert (MorphiumSingleton.get().getStatistics().get(StatisticKeys.CACHE_ENTRIES.name()) > 0) : "Cache entries not set? " + MorphiumSingleton.get().getStatistics().get(StatisticKeys.CACHE_ENTRIES.name());
-        Query<CachedObject> c = MorphiumSingleton.get().createQueryFor(CachedObject.class);
+        assert (morphium.getStatistics().get(StatisticKeys.CACHE_ENTRIES.name()) != null) : "Cache entries not set?";
+        assert (morphium.getStatistics().get(StatisticKeys.CACHE_ENTRIES.name()) > 0) : "Cache entries not set? " + morphium.getStatistics().get(StatisticKeys.CACHE_ENTRIES.name());
+        Query<CachedObject> c = morphium.createQueryFor(CachedObject.class);
         c = c.f("counter").eq(10);
-        ObjectId id = c.get().getId();
-        Double cnt = MorphiumSingleton.get().getStatistics().get(StatisticKeys.CACHE_ENTRIES.name());
-        MorphiumSingleton.get().getCache().removeEntryFromCache(CachedObject.class, id);
-        Double cnt2 = MorphiumSingleton.get().getStatistics().get(StatisticKeys.CACHE_ENTRIES.name());
-        assert (MorphiumSingleton.get().getStatistics().get(StatisticKeys.CACHE_ENTRIES.name()) <= cnt - 1) : "Cache entries not set?";
+        MorphiumId id = c.get().getId();
+        Double cnt = morphium.getStatistics().get(StatisticKeys.CACHE_ENTRIES.name());
+        morphium.getCache().removeEntryFromCache(CachedObject.class, id);
+        Double cnt2 = morphium.getStatistics().get(StatisticKeys.CACHE_ENTRIES.name());
+        assert (morphium.getStatistics().get(StatisticKeys.CACHE_ENTRIES.name()) <= cnt - 1) : "Cache entries not set?";
         log.info("Count 1: " + cnt + " ---> " + cnt2);
     }
 
     @Test
     public void clearCacheTest() throws Exception {
 
-        Messaging msg1 = new Messaging(MorphiumSingleton.get(), 100, true);
+        Messaging msg1 = new Messaging(morphium, 100, true);
         msg1.start();
-        Messaging msg2 = new Messaging(MorphiumSingleton.get(), 100, true);
+        Messaging msg2 = new Messaging(morphium, 100, true);
         msg2.start();
-        CacheSynchronizer cs1 = new CacheSynchronizer(msg1, MorphiumSingleton.get());
-        CacheSynchronizer cs2 = new CacheSynchronizer(msg2, MorphiumSingleton.get());
+        CacheSynchronizer cs1 = new CacheSynchronizer(msg1, morphium);
+        CacheSynchronizer cs2 = new CacheSynchronizer(msg2, morphium);
 
 
         for (int i = 0; i < 100; i++) {
             CachedObject o = new CachedObject();
             o.setCounter(i);
             o.setValue("a value");
-            MorphiumSingleton.get().store(o);
+            morphium.store(o);
         }
         waitForWrites();
         for (int i = 0; i < 100; i++) {
-            Query<CachedObject> c = MorphiumSingleton.get().createQueryFor(CachedObject.class);
+            Query<CachedObject> c = morphium.createQueryFor(CachedObject.class);
             c = c.f("counter").eq(i);
             c.asList();
         }
-        System.out.println("Stats " + MorphiumSingleton.get().getStatistics().toString());
-        assert (MorphiumSingleton.get().getStatistics().get(StatisticKeys.CACHE_ENTRIES.name()) != null) : "Cache entries not set?";
+        System.out.println("Stats " + morphium.getStatistics().toString());
+        assert (morphium.getStatistics().get(StatisticKeys.CACHE_ENTRIES.name()) != null) : "Cache entries not set?";
         cs1.sendClearAllMessage("test");
         Thread.sleep(2500);
-        if ((MorphiumSingleton.get().getStatistics().get(StatisticKeys.CACHE_ENTRIES.name()) != 0)) {
-            throw new AssertionError("Cache entries set? Entries: " + MorphiumSingleton.get().getStatistics().get(StatisticKeys.CACHE_ENTRIES.name()));
+        if ((morphium.getStatistics().get(StatisticKeys.CACHE_ENTRIES.name()) != 0)) {
+            throw new AssertionError("Cache entries set? Entries: " + morphium.getStatistics().get(StatisticKeys.CACHE_ENTRIES.name()));
         }
         msg1.setRunning(false);
         msg2.setRunning(false);
@@ -115,13 +115,13 @@ public class CacheSyncTest extends MongoTest {
 
     @Test
     public void idCacheTest() throws Exception {
-        MorphiumSingleton.get().dropCollection(Msg.class);
-        MorphiumSingleton.get().dropCollection(IdCachedObject.class);
+        morphium.dropCollection(Msg.class);
+        morphium.dropCollection(IdCachedObject.class);
         //Making sure, indices are only created once...
         IdCachedObject o = new IdCachedObject();
         o.setCounter(0);
         o.setValue("a value");
-        MorphiumSingleton.get().store(o);
+        morphium.store(o);
         waitForAsyncOperationToStart(1000000);
         waitForWrites();
         Thread.sleep(2000);
@@ -130,7 +130,7 @@ public class CacheSyncTest extends MongoTest {
             o = new IdCachedObject();
             o.setCounter(i);
             o.setValue("a value");
-            MorphiumSingleton.get().store(o);
+            morphium.store(o);
         }
         waitForWriteToStart(1000000);
         waitForWrites();
@@ -139,10 +139,10 @@ public class CacheSyncTest extends MongoTest {
 
         start = System.currentTimeMillis();
         for (int i = 0; i < 100; i++) {
-            Query<IdCachedObject> q = MorphiumSingleton.get().createQueryFor(IdCachedObject.class);
+            Query<IdCachedObject> q = morphium.createQueryFor(IdCachedObject.class);
             IdCachedObject obj = q.f("counter").eq(i).get();
             obj.setCounter(i + 1000);
-            MorphiumSingleton.get().store(obj);
+            morphium.store(obj);
         }
         waitForWriteToStart(1000000);
         waitForWrites();
@@ -150,17 +150,17 @@ public class CacheSyncTest extends MongoTest {
         log.info("Updating without synchronizer: " + dur + " ms");
 
 
-        MorphiumSingleton.get().clearCollection(IdCachedObject.class);
-        Messaging msg1 = new Messaging(MorphiumSingleton.get(), 100, true);
+        morphium.clearCollection(IdCachedObject.class);
+        Messaging msg1 = new Messaging(morphium, 100, true);
         msg1.start();
 
-        CacheSynchronizer cs1 = new CacheSynchronizer(msg1, MorphiumSingleton.get());
+        CacheSynchronizer cs1 = new CacheSynchronizer(msg1, morphium);
         start = System.currentTimeMillis();
         for (int i = 0; i < 100; i++) {
             o = new IdCachedObject();
             o.setCounter(i);
             o.setValue("a value");
-            MorphiumSingleton.get().store(o);
+            morphium.store(o);
         }
         waitForWrites();
         dur = System.currentTimeMillis() - start;
@@ -170,7 +170,7 @@ public class CacheSyncTest extends MongoTest {
         start = System.currentTimeMillis();
         int notFoundCounter = 0;
         for (int i = 0; i < 100; i++) {
-            Query<IdCachedObject> q = MorphiumSingleton.get().createQueryFor(IdCachedObject.class);
+            Query<IdCachedObject> q = morphium.createQueryFor(IdCachedObject.class);
             q = q.f("counter").eq(i);
             IdCachedObject obj = q.get();
             if (obj == null) {
@@ -185,7 +185,7 @@ public class CacheSyncTest extends MongoTest {
                 obj.setCounter(i + 2000);
             }
             assert (notFoundCounter < 10) : "too many objects not found";
-            MorphiumSingleton.get().store(obj);
+            morphium.store(obj);
         }
         dur = System.currentTimeMillis() - start;
         log.info("Updates queued... " + dur + "ms");
@@ -201,7 +201,7 @@ public class CacheSyncTest extends MongoTest {
 
     private void waitForWriteToStart(int max) {
         int cnt = 0;
-        while (MorphiumSingleton.get().getWriteBufferCount() == 0) {
+        while (morphium.getWriteBufferCount() == 0) {
             //wait for things to get started...
             Thread.yield();
             cnt++;
@@ -219,14 +219,14 @@ public class CacheSyncTest extends MongoTest {
 
     @Test
     public void testListeners() throws Exception {
-        MorphiumSingleton.get().dropCollection(IdCachedObject.class);
-        final Messaging msg1 = new Messaging(MorphiumSingleton.get(), 100, true);
+        morphium.dropCollection(IdCachedObject.class);
+        final Messaging msg1 = new Messaging(morphium, 100, true);
         msg1.start();
-        final Messaging msg2 = new Messaging(MorphiumSingleton.get(), 100, true);
+        final Messaging msg2 = new Messaging(morphium, 100, true);
         msg2.start();
 
 
-        final CacheSynchronizer cs1 = new CacheSynchronizer(msg1, MorphiumSingleton.get());
+        final CacheSynchronizer cs1 = new CacheSynchronizer(msg1, morphium);
         cs1.addSyncListener(new CacheSyncListener() {
             @Override
             public void preClear(Class cls, Msg m) throws CacheSyncVetoException {
@@ -249,7 +249,7 @@ public class CacheSyncTest extends MongoTest {
             }
         });
 
-        final CacheSynchronizer cs2 = new CacheSynchronizer(msg2, MorphiumSingleton.get());
+        final CacheSynchronizer cs2 = new CacheSynchronizer(msg2, morphium);
         cs2.addSyncListener(new CacheSyncListener() {
             @Override
             public void preClear(Class cls, Msg m) throws CacheSyncVetoException {
@@ -275,7 +275,7 @@ public class CacheSyncTest extends MongoTest {
 
         new Thread() {
             public void run() {
-                MorphiumSingleton.get().store(new CachedObject());
+                morphium.store(new CachedObject());
                 waitForWrites();
                 try {
                     Thread.sleep(2500);
@@ -305,12 +305,12 @@ public class CacheSyncTest extends MongoTest {
 
     @Test
     public void cacheSyncTest() throws Exception {
-        MorphiumSingleton.get().dropCollection(Msg.class);
+        morphium.dropCollection(Msg.class);
         createCachedObjects(1000);
 
-        Morphium m1 = MorphiumSingleton.get();
+        Morphium m1 = morphium;
         MorphiumConfig cfg2 = new MorphiumConfig();
-        cfg2.setAdr(m1.getConfig().getAdr());
+        cfg2.setHostSeed(m1.getConfig().getHostSeed());
         cfg2.setDatabase(m1.getConfig().getDatabase());
 
         Morphium m2 = new Morphium(cfg2);

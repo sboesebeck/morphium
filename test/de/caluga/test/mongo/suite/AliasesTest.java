@@ -1,6 +1,5 @@
 package de.caluga.test.mongo.suite;
 
-import de.caluga.morphium.MorphiumSingleton;
 import de.caluga.morphium.query.Query;
 import org.junit.Test;
 
@@ -15,9 +14,9 @@ import java.util.Date;
 public class AliasesTest extends MongoTest {
     @Test
     public void aliasTest() throws Exception {
-        Query<ComplexObject> q = MorphiumSingleton.get().createQueryFor(ComplexObject.class).f("last_changed").eq(new Date());
+        Query<ComplexObject> q = morphium.createQueryFor(ComplexObject.class).f("last_changed").eq(new Date());
         assert (q != null) : "Null Query?!?!?";
-        assert (q.toQueryObject().toString().startsWith("{ \"changed\" :")) : "Wrong query: " + q.toQueryObject().toString();
+        assert (q.toQueryObject().toString().startsWith("{changed=")) : "Wrong query: " + q.toQueryObject().toString();
         log.info("All ok");
     }
 }

@@ -1,8 +1,8 @@
-package de.caluga.test.mongo.suite;
+package de.caluga.test.mongo.suite.data;
 
 import de.caluga.morphium.annotations.Entity;
 import de.caluga.morphium.annotations.Id;
-import org.bson.types.ObjectId;
+import de.caluga.morphium.driver.bson.MorphiumId;
 import org.hibernate.validator.constraints.Email;
 
 import javax.validation.constraints.*;
@@ -17,7 +17,7 @@ import java.util.List;
 public class ValidationTestObject {
 
     @Id
-    private ObjectId id;
+    private MorphiumId id;
 
     @Min(3)
     @Max(7)
@@ -38,11 +38,11 @@ public class ValidationTestObject {
     @Email
     private String email;
 
-    public ObjectId getId() {
+    public MorphiumId getId() {
         return id;
     }
 
-    public void setId(ObjectId id) {
+    public void setId(MorphiumId id) {
         this.id = id;
     }
 

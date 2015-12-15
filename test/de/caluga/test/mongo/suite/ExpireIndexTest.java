@@ -1,8 +1,8 @@
 package de.caluga.test.mongo.suite;
 
-import de.caluga.morphium.MorphiumSingleton;
 import de.caluga.morphium.annotations.CreationTime;
 import de.caluga.morphium.annotations.Index;
+import de.caluga.test.mongo.suite.data.UncachedObject;
 import org.junit.Test;
 
 import java.util.Date;
@@ -17,17 +17,18 @@ import java.util.Date;
 public class ExpireIndexTest extends MongoTest {
     @Test
     public void testExpiry() throws InterruptedException {
-        MorphiumSingleton.get().dropCollection(UCobj.class);
+        morphium.dropCollection(UCobj.class);
         for (int i = 0; i < 100; i++) {
             UCobj u = new UCobj();
             u.setCounter(i);
             u.setValue("V" + i);
-            MorphiumSingleton.get().store(u);
+            morphium.store(u);
         }
-        assert (MorphiumSingleton.get().createQueryFor(UCobj.class).countAll() == 100);
+        Thread.sleep(500);
+        assert (morphium.createQueryFor(UCobj.class).countAll() == 100);
         log.info("Waiting for mongo to clear it");
         Thread.sleep(65000);
-        assert (MorphiumSingleton.get().createQueryFor(UCobj.class).countAll() == 0);
+        assert (morphium.createQueryFor(UCobj.class).countAll() == 0);
     }
 
     @Index(value = {"created"}, options = {"expireAfterSeconds:5"})

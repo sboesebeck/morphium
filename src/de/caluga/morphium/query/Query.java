@@ -1,7 +1,6 @@
 package de.caluga.morphium.query;
 
-import com.mongodb.DBObject;
-import com.mongodb.ServerAddress;
+import de.caluga.morphium.AnnotationAndReflectionHelper;
 import de.caluga.morphium.FilterExpression;
 import de.caluga.morphium.Morphium;
 import de.caluga.morphium.annotations.ReadPreferenceLevel;
@@ -50,7 +49,7 @@ public interface Query<T> extends Cloneable {
      *
      * @return the serveraddress the query was executed on, null if not executed yet
      */
-    ServerAddress getServer();
+    String getServer();
 
     /**
      * same as f(field.name())
@@ -103,7 +102,7 @@ public interface Query<T> extends Cloneable {
      * @param n - sort
      * @return the query
      */
-    Query<T> sort(Map<String, Object> n);
+    Query<T> sort(Map<String, Integer> n);
 
     /**
      * set order by prefixing field names with - for reverse ordering (+ or nothing default)
@@ -136,7 +135,7 @@ public interface Query<T> extends Cloneable {
      *
      * @return query object
      */
-    DBObject toQueryObject();
+    Map<String, Object> toQueryObject();
 
     /**
      * what type this query is for
@@ -212,7 +211,11 @@ public interface Query<T> extends Cloneable {
      */
     Query<T> q();
 
-    List<T> complexQuery(DBObject query);
+    List<T> complexQuery(Map<String, Object> query);
+
+    AnnotationAndReflectionHelper getARHelper();
+
+    void setARHelpter(AnnotationAndReflectionHelper ar);
 
     /**
      * just sends the given query to the MongoDBDriver and masrhalls objects as listed
@@ -223,9 +226,9 @@ public interface Query<T> extends Cloneable {
      * @param limit - maximium number of results
      * @return list of objects matching query
      */
-    List<T> complexQuery(DBObject query, Map<String, Integer> sort, int skip, int limit);
+    List<T> complexQuery(Map<String, Object> query, Map<String, Integer> sort, int skip, int limit);
 
-    List<T> complexQuery(DBObject query, String sort, int skip, int limit);
+    List<T> complexQuery(Map<String, Object> query, String sort, int skip, int limit);
 
     /**
      * same as copmplexQuery(query,0,1).get(0);
@@ -233,17 +236,17 @@ public interface Query<T> extends Cloneable {
      * @param query - query
      * @return type
      */
-    T complexQueryOne(DBObject query);
+    T complexQueryOne(Map<String, Object> query);
 
-    T complexQueryOne(DBObject query, Map<String, Integer> sort, int skip);
+    T complexQueryOne(Map<String, Object> query, Map<String, Integer> sort, int skip);
 
-    T complexQueryOne(DBObject query, Map<String, Integer> sort);
+    T complexQueryOne(Map<String, Object> query, Map<String, Integer> sort);
 
     int getLimit();
 
     int getSkip();
 
-    Map<String, Object> getSort();
+    Map<String, Integer> getSort();
 
     Query<T> clone() throws CloneNotSupportedException;
 
@@ -271,7 +274,7 @@ public interface Query<T> extends Cloneable {
      *
      * @param n
      */
-    void setCollectionName(String n);
+    Query<T> setCollectionName(String n);
 
     String getCollectionName();
 
@@ -290,6 +293,10 @@ public interface Query<T> extends Cloneable {
     void setAutoValuesEnabled(boolean autoValues);
 
     boolean isAutoValuesEnabled();
+
+    String[] getTags();
+
+    void addTag(String name, String value);
 
     void disableAutoValues();
 
@@ -312,6 +319,7 @@ public interface Query<T> extends Cloneable {
 
 
     List distinct(String field);
+
 
     enum TextSearchLanguages {
         danish,
