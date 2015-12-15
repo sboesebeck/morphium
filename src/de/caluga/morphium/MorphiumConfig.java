@@ -1,18 +1,17 @@
 package de.caluga.morphium;
 
 
-import com.mongodb.DB;
-import com.mongodb.ServerAddress;
 import de.caluga.morphium.aggregation.Aggregator;
 import de.caluga.morphium.aggregation.AggregatorFactory;
 import de.caluga.morphium.aggregation.AggregatorFactoryImpl;
 import de.caluga.morphium.aggregation.AggregatorImpl;
 import de.caluga.morphium.annotations.AdditionalData;
 import de.caluga.morphium.annotations.Embedded;
-import de.caluga.morphium.annotations.ReadPreferenceLevel;
 import de.caluga.morphium.annotations.Transient;
 import de.caluga.morphium.cache.MorphiumCache;
 import de.caluga.morphium.cache.MorphiumCacheImpl;
+import de.caluga.morphium.driver.ReadPreference;
+import de.caluga.morphium.driver.mongodb.Driver;
 import de.caluga.morphium.query.*;
 import de.caluga.morphium.writer.AsyncWriterImpl;
 import de.caluga.morphium.writer.BufferedMorphiumWriterImpl;
@@ -41,8 +40,6 @@ public class MorphiumConfig {
     private int writeCacheTimeout = 5000;
     private String database;
     @Transient
-    private DB db = null;
-    @Transient
     private MorphiumWriter writer;
     @Transient
     private MorphiumWriter bufferedWriter;
@@ -56,6 +53,7 @@ public class MorphiumConfig {
     private boolean globalJ = false;
     private boolean checkForNew = false;
     private int writeTimeout = 0;
+    private boolean replicaset = true;
 
     private int globalLogLevel = 0;
     private boolean globalLogSynced = false;
@@ -78,6 +76,7 @@ public class MorphiumConfig {
     private boolean autoreconnect = true;
     private int maxAutoReconnectTime = 0;
     private int blockingThreadsMultiplier = 5;
+
     @Transient
     private Class<? extends Query> queryClass;
     @Transient
@@ -102,8 +101,6 @@ public class MorphiumConfig {
     boolean bufferedWritesEnabled = true;
     boolean camelCaseConversionEnabled = true;
 
-    @Transient
-    private List<ServerAddress> adr = new ArrayList<>();
     //securitysettings
 //    private Class<? extends Object> userClass, roleClass, aclClass;
     private String mongoAdminUser, mongoAdminPwd; //THE superuser!
@@ -112,7 +109,9 @@ public class MorphiumConfig {
     @Transient
     private Class<? extends MongoField> fieldImplClass = MongoFieldImpl.class;
     @Transient
-    private ReadPreferenceLevel defaultReadPreference;
+    private ReadPreference defaultReadPreference;
+
+    private String driverClass;
     private int acceptableLatencyDifference = 15;
     private int threadPoolMessagingCoreSize = 0;
     private int threadPoolMessagingMaxSize = 100;
@@ -131,7 +130,29 @@ public class MorphiumConfig {
     private int localThreashold = 0;
     private int maxConnectionIdleTime = 10000;
     private int maxConnectionLifeTime = 60000;
+
+
+    private List<String> hostSeed = new ArrayList<>();
+
+    private String defaultTags;
     private String requiredReplicaSetName = null;
+
+    public boolean isReplicaset() {
+        return replicaset;
+    }
+
+    public void setReplicasetMonitoring(boolean replicaset) {
+        this.replicaset = replicaset;
+    }
+
+    public String getDriverClass() {
+        if (driverClass == null) driverClass = Driver.class.getName();
+        return driverClass;
+    }
+
+    public void setDriverClass(String driverClass) {
+        this.driverClass = driverClass;
+    }
 
     public MorphiumConfig(Properties prop) {
         AnnotationAndReflectionHelper an = new AnnotationAndReflectionHelper(true); //settings always convert camel case
@@ -145,6 +166,14 @@ public class MorphiumConfig {
                         f.set(this, Integer.parseInt((String) prop.get(f.getName())));
                     } else if (f.getType().equals(String.class)) {
                         f.set(this, prop.get(f.getName()));
+                    } else if (List.class.isAssignableFrom(f.getType())) {
+                        String lst = (String) prop.get(f.getName());
+                        List<String> l = new ArrayList<>();
+                        lst = lst.replaceAll("[\\[\\]]", "");
+                        for (String s : lst.split(",")) {
+                            l.add(s);
+                        }
+                        f.set(this, l);
                     } else if (f.getType().equals(boolean.class) || f.getType().equals(Boolean.class)) {
                         f.set(this, prop.get(f.getName()).equals("true"));
                     } else if (f.getType().equals(long.class) || f.getType().equals(Long.class)) {
@@ -170,8 +199,6 @@ public class MorphiumConfig {
 
     public MorphiumConfig(String db, int maxConnections, int globalCacheValidTime, int housekeepingTimeout) {
         database = db;
-        adr = new ArrayList<>();
-
         this.maxConnections = maxConnections;
         this.globalCacheValidTime = globalCacheValidTime;
         this.housekeepingTimeout = housekeepingTimeout;
@@ -200,7 +227,7 @@ public class MorphiumConfig {
             if (k.equals("hosts")) {
                 for (String adr : value.split(",")) {
                     String a[] = adr.split(":");
-                    cfg.addHost(a[0].trim(), Integer.parseInt(a[1].trim()));
+                    cfg.addHostToSeed(a[0].trim(), Integer.parseInt(a[1].trim()));
                 }
 
             } else {
@@ -389,13 +416,6 @@ public class MorphiumConfig {
         this.bufferedWriter = bufferedWriter;
     }
 
-    public DB getDb() {
-        return db;
-    }
-
-    public void setDb(DB db) {
-        this.db = db;
-    }
 
     public MorphiumWriter getWriter() {
         if (writer == null) {
@@ -480,11 +500,11 @@ public class MorphiumConfig {
         this.mongoPassword = mongoPassword;
     }
 
-    public ReadPreferenceLevel getDefaultReadPreference() {
+    public ReadPreference getDefaultReadPreference() {
         return defaultReadPreference;
     }
 
-    public void setDefaultReadPreference(ReadPreferenceLevel defaultReadPreference) {
+    public void setDefaultReadPreference(ReadPreference defaultReadPreference) {
         this.defaultReadPreference = defaultReadPreference;
     }
 
@@ -512,105 +532,66 @@ public class MorphiumConfig {
         this.writeCacheTimeout = writeCacheTimeout;
     }
 
-    public List<ServerAddress> getAdr() {
-        return adr;
-    }
-
-    /**
-     * add addresses to your servers here. Depending on isREplicaSet() and isPaired() one ore more server addresses are needed
-     */
-    public void setAdr(List<ServerAddress> adr) {
-        this.adr = adr;
-    }
 
     /**
      * setting hosts as Host:Port
      *
      * @param str list of hosts, with or without port
      */
-    public void setHosts(List<String> str) throws UnknownHostException {
-        adr.clear();
-
-        for (String s : str) {
-            s = s.replaceAll(" ", "");
-            String[] h = s.split(":");
-            if (h.length == 1) {
-                addHost(h[0], 27017);
-            } else {
-                addHost(h[0], Integer.parseInt(h[1]));
-            }
-        }
+    public void setHostSeed(List<String> str) throws UnknownHostException {
+        hostSeed = str;
     }
 
-    public void setHosts(List<String> str, List<Integer> ports) throws UnknownHostException {
-        adr.clear();
+    public void setHostSeed(List<String> str, List<Integer> ports) throws UnknownHostException {
+        hostSeed.clear();
         for (int i = 0; i < str.size(); i++) {
-            String host = str.get(i).replaceAll(" ", "");
-            if (ports.size() < i) {
-                addHost(host, 27017);
-            } else {
-                addHost(host, ports.get(i));
-            }
+            String host = str.get(i).replaceAll(" ", "") + ":" + ports.get(i);
+            hostSeed.add(host);
         }
     }
 
-    public void setHosts(String hostPorts) throws UnknownHostException {
-        adr.clear();
+    public List<String> getHostSeed() {
+        return hostSeed;
+    }
+
+    public void setHostSeed(String hostPorts) throws UnknownHostException {
+        hostSeed.clear();
         String h[] = hostPorts.split(",");
         for (String host : h) {
-            addHost(host);
+            addHostToSeed(host);
         }
     }
 
-    public void setHosts(String hosts, String ports) throws UnknownHostException {
-        adr.clear();
+    public void setHostSeed(String hosts, String ports) throws UnknownHostException {
+        hostSeed.clear();
         hosts = hosts.replaceAll(" ", "");
         ports = ports.replaceAll(" ", "");
         String h[] = hosts.split(",");
         String p[] = ports.split(",");
         for (int i = 0; i < h.length; i++) {
             if (p.length < i) {
-                addHost(h[i], 27017);
+                addHostToSeed(h[i], 27017);
             } else {
-                addHost(h[i], Integer.parseInt(p[i]));
+                addHostToSeed(h[i], Integer.parseInt(p[i]));
             }
         }
 
     }
 
-    /**
-     * add addresses to your servers here. Depending on isREplicaSet() and isPaired() one ore more server addresses are needed
-     * use addHost instead
-     */
-    @Deprecated
-    public void addAddress(String host, int port) throws UnknownHostException {
-        addHost(host, port);
+
+    public void addHostToSeed(String host, int port) throws UnknownHostException {
+        host = host.replaceAll(" ", "") + ":" + port;
+        hostSeed.add(host);
     }
 
-    public void addHost(String host, int port) throws UnknownHostException {
-        host = host.replaceAll(" ", "");
-        ServerAddress sa = new ServerAddress(host, port);
-        adr.add(sa);
-    }
 
-    /**
-     * use addhost instead
-     *
-     * @param host
-     * @throws UnknownHostException
-     */
-    @Deprecated
-    public void addAddress(String host) throws UnknownHostException {
-        addHost(host);
-    }
-
-    public void addHost(String host) throws UnknownHostException {
+    public void addHostToSeed(String host) throws UnknownHostException {
         host = host.replaceAll(" ", "");
         if (host.contains(":")) {
             String[] h = host.split(":");
-            addHost(h[0], Integer.parseInt(h[1]));
+            addHostToSeed(h[0], Integer.parseInt(h[1]));
         } else {
-            addHost(host, 27017);
+            addHostToSeed(host, 27017);
         }
     }
 
@@ -668,7 +649,7 @@ public class MorphiumConfig {
     public String toString() {
         updateAdditionals();
         try {
-            return getOmClass().newInstance().marshall(this).toString();
+            return Utils.toJsonString(getOmClass().newInstance().marshall(this));
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
@@ -714,14 +695,6 @@ public class MorphiumConfig {
         if (!defaults.getQueryFact().getClass().equals(getQueryFact().getClass())) {
             p.put("queryFact_I_ClassName", getQueryFact().getClass().getName());
         }
-        StringBuilder b = new StringBuilder();
-        String del = "";
-        for (ServerAddress a : getAdr()) {
-            b.append(del);
-            b.append(a.getHost()).append(":").append(a.getPort());
-            del = ", ";
-        }
-        p.put("hosts", b.toString());
     }
 
     public MorphiumWriter getAsyncWriter() {
@@ -1089,4 +1062,30 @@ public class MorphiumConfig {
     public void setLogSyncedForPrefix(String cls, boolean synced) {
         System.getProperties().put("morphium.log.synced." + cls, synced);
     }
+
+    public String getDefaultTags() {
+        return defaultTags;
+    }
+
+    public void addDefaultTag(String name, String value) {
+        if (defaultTags != null) {
+            defaultTags += ",";
+        } else {
+            defaultTags = "";
+        }
+        defaultTags += name + ":" + value;
+    }
+
+
+    public List<Map<String, String>> getDefaultTagSet() {
+        if (defaultTags == null) return null;
+        List<Map<String, String>> tagList = new ArrayList<>();
+
+        for (String t : defaultTags.split(",")) {
+            String[] tag = t.split(":");
+            tagList.add(Utils.getMap(tag[0], tag[1]));
+        }
+        return tagList;
+    }
+
 }

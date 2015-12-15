@@ -4,6 +4,8 @@ package de.caluga.test.mongo.suite;/**
 
 import de.caluga.morphium.Morphium;
 import de.caluga.morphium.MorphiumConfig;
+import de.caluga.test.mongo.suite.data.CachedObject;
+import de.caluga.test.mongo.suite.data.UncachedObject;
 
 /**
  * TODO: Add Documentation here
@@ -13,7 +15,7 @@ public class QuitProperlyTest {
 
     public static void main(String args[]) throws Exception {
         MorphiumConfig cfg = new MorphiumConfig("morphium-test", 10, 1000, 1000);
-        cfg.addHost("localhost");
+        cfg.addHostToSeed("localhost");
         Morphium m = new Morphium(cfg);
 
         m.createQueryFor(UncachedObject.class).limit(10).asList();

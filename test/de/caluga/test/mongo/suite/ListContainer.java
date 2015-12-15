@@ -2,7 +2,9 @@ package de.caluga.test.mongo.suite;
 
 import de.caluga.morphium.annotations.*;
 import de.caluga.morphium.annotations.caching.NoCache;
-import org.bson.types.ObjectId;
+import de.caluga.morphium.driver.bson.MorphiumId;
+import de.caluga.test.mongo.suite.data.EmbeddedObject;
+import de.caluga.test.mongo.suite.data.UncachedObject;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -18,7 +20,7 @@ import java.util.List;
 @NoCache
 public class ListContainer {
     @Id
-    ObjectId id;
+    MorphiumId id;
     @Property
     private List<String> stringList;
     private String name;
@@ -35,11 +37,11 @@ public class ListContainer {
         embeddedObjectList = new ArrayList<>();
     }
 
-    public ObjectId getId() {
+    public MorphiumId getId() {
         return id;
     }
 
-    public void setId(ObjectId id) {
+    public void setId(MorphiumId id) {
         this.id = id;
     }
 

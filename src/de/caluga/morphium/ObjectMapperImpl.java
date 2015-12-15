@@ -1,12 +1,9 @@
 package de.caluga.morphium;
 
-import com.mongodb.BasicDBList;
-import com.mongodb.BasicDBObject;
-import com.mongodb.DBObject;
-import com.mongodb.DBRef;
 import de.caluga.morphium.annotations.*;
+import de.caluga.morphium.driver.bson.MorphiumId;
+import de.caluga.morphium.mapping.BigIntegerTypeMapper;
 import de.caluga.morphium.query.Query;
-import org.bson.types.ObjectId;
 import org.json.simple.parser.ContainerFactory;
 import org.json.simple.parser.JSONParser;
 import org.json.simple.parser.ParseException;
@@ -16,30 +13,32 @@ import sun.reflect.ReflectionFactory;
 
 import java.io.*;
 import java.lang.reflect.*;
+import java.math.BigInteger;
 import java.util.*;
-import java.util.concurrent.CopyOnWriteArrayList;
 
 /**
  * User: Stpehan Bösebeck
  * Date: 26.03.12
  * Time: 19:36
- * <p/>
+ * <p>
  */
 @SuppressWarnings({"ConstantConditions", "MismatchedQueryAndUpdateOfCollection", "unchecked", "MismatchedReadAndWriteOfArray"})
 public class ObjectMapperImpl implements ObjectMapper {
     private static Logger log = new Logger(ObjectMapperImpl.class);
-    private volatile HashMap<Class<?>, NameProvider> nameProviders;
+    private volatile Map<Class<?>, NameProvider> nameProviders;
     private volatile AnnotationAndReflectionHelper annotationHelper = new AnnotationAndReflectionHelper(true);
     private Morphium morphium;
     private JSONParser jsonParser = new JSONParser();
+
+    private Map<Class, TypeMapper> customMapper;
 
     private volatile List<Class<?>> mongoTypes;
     final ReflectionFactory reflection = ReflectionFactory.getReflectionFactory();
 
     public ObjectMapperImpl() {
 
-        nameProviders = new HashMap<>();
-        mongoTypes = new CopyOnWriteArrayList<>();
+        nameProviders = new Hashtable<>();
+        mongoTypes = new Vector<>();
 
         mongoTypes.add(String.class);
         mongoTypes.add(Character.class);
@@ -50,6 +49,9 @@ public class ObjectMapperImpl implements ObjectMapper {
         mongoTypes.add(Date.class);
         mongoTypes.add(Boolean.class);
         mongoTypes.add(Byte.class);
+        customMapper = new Hashtable<>();
+        customMapper.put(BigInteger.class, new BigIntegerTypeMapper());
+
 
     }
 
@@ -82,9 +84,7 @@ public class ObjectMapperImpl implements ObjectMapper {
      * @param np  - the NameProvider for that class
      */
     public void setNameProviderForClass(Class<?> cls, NameProvider np) {
-        HashMap<Class<?>, NameProvider> nps = (HashMap) ((HashMap) nameProviders).clone();
-        nps.put(cls, np);
-        nameProviders = nps;
+        nameProviders.put(cls, np);
     }
 
     public NameProvider getNameProviderForClass(Class<?> cls) {
@@ -139,6 +139,16 @@ public class ObjectMapperImpl implements ObjectMapper {
         if (annotationHelper.isEntity(o)) {
             return marshall(o);
         }
+        if (o.getClass().isPrimitive()) {
+            return o;
+        }
+        if (o.getClass().isArray()) {
+            ArrayList lst = new ArrayList();
+            for (int i = 0; i < Array.getLength(o); i++) {
+                lst.add(marshallIfNecessary(Array.get(o, i)));
+            }
+            return createDBList(lst);
+        }
         if (Collection.class.isAssignableFrom(o.getClass())) {
             ArrayList lst = new ArrayList((Collection) o);
             return createDBList(lst);
@@ -149,9 +159,33 @@ public class ObjectMapperImpl implements ObjectMapper {
         return o;
     }
 
+    @Override
+    public void registerCustomTypeMapper(Class c, TypeMapper m) {
+        customMapper.put(c, m);
+    }
+
+    @Override
+    public void deregisterTypeMapper(Class c) {
+        customMapper.remove(c);
+    }
+
+    private boolean hasCustomMapper(Class c) {
+        return customMapper.get(c) != null;
+    }
+
     @SuppressWarnings("unchecked")
     @Override
-    public DBObject marshall(Object o) {
+    public Map<String, Object> marshall(Object o) {
+
+        Class c = annotationHelper.getRealClass(o.getClass());
+        if (hasCustomMapper(c)) {
+            Object ret = customMapper.get(c).marshall(o);
+            if (!(ret instanceof Map)) {
+                return Utils.getMap("value", ret);
+            }
+            return (Map<String, Object>) ret;
+        }
+
         //recursively map object to mongo-Object...
         if (!annotationHelper.isEntity(o)) {
             if (morphium.getConfig().isObjectSerializationEnabled()) {
@@ -180,7 +214,7 @@ public class ObjectMapperImpl implements ObjectMapper {
             throw new IllegalArgumentException("Object is no entity: " + o.getClass().getSimpleName());
         }
 
-        DBObject dbo = new BasicDBObject();
+        HashMap<String, Object> dbo = new HashMap<>();
         if (o == null) {
             return dbo;
         }
@@ -230,7 +264,7 @@ public class ObjectMapperImpl implements ObjectMapper {
                     //additional data is usually transient
                     continue;
                 }
-                if (dbo.containsField(fName)) {
+                if (dbo.containsKey(fName)) {
                     //already stored, skip it
                     log.warn("Field " + fName + " is shadowed - inherited values?");
                     continue;
@@ -250,7 +284,7 @@ public class ObjectMapperImpl implements ObjectMapper {
                     } else {
                         if (Collection.class.isAssignableFrom(fld.getType())) {
                             //list of references....
-                            BasicDBList lst = new BasicDBList();
+                            List<Map<String, Object>> lst = new ArrayList<>();
                             for (Object rec : ((Collection) value)) {
                                 if (rec != null) {
                                     Object id = annotationHelper.getId(rec);
@@ -259,7 +293,9 @@ public class ObjectMapperImpl implements ObjectMapper {
                                             if (morphium == null) {
                                                 throw new RuntimeException("Could not automagically store references as morphium is not set!");
                                             }
-                                            morphium.storeNoCache(rec);
+                                            String coll = r.targetCollection();
+                                            if (coll.equals(".")) coll = null;
+                                            morphium.storeNoCache(rec, coll);
                                             id = annotationHelper.getId(rec);
                                         } else {
                                             throw new IllegalArgumentException("Cannot store reference to unstored entity if automaticStore in @Reference is set to false!");
@@ -268,8 +304,9 @@ public class ObjectMapperImpl implements ObjectMapper {
                                     if (morphium == null) {
                                         throw new RuntimeException("cannot set dbRef - morphium is not set");
                                     }
-                                    DBRef ref = new DBRef(annotationHelper.getRealClass(rec.getClass()).getName(), id);
-                                    lst.add(ref);
+                                    MorphiumReference ref = new MorphiumReference(annotationHelper.getRealClass(rec.getClass()).getName(), id);
+
+                                    lst.add(marshall(ref));
                                 } else {
                                     lst.add(null);
                                 }
@@ -309,13 +346,14 @@ public class ObjectMapperImpl implements ObjectMapper {
                     if (value == null) {
                         valueClass = fld.getType();
                     } else {
-                        valueClass=value.getClass();
+                        valueClass = value.getClass();
                     }
-
-                    if (annotationHelper.isAnnotationPresentInHierarchy(valueClass, Entity.class)) {
+                    if (hasCustomMapper(valueClass)) {
+                        v = customMapper.get(valueClass).marshall(value);
+                    } else if (annotationHelper.isAnnotationPresentInHierarchy(valueClass, Entity.class)) {
                         if (value != null) {
-                            DBObject obj = marshall(value);
-                            obj.removeField("_id");  //Do not store ID embedded!
+                            Map<String, Object> obj = marshall(value);
+                            obj.remove("_id");  //Do not store ID embedded!
                             v = obj;
                         }
                     } else if (annotationHelper.isAnnotationPresentInHierarchy(valueClass, Embedded.class)) {
@@ -326,8 +364,14 @@ public class ObjectMapperImpl implements ObjectMapper {
                         v = value;
                         if (v != null) {
                             if (v instanceof Map) {
-                                //create MongoDBObject-Map
+                                //create MongoHashMap<String,Object>-Map
                                 v = createDBMap((Map) v);
+                            } else if (v.getClass().isArray()) {
+                                List lst = new ArrayList<>();
+                                for (int i = 0; i < Array.getLength(v); i++) {
+                                    lst.add(marshallIfNecessary(Array.get(v, i)));
+                                }
+                                v = createDBList(lst);
                             } else if (v instanceof List) {
                                 v = createDBList((List) v);
                             } else if (v instanceof Iterable) {
@@ -360,13 +404,13 @@ public class ObjectMapperImpl implements ObjectMapper {
         return dbo;
     }
 
-    private BasicDBList createDBList(List v) {
-        BasicDBList lst = new BasicDBList();
+    private List<Object> createDBList(List v) {
+        List<Object> lst = new ArrayList<>();
         for (Object lo : v) {
             if (lo != null) {
                 if (annotationHelper.isAnnotationPresentInHierarchy(lo.getClass(), Entity.class) ||
                         annotationHelper.isAnnotationPresentInHierarchy(lo.getClass(), Embedded.class)) {
-                    DBObject marshall = marshall(lo);
+                    Map<String, Object> marshall = marshall(lo);
                     marshall.put("class_name", lo.getClass().getName());
                     lst.add(marshall);
                 } else if (lo instanceof List) {
@@ -374,13 +418,22 @@ public class ObjectMapperImpl implements ObjectMapper {
                 } else if (lo instanceof Map) {
                     lst.add(createDBMap(((Map) lo)));
                 } else if (lo.getClass().isEnum()) {
-                    BasicDBObject obj = new BasicDBObject();
+                    Map<String, Object> obj = new HashMap<>();
                     obj.put("class_name", lo.getClass().getName());
                     obj.put("name", ((Enum) lo).name());
                     lst.add(obj);
                     //throw new IllegalArgumentException("List of enums not supported yet");
                 } else if (lo.getClass().isPrimitive()) {
                     lst.add(lo);
+                } else if (lo.getClass().isArray()) {
+                    for (int i = 0; i < Array.getLength(lo); i++) {
+                        try {
+                            lst.add(marshallIfNecessary(Array.get(lo, i)));
+                        } catch (Exception e) {
+                            lst.add(marshallIfNecessary(((Integer) Array.get(lo, i)).byteValue()));
+                        }
+                    }
+
                 } else if (mongoTypes.contains(lo.getClass())) {
                     lst.add(lo);
                 } else {
@@ -394,8 +447,8 @@ public class ObjectMapperImpl implements ObjectMapper {
     }
 
     @SuppressWarnings("unchecked")
-    private BasicDBObject createDBMap(Map v) {
-        BasicDBObject dbMap = new BasicDBObject();
+    private Map<String, Object> createDBMap(Map v) {
+        Map<String, Object> dbMap = new HashMap<>();
         for (Map.Entry<Object, Object> es : ((Map<Object, Object>) v).entrySet()) {
             Object k = es.getKey();
             if (!(k instanceof String)) {
@@ -409,15 +462,21 @@ public class ObjectMapperImpl implements ObjectMapper {
             Object mval = es.getValue(); // ((Map) v).get(k);
             if (mval != null) {
                 if (annotationHelper.isAnnotationPresentInHierarchy(mval.getClass(), Entity.class) || annotationHelper.isAnnotationPresentInHierarchy(mval.getClass(), Embedded.class)) {
-                    DBObject obj = marshall(mval);
+                    Map<String, Object> obj = marshall(mval);
                     obj.put("class_name", mval.getClass().getName());
                     mval = obj;
                 } else if (mval instanceof Map) {
                     mval = createDBMap((Map) mval);
                 } else if (mval instanceof List) {
                     mval = createDBList((List) mval);
+                } else if (mval.getClass().isArray()) {
+                    ArrayList lst = new ArrayList();
+                    for (int i = 0; i < Array.getLength(mval); i++) {
+                        lst.add(marshallIfNecessary(Array.get(mval, i)));
+                    }
+                    mval = createDBList(lst);
                 } else if (mval.getClass().isEnum()) {
-                    BasicDBObject obj = new BasicDBObject();
+                    Map<String, Object> obj = new HashMap<>();
                     obj.put("class_name", mval.getClass().getName());
                     obj.put("name", ((Enum) mval).name());
                 } else if (!mval.getClass().isPrimitive() && !mongoTypes.contains(mval.getClass())) {
@@ -434,15 +493,15 @@ public class ObjectMapperImpl implements ObjectMapper {
         ContainerFactory fact = new ContainerFactory() {
             @Override
             public Map createObjectContainer() {
-                return new BasicDBObject();
+                return new HashMap<>();
             }
 
             @Override
             public List creatArrayContainer() {
-                return new BasicDBList();
+                return new ArrayList();
             }
         };
-        DBObject obj = (DBObject) jsonParser.parse(jsonString, fact);
+        HashMap<String, Object> obj = (HashMap<String, Object>) jsonParser.parse(jsonString, fact);
         return unmarshall(cls, obj);
 
 
@@ -450,9 +509,13 @@ public class ObjectMapperImpl implements ObjectMapper {
 
     @SuppressWarnings("unchecked")
     @Override
-    public <T> T unmarshall(Class<? extends T> theClass, DBObject o) {
+    public <T> T unmarshall(Class<? extends T> theClass, Map<String, Object> o) {
+        if (o == null) return null;
         Class cls = theClass;
         try {
+            if (hasCustomMapper(cls)) {
+                return (T) customMapper.get(cls).unmarshall(o.get("value"));
+            }
             if (morphium != null && morphium.getConfig().isObjectSerializationEnabled() && !annotationHelper.isAnnotationPresentInHierarchy(cls, Entity.class) && !(annotationHelper.isAnnotationPresentInHierarchy(cls, Embedded.class))) {
                 cls = BinarySerializedObject.class;
             }
@@ -488,7 +551,7 @@ public class ObjectMapperImpl implements ObjectMapper {
             if (ret == null) {
                 final Constructor<Object> constructor;
                 try {
-                    constructor = reflection.newConstructorForSerialization(
+                    constructor = (Constructor<Object>) reflection.newConstructorForSerialization(
                             cls, Object.class.getDeclaredConstructor());
                     ret = constructor.newInstance();
                 } catch (Exception e) {
@@ -529,14 +592,14 @@ public class ObjectMapperImpl implements ObjectMapper {
                             continue;
                         }
 
-                        if (o.get(k) instanceof BasicDBObject) {
-                            if (((BasicDBObject) o.get(k)).get("class_name") != null) {
-                                data.put(k, unmarshall(Class.forName((String) ((BasicDBObject) o.get(k)).get("class_name")), (BasicDBObject) o.get(k)));
+                        if (o.get(k) instanceof Map) {
+                            if (((Map<String, Object>) o.get(k)).get("class_name") != null) {
+                                data.put(k, unmarshall(Class.forName((String) ((Map<String, Object>) o.get(k)).get("class_name")), (Map<String, Object>) o.get(k)));
                             } else {
-                                data.put(k, createMap((BasicDBObject) o.get(k)));
+                                data.put(k, createMap((Map<String, Object>) o.get(k)));
                             }
-                        } else if (o.get(k) instanceof BasicDBList) {
-                            data.put(k, createList((BasicDBList) o.get(k)));
+                        } else if (o.get(k) instanceof List && ((List) o.get(k)).size() > 0 && ((List) o.get(k)).get(0) instanceof Map) {
+                            data.put(k, createList((List<Map<String, Object>>) o.get(k)));
                         } else {
                             data.put(k, o.get(k));
                         }
@@ -549,37 +612,40 @@ public class ObjectMapperImpl implements ObjectMapper {
                     continue;
                 }
                 Object value = null;
-                if (!Map.class.isAssignableFrom(fld.getType()) && !Collection.class.isAssignableFrom(fld.getType()) && fld.isAnnotationPresent(Reference.class)) {
+                if (!Collection.class.isAssignableFrom(fld.getType()) && fld.isAnnotationPresent(Reference.class)) {
                     //A reference - only id stored
                     Reference reference = fld.getAnnotation(Reference.class);
+                    MorphiumReference r = null;
                     if (morphium == null) {
                         log.fatal("Morphium not set - could not de-reference!");
                     } else {
                         Object id = null;
-                        if (valueFromDb instanceof Object) {
+                        if (!(valueFromDb instanceof Map)) {
                             id = valueFromDb;
                         } else {
-                            DBRef ref = (DBRef) valueFromDb;
-                            if (ref != null) {
-                                id = ref.getId();
-                                if (!ref.getCollectionName().equals(fld.getType().getName())) {
-                                    log.warn("Reference to different object?! - continuing anyway");
-
-                                }
-                            }
+                            Map<String, Object> ref = (Map<String, Object>) valueFromDb;
+                            r = unmarshall(MorphiumReference.class, ref);
+                            id = r.getId();
+                        }
+                        String collection = getCollectionName(fld.getType());
+                        if (r != null && r.getCollectionName() != null) {
+                            collection = r.getCollectionName();
                         }
                         if (id != null) {
                             if (reference.lazyLoading()) {
                                 List<String> lst = annotationHelper.getFields(fld.getType(), Id.class);
                                 if (lst.size() == 0)
                                     throw new IllegalArgumentException("Referenced object does not have an ID? Is it an Entity?");
-                                value = morphium.createLazyLoadedEntity(fld.getType(), id, ret, f);
+                                if (id instanceof String && annotationHelper.getField(fld.getType(), lst.get(0)).getType().equals(MorphiumId.class)) {
+                                    id = new MorphiumId(id.toString());
+                                }
+                                value = morphium.createLazyLoadedEntity(fld.getType(), id, ret, f, collection);
                             } else {
 //                                Query q = morphium.createQueryFor(fld.getSearchType());
 //                                q.f("_id").eq(id);
                                 try {
                                     morphium.fireWouldDereference(ret, f, id, fld.getType(), false);
-                                    value = morphium.findById(fld.getType(), id);
+                                    value = morphium.findById(fld.getType(), id, collection);
                                     morphium.fireDidDereference(ret, f, value, false);
                                 } catch (MorphiumAccessVetoException e) {
                                     log.info("not dereferencing due to veto from listener", e);
@@ -594,21 +660,21 @@ public class ObjectMapperImpl implements ObjectMapper {
                     value = o.get("_id");
                     if (!value.getClass().equals(fld.getType())) {
                         log.warn("read value and field type differ...");
-                        if (fld.getType().equals(ObjectId.class)) {
+                        if (fld.getType().equals(MorphiumId.class)) {
                             log.warn("trying objectID conversion");
                             if (value.getClass().equals(String.class)) {
                                 try {
-                                    value = new ObjectId((String) value);
+                                    value = new MorphiumId((String) value);
                                 } catch (Exception e) {
                                     log.error("Id conversion failed - setting returning null", e);
                                     return null;
                                 }
                             }
-                        } else if (value.getClass().equals(ObjectId.class)) {
+                        } else if (value.getClass().equals(MorphiumId.class)) {
                             if (fld.getType().equals(String.class)) {
                                 value = value.toString();
                             } else if (fld.getType().equals(Long.class) || fld.getType().equals(long.class)) {
-                                value = ((ObjectId) value).getTime();
+                                value = ((MorphiumId) value).getTime();
                             } else {
                                 log.error("cannot convert - ID IS SET TO NULL. Type read from db is " + value.getClass().getName() + " - expected value is " + fld.getType().getName());
                                 return null;
@@ -617,96 +683,92 @@ public class ObjectMapperImpl implements ObjectMapper {
                     }
                 } else if (annotationHelper.isAnnotationPresentInHierarchy(fld.getType(), Entity.class) || annotationHelper.isAnnotationPresentInHierarchy(fld.getType(), Embedded.class)) {
                     //entity! embedded
-                    value = unmarshall(fld.getType(), (DBObject) valueFromDb);
+                    value = unmarshall(fld.getType(), (HashMap<String, Object>) valueFromDb);
 //                    List lst = new ArrayList<Object>();
 //                    lst.add(value);
 //                    morphium.firePostLoad(lst);
                 } else if (Map.class.isAssignableFrom(fld.getType())) {
-                    BasicDBObject map = (BasicDBObject) valueFromDb;
+                    Map<String, Object> map = (Map<String, Object>) valueFromDb;
                     value = createMap(map);
                 } else if (Collection.class.isAssignableFrom(fld.getType()) || fld.getType().isArray()) {
-                    if (fld.getType().equals(byte[].class)) {
-                        //binary data
-                        if (log.isDebugEnabled())
-                            log.debug("Reading in binary data object");
-                        value = valueFromDb;
 
+                    List lst = new ArrayList();
+                    if (valueFromDb.getClass().isArray()) {
+                        //a real array!
+                        if (valueFromDb.getClass().getComponentType().isPrimitive()) {
+                            if (valueFromDb.getClass().getComponentType().equals(int.class)) {
+                                for (int i : (int[]) valueFromDb) {
+                                    lst.add(i);
+                                }
+                            } else if (valueFromDb.getClass().getComponentType().equals(double.class)) {
+                                for (double i : (double[]) valueFromDb) {
+                                    lst.add(i);
+                                }
+                            } else if (valueFromDb.getClass().getComponentType().equals(float.class)) {
+                                for (float i : (float[]) valueFromDb) {
+                                    lst.add(i);
+                                }
+                            } else if (valueFromDb.getClass().getComponentType().equals(boolean.class)) {
+                                for (boolean i : (boolean[]) valueFromDb) {
+                                    lst.add(i);
+                                }
+                            } else if (valueFromDb.getClass().getComponentType().equals(byte.class)) {
+                                for (byte i : (byte[]) valueFromDb) {
+                                    lst.add(i);
+                                }
+                            } else if (valueFromDb.getClass().getComponentType().equals(char.class)) {
+                                for (char i : (char[]) valueFromDb) {
+                                    lst.add(i);
+                                }
+                            } else if (valueFromDb.getClass().getComponentType().equals(long.class)) {
+                                for (long i : (long[]) valueFromDb) {
+                                    lst.add(i);
+                                }
+                            }
+                        } else {
+                            Collections.addAll(lst, (Object[]) valueFromDb);
+                        }
                     } else {
+                        List<Map<String, Object>> l = (List<Map<String, Object>>) valueFromDb;
+                        if (l != null) {
+                            fillList(fld, l, lst, ret);
+                        }
+                    }
+                    if (fld.getType().isArray()) {
+                        Object arr = Array.newInstance(fld.getType().getComponentType(), lst.size());
+                        for (int i = 0; i < lst.size(); i++) {
+                            if (fld.getType().getComponentType().isPrimitive()) {
+                                if (fld.getType().getComponentType().equals(int.class)) {
+                                    Array.set(arr, i, ((Integer) lst.get(i)).intValue());
+                                } else if (fld.getType().getComponentType().equals(long.class)) {
+                                    Array.set(arr, i, ((Long) lst.get(i)).longValue());
+                                } else if (fld.getType().getComponentType().equals(float.class)) {
+                                    //Driver sends doubles instead of floats
+                                    Array.set(arr, i, ((Float) lst.get(i)).floatValue());
 
-                        List lst = new ArrayList();
-                        if (valueFromDb.getClass().isArray()) {
-                            //a real array!
-                            if (valueFromDb.getClass().getComponentType().isPrimitive()) {
-                                if (valueFromDb.getClass().getComponentType().equals(int.class)) {
-                                    for (int i : (int[]) valueFromDb) {
-                                        lst.add(i);
-                                    }
-                                } else if (valueFromDb.getClass().getComponentType().equals(double.class)) {
-                                    for (double i : (double[]) valueFromDb) {
-                                        lst.add(i);
-                                    }
-                                } else if (valueFromDb.getClass().getComponentType().equals(float.class)) {
-                                    for (float i : (float[]) valueFromDb) {
-                                        lst.add(i);
-                                    }
-                                } else if (valueFromDb.getClass().getComponentType().equals(boolean.class)) {
-                                    for (boolean i : (boolean[]) valueFromDb) {
-                                        lst.add(i);
-                                    }
-                                } else if (valueFromDb.getClass().getComponentType().equals(byte.class)) {
-                                    for (byte i : (byte[]) valueFromDb) {
-                                        lst.add(i);
-                                    }
-                                } else if (valueFromDb.getClass().getComponentType().equals(char.class)) {
-                                    for (char i : (char[]) valueFromDb) {
-                                        lst.add(i);
-                                    }
-                                } else if (valueFromDb.getClass().getComponentType().equals(long.class)) {
-                                    for (long i : (long[]) valueFromDb) {
-                                        lst.add(i);
-                                    }
+                                } else if (fld.getType().getComponentType().equals(double.class)) {
+                                    Array.set(arr, i, ((Double) lst.get(i)).doubleValue());
+
+                                } else if (fld.getType().getComponentType().equals(byte.class)) {
+                                    Array.set(arr, i, ((Byte) lst.get(i)).byteValue());
+                                } else if (fld.getType().getComponentType().equals(boolean.class)) {
+                                    Array.set(arr, i, ((Boolean) lst.get(i)).booleanValue());
+
                                 }
                             } else {
-                                Collections.addAll(lst, (Object[]) valueFromDb);
-                            }
-                        } else {
-                            BasicDBList l = (BasicDBList) valueFromDb;
-                            if (l != null) {
-                                fillList(fld, l, lst, ret);
+                                Array.set(arr, i, lst.get(i));
                             }
                         }
-                        if (fld.getType().isArray()) {
-                            Object arr = Array.newInstance(fld.getType().getComponentType(), lst.size());
-                            for (int i = 0; i < lst.size(); i++) {
-                                if (fld.getType().getComponentType().isPrimitive()) {
-                                    if (fld.getType().getComponentType().equals(int.class)) {
-                                        Array.set(arr, i, ((Integer) lst.get(i)).intValue());
-                                    } else if (fld.getType().getComponentType().equals(long.class)) {
-                                        Array.set(arr, i, ((Long) lst.get(i)).longValue());
-                                    } else if (fld.getType().getComponentType().equals(float.class)) {
-                                        //Driver sends doubles instead of floats
-                                        Array.set(arr, i, ((Double) lst.get(i)).floatValue());
-
-                                    } else if (fld.getType().getComponentType().equals(double.class)) {
-                                        Array.set(arr, i, ((Double) lst.get(i)).doubleValue());
-
-                                    } else if (fld.getType().getComponentType().equals(boolean.class)) {
-                                        Array.set(arr, i, ((Boolean) lst.get(i)).booleanValue());
-
-                                    }
-                                } else {
-                                    Array.set(arr, i, lst.get(i));
-                                }
-                            }
-                            value = arr;
-                        } else {
-                            value = lst;
-                        }
-
-
+                        value = arr;
+                    } else {
+                        value = lst;
                     }
+
+
                 } else if (fld.getType().isEnum()) {
                     value = Enum.valueOf((Class<? extends Enum>) fld.getType(), (String) valueFromDb);
+                } else if (hasCustomMapper(fld.getType())) {
+                    value = customMapper.get(fld.getType()).unmarshall(valueFromDb);
                 } else {
                     value = valueFromDb;
                 }
@@ -722,12 +784,12 @@ public class ObjectMapperImpl implements ObjectMapper {
                 if (o.get("_id") != null) {  //Embedded entitiy?
                     if (o.get("_id").getClass().equals(field.getType())) {
                         field.set(ret, o.get("_id"));
-                    } else if (field.getType().equals(String.class) && o.get("_id").getClass().equals(ObjectId.class)) {
+                    } else if (field.getType().equals(String.class) && o.get("_id").getClass().equals(MorphiumId.class)) {
                         log.warn("ID type missmatch - field is string but got objectId from mongo - converting");
                         field.set(ret, o.get("_id").toString());
-                    } else if (field.getType().equals(ObjectId.class) && o.get("_id").getClass().equals(String.class)) {
-                        log.warn("ID type missmatch - field is objectId but got string from db - trying conversion");
-                        field.set(ret, new ObjectId((String) o.get("_id")));
+                    } else if (field.getType().equals(MorphiumId.class) && o.get("_id").getClass().equals(String.class)) {
+//                        log.warn("ID type missmatch - field is objectId but got string from db - trying conversion");
+                        field.set(ret, new MorphiumId((String) o.get("_id")));
                     } else {
                         log.error("ID type missmatch");
                         throw new IllegalArgumentException("ID type missmatch. Field in '" + ret.getClass().toString() + "' is '" + field.getType().toString() + "' but we got '" + o.get("_id").getClass().toString() + "' from Mongo!");
@@ -752,28 +814,28 @@ public class ObjectMapperImpl implements ObjectMapper {
 
     }
 
-    private Map createMap(BasicDBObject dbObject) {
+    private Map createMap(Map<String, Object> dbObject) {
         Map retMap = new HashMap(dbObject);
         if (dbObject != null) {
             for (String n : dbObject.keySet()) {
 
-                if (dbObject.get(n) instanceof BasicDBObject) {
+                if (dbObject.get(n) instanceof Map) {
                     Object val = dbObject.get(n);
-                    if (((BasicDBObject) val).containsField("class_name") || ((BasicDBObject) val).containsField("className")) {
+                    if (((Map<String, Object>) val).containsKey("class_name") || ((Map<String, Object>) val).containsKey("className")) {
                         //Entity to map!
-                        String cn = (String) ((BasicDBObject) val).get("class_name");
+                        String cn = (String) ((Map<String, Object>) val).get("class_name");
                         if (cn == null) {
-                            cn = (String) ((BasicDBObject) val).get("className");
+                            cn = (String) ((Map<String, Object>) val).get("className");
                         }
                         try {
                             Class ecls = Class.forName(cn);
-                            Object obj = unmarshall(ecls, (DBObject) dbObject.get(n));
+                            Object obj = unmarshall(ecls, (HashMap<String, Object>) dbObject.get(n));
                             if (obj != null) retMap.put(n, obj);
                         } catch (ClassNotFoundException e) {
                             throw new RuntimeException(e);
                         }
-                    } else if (((BasicDBObject) val).containsField("_b64data")) {
-                        String d = (String) ((BasicDBObject) val).get("_b64data");
+                    } else if (((Map<String, Object>) val).containsKey("_b64data")) {
+                        String d = (String) ((Map<String, Object>) val).get("_b64data");
                         BASE64Decoder dec = new BASE64Decoder();
                         ObjectInputStream in = null;
                         try {
@@ -787,10 +849,10 @@ public class ObjectMapperImpl implements ObjectMapper {
 
                     } else {
                         //maybe a map of maps? --> recurse
-                        retMap.put(n, createMap((BasicDBObject) val));
+                        retMap.put(n, createMap((Map<String, Object>) val));
                     }
-                } else if (dbObject.get(n) instanceof BasicDBList) {
-                    BasicDBList lst = (BasicDBList) dbObject.get(n);
+                } else if (dbObject.get(n) instanceof List) {
+                    List<Map<String, Object>> lst = (List<Map<String, Object>>) dbObject.get(n);
                     List mapValue = createList(lst);
                     retMap.put(n, mapValue);
                 }
@@ -801,24 +863,24 @@ public class ObjectMapperImpl implements ObjectMapper {
         return retMap;
     }
 
-    private List createList(BasicDBList lst) {
+    private List createList(List<Map<String, Object>> lst) {
         List mapValue = new ArrayList();
         for (Object li : lst) {
-            if (li instanceof BasicDBObject) {
-                if (((BasicDBObject) li).containsField("class_name") || ((BasicDBObject) li).containsField("className")) {
-                    String cn = (String) ((BasicDBObject) li).get("class_name");
+            if (li instanceof Map) {
+                if (((Map<String, Object>) li).containsKey("class_name") || ((Map<String, Object>) li).containsKey("className")) {
+                    String cn = (String) ((Map<String, Object>) li).get("class_name");
                     if (cn == null) {
-                        cn = (String) ((BasicDBObject) li).get("className");
+                        cn = (String) ((Map<String, Object>) li).get("className");
                     }
                     try {
                         Class ecls = Class.forName(cn);
-                        Object obj = unmarshall(ecls, (DBObject) li);
+                        Object obj = unmarshall(ecls, (HashMap<String, Object>) li);
                         if (obj != null) mapValue.add(obj);
                     } catch (ClassNotFoundException e) {
                         throw new RuntimeException(e);
                     }
-                } else if (((BasicDBObject) li).containsField("_b64data")) {
-                    String d = (String) ((BasicDBObject) li).get("_b64data");
+                } else if (((Map<String, Object>) li).containsKey("_b64data")) {
+                    String d = (String) ((Map<String, Object>) li).get("_b64data");
                     BASE64Decoder dec = new BASE64Decoder();
                     ObjectInputStream in = null;
                     try {
@@ -832,10 +894,10 @@ public class ObjectMapperImpl implements ObjectMapper {
                 } else {
 
 
-                    mapValue.add(createMap((BasicDBObject) li));
+                    mapValue.add(createMap((Map<String, Object>) li));
                 }
-            } else if (li instanceof BasicDBList) {
-                mapValue.add(createList((BasicDBList) li));
+            } else if (li instanceof List) {
+                mapValue.add(createList((List<Map<String, Object>>) li));
             } else {
                 mapValue.add(li);
             }
@@ -844,25 +906,55 @@ public class ObjectMapperImpl implements ObjectMapper {
     }
 
     @SuppressWarnings({"unchecked", "ConstantConditions"})
-    private void fillList(Field forField, BasicDBList fromDB, List toFillIn, Object containerEntity) {
+    private void fillList(Field forField, List<Map<String, Object>> fromDB, List toFillIn, Object containerEntity) {
+        if (forField.isAnnotationPresent(Reference.class)) {
+            Reference ref = forField.getAnnotation(Reference.class);
+            for (Map<String, Object> obj : fromDB) {
+                if (obj == null) {
+                    toFillIn.add(null);
+                    continue;
+                }
+                ;
+                MorphiumReference r = unmarshall(MorphiumReference.class, obj);
+                Class type = null;
+                try {
+                    type = Class.forName(r.getClassName());
+                } catch (ClassNotFoundException e) {
+                    throw new RuntimeException(e);
+                }
+                if (r.getCollectionName() == null) {
+                    r.setCollectionName(getCollectionName(type));
+                }
+                if (ref.lazyLoading()) {
+                    if (r.getId() instanceof String && morphium.getARHelper().getIdField(type).getType().equals(MorphiumId.class)) {
+                        r.setId(new MorphiumId(r.getId().toString()));
+                    }
+                    toFillIn.add(morphium.createLazyLoadedEntity(type, r.getId(), containerEntity, forField.getName(), r.getCollectionName()));
+                } else {
+                    toFillIn.add(morphium.findById(type, r.getId(), r.getCollectionName()));
+                }
+
+            }
+            return;
+        }
         for (Object val : fromDB) {
-            if (val instanceof BasicDBObject) {
-                if (((BasicDBObject) val).containsField("class_name") || ((BasicDBObject) val).containsField("className")) {
+            if (val instanceof Map) {
+                if (((Map<String, Object>) val).containsKey("class_name") || ((Map<String, Object>) val).containsKey("className")) {
                     //Entity to map!
-                    String cn = (String) ((BasicDBObject) val).get("class_name");
+                    String cn = (String) ((Map<String, Object>) val).get("class_name");
                     if (cn == null) {
-                        cn = (String) ((BasicDBObject) val).get("className");
+                        cn = (String) ((Map<String, Object>) val).get("className");
                     }
                     try {
                         Class ecls = Class.forName(cn);
-                        Object um = unmarshall(ecls, (DBObject) val);
+                        Object um = unmarshall(ecls, (HashMap<String, Object>) val);
                         if (um != null) toFillIn.add(um);
                     } catch (ClassNotFoundException e) {
                         throw new RuntimeException(e);
                     }
-                } else if (((BasicDBObject) val).containsField("_b64data")) {
-                    String d = (String) ((BasicDBObject) val).get("_b64data");
-                    if (d == null) d = (String) ((BasicDBObject) val).get("b64Data");
+                } else if (((Map<String, Object>) val).containsKey("_b64data")) {
+                    String d = (String) ((Map<String, Object>) val).get("_b64data");
+                    if (d == null) d = (String) ((Map<String, Object>) val).get("b64Data");
                     BASE64Decoder dec = new BASE64Decoder();
                     ObjectInputStream in = null;
                     try {
@@ -885,12 +977,12 @@ public class ObjectMapperImpl implements ObjectMapper {
                         Entity entity = annotationHelper.getAnnotationFromHierarchy(cls, Entity.class); //(Entity) sc.getAnnotation(Entity.class);
                         Embedded embedded = annotationHelper.getAnnotationFromHierarchy(cls, Embedded.class);//(Embedded) sc.getAnnotation(Embedded.class);
                         if (entity != null || embedded != null)
-                            val = unmarshall(cls, (DBObject) val);
+                            val = unmarshall(cls, (Map<String, Object>) val);
                     }
                     //Probably an "normal" map
                     toFillIn.add(val);
                 }
-            } else if (val instanceof ObjectId) {
+            } else if (val instanceof MorphiumId) {
                 if (forField.getGenericType() instanceof ParameterizedType) {
                     //have a list of something
                     ParameterizedType listType = (ParameterizedType) forField.getGenericType();
@@ -903,38 +995,39 @@ public class ObjectMapperImpl implements ObjectMapper {
                     toFillIn.add(val);
                 }
 
-            } else if (val instanceof BasicDBList) {
+            } else if (val instanceof List) {
                 //list in list
                 ArrayList lt = new ArrayList();
-                fillList(forField, (BasicDBList) val, lt, containerEntity);
+                fillList(forField, (List<Map<String, Object>>) val, lt, containerEntity);
                 toFillIn.add(lt);
-            } else if (val instanceof DBRef) {
-                try {
-                    DBRef ref = (DBRef) val;
-                    Object id = ref.getId();
-                    Class clz = Class.forName(ref.getCollectionName());
-                    List<String> idFlds = annotationHelper.getFields(clz, Id.class);
-                    Reference reference = forField != null ? forField.getAnnotation(Reference.class) : null;
-
-                    if (reference != null && reference.lazyLoading()) {
-                        if (idFlds.size() == 0)
-                            throw new IllegalArgumentException("Referenced object does not have an ID? Is it an Entity?");
-                        toFillIn.add(morphium.createLazyLoadedEntity(clz, id, containerEntity, forField.getName()));
-                    } else {
-                        try {
-                            morphium.fireWouldDereference(containerEntity, forField.getName(), id, clz, false);
-                            Query q = morphium.createQueryFor(clz);
-                            q = q.f(idFlds.get(0)).eq(id);
-                            Object e = q.get();
-                            toFillIn.add(e);
-                            morphium.fireDidDereference(containerEntity, forField.getName(), e, false);
-                        } catch (MorphiumAccessVetoException e1) {
-                            log.info("Not de-referencing due to veto exception from Listeiner", e1);
-                        }
-                    }
-                } catch (ClassNotFoundException e) {
-                    throw new RuntimeException(e);
-                }
+                //TODO: Handle DBRef
+//            } else if (val instanceof DBRef) {
+//                try {
+//                    DBRef ref = (DBRef) val;
+//                    Object id = ref.getId();
+//                    Class clz = Class.forName(ref.getCollectionName());
+//                    List<String> idFlds = annotationHelper.getFields(clz, Id.class);
+//                    Reference reference = forField != null ? forField.getAnnotation(Reference.class) : null;
+//
+//                    if (reference != null && reference.lazyLoading()) {
+//                        if (idFlds.size() == 0)
+//                            throw new IllegalArgumentException("Referenced object does not have an ID? Is it an Entity?");
+//                        toFillIn.add(morphium.createLazyLoadedEntity(clz, id, containerEntity, forField.getName()));
+//                    } else {
+//                        try {
+//                            morphium.fireWouldDereference(containerEntity, forField.getName(), id, clz, false);
+//                            Query q = morphium.createQueryFor(clz);
+//                            q = q.f(idFlds.get(0)).eq(id);
+//                            Object e = q.get();
+//                            toFillIn.add(e);
+//                            morphium.fireDidDereference(containerEntity, forField.getName(), e, false);
+//                        } catch (MorphiumAccessVetoException e1) {
+//                            log.info("Not de-referencing due to veto exception from Listeiner", e1);
+//                        }
+//                    }
+//                } catch (ClassNotFoundException e) {
+//                    throw new RuntimeException(e);
+//                }
 
             } else {
                 toFillIn.add(val);

@@ -1,11 +1,11 @@
-package de.caluga.test.mongo.suite;
+package de.caluga.test.mongo.suite.data;
 
 import de.caluga.morphium.annotations.Entity;
 import de.caluga.morphium.annotations.Id;
 import de.caluga.morphium.annotations.SafetyLevel;
 import de.caluga.morphium.annotations.WriteSafety;
 import de.caluga.morphium.annotations.caching.NoCache;
-import org.bson.types.ObjectId;
+import de.caluga.morphium.driver.bson.MorphiumId;
 
 import java.util.List;
 import java.util.Map;
@@ -21,7 +21,7 @@ import java.util.Map;
 @WriteSafety(level = SafetyLevel.WAIT_FOR_ALL_SLAVES, waitForSync = true)
 public class MapListObject {
     @Id
-    private ObjectId id;
+    private MorphiumId id;
     private String name;
     private Map<String, Object> mapValue;
     private Map<String, List<Integer>> mapListValue;
@@ -59,11 +59,11 @@ public class MapListObject {
         this.mapListValue = mapListValue;
     }
 
-    public ObjectId getId() {
+    public MorphiumId getId() {
         return id;
     }
 
-    public void setId(ObjectId id) {
+    public void setId(MorphiumId id) {
         this.id = id;
     }
 }

@@ -1,10 +1,10 @@
 package de.caluga.test.mongo.suite;
 
-import de.caluga.morphium.MorphiumSingleton;
 import de.caluga.morphium.annotations.Entity;
 import de.caluga.morphium.annotations.Id;
+import de.caluga.morphium.driver.bson.MorphiumId;
+import de.caluga.test.mongo.suite.data.ValidationTestObject;
 import junit.framework.Assert;
-import org.bson.types.ObjectId;
 import org.junit.Test;
 
 import javax.validation.ConstraintViolationException;
@@ -21,49 +21,49 @@ public class ValidationTest extends MongoTest {
     @Test
     public void testAllValid() {
         ValidationTestObject o = getValidObject();
-        MorphiumSingleton.get().store(o);
+        morphium.store(o);
     }
 
     @Test(expected = ConstraintViolationException.class)
     public void testNotNull() {
         ValidationTestObject o = getValidObject();
         o.setAnotherInt(null);
-        MorphiumSingleton.get().store(o);
+        morphium.store(o);
     }
 
     @Test(expected = ConstraintViolationException.class)
     public void testMinMax() {
         ValidationTestObject o = getValidObject();
         o.setTheInt(2);
-        MorphiumSingleton.get().store(o);
+        morphium.store(o);
     }
 
     @Test(expected = ConstraintViolationException.class)
     public void testMinMaxList() {
         ValidationTestObject o = getValidObject();
         o.getFriends().clear();
-        MorphiumSingleton.get().store(o);
+        morphium.store(o);
     }
 
     @Test(expected = ConstraintViolationException.class)
     public void testEmail() {
         ValidationTestObject o = getValidObject();
         o.setEmail("uh oh this won't validate...");
-        MorphiumSingleton.get().store(o);
+        morphium.store(o);
     }
 
     @Test(expected = ConstraintViolationException.class)
     public void testDateFuture() {
         ValidationTestObject o = getValidObject();
         o.setWhenever(new Date(System.currentTimeMillis() - 86400000));
-        MorphiumSingleton.get().store(o);
+        morphium.store(o);
     }
 
     @Test(expected = ConstraintViolationException.class)
     public void testRegex() {
         ValidationTestObject o = getValidObject();
         o.setWhereever("at the beach");
-        MorphiumSingleton.get().store(o);
+        morphium.store(o);
     }
 
     @Test
@@ -74,7 +74,7 @@ public class ValidationTest extends MongoTest {
         o.setEmail("uh oh this won't validate...");
 
         try {
-            MorphiumSingleton.get().store(o);
+            morphium.store(o);
         } catch (ConstraintViolationException cfe) {
             Assert.assertTrue("must be three violations", cfe.getConstraintViolations().size() == 3);
         }
@@ -93,7 +93,7 @@ public class ValidationTest extends MongoTest {
 
         lst.setLst(obj);
 
-        MorphiumSingleton.get().store(lst);
+        morphium.store(lst);
 
     }
 
@@ -121,7 +121,7 @@ public class ValidationTest extends MongoTest {
     public class ListValidationTestObject {
         private List<ValidationTestObject> lst;
         @Id
-        private ObjectId id;
+        private MorphiumId id;
 
         public List<ValidationTestObject> getLst() {
             return lst;

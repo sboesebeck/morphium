@@ -1,8 +1,8 @@
 package de.caluga.test.mongo.suite;
 
-import de.caluga.morphium.MorphiumSingleton;
+import de.caluga.morphium.driver.bson.MorphiumId;
 import de.caluga.morphium.query.QueryImpl;
-import org.bson.types.ObjectId;
+import de.caluga.test.mongo.suite.data.UncachedObject;
 import org.junit.Test;
 
 /**
@@ -16,20 +16,20 @@ public class IDConversionTest extends MongoTest {
     @Test
     public void testIdConversion() throws Exception {
         QueryImpl qu = new QueryImpl();
-        qu.setMorphium(MorphiumSingleton.get());
+        qu.setMorphium(morphium);
         qu.setType(UncachedObject.class);
         qu.setCollectionName("uncached");
-        qu.f("_id").eq(new ObjectId().toString());
+        qu.f("_id").eq(new MorphiumId().toString());
 
         System.out.println(qu.toQueryObject().toString());
-        assert (qu.toQueryObject().toString().contains("$oid"));
+        assert (qu.toQueryObject().toString().contains("_id="));
 
         qu = new QueryImpl();
-        qu.setMorphium(MorphiumSingleton.get());
+        qu.setMorphium(morphium);
         qu.setType(UncachedObject.class);
         qu.setCollectionName("uncached");
-        qu.f("value").eq(new ObjectId());
+        qu.f("value").eq(new MorphiumId());
         System.out.println(qu.toQueryObject().toString());
-        assert (!qu.toQueryObject().toString().contains("$oid"));
+        assert (!qu.toQueryObject().toString().contains("_id="));
     }
 }

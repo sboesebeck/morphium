@@ -14,16 +14,16 @@
     <!-- ============================== -->
 
     <appender name="CONSOLE" class="org.apache.log4j.ConsoleAppender">
-        <param name="Target" value="System.out"/>
+        <param name="Target" id="System.out"/>
         <layout class="org.apache.log4j.PatternLayout">
-            <param name="ConversionPattern" value="%d{ABSOLUTE} %-5p [%t] %c{1}: %m%n"/>
+            <param name="ConversionPattern" id="%d{ABSOLUTE} %-5p [%t] %c{1}: %m%n"/>
         </layout>
     </appender>
 
     <appender name="JOB" class="org.apache.log4j.ConsoleAppender">
-        <param name="Target" value="System.out"/>
+        <param name="Target" id="System.out"/>
         <layout class="org.apache.log4j.PatternLayout">
-            <param name="ConversionPattern" value="%d{ISO8601} %-5p [%t] %c{1}: %m%n"/>
+            <param name="ConversionPattern" id="%d{ISO8601} %-5p [%t] %c{1}: %m%n"/>
         </layout>
     </appender>
 
@@ -34,35 +34,35 @@
 
 
     <logger name="de.caluga.morphium">
-        <level value="WARN"/>
+        <level id="WARN"/>
     </logger>
 
     <logger name="de.caluga.morphium.writer">
-        <level value="WARN"/>
+        <level id="WARN"/>
     </logger>
 
     <logger name="de.caluga.morphium.messaging">
-        <level value="WARN"/>
+        <level id="WARN"/>
     </logger>
 
     <logger name="de.caluga.morphium.Morphium">
-        <level value="INFO"/>
+        <level id="INFO"/>
     </logger>
 
     <logger name="de.caluga.morphium.SequenceGenerator">
-        <level value="INFO"/>
+        <level id="INFO"/>
     </logger>
 
     <logger name="de.caluga.morphium.writer.MorphiumWriterImpl">
-        <level value="WARN"/>
+        <level id="WARN"/>
     </logger>
 
     <logger name="de.caluga.morphium.AnnotationAndReflectionHelper">
-        <level value="WARN"/>
+        <level id="WARN"/>
     </logger>
 
     <logger name="com.mongodb.driver.cluster">
-        <level value="DEBUG"/>
+        <level id="DEBUG"/>
     </logger>
 
 
@@ -71,7 +71,7 @@
     <!-- ======================= -->
 
     <root>
-        <priority value="DEBUG"/>
+        <priority id="DEBUG"/>
         <appender-ref ref="CONSOLE"/>
     </root>
 

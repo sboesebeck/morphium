@@ -1,7 +1,8 @@
 package de.caluga.morphium;
 
-import com.mongodb.DBObject;
 import org.json.simple.parser.ParseException;
+
+import java.util.Map;
 
 /**
  * User: Stpehan Bösebeck
@@ -16,9 +17,11 @@ public interface ObjectMapper {
 
     Object marshallIfNecessary(Object o);
 
-    DBObject marshall(Object o);
+    void registerCustomTypeMapper(Class c, TypeMapper m);
 
-    <T> T unmarshall(Class<? extends T> cls, DBObject o);
+    Map<String, Object> marshall(Object o);
+
+    <T> T unmarshall(Class<? extends T> cls, Map<String, Object> o);
 
     <T> T unmarshall(Class<? extends T> cls, String json) throws ParseException;
 
@@ -44,4 +47,5 @@ public interface ObjectMapper {
     Morphium getMorphium();
 
 
+    void deregisterTypeMapper(Class c);
 }

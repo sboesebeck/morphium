@@ -6,13 +6,11 @@ import de.caluga.morphium.annotations.caching.WriteBuffer;
 import de.caluga.morphium.annotations.lifecycle.Lifecycle;
 
 import java.lang.annotation.Annotation;
-import java.lang.reflect.Field;
-import java.lang.reflect.InvocationTargetException;
-import java.lang.reflect.Method;
-import java.lang.reflect.Modifier;
+import java.lang.reflect.*;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * User: Stephan Bösebeck
@@ -30,10 +28,10 @@ public class AnnotationAndReflectionHelper {
         }
     };
     private Logger log = new Logger(AnnotationAndReflectionHelper.class);
-    private Map<String, Field> fieldCache = new HashMap<>();
-    private Map<Class<?>, Class<?>> realClassCache = new HashMap<>();
-    private Map<Class<?>, List<Field>> fieldListCache = new HashMap<>();
-    private Map<String, List<String>> fieldAnnotationListCache = new HashMap<>();
+    private Map<String, Field> fieldCache = new ConcurrentHashMap<>();
+    private Map<Class<?>, Class<?>> realClassCache = new ConcurrentHashMap<>();
+    private Map<Class<?>, List<Field>> fieldListCache = new ConcurrentHashMap<>();
+    private Map<String, List<String>> fieldAnnotationListCache = new ConcurrentHashMap<>();
     private Map<Class<?>, Map<Class<? extends Annotation>, Method>> lifeCycleMethods;
     private Map<Class<?>, Boolean> hasAdditionalData;
     private Map<Class<?>, Map<Class<? extends Annotation>, Annotation>> annotationCache;
@@ -42,10 +40,10 @@ public class AnnotationAndReflectionHelper {
 
     public AnnotationAndReflectionHelper(boolean convertCamelCase) {
         this.ccc = convertCamelCase;
-        lifeCycleMethods = new HashMap<>();
-        hasAdditionalData = new HashMap<>();
-        annotationCache = new HashMap<>();
-        fieldNameCache = new HashMap<>();
+        lifeCycleMethods = new ConcurrentHashMap<>();
+        hasAdditionalData = new ConcurrentHashMap<>();
+        annotationCache = new ConcurrentHashMap<>();
+        fieldNameCache = new ConcurrentHashMap<>();
     }
 
     public <T extends Annotation> boolean isAnnotationPresentInHierarchy(Class<?> cls, Class<? extends T> anCls) {
@@ -92,9 +90,8 @@ public class AnnotationAndReflectionHelper {
             return (T) annotationCache.get(cls).get(anCls);
         }
         T ret = null;
-        Map<Class<?>, Map<Class<? extends Annotation>, Annotation>> m = (HashMap) ((HashMap) annotationCache).clone();
-        if (m.get(cls) == null)
-            m.put(cls, new HashMap<Class<? extends Annotation>, Annotation>());
+        if (annotationCache.get(cls) == null)
+            annotationCache.put(cls, new HashMap<Class<? extends Annotation>, Annotation>());
 
         ret = cls.getAnnotation(anCls);
         if (ret == null) {
@@ -127,19 +124,18 @@ public class AnnotationAndReflectionHelper {
         }
         if (ret == null) {
             //annotation not present in hierarchy, store marker
-            m.get(cls).put(anCls, annotationNotPresent);
+            annotationCache.get(cls).put(anCls, annotationNotPresent);
         } else {
             //found it, keep it in cache
-            m.get(cls).put(anCls, ret);
+            annotationCache.get(cls).put(anCls, ret);
         }
-        annotationCache = m;
         return ret;
     }
 
     public boolean hasAdditionalData(Class clz) {
         if (hasAdditionalData.get(clz) == null) {
             List<String> lst = getFields(clz, AdditionalData.class);
-            HashMap m = (HashMap) ((HashMap) hasAdditionalData).clone();
+            Map m = hasAdditionalData; // (HashMap) ((HashMap) hasAdditionalData).clone();
             m.put(clz, (lst != null && lst.size() > 0));
             hasAdditionalData = m;
         }
@@ -200,7 +196,7 @@ public class AnnotationAndReflectionHelper {
                 ret = convertCamelCase(ret);
             }
         }
-        HashMap<Class<?>, Map<String, String>> m = (HashMap) ((HashMap) fieldNameCache).clone();
+        Map<Class<?>, Map<String, String>> m = fieldNameCache; // (HashMap) ((HashMap) fieldNameCache).clone();
         if (!m.containsKey(cls)) {
             m.put(cls, new HashMap<String, String>());
         }
@@ -282,9 +278,7 @@ public class AnnotationAndReflectionHelper {
 //            Class c = hierachy.get(i);
             Collections.addAll(ret, c.getDeclaredFields());
         }
-        HashMap<Class<?>, List<Field>> flc = (HashMap) ((HashMap) fieldListCache).clone();
-        flc.put(clz, ret);
-        fieldListCache = flc;
+        fieldListCache.put(clz, ret);
         return ret;
     }
 
@@ -303,7 +297,7 @@ public class AnnotationAndReflectionHelper {
         if (val != null) {
             return val;
         }
-        HashMap<String, Field> fc = (HashMap) ((HashMap) fieldCache).clone();
+        Map<String, Field> fc = fieldCache; //(HashMap) ((HashMap) fieldCache).clone();
         Class cls = getRealClass(clz);
         List<Field> flds = getAllFields(cls);
         Field ret = null;
@@ -545,7 +539,19 @@ public class AnnotationAndReflectionHelper {
                             } else {
                                 throw new RuntimeException("could not set field " + fld + ": Field has type " + f.getType().toString() + " got type " + value.getClass().toString());
                             }
-
+                        } else if (f.getType().isArray() && value instanceof List) {
+                            Object arr = Array.newInstance(f.getType(), ((List) value).size());
+                            int idx = 0;
+                            for (Object io : ((List) value)) {
+                                try {
+                                    Array.set(arr, idx, io);
+                                } catch (Exception e1) {
+                                    Array.set(arr, idx, ((Integer) io).byteValue());
+                                }
+                            }
+                            f.set(o, arr);
+                        } else {
+                            log.error("Could not set value!!!");
                         }
                     }
                     if (log.isDebugEnabled()) {
@@ -625,7 +631,7 @@ public class AnnotationAndReflectionHelper {
         if (strings != null) {
             return strings;
         }
-        HashMap<String, List<String>> fa = (HashMap) ((HashMap) fieldAnnotationListCache).clone();
+        Map<String, List<String>> fa = fieldAnnotationListCache; // (HashMap) ((HashMap) fieldAnnotationListCache).clone();
         List<String> ret = new ArrayList<>();
         Class sc = cls;
         sc = getRealClass(sc);
@@ -857,7 +863,7 @@ public class AnnotationAndReflectionHelper {
                 methods.put(a.annotationType(), m);
             }
         }
-        HashMap<Class<?>, Map<Class<? extends Annotation>, Method>> lc = (HashMap) ((HashMap) lifeCycleMethods).clone();
+        Map<Class<?>, Map<Class<? extends Annotation>, Method>> lc = lifeCycleMethods;  //(HashMap) ((HashMap) lifeCycleMethods).clone();
         lc.put(cls, methods);
         if (methods.get(type) != null) {
             try {

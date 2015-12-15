@@ -1,10 +1,9 @@
 package de.caluga.test.mongo.suite;
 
-import de.caluga.morphium.MorphiumSingleton;
 import de.caluga.morphium.annotations.*;
 import de.caluga.morphium.annotations.caching.NoCache;
+import de.caluga.morphium.driver.bson.MorphiumId;
 import de.caluga.morphium.query.Query;
-import org.bson.types.ObjectId;
 import org.junit.Test;
 
 /**
@@ -16,23 +15,23 @@ import org.junit.Test;
 public class LastAccessTest extends MongoTest {
     @Test
     public void createdTest() throws Exception {
-        MorphiumSingleton.get().dropCollection(TstObjLA.class);
+        morphium.dropCollection(TstObjLA.class);
         TstObjLA tst = new TstObjLA();
         tst.setValue("A value");
-        MorphiumSingleton.get().store(tst);
+        morphium.store(tst);
         assert (tst.getCreationTime() > 0) : "No creation time set?!?!?!";
         long creationTime = tst.getCreationTime();
         Thread.sleep(1000);
 
 
         tst.setValue("Annother value");
-        MorphiumSingleton.get().store(tst);
+        morphium.store(tst);
         assert (tst.getLastChange() > 0) : "No last change set?";
         assert (tst.getLastChange() > creationTime) : "No last change set?";
         long lastChange = tst.getLastChange();
         assert (tst.getCreationTime() == creationTime) : "Creation time change?";
 
-        Query<TstObjLA> q = MorphiumSingleton.get().createQueryFor(TstObjLA.class);
+        Query<TstObjLA> q = morphium.createQueryFor(TstObjLA.class);
         Thread.sleep(1000);
         tst = q.get();
         assert (tst.getLastAccess() > 0) : "No last_access set?";
@@ -43,7 +42,7 @@ public class LastAccessTest extends MongoTest {
         tst = q.asList().get(0);
         assert (tst.getLastAccess() > 0) : "No last_access set?";
 
-        q = MorphiumSingleton.get().createQueryFor(TstObjLA.class);
+        q = morphium.createQueryFor(TstObjLA.class);
         Thread.sleep(1000);
         tst = q.get();
         assert (tst.getLastAccess() != lastAccess) : "Lat Access did not change?";
@@ -55,24 +54,24 @@ public class LastAccessTest extends MongoTest {
 
     @Test
     public void createdTestStringId() throws Exception {
-        MorphiumSingleton.get().dropCollection(TstObjAutoValuesStringId.class);
+        morphium.dropCollection(TstObjAutoValuesStringId.class);
         TstObjAutoValuesStringId tst = new TstObjAutoValuesStringId();
         tst.setId("test1");
         tst.setValue("A value");
-        MorphiumSingleton.get().store(tst);
+        morphium.store(tst);
         assert (tst.getCreationTime() > 0) : "No creation time set?!?!?!";
         long creationTime = tst.getCreationTime();
         Thread.sleep(1000);
 
 
         tst.setValue("Annother value");
-        MorphiumSingleton.get().store(tst);
+        morphium.store(tst);
         assert (tst.getLastChange() > 0) : "No last change set?";
         assert (tst.getLastChange() > creationTime) : "No last change set?";
         long lastChange = tst.getLastChange();
         assert (tst.getCreationTime() == creationTime) : "Creation time change?";
 
-        Query<TstObjAutoValuesStringId> q = MorphiumSingleton.get().createQueryFor(TstObjAutoValuesStringId.class);
+        Query<TstObjAutoValuesStringId> q = morphium.createQueryFor(TstObjAutoValuesStringId.class);
         Thread.sleep(1000);
         tst = q.get();
         assert (tst.getLastAccess() > 0) : "No last_access set?";
@@ -83,7 +82,7 @@ public class LastAccessTest extends MongoTest {
         tst = q.asList().get(0);
         assert (tst.getLastAccess() > 0) : "No last_access set?";
 
-        q = MorphiumSingleton.get().createQueryFor(TstObjAutoValuesStringId.class);
+        q = morphium.createQueryFor(TstObjAutoValuesStringId.class);
         Thread.sleep(1000);
         tst = q.get();
         assert (tst.getLastAccess() != lastAccess) : "Lat Access did not change?";
@@ -163,7 +162,7 @@ public class LastAccessTest extends MongoTest {
     @CreationTime
     public static class TstObjLA {
         @Id
-        private ObjectId id;
+        private MorphiumId id;
 
         @LastAccess
         private long lastAccess;

@@ -1,7 +1,6 @@
 package de.caluga.test.mongo.suite;
 
 import de.caluga.morphium.MorphiumConfig;
-import de.caluga.morphium.MorphiumSingleton;
 import org.junit.Test;
 
 import java.util.Properties;
@@ -17,11 +16,11 @@ import java.util.Properties;
 public class MorphiumConfigTest extends MongoTest {
     @Test
     public void testToString() throws Exception {
-        String cfg = MorphiumSingleton.get().getConfig().toString();
+        String cfg = morphium.getConfig().toString();
         log.info("Config: " + cfg);
 
         MorphiumConfig c = MorphiumConfig.createFromJson(cfg);
-        assert (c.getAdr().size() == 3);
+        assert (c.getHostSeed().size() == 3);
     }
 
     @Test
@@ -45,24 +44,24 @@ public class MorphiumConfigTest extends MongoTest {
         assert (cfg.getWriteTimeout() == 9990);
         assert (cfg.isSafeMode());
         assert (cfg.getDatabase().equals("testdb"));
-        assert (cfg.getAdr().size() == 2);
-        assert (cfg.getAdr().get(0).getPort() == 27018);
-        assert (cfg.getAdr().get(1).getPort() == 27099);
+        assert (cfg.getHostSeed().size() == 2);
+        assert (cfg.getHostSeed().get(0).endsWith(":27018"));
+        assert (cfg.getHostSeed().get(1).endsWith(":27099"));
 
     }
 
     @Test
     public void testHosts() throws Exception {
         MorphiumConfig cfg = new MorphiumConfig();
-        cfg.addHost("localhost:9999");
-        cfg.addHost("localhost", 1000);
-        assert (cfg.getAdr().size() == 2);
+        cfg.addHostToSeed("localhost:9999");
+        cfg.addHostToSeed("localhost", 1000);
+        assert (cfg.getHostSeed().size() == 2);
 
-        cfg.setHosts("localhost:9999,localhost:2222,localhost:2344");
-        assert (cfg.getAdr().size() == 3);
+        cfg.setHostSeed("localhost:9999,localhost:2222,localhost:2344");
+        assert (cfg.getHostSeed().size() == 3);
 
-        cfg.setHosts("localhost,localhost,localhost,localhost", "1, 2,   3,4");
-        assert (cfg.getAdr().size() == 4);
+        cfg.setHostSeed("localhost,localhost,localhost,localhost", "1, 2,   3,4");
+        assert (cfg.getHostSeed().size() == 4);
 
     }
 
@@ -76,22 +75,22 @@ public class MorphiumConfigTest extends MongoTest {
         p.put("hosts", "localhost:27017");
 
         MorphiumConfig cfg = MorphiumConfig.fromProperties(p);
-        assert (cfg.getAdr().size() == 1);
+        assert (cfg.getHostSeed().size() == 1);
         assert (cfg.getDatabase().equals("thingy"));
         assert (cfg.getSocketTimeout() == 1000);
     }
 
     @Test
     public void testToProperties() throws Exception {
-        Properties p = MorphiumSingleton.get().getConfig().asProperties();
+        Properties p = morphium.getConfig().asProperties();
         for (Object k : p.keySet()) {
             log.info("Key: " + k + " Value: " + p.get(k));
         }
         p.store(System.out, "testproperties");
 
         MorphiumConfig cfg = MorphiumConfig.fromProperties(p);
-        assert (cfg.getDatabase().equals(MorphiumSingleton.get().getConfig().getDatabase()));
-        assert (cfg.getAdr().size() == 3);
+        assert (cfg.getDatabase().equals(morphium.getConfig().getDatabase()));
+        assert (cfg.getHostSeed().size() != 0);
         assert (cfg.getQueryClass() != null);
     }
 }

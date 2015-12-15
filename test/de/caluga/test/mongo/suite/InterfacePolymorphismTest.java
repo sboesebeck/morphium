@@ -1,11 +1,10 @@
 package de.caluga.test.mongo.suite;
 
-import de.caluga.morphium.MorphiumSingleton;
 import de.caluga.morphium.annotations.Embedded;
 import de.caluga.morphium.annotations.Entity;
 import de.caluga.morphium.annotations.Id;
 import de.caluga.morphium.annotations.caching.NoCache;
-import org.bson.types.ObjectId;
+import de.caluga.morphium.driver.bson.MorphiumId;
 import org.junit.Test;
 
 import java.util.List;
@@ -20,14 +19,14 @@ import java.util.List;
 public class InterfacePolymorphismTest extends MongoTest {
     @Test
     public void polymorphTest() throws Exception {
-        MorphiumSingleton.get().dropCollection(IfaceTestType.class);
+        morphium.dropCollection(IfaceTestType.class);
         IfaceTestType ifaceTestType = new IfaceTestType();
         ifaceTestType.setName("A Complex Type");
         ifaceTestType.setPolyTest(new SubClass(11));
-        MorphiumSingleton.get().store(ifaceTestType);
+        morphium.store(ifaceTestType);
 
-        assert (MorphiumSingleton.get().createQueryFor(IfaceTestType.class).countAll() == 1);
-        List<IfaceTestType> lst = MorphiumSingleton.get().createQueryFor(IfaceTestType.class).asList();
+        assert (morphium.createQueryFor(IfaceTestType.class).countAll() == 1);
+        List<IfaceTestType> lst = morphium.createQueryFor(IfaceTestType.class).asList();
         for (IfaceTestType tst : lst) {
             log.info("Class " + tst.getClass().toString());
         }
@@ -36,7 +35,7 @@ public class InterfacePolymorphismTest extends MongoTest {
     @Entity
     public static class IfaceTestType {
         @Id
-        private ObjectId id;
+        private MorphiumId id;
         private String name;
         private IPolyTest polyTest;
 

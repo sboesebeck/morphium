@@ -4,6 +4,7 @@ package de.caluga.test.mongo.suite;/**
 
 import de.caluga.morphium.Morphium;
 import de.caluga.morphium.MorphiumConfig;
+import de.caluga.test.mongo.suite.data.UncachedObject;
 import org.junit.Test;
 
 /**
@@ -22,13 +23,13 @@ public class ConstructorTest {
         m.close();
 
         MorphiumConfig cfg = new MorphiumConfig("morphium-test", 10, 1000, 1000);
-        cfg.addHost("localhost");
+        cfg.addHostToSeed("localhost");
         m = new Morphium(cfg);
         m.createQueryFor(UncachedObject.class).limit(10).asList();
         m.close();
 
         cfg = new MorphiumConfig("morphium-test", 10, 1000, 1000);
-        cfg.addHost("localhost");
+        cfg.addHostToSeed("localhost");
         m = new Morphium();
         m.setConfig(cfg);
         m.createQueryFor(UncachedObject.class).limit(10).asList();
@@ -46,12 +47,12 @@ public class ConstructorTest {
         assert (m.createQueryFor(UncachedObject.class).countAll() >= 1);
 
         MorphiumConfig cfg = new MorphiumConfig("morphium-test", 10, 1000, 1000);
-        cfg.addHost("localhost");
+        cfg.addHostToSeed("localhost");
         Morphium m2 = new Morphium(cfg);
 
         assert (m2.createQueryFor(UncachedObject.class).countAll() >= 1);
 
-        assert (m2.findById(UncachedObject.class, o.getMongoId()) != null);
+        assert (m2.findById(UncachedObject.class, o.getMorphiumId()) != null);
 
         m2.close();
         assert (m.createQueryFor(UncachedObject.class).countAll() >= 1);

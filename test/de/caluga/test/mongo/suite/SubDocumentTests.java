@@ -1,8 +1,9 @@
 package de.caluga.test.mongo.suite;
 
-import de.caluga.morphium.MorphiumSingleton;
 import de.caluga.morphium.annotations.Index;
 import de.caluga.morphium.query.Query;
+import de.caluga.test.mongo.suite.data.EmbeddedObject;
+import de.caluga.test.mongo.suite.data.UncachedObject;
 import org.junit.Test;
 
 import java.util.List;
@@ -20,7 +21,7 @@ public class SubDocumentTests extends MongoTest {
         UncachedObject o = new UncachedObject();
         o.setCounter(111);
         o.setValue("Embedded object");
-        //MorphiumSingleton.get().store(o);
+        //morphium.store(o);
 
         EmbeddedObject eo = new EmbeddedObject();
         eo.setName("Embedded object 1");
@@ -35,15 +36,15 @@ public class SubDocumentTests extends MongoTest {
         UncachedObject ref = new UncachedObject();
         ref.setCounter(100);
         ref.setValue("The reference");
-        MorphiumSingleton.get().store(ref);
+        morphium.store(ref);
 
         co.setRef(ref);
         co.setEinText("This is a very complex object");
-        MorphiumSingleton.get().store(co);
+        morphium.store(co);
 
         waitForWrites();
 
-        Query<ComplexObject> q = MorphiumSingleton.get().createQueryFor(ComplexObject.class);
+        Query<ComplexObject> q = morphium.createQueryFor(ComplexObject.class);
         q = q.f("embed.value").eq("A value");
         List<ComplexObject> lst = q.asList();
         assert (lst != null);
@@ -56,7 +57,7 @@ public class SubDocumentTests extends MongoTest {
         UncachedObject o = new UncachedObject();
         o.setCounter(111);
         o.setValue("Embedded object");
-        //MorphiumSingleton.get().store(o);
+        //morphium.store(o);
 
         EmbeddedObject eo = new EmbeddedObject();
         eo.setName("Embedded object 1");
@@ -71,15 +72,15 @@ public class SubDocumentTests extends MongoTest {
         UncachedObject ref = new UncachedObject();
         ref.setCounter(100);
         ref.setValue("The reference");
-        MorphiumSingleton.get().store(ref);
+        morphium.store(ref);
 
         co.setRef(ref);
         co.setEinText("This is a very complex object");
-        MorphiumSingleton.get().store(co);
+        morphium.store(co);
 
         waitForWrites();
 
-        Query<ComplexObject> q = MorphiumSingleton.get().createQueryFor(ComplexObject.class);
+        Query<ComplexObject> q = morphium.createQueryFor(ComplexObject.class);
         q = q.f("embed.value").eq("A value_not");
         List<ComplexObject> lst = q.asList();
         assert (lst != null);
@@ -89,7 +90,7 @@ public class SubDocumentTests extends MongoTest {
 
     @Test
     public void testSubDocumentIndex() throws Exception {
-        MorphiumSingleton.get().ensureIndicesFor(SubDocumentIndex.class);
+        morphium.ensureIndicesFor(SubDocumentIndex.class);
     }
 
     @Index({"embed.id"})

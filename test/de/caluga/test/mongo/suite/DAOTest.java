@@ -1,6 +1,7 @@
 package de.caluga.test.mongo.suite;
 
-import de.caluga.morphium.MorphiumSingleton;
+import de.caluga.test.mongo.suite.data.UncachedObject;
+import de.caluga.test.mongo.suite.data.UncachedObjectDAO;
 import org.junit.Test;
 
 import java.util.List;
@@ -18,10 +19,10 @@ public class DAOTest extends MongoTest {
             UncachedObject o = new UncachedObject();
             o.setCounter(i);
             o.setValue("Uncached " + i);
-            MorphiumSingleton.get().store(o);
+            morphium.store(o);
         }
-
-        UncachedObjectDAO dao = new UncachedObjectDAO();
+        Thread.sleep(1000);
+        UncachedObjectDAO dao = new UncachedObjectDAO(morphium);
         List<UncachedObject> lst = dao.getAll();
         assert (lst.size() == 100) : "Wrong element count: " + lst.size();
 

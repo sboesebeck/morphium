@@ -1,12 +1,10 @@
 package de.caluga.test.mongo.suite;
 
-import com.mongodb.DBObject;
-import de.caluga.morphium.MorphiumSingleton;
 import de.caluga.morphium.annotations.Entity;
 import de.caluga.morphium.annotations.Id;
 import de.caluga.morphium.annotations.Index;
 import de.caluga.morphium.annotations.Property;
-import org.bson.types.ObjectId;
+import de.caluga.morphium.driver.bson.MorphiumId;
 import org.junit.Test;
 
 import java.util.ArrayList;
@@ -22,7 +20,7 @@ import java.util.Map;
 public class IndexTest extends MongoTest {
     @Test
     public void createIndexMapFromTest() throws Exception {
-        List<Map<String, Object>> idx = MorphiumSingleton.get().createIndexMapFrom(new String[]{"-timer , -namne", "bla, fasel, blub"});
+        List<Map<String, Object>> idx = morphium.createIndexMapFrom(new String[]{"-timer , -namne", "bla, fasel, blub"});
         assert (idx.size() == 2) : "Created indexes: " + idx.size();
         assert (idx.get(0).get("timer").equals(-1));
         assert (idx.get(0).get("namne").equals(-1));
@@ -35,18 +33,18 @@ public class IndexTest extends MongoTest {
 
     @Test
     public void indexOnNewCollTest() throws Exception {
-        MorphiumSingleton.get().dropCollection(IndexedObject.class);
-        while (MorphiumSingleton.get().getDatabase().collectionExists(MorphiumSingleton.get().getMapper().getCollectionName(IndexedObject.class))) {
+        morphium.dropCollection(IndexedObject.class);
+        while (morphium.getDriver().exists(morphium.getConfig().getDatabase(), morphium.getMapper().getCollectionName(IndexedObject.class))) {
             log.info("Collection still exists... waiting");
             Thread.sleep(100);
         }
         IndexedObject obj = new IndexedObject("test", 101);
-        MorphiumSingleton.get().store(obj);
+        morphium.store(obj);
         //waiting for indices to be created
         Thread.sleep(1000);
 
         //index should now be available
-        List<DBObject> idx = MorphiumSingleton.get().getDatabase().getCollection("indexed_object").getIndexInfo();
+        List<Map<String, Object>> idx = morphium.getDriver().getIndexes(morphium.getConfig().getDatabase(), "indexed_object");
         boolean foundId = false;
         boolean foundTimerName = false;
         boolean foundTimerName2 = false;
@@ -54,9 +52,10 @@ public class IndexTest extends MongoTest {
         boolean foundName = false;
         boolean foundLst = false;
 
-        for (DBObject i : idx) {
+//        assert (false);
+        for (Map<String, Object> i : idx) {
             System.out.println(i.toString());
-            DBObject key = (DBObject) i.get("key");
+            Map<String, Object> key = (Map<String, Object>) i.get("key");
             if (key.get("_id") != null && key.get("_id").equals(1)) {
                 foundId = true;
                 assert (i.get("unique") == null || !(Boolean) i.get("unique"));
@@ -86,8 +85,8 @@ public class IndexTest extends MongoTest {
     @SuppressWarnings("ConstantConditions")
     @Test
     public void ensureIndexHierarchyTest() throws Exception {
-        MorphiumSingleton.get().ensureIndicesFor(IndexedSubObject.class);
-        List<DBObject> idx = MorphiumSingleton.get().getDatabase().getCollection("indexed_sub_object").getIndexInfo();
+        morphium.ensureIndicesFor(IndexedSubObject.class);
+        List<Map<String, Object>> idx = morphium.getDriver().getIndexes(morphium.getConfig().getDatabase(), "indexed_sub_object");
         boolean foundnew1 = false;
         boolean foundnew2 = false;
 
@@ -97,8 +96,8 @@ public class IndexTest extends MongoTest {
         boolean foundTimer = false;
         boolean foundName = false;
         boolean foundLst = false;
-        for (DBObject i : idx) {
-            DBObject key = (DBObject) i.get("key");
+        for (Map<String, Object> i : idx) {
+            Map<String, Object> key = (Map<String, Object>) i.get("key");
             if (key.get("_id") != null && key.get("_id").equals(1)) {
                 foundId = true;
                 assert (i.get("unique") == null || !(Boolean) i.get("unique"));
@@ -159,7 +158,7 @@ public class IndexTest extends MongoTest {
         private List<Integer> lst;
 
         @Id
-        ObjectId id;
+        MorphiumId id;
 
         public IndexedObject() {
         }
@@ -185,11 +184,11 @@ public class IndexTest extends MongoTest {
             this.name = name;
         }
 
-        public ObjectId getId() {
+        public MorphiumId getId() {
             return id;
         }
 
-        public void setId(ObjectId id) {
+        public void setId(MorphiumId id) {
             this.id = id;
         }
 

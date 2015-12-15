@@ -1,12 +1,11 @@
 package de.caluga.test.mongo.suite;
 
-import de.caluga.morphium.MorphiumSingleton;
+import de.caluga.morphium.driver.bson.MorphiumId;
 import de.caluga.morphium.messaging.MessageListener;
 import de.caluga.morphium.messaging.Messaging;
 import de.caluga.morphium.messaging.Msg;
 import de.caluga.morphium.messaging.MsgType;
 import de.caluga.morphium.query.Query;
-import org.bson.types.ObjectId;
 import org.junit.Test;
 
 import java.util.*;
@@ -27,16 +26,16 @@ public class MessagingTest extends MongoTest {
 
     public boolean error = false;
 
-    public ObjectId lastMsgId;
+    public MorphiumId lastMsgId;
 
     public int procCounter = 0;
 
     @Test
     public void testMsgQueName() throws Exception {
-        MorphiumSingleton.get().dropCollection(Msg.class);
-        MorphiumSingleton.get().dropCollection(Msg.class, "mmsg_msg2", null);
+        morphium.dropCollection(Msg.class);
+        morphium.dropCollection(Msg.class, "mmsg_msg2", null);
 
-        Messaging m = new Messaging(MorphiumSingleton.get(), 500, true);
+        Messaging m = new Messaging(morphium, 500, true);
         m.addMessageListener(new MessageListener() {
             @Override
             public Msg onMessage(Messaging msg, Msg m) {
@@ -46,7 +45,7 @@ public class MessagingTest extends MongoTest {
         });
         m.start();
 
-        Messaging m2 = new Messaging(MorphiumSingleton.get(), "msg2", 500, true);
+        Messaging m2 = new Messaging(morphium, "msg2", 500, true);
         m2.addMessageListener(new MessageListener() {
             @Override
             public Msg onMessage(Messaging msg, Msg m) {
@@ -60,7 +59,7 @@ public class MessagingTest extends MongoTest {
         msg.setExclusive(false);
         m.storeMessage(msg);
         Thread.sleep(1);
-        Query<Msg> q = MorphiumSingleton.get().createQueryFor(Msg.class);
+        Query<Msg> q = morphium.createQueryFor(Msg.class);
         assert (q.countAll() == 1);
         q.setCollectionName("mmsg_msg2");
         assert (q.countAll() == 0);
@@ -68,7 +67,7 @@ public class MessagingTest extends MongoTest {
         msg = new Msg("tst2", MsgType.MULTI, "msg", "value", 30000);
         msg.setExclusive(false);
         m2.storeMessage(msg);
-        q = MorphiumSingleton.get().createQueryFor(Msg.class);
+        q = morphium.createQueryFor(Msg.class);
         assert (q.countAll() == 1);
         q.setCollectionName("mmsg_msg2");
         assert (q.countAll() == 1) : "Count is " + q.countAll();
@@ -88,9 +87,9 @@ public class MessagingTest extends MongoTest {
     public void testMsgLifecycle() throws Exception {
         Msg m = new Msg();
         m.setSender("Meine wunderbare ID " + System.currentTimeMillis());
-        m.setMsgId(new ObjectId());
+        m.setMsgId(new MorphiumId());
         m.setName("A name");
-        MorphiumSingleton.get().store(m);
+        morphium.store(m);
         Thread.sleep(5000);
 
         assert (m.getTimestamp() > 0) : "Timestamp not updated?";
@@ -101,20 +100,20 @@ public class MessagingTest extends MongoTest {
 
     @Test
     public void messageQueueTest() throws Exception {
-        MorphiumSingleton.get().clearCollection(Msg.class);
+        morphium.clearCollection(Msg.class);
         String id = "meine ID";
 
 
         Msg m = new Msg("name", MsgType.SINGLE, "Msgid1", "value", 5000);
         m.setSender(id);
         m.setExclusive(true);
-        MorphiumSingleton.get().store(m);
+        morphium.store(m);
 
-        Query<Msg> q = MorphiumSingleton.get().createQueryFor(Msg.class);
-//        MorphiumSingleton.get().remove(q);
+        Query<Msg> q = morphium.createQueryFor(Msg.class);
+//        morphium.remove(q);
         //locking messages...
         q = q.f(Msg.Fields.sender).ne(id).f(Msg.Fields.lockedBy).eq(null).f(Msg.Fields.processedBy).ne(id);
-        MorphiumSingleton.get().set(q, Msg.Fields.lockedBy, id);
+        morphium.set(q, Msg.Fields.lockedBy, id);
 
         q = q.q();
         q = q.f(Msg.Fields.lockedBy).eq(id);
@@ -126,12 +125,12 @@ public class MessagingTest extends MongoTest {
         m = new Msg("name", MsgType.SINGLE, "msgid2", "value", 5000);
         m.setSender("sndId2");
         m.setExclusive(true);
-        MorphiumSingleton.get().store(m);
+        morphium.store(m);
 
-        q = MorphiumSingleton.get().createQueryFor(Msg.class);
+        q = morphium.createQueryFor(Msg.class);
         //locking messages...
         q = q.f(Msg.Fields.sender).ne(id).f(Msg.Fields.lockedBy).eq(null).f(Msg.Fields.processedBy).ne(id);
-        MorphiumSingleton.get().set(q, Msg.Fields.lockedBy, id);
+        morphium.set(q, Msg.Fields.lockedBy, id);
 
         q = q.q();
         q = q.f(Msg.Fields.lockedBy).eq(id);
@@ -144,14 +143,43 @@ public class MessagingTest extends MongoTest {
 
     }
 
+    @Test
+    public void multithreaddingTest() throws Exception {
+        Messaging producer = new Messaging(morphium, 500, false);
+        producer.start();
+        for (int i = 0; i < 1000; i++) {
+            Msg m = new Msg("test" + i, MsgType.SINGLE, "tm", "" + i + System.currentTimeMillis(), 10000);
+            producer.storeMessage(m);
+        }
+        final int[] count = {0};
+        Messaging consumer = new Messaging(morphium, 500, false, true, 1000);
+        consumer.addMessageListener(new MessageListener() {
+            @Override
+            public Msg onMessage(Messaging msg, Msg m) {
+                log.info("Got message!");
+                count[0]++;
+                return null;
+            }
+        });
+
+        consumer.start();
+
+        Thread.sleep(10000);
+        consumer.setRunning(false);
+        producer.setRunning(false);
+        log.info("Messages processed: " + count[0]);
+        log.info("Messages left: " + consumer.getMessageCount());
+
+    }
+
 
     @Test
     public void messagingTest() throws Exception {
         error = false;
 
-        MorphiumSingleton.get().clearCollection(Msg.class);
+        morphium.clearCollection(Msg.class);
 
-        final Messaging messaging = new Messaging(MorphiumSingleton.get(), 500, true);
+        final Messaging messaging = new Messaging(morphium, 500, true);
         messaging.start();
 
         messaging.addMessageListener(new MessageListener() {
@@ -169,10 +197,10 @@ public class MessagingTest extends MongoTest {
         log.info("Dig not get own message - cool!");
 
         Msg m = new Msg("meine Message", MsgType.SINGLE, "The Message", "value is a string", 5000);
-        m.setMsgId(new ObjectId());
+        m.setMsgId(new MorphiumId());
         m.setSender("Another sender");
 
-        MorphiumSingleton.get().store(m);
+        morphium.store(m);
 
         Thread.sleep(5000);
         assert (gotMessage) : "Message did not come?!?!?";
@@ -195,9 +223,9 @@ public class MessagingTest extends MongoTest {
         gotMessage4 = false;
         error = false;
 
-        MorphiumSingleton.get().clearCollection(Msg.class);
-        final Messaging m1 = new Messaging(MorphiumSingleton.get(), 500, true);
-        final Messaging m2 = new Messaging(MorphiumSingleton.get(), 500, true);
+        morphium.clearCollection(Msg.class);
+        final Messaging m1 = new Messaging(morphium, 500, true);
+        final Messaging m2 = new Messaging(morphium, 500, true);
         m1.start();
         m2.start();
 
@@ -250,7 +278,7 @@ public class MessagingTest extends MongoTest {
 
     @Test
     public void severalSystemsTest() throws Exception {
-        MorphiumSingleton.get().clearCollection(Msg.class);
+        morphium.clearCollection(Msg.class);
         gotMessage1 = false;
         gotMessage2 = false;
         gotMessage3 = false;
@@ -258,10 +286,10 @@ public class MessagingTest extends MongoTest {
         error = false;
 
 
-        final Messaging m1 = new Messaging(MorphiumSingleton.get(), 100, true);
-        final Messaging m2 = new Messaging(MorphiumSingleton.get(), 100, true);
-        final Messaging m3 = new Messaging(MorphiumSingleton.get(), 100, true);
-        final Messaging m4 = new Messaging(MorphiumSingleton.get(), 100, true);
+        final Messaging m1 = new Messaging(morphium, 100, true);
+        final Messaging m2 = new Messaging(morphium, 100, true);
+        final Messaging m3 = new Messaging(morphium, 100, true);
+        final Messaging m4 = new Messaging(morphium, 100, true);
 
         m1.start();
         m2.start();
@@ -340,10 +368,10 @@ public class MessagingTest extends MongoTest {
 
     @Test
     public void directedMessageTest() throws Exception {
-        MorphiumSingleton.get().clearCollection(Msg.class);
-        final Messaging m1 = new Messaging(MorphiumSingleton.get(), 100, true);
-        final Messaging m2 = new Messaging(MorphiumSingleton.get(), 100, true);
-        final Messaging m3 = new Messaging(MorphiumSingleton.get(), 100, true);
+        morphium.clearCollection(Msg.class);
+        final Messaging m1 = new Messaging(morphium, 100, true);
+        final Messaging m2 = new Messaging(morphium, 100, true);
+        final Messaging m3 = new Messaging(morphium, 100, true);
 
         m1.start();
         m2.start();
@@ -465,10 +493,10 @@ public class MessagingTest extends MongoTest {
         gotMessage3 = false;
         error = false;
 
-        MorphiumSingleton.get().clearCollection(Msg.class);
-        final Messaging m1 = new Messaging(MorphiumSingleton.get(), 100, true);
-        final Messaging m2 = new Messaging(MorphiumSingleton.get(), 100, true);
-        final Messaging onlyAnswers = new Messaging(MorphiumSingleton.get(), 100, true);
+        morphium.clearCollection(Msg.class);
+        final Messaging m1 = new Messaging(morphium, 100, true);
+        final Messaging m2 = new Messaging(morphium, 100, true);
+        final Messaging onlyAnswers = new Messaging(morphium, 100, true);
 
         m1.start();
         m2.start();
@@ -540,7 +568,7 @@ public class MessagingTest extends MongoTest {
         });
 
         Msg question = new Msg("QMsg", "This is the message text", "A question param");
-        question.setMsgId(new ObjectId());
+        question.setMsgId(new MorphiumId());
         lastMsgId = question.getMsgId();
         onlyAnswers.storeMessage(question);
 
@@ -572,14 +600,14 @@ public class MessagingTest extends MongoTest {
         long ttl = 15000; //15 sec
 
 
-        MorphiumSingleton.get().clearCollection(Msg.class);
+        morphium.clearCollection(Msg.class);
         List<Messaging> systems = new ArrayList<>();
 
-        final Map<ObjectId, Integer> processedMessages = new Hashtable<>();
+        final Map<MorphiumId, Integer> processedMessages = new Hashtable<>();
 
         for (int i = 0; i < numberOfWorkers; i++) {
             //creating messaging instances
-            Messaging m = new Messaging(MorphiumSingleton.get(), 100, true);
+            Messaging m = new Messaging(morphium, 100, true);
             m.start();
             systems.add(m);
             MessageListener l = new MessageListener() {
@@ -638,7 +666,7 @@ public class MessagingTest extends MongoTest {
         log.info("done");
 
         assert (processedMessages.size() == numberOfMessages) : "sent " + numberOfMessages + " messages, but only " + processedMessages.size() + " were recieved?";
-        for (ObjectId id : processedMessages.keySet()) {
+        for (MorphiumId id : processedMessages.keySet()) {
             assert (processedMessages.get(id) == numberOfWorkers - 1) : "Message " + id + " was not recieved by all " + (numberOfWorkers - 1) + " other workers? only by " + processedMessages.get(id);
         }
         assert (procCounter == numberOfMessages * (numberOfWorkers - 1)) : "Still processing messages?!?!?";
@@ -659,10 +687,10 @@ public class MessagingTest extends MongoTest {
 
     @Test
     public void broadcastTest() throws Exception {
-        MorphiumSingleton.get().clearCollection(Msg.class);
-        final Messaging m1 = new Messaging(MorphiumSingleton.get(), 1000, true);
-        final Messaging m2 = new Messaging(MorphiumSingleton.get(), 1000, true);
-        final Messaging m3 = new Messaging(MorphiumSingleton.get(), 1000, true);
+        morphium.clearCollection(Msg.class);
+        final Messaging m1 = new Messaging(morphium, 1000, true);
+        final Messaging m2 = new Messaging(morphium, 1000, true);
+        final Messaging m3 = new Messaging(morphium, 1000, true);
         gotMessage1 = false;
         gotMessage2 = false;
         gotMessage3 = false;
@@ -745,9 +773,9 @@ public class MessagingTest extends MongoTest {
 
     @Test
     public void messagingPerformanceTest() throws Exception {
-        MorphiumSingleton.get().clearCollection(Msg.class);
-        final Messaging producer = new Messaging(MorphiumSingleton.get(), 100, true);
-        final Messaging consumer = new Messaging(MorphiumSingleton.get(), 10, true);
+        morphium.clearCollection(Msg.class);
+        final Messaging producer = new Messaging(morphium, 100, true);
+        final Messaging consumer = new Messaging(morphium, 10, true);
         final int[] processed = {0};
         consumer.addMessageListener(new MessageListener() {
             @Override
@@ -793,9 +821,9 @@ public class MessagingTest extends MongoTest {
 
     @Test
     public void mutlithreaddedMessagingPerformanceTest() throws Exception {
-        MorphiumSingleton.get().clearCollection(Msg.class);
-        final Messaging producer = new Messaging(MorphiumSingleton.get(), 100, true);
-        final Messaging consumer = new Messaging(MorphiumSingleton.get(), 10, true, true, 2000);
+        morphium.clearCollection(Msg.class);
+        final Messaging producer = new Messaging(morphium, 100, true);
+        final Messaging consumer = new Messaging(morphium, 10, true, true, 2000);
         final int[] processed = {0};
         final Map<String, Long> msgCountById = new Hashtable<>();
         consumer.addMessageListener(new MessageListener() {
@@ -844,6 +872,68 @@ public class MessagingTest extends MongoTest {
         consumer.setRunning(false);
         log.info("Waitingh for threads to finish");
         Thread.sleep(1000);
+
+
+    }
+
+
+    @Test
+    public void exclusiveMessageTest() throws Exception {
+        morphium.dropCollection(Msg.class);
+        Messaging sender = new Messaging(morphium, 100, false);
+        sender.start();
+
+        gotMessage1 = false;
+        gotMessage2 = false;
+        gotMessage3 = false;
+        gotMessage4 = false;
+
+        Messaging m1 = new Messaging(morphium, 100, false);
+        m1.addMessageListener(new MessageListener() {
+            @Override
+            public Msg onMessage(Messaging msg, Msg m) {
+                gotMessage1 = true;
+                return null;
+            }
+        });
+        Messaging m2 = new Messaging(morphium, 100, false);
+        m2.addMessageListener(new MessageListener() {
+            @Override
+            public Msg onMessage(Messaging msg, Msg m) {
+                gotMessage2 = true;
+                return null;
+            }
+        });
+        Messaging m3 = new Messaging(morphium, 100, false);
+        m3.addMessageListener(new MessageListener() {
+            @Override
+            public Msg onMessage(Messaging msg, Msg m) {
+                gotMessage3 = true;
+                return null;
+            }
+        });
+
+        m1.start();
+        m2.start();
+        m3.start();
+
+        Msg m = new Msg();
+        m.setExclusive(true);
+        m.setName("A message");
+
+        sender.queueMessage(m);
+        Thread.sleep(1000);
+
+        int rec = 0;
+        if (gotMessage1) rec++;
+        if (gotMessage2) rec++;
+        if (gotMessage3) rec++;
+        assert (rec == 1);
+
+        assert (m1.getNumberOfMessages() == 0);
+        m1.setRunning(false);
+        m2.setRunning(false);
+        m3.setRunning(false);
 
 
     }

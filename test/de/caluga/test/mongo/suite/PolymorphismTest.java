@@ -1,13 +1,12 @@
 package de.caluga.test.mongo.suite;
 
 import de.caluga.morphium.Morphium;
-import de.caluga.morphium.MorphiumSingleton;
 import de.caluga.morphium.NameProvider;
 import de.caluga.morphium.ObjectMapper;
 import de.caluga.morphium.annotations.Entity;
 import de.caluga.morphium.annotations.Id;
 import de.caluga.morphium.annotations.caching.NoCache;
-import org.bson.types.ObjectId;
+import de.caluga.morphium.driver.bson.MorphiumId;
 import org.junit.Test;
 
 import java.util.List;
@@ -23,19 +22,19 @@ import java.util.List;
 public class PolymorphismTest extends MongoTest {
     @Test
     public void polymorphTest() throws Exception {
-        MorphiumSingleton.get().dropCollection(PolyTest.class);
+        morphium.dropCollection(PolyTest.class);
         OtherSubClass p = new OtherSubClass();
         p.setPoly("poly");
         p.setOther("other");
-        MorphiumSingleton.get().store(p);
+        morphium.store(p);
 
         SubClass sb = new SubClass();
         sb.setPoly("poly super");
         sb.setSub("sub");
-        MorphiumSingleton.get().store(sb);
+        morphium.store(sb);
 
-        assert (MorphiumSingleton.get().createQueryFor(PolyTest.class).countAll() == 2);
-        List<PolyTest> lst = MorphiumSingleton.get().createQueryFor(PolyTest.class).asList();
+        assert (morphium.createQueryFor(PolyTest.class).countAll() == 2);
+        List<PolyTest> lst = morphium.createQueryFor(PolyTest.class).asList();
         for (PolyTest tst : lst) {
             log.info("Class " + tst.getClass().toString());
         }
@@ -55,7 +54,7 @@ public class PolymorphismTest extends MongoTest {
         private String poly;
 
         @Id
-        private ObjectId id;
+        private MorphiumId id;
 
         public String getPoly() {
             return poly;

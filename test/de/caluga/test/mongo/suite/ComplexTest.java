@@ -1,17 +1,20 @@
 package de.caluga.test.mongo.suite;
 
-import com.mongodb.BasicDBObject;
-import de.caluga.morphium.MorphiumSingleton;
+import de.caluga.morphium.Utils;
 import de.caluga.morphium.query.Query;
+import de.caluga.test.mongo.suite.data.EmbeddedObject;
+import de.caluga.test.mongo.suite.data.UncachedObject;
 import org.junit.Test;
 
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * User: Stpehan Bösebeck
  * Date: 29.03.12
  * Time: 15:56
- * <p/>
+ * <p>
  * testing compley queryies on Morphium
  */
 public class ComplexTest extends MongoTest {
@@ -21,7 +24,7 @@ public class ComplexTest extends MongoTest {
         UncachedObject o = new UncachedObject();
         o.setCounter(111);
         o.setValue("Embedded object");
-        //MorphiumSingleton.get().store(o);
+        //morphium.store(o);
 
         EmbeddedObject eo = new EmbeddedObject();
         eo.setName("Embedded object 1");
@@ -36,17 +39,17 @@ public class ComplexTest extends MongoTest {
         UncachedObject ref = new UncachedObject();
         ref.setCounter(100);
         ref.setValue("The reference");
-        MorphiumSingleton.get().store(ref);
+        morphium.store(ref);
 
         co.setRef(ref);
         co.setEinText("This is a very complex object");
-        MorphiumSingleton.get().store(co);
+        morphium.store(co);
 
         //object stored!!!
         waitForWrites();
 
         //now read it again...
-        Query<ComplexObject> q = MorphiumSingleton.get().createQueryFor(ComplexObject.class);
+        Query<ComplexObject> q = morphium.createQueryFor(ComplexObject.class);
         ComplexObject co2 = q.getById(co.getId());
 
         log.info("Just loaded: " + co2.toString());
@@ -64,10 +67,10 @@ public class ComplexTest extends MongoTest {
         o.setNullValue(15);
 
         //And test for null-References!
-        MorphiumSingleton.get().store(o);
+        morphium.store(o);
         assert (o.getChanged() != 0) : "Last change not set!?!?";
 
-        Query<ComplexObject> q = MorphiumSingleton.get().createQueryFor(ComplexObject.class).f("ein_text").eq("A test");
+        Query<ComplexObject> q = morphium.createQueryFor(ComplexObject.class).f("ein_text").eq("A test");
         o = q.get();
         assert (o.getLastAccess() != 0) : "Last access not set!";
 
@@ -75,7 +78,7 @@ public class ComplexTest extends MongoTest {
         o.setEinText("A test2");
         o.setTrans("Tansient");
         o.setNullValue(18);
-        List<ComplexObject> lst = MorphiumSingleton.get().readAll(ComplexObject.class);
+        List<ComplexObject> lst = morphium.readAll(ComplexObject.class);
         for (ComplexObject co : lst) {
             assert (co.getChanged() != 0) : "Last Access not set!";
         }
@@ -89,10 +92,10 @@ public class ComplexTest extends MongoTest {
             UncachedObject o = new UncachedObject();
             o.setCounter(i);
             o.setValue("Uncached " + i);
-            MorphiumSingleton.get().store(o);
+            morphium.store(o);
         }
 
-        Query<UncachedObject> q = MorphiumSingleton.get().createQueryFor(UncachedObject.class);
+        Query<UncachedObject> q = morphium.createQueryFor(UncachedObject.class);
         q.f("counter").lt(50).or(q.q().f("counter").eq(10), q.q().f("value").eq("Uncached 15"));
         List<UncachedObject> lst = q.asList();
         assert (lst.size() == 2) : "List size wrong: " + lst.size();
@@ -100,7 +103,7 @@ public class ComplexTest extends MongoTest {
             assert (o.getCounter() < 50 && (o.getCounter() == 10 || o.getCounter() == 15)) : "Counter wrong: " + o.getCounter();
         }
 
-        q = MorphiumSingleton.get().createQueryFor(UncachedObject.class);
+        q = morphium.createQueryFor(UncachedObject.class);
         q.f("counter").lt(50).or(q.q().f("counter").eq(10), q.q().f("value").eq("Uncached 15"), q.q().f("counter").eq(52));
         lst = q.asList();
         assert (lst.size() == 2) : "List size wrong: " + lst.size();
@@ -108,7 +111,7 @@ public class ComplexTest extends MongoTest {
             assert (o.getCounter() < 50 && (o.getCounter() == 10 || o.getCounter() == 15)) : "Counter wrong: " + o.getCounter();
         }
 
-        q = MorphiumSingleton.get().createQueryFor(UncachedObject.class);
+        q = morphium.createQueryFor(UncachedObject.class);
         q.f("counter").lt(50).f("counter").gt(10).or(q.q().f("counter").eq(22), q.q().f("value").eq("Uncached 15"), q.q().f("counter").gte(70));
         lst = q.asList();
         assert (lst.size() == 2) : "List size wrong: " + lst.size();
@@ -119,15 +122,15 @@ public class ComplexTest extends MongoTest {
 
 
     @Test
-    public void testNorQuery() {
+    public void testNorQuery() throws Exception {
         for (int i = 1; i <= 100; i++) {
             UncachedObject o = new UncachedObject();
             o.setCounter(i);
             o.setValue("Uncached " + i);
-            MorphiumSingleton.get().store(o);
+            morphium.store(o);
         }
-
-        Query<UncachedObject> q = MorphiumSingleton.get().createQueryFor(UncachedObject.class);
+        Thread.sleep(500);
+        Query<UncachedObject> q = morphium.createQueryFor(UncachedObject.class);
         q.nor(q.q().f("counter").lt(90), q.q().f("counter").gt(95));
         log.info("Query: " + q.toQueryObject().toString());
         List<UncachedObject> lst = q.asList();
@@ -144,12 +147,12 @@ public class ComplexTest extends MongoTest {
             UncachedObject o = new UncachedObject();
             o.setCounter(i);
             o.setValue("Uncached " + i);
-            MorphiumSingleton.get().store(o);
+            morphium.store(o);
         }
 
-        BasicDBObject query = new BasicDBObject();
-        query = query.append("counter", new BasicDBObject("$lt", 10));
-        Query<UncachedObject> q = MorphiumSingleton.get().createQueryFor(UncachedObject.class);
+        Map<String, Object> query = new HashMap<String, Object>();
+        query.put("counter", Utils.getMap("$lt", 10));
+        Query<UncachedObject> q = morphium.createQueryFor(UncachedObject.class);
         List<UncachedObject> lst = q.complexQuery(query);
         assert (lst != null && !lst.isEmpty()) : "Nothing found?";
         for (UncachedObject o : lst) {
@@ -164,7 +167,7 @@ public class ComplexTest extends MongoTest {
         UncachedObject o = new UncachedObject();
         o.setCounter(15);
         o.setValue("Uncached " + 15);
-        MorphiumSingleton.get().store(o);
+        morphium.store(o);
 
 
         ComplexObject co = new ComplexObject();
@@ -172,9 +175,9 @@ public class ComplexTest extends MongoTest {
         co.setRef(o);
         co.setTrans("trans");
 
-        MorphiumSingleton.get().store(co);
+        morphium.store(co);
 
-        Query<ComplexObject> qc = MorphiumSingleton.get().createQueryFor(ComplexObject.class);
+        Query<ComplexObject> qc = morphium.createQueryFor(ComplexObject.class);
         qc.f("ref").eq(o);
 
         ComplexObject fnd = qc.get();
@@ -188,7 +191,7 @@ public class ComplexTest extends MongoTest {
         UncachedObject o = new UncachedObject();
         o.setCounter(15);
         o.setValue("Uncached " + 15);
-        MorphiumSingleton.get().store(o);
+        morphium.store(o);
 
 
         ComplexObject co = new ComplexObject();
@@ -202,10 +205,10 @@ public class ComplexTest extends MongoTest {
 
         co.setEmbed(eo);
 
-        MorphiumSingleton.get().store(co);
+        morphium.store(co);
 
         waitForWrites();
-        Query<ComplexObject> qc = MorphiumSingleton.get().createQueryFor(ComplexObject.class);
+        Query<ComplexObject> qc = morphium.createQueryFor(ComplexObject.class);
         co = qc.f("embed.name").eq("embedded1").get();
         assert (co != null);
         assert (co.getEmbed() != null);

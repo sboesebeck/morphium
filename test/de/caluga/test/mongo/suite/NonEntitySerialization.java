@@ -1,16 +1,15 @@
 package de.caluga.test.mongo.suite;
 
-import com.mongodb.DBObject;
-import de.caluga.morphium.MorphiumSingleton;
 import de.caluga.morphium.annotations.Entity;
 import de.caluga.morphium.annotations.Id;
-import org.bson.types.ObjectId;
+import de.caluga.morphium.driver.bson.MorphiumId;
 import org.junit.Test;
 
 import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Created by stephan on 18.11.14.
@@ -23,10 +22,10 @@ public class NonEntitySerialization extends MongoTest {
         ne.setInteger(42);
         ne.setValue("Thank you for the fish");
 
-        DBObject obj = MorphiumSingleton.get().getMapper().marshall(ne);
+        Map<String, Object> obj = morphium.getMapper().marshall(ne);
         log.info(obj.toString());
 
-        NonEntity ne2 = MorphiumSingleton.get().getMapper().unmarshall(NonEntity.class, obj);
+        NonEntity ne2 = morphium.getMapper().unmarshall(NonEntity.class, obj);
         assert (ne2.getInteger() == 42);
         log.info("Successful read:" + ne2.toString());
     }
@@ -42,20 +41,20 @@ public class NonEntitySerialization extends MongoTest {
         nc.getList().add(ne);
         nc.getList().add("Some string");
 
-        DBObject obj = MorphiumSingleton.get().getMapper().marshall(nc);
+        Map<String, Object> obj = morphium.getMapper().marshall(nc);
 
-        NonEntityContainer nc2 = MorphiumSingleton.get().getMapper().unmarshall(NonEntityContainer.class, obj);
+        NonEntityContainer nc2 = morphium.getMapper().unmarshall(NonEntityContainer.class, obj);
         assert (nc2.getList().get(0) != null);
         NonEntity ne2 = (NonEntity) nc2.getList().get(0);
         assert (ne2.getInteger() == 42);
 
         //now store to Mongo
-        MorphiumSingleton.get().dropCollection(NonEntityContainer.class);
-        MorphiumSingleton.get().store(nc);
+        morphium.dropCollection(NonEntityContainer.class);
+        morphium.store(nc);
 
         Thread.sleep(1000);
 
-        nc2 = MorphiumSingleton.get().findById(NonEntityContainer.class, nc.getId());
+        nc2 = morphium.findById(NonEntityContainer.class, nc.getId());
         assert (nc2.getList().get(0) != null);
         ne2 = (NonEntity) nc2.getList().get(0);
         assert (ne2.getInteger() == 42);
@@ -76,20 +75,20 @@ public class NonEntitySerialization extends MongoTest {
         nc.getMap().put("String", "The question is...");
 
 
-        DBObject obj = MorphiumSingleton.get().getMapper().marshall(nc);
+        Map<String, Object> obj = morphium.getMapper().marshall(nc);
 
-        NonEntityContainer nc2 = MorphiumSingleton.get().getMapper().unmarshall(NonEntityContainer.class, obj);
+        NonEntityContainer nc2 = morphium.getMapper().unmarshall(NonEntityContainer.class, obj);
         assert (nc2.getMap().get("Serialized") != null);
         NonEntity ne2 = (NonEntity) nc2.getMap().get("Serialized");
         assert (ne2.getInteger() == 42);
 
         //now store to Mongo
-        MorphiumSingleton.get().dropCollection(NonEntityContainer.class);
-        MorphiumSingleton.get().store(nc);
+        morphium.dropCollection(NonEntityContainer.class);
+        morphium.store(nc);
 
         Thread.sleep(1000);
 
-        nc2 = MorphiumSingleton.get().findById(NonEntityContainer.class, nc.getId());
+        nc2 = morphium.findById(NonEntityContainer.class, nc.getId());
         assert (nc2.getMap().get("Serialized") != null);
         ne2 = (NonEntity) nc2.getMap().get("Serialized");
         assert (ne2.getInteger() == 42);
@@ -99,15 +98,15 @@ public class NonEntitySerialization extends MongoTest {
     @Entity
     public static class NonEntityContainer {
         @Id
-        private ObjectId id;
+        private MorphiumId id;
         private List<Object> list;
         private HashMap<String, Object> map;
 
-        public ObjectId getId() {
+        public MorphiumId getId() {
             return id;
         }
 
-        public void setId(ObjectId id) {
+        public void setId(MorphiumId id) {
             this.id = id;
         }
 

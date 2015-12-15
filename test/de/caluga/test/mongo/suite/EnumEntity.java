@@ -5,7 +5,8 @@ import de.caluga.morphium.annotations.Id;
 import de.caluga.morphium.annotations.SafetyLevel;
 import de.caluga.morphium.annotations.WriteSafety;
 import de.caluga.morphium.annotations.caching.NoCache;
-import org.bson.types.ObjectId;
+import de.caluga.morphium.driver.bson.MorphiumId;
+import de.caluga.test.mongo.suite.data.TestEnum;
 
 import java.util.List;
 
@@ -20,7 +21,7 @@ import java.util.List;
 @WriteSafety(level = SafetyLevel.WAIT_FOR_ALL_SLAVES, waitForJournalCommit = true)
 public class EnumEntity {
     @Id
-    private ObjectId id;
+    private MorphiumId id;
 
     private TestEnum tst;
     private String value;
@@ -42,11 +43,11 @@ public class EnumEntity {
         this.value = value;
     }
 
-    public ObjectId getId() {
+    public MorphiumId getId() {
         return id;
     }
 
-    public void setId(ObjectId id) {
+    public void setId(MorphiumId id) {
         this.id = id;
     }
 

@@ -1,7 +1,5 @@
 package de.caluga.morphium.aggregation;
 
-import com.mongodb.BasicDBObject;
-import com.mongodb.DBObject;
 import de.caluga.morphium.Morphium;
 import de.caluga.morphium.async.AsyncOperationCallback;
 import de.caluga.morphium.query.Query;
@@ -43,8 +41,6 @@ public interface Aggregator<T, R> {
 
     Aggregator<T, R> project(String... m);    //field:1
 
-    Aggregator<T, R> project(BasicDBObject m);    //custom
-
     Aggregator<T, R> match(Query<T> q);
 
     Aggregator<T, R> limit(int num);
@@ -57,19 +53,30 @@ public interface Aggregator<T, R> {
 
     Aggregator<T, R> sort(Map<String, Integer> sort);
 
-    Group<T, R> group(BasicDBObject id);
+    void setCollectionName(String cn);
 
-    Group<T, R> group(Map<String, String> idSubObject);
+    String getCollectionName();
+
+    Group<T, R> group(Map<String, Object> id);
+
+    Group<T, R> groupSubObj(Map<String, String> idSubObject);
 
     Group<T, R> group(String id);
 
-    List<DBObject> toAggregationList();
+    List<Map<String, Object>> toAggregationList();
 
-    void addOperator(DBObject o);
+    void addOperator(Map<String, Object> o);
 
     List<R> aggregate();
 
     void aggregate(AsyncOperationCallback<R> callback);
 
+    void setExplain(boolean explain);
+
+    void setUseDisk(boolean useDisk);
+
+    boolean isExplain();
+
+    boolean isUseDisk();
 
 }

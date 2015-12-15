@@ -1,12 +1,13 @@
 package de.caluga.morphium.replicaset;
 
-import com.mongodb.*;
 import de.caluga.morphium.Logger;
 import de.caluga.morphium.Morphium;
 import de.caluga.morphium.MorphiumConfig;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 
@@ -73,7 +74,7 @@ public class RSMonitor {
     public de.caluga.morphium.replicaset.ReplicaSetStatus getReplicaSetStatus(boolean full) {
         if (morphium.isReplicaSet()) {
             try {
-                DB adminDB = morphium.getMongo().getDB("admin");
+//                DB adminDB = morphium.getDriver().("admin");
                 MorphiumConfig config = morphium.getConfig();
 //                if (config.getMongoAdminUser() != null) {
 //                    if (!adminDB.authenticate(config.getMongoAdminUser(), config.getMongoAdminPwd().toCharArray())) {
@@ -81,27 +82,37 @@ public class RSMonitor {
 //                        return null;
 //                    }
 //                }
-                CommandResult res = adminDB.command("replSetGetStatus");
+
+
+                Map<String, Object> res = morphium.getDriver().getReplsetStatus();
                 de.caluga.morphium.replicaset.ReplicaSetStatus status = morphium.getMapper().unmarshall(de.caluga.morphium.replicaset.ReplicaSetStatus.class, res);
                 if (full) {
-                    DBCursor rpl = morphium.getMongo().getDB("local").getCollection("system.replset").find();
-                    DBObject stat = rpl.next(); //should only be one, i think
-                    rpl.close();
-                    ReplicaSetConf cfg = morphium.getMapper().unmarshall(ReplicaSetConf.class, stat);
-                    List<Object> mem = cfg.getMemberList();
-                    List<ConfNode> cmembers = new ArrayList<>();
+                    Map<String, Object> findMetaData = new HashMap<>();
+                    List<Map<String, Object>> stats = morphium.getDriver().find("local", "system.replset", new HashMap<String, Object>(), null, null, 0, 10, 10, null, findMetaData);
+                    if (stats == null || stats.size() == 0) {
+                        logger.info("could not get replicaset status");
+                    } else {
+                        Map<String, Object> stat = stats.get(0);
+//                    DBCursor rpl = morphium.getDriver().getDB("local").getCollection("system.replset").find();
+//                    DBObject stat = rpl.next(); //should only be one, i think
+//                    rpl.close();
+                        ReplicaSetConf cfg = morphium.getMapper().unmarshall(ReplicaSetConf.class, stat);
+                        List<Object> mem = cfg.getMemberList();
+                        List<ConfNode> cmembers = new ArrayList<>();
 
-                    for (Object o : mem) {
+                        for (Object o : mem) {
 //                        DBObject dbo = (DBObject) o;
-                        ConfNode cn = (ConfNode) o;// objectMapper.unmarshall(ConfNode.class, dbo);
-                        cmembers.add(cn);
+                            ConfNode cn = (ConfNode) o;// objectMapper.unmarshall(ConfNode.class, dbo);
+                            cmembers.add(cn);
+                        }
+                        cfg.setMembers(cmembers);
+                        status.setConfig(cfg);
                     }
-                    cfg.setMembers(cmembers);
-                    status.setConfig(cfg);
                 }
                 //de-referencing list
                 List lst = status.getMembers();
                 List<ReplicaSetNode> members = new ArrayList<>();
+                if (lst != null)
                 for (Object l : lst) {
 //                    DBObject o = (DBObject) l;
                     ReplicaSetNode n = (ReplicaSetNode) l;//objectMapper.unmarshall(ReplicaSetNode.class, o);
@@ -118,8 +129,8 @@ public class RSMonitor {
             } catch (Exception e) {
                 logger.warn("Could not get Replicaset status: " + e.getMessage(), e);
                 logger.warn("Tried connection to: ");
-                for (ServerAddress adr : morphium.getConfig().getAdr()) {
-                    logger.warn("   " + adr.getHost() + ":" + adr.getPort());
+                for (String adr : morphium.getConfig().getHostSeed()) {
+                    logger.warn("   " + adr);
                 }
             }
         }

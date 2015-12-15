@@ -1,10 +1,10 @@
 package de.caluga.test.mongo.suite;
 
-import de.caluga.morphium.MorphiumSingleton;
 import de.caluga.morphium.ProfilingListener;
 import de.caluga.morphium.ReadAccessType;
 import de.caluga.morphium.WriteAccessType;
 import de.caluga.morphium.query.Query;
+import de.caluga.test.mongo.suite.data.UncachedObject;
 import org.junit.Test;
 
 /**
@@ -26,7 +26,7 @@ public class ProfilingTester extends MongoTest {
                 if (query.getServer() == null) {
                     log.info("did not get Server in query...");
                 } else {
-                    log.info("Read from Server: " + query.getServer().getHost() + ":" + query.getServer().getPort());
+                    log.info("Read from Server: " + query.getServer());
                 }
                 readAccess = true;
                 readTime = time;
@@ -39,19 +39,21 @@ public class ProfilingTester extends MongoTest {
             }
         };
 
-        MorphiumSingleton.get().addProfilingListener(pl);
+        morphium.addProfilingListener(pl);
 
         UncachedObject uc = new UncachedObject();
         uc.setValue("Test");
         uc.setCounter(111);
-        MorphiumSingleton.get().store(uc);
+        morphium.store(uc);
+
         assert (writeAccess);
         assert (writeTime > -1);
         for (int i = 0; i < 100; i++) {
-            MorphiumSingleton.get().createQueryFor(UncachedObject.class).get();
+            morphium.createQueryFor(UncachedObject.class).get();
+            Thread.sleep(200);
             assert (readAccess);
             assert (readTime > -1);
         }
-        MorphiumSingleton.get().removeProfilingListener(pl);
+        morphium.removeProfilingListener(pl);
     }
 }
