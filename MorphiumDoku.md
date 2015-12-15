@@ -3,6 +3,9 @@ Author: Stephan Bösebeck
 URL: http://sboesebeck.github.io/morphium/
 morphium_version: 3.0
 mongodb_version: 3.2
+html header:    <link rel="stylesheet" href="http://yandex.st/highlightjs/7.3/styles/default.min.css">
+    <script src="http://yandex.st/highlightjs/7.3/highlight.min.js"></script>
+    <script>hljs.initHighlightingOnLoad();</script>
 ...
 
 # Morphium Documentation
@@ -82,8 +85,9 @@ As you know the motivation now, these are the changes.
 
 Simple example on how to use *Morphium*:
 
-First you need to create Data to be stored in Mongo. This should be some simple class like this one here:
+First you need to create data to be stored in Mongo. This should be some simple class like this one here:
 
+```
     @Entity
     public class MyEntity {
         @Id
@@ -93,13 +97,13 @@ First you need to create Data to be stored in Mongo. This should be some simple 
         private long property;
         //....  getter & setter here
     }
-    
+```
 
-This given Entity has a couple of fields which will be stored in Mongo according to their names. Usually the Collection Name is also derived from the ClassName (as most things in *Morphium*, that can be changed).
+This given entity has a couple of fields which will be stored in Mongo according to their names. Usually the collection name is also derived from the ClassName (as most things in *Morphium*, that can be changed).
 
-The names are usually translated from camel case (like `aField`) into lowercase with underscores (like `a_field`). This is the default behavior, but can be changed to your needs.
+The names are usually translated from camel case (like `aField`) into lowercase with underscores (like `a_field`). This is the default behavior, but can be changed according to your needs.
 
-In Mongo the corresponding object would be stored in a collection named `my_entity` and would look like this:
+In mongo the corresponding object would be stored in a collection named `my_entity` and would look like this:
 
     {
       _id: ObjectId("53ce59864882233112aa018df"),
@@ -118,7 +122,8 @@ The next example shows how to store and access data from mongo:
     //connect to a replicaset 
     //if you want to connect to a shared environment, you'd add the addresses of 
     //the mongos-servers here 
-    //you can also specify only one of those nodes, Morphium will figure out the others
+    //you can also specify only one of those nodes, 
+    //Morphium (or better: mongodb driver) will figure out the others
     //connect 
     Morphium morphium=new Morphium(cfg);
     
@@ -130,17 +135,17 @@ The next example shows how to store and access data from mongo:
     morphium.store(ent);
     
     //the query object is used to access mongo 
-    Query<myentity> q=morphium.createQueryFor(MyEntity.class); 
+    Query<MyEntity> q=morphium.createQueryFor(MyEntity.class); 
     q=q.f("a_field").eq(123); 
     q=q.f("other").eq("value"); 
     q=q.f("property").lt(123).f("property").gt(100);
     
-    List<myentity> lst=q.asList();
+    List<MyEntity> lst=q.asList();
     
     //or use iterator 
     for (MyEntity e:q.asIterable(100,2)) { 
         // iterate in windows of 100 objects 
-        // 3 windows lookAhead 
+        // 2 windows lookAhead 
     }
     
 
@@ -152,17 +157,25 @@ This gives a short glance of how *Morphium* works and how it can be used. But *M
 
 There are four major components of *Morphium*:
 
-1.  the *Morphium* Instance: This is you main entrypoint for interaction with Mongo. Herer you create Queries and you write data to mongo. All writes will then be forwareded to the configured Writer implementation, all reads are handeled by Query
+1.  the *Morphium* Instance: This is you main entrypoint for interaction with Mongo. Here you create Queries and you write data to mongo. All writes will then be forwarded to the configured Writer implementation, all reads are handled by the Query-Object
 2.  Query-Object: you need a query object to do reads from mongo. This is usually created by using `Morphium.createQueryFor(Class<T> cls)`. With a Query, you can easily get data from database or have some things changed (update) and alike. 
 3.  the Cache: For every request that should be sent to mongo, *Morphium* checks first, whether this collection is to be cached and if there is already a result being stored for the corresponding request.
-4.  The Writers: there are 3 different types of writers in *Morphium*: The Default Writer (`MorphiumWriter`) - writes directly to database, waiting for the response, the BufferedWriter (`BufferedWriter`) - does not write directly. All writes are stored in a Buffer which is then processed as a bulk. The last type of writer ist the asynchronous writer (`AsyncWriter`) which is similar to the buffered one, but starts writing immediately - only asynchronous. *Morphium* decides which writer to use depending on the configuration an the annotations of the given Entities.
+4.  The Writers: there are 3 different types of writers in *Morphium*: The Default Writer (`MorphiumWriter`) - writes directly to database, waiting for the response, the BufferedWriter (`BufferedWriter`) - does not write directly. All writes are stored in a buffer which is then processed as a bulk. The last type of writer ist the asynchronous writer (`AsyncWriter`) which is similar to the buffered one, but starts writing immediately - only asynchronous. *Morphium* decides which writer to use depending on the configuration an the annotations of the given Entities. But you can _always_ use asynchronous calls just by adding a`AsyncCallback` implementation to your request.
 
 Simple rule when using *Morphium*: You want to read -> Use the Query-Object. You want to write: Use the *Morphium* Object.
 
 There are some additional features built upon this architecture:
 
 *   messaging: *Morphium* has a own messaging system. 
-*   cache synchronization: Synchronize caches in a clustered environment.
+*   cache synchronization: Synchronize caches in a clustered environment. Uses messaging
+*   custom mappers - you can tell *Morphium* how to map a certain type from and to mongodb. For example there is a "custom" mapper implementation for mapping `BigInteger` instances to mongodb.
+*   every of those implementations can be changed: it is possible to set the class name for the `BufferedWriter` to a custom built one (in `MorphiumConfig`). Also you could replace the object mapper with your own implementation by implementing the `ObjectMapper` interface and telling morphium which class to use instead. In short, these things can be changed in morphium / morphiumconfig:
+	*  MorphiumCache
+	*  ObjectMapper
+	*  Query
+	*  Field
+	*  QueryFactory
+	*  Driver (> V3.0)  
 *   Object Mapping from and to Strings (using the object mapper)
 
 ## Configuring *Morphium*
