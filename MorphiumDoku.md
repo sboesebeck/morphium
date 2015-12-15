@@ -13,6 +13,7 @@ html header:    <link rel="stylesheet" href="http://yandex.st/highlightjs/7.3/st
 This documentation is refering to *Morphium* version [%morphium_version] and mongodb [%mongodb_version].
 
 Download PDF here: [MorphiumDoku][1]
+HTML Version here: [MorphiumDoku][4]
 If you just want to start right now, read [quick start]!
 
 
@@ -1457,3 +1458,4 @@ This logger is built for performance and thread safety. It works find in high lo
  [1]: http://www.boesebeck.name/wp-content/uploads/2014/09/MorphiumDoku.pdf
  [2]: http://www.mongodb.org
  [3]: http://api.mongodb.org/java/current/com/mongodb/WriteConcern.html
+ [4]: http://www.caluga.de/MorphiumDoku.html
