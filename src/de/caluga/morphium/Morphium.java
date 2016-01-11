@@ -542,7 +542,7 @@ public class Morphium {
 
                 try {
                     if (morphiumDriver.isCapped(config.getDatabase(), coll)) return;
-                    if (!morphiumDriver.exists(config.getDatabase(), coll)) {
+                    if (config.isAutoIndexAndCappedCreationOnWrite() && !morphiumDriver.exists(config.getDatabase(), coll)) {
                         if (logger.isDebugEnabled())
                             logger.debug("Collection does not exist - ensuring indices / capped status");
                         Map<String, Object> cmd = new HashMap<>();
