@@ -40,6 +40,22 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
 
     }
 
+    public void close() {
+        running = false;
+        try {
+            long start = System.currentTimeMillis();
+            while (housekeeping.isAlive()) {
+                if (System.currentTimeMillis() - start > 1000) {
+                    housekeeping.stop();
+                    break;
+                }
+                Thread.sleep(50);
+            }
+        } catch (Exception e) {
+            //swallow on shutdown
+        }
+    }
+
     public boolean isOrderedExecution() {
         return orderedExecution;
     }
@@ -490,23 +506,12 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
         m.addShutdownListener(new ShutdownListener() {
             @Override
             public void onShutdown(Morphium m) {
-                running = false;
-                try {
-                    long start = System.currentTimeMillis();
-                    while (housekeeping.isAlive()) {
-                        if (System.currentTimeMillis() - start > 1000) {
-                            housekeeping.stop();
-                            break;
-                        }
-                        Thread.sleep(50);
-                    }
-                } catch (Exception e) {
-                    //swallow on shutdown
-                }
+                close();
             }
         });
 
     }
+
 
     @Override
     public <T> void remove(final List<T> lst, AsyncOperationCallback<T> c) {

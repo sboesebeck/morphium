@@ -2067,7 +2067,11 @@ public class Morphium {
         if (cacheHousekeeper.isAlive()) {
             cacheHousekeeper.interrupt();
         }
+        rsMonitor.terminate();
 
+        config.getAsyncWriter().close();
+        config.getBufferedWriter().close();
+        config.getWriter().close();
         config.getDb().getMongo().close();
         config = null;
 //        MorphiumSingleton.reset();
