@@ -64,6 +64,10 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
         }
     }
 
+    public void close() {
+        executor.shutdownNow();
+    }
+
     /**
      * @param obj - object to store
      */
@@ -126,7 +130,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                     if (coll == null) {
                         coll = morphium.getMapper().getCollectionName(type);
                     }
-                    if (!morphium.getDriver().exists(getDbName(), coll)) {
+                    if (morphium.getConfig().isAutoIndexAndCappedCreationOnWrite() && !morphium.getDriver().exists(getDbName(), coll)) {
                         if (logger.isDebugEnabled())
                             logger.debug("Collection " + coll + " does not exist - ensuring indices");
                         createCappedColl(o.getClass());
@@ -346,8 +350,9 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
 //        BulkWriteOperation bulkWriteOperation = collection.initializeUnorderedBulkOperation();
 //                        BulkRequestContext bulk = morphium.getDriver().createBulkContext(morphium, morphium.getConfig().getDatabase(), collectionName, false, wc);
                         HashMap<Object, Boolean> isNew = new HashMap<>();
-                        if (!morphium.getDriver().exists(morphium.getConfig().getDatabase(), collectionName)) {
+                        if (morphium.getConfig().isAutoIndexAndCappedCreationOnWrite() && !morphium.getDriver().exists(morphium.getConfig().getDatabase(), collectionName)) {
                             logger.warn("collection does not exist while storing list -  taking first element of list to ensure indices");
+                            createCappedColl(lst.get(0).getClass());
                             morphium.ensureIndicesFor((Class<T>) lst.get(0).getClass(), collectionName, callback);
                         }
                         long start = System.currentTimeMillis();
@@ -480,7 +485,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                             WriteConcern wc = morphium.getWriteConcernForClass(c);
                             String coll = morphium.getMapper().getCollectionName(c);
 
-                            if (!morphium.getDriver().exists(morphium.getConfig().getDatabase(), coll)) {
+                            if (morphium.getConfig().isAutoIndexAndCappedCreationOnWrite() && !morphium.getDriver().exists(morphium.getConfig().getDatabase(), coll)) {
                                 createCappedColl(c);
                                 morphium.ensureIndicesFor(c, coll, callback);
                             }
@@ -546,12 +551,15 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
 
     }
 
-
     private void createCappedColl(Class c) {
+        createCappedColl(c, null);
+    }
+
+    private void createCappedColl(Class c, String n) {
         if (logger.isDebugEnabled())
             logger.debug("Collection does not exist - ensuring indices / capped status");
         Map<String, Object> cmd = new LinkedHashMap<>();
-        cmd.put("create", morphium.getMapper().getCollectionName(c));
+        cmd.put("create", n != null ? n : morphium.getMapper().getCollectionName(c));
         Capped capped = morphium.getARHelper().getAnnotationFromHierarchy(c, Capped.class);
         if (capped != null) {
             cmd.put("capped", true);
@@ -588,7 +596,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                 WriteConcern wc = morphium.getWriteConcernForClass(c);
                 String coll = morphium.getMapper().getCollectionName(c);
                 try {
-                    if (!morphium.getDriver().exists(morphium.getConfig().getDatabase(), coll)) {
+                    if (morphium.getConfig().isAutoIndexAndCappedCreationOnWrite() && !morphium.getDriver().exists(morphium.getConfig().getDatabase(), coll)) {
                         if (logger.isDebugEnabled())
                             logger.debug("Collection does not exist - ensuring indices / capped status");
                         Map<String, Object> cmd = new LinkedHashMap<>();
@@ -713,7 +721,8 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                 long start = System.currentTimeMillis();
 
                 try {
-                    if (upsert && !morphium.getDriver().exists(getDbName(), collection)) {
+                    if (upsert && morphium.getConfig().isAutoIndexAndCappedCreationOnWrite() && !morphium.getDriver().exists(getDbName(), collection)) {
+                        createCappedColl(cls, collection);
                         morphium.ensureIndicesFor(cls, collection, callback);
                     }
 
@@ -846,7 +855,8 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                         collectionName = collection;
                     }
 
-                    if (!morphium.getDriver().exists(getDbName(), collectionName)) {
+                    if (morphium.getConfig().isAutoIndexAndCappedCreationOnWrite() && !morphium.getDriver().exists(getDbName(), collectionName)) {
+                        createCappedColl(ent.getClass(), collectionName);
                         morphium.ensureIndicesFor((Class<T>) ent.getClass(), collectionName, callback);
                     }
                     morphium.getDriver().update(getDbName(), collectionName, find, update, false, false, wc);
@@ -1037,7 +1047,8 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
 
                 long start = System.currentTimeMillis();
                 try {
-                    if (!morphium.getDriver().exists(getDbName(), coll)) {
+                    if (morphium.getConfig().isAutoIndexAndCappedCreationOnWrite() && !morphium.getDriver().exists(getDbName(), coll)) {
+                        createCappedColl(cls, coll);
                         morphium.ensureIndicesFor(cls, coll, callback);
                     }
                     morphium.getDriver().update(getDbName(), coll, query, update, false, false, wc);
@@ -1109,7 +1120,8 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
 
                 long start = System.currentTimeMillis();
                 try {
-                    if (upsert && !morphium.getDriver().exists(getDbName(), coll)) {
+                    if (upsert && morphium.getConfig().isAutoIndexAndCappedCreationOnWrite() && !morphium.getDriver().exists(getDbName(), coll)) {
+                        createCappedColl(cls, coll);
                         morphium.ensureIndicesFor((Class<T>) cls, coll, callback);
                     }
                     WriteConcern wc = morphium.getWriteConcernForClass(cls);
@@ -1155,8 +1167,10 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
 
                 long start = System.currentTimeMillis();
                 try {
-                    if (upsert && !morphium.getDriver().exists(getDbName(), coll)) {
+                    if (upsert && morphium.getConfig().isAutoIndexAndCappedCreationOnWrite() && !morphium.getDriver().exists(getDbName(), coll)) {
+                        createCappedColl(cls, coll);
                         morphium.ensureIndicesFor(cls, coll, callback);
+
                     }
                     WriteConcern wc = morphium.getWriteConcernForClass(cls);
                     morphium.getDriver().update(getDbName(), coll, qobj, update, multiple, upsert, wc);
@@ -1248,7 +1262,8 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                 WriteConcern wc = morphium.getWriteConcernForClass(cls);
                 long start = System.currentTimeMillis();
                 try {
-                    if (upsert && !morphium.getDriver().exists(getDbName(), coll)) {
+                    if (upsert && morphium.getConfig().isAutoIndexAndCappedCreationOnWrite() && !morphium.getDriver().exists(getDbName(), coll)) {
+                        createCappedColl(cls, coll);
                         morphium.ensureIndicesFor((Class<T>) cls, coll, callback);
                     }
                     morphium.getDriver().update(getDbName(), coll, qobj, update, multiple, upsert, wc);
@@ -1361,7 +1376,8 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                 long start = System.currentTimeMillis();
 
                 try {
-                    if (!morphium.getDriver().exists(getDbName(), coll)) {
+                    if (morphium.getConfig().isAutoIndexAndCappedCreationOnWrite() && !morphium.getDriver().exists(getDbName(), coll)) {
+                        createCappedColl(cls, coll);
                         morphium.ensureIndicesFor(cls, coll, callback);
                     }
                     morphium.getDriver().update(getDbName(), coll, query, update, false, false, wc);
@@ -1440,7 +1456,8 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                 long start = System.currentTimeMillis();
 
                 try {
-                    if (!morphium.getDriver().exists(getDbName(), coll)) {
+                    if (morphium.getConfig().isAutoIndexAndCappedCreationOnWrite() && !morphium.getDriver().exists(getDbName(), coll)) {
+                        createCappedColl(cls, coll);
                         morphium.ensureIndicesFor(cls, coll, callback);
                     }
                     morphium.getDriver().update(getDbName(), coll, query, update, false, false, wc);
@@ -1623,7 +1640,8 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
         WriteConcern wc = morphium.getWriteConcernForClass(cls);
         long start = System.currentTimeMillis();
         try {
-            if (!morphium.getDriver().exists(getDbName(), coll) && upsert) {
+            if (morphium.getConfig().isAutoIndexAndCappedCreationOnWrite() && !morphium.getDriver().exists(getDbName(), coll) && upsert) {
+                createCappedColl(cls, coll);
                 morphium.ensureIndicesFor(cls, coll);
             }
             morphium.getDriver().update(getDbName(), coll, qobj, update, multiple, upsert, wc);
@@ -1715,7 +1733,8 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
 
                     WriteConcern wc = morphium.getWriteConcernForClass(cls);
                     try {
-                        if (upsert && !morphium.getDriver().exists(getDbName(), coll)) {
+                        if (upsert && morphium.getConfig().isAutoIndexAndCappedCreationOnWrite() && !morphium.getDriver().exists(getDbName(), coll)) {
+                            createCappedColl(cls, coll);
                             morphium.ensureIndicesFor((Class<T>) cls, coll, callback);
                         }
                         morphium.getDriver().update(getDbName(), coll, qobj, update, multiple, upsert, wc);

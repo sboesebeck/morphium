@@ -3,13 +3,19 @@ Author: Stephan Bösebeck
 URL: http://sboesebeck.github.io/morphium/
 morphium_version: 3.0
 mongodb_version: 3.2
+html header:    <link rel="stylesheet" href="http://yandex.st/highlightjs/7.3/styles/default.min.css">
+    <script src="http://yandex.st/highlightjs/7.3/highlight.min.js"></script>
+    <script>hljs.initHighlightingOnLoad();</script>
 ...
 
 # Morphium Documentation
 
-This documentation is refering to *Morphium* version [%morphium_version] and mongodb [mongodb_version].
+This documentation is refering to *Morphium* version [%morphium_version] and mongodb [%mongodb_version].
 
 Download PDF here: [MorphiumDoku][1]
+HTML Version here: [MorphiumDoku][4]
+If you just want to start right now, read [quick start]!
+
 
 
 ## Ideas and concepts
@@ -38,7 +44,7 @@ The mapping takes place on a per-type basis. That means, usually (unless configu
 
 In addition to that, the mapping is aware of object hierarchy and would even take annotations and settings into account, that are inherited.
 
-Usually *Morphium* replaces camel case by _-separated strings. So an Object of type MyEntity would be stored in the collection `my_entity`. This behaviour can be configured as liked, you could even store all Objects in one collection. (see Polymorphism)
+Usually *Morphium* replaces camel case by underscore-separated strings. So an Object of type `MyEntity` would be stored in the collection `my_entity`. This behaviour can be configured as liked, you could even store all Objects in one collection. (see [Polymorphism])
 
 ### Changes in Version 3.0 ###
 
@@ -82,8 +88,9 @@ As you know the motivation now, these are the changes.
 
 Simple example on how to use *Morphium*:
 
-First you need to create Data to be stored in Mongo. This should be some simple class like this one here:
+First you need to create data to be stored in Mongo. This should be some simple class like this one here:
 
+```
     @Entity
     public class MyEntity {
         @Id
@@ -93,13 +100,13 @@ First you need to create Data to be stored in Mongo. This should be some simple 
         private long property;
         //....  getter & setter here
     }
-    
+```
 
-This given Entity has a couple of fields which will be stored in Mongo according to their names. Usually the Collection Name is also derived from the ClassName (as most things in *Morphium*, that can be changed).
+This given entity has a couple of fields which will be stored in Mongo according to their names. Usually the collection name is also derived from the ClassName (as most things in *Morphium*, that can be changed).
 
-The names are usually translated from camel case (like `aField`) into lowercase with underscores (like `a_field`). This is the default behavior, but can be changed to your needs.
+The names are usually translated from camel case (like `aField`) into lowercase with underscores (like `a_field`). This is the default behavior, but can be changed according to your needs.
 
-In Mongo the corresponding object would be stored in a collection named `my_entity` and would look like this:
+In mongo the corresponding object would be stored in a collection named `my_entity` and would look like this:
 
     {
       _id: ObjectId("53ce59864882233112aa018df"),
@@ -118,7 +125,8 @@ The next example shows how to store and access data from mongo:
     //connect to a replicaset 
     //if you want to connect to a shared environment, you'd add the addresses of 
     //the mongos-servers here 
-    //you can also specify only one of those nodes, Morphium will figure out the others
+    //you can also specify only one of those nodes, 
+    //Morphium (or better: mongodb driver) will figure out the others
     //connect 
     Morphium morphium=new Morphium(cfg);
     
@@ -130,17 +138,17 @@ The next example shows how to store and access data from mongo:
     morphium.store(ent);
     
     //the query object is used to access mongo 
-    Query<myentity> q=morphium.createQueryFor(MyEntity.class); 
+    Query<MyEntity> q=morphium.createQueryFor(MyEntity.class); 
     q=q.f("a_field").eq(123); 
     q=q.f("other").eq("value"); 
     q=q.f("property").lt(123).f("property").gt(100);
     
-    List<myentity> lst=q.asList();
+    List<MyEntity> lst=q.asList();
     
     //or use iterator 
     for (MyEntity e:q.asIterable(100,2)) { 
         // iterate in windows of 100 objects 
-        // 3 windows lookAhead 
+        // 2 windows lookAhead 
     }
     
 
@@ -152,17 +160,25 @@ This gives a short glance of how *Morphium* works and how it can be used. But *M
 
 There are four major components of *Morphium*:
 
-1.  the *Morphium* Instance: This is you main entrypoint for interaction with Mongo. Herer you create Queries and you write data to mongo. All writes will then be forwareded to the configured Writer implementation, all reads are handeled by Query
+1.  the *Morphium* Instance: This is you main entrypoint for interaction with Mongo. Here you create Queries and you write data to mongo. All writes will then be forwarded to the configured Writer implementation, all reads are handled by the Query-Object
 2.  Query-Object: you need a query object to do reads from mongo. This is usually created by using `Morphium.createQueryFor(Class<T> cls)`. With a Query, you can easily get data from database or have some things changed (update) and alike. 
 3.  the Cache: For every request that should be sent to mongo, *Morphium* checks first, whether this collection is to be cached and if there is already a result being stored for the corresponding request.
-4.  The Writers: there are 3 different types of writers in *Morphium*: The Default Writer (`MorphiumWriter`) - writes directly to database, waiting for the response, the BufferedWriter (`BufferedWriter`) - does not write directly. All writes are stored in a Buffer which is then processed as a bulk. The last type of writer ist the asynchronous writer (`AsyncWriter`) which is similar to the buffered one, but starts writing immediately - only asynchronous. *Morphium* decides which writer to use depending on the configuration an the annotations of the given Entities.
+4.  The Writers: there are 3 different types of writers in *Morphium*: The Default Writer (`MorphiumWriter`) - writes directly to database, waiting for the response, the BufferedWriter (`BufferedWriter`) - does not write directly. All writes are stored in a buffer which is then processed as a bulk. The last type of writer ist the asynchronous writer (`AsyncWriter`) which is similar to the buffered one, but starts writing immediately - only asynchronous. *Morphium* decides which writer to use depending on the configuration an the annotations of the given Entities. But you can _always_ use asynchronous calls just by adding a`AsyncCallback` implementation to your request.
 
 Simple rule when using *Morphium*: You want to read -> Use the Query-Object. You want to write: Use the *Morphium* Object.
 
 There are some additional features built upon this architecture:
 
 *   messaging: *Morphium* has a own messaging system. 
-*   cache synchronization: Synchronize caches in a clustered environment.
+*   cache synchronization: Synchronize caches in a clustered environment. Uses messaging
+*   custom mappers - you can tell *Morphium* how to map a certain type from and to mongodb. For example there is a "custom" mapper implementation for mapping `BigInteger` instances to mongodb.
+*   every of those implementations can be changed: it is possible to set the class name for the `BufferedWriter` to a custom built one (in `MorphiumConfig`). Also you could replace the object mapper with your own implementation by implementing the `ObjectMapper` interface and telling morphium which class to use instead. In short, these things can be changed in morphium / morphiumconfig:
+	*  MorphiumCache
+	*  ObjectMapper
+	*  Query
+	*  Field
+	*  QueryFactory
+	*  Driver (> V3.0)  
 *   Object Mapping from and to Strings (using the object mapper)
 
 ## Configuring *Morphium*
@@ -217,6 +233,7 @@ In addition to those settings describing the behavior of *Morphium*, you can als
 *   *aggregatorClass*: this is *Morphium*'s representation of the aggregator framework. This can be replaced by a custom implementation if needed. Implements `Aggregator` interface
 *   *queryClass* and *fieldImplClass*: this is used for Queries. If you want to take control over how queries ar built in *Morphium* and on how fields within queries are represented, you can replace those two with your custom implementation.
 *   *cache*: Set your own implementation of the cache. It needs to implement the `MorphiumCache` interface. Default is `MorphiumCacheImpl`. You need to specify a fully configured cache object here, not only a class object.
+*   _driverClass_: Set the driver implementation, you want to use. This is a string, set the class name here. E.g. `morphiumconfig.setDriverClass(MetaDriver.class.getName()`
 
 ### *Morphium* Config Directly
 
@@ -234,7 +251,8 @@ To get the properties for the current configuration, just call `asProperties()` 
 
 Here is an example property-file:
 
-`maxWaitTime=1000
+```
+maxWaitTime=1000
 maximumRetriesBufferedWriter=1
 maxConnections=100
 retryWaitTimeAsyncWriter=100
@@ -250,7 +268,8 @@ connectionTimeout=1000
 database=morphium_test
 maximumRetriesAsyncWriter=1
 maximumRetriesWriter=1
-retryWaitTimeBufferedWriter=1000`
+retryWaitTimeBufferedWriter=1000
+```
 
 The minimal property file would define only `hosts` and `database`. All other values would be defaulted.
 
@@ -268,9 +287,11 @@ In some cases it's more convenient to use a singleton Instance to access *Morphi
 
 The `MorphiumSingleton` is configured similar to the normal Morphium instance. Just set the config and you're good to go.
 
-    MorphiumConfig config=new MorphiumConfig(); //..configure it here MorphiumSingleton.setConfig(config);
+```
+    MorphiumConfig config=new MorphiumConfig(); //..configure it here
+    MorphiumSingleton.setConfig(config);
     MorphiumSingleton.get().createQueryFor(MyEntity.class).f(...)
-    
+```
 
 Connection to mongo and initializing of *Morphium* is done at the first call of `get`.
 
@@ -280,7 +301,7 @@ When talking about POJO Mapping, we're saying we marshall a POJO into a mongodb 
 
 Marshaling and unmarshalling is of utter importance for the functionality. It needs to take care of following things:
 
-*   un/marshall every field. Easy if it’s a primitive datatype. Map to corresponding type in Monogo - mostly done by the mongodb java driver
+*   un/marshall every field. Easy if it’s a primitive datatype. Map to corresponding type in Monogo - mostly done by the mongodb java driver (or since 3.0 the `MorphiumDriver` implementation)
 *   when it comes to lists and maps, examine every value. Maps may only have strings as keys (mongoldb limitation), un/marshall values
 *   when a field contains a reference to another entity, take that into account. either store the 
 *   the POJO transformation needs to be 100% thread safe (*Morphium* itself is heavily multithreaded)
@@ -293,43 +314,31 @@ This is done by using the `Query` object. You need to create one for every entit
 
 After that querying is very fluent. You add one option at a time, by default all conditions are AND-associated:
 
-`Query<MyEntity> q=morphium.createQueryFor(MyEntity.class);
+```
+   Query<MyEntity> q=morphium.createQueryFor(MyEntity.class);
    q=q.f("a_field").eq("Value");
    q=q.f("counter").lt(10);
-   q=q.f("name").ne("Stephan").f("zip").eq("1234");`
+   q=q.f("name").ne("Stephan").f("zip").eq("1234");
+```
 
 The `f` method stands for "field" and returns a *Morphium* internal representation of mongo fields. Threre you can call the operators, in our case it `eq` for equals, `lt` for less then and `ne` not equal. There are a lot more operators you might use, all those are defined in the `MongoField` interface:
 
+```
     public Query<t> all(List</t>
-    
     public Query<T> eq(Object val);
-    
     public Query<T> ne(Object val);
-    
     public Query<T> size(int val);
-    
     public Query<T> lt(Object val);
-    
     public Query<T> lte(Object val);
-    
     public Query<T> gt(Object val);
-    
     public Query<T> gte(Object val);
-    
     public Query<T> exists();
-    
     public Query<T> notExists();
-    
     public Query<T> mod(int base, int val);
-    
     public Query<T> matches(Pattern p);
-    
     public Query<T> matches(String ptrn);
-    
     public Query<T> type(MongoType t);
-    
     public Query<T> in(Collection<?> vals);
-    
     public Query<T> nin(Collection<?> vals);
     
     /**
@@ -369,14 +378,12 @@ The `f` method stands for "field" and returns a *Morphium* internal representati
      * @return the query
      */
     public Query<T> near(double x, double y, double maxDistance);
-    
+
     /**
      * search for entries with geo coordinates wihtin the given rectancle - x,y upper left, x2,y2 lower right corner
      */
     public Query<T> box(double x, double y, double x2, double y2);
-    
     public Query<T> polygon(double... p);
-    
     public Query<T> center(double x, double y, double r);
     
     /**
@@ -389,19 +396,13 @@ The `f` method stands for "field" and returns a *Morphium* internal representati
      */
     public Query<T> centerSphere(double x, double y, double r);
     
-    
     public Query<T> getQuery();
-    
     public void setQuery(Query<T> q);
-    
     public ObjectMapper getMapper();
-    
     public void setMapper(ObjectMapper mapper);
-    
-    public String getFieldString();
-    
+    public String getFieldString(); 
     public void setFieldString(String fld);
-    
+```
 
 Query definitions can be in one line, or as above in several lines. Actually the current query object is changed with every call of `f...something` combination. The current object is always returned, for making the code more ledgeable and understandable, you should assign the query as shown above. This makes clear: "The object changed"
 
@@ -411,8 +412,10 @@ As already mentioned, the query by default creates AND-queries. If you need to c
 
 `or` takes a list of queries as argument, so a query might be built this way:
 
-`Query<MyEntity> q=morphium.createQueryFor(MyEntity.class);
-   q=q.or(q.q().f("counter").le(10),q.q().f("name").eq("Morphium"));`
+```
+   Query<MyEntity> q=morphium.createQueryFor(MyEntity.class);
+   q=q.or(q.q().f("counter").le(10),q.q().f("name").eq("Morphium"));
+```
 
 This would create an OR-Query asking for all "MyEntities", that have a counter less than or equal to 10 OR whose name is "Morphium". You can add as much or-queries as you like. OR-Queries can actually be combined with and queries as well:
 
@@ -422,6 +425,14 @@ This would create an OR-Query asking for all "MyEntities", that have a counter l
 
 In that case, the query would be something like: counter is greater than 2 AND (counter is less then or equal to 10 OR name is "Morphium")
 
+Combining and and or-queries is also possible, although the syntax would look a bit unfamiliar:
+
+```
+   Query<MyEntity> q=morphium.createQueryFor(MyEntity.class);
+q=q.f("counter").lt(100).or(q.q().f("counter").mod(3,0),q.q().f("value").ne("v");
+```
+This would create a query returning all entries that do have a `counter` of less than 100 AND where the modulo to base 3 of the value `counter` equals 0, and the value of the field `value` equals "v".
+
 Quite complex, eh?
 
 Well, there is more to it... it is possible, to create a query using a "where"-String... there you can add `JavaScript` code for your query. This code will be executed at the mongodb node, executing your query:
@@ -429,11 +440,11 @@ Well, there is more to it... it is possible, to create a query using a "where"-S
 `Query<MyEntity> q=morphium.createQueryFor(MyEntity.class);
    q=q.where("this.counter > 10");`
 
-Attention: you can javascript code in that where clause, but you cannot access the `db` object there. This was changed when switching to Mongodb 2.6 with V8 Javascript engine
+**Attention**: you can javascript code in that where clause, but you cannot access the `db` object there. This was changed when switching to Mongodb 2.6 with V8 Javascript engine
 
 ## Declarative Caching
 
-Using the `@Cache` annotation, you can define cache settings on a per type (= class) basis. This is done totally in background, handeled by *Morphium* 100% transparently. You just add the annotation to your entities and you're good to go. See [Cache] and [Cache Synchronization]
+Using the `@Cache` annotation, you can define cache settings on a per type (= class) basis. This is done totally in background, handled by *Morphium* 100% transparently. You just add the annotation to your entities and you're good to go. See [Cache] and [Cache Synchronization]
 
 ### Cache Synchronization
 
@@ -448,7 +459,7 @@ By default no cache synchronizer is running.
 
 ### Cluster Awareness
 
-*Morphium* is cluster aware in a sense, that it does poll the state of a replicates periodically in order to know what nodes are life and need to be taken into account. (Same does the Java Driver).
+*Morphium* is cluster aware in a sense, that it does poll the state of a replicates periodically in order to know what nodes are life and need to be taken into account. (Same does the Java Driver, this information is now moved into the morphium driver implementation, so the double check is not necessary anymore).
 
 *Morphium* also has support for clusters *using* it. Like a cluster of tomcats instances. In this case, *Morphium* is able to synchronize the caches of those cluster nodes.
 
@@ -462,6 +473,11 @@ Messaging is 100% multithreaded and thread safe.
 
 All operations regarding lists (list updates, writing lists of objects, deleting lists of objects) will be implemented using the new bulk operation available since mongodb 2.6. This gives significant speed boost and adds reliability.
 
+Actually, all method calls to mongo support a list of documents as argument. This means, you can send a list of updates, a list of documents to be inserted, a list of whatever. 
+The ´BulkOperationContext´ only gathers those requests on the java side together, so that they can be sent in one call, instead of several.
+
+With Morphium 3.0 an own implementation of this bulk operation context was introduced.
+
 ### Callbacks
 
 You can add a number of Listeners to *Morphium* in order to be informed about what happens, or to influence the way things are handled.
@@ -470,6 +486,10 @@ You can add a number of Listeners to *Morphium* in order to be informed about wh
 *   CacheListener: Can be added to *Morphium* cache, will be informed about things to be added to cache, or if something would be updated or cleared. In all cases, a veto is possible.
 *   ShutdownListener: if the system shuts down, you can be informed using this listener. It's not really *Morphium* specific.
 *   ProfilingListener: will be informed about any read or write access to mongo and how long it took. This is useful if you want to track long requests or index misses.
+
+In addition to that, almost all calls to mongo can be done asynchronously - either by defining that in the @Entity annotation or by defining it directly.
+
+That means, an `asList()` call on a query object can take an `AsyncCallback` as argument, which then will be called, when the result is ready. (which also means, the `asList` call will return `null`, the result will be passed on in the callback).
 
 ### Support for Aggregation
 
@@ -618,7 +638,7 @@ Those validation rules will be enforced upon storing the corresponding object:
     }
     
 
-### Plymorphism
+### Polymorphism
 
 Its possible to have different type of entities stored in one collection. Usually this will only make sense if those entities have some things in common. In an object oriented way: they are derived from one single entity.
 
@@ -1438,3 +1458,4 @@ This logger is built for performance and thread safety. It works find in high lo
  [1]: http://www.boesebeck.name/wp-content/uploads/2014/09/MorphiumDoku.pdf
  [2]: http://www.mongodb.org
  [3]: http://api.mongodb.org/java/current/com/mongodb/WriteConcern.html
+ [4]: http://www.caluga.de/MorphiumDoku.html

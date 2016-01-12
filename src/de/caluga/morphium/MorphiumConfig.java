@@ -77,6 +77,8 @@ public class MorphiumConfig {
     private int maxAutoReconnectTime = 0;
     private int blockingThreadsMultiplier = 5;
 
+    private boolean autoIndexAndCappedCreationOnWrite = true;
+
     @Transient
     private Class<? extends Query> queryClass;
     @Transient
@@ -203,6 +205,14 @@ public class MorphiumConfig {
         this.globalCacheValidTime = globalCacheValidTime;
         this.housekeepingTimeout = housekeepingTimeout;
 
+    }
+
+    public boolean isAutoIndexAndCappedCreationOnWrite() {
+        return autoIndexAndCappedCreationOnWrite;
+    }
+
+    public void setAutoIndexAndCappedCreationOnWrite(boolean autoIndexAndCappedCreationOnWrite) {
+        this.autoIndexAndCappedCreationOnWrite = autoIndexAndCappedCreationOnWrite;
     }
 
     public boolean isCheckForNew() {
