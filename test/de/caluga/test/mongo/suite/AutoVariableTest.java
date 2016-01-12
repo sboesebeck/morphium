@@ -32,6 +32,7 @@ public class AutoVariableTest extends MongoTest {
 
         Query<CTimeTest> q = morphium.createQueryFor(CTimeTest.class).f("value").eq("annother test");
         morphium.set(q, "additional", "value", true, true);
+        Thread.sleep(100);
         assert (q.countAll() == 1) : "Count wrong: " + q.countAll();
         assert (q.get().timestamp != 0);
         assert (q.get().created != null);
