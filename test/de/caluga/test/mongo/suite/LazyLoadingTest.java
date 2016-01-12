@@ -61,7 +61,7 @@ public class LazyLoadingTest extends MongoTest {
         co = lzRead.getLazyCached();
         Thread.sleep(1000);
         id = morphium.getId(co);
-        assert (co.getCounter() == 22);
+        assert (co.getCounter() == 22) : "Counter wrong.." + co.getCounter();
         assert (id != null);
 
     }
