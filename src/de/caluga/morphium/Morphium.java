@@ -2090,7 +2090,8 @@ public class Morphium {
         if (cacheHousekeeper.isAlive()) {
             cacheHousekeeper.interrupt();
         }
-        rsMonitor.terminate();
+        if (rsMonitor != null)
+            rsMonitor.terminate();
 
         config.getAsyncWriter().close();
         config.getBufferedWriter().close();
