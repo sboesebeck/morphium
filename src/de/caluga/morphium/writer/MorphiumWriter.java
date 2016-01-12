@@ -130,5 +130,10 @@ public interface MorphiumWriter {
 
     <T> void inc(Query<T> query, Map<String, Number> fieldsToInc, boolean insertIfNotExist, boolean multiple, AsyncOperationCallback<T> callback);
 
+    /**
+     * information about closing of morphium and all connections
+     */
+    void close();
+
 
 }
