@@ -2,9 +2,9 @@ package de.caluga.morphium.replicaset;
 
 import de.caluga.morphium.annotations.Embedded;
 import de.caluga.morphium.annotations.Property;
-import org.bson.types.BSONTimestamp;
 
 import java.util.Date;
+import java.util.Map;
 
 /**
  * User: Stephan Bösebeck
@@ -23,7 +23,7 @@ public class ReplicaSetNode {
     @Property(fieldName = "stateStr")
     private String stateStr;
     private long uptime;
-    private BSONTimestamp optime;
+    private Map<String, Object> optime;
     @Property(fieldName = "optimeDate")
     private Date optimeDate;
 
@@ -83,11 +83,11 @@ public class ReplicaSetNode {
         this.uptime = uptime;
     }
 
-    public BSONTimestamp getOptime() {
+    public Map<String, Object> getOptime() {
         return optime;
     }
 
-    public void setOptime(BSONTimestamp optime) {
+    public void setOptime(Map<String, Object> optime) {
         this.optime = optime;
     }
 
