@@ -64,6 +64,10 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
         }
     }
 
+    public void close() {
+        executor.shutdownNow();
+    }
+
     /**
      * @param obj - object to store
      */
