@@ -1470,7 +1470,7 @@ public class Morphium {
         if (!isReplicaSet() && w > 1) {
             w = 1;
         }
-        int timeout = safety.timeout();
+        long timeout = safety.timeout();
         if (isReplicaSet() && w > 2) {
             de.caluga.morphium.replicaset.ReplicaSetStatus s = rsMonitor.getCurrentStatus();
 
@@ -1481,18 +1481,18 @@ public class Morphium {
             if (logger.isDebugEnabled()) logger.debug("Active nodes now: " + s.getActiveNodes());
             int activeNodes = s.getActiveNodes();
 
-            int masterOpTime = 0;
-            int maxReplLag = 0;
+            long masterOpTime = 0;
+            long maxReplLag = 0;
             for (ReplicaSetNode node : s.getMembers()) {
                 if (node.getState() == 1) {
                     //Master
-                    masterOpTime = node.getOptime();
+                    masterOpTime = node.getOptimeDate().getTime();
                 }
             }
             for (ReplicaSetNode node : s.getMembers()) {
                 if (node.getState() == 2) {
                     //Master
-                    int tm = node.getOptime() - masterOpTime;
+                    long tm = node.getOptimeDate().getTime() - masterOpTime;
                     if (maxReplLag < tm) {
                         maxReplLag = tm;
                     }
@@ -1521,7 +1521,7 @@ public class Morphium {
             }
         }
 
-        return WriteConcern.getWc(w, fsync, j, timeout);
+        return WriteConcern.getWc(w, fsync, j, (int) timeout);
     }
 
     public void addProfilingListener(ProfilingListener l) {
