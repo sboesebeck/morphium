@@ -4,6 +4,7 @@ package de.caluga.test.mongo.suite;/**
 
 import de.caluga.morphium.Morphium;
 import de.caluga.morphium.MorphiumConfig;
+import de.caluga.test.mongo.suite.data.CachedObject;
 
 /**
  * TODO: Add Documentation here
@@ -15,7 +16,7 @@ public class ExitTest {
 
         MorphiumConfig cfg = new MorphiumConfig();
         cfg.setDatabase("morphium-test");
-        cfg.setHosts("localhost:27017,localhost:28017,localhost:29017");
+        cfg.setHostSeed("localhost:27017,localhost:27018,localhost:27019");
         Morphium m = new Morphium(cfg);
         System.out.println("Connection opened...");
 
