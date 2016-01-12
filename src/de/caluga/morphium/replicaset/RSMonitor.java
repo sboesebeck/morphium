@@ -86,6 +86,15 @@ public class RSMonitor {
 
                 Map<String, Object> res = morphium.getDriver().getReplsetStatus();
                 de.caluga.morphium.replicaset.ReplicaSetStatus status = morphium.getMapper().unmarshall(de.caluga.morphium.replicaset.ReplicaSetStatus.class, res);
+                int idx = 0;
+                for (ReplicaSetNode n : status.getMembers()) {
+                    if (n.getOptime() == null) {
+                        Object opt = ((List<Map<String, Object>>) res.get("members")).get(idx).get("optime");
+                        if (opt instanceof Map) {
+                            n.setOptime((Integer) ((Map) opt).get("ts"));
+                        }
+                    }
+                }
                 if (full) {
                     Map<String, Object> findMetaData = new HashMap<>();
                     List<Map<String, Object>> stats = morphium.getDriver().find("local", "system.replset", new HashMap<String, Object>(), null, null, 0, 10, 10, null, findMetaData);
