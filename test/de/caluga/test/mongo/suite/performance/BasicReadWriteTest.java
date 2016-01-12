@@ -38,28 +38,38 @@ public class BasicReadWriteTest extends MongoTest {
 
     @Test
     public void basicWriteTest() {
+        log.info("\n\n\nDoing writes with index check off");
+        morphium.getConfig().setAutoIndexAndCappedCreationOnWrite(false);
+        doWriteTest();
+
+        log.info("\n\n\nDoing writes with index check ON");
+        morphium.getConfig().setAutoIndexAndCappedCreationOnWrite(true);
+        doWriteTest();
+    }
+
+    private void doWriteTest() {
         morphium.dropCollection(UncachedObject.class);
         log.info("Creating objects sequentially...");
         long start = System.currentTimeMillis();
-        for (int i = 0; i < 1000; i++) {
+        for (int i = 0; i < 10000; i++) {
             UncachedObject uc = new UncachedObject();
             uc.setCounter(i);
             uc.setValue("V" + i);
             morphium.store(uc);
-            if (i % 100 == 0) log.info("got " + i);
+            if (i % 1000 == 0) log.info("got " + i);
         }
         long dur = System.currentTimeMillis() - start;
         log.info("Took: " + dur + "ms");
 
         log.info("Creating objects randomly..");
         start = System.currentTimeMillis();
-        for (int i = 0; i < 1000; i++) {
+        for (int i = 0; i < 10000; i++) {
             UncachedObject uc = new UncachedObject();
             int c = (int) (Math.random() * 100000.0);
             uc.setCounter(c);
             uc.setValue("V" + c);
             morphium.store(uc);
-            if (i % 100 == 0) log.info("got " + i);
+            if (i % 1000 == 0) log.info("got " + i);
 
         }
         dur = System.currentTimeMillis() - start;
@@ -69,7 +79,7 @@ public class BasicReadWriteTest extends MongoTest {
         log.info("Block writing...");
         List<UncachedObject> buffer = new ArrayList<>();
         start = System.currentTimeMillis();
-        for (int i = 0; i < 1000; i++) {
+        for (int i = 0; i < 10000; i++) {
             UncachedObject uc = new UncachedObject();
             int c = (int) (Math.random() * 100000.0);
             uc.setCounter(c);

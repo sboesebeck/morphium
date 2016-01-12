@@ -167,7 +167,7 @@ public class MongoTest {
             cfg.setLogLevelForClass(PrefetchingMorphiumIterator.class, 3);
             cfg.setLogLevelForPrefix("de.caluga.test", 5);
             cfg.setLogSyncedForPrefix("de.caluga.test", true);
-            cfg.setLogLevelForPrefix("de.caluga.morphium.driver", 5);
+            cfg.setLogLevelForPrefix("de.caluga.morphium.driver", 3);
 
             //InMemoryTest
 //            cfg.setDriverClass(InMemoryDriver.class.getName());
