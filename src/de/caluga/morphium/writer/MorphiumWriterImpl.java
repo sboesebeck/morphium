@@ -912,9 +912,9 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                 WriteConcern wc = morphium.getWriteConcernForClass(type);
                 long start = System.currentTimeMillis();
                 try {
-                    String collectionName = morphium.getMapper().getCollectionName(ent.getClass());
+                    String collectionName = collection;
                     if (collectionName == null) {
-                        collectionName = collection;
+                        collectionName = morphium.getMapper().getCollectionName(ent.getClass());
                     }
 
                     for (int i = 0; i < morphium.getConfig().getRetriesOnNetworkError(); i++) {
@@ -1014,10 +1014,13 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                 try {
                     for (int i = 0; i < morphium.getConfig().getRetriesOnNetworkError(); i++) {
                         try {
+                            String collectionName = q.getCollectionName();
+
+                            if (collectionName == null) morphium.getMapper().getCollectionName(q.getType());
                             if (wc == null) {
-                                morphium.getDatabase().getCollection(morphium.getMapper().getCollectionName(q.getType())).remove(q.toQueryObject());
+                                morphium.getDatabase().getCollection(collectionName).remove(q.toQueryObject());
                             } else {
-                                morphium.getDatabase().getCollection(morphium.getMapper().getCollectionName(q.getType())).remove(q.toQueryObject(), wc);
+                                morphium.getDatabase().getCollection(collectionName).remove(q.toQueryObject(), wc);
                             }
                             break;
                         } catch (Throwable t) {
