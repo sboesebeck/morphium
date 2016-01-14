@@ -1,5 +1,6 @@
 package de.caluga.morphium.writer;
 
+import com.mongodb.*;
 import de.caluga.morphium.*;
 import de.caluga.morphium.annotations.*;
 import de.caluga.morphium.async.AsyncOperationCallback;
@@ -850,9 +851,9 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                 WriteConcern wc = morphium.getWriteConcernForClass(type);
                 long start = System.currentTimeMillis();
                 try {
-                    String collectionName = morphium.getMapper().getCollectionName(ent.getClass());
+                    String collectionName = collection;
                     if (collectionName == null) {
-                        collectionName = collection;
+                        collectionName = morphium.getMapper().getCollectionName(ent.getClass());
                     }
 
                     if (morphium.getConfig().isAutoIndexAndCappedCreationOnWrite() && !morphium.getDriver().exists(getDbName(), collectionName)) {
@@ -950,6 +951,21 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                     String collectionName = q.getCollectionName();
 
                     morphium.getDriver().delete(getDbName(), collectionName, q.toQueryObject(), multiple, wc);
+                    for (int i = 0; i < morphium.getConfig().getRetriesOnNetworkError(); i++) {
+                        try {
+                            String collectionName = q.getCollectionName();
+
+                            if (collectionName == null) morphium.getMapper().getCollectionName(q.getType());
+                            if (wc == null) {
+                                morphium.getDatabase().getCollection(collectionName).remove(q.toQueryObject());
+                            } else {
+                                morphium.getDatabase().getCollection(collectionName).remove(q.toQueryObject(), wc);
+                            }
+                            break;
+                        } catch (Throwable t) {
+                            morphium.handleNetworkError(i, t);
+                        }
+                    }
                     long dur = System.currentTimeMillis() - start;
                     morphium.fireProfilingWriteEvent(q.getType(), q.toQueryObject(), dur, false, WriteAccessType.BULK_DELETE);
                     morphium.getCache().clearCacheIfNecessary(q.getType());
