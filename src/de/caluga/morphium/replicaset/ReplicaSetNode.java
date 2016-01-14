@@ -4,7 +4,6 @@ import de.caluga.morphium.annotations.Embedded;
 import de.caluga.morphium.annotations.Property;
 
 import java.util.Date;
-import java.util.Map;
 
 /**
  * User: Stephan Bösebeck
@@ -23,7 +22,6 @@ public class ReplicaSetNode {
     @Property(fieldName = "stateStr")
     private String stateStr;
     private long uptime;
-    private Map<String, Object> optime;
     @Property(fieldName = "optimeDate")
     private Date optimeDate;
 
@@ -83,14 +81,6 @@ public class ReplicaSetNode {
         this.uptime = uptime;
     }
 
-    public Map<String, Object> getOptime() {
-        return optime;
-    }
-
-    public void setOptime(Map<String, Object> optime) {
-        this.optime = optime;
-    }
-
     public Date getOptimeDate() {
         return optimeDate;
     }
@@ -123,7 +113,6 @@ public class ReplicaSetNode {
                 ", state=" + state +
                 ", stateStr='" + stateStr + '\'' +
                 ", uptime=" + uptime +
-                ", optime=" + optime +
                 ", optimeDate=" + optimeDate +
                 ", lastHeartbeat=" + lastHeartbeat +
                 ", pingMs=" + pingMs +
