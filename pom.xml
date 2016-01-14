@@ -142,7 +142,7 @@
         <dependency>
             <groupId>org.mongodb</groupId>
             <artifactId>mongo-java-driver</artifactId>
-            <version>3.2.0-rc0</version>
+            <version>3.0.3</version>
         </dependency>
         <dependency>
             <groupId>com.googlecode.json-simple</groupId>
