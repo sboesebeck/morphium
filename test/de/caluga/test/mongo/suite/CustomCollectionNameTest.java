@@ -67,7 +67,7 @@ public class CustomCollectionNameTest extends MongoTest {
 
 
     @Entity
-    public class EntityCollectionName {
+    public static class EntityCollectionName {
         public int value;
         @Id
         ObjectId id;

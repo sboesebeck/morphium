@@ -1456,15 +1456,15 @@ public class Morphium {
             long masterOpTime = 0;
             long maxReplLag = 0;
             for (ReplicaSetNode node : s.getMembers()) {
-                if (node.getState() == 1 && node.getOptime() != null && node.getOptime().get("t") != null && node.getOptime().get("t") instanceof Long) {
+                if (node.getState() == 1 && node.getOptimeDate() != null) {
                     //Master
-                    masterOpTime = (Long) node.getOptime().get("t");
+                    masterOpTime = node.getOptimeDate().getTime();
                 }
             }
             for (ReplicaSetNode node : s.getMembers()) {
-                if (node.getState() == 2 && node.getOptime() != null && node.getOptime().get("t") != null && node.getOptime().get("t") instanceof Long) {
+                if (node.getState() == 2 && node.getOptimeDate() != null) {
                     //Master
-                    long tm = ((Long) node.getOptime().get("t")) - masterOpTime;
+                    long tm = node.getOptimeDate().getTime() - masterOpTime;
                     if (maxReplLag < tm) {
                         maxReplLag = tm;
                     }
