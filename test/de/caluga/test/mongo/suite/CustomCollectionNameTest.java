@@ -5,8 +5,8 @@ import de.caluga.morphium.MorphiumSingleton;
 import de.caluga.morphium.annotations.Entity;
 import de.caluga.morphium.annotations.Id;
 import de.caluga.morphium.async.AsyncOperationCallback;
+import de.caluga.morphium.driver.bson.MorphiumId;
 import de.caluga.morphium.query.Query;
-import org.bson.types.ObjectId;
 import org.junit.Test;
 
 /**
@@ -70,7 +70,7 @@ public class CustomCollectionNameTest extends MongoTest {
     public static class EntityCollectionName {
         public int value;
         @Id
-        ObjectId id;
+        MorphiumId id;
 
         public EntityCollectionName(int value) {
             this.value = value;
