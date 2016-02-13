@@ -311,9 +311,19 @@ public class Driver implements MorphiumDriver {
                 }
                 mongo = new MongoClient(adrLst, lst, o.build());
             }
-            Document res = mongo.getDatabase("local").runCommand(new BasicDBObject("isMaster", true));
-            if (res.get("setName") != null) {
-                replicaset = true;
+            try {
+                Document res = mongo.getDatabase("local").runCommand(new BasicDBObject("isMaster", true));
+                if (res.get("setName") != null) {
+                    replicaset = true;
+                }
+            } catch (MongoCommandException mce) {
+                if (mce.getCode() == 20) {
+                    //most likely a connection to a mongos,
+                    //swallow error!
+                    replicaset = false;
+                } else {
+                    throw new MorphiumDriverException("Error getting replicaset status", mce);
+                }
             }
         } catch (Exception e) {
             throw new MorphiumDriverException("Error creating connection to mongo", e);
