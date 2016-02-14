@@ -539,7 +539,16 @@ public class SingleConnectDirectDriver extends DriverBase {
             if (!reply.getDocuments().get(0).get("ok").equals(1) && !reply.getDocuments().get(0).get("ok").equals(1.0)) {
                 Object code = reply.getDocuments().get(0).get("code");
                 Object errmsg = reply.getDocuments().get(0).get("errmsg");
-                throw new MorphiumDriverException("Operation failed - error: " + code + " - " + errmsg, null, collection, db, query);
+//                throw new MorphiumDriverException("Operation failed - error: " + code + " - " + errmsg, null, collection, db, query);
+                MorphiumDriverException mde = new MorphiumDriverException("Operation failed on " + getHostSeed()[0] + " - error: " + code + " - " + errmsg, null, collection, db, query);
+                mde.setMongoCode(code);
+                mde.setMongoReason(errmsg);
+                if (code != null && code.toString().equals("20")) {
+                    // cannot connect to local db on mongos
+                    log.info("Connected to mongos... ignoring mongodb error for accessing local");
+                } else {
+                    throw mde;
+                }
             } else {
                 //got OK message
 //                        log.info("ok");
