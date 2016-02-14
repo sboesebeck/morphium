@@ -752,6 +752,11 @@ public class MetaDriver extends DriverBase {
 
 
                             } catch (MorphiumDriverException e) {
+                                if (e.getMongoCode() != null && e.getMongoCode().toString().equals("20")) {
+                                    //cannot connect to local db on mongos
+                                    ok = true;
+                                    return;
+                                }
                                 log.error("Error with connection - exiting", e);
                                 ok = false;
                                 try {

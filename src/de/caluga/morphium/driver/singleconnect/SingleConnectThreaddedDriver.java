@@ -611,12 +611,8 @@ public class SingleConnectThreaddedDriver extends DriverBase {
             MorphiumDriverException mde = new MorphiumDriverException("Operation failed on " + getHostSeed()[0] + " - error: " + code + " - " + errmsg, null, collection, db, query);
             mde.setMongoCode(code);
             mde.setMongoReason(errmsg);
-            if (code != null && code.toString().equals("20")) {
-                // cannot connect to local db on mongos
-                log.info("Connected to mongos... ignoring mongodb error for accessing local");
-            } else {
-                throw mde;
-            }
+
+            throw mde;
         }
 
         return reply;
