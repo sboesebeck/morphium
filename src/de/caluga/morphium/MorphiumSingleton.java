@@ -9,7 +9,7 @@ package de.caluga.morphium;
  */
 public class MorphiumSingleton {
     private static MorphiumConfig config;
-    private static volatile Morphium instance;
+    private static Morphium instance;
 
     /**
      * set configuration for MongoDbLayer

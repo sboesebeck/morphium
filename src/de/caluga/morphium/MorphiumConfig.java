@@ -11,6 +11,7 @@ import de.caluga.morphium.annotations.Transient;
 import de.caluga.morphium.cache.MorphiumCache;
 import de.caluga.morphium.cache.MorphiumCacheImpl;
 import de.caluga.morphium.driver.ReadPreference;
+import de.caluga.morphium.driver.ReadPreferenceType;
 import de.caluga.morphium.driver.mongodb.Driver;
 import de.caluga.morphium.query.*;
 import de.caluga.morphium.writer.AsyncWriterImpl;
@@ -112,6 +113,8 @@ public class MorphiumConfig {
     private Class<? extends MongoField> fieldImplClass = MongoFieldImpl.class;
     @Transient
     private ReadPreference defaultReadPreference;
+    @Transient
+    private String defaultReadPreferenceType;
 
     private String driverClass;
     private int acceptableLatencyDifference = 15;
@@ -515,6 +518,25 @@ public class MorphiumConfig {
     }
 
     public void setDefaultReadPreference(ReadPreference defaultReadPreference) {
+        this.defaultReadPreference = defaultReadPreference;
+    }
+
+    public String getDefaultReadPreferenceType() {
+        return defaultReadPreferenceType;
+    }
+
+    public void setDefaultReadPreferenceType(String stringDefaultReadPreference) {
+        this.defaultReadPreferenceType = stringDefaultReadPreference;
+
+        ReadPreferenceType readPreferenceType;
+        try {
+            readPreferenceType = ReadPreferenceType.valueOf(stringDefaultReadPreference);
+        } catch (IllegalArgumentException e) {
+            readPreferenceType = null;
+        }
+
+        ReadPreference defaultReadPreference = new ReadPreference();
+        defaultReadPreference.setType(readPreferenceType);
         this.defaultReadPreference = defaultReadPreference;
     }
 

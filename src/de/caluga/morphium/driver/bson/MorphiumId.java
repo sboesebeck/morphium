@@ -8,6 +8,7 @@ import java.net.NetworkInterface;
 import java.nio.BufferUnderflowException;
 import java.nio.ByteBuffer;
 import java.security.SecureRandom;
+import java.util.Date;
 import java.util.Enumeration;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -34,13 +35,19 @@ public class MorphiumId {
     }
 
     public MorphiumId() {
+        this((Date)null);
+    }
+
+    public MorphiumId(Date date) {
         long start = System.currentTimeMillis();
 
         pid = createPID();
         long dur = System.currentTimeMillis() - start;
         counter = COUNT.getAndIncrement() & 0x00ffffff;
-        timestamp = (int) (System.currentTimeMillis() / 1000);
         machineId = THE_MACHINE_ID;
+
+        long time = date == null ? System.currentTimeMillis() : date.getTime();
+        timestamp = (int) (time / 1000);
     }
 
     public MorphiumId(String hexString) {
