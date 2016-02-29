@@ -11,6 +11,8 @@ public class MorphiumDriverException extends Exception {
     private String collection;
     private String db;
     private Map<String, Object> query;
+    private Object mongoCode;
+    private Object mongoReason;
 
     public MorphiumDriverException(String message) {
         super(message);
@@ -26,5 +28,19 @@ public class MorphiumDriverException extends Exception {
         this.query = q;
     }
 
+    public Object getMongoCode() {
+        return mongoCode;
+    }
 
+    public void setMongoCode(Object mongoCode) {
+        this.mongoCode = mongoCode;
+    }
+
+    public Object getMongoReason() {
+        return mongoReason;
+    }
+
+    public void setMongoReason(Object mongoReason) {
+        this.mongoReason = mongoReason;
+    }
 }
