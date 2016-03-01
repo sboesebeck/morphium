@@ -1,6 +1,5 @@
 package de.caluga.test.mongo.suite;
 
-import de.caluga.morphium.MorphiumSingleton;
 import de.caluga.morphium.annotations.Capped;
 import de.caluga.test.mongo.suite.data.UncachedObject;
 import org.junit.Test;
@@ -24,7 +23,7 @@ public class CappedCollectionTest extends MongoTest {
         morphium.store(cc);
 
 
-        assert (morphium.getDriver().isCapped(MorphiumSingleton.getConfig().getDatabase(), "capped_col"));
+        assert (morphium.getDriver().isCapped(morphium.getConfig().getDatabase(), "capped_col"));
         //storing more than max entries
         for (int i = 0; i < 1000; i++) {
             cc = new CappedCol();
@@ -56,7 +55,7 @@ public class CappedCollectionTest extends MongoTest {
         }
 
         morphium.storeList(lst);
-        assert (morphium.getDriver().isCapped(MorphiumSingleton.getConfig().getDatabase(), "capped_col"));
+        assert (morphium.getDriver().isCapped(morphium.getConfig().getDatabase(), "capped_col"));
         assert (morphium.createQueryFor(CappedCol.class).countAll() <= 10);
         for (CappedCol cp : morphium.createQueryFor(CappedCol.class).sort("counter").asIterable(10)) {
             log.info("Capped: " + cp.getCounter() + " - " + cp.getValue());
@@ -72,7 +71,7 @@ public class CappedCollectionTest extends MongoTest {
 
         morphium.convertToCapped(UncachedObject.class, 100, null);
 
-        assert (morphium.getDriver().isCapped(MorphiumSingleton.getConfig().getDatabase(), "uncached_object"));
+        assert (morphium.getDriver().isCapped(morphium.getConfig().getDatabase(), "uncached_object"));
         assert (morphium.createQueryFor(UncachedObject.class).countAll() <= 100);
     }
 
