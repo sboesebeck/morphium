@@ -23,18 +23,18 @@ import java.util.concurrent.ConcurrentHashMap;
  * TODO: Add documentation here
  */
 public class MetaDriver extends DriverBase {
-    private volatile Logger log = new Logger(MetaDriver.class);
+    private Logger log = new Logger(MetaDriver.class);
     private volatile static long seq;
-    private volatile Map<String, List<Connection>> connectionPool = new ConcurrentHashMap<>();
-    private volatile Map<String, List<Connection>> connectionsInUse = new ConcurrentHashMap<>();
-    private volatile String currentMaster;
-    private volatile Vector<String> secondaries = new Vector<>();
-    private volatile Vector<String> arbiters = new Vector<>();
-    private volatile Vector<String> tempBlockedHosts = new Vector<>();
-    private volatile long fastestAnswer = 10000000;
-    private volatile String fastestHost = null;
+    private Map<String, List<Connection>> connectionPool = new ConcurrentHashMap<>();
+    private Map<String, List<Connection>> connectionsInUse = new ConcurrentHashMap<>();
+    private String currentMaster;
+    private Vector<String> secondaries = new Vector<>();
+    private Vector<String> arbiters = new Vector<>();
+    private Vector<String> tempBlockedHosts = new Vector<>();
+    private long fastestAnswer = 10000000;
+    private String fastestHost = null;
 
-    private volatile Map<String, Integer> errorCountByHost = new ConcurrentHashMap<>();
+    private Map<String, Integer> errorCountByHost = new ConcurrentHashMap<>();
 
     private static ReadPreference primary = ReadPreference.primary();
     private static ReadPreference secondary = ReadPreference.secondary();

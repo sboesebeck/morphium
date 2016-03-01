@@ -25,14 +25,14 @@ import java.util.*;
 @SuppressWarnings({"ConstantConditions", "MismatchedQueryAndUpdateOfCollection", "unchecked", "MismatchedReadAndWriteOfArray"})
 public class ObjectMapperImpl implements ObjectMapper {
     private static Logger log = new Logger(ObjectMapperImpl.class);
-    private volatile Map<Class<?>, NameProvider> nameProviders;
-    private volatile AnnotationAndReflectionHelper annotationHelper = new AnnotationAndReflectionHelper(true);
+    private Map<Class<?>, NameProvider> nameProviders;
+    private AnnotationAndReflectionHelper annotationHelper = new AnnotationAndReflectionHelper(true);
     private Morphium morphium;
     private JSONParser jsonParser = new JSONParser();
 
     private Map<Class, TypeMapper> customMapper;
 
-    private volatile List<Class<?>> mongoTypes;
+    private List<Class<?>> mongoTypes;
     final ReflectionFactory reflection = ReflectionFactory.getReflectionFactory();
 
     public ObjectMapperImpl() {
