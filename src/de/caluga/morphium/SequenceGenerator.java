@@ -35,9 +35,6 @@ public class SequenceGenerator {
 
     private static Logger log = new Logger(SequenceGenerator.class);
 
-    public SequenceGenerator() {
-        this(MorphiumSingleton.get(), "seq", 1, 1);
-    }
 
     public SequenceGenerator(Morphium m, String n) {
         this(m, n, 1, 1);
@@ -159,7 +156,7 @@ public class SequenceGenerator {
         Sequence s = seq.get();
         if (s == null) {
             log.error("locked Sequence not found anymore?");
-            seq = MorphiumSingleton.get().createQueryFor(Sequence.class).f("name").eq(name);
+            seq = morphium.createQueryFor(Sequence.class).f("name").eq(name);
             for (Sequence sq : seq.asList()) {
                 log.error("Sequence: " + sq.toString());
             }

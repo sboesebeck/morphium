@@ -1,6 +1,9 @@
 package de.caluga.test.mongo.suite;
 
-import de.caluga.morphium.*;
+import de.caluga.morphium.AnnotationAndReflectionHelper;
+import de.caluga.morphium.Logger;
+import de.caluga.morphium.Morphium;
+import de.caluga.morphium.MorphiumConfig;
 import de.caluga.morphium.async.AsyncOperationCallback;
 import de.caluga.morphium.async.AsyncOperationType;
 import de.caluga.morphium.driver.ReadPreference;
@@ -104,7 +107,7 @@ public class MongoTest {
 //        });
         l = java.util.logging.Logger.getLogger("connection");
         l.setLevel(java.util.logging.Level.OFF);
-        if (!MorphiumSingleton.isConfigured()) {
+        if (morphium == null) {
             MorphiumConfig cfg = null;
             Properties p = getProps();
             if (p.getProperty("database") != null) {
@@ -176,8 +179,8 @@ public class MongoTest {
 //            cfg.setDriverClass(InMemoryDriver.class.getName());
             cfg.setReplicasetMonitoring(true);
 
-            MorphiumSingleton.setConfig(cfg);
-            morphium = MorphiumSingleton.get();
+
+            morphium = new Morphium(cfg);
 
 //            morphium.addListener(new MorphiumStorageAdapter() {
 //                @Override

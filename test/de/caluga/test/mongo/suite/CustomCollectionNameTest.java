@@ -1,7 +1,6 @@
 package de.caluga.test.mongo.suite;
 
 import de.caluga.morphium.Morphium;
-import de.caluga.morphium.MorphiumSingleton;
 import de.caluga.morphium.annotations.Entity;
 import de.caluga.morphium.annotations.Id;
 import de.caluga.morphium.async.AsyncOperationCallback;
@@ -21,7 +20,7 @@ public class CustomCollectionNameTest extends MongoTest {
 
     @Test
     public void testUpdateInOtherCollection() throws Exception {
-        Morphium m = MorphiumSingleton.get();
+        Morphium m = morphium;
         String collectionName = "entity_collection_name_update";
         m.clearCollection(EntityCollectionName.class, collectionName);
 
@@ -46,7 +45,7 @@ public class CustomCollectionNameTest extends MongoTest {
     @Test
     public void testDeleteInOtherCollection() throws Exception {
 
-        Morphium m = MorphiumSingleton.get();
+        Morphium m = morphium;
         String collectionName = "entity_collection_name_delete";
         m.clearCollection(EntityCollectionName.class, collectionName);
 
