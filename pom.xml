@@ -25,10 +25,10 @@
     </licenses>
 
     <scm>
-        <connection>scm:git:https://code.google.com/p/morphium</connection>
-        <developerConnection>scm:git:https://code.google.com/p/morphium</developerConnection>
-        <url>https://code.google.com/p/morphium</url>
-    </scm>
+	<url>https://github.com/sboesebeck/morphium</url>
+	<connection>scm:git:git://github.com/sboesebeck/morphium.git</connection>
+	<developerConnection>scm:git:git@github.com:sboesebeck/morphium.git</developerConnection>
+   </scm>
 
     <developers>
         <developer>
