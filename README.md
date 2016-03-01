@@ -22,7 +22,8 @@ Morphium is a POJO Object mapper for Accessing Mongodb. Some of the main Feature
 - nearly every aspect of Morphium can be replaced by own implementation (e.g. Query-Object, CacheImplementation...)
 - ConfigManager helps storing app configurations in Mongo with efficient access to it (cached)
 - Support for References, including lazy loaded references
-- Support for partial updated objects (when writing, only the changes of the object are transferred)
+- Support for partial updated objects (when writing, only the changes of the object are transferred) 
+- Almost any operation morphium provides is async capable. That means, if you pass it an `AsyncOperaionListener` as argument, you won't get a result now, but after the async operation finished via the callback
 
 for questions and feature requests / bug reports also have a look at the google group morphium-discuss@googlegroups.com
 
