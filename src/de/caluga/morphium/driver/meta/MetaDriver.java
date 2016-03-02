@@ -3,11 +3,13 @@ package de.caluga.morphium.driver.meta;
 import de.caluga.morphium.Logger;
 import de.caluga.morphium.Morphium;
 import de.caluga.morphium.Utils;
+import de.caluga.morphium.constants.RunCommand;
 import de.caluga.morphium.driver.*;
 import de.caluga.morphium.driver.bulk.BulkRequestContext;
 import de.caluga.morphium.driver.singleconnect.BulkContext;
 import de.caluga.morphium.driver.singleconnect.DriverBase;
 import de.caluga.morphium.driver.singleconnect.SingleConnectThreaddedDriver;
+import org.apache.commons.lang3.StringUtils;
 
 import java.util.ConcurrentModificationException;
 import java.util.List;
@@ -747,13 +749,12 @@ public class MetaDriver extends DriverBase {
                             try {
                                 answerTime = -1;
                                 long start = System.currentTimeMillis();
-                                reply = d.runCommand("local", Utils.getMap("isMaster", true));
+                                reply = d.runCommand(RunCommand.Command.local.name(), Utils.getMap(RunCommand.Response.ismaster.name(), true));
                                 answerTime = System.currentTimeMillis() - start;
-
+                                setReplicaSet(getFromReply(reply,RunCommand.Response.setName) != null && getFromReply(reply,RunCommand.Response.primary) != null);
 
                             } catch (MorphiumDriverException e) {
-                                if (e.getMongoCode() != null && e.getMongoCode().toString().equals("20")) {
-                                    //cannot connect to local db on mongos
+                                if (e.getMongoCode() != null && StringUtils.equals(e.getMongoCode().toString(),RunCommand.ErrorCode.UNABLE_TO_CONNECT.getCode())) {
                                     ok = true;
                                     return;
                                 }
@@ -766,21 +767,22 @@ public class MetaDriver extends DriverBase {
                                 return;
                             }
 
-                            if (!arbiter && reply.get("arbiterOnly") != null && reply.get("arbiterOnly").equals(true)) {
+                            if (!arbiter && getFromReply(reply,RunCommand.Response.arbiterOnly) != null && getFromReply(reply,RunCommand.Response.arbiterOnly).equals(true)) {
 //                                log.info("I'm an arbiter! Staying alive anyway!");
                                 if (!arbiters.contains(getHost())) arbiters.add(getHost());
                                 if (secondaries.contains(getHost())) secondaries.remove(getHost());
 //                                connectionPool.get(getHost()).remove(Connection.this);
                                 arbiter = true;
                             }
-                            if (!arbiter && reply.get("ismaster").equals(true)) {
+
+                            if (!arbiter && getFromReply(reply,RunCommand.Response.ismaster).equals(true)) {
                                 //got master connection...
                                 master = true;
                                 currentMaster = getHost();
-                            } else if (!arbiter && reply.get("secondary").equals(true)) {
+                            } else if (!arbiter && getFromReply(reply,RunCommand.Response.secondary).equals(true)) {
                                 master = false;
                                 if (currentMaster == null) {
-                                    currentMaster = (String) reply.get("primary");
+                                    currentMaster = (String) getFromReply(reply,RunCommand.Response.primary);
                                 }
                                 if (currentMaster == null) {
                                     log.info("No master in replicaset!");
@@ -790,26 +792,28 @@ public class MetaDriver extends DriverBase {
                             } else {
                                 master = false;
                                 if (currentMaster == null) {
-                                    currentMaster = (String) reply.get("primary");
+                                    currentMaster = (String) getFromReply(reply,RunCommand.Response.primary);
                                 }
                             }
 
-                            if (reply.get("secondary").equals(false) && reply.get("ismaster").equals(false)) {
-                                //recovering?!?!?
-                                secondaries.remove(getHost());
-                            } else {
-                                if (!arbiter && (fastestAnswer > answerTime || d.getHostSeed()[0].equals(fastestHost))) {
-                                    fastestAnswer = answerTime;
-                                    fastestHost = d.getHostSeed()[0];
+                            if (isReplicaset()) {
+                                if (getFromReply(reply,RunCommand.Response.secondary).equals(false) && getFromReply(reply,RunCommand.Response.ismaster).equals(false)) {
+                                    //recovering?!?!?
+                                    secondaries.remove(getHost());
+                                } else {
+                                    if (!arbiter && (fastestAnswer > answerTime || d.getHostSeed()[0].equals(fastestHost))) {
+                                        fastestAnswer = answerTime;
+                                        fastestHost = d.getHostSeed()[0];
+                                    }
+                                    if (getFromReply(reply,RunCommand.Response.hosts) != null && secondaries.size() == 0) {
+                                        secondaries = new Vector<>((List<String>) getFromReply(reply,RunCommand.Response.hosts));
+                                    }
                                 }
-                                if (reply.get("hosts") != null && secondaries.size() == 0) {
-                                    secondaries = new Vector<>((List<String>) reply.get("hosts"));
+                                //todo: check for missing secondaries, like some that were added during runtime
+                                try {
+                                    sleep(getHeartbeatFrequency());
+                                } catch (InterruptedException e) {
                                 }
-                            }
-                            //todo: check for missing secondaries, like some that were added during runtime
-                            try {
-                                sleep(getHeartbeatFrequency());
-                            } catch (InterruptedException e) {
                             }
                         } catch (Exception e) {
                             log.error("Connection broken!" + d.getHostSeed()[0], e);
@@ -839,6 +843,11 @@ public class MetaDriver extends DriverBase {
                 }
             }.start();
 
+        }
+
+
+        private Object getFromReply(Map<String, Object> reply, RunCommand.Response response) {
+            return reply.get(response.name());
         }
 
         public String getHost() {
@@ -922,4 +931,5 @@ public class MetaDriver extends DriverBase {
             lru = System.currentTimeMillis();
         }
     }
+
 }
