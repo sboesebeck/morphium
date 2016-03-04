@@ -2,9 +2,12 @@ package de.caluga.test.mongo.suite;
 
 import de.caluga.morphium.Utils;
 import de.caluga.morphium.query.Query;
+import de.caluga.test.mongo.suite.data.CachedObject;
 import de.caluga.test.mongo.suite.data.UncachedObject;
 import org.junit.Test;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -131,5 +134,64 @@ public class QueryImplTest extends MongoTest {
         assert (lc.getLongList().size() == 10);
         assert (lc.getName().equals("A test"));
 
+    }
+
+    @Test
+    public void speedTest() throws Exception {
+        int numThr = 100;
+
+        List<Thread> threads = new ArrayList<>();
+        long start = System.currentTimeMillis();
+        for (int t = 0; t < numThr; t++) {
+            Thread thread = new Thread(() -> {
+                for (int i = 0; i < 100000; i++) {
+                    Query q = morphium.createQueryFor(CachedObject.class);
+                }
+            });
+            threads.add(thread);
+            thread.start();
+        }
+        for (Thread thread : threads) {
+            thread.join();
+        }
+        threads.clear();
+
+        long dur = System.currentTimeMillis() - start;
+        log.info("Creating the query with " + numThr + " threads took " + dur + "ms");
+
+        start = System.currentTimeMillis();
+
+        for (int t = 0; t < numThr; t++) {
+            Thread thread = new Thread(() -> {
+                for (int i = 0; i < 100000; i++) {
+                    morphium.createQueryFor(CachedObject.class).f("counter");
+                }
+            });
+            threads.add(thread);
+            thread.start();
+        }
+        for (Thread thread : threads) {
+            thread.join();
+        }
+        threads.clear();
+        dur = System.currentTimeMillis() - start;
+        log.info("Creating the query+field with " + numThr + " threads took " + dur + "ms");
+
+        start = System.currentTimeMillis();
+        for (int t = 0; t < numThr; t++) {
+            Thread thread = new Thread(() -> {
+                for (int i = 0; i < 100000; i++) {
+                    morphium.createQueryFor(CachedObject.class).f("counter").eq(109);
+                }
+            });
+            threads.add(thread);
+            thread.start();
+        }
+        for (Thread thread : threads) {
+            thread.join();
+        }
+        threads.clear();
+        dur = System.currentTimeMillis() - start;
+        log.info("Creating the query+field+op with " + numThr + " threads took " + dur + "ms");
     }
 }

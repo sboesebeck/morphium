@@ -113,12 +113,12 @@ public class MorphiumCacheImpl implements MorphiumCache {
 
     @Override
     public boolean isCached(Class<?> type, String k) {
-        Cache c = annotationHelper.getAnnotationFromHierarchy(type, Cache.class); ///type.getAnnotation(Cache.class);
-        if (c != null) {
-            if (!c.readCache()) return false;
-        } else {
-            return false;
-        }
+//        Cache c = annotationHelper.getAnnotationFromHierarchy(type, Cache.class); ///type.getAnnotation(Cache.class);
+//        if (c != null) {
+//            if (!c.readCache()) return false;
+//        } else {
+//            return false;
+//        }
         Map<Class<?>, Map<String, CacheElement>> snapshotCache = cache;
 
         try {

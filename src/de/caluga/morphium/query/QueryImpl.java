@@ -336,10 +336,10 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
                 if (field == null) {
                     throw new IllegalArgumentException("Field " + fieldNameInstance + " not found!");
                 }
-                if (field.isAnnotationPresent(Reference.class)) {
-                    //cannot join
-                    throw new IllegalArgumentException("cannot subquery references: " + fieldNameInstance + " of type " + clz.getName() + " has @Reference");
-                }
+//                if (field.isAnnotationPresent(Reference.class)) {
+//                    //cannot join
+//                    throw new IllegalArgumentException("cannot subquery references: " + fieldNameInstance + " of type " + clz.getName() + " has @Reference");
+//                }
                 fieldPath.append(fieldNameInstance);
                 fieldPath.append('.');
                 clz = field.getType();
