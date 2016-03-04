@@ -9,7 +9,6 @@ import de.caluga.morphium.driver.bulk.BulkRequestContext;
 import de.caluga.morphium.driver.singleconnect.BulkContext;
 import de.caluga.morphium.driver.singleconnect.DriverBase;
 import de.caluga.morphium.driver.singleconnect.SingleConnectThreaddedDriver;
-import org.apache.commons.lang3.StringUtils;
 
 import java.util.ConcurrentModificationException;
 import java.util.List;
@@ -754,7 +753,7 @@ public class MetaDriver extends DriverBase {
                                 setReplicaSet(getFromReply(reply,RunCommand.Response.setName) != null && getFromReply(reply,RunCommand.Response.primary) != null);
 
                             } catch (MorphiumDriverException e) {
-                                if (e.getMongoCode() != null && StringUtils.equals(e.getMongoCode().toString(),RunCommand.ErrorCode.UNABLE_TO_CONNECT.getCode())) {
+                                if (e.getMongoCode() != null && e.getMongoCode().toString().equals(RunCommand.ErrorCode.UNABLE_TO_CONNECT.getCode())) {
                                     ok = true;
                                     return;
                                 }
