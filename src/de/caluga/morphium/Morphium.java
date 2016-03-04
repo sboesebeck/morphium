@@ -33,10 +33,7 @@ import java.lang.annotation.Annotation;
 import java.lang.reflect.Field;
 import java.net.UnknownHostException;
 import java.util.*;
-import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.SynchronousQueue;
-import java.util.concurrent.ThreadPoolExecutor;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.*;
 
 /**
  * This is the single access point for accessing MongoDB. This should
@@ -69,7 +66,7 @@ public class Morphium {
     private ThreadLocal<Boolean> disableWriteBuffer = new ThreadLocal<>();
     private ThreadLocal<Boolean> disableAsyncWrites = new ThreadLocal<>();
 
-    private Map<StatisticKeys, StatisticValue> stats = new HashMap<>();
+    private Map<StatisticKeys, StatisticValue> stats = new ConcurrentHashMap<>();
 
     /**
      * String Representing current user - needs to be set by Application
