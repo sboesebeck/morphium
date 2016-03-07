@@ -171,6 +171,7 @@ public class MongoTest {
             cfg.setLogLevelForPrefix("de.caluga.test", 5);
             cfg.setLogSyncedForPrefix("de.caluga.test", true);
             cfg.setLogLevelForPrefix("de.caluga.morphium.driver", 3);
+            cfg.setLogLevelForPrefix(MetaDriver.class.getName(), 5);
 
             //InMemoryTest
 //            cfg.setDriverClass(InMemoryDriver.class.getName());

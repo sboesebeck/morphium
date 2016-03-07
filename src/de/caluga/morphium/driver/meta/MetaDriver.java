@@ -42,6 +42,8 @@ public class MetaDriver extends DriverBase {
     private static ReadPreference secondaryPreferred = ReadPreference.secondaryPreferred();
     private static ReadPreference primaryPreferred = ReadPreference.primaryPreferred();
     private static ReadPreference nearest = ReadPreference.primary();
+
+    private static volatile int roundrobin = 0;
     private boolean connected = false;
 
     @Override
@@ -607,16 +609,23 @@ public class MetaDriver extends DriverBase {
     }
 
     private Connection getSecondaryConnection() throws MorphiumDriverException {
-        int idx = (int) (System.currentTimeMillis() % secondaries.size());
-        return getConnection(secondaries.get(idx));
+//        int idx = (int) (System.currentTimeMillis() % secondaries.size());
+        //balancing
+
+        String least = null;
+        int min = 9999;
+        for (String h : secondaries) {
+            if (connectionPool.get(h).size() < min) {
+                least = h;
+                min = connectionPool.get(h).size();
+            }
+        }
+        return getConnection(least);
     }
 
     private Connection getConnection(ReadPreference rp) throws MorphiumDriverException {
         if (rp == null) rp = nearest;
         switch (rp.getType()) {
-            case NEAREST:
-                if (fastestHost != null)
-                    return getConnection(fastestHost);
             case PRIMARY:
                 return getMasterConnection();
             case PRIMARY_PREFERRED:
@@ -625,6 +634,9 @@ public class MetaDriver extends DriverBase {
                 } catch (Exception e) {
                     log.warn("could not get master connection...", e);
                 }
+            case NEAREST:
+                if (fastestHost != null)
+                    return getConnection(fastestHost);
             case SECONDARY:
                 return getSecondaryConnection();
             case SECONDARY_PREFERRED:
