@@ -6,9 +6,9 @@ import de.caluga.morphium.annotations.caching.Cache;
 import de.caluga.morphium.query.Query;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.Vector;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
@@ -30,7 +30,7 @@ public class MorphiumCacheImpl implements MorphiumCache {
     public MorphiumCacheImpl() {
         cache = new ConcurrentHashMap<>();
         idCache = new ConcurrentHashMap<>();
-        cacheListeners = new Vector<>();
+        cacheListeners = Collections.synchronizedList(new ArrayList<>());
     }
 
     @Override

@@ -38,7 +38,7 @@ public class ObjectMapperImpl implements ObjectMapper {
     public ObjectMapperImpl() {
 
         nameProviders = new Hashtable<>();
-        mongoTypes = new Vector<>();
+        mongoTypes = Collections.synchronizedList(new ArrayList<>());
 
         mongoTypes.add(String.class);
         mongoTypes.add(Character.class);

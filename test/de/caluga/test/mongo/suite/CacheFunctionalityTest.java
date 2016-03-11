@@ -2,10 +2,7 @@ package de.caluga.test.mongo.suite;/**
  * Created by stephan on 02.03.16.
  */
 
-import de.caluga.morphium.AnnotationAndReflectionHelper;
 import de.caluga.morphium.StatisticKeys;
-import de.caluga.morphium.annotations.caching.Cache;
-import de.caluga.morphium.cache.MorphiumCache;
 import de.caluga.morphium.query.Query;
 import de.caluga.test.mongo.suite.data.CachedObject;
 import org.junit.Test;
@@ -95,69 +92,5 @@ public class CacheFunctionalityTest extends MongoTest {
         assert (morphium.getStatistics().get(StatisticKeys.CHITS.name()) >= 90); //first 10000 reads for cache warming!
     }
 
-    @Test
-    public void cachePerformanceTest() throws Exception {
-        MorphiumCache c = morphium.getCache();
-        CachedObject o = new CachedObject();
-        List<CachedObject> lst = new ArrayList<>();
-        for (int i = 0; i < 10000; i++) {
-            c.addToCache("key " + i, CachedObject.class, lst);
-        }
 
-        log.info("cache filled...");
-
-        for (int t = 1; t <= 500; t += 10) {
-            long start = System.currentTimeMillis();
-            List<Thread> thr = new ArrayList<>();
-            //create Threads according to t
-            for (int i = 0; i < t; i++) {
-                Thread thread = new Thread(() -> {
-                    for (int l = 0; l < 10000; l++) {
-                        assert (c.isCached(CachedObject.class, "key " + l));
-                        assert (c.getFromCache(CachedObject.class, "key " + l) != null);
-                    }
-                });
-                thread.start();
-                thr.add(thread);
-            }
-            for (Thread thread : thr) thread.join();
-            long dur = System.currentTimeMillis() - start;
-            log.info("Reading with " + t + " threads took " + dur + "ms");
-
-        }
-
-
-    }
-
-    @Test
-    public void arHelperPerformanceTest() throws Exception {
-        AnnotationAndReflectionHelper c = morphium.getARHelper();
-
-        c.getAllAnnotationsFromHierachy(CachedObject.class, Cache.class);
-        c.getAnnotationFromHierarchy(CachedObject.class, Cache.class);
-        c.isAnnotationPresentInHierarchy(CachedObject.class, Cache.class);
-        c.isEntity(new CachedObject());
-
-        for (int t = 1; t <= 250; t += 10) {
-            long start = System.currentTimeMillis();
-            List<Thread> thr = new ArrayList<>();
-            //create Threads according to t
-            for (int i = 0; i < t; i++) {
-                Thread thread = new Thread(() -> {
-                    for (int l = 0; l < 10000; l++) {
-                        assert (c.isEntity(new CachedObject()));
-                        assert (c.getAnnotationFromHierarchy(CachedObject.class, Cache.class) != null);
-                    }
-                });
-                thread.start();
-                thr.add(thread);
-            }
-            for (Thread thread : thr) thread.join();
-            long dur = System.currentTimeMillis() - start;
-            log.info("Reading with " + t + " threads took " + dur + "ms");
-
-        }
-
-
-    }
 }

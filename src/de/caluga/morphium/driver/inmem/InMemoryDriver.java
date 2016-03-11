@@ -584,7 +584,7 @@ public class InMemoryDriver implements MorphiumDriver {
 
     private List<Map<String, Object>> getCollection(String db, String collection) {
         if (getDB(db).get(collection) == null) {
-            getDB(db).put(collection, new Vector<>());
+            getDB(db).put(collection, Collections.synchronizedList(new ArrayList<>()));
         }
         return getDB(db).get(collection);
     }
