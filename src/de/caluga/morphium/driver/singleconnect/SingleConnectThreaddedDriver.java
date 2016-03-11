@@ -28,7 +28,7 @@ public class SingleConnectThreaddedDriver extends DriverBase {
     private OutputStream out;
     private InputStream in;
 
-    private Vector<OpReply> replies = new Vector<>();
+    private List<OpReply> replies = Collections.synchronizedList(new ArrayList<>());
 
 
     private void reconnect() throws MorphiumDriverException {

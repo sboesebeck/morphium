@@ -38,7 +38,7 @@ public class CacheSynchronizer implements MessageListener, MorphiumStorageListen
     public static final String CACHE_SYNC_TYPE = "cacheSyncType";
     public static final String CACHE_SYNC_RECORD = "cacheSyncRecord";
 
-    private Vector<CacheSyncListener> listeners = new Vector<>();
+    private List<CacheSyncListener> listeners = Collections.synchronizedList(new ArrayList<>());
     private Hashtable<Class<?>, Vector<CacheSyncListener>> listenerForType = new Hashtable<>();
     private boolean attached;
     private AnnotationAndReflectionHelper annotationHelper;
