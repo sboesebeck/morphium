@@ -6,8 +6,9 @@ import net.sf.cglib.proxy.MethodProxy;
 
 import java.io.Serializable;
 import java.lang.reflect.Method;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
-import java.util.Vector;
 
 public class PartiallyUpdateableProxy<T> implements MethodInterceptor, PartiallyUpdateable, Serializable {
     private static final long serialVersionUID = -1277417045334974980L;
@@ -18,7 +19,7 @@ public class PartiallyUpdateableProxy<T> implements MethodInterceptor, Partially
     private T reference;
 
     public PartiallyUpdateableProxy(Morphium m, T o) {
-        updateableFields = new Vector<>();
+        updateableFields = Collections.synchronizedList(new ArrayList<>());
         reference = o;
 //        morphium = m;
         ah = m.getARHelper();

@@ -141,7 +141,7 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
             if (opLog.get(type) == null) {
                 synchronized (opLog) {
                     if (opLog.get(type) == null)
-                        opLog.put(type, new Vector<>());
+                        opLog.put(type, Collections.synchronizedList(new ArrayList<>()));
                 }
             }
             switch (strategy) {
@@ -571,7 +571,7 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
                     if (opLog.get(clz) == null) {
                         synchronized (opLog) {
                             if (opLog.get(clz) == null)
-                                opLog.put(clz, new Vector<>());
+                                opLog.put(clz, Collections.synchronizedList(new ArrayList<>()));
                         }
                     }
                     opLog.get(clz).addAll(c);

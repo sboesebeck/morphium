@@ -1,8 +1,9 @@
-package de.caluga.test.mongo.suite;/**
+package de.caluga.test.mongo.suite.performance;/**
  * Created by stephan on 25.11.15.
  */
 
 import de.caluga.morphium.query.Query;
+import de.caluga.test.mongo.suite.MongoTest;
 import de.caluga.test.mongo.suite.data.UncachedObject;
 import org.junit.Test;
 

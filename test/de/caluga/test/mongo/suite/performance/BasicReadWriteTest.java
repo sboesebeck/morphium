@@ -2,9 +2,10 @@ package de.caluga.test.mongo.suite.performance;/**
  * Created by stephan on 21.10.15.
  */
 
+import de.caluga.morphium.Morphium;
 import de.caluga.test.mongo.suite.MongoTest;
 import de.caluga.test.mongo.suite.data.UncachedObject;
-import org.junit.Test;
+import org.openjdk.jmh.annotations.*;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -12,74 +13,80 @@ import java.util.List;
 /**
  * TODO: Add Documentation here
  **/
-public class BasicReadWriteTest extends MongoTest {
-    @Test
-    public void basicReadTest() {
-        morphium.dropCollection(UncachedObject.class);
+@State(Scope.Benchmark)
+public class BasicReadWriteTest {
+    private Morphium morphium;
 
-        createUncachedObjects(10000);
 
-        log.info("Reading data...");
-        long start = System.currentTimeMillis();
-        for (int i = 0; i < 10000; i++) {
-            morphium.createQueryFor(UncachedObject.class).f(UncachedObject.Fields.counter).eq((int) (Math.random() * 10000.0));
+    @Setup
+    public void setup() {
+        try {
+            if (MongoTest.morphium == null)
+                MongoTest.setUpClass();
+            morphium = MongoTest.morphium;
+        } catch (Exception e) {
+            //TODO: Implement Handling
+            throw new RuntimeException(e);
         }
-        long dur = System.currentTimeMillis() - start;
-        log.info("Reading random took " + dur + "ms");
-
-        log.info("Now reading sequentially...");
-        start = System.currentTimeMillis();
-        for (int i = 0; i < 10000; i++) {
-            morphium.createQueryFor(UncachedObject.class).f(UncachedObject.Fields.counter).eq(i);
-        }
-        dur = System.currentTimeMillis() - start;
-        log.info("Reading sequential took " + dur + "ms");
     }
 
-    @Test
-    public void basicWriteTest() {
-        log.info("\n\n\nDoing writes with index check off");
-        morphium.getConfig().setAutoIndexAndCappedCreationOnWrite(false);
-        doWriteTest();
+    @TearDown
+    public void teardown() {
+        morphium.close();
+    }
 
-        log.info("\n\n\nDoing writes with index check ON");
+    @Benchmark
+    @Warmup(iterations = 1)
+    @Threads(1)
+    @BenchmarkMode({Mode.SampleTime, Mode.All, Mode.AverageTime, Mode.Throughput})
+    @OperationsPerInvocation(value = 1)
+    @Fork(1)
+    @Measurement(iterations = 5, time = -1)
+    public void basicWriteTestAutoCappingEnabled() {
+
         morphium.getConfig().setAutoIndexAndCappedCreationOnWrite(true);
         doWriteTest();
+
     }
 
-    private void doWriteTest() {
+    @Benchmark
+    @Warmup(iterations = 1)
+    @Threads(1)
+    @BenchmarkMode({Mode.SampleTime, Mode.All, Mode.AverageTime, Mode.Throughput})
+    @OperationsPerInvocation(value = 1)
+    @Fork(1)
+    @Measurement(iterations = 5, time = -1)
+    public void basicWriteTestAutoCappingDisabled() {
+
+        morphium.getConfig().setAutoIndexAndCappedCreationOnWrite(false);
+        doWriteTest();
+        morphium.getConfig().setAutoIndexAndCappedCreationOnWrite(true);
+
+    }
+
+
+    public void doWriteTest() {
         morphium.dropCollection(UncachedObject.class);
-        log.info("Creating objects sequentially...");
-        long start = System.currentTimeMillis();
-        for (int i = 0; i < 10000; i++) {
+        for (int i = 0; i <
+                1000; i++) {
             UncachedObject uc = new UncachedObject();
             uc.setCounter(i);
             uc.setValue("V" + i);
             morphium.store(uc);
-            if (i % 1000 == 0) log.info("got " + i);
         }
-        long dur = System.currentTimeMillis() - start;
-        log.info("Took: " + dur + "ms");
 
-        log.info("Creating objects randomly..");
-        start = System.currentTimeMillis();
-        for (int i = 0; i < 10000; i++) {
+        for (int i = 0; i < 1000; i++) {
             UncachedObject uc = new UncachedObject();
             int c = (int) (Math.random() * 100000.0);
             uc.setCounter(c);
             uc.setValue("V" + c);
             morphium.store(uc);
-            if (i % 1000 == 0) log.info("got " + i);
 
         }
-        dur = System.currentTimeMillis() - start;
-        log.info("Took: " + dur + "ms");
 
 
-        log.info("Block writing...");
         List<UncachedObject> buffer = new ArrayList<>();
-        start = System.currentTimeMillis();
-        for (int i = 0; i < 10000; i++) {
+        for (int i = 0; i < 1000; i++) {
             UncachedObject uc = new UncachedObject();
             int c = (int) (Math.random() * 100000.0);
             uc.setCounter(c);
@@ -87,7 +94,5 @@ public class BasicReadWriteTest extends MongoTest {
             buffer.add(uc);
         }
         morphium.storeList(buffer);
-        dur = System.currentTimeMillis() - start;
-        log.info("Took: " + dur + "ms");
     }
 }

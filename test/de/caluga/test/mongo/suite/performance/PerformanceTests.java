@@ -1,4 +1,4 @@
-package de.caluga.test.mongo.suite;/**
+package de.caluga.test.mongo.suite.performance;/**
  * Created by stephan on 23.11.15.
  */
 
