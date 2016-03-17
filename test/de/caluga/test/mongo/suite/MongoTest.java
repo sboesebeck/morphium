@@ -160,7 +160,8 @@ public class MongoTest {
                 cfg.setBlockingThreadsMultiplier(2);
                 storeProps();
             }
-
+            cfg.setDefaultReadPreference(ReadPreference.secondaryPreferred());
+            cfg.setDefaultReadPreferenceType("secondaryPreferred");
             //Setting up logging
             cfg.setGlobalLogLevel(4);
             cfg.setGlobalLogFile("-");
