@@ -7,10 +7,7 @@ import de.caluga.test.mongo.suite.data.CachedObject;
 import de.caluga.test.mongo.suite.data.UncachedObject;
 import org.junit.Test;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Vector;
+import java.util.*;
 
 /**
  * User: Stephan Bösebeck
@@ -20,7 +17,7 @@ import java.util.Vector;
  */
 public class IteratorTest extends MongoTest {
 
-    private Vector<MorphiumId> data = new Vector<>();
+    private List<MorphiumId> data = Collections.synchronizedList(new ArrayList<>());
 
     private int runningThreads = 0;
 
@@ -37,7 +34,7 @@ public class IteratorTest extends MongoTest {
             log.info("Running test with " + it.getClass().getName());
 //        final MorphiumIterator<UncachedObject> it = qu.asIterable(1000, 15);
             it.setMultithreaddedAccess(true);
-            data = new Vector<>();
+            data = Collections.synchronizedList(new ArrayList<>());
 
             final Vector<Thread> threads = new Vector<>();
             for (int i = 0; i < 3; i++) {

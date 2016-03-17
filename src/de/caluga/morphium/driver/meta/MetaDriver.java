@@ -10,10 +10,7 @@ import de.caluga.morphium.driver.singleconnect.BulkContext;
 import de.caluga.morphium.driver.singleconnect.DriverBase;
 import de.caluga.morphium.driver.singleconnect.SingleConnectThreaddedDriver;
 
-import java.util.ConcurrentModificationException;
-import java.util.List;
-import java.util.Map;
-import java.util.Vector;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
@@ -29,9 +26,9 @@ public class MetaDriver extends DriverBase {
     private Map<String, List<Connection>> connectionPool = new ConcurrentHashMap<>();
     private Map<String, List<Connection>> connectionsInUse = new ConcurrentHashMap<>();
     private String currentMaster;
-    private Vector<String> secondaries = new Vector<>();
-    private Vector<String> arbiters = new Vector<>();
-    private Vector<String> tempBlockedHosts = new Vector<>();
+    private List<String> secondaries = Collections.synchronizedList(new ArrayList<>());
+    private List<String> arbiters = Collections.synchronizedList(new ArrayList<>());
+    private List<String> tempBlockedHosts = Collections.synchronizedList(new ArrayList<>());
     private long fastestAnswer = 10000000;
     private String fastestHost = null;
 
@@ -187,14 +184,14 @@ public class MetaDriver extends DriverBase {
 
     private List<Connection> getConnectionsInUse(String h) {
         if (connectionsInUse.get(h) == null) {
-            connectionsInUse.put(h, new Vector<>());
+            connectionsInUse.put(h, Collections.synchronizedList(new ArrayList<>()));
         }
         return connectionsInUse.get(h);
     }
 
     private List<Connection> getConnections(String h) {
         if (connectionPool.get(h) == null) {
-            connectionPool.put(h, new Vector<>());
+            connectionPool.put(h, Collections.synchronizedList(new ArrayList<>()));
         }
         return connectionPool.get(h);
     }

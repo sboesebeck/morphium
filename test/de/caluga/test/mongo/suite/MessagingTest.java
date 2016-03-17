@@ -612,7 +612,7 @@ public class MessagingTest extends MongoTest {
             systems.add(m);
             MessageListener l = new MessageListener() {
                 Messaging msg;
-                List<String> ids = new Vector<>();
+                List<String> ids = Collections.synchronizedList(new ArrayList<>());
 
                 @Override
                 public Msg onMessage(Messaging msg, Msg m) {
