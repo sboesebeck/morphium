@@ -230,6 +230,16 @@ public class SingleConnectDirectDriver extends DriverBase {
     }
 
     @Override
+    public MorphiumCursor initIteration(String db, String collection, Map<String, Object> query, Map<String, Integer> sort, Map<String, Object> projection, int skip, int limit, int batchSize, ReadPreference readPreference, Map<String, Object> findMetaData) throws MorphiumDriverException {
+        return null;
+    }
+
+    @Override
+    public MorphiumCursor nextIteration(MorphiumCursor crs) throws MorphiumDriverException {
+        return null;
+    }
+
+    @Override
     public List<Map<String, Object>> find(String db, String collection, Map<String, Object> query, Map<String, Integer> s, Map<String, Object> projection, int skip, int limit, int batchSize, ReadPreference rp, Map<String, Object> findMetaData) throws MorphiumDriverException {
         if (s == null) s = new HashMap<>();
         final Map<String, Integer> sort = s;
