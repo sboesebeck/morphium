@@ -10,7 +10,7 @@ html header:    <link rel="stylesheet" href="http://yandex.st/highlightjs/7.3/st
 
 # Morphium Documentation
 
-This documentation is refering to *Morphium* version [%morphium_version] and mongodb [%mongodb_version].
+This documentation is refering to *Morphium* version [%morphium_version] and mongodb [%mongodb_version]. this documentation follows "MultiMarkdown" and was created using the MultiMarkdownComposer.
 
 Download PDF here: [MorphiumDoku][1]
 HTML Version here: [MorphiumDoku][4]
@@ -94,7 +94,7 @@ First you need to create data to be stored in Mongo. This should be some simple 
     @Entity
     public class MyEntity {
         @Id
-        private ObjectId myId;
+        private MorphiumId myId;
         private int aField;
         private String other;
         private long property;
@@ -201,7 +201,7 @@ There are a lot of settings and customizations you can do within *Morphium*. Her
 *   *socketKeepAlive*: if `true`, use TCP-Keepalive for the connection. Defaults to true
 *   *safeMode*: Use the safe mode of mongo when set to `true`
 *   *globalFsync*, *globalJ*: set fsync (file system sync) and j (journal) options. See mongo.org for more information
-*   *checkForNew*: This is something interesting related to the creation of ids. Usually Ids in mongo are of type `ObjectId`. Anytime you write an object with an `_id` of that type, the document is either updated or inserted, depending on whether or not the ID is available or not. If it is inserted, the newly created ObjectId is being returned and add to the corresponding object. But if the id is not of type ObjectId, this mechanism will fail, no objectId is being created. This is no problem when it comes to new creation of objects, but with updates you might not be sure, that the object actually is new or not. If this obtion is set to `true` *Morphium* will check upon storing, whether or not the object to be stored is already available in database and would update. 
+*   *checkForNew*: This is something interesting related to the creation of ids. Usually Ids in mongo are of type `ObjectId`. Anytime you write an object with an `_id` of that type, the document is either updated or inserted, depending on whether or not the ID is available or not. If it is inserted, the newly created ObjectId is being returned and add to the corresponding object. But if the id is not of type ObjectId, this mechanism will fail, no objectId is being created. This is no problem when it comes to new creation of objects, but with updates you might not be sure, that the object actually is new or not. If this obtion is set to `true` *Morphium* will check upon storing, whether or not the object to be stored is already available in database and would update. *Attention*: Morphium 3.0 removed the dependency from mogodb.org codebase and hence there is no ObjectId for POJOs anymore. You should replace these with the new `MorphiumId`.
 *   *writeTimeout*: this timeout determines how long to wait until a write to mongo has to be finshed. Default is `0`⇒ no timeout
 *   *maximumRetriesBufferedWriter*: When writing buffered, how often should retry to write the data until an exception is thrown. Default is 10
 *   *retryWaitTimeBufferedWriter*: Time to wait between retries
@@ -515,7 +515,13 @@ This is the Unit test for Aggregation support in Mongo:
         //group by - in dem Fall ALL, könnte auch beliebig sein
         a = a.group("all").avg("schnitt", "$counter").sum("summe", "$counter").sum("anz", 1).last("letzter", "$counter").first("erster", "$counter").end();
         //ergebnis projezieren 
-        a = a.project(new BasicDBObject("summe", 1).append("anzahl", "$anz").append("schnitt", 1).append("last", "$letzter").append("first", "$erster"));
+        HashMap<String,Object> projection=new HashMap<>(); 
+        projection.put("summe",1);
+        projection.put("anzahl","$anz");
+        projection.put("schnitt",1);
+        projection.put("last","$letzter");
+        projection.put("first","$erster");
+        a = a.project(projection);
     
         List<DBObject> obj = a.toAggregationList();
         for (DBObject o : obj) {
@@ -606,7 +612,7 @@ Technically it's implemented as a `JavaxValidationStorageListener` which is a st
 
 an example on how to use validation:
 
-    @Id private ObjectId id;
+    @Id private MorphiumId id;
     
     @Min(3)
     @Max(7)
@@ -738,13 +744,13 @@ You can use your own provider to calculate collection names depending on time an
 
 ### Entity Definition
 
-Entitys in *Morphium* ar just "Plain old Java Objects" (POJOs). So you just create your data objects, as usual. You only need to add the annotation `@Entity` to the class, to tell *Morphium* "Yes, this can be stored". The only additional thing you need to take care of is the definition of an ID-Field. This can be any field in the POJO identifiying the instance. Its best, to use `ObjectID` as type of this field, as these can be created automatically and you don't need to care about those as well.
+Entitys in *Morphium* ar just "Plain old Java Objects" (POJOs). So you just create your data objects, as usual. You only need to add the annotation `@Entity` to the class, to tell *Morphium* "Yes, this can be stored". The only additional thing you need to take care of is the definition of an ID-Field. This can be any field in the POJO identifying the instance. Its best, to use `MorphiumId` as type of this field, as these can be created automatically and you don't need to care about those as well.
 
 If you specify your ID to be of a different kind (like String), you need to make sure, that the String is set, when the object will be written. Otherwise you might not find the object again. So the shortest Entity would look like this:
 
     @Entity
     public class MyEntity {
-       @Id private ObjectId id;
+       @Id private MorphiumId id;
        //.. add getter and setter here
     }
     
@@ -784,7 +790,7 @@ Similar as with indexes, you can define you collection to be capped using the `@
 Querying is done via the Query-Object, which is created by *Morphium* itself (using the Query Factory). The definition of the query is done using the fluent interface:
 
     Query<MyEntity> query=morphium.createQueryFor(MyEntity.class);
-    query=query.f("id").eq(new ObjectId());
+    query=query.f("id").eq(new MorphiumId());
     query=query.f("valueField").eq("the value");
     query=query.f("counter").lt(22);
     query=query.f("personName").matches("[a-zA-Z]+");
@@ -913,7 +919,7 @@ Define the read preference level for an entity. This annotation has to be used a
 
 Very important annotation to a field of every entity. It marks that field to be the id and identify any object. It will be stored as `_id` in mongo (and will get an index).
 
-The Id may be of any type, though usage of ObjectId is strongly recommended.
+The Id may be of any type, though usage of ObjectId (or MorphiumId in Java) is strongly recommended.
 
 ### Index
 
@@ -1265,7 +1271,7 @@ And:
         log.info("Dig not get own message - cool!");
     
         Msg m = new Msg("meine Message", MsgType.SINGLE, "The Message", "value is a string", 5000);
-        m.setMsgId(new ObjectId());
+        m.setMsgId(new MorphiumId());
         m.setSender("Another sender");
     
         MorphiumSingleton.get().store(m);
@@ -1409,16 +1415,16 @@ And:
     @Entity
     public static class Place {
         @Id
-        private ObjectId id;
+        private MorphiumId id;
     
         public List<Double> position;
         public String name;
     
-        public ObjectId getId() {
+        public MorphiumId getId() {
             return id;
         }
     
-        public void setId(ObjectId id) {
+        public void setId(MorphiumId id) {
             this.id = id;
         }
     

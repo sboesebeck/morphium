@@ -1,7 +1,5 @@
 package de.caluga.test.mongo.suite;
 
-import com.mongodb.BasicDBList;
-import com.mongodb.BasicDBObject;
 import de.caluga.morphium.aggregation.Aggregator;
 import de.caluga.morphium.annotations.Embedded;
 import de.caluga.morphium.annotations.Property;
@@ -9,6 +7,7 @@ import de.caluga.morphium.query.Query;
 import de.caluga.test.mongo.suite.data.UncachedObject;
 import org.junit.Test;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -38,7 +37,13 @@ public class Aggregation extends MongoTest {
         a = a.group("all").avg("schnitt", "$counter").sum("summe", "$counter").sum("anz", 1).last("letzter", "$counter").first("erster", "$counter").end();
 //        a = a.group("a2").avg("schnitt", "$counter").sum("summe", "$counter").sum("anz", 1).last("letzter", "$counter").first("erster", "$counter").end();
         //ergebnis projezieren
-        a = a.project(new BasicDBObject("summe", 1).append("anzahl", "$anz").append("schnitt", 1).append("last", "$letzter").append("first", "$erster"));
+        HashMap<String, Object> projection = new HashMap<>();
+        projection.put("summe", 1);
+        projection.put("anzahl", "$anz");
+        projection.put("schnitt", 1);
+        projection.put("last", "$letzter");
+        projection.put("first", "$erster");
+        a = a.project(projection);
 
         List<Map<String, Object>> obj = a.toAggregationList();
         for (Map<String, Object> o : obj) {
@@ -96,10 +101,11 @@ public class Aggregation extends MongoTest {
         start = System.currentTimeMillis();
         Aggregator<UncachedObject, Aggregate> a = morphium.createAggregator(UncachedObject.class, Aggregate.class);
         assert (a.getResultType() != null);
-        BasicDBList params = new BasicDBList();
+        ArrayList<Object> params = new ArrayList<>();
         params.add("$counter");
         params.add(3);
-        BasicDBObject db = new BasicDBObject("$mod", params);
+        Map<String, Object> db = new HashMap<>();
+        db.put("$mod", params);
         a = a.sort("$counter");
         a = a.group(db).sum("summe", "$counter").sum("anzahl", 1).avg("schnitt", "$counter").end();
         List<Map<String, Object>> obj = a.toAggregationList();
