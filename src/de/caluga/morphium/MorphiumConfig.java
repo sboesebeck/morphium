@@ -530,11 +530,12 @@ public class MorphiumConfig {
 
         ReadPreferenceType readPreferenceType;
         try {
-            readPreferenceType = ReadPreferenceType.valueOf(stringDefaultReadPreference);
+            readPreferenceType = ReadPreferenceType.valueOf(stringDefaultReadPreference.toUpperCase());
         } catch (IllegalArgumentException e) {
             readPreferenceType = null;
         }
-
+        if (readPreferenceType == null)
+            throw new RuntimeException("Could not set defaultReadPreferenceByString " + stringDefaultReadPreference);
         ReadPreference defaultReadPreference = new ReadPreference();
         defaultReadPreference.setType(readPreferenceType);
         this.defaultReadPreference = defaultReadPreference;

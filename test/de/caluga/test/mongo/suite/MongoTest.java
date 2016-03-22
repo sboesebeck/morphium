@@ -7,7 +7,7 @@ import de.caluga.morphium.MorphiumConfig;
 import de.caluga.morphium.async.AsyncOperationCallback;
 import de.caluga.morphium.async.AsyncOperationType;
 import de.caluga.morphium.driver.ReadPreference;
-import de.caluga.morphium.driver.meta.MetaDriver;
+import de.caluga.morphium.driver.inmem.InMemoryDriver;
 import de.caluga.morphium.messaging.Msg;
 import de.caluga.morphium.query.PrefetchingMorphiumIterator;
 import de.caluga.morphium.query.Query;
@@ -162,7 +162,7 @@ public class MongoTest {
                 storeProps();
             }
             cfg.setDefaultReadPreference(ReadPreference.secondaryPreferred());
-            cfg.setDefaultReadPreferenceType("secondaryPreferred");
+            cfg.setDefaultReadPreferenceType("SECONDARY_PREFERRED");
             //Setting up logging
             cfg.setGlobalLogLevel(4);
             cfg.setGlobalLogFile("-");
@@ -176,9 +176,9 @@ public class MongoTest {
 //            cfg.setLogLevelForPrefix(MetaDriver.class.getName(), 5);
 
             //InMemoryTest
-//            cfg.setDriverClass(InMemoryDriver.class.getName());
+            cfg.setDriverClass(InMemoryDriver.class.getName());
             //MetaDriverTEst
-            cfg.setDriverClass(MetaDriver.class.getName());
+//            cfg.setDriverClass(MetaDriver.class.getName());
 //            cfg.setDriverClass(InMemoryDriver.class.getName());
             cfg.setReplicasetMonitoring(true);
 

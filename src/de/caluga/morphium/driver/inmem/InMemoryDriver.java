@@ -404,7 +404,7 @@ public class InMemoryDriver implements MorphiumDriver {
         if (batchSize == 0) inCrs.limit = 1000;
         crs.setInternalCursorObject(inCrs);
 
-        List<Map<String, Object>> res = find(db, collection, query, sort, projection, skip, limit, batchSize, readPreference, findMetaData);
+        List<Map<String, Object>> res = find(db, collection, query, sort, projection, skip, limit < batchSize ? limit : batchSize, batchSize, readPreference, findMetaData);
         crs.setResult(res);
 
         if (res.size() < batchSize) {
@@ -431,13 +431,17 @@ public class InMemoryDriver implements MorphiumDriver {
         inCrs.setCollection(oldCrs.getCollection());
         inCrs.setProjection(oldCrs.getProjection());
         inCrs.setBatchSize(oldCrs.getBatchSize());
-        inCrs.setLimit(oldCrs.getLimit());
+        inCrs.setLimit(oldCrs.getLimit() - crs.getResult().size());
         inCrs.setSort(oldCrs.getSort());
         inCrs.setBatchSize(oldCrs.getBatchSize());
-        inCrs.skip = oldCrs.skip + crs.getResult().size();
-        List<Map<String, Object>> res = find(inCrs.getDb(), inCrs.getCollection(), inCrs.getQuery(), inCrs.getSort(), inCrs.getProjection(), inCrs.getSkip(), inCrs.getLimit(), inCrs.getBatchSize(), inCrs.getReadPreference(), inCrs.getFindMetaData());
+        inCrs.skip = oldCrs.skip + crs.getResult().size() + 1;
+        List<Map<String, Object>> res = find(inCrs.getDb(), inCrs.getCollection(), inCrs.getQuery(), inCrs.getSort(), inCrs.getProjection(), inCrs.getSkip(), inCrs.getLimit() < inCrs.batchSize ? inCrs.getLimit() : inCrs.batchSize, inCrs.getBatchSize(), inCrs.getReadPreference(), inCrs.getFindMetaData());
         next.setResult(res);
-        next.setInternalCursorObject(inCrs);
+        if (res.size() < inCrs.getBatchSize()) {
+            //finished!
+        } else {
+            next.setInternalCursorObject(inCrs);
+        }
         return next;
     }
 
