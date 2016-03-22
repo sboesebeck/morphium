@@ -55,7 +55,7 @@ The changes were triggered by the recent mongodb java driver update to also 3.0,
 
 The next step was, to be more independent from the driver, as those changes caused problems almost throughout the whole code of morphium. So, introducing with V3.0 of morphium, the driver is encapsulated deep within morphium.
 
-Unfortunately, even the basic document representation changed[^old version used _BasicDBObject_, new version uses Document`], which are very similar, but unfortunately represented in a whole new implementation of BSON[^binary json - details can be found [here](http://bsonspec.org/)].
+Unfortunately, even the basic document representation changed[^old version used `BasicDBObject`, new version uses `Document`], which are very similar, but unfortunately represented in a whole new implementation of BSON[^binary json - details can be found [here](http://bsonspec.org/)].
 
 Also, we had some problems with dependencies in maven, causing to be several version of the mongodb driver being installed on production - which then caused some weird effects, most of them not really good ones ;-)
 
@@ -404,7 +404,7 @@ The `f` method stands for "field" and returns a *Morphium* internal representati
     public void setFieldString(String fld);
 ```
 
-Query definitions can be in one line, or as above in several lines. Actually the current query object is changed with every call of `f...something` combination. The current object is always returned, for making the code more ledgeable and understandable, you should assign the query as shown above. This makes clear: "The object changed"
+Query definitions can be in one line, or as above in several lines. Actually the current query object is changed with every call of `f...something` combination. The current object is always returned, for making the code more legible and understandable, you should assign the query as shown above. This makes clear: "The object changed"
 
 If you need an "empty" query of the same type, you can call the method `q`. This method will return an empty query of the same type, using the same mapper etc. But only without conditions or something - just plain empty.
 
@@ -829,6 +829,11 @@ After you defined your query, you probably want to access the data in mongo. Via
 *   `queryObject.asIterable(100)` will step through the result list, 100 at a time
 *   `queryObject.asIterable(100,5)` will step through the result list, 100 at a time and keep 4 chunks of 100 elements each as prefetch buffers. Those will be filled in background.
 *   `MorphiumIterator it=queryObject.asIterable(100,5); it.setMultithreaddedAccess(true);` use the same iterator as before, but make it thread safe.
+
+Internally the default iterator does create queries that are derived from the sort of the query, if there is no sort specified, it will assume you want to sort by `_id`.
+
+If you use the prefetching iterator, keep in mind that this will use skip and limit functionality in order to prefetch those chunks of data in parallel. But this showed some degration in performance for huge collections (skip seems to be longer and longer).
+
 
 ### Storing
 
