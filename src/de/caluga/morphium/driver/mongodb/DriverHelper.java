@@ -20,10 +20,10 @@ import java.util.Map;
  * TODO: Add Documentation here
  **/
 public class DriverHelper {
-    Logger logger = new Logger(DriverHelper.class);
+    //Logger logger = new Logger(DriverHelper.class);
 
 
-    public Map<String, Object> doCall(MorphiumDriverOperation r, int maxRetry, int sleep) throws MorphiumDriverException {
+    public static Map<String, Object> doCall(MorphiumDriverOperation r, int maxRetry, int sleep) throws MorphiumDriverException {
         for (int i = 0; i < maxRetry; i++) {
             try {
                 return r.execute();
@@ -35,8 +35,8 @@ public class DriverHelper {
     }
 
 
-    private void handleNetworkError(int max, int i, int sleep, Throwable e) throws MorphiumDriverException {
-        logger.info("Handling network error..." + e.getClass().getName());
+    private static void handleNetworkError(int max, int i, int sleep, Throwable e) throws MorphiumDriverException {
+        new Logger(DriverHelper.class).info("Handling network error..." + e.getClass().getName());
         if (e.getClass().getName().equals("javax.validation.ConstraintViolationException")) {
             throw (new MorphiumDriverException("Validation error", e));
         }
@@ -61,14 +61,14 @@ public class DriverHelper {
                 || (e.getClass().getName().contains("WriteConcernException") && e.getMessage() != null && e.getMessage().contains("not master"))
                 || e.getClass().getName().contains("MongoException")) {
             if (i + 1 < max) {
-                logger.warn("Retry because of network error: " + e.getMessage());
+                new Logger(DriverHelper.class).warn("Retry because of network error: " + e.getMessage());
                 try {
                     Thread.sleep(sleep);
                 } catch (InterruptedException ignored) {
                 }
 
             } else {
-                logger.info("no retries left - re-throwing exception");
+                new Logger(DriverHelper.class).info("no retries left - re-throwing exception");
                 throw (new MorphiumDriverNetworkException("Network error error", e));
             }
         } else {
@@ -76,7 +76,7 @@ public class DriverHelper {
         }
     }
 
-    public void replaceMorphiumIdByObjectId(Object in) {
+    public static void replaceMorphiumIdByObjectId(Object in) {
         if (in == null) return;
         if (in instanceof Map) {
             Map<String, Object> m = (Map) in;
@@ -108,13 +108,15 @@ public class DriverHelper {
                 }
 
             } catch (Exception e) {
-                logger.fatal("Error replacing mongoid", e);
+                new Logger(DriverHelper.class).fatal("Error replacing mongoid", e);
                 //TODO: Implement Handling
 //                throw new RuntimeException(e);
             }
         } else if (in instanceof Collection) {
             Collection c = (Collection) in;
-            c.forEach(this::replaceMorphiumIdByObjectId);
+            c.forEach(o -> {
+                DriverHelper.replaceMorphiumIdByObjectId(o);
+            });
         } else if (in.getClass().isArray()) {
 
             for (int i = 0; i < Array.getLength(in); i++) {

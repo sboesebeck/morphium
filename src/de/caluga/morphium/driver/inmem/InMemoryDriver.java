@@ -2,10 +2,7 @@ package de.caluga.morphium.driver.inmem;
 
 import de.caluga.morphium.Logger;
 import de.caluga.morphium.Morphium;
-import de.caluga.morphium.driver.MorphiumDriver;
-import de.caluga.morphium.driver.MorphiumDriverException;
-import de.caluga.morphium.driver.ReadPreference;
-import de.caluga.morphium.driver.WriteConcern;
+import de.caluga.morphium.driver.*;
 import de.caluga.morphium.driver.bson.MorphiumId;
 import de.caluga.morphium.driver.bulk.*;
 import de.caluga.morphium.driver.mongodb.Maximums;
@@ -389,6 +386,62 @@ public class InMemoryDriver implements MorphiumDriver {
     }
 
     @Override
+    public MorphiumCursor initIteration(String db, String collection, Map<String, Object> query, Map<String, Integer> sort, Map<String, Object> projection, int skip, int limit, int batchSize, ReadPreference readPreference, Map<String, Object> findMetaData) throws MorphiumDriverException {
+        MorphiumCursor crs = new MorphiumCursor();
+        crs.setCursorId(System.currentTimeMillis());
+        InMemoryCursor inCrs = new InMemoryCursor();
+        inCrs.skip = skip;
+        inCrs.limit = limit;
+        inCrs.batchSize = batchSize;
+
+        inCrs.setCollection(collection);
+        inCrs.setDb(db);
+        inCrs.setProjection(projection);
+        inCrs.setQuery(query);
+        inCrs.setFindMetaData(findMetaData);
+        inCrs.setReadPreference(readPreference);
+        inCrs.setSort(sort);
+        if (batchSize == 0) inCrs.limit = 1000;
+        crs.setInternalCursorObject(inCrs);
+
+        List<Map<String, Object>> res = find(db, collection, query, sort, projection, skip, limit, batchSize, readPreference, findMetaData);
+        crs.setResult(res);
+
+        if (res.size() < batchSize) {
+            crs.setInternalCursorObject(null); //cursor ended - no more data
+        } else {
+            inCrs.dataRead = res.size();
+        }
+        return crs;
+    }
+
+    @Override
+    public MorphiumCursor nextIteration(MorphiumCursor crs) throws MorphiumDriverException {
+        MorphiumCursor next = new MorphiumCursor();
+        next.setCursorId(crs.getCursorId());
+
+        InMemoryCursor oldCrs = (InMemoryCursor) crs.getInternalCursorObject();
+        if (oldCrs == null) return null;
+
+        InMemoryCursor inCrs = new InMemoryCursor();
+        inCrs.setReadPreference(oldCrs.getReadPreference());
+        inCrs.setFindMetaData(oldCrs.getFindMetaData());
+        inCrs.setDb(oldCrs.getDb());
+        inCrs.setQuery(oldCrs.getQuery());
+        inCrs.setCollection(oldCrs.getCollection());
+        inCrs.setProjection(oldCrs.getProjection());
+        inCrs.setBatchSize(oldCrs.getBatchSize());
+        inCrs.setLimit(oldCrs.getLimit());
+        inCrs.setSort(oldCrs.getSort());
+        inCrs.setBatchSize(oldCrs.getBatchSize());
+        inCrs.skip = oldCrs.skip + crs.getResult().size();
+        List<Map<String, Object>> res = find(inCrs.getDb(), inCrs.getCollection(), inCrs.getQuery(), inCrs.getSort(), inCrs.getProjection(), inCrs.getSkip(), inCrs.getLimit(), inCrs.getBatchSize(), inCrs.getReadPreference(), inCrs.getFindMetaData());
+        next.setResult(res);
+        next.setInternalCursorObject(inCrs);
+        return next;
+    }
+
+    @Override
     public List<Map<String, Object>> find(String db, String collection, Map<String, Object> query, Map<String, Integer> sort, Map<String, Object> projection, int skip, int limit, int batchSize, ReadPreference rp, Map<String, Object> findMetaData) throws MorphiumDriverException {
         return find(db, collection, query, sort, projection, skip, limit, false);
     }
@@ -733,5 +786,109 @@ public class InMemoryDriver implements MorphiumDriver {
     public void createIndex(String db, String collection, Map<String, Object> index, Map<String, Object> options) throws MorphiumDriverException {
         //TODO: implement hashmap access for this
 
+    }
+
+
+    private class InMemoryCursor {
+        private int skip;
+        private int limit;
+        private int batchSize;
+        private int dataRead = 0;
+
+        private String db;
+        private String collection;
+        private Map<String, Object> query;
+        private Map<String, Integer> sort;
+        private Map<String, Object> projection;
+        private ReadPreference readPreference;
+        private Map<String, Object> findMetaData;
+
+        public String getDb() {
+            return db;
+        }
+
+        public void setDb(String db) {
+            this.db = db;
+        }
+
+        public String getCollection() {
+            return collection;
+        }
+
+        public void setCollection(String collection) {
+            this.collection = collection;
+        }
+
+        public Map<String, Object> getQuery() {
+            return query;
+        }
+
+        public void setQuery(Map<String, Object> query) {
+            this.query = query;
+        }
+
+        public Map<String, Integer> getSort() {
+            return sort;
+        }
+
+        public void setSort(Map<String, Integer> sort) {
+            this.sort = sort;
+        }
+
+        public Map<String, Object> getProjection() {
+            return projection;
+        }
+
+        public void setProjection(Map<String, Object> projection) {
+            this.projection = projection;
+        }
+
+        public ReadPreference getReadPreference() {
+            return readPreference;
+        }
+
+        public void setReadPreference(ReadPreference readPreference) {
+            this.readPreference = readPreference;
+        }
+
+        public Map<String, Object> getFindMetaData() {
+            return findMetaData;
+        }
+
+        public void setFindMetaData(Map<String, Object> findMetaData) {
+            this.findMetaData = findMetaData;
+        }
+
+        public int getDataRead() {
+            return dataRead;
+        }
+
+        public void setDataRead(int dataRead) {
+            this.dataRead = dataRead;
+        }
+
+        public int getBatchSize() {
+            return batchSize;
+        }
+
+        public void setBatchSize(int batchSize) {
+            this.batchSize = batchSize;
+        }
+
+        public int getSkip() {
+            return skip;
+        }
+
+        public void setSkip(int skip) {
+            this.skip = skip;
+        }
+
+        public int getLimit() {
+            return limit;
+        }
+
+        public void setLimit(int limit) {
+            this.limit = limit;
+        }
     }
 }

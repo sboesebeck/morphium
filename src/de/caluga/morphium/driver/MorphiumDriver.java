@@ -128,6 +128,10 @@ public interface MorphiumDriver {
 
     Map<String, Object> runCommand(String db, Map<String, Object> cmd) throws MorphiumDriverException;
 
+    MorphiumCursor initIteration(String db, String collection, Map<String, Object> query, Map<String, Integer> sort, Map<String, Object> projection, int skip, int limit, int batchSize, ReadPreference readPreference, Map<String, Object> findMetaData) throws MorphiumDriverException;
+
+    MorphiumCursor nextIteration(MorphiumCursor crs) throws MorphiumDriverException;
+
     List<Map<String, Object>> find(String db, String collection, Map<String, Object> query, Map<String, Integer> sort, Map<String, Object> projection, int skip, int limit, int batchSize, ReadPreference rp, Map<String, Object> findMetaData) throws MorphiumDriverException;
 
     long count(String db, String collection, Map<String, Object> query, ReadPreference rp) throws MorphiumDriverException;
