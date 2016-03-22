@@ -1,0 +1,1545 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<meta charset="utf-8"/>
+	<title>Morphium Documentation</title>
+	<meta name="author" content="Stephan Bösebeck"/>
+	<meta name="url" content="http://sboesebeck.github.io/morphium/"/>
+	<meta name="morphium_version" content="3.0"/>
+	<meta name="mongodb_version" content="3.2"/>
+<link rel="stylesheet" href="http://yandex.st/highlightjs/7.3/styles/default.min.css">
+<script src="http://yandex.st/highlightjs/7.3/highlight.min.js"></script>
+<script>hljs.initHighlightingOnLoad();</script>
+</head>
+<body>
+
+<h1 id="morphiumdocumentation">Morphium Documentation</h1>
+
+<p>This documentation is refering to <em>Morphium</em> version 3.0 and mongodb 3.2. this documentation follows &#8220;MultiMarkdown&#8221; and was created using the MultiMarkdownComposer.</p>
+
+<p>Download PDF here: <a href="http://www.boesebeck.name/wp-content/uploads/2014/09/MorphiumDoku.pdf">MorphiumDoku</a>
+HTML Version here: <a href="http://www.caluga.de/MorphiumDoku.html">MorphiumDoku</a>
+If you just want to start right now, read <a href="#quickstart">quick start</a>!</p>
+
+<h2 id="ideasandconcepts">Ideas and concepts</h2>
+
+<p>When we started using MongoDB there was no fully capable POJO Mapper available. The only thing that was close to useable was Morphia (which is now developed by <a href="http://www.mongodb.org">MongoDb</a>. Unfortunately, Morphia had some issues, and lacked some features, we&#8217;d like to have, like (besides the usual features fast mapping, reliable query interface and so on):</p>
+
+<ul>
+<li>Thread safety</li>
+<li>cluster awareness</li>
+<li>declarative caching</li>
+<li>profiling support</li>
+<li>support for partial updates</li>
+<li>reference support incl. lazy loading of references</li>
+<li>adaptable API (need to implement special POJO Mappings, Cache implementation change etc)</li>
+<li>Cache synchronization in cluster</li>
+<li>Validation</li>
+<li>Declarative Index specification</li>
+<li>Aggregation support</li>
+</ul>
+
+<p>At that time there was nothing available providing all those features or what we could use as a basis to create those features (although we tried to implement that on base of Morphia - but the architecture of Morphia was not built for customization).</p>
+
+<p>So, we started creating our own implementation and called it &#8220;<em>Morphium</em>&#8221; to honor the project &#8220;Morphia&#8221; which was the best around at that time.</p>
+
+<p>But <em>Morphium</em> is a complete new Project, it was built totally from scratch. Even the POJO-Mapper is our own development (although there were some available at that point), but we had some special needs for <em>Morphium</em>&#8217;s mapping.</p>
+
+<p>The mapping takes place on a per-type basis. That means, usually (unless configured otherwise) the data of all objects of a certain type, will be stored in a corresponding collection.</p>
+
+<p>In addition to that, the mapping is aware of object hierarchy and would even take annotations and settings into account, that are inherited.</p>
+
+<p>Usually <em>Morphium</em> replaces camel case by underscore-separated strings. So an Object of type <code>MyEntity</code> would be stored in the collection <code>my_entity</code>. This behaviour can be configured as liked, you could even store all Objects in one collection. (see <a href="#polymorphism">Polymorphism</a>)</p>
+
+<h3 id="changesinversion3.0">Changes in Version 3.0</h3>
+
+<h4 id="motivation">Motivation</h4>
+
+<p>Morphium 3.0 brings a lot improvements and changes, most of them are not really visible to the user, but unfortunately some of them make V3.x incompatible to V2.x.</p>
+
+<p>The changes were triggered by the recent mongodb java driver update to also 3.0, which brings a whole new API. This API is (unfortunately also) not backward compatible<a href="#fn:1" id="fnref:1" title="see footnote" class="footnote">[1]</a>. This made it hard to add the changes in the official driver into morphium. Some of the changes made it also impossible to implement some features in morphium as it was before. So - the current implementation of morphium uses both old and new API - wich will break eventually.</p>
+
+<p>The next step was, to be more independent from the driver, as those changes caused problems almost throughout the whole code of morphium. So, introducing with V3.0 of morphium, the driver is encapsulated deep within morphium.</p>
+
+<p>Unfortunately, even the basic document representation changed<a href="#fn:2" id="fnref:2" title="see footnote" class="footnote">[2]</a>, which are very similar, but unfortunately represented in a whole new implementation of BSON<a href="#fn:3" id="fnref:3" title="see footnote" class="footnote">[3]</a>.</p>
+
+<p>Also, we had some problems with dependencies in maven, causing to be several version of the mongodb driver being installed on production - which then caused some weird effects, most of them not really good ones ;-)</p>
+
+<p>This made us reduce all dependency to the mongodb driver to a minimum - actually it is only used in the <em>MorphiumDriver</em> implementation for the official mongodb driver. But that also meant, we needed to get rid of all usages of <code>ObjectID</code> and <code>BasicDBDocument</code> and reduce usages of that into the driver implementation within morphium.</p>
+
+<p>The question was - do we need to introduces some new object type for representing a <code>Map&lt;String,Object&gt;</code>? We thought no, so we changed the whole code in morphium, to internally use only standard Java8 API.</p>
+
+<p>Yes, that is one feature also, since Morphium 3.0 we‘re running on java 8.</p>
+
+<h4 id="changes">Changes</h4>
+
+<p>As you know the motivation now, these are the changes.</p>
+
+<ul>
+<li>Driver encapsulated and configurable - you can now implement your own driver for usage with morphium</li>
+<li>no usage of MongoDb classes, replaced by type <code>MorphiumId</code> and simple <code>Map&lt;String,Object&gt;</code> - this might actually break your code!</li>
+<li>(soon) MongoDB Dependency in maven will be set to be <code>provided</code>, so that you can decide, which Version of the driver you want to use (or none&#8230;)</li>
+<li>Morphium 3.0 includes some own implementation of drivers (mainly for testing purpose):
+
+<ul>
+<li><code>Driver</code>: This is the Implementation of <code>MorphiumDriver</code> using the official Mongodb driver (V3.x)</li>
+<li><code>InMemoryDriver</code>: Not connecting to any mongo instance, just storing into memory. Good for testing. Does <em>not</em> support Aggregation!</li>
+<li><code>SingleConnectDirectDriver</code>: Just connecting to a master node, no failover. Useful if you do not have a replicaset</li>
+<li><code>SingleConnectThreaddedDriver</code>: Same as above, but uses a thread for reading the answers - slightly better performance in multithreaded environments, but only useful if you don&#8217;t run a replicaSet</li>
+<li><code>MetaDriver</code>: A full featured implementation of the <code>MorphiumDriver</code> Interface, can be used as replacement for the mondogdb driver implementation. It uses a pool of <code>SingleConnectThreaddedDriver</code> to connect to mongodb.</li>
+</ul></li>
+<li>Many changes in the internals</li>
+<li>in references you can now specify the collection the reference should point to.</li>
+<li>improvements in the internal caches, using the new improved features and performance of Java8<a href="#fn:4" id="fnref:4" title="see footnote" class="footnote">[4]</a></li>
+<li>complete rewrite of the bulk operation handling</li>
+<li>code improvements on many places, including some public interfaces (might break your code!)</li>
+</ul>
+
+<h2 id="quickstart">quick start</h2>
+
+<p>Simple example on how to use <em>Morphium</em>:</p>
+
+<p>First you need to create data to be stored in Mongo. This should be some simple class like this one here:</p>
+
+<pre><code>    @Entity
+    public class MyEntity {
+        @Id
+        private MorphiumId myId;
+        private int aField;
+        private String other;
+        private long property;
+        //....  getter &amp; setter here
+    }
+</code></pre>
+
+<p>This given entity has a couple of fields which will be stored in Mongo according to their names. Usually the collection name is also derived from the ClassName (as most things in <em>Morphium</em>, that can be changed).</p>
+
+<p>The names are usually translated from camel case (like <code>aField</code>) into lowercase with underscores (like <code>a_field</code>). This is the default behavior, but can be changed according to your needs.</p>
+
+<p>In mongo the corresponding object would be stored in a collection named <code>my_entity</code> and would look like this:</p>
+
+<pre><code>{
+  _id: ObjectId(&quot;53ce59864882233112aa018df&quot;),
+  a_field: 123,
+  other: &quot;value&quot;
+}
+</code></pre>
+
+<p>By default, null values are not serialized to mongo. So in this example, there is no field &#8220;property&#8221;.</p>
+
+<p>The next example shows how to store and access data from mongo:</p>
+
+<pre><code>//creating connection 
+MorphiumConfig cfg=new MorphiumConfig(); 
+cfg.setHosts(&quot;localhost:27018&quot;, &quot;mongo1&quot;,&quot;mongo3.home&quot;); 
+//connect to a replicaset 
+//if you want to connect to a shared environment, you'd add the addresses of 
+//the mongos-servers here 
+//you can also specify only one of those nodes, 
+//Morphium (or better: mongodb driver) will figure out the others
+//connect 
+Morphium morphium=new Morphium(cfg);
+
+//Create an entity 
+MyEntity ent=new MyEntity(); 
+ent.setAField(123); 
+ent.setOther(&quot;value&quot;); 
+ent.setProperty(122l); 
+morphium.store(ent);
+
+//the query object is used to access mongo 
+Query&lt;MyEntity&gt; q=morphium.createQueryFor(MyEntity.class); 
+q=q.f(&quot;a_field&quot;).eq(123); 
+q=q.f(&quot;other&quot;).eq(&quot;value&quot;); 
+q=q.f(&quot;property&quot;).lt(123).f(&quot;property&quot;).gt(100);
+
+List&lt;MyEntity&gt; lst=q.asList();
+
+//or use iterator 
+for (MyEntity e:q.asIterable(100,2)) { 
+    // iterate in windows of 100 objects 
+    // 2 windows lookAhead 
+}
+</code></pre>
+
+<p>This gives a short glance of how <em>Morphium</em> works and how it can be used. But <em>Morphium</em> is capable of many more things&#8230;</p>
+
+<h2 id="architecture">Architecture</h2>
+
+<p><em>Morphium</em> is built to be very flexible and can be used in almost any environment. So the architecture needs to be flexible and sustainable at the same time. Hence it&#8217;s possible to use your own implementation for the cache if you want to.</p>
+
+<p>There are four major components of <em>Morphium</em>:</p>
+
+<ol>
+<li>the <em>Morphium</em> Instance: This is you main entrypoint for interaction with Mongo. Here you create Queries and you write data to mongo. All writes will then be forwarded to the configured Writer implementation, all reads are handled by the Query-Object</li>
+<li>Query-Object: you need a query object to do reads from mongo. This is usually created by using <code>Morphium.createQueryFor(Class&lt;T&gt; cls)</code>. With a Query, you can easily get data from database or have some things changed (update) and alike.</li>
+<li>the Cache: For every request that should be sent to mongo, <em>Morphium</em> checks first, whether this collection is to be cached and if there is already a result being stored for the corresponding request.</li>
+<li>The Writers: there are 3 different types of writers in <em>Morphium</em>: The Default Writer (<code>MorphiumWriter</code>) - writes directly to database, waiting for the response, the BufferedWriter (<code>BufferedWriter</code>) - does not write directly. All writes are stored in a buffer which is then processed as a bulk. The last type of writer ist the asynchronous writer (<code>AsyncWriter</code>) which is similar to the buffered one, but starts writing immediately - only asynchronous. <em>Morphium</em> decides which writer to use depending on the configuration an the annotations of the given Entities. But you can <em>always</em> use asynchronous calls just by adding a<code>AsyncCallback</code> implementation to your request.</li>
+</ol>
+
+<p>Simple rule when using <em>Morphium</em>: You want to read -&gt; Use the Query-Object. You want to write: Use the <em>Morphium</em> Object.</p>
+
+<p>There are some additional features built upon this architecture:</p>
+
+<ul>
+<li>messaging: <em>Morphium</em> has a own messaging system.</li>
+<li>cache synchronization: Synchronize caches in a clustered environment. Uses messaging</li>
+<li>custom mappers - you can tell <em>Morphium</em> how to map a certain type from and to mongodb. For example there is a &#8220;custom&#8221; mapper implementation for mapping <code>BigInteger</code> instances to mongodb.</li>
+<li>every of those implementations can be changed: it is possible to set the class name for the <code>BufferedWriter</code> to a custom built one (in <code>MorphiumConfig</code>). Also you could replace the object mapper with your own implementation by implementing the <code>ObjectMapper</code> interface and telling morphium which class to use instead. In short, these things can be changed in morphium / morphiumconfig:
+
+<ul>
+<li>MorphiumCache</li>
+<li>ObjectMapper</li>
+<li>Query</li>
+<li>Field</li>
+<li>QueryFactory</li>
+<li>Driver (&gt; V3.0)</li>
+</ul></li>
+<li>Object Mapping from and to Strings (using the object mapper)</li>
+</ul>
+
+<h2 id="configuringmorphium">Configuring <em>Morphium</em></h2>
+
+<p>First lets have a look on how to configure <em>Morphium</em>. As you already saw in the example in the last chapter, the configuration of <em>Morphium</em> ist encapsulated in one Object of type <code>MorphiumConfig</code>. This object has set some reasonable defaults for all settings. So it should be just as described above to use it.</p>
+
+<h3 id="configurationoptions">Configuration Options</h3>
+
+<p>There are a lot of settings and customizations you can do within <em>Morphium</em>. Here we discuss <em>all</em> of them:</p>
+
+<ul>
+<li><em>loggingConfigFile</em>: can be set, if you want <em>Morphium</em> to configure your log4j for you. <em>Morphium</em> itself has a dependency to log4j (see Dependencies).</li>
+<li><em>camelCaseConversion</em>: if set to false, the names of your entities (classes) and fields won&#8217;t be converted from camelcase to underscore separated strings. Default is <code>true</code> (convert to camelcase)</li>
+<li><em>maxConnections</em>: Maximum Number of connections to be built to mongo, default is 10</li>
+<li><em>houseKeepingTimeout</em>: the timeout in ms between cache housekeeping runs. Defaults to 5sec</li>
+<li><em>globalCacheValidTime</em>: how long are Cache entries valid by default in ms. Defaults to 5sek</li>
+<li><em>writeCacheTimeout</em>: how long to pause between buffered writes in ms. Defaults to 5sek</li>
+<li><em>database</em>: Name of the Database to connect to.</li>
+<li><em>connectionTimeout</em>: Set a value here (in ms) to specify how long to wait for a connection to mongo to be established. Defaults to 0 (⇒ infinite)</li>
+<li><em>socketTimeout</em>: how long to wait for sockets to be established, defaults to 0 as well</li>
+<li><em>socketKeepAlive</em>: if <code>true</code>, use TCP-Keepalive for the connection. Defaults to true</li>
+<li><em>safeMode</em>: Use the safe mode of mongo when set to <code>true</code></li>
+<li><em>globalFsync</em>, <em>globalJ</em>: set fsync (file system sync) and j (journal) options. See mongo.org for more information</li>
+<li><em>checkForNew</em>: This is something interesting related to the creation of ids. Usually Ids in mongo are of type <code>ObjectId</code>. Anytime you write an object with an <code>_id</code> of that type, the document is either updated or inserted, depending on whether or not the ID is available or not. If it is inserted, the newly created ObjectId is being returned and add to the corresponding object. But if the id is not of type ObjectId, this mechanism will fail, no objectId is being created. This is no problem when it comes to new creation of objects, but with updates you might not be sure, that the object actually is new or not. If this obtion is set to <code>true</code> <em>Morphium</em> will check upon storing, whether or not the object to be stored is already available in database and would update. <em>Attention</em>: Morphium 3.0 removed the dependency from mogodb.org codebase and hence there is no ObjectId for POJOs anymore. You should replace these with the new <code>MorphiumId</code>.</li>
+<li><em>writeTimeout</em>: this timeout determines how long to wait until a write to mongo has to be finshed. Default is <code>0</code>⇒ no timeout</li>
+<li><em>maximumRetriesBufferedWriter</em>: When writing buffered, how often should retry to write the data until an exception is thrown. Default is 10</li>
+<li><em>retryWaitTimeBufferedWriter</em>: Time to wait between retries</li>
+<li><em>maximumRetriesWriter</em>, <em>maximumRetriesAsyncWriter</em>: same as <em>maximumRetriesBufferedWriter</em>, but for direct storage or asynchronous store operation.</li>
+<li><em>retryWaitTimeWriter</em>, <em>retryWaitTimeAsyncWriter</em>: similar to <em>retryWaitTimeBufferedWriter</em>, but for the according writing type</li>
+<li><em>globalW</em>: W sets the number of nodes to have finished the write operation (according to your safe and j / fsync settings)</li>
+<li><em>maxWaitTime</em>: Sets the maximum time that a thread will block waiting for a connection.</li>
+<li><em>writeBufferTime:</em> Timeout for buffered writes. Default is 0</li>
+<li><em>autoReconnect</em>: if set to <code>true</code> connections are re-established, when lost. Default is <code>true</code></li>
+<li><em>maxAutoReconnectTime</em>: how long to try to reconnect (in ms). Default is <code>0</code>⇒ try as long as it takes</li>
+<li><em>blockingThreadsMultiplier</em>: There is a max number of connections to mongo, this factor determines the maximum number of threads that may be waiting for some connection. If this threshold is reached, new threads will get an Exception upon access to mongo.</li>
+<li><em>mongoLogin</em>,<em>mongoPassword</em>: User Credentials to connect to mongodb. Can be null.</li>
+<li><em>mongoAdminUser</em>, <em>mongoAdminPwd</em>: Credentials to do admin tasks, like get the replicaset status. If not set, use mongoLogin instead.</li>
+<li><em>acceptableLatencyDifference</em>: Latency between replicaset members still acceptable for reads.</li>
+<li><em>autoValuesEnabled</em>: <em>Morphium</em> supports automatic values being set to your POJO. These are configured by annotations (<code>@LasChange</code>, <code>@CreationTime</code>, <code>@LastAccess</code>, &#8230;). If you want to switch this off <em>globally</em>, you can set it in the config. Very useful for test environments, which should not temper with productional data</li>
+<li><em>readCacheEnabled</em>: Globally disable readcache. This only affects entities with a <code>@Cache</code> annotation. By default it&#8217;s enabled.</li>
+<li><em>asyncWritesEnabled</em>: Globally disable async writes. This only affects entities with a <code>@AsyncWrites</code>annotation</li>
+<li><em>bufferedWritesEnabled</em>: Globally disable buffered writes. This only affects entities with a <code>@WriteBuffer</code> annotation</li>
+<li><code>defaultReadPreference</code>: whether to read from primary, secondary or nearest by default. Can be defined with the <code>@ReadPreference</code> annotation for each entity.</li>
+<li><code>replicaSetMonitoringTimeout</code>: time interval to update replicaset status.</li>
+<li><em>retriesOnNetworkError</em>: if you happen to have an unreliable network, maybe you want to retry writes / reads upon network error. This settings sets the number of retries for that case.</li>
+<li><em>sleepBetweenNetworkErrorRetries</em>: set the time to wait between network error retries.</li>
+<li><em>blockingThreadsMultiplier</em>: Sets the multiplier for number of threads allowed to block waiting for a connection.</li>
+</ul>
+
+<p>In addition to those settings describing the behavior of <em>Morphium</em>, you can also define custom classes to be used internally:</p>
+
+<ul>
+<li><em>omClass</em>: here you specify the class, that should be used for mapping POJOs (your entities) to <code>DBOject</code>. By Default it uses the <code>ObjectMapperImpl</code>. Your custom implementation must implement the interface <code>ObjectMapper</code>.</li>
+<li><em>iteratorClass</em>: set the Iterator implementation to use. By default <code>MorphiumIteratorImpl</code>is being used. Your custom implementation must implement the interface <code>MorphiumIterator</code></li>
+<li><em>aggregatorClass</em>: this is <em>Morphium</em>&#8217;s representation of the aggregator framework. This can be replaced by a custom implementation if needed. Implements <code>Aggregator</code> interface</li>
+<li><em>queryClass</em> and <em>fieldImplClass</em>: this is used for Queries. If you want to take control over how queries ar built in <em>Morphium</em> and on how fields within queries are represented, you can replace those two with your custom implementation.</li>
+<li><em>cache</em>: Set your own implementation of the cache. It needs to implement the <code>MorphiumCache</code> interface. Default is <code>MorphiumCacheImpl</code>. You need to specify a fully configured cache object here, not only a class object.</li>
+<li><em>driverClass</em>: Set the driver implementation, you want to use. This is a string, set the class name here. E.g. <code>morphiumconfig.setDriverClass(MetaDriver.class.getName()</code></li>
+</ul>
+
+<h3 id="morphiumconfigdirectly"><em>Morphium</em> Config Directly</h3>
+
+<p>The most straight foreward way of configuring <em>Morphium</em> is, using the object directly. This means you just call the getters and setters according to the given variable names above (like <code>setMaxAutoReconnectTime()</code>).</p>
+
+<p>The minimum configuration is explained above: you only need to specify the database name and the host(s) to connect to. All other settings have sensible defaults, which should work for most cases.</p>
+
+<h3 id="morphiumconfigfrompropertyfile"><em>Morphium</em> Config From Property File</h3>
+
+<p>the configuration can be stored and read from a property object.</p>
+
+<p><code>MorphiumConfig.fromProperties(Properties p);</code> Call this method to set all values according to the given properties. You also can pass the properties to the constructor to have it configured.</p>
+
+<p>To get the properties for the current configuration, just call <code>asProperties()</code> on a configured MorphiumConfig Object.</p>
+
+<p>Here is an example property-file:</p>
+
+<pre><code>maxWaitTime=1000
+maximumRetriesBufferedWriter=1
+maxConnections=100
+retryWaitTimeAsyncWriter=100
+maxAutoReconnectTime=5000
+blockingThreadsMultiplier=100
+housekeepingTimeout=5000
+hosts=localhost\:27017, localhost\:27018, localhost\:27019
+retryWaitTimeWriter=1000
+globalCacheValidTime=50000
+loggingConfigFile=file\:/Users/stephan/morphium/target/classes/morphium-log4j-test.xml
+writeCacheTimeout=100
+connectionTimeout=1000
+database=morphium_test
+maximumRetriesAsyncWriter=1
+maximumRetriesWriter=1
+retryWaitTimeBufferedWriter=1000
+</code></pre>
+
+<p>The minimal property file would define only <code>hosts</code> and <code>database</code>. All other values would be defaulted.</p>
+
+<p>If you want to specify classes in the config (like the Query Implementation), you neeed to specify the full qualified class name, e.g. <code>de.caluga.morphium.customquery.QueryImpl</code></p>
+
+<h3 id="morphiumconfigfromjsonfile"><em>Morphium</em> Config From Json File</h3>
+
+<p>The standard <code>toString()</code>method of MorphiumConfig creates an Json String representation of the configuration. to set all configuration options from a json string, just call <code>createFromJson</code>.</p>
+
+<h2 id="documentation">Documentation</h2>
+
+<h3 id="singletonaccess">Singleton Access</h3>
+
+<p>In some cases it&#8217;s more convenient to use a singleton Instance to access <em>Morphium</em>. You don&#8217;t need to implement a thread safe <em>Morphium</em> Singleton yourself, as <em>Morphium</em> does already have one.</p>
+
+<p>The <code>MorphiumSingleton</code> is configured similar to the normal Morphium instance. Just set the config and you&#8217;re good to go.</p>
+
+<pre><code>    MorphiumConfig config=new MorphiumConfig(); //..configure it here
+    MorphiumSingleton.setConfig(config);
+    MorphiumSingleton.get().createQueryFor(MyEntity.class).f(...)
+</code></pre>
+
+<p>Connection to mongo and initializing of <em>Morphium</em> is done at the first call of <code>get</code>.</p>
+
+<h3 id="pojomapping">POJO Mapping</h3>
+
+<p>When talking about POJO Mapping, we&#8217;re saying we marshall a POJO into a mongodb representation or we unmarshall the mongodb representation into a POJO.</p>
+
+<p>Marshaling and unmarshalling is of utter importance for the functionality. It needs to take care of following things:</p>
+
+<ul>
+<li>un/marshall every field. Easy if it’s a primitive datatype. Map to corresponding type in Monogo - mostly done by the mongodb java driver (or since 3.0 the <code>MorphiumDriver</code> implementation)</li>
+<li>when it comes to lists and maps, examine every value. Maps may only have strings as keys (mongoldb limitation), un/marshall values</li>
+<li>when a field contains a reference to another entity, take that into account. either store the</li>
+<li>the POJO transformation needs to be 100% thread safe (<em>Morphium</em> itself is heavily multithreaded)</li>
+</ul>
+
+<p>The ObjectMapper is the core of <em>Morphium</em>. It&#8217;s used to convert every entity you want to store into a mongoldb document (java representation is a DBObject). Although it&#8217;s one of the key things in <em>Morphium</em> it&#8217;s still possible to make use of your own implementation (see chapter <a href="#configuringmorphium">Configuring <em>Morphium</em></a>).</p>
+
+<h3 id="queryingmongo">Querying Mongo</h3>
+
+<p>This is done by using the <code>Query</code> object. You need to create one for every entity you want to issue a query for. You could create one yourself, but the easiest way of doing so is calling the method <code>.createQueryFor(Class class)</code> in <code>Morphium</code>.</p>
+
+<p>After that querying is very fluent. You add one option at a time, by default all conditions are AND-associated:</p>
+
+<pre><code>   Query&lt;MyEntity&gt; q=morphium.createQueryFor(MyEntity.class);
+   q=q.f(&quot;a_field&quot;).eq(&quot;Value&quot;);
+   q=q.f(&quot;counter&quot;).lt(10);
+   q=q.f(&quot;name&quot;).ne(&quot;Stephan&quot;).f(&quot;zip&quot;).eq(&quot;1234&quot;);
+</code></pre>
+
+<p>The <code>f</code> method stands for &#8220;field&#8221; and returns a <em>Morphium</em> internal representation of mongo fields. Threre you can call the operators, in our case it <code>eq</code> for equals, <code>lt</code> for less then and <code>ne</code> not equal. There are a lot more operators you might use, all those are defined in the <code>MongoField</code> interface:</p>
+
+<pre><code>    public Query&lt;t&gt; all(List&lt;/t&gt;
+    public Query&lt;T&gt; eq(Object val);
+    public Query&lt;T&gt; ne(Object val);
+    public Query&lt;T&gt; size(int val);
+    public Query&lt;T&gt; lt(Object val);
+    public Query&lt;T&gt; lte(Object val);
+    public Query&lt;T&gt; gt(Object val);
+    public Query&lt;T&gt; gte(Object val);
+    public Query&lt;T&gt; exists();
+    public Query&lt;T&gt; notExists();
+    public Query&lt;T&gt; mod(int base, int val);
+    public Query&lt;T&gt; matches(Pattern p);
+    public Query&lt;T&gt; matches(String ptrn);
+    public Query&lt;T&gt; type(MongoType t);
+    public Query&lt;T&gt; in(Collection&lt;?&gt; vals);
+    public Query&lt;T&gt; nin(Collection&lt;?&gt; vals);
+    
+    /**
+     * return a sorted list of elements around point x,y
+     * spherical distance calculation
+     *
+     * @param x pos x
+     * @param y pos y
+     * @return the query
+     */
+    public Query&lt;T&gt; nearSphere(double x, double y);
+    
+    /**
+     * return a sorted list of elements around point x,y
+     *
+     * @param x pos x
+     * @param y pos y
+     * @return the query
+     */
+    public Query&lt;T&gt; near(double x, double y);
+    
+    /**
+     * return a sorted list of elements around point x,y
+     * spherical distance calculation
+     *
+     * @param x pos x
+     * @param y pos y
+     * @return the query
+     */
+    public Query&lt;T&gt; nearSphere(double x, double y, double maxDistance);
+    
+    /**
+     * return a sorted list of elements around point x,y
+     *
+     * @param x pos x
+     * @param y pos y
+     * @return the query
+     */
+    public Query&lt;T&gt; near(double x, double y, double maxDistance);
+
+    /**
+     * search for entries with geo coordinates wihtin the given rectancle - x,y upper left, x2,y2 lower right corner
+     */
+    public Query&lt;T&gt; box(double x, double y, double x2, double y2);
+    public Query&lt;T&gt; polygon(double... p);
+    public Query&lt;T&gt; center(double x, double y, double r);
+    
+    /**
+     * same as center() but uses spherical geometry for distance calc.
+     *
+     * @param x - pos x
+     * @param y - y pos
+     * @param r - radius
+     * @return the query
+     */
+    public Query&lt;T&gt; centerSphere(double x, double y, double r);
+    
+    public Query&lt;T&gt; getQuery();
+    public void setQuery(Query&lt;T&gt; q);
+    public ObjectMapper getMapper();
+    public void setMapper(ObjectMapper mapper);
+    public String getFieldString(); 
+    public void setFieldString(String fld);
+</code></pre>
+
+<p>Query definitions can be in one line, or as above in several lines. Actually the current query object is changed with every call of <code>f...something</code> combination. The current object is always returned, for making the code more legible and understandable, you should assign the query as shown above. This makes clear: &#8220;The object changed&#8221;</p>
+
+<p>If you need an &#8220;empty&#8221; query of the same type, you can call the method <code>q</code>. This method will return an empty query of the same type, using the same mapper etc. But only without conditions or something - just plain empty.</p>
+
+<p>As already mentioned, the query by default creates AND-queries. If you need to create an or query, you can do so using the <code>or</code> method in the query object.</p>
+
+<p><code>or</code> takes a list of queries as argument, so a query might be built this way:</p>
+
+<pre><code>   Query&lt;MyEntity&gt; q=morphium.createQueryFor(MyEntity.class);
+   q=q.or(q.q().f(&quot;counter&quot;).le(10),q.q().f(&quot;name&quot;).eq(&quot;Morphium&quot;));
+</code></pre>
+
+<p>This would create an OR-Query asking for all &#8220;MyEntities&#8221;, that have a counter less than or equal to 10 OR whose name is &#8220;Morphium&#8221;. You can add as much or-queries as you like. OR-Queries can actually be combined with and queries as well:</p>
+
+<p><code>Query&lt;MyEntity&gt; q=morphium.createQueryFor(MyEntity.class);
+   q=q.f(&quot;counter&quot;).ge(2);
+   q=q.or(q.q().f(&quot;counter&quot;).le(10),q.q().f(&quot;name&quot;).eq(&quot;Morphium&quot;));</code></p>
+
+<p>In that case, the query would be something like: counter is greater than 2 AND (counter is less then or equal to 10 OR name is &#8220;Morphium&#8221;)</p>
+
+<p>Combining and and or-queries is also possible, although the syntax would look a bit unfamiliar:</p>
+
+<pre><code>   Query&lt;MyEntity&gt; q=morphium.createQueryFor(MyEntity.class);
+q=q.f(&quot;counter&quot;).lt(100).or(q.q().f(&quot;counter&quot;).mod(3,0),q.q().f(&quot;value&quot;).ne(&quot;v&quot;);
+</code></pre>
+
+<p>This would create a query returning all entries that do have a <code>counter</code> of less than 100 AND where the modulo to base 3 of the value <code>counter</code> equals 0, and the value of the field <code>value</code> equals &#8220;v&#8221;.</p>
+
+<p>Quite complex, eh?</p>
+
+<p>Well, there is more to it&#8230; it is possible, to create a query using a &#8220;where&#8221;-String&#8230; there you can add <code>JavaScript</code> code for your query. This code will be executed at the mongodb node, executing your query:</p>
+
+<p><code>Query&lt;MyEntity&gt; q=morphium.createQueryFor(MyEntity.class);
+   q=q.where(&quot;this.counter &gt; 10&quot;);</code></p>
+
+<p><strong>Attention</strong>: you can javascript code in that where clause, but you cannot access the <code>db</code> object there. This was changed when switching to Mongodb 2.6 with V8 Javascript engine</p>
+
+<h2 id="declarativecaching">Declarative Caching</h2>
+
+<p>Using the <code>@Cache</code> annotation, you can define cache settings on a per type (= class) basis. This is done totally in background, handled by <em>Morphium</em> 100% transparently. You just add the annotation to your entities and you&#8217;re good to go. See <a href="#cache">Cache</a> and <a href="#cachesynchronization">Cache Synchronization</a></p>
+
+<h3 id="cachesynchronization">Cache Synchronization</h3>
+
+<p>Cache synchronization was already mentioned above. The system of cache synchronization needs a messaging subsystem (see <a href="#messaging">Messaging</a> below). You just need to start the cache synchronizer yourself, if you want caches to be synchronized.</p>
+
+<p><code>CacheSynchronizer cs=new CacheSynchronizer(morphium);
+    cs.start();</code></p>
+
+<p>If you want to stop your cache synchronizing process, just call <code>cs.setRunning(false);</code> . The synchronizer will stop after a while (depending on your cache synchronization timeout).</p>
+
+<p>By default no cache synchronizer is running.</p>
+
+<h3 id="clusterawareness">Cluster Awareness</h3>
+
+<p><em>Morphium</em> is cluster aware in a sense, that it does poll the state of a replicates periodically in order to know what nodes are life and need to be taken into account. (Same does the Java Driver, this information is now moved into the morphium driver implementation, so the double check is not necessary anymore).</p>
+
+<p><em>Morphium</em> also has support for clusters <em>using</em> it. Like a cluster of tomcats instances. In this case, <em>Morphium</em> is able to synchronize the caches of those cluster nodes.</p>
+
+<h3 id="messaging">Messaging</h3>
+
+<p><em>Morphium</em> supports a simple Messaging system which uses mongoldb as storage. The messaging is more or less transactional (to the extend that mongo gives) and works multithreaded. To use messaging you only need to instantiate a Messaging-Instance. You may add listeners to this instance to process the messages and you may send messages through this instance.</p>
+
+<p>Messaging is 100% multithreaded and thread safe.</p>
+
+<h3 id="bulkoperationssupport">Bulk Operations Support</h3>
+
+<p>All operations regarding lists (list updates, writing lists of objects, deleting lists of objects) will be implemented using the new bulk operation available since mongodb 2.6. This gives significant speed boost and adds reliability.</p>
+
+<p>Actually, all method calls to mongo support a list of documents as argument. This means, you can send a list of updates, a list of documents to be inserted, a list of whatever.
+The ´BulkOperationContext´ only gathers those requests on the java side together, so that they can be sent in one call, instead of several.</p>
+
+<p>With Morphium 3.0 an own implementation of this bulk operation context was introduced.</p>
+
+<h3 id="callbacks">Callbacks</h3>
+
+<p>You can add a number of Listeners to <em>Morphium</em> in order to be informed about what happens, or to influence the way things are handled.</p>
+
+<ul>
+<li>MorphiumStorageListeners: will be informed about any write process within morpheme. You can also veto if necessary. Works similar to <a href="#lifecycle">Lifecycle</a> methods, but for <em>all</em> entities.</li>
+<li>CacheListener: Can be added to <em>Morphium</em> cache, will be informed about things to be added to cache, or if something would be updated or cleared. In all cases, a veto is possible.</li>
+<li>ShutdownListener: if the system shuts down, you can be informed using this listener. It&#8217;s not really <em>Morphium</em> specific.</li>
+<li>ProfilingListener: will be informed about any read or write access to mongo and how long it took. This is useful if you want to track long requests or index misses.</li>
+</ul>
+
+<p>In addition to that, almost all calls to mongo can be done asynchronously - either by defining that in the @Entity annotation or by defining it directly.</p>
+
+<p>That means, an <code>asList()</code> call on a query object can take an <code>AsyncCallback</code> as argument, which then will be called, when the result is ready. (which also means, the <code>asList</code> call will return <code>null</code>, the result will be passed on in the callback).</p>
+
+<h3 id="supportforaggregation">Support for Aggregation</h3>
+
+<p>Morphium does have support for Aggregation in mongo. The aggregation Framework was introduced in mongo with V2.6 and is a alternative to MapReduce (which is still used). We implemented support for the new Aggregation framework into mongo. Up until now, there was no request for MapReduce - if you need it, please let me know.</p>
+
+<p>Here is how the aggregation framework is used from mongo (see more info on the aggregation framework at <a href="http://www.mongodb.org">MongoDb</a></p>
+
+<p>This is the Unit test for Aggregation support in Mongo:</p>
+
+<pre><code>@Test public void aggregatorTest() throws Exception { 
+    createUncachedObjects(1000);
+
+    Aggregator&lt;UncachedObject, Aggregate&gt; a = MorphiumSingleton.get().createAggregator(UncachedObject.class, Aggregate.class);
+    assert (a.getResultType() != null);
+    //eingangsdaten reduzieren
+    a = a.project(&quot;counter&quot;);
+    //Filtern
+    a = a.match(MorphiumSingleton.get().createQueryFor(UncachedObject.class).f(&quot;counter&quot;).gt(100));
+    //Sortieren - für $first/$last
+    a = a.sort(&quot;counter&quot;);
+    //limit der Daten
+    a = a.limit(15);
+    //group by - in dem Fall ALL, könnte auch beliebig sein
+    a = a.group(&quot;all&quot;).avg(&quot;schnitt&quot;, &quot;$counter&quot;).sum(&quot;summe&quot;, &quot;$counter&quot;).sum(&quot;anz&quot;, 1).last(&quot;letzter&quot;, &quot;$counter&quot;).first(&quot;erster&quot;, &quot;$counter&quot;).end();
+    //ergebnis projezieren 
+    HashMap&lt;String,Object&gt; projection=new HashMap&lt;&gt;(); 
+    projection.put(&quot;summe&quot;,1);
+    projection.put(&quot;anzahl&quot;,&quot;$anz&quot;);
+    projection.put(&quot;schnitt&quot;,1);
+    projection.put(&quot;last&quot;,&quot;$letzter&quot;);
+    projection.put(&quot;first&quot;,&quot;$erster&quot;);
+    a = a.project(projection);
+
+    List&lt;DBObject&gt; obj = a.toAggregationList();
+    for (DBObject o : obj) {
+        log.info(&quot;Object: &quot; + o.toString());
+    }
+    List&lt;Aggregate&gt; lst = a.aggregate();
+    assert (lst.size() == 1) : &quot;Size wrong: &quot; + lst.size();
+    log.info(&quot;Sum  : &quot; + lst.get(0).getSumme());
+    log.info(&quot;Avg  : &quot; + lst.get(0).getSchnitt());
+    log.info(&quot;Last :    &quot; + lst.get(0).getLast());
+    log.info(&quot;First:   &quot; + lst.get(0).getFirst());
+    log.info(&quot;count:  &quot; + lst.get(0).getAnzahl());
+
+
+    assert (lst.get(0).getAnzahl() == 15) : &quot;did not find 15, instead found: &quot; + lst.get(0).getAnzahl();
+
+}
+
+
+ @Embedded 
+ public static class Aggregate { 
+    private double schnitt; 
+    private long summe; 
+    private int last; 
+    private int first; 
+    private int anzahl;
+
+    @Property(fieldName = &quot;_id&quot;)
+    private String theGeneratedId;
+
+    public int getAnzahl() {
+        return anzahl;
+    }
+
+    public void setAnzahl(int anzahl) {
+        this.anzahl = anzahl;
+    }
+
+    public int getLast() {
+        return last;
+    }
+
+    public void setLast(int last) {
+        this.last = last;
+    }
+
+    public int getFirst() {
+        return first;
+    }
+
+    public void setFirst(int first) {
+        this.first = first;
+    }
+
+    public double getSchnitt() {
+        return schnitt;
+    }
+
+    public void setSchnitt(double schnitt) {
+        this.schnitt = schnitt;
+    }
+
+    public long getSumme() {
+        return summe;
+    }
+
+    public void setSumme(long summe) {
+        this.summe = summe;
+    }
+
+    public String getTheGeneratedId() {
+        return theGeneratedId;
+    }
+
+    public void setTheGeneratedId(String theGeneratedId) {
+        this.theGeneratedId = theGeneratedId;
+    }
+}
+</code></pre>
+
+<p>The class <code>Aggregate</code> is used to hold the result of the aggregation.</p>
+
+<h3 id="validation">Validation</h3>
+
+<p>If <code>javax.validation</code> can be found in class path, you are able to validate values of your entities using the validation annotations. Those validations will take place before the object would be saved.</p>
+
+<p>Technically it&#8217;s implemented as a <code>JavaxValidationStorageListener</code> which is a storage listener and vetoes the write operation if validation fails.</p>
+
+<p>an example on how to use validation:</p>
+
+<pre><code>@Id private MorphiumId id;
+
+@Min(3)
+@Max(7)
+private int theInt;
+
+@NotNull
+private Integer anotherInt;
+
+@Future
+private Date whenever;
+
+@Pattern(regexp = &quot;m[ueü]nchen&quot;)
+private String whereever;
+
+@Size(min = 2, max = 5)
+private List friends;
+
+@Email
+private String email;
+</code></pre>
+
+<p>Those validation rules will be enforced upon storing the corresponding object:</p>
+
+<pre><code>@Test(expected = ConstraintViolationException.class)
+public void testNotNull() {
+    ValidationTestObject o = getValidObject();
+    o.setAnotherInt(null);
+    MorphiumSingleton.get().store(o);
+}
+</code></pre>
+
+<h3 id="polymorphism">Polymorphism</h3>
+
+<p>Its possible to have different type of entities stored in one collection. Usually this will only make sense if those entities have some things in common. In an object oriented way: they are derived from one single entity.</p>
+
+<p>In order to make this work, you have to tell <em>Morphium</em> that you want to use a certain entity in a polymorph way (property of the annotation <code>@Entity</code>). If so, the full qualified class name will be stored in the mongo document representing the entity. Actually, you can store <em>any</em> type of entity into one list, if each of those types is marked polymorph. Only reading them is a bit hard, as you would iterate over Objects and would have to decide on type yourself.</p>
+
+<h3 id="asyncapi">Async API</h3>
+
+<h3 id="fullycustomizable">Fully Customizable</h3>
+
+<h2 id="description">Description</h2>
+
+<p>on the following lines you get a more in depth view of the</p>
+
+<h3 id="namesofentitiesandfields">Names of entities and fields</h3>
+
+<p><em>Morphium</em> by defaults converts all java CamelCase identifiers in underscore separated strings. So, <code>MyEntity</code> will be stored in an collection called <code>my_entity</code> and the field <code>aStringValue</code> would be stored in as <code>a_string_value</code>.</p>
+
+<p>When specifying a field, you can always use either the transformed name or the name of the corresponding java field. Collection names are always determined by the classname itself.</p>
+
+<h4 id="camelcaseconversion">CamelCase conversion</h4>
+
+<p>But in <em>Morphium</em> you can of course change that behaviour. Easiest way is to switch off the transformation of CamelCase globally by setting <code>camelCaseConversionEnabled</code> to false (see above: Configuration). If you switch it off, its off completely - no way to do switch it on for just one collection or so.</p>
+
+<p>If you need to have only several types converted, but not all, you have to have the conversion globally enabled, and only switch it off for certain types. This is done in either the <code>@Entity</code> or <code>@Embedded</code> annotation.</p>
+
+<p><code>@Entity(convertCamelCase=false)
+public class MyEntity {
+     private String myField;</code></p>
+
+<p>This example will create a collection called <code>MyEntity</code> (no conversion) and the field will be called <code>myField</code> in mongo as well (no conversion).</p>
+
+<p><em>Attention</em>: Please keep in mind that, if you switch off camelCase conversion globally, nothing will be converted!</p>
+
+<h4 id="usingthefullqualifiedclassname">using the full qualified classname</h4>
+
+<p>you can tell <em>Morphium</em> to use the full qualified classname as basis for the collection name, not the simple class name. This would result in createing a collection <code>de_caluga_morphium_my_entity</code> for a class called <code>de.caluga.morphium.MyEntity</code>. Just set the flag <code>useFQN</code> in the entity annotation to <code>true</code>.</p>
+
+<p><code>@Entity(useFQN=true)
+public class MyEntity {</code></p>
+
+<p>Recommendation is, not to use the full qualified classname unless it&#8217;s really needed.</p>
+
+<h4 id="specifyingacollectionfieldname">Specifying a collection / fieldname</h4>
+
+<p>In addition to that, you can define custom names of fields and collections using the corresponding annotation (<code>@Entity</code>, <code>@Property</code>).</p>
+
+<p>For entities you may set a custom name by using the <code>collectionName</code> value for the annotation:</p>
+
+<p><code>@Entity(collectionName=&quot;totallyDifferent&quot;)
+public class MyEntity {
+    private String myValue;</code> the collection name will be <code>totallyDifferent</code> in mongo. Keep in mind that camel case conversion for fields will still take place. So in that case, the field name would probably be <code>my_value</code>. (if camel case conversion is enabled in config)</p>
+
+<p>You can also specify the name of a field using the property annotation:</p>
+
+<p><code>@Property(fieldName=&quot;my_wonderful_field&quot;)
+   private String something;</code></p>
+
+<p>Again, this only affects this field (in this case, it will be called <code>my_wondwerful_field</code> in mongo) and this field won&#8217;t be converted camelcase. This might cause a mix up of cases in your mongodb, so please use this with care.</p>
+
+<h4 id="accessingfields">Accessing fields</h4>
+
+<p>When accessing fields in <em>Morphium</em> (especially for the query) you may use either the name of the Field in Java (like myEntity) or the converted name depending on the config (camelCased or not, or custom).</p>
+
+<h4 id="usingnameproviders">Using NameProviders</h4>
+
+<p>In some cases it might be necessary to have the collection name calculated dynamically. This can be acchieved using the <code>NameProvider</code> Interface.</p>
+
+<p>You can define a NameProvider for your entity in the <code>@Entity</code> annotation. You need to specify the type there. By default, the NameProvider for all Entities is <code>DefaultNameProvider</code>. Which acutally looks like this:</p>
+
+<pre><code>public final class DefaultNameProvider implements NameProvider {
+
+@Override
+public String getCollectionName(Class&lt;?&gt; type, ObjectMapper om, boolean translateCamelCase, boolean useFQN, String specifiedName, Morphium morphium) {
+
+    String name = type.getSimpleName();
+
+    if (useFQN) {
+        name = type.getName().replaceAll(&quot;\\.&quot;, &quot;_&quot;);
+    }
+    if (specifiedName != null) {
+        name = specifiedName;
+    } else {
+        if (translateCamelCase) {
+            name = morphium.getARHelper().convertCamelCase(name);
+        }
+    }
+    return name;
+}
+
+
+}
+</code></pre>
+
+<p>You can use your own provider to calculate collection names depending on time and date or for example depending on the querying host name (like: create a log collection for each server separately or create a collection storing logs for only one month each).</p>
+
+<p><strong>Attention</strong>: Name Provider instances will be cached, so please implement them threadsafe.</p>
+
+<h3 id="entitydefinition">Entity Definition</h3>
+
+<p>Entitys in <em>Morphium</em> ar just &#8220;Plain old Java Objects&#8221; (POJOs). So you just create your data objects, as usual. You only need to add the annotation <code>@Entity</code> to the class, to tell <em>Morphium</em> &#8220;Yes, this can be stored&#8221;. The only additional thing you need to take care of is the definition of an ID-Field. This can be any field in the POJO identifying the instance. Its best, to use <code>MorphiumId</code> as type of this field, as these can be created automatically and you don&#8217;t need to care about those as well.</p>
+
+<p>If you specify your ID to be of a different kind (like String), you need to make sure, that the String is set, when the object will be written. Otherwise you might not find the object again. So the shortest Entity would look like this:</p>
+
+<pre><code>@Entity
+public class MyEntity {
+   @Id private MorphiumId id;
+   //.. add getter and setter here
+}
+</code></pre>
+
+<h3 id="indexes">indexes</h3>
+
+<p>Indexes are <em>very</em> important in mongo, so you should definitely define your indexes as soon as possible during your development. Indexes can be defined on the Entity itself, there are several ways to do so: - @Id always creates an index - you can add an <code>@Index</code> to any field to have that indexed:</p>
+
+<p><code>@Index
+    private String name;</code></p>
+
+<ul>
+<li>you can define combined indexes using the <code>@Index</code> annotation at the class itself:</li>
+</ul>
+
+<p><code>@Index({&quot;counter, name&quot;,&quot;value,thing,-counter&quot;}
+public class MyEntity {</code></p>
+
+<p>This would create two combined indexes: one with <code>counter</code> and <code>name</code> (both ascending) and one with <code>value</code>, <code>thing</code> and descending <code>counter</code>. You could also define single field indexes using this annotations, but it<code>s easier to read adding the annotation direktly to the field.
+- Indexes will be created automatically if you _create_ the collection. If you want the indexes to be created, even if there is already data stores, you need to call</code>morphium.ensureIndicesFor(MyEntity.class)<code>- You also may create your own indexes, which are not defined in annotations by calling</code>morphium.ensureIndex()<code>. As parameter you pass on a Map containing field name and order (-1 or 1) or just a prefixed list of strings (like</code> &#8220;-counter&#8221;,&#8220;name&#8221;`).</p>
+
+<p>Every Index might have a set of options which define the kind of this index. Like <code>buildInBackground</code> or <code>unique</code>. You need to add those as second parameter to the Index-Annotation:</p>
+
+<p><code>@Entity
+ @Index(value = {&quot;-name, timer&quot;, &quot;-name, -timer&quot;, &quot;lst:2d&quot;, &quot;name:text&quot;}, 
+                options = {&quot;unique:1&quot;, &quot;&quot;, &quot;&quot;, &quot;&quot;})
+    public static class IndexedObject {</code></p>
+
+<p>here 4 indexes are created. The first two ar more or less standard, wheres the <code>lst</code> index is a geospacial one and the index on <code>name</code> is a text index (only since mongo 2.6). If you need to define options for one of your indexes, you need to define it for all of them (here, only the first index is unique).</p>
+
+<p>We&#8217;re working on porting <em>Morphium</em> to java8, and there it will be possible to have more than one <code>@Index</code> annotation, making the syntax a bit more ledgeable</p>
+
+<h3 id="cappedcollections">capped collections</h3>
+
+<p>Similar as with indexes, you can define you collection to be capped using the <code>@Capped</code> annotation. This annotation takes two arguments: the maximum number of entries and the maximum size. If the collection does not exist, it will be created as capped collection using those two values. You can always ensureCapped your collection, unfortunately then only the <code>size</code> parameter will be honoured.</p>
+
+<h3 id="querying">Querying</h3>
+
+<p>Querying is done via the Query-Object, which is created by <em>Morphium</em> itself (using the Query Factory). The definition of the query is done using the fluent interface:</p>
+
+<pre><code>Query&lt;MyEntity&gt; query=morphium.createQueryFor(MyEntity.class);
+query=query.f(&quot;id&quot;).eq(new MorphiumId());
+query=query.f(&quot;valueField&quot;).eq(&quot;the value&quot;);
+query=query.f(&quot;counter&quot;).lt(22);
+query=query.f(&quot;personName&quot;).matches(&quot;[a-zA-Z]+&quot;);
+query=query.limit(100).sort(&quot;counter&quot;);
+</code></pre>
+
+<p>In this example, I refer to several fields of different types. The Query itself is always of the same basic syntax:</p>
+
+<pre><code>queryObject=queryObject.f(FIELDNAME).OPERATION(Value);
+queryObject=queryObject.skip(NUMBER); //skip a number of entreis
+queryObject=queryObject.limig(NUMBER); // limit result
+queryObject.sort(FIELD_TO_SORTBY);`
+</code></pre>
+
+<p>As field name you may either use the name of the field as it is in mongo or the name of the field in java. If you specify an unknown field to <em>Morphium</em>, a runtimeexception will be raiesed.</p>
+
+<p>For definition of the query, it&#8217;s also a good practice to define enums for all of your fields. This makes it hard to have mistypes in a query:</p>
+
+<pre><code>public class MyEntity {
+  //.... field definitions
+  public enum Fields { id, value, personName,counter, }
+}
+</code></pre>
+
+<p>There is a plugin for intelliJ creating those enums automatically. Then, when defining the query, you don&#8217;t have to type in the name of the field, just use the field enum:</p>
+
+<p><code>query=query.f(MyEntity.Fields.counter).eq(123);</code></p>
+
+<p>After you defined your query, you probably want to access the data in mongo. Via <em>Morphium</em>,there are several possibilities to do that: - <code>queryObject.get()</code>: returns the first object matching the query, only one. Or null if nothing matched - <code>queryObject.asList()</code>: return a list of all matching objects. Reads all data in RAM. Useful for small amounts of data - <code>Iterator&lt;MyEntity&gt; it=queryObject.asIterator()</code>: creates a <code>MorphiumIterator</code> to iterate through the data, whch does not read all data at once, but only a couple of elements in a row (default 10).</p>
+
+<h4 id="theiterator">the Iterator</h4>
+
+<p><em>Morphium</em> has support for a special Iterator, which steps through the data, a couple of elements at a time. By Default this is the standard behaviour. But the _Morphium_Iterator ist quite capable:</p>
+
+<ul>
+<li><code>queryObject.asIterable()</code> will stepp through the result list, 10 at a time</li>
+<li><code>queryObject.asIterable(100)</code> will step through the result list, 100 at a time</li>
+<li><code>queryObject.asIterable(100,5)</code> will step through the result list, 100 at a time and keep 4 chunks of 100 elements each as prefetch buffers. Those will be filled in background.</li>
+<li><code>MorphiumIterator it=queryObject.asIterable(100,5); it.setMultithreaddedAccess(true);</code> use the same iterator as before, but make it thread safe.</li>
+</ul>
+
+<p>Internally the default iterator does create queries that are derived from the sort of the query, if there is no sort specified, it will assume you want to sort by <code>_id</code>.</p>
+
+<p>If you use the prefetching iterator, keep in mind that this will use skip and limit functionality in order to prefetch those chunks of data in parallel. But this showed some degration in performance for huge collections (skip seems to be longer and longer).</p>
+
+<h3 id="storing">Storing</h3>
+
+<p>Storing is more or less a very simple thing, just call <code>morphium.store(pojo)</code> and you&#8217;re done. Although there is a bit more to it: - if the object does not have an id (id field is <code>null</code>), there will be a new entry into the corresponding collection. - if the object does have an id set (!= <code>null</code>), an update to db is being issued. - you can call <code>morphium.storeList(lst)</code> where lst is a list of entities. These would be stored in bulkd, if possible. Or it does a bulk update of things in mongo. Even mixed lists (update and inserts) are possible. <em>Morphium</em> will take care of sorting it out - there are additional methods for writing to mongo, like update operations <code>set</code>, <code>unset</code>, <code>push</code>, <code>pull</code> and so on (update a value on one entity or for all elements matching a query), <code>delete</code> objects or objects matching a query, and a like - The writer that acutally writes the data, is chosen depending on the configuration of this entity (see Annotations below)</p>
+
+<h2 id="annotations">Annotations</h2>
+
+<p>a lot of things can be configured in <em>Morphium</em> using annotations. Those annotations might be added to either classes, fields or both.</p>
+
+<h3 id="entity">Entity</h3>
+
+<p>Perhaps <em>the</em> most important Annotation, as it has to be put on every class the instances of which you want to have stored to database. (Your data objects).</p>
+
+<p>By default, the name of the collection for data of this entity is derived by the name of the class itself and then the camel case is converted to underscore strings (unless config is set otherwise).</p>
+
+<p>These are the settings available for entities:</p>
+
+<ul>
+<li>translateCamelCase: default true. If set, translate the name of the collection and all fields (only those, which do not have a custom name set)</li>
+<li>collectionName: set the collection name. May be any value, camel case won&#8217;t be converted.</li>
+<li>useFQN: if set to true, the collection name will be built based on the full qualified class name. The Classname itself, if set to false. Default is false</li>
+<li>polymorph: if set to true, all entities of this type stored to mongo will contain the full qualified name of the class. This is necessary, if you have several different entities stored in the same collection. Usually only used for polymorph lists. But you could store any polymorph marked object into that collection Default is false</li>
+<li>nameProvider: specify the class of the name provider, you want to use for this entity. The name provider is being used to determine the name of the collection for this type. By Default it uses the <code>DefaultNameProvider</code> (which just uses the classname to build the collection name). see above</li>
+</ul>
+
+<h3 id="embedded">Embedded</h3>
+
+<p>Marks POJOs for object mapping, but don&#8217;t need to have an ID set. These objects will be marshaled and unmarshaled, but only as part of another object (Subdocument). This has to be set at class level.</p>
+
+<p>You can switch off camel case conversion for this type and determine, whether data might be used polymorph.</p>
+
+<h3 id="capped">Capped</h3>
+
+<p>Valid at: Class level</p>
+
+<p>Tells <em>Morphium</em> to create a capped collection for this object (see capped collections above).</p>
+
+<p>Parameters:</p>
+
+<p>| &#8212;-|&#8212;-| | maxSize | maximum size in byte. Is used when converting to a capped collection |<br/>
+| maxNumber | number of entries for this capped collection |</p>
+
+<h3 id="additionaldata">AdditionalData</h3>
+
+<p>Special feature for <em>Morphium</em>: this annotation has to be added for at lease <em>one</em> field of type Map&lt;String,Object&gt;. It does make sure, that all data in Mongo, that cannot be mapped to a field of this entity, will be added to the annotated Map properties.</p>
+
+<p>by default this map is read only. But if you want to change those values or add new ones to it, you can set <code>readOnly=false</code></p>
+
+<h3 id="aliases">Aliases</h3>
+
+<p>It&#8217;s possible to define aliases for field names with this annotation (hence it has to be added to a field).</p>
+
+<p><code>java
+   @Alias({&quot;stringList&quot;,&quot;string_list&quot;})
+   List&lt;String&gt; strLst;</code></p>
+
+<p>in this case, when reading an object from Mongodb, the name of the field strLst might also be <code>stringList</code> or <code>string_list</code> in mongo. When storing it, it will always be stored as <code>strLst</code> or <code>str_lst</code> according to config.</p>
+
+<p>This feature comes in handy when migrating data.</p>
+
+<h3 id="creationtime">CreationTime</h3>
+
+<p>has to be added to both the class and the field(s) to store the creation time in. This value is set in the moment, the object is being stored to mongo. The data type for creation time might be:</p>
+
+<ul>
+<li><code>long</code> / <code>Long</code>: store as timestamp</li>
+<li><code>Eate</code>: store as date object</li>
+<li><code>String</code>: store as a string, you may need to specify the format for that</li>
+</ul>
+
+<h3 id="lastaccess">LastAccess</h3>
+
+<p>same as creation time, but storing the last access to this type. <strong>Attention</strong>: will cause all objects read to be updated and written again with a changed timestamp.</p>
+
+<p>Usage: find out, which entries on a translation table are not used for quite some time. Either the translation is not necessary anymore or the corresponding page is not being used.</p>
+
+<h3 id="lastchange">LastChange</h3>
+
+<p>Same as the two above, except the timestamp of the last change (to mongo) is being stored. The value will be set, just before the object is written to mongo.</p>
+
+<h3 id="defaultreadpreference">DefaultReadPreference</h3>
+
+<p>Define the read preference level for an entity. This annotation has to be used at class level. Valid types are:</p>
+
+<ul>
+<li>PRIMARY: only read from primary node</li>
+<li>PRIMARY_PREFERED: if possible, use primary.</li>
+<li>SECONDARY: only read from secondary node</li>
+<li>SECONDARY_PREFERED: if possible, use secondary</li>
+<li>NEAREST: I don&#8217;t care, take the fastest</li>
+</ul>
+
+<h3 id="id">Id</h3>
+
+<p>Very important annotation to a field of every entity. It marks that field to be the id and identify any object. It will be stored as <code>_id</code> in mongo (and will get an index).</p>
+
+<p>The Id may be of any type, though usage of ObjectId (or MorphiumId in Java) is strongly recommended.</p>
+
+<h3 id="index">Index</h3>
+
+<p>Define indexes. Indexes can be defined for a single field. Combined indexes need to be defined on class level. See above.</p>
+
+<h3 id="partialupdate">PartialUpdate</h3>
+
+<p>If this annotation is present for an entity, this entity would only send changes to mongo when being stored. This is useful for big objects, which only contain small changes.</p>
+
+<p><em>Attention:</em> in the background your object is being replaced by a Proxy-Object to collect the changes.</p>
+
+<h3 id="property">Property</h3>
+
+<p>Can be added to any field. This not only has documenting character, it also gives the opportunity to change the name of this field by setting the <code>fieldName</code> value. By Default the fieldName is &#8220;.&#8221;, which means &#8220;fieldName based&#8221;.</p>
+
+<h3 id="readonly">ReadOnly</h3>
+
+<p>Mark an entity to be read only. You&#8217;ll get an exception when trying to store.</p>
+
+<h3 id="reference">Reference</h3>
+
+<p>If you have a member variable, that is a POJO and not a simple value, you can store it as reference to a different collection, if the POJO is an Entity (and only if!).</p>
+
+<p>This also works for lists and Maps. Attention: when reading Objects from disk, references will be de-referenced, which will result into one call to mongo each.</p>
+
+<p>Unless you set <code>lazyLoading</code> to true, in that case, the child documents will only be loaded when accessed.</p>
+
+<h3 id="transient">transient</h3>
+
+<p>Do not store the field.</p>
+
+<h3 id="useifnull">UseIfnull</h3>
+
+<p>Usually, <em>Morphium</em> does not store null values at all. That means, the corresponding document just would not contain the given field(s) at all.</p>
+
+<p>Sometimes that might cause problems, so if you add <code>@UseIfNull</code> to any field, it will be stored into mongo even if it is null.</p>
+
+<h3 id="writeonly">WriteOnly</h3>
+
+<p>Sometimes it might be useful to have an entity set to write only (logs). An exception will be raised, if you try to query such a entity.</p>
+
+<h3 id="writesafety">WriteSafety</h3>
+
+<p>Sepcify the safety for this entity when it comes to writing to mongo. This can range from &#8220;NONE&#8221; to &#8220;WAIT FOR ALL SLAVES&#8221;. Here are the available settings:</p>
+
+<ul>
+<li>timeout: set a timeout in ms for the operation - if set to 0, unlimited (default). If set to negative value, wait relative to replication lag</li>
+<li>level: set the safety level:
+
+<ul>
+<li><code>IGNORE_ERRORS</code> None, no checking is done</li>
+<li><code>NORMAL</code> None, network socket errors raised</li>
+<li><code>BASIC</code> Checks server for errors as well as network socket errors raised</li>
+<li><code>WAIT_FOR_SLAVE</code> Checks servers (at lease 2) for errors as well as network socket errors raised</li>
+<li><code>MAJORITY</code> Wait for at least 50% of the slaves to have written the data</li>
+<li><code>WAIT_FOR_ALL_SLAVES</code>: waits for all slaves to have committed the data. This is depending on how many slaves are available in replica set. Wise timeout settings are important here. See <a href="http://api.mongodb.org/java/current/com/mongodb/WriteConcern.html">WriteConcern in MongoDB Java-Driver</a> for additional information</li>
+</ul></li>
+</ul>
+
+<h3 id="asyncwrites">AsyncWrites</h3>
+
+<p>If this annotation is present at a given entity, all write access concerning this type would be done asynchronously. That means, the write process will start immediately, but run in background.</p>
+
+<p>You won&#8217;t be informed about errors or success. If you want to do that, you don&#8217;t need to set <code>@AsyncWrites</code>, use one of the <code>save</code> method with a Callback for storing your data - those methods are all asynchronous.</p>
+
+<h3 id="writebuffer">WriteBuffer</h3>
+
+<p>Create a write buffer, do not write data directly to mongo, but wait for the buffer to be filled a certain amount:</p>
+
+<ul>
+<li>size: default 0, max size of write Buffer entries, 0 means unlimited. STRATEGY is meaningless then</li>
+<li>strategy: define what happens when write buffer is full and new things would be written. Can be one of <code>WRITE_NEW, WRITE_OLD, IGNORE_NEW, DEL_OLD, JUST_WARN</code>
+
+<ul>
+<li><code>WRITE_NEW</code>: write all new incoming entries to the buffer directly to mongo, buffer won&#8217;t grow</li>
+<li><code>WRITE_OLD</code>: take one of the oldest entries from the buffer, write it, queue the new entry to buffer. Buffer won&#8217;t grow</li>
+<li><code>IGNORE_NEW</code>: do not add new entry to buffer and do not write it. <strong>Attention</strong>: <em>possible data loss</em> Buffer won&#8217;t grow</li>
+<li><code>DEL_OLD</code>: delete an old entry from the buffer, add new one. Buffer won&#8217;t grow</li>
+<li><code>JUST_WARN</code>: just issue a warning via log4j, but add the new Object anyway. Buffer <em>will</em> grow, no matter what threshold is set!</li>
+</ul></li>
+</ul>
+
+<h3 id="cache">Cache</h3>
+
+<p>Read-Cache Settings for the given entity.</p>
+
+<ul>
+<li>timeout: How long are entries in cache valid, in ms. Default 60000ms</li>
+<li>clearOnWrite: if set to true (default) the cache will be cleared, when you store or update an instance of this type</li>
+<li>maxEntries: Maximum number of entries in cache for this type. &#8211;1 means <code>infinite</code></li>
+<li>clearStrategy: when reaching the maximum number of entries, how to replace entries in cache.
+
+<ul>
+<li><code>LRU</code>: remove the least recently used entry from cache, add the new</li>
+<li><code>RANDOM</code>: remove a random entry from cache, add the new</li>
+<li><code>FIFO</code>: remove the oldest entry from cache, add the new (default)</li>
+</ul></li>
+<li>syncCache: Set the strategy for syncing cache entries of this type. This is useful when running in a clustered environment to inform all nodes of the cluster to change their caches accordingly. A sync message will be sent to all nodes using the <em>Morphium</em> messaging as soon as an item of this type is written to mongo.
+
+<ul>
+<li><code>NONE</code>: No cache sync</li>
+<li><code>CLEAR_TYPE_CACHE</code>: clear the whole cache for this type on all nodes</li>
+<li><code>REMOVE_ENTRY_FROM_TYPE_CACHE</code>: remove an updated entry from the type cache of all nodes</li>
+<li><code>UPDATE_ENTRY</code>: update the entry in the cache on all nodes</li>
+<li>This may cause heavy load on the messaging system. All sync strategies except <code>CLEAR_TYPE_CACHE</code> might result in dirty reads on some nodes.</li>
+</ul></li>
+</ul>
+
+<h3 id="nocache">NoCache</h3>
+
+<p>Explicitly disable cache for this type. This is important if you have a hierarchy of entities and you want the &#8220;super entity&#8221; to be cached, but inherited entities from that type not.</p>
+
+<h3 id="lifecycle">Lifecycle</h3>
+
+<p>This is a marker annotation telling <em>Morphium</em> that in this type, there are some Lifecycle callbacks to be called.</p>
+
+<p>Please keep in mind that all lifecycle annotations (see below) would be ignored, if this annotation is not added to the type.</p>
+
+<h4 id="postload">PostLoad</h4>
+
+<p>If <code>@Lifecycle</code> is added to the type, <code>@PostLoad</code> may define the method to be called, after the object was read from mongo.</p>
+
+<h4 id="prestore">PreStore</h4>
+
+<p>If <code>@Lifecycle</code> is added to the type, <code>@PreStore</code> may define the method to be called, just before the object is written to mongo. It is possible to throw an Exception here to avoid storage of this object.</p>
+
+<h4 id="poststore">PostStore</h4>
+
+<p>If <code>@Lifecycle</code> is added to the type, <code>@PostStore</code> may define the method to be called, after the object was written to mongo.</p>
+
+<h4 id="preremove">PreRemove</h4>
+
+<p>If <code>@Lifecycle</code> is added to the type, <code>@PreRemove</code> may define the method to be called, just before the object would be removed from mongo. You might throw an exception here to avoid storage.</p>
+
+<h4 id="postremove">PostRemove</h4>
+
+<p>If <code>@Lifecycle</code> is added to the type, <code>@PostRemove</code> may define the method to be called, after the object was removed from mongo.</p>
+
+<h3 id="preupdate">PreUpdate</h3>
+
+<p>If <code>@Lifecycle</code> is added to the type, <code>@PreUpdate</code> may define the method to be called, just before the object would be updated in mongo. Veto is possible by throwing an Exception.</p>
+
+<h4 id="postupdate">PostUpdate</h4>
+
+<p>If <code>@Lifecycle</code> is added to the type, <code>@PostUpdate</code> may define the method to be called, after the object was updated in mongo.</p>
+
+<h2 id="dependencies">Dependencies</h2>
+
+<p><em>Morphium</em> does not have many dependencies:</p>
+
+<ul>
+<li>log4j</li>
+<li>mongo java driver (usually the latest version available at that time)</li>
+<li>a simple json parser (json-simple)</li>
+</ul>
+
+<p>Here is the excerpt from the pom.xml:</p>
+
+<pre><code>&lt;dependency&gt; 
+  &lt;groupid&gt;cglib&lt;/groupid&gt; 
+  &lt;artifactid&gt;cglib&lt;/artifactid&gt; 
+  &lt;version&gt;2.2.2&lt;/version&gt; 
+&lt;/dependency&gt; 
+&lt;dependency&gt; 
+  &lt;groupid&gt;log4j&lt;/groupid&gt; 
+  &lt;artifactid&gt;log4j&lt;/artifactid&gt; 
+  &lt;version&gt;1.2.17&lt;/version&gt; 
+&lt;/dependency&gt;
+&lt;dependency&gt; 
+  &lt;groupid&gt;org.mongodb&lt;/groupid&gt; 
+  &lt;artifactid&gt;mongo-java-driver&lt;/artifactid&gt; 
+  &lt;version&gt;2.12.3&lt;/version&gt; 
+&lt;/dependency&gt;
+&lt;dependency&gt; 
+  &lt;groupid&gt;com.googlecode.json-simple&lt;/groupid&gt; 
+  &lt;artifactid&gt;json-simple&lt;/artifactid&gt; 
+  &lt;version&gt;1.1&lt;/version&gt; 
+&lt;/dependency&gt;
+</code></pre>
+
+<p>There is one kind of &#8220;optional&#8221; Dependency: If hibernate validation is available, it&#8217;s being used. If it cannot be found in class path, it&#8217;s no problem.</p>
+
+<h2 id="codeexamples">Code Examples</h2>
+
+<p>All those Code examples are part of the <em>Morphium</em> source distribution. All of the codes are at least part of a unit test.</p>
+
+<h3 id="simplewriteread">Simple Write / Read</h3>
+
+<pre><code>for (int i = 1; i &lt;= NO_OBJECTS; i++) { 
+    UncachedObject o = new UncachedObject(); 
+    o.setCounter(i); 
+    o.setValue(&quot;Uncached &quot; + i % 2); 
+    MorphiumSingleton.get().store(o); 
+ } 
+ Query&lt;uncachedobject&gt; q = MorphiumSingleton.get().createQueryFor(UncachedObject.class);
+ q = q.f(&quot;counter&quot;).gt(0).sort(&quot;-counter&quot;, &quot;value&quot;);
+ List&lt;/uncachedobject&gt;&lt;uncachedobject&gt; lst = q.asList();
+ assert (!lst.get(0).getValue().equals(lst.get(1).getValue()));
+
+    q = q.q().f(&quot;counter&quot;).gt(0).sort(&quot;value&quot;, &quot;-counter&quot;);
+    List&lt;UncachedObject&gt; lst2 = q.asList();
+    assert (lst2.get(0).getValue().equals(lst2.get(1).getValue()));
+    log.info(&quot;Sorted&quot;);
+
+    q = MorphiumSingleton.get().createQueryFor(UncachedObject.class);
+    q = q.f(&quot;counter&quot;).gt(0).limit(5).sort(&quot;-counter&quot;);
+    int st = q.asList().size();
+    q = MorphiumSingleton.get().createQueryFor(UncachedObject.class);
+    q = q.f(&quot;counter&quot;).gt(0).sort(&quot;-counter&quot;).limit(5);
+    assert (st == q.asList().size()) : &quot;List length differ?&quot;;
+</code></pre>
+
+<p>And:</p>
+
+<pre><code>Query&lt;complexobject&gt; q = MorphiumSingleton.get().createQueryFor(ComplexObject.class);
+
+    q = q.f(&quot;embed.testValueLong&quot;).eq(null).f(&quot;entityEmbeded.binaryData&quot;).eq(null);
+    String queryString = q.toQueryObject().toString();
+    log.info(queryString);
+    assert (queryString.contains(&quot;embed.test_value_long&quot;) &amp;&amp; queryString.contains(&quot;entityEmbeded.binary_data&quot;));
+    q = q.f(&quot;embed.test_value_long&quot;).eq(null).f(&quot;entity_embeded.binary_data&quot;).eq(null);
+    queryString = q.toQueryObject().toString();
+    log.info(queryString);
+    assert (queryString.contains(&quot;embed.test_value_long&quot;) &amp;&amp; queryString.contains(&quot;entityEmbeded.binary_data&quot;));
+</code></pre>
+
+<h3 id="asynchronouswrite">Asynchronous Write</h3>
+
+<pre><code>@Test
+public void asyncStoreTest() throws Exception {
+    asyncCall = false;
+    super.createCachedObjects(1000);
+    waitForWrites();
+    log.info(&quot;Uncached object preparation&quot;);
+    super.createUncachedObjects(1000);
+    waitForWrites();
+    Query&lt;UncachedObject&gt; uc = MorphiumSingleton.get().createQueryFor(UncachedObject.class);
+    uc = uc.f(&quot;counter&quot;).lt(100);
+    MorphiumSingleton.get().delete(uc, new AsyncOperationCallback&lt;Query&lt;UncachedObject&gt;&gt;() {
+        @Override
+        public void onOperationSucceeded(AsyncOperationType type, Query&lt;Query&lt;UncachedObject&gt;&gt; q, long duration, List&lt;Query&lt;UncachedObject&gt;&gt; result, Query&lt;UncachedObject&gt; entity, Object... param) {
+            log.info(&quot;Objects deleted&quot;);
+        }
+
+        @Override
+        public void onOperationError(AsyncOperationType type, Query&lt;Query&lt;UncachedObject&gt;&gt; q, long duration, String error, Throwable t, Query&lt;UncachedObject&gt; entity, Object... param) {
+            assert false;
+        }
+    });
+
+    uc = uc.q();
+    uc.f(&quot;counter&quot;).mod(3, 2);
+    MorphiumSingleton.get().set(uc, &quot;counter&quot;, 0, false, true, new AsyncOperationCallback&lt;UncachedObject&gt;() {
+        @Override
+        public void onOperationSucceeded(AsyncOperationType type, Query&lt;UncachedObject&gt; q, long duration, List&lt;UncachedObject&gt; result, UncachedObject entity, Object... param) {
+            log.info(&quot;Objects updated&quot;);
+            asyncCall = true;
+
+        }
+
+        @Override
+        public void onOperationError(AsyncOperationType type, Query&lt;UncachedObject&gt; q, long duration, String error, Throwable t, UncachedObject entity, Object... param) {
+            log.info(&quot;Objects update error&quot;);
+        }
+    });
+
+    waitForWrites();
+
+    assert MorphiumSingleton.get().createQueryFor(UncachedObject.class).f(&quot;counter&quot;).eq(0).countAll() &gt; 0;
+    assert (asyncCall);
+}
+</code></pre>
+
+<h3 id="asynchronousread">Asynchronous Read</h3>
+
+<pre><code>@Test
+public void asyncReadTest() throws Exception {
+    asyncCall = false;
+    createUncachedObjects(100);
+    Query&lt;UncachedObject&gt; q = MorphiumSingleton.get().createQueryFor(UncachedObject.class);
+    q = q.f(&quot;counter&quot;).lt(1000);
+    q.asList(new AsyncOperationCallback&lt;UncachedObject&gt;() {
+        @Override
+        public void onOperationSucceeded(AsyncOperationType type, Query&lt;UncachedObject&gt; q, long duration, List&lt;UncachedObject&gt; result, UncachedObject entity, Object... param) {
+            log.info(&quot;got read answer&quot;);
+            assert (result != null) : &quot;Error&quot;;
+            assert (result.size() == 100) : &quot;Error&quot;;
+            asyncCall = true;
+        }
+
+        @Override
+        public void onOperationError(AsyncOperationType type, Query&lt;UncachedObject&gt; q, long duration, String error, Throwable t, UncachedObject entity, Object... param) {
+            assert false;
+        }
+    });
+    waitForAsyncOperationToStart(1000000);
+    int count = 0;
+    while (q.getNumberOfPendingRequests() &gt; 0) {
+        count++;
+        assert (count &lt; 10);
+        System.out.println(&quot;Still waiting...&quot;);
+        Thread.sleep(1000);
+    }
+    assert (asyncCall);
+}
+</code></pre>
+
+<h3 id="iterator">Iterator</h3>
+
+<pre><code>@Test
+public void basicIteratorTest() throws Exception {
+    createUncachedObjects(1000);
+
+    Query&lt;UncachedObject&gt; qu = getUncachedObjectQuery();
+    long start = System.currentTimeMillis();
+    MorphiumIterator&lt;UncachedObject&gt; it = qu.asIterable(2);
+    assert (it.hasNext());
+    UncachedObject u = it.next();
+    assert (u.getCounter() == 1);
+    log.info(&quot;Got one: &quot; + u.getCounter() + &quot;  / &quot; + u.getValue());
+    log.info(&quot;Current Buffersize: &quot; + it.getCurrentBufferSize());
+    assert (it.getCurrentBufferSize() == 2);
+
+    u = it.next();
+    assert (u.getCounter() == 2);
+    u = it.next();
+    assert (u.getCounter() == 3);
+    assert (it.getCount() == 1000);
+    assert (it.getCursor() == 3);
+
+    u = it.next();
+    assert (u.getCounter() == 4);
+    u = it.next();
+    assert (u.getCounter() == 5);
+
+    while (it.hasNext()) {
+        u = it.next();
+        log.info(&quot;Object: &quot; + u.getCounter());
+    }
+
+    assert (u.getCounter() == 1000);
+    log.info(&quot;Took &quot; + (System.currentTimeMillis() - start) + &quot; ms&quot;);
+}
+</code></pre>
+
+<h3 id="messaging">Messaging</h3>
+
+<pre><code>@Test
+public void messagingTest() throws Exception {
+    error = false;
+
+    MorphiumSingleton.get().clearCollection(Msg.class);
+
+    final Messaging messaging = new Messaging(MorphiumSingleton.get(), 500, true);
+    messaging.start();
+
+    messaging.addMessageListener(new MessageListener() {
+        @Override
+        public Msg onMessage(Messaging msg, Msg m) {
+            log.info(&quot;Got Message: &quot; + m.toString());
+            gotMessage = true;
+            return null;
+        }
+    });
+    messaging.storeMessage(new Msg(&quot;Testmessage&quot;, MsgType.MULTI, &quot;A message&quot;, &quot;the value - for now&quot;, 5000));
+
+    Thread.sleep(1000);
+    assert (!gotMessage) : &quot;Message recieved from self?!?!?!&quot;;
+    log.info(&quot;Dig not get own message - cool!&quot;);
+
+    Msg m = new Msg(&quot;meine Message&quot;, MsgType.SINGLE, &quot;The Message&quot;, &quot;value is a string&quot;, 5000);
+    m.setMsgId(new MorphiumId());
+    m.setSender(&quot;Another sender&quot;);
+
+    MorphiumSingleton.get().store(m);
+
+    Thread.sleep(5000);
+    assert (gotMessage) : &quot;Message did not come?!?!?&quot;;
+
+    gotMessage = false;
+    Thread.sleep(5000);
+    assert (!gotMessage) : &quot;Got message again?!?!?!&quot;;
+
+    messaging.setRunning(false);
+    Thread.sleep(1000);
+    assert (!messaging.isAlive()) : &quot;Messaging still running?!?&quot;;
+}
+</code></pre>
+
+<h3 id="cachesynchronization">Cache Synchronization</h3>
+
+<pre><code>@Test
+public void cacheSyncTest() throws Exception {
+    MorphiumSingleton.get().dropCollection(Msg.class);
+    createCachedObjects(1000);
+
+    Morphium m1 = MorphiumSingleton.get();
+    MorphiumConfig cfg2 = new MorphiumConfig();
+    cfg2.setAdr(m1.getConfig().getAdr());
+    cfg2.setDatabase(m1.getConfig().getDatabase());
+
+    Morphium m2 = new Morphium(cfg2);
+    Messaging msg1 = new Messaging(m1, 200, true);
+    Messaging msg2 = new Messaging(m2, 200, true);
+
+    msg1.start();
+    msg2.start();
+
+    CacheSynchronizer cs1 = new CacheSynchronizer(msg1, m1);
+    CacheSynchronizer cs2 = new CacheSynchronizer(msg2, m2);
+    waitForWrites();
+
+    //fill caches
+    for (int i = 0; i &lt; 1000; i++) {
+        m1.createQueryFor(CachedObject.class).f(&quot;counter&quot;).lte(i + 10).asList(); //fill cache
+        m2.createQueryFor(CachedObject.class).f(&quot;counter&quot;).lte(i + 10).asList(); //fill cache
+    }
+    //1 always sends to 2....
+
+
+    CachedObject o = m1.createQueryFor(CachedObject.class).f(&quot;counter&quot;).eq(155).get();
+    cs2.addSyncListener(CachedObject.class, new CacheSyncListener() {
+        @Override
+        public void preClear(Class cls, Msg m) throws CacheSyncVetoException {
+            log.info(&quot;Should clear cache&quot;);
+            preClear = true;
+        }
+
+        @Override
+        public void postClear(Class cls, Msg m) {
+            log.info(&quot;did clear cache&quot;);
+            postclear = true;
+        }
+
+        @Override
+        public void preSendClearMsg(Class cls, Msg m) throws CacheSyncVetoException {
+            log.info(&quot;will send clear message&quot;);
+            preSendClear = true;
+        }
+
+        @Override
+        public void postSendClearMsg(Class cls, Msg m) {
+            log.info(&quot;just sent clear message&quot;);
+            postSendClear = true;
+        }
+    });
+    msg2.addMessageListener(new MessageListener() {
+        @Override
+        public Msg onMessage(Messaging msg, Msg m) {
+            log.info(&quot;Got message &quot; + m.getName());
+            return null;
+        }
+    });
+    preSendClear = false;
+    preClear = false;
+    postclear = false;
+    postSendClear = false;
+    o.setValue(&quot;changed it&quot;);
+    m1.store(o);
+
+    Thread.sleep(1000);
+    assert (!preSendClear);
+    assert (!postSendClear);
+    assert (postclear);
+    assert (preClear);
+    Thread.sleep(60000);
+
+    long l = m1.createQueryFor(Msg.class).countAll();
+    assert (l &lt;= 1) : &quot;too many messages? &quot; + l;
+//        createCachedObjects(50);
+//        Thread.sleep(90000); //wait for messages to be cleared
+//        assert(m1.createQueryFor(Msg.class).countAll()==0);
+    cs1.detach();
+    cs2.detach();
+    msg1.setRunning(false);
+    msg2.setRunning(false);
+    m2.close();
+}
+</code></pre>
+
+<h3 id="geospacialsearch">Geo Spacial Search</h3>
+
+<pre><code>@Test
+public void nearTest() throws Exception {
+    MorphiumSingleton.get().dropCollection(Place.class);
+    ArrayList&lt;Place&gt; toStore = new ArrayList&lt;Place&gt;();
+//        MorphiumSingleton.get().ensureIndicesFor(Place.class);
+    for (int i = 0; i &lt; 1000; i++) {
+        Place p = new Place();
+        List&lt;Double&gt; pos = new ArrayList&lt;Double&gt;();
+        pos.add((Math.random() * 180) - 90);
+        pos.add((Math.random() * 180) - 90);
+        p.setName(&quot;P&quot; + i);
+        p.setPosition(pos);
+        toStore.add(p);
+    }
+    MorphiumSingleton.get().storeList(toStore);
+
+    Query&lt;Place&gt; q = MorphiumSingleton.get().createQueryFor(Place.class).f(&quot;position&quot;).near(0, 0, 10);
+    long cnt = q.countAll();
+    log.info(&quot;Found &quot; + cnt + &quot; places around 0,0 (10)&quot;);
+    List&lt;Place&gt; lst = q.asList();
+    for (Place p : lst) {
+        log.info(&quot;Position: &quot; + p.getPosition().get(0) + &quot; / &quot; + p.getPosition().get(1));
+    }
+}
+
+@Index(&quot;position:2d&quot;)
+@NoCache
+@WriteBuffer(false)
+@WriteSafety(level = SafetyLevel.MAJORITY)
+@DefaultReadPreference(ReadPreferenceLevel.PRIMARY)
+@Entity
+public static class Place {
+    @Id
+    private MorphiumId id;
+
+    public List&lt;Double&gt; position;
+    public String name;
+
+    public MorphiumId getId() {
+        return id;
+    }
+
+    public void setId(MorphiumId id) {
+        this.id = id;
+    }
+
+    public List&lt;Double&gt; getPosition() {
+        return position;
+    }
+
+    public void setPosition(List&lt;Double&gt; position) {
+        this.position = position;
+    }
+
+    public String getName() {
+        return name;
+    }
+
+    public void setName(String name) {
+        this.name = name;
+    }
+}
+</code></pre>
+
+<h1 id="theproblemswithlogging">the problems with Logging</h1>
+
+<p>today there is a whole bunch of loggin frameworks. Every one is more capable than the other. Most commond probably are java.util.logging and log4j. Morphium used log4j quite some time. But in our high load environment we encountered problems with the logging itself. Also we had problems, that every library did use a different logging framework.</p>
+
+<p>Morphium since V2.2.21 does use its own logger. This can be configured using Environment variables (in linux like <code>export morphium_log_file=/var/log/morphium.log</code>) or java system parameters (like java -Dmorphium.log.level=5).</p>
+
+<p>This logger is built for performance and thread safety. It works find in high load environments. And has the following features:</p>
+
+<ul>
+<li>it is instanciated with <code>new</code> - no singleton. Lesser performance / synchronization issues</li>
+<li>it has several options for configuration. (see above). You can define global settings like <code>morphium.log.file</code> but you can also define settings for a prefix of a fqdn, like <code>morphium.log.file.de.caluga.morphium</code>. For example <code>java -Dmorphium.log.level=2 -Dmorphium.log.level.de.caluga.morphium.messaging=5</code> would switch on debugging only for the messaging package, the default has level 2 (which is ERROR)</li>
+<li>it is possible to define 3 Things in the way described above (either global or class / package sepcific): FileName (real path, or STDOUT or STDERR), Log level (0=none, 1=FATAL, 2=ERROR, 3=WARN, 4=INFO, 5=DEBUG) and whether the output should be synced or buffered (synced=false)</li>
+<li>if you want to use log4j or java.util.logging as logging, you can set the log filename to <code>log4j</code> or <code>jul</code> accordingly</li>
+<li>if you want to use your own logging implementation, just tell morphium the log delegate as filename, e.g. <code>morphium.log.file=de.caluga.morphium.log.MyLogDelegate</code></li>
+<li>of course, all this configuration can be done in code as well.</li>
+</ul>
+
+<div class="footnotes">
+<hr />
+<ol>
+
+<li id="fn:1">
+<p>not quite true, the driver contains both versions actually, but old API is usually marked <em>deprecated</em> <a href="#fnref:1" title="return to article" class="reversefootnote">&#160;&#8617;</a></p>
+</li>
+
+<li id="fn:2">
+<p>old version used <code>BasicDBObject</code>, new version uses <code>Document</code> <a href="#fnref:2" title="return to article" class="reversefootnote">&#160;&#8617;</a></p>
+</li>
+
+<li id="fn:3">
+<p>binary json - details can be found <a href="http://bsonspec.org/">here</a> <a href="#fnref:3" title="return to article" class="reversefootnote">&#160;&#8617;</a></p>
+</li>
+
+<li id="fn:4">
+<p>see also <a href="http://www.boesebeck.name/?p=1074">here</a> <a href="#fnref:4" title="return to article" class="reversefootnote">&#160;&#8617;</a></p>
+</li>
+
+</ol>
+</div>
+
+
+</body>
+</html>
