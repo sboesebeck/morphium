@@ -302,6 +302,10 @@ public class Logger {
             delegate.log(prfx, lv, msg, t);
     }
 
+    public PrintWriter getOutput() {
+        return out;
+    }
+
     private class DefaultLoggerDelegate implements LoggerDelegate {
 
         @Override

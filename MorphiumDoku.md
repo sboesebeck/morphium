@@ -162,7 +162,7 @@ There are four major components of *Morphium*:
 
 1.  the *Morphium* Instance: This is you main entrypoint for interaction with Mongo. Here you create Queries and you write data to mongo. All writes will then be forwarded to the configured Writer implementation, all reads are handled by the Query-Object
 2.  Query-Object: you need a query object to do reads from mongo. This is usually created by using `Morphium.createQueryFor(Class<T> cls)`. With a Query, you can easily get data from database or have some things changed (update) and alike. 
-3.  the Cache: For every request that should be sent to mongo, *Morphium* checks first, whether this collection is to be cached and if there is already a result being stored for the corresponding request.
+3.  the Cache: For every request that should be sent to mongo, *Morphium* checks first, whether this collection is to be cached and if there is already a batch being stored for the corresponding request.
 4.  The Writers: there are 3 different types of writers in *Morphium*: The Default Writer (`MorphiumWriter`) - writes directly to database, waiting for the response, the BufferedWriter (`BufferedWriter`) - does not write directly. All writes are stored in a buffer which is then processed as a bulk. The last type of writer ist the asynchronous writer (`AsyncWriter`) which is similar to the buffered one, but starts writing immediately - only asynchronous. *Morphium* decides which writer to use depending on the configuration an the annotations of the given Entities. But you can _always_ use asynchronous calls just by adding a`AsyncCallback` implementation to your request.
 
 Simple rule when using *Morphium*: You want to read -> Use the Query-Object. You want to write: Use the *Morphium* Object.
@@ -489,7 +489,7 @@ You can add a number of Listeners to *Morphium* in order to be informed about wh
 
 In addition to that, almost all calls to mongo can be done asynchronously - either by defining that in the @Entity annotation or by defining it directly.
 
-That means, an `asList()` call on a query object can take an `AsyncCallback` as argument, which then will be called, when the result is ready. (which also means, the `asList` call will return `null`, the result will be passed on in the callback).
+That means, an `asList()` call on a query object can take an `AsyncCallback` as argument, which then will be called, when the batch is ready. (which also means, the `asList` call will return `null`, the batch will be passed on in the callback).
 
 ### Support for Aggregation
 
@@ -602,7 +602,7 @@ This is the Unit test for Aggregation support in Mongo:
     }
     
 
-The class `Aggregate` is used to hold the result of the aggregation.
+The class `Aggregate` is used to hold the batch of the aggregation.
 
 ### Validation
 
@@ -680,7 +680,7 @@ This example will create a collection called `MyEntity` (no conversion) and the 
 
 #### using the full qualified classname
 
-you can tell *Morphium* to use the full qualified classname as basis for the collection name, not the simple class name. This would result in createing a collection `de_caluga_morphium_my_entity` for a class called `de.caluga.morphium.MyEntity`. Just set the flag `useFQN` in the entity annotation to `true`.
+you can tell *Morphium* to use the full qualified classname as basis for the collection name, not the simple class name. This would batch in createing a collection `de_caluga_morphium_my_entity` for a class called `de.caluga.morphium.MyEntity`. Just set the flag `useFQN` in the entity annotation to `true`.
 
 `@Entity(useFQN=true)
 public class MyEntity {`
@@ -801,7 +801,7 @@ In this example, I refer to several fields of different types. The Query itself 
 
     queryObject=queryObject.f(FIELDNAME).OPERATION(Value);
     queryObject=queryObject.skip(NUMBER); //skip a number of entreis
-    queryObject=queryObject.limig(NUMBER); // limit result
+    queryObject=queryObject.limig(NUMBER); // limit batch
     queryObject.sort(FIELD_TO_SORTBY);`
     
 
@@ -825,9 +825,9 @@ After you defined your query, you probably want to access the data in mongo. Via
 
 *Morphium* has support for a special Iterator, which steps through the data, a couple of elements at a time. By Default this is the standard behaviour. But the \_Morphium\_Iterator ist quite capable:
 
-*   `queryObject.asIterable()` will stepp through the result list, 10 at a time
-*   `queryObject.asIterable(100)` will step through the result list, 100 at a time
-*   `queryObject.asIterable(100,5)` will step through the result list, 100 at a time and keep 4 chunks of 100 elements each as prefetch buffers. Those will be filled in background.
+*   `queryObject.asIterable()` will stepp through the batch list, 10 at a time
+*   `queryObject.asIterable(100)` will step through the batch list, 100 at a time
+*   `queryObject.asIterable(100,5)` will step through the batch list, 100 at a time and keep 4 chunks of 100 elements each as prefetch buffers. Those will be filled in background.
 *   `MorphiumIterator it=queryObject.asIterable(100,5); it.setMultithreaddedAccess(true);` use the same iterator as before, but make it thread safe.
 
 Internally the default iterator does create queries that are derived from the sort of the query, if there is no sort specified, it will assume you want to sort by `_id`.
@@ -948,7 +948,7 @@ Mark an entity to be read only. You'll get an exception when trying to store.
 
 If you have a member variable, that is a POJO and not a simple value, you can store it as reference to a different collection, if the POJO is an Entity (and only if!).
 
-This also works for lists and Maps. Attention: when reading Objects from disk, references will be de-referenced, which will result into one call to mongo each.
+This also works for lists and Maps. Attention: when reading Objects from disk, references will be de-referenced, which will batch into one call to mongo each.
 
 Unless you set `lazyLoading` to true, in that case, the child documents will only be loaded when accessed.
 
@@ -1013,7 +1013,7 @@ Read-Cache Settings for the given entity.
     *   `CLEAR_TYPE_CACHE`: clear the whole cache for this type on all nodes
     *   `REMOVE_ENTRY_FROM_TYPE_CACHE`: remove an updated entry from the type cache of all nodes
     *   `UPDATE_ENTRY`: update the entry in the cache on all nodes
-    *   This may cause heavy load on the messaging system. All sync strategies except `CLEAR_TYPE_CACHE` might result in dirty reads on some nodes.
+    *   This may cause heavy load on the messaging system. All sync strategies except `CLEAR_TYPE_CACHE` might batch in dirty reads on some nodes.
 
 ### NoCache
 
@@ -1145,7 +1145,7 @@ And:
         uc = uc.f("counter").lt(100);
         MorphiumSingleton.get().delete(uc, new AsyncOperationCallback<Query<UncachedObject>>() {
             @Override
-            public void onOperationSucceeded(AsyncOperationType type, Query<Query<UncachedObject>> q, long duration, List<Query<UncachedObject>> result, Query<UncachedObject> entity, Object... param) {
+            public void onOperationSucceeded(AsyncOperationType type, Query<Query<UncachedObject>> q, long duration, List<Query<UncachedObject>> batch, Query<UncachedObject> entity, Object... param) {
                 log.info("Objects deleted");
             }
     
@@ -1159,7 +1159,7 @@ And:
         uc.f("counter").mod(3, 2);
         MorphiumSingleton.get().set(uc, "counter", 0, false, true, new AsyncOperationCallback<UncachedObject>() {
             @Override
-            public void onOperationSucceeded(AsyncOperationType type, Query<UncachedObject> q, long duration, List<UncachedObject> result, UncachedObject entity, Object... param) {
+            public void onOperationSucceeded(AsyncOperationType type, Query<UncachedObject> q, long duration, List<UncachedObject> batch, UncachedObject entity, Object... param) {
                 log.info("Objects updated");
                 asyncCall = true;
     
@@ -1188,10 +1188,10 @@ And:
         q = q.f("counter").lt(1000);
         q.asList(new AsyncOperationCallback<UncachedObject>() {
             @Override
-            public void onOperationSucceeded(AsyncOperationType type, Query<UncachedObject> q, long duration, List<UncachedObject> result, UncachedObject entity, Object... param) {
+            public void onOperationSucceeded(AsyncOperationType type, Query<UncachedObject> q, long duration, List<UncachedObject> batch, UncachedObject entity, Object... param) {
                 log.info("got read answer");
-                assert (result != null) : "Error";
-                assert (result.size() == 100) : "Error";
+                assert (batch != null) : "Error";
+                assert (batch.size() == 100) : "Error";
                 asyncCall = true;
             }
     

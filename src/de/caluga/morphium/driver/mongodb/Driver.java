@@ -490,7 +490,7 @@ public class Driver implements MorphiumDriver {
                     crs.setInternalCursorObject(ret);
                 }
                 crs.setCursorId(ret.getCursorId());
-                crs.setResult(values);
+                crs.setBatch(values);
                 r.put("result", crs);
 
                 return r;
@@ -525,7 +525,7 @@ public class Driver implements MorphiumDriver {
                 } else {
                     crs.setInternalCursorObject(ret);
                 }
-                crs.setResult(values);
+                crs.setBatch(values);
                 r.put("result", crs);
                 return r;
             }
