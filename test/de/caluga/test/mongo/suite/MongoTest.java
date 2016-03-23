@@ -8,6 +8,9 @@ import de.caluga.morphium.async.AsyncOperationCallback;
 import de.caluga.morphium.async.AsyncOperationType;
 import de.caluga.morphium.driver.ReadPreference;
 import de.caluga.morphium.driver.inmem.InMemoryDriver;
+import de.caluga.morphium.driver.meta.MetaDriver;
+import de.caluga.morphium.driver.singleconnect.SingleConnectDirectDriver;
+import de.caluga.morphium.driver.singleconnect.SingleConnectThreaddedDriver;
 import de.caluga.morphium.messaging.Msg;
 import de.caluga.morphium.query.PrefetchingMorphiumIterator;
 import de.caluga.morphium.query.Query;
@@ -34,9 +37,17 @@ import java.util.logging.Level;
  */
 public class MongoTest {
 
+    private static List<Morphium> morphiums;
     protected Logger log;
     private static Properties props;
     public static Morphium morphium;
+
+    public static Morphium morphiumInMemeory;
+    public static Morphium morphiumSingleConnect;
+    public static Morphium morphiumSingleConnectThreadded;
+    public static Morphium morphiumMeta;
+    public static Morphium morphiumMongodb;
+
 
     public MongoTest() {
         log = new Logger(getClass().getName());
@@ -141,7 +152,6 @@ public class MongoTest {
                 cfg.setGlobalW(1);
 
 
-
 //            cfg.setMongoAdminUser("adm");
 //            cfg.setMongoAdminPwd("adm");
 ////
@@ -176,14 +186,34 @@ public class MongoTest {
 //            cfg.setLogLevelForPrefix(MetaDriver.class.getName(), 5);
 
             //InMemoryTest
-            cfg.setDriverClass(InMemoryDriver.class.getName());
+//            cfg.setDriverClass(InMemoryDriver.class.getName());
             //MetaDriverTEst
 //            cfg.setDriverClass(MetaDriver.class.getName());
+//            cfg.setDriverClass(SingleConnectDirectDriver.class.getName());
 //            cfg.setDriverClass(InMemoryDriver.class.getName());
             cfg.setReplicasetMonitoring(true);
 
 
             morphium = new Morphium(cfg);
+
+            morphiumMongodb = morphium;
+            MorphiumConfig cfgtmp = MorphiumConfig.createFromJson(cfg.toString());
+            cfgtmp.setDriverClass(MetaDriver.class.getName());
+            morphiumMeta = new Morphium(cfgtmp);
+
+
+            cfgtmp = MorphiumConfig.createFromJson(cfg.toString());
+            cfgtmp.setDriverClass(InMemoryDriver.class.getName());
+            morphiumInMemeory = new Morphium(cfgtmp);
+
+            cfgtmp = MorphiumConfig.createFromJson(cfg.toString());
+            cfgtmp.setDriverClass(SingleConnectDirectDriver.class.getName());
+            morphiumSingleConnect = new Morphium(cfgtmp);
+
+            cfgtmp = MorphiumConfig.createFromJson(cfg.toString());
+            cfgtmp.setDriverClass(SingleConnectThreaddedDriver.class.getName());
+            morphiumSingleConnectThreadded = new Morphium(cfgtmp);
+
 
 //            morphium.addListener(new MorphiumStorageAdapter() {
 //                @Override
@@ -223,6 +253,19 @@ public class MongoTest {
         }
     }
 
+
+    public static List<Morphium> getMorphiums() {
+        if (morphiums == null) {
+            morphiums = new ArrayList<Morphium>();
+            morphiums.add(morphiumMongodb);
+            morphiums.add(morphiumInMemeory);
+            morphiums.add(morphiumSingleConnect);
+            morphiums.add(morphiumSingleConnectThreadded);
+            morphiums.add(morphiumMeta);
+        }
+        return morphiums;
+    }
+
     private static void storeProps() {
         File f = getFile();
         try {
@@ -248,6 +291,10 @@ public class MongoTest {
     }
 
     public void createUncachedObjects(int amount) {
+        createUncachedObjects(morphium, amount);
+    }
+
+    public void createUncachedObjects(Morphium morphium, int amount) {
         List<UncachedObject> lst = new ArrayList<>();
         for (int i = 0; i < amount; i++) {
             UncachedObject uc = new UncachedObject();
@@ -271,6 +318,10 @@ public class MongoTest {
     }
 
     public void createCachedObjects(int amount) {
+        createCachedObjects(morphium, amount);
+    }
+
+    public void createCachedObjects(Morphium morphium, int amount) {
         List<CachedObject> lst = new ArrayList<>();
         for (int i = 0; i < amount; i++) {
             CachedObject uc = new CachedObject();
@@ -345,6 +396,10 @@ public class MongoTest {
     }
 
     public void waitForWrites() {
+        waitForWrites(morphium);
+    }
+
+    public void waitForWrites(Morphium morphium) {
         int count = 0;
         while (morphium.getWriteBufferCount() > 0) {
             count++;
@@ -360,5 +415,11 @@ public class MongoTest {
             Thread.sleep(500);
         } catch (InterruptedException e) {
         }
+    }
+
+    public void logSeparator(String s) {
+        log.getOutput().println("\n\n************************************************************");
+        log.getOutput().println("***    " + s);
+        log.getOutput().println("************************************************************\n");
     }
 }

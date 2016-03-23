@@ -23,7 +23,7 @@ Morphium is a POJO Object mapper for Accessing Mongodb. Some of the main Feature
 - ConfigManager helps storing app configurations in Mongo with efficient access to it (cached)
 - Support for References, including lazy loaded references
 - Support for partial updated objects (when writing, only the changes of the object are transferred) 
-- Almost any operation morphium provides is async capable. That means, if you pass it an `AsyncOperaionListener` as argument, you won't get a result now, but after the async operation finished via the callback
+- Almost any operation morphium provides is async capable. That means, if you pass it an `AsyncOperaionListener` as argument, you won't get a batch now, but after the async operation finished via the callback
 
 for questions and feature requests / bug reports also have a look at the google group morphium-discuss@googlegroups.com
 
@@ -105,7 +105,7 @@ As using strings to query your object might be a bit error prone, you also can u
    Query<MyEntity> q=m.createQueryFor(MyEntity.class).f(MyEntity.Fields.aField).eq("a id");
 ```
 of course, these enums need to be created. have a look at https://github.com/sboesebeck/intelliJGenPropertyEnumsPlugin for a plugin for generating those automatically
-in our example, the result would look like this:
+in our example, the batch would look like this:
 ```java
   @Entity(translateCamelCase = true)
   @Cache
