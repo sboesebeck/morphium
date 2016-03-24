@@ -531,7 +531,21 @@ public class Driver implements MorphiumDriver {
             }
         }, retriesOnNetworkError, sleepBetweenErrorRetries).get("result");
     }
-    
+
+    @Override
+    public void closeIteration(MorphiumCursor crs) throws MorphiumDriverException {
+        DriverHelper.doCall(new MorphiumDriverOperation() {
+            @Override
+            public Map<String, Object> execute() throws MorphiumDriverException {
+                if (crs != null) {
+                    DBCursor ret = ((MorphiumCursor<DBCursor>) crs).getInternalCursorObject();
+                    ret.close();
+                }
+                return null;
+            }
+        }, retriesOnNetworkError, sleepBetweenErrorRetries);
+    }
+
     @Override
     @SuppressWarnings("ALL")
     public List<Map<String, Object>> find(String db, String collection, Map<String, Object> query, Map<String, Integer> sort, Map<String, Object> projection, int skip, int limit, int batchSize, ReadPreference readPreference, final Map<String, Object> findMetaData) throws MorphiumDriverException {

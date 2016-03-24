@@ -8,10 +8,16 @@ package de.caluga.morphium.driver.singleconnect;
  * TODO: Add documentation here
  */
 public class SingleConnectCursor {
+
+
+    private final DriverBase driver;
     private String db;
     private String collection;
     private int batchSize;
 
+    public SingleConnectCursor(DriverBase drv) {
+        this.driver = drv;
+    }
     public String getCollection() {
         return collection;
     }
@@ -33,6 +39,9 @@ public class SingleConnectCursor {
         return db;
     }
 
+    public DriverBase getDriver() {
+        return driver;
+    }
     public void setDb(String db) {
         this.db = db;
     }
