@@ -63,7 +63,7 @@ public class SingleConnectThreaddedDriver extends DriverBase {
 
 
             //Reader
-            new Thread() {
+            Thread reader = new Thread() {
                 public void run() {
                     byte[] inBuffer = new byte[16];
                     int errorcount = 0;
@@ -140,6 +140,15 @@ public class SingleConnectThreaddedDriver extends DriverBase {
                                 }
                                 synchronized (replies) {
                                     replies.add(reply);
+                                    ArrayList<OpReply> toRemove = new ArrayList<>();
+                                    for (OpReply r : replies) {
+                                        if (System.currentTimeMillis() - r.timestamp > getHeartbeatSocketTimeout()) {
+                                            toRemove.add(r);
+                                        }
+                                    }
+                                    for (OpReply r : toRemove) {
+                                        replies.remove(r);
+                                    }
                                 }
                             } catch (Exception e) {
                                 log.error("Could not read", e);
@@ -156,7 +165,9 @@ public class SingleConnectThreaddedDriver extends DriverBase {
                     }
                     log.info("reply-thread terminated!");
                 }
-            }.start();
+            };
+            reader.setDaemon(true);
+            reader.start();
             try {
                 Map<String, Object> result = runCommand("local", Utils.getMap("isMaster", true));
 //                log.info("Got result");
@@ -269,12 +280,96 @@ public class SingleConnectThreaddedDriver extends DriverBase {
 
     @Override
     public MorphiumCursor initIteration(String db, String collection, Map<String, Object> query, Map<String, Integer> sort, Map<String, Object> projection, int skip, int limit, int batchSize, ReadPreference readPreference, Map<String, Object> findMetaData) throws MorphiumDriverException {
-        return null;
+        if (sort == null) sort = new HashMap<>();
+        OpQuery q = new OpQuery();
+        q.setDb(db);
+        q.setColl("$cmd");
+        q.setLimit(1);
+        q.setSkip(0);
+        q.setReqId(getNextId());
+
+        Map<String, Object> doc = new LinkedHashMap<>();
+        doc.put("find", collection);
+        if (limit > 0)
+            doc.put("limit", limit);
+        doc.put("skip", skip);
+        if (query.size() != 0)
+            doc.put("filter", query);
+        doc.put("sort", sort);
+        doc.put("batchSize", batchSize);
+
+        q.setDoc(doc);
+        q.setFlags(0);
+        q.setInReplyTo(0);
+
+        List<Map<String, Object>> ret = null;
+        OpReply reply = null;
+        sendQuery(q);
+
+        int waitingfor = q.getReqId();
+        reply = getReply(waitingfor);
+        if (reply.getInReplyTo() != waitingfor)
+            throw new MorphiumDriverNetworkException("Got wrong answser. Request: " + waitingfor + " got answer for " + reply.getInReplyTo());
+
+
+        MorphiumCursor crs = new MorphiumCursor();
+        Map<String, Object> cursor = (Map<String, Object>) reply.getDocuments().get(0).get("cursor");
+        if (cursor != null && cursor.get("id") != null) {
+            crs.setCursorId((Long) cursor.get("id"));
+        }
+
+        if (cursor.get("firstBatch") != null) {
+            crs.setBatch((List) cursor.get("firstBatch"));
+        } else if (cursor.get("nextBatch") != null) {
+            crs.setBatch((List) cursor.get("nextBatch"));
+        }
+
+
+        SingleConnectCursor internalCursorData = new SingleConnectCursor();
+        internalCursorData.setBatchSize(batchSize);
+        internalCursorData.setCollection(collection);
+        internalCursorData.setDb(db);
+        crs.setInternalCursorObject(internalCursorData);
+        return crs;
+
+
     }
 
     @Override
     public MorphiumCursor nextIteration(MorphiumCursor crs) throws MorphiumDriverException {
-        return null;
+        OpReply reply = null;
+        OpQuery q;
+        long cursorId = crs.getCursorId();
+        SingleConnectCursor internalCursorData = (SingleConnectCursor) crs.getInternalCursorObject();
+
+        if (cursorId == 0) return null;
+        q = new OpQuery();
+        q.setColl("$cmd");
+        q.setDb(internalCursorData.getDb());
+        q.setReqId(getNextId());
+        q.setSkip(0);
+        q.setLimit(1);
+        Map<String, Object> doc = new LinkedHashMap<>();
+        doc.put("getMore", cursorId);
+        doc.put("collection", internalCursorData.getCollection());
+        doc.put("batchSize", internalCursorData.getBatchSize());
+        q.setDoc(doc);
+
+        sendQuery(q);
+        reply = getReply(q.getReqId());
+        crs = new MorphiumCursor();
+        crs.setInternalCursorObject(internalCursorData);
+        Map<String, Object> cursor = (Map<String, Object>) reply.getDocuments().get(0).get("cursor");
+        if (cursor != null && cursor.get("id") != null) {
+            crs.setCursorId((Long) cursor.get("id"));
+        }
+        if (cursor.get("firstBatch") != null) {
+            crs.setBatch((List) cursor.get("firstBatch"));
+        } else if (cursor.get("nextBatch") != null) {
+            crs.setBatch((List) cursor.get("nextBatch"));
+        }
+
+        return crs;
     }
 
     @Override
