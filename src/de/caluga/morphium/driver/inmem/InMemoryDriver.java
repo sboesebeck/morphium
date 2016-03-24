@@ -549,6 +549,11 @@ public class InMemoryDriver implements MorphiumDriver {
     }
 
     @Override
+    public void closeIteration(MorphiumCursor crs) throws MorphiumDriverException {
+
+    }
+
+    @Override
     public Map<String, Object> update(String db, String collection, Map<String, Object> query, Map<String, Object> op, boolean multiple, boolean upsert, WriteConcern wc) throws MorphiumDriverException {
         List<Map<String, Object>> lst = find(db, collection, query, null, null, 0, multiple ? 0 : 1, true);
         if (upsert && (lst == null || lst.size() == 0)) {

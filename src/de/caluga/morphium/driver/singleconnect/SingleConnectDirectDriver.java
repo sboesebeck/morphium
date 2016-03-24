@@ -278,7 +278,7 @@ public class SingleConnectDirectDriver extends DriverBase {
         }
 
 
-        SingleConnectCursor internalCursorData = new SingleConnectCursor();
+        SingleConnectCursor internalCursorData = new SingleConnectCursor(this);
         internalCursorData.setBatchSize(batchSize);
         internalCursorData.setCollection(collection);
         internalCursorData.setDb(db);
@@ -315,6 +315,10 @@ public class SingleConnectDirectDriver extends DriverBase {
         crs = new MorphiumCursor();
         crs.setInternalCursorObject(internalCursorData);
         Map<String, Object> cursor = (Map<String, Object>) reply.getDocuments().get(0).get("cursor");
+        if (cursor == null) {
+            //cursor not found
+            throw new MorphiumDriverException("Iteration failed! Error: " + reply.getDocuments().get(0).get("code") + "  Message: " + reply.getDocuments().get(0).get("errmsg"));
+        }
         if (cursor != null && cursor.get("id") != null) {
             crs.setCursorId((Long) cursor.get("id"));
         }
@@ -325,6 +329,19 @@ public class SingleConnectDirectDriver extends DriverBase {
         }
 
         return crs;
+    }
+
+    @Override
+    public void closeIteration(MorphiumCursor crs) throws MorphiumDriverException {
+        if (crs == null) return;
+        SingleConnectCursor internalCursor = (SingleConnectCursor) crs.getInternalCursorObject();
+        Map<String, Object> m = new LinkedHashMap<>();
+        m.put("killCursors", internalCursor.getCollection());
+        List<Long> cursors = new ArrayList<>();
+        cursors.add(crs.getCursorId());
+        m.put("cursors", cursors);
+        Map<String, Object> result = runCommand(internalCursor.getDb(), m);
+        log.info("Got result");
     }
 
     @Override
