@@ -317,7 +317,7 @@ public class SingleConnectThreaddedDriver extends DriverBase {
         if (cursor != null && cursor.get("id") != null) {
             crs.setCursorId((Long) cursor.get("id"));
         }
-
+        if (cursor == null) return null;
         if (cursor.get("firstBatch") != null) {
             crs.setBatch((List) cursor.get("firstBatch"));
         } else if (cursor.get("nextBatch") != null) {

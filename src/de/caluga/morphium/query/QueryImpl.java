@@ -214,7 +214,8 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
         return ret;
     }
 
-    private Map<String, Object> getFieldListForQuery() {
+    @Override
+    public Map<String, Object> getFieldListForQuery() {
         List<Field> fldlst = getARHelper().getAllFields(type);
         Map<String, Object> lst = new HashMap<>();
         lst.put("_id", 1);
@@ -629,7 +630,7 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
         try {
 
             Map<String, Object> findMetaData = new HashMap<>();
-            List<Map<String, Object>> query = morphium.getDriver().find(morphium.getConfig().getDatabase(), getCollectionName(), toQueryObject(), sort, lst, skip, limit, 1000, getRP(), findMetaData);
+            List<Map<String, Object>> query = morphium.getDriver().find(morphium.getConfig().getDatabase(), getCollectionName(), toQueryObject(), sort, lst, skip, limit, morphium.getConfig().getCursorBatchSize(), getRP(), findMetaData);
             srv = (String) findMetaData.get("server");
 
 
@@ -659,7 +660,9 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
 
     @Override
     public MorphiumIterator<T> asIterable() {
-        return asIterable(10, 1);
+        MorphiumDriverIterator<T> it = new MorphiumDriverIterator<>();
+        it.setQuery(this);
+        return it;
     }
 
     @Override

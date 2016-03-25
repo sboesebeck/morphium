@@ -341,7 +341,7 @@ public class SingleConnectDirectDriver extends DriverBase {
         cursors.add(crs.getCursorId());
         m.put("cursors", cursors);
         Map<String, Object> result = runCommand(internalCursor.getDb(), m);
-        log.info("Got result");
+//        log.info("Got result");
     }
 
     @Override

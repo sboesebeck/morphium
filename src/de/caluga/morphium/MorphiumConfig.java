@@ -141,6 +141,7 @@ public class MorphiumConfig {
 
     private String defaultTags;
     private String requiredReplicaSetName = null;
+    private int cursorBatchSize = 1000;
 
     public boolean isReplicaset() {
         return replicaset;
@@ -1121,4 +1122,11 @@ public class MorphiumConfig {
         return tagList;
     }
 
+    public int getCursorBatchSize() {
+        return cursorBatchSize;
+    }
+
+    public void setCursorBatchSize(int cursorBatchSize) {
+        this.cursorBatchSize = cursorBatchSize;
+    }
 }
