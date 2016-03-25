@@ -4,6 +4,7 @@ import de.caluga.morphium.Morphium;
 import de.caluga.morphium.driver.MorphiumCursor;
 import de.caluga.morphium.driver.MorphiumDriverException;
 import de.caluga.morphium.driver.ReadPreference;
+import de.caluga.morphium.query.Query;
 import de.caluga.test.mongo.suite.data.UncachedObject;
 import org.junit.experimental.theories.DataPoints;
 import org.junit.experimental.theories.Theories;
@@ -78,6 +79,42 @@ public class IterationDriverTest extends MongoTest {
 
         //cleaning up
         morphium.dropCollection(UncachedObject.class);
+    }
+
+
+    @Theory
+    public void iterableTest(Morphium morphium) throws Exception {
+        logSeparator("Using Driver " + morphium.getDriver().getClass().getName());
+        int amount = 19999;
+        createUncachedObjects(morphium, amount);
+        Thread.sleep(250);
+        Query<UncachedObject> q = morphium.createQueryFor(UncachedObject.class);
+        int count = 0;
+        long start = System.currentTimeMillis();
+        for (UncachedObject o : q.asIterable()) {
+            count++;
+        }
+        long dur = System.currentTimeMillis() - start;
+        assert (count == amount) : "Wront amount got " + count + " instead of " + amount;
+        log.info("Duration with batchsize and morphiumdriveriterator took " + dur + "ms");
+
+        count = 0;
+        start = System.currentTimeMillis();
+        for (UncachedObject o : q.asIterable(morphium.getConfig().getCursorBatchSize())) {
+            count++;
+        }
+        dur = System.currentTimeMillis() - start;
+        assert (count == amount);
+        log.info("Duration with batchsize and DefaultMorphiumIterator took " + dur + "ms");
+
+        count = 0;
+        start = System.currentTimeMillis();
+        for (UncachedObject o : q.asIterable(100, 4)) {
+            count++;
+        }
+        dur = System.currentTimeMillis() - start;
+        assert (count == amount);
+        log.info("Duration with batchsiz 100/lookahed 4 took " + dur + "ms");
     }
 
 }

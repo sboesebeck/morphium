@@ -1,8 +1,7 @@
 package de.caluga.test.mongo.suite;
 
 import de.caluga.morphium.driver.bson.MorphiumId;
-import de.caluga.morphium.query.MorphiumIterator;
-import de.caluga.morphium.query.Query;
+import de.caluga.morphium.query.*;
 import de.caluga.test.mongo.suite.data.CachedObject;
 import de.caluga.test.mongo.suite.data.UncachedObject;
 import org.junit.Test;
@@ -632,5 +631,13 @@ public class IteratorTest extends MongoTest {
         }
 
 
+    }
+
+    @Test
+    public void iteratorTypeTest() throws Exception {
+        Query<UncachedObject> qu = morphium.createQueryFor(UncachedObject.class).sort("counter");
+        assert (qu.asIterable().getClass().equals(MorphiumDriverIterator.class));
+        assert (qu.asIterable(10).getClass().equals(DefaultMorphiumIterator.class));
+        assert (qu.asIterable(10, 5).getClass().equals(PrefetchingMorphiumIterator.class));
     }
 }

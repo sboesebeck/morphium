@@ -15,7 +15,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 /**
  * TODO: Add Documentation here
  **/
-public class MorphiumId {
+public class MorphiumId implements Comparable<MorphiumId> {
 
     private final static int THE_MACHINE_ID;
     private int machineId;
@@ -227,5 +227,11 @@ public class MorphiumId {
             bld.append(chars[idx]);
         }
         return bld.toString();
+    }
+
+    @Override
+    public int compareTo(MorphiumId o) {
+        if (o == null) return -1;
+        return toString().compareTo(o.toString());
     }
 }
