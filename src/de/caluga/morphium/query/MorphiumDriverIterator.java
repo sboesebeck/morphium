@@ -23,6 +23,7 @@ public class MorphiumDriverIterator<T> implements MorphiumIterator<T> {
     private MorphiumCursor<T> currentBatch = null;
 
     private int cursor = 0;
+    private int cursorExternal = 0;
     private boolean multithreadded;
 
     @Override
@@ -68,17 +69,27 @@ public class MorphiumDriverIterator<T> implements MorphiumIterator<T> {
 
     @Override
     public int getCursor() {
-        return 0;
+        return cursorExternal;
     }
 
     @Override
     public void ahead(int jump) {
+        cursor += jump;
+        cursorExternal += jump;
+        while (cursor >= currentBatch.getBatch().size()) {
+            int diff = cursor - currentBatch.getBatch().size();
+            cursor = currentBatch.getBatch().size() - 1;
 
+            if (!hasNext()) return;
+            cursor += diff;
+        }
     }
 
     @Override
     public void back(int jump) {
-
+        cursor -= jump;
+        cursorExternal -= jump;
+        if (cursor < 0) throw new IllegalArgumentException("cannot jumb back over batch boundaries!");
     }
 
     @Override
@@ -127,13 +138,15 @@ public class MorphiumDriverIterator<T> implements MorphiumIterator<T> {
             if (currentBatch == null) {
                 currentBatch = query.getMorphium().getDriver().initIteration(query.getMorphium().getConfig().getDatabase(), query.getCollectionName(), query.toQueryObject(), query.getSort(), query.getFieldListForQuery(), query.getSkip(), query.getLimit(), query.getMorphium().getConfig().getCursorBatchSize(), query.getMorphium().getReadPreferenceForClass(query.getType()), null);
                 cursor = 0;
-
+                cursorExternal++;
             } else if (currentBatch != null && cursor + 1 < currentBatch.getBatch().size()) {
                 cursor++;
+                cursorExternal++;
                 return true;
             } else if (currentBatch != null && cursor + 1 == currentBatch.getBatch().size()) {
                 currentBatch = query.getMorphium().getDriver().nextIteration(currentBatch);
                 cursor = 0;
+                cursorExternal++;
             }
             if (multithreadded && currentBatch != null && currentBatch.getBatch() != null)
                 currentBatch.setBatch(Collections.synchronizedList(currentBatch.getBatch()));
