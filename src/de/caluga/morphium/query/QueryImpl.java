@@ -663,9 +663,20 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
     }
 
     @Override
-    public MorphiumIterator<T> asCustomIterable(int windowSize, Class<? extends MorphiumIterator<T>> it) {
+    public MorphiumIterator<T> asIterable(int windowSize, Class<? extends MorphiumIterator<T>> it) {
         try {
             MorphiumIterator<T> ret = it.newInstance();
+            ret.setQuery(this);
+            ret.setWindowSize(windowSize);
+            return ret;
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    @Override
+    public MorphiumIterator<T> asIterable(int windowSize, MorphiumIterator<T> ret) {
+        try {
             ret.setQuery(this);
             ret.setWindowSize(windowSize);
             return ret;
