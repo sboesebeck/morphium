@@ -783,7 +783,7 @@ We're working on porting *Morphium* to java8, and there it will be possible to h
 
 ### capped collections
 
-Similar as with indexes, you can define you collection to be capped using the `@Capped` annotation. This annotation takes two arguments: the maximum number of entries and the maximum size. If the collection does not exist, it will be created as capped collection using those two values. You can always ensureCapped your collection, unfortunately then only the `size` parameter will be honoured.
+Similar as with indexes, you can define you collection to be capped using the `@Capped` annotation. This annotation takes two arguments: the maximum number of entries and the maximum size. If the collection does not exist, it will be created as capped collection using those two values. You can always ensureCapped your collection, unfortunately then only the `size` parameter will be honored.
 
 ### Querying
 
@@ -805,12 +805,16 @@ In this example, I refer to several fields of different types. The Query itself 
     queryObject.sort(FIELD_TO_SORTBY);`
     
 
-As field name you may either use the name of the field as it is in mongo or the name of the field in java. If you specify an unknown field to *Morphium*, a runtimeexception will be raiesed.
+As field name you may either use the name of the field as it is in mongo or the name of the field in java. If you specify an unknown field to *Morphium*, a `RuntimeException` will be raised.
 
 For definition of the query, it's also a good practice to define enums for all of your fields. This makes it hard to have mistypes in a query:
 
     public class MyEntity {
-      //.... field definitions
+      private MorphiumId id;
+      private Double value;
+      private String personName;
+      private int counter;
+      //.... field accessors
       public enum Fields { id, value, personName,counter, }
     }
     
@@ -821,11 +825,11 @@ There is a plugin for intelliJ creating those enums automatically. Then, when de
 
 After you defined your query, you probably want to access the data in mongo. Via *Morphium*,there are several possibilities to do that: - `queryObject.get()`: returns the first object matching the query, only one. Or null if nothing matched - `queryObject.asList()`: return a list of all matching objects. Reads all data in RAM. Useful for small amounts of data - `Iterator<MyEntity> it=queryObject.asIterator()`: creates a `MorphiumIterator` to iterate through the data, whch does not read all data at once, but only a couple of elements in a row (default 10).
 
-#### the Iterator
+#### the Iterators
 
 *Morphium* has support for a special Iterator, which steps through the data, a couple of elements at a time. By Default this is the standard behaviour. But the \_Morphium\_Iterator ist quite capable:
 
-*   `queryObject.asIterable()` will stepp through the batch list, 10 at a time
+*   `queryObject.asIterable()`  will step through the results batch by batch. The batch size is determined by the driver settings. This is the most performant, but lacks the ability to "step back" out of the current processed batch.
 *   `queryObject.asIterable(100)` will step through the batch list, 100 at a time
 *   `queryObject.asIterable(100,5)` will step through the batch list, 100 at a time and keep 4 chunks of 100 elements each as prefetch buffers. Those will be filled in background.
 *   `MorphiumIterator it=queryObject.asIterable(100,5); it.setMultithreaddedAccess(true);` use the same iterator as before, but make it thread safe.
