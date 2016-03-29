@@ -320,6 +320,8 @@ public interface Query<T> extends Cloneable {
     void addReturnedField(Enum f);
 
 
+    Map<String, Object> getFieldListForQuery();
+
     List distinct(String field);
 
 

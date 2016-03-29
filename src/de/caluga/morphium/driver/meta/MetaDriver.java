@@ -8,6 +8,7 @@ import de.caluga.morphium.driver.*;
 import de.caluga.morphium.driver.bulk.BulkRequestContext;
 import de.caluga.morphium.driver.singleconnect.BulkContext;
 import de.caluga.morphium.driver.singleconnect.DriverBase;
+import de.caluga.morphium.driver.singleconnect.SingleConnectCursor;
 import de.caluga.morphium.driver.singleconnect.SingleConnectThreaddedDriver;
 
 import java.util.*;
@@ -282,6 +283,37 @@ public class MetaDriver extends DriverBase {
         } finally {
             freeConnection(c);
         }
+    }
+
+    @Override
+    public MorphiumCursor initIteration(String db, String collection, Map<String, Object> query, Map<String, Integer> sort, Map<String, Object> projection, int skip, int limit, int batchSize, ReadPreference readPreference, Map<String, Object> findMetaData) throws MorphiumDriverException {
+        Connection c = getConnection(readPreference);
+        return c.getD().initIteration(db, collection, query, sort, projection, skip, limit, batchSize, readPreference, findMetaData);
+
+    }
+
+    @Override
+    public MorphiumCursor nextIteration(MorphiumCursor crs) throws MorphiumDriverException {
+        //Stay at the same connection
+        SingleConnectCursor c = (SingleConnectCursor) crs.getInternalCursorObject();
+        MorphiumCursor ret = c.getDriver().nextIteration(crs);
+        return ret;
+    }
+
+    @Override
+    public void closeIteration(MorphiumCursor crs) throws MorphiumDriverException {
+        if (crs == null) return; //already closed
+        SingleConnectCursor internalCursor = (SingleConnectCursor) crs.getInternalCursorObject();
+        internalCursor.getDriver().closeIteration(crs);
+        for (String srv : connectionsInUse.keySet()) {
+            for (Connection c : connectionsInUse.get(srv)) {
+                if (c.getD().equals(internalCursor.getDriver())) {
+                    freeConnection(c);
+                    return;
+                }
+            }
+        }
+        throw new MorphiumDriverException("Could not free connection - not in use or closed");
     }
 
     @Override

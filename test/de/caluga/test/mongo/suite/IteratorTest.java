@@ -1,8 +1,7 @@
 package de.caluga.test.mongo.suite;
 
 import de.caluga.morphium.driver.bson.MorphiumId;
-import de.caluga.morphium.query.MorphiumIterator;
-import de.caluga.morphium.query.Query;
+import de.caluga.morphium.query.*;
 import de.caluga.test.mongo.suite.data.CachedObject;
 import de.caluga.test.mongo.suite.data.UncachedObject;
 import org.junit.Test;
@@ -28,7 +27,7 @@ public class IteratorTest extends MongoTest {
         Query<UncachedObject> qu = morphium.createQueryFor(UncachedObject.class).sort("counter");
         qu.setCollectionName("test_uc");
 
-        MorphiumIterator<UncachedObject>[] toTest = new MorphiumIterator[]{qu.asIterable(1000), qu.asIterable(1000, 15)};
+        MorphiumIterator<UncachedObject>[] toTest = new MorphiumIterator[]{qu.asIterable(), qu.asIterable(1000), qu.asIterable(1000, 15)};
         for (final MorphiumIterator<UncachedObject> it : toTest) {
 
             log.info("Running test with " + it.getClass().getName());
@@ -72,11 +71,11 @@ public class IteratorTest extends MongoTest {
 
     @Test
     public void emptyResultIteratorTest() throws Exception {
-        for (UncachedObject uc : morphium.createQueryFor(UncachedObject.class).asIterable(100)) {
+        for (UncachedObject uc : morphium.createQueryFor(UncachedObject.class).asIterable(1000)) {
             assert (false);
         }
 
-        for (UncachedObject uc : morphium.createQueryFor(UncachedObject.class).sort("-counter").asIterable(100)) {
+        for (UncachedObject uc : morphium.createQueryFor(UncachedObject.class).sort("-counter").asIterable(1000)) {
             assert (false);
         }
     }
@@ -95,7 +94,7 @@ public class IteratorTest extends MongoTest {
                     Query<UncachedObject> qu = morphium.createQueryFor(UncachedObject.class).sort("counter");
                     qu.setCollectionName("test_uc");
 //                    MorphiumIterator<UncachedObject> it = qu.asIterable(5000, 15);
-                    MorphiumIterator<UncachedObject>[] toTest = new MorphiumIterator[]{qu.asIterable(10, 1), qu.asIterable(10)};
+                    MorphiumIterator<UncachedObject>[] toTest = new MorphiumIterator[]{qu.asIterable(), qu.asIterable(1000, 1), qu.asIterable(1000)};
                     for (MorphiumIterator<UncachedObject> it : toTest) {
                         for (UncachedObject uc : it) {
                             assert (it.getCursor() == uc.getCounter());
@@ -632,5 +631,13 @@ public class IteratorTest extends MongoTest {
         }
 
 
+    }
+
+    @Test
+    public void iteratorTypeTest() throws Exception {
+        Query<UncachedObject> qu = morphium.createQueryFor(UncachedObject.class).sort("counter");
+        assert (qu.asIterable().getClass().equals(MorphiumDriverIterator.class));
+        assert (qu.asIterable(10).getClass().equals(DefaultMorphiumIterator.class));
+        assert (qu.asIterable(10, 5).getClass().equals(PrefetchingMorphiumIterator.class));
     }
 }

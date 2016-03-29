@@ -25,8 +25,12 @@ public class OpReply extends WireProtocolMessage {
     int startFrom;
     int numReturned;
     byte[] readBytes;
+    public long timestamp;
     List<Map<String, Object>> documents;
 
+    public OpReply() {
+        timestamp = System.currentTimeMillis();
+    }
 
     public void parse(byte[] bytes) throws UnsupportedEncodingException {
         readBytes = bytes;
