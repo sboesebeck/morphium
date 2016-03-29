@@ -33,7 +33,7 @@ public class DefaultMorphiumIterator<T> implements MorphiumIterator<T> {
 
     private Map<String, Object> lastValues = new HashMap<>();
 
-    private Logger log = new Logger(MorphiumIterator.class);
+    private Logger log = new Logger(DefaultMorphiumIterator.class);
     private long limit;
 
     @Override

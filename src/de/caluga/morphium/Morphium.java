@@ -1607,7 +1607,7 @@ public class Morphium {
     }
 
     public <T> Query<T> createQueryFor(Class<? extends T> type, String usingCollectionName) {
-        return createQueryFor(type).setCollectionName(usingCollectionName);
+        return (Query<T>) createQueryFor(type).setCollectionName(usingCollectionName);
     }
 
     public <T> Query<T> createQueryFor(Class<? extends T> type) {

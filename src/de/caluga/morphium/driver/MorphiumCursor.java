@@ -10,7 +10,7 @@ import java.util.Map;
  **/
 public class MorphiumCursor<T> {
     private long cursorId;
-    private List<Map<String, Object>> result;
+    private List<Map<String, Object>> batch;
     private T internalCursorObject;
 
     public long getCursorId() {
@@ -21,12 +21,12 @@ public class MorphiumCursor<T> {
         this.cursorId = cursorId;
     }
 
-    public List<Map<String, Object>> getResult() {
-        return result;
+    public List<Map<String, Object>> getBatch() {
+        return batch;
     }
 
-    public void setResult(List<Map<String, Object>> result) {
-        this.result = result;
+    public void setBatch(List<Map<String, Object>> batch) {
+        this.batch = batch;
     }
 
     public T getInternalCursorObject() {

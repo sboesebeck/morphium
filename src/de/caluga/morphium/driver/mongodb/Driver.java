@@ -452,7 +452,7 @@ public class Driver implements MorphiumDriver {
 //                MongoDatabase database = mongo.getDatabase(db);
                 DBCollection coll = getColl(database, collection, readPreference, null);
                 DBCursor ret = coll.find(new BasicDBObject(query), projection != null ? new BasicDBObject(projection) : null);
-                ret.hasNext();
+
                 if (findMetaData != null) {
                     if (ret.getServerAddress() != null)
                         findMetaData.put("server", ret.getServerAddress().getHost() + ":" + ret.getServerAddress().getPort());
@@ -469,21 +469,30 @@ public class Driver implements MorphiumDriver {
 
                 else ret.batchSize(defaultBatchSize);
                 List<Map<String, Object>> values = new ArrayList<>();
-                int cnt = 0;
-                for (DBObject d : ret) {
+
+                while (ret.hasNext()) {
+                    DBObject d = ret.next();
                     Map<String, Object> obj = convertBSON((BasicDBObject) d);
                     values.add(obj);
-                    cnt++;
-                    if (cnt > batchSize && batchSize != 0 || cnt > 1000 && batchSize == 0) {
+                    int cnt = values.size();
+                    if ((cnt >= batchSize && batchSize != 0) || (cnt >= 1000 && batchSize == 0)) {
                         break;
                     }
                 }
+
                 Map<String, Object> r = new HashMap<String, Object>();
 
                 MorphiumCursor<DBCursor> crs = new MorphiumCursor<>();
+
+                if ((values.size() < batchSize && batchSize != 0) || (values.size() < 1000 && batchSize == 0)) {
+                    ret.close();
+                } else {
+                    crs.setInternalCursorObject(ret);
+                }
                 crs.setCursorId(ret.getCursorId());
-                crs.setResult(values);
+                crs.setBatch(values);
                 r.put("result", crs);
+
                 return r;
             }
         }, retriesOnNetworkError, sleepBetweenErrorRetries).get("result");
@@ -495,14 +504,15 @@ public class Driver implements MorphiumDriver {
             @Override
             public Map<String, Object> execute() {
                 List<Map<String, Object>> values = new ArrayList<>();
-                int cnt = 0;
                 DBCursor ret = ((MorphiumCursor<DBCursor>) crs).getInternalCursorObject();
+                if (ret == null) return new HashMap<String, Object>(); //finished
                 int batchSize = ret.getBatchSize();
-                for (DBObject d : ret) {
+                while (ret.hasNext()) {
+                    DBObject d = ret.next();
                     Map<String, Object> obj = convertBSON((BasicDBObject) d);
                     values.add(obj);
-                    cnt++;
-                    if (cnt > batchSize && batchSize != 0 || cnt > 1000 && batchSize == 0) {
+                    int cnt = values.size();
+                    if (cnt >= batchSize && batchSize != 0 || cnt >= 1000 && batchSize == 0) {
                         break;
                     }
                 }
@@ -510,13 +520,32 @@ public class Driver implements MorphiumDriver {
 
                 MorphiumCursor<DBCursor> crs = new MorphiumCursor<>();
                 crs.setCursorId(ret.getCursorId());
-                crs.setResult(values);
+                if ((values.size() < batchSize && batchSize != 0) || (values.size() < 1000 && batchSize == 0)) {
+                    ret.close();
+                } else {
+                    crs.setInternalCursorObject(ret);
+                }
+                crs.setBatch(values);
                 r.put("result", crs);
                 return r;
             }
         }, retriesOnNetworkError, sleepBetweenErrorRetries).get("result");
     }
-    
+
+    @Override
+    public void closeIteration(MorphiumCursor crs) throws MorphiumDriverException {
+        DriverHelper.doCall(new MorphiumDriverOperation() {
+            @Override
+            public Map<String, Object> execute() throws MorphiumDriverException {
+                if (crs != null) {
+                    DBCursor ret = ((MorphiumCursor<DBCursor>) crs).getInternalCursorObject();
+                    ret.close();
+                }
+                return null;
+            }
+        }, retriesOnNetworkError, sleepBetweenErrorRetries);
+    }
+
     @Override
     @SuppressWarnings("ALL")
     public List<Map<String, Object>> find(String db, String collection, Map<String, Object> query, Map<String, Integer> sort, Map<String, Object> projection, int skip, int limit, int batchSize, ReadPreference readPreference, final Map<String, Object> findMetaData) throws MorphiumDriverException {

@@ -94,7 +94,8 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
         }
         try {
             for (BulkRequestContext ctx : bulkByCollectionName.values()) {
-                ctx.execute();
+                if (ctx != null)
+                    ctx.execute();
             }
 //        } catch (BulkWriteException bwe) {
 //            logger.error("Error executing unordered bulk",bwe);
@@ -289,7 +290,7 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
             public void queue(BulkRequestContext ctx) {
 //                directWriter.updateUsingFields(ent, collection, callback, fields);
                 morphium.firePreUpdateEvent(ent.getClass(), MorphiumStorageListener.UpdateTypes.SET);
-                Query<Object> query = morphium.createQueryFor(ent.getClass()).f(morphium.getARHelper().getIdFieldName(ent)).eq(morphium.getARHelper().getId(ent));
+                Query<Object> query = (Query<Object>) morphium.createQueryFor(ent.getClass()).f(morphium.getARHelper().getIdFieldName(ent)).eq(morphium.getARHelper().getId(ent));
                 if (collection != null)
                     query.setCollectionName(collection);
 //                BulkRequestWrapper r = ctx.addFind(query);
@@ -327,7 +328,7 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
             public void queue(BulkRequestContext ctx) {
 //                directWriter.set(toSet, collection, field, value, upsert, multiple, callback);
                 morphium.firePreUpdateEvent(toSet.getClass(), MorphiumStorageListener.UpdateTypes.SET);
-                Query<Object> query = morphium.createQueryFor(toSet.getClass()).f(morphium.getARHelper().getIdFieldName(toSet)).eq(morphium.getARHelper().getId(toSet));
+                Query<Object> query = (Query<Object>) morphium.createQueryFor(toSet.getClass()).f(morphium.getARHelper().getIdFieldName(toSet)).eq(morphium.getARHelper().getId(toSet));
                 if (collection != null) query.setCollectionName(collection);
                 UpdateBulkRequest wr = ctx.addUpdateBulkRequest();
                 wr.setUpsert(upsert);

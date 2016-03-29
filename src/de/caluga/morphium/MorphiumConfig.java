@@ -141,6 +141,7 @@ public class MorphiumConfig {
 
     private String defaultTags;
     private String requiredReplicaSetName = null;
+    private int cursorBatchSize = 1000;
 
     public boolean isReplicaset() {
         return replicaset;
@@ -530,11 +531,12 @@ public class MorphiumConfig {
 
         ReadPreferenceType readPreferenceType;
         try {
-            readPreferenceType = ReadPreferenceType.valueOf(stringDefaultReadPreference);
+            readPreferenceType = ReadPreferenceType.valueOf(stringDefaultReadPreference.toUpperCase());
         } catch (IllegalArgumentException e) {
             readPreferenceType = null;
         }
-
+        if (readPreferenceType == null)
+            throw new RuntimeException("Could not set defaultReadPreferenceByString " + stringDefaultReadPreference);
         ReadPreference defaultReadPreference = new ReadPreference();
         defaultReadPreference.setType(readPreferenceType);
         this.defaultReadPreference = defaultReadPreference;
@@ -1120,4 +1122,11 @@ public class MorphiumConfig {
         return tagList;
     }
 
+    public int getCursorBatchSize() {
+        return cursorBatchSize;
+    }
+
+    public void setCursorBatchSize(int cursorBatchSize) {
+        this.cursorBatchSize = cursorBatchSize;
+    }
 }
