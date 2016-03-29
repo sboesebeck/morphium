@@ -159,7 +159,9 @@ public interface Query<T> extends Cloneable {
     MorphiumIterator<T> asIterable();
 
 
-    MorphiumIterator<T> asCustomIterable(int windowSize, Class<? extends MorphiumIterator<T>> it);
+    MorphiumIterator<T> asIterable(int windowSize, Class<? extends MorphiumIterator<T>> it);
+
+    MorphiumIterator<T> asIterable(int windowSize, MorphiumIterator<T> ret);
 
     /**
      * create an iterator / iterable for this query, sets window size (how many objects should be read from DB)
