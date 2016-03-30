@@ -12,7 +12,6 @@ html header:    <link rel="stylesheet" href="http://yandex.st/highlightjs/7.3/st
 
 This documentation is refering to *Morphium* version [%morphium_version] and mongodb [%mongodb_version]. this documentation follows "MultiMarkdown" and was created using the MultiMarkdownComposer.
 
-Download PDF here: [MorphiumDoku][1]
 HTML Version here: [MorphiumDoku][4]
 If you just want to start right now, read [quick start]!
 
