@@ -382,25 +382,28 @@ public class IteratorTest extends MongoTest {
         MorphiumIterator<UncachedObject> it = qu.asIterable(2, 10);
         assert (it.hasNext());
         UncachedObject u = it.next();
-        assert (u.getCounter() == 1);
+        assert (u.getCounter() == 1) : "Counter wrong: " + u.getCounter();
         log.info("Got one: " + u.getCounter() + "  / " + u.getValue());
         log.info("Current Buffersize: " + it.getCurrentBufferSize());
         assert (it.getCurrentBufferSize() <= 20) : "buffer is " + it.getCurrentBufferSize();
-
         u = it.next();
-        assert (u.getCounter() == 2);
+        assert (u.getCounter() == 2) : "Counter wrong: " + u.getCounter();
+        it.hasNext();
         u = it.next();
-        assert (u.getCounter() == 3);
+        assert (u.getCounter() == 3) : "Counter wrong: " + u.getCounter() + " cursor: " + it.getCursor();
         assert (it.getCount() == 1000);
         assert (it.getCursor() == 3);
 
         u = it.next();
-        assert (u.getCounter() == 4);
+        assert (u.getCounter() == 4) : "Counter wrong: " + u.getCounter();
         u = it.next();
         assert (u.getCounter() == 5);
 
+        int lastCounter = 5;
         while (it.hasNext()) {
             u = it.next();
+            lastCounter++;
+            assert (u.getCounter() == lastCounter) : "counter mismatch: is " + u.getCounter() + " should be:" + lastCounter;
             log.info("Object: " + u.getCounter());
         }
 
@@ -415,7 +418,7 @@ public class IteratorTest extends MongoTest {
         Query<UncachedObject> qu = morphium.createQueryFor(UncachedObject.class);
         qu.sort("_id");
         long start = System.currentTimeMillis();
-        MorphiumIterator<UncachedObject>[] toTest = new MorphiumIterator[]{qu.asIterable(107, 1), qu.asIterable(107)};
+        MorphiumIterator<UncachedObject>[] toTest = new MorphiumIterator[]{qu.asIterable(107, 2), qu.asIterable(107)};
         for (MorphiumIterator<UncachedObject> it : toTest) {
 
             int read = 0;
