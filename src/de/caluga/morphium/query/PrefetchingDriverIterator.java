@@ -1,0 +1,214 @@
+package de.caluga.morphium.query;/**
+ * Created by stephan on 04.04.16.
+ */
+
+import de.caluga.morphium.Logger;
+import de.caluga.morphium.driver.MorphiumCursor;
+import de.caluga.morphium.driver.MorphiumDriverException;
+
+import java.util.ArrayList;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.CopyOnWriteArrayList;
+
+
+/**
+ * TODO: Add Documentation here
+ **/
+public class PrefetchingDriverIterator<T> implements MorphiumIterator<T> {
+
+    private List<List<T>> prefetchBuffer; //each entry is one buffer
+    private Query<T> query;
+    private int batchsize;
+    private MorphiumCursor cursor;
+    private int numPrefetchBuffers;
+    private volatile int cursorPos;
+    private boolean startedAlready = false;
+    private Logger log = new de.caluga.morphium.Logger(PrefetchingDriverIterator.class);
+
+    public PrefetchingDriverIterator() {
+        prefetchBuffer = new CopyOnWriteArrayList<>();//Collections.synchronizedList(new ArrayList<>());
+    }
+
+    public List<List<T>> getPrefetchBuffer() {
+        return prefetchBuffer;
+    }
+
+    public void setPrefetchBuffer(List<List<T>> prefetchBuffer) {
+        this.prefetchBuffer = prefetchBuffer;
+    }
+
+    @Override
+    public void setWindowSize(int sz) {
+        this.batchsize = sz;
+    }
+
+    @Override
+    public int getWindowSize() {
+        return batchsize;
+    }
+
+    @Override
+    public void setQuery(Query<T> q) {
+        query = q;
+    }
+
+    @Override
+    public Query<T> getQuery() {
+        return query;
+    }
+
+    @Override
+    public int getCurrentBufferSize() {
+        return prefetchBuffer.size();
+    }
+
+    @Override
+    public List<T> getCurrentBuffer() {
+        return prefetchBuffer.get(0);
+    }
+
+    @Override
+    public long getCount() {
+        return query.countAll();
+    }
+
+    @Override
+    public int getCursor() {
+        return cursorPos;
+    }
+
+    @Override
+    public void ahead(int jump) {
+
+    }
+
+    @Override
+    public void back(int jump) {
+
+    }
+
+    @Override
+    public void setNumberOfPrefetchWindows(int n) {
+        if (n <= 1) {
+            n = 2;
+            log.error("Prefetching only makes sense with at least 2 prefetchwindows... setting to 2");
+        }
+        numPrefetchBuffers = n;
+    }
+
+    @Override
+    public int getNumberOfAvailableThreads() {
+        return numPrefetchBuffers;
+    }
+
+    @Override
+    public int getNumberOfThreads() {
+        return 0;
+    }
+
+    @Override
+    public boolean isMultithreaddedAccess() {
+        return true;
+    }
+
+    @Override
+    public void setMultithreaddedAccess(boolean mu) {
+        //always true
+    }
+
+    @Override
+    public Iterator<T> iterator() {
+        return this;
+    }
+
+    @Override
+    public boolean hasNext() {
+
+
+        if (cursor == null && !startedAlready) {
+            startedAlready = true;
+            //startup
+            try {
+                cursor = query.getMorphium().getDriver().initIteration(query.getMorphium().getConfig().getDatabase(), query.getCollectionName(), query.toQueryObject(), query.getSort(), query.getFieldListForQuery(), query.getSkip(), query.getLimit(), batchsize, query.getMorphium().getReadPreferenceForClass(query.getType()), null);
+                if (cursor == null) return false;
+                if (cursor.getBatch() == null) return false;
+                //Starting background process for filling buffer
+                prefetchBuffer.add(getBatch(cursor));
+                startPrefetch();
+
+                if (prefetchBuffer.get(0).size() > 0) return true;
+
+            } catch (MorphiumDriverException e) {
+                e.printStackTrace();
+            }
+
+        }
+        while (prefetchBuffer.size() <= 1 && cursor != null) Thread.yield(); //for end of data detection
+        if (prefetchBuffer.size() == 0 && cursor == null) {
+            return false;
+        }
+        if (cursorPos % getWindowSize() == 0 && prefetchBuffer.size() == 1 && cursor == null) {
+            return false; //end of results
+        }
+        return (cursorPos % getWindowSize() < prefetchBuffer.get(0).size());
+
+    }
+
+    private List<T> getBatch(MorphiumCursor crs) {
+        List<Map<String, Object>> batch = crs.getBatch();
+        List<T> ret = new ArrayList<>();
+        if (batch == null) return ret;
+        for (Map<String, Object> obj : batch) {
+            ret.add(query.getMorphium().getMapper().unmarshall(query.getType(), obj));
+        }
+        return ret;
+    }
+
+    private void startPrefetch() {
+        query.getMorphium().queueTask(() -> {
+            log.info("Starting prefetching...");
+            while (cursor != null) {
+                while (prefetchBuffer.size() >= numPrefetchBuffers && cursor != null) try {
+                    //Busy wait for buffer to be processed
+                    Thread.sleep(50);
+                } catch (InterruptedException e) {
+                }
+                while (prefetchBuffer.size() < numPrefetchBuffers) {
+                    try {
+                        if (cursor == null) break;
+                        MorphiumCursor crs = query.getMorphium().getDriver().nextIteration(cursor);
+                        if (crs == null || crs.getBatch() == null || crs.getBatch().size() == 0) {
+                            cursor = null;
+                            break;
+                        }
+                        prefetchBuffer.add(getBatch(crs));
+                        cursor = crs;
+                    } catch (MorphiumDriverException e) {
+                        cursor = null;
+                        e.printStackTrace();
+                        break;
+                    }
+                }
+            }
+            log.info("Prefetch finished");
+        });
+    }
+
+    @Override
+    public T next() {
+        if (cursor == null && !startedAlready) {
+            if (!hasNext()) return null;
+        }
+        if (cursorPos != 0 && cursorPos % getWindowSize() == 0) {
+            prefetchBuffer.remove(0);
+        }
+        while (prefetchBuffer.size() == 0 && cursor != null) Thread.yield();
+        if (prefetchBuffer.size() == 0) {
+            log.error("Prefetchbuffer is empty!");
+            return null;
+        }
+        return prefetchBuffer.get(0).get(cursorPos++ % getWindowSize());
+    }
+}

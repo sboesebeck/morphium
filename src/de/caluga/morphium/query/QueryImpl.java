@@ -705,7 +705,7 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
         if (log.isDebugEnabled()) {
             log.debug("creating iterable for query - windowsize " + windowSize);
         }
-        MorphiumIterator<T> it = new PrefetchingMorphiumIterator<>();
+        MorphiumIterator<T> it = new PrefetchingDriverIterator<>();
         it.setQuery(this);
         it.setWindowSize(windowSize);
         it.setNumberOfPrefetchWindows(prefixWindows);
