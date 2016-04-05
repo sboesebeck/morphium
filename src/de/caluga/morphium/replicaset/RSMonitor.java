@@ -87,7 +87,7 @@ public class RSMonitor {
                     Map<String, Object> findMetaData = new HashMap<>();
                     List<Map<String, Object>> stats = morphium.getDriver().find("local", "system.replset", new HashMap<>(), null, null, 0, 10, 10, null, findMetaData);
                     if (stats == null || stats.size() == 0) {
-                        logger.info("could not get replicaset status");
+                        logger.debug("could not get replicaset status");
                     } else {
                         Map<String, Object> stat = stats.get(0);
 //                    DBCursor rpl = morphium.getDriver().getDB("local").getCollection("system.replset").find();

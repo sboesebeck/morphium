@@ -247,6 +247,7 @@ public class MorphiumDriverSpeedTest {
             lst.add(uc);
         }
         m.storeList(lst);
+        Thread.sleep(100);
         long dur = System.currentTimeMillis() - start;
         log.info("Write Took:  " + dur);
 

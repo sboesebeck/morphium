@@ -242,8 +242,9 @@ public class PrefetchingDriverIterator<T> implements MorphiumIterator<T> {
     }
 
     private void checkAndUpdateLastAccess() {
-        if (System.currentTimeMillis() - lastAccess > query.getMorphium().getConfig().getSocketTimeout()) {
-            throw new RuntimeException("Cursor timeout - socket timeout reached");
+        if (query == null) return;
+        if (System.currentTimeMillis() - lastAccess > query.getMorphium().getConfig().getMaxWaitTime()) {
+            throw new RuntimeException("Cursor timeout - max wait time reached");
         }
         lastAccess = System.currentTimeMillis();
     }

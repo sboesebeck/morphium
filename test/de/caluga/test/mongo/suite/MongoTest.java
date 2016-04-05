@@ -147,6 +147,13 @@ public class MongoTest {
                 cfg.setRetryWaitTimeAsyncWriter(1000);
                 cfg.setRetryWaitTimeWriter(1000);
                 cfg.setRetryWaitTimeBufferedWriter(1000);
+                cfg.setSocketTimeout(0);
+                cfg.setSocketKeepAlive(true);
+                cfg.setHeartbeatConnectTimeout(1000);
+                cfg.setHeartbeatSocketTimeout(1000);
+                cfg.setHeartbeatFrequency(500);
+                cfg.setMinHearbeatFrequency(1000);
+
                 cfg.setGlobalFsync(false);
                 cfg.setGlobalJ(false);
                 cfg.setGlobalW(1);
@@ -182,6 +189,7 @@ public class MongoTest {
             cfg.setLogLevelForClass(PrefetchingMorphiumIterator.class, 3);
             cfg.setLogLevelForPrefix("de.caluga.test", 5);
             cfg.setLogSyncedForPrefix("de.caluga.test", true);
+            cfg.setLogLevelForClass(SingleConnectThreaddedDriver.class, 5);
 //            cfg.setLogLevelForPrefix("de.caluga.morphium.driver", 3);
 //            cfg.setLogLevelForPrefix(MetaDriver.class.getName(), 5);
 

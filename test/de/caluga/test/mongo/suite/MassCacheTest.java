@@ -225,7 +225,7 @@ public class MassCacheTest extends MongoTest {
     }
 
     @Test
-    public void cacheTest() {
+    public void cacheTest() throws Exception {
         log.info("Preparing test data...");
         for (int j = 0; j < NO_OBJECTS; j++) {
             CachedObject o = new CachedObject();
@@ -234,6 +234,7 @@ public class MassCacheTest extends MongoTest {
             morphium.store(o);
         }
         waitForWrites();
+        Thread.sleep(250);
         log.info("Done.");
         ProfilingListener pl = new ProfilingListener() {
             @Override
