@@ -3,9 +3,6 @@ package de.caluga.morphium.driver;/**
  */
 
 
-/**
- * TODO: Add Documentation here
- **/
 public class MorphiumCollection {
 
     private String collection;

@@ -16,7 +16,7 @@ import java.util.concurrent.ConcurrentHashMap;
  * Date: 07.03.13
  * Time: 10:56
  * <p/>
- * TODO: Add documentation here
+ * The Cache implementation for morphium.
  */
 public class MorphiumCacheImpl implements MorphiumCache {
     private Map<Class<?>, Map<String, CacheElement>> cache;
@@ -77,9 +77,7 @@ public class MorphiumCacheImpl implements MorphiumCache {
             //copy from idCache
             Map<Class<?>, Map<Object, Object>> idCacheClone = idCache; // getIdCache();
             for (T record : ret) {
-                if (idCacheClone.get(type) == null) {
-                    idCacheClone.put(type, new ConcurrentHashMap<>());
-                }
+                idCacheClone.putIfAbsent(type, new ConcurrentHashMap<>());
                 idCacheClone.get(type).put(annotationHelper.getId(record), record);
             }
 //            setIdCache(idCacheClone);
@@ -88,9 +86,7 @@ public class MorphiumCacheImpl implements MorphiumCache {
         CacheElement<T> e = new CacheElement<>(ret);
         e.setLru(System.currentTimeMillis());
         //Map<Class<?>, Map<String, CacheElement>> cl =  (Map<Class<?>, Map<String, CacheElement>>) (((HashMap) cache).clone());
-        if (cache.get(type) == null) {
-            cache.put(type, new ConcurrentHashMap<>());
-        }
+        cache.putIfAbsent(type, new ConcurrentHashMap<>());
         cache.get(type).put(k, e);
 
         //atomar execution of this operand - no synchronization needed
@@ -187,7 +183,7 @@ public class MorphiumCacheImpl implements MorphiumCache {
         if (sort != null) {
             b.append(" sort:");
             for (Map.Entry<String, Integer> s : sort.entrySet()) {
-                b.append(" " + s.getKey() + ":" + s.getValue());
+                b.append(" ").append(s.getKey()).append(":").append(s.getValue());
             }
         }
         return b.toString();
@@ -225,7 +221,7 @@ public class MorphiumCacheImpl implements MorphiumCache {
 
     @Override
     public void resetCache() {
-        setCache(new ConcurrentHashMap<Class<?>, Map<String, CacheElement>>());
+        setCache(new ConcurrentHashMap<>());
     }
 
     @Override

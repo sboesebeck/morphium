@@ -163,11 +163,11 @@ public class NetworkRetryTest extends MongoTest {
         for (int i = 1; i < 1000; i++) {
             Query<ListContainer> lc = morphium.createQueryFor(ListContainer.class);
             lc = lc.f("name").eq("LC" + i);
-            morphium.push(lc, "long_list", 12345l);
-            morphium.push(lc, "long_list", 12346l);
-            morphium.push(lc, "long_list", 12347l);
+            morphium.push(lc, "long_list", 12345L);
+            morphium.push(lc, "long_list", 12346L);
+            morphium.push(lc, "long_list", 12347L);
             ListContainer cont = lc.get();
-            assert (cont.getLongList().contains(12345l)) : "No push?";
+            assert (cont.getLongList().contains(12345L)) : "No push?";
             log.info("Pushed...");
             Thread.sleep(1000);
         }
@@ -191,13 +191,13 @@ public class NetworkRetryTest extends MongoTest {
             Query<ListContainer> lc = morphium.createQueryFor(ListContainer.class);
             lc = lc.f("name").eq("LC" + i);
             List<Long> lst = new ArrayList<>();
-            lst.add(12345l);
-            lst.add(123456l);
-            lst.add(123l);
-            lst.add(12l);
+            lst.add(12345L);
+            lst.add(123456L);
+            lst.add(123L);
+            lst.add(12L);
             morphium.pushAll(lc, "long_list", lst, false, false);
             ListContainer cont = lc.get();
-            assert (cont.getLongList().contains(12345l)) : "No push?";
+            assert (cont.getLongList().contains(12345L)) : "No push?";
             log.info("Pushed...");
             Thread.sleep(1000);
         }

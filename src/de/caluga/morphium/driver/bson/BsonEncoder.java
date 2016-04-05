@@ -10,7 +10,7 @@ import java.util.regex.Pattern;
  * Date: 26.10.15
  * Time: 22:44
  * <p>
- * TODO: Add documentation here
+ * encoding BSON for sending data do mongodb
  */
 public class BsonEncoder {
     private ByteArrayOutputStream out;
@@ -77,7 +77,6 @@ public class BsonEncoder {
             o2.write(o.toByteArray());
             o2.write(0x00);
         } catch (IOException e) {
-            //TODO: Implement Handling
             throw new RuntimeException(e);
         }
         return o2.toByteArray();
@@ -189,7 +188,7 @@ public class BsonEncoder {
         } else if (v.getClass().isAssignableFrom(Long.class)) {
             writeByte(0x12);
             cString(n);
-            long val = ((Long) v).longValue();
+            long val = (Long) v;
             writeLong(val);
         } else if (v.getClass().isAssignableFrom(MongoMinKey.class)) {
             writeByte(0xff);

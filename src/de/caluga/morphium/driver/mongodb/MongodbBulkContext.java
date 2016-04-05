@@ -22,7 +22,7 @@ import java.util.Map;
  * Date: 13.11.15
  * Time: 23:06
  * <p>
- * TODO: Add documentation here
+ * Bulk context
  */
 public class MongodbBulkContext extends BulkRequestContext {
     private Logger log = new Logger(MongodbBulkContext.class);
@@ -90,7 +90,7 @@ public class MongodbBulkContext extends BulkRequestContext {
             if (br instanceof InsertBulkRequest) {
                 //Insert...
                 InsertBulkRequest ib = (InsertBulkRequest) br;
-                helper.replaceMorphiumIdByObjectId(ib.getToInsert());
+                DriverHelper.replaceMorphiumIdByObjectId(ib.getToInsert());
                 for (Map<String, Object> o : ib.getToInsert()) {
                     Document document = new Document(o);
                     lst.add(new InsertOneModel<>(document));
@@ -99,7 +99,7 @@ public class MongodbBulkContext extends BulkRequestContext {
 
             } else if (br instanceof StoreBulkRequest) {
                 StoreBulkRequest ib = (StoreBulkRequest) br;
-                helper.replaceMorphiumIdByObjectId(ib.getToInsert());
+                DriverHelper.replaceMorphiumIdByObjectId(ib.getToInsert());
                 for (Map<String, Object> o : ib.getToInsert()) {
                     Document document = new Document(o);
                     lst.add(new ReplaceOneModel<>(new Document(Utils.getMap("_id", o.get("_id"))), document));
@@ -107,7 +107,7 @@ public class MongodbBulkContext extends BulkRequestContext {
                 }
             } else if (br instanceof DeleteBulkRequest) {
                 DeleteBulkRequest dbr = (DeleteBulkRequest) br;
-                helper.replaceMorphiumIdByObjectId(((DeleteBulkRequest) br).getQuery());
+                DriverHelper.replaceMorphiumIdByObjectId(((DeleteBulkRequest) br).getQuery());
                 if (dbr.isMultiple()) {
                     lst.add(new DeleteManyModel<>(new Document(dbr.getQuery())));
                 } else {
@@ -118,8 +118,8 @@ public class MongodbBulkContext extends BulkRequestContext {
                 UpdateBulkRequest up = (UpdateBulkRequest) br;
                 UpdateOptions upd = new UpdateOptions();
                 upd.upsert(up.isUpsert());
-                helper.replaceMorphiumIdByObjectId(up.getQuery());
-                helper.replaceMorphiumIdByObjectId(up.getCmd());
+                DriverHelper.replaceMorphiumIdByObjectId(up.getQuery());
+                DriverHelper.replaceMorphiumIdByObjectId(up.getCmd());
                 if (up.isMultiple()) {
                     UpdateManyModel updateModel = new UpdateManyModel(new Document(up.getQuery()), new Document(up.getCmd()), upd);
                     lst.add(updateModel);

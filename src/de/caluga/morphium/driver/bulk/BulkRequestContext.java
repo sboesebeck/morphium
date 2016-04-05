@@ -9,7 +9,7 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * TODO: Add Documentation here
+ * context for doing bulk request.
  **/
 public abstract class BulkRequestContext {
     private boolean odererd = false;

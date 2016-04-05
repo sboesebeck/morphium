@@ -5,7 +5,7 @@ package de.caluga.morphium;/**
 import de.caluga.morphium.annotations.Embedded;
 
 /**
- * TODO: Add Documentation here
+ * modeling references between two entities
  **/
 @Embedded
 public class MorphiumReference {

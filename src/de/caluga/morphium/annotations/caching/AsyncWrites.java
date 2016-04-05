@@ -11,7 +11,7 @@ import static java.lang.annotation.ElementType.TYPE;
  * Date: 19.03.13
  * Time: 12:38
  * <p/>
- * TODO: Add documentation here
+ * When this annotation is added to a class, all store or update calls of objects of this class will be asynchrounously
  */
 @Target({TYPE})
 @Retention(RetentionPolicy.RUNTIME)

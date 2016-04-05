@@ -89,7 +89,7 @@ public class ReferenceTest extends MongoTest {
 
 
         ReferenceContainer rc2 = new ReferenceContainer();
-        rc2.setLst(new ArrayList<UncachedObject>());
+        rc2.setLst(new ArrayList<>());
         rc2.setUc(toSearchFor);
         morphium.store(rc2);
 

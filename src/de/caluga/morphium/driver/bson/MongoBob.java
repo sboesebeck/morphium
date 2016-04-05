@@ -3,7 +3,7 @@ package de.caluga.morphium.driver.bson;/**
  */
 
 /**
- * TODO: Add Documentation here
+ * BOB implementation for BSON
  **/
 public class MongoBob {
     private byte[] data;

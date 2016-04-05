@@ -3,7 +3,12 @@ package de.caluga.morphium.driver;/**
  */
 
 /**
- * TODO: Add Documentation here
+ * define how secure the write should be. most important the w value which states the number of nodes written to:
+ * 0: no error handling
+ * 1: master only
+ * >1: number of nodes
+ * -1: all available replicase nodes
+ * -2: majority
  **/
 public class WriteConcern {
     //number of nodes data is written to
@@ -47,8 +52,7 @@ public class WriteConcern {
     }
 
     public static WriteConcern getWc(int w, boolean fsync, boolean j, int wtimeout) {
-        WriteConcern wc = new WriteConcern(w, fsync, j, wtimeout);
-        return wc;
+        return new WriteConcern(w, fsync, j, wtimeout);
     }
 
 }

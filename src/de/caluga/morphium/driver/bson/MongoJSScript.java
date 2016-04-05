@@ -5,7 +5,7 @@ package de.caluga.morphium.driver.bson;/**
 import java.util.Map;
 
 /**
- * TODO: Add Documentation here
+ * JSCript implemantation for BSON
  **/
 public class MongoJSScript {
     private String js;

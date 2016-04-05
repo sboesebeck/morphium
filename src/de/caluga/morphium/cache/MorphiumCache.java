@@ -10,7 +10,7 @@ import java.util.Map;
  * Date: 07.03.13
  * Time: 09:57
  * <p/>
- * TODO: Add documentation here
+ * Cache interface . you can set your own cache implementation to morphium if it implements this interface
  */
 public interface MorphiumCache {
     <T> void addToCache(String k, Class<? extends T> type, List<T> ret);

@@ -15,7 +15,8 @@ import java.util.concurrent.ConcurrentHashMap;
  * Date: 28.11.15
  * Time: 23:25
  * <p>
- * TODO: Add documentation here
+ * InMemory implementation of the MorphiumDriver interface. can be used for testing or caching. Does not cover all
+ * functionality yet.
  */
 public class InMemoryDriver implements MorphiumDriver {
     private Logger log = new Logger(InMemoryDriver.class);
@@ -318,28 +319,31 @@ public class InMemoryDriver implements MorphiumDriver {
         if (query.size() == 0) return true;
         if (query.containsKey("$where")) throw new RuntimeException("$where not implemented yet");
         for (String key : query.keySet()) {
-            if (key.equals("$and")) {
-                //list of field queries
-                List<Map<String, Object>> lst = ((List<Map<String, Object>>) query.get(key));
-                for (Map<String, Object> q : lst) {
-                    if (!matchesQuery(q, toCheck)) return false;
+            switch (key) {
+                case "$and": {
+                    //list of field queries
+                    List<Map<String, Object>> lst = ((List<Map<String, Object>>) query.get(key));
+                    for (Map<String, Object> q : lst) {
+                        if (!matchesQuery(q, toCheck)) return false;
+                    }
+                    return true;
                 }
-                return true;
-            } else if (key.equals("$or")) {
-                //list of or queries
-                List<Map<String, Object>> lst = ((List<Map<String, Object>>) query.get(key));
-                for (Map<String, Object> q : lst) {
-                    if (matchesQuery(q, toCheck)) return true;
-                }
-                return false;
+                case "$or": {
+                    //list of or queries
+                    List<Map<String, Object>> lst = ((List<Map<String, Object>>) query.get(key));
+                    for (Map<String, Object> q : lst) {
+                        if (matchesQuery(q, toCheck)) return true;
+                    }
+                    return false;
 
-            } else {
-                //field check
-                if (query.get(key) instanceof Map) {
-                    //probably a query operand
-                    Map<String, Object> q = (Map<String, Object>) query.get(key);
-                    assert (q.size() == 1);
-                    for (String k : q.keySet()) {
+                }
+                default:
+                    //field check
+                    if (query.get(key) instanceof Map) {
+                        //probably a query operand
+                        Map<String, Object> q = (Map<String, Object>) query.get(key);
+                        assert (q.size() == 1);
+                        String k = q.keySet().iterator().next();
                         switch (k) {
                             case "$lt":
                                 return ((Comparable) toCheck.get(key)).compareTo(q.get(k)) < 0;
@@ -374,12 +378,12 @@ public class InMemoryDriver implements MorphiumDriver {
                                 throw new RuntimeException("Unknown Operator " + k);
                         }
 
+
+                    } else {
+                        //value comparison - should only be one here
+                        assert (query.size() == 1);
+                        return toCheck.get(key).equals(query.get(key));
                     }
-                } else {
-                    //value comparison - should only be one here
-                    assert (query.size() == 1);
-                    return toCheck.get(key).equals(query.get(key));
-                }
             }
         }
         return matches;
@@ -455,30 +459,26 @@ public class InMemoryDriver implements MorphiumDriver {
         List<Map<String, Object>> data = getCollection(db, collection);
         List<Map<String, Object>> ret = new ArrayList<>();
         int count = 0;
-        for (int i = 0; i < data.size(); i++) {
-            Map<String, Object> o = data.get(i);
+        for (Map<String, Object> o : data) {
             count++;
             if (count < skip) {
                 continue;
             }
-            if (matchesQuery(query, o)) ret.add(internal ? o : new HashMap<String, Object>(o));
+            if (matchesQuery(query, o)) ret.add(internal ? o : new HashMap<>(o));
             if (limit > 0 && ret.size() >= limit) break;
 
             //todo add projection
         }
 
         if (sort != null) {
-            ret.sort(new Comparator<Map<String, Object>>() {
-                @Override
-                public int compare(Map<String, Object> o1, Map<String, Object> o2) {
-                    for (String f : sort.keySet()) {
-                        if (o1.get(f).equals(o2.get(f))) {
-                            continue;
-                        }
-                        return ((Comparable) o1.get(f)).compareTo(o2.get(f)) * sort.get(f);
+            ret.sort((o1, o2) -> {
+                for (String f : sort.keySet()) {
+                    if (o1.get(f).equals(o2.get(f))) {
+                        continue;
                     }
-                    return 0;
+                    return ((Comparable) o1.get(f)).compareTo(o2.get(f)) * sort.get(f);
                 }
+                return 0;
             });
         }
 
@@ -503,13 +503,12 @@ public class InMemoryDriver implements MorphiumDriver {
         List<Map<String, Object>> ret = new ArrayList<>();
 
         List<Map<String, Object>> data = getCollection(db, coll);
-        for (int i = 0; i < data.size(); i++) {
-            Map<String, Object> obj = data.get(i);
+        for (Map<String, Object> obj : data) {
             if (obj.get(field) == null && value != null) continue;
             if (obj.get(field) == null && value == null) {
-                ret.add(new HashMap<String, Object>(obj));
+                ret.add(new HashMap<>(obj));
             } else if (obj.get(field).equals(value)) {
-                ret.add(new HashMap<String, Object>(obj));
+                ret.add(new HashMap<>(obj));
             }
         }
         return ret;
@@ -518,7 +517,7 @@ public class InMemoryDriver implements MorphiumDriver {
     @Override
     public void insert(String db, String collection, List<Map<String, Object>> objs, WriteConcern wc) throws MorphiumDriverException {
         for (Map<String, Object> o : objs) {
-            if (o.get("_id") == null) o.put("_id", new MorphiumId());
+            o.putIfAbsent("_id", new MorphiumId());
             if (findByFieldValue(db, collection, "_id", o.get("_id")).size() != 0)
                 throw new MorphiumDriverException("Duplicate _id!", null);
         }
@@ -542,9 +541,7 @@ public class InMemoryDriver implements MorphiumDriver {
     }
 
     private Map<String, List<Map<String, Object>>> getDB(String db) {
-        if (database.get(db) == null) {
-            database.put(db, new ConcurrentHashMap<>());
-        }
+        database.putIfAbsent(db, new ConcurrentHashMap<>());
         return database.get(db);
     }
 
@@ -557,7 +554,6 @@ public class InMemoryDriver implements MorphiumDriver {
     public Map<String, Object> update(String db, String collection, Map<String, Object> query, Map<String, Object> op, boolean multiple, boolean upsert, WriteConcern wc) throws MorphiumDriverException {
         List<Map<String, Object>> lst = find(db, collection, query, null, null, 0, multiple ? 0 : 1, true);
         if (upsert && (lst == null || lst.size() == 0)) {
-            //TODO upserting
             throw new RuntimeException("Upsert not implemented yet!");
         }
         for (Map<String, Object> obj : lst) {
@@ -645,9 +641,7 @@ public class InMemoryDriver implements MorphiumDriver {
     }
 
     private List<Map<String, Object>> getCollection(String db, String collection) {
-        if (getDB(db).get(collection) == null) {
-            getDB(db).put(collection, Collections.synchronizedList(new ArrayList<>()));
-        }
+        getDB(db).putIfAbsent(collection, Collections.synchronizedList(new ArrayList<>()));
         return getDB(db).get(collection);
     }
 
@@ -793,7 +787,6 @@ public class InMemoryDriver implements MorphiumDriver {
 
     @Override
     public void createIndex(String db, String collection, Map<String, Object> index, Map<String, Object> options) throws MorphiumDriverException {
-        //TODO: implement hashmap access for this
 
     }
 

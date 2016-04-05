@@ -5,7 +5,7 @@ package de.caluga.morphium;/**
 import java.util.logging.Level;
 
 /**
- * TODO: Add Documentation here
+ * logger delegate that passes on all calls to JUL
  **/
 public class JavaUtilLoggingDelegate implements LoggerDelegate {
     @Override

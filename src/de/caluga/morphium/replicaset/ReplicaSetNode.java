@@ -2,7 +2,6 @@ package de.caluga.morphium.replicaset;
 
 import de.caluga.morphium.annotations.Embedded;
 import de.caluga.morphium.annotations.Property;
-import org.bson.types.BSONTimestamp;
 
 import java.util.Date;
 

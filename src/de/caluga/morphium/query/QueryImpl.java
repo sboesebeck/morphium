@@ -12,6 +12,7 @@ import java.lang.reflect.Field;
 import java.text.SimpleDateFormat;
 import java.util.*;
 import java.util.concurrent.ThreadPoolExecutor;
+import java.util.stream.Collectors;
 
 /**
  * User: Stpehan Bösebeck
@@ -462,16 +463,13 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
         if (c == null) {
             throw new IllegalArgumentException("Not really useful to read from db and not use the result");
         }
-        Runnable r = new Runnable() {
-            @Override
-            public void run() {
-                long start = System.currentTimeMillis();
-                try {
-                    long ret = countAll();
-                    c.onOperationSucceeded(AsyncOperationType.READ, QueryImpl.this, System.currentTimeMillis() - start, null, null, ret);
-                } catch (Exception e) {
-                    c.onOperationError(AsyncOperationType.READ, QueryImpl.this, System.currentTimeMillis() - start, e.getMessage(), e, null);
-                }
+        Runnable r = () -> {
+            long start = System.currentTimeMillis();
+            try {
+                long ret = countAll();
+                c.onOperationSucceeded(AsyncOperationType.READ, QueryImpl.this, System.currentTimeMillis() - start, null, null, ret);
+            } catch (Exception e) {
+                c.onOperationError(AsyncOperationType.READ, QueryImpl.this, System.currentTimeMillis() - start, e.getMessage(), e, null);
             }
         };
 
@@ -539,7 +537,7 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
             }
 
             o.put("$and", lst);
-            lst = new ArrayList<Map<String, Object>>();
+            lst = new ArrayList<>();
         }
         if (orQueries.size() != 0) {
             for (Query<T> ex : orQueries) {
@@ -588,16 +586,13 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
     @Override
     public void asList(final AsyncOperationCallback<T> callback) {
         if (callback == null) throw new IllegalArgumentException("callback is null");
-        Runnable r = new Runnable() {
-            @Override
-            public void run() {
-                long start = System.currentTimeMillis();
-                try {
-                    List<T> lst = asList();
-                    callback.onOperationSucceeded(AsyncOperationType.READ, QueryImpl.this, System.currentTimeMillis() - start, lst, null);
-                } catch (Exception e) {
-                    callback.onOperationError(AsyncOperationType.READ, QueryImpl.this, System.currentTimeMillis() - start, e.getMessage(), e, null);
-                }
+        Runnable r = () -> {
+            long start = System.currentTimeMillis();
+            try {
+                List<T> lst = asList();
+                callback.onOperationSucceeded(AsyncOperationType.READ, QueryImpl.this, System.currentTimeMillis() - start, lst, null);
+            } catch (Exception e) {
+                callback.onOperationError(AsyncOperationType.READ, QueryImpl.this, System.currentTimeMillis() - start, e.getMessage(), e, null);
             }
         };
         getExecutor().submit(r);
@@ -757,18 +752,15 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
     @Override
     public void getById(final Object id, final AsyncOperationCallback<T> callback) {
         if (callback == null) throw new IllegalArgumentException("Callback is null");
-        Runnable c = new Runnable() {
-            @Override
-            public void run() {
-                long start = System.currentTimeMillis();
-                try {
-                    T res = getById(id);
-                    List<T> result = new ArrayList<>();
-                    result.add(res);
-                    callback.onOperationSucceeded(AsyncOperationType.READ, QueryImpl.this, System.currentTimeMillis() - start, result, res);
-                } catch (Exception e) {
-                    callback.onOperationError(AsyncOperationType.READ, QueryImpl.this, System.currentTimeMillis() - start, e.getMessage(), e, null);
-                }
+        Runnable c = () -> {
+            long start = System.currentTimeMillis();
+            try {
+                T res = getById(id);
+                List<T> result = new ArrayList<>();
+                result.add(res);
+                callback.onOperationSucceeded(AsyncOperationType.READ, QueryImpl.this, System.currentTimeMillis() - start, result, res);
+            } catch (Exception e) {
+                callback.onOperationError(AsyncOperationType.READ, QueryImpl.this, System.currentTimeMillis() - start, e.getMessage(), e, null);
             }
         };
         getExecutor().submit(c);
@@ -789,18 +781,15 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
     @Override
     public void get(final AsyncOperationCallback<T> callback) {
         if (callback == null) throw new IllegalArgumentException("Callback is null");
-        Runnable r = new Runnable() {
-            @Override
-            public void run() {
-                long start = System.currentTimeMillis();
-                try {
-                    List<T> ret = new ArrayList<>();
-                    T ent = get();
-                    ret.add(ent);
-                    callback.onOperationSucceeded(AsyncOperationType.READ, QueryImpl.this, System.currentTimeMillis() - start, ret, ent);
-                } catch (Exception e) {
-                    callback.onOperationError(AsyncOperationType.READ, QueryImpl.this, System.currentTimeMillis() - start, e.getMessage(), e, null);
-                }
+        Runnable r = () -> {
+            long start = System.currentTimeMillis();
+            try {
+                List<T> ret = new ArrayList<>();
+                T ent = get();
+                ret.add(ent);
+                callback.onOperationSucceeded(AsyncOperationType.READ, QueryImpl.this, System.currentTimeMillis() - start, ret, ent);
+            } catch (Exception e) {
+                callback.onOperationError(AsyncOperationType.READ, QueryImpl.this, System.currentTimeMillis() - start, e.getMessage(), e, null);
             }
         };
         getExecutor().submit(r);
@@ -877,16 +866,13 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
     @Override
     public void idList(final AsyncOperationCallback<T> callback) {
         if (callback == null) throw new IllegalArgumentException("Callable is null?");
-        Runnable r = new Runnable() {
-            @Override
-            public void run() {
-                long start = System.currentTimeMillis();
-                try {
-                    List<Object> ret = idList();
-                    callback.onOperationSucceeded(AsyncOperationType.READ, QueryImpl.this, System.currentTimeMillis() - start, null, null, ret);
-                } catch (Exception e) {
-                    callback.onOperationError(AsyncOperationType.READ, QueryImpl.this, System.currentTimeMillis() - start, e.getMessage(), e, null);
-                }
+        Runnable r = () -> {
+            long start = System.currentTimeMillis();
+            try {
+                List<Object> ret = idList();
+                callback.onOperationSucceeded(AsyncOperationType.READ, QueryImpl.this, System.currentTimeMillis() - start, null, null, ret);
+            } catch (Exception e) {
+                callback.onOperationError(AsyncOperationType.READ, QueryImpl.this, System.currentTimeMillis() - start, e.getMessage(), e, null);
             }
         };
 
@@ -926,9 +912,7 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
             throw new RuntimeException(e);
         }
 
-        for (Map<String, Object> o : query) {
-            ret.add((R) o.get("_id"));
-        }
+        ret.addAll(query.stream().map(o -> (R) o.get("_id")).collect(Collectors.toList()));
         srv = (String) findMetadata.get("server");
         long dur = System.currentTimeMillis() - start;
         morphium.fireProfilingReadEvent(this, dur, ReadAccessType.ID_LIST);
@@ -1039,7 +1023,7 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
     public List<T> textSearch(TextSearchLanguages lang, String... texts) {
         if (texts.length == 0) return new ArrayList<>();
 
-        Map<String, Object> txt = new HashMap<String, Object>();
+        Map<String, Object> txt = new HashMap<>();
         txt.put("text", getCollectionName());
         StringBuilder b = new StringBuilder();
         for (String t : texts) {
@@ -1085,7 +1069,7 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
 
     @Override
     public void setReturnedFields(String... fl) {
-        fieldList = new HashMap<String, Integer>();
+        fieldList = new HashMap<>();
         for (String f : fl) {
             addReturnedField(f);
         }
@@ -1100,7 +1084,7 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
     @Override
     public void addReturnedField(String f) {
         if (fieldList == null) {
-            fieldList = new HashMap<String, Integer>();
+            fieldList = new HashMap<>();
         }
         String n = getARHelper().getFieldName(type, f);
         fieldList.put(n, 1);

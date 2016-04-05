@@ -43,7 +43,7 @@ public class IteratorSpeedTest {
 
 //        morphium.close();
         try {
-            for (Morphium m : MongoTest.getMorphiums()) m.close();
+            MongoTest.getMorphiums().forEach(Morphium::close);
         } catch (Exception e) {
         }
     }
@@ -111,7 +111,7 @@ public class IteratorSpeedTest {
     public void oldPrefetchingIteratorTest() throws Exception {
         Query<UncachedObject> q = morphium.createQueryFor(UncachedObject.class).sort("counter");
         int sum = 0;
-        for (UncachedObject o : q.asIterable(1000, new PrefetchingMorphiumIterator<UncachedObject>())) {
+        for (UncachedObject o : q.asIterable(1000, new PrefetchingMorphiumIterator<>())) {
             //running through it
             //calculating sum
             sum += o.getCounter();

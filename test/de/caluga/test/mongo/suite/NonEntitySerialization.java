@@ -65,7 +65,7 @@ public class NonEntitySerialization extends MongoTest {
     public void testNonEntityMap() throws Exception {
         NonEntityContainer nc = new NonEntityContainer();
 
-        nc.setMap(new HashMap<String, Object>());
+        nc.setMap(new HashMap<>());
 
         NonEntity ne = new NonEntity();
         ne.setInteger(42);

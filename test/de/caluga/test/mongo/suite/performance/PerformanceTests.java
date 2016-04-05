@@ -21,13 +21,13 @@ public class PerformanceTests {
         System.out.println("Testing with HashMap: ");
         repeatTest(retries, new HashMap<>());
         System.out.println("\nTesting with LinkedHashmap: ");
-        repeatTest(retries, new LinkedHashMap<String, Object>());
+        repeatTest(retries, new LinkedHashMap<>());
 
 
         System.out.println("\nTesting with Hashtable: ");
-        repeatTest(retries, new Hashtable<String, Object>());
+        repeatTest(retries, new Hashtable<>());
         System.out.println("\nTesting with ConcurrentHashMap: ");
-        repeatTest(retries, new ConcurrentHashMap<String, Object>());
+        repeatTest(retries, new ConcurrentHashMap<>());
 
 
     }

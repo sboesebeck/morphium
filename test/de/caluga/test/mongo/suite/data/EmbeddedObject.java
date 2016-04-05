@@ -45,8 +45,7 @@ public class EmbeddedObject {
 
         EmbeddedObject that = (EmbeddedObject) o;
 
-        if (testValueLong != that.testValueLong) return false;
-        return !(name != null ? !name.equals(that.name) : that.name != null) && !(value != null ? !value.equals(that.value) : that.value != null);
+        return testValueLong == that.testValueLong && !(name != null ? !name.equals(that.name) : that.name != null) && !(value != null ? !value.equals(that.value) : that.value != null);
 
     }
 

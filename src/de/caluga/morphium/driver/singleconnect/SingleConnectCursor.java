@@ -5,7 +5,7 @@ package de.caluga.morphium.driver.singleconnect;
  * Date: 23.03.16
  * Time: 16:13
  * <p>
- * TODO: Add documentation here
+ * Cursor implementation for the singleconnect drivers
  */
 public class SingleConnectCursor {
 

@@ -7,7 +7,7 @@ import de.caluga.morphium.TypeMapper;
 import java.math.BigInteger;
 
 /**
- * TODO: Add Documentation here
+ * custom type mapper for BigIntegers
  **/
 public class BigIntegerTypeMapper implements TypeMapper<BigInteger> {
     @Override

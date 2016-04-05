@@ -144,7 +144,7 @@ public class Morphium {
         annotationHelper = new AnnotationAndReflectionHelper(cfg.isCamelCaseConversionEnabled());
         asyncOperationsThreadPool = new ThreadPoolExecutor(getConfig().getThreadPoolAsyncOpCoreSize(), getConfig().getThreadPoolAsyncOpMaxSize(),
                 getConfig().getThreadPoolAsyncOpKeepAliveTime(), TimeUnit.MILLISECONDS,
-                new SynchronousQueue<Runnable>());
+                new SynchronousQueue<>());
         initializeAndConnect();
     }
 
@@ -223,7 +223,6 @@ public class Morphium {
             try {
                 morphiumDriver.connect(config.getRequiredReplicaSetName());
             } catch (MorphiumDriverException e) {
-                //TODO: Implement Handling
                 throw new RuntimeException(e);
             }
         }
@@ -531,39 +530,36 @@ public class Morphium {
     }
 
     public <T> void ensureCapped(final Class<T> c, final AsyncOperationCallback<T> callback) {
-        Runnable r = new Runnable() {
-            @Override
-            public void run() {
-                String coll = getMapper().getCollectionName(c);
+        Runnable r = () -> {
+            String coll = getMapper().getCollectionName(c);
 //                DBCollection collection = null;
 
-                try {
-                    if (morphiumDriver.isCapped(config.getDatabase(), coll)) return;
-                    if (config.isAutoIndexAndCappedCreationOnWrite() && !morphiumDriver.exists(config.getDatabase(), coll)) {
-                        if (logger.isDebugEnabled())
-                            logger.debug("Collection does not exist - ensuring indices / capped status");
-                        Map<String, Object> cmd = new HashMap<>();
-                        cmd.put("create", coll);
-                        Capped capped = annotationHelper.getAnnotationFromHierarchy(c, Capped.class);
-                        if (capped != null) {
-                            cmd.put("capped", true);
-                            cmd.put("size", capped.maxSize());
-                            cmd.put("max", capped.maxEntries());
-                        }
-                        cmd.put("autoIndexId", (annotationHelper.getIdField(c).getType().equals(MorphiumId.class)));
-                        morphiumDriver.runCommand(config.getDatabase(), cmd);
-                    } else {
-                        Capped capped = annotationHelper.getAnnotationFromHierarchy(c, Capped.class);
-                        if (capped != null) {
-
-                            convertToCapped(c, capped.maxSize(), null);
-                        }
+            try {
+                if (morphiumDriver.isCapped(config.getDatabase(), coll)) return;
+                if (config.isAutoIndexAndCappedCreationOnWrite() && !morphiumDriver.exists(config.getDatabase(), coll)) {
+                    if (logger.isDebugEnabled())
+                        logger.debug("Collection does not exist - ensuring indices / capped status");
+                    Map<String, Object> cmd = new HashMap<>();
+                    cmd.put("create", coll);
+                    Capped capped = annotationHelper.getAnnotationFromHierarchy(c, Capped.class);
+                    if (capped != null) {
+                        cmd.put("capped", true);
+                        cmd.put("size", capped.maxSize());
+                        cmd.put("max", capped.maxEntries());
                     }
-                } catch (Throwable t) {
-                    throw new RuntimeException(t);
-                }
+                    cmd.put("autoIndexId", (annotationHelper.getIdField(c).getType().equals(MorphiumId.class)));
+                    morphiumDriver.runCommand(config.getDatabase(), cmd);
+                } else {
+                    Capped capped = annotationHelper.getAnnotationFromHierarchy(c, Capped.class);
+                    if (capped != null) {
 
+                        convertToCapped(c, capped.maxSize(), null);
+                    }
+                }
+            } catch (Throwable t) {
+                throw new RuntimeException(t);
             }
+
         };
 
         if (callback == null) {
@@ -1316,7 +1312,6 @@ public class Morphium {
         for (MorphiumStorageListener l : listeners) {
             l.postRemove(this, q);
         }
-        //TODO: FIX - Cannot call lifecycle method here
     }
 
 
@@ -1325,7 +1320,6 @@ public class Morphium {
         for (MorphiumStorageListener l : listeners) {
             l.preRemove(this, q);
         }
-        //TODO: Fix - cannot call lifecycle method
     }
 
     /**
@@ -1583,9 +1577,7 @@ public class Morphium {
     public void clearCollectionOneByOne(Class<?> cls) {
         inc(StatisticKeys.WRITES);
         List<?> lst = readAll(cls);
-        for (Object r : lst) {
-            delete(r);
-        }
+        lst.forEach(this::delete);
 
         getCache().clearCacheIfNecessary(cls);
 
@@ -1666,14 +1658,16 @@ public class Morphium {
     }
 
 
-    public Map<String, Object> group(Query q, Map<String, Object> initial, String jsReduce, String jsFinalize, String... keys) {
-        //TODO: readpreference
+    public Map<String, Object> group(Query q, Map<String, Object> initial, String jsReduce, String jsFinalize, ReadPreference rp, String... keys) {
         try {
-            return morphiumDriver.group(config.getDatabase(), objectMapper.getCollectionName(q.getType()), q.toQueryObject(), initial, jsReduce, jsFinalize, null, keys);
+            return morphiumDriver.group(config.getDatabase(), objectMapper.getCollectionName(q.getType()), q.toQueryObject(), initial, jsReduce, jsFinalize, rp, keys);
         } catch (MorphiumDriverException e) {
-            e.printStackTrace();
+            throw new RuntimeException(e);
         }
-        return null;
+    }
+
+    public Map<String, Object> group(Query q, Map<String, Object> initial, String jsReduce, String jsFinalize, String... keys) {
+        return group(q, initial, jsReduce, jsFinalize, null, keys);
     }
 
     @SuppressWarnings("unchecked")
@@ -1945,12 +1939,8 @@ public class Morphium {
         Map<Class<?>, MorphiumWriter> writers = new HashMap<>();
         Map<Class<?>, List<Object>> values = new HashMap<>();
         for (Object o : lst) {
-            if (writers.get(o.getClass()) == null) {
-                writers.put(o.getClass(), getWriterForClass(o.getClass()));
-            }
-            if (values.get(o.getClass()) == null) {
-                values.put(o.getClass(), new ArrayList<>());
-            }
+            writers.putIfAbsent(o.getClass(), getWriterForClass(o.getClass()));
+            values.putIfAbsent(o.getClass(), new ArrayList<>());
             values.get(o.getClass()).add(o);
         }
         for (Class cls : writers.keySet()) {
@@ -2139,7 +2129,6 @@ public class Morphium {
             }
             return result;
         } catch (MorphiumDriverException e) {
-            //TODO: Implement Handling
             throw new RuntimeException(e);
         }
 //        Map<String, Object> first = agList.get(0);

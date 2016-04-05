@@ -139,9 +139,7 @@ public class CacheHousekeeper extends Thread {
 //                                    }
 //                                }
 //                            }
-                            if (validTimeForClass.get(clz) == null) {
-                                validTimeForClass.put(clz, time);
-                            }
+                            validTimeForClass.putIfAbsent(clz, time);
                         }
                     }
                     if (validTimeForClass.get(clz) != null) {
@@ -154,20 +152,14 @@ public class CacheHousekeeper extends Thread {
                         CacheElement e = est.getValue(); //ch.get(k);
 
                         if (e == null || e.getFound() == null || System.currentTimeMillis() - e.getCreated() > time) {
-                            if (toDelete.get(clz) == null) {
-                                toDelete.put(clz, new ArrayList<String>());
-                            }
+                            toDelete.putIfAbsent(clz, new ArrayList<String>());
                             toDelete.get(clz).add(k);
                             del++;
                         } else {
-                            if (lruTime.get(e.getLru()) == null) {
-                                lruTime.put(e.getLru(), new ArrayList<String>());
-                            }
+                            lruTime.putIfAbsent(e.getLru(), new ArrayList<String>());
                             lruTime.get(e.getLru()).add(k);
                             long fifo = System.currentTimeMillis() - e.getCreated();
-                            if (fifoTime.get(fifo) == null) {
-                                fifoTime.put(fifo, new ArrayList<String>());
-                            }
+                            fifoTime.putIfAbsent(fifo, new ArrayList<String>());
                             fifoTime.get(fifo).add(k);
                         }
                     }
@@ -182,9 +174,7 @@ public class CacheHousekeeper extends Thread {
                                 idx = 0;
                                 while (cache.get(clz).size() - del > maxEntries) {
                                     if (lruTime.get(array[idx]) != null && lruTime.get(array[idx]).size() != 0) {
-                                        if (toDelete.get(clz) == null) {
-                                            toDelete.put(clz, new ArrayList<String>());
-                                        }
+                                        toDelete.putIfAbsent(clz, new ArrayList<String>());
                                         toDelete.get(clz).add(lruTime.get(array[idx]).get(0));
                                         lruTime.get(array[idx]).remove(0);
                                         del++;
@@ -201,9 +191,7 @@ public class CacheHousekeeper extends Thread {
                                 idx = 0;
                                 while (cache.get(clz).size() - del > maxEntries) {
                                     if (fifoTime.get(array[array.length - 1 - idx]) != null && fifoTime.get(array[array.length - 1 - idx]).size() != 0) {
-                                        if (toDelete.get(clz) == null) {
-                                            toDelete.put(clz, new ArrayList<String>());
-                                        }
+                                        toDelete.putIfAbsent(clz, new ArrayList<String>());
                                         toDelete.get(clz).add(fifoTime.get(array[array.length - 1 - idx]).get(0));
                                         fifoTime.get(array[array.length - 1 - idx]).remove(0);
                                         del++;
@@ -221,9 +209,7 @@ public class CacheHousekeeper extends Thread {
                                 idx = 0;
                                 while (cache.get(clz).size() - del > maxEntries) {
                                     if (lruTime.get(array[idx]) != null && lruTime.get(array[idx]).size() != 0) {
-                                        if (toDelete.get(clz) == null) {
-                                            toDelete.put(clz, new ArrayList<String>());
-                                        }
+                                        toDelete.putIfAbsent(clz, new ArrayList<String>());
                                         toDelete.get(clz).add(lruTime.get(array[idx]).get(0));
                                         del++;
                                         if (lruTime.get(array[idx]).size() == 0) {

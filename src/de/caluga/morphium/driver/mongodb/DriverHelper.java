@@ -17,8 +17,8 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * TODO: Add Documentation here
- **/
+ * helper class
+ */
 public class DriverHelper {
     //Logger logger = new Logger(DriverHelper.class);
 
@@ -84,7 +84,7 @@ public class DriverHelper {
             try {
                 for (Map.Entry e : m.entrySet()) {
                     if (e.getValue() instanceof MorphiumId) {
-                        toSet.put((String) e.getKey(), new ObjectId(((MorphiumId) e.getValue()).toString()));
+                        toSet.put((String) e.getKey(), new ObjectId(e.getValue().toString()));
 
                     } else if (e.getValue() instanceof MorphiumReference) {
                         toSet.put((String) e.getKey(), new ObjectId(((MorphiumReference) e.getValue()).getId().toString()));
@@ -92,7 +92,7 @@ public class DriverHelper {
                         for (Object o : (Collection) e.getValue()) {
                             if (o == null) continue;
                             if (o instanceof Map) {
-                                replaceMorphiumIdByObjectId((Map) o);
+                                replaceMorphiumIdByObjectId(o);
                             } else if (o instanceof List) {
                                 replaceMorphiumIdByObjectId(o);
                             } else if (o.getClass().isArray()) {
@@ -109,14 +109,11 @@ public class DriverHelper {
 
             } catch (Exception e) {
                 new Logger(DriverHelper.class).fatal("Error replacing mongoid", e);
-                //TODO: Implement Handling
 //                throw new RuntimeException(e);
             }
         } else if (in instanceof Collection) {
             Collection c = (Collection) in;
-            c.forEach(o -> {
-                DriverHelper.replaceMorphiumIdByObjectId(o);
-            });
+            c.forEach(DriverHelper::replaceMorphiumIdByObjectId);
         } else if (in.getClass().isArray()) {
 
             for (int i = 0; i < Array.getLength(in); i++) {

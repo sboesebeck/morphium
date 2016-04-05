@@ -90,13 +90,11 @@ public class FilterExpressionTest {
         assert (map.keySet().iterator().next().equals("field"));
         assert (map.values().size() == 1);
 
-        Map<String, Object> fetchedDBObject = (Map<String, Object>) map.values().iterator().next();
-        Map fetchedMap = fetchedDBObject;
-        Set fetchedKeys = fetchedMap.keySet();
+        Set fetchedKeys = ((Map<String, Object>) map.values().iterator().next()).keySet();
 
         assert (fetchedKeys.contains("child1Field") && fetchedKeys.contains("child2Field"));
-        assert (fetchedMap.get("child1Field").equals("child1Value"));
-        assert (fetchedMap.get("child2Field").equals("child2Value"));
+        assert (((Map<String, Object>) map.values().iterator().next()).get("child1Field").equals("child1Value"));
+        assert (((Map<String, Object>) map.values().iterator().next()).get("child2Field").equals("child2Value"));
     }
 
     @Test

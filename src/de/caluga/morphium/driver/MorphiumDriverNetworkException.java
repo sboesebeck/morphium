@@ -5,7 +5,7 @@ package de.caluga.morphium.driver;/**
 import java.util.Map;
 
 /**
- * TODO: Add Documentation here
+ * network related issues when accessing the database
  **/
 public class MorphiumDriverNetworkException extends MorphiumDriverException {
     public MorphiumDriverNetworkException(String msg, Throwable t, String collection, String db, Map<String, Object> query) {

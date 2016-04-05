@@ -176,9 +176,7 @@ public class MorphiumConfig {
                         String lst = (String) prop.get(f.getName());
                         List<String> l = new ArrayList<>();
                         lst = lst.replaceAll("[\\[\\]]", "");
-                        for (String s : lst.split(",")) {
-                            l.add(s);
-                        }
+                        Collections.addAll(l, lst.split(","));
                         f.set(this, l);
                     } else if (f.getType().equals(boolean.class) || f.getType().equals(Boolean.class)) {
                         f.set(this, prop.get(f.getName()).equals("true"));

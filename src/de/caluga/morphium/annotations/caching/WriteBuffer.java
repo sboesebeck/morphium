@@ -5,7 +5,8 @@ package de.caluga.morphium.annotations.caching;
  * Date: 11.03.13
  * Time: 11:07
  * <p/>
- * TODO: Add documentation here
+ * write access to entities marked with this annotation will take place buffered. That means, that the write does take
+ * place
  */
 
 import java.lang.annotation.Retention;

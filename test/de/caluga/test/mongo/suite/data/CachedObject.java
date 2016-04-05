@@ -9,7 +9,6 @@ import de.caluga.morphium.annotations.caching.Cache;
 import de.caluga.morphium.annotations.caching.WriteBuffer;
 import de.caluga.morphium.driver.bson.MorphiumId;
 
-;
 
 /**
  * @author stephan

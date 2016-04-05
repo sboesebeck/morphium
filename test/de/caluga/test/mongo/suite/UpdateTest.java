@@ -174,9 +174,9 @@ public class UpdateTest extends MongoTest {
 
         Query<ListContainer> lc = morphium.createQueryFor(ListContainer.class);
         lc = lc.f("name").eq("LC15");
-        morphium.push(lc, "long_list", 12345l);
+        morphium.push(lc, "long_list", 12345L);
         ListContainer cont = lc.get();
-        assert (cont.getLongList().contains(12345l)) : "No push?";
+        assert (cont.getLongList().contains(12345L)) : "No push?";
 
     }
 
@@ -207,7 +207,7 @@ public class UpdateTest extends MongoTest {
         ListContainer lc2 = lc.get();
         assert (lc2.getEmbeddedObjectList() != null);
         assert (lc2.getEmbeddedObjectList().size() == 2);
-        assert (lc2.getEmbeddedObjectList().get(0).getTest() == 1l);
+        assert (lc2.getEmbeddedObjectList().get(0).getTest() == 1L);
     }
 
     @Test
@@ -277,7 +277,7 @@ public class UpdateTest extends MongoTest {
         ListContainer lc2 = lc.get();
         assert (lc2.getEmbeddedObjectList() != null);
         assert (lc2.getEmbeddedObjectList().size() == 3) : "Size wrong should be 3 is " + lc2.getEmbeddedObjectList().size();
-        assert (lc2.getEmbeddedObjectList().get(0).getTest() == 1l);
+        assert (lc2.getEmbeddedObjectList().get(0).getTest() == 1L);
     }
 
     public static class UncachedMultipleCounter extends UncachedObject {

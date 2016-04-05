@@ -6,7 +6,7 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * TODO: Add Documentation here
+ * store bulk request
  **/
 public class StoreBulkRequest extends InsertBulkRequest {
 

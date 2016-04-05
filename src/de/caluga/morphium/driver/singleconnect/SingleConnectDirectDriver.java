@@ -21,7 +21,7 @@ import java.util.stream.Collectors;
  * Date: 02.12.15
  * Time: 23:47
  * <p>
- * TODO: Add documentation here
+ * connects to one node only!
  */
 public class SingleConnectDirectDriver extends DriverBase {
 
@@ -78,9 +78,9 @@ public class SingleConnectDirectDriver extends DriverBase {
                 //"maxBsonObjectSize" : 16777216,
 //                "maxMessageSizeBytes" : 48000000,
 //                        "maxWriteBatchSize" : 1000,
-                setMaxBsonObjectSize(((Integer) result.get("maxBsonObjectSize")).intValue());
-                setMaxMessageSize(((Integer) result.get("maxMessageSizeBytes")).intValue());
-                setMaxWriteBatchSize(((Integer) result.get("maxWriteBatchSize")).intValue());
+                setMaxBsonObjectSize((Integer) result.get("maxBsonObjectSize"));
+                setMaxMessageSize((Integer) result.get("maxMessageSizeBytes"));
+                setMaxWriteBatchSize((Integer) result.get("maxWriteBatchSize"));
 
             } catch (MorphiumDriverException e) {
                 e.printStackTrace();
@@ -114,9 +114,7 @@ public class SingleConnectDirectDriver extends DriverBase {
                 throw new MorphiumDriverNetworkException("Illegal opcode should be 1 but is " + opcode);
             }
             byte buf[] = new byte[size];
-            for (int i = 0; i < 16; i++) {
-                buf[i] = inBuffer[i];
-            }
+            System.arraycopy(inBuffer, 0, buf, 0, 16);
 
             numRead = in.read(buf, 16, size - 16);
             while (numRead < size - 16) {
@@ -135,8 +133,6 @@ public class SingleConnectDirectDriver extends DriverBase {
             } catch (Exception e) {
                 log.error("Could not read");
                 throw new MorphiumDriverNetworkException("could not read from socket", e);
-            } finally {
-//                throw new MorphiumDriverNetworkException("Should not reach here!");
             }
         } catch (IOException e) {
             throw new MorphiumDriverNetworkException("could not read from socket", e);
@@ -169,19 +165,16 @@ public class SingleConnectDirectDriver extends DriverBase {
 
     @Override
     public Map<String, Object> getReplsetStatus() throws MorphiumDriverException {
-        return new NetworkCallHelper().doCall(new MorphiumDriverOperation() {
-            @Override
-            public Map<String, Object> execute() throws MorphiumDriverException {
-                Map<String, Object> ret = runCommand("admin", Utils.getMap("replSetGetStatus", 1));
-                List<Map<String, Object>> mem = (List) ret.get("members");
-                if (mem == null) return null;
-                for (Map<String, Object> d : mem) {
-                    if (d.get("optime") instanceof Map) {
-                        d.put("optime", ((Map<String, Map<String, Object>>) d.get("optime")).get("ts"));
-                    }
+        return new NetworkCallHelper().doCall(() -> {
+            Map<String, Object> ret = runCommand("admin", Utils.getMap("replSetGetStatus", 1));
+            List<Map<String, Object>> mem = (List) ret.get("members");
+            if (mem == null) return null;
+            for (Map<String, Object> d : mem) {
+                if (d.get("optime") instanceof Map) {
+                    d.put("optime", ((Map<String, Map<String, Object>>) d.get("optime")).get("ts"));
                 }
-                return ret;
             }
+            return ret;
         }, getRetriesOnNetworkError(), getSleepBetweenErrorRetries());
     }
 
@@ -197,34 +190,31 @@ public class SingleConnectDirectDriver extends DriverBase {
 
     @Override
     public Map<String, Object> runCommand(String db, Map<String, Object> cmd) throws MorphiumDriverException {
-        return new NetworkCallHelper().doCall(new MorphiumDriverOperation() {
-            @Override
-            public Map<String, Object> execute() throws MorphiumDriverException {
-                OpQuery q = new OpQuery();
-                q.setDb(db);
-                q.setColl("$cmd");
-                q.setLimit(1);
-                q.setSkip(0);
-                q.setReqId(getNextId());
+        return new NetworkCallHelper().doCall(() -> {
+            OpQuery q = new OpQuery();
+            q.setDb(db);
+            q.setColl("$cmd");
+            q.setLimit(1);
+            q.setSkip(0);
+            q.setReqId(getNextId());
 
-                Map<String, Object> doc = new LinkedHashMap<>();
-                doc.putAll(cmd);
-                q.setDoc(doc);
-                q.setFlags(0);
-                q.setInReplyTo(0);
+            Map<String, Object> doc = new LinkedHashMap<>();
+            doc.putAll(cmd);
+            q.setDoc(doc);
+            q.setFlags(0);
+            q.setInReplyTo(0);
 
-                OpReply rep = null;
-                synchronized (SingleConnectDirectDriver.this) {
-                    sendQuery(q);
-                    try {
-                        rep = waitForReply(db, null, null, q.getReqId());
-                    } catch (MorphiumDriverException e) {
-                        e.printStackTrace();
-                    }
+            OpReply rep = null;
+            synchronized (SingleConnectDirectDriver.this) {
+                sendQuery(q);
+                try {
+                    rep = waitForReply(db, null, null, q.getReqId());
+                } catch (MorphiumDriverException e) {
+                    e.printStackTrace();
                 }
-                if (rep == null || rep.getDocuments() == null) return null;
-                return rep.getDocuments().get(0);
             }
+            if (rep == null || rep.getDocuments() == null) return null;
+            return rep.getDocuments().get(0);
         }, getRetriesOnNetworkError(), getSleepBetweenErrorRetries());
 
     }
@@ -348,39 +338,36 @@ public class SingleConnectDirectDriver extends DriverBase {
     public List<Map<String, Object>> find(String db, String collection, Map<String, Object> query, Map<String, Integer> s, Map<String, Object> projection, int skip, int limit, int batchSize, ReadPreference rp, Map<String, Object> findMetaData) throws MorphiumDriverException {
         if (s == null) s = new HashMap<>();
         final Map<String, Integer> sort = s;
-        return (List<Map<String, Object>>) new NetworkCallHelper().doCall(new MorphiumDriverOperation() {
-            @Override
-            public Map<String, Object> execute() throws MorphiumDriverException {
-                OpQuery q = new OpQuery();
-                q.setDb(db);
-                q.setColl("$cmd");
-                q.setLimit(1);
-                q.setSkip(0);
-                q.setReqId(getNextId());
+        return (List<Map<String, Object>>) new NetworkCallHelper().doCall(() -> {
+            OpQuery q = new OpQuery();
+            q.setDb(db);
+            q.setColl("$cmd");
+            q.setLimit(1);
+            q.setSkip(0);
+            q.setReqId(getNextId());
 
-                Map<String, Object> doc = new LinkedHashMap<>();
-                doc.put("find", collection);
-                if (limit > 0)
-                    doc.put("limit", limit);
-                doc.put("skip", skip);
-                if (query.size() != 0)
-                    doc.put("filter", query);
-                doc.put("sort", sort);
+            Map<String, Object> doc = new LinkedHashMap<>();
+            doc.put("find", collection);
+            if (limit > 0)
+                doc.put("limit", limit);
+            doc.put("skip", skip);
+            if (query.size() != 0)
+                doc.put("filter", query);
+            doc.put("sort", sort);
 
-                q.setDoc(doc);
-                q.setFlags(0);
-                q.setInReplyTo(0);
+            q.setDoc(doc);
+            q.setFlags(0);
+            q.setInReplyTo(0);
 
-                List<Map<String, Object>> ret = null;
-                synchronized (SingleConnectDirectDriver.this) {
-                    sendQuery(q);
+            List<Map<String, Object>> ret = null;
+            synchronized (SingleConnectDirectDriver.this) {
+                sendQuery(q);
 
-                    OpReply reply = null;
-                    int waitingfor = q.getReqId();
-                    ret = readBatches(waitingfor, db, collection, batchSize);
-                }
-                return Utils.getMap("values", ret);
+                OpReply reply = null;
+                int waitingfor = q.getReqId();
+                ret = readBatches(waitingfor, db, collection, batchSize);
             }
+            return Utils.getMap("values", ret);
         }, getRetriesOnNetworkError(), getSleepBetweenErrorRetries()).get("values");
 
     }
@@ -457,107 +444,98 @@ public class SingleConnectDirectDriver extends DriverBase {
 
     @Override
     public long count(String db, String collection, Map<String, Object> query, ReadPreference rp) throws MorphiumDriverException {
-        Map<String, Object> ret = new NetworkCallHelper().doCall(new MorphiumDriverOperation() {
-            @Override
-            public Map<String, Object> execute() throws MorphiumDriverException {
-                OpQuery q = new OpQuery();
-                q.setDb(db);
-                q.setColl("$cmd");
-                q.setLimit(1);
-                q.setSkip(0);
-                q.setReqId(getNextId());
+        Map<String, Object> ret = new NetworkCallHelper().doCall(() -> {
+            OpQuery q = new OpQuery();
+            q.setDb(db);
+            q.setColl("$cmd");
+            q.setLimit(1);
+            q.setSkip(0);
+            q.setReqId(getNextId());
 
-                Map<String, Object> doc = new LinkedHashMap<>();
-                doc.put("count", collection);
-                doc.put("query", query);
-                q.setDoc(doc);
-                q.setFlags(0);
-                q.setInReplyTo(0);
+            Map<String, Object> doc = new LinkedHashMap<>();
+            doc.put("count", collection);
+            doc.put("query", query);
+            q.setDoc(doc);
+            q.setFlags(0);
+            q.setInReplyTo(0);
 
-                OpReply rep = null;
-                synchronized (SingleConnectDirectDriver.this) {
-                    sendQuery(q);
-                    rep = waitForReply(db, collection, query, q.getReqId());
-                }
-                Integer n = (Integer) rep.getDocuments().get(0).get("n");
-                return Utils.getMap("count", n == null ? 0 : n);
+            OpReply rep = null;
+            synchronized (SingleConnectDirectDriver.this) {
+                sendQuery(q);
+                rep = waitForReply(db, collection, query, q.getReqId());
             }
+            Integer n = (Integer) rep.getDocuments().get(0).get("n");
+            return Utils.getMap("count", n == null ? 0 : n);
         }, getRetriesOnNetworkError(), getSleepBetweenErrorRetries());
         return ((int) ret.get("count"));
     }
 
     @Override
     public void insert(String db, String collection, List<Map<String, Object>> objs, WriteConcern wc) throws MorphiumDriverException {
-        new NetworkCallHelper().doCall(new MorphiumDriverOperation() {
-            @Override
-            public Map<String, Object> execute() throws MorphiumDriverException {
-                int idx = 0;
-                for (Map<String, Object> o : objs) {
-                    if (o.get("_id") == null) o.put("_id", new MorphiumId());
-                }
-
-                while (idx < objs.size()) {
-                    OpQuery op = new OpQuery();
-                    op.setInReplyTo(0);
-                    op.setReqId(getNextId());
-                    op.setDb(db);
-                    op.setColl("$cmd");
-                    HashMap<String, Object> map = new LinkedHashMap<>();
-                    map.put("insert", collection);
-
-                    List<Map<String, Object>> docs = new ArrayList<>();
-                    for (int i = idx; i < idx + 1000 && i < objs.size(); i++) {
-                        docs.add(objs.get(i));
-                    }
-                    idx += docs.size();
-                    map.put("documents", docs);
-                    map.put("ordered", false);
-                    map.put("writeConcern", new HashMap<String, Object>());
-                    op.setDoc(map);
-
-                    synchronized (SingleConnectDirectDriver.this) {
-                        sendQuery(op);
-                        waitForReply(db, collection, null, op.getReqId());
-                    }
-                }
-                return null;
+        new NetworkCallHelper().doCall(() -> {
+            int idx = 0;
+            for (Map<String, Object> o : objs) {
+                if (o.get("_id") == null) o.put("_id", new MorphiumId());
             }
+
+            while (idx < objs.size()) {
+                OpQuery op = new OpQuery();
+                op.setInReplyTo(0);
+                op.setReqId(getNextId());
+                op.setDb(db);
+                op.setColl("$cmd");
+                HashMap<String, Object> map = new LinkedHashMap<>();
+                map.put("insert", collection);
+
+                List<Map<String, Object>> docs = new ArrayList<>();
+                for (int i = idx; i < idx + 1000 && i < objs.size(); i++) {
+                    docs.add(objs.get(i));
+                }
+                idx += docs.size();
+                map.put("documents", docs);
+                map.put("ordered", false);
+                map.put("writeConcern", new HashMap<String, Object>());
+                op.setDoc(map);
+
+                synchronized (SingleConnectDirectDriver.this) {
+                    sendQuery(op);
+                    waitForReply(db, collection, null, op.getReqId());
+                }
+            }
+            return null;
         }, getRetriesOnNetworkError(), getSleepBetweenErrorRetries());
     }
 
     @Override
     public void store(String db, String collection, List<Map<String, Object>> objs, WriteConcern wc) throws MorphiumDriverException {
-        new NetworkCallHelper().doCall(new MorphiumDriverOperation() {
-            @Override
-            public Map<String, Object> execute() throws MorphiumDriverException {
-                List<Map<String, Object>> toInsert = new ArrayList<>();
-                List<Map<String, Object>> toUpdate = new ArrayList<>();
-                List<Map<String, Object>> update = new ArrayList<>();
-                for (Map<String, Object> o : objs) {
-                    if (o.get("_id") == null) {
-                        toInsert.add(o);
-                    } else {
-                        toUpdate.add(o);
-                    }
+        new NetworkCallHelper().doCall(() -> {
+            List<Map<String, Object>> toInsert = new ArrayList<>();
+            List<Map<String, Object>> toUpdate = new ArrayList<>();
+            List<Map<String, Object>> update = new ArrayList<>();
+            for (Map<String, Object> o : objs) {
+                if (o.get("_id") == null) {
+                    toInsert.add(o);
+                } else {
+                    toUpdate.add(o);
                 }
-                List<Map<String, Object>> updateCmd = new ArrayList<>();
-                for (Map<String, Object> obj : toUpdate) {
-                    Map<String, Object> up = new HashMap<String, Object>();
-                    up.put("q", Utils.getMap("_id", obj.get("_id")));
-                    up.put("u", obj);
-                    up.put("upsert", true);
-                    up.put("multi", false);
-
-                    updateCmd.add(up);
-                }
-                if (updateCmd.size() > 0)
-                    update(db, collection, updateCmd, false, wc);
-
-                if (toInsert.size() > 0) {
-                    insert(db, collection, toInsert, wc);
-                }
-                return null;
             }
+            List<Map<String, Object>> updateCmd = new ArrayList<>();
+            for (Map<String, Object> obj : toUpdate) {
+                Map<String, Object> up = new HashMap<String, Object>();
+                up.put("q", Utils.getMap("_id", obj.get("_id")));
+                up.put("u", obj);
+                up.put("upsert", true);
+                up.put("multi", false);
+
+                updateCmd.add(up);
+            }
+            if (updateCmd.size() > 0)
+                update(db, collection, updateCmd, false, wc);
+
+            if (toInsert.size() > 0) {
+                insert(db, collection, toInsert, wc);
+            }
+            return null;
         }, getRetriesOnNetworkError(), getSleepBetweenErrorRetries());
 
     }
@@ -565,7 +543,7 @@ public class SingleConnectDirectDriver extends DriverBase {
     @Override
     public Map<String, Object> update(String db, String collection, Map<String, Object> query, Map<String, Object> ops, boolean multiple, boolean upsert, WriteConcern wc) throws MorphiumDriverException {
         List<Map<String, Object>> opsLst = new ArrayList<>();
-        Map<String, Object> up = new HashMap<String, Object>();
+        Map<String, Object> up = new HashMap<>();
         up.put("q", query);
         up.put("u", ops);
         up.put("upsert", upsert);
@@ -575,75 +553,69 @@ public class SingleConnectDirectDriver extends DriverBase {
     }
 
     public Map<String, Object> update(String db, String collection, List<Map<String, Object>> updateCommand, boolean ordered, WriteConcern wc) throws MorphiumDriverException {
-        return new NetworkCallHelper().doCall(new MorphiumDriverOperation() {
-            @Override
-            public Map<String, Object> execute() throws MorphiumDriverException {
-                OpQuery op = new OpQuery();
-                op.setInReplyTo(0);
-                op.setReqId(getNextId());
-                op.setDb(db);
-                op.setColl("$cmd");
-                HashMap<String, Object> map = new LinkedHashMap<>();
-                map.put("update", collection);
-                map.put("updates", updateCommand);
-                map.put("ordered", false);
-                map.put("writeConcern", new HashMap<String, Object>());
-                op.setDoc(map);
-                synchronized (SingleConnectDirectDriver.this) {
-                    sendQuery(op);
-                    if (wc != null) {
-                        OpReply res = waitForReply(db, collection, null, op.getReqId());
-                        return res.getDocuments().get(0);
-                    }
+        return new NetworkCallHelper().doCall(() -> {
+            OpQuery op = new OpQuery();
+            op.setInReplyTo(0);
+            op.setReqId(getNextId());
+            op.setDb(db);
+            op.setColl("$cmd");
+            HashMap<String, Object> map = new LinkedHashMap<>();
+            map.put("update", collection);
+            map.put("updates", updateCommand);
+            map.put("ordered", false);
+            map.put("writeConcern", new HashMap<String, Object>());
+            op.setDoc(map);
+            synchronized (SingleConnectDirectDriver.this) {
+                sendQuery(op);
+                if (wc != null) {
+                    OpReply res = waitForReply(db, collection, null, op.getReqId());
+                    return res.getDocuments().get(0);
                 }
-                return null;
             }
+            return null;
         }, getRetriesOnNetworkError(), getSleepBetweenErrorRetries());
     }
 
     @Override
     public Map<String, Object> delete(String db, String collection, Map<String, Object> query,
                                       boolean multiple, WriteConcern wc) throws MorphiumDriverException {
-        return new NetworkCallHelper().doCall(new MorphiumDriverOperation() {
-            @Override
-            public Map<String, Object> execute() throws MorphiumDriverException {
-                OpQuery op = new OpQuery();
-                op.setColl("$cmd");
-                op.setDb(db);
-                op.setReqId(getNextId());
-                op.setLimit(-1);
+        return new NetworkCallHelper().doCall(() -> {
+            OpQuery op = new OpQuery();
+            op.setColl("$cmd");
+            op.setDb(db);
+            op.setReqId(getNextId());
+            op.setLimit(-1);
 
-                Map<String, Object> o = new LinkedHashMap<>();
-                o.put("delete", collection);
-                o.put("ordered", false);
-                Map<String, Object> wrc = new LinkedHashMap<>();
-                wrc.put("w", 1);
-                wrc.put("wtimeout", 1000);
-                wrc.put("fsync", false);
-                wrc.put("j", true);
-                o.put("writeConcern", wrc);
+            Map<String, Object> o = new LinkedHashMap<>();
+            o.put("delete", collection);
+            o.put("ordered", false);
+            Map<String, Object> wrc = new LinkedHashMap<>();
+            wrc.put("w", 1);
+            wrc.put("wtimeout", 1000);
+            wrc.put("fsync", false);
+            wrc.put("j", true);
+            o.put("writeConcern", wrc);
 
-                Map<String, Object> q = new LinkedHashMap<>();
-                q.put("q", query);
-                q.put("limit", 0);
-                List<Map<String, Object>> del = new ArrayList<>();
-                del.add(q);
+            Map<String, Object> q = new LinkedHashMap<>();
+            q.put("q", query);
+            q.put("limit", 0);
+            List<Map<String, Object>> del = new ArrayList<>();
+            del.add(q);
 
-                o.put("deletes", del);
-                op.setDoc(o);
+            o.put("deletes", del);
+            op.setDoc(o);
 
 
-                synchronized (SingleConnectDirectDriver.this) {
-                    sendQuery(op);
+            synchronized (SingleConnectDirectDriver.this) {
+                sendQuery(op);
 
-                    OpReply reply = null;
-                    int waitingfor = op.getReqId();
+                OpReply reply = null;
+                int waitingfor = op.getReqId();
 //        if (wc == null || wc.getW() == 0) {
-                    reply = waitForReply(db, collection, query, waitingfor);
+                reply = waitForReply(db, collection, query, waitingfor);
 //        }
-                }
-                return null;
             }
+            return null;
         }, getRetriesOnNetworkError(), getSleepBetweenErrorRetries());
     }
 
@@ -673,55 +645,49 @@ public class SingleConnectDirectDriver extends DriverBase {
 
     @Override
     public void drop(String db, String collection, WriteConcern wc) throws MorphiumDriverException {
-        new NetworkCallHelper().doCall(new MorphiumDriverOperation() {
-            @Override
-            public Map<String, Object> execute() throws MorphiumDriverException {
-                OpQuery op = new OpQuery();
-                op.setInReplyTo(0);
-                op.setReqId(getNextId());
+        new NetworkCallHelper().doCall(() -> {
+            OpQuery op = new OpQuery();
+            op.setInReplyTo(0);
+            op.setReqId(getNextId());
 
-                op.setDb(db);
-                op.setColl("$cmd");
-                HashMap<String, Object> map = new LinkedHashMap<>();
-                map.put("drop", collection);
-                op.setDoc(map);
-                synchronized (SingleConnectDirectDriver.this) {
-                    sendQuery(op);
-                    try {
-                        waitForReply(db, collection, null, op.getReqId());
-                    } catch (Exception e) {
-                        log.error("Drop failed! " + e.getMessage());
-                    }
+            op.setDb(db);
+            op.setColl("$cmd");
+            HashMap<String, Object> map = new LinkedHashMap<>();
+            map.put("drop", collection);
+            op.setDoc(map);
+            synchronized (SingleConnectDirectDriver.this) {
+                sendQuery(op);
+                try {
+                    waitForReply(db, collection, null, op.getReqId());
+                } catch (Exception e) {
+                    log.error("Drop failed! " + e.getMessage());
                 }
-                return null;
             }
+            return null;
         }, getRetriesOnNetworkError(), getSleepBetweenErrorRetries());
     }
 
     @Override
     public void drop(String db, WriteConcern wc) throws MorphiumDriverException {
-        new NetworkCallHelper().doCall(new MorphiumDriverOperation() {
-            @Override
-            public Map<String, Object> execute() throws MorphiumDriverException {
-                OpQuery op = new OpQuery();
-                op.setInReplyTo(0);
-                op.setReqId(getNextId());
+        new NetworkCallHelper().doCall(() -> {
+            OpQuery op = new OpQuery();
+            op.setInReplyTo(0);
+            op.setReqId(getNextId());
 
-                op.setDb(db);
-                op.setColl("$cmd");
-                HashMap<String, Object> map = new LinkedHashMap<>();
-                map.put("drop", 1);
-                op.setDoc(map);
-                synchronized (SingleConnectDirectDriver.this) {
-                    sendQuery(op);
-                    try {
-                        waitForReply(db, null, null, op.getReqId());
-                    } catch (Exception e) {
-                        log.error("Drop failed! " + e.getMessage());
-                    }
+            op.setDb(db);
+            op.setColl("$cmd");
+            HashMap<String, Object> map = new LinkedHashMap<>();
+            map.put("drop", 1);
+            op.setDoc(map);
+            synchronized (SingleConnectDirectDriver.this) {
+                sendQuery(op);
+                try {
+                    waitForReply(db, null, null, op.getReqId());
+                } catch (Exception e) {
+                    log.error("Drop failed! " + e.getMessage());
                 }
-                return null;
             }
+            return null;
         }, getRetriesOnNetworkError(), getSleepBetweenErrorRetries());
     }
 
@@ -737,34 +703,30 @@ public class SingleConnectDirectDriver extends DriverBase {
 
     @Override
     public List<Object> distinct(String db, String collection, String field, Map<String, Object> filter, ReadPreference rp) throws MorphiumDriverException {
-        Map<String, Object> ret = new NetworkCallHelper().doCall(new MorphiumDriverOperation() {
-            @Override
-            public Map<String, Object> execute() throws MorphiumDriverException {
-                OpQuery op = new OpQuery();
-                op.setColl("$cmd");
-                op.setLimit(1);
-                op.setReqId(getNextId());
-                op.setSkip(0);
+        Map<String, Object> ret = new NetworkCallHelper().doCall(() -> {
+            OpQuery op = new OpQuery();
+            op.setColl("$cmd");
+            op.setLimit(1);
+            op.setReqId(getNextId());
+            op.setSkip(0);
 
-                Map<String, Object> cmd = new LinkedHashMap<>();
-                cmd.put("distinct", collection);
-                cmd.put("field", field);
-                cmd.put("query", filter);
-                op.setDoc(cmd);
+            Map<String, Object> cmd = new LinkedHashMap<>();
+            cmd.put("distinct", collection);
+            cmd.put("field", field);
+            cmd.put("query", filter);
+            op.setDoc(cmd);
 
-                synchronized (SingleConnectDirectDriver.this) {
-                    sendQuery(op);
-                    try {
-                        OpReply res = waitForReply(db, null, null, op.getReqId());
-                        //TODO: implement
-                        log.fatal("Need to implement distinct");
-                    } catch (Exception e) {
+            synchronized (SingleConnectDirectDriver.this) {
+                sendQuery(op);
+                try {
+                    OpReply res = waitForReply(db, null, null, op.getReqId());
+                    log.fatal("Need to implement distinct");
+                } catch (Exception e) {
 
-                    }
                 }
-
-                return null;
             }
+
+            return null;
         }, getRetriesOnNetworkError(), getSleepBetweenErrorRetries());
         return (List<Object>) ret.get("result");
     }
@@ -780,30 +742,27 @@ public class SingleConnectDirectDriver extends DriverBase {
 
     @Override
     public List<Map<String, Object>> getIndexes(String db, String collection) throws MorphiumDriverException {
-        return (List<Map<String, Object>>) new NetworkCallHelper().doCall(new MorphiumDriverOperation() {
-            @Override
-            public Map<String, Object> execute() throws MorphiumDriverException {
-                Map<String, Object> cmd = new LinkedHashMap<>();
-                cmd.put("listIndexes", 1);
-                OpQuery q = new OpQuery();
-                q.setDb(db);
-                q.setColl("$cmd");
-                q.setLimit(1);
-                q.setSkip(0);
-                q.setReqId(getNextId());
+        return (List<Map<String, Object>>) new NetworkCallHelper().doCall(() -> {
+            Map<String, Object> cmd = new LinkedHashMap<>();
+            cmd.put("listIndexes", 1);
+            OpQuery q = new OpQuery();
+            q.setDb(db);
+            q.setColl("$cmd");
+            q.setLimit(1);
+            q.setSkip(0);
+            q.setReqId(getNextId());
 
-                q.setDoc(cmd);
-                q.setFlags(0);
-                q.setInReplyTo(0);
+            q.setDoc(cmd);
+            q.setFlags(0);
+            q.setInReplyTo(0);
 
-                List<Map<String, Object>> ret;
-                synchronized (SingleConnectDirectDriver.this) {
-                    sendQuery(q);
+            List<Map<String, Object>> ret;
+            synchronized (SingleConnectDirectDriver.this) {
+                sendQuery(q);
 
-                    ret = readBatches(q.getReqId(), db, null, getMaxWriteBatchSize());
-                }
-                return Utils.getMap("result", ret);
+                ret = readBatches(q.getReqId(), db, null, getMaxWriteBatchSize());
             }
+            return Utils.getMap("result", ret);
         }, getRetriesOnNetworkError(), getSleepBetweenErrorRetries()).get("result");
     }
 
@@ -814,111 +773,102 @@ public class SingleConnectDirectDriver extends DriverBase {
     }
 
     private List<Map<String, Object>> getCollectionInfo(String db, String collection) throws MorphiumDriverException {
-        return (List<Map<String, Object>>) new NetworkCallHelper().doCall(new MorphiumDriverOperation() {
-            @Override
-            public Map<String, Object> execute() throws MorphiumDriverException {
-                Map<String, Object> cmd = new LinkedHashMap<>();
-                cmd.put("listCollections", 1);
-                OpQuery q = new OpQuery();
-                q.setDb(db);
-                q.setColl("$cmd");
-                q.setLimit(1);
-                q.setSkip(0);
-                q.setReqId(getNextId());
+        return (List<Map<String, Object>>) new NetworkCallHelper().doCall(() -> {
+            Map<String, Object> cmd = new LinkedHashMap<>();
+            cmd.put("listCollections", 1);
+            OpQuery q = new OpQuery();
+            q.setDb(db);
+            q.setColl("$cmd");
+            q.setLimit(1);
+            q.setSkip(0);
+            q.setReqId(getNextId());
 
-                if (collection != null) {
-                    cmd.put("filter", Utils.getMap("name", collection));
-                }
-                q.setDoc(cmd);
-                q.setFlags(0);
-                q.setInReplyTo(0);
-
-                List<Map<String, Object>> ret;
-                synchronized (SingleConnectDirectDriver.this) {
-                    sendQuery(q);
-
-                    ret = readBatches(q.getReqId(), db, null, getMaxWriteBatchSize());
-                }
-                return Utils.getMap("result", ret);
+            if (collection != null) {
+                cmd.put("filter", Utils.getMap("name", collection));
             }
+            q.setDoc(cmd);
+            q.setFlags(0);
+            q.setInReplyTo(0);
+
+            List<Map<String, Object>> ret;
+            synchronized (SingleConnectDirectDriver.this) {
+                sendQuery(q);
+
+                ret = readBatches(q.getReqId(), db, null, getMaxWriteBatchSize());
+            }
+            return Utils.getMap("result", ret);
         }, getRetriesOnNetworkError(), getSleepBetweenErrorRetries()).get("result");
     }
 
     @Override
     public Map<String, Object> group(String db, String coll, Map<String, Object> query, Map<String, Object> initial, String jsReduce, String jsFinalize, ReadPreference rp, String... keys) throws MorphiumDriverException {
-        return new NetworkCallHelper().doCall(new MorphiumDriverOperation() {
-            @Override
-            public Map<String, Object> execute() throws MorphiumDriverException {
-                OpQuery q = new OpQuery();
-                q.setDb(db);
-                q.setColl("$cmd");
-                q.setReqId(getNextId());
-                q.setSkip(0);
-                q.setLimit(1);
+        return new NetworkCallHelper().doCall(() -> {
+            OpQuery q = new OpQuery();
+            q.setDb(db);
+            q.setColl("$cmd");
+            q.setReqId(getNextId());
+            q.setSkip(0);
+            q.setLimit(1);
 
-                Map<String, Object> cmd = new LinkedHashMap<>();
-                Map<String, Object> map = Utils.getMap("ns", coll);
+            Map<String, Object> cmd = new LinkedHashMap<>();
+            Map<String, Object> map = Utils.getMap("ns", coll);
 
-                Map<String, Object> key = new HashMap<>();
-                for (String k : keys) key.put(k, 1);
-                map.put("key", key);
-                if (jsReduce != null) {
-                    map.put("$reduce", jsReduce);
-                }
-
-                if (jsFinalize != null) {
-                    map.put("finalize", jsFinalize);
-                }
-                if (initial != null) {
-                    map.put("initial", initial);
-                }
-                if (query != null) map.put("cond", query);
-
-                cmd.put("group", map);
-
-                synchronized (SingleConnectDirectDriver.this) {
-                    try {
-                        sendQuery(q);
-                    } catch (MorphiumDriverException e) {
-                        log.error("Sending of message failed: ", e);
-                        return null;
-                    }
-                    try {
-                        OpReply res = waitForReply(db, coll, query, q.getReqId());
-                    } catch (MorphiumDriverException e) {
-
-                    }
-                }
-                return null;
+            Map<String, Object> key = new HashMap<>();
+            for (String k : keys) key.put(k, 1);
+            map.put("key", key);
+            if (jsReduce != null) {
+                map.put("$reduce", jsReduce);
             }
+
+            if (jsFinalize != null) {
+                map.put("finalize", jsFinalize);
+            }
+            if (initial != null) {
+                map.put("initial", initial);
+            }
+            if (query != null) map.put("cond", query);
+
+            cmd.put("group", map);
+
+            synchronized (SingleConnectDirectDriver.this) {
+                try {
+                    sendQuery(q);
+                } catch (MorphiumDriverException e) {
+                    log.error("Sending of message failed: ", e);
+                    return null;
+                }
+                try {
+                    OpReply res = waitForReply(db, coll, query, q.getReqId());
+                } catch (MorphiumDriverException e) {
+
+                }
+            }
+            return null;
         }, getRetriesOnNetworkError(), getSleepBetweenErrorRetries());
     }
 
     @Override
     public List<Map<String, Object>> aggregate(String db, String collection, List<Map<String, Object>> pipeline, boolean explain, boolean allowDiskUse, ReadPreference readPreference) throws MorphiumDriverException {
-        return (List<Map<String, Object>>) new NetworkCallHelper().doCall(new MorphiumDriverOperation() {
-            @Override
-            public Map<String, Object> execute() throws MorphiumDriverException {
-                OpQuery q = new OpQuery();
-                q.setDb(db);
-                q.setColl("$cmd");
-                q.setReqId(getNextId());
-                q.setSkip(0);
-                q.setLimit(1);
+        return (List<Map<String, Object>>) new NetworkCallHelper().doCall(() -> {
+            OpQuery q = new OpQuery();
+            q.setDb(db);
+            q.setColl("$cmd");
+            q.setReqId(getNextId());
+            q.setSkip(0);
+            q.setLimit(1);
 
-                Map<String, Object> doc = new LinkedHashMap<>();
-                doc.put("aggregate", collection);
-                doc.put("pipeline", pipeline);
-                doc.put("explain", explain);
-                doc.put("allowDiskUse", allowDiskUse);
+            Map<String, Object> doc = new LinkedHashMap<>();
+            doc.put("aggregate", collection);
+            doc.put("pipeline", pipeline);
+            doc.put("explain", explain);
+            doc.put("allowDiskUse", allowDiskUse);
 
-                q.setDoc(doc);
+            q.setDoc(doc);
 
-                synchronized (SingleConnectDirectDriver.this) {
-                    sendQuery(q);
-                    List<Map<String, Object>> lst = readBatches(q.getReqId(), db, collection, getMaxWriteBatchSize());
-                    return Utils.getMap("result", lst);
-                }
+            synchronized (SingleConnectDirectDriver.this) {
+                sendQuery(q);
+                List<Map<String, Object>> lst = readBatches(q.getReqId(), db, collection, getMaxWriteBatchSize());
+                return Utils.getMap("result", lst);
             }
         }, getRetriesOnNetworkError(), getSleepBetweenErrorRetries()).get("result");
     }
@@ -930,8 +880,7 @@ public class SingleConnectDirectDriver extends DriverBase {
         try {
             if (lst.size() != 0 && lst.get(0).get("name").equals(coll)) {
                 Object capped = ((Map) lst.get(0).get("options")).get("capped");
-                if (capped == null) return false;
-                return capped.equals(true);
+                return capped != null && capped.equals(true);
             }
         } catch (Exception e) {
             log.error(e);
@@ -946,29 +895,26 @@ public class SingleConnectDirectDriver extends DriverBase {
 
     @Override
     public void createIndex(String db, String collection, Map<String, Object> index, Map<String, Object> options) throws MorphiumDriverException {
-        new NetworkCallHelper().doCall(new MorphiumDriverOperation() {
-            @Override
-            public Map<String, Object> execute() throws MorphiumDriverException {
-                Map<String, Object> cmd = new LinkedHashMap<>();
-                cmd.put("createIndexes", collection);
-                List<Map<String, Object>> lst = new ArrayList<>();
-                Map<String, Object> idx = new HashMap<>();
-                idx.put("key", index);
-                String key = "";
-                for (String k : index.keySet()) {
-                    key += k;
-                    key += "-";
-                    key += index.get(k);
-                }
-
-                idx.put("name", "idx_" + key);
-                if (options != null)
-                    idx.putAll(options);
-                lst.add(idx);
-                cmd.put("indexes", lst);
-                runCommand(db, cmd);
-                return null;
+        new NetworkCallHelper().doCall(() -> {
+            Map<String, Object> cmd = new LinkedHashMap<>();
+            cmd.put("createIndexes", collection);
+            List<Map<String, Object>> lst = new ArrayList<>();
+            Map<String, Object> idx = new HashMap<>();
+            idx.put("key", index);
+            String key = "";
+            for (String k : index.keySet()) {
+                key += k;
+                key += "-";
+                key += index.get(k);
             }
+
+            idx.put("name", "idx_" + key);
+            if (options != null)
+                idx.putAll(options);
+            lst.add(idx);
+            cmd.put("indexes", lst);
+            runCommand(db, cmd);
+            return null;
         }, getRetriesOnNetworkError(), getSleepBetweenErrorRetries());
 
     }

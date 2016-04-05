@@ -10,7 +10,10 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * TODO: Add Documentation here
+ * Morphium driver interface
+ *
+ * All drivers need to implement this interface. you can add your own drivers to morphium. These are actually not
+ * limited to be mongodb drivers. There is also an InMemory implementation.
  **/
 public interface MorphiumDriver {
 
@@ -94,7 +97,6 @@ public interface MorphiumDriver {
 
     void connect(String replicasetName) throws MorphiumDriverException;
 
-    ;
 
     Maximums getMaximums();
 

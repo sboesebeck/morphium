@@ -301,17 +301,17 @@ public class MorphiumDriverSpeedTest {
 
 //        Thread.sleep(1000);
 
-        lst = drv.find("morphium_test", "tst", new HashMap<String, Object>(), null, null, 0, 0, 1000, null, null);
+        lst = drv.find("morphium_test", "tst", new HashMap<>(), null, null, 0, 0, 1000, null, null);
         log.info("List: " + lst.size());
         assert (lst.size() == countObjs);
 
         drv.delete("morphium_test", "tst", Utils.getMap("counter", 100), false, null);
 //        Thread.sleep(1000);
-        lst = drv.find("morphium_test", "tst", new HashMap<String, Object>(), null, null, 0, 0, 1000, null, null);
+        lst = drv.find("morphium_test", "tst", new HashMap<>(), null, null, 0, 0, 1000, null, null);
         assert (lst.size() != countObjs) : "Size is still " + lst.size();
         assert (lst.size() == countObjs - 1) : "Size is not correct " + lst.size();
 
-        long c = drv.count("morphium_test", "tst", new HashMap<String, Object>(), null);
+        long c = drv.count("morphium_test", "tst", new HashMap<>(), null);
         assert (c == countObjs - 1) : "Count wrong: " + c;
 
 
@@ -345,17 +345,17 @@ public class MorphiumDriverSpeedTest {
 
 //        Thread.sleep(1000);
 
-        lst = drv.find("morphium_test", "tst", new HashMap<String, Object>(), null, null, 0, 0, 1000, null, null);
+        lst = drv.find("morphium_test", "tst", new HashMap<>(), null, null, 0, 0, 1000, null, null);
         log.info("List: " + lst.size());
         assert (lst.size() == countObjs);
 
         drv.delete("morphium_test", "tst", Utils.getMap("counter", 100), false, null);
 //        Thread.sleep(1000);
-        lst = drv.find("morphium_test", "tst", new HashMap<String, Object>(), null, null, 0, 0, 1000, null, null);
+        lst = drv.find("morphium_test", "tst", new HashMap<>(), null, null, 0, 0, 1000, null, null);
         assert (lst.size() != countObjs) : "Size is still " + lst.size();
         assert (lst.size() == countObjs - 1) : "Size is not correct " + lst.size();
 
-        long c = drv.count("morphium_test", "tst", new HashMap<String, Object>(), null);
+        long c = drv.count("morphium_test", "tst", new HashMap<>(), null);
         assert (c == countObjs - 1) : "Count wrong: " + c;
 
 

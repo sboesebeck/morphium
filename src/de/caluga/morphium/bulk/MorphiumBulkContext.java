@@ -19,7 +19,7 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * TODO: Add Documentation here
+ * context for doing bulk operations. What it does is, it stores all operations here and will send them to mongodb en block
  **/
 public class MorphiumBulkContext<T> {
     private Logger log = new Logger(MorphiumBulkContext.class);
@@ -39,7 +39,6 @@ public class MorphiumBulkContext<T> {
         try {
             ret = ctx.execute();
         } catch (MorphiumDriverException e) {
-            //TODO: Implement Handling
             throw new RuntimeException(e);
         }
         firePost();
@@ -51,15 +50,11 @@ public class MorphiumBulkContext<T> {
     }
 
     private void firePre() {
-        for (Runnable r : preEvents) {
-            r.run();
-        }
+        preEvents.forEach(Runnable::run);
     }
 
     private void firePost() {
-        for (Runnable r : postEvents) {
-            r.run();
-        }
+        postEvents.forEach(Runnable::run);
     }
 
     public void runBulk(AsyncOperationCallback c) {
@@ -68,7 +63,6 @@ public class MorphiumBulkContext<T> {
             try {
                 ctx.execute();
             } catch (MorphiumDriverException e) {
-                //TODO: Implement Handling
                 throw new RuntimeException(e);
             }
             firePost();
@@ -88,98 +82,92 @@ public class MorphiumBulkContext<T> {
         }
     }
 
-    private <T> void createUpdateRequest(Query<T> query, String command, Map values, boolean upsert, boolean multiple) {
+    private void createUpdateRequest(Query<T> query, String command, Map values, boolean upsert, boolean multiple) {
         UpdateBulkRequest up = ctx.addUpdateBulkRequest();
         up.setQuery(query.toQueryObject());
         up.setUpsert(upsert);
         up.setCmd(Utils.getMap(command, values));
         up.setMultiple(multiple);
 
-        preEvents.add(new Runnable() {
-            @Override
-            public void run() {
-                switch (command) {
-                    case "$set":
-                        ctx.getMorphium().firePreUpdateEvent(query.getType(), MorphiumStorageListener.UpdateTypes.SET);
-                        break;
-                    case "$inc":
-                        ctx.getMorphium().firePreUpdateEvent(query.getType(), MorphiumStorageListener.UpdateTypes.INC);
-                        break;
-                    case "$unset":
-                        ctx.getMorphium().firePreUpdateEvent(query.getType(), MorphiumStorageListener.UpdateTypes.UNSET);
-                        break;
-                    case "$min":
-                        ctx.getMorphium().firePreUpdateEvent(query.getType(), MorphiumStorageListener.UpdateTypes.MIN);
-                        break;
-                    case "$max":
-                        ctx.getMorphium().firePreUpdateEvent(query.getType(), MorphiumStorageListener.UpdateTypes.MAX);
-                        break;
-                    case "$currentDate":
-                        ctx.getMorphium().firePreUpdateEvent(query.getType(), MorphiumStorageListener.UpdateTypes.CURRENTDATE);
-                        break;
+        preEvents.add(() -> {
+            switch (command) {
+                case "$set":
+                    ctx.getMorphium().firePreUpdateEvent(query.getType(), MorphiumStorageListener.UpdateTypes.SET);
+                    break;
+                case "$inc":
+                    ctx.getMorphium().firePreUpdateEvent(query.getType(), MorphiumStorageListener.UpdateTypes.INC);
+                    break;
+                case "$unset":
+                    ctx.getMorphium().firePreUpdateEvent(query.getType(), MorphiumStorageListener.UpdateTypes.UNSET);
+                    break;
+                case "$min":
+                    ctx.getMorphium().firePreUpdateEvent(query.getType(), MorphiumStorageListener.UpdateTypes.MIN);
+                    break;
+                case "$max":
+                    ctx.getMorphium().firePreUpdateEvent(query.getType(), MorphiumStorageListener.UpdateTypes.MAX);
+                    break;
+                case "$currentDate":
+                    ctx.getMorphium().firePreUpdateEvent(query.getType(), MorphiumStorageListener.UpdateTypes.CURRENTDATE);
+                    break;
 
-                    case "$pop":
-                        ctx.getMorphium().firePreUpdateEvent(query.getType(), MorphiumStorageListener.UpdateTypes.POP);
-                        break;
+                case "$pop":
+                    ctx.getMorphium().firePreUpdateEvent(query.getType(), MorphiumStorageListener.UpdateTypes.POP);
+                    break;
 
-                    case "$push":
-                        ctx.getMorphium().firePreUpdateEvent(query.getType(), MorphiumStorageListener.UpdateTypes.PUSH);
-                        break;
+                case "$push":
+                    ctx.getMorphium().firePreUpdateEvent(query.getType(), MorphiumStorageListener.UpdateTypes.PUSH);
+                    break;
 
-                    case "$mul":
-                        ctx.getMorphium().firePreUpdateEvent(query.getType(), MorphiumStorageListener.UpdateTypes.MUL);
-                        break;
+                case "$mul":
+                    ctx.getMorphium().firePreUpdateEvent(query.getType(), MorphiumStorageListener.UpdateTypes.MUL);
+                    break;
 
-                    case "$rename":
-                        ctx.getMorphium().firePreUpdateEvent(query.getType(), MorphiumStorageListener.UpdateTypes.RENAME);
-                        break;
-                    default:
-                        log.error("Unknown update command " + command);
-                }
+                case "$rename":
+                    ctx.getMorphium().firePreUpdateEvent(query.getType(), MorphiumStorageListener.UpdateTypes.RENAME);
+                    break;
+                default:
+                    log.error("Unknown update command " + command);
             }
         });
 
-        postEvents.add(new Runnable() {
-            @Override
-            public void run() {
-                switch (command) {
-                    case "$set":
-                        ctx.getMorphium().firePostUpdateEvent(query.getType(), MorphiumStorageListener.UpdateTypes.SET);
-                        break;
-                    case "$inc":
-                        ctx.getMorphium().firePostUpdateEvent(query.getType(), MorphiumStorageListener.UpdateTypes.SET);
-                        break;
-                    case "$unset":
-                        ctx.getMorphium().firePostUpdateEvent(query.getType(), MorphiumStorageListener.UpdateTypes.UNSET);
-                        break;
-                    case "$min":
-                        ctx.getMorphium().firePostUpdateEvent(query.getType(), MorphiumStorageListener.UpdateTypes.MIN);
-                        break;
-                    case "$max":
-                        ctx.getMorphium().firePostUpdateEvent(query.getType(), MorphiumStorageListener.UpdateTypes.MAX);
-                        break;
-                    case "$currentDate":
-                        ctx.getMorphium().firePostUpdateEvent(query.getType(), MorphiumStorageListener.UpdateTypes.CURRENTDATE);
-                        break;
+        postEvents.add(() -> {
+            switch (command) {
+                case "$set":
+                    ctx.getMorphium().firePostUpdateEvent(query.getType(), MorphiumStorageListener.UpdateTypes.SET);
+                    break;
+                case "$inc":
+                    ctx.getMorphium().firePostUpdateEvent(query.getType(), MorphiumStorageListener.UpdateTypes.SET);
+                    break;
+                case "$unset":
+                    ctx.getMorphium().firePostUpdateEvent(query.getType(), MorphiumStorageListener.UpdateTypes.UNSET);
+                    break;
+                case "$min":
+                    ctx.getMorphium().firePostUpdateEvent(query.getType(), MorphiumStorageListener.UpdateTypes.MIN);
+                    break;
+                case "$max":
+                    ctx.getMorphium().firePostUpdateEvent(query.getType(), MorphiumStorageListener.UpdateTypes.MAX);
+                    break;
+                case "$currentDate":
+                    ctx.getMorphium().firePostUpdateEvent(query.getType(), MorphiumStorageListener.UpdateTypes.CURRENTDATE);
+                    break;
 
-                    case "$pop":
-                        ctx.getMorphium().firePostUpdateEvent(query.getType(), MorphiumStorageListener.UpdateTypes.POP);
-                        break;
+                case "$pop":
+                    ctx.getMorphium().firePostUpdateEvent(query.getType(), MorphiumStorageListener.UpdateTypes.POP);
+                    break;
 
-                    case "$push":
-                        ctx.getMorphium().firePostUpdateEvent(query.getType(), MorphiumStorageListener.UpdateTypes.PUSH);
-                        break;
+                case "$push":
+                    ctx.getMorphium().firePostUpdateEvent(query.getType(), MorphiumStorageListener.UpdateTypes.PUSH);
+                    break;
 
-                    case "$mul":
-                        ctx.getMorphium().firePostUpdateEvent(query.getType(), MorphiumStorageListener.UpdateTypes.MUL);
-                        break;
+                case "$mul":
+                    ctx.getMorphium().firePostUpdateEvent(query.getType(), MorphiumStorageListener.UpdateTypes.MUL);
+                    break;
 
-                    case "$rename":
-                        ctx.getMorphium().firePostUpdateEvent(query.getType(), MorphiumStorageListener.UpdateTypes.RENAME);
-                        break;
-                    default:
-                        log.error("Unknown update command " + command);
-                }
+                case "$rename":
+                    ctx.getMorphium().firePostUpdateEvent(query.getType(), MorphiumStorageListener.UpdateTypes.RENAME);
+                    break;
+                default:
+                    log.error("Unknown update command " + command);
             }
         });
     }
@@ -194,25 +182,19 @@ public class MorphiumBulkContext<T> {
         }
 
         ctx.addInsertBulkReqpest(ins);
-        preEvents.add(new Runnable() {
-            @Override
-            public void run() {
-                if (toInsert.size() == 1) {
-                    ctx.getMorphium().firePreStore(toInsert.get(0), ctx.getMorphium().getARHelper().getId(toInsert.get(0)) == null);
-                } else {
-                    ctx.getMorphium().firePreStore(isNew);
-                }
+        preEvents.add(() -> {
+            if (toInsert.size() == 1) {
+                ctx.getMorphium().firePreStore(toInsert.get(0), ctx.getMorphium().getARHelper().getId(toInsert.get(0)) == null);
+            } else {
+                ctx.getMorphium().firePreStore(isNew);
             }
         });
 
-        postEvents.add(new Runnable() {
-            @Override
-            public void run() {
-                if (toInsert.size() == 1) {
-                    ctx.getMorphium().firePostStore(toInsert.get(0), ctx.getMorphium().getARHelper().getId(toInsert.get(0)) == null);
-                } else {
-                    ctx.getMorphium().firePostStore(isNew);
-                }
+        postEvents.add(() -> {
+            if (toInsert.size() == 1) {
+                ctx.getMorphium().firePostStore(toInsert.get(0), ctx.getMorphium().getARHelper().getId(toInsert.get(0)) == null);
+            } else {
+                ctx.getMorphium().firePostStore(isNew);
             }
         });
 
@@ -224,26 +206,14 @@ public class MorphiumBulkContext<T> {
         DeleteBulkRequest del = ctx.addDeleteBulkRequest();
         del.setQuery(Utils.getMap("_id", ctx.getMorphium().getARHelper().getId(entity)));
         del.setMultiple(false);
-        preEvents.add(new Runnable() {
-            @Override
-            public void run() {
-                ctx.getMorphium().firePreRemove(entity);
-            }
-        });
+        preEvents.add(() -> ctx.getMorphium().firePreRemove(entity));
 
-        postEvents.add(new Runnable() {
-            @Override
-            public void run() {
-                ctx.getMorphium().firePostRemoveEvent(entity);
-            }
-        });
+        postEvents.add(() -> ctx.getMorphium().firePostRemoveEvent(entity));
 
     }
 
     public void addDeleteRequest(List<T> entities) {
-        for (T e : entities) {
-            addDeleteRequest(e);
-        }
+        entities.forEach(this::addDeleteRequest);
 
     }
 
@@ -252,19 +222,9 @@ public class MorphiumBulkContext<T> {
         del.setMultiple(multiple);
         del.setQuery(q.toQueryObject());
 
-        preEvents.add(new Runnable() {
-            @Override
-            public void run() {
-                ctx.getMorphium().firePreRemoveEvent(q);
-            }
-        });
+        preEvents.add(() -> ctx.getMorphium().firePreRemoveEvent(q));
 
-        postEvents.add(new Runnable() {
-            @Override
-            public void run() {
-                ctx.getMorphium().firePostRemoveEvent(q);
-            }
-        });
+        postEvents.add(() -> ctx.getMorphium().firePostRemoveEvent(q));
     }
 
 
@@ -274,19 +234,9 @@ public class MorphiumBulkContext<T> {
         up.setUpsert(upsert);
         up.setMultiple(multiple);
         up.setCmd(command);
-        preEvents.add(new Runnable() {
-            @Override
-            public void run() {
-                ctx.getMorphium().firePreUpdateEvent(query.getType(), MorphiumStorageListener.UpdateTypes.CUSTOM);
-            }
-        });
+        preEvents.add(() -> ctx.getMorphium().firePreUpdateEvent(query.getType(), MorphiumStorageListener.UpdateTypes.CUSTOM));
 
-        postEvents.add(new Runnable() {
-            @Override
-            public void run() {
-                ctx.getMorphium().firePostUpdateEvent(query.getType(), MorphiumStorageListener.UpdateTypes.CUSTOM);
-            }
-        });
+        postEvents.add(() -> ctx.getMorphium().firePostUpdateEvent(query.getType(), MorphiumStorageListener.UpdateTypes.CUSTOM));
     }
 
     public void addSetRequest(T obj, String field, Object value, boolean upsert) {

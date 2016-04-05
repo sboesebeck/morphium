@@ -7,7 +7,7 @@ import java.util.*;
 import java.util.regex.Pattern;
 
 /**
- * TODO: Add Documentation here
+ * decoding BSON coming from mongodb
  **/
 public class BsonDecoder {
 
@@ -139,8 +139,7 @@ public class BsonDecoder {
                     //javascript
                     strlen = readInt(in, idx);
                     String code = new String(in, idx + 4, strlen - 1, "UTF-8");
-                    MongoJSScript scr = new MongoJSScript(code);
-                    value = scr;
+                    value = new MongoJSScript(code);
                     idx += strlen + 4;
                     break;
                 case 0x0f:
