@@ -6,7 +6,7 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * TODO: Add Documentation here
+ * insert bulk request entry
  **/
 public class InsertBulkRequest extends BulkRequest {
     private List<Map<String, Object>> toInsert;

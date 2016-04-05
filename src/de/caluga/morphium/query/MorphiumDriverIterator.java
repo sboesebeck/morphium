@@ -13,7 +13,7 @@ import java.util.List;
  * Date: 25.03.16
  * Time: 22:33
  * <p>
- * TODO: Add documentation here
+ * iterating over huge collections using the mongodb internal cursor
  */
 public class MorphiumDriverIterator<T> implements MorphiumIterator<T> {
 
@@ -42,7 +42,6 @@ public class MorphiumDriverIterator<T> implements MorphiumIterator<T> {
         try {
             query = q.clone();
         } catch (CloneNotSupportedException e) {
-            //TODO: Implement Handling
             throw new RuntimeException(e);
         }
     }

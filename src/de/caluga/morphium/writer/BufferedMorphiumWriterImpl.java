@@ -74,8 +74,7 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
 //        BulkRequestContext ctx = morphium.getDriver().createBulkContext(morphium.getConfig().getDatabase(), "", false, null);
 //        BulkRequestContext octx = morphium.getDriver().createBulkContext(morphium.getConfig().getDatabase(), "", true, null);
 
-        for (int i = 0; i < localQueue.size(); i++) {
-            WriteBufferEntry entry = localQueue.get(i);
+        for (WriteBufferEntry entry : localQueue) {
             try {
                 if (bulkByCollectionName.get(entry.getCollectionName()) == null) {
                     WriteBuffer w = morphium.getARHelper().getAnnotationFromHierarchy(entry.getEntityType(), WriteBuffer.class);
@@ -106,8 +105,7 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
             logger.error("Error during exeecution of unordered bulk", e);
         }
 
-        for (int i = 0; i < localQueue.size(); i++) {
-            WriteBufferEntry entry = localQueue.get(i);
+        for (WriteBufferEntry entry : localQueue) {
             morphium.clearCacheforClassIfNecessary(entry.getEntityType());
         }
 
@@ -131,8 +129,7 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
 //        synchronized (opLog) {
         if (opLog.get(type) == null) {
             synchronized (opLog) {
-                if (opLog.get(type) == null)
-                    opLog.put(type, new Vector<WriteBufferEntry>());
+                opLog.putIfAbsent(type, new Vector<>());
             }
         }
 
@@ -141,8 +138,7 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
             BulkRequestContext ctx = morphium.getDriver().createBulkContext(morphium, morphium.getConfig().getDatabase(), collectionName, ordered, morphium.getWriteConcernForClass(type));
             if (opLog.get(type) == null) {
                 synchronized (opLog) {
-                    if (opLog.get(type) == null)
-                        opLog.put(type, Collections.synchronizedList(new ArrayList<>()));
+                    opLog.putIfAbsent(type, Collections.synchronizedList(new ArrayList<>()));
                 }
             }
             switch (strategy) {
@@ -159,12 +155,7 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
                     break;
                 case WRITE_OLD:
 
-                    Collections.sort(opLog.get(type), new Comparator<WriteBufferEntry>() {
-                        @Override
-                        public int compare(WriteBufferEntry o1, WriteBufferEntry o2) {
-                            return Long.valueOf(o1.getTimestamp()).compareTo(o2.getTimestamp());
-                        }
-                    });
+                    Collections.sort(opLog.get(type), (o1, o2) -> Long.valueOf(o1.getTimestamp()).compareTo(o2.getTimestamp()));
 
                     opLog.get(type).get(0).getToRun().queue(ctx);
                     opLog.get(type).remove(0);
@@ -172,12 +163,7 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
                     break;
                 case DEL_OLD:
 
-                    Collections.sort(opLog.get(type), new Comparator<WriteBufferEntry>() {
-                        @Override
-                        public int compare(WriteBufferEntry o1, WriteBufferEntry o2) {
-                            return Long.valueOf(o1.getTimestamp()).compareTo(o2.getTimestamp());
-                        }
-                    });
+                    Collections.sort(opLog.get(type), (o1, o2) -> Long.valueOf(o1.getTimestamp()).compareTo(o2.getTimestamp()));
                     if (logger.isDebugEnabled()) {
                         logger.debug("Deleting oldest entry");
                     }
@@ -204,41 +190,37 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
             c = new AsyncOpAdapter<>();
         }
         morphium.inc(StatisticKeys.WRITES_CACHED);
-        addToWriteQueue(o.getClass(), collection, new BufferedBulkOp() {
-            @Override
-            public void queue(BulkRequestContext ctx) {
-                //do nothing
-                boolean isNew = morphium.getARHelper().getId(o) == null;
-                if (!isNew && !morphium.getARHelper().getIdField(o).getType().equals(MorphiumId.class)) {
-                    //need to check if type is not MongoId
-                    isNew = (morphium.createQueryFor(o.getClass()).f("_id").eq(morphium.getId(o)).countAll() == 0);
-                }
-                morphium.firePreStore(o, isNew);
-                if (isNew) {
-                    ArrayList<Map<String, Object>> objToInsert = new ArrayList<>();
-                    objToInsert.add(morphium.getMapper().marshall(o));
-                    InsertBulkRequest ins = ctx.addInsertBulkReqpest(objToInsert);
-                } else {
-
-                    UpdateBulkRequest up = ctx.addUpdateBulkRequest();
-                    up.setMultiple(false);
-                    up.setUpsert(true); //insert for non-objectId
-                    up.setQuery((morphium.createQueryFor(o.getClass()).f(morphium.getARHelper().getIdFieldName(o)).eq(morphium.getARHelper().getId(o))).toQueryObject());
-                    Map<String, Object> cmd = new HashMap<String, Object>();
-                    up.setCmd(Utils.getMap("$set", cmd));
-                    for (String f : morphium.getARHelper().getFields(o.getClass())) {
-                        try {
-                            cmd.put(morphium.getARHelper().getFieldName(o.getClass(), f), morphium.getMapper().marshallIfNecessary(morphium.getARHelper().getField(o.getClass(), f).get(o)));
-                        } catch (IllegalAccessException e) {
-                            e.printStackTrace();
-                        }
-
-                    }
-                }
-//                morphium.clearCacheforClassIfNecessary(o.getClass());
-                morphium.firePostStore(o, isNew);
+        addToWriteQueue(o.getClass(), collection, ctx -> {
+            //do nothing
+            boolean isNew = morphium.getARHelper().getId(o) == null;
+            if (!isNew && !morphium.getARHelper().getIdField(o).getType().equals(MorphiumId.class)) {
+                //need to check if type is not MongoId
+                isNew = (morphium.createQueryFor(o.getClass()).f("_id").eq(morphium.getId(o)).countAll() == 0);
             }
+            morphium.firePreStore(o, isNew);
+            if (isNew) {
+                ArrayList<Map<String, Object>> objToInsert = new ArrayList<>();
+                objToInsert.add(morphium.getMapper().marshall(o));
+                InsertBulkRequest ins = ctx.addInsertBulkReqpest(objToInsert);
+            } else {
 
+                UpdateBulkRequest up = ctx.addUpdateBulkRequest();
+                up.setMultiple(false);
+                up.setUpsert(true); //insert for non-objectId
+                up.setQuery((morphium.createQueryFor(o.getClass()).f(morphium.getARHelper().getIdFieldName(o)).eq(morphium.getARHelper().getId(o))).toQueryObject());
+                Map<String, Object> cmd = new HashMap<String, Object>();
+                up.setCmd(Utils.getMap("$set", cmd));
+                for (String f : morphium.getARHelper().getFields(o.getClass())) {
+                    try {
+                        cmd.put(morphium.getARHelper().getFieldName(o.getClass(), f), morphium.getMapper().marshallIfNecessary(morphium.getARHelper().getField(o.getClass(), f).get(o)));
+                    } catch (IllegalAccessException e) {
+                        e.printStackTrace();
+                    }
+
+                }
+            }
+//                morphium.clearCacheforClassIfNecessary(o.getClass());
+            morphium.firePostStore(o, isNew);
         }, c, AsyncOperationType.WRITE);
     }
 
@@ -255,26 +237,22 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
         morphium.inc(StatisticKeys.WRITES_CACHED);
 
         final AsyncOperationCallback<T> finalC = c;
-        addToWriteQueue(lst.get(0).getClass(), collectionName, new BufferedBulkOp() {
-            @Override
-            public void queue(BulkRequestContext ctx) {
-                Map<Object, Boolean> map = new HashMap<>();
-                morphium.firePreStore(map);
-                for (T o : lst) {
-                    map.put(o, morphium.getARHelper().getId(o) == null);
-                }
-                List<Map<String, Object>> toInsert = new ArrayList<Map<String, Object>>();
-                for (Map.Entry<Object, Boolean> entry : map.entrySet()) {
-                    if (entry.getValue()) {
-                        toInsert.add(morphium.getMapper().marshall(entry.getKey()));
-                    } else {
-                        store((T) entry.getKey(), morphium.getMapper().getCollectionName(entry.getKey().getClass()), finalC);
-                    }
-                }
-                ctx.addInsertBulkReqpest(toInsert);
-                morphium.firePostStore(map);
+        addToWriteQueue(lst.get(0).getClass(), collectionName, ctx -> {
+            Map<Object, Boolean> map = new HashMap<>();
+            morphium.firePreStore(map);
+            for (T o : lst) {
+                map.put(o, morphium.getARHelper().getId(o) == null);
             }
-
+            List<Map<String, Object>> toInsert = new ArrayList<Map<String, Object>>();
+            for (Map.Entry<Object, Boolean> entry : map.entrySet()) {
+                if (entry.getValue()) {
+                    toInsert.add(morphium.getMapper().marshall(entry.getKey()));
+                } else {
+                    store((T) entry.getKey(), morphium.getMapper().getCollectionName(entry.getKey().getClass()), finalC);
+                }
+            }
+            ctx.addInsertBulkReqpest(toInsert);
+            morphium.firePostStore(map);
         }, c, AsyncOperationType.WRITE);
     }
 
@@ -285,34 +263,31 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
         }
         final AsyncOperationCallback<T> callback = c;
         morphium.inc(StatisticKeys.WRITES_CACHED);
-        addToWriteQueue(ent.getClass(), collection, new BufferedBulkOp() {
-            @Override
-            public void queue(BulkRequestContext ctx) {
+        addToWriteQueue(ent.getClass(), collection, ctx -> {
 //                directWriter.updateUsingFields(ent, collection, callback, fields);
-                morphium.firePreUpdateEvent(ent.getClass(), MorphiumStorageListener.UpdateTypes.SET);
-                Query<Object> query = (Query<Object>) morphium.createQueryFor(ent.getClass()).f(morphium.getARHelper().getIdFieldName(ent)).eq(morphium.getARHelper().getId(ent));
-                if (collection != null)
-                    query.setCollectionName(collection);
+            morphium.firePreUpdateEvent(ent.getClass(), MorphiumStorageListener.UpdateTypes.SET);
+            Query<Object> query = (Query<Object>) morphium.createQueryFor(ent.getClass()).f(morphium.getARHelper().getIdFieldName(ent)).eq(morphium.getARHelper().getId(ent));
+            if (collection != null)
+                query.setCollectionName(collection);
 //                BulkRequestWrapper r = ctx.addFind(query);
-                String[] flds = fields;
-                if (flds.length == 0) {
-                    flds = morphium.getARHelper().getAllFields(ent.getClass()).toArray(flds);
-                }
-
-                UpdateBulkRequest r = new UpdateBulkRequest();
-                r.setMultiple(false);
-                r.setUpsert(false);
-                r.setQuery(query.toQueryObject());
-                Map<String, Object> set = new HashMap<String, Object>();
-                r.setCmd(Utils.getMap("$set", set));
-                for (String f : flds) {
-                    String fld = morphium.getARHelper().getFieldName(query.getType(), f);
-                    set.put(fld, morphium.getARHelper().getValue(ent, f));
-                }
-                morphium.getCache().clearCacheIfNecessary(ent.getClass());
-                morphium.firePostUpdateEvent(ent.getClass(), MorphiumStorageListener.UpdateTypes.SET);
-
+            String[] flds = fields;
+            if (flds.length == 0) {
+                flds = morphium.getARHelper().getAllFields(ent.getClass()).toArray(flds);
             }
+
+            UpdateBulkRequest r = new UpdateBulkRequest();
+            r.setMultiple(false);
+            r.setUpsert(false);
+            r.setQuery(query.toQueryObject());
+            Map<String, Object> set = new HashMap<String, Object>();
+            r.setCmd(Utils.getMap("$set", set));
+            for (String f : flds) {
+                String fld = morphium.getARHelper().getFieldName(query.getType(), f);
+                set.put(fld, morphium.getARHelper().getValue(ent, f));
+            }
+            morphium.getCache().clearCacheIfNecessary(ent.getClass());
+            morphium.firePostUpdateEvent(ent.getClass(), MorphiumStorageListener.UpdateTypes.SET);
+
         }, c, AsyncOperationType.UPDATE);
     }
 
@@ -323,23 +298,19 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
         }
         final AsyncOperationCallback<T> callback = c;
         morphium.inc(StatisticKeys.WRITES_CACHED);
-        addToWriteQueue(toSet.getClass(), collection, new BufferedBulkOp() {
-            @Override
-            public void queue(BulkRequestContext ctx) {
+        addToWriteQueue(toSet.getClass(), collection, ctx -> {
 //                directWriter.set(toSet, collection, field, value, upsert, multiple, callback);
-                morphium.firePreUpdateEvent(toSet.getClass(), MorphiumStorageListener.UpdateTypes.SET);
-                Query<Object> query = (Query<Object>) morphium.createQueryFor(toSet.getClass()).f(morphium.getARHelper().getIdFieldName(toSet)).eq(morphium.getARHelper().getId(toSet));
-                if (collection != null) query.setCollectionName(collection);
-                UpdateBulkRequest wr = ctx.addUpdateBulkRequest();
-                wr.setUpsert(upsert);
-                wr.setMultiple(multiple);
-                wr.setQuery(query.toQueryObject());
-                morphium.getCache().clearCacheIfNecessary(toSet.getClass());
-                String fld = morphium.getARHelper().getFieldName(query.getType(), field);
-                wr.setCmd(Utils.getMap("$set", Utils.getMap(fld, value)));
-                morphium.firePostUpdateEvent(toSet.getClass(), MorphiumStorageListener.UpdateTypes.SET);
-            }
-
+            morphium.firePreUpdateEvent(toSet.getClass(), MorphiumStorageListener.UpdateTypes.SET);
+            Query<Object> query = (Query<Object>) morphium.createQueryFor(toSet.getClass()).f(morphium.getARHelper().getIdFieldName(toSet)).eq(morphium.getARHelper().getId(toSet));
+            if (collection != null) query.setCollectionName(collection);
+            UpdateBulkRequest wr = ctx.addUpdateBulkRequest();
+            wr.setUpsert(upsert);
+            wr.setMultiple(multiple);
+            wr.setQuery(query.toQueryObject());
+            morphium.getCache().clearCacheIfNecessary(toSet.getClass());
+            String fld = morphium.getARHelper().getFieldName(query.getType(), field);
+            wr.setCmd(Utils.getMap("$set", Utils.getMap(fld, value)));
+            morphium.firePostUpdateEvent(toSet.getClass(), MorphiumStorageListener.UpdateTypes.SET);
         }, c, AsyncOperationType.SET);
     }
 
@@ -351,26 +322,22 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
         }
         final AsyncOperationCallback<T> callback = c;
         morphium.inc(StatisticKeys.WRITES_CACHED);
-        addToWriteQueue(query.getType(), query.getCollectionName(), new BufferedBulkOp() {
-            @Override
-            public void queue(BulkRequestContext ctx) {
+        addToWriteQueue(query.getType(), query.getCollectionName(), ctx -> {
 //                directWriter.set(toSet, collection, field, value, upsert, multiple, callback);
-                morphium.firePreUpdateEvent(query.getType(), MorphiumStorageListener.UpdateTypes.SET);
+            morphium.firePreUpdateEvent(query.getType(), MorphiumStorageListener.UpdateTypes.SET);
 
-                UpdateBulkRequest wr = ctx.addUpdateBulkRequest();
-                wr.setUpsert(upsert);
-                wr.setMultiple(multiple);
-                morphium.getCache().clearCacheIfNecessary(query.getType());
-                wr.setQuery(query.toQueryObject());
-                Map<String, Object> set = new HashMap<String, Object>();
-                wr.setCmd(Utils.getMap("$set", set));
-                for (Map.Entry kv : values.entrySet()) {
-                    String fld = morphium.getARHelper().getFieldName(query.getType(), kv.getKey().toString());
-                    set.put(fld, kv.getValue());
-                }
-                morphium.firePostUpdateEvent(query.getType(), MorphiumStorageListener.UpdateTypes.SET);
+            UpdateBulkRequest wr = ctx.addUpdateBulkRequest();
+            wr.setUpsert(upsert);
+            wr.setMultiple(multiple);
+            morphium.getCache().clearCacheIfNecessary(query.getType());
+            wr.setQuery(query.toQueryObject());
+            Map<String, Object> set = new HashMap<String, Object>();
+            wr.setCmd(Utils.getMap("$set", set));
+            for (Map.Entry kv : values.entrySet()) {
+                String fld = morphium.getARHelper().getFieldName(query.getType(), kv.getKey().toString());
+                set.put(fld, kv.getValue());
             }
-
+            morphium.firePostUpdateEvent(query.getType(), MorphiumStorageListener.UpdateTypes.SET);
         }, c, AsyncOperationType.SET);
     }
 
@@ -381,25 +348,20 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
         }
         final AsyncOperationCallback<T> callback = c;
         morphium.inc(StatisticKeys.WRITES_CACHED);
-        addToWriteQueue(query.getType(), query.getCollectionName(), new BufferedBulkOp() {
-            @Override
-            public void queue(BulkRequestContext ctx) {
+        addToWriteQueue(query.getType(), query.getCollectionName(), ctx -> {
 //                directWriter.set(toSet, collection, field, value, upsert, multiple, callback);
-                morphium.firePreUpdateEvent(query.getType(), MorphiumStorageListener.UpdateTypes.INC);
-                UpdateBulkRequest wr = new UpdateBulkRequest();
-                wr.setQuery(query.toQueryObject());
-                wr.setUpsert(upsert);
-                Map<String, Object> inc = new HashMap<String, Object>();
-                wr.setCmd(Utils.getMap("$inc", inc));
-                morphium.getCache().clearCacheIfNecessary(query.getType());
-                for (Map.Entry kv : fieldsToInc.entrySet()) {
-                    String fld = morphium.getARHelper().getFieldName(query.getType(), kv.getKey().toString());
-                    inc.put(fld, (Double) kv.getValue());
-                }
-                morphium.firePostUpdateEvent(query.getType(), MorphiumStorageListener.UpdateTypes.INC);
+            morphium.firePreUpdateEvent(query.getType(), MorphiumStorageListener.UpdateTypes.INC);
+            UpdateBulkRequest wr = new UpdateBulkRequest();
+            wr.setQuery(query.toQueryObject());
+            wr.setUpsert(upsert);
+            Map<String, Object> inc = new HashMap<String, Object>();
+            wr.setCmd(Utils.getMap("$inc", inc));
+            morphium.getCache().clearCacheIfNecessary(query.getType());
+            for (Map.Entry kv : fieldsToInc.entrySet()) {
+                String fld = morphium.getARHelper().getFieldName(query.getType(), kv.getKey().toString());
+                inc.put(fld, (Double) kv.getValue());
             }
-
-
+            morphium.firePostUpdateEvent(query.getType(), MorphiumStorageListener.UpdateTypes.INC);
         }, c, AsyncOperationType.INC);
     }
 
@@ -411,24 +373,19 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
         }
         morphium.inc(StatisticKeys.WRITES_CACHED);
 
-        addToWriteQueue(query.getType(), query.getCollectionName(), new BufferedBulkOp() {
-            @Override
-            public void queue(BulkRequestContext ctx) {
+        addToWriteQueue(query.getType(), query.getCollectionName(), ctx -> {
 //                directWriter.set(toSet, collection, field, value, upsert, multiple, callback);
-                UpdateBulkRequest wr = ctx.addUpdateBulkRequest();
-                String fieldName = morphium.getARHelper().getFieldName(query.getType(), field);
-                wr.setCmd(Utils.getMap("$inc", Utils.getMap(fieldName, amount)));
-                wr.setUpsert(upsert);
-                wr.setMultiple(multiple);
-                wr.setQuery(query.toQueryObject());
-                morphium.firePreUpdateEvent(query.getType(), MorphiumStorageListener.UpdateTypes.INC);
-                morphium.getCache().clearCacheIfNecessary(query.getType());
+            UpdateBulkRequest wr = ctx.addUpdateBulkRequest();
+            String fieldName = morphium.getARHelper().getFieldName(query.getType(), field);
+            wr.setCmd(Utils.getMap("$inc", Utils.getMap(fieldName, amount)));
+            wr.setUpsert(upsert);
+            wr.setMultiple(multiple);
+            wr.setQuery(query.toQueryObject());
+            morphium.firePreUpdateEvent(query.getType(), MorphiumStorageListener.UpdateTypes.INC);
+            morphium.getCache().clearCacheIfNecessary(query.getType());
 //                wr.inc(fieldName, amount, multiple);
 //                ctx.addRequest(wr);
-                morphium.firePostUpdateEvent(query.getType(), MorphiumStorageListener.UpdateTypes.INC);
-            }
-
-
+            morphium.firePostUpdateEvent(query.getType(), MorphiumStorageListener.UpdateTypes.INC);
         }, c, AsyncOperationType.INC);
     }
 
@@ -439,25 +396,20 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
         }
         morphium.inc(StatisticKeys.WRITES_CACHED);
 
-        addToWriteQueue(obj.getClass(), collection, new BufferedBulkOp() {
-            @Override
-            public void queue(BulkRequestContext ctx) {
+        addToWriteQueue(obj.getClass(), collection, ctx -> {
 //                directWriter.set(toSet, collection, field, value, upsert, multiple, callback);
-                morphium.firePreUpdateEvent(obj.getClass(), MorphiumStorageListener.UpdateTypes.INC);
-                Query q = morphium.createQueryFor(obj.getClass()).f(morphium.getARHelper().getIdFieldName(obj)).eq(morphium.getARHelper().getId(obj));
-                q.setCollectionName(collection);
-                UpdateBulkRequest wr = ctx.addUpdateBulkRequest();
-                String fieldName = morphium.getARHelper().getFieldName(obj.getClass(), field);
-                wr.setCmd(Utils.getMap("$inc", Utils.getMap(fieldName, amount)));
-                wr.setUpsert(false);
-                wr.setMultiple(false);
-                wr.setQuery(q.toQueryObject());
-                morphium.getCache().clearCacheIfNecessary(obj.getClass());
+            morphium.firePreUpdateEvent(obj.getClass(), MorphiumStorageListener.UpdateTypes.INC);
+            Query q = morphium.createQueryFor(obj.getClass()).f(morphium.getARHelper().getIdFieldName(obj)).eq(morphium.getARHelper().getId(obj));
+            q.setCollectionName(collection);
+            UpdateBulkRequest wr = ctx.addUpdateBulkRequest();
+            String fieldName = morphium.getARHelper().getFieldName(obj.getClass(), field);
+            wr.setCmd(Utils.getMap("$inc", Utils.getMap(fieldName, amount)));
+            wr.setUpsert(false);
+            wr.setMultiple(false);
+            wr.setQuery(q.toQueryObject());
+            morphium.getCache().clearCacheIfNecessary(obj.getClass());
 //                ctx.addRequest(wr);
-                morphium.firePostUpdateEvent(obj.getClass(), MorphiumStorageListener.UpdateTypes.INC);
-            }
-
-
+            morphium.firePostUpdateEvent(obj.getClass(), MorphiumStorageListener.UpdateTypes.INC);
         }, c, AsyncOperationType.INC);
 
     }
@@ -469,22 +421,18 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
             c = new AsyncOpAdapter<>();
         }
         morphium.inc(StatisticKeys.WRITES_CACHED);
-        addToWriteQueue(obj.getClass(), collection, new BufferedBulkOp() {
-            @Override
-            public void queue(BulkRequestContext ctx) {
+        addToWriteQueue(obj.getClass(), collection, ctx -> {
 //                directWriter.set(toSet, collection, field, value, upsert, multiple, callback);
-                morphium.firePreUpdateEvent(obj.getClass(), MorphiumStorageListener.UpdateTypes.POP);
-                Query q = morphium.createQueryFor(obj.getClass()).f(morphium.getARHelper().getIdFieldName(obj)).eq(morphium.getARHelper().getId(obj));
-                UpdateBulkRequest wr = new UpdateBulkRequest();
-                wr.setQuery(q.toQueryObject());
-                wr.setUpsert(false);
-                wr.setMultiple(false);
-                morphium.getCache().clearCacheIfNecessary(obj.getClass());
-                String fld = morphium.getARHelper().getFieldName(obj.getClass(), field);
-                wr.setCmd(Utils.getMap("$pop", Utils.getMap(fld, first)));
-                morphium.firePostUpdateEvent(obj.getClass(), MorphiumStorageListener.UpdateTypes.POP);
-            }
-
+            morphium.firePreUpdateEvent(obj.getClass(), MorphiumStorageListener.UpdateTypes.POP);
+            Query q = morphium.createQueryFor(obj.getClass()).f(morphium.getARHelper().getIdFieldName(obj)).eq(morphium.getARHelper().getId(obj));
+            UpdateBulkRequest wr = new UpdateBulkRequest();
+            wr.setQuery(q.toQueryObject());
+            wr.setUpsert(false);
+            wr.setMultiple(false);
+            morphium.getCache().clearCacheIfNecessary(obj.getClass());
+            String fld = morphium.getARHelper().getFieldName(obj.getClass(), field);
+            wr.setCmd(Utils.getMap("$pop", Utils.getMap(fld, first)));
+            morphium.firePostUpdateEvent(obj.getClass(), MorphiumStorageListener.UpdateTypes.POP);
         }, c, AsyncOperationType.WRITE);
     }
 
@@ -503,9 +451,7 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
                         //processing and clearing write cache...
                         List<Class<?>> localBuffer = new ArrayList<>();
 //                        synchronized (opLog) {
-                        for (Class<?> clz : opLog.keySet()) {
-                            localBuffer.add(clz);
-                        }
+                        localBuffer.addAll(opLog.keySet());
 
 
                         for (Class<?> clz : localBuffer) {
@@ -534,9 +480,7 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
                                 runIt(clz);
                                 continue;
                             }
-                            if (lastRun.get(clz) == null) {
-                                lastRun.put(clz, System.currentTimeMillis());
-                            }
+                            lastRun.putIfAbsent(clz, System.currentTimeMillis());
                         }
 
 
@@ -571,8 +515,7 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
                 if (c != null) {
                     if (opLog.get(clz) == null) {
                         synchronized (opLog) {
-                            if (opLog.get(clz) == null)
-                                opLog.put(clz, Collections.synchronizedList(new ArrayList<>()));
+                            opLog.putIfAbsent(clz, Collections.synchronizedList(new ArrayList<>()));
                         }
                     }
                     opLog.get(clz).addAll(c);
@@ -584,12 +527,7 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
         housekeeping.setDaemon(true);
         housekeeping.start();
 
-        m.addShutdownListener(new ShutdownListener() {
-            @Override
-            public void onShutdown(Morphium m) {
-                close();
-            }
-        });
+        m.addShutdownListener(m1 -> close());
 
     }
 
@@ -613,16 +551,12 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
         }
         final AsyncOperationCallback<T> cb = c;
         morphium.inc(StatisticKeys.WRITES_CACHED);
-        addToWriteQueue(q.getType(), q.getCollectionName(), new BufferedBulkOp() {
-            @Override
-            public void queue(BulkRequestContext ctx) {
-                morphium.firePreRemoveEvent(q);
-                DeleteBulkRequest r = ctx.addDeleteBulkRequest();
-                r.setQuery(q.toQueryObject());
+        addToWriteQueue(q.getType(), q.getCollectionName(), ctx -> {
+            morphium.firePreRemoveEvent(q);
+            DeleteBulkRequest r = ctx.addDeleteBulkRequest();
+            r.setQuery(q.toQueryObject());
 //                    ctx.addRequest(r);
-                morphium.firePostRemoveEvent(q);
-            }
-
+            morphium.firePostRemoveEvent(q);
         }, c, AsyncOperationType.REMOVE);
     }
 
@@ -632,18 +566,14 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
             c = new AsyncOpAdapter<>();
         }
         morphium.inc(StatisticKeys.WRITES_CACHED);
-        addToWriteQueue(o.getClass(), collection, new BufferedBulkOp() {
-            @Override
-            public void queue(BulkRequestContext ctx) {
-                Query q = morphium.createQueryFor(o.getClass()).f(morphium.getARHelper().getIdFieldName(o)).eq(morphium.getARHelper().getId(o));
-                if (collection != null) q.setCollectionName(collection);
-                morphium.firePreRemoveEvent(q);
-                DeleteBulkRequest r = ctx.addDeleteBulkRequest();
-                r.setQuery(q.toQueryObject());
+        addToWriteQueue(o.getClass(), collection, ctx -> {
+            Query q = morphium.createQueryFor(o.getClass()).f(morphium.getARHelper().getIdFieldName(o)).eq(morphium.getARHelper().getId(o));
+            if (collection != null) q.setCollectionName(collection);
+            morphium.firePreRemoveEvent(q);
+            DeleteBulkRequest r = ctx.addDeleteBulkRequest();
+            r.setQuery(q.toQueryObject());
 //                ctx.addRequest(r);
-                morphium.firePostRemoveEvent(q);
-            }
-
+            morphium.firePostRemoveEvent(q);
         }, c, AsyncOperationType.REMOVE);
     }
 
@@ -658,28 +588,24 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
             c = new AsyncOpAdapter<>();
         }
         morphium.inc(StatisticKeys.WRITES_CACHED);
-        addToWriteQueue(q.getType(), q.getCollectionName(), new BufferedBulkOp() {
-            @Override
-            public void queue(BulkRequestContext ctx) {
-                UpdateBulkRequest r = ctx.addUpdateBulkRequest();
-                r.setQuery(q.toQueryObject());
-                r.setUpsert(upsert);
-                r.setMultiple(multiple);
+        addToWriteQueue(q.getType(), q.getCollectionName(), ctx -> {
+            UpdateBulkRequest r = ctx.addUpdateBulkRequest();
+            r.setQuery(q.toQueryObject());
+            r.setUpsert(upsert);
+            r.setMultiple(multiple);
 
-                morphium.getCache().clearCacheIfNecessary(q.getType());
-                String fld = morphium.getARHelper().getFieldName(q.getType(), field);
-                if (push) {
-                    morphium.firePreUpdateEvent(q.getType(), MorphiumStorageListener.UpdateTypes.PUSH);
-                    r.setCmd(Utils.getMap("$push", Utils.getMap(field, value)));
-                    morphium.firePostUpdateEvent(q.getType(), MorphiumStorageListener.UpdateTypes.PUSH);
-                } else {
-                    morphium.firePreUpdateEvent(q.getType(), MorphiumStorageListener.UpdateTypes.PULL);
-                    r.setCmd(Utils.getMap("$pull", Utils.getMap(field, value)));
-                    morphium.firePostUpdateEvent(q.getType(), MorphiumStorageListener.UpdateTypes.PULL);
-                }
-//                ctx.addRequest(r);
+            morphium.getCache().clearCacheIfNecessary(q.getType());
+            String fld = morphium.getARHelper().getFieldName(q.getType(), field);
+            if (push) {
+                morphium.firePreUpdateEvent(q.getType(), MorphiumStorageListener.UpdateTypes.PUSH);
+                r.setCmd(Utils.getMap("$push", Utils.getMap(field, value)));
+                morphium.firePostUpdateEvent(q.getType(), MorphiumStorageListener.UpdateTypes.PUSH);
+            } else {
+                morphium.firePreUpdateEvent(q.getType(), MorphiumStorageListener.UpdateTypes.PULL);
+                r.setCmd(Utils.getMap("$pull", Utils.getMap(field, value)));
+                morphium.firePostUpdateEvent(q.getType(), MorphiumStorageListener.UpdateTypes.PULL);
             }
-
+//                ctx.addRequest(r);
         }, c, push ? AsyncOperationType.PUSH : AsyncOperationType.PULL);
     }
 
@@ -689,36 +615,32 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
             c = new AsyncOpAdapter<>();
         }
         morphium.inc(StatisticKeys.WRITES_CACHED);
-        addToWriteQueue(q.getType(), q.getCollectionName(), new BufferedBulkOp() {
-            @Override
-            public void queue(BulkRequestContext ctx) {
+        addToWriteQueue(q.getType(), q.getCollectionName(), ctx -> {
 //                directWriter.pushPull(push, query, field, value, upsert, multiple, callback);
 
 
-                morphium.getCache().clearCacheIfNecessary(q.getType());
-                String fld = morphium.getARHelper().getFieldName(q.getType(), field);
-                String cmd = "";
-                if (push) {
-                    morphium.firePreUpdateEvent(q.getType(), MorphiumStorageListener.UpdateTypes.PUSH);
-                } else {
-                    morphium.firePreUpdateEvent(q.getType(), MorphiumStorageListener.UpdateTypes.PULL);
+            morphium.getCache().clearCacheIfNecessary(q.getType());
+            String fld = morphium.getARHelper().getFieldName(q.getType(), field);
+            String cmd = "";
+            if (push) {
+                morphium.firePreUpdateEvent(q.getType(), MorphiumStorageListener.UpdateTypes.PUSH);
+            } else {
+                morphium.firePreUpdateEvent(q.getType(), MorphiumStorageListener.UpdateTypes.PULL);
 
-                }
-                for (Object o : value) {
-                    UpdateBulkRequest r = ctx.addUpdateBulkRequest();
-                    r.setQuery(q.toQueryObject());
-                    r.setUpsert(upsert);
-                    r.setMultiple(multiple);
-                    r.setCmd(Utils.getMap("$push", Utils.getMap(fld, o)));
-//                        ctx.addRequest(r);
-                }
-                if (push) {
-                    morphium.firePostUpdateEvent(q.getType(), MorphiumStorageListener.UpdateTypes.PUSH);
-                } else {
-                    morphium.firePostUpdateEvent(q.getType(), MorphiumStorageListener.UpdateTypes.PULL);
-                }
             }
-
+            for (Object o : value) {
+                UpdateBulkRequest r = ctx.addUpdateBulkRequest();
+                r.setQuery(q.toQueryObject());
+                r.setUpsert(upsert);
+                r.setMultiple(multiple);
+                r.setCmd(Utils.getMap("$push", Utils.getMap(fld, o)));
+//                        ctx.addRequest(r);
+            }
+            if (push) {
+                morphium.firePostUpdateEvent(q.getType(), MorphiumStorageListener.UpdateTypes.PUSH);
+            } else {
+                morphium.firePostUpdateEvent(q.getType(), MorphiumStorageListener.UpdateTypes.PULL);
+            }
         }, c, push ? AsyncOperationType.PUSH : AsyncOperationType.PULL);
     }
 
@@ -728,22 +650,18 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
             c = new AsyncOpAdapter<>();
         }
         morphium.inc(StatisticKeys.WRITES_CACHED);
-        addToWriteQueue(obj.getClass(), collection, new BufferedBulkOp() {
-            @Override
-            public void queue(BulkRequestContext ctx) {
+        addToWriteQueue(obj.getClass(), collection, ctx -> {
 //                directWriter.set(toSet, collection, field, value, upsert, multiple, callback);
-                Query q = morphium.createQueryFor(obj.getClass()).f(morphium.getARHelper().getIdFieldName(obj)).eq(morphium.getARHelper().getId(obj));
-                if (collection != null) q.setCollectionName(collection);
-                UpdateBulkRequest wr = ctx.addUpdateBulkRequest();
-                wr.setQuery(q.toQueryObject());
-                wr.setMultiple(false);
-                wr.setUpsert(false);
-                String fld = morphium.getARHelper().getFieldName(obj.getClass(), field);
-                wr.setCmd(Utils.getMap("$unset", Utils.getMap(fld, "")));
-                morphium.getCache().clearCacheIfNecessary(obj.getClass());
+            Query q = morphium.createQueryFor(obj.getClass()).f(morphium.getARHelper().getIdFieldName(obj)).eq(morphium.getARHelper().getId(obj));
+            if (collection != null) q.setCollectionName(collection);
+            UpdateBulkRequest wr = ctx.addUpdateBulkRequest();
+            wr.setQuery(q.toQueryObject());
+            wr.setMultiple(false);
+            wr.setUpsert(false);
+            String fld = morphium.getARHelper().getFieldName(obj.getClass(), field);
+            wr.setCmd(Utils.getMap("$unset", Utils.getMap(fld, "")));
+            morphium.getCache().clearCacheIfNecessary(obj.getClass());
 //                ctx.addRequest(wr);
-            }
-
         }, c, AsyncOperationType.UNSET);
     }
 
@@ -754,22 +672,18 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
         }
         final AsyncOperationCallback<T> callback = c;
         morphium.inc(StatisticKeys.WRITES_CACHED);
-        addToWriteQueue(query.getType(), query.getCollectionName(), new BufferedBulkOp() {
-            @Override
-            public void queue(BulkRequestContext ctx) {
+        addToWriteQueue(query.getType(), query.getCollectionName(), ctx -> {
 //                directWriter.set(toSet, collection, field, value, upsert, multiple, callback);
-                morphium.firePreUpdateEvent(query.getType(), MorphiumStorageListener.UpdateTypes.UNSET);
-                UpdateBulkRequest wr = ctx.addUpdateBulkRequest();
-                wr.setQuery(query.toQueryObject());
-                wr.setMultiple(false);
-                wr.setUpsert(false);
-                String fld = morphium.getARHelper().getFieldName(query.getType(), field);
-                wr.setCmd(Utils.getMap("$unset", Utils.getMap(fld, "")));
+            morphium.firePreUpdateEvent(query.getType(), MorphiumStorageListener.UpdateTypes.UNSET);
+            UpdateBulkRequest wr = ctx.addUpdateBulkRequest();
+            wr.setQuery(query.toQueryObject());
+            wr.setMultiple(false);
+            wr.setUpsert(false);
+            String fld = morphium.getARHelper().getFieldName(query.getType(), field);
+            wr.setCmd(Utils.getMap("$unset", Utils.getMap(fld, "")));
 //                ctx.addRequest(wr);
-                morphium.getCache().clearCacheIfNecessary(query.getType());
-                morphium.firePostUpdateEvent(query.getType(), MorphiumStorageListener.UpdateTypes.UNSET);
-            }
-
+            morphium.getCache().clearCacheIfNecessary(query.getType());
+            morphium.firePostUpdateEvent(query.getType(), MorphiumStorageListener.UpdateTypes.UNSET);
         }, c, AsyncOperationType.UNSET);
     }
 
@@ -779,29 +693,24 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
             c = new AsyncOpAdapter<>();
         }
         morphium.inc(StatisticKeys.WRITES_CACHED);
-        addToWriteQueue(query.getType(), query.getCollectionName(), new BufferedBulkOp() {
-            @Override
-            public void queue(BulkRequestContext ctx) {
+        addToWriteQueue(query.getType(), query.getCollectionName(), ctx -> {
 //                directWriter.set(toSet, collection, field, value, upsert, multiple, callback);
-                morphium.firePreUpdateEvent(query.getType(), MorphiumStorageListener.UpdateTypes.UNSET);
-                UpdateBulkRequest wr = ctx.addUpdateBulkRequest();
-                wr.setQuery(query.toQueryObject());
-                wr.setMultiple(false);
-                wr.setUpsert(false);
-                Map<String, Object> unset = new HashMap<>();
-                wr.setCmd(Utils.getMap("$unset", unset));
+            morphium.firePreUpdateEvent(query.getType(), MorphiumStorageListener.UpdateTypes.UNSET);
+            UpdateBulkRequest wr = ctx.addUpdateBulkRequest();
+            wr.setQuery(query.toQueryObject());
+            wr.setMultiple(false);
+            wr.setUpsert(false);
+            Map<String, Object> unset = new HashMap<>();
+            wr.setCmd(Utils.getMap("$unset", unset));
 //                ctx.addRequest(wr);
 
 //                BulkRequestWrapper wr = ctx.addFind(query);
-                for (String f : fields) {
-                    String fld = morphium.getARHelper().getFieldName(query.getType(), f);
-                    unset.put(fld, "");
-                }
-                morphium.getCache().clearCacheIfNecessary(query.getType());
-                morphium.firePostUpdateEvent(query.getType(), MorphiumStorageListener.UpdateTypes.UNSET);
+            for (String f : fields) {
+                String fld = morphium.getARHelper().getFieldName(query.getType(), f);
+                unset.put(fld, "");
             }
-
-
+            morphium.getCache().clearCacheIfNecessary(query.getType());
+            morphium.firePostUpdateEvent(query.getType(), MorphiumStorageListener.UpdateTypes.UNSET);
         }, c, AsyncOperationType.UNSET);
     }
 
@@ -822,14 +731,9 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
         }
         final AsyncOperationCallback<T> callback = c;
         morphium.inc(StatisticKeys.WRITES_CACHED);
-        addToWriteQueue(cls, collection, new BufferedBulkOp() {
-            @Override
-            public void queue(BulkRequestContext ctx) {
-                directWriter.dropCollection(cls, collection, callback);
-                morphium.getCache().clearCacheIfNecessary(cls);
-            }
-
-
+        addToWriteQueue(cls, collection, ctx -> {
+            directWriter.dropCollection(cls, collection, callback);
+            morphium.getCache().clearCacheIfNecessary(cls);
         }, c, AsyncOperationType.REMOVE);
     }
 
@@ -844,13 +748,7 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
         }
         final AsyncOperationCallback<T> callback = c;
         morphium.inc(StatisticKeys.WRITES_CACHED);
-        addToWriteQueue(cls, collection, new BufferedBulkOp() {
-            @Override
-            public void queue(BulkRequestContext ctx) {
-                directWriter.ensureIndex(cls, collection, index, options, callback);
-            }
-
-        }, c, AsyncOperationType.ENSURE_INDICES);
+        addToWriteQueue(cls, collection, ctx -> directWriter.ensureIndex(cls, collection, index, options, callback), c, AsyncOperationType.ENSURE_INDICES);
     }
 
 
@@ -874,9 +772,7 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
     public void flush() {
         List<Class<?>> localBuffer = new ArrayList<>();
 //        synchronized (opLog) {
-        for (Class<?> clz : opLog.keySet()) {
-            localBuffer.add(clz);
-        }
+        localBuffer.addAll(opLog.keySet());
         for (Class<?> clz : localBuffer) {
             if (opLog.get(clz) == null || opLog.get(clz).size() == 0) {
                 continue;

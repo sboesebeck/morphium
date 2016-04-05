@@ -97,9 +97,9 @@ public class Group<T, R> {
 
     public Aggregator<T, R> end() {
         Map<String, Object> params = new HashMap<>();
-        params.putAll((Map<String, Object>) id);
+        params.putAll(id);
         for (Map<String, Object> o : operators) {
-            params.putAll((Map<String, Object>) o);
+            params.putAll(o);
         }
         Map<String, Object> obj = getMap("$group", params);
         aggregator.addOperator(obj);

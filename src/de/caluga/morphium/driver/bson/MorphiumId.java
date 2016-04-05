@@ -13,7 +13,7 @@ import java.util.Enumeration;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
- * TODO: Add Documentation here
+ * Morphium representation of an ID. similar to BSON ID
  **/
 public class MorphiumId implements Comparable<MorphiumId> {
 
@@ -116,8 +116,7 @@ public class MorphiumId implements Comparable<MorphiumId> {
 
         if (machineId != morphiumId.machineId) return false;
         if (pid != morphiumId.pid) return false;
-        if (counter != morphiumId.counter) return false;
-        return timestamp == morphiumId.timestamp;
+        return counter == morphiumId.counter && timestamp == morphiumId.timestamp;
 
     }
 

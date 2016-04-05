@@ -127,8 +127,7 @@ public class UncachedObject {
 
         UncachedObject that = (UncachedObject) o;
 
-        if (counter != that.counter) return false;
-        return !(morphiumId != null ? !morphiumId.equals(that.morphiumId) : that.morphiumId != null) && !(value != null ? !value.equals(that.value) : that.value != null);
+        return counter == that.counter && !(morphiumId != null ? !morphiumId.equals(that.morphiumId) : that.morphiumId != null) && !(value != null ? !value.equals(that.value) : that.value != null);
 
     }
 

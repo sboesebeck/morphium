@@ -6,7 +6,8 @@ import java.util.HashMap;
 import java.util.Map;
 
 /**
- * TODO: Add Documentation here
+ * Read preference defines which node will be used for processing a query.
+ * also tagsets can be set here.
  **/
 public class ReadPreference {
     private ReadPreferenceType type;

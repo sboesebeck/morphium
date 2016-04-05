@@ -1,11 +1,7 @@
 package de.caluga.morphium.driver.mongodb;
 
 /**
- * User: Stephan Bösebeck
- * Date: 14.11.15
- * Time: 22:57
- * <p>
- * TODO: Add documentation here
+ * storing all maximums determined by driver / database
  */
 public class Maximums {
     private Integer maxBsonSize;

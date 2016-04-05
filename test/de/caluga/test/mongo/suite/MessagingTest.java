@@ -36,22 +36,16 @@ public class MessagingTest extends MongoTest {
         morphium.dropCollection(Msg.class, "mmsg_msg2", null);
 
         Messaging m = new Messaging(morphium, 500, true);
-        m.addMessageListener(new MessageListener() {
-            @Override
-            public Msg onMessage(Messaging msg, Msg m) {
-                gotMessage1 = true;
-                return null;
-            }
+        m.addMessageListener((msg, m1) -> {
+            gotMessage1 = true;
+            return null;
         });
         m.start();
 
         Messaging m2 = new Messaging(morphium, "msg2", 500, true);
-        m2.addMessageListener(new MessageListener() {
-            @Override
-            public Msg onMessage(Messaging msg, Msg m) {
-                gotMessage2 = true;
-                return null;
-            }
+        m2.addMessageListener((msg, m1) -> {
+            gotMessage2 = true;
+            return null;
         });
         m2.start();
 
@@ -153,13 +147,10 @@ public class MessagingTest extends MongoTest {
         }
         final int[] count = {0};
         Messaging consumer = new Messaging(morphium, 500, false, true, 1000);
-        consumer.addMessageListener(new MessageListener() {
-            @Override
-            public Msg onMessage(Messaging msg, Msg m) {
-                log.info("Got message!");
-                count[0]++;
-                return null;
-            }
+        consumer.addMessageListener((msg, m) -> {
+            log.info("Got message!");
+            count[0]++;
+            return null;
         });
 
         consumer.start();
@@ -182,13 +173,10 @@ public class MessagingTest extends MongoTest {
         final Messaging messaging = new Messaging(morphium, 500, true);
         messaging.start();
 
-        messaging.addMessageListener(new MessageListener() {
-            @Override
-            public Msg onMessage(Messaging msg, Msg m) {
-                log.info("Got Message: " + m.toString());
-                gotMessage = true;
-                return null;
-            }
+        messaging.addMessageListener((msg, m) -> {
+            log.info("Got Message: " + m.toString());
+            gotMessage = true;
+            return null;
         });
         messaging.storeMessage(new Msg("Testmessage", MsgType.MULTI, "A message", "the value - for now", 5000));
 
@@ -229,33 +217,24 @@ public class MessagingTest extends MongoTest {
         m1.start();
         m2.start();
 
-        m1.addMessageListener(new MessageListener() {
-            @Override
-            public Msg onMessage(Messaging msg, Msg m) {
-                gotMessage1 = true;
-                log.info("M1 got message " + m.toString());
-                if (!m.getSender().equals(m2.getSenderId())) {
-                    log.error("Sender is not M2?!?!? m2_id: " + m2.getSenderId() + " - message sender: " + m.getSender());
-                    error = true;
-                }
-                return null;
+        m1.addMessageListener((msg, m) -> {
+            gotMessage1 = true;
+            log.info("M1 got message " + m.toString());
+            if (!m.getSender().equals(m2.getSenderId())) {
+                log.error("Sender is not M2?!?!? m2_id: " + m2.getSenderId() + " - message sender: " + m.getSender());
+                error = true;
             }
-
-
+            return null;
         });
 
-        m2.addMessageListener(new MessageListener() {
-            @Override
-            public Msg onMessage(Messaging msg, Msg m) {
-                gotMessage2 = true;
-                log.info("M2 got message " + m.toString());
-                if (!m.getSender().equals(m1.getSenderId())) {
-                    log.error("Sender is not M1?!?!? m1_id: " + m1.getSenderId() + " - message sender: " + m.getSender());
-                    error = true;
-                }
-                return null;
+        m2.addMessageListener((msg, m) -> {
+            gotMessage2 = true;
+            log.info("M2 got message " + m.toString());
+            if (!m.getSender().equals(m1.getSenderId())) {
+                log.error("Sender is not M1?!?!? m1_id: " + m1.getSenderId() + " - message sender: " + m.getSender());
+                error = true;
             }
-
+            return null;
         });
 
         m1.storeMessage(new Msg("testmsg1", "The message from M1", "Value"));
@@ -296,46 +275,28 @@ public class MessagingTest extends MongoTest {
         m3.start();
         m4.start();
 
-        m1.addMessageListener(new MessageListener() {
-            @Override
-            public Msg onMessage(Messaging msg, Msg m) {
-                gotMessage1 = true;
-                log.info("M1 got message " + m.toString());
-                return null;
-            }
-
-
+        m1.addMessageListener((msg, m) -> {
+            gotMessage1 = true;
+            log.info("M1 got message " + m.toString());
+            return null;
         });
 
-        m2.addMessageListener(new MessageListener() {
-            @Override
-            public Msg onMessage(Messaging msg, Msg m) {
-                gotMessage2 = true;
-                log.info("M2 got message " + m.toString());
-                return null;
-            }
-
-
+        m2.addMessageListener((msg, m) -> {
+            gotMessage2 = true;
+            log.info("M2 got message " + m.toString());
+            return null;
         });
 
-        m3.addMessageListener(new MessageListener() {
-            @Override
-            public Msg onMessage(Messaging msg, Msg m) {
-                gotMessage3 = true;
-                log.info("M3 got message " + m.toString());
-                return null;
-            }
-
+        m3.addMessageListener((msg, m) -> {
+            gotMessage3 = true;
+            log.info("M3 got message " + m.toString());
+            return null;
         });
 
-        m4.addMessageListener(new MessageListener() {
-            @Override
-            public Msg onMessage(Messaging msg, Msg m) {
-                gotMessage4 = true;
-                log.info("M4 got message " + m.toString());
-                return null;
-            }
-
+        m4.addMessageListener((msg, m) -> {
+            gotMessage4 = true;
+            log.info("M4 got message " + m.toString());
+            return null;
         });
 
         m1.storeMessage(new Msg("testmsg1", "The message from M1", "Value"));
@@ -385,42 +346,31 @@ public class MessagingTest extends MongoTest {
         log.info("m2 ID: " + m2.getSenderId());
         log.info("m3 ID: " + m3.getSenderId());
 
-        m1.addMessageListener(new MessageListener() {
-            @Override
-            public Msg onMessage(Messaging msg, Msg m) {
-                gotMessage1 = true;
-                if (m.getTo() != null && !m.getTo().contains(m1.getSenderId())) {
-                    log.error("wrongly received message?");
-                    error = true;
-                }
-                log.info("DM-M1 got message " + m.toString());
+        m1.addMessageListener((msg, m) -> {
+            gotMessage1 = true;
+            if (m.getTo() != null && !m.getTo().contains(m1.getSenderId())) {
+                log.error("wrongly received message?");
+                error = true;
+            }
+            log.info("DM-M1 got message " + m.toString());
 //                assert (m.getSender().equals(m2.getSenderId())) : "Sender is not M2?!?!? m2_id: " + m2.getSenderId() + " - message sender: " + m.getSender();
-                return null;
-            }
+            return null;
         });
 
-        m2.addMessageListener(new MessageListener() {
-            @Override
-            public Msg onMessage(Messaging msg, Msg m) {
-                gotMessage2 = true;
-                assert (m.getTo() == null || m.getTo().contains(m2.getSenderId())) : "wrongly received message?";
-                log.info("DM-M2 got message " + m.toString());
+        m2.addMessageListener((msg, m) -> {
+            gotMessage2 = true;
+            assert (m.getTo() == null || m.getTo().contains(m2.getSenderId())) : "wrongly received message?";
+            log.info("DM-M2 got message " + m.toString());
 //                assert (m.getSender().equals(m1.getSenderId())) : "Sender is not M1?!?!? m1_id: " + m1.getSenderId() + " - message sender: " + m.getSender();
-                return null;
-            }
-
+            return null;
         });
 
-        m3.addMessageListener(new MessageListener() {
-            @Override
-            public Msg onMessage(Messaging msg, Msg m) {
-                gotMessage3 = true;
-                assert (m.getTo() == null || m.getTo().contains(m3.getSenderId())) : "wrongly received message?";
-                log.info("DM-M3 got message " + m.toString());
+        m3.addMessageListener((msg, m) -> {
+            gotMessage3 = true;
+            assert (m.getTo() == null || m.getTo().contains(m3.getSenderId())) : "wrongly received message?";
+            log.info("DM-M3 got message " + m.toString());
 //                assert (m.getSender().equals(m1.getSenderId())) : "Sender is not M1?!?!? m1_id: " + m1.getSenderId() + " - message sender: " + m.getSender();
-                return null;
-            }
-
+            return null;
         });
 
         //sending message to all
@@ -506,65 +456,53 @@ public class MessagingTest extends MongoTest {
         log.info("m2 ID: " + m2.getSenderId());
         log.info("onlyAnswers ID: " + onlyAnswers.getSenderId());
 
-        m1.addMessageListener(new MessageListener() {
-            @Override
-            public Msg onMessage(Messaging msg, Msg m) {
-                gotMessage1 = true;
-                if (m.getTo() != null && !m.getTo().contains(m1.getSenderId())) {
-                    log.error("wrongly received message?");
-                    error = true;
-                }
-                if (m.getInAnswerTo() != null) {
-                    log.error("M1 got an answer, but did not ask?");
-                    error = true;
-                }
-                log.info("M1 got message " + m.toString());
-                Msg answer = m.createAnswerMsg();
-                answer.setValue("This is the answer from m1");
-                answer.addValue("something", new Date());
-                answer.addAdditional("String message from m1");
-                return answer;
+        m1.addMessageListener((msg, m) -> {
+            gotMessage1 = true;
+            if (m.getTo() != null && !m.getTo().contains(m1.getSenderId())) {
+                log.error("wrongly received message?");
+                error = true;
             }
-
+            if (m.getInAnswerTo() != null) {
+                log.error("M1 got an answer, but did not ask?");
+                error = true;
+            }
+            log.info("M1 got message " + m.toString());
+            Msg answer = m.createAnswerMsg();
+            answer.setValue("This is the answer from m1");
+            answer.addValue("something", new Date());
+            answer.addAdditional("String message from m1");
+            return answer;
         });
 
-        m2.addMessageListener(new MessageListener() {
-            @Override
-            public Msg onMessage(Messaging msg, Msg m) {
-                gotMessage2 = true;
-                if (m.getTo() != null && !m.getTo().contains(m2.getSenderId())) {
-                    log.error("wrongly received message?");
-                    error = true;
-                }
-                log.info("M2 got message " + m.toString());
-                assert (m.getInAnswerTo() == null) : "M2 got an answer, but did not ask?";
-                Msg answer = m.createAnswerMsg();
-                answer.setValue("This is the answer from m2");
-                answer.addValue("when", System.currentTimeMillis());
-                answer.addAdditional("Additional Value von m2");
-                return answer;
+        m2.addMessageListener((msg, m) -> {
+            gotMessage2 = true;
+            if (m.getTo() != null && !m.getTo().contains(m2.getSenderId())) {
+                log.error("wrongly received message?");
+                error = true;
             }
-
+            log.info("M2 got message " + m.toString());
+            assert (m.getInAnswerTo() == null) : "M2 got an answer, but did not ask?";
+            Msg answer = m.createAnswerMsg();
+            answer.setValue("This is the answer from m2");
+            answer.addValue("when", System.currentTimeMillis());
+            answer.addAdditional("Additional Value von m2");
+            return answer;
         });
 
-        onlyAnswers.addMessageListener(new MessageListener() {
-            @Override
-            public Msg onMessage(Messaging msg, Msg m) {
-                gotMessage3 = true;
-                if (m.getTo() != null && !m.getTo().contains(onlyAnswers.getSenderId())) {
-                    log.error("wrongly received message?");
-                    error = true;
-                }
+        onlyAnswers.addMessageListener((msg, m) -> {
+            gotMessage3 = true;
+            if (m.getTo() != null && !m.getTo().contains(onlyAnswers.getSenderId())) {
+                log.error("wrongly received message?");
+                error = true;
+            }
 
-                assert (m.getInAnswerTo() != null) : "was not an answer? " + m.toString();
+            assert (m.getInAnswerTo() != null) : "was not an answer? " + m.toString();
 
-                log.info("M3 got answer " + m.toString());
-                assert (lastMsgId != null) : "Last message == null?";
-                assert (m.getInAnswerTo().equals(lastMsgId)) : "Wrong answer????" + lastMsgId.toString() + " != " + m.getInAnswerTo().toString();
+            log.info("M3 got answer " + m.toString());
+            assert (lastMsgId != null) : "Last message == null?";
+            assert (m.getInAnswerTo().equals(lastMsgId)) : "Wrong answer????" + lastMsgId.toString() + " != " + m.getInAnswerTo().toString();
 //                assert (m.getSender().equals(m1.getSenderId())) : "Sender is not M1?!?!? m1_id: " + m1.getSenderId() + " - message sender: " + m.getSender();
-                return null;
-            }
-
+            return null;
         });
 
         Msg question = new Msg("QMsg", "This is the message text", "A question param");
@@ -705,46 +643,34 @@ public class MessagingTest extends MongoTest {
         log.info("m2 ID: " + m2.getSenderId());
         log.info("m3 ID: " + m3.getSenderId());
 
-        m1.addMessageListener(new MessageListener() {
-            @Override
-            public Msg onMessage(Messaging msg, Msg m) {
-                gotMessage1 = true;
-                if (m.getTo() != null && m.getTo().contains(m1.getSenderId())) {
-                    log.error("wrongly received message m1?");
-                    error = true;
-                }
-                log.info("M1 got message " + m.toString());
-                return null;
+        m1.addMessageListener((msg, m) -> {
+            gotMessage1 = true;
+            if (m.getTo() != null && m.getTo().contains(m1.getSenderId())) {
+                log.error("wrongly received message m1?");
+                error = true;
             }
-
+            log.info("M1 got message " + m.toString());
+            return null;
         });
 
-        m2.addMessageListener(new MessageListener() {
-            @Override
-            public Msg onMessage(Messaging msg, Msg m) {
-                gotMessage2 = true;
-                if (m.getTo() != null && !m.getTo().contains(m2.getSenderId())) {
-                    log.error("wrongly received message m2?");
-                    error = true;
-                }
-                log.info("M2 got message " + m.toString());
-                return null;
+        m2.addMessageListener((msg, m) -> {
+            gotMessage2 = true;
+            if (m.getTo() != null && !m.getTo().contains(m2.getSenderId())) {
+                log.error("wrongly received message m2?");
+                error = true;
             }
-
+            log.info("M2 got message " + m.toString());
+            return null;
         });
 
-        m3.addMessageListener(new MessageListener() {
-            @Override
-            public Msg onMessage(Messaging msg, Msg m) {
-                gotMessage3 = true;
-                if (m.getTo() != null && !m.getTo().contains(m3.getSenderId())) {
-                    log.error("wrongly received message m3?");
-                    error = true;
-                }
-                log.info("M3 got message " + m.toString());
-                return null;
+        m3.addMessageListener((msg, m) -> {
+            gotMessage3 = true;
+            if (m.getTo() != null && !m.getTo().contains(m3.getSenderId())) {
+                log.error("wrongly received message m3?");
+                error = true;
             }
-
+            log.info("M3 got message " + m.toString());
+            return null;
         });
 
         Msg m = new Msg("test", "A message", "a value");
@@ -777,21 +703,18 @@ public class MessagingTest extends MongoTest {
         final Messaging producer = new Messaging(morphium, 100, true);
         final Messaging consumer = new Messaging(morphium, 10, true);
         final int[] processed = {0};
-        consumer.addMessageListener(new MessageListener() {
-            @Override
-            public Msg onMessage(Messaging msg, Msg m) {
-                processed[0]++;
-                if (processed[0] % 1000 == 0) {
-                    log.info("Processed: " + processed[0]);
-                }
-                //simulate processing
-                try {
-                    Thread.sleep((long) (10 * Math.random()));
-                } catch (InterruptedException e) {
-                    e.printStackTrace();
-                }
-                return null;
+        consumer.addMessageListener((msg, m) -> {
+            processed[0]++;
+            if (processed[0] % 1000 == 0) {
+                log.info("Processed: " + processed[0]);
             }
+            //simulate processing
+            try {
+                Thread.sleep((long) (10 * Math.random()));
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+            return null;
         });
 
         int numberOfMessages = 10000;
@@ -826,26 +749,23 @@ public class MessagingTest extends MongoTest {
         final Messaging consumer = new Messaging(morphium, 10, true, true, 2000);
         final int[] processed = {0};
         final Map<String, Long> msgCountById = new Hashtable<>();
-        consumer.addMessageListener(new MessageListener() {
-            @Override
-            public Msg onMessage(Messaging msg, Msg m) {
-                synchronized (processed) {
-                    processed[0]++;
-                }
-                if (processed[0] % 1000 == 0) {
-                    log.info("Processed: " + processed[0]);
-                }
-                assert (!m.getProcessedBy().contains(msg.getSenderId()));
-//                assert(!msgCountById.containsKey(m.getMsgId().toString()));
-                msgCountById.put(m.getMsgId().toString(), 1l);
-                //simulate processing
-                try {
-                    Thread.sleep((long) (10 * Math.random()));
-                } catch (InterruptedException e) {
-                    e.printStackTrace();
-                }
-                return null;
+        consumer.addMessageListener((msg, m) -> {
+            synchronized (processed) {
+                processed[0]++;
             }
+            if (processed[0] % 1000 == 0) {
+                log.info("Processed: " + processed[0]);
+            }
+            assert (!m.getProcessedBy().contains(msg.getSenderId()));
+//                assert(!msgCountById.containsKey(m.getMsgId().toString()));
+            msgCountById.put(m.getMsgId().toString(), 1l);
+            //simulate processing
+            try {
+                Thread.sleep((long) (10 * Math.random()));
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+            return null;
         });
 
         int numberOfMessages = 10000;
@@ -889,28 +809,19 @@ public class MessagingTest extends MongoTest {
         gotMessage4 = false;
 
         Messaging m1 = new Messaging(morphium, 100, false);
-        m1.addMessageListener(new MessageListener() {
-            @Override
-            public Msg onMessage(Messaging msg, Msg m) {
-                gotMessage1 = true;
-                return null;
-            }
+        m1.addMessageListener((msg, m) -> {
+            gotMessage1 = true;
+            return null;
         });
         Messaging m2 = new Messaging(morphium, 100, false);
-        m2.addMessageListener(new MessageListener() {
-            @Override
-            public Msg onMessage(Messaging msg, Msg m) {
-                gotMessage2 = true;
-                return null;
-            }
+        m2.addMessageListener((msg, m) -> {
+            gotMessage2 = true;
+            return null;
         });
         Messaging m3 = new Messaging(morphium, 100, false);
-        m3.addMessageListener(new MessageListener() {
-            @Override
-            public Msg onMessage(Messaging msg, Msg m) {
-                gotMessage3 = true;
-                return null;
-            }
+        m3.addMessageListener((msg, m) -> {
+            gotMessage3 = true;
+            return null;
         });
 
         m1.start();

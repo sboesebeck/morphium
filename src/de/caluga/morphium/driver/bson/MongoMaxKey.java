@@ -5,7 +5,7 @@ package de.caluga.morphium.driver.bson;
  * Date: 30.10.15
  * Time: 23:08
  * <p>
- * TODO: Add documentation here
+ * Max Key marker class for BSON
  */
 public class MongoMaxKey {
 }

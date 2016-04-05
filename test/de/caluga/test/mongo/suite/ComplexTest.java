@@ -150,7 +150,7 @@ public class ComplexTest extends MongoTest {
             morphium.store(o);
         }
 
-        Map<String, Object> query = new HashMap<String, Object>();
+        Map<String, Object> query = new HashMap<>();
         query.put("counter", Utils.getMap("$lt", 10));
         Query<UncachedObject> q = morphium.createQueryFor(UncachedObject.class);
         List<UncachedObject> lst = q.complexQuery(query);

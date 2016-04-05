@@ -30,12 +30,7 @@ public class RSMonitor {
 
     public void start() {
         execute();
-        executorService.scheduleWithFixedDelay(new Runnable() {
-            @Override
-            public void run() {
-                execute();
-            }
-        }, 1000, morphium.getConfig().getReplicaSetMonitoringTimeout(), TimeUnit.MILLISECONDS);
+        executorService.scheduleWithFixedDelay(() -> execute(), 1000, morphium.getConfig().getReplicaSetMonitoringTimeout(), TimeUnit.MILLISECONDS);
     }
 
     public void terminate() {
@@ -90,7 +85,7 @@ public class RSMonitor {
 
                 if (full) {
                     Map<String, Object> findMetaData = new HashMap<>();
-                    List<Map<String, Object>> stats = morphium.getDriver().find("local", "system.replset", new HashMap<String, Object>(), null, null, 0, 10, 10, null, findMetaData);
+                    List<Map<String, Object>> stats = morphium.getDriver().find("local", "system.replset", new HashMap<>(), null, null, 0, 10, 10, null, findMetaData);
                     if (stats == null || stats.size() == 0) {
                         logger.info("could not get replicaset status");
                     } else {

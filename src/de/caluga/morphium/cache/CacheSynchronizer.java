@@ -10,6 +10,7 @@ import de.caluga.morphium.messaging.MsgType;
 import de.caluga.morphium.query.Query;
 
 import java.util.*;
+import java.util.stream.Collectors;
 
 /**
  * User: Stephan Bösebeck
@@ -71,9 +72,7 @@ public class CacheSynchronizer implements MessageListener, MorphiumStorageListen
     }
 
     public void addSyncListener(Class type, CacheSyncListener cl) {
-        if (listenerForType.get(type) == null) {
-            listenerForType.put(type, new Vector<CacheSyncListener>());
-        }
+        listenerForType.putIfAbsent(type, new Vector<CacheSyncListener>());
         listenerForType.get(type).add(cl);
     }
 
@@ -144,7 +143,7 @@ public class CacheSynchronizer implements MessageListener, MorphiumStorageListen
             if (c == null) continue; //not clearing cache for non-cached objects
             if (c.readCache() && c.clearOnWrite()) {
                 if (sorted.get(record.getClass()) == null) {
-                    sorted.put(record.getClass(), new HashMap<Boolean, List<Object>>());
+                    sorted.put(record.getClass(), new HashMap<>());
                     sorted.get(record.getClass()).put(true, new ArrayList<>());
                     sorted.get(record.getClass()).put(false, new ArrayList<>());
                 }
@@ -169,27 +168,21 @@ public class CacheSynchronizer implements MessageListener, MorphiumStorageListen
                 }
             }
             //new objects
-            for (Object record : sorted.get(cls).get(true)) {
-
-//                if (c.syncCache().equals(Cache.SyncCacheStrategy.UPDATE_ENTRY) || c.syncCache().equals(Cache.SyncCacheStrategy.REMOVE_ENTRY_FROM_TYPE_CACHE)) {
+            //                if (c.syncCache().equals(Cache.SyncCacheStrategy.UPDATE_ENTRY) || c.syncCache().equals(Cache.SyncCacheStrategy.REMOVE_ENTRY_FROM_TYPE_CACHE)) {
 //
 //                } else
-                if (c.syncCache().equals(Cache.SyncCacheStrategy.CLEAR_TYPE_CACHE)) { //cannot be updated, it's new
-                    toClrCachee.add(record);
-                }
-            }
+//cannot be updated, it's new
+            toClrCachee.addAll(sorted.get(cls).get(true).stream().filter(record -> c.syncCache().equals(Cache.SyncCacheStrategy.CLEAR_TYPE_CACHE)).collect(Collectors.toList()));
 
             if (toUpdate.size() != 0) {
                 Msg m = new Msg(CACHE_SYNC_RECORD, MsgType.MULTI, reason, cls.getName(), 30000);
 
-                for (Object k : toUpdate) {
-                    if (!k.getClass().equals(Msg.class)) {
-                        Object id = morphium.getId(k);
-                        if (id != null) {
-                            m.addAdditional(id.toString());
-                        }
+                toUpdate.stream().filter(k -> !k.getClass().equals(Msg.class)).forEach(k -> {
+                    Object id = morphium.getId(k);
+                    if (id != null) {
+                        m.addAdditional(id.toString());
                     }
-                }
+                });
                 try {
                     firePreSendEvent(cls, m);
                     messaging.queueMessage(m);
@@ -202,14 +195,12 @@ public class CacheSynchronizer implements MessageListener, MorphiumStorageListen
             if (toClrCachee.size() != 0) {
                 Msg m = new Msg(CACHE_SYNC_TYPE, MsgType.MULTI, reason, cls.getName(), 30000);
 
-                for (Object k : toUpdate) {
-                    if (!k.getClass().equals(Msg.class)) {
-                        Object id = morphium.getId(k);
-                        if (id != null) {
-                            m.addAdditional(id.toString());
-                        }
+                toUpdate.stream().filter(k -> !k.getClass().equals(Msg.class)).forEach(k -> {
+                    Object id = morphium.getId(k);
+                    if (id != null) {
+                        m.addAdditional(id.toString());
                     }
-                }
+                });
                 try {
                     firePreSendEvent(cls, m);
                     messaging.queueMessage(m);

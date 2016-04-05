@@ -9,7 +9,7 @@ import java.io.IOException;
 import java.util.Map;
 
 /**
- * TODO: Add Documentation here
+ * Query call implementation for MongoDB wire protocol
  **/
 public class OpQuery extends WireProtocolMessage {
     int opCode = 2004;

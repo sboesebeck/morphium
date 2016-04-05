@@ -72,7 +72,6 @@ public class SequenceGenerator {
                 //inserted
             }
         } catch (MorphiumDriverException e) {
-            //TODO: Implement Handling
             throw new RuntimeException(e);
         }
 

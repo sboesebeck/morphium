@@ -15,7 +15,8 @@ import java.util.Map;
  * Date: 03.12.15
  * Time: 22:36
  * <p>
- * TODO: Add documentation here
+ *
+ * Base for custom drivers
  */
 public abstract class DriverBase implements MorphiumDriver {
     private volatile int rqid = 10000;
@@ -34,7 +35,6 @@ public abstract class DriverBase implements MorphiumDriver {
     private int sleepBetweenRetries = 100;
     private boolean defaultJ = false;
     private int localThreshold = 0;
-    private boolean defaultFsync = false;
     private int heartbeatConnectionTimeout = 1000;
     private String[] hostSeed;
     private int heartbeatSocketTimeout = 1000;
@@ -179,7 +179,7 @@ public abstract class DriverBase implements MorphiumDriver {
 
     @Override
     public void setDefaultFsync(boolean j) {
-        defaultFsync = j;
+        boolean defaultFsync = j;
     }
 
 

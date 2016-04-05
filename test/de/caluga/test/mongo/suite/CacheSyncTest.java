@@ -11,7 +11,6 @@ import de.caluga.morphium.cache.CacheSyncListener;
 import de.caluga.morphium.cache.CacheSyncVetoException;
 import de.caluga.morphium.cache.CacheSynchronizer;
 import de.caluga.morphium.driver.bson.MorphiumId;
-import de.caluga.morphium.messaging.MessageListener;
 import de.caluga.morphium.messaging.Messaging;
 import de.caluga.morphium.messaging.Msg;
 import de.caluga.morphium.query.Query;
@@ -360,12 +359,9 @@ public class CacheSyncTest extends MongoTest {
                 postSendClear = true;
             }
         });
-        msg2.addMessageListener(new MessageListener() {
-            @Override
-            public Msg onMessage(Messaging msg, Msg m) {
-                log.info("Got message " + m.getName());
-                return null;
-            }
+        msg2.addMessageListener((msg, m) -> {
+            log.info("Got message " + m.getName());
+            return null;
         });
         log.info("resetting...");
         preSendClear = false;

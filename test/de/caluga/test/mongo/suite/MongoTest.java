@@ -256,7 +256,7 @@ public class MongoTest {
 
     public static List<Morphium> getMorphiums() {
         if (morphiums == null) {
-            morphiums = new ArrayList<Morphium>();
+            morphiums = new ArrayList<>();
             morphiums.add(morphiumMongodb);
             morphiums.add(morphiumInMemeory);
             morphiums.add(morphiumSingleConnect);

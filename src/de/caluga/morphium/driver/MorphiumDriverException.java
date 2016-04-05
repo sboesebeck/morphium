@@ -5,7 +5,7 @@ package de.caluga.morphium.driver;/**
 import java.util.Map;
 
 /**
- * TODO: Add Documentation here
+ * error during accessing the database through the driver
  **/
 public class MorphiumDriverException extends Exception {
     private String collection;
@@ -42,5 +42,29 @@ public class MorphiumDriverException extends Exception {
 
     public void setMongoReason(Object mongoReason) {
         this.mongoReason = mongoReason;
+    }
+
+    public String getCollection() {
+        return collection;
+    }
+
+    public void setCollection(String collection) {
+        this.collection = collection;
+    }
+
+    public String getDb() {
+        return db;
+    }
+
+    public void setDb(String db) {
+        this.db = db;
+    }
+
+    public Map<String, Object> getQuery() {
+        return query;
+    }
+
+    public void setQuery(Map<String, Object> query) {
+        this.query = query;
     }
 }

@@ -19,7 +19,8 @@ import java.util.concurrent.ConcurrentHashMap;
  * Date: 02.12.15
  * Time: 23:56
  * <p>
- * TODO: Add documentation here
+ * Meta Driver. Uses SingleConnectThreaddedDriver to connect to mongodb replicaset. Not production ready yet, but good
+ * for testing.
  */
 public class MetaDriver extends DriverBase {
     private Logger log = new Logger(MetaDriver.class);
@@ -67,9 +68,7 @@ public class MetaDriver extends DriverBase {
                     }
 
                     for (int i = secondaries.size() - 1; i >= 0; i--) {
-                        if (errorCountByHost.get(secondaries.get(i)) == null) {
-                            errorCountByHost.put(secondaries.get(i), 0);
-                        }
+                        errorCountByHost.putIfAbsent(secondaries.get(i), 0);
                         if (errorCountByHost.get(secondaries.get(i)) > 10) {
                             //temporary disabling host
                             String sec = secondaries.remove(i);
@@ -141,8 +140,7 @@ public class MetaDriver extends DriverBase {
         }
         if (getHostSeed().length < secondaries.size()) {
             log.info("There are more nodes in replicaset than defined in seed...");
-            for (int i = 0; i < secondaries.size(); i++) {
-                String h = secondaries.get(i);
+            for (String h : secondaries) {
                 if (getConnections(h).size() == 0) {
                     createConnectionsForPool(h);
                 }
@@ -184,16 +182,12 @@ public class MetaDriver extends DriverBase {
     }
 
     private List<Connection> getConnectionsInUse(String h) {
-        if (connectionsInUse.get(h) == null) {
-            connectionsInUse.put(h, Collections.synchronizedList(new ArrayList<>()));
-        }
+        connectionsInUse.putIfAbsent(h, Collections.synchronizedList(new ArrayList<>()));
         return connectionsInUse.get(h);
     }
 
     private List<Connection> getConnections(String h) {
-        if (connectionPool.get(h) == null) {
-            connectionPool.put(h, Collections.synchronizedList(new ArrayList<>()));
-        }
+        connectionPool.putIfAbsent(h, Collections.synchronizedList(new ArrayList<>()));
         return connectionPool.get(h);
     }
 
@@ -296,8 +290,7 @@ public class MetaDriver extends DriverBase {
     public MorphiumCursor nextIteration(MorphiumCursor crs) throws MorphiumDriverException {
         //Stay at the same connection
         SingleConnectCursor c = (SingleConnectCursor) crs.getInternalCursorObject();
-        MorphiumCursor ret = c.getDriver().nextIteration(crs);
-        return ret;
+        return c.getDriver().nextIteration(crs);
     }
 
     @Override

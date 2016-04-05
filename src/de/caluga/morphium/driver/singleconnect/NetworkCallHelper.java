@@ -10,7 +10,8 @@ import de.caluga.morphium.driver.MorphiumDriverOperation;
 import java.util.Map;
 
 /**
- * TODO: Add Documentation here
+ * Mongodb throws errors on failover to the client, so we need to repeat all network calls several times
+ * this class capsulates these calls.
  **/
 public class NetworkCallHelper {
     Logger logger = new Logger(NetworkCallHelper.class);

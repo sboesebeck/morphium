@@ -78,7 +78,7 @@ public class Messaging extends Thread implements ShutdownListener {
         if (multithreadded) {
             threadPool = new ThreadPoolExecutor(morphium.getConfig().getThreadPoolMessagingCoreSize(), morphium.getConfig().getThreadPoolMessagingMaxSize(),
                     morphium.getConfig().getThreadPoolMessagingKeepAliveTime(), TimeUnit.MILLISECONDS,
-                    new LinkedBlockingQueue<Runnable>());
+                    new LinkedBlockingQueue<>());
         }
         morphium.addShutdownListener(this);
 
@@ -166,89 +166,83 @@ public class Messaging extends Thread implements ShutdownListener {
 //                    count++;
 //                    System.out.println("Processing message " + count);
                     if (m == null) continue; //message was erased
-                    Runnable r = new Runnable() {
-                        @Override
-                        public void run() {
-                            if (m.getProcessedBy() != null && m.getProcessedBy().contains(id)) {
-                                log.fatal("Was already processed - ERROR?");
-                                throw new RuntimeException("was already processed - error on mongo query result!");
-                            }
-                            final Msg msg = morphium.reread(m, getCollectionName()); //make sure it's current version in DB
+                    Runnable r = () -> {
+                        if (m.getProcessedBy() != null && m.getProcessedBy().contains(id)) {
+                            log.fatal("Was already processed - ERROR?");
+                            throw new RuntimeException("was already processed - error on mongo query result!");
+                        }
+                        final Msg msg = morphium.reread(m, getCollectionName()); //make sure it's current version in DB
 //                            System.out.println("Processing message "+msg.getMsgId()+ " / "+m.getMsgId());
-                            if (msg == null) {
-                                return; //was deleted
+                        if (msg == null) {
+                            return; //was deleted
+                        }
+                        if (msg.getProcessedBy() != null && msg.getProcessedBy().contains(id)) {
+                            log.info("Was already processed - multithreadding?");
+                            return;
+                        }
+                        if (!msg.getLockedBy().equals(id) && !msg.getLockedBy().equals("ALL")) {
+                            //over-locked by someone else
+                            return;
+                        }
+                        if (msg.getTtl() < System.currentTimeMillis() - msg.getTimestamp()) {
+                            //Delete outdated msg!
+                            log.info("Found outdated message - deleting it!");
+                            morphium.delete(msg, getCollectionName());
+                            return;
+                        }
+                        try {
+                            for (MessageListener l : listeners) {
+                                Msg answer = l.onMessage(Messaging.this, msg);
+                                if (autoAnswer && answer == null) {
+                                    answer = new Msg(msg.getName(), "received", "");
+                                }
+                                if (answer != null) {
+                                    msg.sendAnswer(Messaging.this, answer);
+                                }
                             }
-                            if (msg.getProcessedBy() != null && msg.getProcessedBy().contains(id)) {
-                                log.info("Was already processed - multithreadding?");
-                                return;
-                            }
-                            if (!msg.getLockedBy().equals(id) && !msg.getLockedBy().equals("ALL")) {
-                                //over-locked by someone else
-                                return;
-                            }
-                            if (msg.getTtl() < System.currentTimeMillis() - msg.getTimestamp()) {
-                                //Delete outdated msg!
-                                log.info("Found outdated message - deleting it!");
-                                morphium.delete(msg, getCollectionName());
-                                return;
-                            }
-                            try {
-                                for (MessageListener l : listeners) {
+
+                            if (listenerByName.get(msg.getName()) != null) {
+                                for (MessageListener l : listenerByName.get(msg.getName())) {
                                     Msg answer = l.onMessage(Messaging.this, msg);
                                     if (autoAnswer && answer == null) {
                                         answer = new Msg(msg.getName(), "received", "");
                                     }
                                     if (answer != null) {
+                                        msg.setDeleteAt(new Date(System.currentTimeMillis() + msg.getTtl()));
                                         msg.sendAnswer(Messaging.this, answer);
                                     }
                                 }
-
-                                if (listenerByName.get(msg.getName()) != null) {
-                                    for (MessageListener l : listenerByName.get(msg.getName())) {
-                                        Msg answer = l.onMessage(Messaging.this, msg);
-                                        if (autoAnswer && answer == null) {
-                                            answer = new Msg(msg.getName(), "received", "");
-                                        }
-                                        if (answer != null) {
-                                            msg.setDeleteAt(new Date(System.currentTimeMillis() + msg.getTtl()));
-                                            msg.sendAnswer(Messaging.this, answer);
-                                        }
-                                    }
-                                }
-                            } catch (Throwable t) {
-//                        msg.addAdditional("Processing of message failed by "+getSenderId()+": "+t.getMessage());
-                                log.error("Processing failed", t);
                             }
+                        } catch (Throwable t) {
+//                        msg.addAdditional("Processing of message failed by "+getSenderId()+": "+t.getMessage());
+                            log.error("Processing failed", t);
+                        }
 
 //                            if (msg.getType().equals(MsgType.SINGLE)) {
 //                                //removing it
 //                                morphium.delete(msg, getCollectionName());
 //                            }
-                            //updating it to be processed by others...
-                            if (msg.getLockedBy().equals("ALL")) {
-                                toExec.add(new Runnable() {
-                                    @Override
-                                    public void run() {
-                                        Query<Msg> idq = morphium.createQueryFor(Msg.class);
-                                        idq.setCollectionName(getCollectionName());
-                                        idq.f(Msg.Fields.msgId).eq(msg.getMsgId());
+                        //updating it to be processed by others...
+                        if (msg.getLockedBy().equals("ALL")) {
+                            toExec.add(() -> {
+                                Query<Msg> idq = morphium.createQueryFor(Msg.class);
+                                idq.setCollectionName(getCollectionName());
+                                idq.f(Msg.Fields.msgId).eq(msg.getMsgId());
 
-                                        morphium.push(idq, Msg.Fields.processedBy, id);
-                                    }
-                                });
+                                morphium.push(idq, Msg.Fields.processedBy, id);
+                            });
 
-                            } else {
-                                //Exclusive message
+                        } else {
+                            //Exclusive message
 
-                                toRemove.add(msg);
+                            toRemove.add(msg);
 //                                msg.addProcessedId(id);
 //                                msg.setLockedBy(null);
 //                                msg.setLocked(0);
-//                                toStore.add(msg); //TODO: delete message?
-                            }
-                            if (msg.getType().equals(MsgType.SINGLE) && !toRemove.contains(msg)) {
-                                toRemove.add(msg);
-                            }
+//                                toStore.add(msg);
+                        }
+                        if (msg.getType().equals(MsgType.SINGLE) && !toRemove.contains(msg)) {
+                            toRemove.add(msg);
                         }
                     };
 
@@ -323,7 +317,7 @@ public class Messaging extends Thread implements ShutdownListener {
     public void addListenerForMessageNamed(String n, MessageListener l) {
         if (listenerByName.get(n) == null) {
             HashMap<String, List<MessageListener>> c = (HashMap) ((HashMap) listenerByName).clone();
-            c.put(n, new ArrayList<MessageListener>());
+            c.put(n, new ArrayList<>());
             listenerByName = c;
         }
         listenerByName.get(n).add(l);

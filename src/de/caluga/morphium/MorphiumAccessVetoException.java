@@ -5,7 +5,7 @@ package de.caluga.morphium;
  * Date: 07.03.13
  * Time: 10:09
  * <p/>
- * TODO: Add documentation here
+ * This exception should be raised when the access should not be allowed
  */
 public class MorphiumAccessVetoException extends RuntimeException {
     public MorphiumAccessVetoException() {

@@ -5,7 +5,7 @@ package de.caluga.morphium.driver.bulk;/**
 import java.util.Map;
 
 /**
- * TODO: Add Documentation here
+ * bulk request for updating
  **/
 public class UpdateBulkRequest extends BulkRequest {
     private Map<String, Object> query;

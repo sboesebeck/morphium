@@ -14,10 +14,10 @@ import java.util.concurrent.CopyOnWriteArrayList;
 
 
 /**
- * TODO: Add Documentation here
+ * iterating over huge collections using the db interal cursor. This iterator does create a thread reading the data
  **/
 public class PrefetchingDriverIterator<T> implements MorphiumIterator<T> {
-
+    private long lastAccess = System.currentTimeMillis();
     private List<List<T>> prefetchBuffer; //each entry is one buffer
     private Query<T> query;
     private int batchsize;
@@ -32,50 +32,62 @@ public class PrefetchingDriverIterator<T> implements MorphiumIterator<T> {
     }
 
     public List<List<T>> getPrefetchBuffer() {
+        checkAndUpdateLastAccess();
         return prefetchBuffer;
     }
 
     public void setPrefetchBuffer(List<List<T>> prefetchBuffer) {
+        checkAndUpdateLastAccess();
         this.prefetchBuffer = prefetchBuffer;
     }
 
     @Override
     public void setWindowSize(int sz) {
+        checkAndUpdateLastAccess();
         this.batchsize = sz;
     }
 
     @Override
     public int getWindowSize() {
+        checkAndUpdateLastAccess();
+
         return batchsize;
     }
 
     @Override
     public void setQuery(Query<T> q) {
+        checkAndUpdateLastAccess();
+
         query = q;
     }
 
     @Override
     public Query<T> getQuery() {
+        checkAndUpdateLastAccess();
         return query;
     }
 
     @Override
     public int getCurrentBufferSize() {
+        checkAndUpdateLastAccess();
         return prefetchBuffer.size();
     }
 
     @Override
     public List<T> getCurrentBuffer() {
+        checkAndUpdateLastAccess();
         return prefetchBuffer.get(0);
     }
 
     @Override
     public long getCount() {
+        checkAndUpdateLastAccess();
         return query.countAll();
     }
 
     @Override
     public int getCursor() {
+        checkAndUpdateLastAccess();
         return cursorPos;
     }
 
@@ -91,6 +103,8 @@ public class PrefetchingDriverIterator<T> implements MorphiumIterator<T> {
 
     @Override
     public void setNumberOfPrefetchWindows(int n) {
+        checkAndUpdateLastAccess();
+
         if (n <= 1) {
             n = 2;
             log.error("Prefetching only makes sense with at least 2 prefetchwindows... setting to 2");
@@ -100,32 +114,38 @@ public class PrefetchingDriverIterator<T> implements MorphiumIterator<T> {
 
     @Override
     public int getNumberOfAvailableThreads() {
+        checkAndUpdateLastAccess();
         return numPrefetchBuffers;
     }
 
     @Override
     public int getNumberOfThreads() {
+        checkAndUpdateLastAccess();
         return 0;
     }
 
     @Override
     public boolean isMultithreaddedAccess() {
+        checkAndUpdateLastAccess();
         return true;
     }
 
     @Override
     public void setMultithreaddedAccess(boolean mu) {
         //always true
+        checkAndUpdateLastAccess();
+
     }
 
     @Override
     public Iterator<T> iterator() {
+        checkAndUpdateLastAccess();
         return this;
     }
 
     @Override
     public boolean hasNext() {
-
+        checkAndUpdateLastAccess();
 
         if (cursor == null && !startedAlready) {
             startedAlready = true;
@@ -149,10 +169,8 @@ public class PrefetchingDriverIterator<T> implements MorphiumIterator<T> {
         if (prefetchBuffer.size() == 0 && cursor == null) {
             return false;
         }
-        if (cursorPos % getWindowSize() == 0 && prefetchBuffer.size() == 1 && cursor == null) {
-            return false; //end of results
-        }
-        return (cursorPos % getWindowSize() < prefetchBuffer.get(0).size());
+        //end of results
+        return !(cursorPos % getWindowSize() == 0 && prefetchBuffer.size() == 1 && cursor == null) && (cursorPos % getWindowSize() < prefetchBuffer.get(0).size());
 
     }
 
@@ -172,6 +190,16 @@ public class PrefetchingDriverIterator<T> implements MorphiumIterator<T> {
             while (cursor != null) {
                 while (prefetchBuffer.size() >= numPrefetchBuffers && cursor != null) try {
                     //Busy wait for buffer to be processed
+                    if (System.currentTimeMillis() - lastAccess > query.getMorphium().getConfig().getSocketTimeout()) {
+                        log.error("Cursor timeout... closing");
+                        try {
+                            query.getMorphium().getDriver().closeIteration(cursor);
+                        } catch (MorphiumDriverException e) {
+                            //e.printStackTrace(); Swallow it, as it is probably timedout anyway
+                        }
+                        cursor = null;
+                        return;
+                    }
                     Thread.sleep(50);
                 } catch (InterruptedException e) {
                 }
@@ -198,6 +226,7 @@ public class PrefetchingDriverIterator<T> implements MorphiumIterator<T> {
 
     @Override
     public T next() {
+        checkAndUpdateLastAccess();
         if (cursor == null && !startedAlready) {
             if (!hasNext()) return null;
         }
@@ -210,5 +239,12 @@ public class PrefetchingDriverIterator<T> implements MorphiumIterator<T> {
             return null;
         }
         return prefetchBuffer.get(0).get(cursorPos++ % getWindowSize());
+    }
+
+    private void checkAndUpdateLastAccess() {
+        if (System.currentTimeMillis() - lastAccess > query.getMorphium().getConfig().getSocketTimeout()) {
+            throw new RuntimeException("Cursor timeout - socket timeout reached");
+        }
+        lastAccess = System.currentTimeMillis();
     }
 }

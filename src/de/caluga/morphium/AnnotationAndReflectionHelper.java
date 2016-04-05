@@ -17,16 +17,15 @@ import java.util.concurrent.ConcurrentHashMap;
  * Date: 07.03.13
  * Time: 11:10
  * <p/>
- * TODO: Add documentation here
+ * This class will capsulate all calls to the reflection API. Espeically getting all the annotations from
+ * entities is done here. For performance increase (and because the structure of the code usually does not
+ * change during runtime) those results are being cached.
+ *
+ * this class is ThreadSafe!
  */
 @SuppressWarnings("unchecked")
 public class AnnotationAndReflectionHelper {
-    private final Annotation annotationNotPresent = new Annotation() {
-        @Override
-        public Class<? extends Annotation> annotationType() {
-            return null;
-        }
-    };
+    private final Annotation annotationNotPresent = () -> null;
     private Logger log = new Logger(AnnotationAndReflectionHelper.class);
     private Map<String, Field> fieldCache = new ConcurrentHashMap<>();
     private Map<Class<?>, Class<?>> realClassCache = new ConcurrentHashMap<>();
@@ -61,7 +60,6 @@ public class AnnotationAndReflectionHelper {
                 realClassCache.put(sc, ret);
                 sc = ret;
             } catch (Exception e) {
-                //TODO: Implement Handling
                 throw new RuntimeException(e);
             }
         }
@@ -90,8 +88,7 @@ public class AnnotationAndReflectionHelper {
             return (T) annotationCache.get(cls).get(anCls);
         }
         T ret = null;
-        if (annotationCache.get(cls) == null)
-            annotationCache.put(cls, new HashMap<Class<? extends Annotation>, Annotation>());
+        annotationCache.putIfAbsent(cls, new HashMap<>());
 
         ret = cls.getAnnotation(anCls);
         if (ret == null) {
@@ -198,7 +195,7 @@ public class AnnotationAndReflectionHelper {
         }
         Map<Class<?>, Map<String, String>> m = fieldNameCache; // (HashMap) ((HashMap) fieldNameCache).clone();
         if (!m.containsKey(cls)) {
-            m.put(cls, new HashMap<String, String>());
+            m.put(cls, new HashMap<>());
         }
         m.get(cls).put(field, ret);
         return ret;
@@ -520,7 +517,7 @@ public class AnnotationAndReflectionHelper {
                             } else if (f.getType().equals(Float.class) || f.getType().equals(float.class)) {
                                 f.set(o, l.floatValue());
                             } else if (f.getType().equals(Boolean.class) || f.getType().equals(boolean.class)) {
-                                f.set(o, l == 1l);
+                                f.set(o, l == 1L);
                             } else if (f.getType().equals(String.class)) {
                                 f.set(o, l.toString());
                             } else {

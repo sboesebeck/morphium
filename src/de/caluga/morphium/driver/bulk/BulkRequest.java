@@ -3,7 +3,7 @@ package de.caluga.morphium.driver.bulk;/**
  */
 
 /**
- * TODO: Add Documentation here
+ * base class for driver bulk requests
  **/
 public abstract class BulkRequest {
 }

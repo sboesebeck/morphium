@@ -16,7 +16,7 @@ import java.util.Vector;
  */
 @State(Scope.Benchmark)
 public class CachePerformanceInternalsTest {
-    private List<String> synchronizedList = Collections.synchronizedList(new ArrayList<String>());
+    private List<String> synchronizedList = Collections.synchronizedList(new ArrayList<>());
     private List<String> vector = new Vector();
 
 
@@ -62,8 +62,7 @@ public class CachePerformanceInternalsTest {
     public void zReadVectorTest() {
         for (String s : vector) {
             //just zooming through
-            String v = s;
-            int l = v.length();
+            int l = s.length();
         }
     }
 
@@ -77,8 +76,7 @@ public class CachePerformanceInternalsTest {
     public void zReadSynchronizedListTest() {
         for (String s : synchronizedList) {
             //just zooming through
-            String v = s;
-            int l = v.length();
+            int l = s.length();
         }
     }
 }

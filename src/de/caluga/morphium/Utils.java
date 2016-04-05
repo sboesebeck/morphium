@@ -8,7 +8,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 /**
- * TODO: Add Documentation here
+ * Utility class
  **/
 public class Utils {
 
@@ -137,7 +137,7 @@ public class Utils {
                 sb.append("    ");
                 sb.append(str);
             } catch (UnsupportedEncodingException e) {
-
+                //ignore it
             }
             sb.append("\n");
             mainIdx += 16;

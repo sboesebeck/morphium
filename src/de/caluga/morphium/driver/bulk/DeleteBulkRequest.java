@@ -7,7 +7,7 @@ import java.util.Map;
  * Date: 13.11.15
  * Time: 23:35
  * <p>
- * TODO: Add documentation here
+ * delete bulk request entry
  */
 public class DeleteBulkRequest extends BulkRequest {
     private Map<String, Object> query;

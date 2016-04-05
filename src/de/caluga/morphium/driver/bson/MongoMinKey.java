@@ -3,7 +3,7 @@ package de.caluga.morphium.driver.bson;/**
  */
 
 /**
- * TODO: Add Documentation here
+ * MINKEY marker class for BSON
  **/
 public class MongoMinKey {
 }

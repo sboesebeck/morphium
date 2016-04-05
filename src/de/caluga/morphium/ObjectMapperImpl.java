@@ -319,7 +319,7 @@ public class ObjectMapperImpl implements ObjectMapper {
                             if (annotationHelper.getId(value) == null) {
                                 //not stored yet
                                 if (r.automaticStore()) {
-                                    //TODO: this could cause an endless loop!
+                                    //Attention: this could cause an endless loop!
                                     if (morphium == null) {
                                         log.fatal("Could not store - no Morphium set!");
                                     } else {
@@ -340,7 +340,6 @@ public class ObjectMapperImpl implements ObjectMapper {
                     //check, what type field has
 
                     //Store Entities recursively
-                    //TODO: Fix recursion - this could cause a loop!
                     Class<?> valueClass = null;
 
                     if (value == null) {
@@ -739,20 +738,20 @@ public class ObjectMapperImpl implements ObjectMapper {
                         for (int i = 0; i < lst.size(); i++) {
                             if (fld.getType().getComponentType().isPrimitive()) {
                                 if (fld.getType().getComponentType().equals(int.class)) {
-                                    Array.set(arr, i, ((Integer) lst.get(i)).intValue());
+                                    Array.set(arr, i, (Integer) lst.get(i));
                                 } else if (fld.getType().getComponentType().equals(long.class)) {
-                                    Array.set(arr, i, ((Long) lst.get(i)).longValue());
+                                    Array.set(arr, i, (Long) lst.get(i));
                                 } else if (fld.getType().getComponentType().equals(float.class)) {
                                     //Driver sends doubles instead of floats
-                                    Array.set(arr, i, ((Float) lst.get(i)).floatValue());
+                                    Array.set(arr, i, (Float) lst.get(i));
 
                                 } else if (fld.getType().getComponentType().equals(double.class)) {
-                                    Array.set(arr, i, ((Double) lst.get(i)).doubleValue());
+                                    Array.set(arr, i, (Double) lst.get(i));
 
                                 } else if (fld.getType().getComponentType().equals(byte.class)) {
-                                    Array.set(arr, i, ((Byte) lst.get(i)).byteValue());
+                                    Array.set(arr, i, (Byte) lst.get(i));
                                 } else if (fld.getType().getComponentType().equals(boolean.class)) {
-                                    Array.set(arr, i, ((Boolean) lst.get(i)).booleanValue());
+                                    Array.set(arr, i, (Boolean) lst.get(i));
 
                                 }
                             } else {
@@ -765,12 +764,14 @@ public class ObjectMapperImpl implements ObjectMapper {
                     }
 
 
-                } else if (fld.getType().isEnum()) {
-                    value = Enum.valueOf((Class<? extends Enum>) fld.getType(), (String) valueFromDb);
-                } else if (hasCustomMapper(fld.getType())) {
-                    value = customMapper.get(fld.getType()).unmarshall(valueFromDb);
                 } else {
-                    value = valueFromDb;
+                    if (fld.getType().isEnum()) {
+                        value = Enum.valueOf((Class<? extends Enum>) fld.getType(), (String) valueFromDb);
+                    } else if (hasCustomMapper(fld.getType())) {
+                        value = customMapper.get(fld.getType()).unmarshall(valueFromDb);
+                    } else {
+                        value = valueFromDb;
+                    }
                 }
                 annotationHelper.setValue(ret, value, f);
             }
@@ -843,7 +844,6 @@ public class ObjectMapperImpl implements ObjectMapper {
                             Object read = in.readObject();
                             retMap.put(n, read);
                         } catch (IOException | ClassNotFoundException e) {
-                            //TODO: Implement Handling
                             throw new RuntimeException(e);
                         }
 
@@ -914,7 +914,7 @@ public class ObjectMapperImpl implements ObjectMapper {
                     toFillIn.add(null);
                     continue;
                 }
-                ;
+
                 MorphiumReference r = unmarshall(MorphiumReference.class, obj);
                 Class type = null;
                 try {
@@ -1000,7 +1000,6 @@ public class ObjectMapperImpl implements ObjectMapper {
                 ArrayList lt = new ArrayList();
                 fillList(forField, (List<Map<String, Object>>) val, lt, containerEntity);
                 toFillIn.add(lt);
-                //TODO: Handle DBRef
 //            } else if (val instanceof DBRef) {
 //                try {
 //                    DBRef ref = (DBRef) val;

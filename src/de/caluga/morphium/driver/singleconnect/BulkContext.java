@@ -17,7 +17,7 @@ import java.util.Map;
  * Date: 06.12.15
  * Time: 23:14
  * <p>
- * TODO: Add documentation here
+ * Bulk Context implementation for the singleconnect drivers
  */
 public class BulkContext extends BulkRequestContext {
     private Logger log = new Logger(BulkContext.class);

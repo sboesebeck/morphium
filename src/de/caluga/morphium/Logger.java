@@ -10,9 +10,9 @@ import java.util.Map;
  * Created by stephan on 25.04.15.
  */
 public class Logger {
-    public static int defaultLevel = 1;
-    public static boolean defaultSynced = false;
-    public static String defaultFile = "-";
+    public static final int defaultLevel = 1;
+    public static final boolean defaultSynced = false;
+    public static final String defaultFile = "-";
 
     private int level = 5;
     private String prfx;
@@ -36,8 +36,12 @@ public class Logger {
         else level = defaultLevel;
 
         v = getSetting("log.file");
-        if (getSetting("log.file." + name) != null) v = getSetting("log.file." + name);
-        if (v == null) v = defaultFile;
+        if (getSetting("log.file." + name) != null) {
+            v = getSetting("log.file." + name);
+        }
+        if (v == null) {
+            v = defaultFile;
+        }
 
         if (v != null) {
             file = v;
@@ -83,16 +87,20 @@ public class Logger {
         v = getSetting("log.delegate");
         if (getSetting("log.delegate." + name) != null) v = getSetting("log.delegate." + name);
         if (v != null) {
-            if (v.equals("log4j")) {
-                delegate = new Log4JLoggerDelegate();
-            } else if (v.equals("jul")) {
-                delegate = new JavaUtilLoggingDelegate();
-            } else {
-                try {
-                    delegate = (LoggerDelegate) Class.forName(v).newInstance();
-                } catch (Exception e) {
-                    e.printStackTrace();
-                }
+            switch (v) {
+                case "log4j":
+                    delegate = new Log4JLoggerDelegate();
+                    break;
+                case "jul":
+                    delegate = new JavaUtilLoggingDelegate();
+                    break;
+                default:
+                    try {
+                        delegate = (LoggerDelegate) Class.forName(v).newInstance();
+                    } catch (Exception e) {
+                        e.printStackTrace();
+                    }
+                    break;
             }
         }
 

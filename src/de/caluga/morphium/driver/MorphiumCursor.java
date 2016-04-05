@@ -6,7 +6,7 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * TODO: Add Documentation here
+ * Morphiums representation of the mongodb Cursor.
  **/
 public class MorphiumCursor<T> {
     private long cursorId;

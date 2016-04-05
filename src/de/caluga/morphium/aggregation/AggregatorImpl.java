@@ -195,13 +195,10 @@ public class AggregatorImpl<T, R> implements Aggregator<T, R> {
             morphium.aggregate(this);
         } else {
 
-            morphium.queueTask(new Runnable() {
-                @Override
-                public void run() {
-                    long start = System.currentTimeMillis();
-                    List<R> ret = morphium.aggregate(AggregatorImpl.this);
-                    callback.onOperationSucceeded(AsyncOperationType.READ, null, System.currentTimeMillis() - start, ret, null, AggregatorImpl.this);
-                }
+            morphium.queueTask(() -> {
+                long start = System.currentTimeMillis();
+                List<R> ret = morphium.aggregate(AggregatorImpl.this);
+                callback.onOperationSucceeded(AsyncOperationType.READ, null, System.currentTimeMillis() - start, ret, null, AggregatorImpl.this);
             });
         }
     }

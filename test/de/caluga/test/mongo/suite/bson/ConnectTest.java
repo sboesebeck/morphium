@@ -39,7 +39,7 @@ public class ConnectTest extends BaseTest {
         q.setDb("tst");
         q.setColl("$cmd");
         Map<String, Object> query = new LinkedHashMap<>();
-        HashMap<String, Object> qu = new HashMap<String, Object>();
+        HashMap<String, Object> qu = new HashMap<>();
 
 //        q.put("_id", new MongoId());
 

@@ -63,7 +63,7 @@ public class ObjectMapperTest extends MongoTest {
         ObjectMapper om = morphium.getMapper();
         UncachedObject o = new UncachedObject();
         o.setValue("A test");
-        o.setLongData(new long[]{1, 23, 4l, 5l});
+        o.setLongData(new long[]{1, 23, 4L, 5L});
         o.setCounter(1234);
         Map<String, Object> dbo = om.marshall(o);
         UncachedObject uc = om.unmarshall(UncachedObject.class, dbo);
@@ -158,7 +158,7 @@ public class ObjectMapperTest extends MongoTest {
     @Test
     public void testUnmarshall() throws Exception {
         ObjectMapperImpl om = (ObjectMapperImpl) morphium.getMapper();
-        Map<String, Object> dbo = new HashMap<String, Object>();
+        Map<String, Object> dbo = new HashMap<>();
         dbo.put("counter", 12345);
         dbo.put("value", "A test");
         om.unmarshall(UncachedObject.class, dbo);
