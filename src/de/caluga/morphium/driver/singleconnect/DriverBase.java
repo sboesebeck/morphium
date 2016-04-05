@@ -49,7 +49,7 @@ public abstract class DriverBase implements MorphiumDriver {
     private int maxConnectionsPerHost = 100;
     private int defaultWriteTimeout = 10000;
 
-    private boolean slaveOk = false;
+    private boolean slaveOk = true;
 
     public boolean isSlaveOk() {
         return slaveOk;

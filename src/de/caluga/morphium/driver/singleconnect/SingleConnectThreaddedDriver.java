@@ -29,6 +29,7 @@ public class SingleConnectThreaddedDriver extends DriverBase {
     private InputStream in;
 
     private List<OpReply> replies = Collections.synchronizedList(new ArrayList<>());
+    private volatile int waitingForReply = 0;
 
 
     private void reconnect() throws MorphiumDriverException {
@@ -58,6 +59,7 @@ public class SingleConnectThreaddedDriver extends DriverBase {
             s = new Socket(h[0], port);
             s.setKeepAlive(isSocketKeepAlive());
             s.setSoTimeout(getSocketTimeout());
+
             out = s.getOutputStream();
             in = s.getInputStream();
 
@@ -79,19 +81,19 @@ public class SingleConnectThreaddedDriver extends DriverBase {
                             int size = OpReply.readInt(inBuffer, 0);
 //                            log.info("Got size: " + Utils.getHex(size));
                             if (size == 0) {
-                                log.info("Error - null size! closing connection");
+                                log.error("Error - null size! closing connection");
                                 System.exit(1);
                                 break;
 
                             }
                             if (size > 16 * 1024 * 1024) {
-                                log.info("Error - size too big! " + size);
+                                log.error("Error - size too big! " + size);
                                 System.exit(1);
                                 break;
                             }
                             int opcode = OpReply.readInt(inBuffer, 12);
                             if (opcode != 1) {
-                                log.info("illegal opcode! " + opcode);
+                                log.error("illegal opcode! " + opcode);
                                 System.exit(1);
                                 break;
                             }
@@ -147,6 +149,7 @@ public class SingleConnectThreaddedDriver extends DriverBase {
                                 log.error("Could not read", e);
                             }
                         } catch (IOException e) {
+                            //here will be a timeout exception everytime the socket timeout is reachts
 //                            e.printStackTrace();
                             break; //probably best!
                         }
@@ -154,9 +157,9 @@ public class SingleConnectThreaddedDriver extends DriverBase {
                     try {
                         close();
 //                                    connect(replSet);
-                    } catch (MorphiumDriverException e) {
+                    } catch (Exception e) {
                     }
-                    log.info("reply-thread terminated!");
+                    log.debug("reply-thread terminated!");
                 }
             };
             reader.setDaemon(true);
@@ -241,7 +244,6 @@ public class SingleConnectThreaddedDriver extends DriverBase {
         return new NetworkCallHelper().doCall(() -> {
             OpQuery q = new OpQuery();
             q.setDb(db);
-            if (isSlaveOk()) q.setFlags(4);
             q.setColl("$cmd");
             q.setLimit(1);
             q.setSkip(0);
@@ -386,7 +388,6 @@ public class SingleConnectThreaddedDriver extends DriverBase {
             q.setColl("$cmd");
             q.setLimit(1);
             q.setSkip(0);
-            if (isSlaveOk()) q.setFlags(4);
             q.setReqId(getNextId());
 
             Map<String, Object> doc = new LinkedHashMap<>();
@@ -447,7 +448,6 @@ public class SingleConnectThreaddedDriver extends DriverBase {
                 q.setDb(db);
                 q.setReqId(getNextId());
                 q.setSkip(0);
-                if (isSlaveOk()) q.setFlags(4);
 
                 q.setLimit(1);
                 doc = new LinkedHashMap<>();
@@ -465,25 +465,30 @@ public class SingleConnectThreaddedDriver extends DriverBase {
     }
 
     private OpReply getReply(int waitingfor) throws MorphiumDriverException {
-        long start = System.currentTimeMillis();
-        while (true) {
-            synchronized (replies) {
-                for (int i = 0; i < replies.size(); i++) {
-                    if (replies.get(i).getInReplyTo() == waitingfor) {
-                        //                        if (!reply.getDocuments().get(0).get("ok").equals(1)) {
-//                            if (reply.getDocuments().get(0).get("code") != null) {
-//                                log.info("Error " + reply.getDocuments().get(0).get("code"));
-//                                log.info("Error " + reply.getDocuments().get(0).get("errmsg"));
-//                            }
-//                        }
-                        return replies.remove(i);
+        waitingForReply++;
+        try {
+            long start = System.currentTimeMillis();
+            while (true) {
+                synchronized (replies) {
+                    for (int i = 0; i < replies.size(); i++) {
+                        if (replies.get(i).getInReplyTo() == waitingfor) {
+                            //                        if (!reply.getDocuments().get(0).get("ok").equals(1)) {
+                            //                            if (reply.getDocuments().get(0).get("code") != null) {
+                            //                                log.info("Error " + reply.getDocuments().get(0).get("code"));
+                            //                                log.info("Error " + reply.getDocuments().get(0).get("errmsg"));
+                            //                            }
+                            //                        }
+                            return replies.remove(i);
+                        }
                     }
                     if (System.currentTimeMillis() - start > getMaxWaitTime()) {
-                        throw new MorphiumDriverNetworkException("could not get answer in time");
+                        throw new MorphiumDriverNetworkException("could not get reply in time");
                     }
                 }
+                Thread.yield();
             }
-            Thread.yield();
+        } finally {
+            waitingForReply--;
         }
     }
 
@@ -492,10 +497,11 @@ public class SingleConnectThreaddedDriver extends DriverBase {
         if (q.getDb() == null) {
             throw new IllegalArgumentException("cannot send command without db");
         }
+        if (isSlaveOk()) q.setFlags(4);
         long start = System.currentTimeMillis();
         while (retry) {
             if (s == null || !s.isConnected()) {
-                log.info("Not connected - reconnecting");
+                log.debug("Not connected - reconnecting");
                 connect();
             }
             try {
@@ -527,7 +533,6 @@ public class SingleConnectThreaddedDriver extends DriverBase {
             doc.put("count", collection);
             doc.put("query", query);
             q.setDoc(doc);
-            if (isSlaveOk()) q.setFlags(4);
 
             q.setInReplyTo(0);
 
@@ -781,7 +786,6 @@ public class SingleConnectThreaddedDriver extends DriverBase {
             cmd.put("key", field);
             cmd.put("query", filter);
             op.setDoc(cmd);
-            if (isSlaveOk()) op.setFlags(4);
 
             sendQuery(op);
             try {
@@ -818,7 +822,6 @@ public class SingleConnectThreaddedDriver extends DriverBase {
             q.setReqId(getNextId());
 
             q.setDoc(cmd);
-            if (isSlaveOk()) q.setFlags(4);
 
             q.setInReplyTo(0);
 
@@ -851,7 +854,6 @@ public class SingleConnectThreaddedDriver extends DriverBase {
                 cmd.put("filter", Utils.getMap("name", collection));
             }
             q.setDoc(cmd);
-            if (isSlaveOk()) q.setFlags(4);
 
             q.setInReplyTo(0);
 
@@ -872,7 +874,6 @@ public class SingleConnectThreaddedDriver extends DriverBase {
             q.setReqId(getNextId());
             q.setSkip(0);
             q.setLimit(1);
-            if (isSlaveOk()) q.setFlags(4);
 
             Map<String, Object> cmd = new LinkedHashMap<>();
             Map<String, Object> map = Utils.getMap("ns", coll);
@@ -918,7 +919,6 @@ public class SingleConnectThreaddedDriver extends DriverBase {
             q.setReqId(getNextId());
             q.setSkip(0);
             q.setLimit(1);
-            if (isSlaveOk()) q.setFlags(4);
 
             Map<String, Object> doc = new LinkedHashMap<>();
             doc.put("aggregate", collection);

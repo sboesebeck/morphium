@@ -236,7 +236,7 @@ public class LazyLoadingTest extends MongoTest {
 
 
     @Test
-    public void deReferenceListenerTest() {
+    public void deReferenceListenerTest() throws Exception {
         Query<LazyLoadingObject> q = morphium.createQueryFor(LazyLoadingObject.class);
         //clean
         morphium.delete(q);
@@ -266,7 +266,7 @@ public class LazyLoadingTest extends MongoTest {
         morphium.store(lz);
         log.info("Stored object");
 
-
+        Thread.sleep(200);
         DereferencingListener<Object, LazyLoadingObject, MorphiumId> refListener = new DereferencingListener<Object, LazyLoadingObject, MorphiumId>() {
             @Override
             public void wouldDereference(LazyLoadingObject entiyIncludingReference, String fieldInEntity, MorphiumId id, Class<Object> typeReferenced, boolean lazy) throws MorphiumAccessVetoException {
@@ -364,7 +364,7 @@ public class LazyLoadingTest extends MongoTest {
 
 
     @Test
-    public void testLazyRef() {
+    public void testLazyRef() throws Exception {
         Morphium m = morphium;
         m.clearCollection(SimpleEntity.class);
 
@@ -379,6 +379,7 @@ public class LazyLoadingTest extends MongoTest {
         s2.ref = s1;
         s2.lazyRef = s3;
         m.store(s2);
+        Thread.sleep(200);
 
         SimpleEntity s1Fetched = m.createQueryFor(SimpleEntity.class).f("value").eq(1).get();
         assert (s1Fetched.value == 1);

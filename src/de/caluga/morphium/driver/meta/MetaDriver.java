@@ -91,7 +91,7 @@ public class MetaDriver extends DriverBase {
                     for (String h : getHostSeed()) {
                         if (arbiters.contains(h)) continue;
                         for (int i = getConnections(h).size(); i < getMinConnectionsPerHost(); i++) {
-                            log.info("Underrun - need to add connections...");
+                            log.debug("Underrun - need to add connections...");
                             try {
                                 DriverBase d = createDriver(h);
                                 d.setSlaveOk(true);
@@ -116,7 +116,7 @@ public class MetaDriver extends DriverBase {
             }
         }.start();
         while (currentMaster == null) {
-            log.info("Waiting for master...");
+            log.debug("Waiting for master...");
             try {
                 Thread.sleep(200);
             } catch (InterruptedException e) {
@@ -124,7 +124,7 @@ public class MetaDriver extends DriverBase {
             }
         }
         while (connectionPool.get(currentMaster) == null || connectionPool.get(currentMaster).size() < getMinConnectionsPerHost()) {
-            log.info("no connection to current master yet! Retrying...");
+            log.debug("no connection to current master yet! Retrying...");
             try {
                 DriverBase d = createDriver(currentMaster);
                 d.connect();
@@ -139,7 +139,7 @@ public class MetaDriver extends DriverBase {
             }
         }
         if (getHostSeed().length < secondaries.size()) {
-            log.info("There are more nodes in replicaset than defined in seed...");
+            log.debug("There are more nodes in replicaset than defined in seed...");
             for (String h : secondaries) {
                 if (getConnections(h).size() == 0) {
                     createConnectionsForPool(h);
@@ -218,7 +218,7 @@ public class MetaDriver extends DriverBase {
             }
         }
         while (getTotalConnectionCount() > 0) {
-            log.info("Still connected?!?!? " + getTotalConnectionCount());
+            log.error("Still connected?!?!? " + getTotalConnectionCount());
             close();
         }
     }
@@ -751,7 +751,7 @@ public class MetaDriver extends DriverBase {
                                     //some other thread was faster
                                     continue;
                                 }
-                                log.info("Maximum life time reached, killing myself");
+                                log.debug("Maximum life time reached, killing myself");
                                 try {
                                     d.close();
                                 } catch (MorphiumDriverException e) {
@@ -818,7 +818,7 @@ public class MetaDriver extends DriverBase {
                                     currentMaster = (String) getFromReply(reply,RunCommand.Response.primary);
                                 }
                                 if (currentMaster == null) {
-                                    log.info("No master in replicaset!");
+                                    log.error("No master in replicaset!");
                                 }
                                 if (!secondaries.contains(getHost()) && !tempBlockedHosts.contains(getHost()))
                                     secondaries.add(getHost());

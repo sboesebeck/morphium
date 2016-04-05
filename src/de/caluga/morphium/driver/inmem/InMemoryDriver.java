@@ -397,6 +397,7 @@ public class InMemoryDriver implements MorphiumDriver {
         inCrs.skip = skip;
         inCrs.limit = limit;
         inCrs.batchSize = batchSize;
+        if (batchSize == 0) inCrs.batchSize = 1000;
 
         inCrs.setCollection(collection);
         inCrs.setDb(db);
@@ -405,10 +406,12 @@ public class InMemoryDriver implements MorphiumDriver {
         inCrs.setFindMetaData(findMetaData);
         inCrs.setReadPreference(readPreference);
         inCrs.setSort(sort);
-        if (batchSize == 0) inCrs.limit = 1000;
         crs.setInternalCursorObject(inCrs);
-
-        List<Map<String, Object>> res = find(db, collection, query, sort, projection, skip, limit < batchSize ? limit : batchSize, batchSize, readPreference, findMetaData);
+        int l = batchSize;
+        if (limit != 0 && limit < batchSize) {
+            l = limit;
+        }
+        List<Map<String, Object>> res = find(db, collection, query, sort, projection, skip, l, batchSize, readPreference, findMetaData);
         crs.setBatch(res);
 
         if (res.size() < batchSize) {
@@ -435,15 +438,24 @@ public class InMemoryDriver implements MorphiumDriver {
         inCrs.setCollection(oldCrs.getCollection());
         inCrs.setProjection(oldCrs.getProjection());
         inCrs.setBatchSize(oldCrs.getBatchSize());
-        inCrs.setLimit(oldCrs.getLimit() - crs.getBatch().size());
+
+        inCrs.setLimit(oldCrs.getLimit());
+
         inCrs.setSort(oldCrs.getSort());
-        inCrs.setBatchSize(oldCrs.getBatchSize());
-        inCrs.skip = oldCrs.skip + crs.getBatch().size() + 1;
-        List<Map<String, Object>> res = find(inCrs.getDb(), inCrs.getCollection(), inCrs.getQuery(), inCrs.getSort(), inCrs.getProjection(), inCrs.getSkip(), inCrs.getLimit() < inCrs.batchSize ? inCrs.getLimit() : inCrs.batchSize, inCrs.getBatchSize(), inCrs.getReadPreference(), inCrs.getFindMetaData());
+        inCrs.skip = oldCrs.getDataRead() + 1;
+        int limit = oldCrs.getBatchSize();
+        if (oldCrs.getLimit() != 0) {
+            if (oldCrs.getDataRead() + oldCrs.getBatchSize() > oldCrs.getLimit()) {
+                limit = oldCrs.getLimit() - oldCrs.getDataRead();
+            }
+        }
+        List<Map<String, Object>> res = find(inCrs.getDb(), inCrs.getCollection(), inCrs.getQuery(), inCrs.getSort(), inCrs.getProjection(), inCrs.getSkip(), limit, inCrs.getBatchSize(), inCrs.getReadPreference(), inCrs.getFindMetaData());
         next.setBatch(res);
         if (res.size() < inCrs.getBatchSize()) {
             //finished!
+            next.setInternalCursorObject(null);
         } else {
+            inCrs.setDataRead(oldCrs.getDataRead() + res.size());
             next.setInternalCursorObject(inCrs);
         }
         return next;

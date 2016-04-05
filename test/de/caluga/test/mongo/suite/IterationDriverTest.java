@@ -25,7 +25,7 @@ import java.util.Map;
 @RunWith(Theories.class)
 public class IterationDriverTest extends MongoTest {
     @DataPoints
-    public static Morphium[] morphiums = getMorphiums().toArray(new Morphium[getMorphiums().size()]);
+    public static Morphium[] morphiums = new Morphium[]{morphiumInMemeory, morphiumSingleConnect, morphiumSingleConnectThreadded, morphiumMeta, morphiumMongodb};//getMorphiums().toArray(new Morphium[getMorphiums().size()]);
 
 
     @Theory
@@ -33,7 +33,7 @@ public class IterationDriverTest extends MongoTest {
         logSeparator("Using Driver " + morphium.getDriver().getClass().getName());
 
         createUncachedObjects(morphium, 1999);
-
+        Thread.sleep(250);
         Map<String, Integer> sort = new HashMap<>();
         sort.put("counter", 1);
         MorphiumCursor crs = morphium.getDriver().initIteration(morphium.getConfig().getDatabase(), morphium.getMapper().getCollectionName(UncachedObject.class), new HashMap<>(), sort, null, 0, 5000, 1000, ReadPreference.nearest(), null);
@@ -51,6 +51,7 @@ public class IterationDriverTest extends MongoTest {
 
         //cleaning up
         morphium.dropCollection(UncachedObject.class);
+        Thread.sleep(250);
     }
 
 
@@ -59,7 +60,7 @@ public class IterationDriverTest extends MongoTest {
         logSeparator("Using Driver " + morphium.getDriver().getClass().getName());
 
         createUncachedObjects(morphium, 1999);
-
+        Thread.sleep(250);
         Map<String, Integer> sort = new HashMap<>();
         sort.put("counter", 1);
         MorphiumCursor crs = morphium.getDriver().initIteration(morphium.getConfig().getDatabase(), morphium.getMapper().getCollectionName(UncachedObject.class), new HashMap<>(), sort, null, 0, 5000, 1000, ReadPreference.nearest(), null);
@@ -79,6 +80,7 @@ public class IterationDriverTest extends MongoTest {
 
         //cleaning up
         morphium.dropCollection(UncachedObject.class);
+        Thread.sleep(1250);
     }
 
 
@@ -113,8 +115,12 @@ public class IterationDriverTest extends MongoTest {
             count++;
         }
         dur = System.currentTimeMillis() - start;
-        assert (count == amount);
-        log.info("Duration with batchsiz 100/lookahed 4 took " + dur + "ms");
+        assert (count == amount) : "Count mismatch... chould be " + amount + " but is " + count;
+        log.info("Duration with batchsize 100/lookahed 4 took " + dur + "ms");
+
+        //cleaning up
+        morphium.dropCollection(UncachedObject.class);
+        Thread.sleep(250);
     }
 
 }
