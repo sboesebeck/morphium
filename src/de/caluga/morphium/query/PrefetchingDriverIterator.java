@@ -93,12 +93,17 @@ public class PrefetchingDriverIterator<T> implements MorphiumIterator<T> {
 
     @Override
     public void ahead(int jump) {
-
+        for (int i = 0; i < jump; i++)
+            next();
     }
 
     @Override
     public void back(int jump) {
-
+        if (jump < cursorPos % getWindowSize()) {
+            cursorPos -= jump;
+        } else {
+            throw new IllegalArgumentException("Cannot jump back past window boundaries");
+        }
     }
 
     @Override

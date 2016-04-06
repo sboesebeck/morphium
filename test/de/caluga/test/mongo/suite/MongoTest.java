@@ -132,7 +132,7 @@ public class MongoTest {
                 cfg.addHostToSeed("localhost", 27017);
 //                cfg.addHostToSeed("localhost", 27018);
 //                cfg.addHostToSeed("localhost", 27019);
-                cfg.setWriteCacheTimeout(100);
+                cfg.setWriteCacheTimeout(1000);
                 cfg.setConnectionTimeout(2000);
                 cfg.setMaxWaitTime(2000);
                 cfg.setMaxAutoReconnectTime(500);

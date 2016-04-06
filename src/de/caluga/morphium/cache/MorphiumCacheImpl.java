@@ -26,11 +26,32 @@ public class MorphiumCacheImpl implements MorphiumCache {
     private List<CacheListener> cacheListeners;
 
     private Logger logger = new Logger(MorphiumCacheImpl.class);
+    private CacheHousekeeper cacheHousekeeper;
+
 
     public MorphiumCacheImpl() {
         cache = new ConcurrentHashMap<>();
         idCache = new ConcurrentHashMap<>();
         cacheListeners = Collections.synchronizedList(new ArrayList<>());
+
+        cacheHousekeeper = new CacheHousekeeper(this);
+        cacheHousekeeper.start();
+    }
+
+    @Override
+    public void setGlobalCacheTimeout(int tm) {
+        cacheHousekeeper.setGlobalValidCacheTime(tm);
+    }
+
+    @Override
+    public void setHouskeepingIntervalPause(int p) {
+        cacheHousekeeper.setHouskeepingPause(p);
+    }
+
+    @Override
+    public void setAnnotationAndReflectionHelper(AnnotationAndReflectionHelper hlp) {
+        annotationHelper = hlp;
+        cacheHousekeeper.setAnnotationHelper(hlp);
     }
 
     @Override
@@ -169,6 +190,15 @@ public class MorphiumCacheImpl implements MorphiumCache {
         return null;
     }
 
+    @Override
+    public void setValidCacheTime(Class type, int time) {
+        cacheHousekeeper.setValidCacheTime(type, time);
+    }
+
+    @Override
+    public void setDefaultCacheTime(Class type) {
+        cacheHousekeeper.setDefaultValidCacheTime(type);
+    }
 
     @SuppressWarnings("StringBufferMayBeStringBuilder")
     @Override

@@ -21,7 +21,7 @@ import java.util.Map;
  */
 public class MassCacheTest extends MongoTest {
 
-    public static final int NO_OBJECTS = 2000;
+    public static final int NO_OBJECTS = 100;
     public static final int WRITING_THREADS = 5;
     public static final int READING_THREADS = 5;
     private static final Logger log = new Logger(MassCacheTest.class);
@@ -226,6 +226,7 @@ public class MassCacheTest extends MongoTest {
 
     @Test
     public void cacheTest() throws Exception {
+        morphium.getCache().setValidCacheTime(CachedObject.class, 1000000);
         log.info("Preparing test data...");
         for (int j = 0; j < NO_OBJECTS; j++) {
             CachedObject o = new CachedObject();
@@ -233,8 +234,9 @@ public class MassCacheTest extends MongoTest {
             o.setValue("Test " + j);
             morphium.store(o);
         }
+        Thread.sleep(1200);
         waitForWrites();
-        Thread.sleep(250);
+        Thread.sleep(25000);
         log.info("Done.");
         ProfilingListener pl = new ProfilingListener() {
             @Override
@@ -271,6 +273,8 @@ public class MassCacheTest extends MongoTest {
         assert (stats.get("CACHE_ENTRIES") >= 100);
         assert (stats.get("CHITS") >= 200);
         assert (stats.get("CHITSPERC") >= 40);
+        morphium.getCache().setDefaultCacheTime(CachedObject.class);
+        morphium.getCache().clearCachefor(CachedObject.class);
     }
 
 

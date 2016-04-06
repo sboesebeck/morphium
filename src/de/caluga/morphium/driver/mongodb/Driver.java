@@ -780,11 +780,12 @@ public class Driver implements MorphiumDriver {
         }
         insert(db, collection, isnew, wc);
         DriverHelper.doCall(() -> {
-
+            DriverHelper.replaceMorphiumIdByObjectId(notnew);
             MongoCollection c = mongo.getDatabase(db).getCollection(collection);
 
 //                mongo.getDB(db).getCollection(collection).save()
             for (Map<String, Object> toUpdate : notnew) {
+
                 UpdateOptions o = new UpdateOptions();
                 o.upsert(true);
                 Document filter = new Document();

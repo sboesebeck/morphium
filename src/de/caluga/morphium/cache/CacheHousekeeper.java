@@ -6,7 +6,6 @@ package de.caluga.morphium.cache;
 
 import de.caluga.morphium.AnnotationAndReflectionHelper;
 import de.caluga.morphium.Logger;
-import de.caluga.morphium.Morphium;
 import de.caluga.morphium.annotations.caching.Cache;
 import de.caluga.morphium.annotations.caching.Cache.ClearStrategy;
 import de.caluga.morphium.annotations.caching.NoCache;
@@ -18,22 +17,20 @@ import java.util.concurrent.ConcurrentHashMap;
 public class CacheHousekeeper extends Thread {
 
     private static final String MONGODBLAYER_CACHE = "mongodblayer.cache";
-    private int timeout;
+    private int housekeepingIntervalPause = 500;
     private Map<Class<?>, Integer> validTimeForClass;
-    private int gcTimeout;
+    private int gcTimeout = 5000;
     private boolean running = true;
     private Logger log = new Logger(CacheHousekeeper.class);
-    private Morphium morphium;
+    private MorphiumCache cache;
     private AnnotationAndReflectionHelper annotationHelper;
+    private MorphiumCache morphiumCache;
 
     @SuppressWarnings("unchecked")
-    public CacheHousekeeper(Morphium m, int houseKeepingTimeout, int globalCacheTimout) {
-        this.timeout = houseKeepingTimeout;
-        gcTimeout = globalCacheTimout;
-        morphium = m;
-        annotationHelper = m.getARHelper();
+    public CacheHousekeeper(MorphiumCache m) {
         validTimeForClass = new ConcurrentHashMap<>();
         setDaemon(true);
+        morphiumCache = m;
 
         //Last use Configuration manager to read out cache configurations from Mongo!
 //        Map<String, String> l = m.getConfig().getConfigManager().getMapSetting(MONGODBLAYER_CACHE);
@@ -63,8 +60,24 @@ public class CacheHousekeeper extends Thread {
 //        }
     }
 
+    public void setGlobalValidCacheTime(int gc) {
+        gcTimeout = gc;
+    }
+
+    public void setHouskeepingPause(int p) {
+        housekeepingIntervalPause = p;
+    }
+
+    public void setAnnotationHelper(AnnotationAndReflectionHelper hlp) {
+        annotationHelper = hlp;
+    }
+
     public void setValidCacheTime(Class<?> cls, int timeout) {
         validTimeForClass.put(cls, timeout);
+    }
+
+    public void setDefaultValidCacheTime(Class cls) {
+        validTimeForClass.remove(cls);
     }
 
     public Integer getValidCacheTime(Class<?> cls) {
@@ -79,9 +92,16 @@ public class CacheHousekeeper extends Thread {
     @SuppressWarnings({"unchecked", "ConstantConditions"})
     public void run() {
         while (running) {
+            if (annotationHelper == null) {
+                try {
+                    Thread.sleep(1000);
+                    continue;
+                } catch (InterruptedException e) {
+                }
+            }
             try {
                 Map<Class, List<String>> toDelete = new HashMap<>();
-                Map<Class<?>, Map<String, CacheElement>> cache = morphium.getCache().getCache();
+                Map<Class<?>, Map<String, CacheElement>> cache = morphiumCache.getCache();
                 for (Map.Entry<Class<?>, Map<String, CacheElement>> es : cache.entrySet()) {
                     Class<?> clz = es.getKey();
                     Map<String, CacheElement> ch = es.getValue();
@@ -228,14 +248,14 @@ public class CacheHousekeeper extends Thread {
                 for (Map.Entry<Class, List<String>> et : toDelete.entrySet()) {
                     Class cls = et.getKey();
 
-                    boolean inIdCache = morphium.getCache().getIdCache().get(cls) != null;
+                    boolean inIdCache = morphiumCache.getIdCache().get(cls) != null;
 
                     for (String k : et.getValue()) {
                         if (k.endsWith("idlist")) continue;
                         if (inIdCache) {
                             //remove objects from id cache
                             for (Object f : cache.get(cls).get(k).getFound()) {
-                                morphium.getCache().getIdCache().get(cls).remove(morphium.getId(f));
+                                morphiumCache.getIdCache().get(cls).remove(annotationHelper.getId(f));
                             }
                         }
                         cache.get(cls).remove(k);
@@ -249,7 +269,7 @@ public class CacheHousekeeper extends Thread {
                 log.warn("Error:" + e.getMessage(), e);
             }
             try {
-                sleep(timeout);
+                sleep(housekeepingIntervalPause);
             } catch (InterruptedException e) {
                 log.info("Ignoring InterruptedException");
             }

@@ -738,20 +738,66 @@ public class ObjectMapperImpl implements ObjectMapper {
                         for (int i = 0; i < lst.size(); i++) {
                             if (fld.getType().getComponentType().isPrimitive()) {
                                 if (fld.getType().getComponentType().equals(int.class)) {
-                                    Array.set(arr, i, (Integer) lst.get(i));
+                                    if (lst.get(i) instanceof Double) {
+                                        Array.set(arr, i, ((Double) lst.get(i)).intValue());
+                                    } else if (lst.get(i) instanceof Integer) {
+                                        Array.set(arr, i, ((Integer) lst.get(i)).intValue());
+                                    } else if (lst.get(i) instanceof Long) {
+                                        Array.set(arr, i, ((Long) lst.get(i)).intValue());
+                                    } else {
+                                        Array.set(arr, i, (Integer) lst.get(i));
+                                    }
+
                                 } else if (fld.getType().getComponentType().equals(long.class)) {
-                                    Array.set(arr, i, (Long) lst.get(i));
+                                    if (lst.get(i) instanceof Double) {
+                                        Array.set(arr, i, ((Double) lst.get(i)).longValue());
+                                    } else if (lst.get(i) instanceof Integer) {
+                                        Array.set(arr, i, ((Integer) lst.get(i)).longValue());
+                                    } else if (lst.get(i) instanceof Long) {
+                                        Array.set(arr, i, ((Long) lst.get(i)).longValue());
+                                    } else {
+                                        Array.set(arr, i, (Long) lst.get(i));
+                                    }
+
                                 } else if (fld.getType().getComponentType().equals(float.class)) {
                                     //Driver sends doubles instead of floats
-                                    Array.set(arr, i, (Float) lst.get(i));
+                                    if (lst.get(i) instanceof Double) {
+                                        Array.set(arr, i, ((Double) lst.get(i)).floatValue());
+                                    } else if (lst.get(i) instanceof Integer) {
+                                        Array.set(arr, i, ((Integer) lst.get(i)).floatValue());
+                                    } else if (lst.get(i) instanceof Long) {
+                                        Array.set(arr, i, ((Long) lst.get(i)).floatValue());
+                                    } else {
+                                        Array.set(arr, i, (Float) lst.get(i));
+                                    }
 
                                 } else if (fld.getType().getComponentType().equals(double.class)) {
-                                    Array.set(arr, i, (Double) lst.get(i));
+                                    if (lst.get(i) instanceof Float) {
+                                        Array.set(arr, i, ((Float) lst.get(i)).doubleValue());
+                                    } else if (lst.get(i) instanceof Integer) {
+                                        Array.set(arr, i, ((Integer) lst.get(i)).doubleValue());
+                                    } else if (lst.get(i) instanceof Long) {
+                                        Array.set(arr, i, ((Long) lst.get(i)).doubleValue());
+                                    } else {
+                                        Array.set(arr, i, (Double) lst.get(i));
+                                    }
 
                                 } else if (fld.getType().getComponentType().equals(byte.class)) {
-                                    Array.set(arr, i, (Byte) lst.get(i));
+                                    if (lst.get(i) instanceof Integer) {
+                                        Array.set(arr, i, ((Integer) lst.get(i)).byteValue());
+                                    } else if (lst.get(i) instanceof Long) {
+                                        Array.set(arr, i, ((Long) lst.get(i)).byteValue());
+                                    } else {
+                                        Array.set(arr, i, (Byte) lst.get(i));
+                                    }
                                 } else if (fld.getType().getComponentType().equals(boolean.class)) {
-                                    Array.set(arr, i, (Boolean) lst.get(i));
+                                    if (lst.get(i) instanceof String) {
+                                        Array.set(arr, i, lst.get(i).toString().equalsIgnoreCase("true"));
+                                    } else if (lst.get(i) instanceof Integer) {
+                                        Array.set(arr, i, ((Integer) lst.get(i)).intValue() == 1);
+                                    } else {
+                                        Array.set(arr, i, (Boolean) lst.get(i));
+                                    }
 
                                 }
                             } else {

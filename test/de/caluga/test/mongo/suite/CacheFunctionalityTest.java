@@ -3,6 +3,7 @@ package de.caluga.test.mongo.suite;/**
  */
 
 import de.caluga.morphium.StatisticKeys;
+import de.caluga.morphium.cache.CacheObject;
 import de.caluga.morphium.query.Query;
 import de.caluga.test.mongo.suite.data.CachedObject;
 import org.junit.Test;
@@ -17,9 +18,10 @@ public class CacheFunctionalityTest extends MongoTest {
 
     @Test
     public void accessTest() throws Exception {
+        morphium.getCache().setValidCacheTime(CachedObject.class, 1000000);
         int amount = 10000;
         createCachedObjects(amount);
-        Thread.sleep(500);
+        Thread.sleep(5000);
         for (int i = 0; i < amount; i++) {
             CachedObject o = morphium.createQueryFor(CachedObject.class).f("counter").eq(i + 1).get();
             assert (o != null) : "Not found: " + i;
@@ -33,6 +35,9 @@ public class CacheFunctionalityTest extends MongoTest {
         log.info("cache warmed... starting...");
         long start = System.currentTimeMillis();
         for (int i = 0; i < 100000; i++) {
+            if (i % 1000 == 0) {
+                log.info("Reached " + i);
+            }
             CachedObject o = morphium.createQueryFor(CachedObject.class).f("counter").eq((int) (Math.random() * amount) + 1).get();
         }
         long dur = System.currentTimeMillis() - start;
@@ -44,6 +49,7 @@ public class CacheFunctionalityTest extends MongoTest {
         log.info("Cache miss     : " + morphium.getStatistics().get(StatisticKeys.CMISS.name()));
 
         assert (morphium.getStatistics().get(StatisticKeys.CHITS.name()) >= 90); //first 10000 reads for cache warming!
+        morphium.getCache().setDefaultCacheTime(CacheObject.class);
     }
 
     @Test
