@@ -312,7 +312,7 @@ public class MorphiumTest extends MongoTest {
 
     @Test
     public void testExecCommand1() throws Exception {
-        morphium.execCommand("version");
+        morphium.execCommand("isMaster");
     }
 
     @Test

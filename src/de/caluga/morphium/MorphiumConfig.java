@@ -9,7 +9,6 @@ import de.caluga.morphium.annotations.AdditionalData;
 import de.caluga.morphium.annotations.Embedded;
 import de.caluga.morphium.annotations.Transient;
 import de.caluga.morphium.cache.MorphiumCache;
-import de.caluga.morphium.cache.MorphiumCacheImpl;
 import de.caluga.morphium.driver.ReadPreference;
 import de.caluga.morphium.driver.ReadPreferenceType;
 import de.caluga.morphium.driver.mongodb.Driver;
@@ -298,9 +297,10 @@ public class MorphiumConfig {
     }
 
     public MorphiumCache getCache() {
-        if (cache == null) {
-            cache = new MorphiumCacheImpl();
-        }
+//        if (cache == null) {
+//            cache = new MorphiumCacheImpl();
+//
+//        }
         return cache;
     }
 
@@ -709,7 +709,7 @@ public class MorphiumConfig {
         if (!defaults.getAsyncWriter().getClass().equals(getAsyncWriter().getClass())) {
             p.put("asyncWriter_I_ClassName", getAsyncWriter().getClass().getName());
         }
-        if (!defaults.getCache().getClass().equals(getCache().getClass())) {
+        if ((getCache() != null)) {
             p.put("cache_I_ClassName", getCache().getClass().getName());
         }
         if (!defaults.getAggregatorClass().equals(getAggregatorClass())) {

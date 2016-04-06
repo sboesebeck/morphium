@@ -85,6 +85,8 @@ public class IndexTest extends MongoTest {
     @SuppressWarnings("ConstantConditions")
     @Test
     public void ensureIndexHierarchyTest() throws Exception {
+        morphium.dropCollection(IndexedSubObject.class);
+        Thread.sleep(250);
         morphium.ensureIndicesFor(IndexedSubObject.class);
         List<Map<String, Object>> idx = morphium.getDriver().getIndexes(morphium.getConfig().getDatabase(), "indexed_sub_object");
         boolean foundnew1 = false;

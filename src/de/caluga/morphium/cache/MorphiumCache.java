@@ -1,5 +1,6 @@
 package de.caluga.morphium.cache;
 
+import de.caluga.morphium.AnnotationAndReflectionHelper;
 import de.caluga.morphium.query.Query;
 
 import java.util.List;
@@ -46,4 +47,14 @@ public interface MorphiumCache {
     void removeCacheListener(CacheListener cl);
 
     boolean isListenerRegistered(CacheListener cl);
+
+    void setGlobalCacheTimeout(int tm);
+
+    void setAnnotationAndReflectionHelper(AnnotationAndReflectionHelper hlp);
+
+    void setHouskeepingIntervalPause(int p);
+
+    void setValidCacheTime(Class type, int time);
+
+    void setDefaultCacheTime(Class type);
 }

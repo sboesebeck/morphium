@@ -9,8 +9,8 @@ import de.caluga.morphium.annotations.*;
 import de.caluga.morphium.annotations.lifecycle.*;
 import de.caluga.morphium.async.AsyncOperationCallback;
 import de.caluga.morphium.bulk.MorphiumBulkContext;
-import de.caluga.morphium.cache.CacheHousekeeper;
 import de.caluga.morphium.cache.MorphiumCache;
+import de.caluga.morphium.cache.MorphiumCacheImpl;
 import de.caluga.morphium.driver.MorphiumDriver;
 import de.caluga.morphium.driver.MorphiumDriverException;
 import de.caluga.morphium.driver.ReadPreference;
@@ -68,10 +68,6 @@ public class Morphium {
 
     private Map<StatisticKeys, StatisticValue> stats = new ConcurrentHashMap<>();
 
-    /**
-     * String Representing current user - needs to be set by Application
-     */
-    private CacheHousekeeper cacheHousekeeper;
 
     private List<MorphiumStorageListener> listeners = new CopyOnWriteArrayList<>();
     private List<ProfilingListener> profilingListeners;
@@ -227,9 +223,6 @@ public class Morphium {
             }
         }
 
-        cacheHousekeeper = new CacheHousekeeper(this, 5000, config.getGlobalCacheValidTime());
-        cacheHousekeeper.setDaemon(true);
-        cacheHousekeeper.start();
         if (config.getWriter() == null) {
             config.setWriter(new MorphiumWriterImpl());
         }
@@ -246,6 +239,13 @@ public class Morphium {
         config.getAsyncWriter().setMaximumQueingTries(config.getMaximumRetriesAsyncWriter());
         config.getAsyncWriter().setPauseBetweenTries(config.getRetryWaitTimeAsyncWriter());
 
+        if (config.getCache() == null) {
+            config.setCache(new MorphiumCacheImpl());
+        }
+        config.getCache().setAnnotationAndReflectionHelper(getARHelper());
+        config.getCache().setGlobalCacheTimeout(config.getGlobalCacheValidTime());
+        config.getCache().setHouskeepingIntervalPause(config.getHousekeepingTimeout());
+
         if (hasValidationSupport()) {
             logger.info("Adding javax.validation Support...");
             addListener(new JavaxValidationStorageListener());
@@ -257,11 +257,7 @@ public class Morphium {
             throw new RuntimeException(e);
         }
 
-        try {
-            Thread.sleep(1000); //Waiting for initialization to finish
-        } catch (InterruptedException ignored) {
 
-        }
         if (isReplicaSet()) {
             rsMonitor = new RSMonitor(this);
             rsMonitor.start();
@@ -364,6 +360,7 @@ public class Morphium {
     public <T> void unset(final T toSet, String collection, final Enum field, final AsyncOperationCallback<T> callback) {
         unset(toSet, collection, field.name(), callback);
     }
+
     public <T> void unset(final T toSet, final String field, final AsyncOperationCallback<T> callback) {
         unset(toSet, getMapper().getCollectionName(toSet.getClass()), field, callback);
     }
@@ -490,7 +487,7 @@ public class Morphium {
     }
 
     public <T> void convertToCapped(String coll, int size, AsyncOperationCallback<T> cb) {
-        Map<String, Object> cmd = new HashMap<>();
+        Map<String, Object> cmd = new LinkedHashMap<>();
         cmd.put("convertToCapped", coll);
         cmd.put("size", size);
 //        cmd.put("max", max);
@@ -509,7 +506,7 @@ public class Morphium {
     }
 
     public Map<String, Object> execCommand(Map<String, Object> command) {
-        Map<String, Object> cmd = new HashMap<>(command);
+        Map<String, Object> cmd = new LinkedHashMap<>(command);
         Map<String, Object> ret = null;
         try {
             ret = morphiumDriver.runCommand(config.getDatabase(), cmd);
@@ -535,11 +532,13 @@ public class Morphium {
 //                DBCollection collection = null;
 
             try {
-                if (morphiumDriver.isCapped(config.getDatabase(), coll)) return;
-                if (config.isAutoIndexAndCappedCreationOnWrite() && !morphiumDriver.exists(config.getDatabase(), coll)) {
+                boolean exists = morphiumDriver.exists(config.getDatabase(), coll);
+                if (exists && morphiumDriver.isCapped(config.getDatabase(), coll))
+                    return;
+                if (config.isAutoIndexAndCappedCreationOnWrite() && !exists) {
                     if (logger.isDebugEnabled())
                         logger.debug("Collection does not exist - ensuring indices / capped status");
-                    Map<String, Object> cmd = new HashMap<>();
+                    Map<String, Object> cmd = new LinkedHashMap<>();
                     cmd.put("create", coll);
                     Capped capped = annotationHelper.getAnnotationFromHierarchy(c, Capped.class);
                     if (capped != null) {
@@ -661,13 +660,13 @@ public class Morphium {
     /**
      * asynchronous call to callback
      *
-     * @param query            - the query
-     * @param field            - field to push values to
-     * @param value            - value to push
-     * @param upsert - insert object, if it does not exist
-     * @param multiple         - more than one
-     * @param callback         - will be called, when operation succeeds - synchronous call, if null
-     * @param <T>              - the type
+     * @param query    - the query
+     * @param field    - field to push values to
+     * @param value    - value to push
+     * @param upsert   - insert object, if it does not exist
+     * @param multiple - more than one
+     * @param callback - will be called, when operation succeeds - synchronous call, if null
+     * @param <T>      - the type
      */
     public <T> void push(final Query<T> query, final String field, final Object value, final boolean upsert, final boolean multiple, final AsyncOperationCallback<T> callback) {
         if (query == null || field == null) throw new RuntimeException("Cannot update null!");
@@ -682,13 +681,13 @@ public class Morphium {
     /**
      * Asynchronous call to pulll
      *
-     * @param query            - query
-     * @param field            - field to pull
-     * @param value            - value to pull from field
-     * @param upsert - insert document unless it exists
-     * @param multiple         - more than one
-     * @param callback         -callback to call when operation succeeds - synchronous call, if null
-     * @param <T>              - type
+     * @param query    - query
+     * @param field    - field to pull
+     * @param value    - value to pull from field
+     * @param upsert   - insert document unless it exists
+     * @param multiple - more than one
+     * @param callback -callback to call when operation succeeds - synchronous call, if null
+     * @param <T>      - type
      */
     public <T> void pull(final Query<T> query, final String field, final Object value, final boolean upsert, final boolean multiple, final AsyncOperationCallback<T> callback) {
         if (query == null || field == null) throw new RuntimeException("Cannot update null!");
@@ -714,11 +713,11 @@ public class Morphium {
      * Upsert should consist of single and-queries, which will be used to generate the object to create, unless
      * it already exists. look at Mongodb-query documentation as well
      *
-     * @param query            - query to specify which objects should be set
-     * @param field            - field to set
-     * @param val              - value to set
-     * @param upsert - insert, if it does not exist (query needs to be simple!)
-     * @param multiple         - update several documents, if false, only first hit will be updated
+     * @param query    - query to specify which objects should be set
+     * @param field    - field to set
+     * @param val      - value to set
+     * @param upsert   - insert, if it does not exist (query needs to be simple!)
+     * @param multiple - update several documents, if false, only first hit will be updated
      */
     public <T> void set(Query<T> query, Enum field, Object val, boolean upsert, boolean multiple) {
         set(query, field.name(), val, upsert, multiple, (AsyncOperationCallback<Query<T>>) null);
@@ -1107,8 +1106,6 @@ public class Morphium {
     public void inc(StatisticKeys k) {
         stats.get(k).inc();
     }
-
-
 
 
     /**
@@ -2063,7 +2060,6 @@ public class Morphium {
     }
 
     public void close() {
-        cacheHousekeeper.end();
         asyncOperationsThreadPool.shutdownNow();
 
         for (ShutdownListener l : shutDownListeners) {
@@ -2073,9 +2069,6 @@ public class Morphium {
             Thread.sleep(1000); //give it time to end ;-)
         } catch (Exception e) {
             logger.debug("Ignoring interrupted-exception");
-        }
-        if (cacheHousekeeper.isAlive()) {
-            cacheHousekeeper.interrupt();
         }
         if (rsMonitor != null)
             rsMonitor.terminate();

@@ -20,7 +20,7 @@ public class MorphiumConfigTest extends MongoTest {
         log.info("Config: " + cfg);
 
         MorphiumConfig c = MorphiumConfig.createFromJson(cfg);
-        assert (c.getHostSeed().size() == 3);
+        assert (c.getHostSeed().size() >= 1);
     }
 
     @Test

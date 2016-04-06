@@ -544,7 +544,7 @@ public class IteratorTest extends MongoTest {
         Query<UncachedObject> qu = getUncachedObjectQuery();
 
 
-        MorphiumIterator<UncachedObject>[] toTest = new MorphiumIterator[]{qu.asIterable(10, 1), qu.asIterable(10)};
+        MorphiumIterator<UncachedObject>[] toTest = new MorphiumIterator[]{qu.asIterable(10, 5), qu.asIterable(10)};
         for (MorphiumIterator<UncachedObject> it : toTest) {
             log.info("Testing " + it.getClass());
             long start = System.currentTimeMillis();
@@ -558,13 +558,13 @@ public class IteratorTest extends MongoTest {
                     log.info("After skip, counter: " + u.getCounter());
                     assert (u.getCounter() == 24) : "Value is " + u.getCounter();
                 }
-                if (u.getCounter() == 30 && !back) {
+                if (u.getCounter() == 9 && !back) {
                     log.info("and Back 22");
-                    it.back(22);
+                    it.back(3);
                     back = true;
                     u = it.next();
                     log.info("After skip, counter: " + u.getCounter());
-                    assert (u.getCounter() == 9);
+                    assert (u.getCounter() == 6);
                 }
 
 
@@ -641,6 +641,6 @@ public class IteratorTest extends MongoTest {
         Query<UncachedObject> qu = morphium.createQueryFor(UncachedObject.class).sort("counter");
         assert (qu.asIterable().getClass().equals(MorphiumDriverIterator.class));
         assert (qu.asIterable(10).getClass().equals(DefaultMorphiumIterator.class));
-        assert (qu.asIterable(10, 5).getClass().equals(PrefetchingMorphiumIterator.class));
+        assert (qu.asIterable(10, 5).getClass().equals(PrefetchingDriverIterator.class));
     }
 }

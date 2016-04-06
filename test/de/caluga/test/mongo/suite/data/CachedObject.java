@@ -14,7 +14,7 @@ import de.caluga.morphium.driver.bson.MorphiumId;
  * @author stephan
  */
 @Entity
-@Cache(clearOnWrite = true, maxEntries = 20000, readCache = true, strategy = Cache.ClearStrategy.LRU, syncCache = Cache.SyncCacheStrategy.CLEAR_TYPE_CACHE, timeout = 5000)
+@Cache(clearOnWrite = true, maxEntries = 20000, readCache = true, strategy = Cache.ClearStrategy.LRU, syncCache = Cache.SyncCacheStrategy.CLEAR_TYPE_CACHE, timeout = 15000)
 @WriteBuffer(value = true, timeout = 500, size = 100)
 @WriteSafety(level = SafetyLevel.WAIT_FOR_ALL_SLAVES, timeout = 3000, waitForJournalCommit = true)
 public class CachedObject {
