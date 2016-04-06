@@ -491,7 +491,7 @@ public class IteratorTest extends MongoTest {
             }
 
             assert (u.getCounter() == 17);
-            assert (it.getCurrentBufferSize() == 2);
+            //cannot check buffersize anymore
             log.info("Took " + (System.currentTimeMillis() - start) + " ms");
         }
     }

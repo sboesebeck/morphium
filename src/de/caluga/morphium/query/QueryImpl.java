@@ -664,9 +664,7 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
     public MorphiumIterator<T> asIterable(int windowSize, Class<? extends MorphiumIterator<T>> it) {
         try {
             MorphiumIterator<T> ret = it.newInstance();
-            ret.setQuery(this);
-            ret.setWindowSize(windowSize);
-            return ret;
+            return asIterable(windowSize, ret);
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
@@ -687,7 +685,7 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
         if (log.isDebugEnabled()) {
             log.debug("creating iterable for query - windowsize " + windowSize);
         }
-        MorphiumIterator<T> it = new DefaultMorphiumIterator<>();
+        MorphiumIterator<T> it = new MorphiumDriverIterator<>();
         it.setQuery(this);
         it.setWindowSize(windowSize);
         return it;
@@ -700,10 +698,15 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
         if (log.isDebugEnabled()) {
             log.debug("creating iterable for query - windowsize " + windowSize);
         }
-        MorphiumIterator<T> it = new PrefetchingDriverIterator<>();
+        MorphiumIterator<T> it;
+        if (windowSize > 1) {
+            it = new DefaultMorphiumIterator<>();
+        } else {
+            it = new PrefetchingDriverIterator<>();
+            it.setNumberOfPrefetchWindows(prefixWindows);
+        }
         it.setQuery(this);
         it.setWindowSize(windowSize);
-        it.setNumberOfPrefetchWindows(prefixWindows);
         return it;
     }
 

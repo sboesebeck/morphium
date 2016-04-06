@@ -829,13 +829,26 @@ After you defined your query, you probably want to access the data in mongo. Via
 *Morphium* has support for a special Iterator, which steps through the data, a couple of elements at a time. By Default this is the standard behaviour. But the \_Morphium\_Iterator ist quite capable:
 
 *   `queryObject.asIterable()`  will step through the results batch by batch. The batch size is determined by the driver settings. This is the most performant, but lacks the ability to "step back" out of the current processed batch.
-*   `queryObject.asIterable(100)` will step through the batch list, 100 at a time
-*   `queryObject.asIterable(100,5)` will step through the batch list, 100 at a time and keep 4 chunks of 100 elements each as prefetch buffers. Those will be filled in background.
-*   `MorphiumIterator it=queryObject.asIterable(100,5); it.setMultithreaddedAccess(true);` use the same iterator as before, but make it thread safe.
+*   `queryObject.asIterable(100)` will step through the batch list, 100 at a time using a mongodb cursor iterator.
+*   `queryObject.asIterable(100,5)` will step through the batch list, 100 at a time and keep 5 chunks of 100 elements each as prefetch buffers. Those will be filled in background.
+*   `queryObject.asIterable(100,1)` actually the same as `.asIterable(100)` but using a query based iterator instead.
+*   `queryObject.asIterable(100, new PrefetchingIterator()))`: this is more or less the same as the prefetching above, but using the query based PrefetchingIterator. This is fetching the datachunks using skip and limit functionality of mongodb which showed some decrease in performance, the higher the skip is. It's still there for compatibility reasons.
 
 Internally the default iterator does create queries that are derived from the sort of the query, if there is no sort specified, it will assume you want to sort by `_id`.
 
-If you use the prefetching iterator, keep in mind that this will use skip and limit functionality in order to prefetch those chunks of data in parallel. But this showed some degration in performance for huge collections (skip seems to be longer and longer).
+you could put each of those iterators to one of two classes:
+1.   the iterator is using the Mongodb Cursor
+2.   the iterator is using distinct queries for each step / chunk.
+
+these have significant different behaviour.
+
+##### query based iterators
+the query based iterators use the usual query method of morphium. hence all related functionalities work, like caching, life cycle methods etc. It is just like you would create those
+queries in a row. one by one.
+
+##### cursor based iterators
+due to the fact that the query is being executed portion by portion, there is no way of having things cached properly. These queries do not use the cache!
+
 
 
 ### Storing

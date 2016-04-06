@@ -25,16 +25,19 @@ public class MorphiumDriverIterator<T> implements MorphiumIterator<T> {
     private int cursor = 0;
     private int cursorExternal = 0;
     private boolean multithreadded;
+    private int windowSize = -1;
 
     @Override
     public void setWindowSize(int sz) {
-        log.error("Cannot set window size - buffer is determined by driver");
+        windowSize = sz;
     }
 
     @Override
     public int getWindowSize() {
         if (query == null) return 0;
-        return query.getMorphium().getConfig().getCursorBatchSize();
+        if (windowSize <= 0)
+            windowSize = query.getMorphium().getConfig().getCursorBatchSize();
+        return windowSize;
     }
 
     @Override
@@ -53,7 +56,7 @@ public class MorphiumDriverIterator<T> implements MorphiumIterator<T> {
 
     @Override
     public int getCurrentBufferSize() {
-        return 0;
+        return currentBatch.getBatch().size();
     }
 
     @Override
@@ -135,7 +138,7 @@ public class MorphiumDriverIterator<T> implements MorphiumIterator<T> {
     private boolean doHasNext() {
         try {
             if (currentBatch == null) {
-                currentBatch = query.getMorphium().getDriver().initIteration(query.getMorphium().getConfig().getDatabase(), query.getCollectionName(), query.toQueryObject(), query.getSort(), query.getFieldListForQuery(), query.getSkip(), query.getLimit(), query.getMorphium().getConfig().getCursorBatchSize(), query.getMorphium().getReadPreferenceForClass(query.getType()), null);
+                currentBatch = query.getMorphium().getDriver().initIteration(query.getMorphium().getConfig().getDatabase(), query.getCollectionName(), query.toQueryObject(), query.getSort(), query.getFieldListForQuery(), query.getSkip(), query.getLimit(), getWindowSize(), query.getMorphium().getReadPreferenceForClass(query.getType()), null);
                 cursor = 0;
                 cursorExternal++;
             } else if (currentBatch != null && cursor + 1 < currentBatch.getBatch().size()) {
@@ -159,8 +162,11 @@ public class MorphiumDriverIterator<T> implements MorphiumIterator<T> {
 
     @Override
     public T next() {
-        if (currentBatch != null)
-            return query.getMorphium().getMapper().unmarshall(query.getType(), currentBatch.getBatch().get(cursor));
+        if (currentBatch != null) {
+            T unmarshall = query.getMorphium().getMapper().unmarshall(query.getType(), currentBatch.getBatch().get(cursor));
+            query.getMorphium().firePostLoadEvent(unmarshall);
+            return unmarshall;
+        }
         return null;
     }
 }
