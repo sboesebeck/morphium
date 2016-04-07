@@ -826,7 +826,7 @@ After you defined your query, you probably want to access the data in mongo. Via
 
 #### the Iterators
 
-*Morphium* has support for a special Iterator, which steps through the data, a couple of elements at a time. By Default this is the standard behaviour. But the \_Morphium\_Iterator ist quite capable:
+*Morphium* has support for special Iterators, which steps through the data, a couple of elements at a time. By Default this is the standard behaviour. But the \_Morphium\_Iterator ist quite capable:
 
 *   `queryObject.asIterable()`  will step through the results batch by batch. The batch size is determined by the driver settings. This is the most performant, but lacks the ability to "step back" out of the current processed batch.
 *   `queryObject.asIterable(100)` will step through the batch list, 100 at a time using a mongodb cursor iterator.
