@@ -24,7 +24,7 @@ public class PrefetchingMorphiumIterator<T> implements MorphiumIterator<T> {
 
     private Logger log = new Logger(MorphiumIterator.class);
     private long limit;
-    private int prefetchWindows = 1;
+    private int prefetchWindows = 2;
 
     private boolean multithreaddedAccess = false;
 
