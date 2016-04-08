@@ -15,8 +15,6 @@ This documentation is refering to *Morphium* version [%morphium_version] and mon
 HTML Version here: [MorphiumDoku][4]
 If you just want to start right now, read [quick start]!
 
-
-
 ## Ideas and concepts
 
 When we started using MongoDB there was no fully capable POJO Mapper available. The only thing that was close to useable was Morphia (which is now developed by [MongoDb][2]. Unfortunately, Morphia had some issues, and lacked some features, we'd like to have, like (besides the usual features fast mapping, reliable query interface and so on):
@@ -156,6 +154,8 @@ This gives a short glance of how *Morphium* works and how it can be used. But *M
 ## Architecture
 
 *Morphium* is built to be very flexible and can be used in almost any environment. So the architecture needs to be flexible and sustainable at the same time. Hence it's possible to use your own implementation for the cache if you want to.
+
+![Overview Morphium](https://raw.githubusercontent.com/sboesebeck/morphium/master/Morphium_overview.png)
 
 There are four major components of *Morphium*:
 
@@ -297,6 +297,8 @@ Connection to mongo and initializing of *Morphium* is done at the first call of 
 ### POJO Mapping
 
 When talking about POJO Mapping, we're saying we marshall a POJO into a mongodb representation or we unmarshall the mongodb representation into a POJO.
+
+![Mapping overview](https://raw.githubusercontent.com/sboesebeck/morphium/master/Morphium_datatypes_overview.png)
 
 Marshaling and unmarshalling is of utter importance for the functionality. It needs to take care of following things:
 
