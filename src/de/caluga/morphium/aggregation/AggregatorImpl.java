@@ -76,7 +76,7 @@ public class AggregatorImpl<T, R> implements Aggregator<T, R> {
     }
 
     @Override
-    public Aggregator<T, R> match(Query<T> q) {
+    public Aggregator<T, R> match(Query q) {
         DBObject o = new BasicDBObject("$match", q.toQueryObject());
         params.add(o);
         return this;

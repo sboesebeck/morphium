@@ -45,7 +45,7 @@ public interface Aggregator<T, R> {
 
     Aggregator<T, R> project(BasicDBObject m);    //custom
 
-    Aggregator<T, R> match(Query<T> q);
+    Aggregator<T, R> match(Query q);
 
     Aggregator<T, R> limit(int num);
 
