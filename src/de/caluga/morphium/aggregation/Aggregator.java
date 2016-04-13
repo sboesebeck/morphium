@@ -41,7 +41,16 @@ public interface Aggregator<T, R> {
 
     Aggregator<T, R> project(String... m);    //field:1
 
-    Aggregator<T, R> match(Query q);
+    Aggregator<T, R> match(Query<T> q);
+
+    /**
+     * use matchSubQuery if you prepared som mid-result in your aggregation you need to do an additional match for
+     * Do not use it for the base query!
+     *
+     * @param q
+     * @return
+     */
+    Aggregator<T, R> matchSubQuery(Query<?> q);
 
     Aggregator<T, R> limit(int num);
 

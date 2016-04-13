@@ -91,9 +91,16 @@ public class AggregatorImpl<T, R> implements Aggregator<T, R> {
     }
 
     @Override
-    public Aggregator<T, R> match(Query q) {
+    public Aggregator<T, R> match(Query<T> q) {
         Map<String, Object> o = Utils.getMap("$match", q.toQueryObject());
         collectionName = q.getCollectionName();
+        params.add(o);
+        return this;
+    }
+
+    @Override
+    public Aggregator<T, R> matchSubQuery(Query<?> q) {
+        Map<String, Object> o = Utils.getMap("$match", q.toQueryObject());
         params.add(o);
         return this;
     }
