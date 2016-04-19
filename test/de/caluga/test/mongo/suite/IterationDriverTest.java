@@ -25,7 +25,7 @@ import java.util.Map;
 @RunWith(Theories.class)
 public class IterationDriverTest extends MongoTest {
     @DataPoints
-    public static Morphium[] morphiums = new Morphium[]{morphiumInMemeory, morphiumSingleConnect, morphiumSingleConnectThreadded, morphiumMeta, morphiumMongodb};//getMorphiums().toArray(new Morphium[getMorphiums().size()]);
+    public static final Morphium[] morphiums = new Morphium[]{morphiumInMemeory, morphiumSingleConnect, morphiumSingleConnectThreadded, morphiumMeta, morphiumMongodb};//getMorphiums().toArray(new Morphium[getMorphiums().size()]);
 
 
     @Theory

@@ -24,7 +24,7 @@ import java.util.concurrent.ConcurrentHashMap;
  */
 public class MetaDriver extends DriverBase {
     private Logger log = new Logger(MetaDriver.class);
-    private volatile static long seq;
+    private static volatile long seq;
     private Map<String, List<Connection>> connectionPool = new ConcurrentHashMap<>();
     private Map<String, List<Connection>> connectionsInUse = new ConcurrentHashMap<>();
     private String currentMaster;
@@ -60,6 +60,7 @@ public class MetaDriver extends DriverBase {
         //some Housekeeping
         new Thread() {
 
+            @Override
             public void run() {
                 while (isConnected()) {
                     try {
@@ -742,6 +743,7 @@ public class MetaDriver extends DriverBase {
 
             //Housekeeping Thread
             new Thread() {
+                @Override
                 public void run() {
                     if (!d.isConnected()) {
                         log.error("Not connected!!!!");
@@ -951,7 +953,7 @@ public class MetaDriver extends DriverBase {
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
-            if (!(o instanceof Connection)) return false;
+            if (o.getClass() != this.getClass()) return false;
 
             Connection that = (Connection) o;
 

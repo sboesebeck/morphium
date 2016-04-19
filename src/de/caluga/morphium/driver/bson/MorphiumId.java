@@ -17,7 +17,7 @@ import java.util.concurrent.atomic.AtomicInteger;
  **/
 public class MorphiumId implements Comparable<MorphiumId> {
 
-    private final static int THE_MACHINE_ID;
+    private static final int THE_MACHINE_ID;
     private int machineId;
     private static final AtomicInteger COUNT = new AtomicInteger(new SecureRandom().nextInt());
     private final short pid;
@@ -42,7 +42,6 @@ public class MorphiumId implements Comparable<MorphiumId> {
         long start = System.currentTimeMillis();
 
         pid = createPID();
-        long dur = System.currentTimeMillis() - start;
         counter = COUNT.getAndIncrement() & 0x00ffffff;
         machineId = THE_MACHINE_ID;
 
@@ -110,7 +109,7 @@ public class MorphiumId implements Comparable<MorphiumId> {
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (!(o instanceof MorphiumId)) return false;
+        if (o.getClass() != this.getClass()) return false;
 
         MorphiumId morphiumId = (MorphiumId) o;
 

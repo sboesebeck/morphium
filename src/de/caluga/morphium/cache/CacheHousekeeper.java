@@ -90,6 +90,7 @@ public class CacheHousekeeper extends Thread {
     }
 
     @SuppressWarnings({"unchecked", "ConstantConditions"})
+    @Override
     public void run() {
         while (running) {
             if (annotationHelper == null) {

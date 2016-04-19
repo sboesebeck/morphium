@@ -35,6 +35,7 @@ public class MassCacheTest extends MongoTest {
         for (int i = 0; i < WRITING_THREADS; i++) {
             Thread t = new Thread() {
 
+                @Override
                 public void run() {
                     for (int j = 0; j < NO_OBJECTS; j++) {
                         CachedObject o = new CachedObject();
@@ -106,6 +107,7 @@ public class MassCacheTest extends MongoTest {
         for (int i = 0; i < WRITING_THREADS; i++) {
             Thread t = new Thread() {
 
+                @Override
                 public void run() {
                     for (int j = 0; j < NO_OBJECTS; j++) {
                         CachedObject o = new CachedObject();
@@ -129,6 +131,7 @@ public class MassCacheTest extends MongoTest {
         log.info("Creating reader threads (random read)...");
         for (int i = 0; i < READING_THREADS; i++) {
             Thread t = new Thread() {
+                @Override
                 public void run() {
                     for (int j = 0; j < NO_OBJECTS * 2; j++) {
                         int rnd = (int) (Math.random() * NO_OBJECTS);

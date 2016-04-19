@@ -66,6 +66,7 @@ public class SingleConnectThreaddedDriver extends DriverBase {
 
             //Reader
             Thread reader = new Thread() {
+                @Override
                 public void run() {
                     byte[] inBuffer = new byte[16];
                     int errorcount = 0;

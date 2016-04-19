@@ -39,6 +39,7 @@ public class IteratorTest extends MongoTest {
             for (int i = 0; i < 3; i++) {
                 log.info("Starting thread..." + i);
                 Thread t = new Thread() {
+                    @Override
                     public void run() {
                         try {
                             int cnt = 0;
@@ -88,6 +89,7 @@ public class IteratorTest extends MongoTest {
 
         for (int i = 0; i < 3; i++) {
             new Thread() {
+                @Override
                 public void run() {
                     int myNum = runningThreads++;
                     log.info("Starting thread..." + myNum);

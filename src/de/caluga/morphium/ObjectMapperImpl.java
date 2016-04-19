@@ -34,6 +34,7 @@ public class ObjectMapperImpl implements ObjectMapper {
 
     private List<Class<?>> mongoTypes;
     final ReflectionFactory reflection = ReflectionFactory.getReflectionFactory();
+    private ContainerFactory containerFactory;
 
     public ObjectMapperImpl() {
 
@@ -51,6 +52,17 @@ public class ObjectMapperImpl implements ObjectMapper {
         mongoTypes.add(Byte.class);
         customMapper = new Hashtable<>();
         customMapper.put(BigInteger.class, new BigIntegerTypeMapper());
+        containerFactory = new ContainerFactory() {
+            @Override
+            public Map createObjectContainer() {
+                return new HashMap<>();
+            }
+
+            @Override
+            public List creatArrayContainer() {
+                return new ArrayList();
+            }
+        };
 
 
     }
@@ -489,18 +501,8 @@ public class ObjectMapperImpl implements ObjectMapper {
 
     @Override
     public <T> T unmarshall(Class<? extends T> cls, String jsonString) throws ParseException {
-        ContainerFactory fact = new ContainerFactory() {
-            @Override
-            public Map createObjectContainer() {
-                return new HashMap<>();
-            }
 
-            @Override
-            public List creatArrayContainer() {
-                return new ArrayList();
-            }
-        };
-        HashMap<String, Object> obj = (HashMap<String, Object>) jsonParser.parse(jsonString, fact);
+        HashMap<String, Object> obj = (HashMap<String, Object>) jsonParser.parse(jsonString, containerFactory);
         return unmarshall(cls, obj);
 
 
