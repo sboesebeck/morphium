@@ -16,6 +16,7 @@ public class MorphiumIdTest {
     public void threaddedCreationTest() throws Exception {
         for (int i = 0; i < 1000; i++) {
             new Thread() {
+                @Override
                 public void run() {
                     new MorphiumId();
                 }

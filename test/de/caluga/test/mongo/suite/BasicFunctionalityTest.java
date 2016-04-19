@@ -27,7 +27,7 @@ import java.util.Map;
 @SuppressWarnings("AssertWithSideEffects")
 public class BasicFunctionalityTest extends MongoTest {
     public static final int NO_OBJECTS = 100;
-    private final static Logger log = new Logger(BasicFunctionalityTest.class);
+    private static final Logger log = new Logger(BasicFunctionalityTest.class);
 
     public BasicFunctionalityTest() {
     }

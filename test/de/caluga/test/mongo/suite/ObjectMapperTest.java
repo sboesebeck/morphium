@@ -130,6 +130,7 @@ public class ObjectMapperTest extends MongoTest {
 
         for (int i = 0; i < 100; i++) {
             new Thread() {
+                @Override
                 public void run() {
                     ObjectMapperImpl om = (ObjectMapperImpl) morphium.getMapper();
                     assert (om.getCollectionName(CachedObject.class).equals("cached_object")) : "Cached object test failed";

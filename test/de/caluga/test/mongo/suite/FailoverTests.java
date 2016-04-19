@@ -44,6 +44,7 @@ public class FailoverTests extends MongoTest {
         }
         Thread.sleep(1000); //let him write something
         new Thread() {
+            @Override
             public void run() {
                 JOptionPane.showMessageDialog(null, "Stop");
                 read = false;
@@ -54,6 +55,7 @@ public class FailoverTests extends MongoTest {
 
         for (int i = 0; i < readers; i++) {
             new Thread() {
+                @Override
                 public void run() {
                     while (read) {
                         try {
@@ -72,6 +74,7 @@ public class FailoverTests extends MongoTest {
         }
 
         new Thread() {
+            @Override
             public void run() {
                 while (read) {
                     Query<UncachedObject> q = morphium.createQueryFor(UncachedObject.class);
@@ -116,6 +119,7 @@ public class FailoverTests extends MongoTest {
         }
 
 
+        @Override
         public void run() {
             while (read) {
                 try {

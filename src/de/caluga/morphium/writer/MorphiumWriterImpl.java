@@ -86,6 +86,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                 callback = cb;
             }
 
+            @Override
             public void run() {
                 long start = System.currentTimeMillis();
 
@@ -341,6 +342,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                     callback = cb;
                 }
 
+                @Override
                 public void run() {
                     try {
                         if (lst == null || lst.size() == 0) return;
@@ -426,6 +428,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                     callback = cb;
                 }
 
+                @Override
                 public void run() {
 //                    System.out.println(System.currentTimeMillis()+" -  storing" );
                     HashMap<Class, List<Object>> sorted = new HashMap<>();
@@ -1791,6 +1794,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                 callback = cb;
             }
 
+            @Override
             public void run() {
                 List<String> fields = morphium.getARHelper().getFields(cls);
 

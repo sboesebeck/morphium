@@ -20,7 +20,7 @@ import java.util.concurrent.ConcurrentHashMap;
  * This class will capsulate all calls to the reflection API. Espeically getting all the annotations from
  * entities is done here. For performance increase (and because the structure of the code usually does not
  * change during runtime) those results are being cached.
- *
+ * <p>
  * this class is ThreadSafe!
  */
 @SuppressWarnings("unchecked")
@@ -133,7 +133,7 @@ public class AnnotationAndReflectionHelper {
         if (hasAdditionalData.get(clz) == null) {
             List<String> lst = getFields(clz, AdditionalData.class);
             Map m = hasAdditionalData; // (HashMap) ((HashMap) hasAdditionalData).clone();
-            m.put(clz, (lst != null && lst.size() > 0));
+            m.put(clz, (lst != null && !lst.isEmpty()));
             hasAdditionalData = m;
         }
 
@@ -147,11 +147,10 @@ public class AnnotationAndReflectionHelper {
             //no check possible
             return field;
         }
-        if (fieldNameCache.containsKey(clz)) {
-            if (fieldNameCache.get(clz).get(field) != null) {
+        if (fieldNameCache.containsKey(clz) && fieldNameCache.get(clz).get(field) != null) {
                 return fieldNameCache.get(clz).get(field);
             }
-        }
+
 
         String ret = field;
 
@@ -299,20 +298,18 @@ public class AnnotationAndReflectionHelper {
         List<Field> flds = getAllFields(cls);
         Field ret = null;
         for (Field f : flds) {
-            if (ret == null && f.isAnnotationPresent(Property.class) && f.getAnnotation(Property.class).fieldName() != null && !".".equals(f.getAnnotation(Property.class).fieldName())) {
-                if (f.getAnnotation(Property.class).fieldName().equals(fld)) {
-                    f.setAccessible(true);
+            if (ret == null && f.isAnnotationPresent(Property.class) && f.getAnnotation(Property.class).fieldName() != null && !".".equals(f.getAnnotation(Property.class).fieldName()) && f.getAnnotation(Property.class).fieldName().equals(fld)) {
+                f.setAccessible(true);
 
-                    fc.put(key, f);
-                    ret = f;
-                }
+                fc.put(key, f);
+                ret = f;
+
             }
-            if (ret == null && f.isAnnotationPresent(Reference.class) && f.getAnnotation(Reference.class).fieldName() != null && !".".equals(f.getAnnotation(Reference.class).fieldName())) {
-                if (f.getAnnotation(Reference.class).fieldName().equals(fld)) {
-                    f.setAccessible(true);
-                    fc.put(key, f);
-                    ret = f;
-                }
+            if (ret == null && f.isAnnotationPresent(Reference.class) && f.getAnnotation(Reference.class).fieldName() != null && !".".equals(f.getAnnotation(Reference.class).fieldName()) && f.getAnnotation(Reference.class).fieldName().equals(fld)) {
+                f.setAccessible(true);
+                fc.put(key, f);
+                ret = f;
+
             }
             if (ret == null && f.isAnnotationPresent(Aliases.class)) {
                 Aliases aliases = f.getAnnotation(Aliases.class);
@@ -325,12 +322,10 @@ public class AnnotationAndReflectionHelper {
                     }
                 }
             }
-            if (ret == null && fld.equals("_id")) {
-                if (f.isAnnotationPresent(Id.class)) {
-                    f.setAccessible(true);
-                    fc.put(key, f);
-                    ret = f;
-                }
+            if (ret == null && fld.equals("_id") && f.isAnnotationPresent(Id.class)) {
+                f.setAccessible(true);
+                fc.put(key, f);
+                ret = f;
             }
             if (ret == null && f.getName().equals(fld)) {
                 f.setAccessible(true);
@@ -825,7 +820,7 @@ public class AnnotationAndReflectionHelper {
             return;
         }
         List<String> flds = getFields(on.getClass());
-        for (String f:flds) {
+        for (String f : flds) {
             Field field = getField(on.getClass(), f);
             if ((isAnnotationPresentInHierarchy(field.getType(), Entity.class) || isAnnotationPresentInHierarchy(field.getType(), Embedded.class)) && isAnnotationPresentInHierarchy(field.getType(), Lifecycle.class)) {
                 field.setAccessible(true);

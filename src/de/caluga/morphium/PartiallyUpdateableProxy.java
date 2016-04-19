@@ -12,7 +12,7 @@ import java.util.List;
 
 public class PartiallyUpdateableProxy<T> implements MethodInterceptor, PartiallyUpdateable, Serializable {
     private static final long serialVersionUID = -1277417045334974980L;
-//    private transient final Morphium morphium;
+    //    private final transient Morphium morphium;
     private AnnotationAndReflectionHelper ah;
 
     private List<String> updateableFields;

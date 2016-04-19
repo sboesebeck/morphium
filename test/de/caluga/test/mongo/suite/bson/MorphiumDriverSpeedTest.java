@@ -191,6 +191,7 @@ public class MorphiumDriverSpeedTest {
         for (int i = 0; i < 100; i++) {
             final int t = i;
             Thread thr = new Thread() {
+                @Override
                 public void run() {
                     for (int j = 0; j < 100; j++) {
                         UncachedObject uc = new UncachedObject();
@@ -213,6 +214,7 @@ public class MorphiumDriverSpeedTest {
         for (int i = 0; i < 100; i++) {
             final int t = i;
             Thread thr = new Thread() {
+                @Override
                 public void run() {
                     for (int j = 0; j < 100; j++) {
                         Query<UncachedObject> q = m.createQueryFor(UncachedObject.class);

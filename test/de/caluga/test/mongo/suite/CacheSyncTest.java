@@ -273,6 +273,7 @@ public class CacheSyncTest extends MongoTest {
 
 
         new Thread() {
+            @Override
             public void run() {
                 morphium.store(new CachedObject());
                 waitForWrites();

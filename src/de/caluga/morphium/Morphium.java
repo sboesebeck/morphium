@@ -59,7 +59,7 @@ public class Morphium {
      *
      * @see MorphiumConfig
      */
-    private final static Logger logger = new Logger(Morphium.class);
+    private static final Logger logger = new Logger(Morphium.class);
     private MorphiumConfig config;
     private ThreadLocal<Boolean> enableAutoValues = new ThreadLocal<>();
     private ThreadLocal<Boolean> enableReadCache = new ThreadLocal<>();
@@ -163,6 +163,7 @@ public class Morphium {
 
         if (morphiumDriver == null) {
             Runtime.getRuntime().addShutdownHook(new Thread() {
+                @Override
                 public void run() {
                     try {
                         close();

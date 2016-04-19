@@ -445,6 +445,7 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
 
         housekeeping = new Thread() {
             @SuppressWarnings("SynchronizeOnNonFinalField")
+            @Override
             public void run() {
                 while (running) {
                     try {

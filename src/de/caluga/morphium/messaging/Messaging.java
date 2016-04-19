@@ -125,6 +125,7 @@ public class Messaging extends Thread implements ShutdownListener {
         return q.asList();
     }
 
+    @Override
     public void run() {
         if (log.isDebugEnabled()) {
             log.debug("Messaging " + id + " started");
