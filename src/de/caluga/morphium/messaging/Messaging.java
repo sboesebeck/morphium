@@ -401,7 +401,7 @@ public class Messaging extends Thread implements ShutdownListener {
         m.setLockedBy(null);
         m.setLocked(0);
         m.setSenderHost(hostname);
-        if (m.getTo() != null && m.getTo().size() > 0) {
+        if (m.getTo() != null && !m.getTo().isEmpty()) {
             for (String recipient : m.getTo()) {
                 Msg msg = m.getCopy();
                 msg.setRecipient(recipient);

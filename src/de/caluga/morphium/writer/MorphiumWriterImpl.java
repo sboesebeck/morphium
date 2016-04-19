@@ -260,7 +260,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                 }
             }
             if (aNew) {
-                if (lst == null || lst.size() == 0) {
+                if (lst == null || lst.isEmpty()) {
                     logger.error("Unable to store creation time as @CreationTime for field is missing");
                 } else {
                     long now = System.currentTimeMillis();
@@ -297,7 +297,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
 
         if (morphium.getARHelper().isAnnotationPresentInHierarchy(type, LastChange.class)) {
             List<String> lst = morphium.getARHelper().getFields(type, LastChange.class);
-            if (lst != null && lst.size() > 0) {
+            if (lst != null && !lst.isEmpty()) {
                 long now = System.currentTimeMillis();
                 for (String ctf : lst) {
                     Object val = null;
@@ -345,7 +345,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                 @Override
                 public void run() {
                     try {
-                        if (lst == null || lst.size() == 0) return;
+                        if (lst == null || lst.isEmpty()) return;
                         ArrayList<Map<String, Object>> dbLst = new ArrayList<>();
 //        DBCollection collection = morphium.getDbName().getCollection(collectionName);
                         WriteConcern wc = morphium.getWriteConcernForClass(lst.get(0).getClass());
@@ -502,7 +502,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                             }
 
                             long start = System.currentTimeMillis();
-                            if (dbLst.size() > 0) {
+                            if (!dbLst.isEmpty()) {
 //                                System.out.println(System.currentTimeMillis()+" -  driver call" );
                                 morphium.getDriver().store(morphium.getConfig().getDatabase(), coll, dbLst, wc);
 //                                System.out.println(System.currentTimeMillis()+" -  driver finish" );

@@ -531,7 +531,7 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
             return o;
         }
 
-        if (andExpr.size() > 0) {
+        if (!andExpr.isEmpty()) {
             for (FilterExpression ex : andExpr) {
                 lst.add(ex.dbObject());
             }
@@ -831,7 +831,7 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
             throw new RuntimeException(e);
         }
 
-        if (srch.size() == 0) {
+        if (srch.isEmpty()) {
             List<T> lst = new ArrayList<>(0);
             if (useCache) {
                 morphium.getCache().addToCache(ck, type, lst);
@@ -1096,7 +1096,7 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
     @Override
     public String toString() {
         StringBuilder and = new StringBuilder();
-        if (andExpr != null && andExpr.size() > 0) {
+        if (andExpr != null && !andExpr.isEmpty()) {
             and.append("[");
             for (FilterExpression fe : andExpr) {
                 and.append(fe.toString());
@@ -1108,7 +1108,7 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
         }
 
         StringBuilder ors = new StringBuilder();
-        if (orQueries != null && orQueries.size() > 0) {
+        if (orQueries != null && !orQueries.isEmpty()) {
             ors.append("[ ");
             for (Query<T> o : orQueries) {
                 ors.append(o.toString());
@@ -1120,7 +1120,7 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
         }
 
         StringBuilder nors = new StringBuilder();
-        if (norQueries != null && norQueries.size() > 0) {
+        if (norQueries != null && !norQueries.isEmpty()) {
             nors.append("[ ");
             for (Query<T> o : norQueries) {
                 nors.append(o.toString());

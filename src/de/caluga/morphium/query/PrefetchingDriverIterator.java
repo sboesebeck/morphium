@@ -163,7 +163,7 @@ public class PrefetchingDriverIterator<T> implements MorphiumIterator<T> {
                 prefetchBuffer.add(getBatch(cursor));
                 startPrefetch();
 
-                if (prefetchBuffer.get(0).size() > 0) return true;
+                if (!prefetchBuffer.get(0).isEmpty()) return true;
 
             } catch (MorphiumDriverException e) {
                 e.printStackTrace();
@@ -171,7 +171,7 @@ public class PrefetchingDriverIterator<T> implements MorphiumIterator<T> {
 
         }
         while (prefetchBuffer.size() <= 1 && cursor != null) Thread.yield(); //for end of data detection
-        if (prefetchBuffer.size() == 0 && cursor == null) {
+        if (prefetchBuffer.isEmpty() && cursor == null) {
             return false;
         }
         //end of results
@@ -215,7 +215,7 @@ public class PrefetchingDriverIterator<T> implements MorphiumIterator<T> {
                     try {
                         if (cursor == null) break;
                         MorphiumCursor crs = query.getMorphium().getDriver().nextIteration(cursor);
-                        if (crs == null || crs.getBatch() == null || crs.getBatch().size() == 0) {
+                        if (crs == null || crs.getBatch() == null || crs.getBatch().isEmpty()) {
                             cursor = null;
                             break;
                         }
@@ -241,8 +241,8 @@ public class PrefetchingDriverIterator<T> implements MorphiumIterator<T> {
         if (cursorPos != 0 && cursorPos % getWindowSize() == 0) {
             prefetchBuffer.remove(0);
         }
-        while (prefetchBuffer.size() == 0 && cursor != null) Thread.yield();
-        if (prefetchBuffer.size() == 0) {
+        while (prefetchBuffer.isEmpty() && cursor != null) Thread.yield();
+        if (prefetchBuffer.isEmpty()) {
             log.error("Prefetchbuffer is empty!");
             return null;
         }
