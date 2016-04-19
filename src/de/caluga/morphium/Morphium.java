@@ -280,7 +280,7 @@ public class Morphium {
     @SuppressWarnings("UnusedDeclaration")
     private boolean hasValidationSupport() {
         try {
-            Class c = getClass().getClassLoader().loadClass("javax.validation.ValidatorFactory");
+            getClass().getClassLoader().loadClass("javax.validation.ValidatorFactory");
 
         } catch (ClassNotFoundException cnf) {
             return false;
@@ -452,7 +452,7 @@ public class Morphium {
         }
 
         List<String> flds = annotationHelper.getFields(type, Index.class);
-        if (flds != null && flds.size() > 0) {
+        if (flds != null && !flds.isEmpty()) {
 
             for (String f : flds) {
                 Index i = annotationHelper.getField(type, f).getAnnotation(Index.class);
@@ -1178,7 +1178,7 @@ public class Morphium {
         try {
             Map<String, Object> findMetaData = new HashMap<>();
             List<Map<String, Object>> found = morphiumDriver.find(config.getDatabase(), collection, srch, null, null, 0, 1, 1, null, findMetaData);
-            if (found != null && found.size() > 0) {
+            if (found != null && !found.isEmpty()) {
                 Map<String, Object> dbo = found.get(0);
                 Object fromDb = objectMapper.unmarshall(o.getClass(), dbo);
                 if (fromDb == null) throw new RuntimeException("could not reread from db");
@@ -1677,7 +1677,7 @@ public class Morphium {
         T ret = getCache().getFromIDCache(type, id);
         if (ret != null) return ret;
         List<String> ls = annotationHelper.getFields(type, Id.class);
-        if (ls.size() == 0) throw new RuntimeException("Cannot find by ID on non-Entity");
+        if (ls.isEmpty()) throw new RuntimeException("Cannot find by ID on non-Entity");
 
         return createQueryFor(type).setCollectionName(collection).f(ls.get(0)).eq(id).get();
     }
@@ -1776,7 +1776,7 @@ public class Morphium {
     }
 
     public <T> void store(List<T> lst, String collectionName, AsyncOperationCallback<T> callback) {
-        if (lst == null || lst.size() == 0) return;
+        if (lst == null || lst.isEmpty()) return;
         getWriterForClass(lst.get(0).getClass()).store(lst, collectionName, callback);
     }
 

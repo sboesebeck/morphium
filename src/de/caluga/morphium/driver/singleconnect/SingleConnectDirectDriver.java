@@ -529,10 +529,10 @@ public class SingleConnectDirectDriver extends DriverBase {
 
                 updateCmd.add(up);
             }
-            if (updateCmd.size() > 0)
+            if (!updateCmd.isEmpty())
                 update(db, collection, updateCmd, false, wc);
 
-            if (toInsert.size() > 0) {
+            if (!toInsert.isEmpty()) {
                 insert(db, collection, toInsert, wc);
             }
             return null;

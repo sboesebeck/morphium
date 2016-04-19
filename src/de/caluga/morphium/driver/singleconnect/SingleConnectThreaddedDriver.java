@@ -109,7 +109,7 @@ public class SingleConnectThreaddedDriver extends DriverBase {
                             OpReply reply = new OpReply();
                             try {
                                 reply.parse(buf);
-                                if (reply == null || reply.getDocuments() == null || reply.getDocuments().size() == 0) {
+                                if (reply == null || reply.getDocuments() == null || reply.getDocuments().isEmpty()) {
                                     log.error("did not get any data... slowing down");
                                     errorcount++;
                                     if (errorcount > 10) {
@@ -123,7 +123,7 @@ public class SingleConnectThreaddedDriver extends DriverBase {
                                     Thread.sleep(500);
                                     continue;
                                 }
-                                if (reply == null || reply.getDocuments() == null || reply.getDocuments().size() == 0) {
+                                if (reply == null || reply.getDocuments() == null || reply.getDocuments().isEmpty()) {
                                     log.error("did not get a valid reply!");
                                     Thread.sleep(500);
                                     continue;
@@ -603,10 +603,10 @@ public class SingleConnectThreaddedDriver extends DriverBase {
 
                 updateCmd.add(up);
             }
-            if (updateCmd.size() > 0)
+            if (!updateCmd.isEmpty())
                 update(db, collection, updateCmd, false, wc);
 
-            if (toInsert.size() > 0) {
+            if (!toInsert.isEmpty()) {
                 insert(db, collection, toInsert, wc);
             }
             return null;

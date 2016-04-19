@@ -807,7 +807,7 @@ public class Driver implements MorphiumDriver {
     @Override
     public void insert(String db, String collection, List<Map<String, Object>> objs, de.caluga.morphium.driver.WriteConcern wc) throws MorphiumDriverException {
         DriverHelper.replaceMorphiumIdByObjectId(objs);
-        if (objs == null || objs.size() == 0) return;
+        if (objs == null || objs.isEmpty()) return;
         final List<Document> lst = objs.stream().map(Document::new).collect(Collectors.toList());
 
         DriverHelper.doCall(() -> {

@@ -137,22 +137,23 @@ public class MorphiumDriverIterator<T> implements MorphiumIterator<T> {
 
     private boolean doHasNext() {
         try {
+            int size = currentBatch.getBatch().size();
             if (currentBatch == null) {
                 currentBatch = query.getMorphium().getDriver().initIteration(query.getMorphium().getConfig().getDatabase(), query.getCollectionName(), query.toQueryObject(), query.getSort(), query.getFieldListForQuery(), query.getSkip(), query.getLimit(), getWindowSize(), query.getMorphium().getReadPreferenceForClass(query.getType()), null);
                 cursor = 0;
                 cursorExternal++;
-            } else if (currentBatch != null && cursor + 1 < currentBatch.getBatch().size()) {
+            } else if (currentBatch != null && cursor + 1 < size) {
                 cursor++;
                 cursorExternal++;
                 return true;
-            } else if (currentBatch != null && cursor + 1 == currentBatch.getBatch().size()) {
+            } else if (currentBatch != null && cursor + 1 == size) {
                 currentBatch = query.getMorphium().getDriver().nextIteration(currentBatch);
                 cursor = 0;
                 cursorExternal++;
             }
             if (multithreadded && currentBatch != null && currentBatch.getBatch() != null)
                 currentBatch.setBatch(Collections.synchronizedList(currentBatch.getBatch()));
-            if (currentBatch != null && currentBatch.getBatch() != null && currentBatch.getBatch().size() > 0)
+            if (currentBatch != null && currentBatch.getBatch() != null && size > 0)
                 return true;
         } catch (MorphiumDriverException e) {
             log.error("Got error during iteration...", e);

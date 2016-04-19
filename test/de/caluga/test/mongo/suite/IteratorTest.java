@@ -64,7 +64,7 @@ public class IteratorTest extends MongoTest {
                 Thread.sleep(100);
             }
 
-            while (threads.size() > 0) {
+            while (!threads.isEmpty()) {
                 Thread.sleep(200);
             }
         }

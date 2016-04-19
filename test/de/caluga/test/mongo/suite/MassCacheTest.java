@@ -80,7 +80,7 @@ public class MassCacheTest extends MongoTest {
                 q.f("counter").eq(j + 1).f("value").eq("Writing thread " + i + " " + j);
                 List<CachedObject> lst = morphium.find(q);
 
-                assert (lst != null && lst.size() > 0) : "List is null - Thread " + i + " Element " + (j + 1) + " not found";
+                assert (lst != null && !lst.isEmpty()) : "List is null - Thread " + i + " Element " + (j + 1) + " not found";
 
             }
             log.info(i + "" + "/" + WRITING_THREADS);
@@ -142,7 +142,7 @@ public class MassCacheTest extends MongoTest {
                         Query<CachedObject> q = morphium.createQueryFor(CachedObject.class);
                         q.f("counter").eq(rnd + 1).f("value").eq("Writing thread " + trnd + " " + rnd);
                         List<CachedObject> lst = morphium.find(q);
-                        if (lst == null || lst.size() == 0) {
+                        if (lst == null || lst.isEmpty()) {
                             log.info("Not written yet: " + (rnd + 1) + " Thread: " + trnd);
                         } else {
                             o = lst.get(0);
@@ -195,7 +195,7 @@ public class MassCacheTest extends MongoTest {
                 q.f("value").eq("Test " + i);
                 List<CachedObject> lst = q.asList();
                 assert (lst != null) : "List is NULL????";
-                assert (lst.size() > 0) : "Not found?!?!? Value: Test " + i;
+                assert (!lst.isEmpty()) : "Not found?!?!? Value: Test " + i;
                 assert (lst.get(0).getValue().equals("Test " + i)) : "Wrong value!";
                 log.info("found " + lst.size() + " elements for value: " + lst.get(0).getValue());
 
@@ -213,7 +213,7 @@ public class MassCacheTest extends MongoTest {
                 q.f("value").eq("Test " + i);
                 List<CachedObject> lst = q.asList();
                 assert (lst != null) : "List is NULL????";
-                assert (lst.size() > 0) : "Not found?!?!? Value: Test " + i;
+                assert (!lst.isEmpty()) : "Not found?!?!? Value: Test " + i;
                 assert (lst.get(0).getValue().equals("Test " + i)) : "Wrong value!";
                 log.info("found " + lst.size() + " elements for value: " + lst.get(0).getValue());
 
@@ -260,7 +260,7 @@ public class MassCacheTest extends MongoTest {
                 q.f("value").eq("Test " + i);
                 List<CachedObject> lst = q.asList();
                 assert (lst != null) : "List is NULL????";
-                assert (lst.size() > 0) : "Not found?!?!? Value: Test " + i;
+                assert (!lst.isEmpty()) : "Not found?!?!? Value: Test " + i;
                 assert (lst.get(0).getValue().equals("Test " + i)) : "Wrong value!";
                 log.info("found " + lst.size() + " elements for value: " + lst.get(0).getValue());
 

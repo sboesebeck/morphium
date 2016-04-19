@@ -345,7 +345,7 @@ public class BasicFunctionalityTest extends MongoTest {
             Query<UncachedObject> q = morphium.createQueryFor(UncachedObject.class);
             q.f("counter").eq(i);
             List<UncachedObject> l = q.asList();
-            assert (l != null && l.size() > 0) : "Nothing found!?!?!?!? Value: " + i;
+            assert (l != null && !l.isEmpty()) : "Nothing found!?!?!?!? Value: " + i;
             UncachedObject fnd = l.get(0);
             assert (fnd != null) : "Error finding element with id " + i;
             assert (fnd.getCounter() == i) : "Counter not equal: " + fnd.getCounter() + " vs. " + i;
@@ -366,7 +366,7 @@ public class BasicFunctionalityTest extends MongoTest {
             Query<CachedObject> q = morphium.createQueryFor(CachedObject.class);
             q.f("counter").eq(i);
             List<CachedObject> l = q.asList();
-            assert (l != null && l.size() > 0) : "Nothing found!?!?!?!? " + i;
+            assert (l != null && !l.isEmpty()) : "Nothing found!?!?!?!? " + i;
             CachedObject fnd = l.get(0);
             assert (fnd != null) : "Error finding element with id " + i;
             assert (fnd.getCounter() == i) : "Counter not equal: " + fnd.getCounter() + " vs. " + i;

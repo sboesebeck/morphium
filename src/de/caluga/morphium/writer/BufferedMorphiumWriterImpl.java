@@ -226,7 +226,7 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
 
     @Override
     public <T> void store(final List<T> lst, final String collectionName, AsyncOperationCallback<T> c) {
-        if (lst == null || lst.size() == 0) {
+        if (lst == null || lst.isEmpty()) {
             if (c != null)
                 c.onOperationSucceeded(AsyncOperationType.WRITE, null, 0, lst, null);
             return;
@@ -456,7 +456,7 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
 
 
                         for (Class<?> clz : localBuffer) {
-                            if (opLog.get(clz) == null || opLog.get(clz).size() == 0) {
+                            if (opLog.get(clz) == null || opLog.get(clz).isEmpty()) {
                                 continue;
                             }
                             WriteBuffer w = morphium.getARHelper().getAnnotationFromHierarchy(clz, WriteBuffer.class);
@@ -775,7 +775,7 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
 //        synchronized (opLog) {
         localBuffer.addAll(opLog.keySet());
         for (Class<?> clz : localBuffer) {
-            if (opLog.get(clz) == null || opLog.get(clz).size() == 0) {
+            if (opLog.get(clz) == null || opLog.get(clz).isEmpty()) {
                 continue;
             }
             opLog.get(clz).addAll(flushQueueToMongo(opLog.get(clz)));

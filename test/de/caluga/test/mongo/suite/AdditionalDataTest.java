@@ -90,7 +90,7 @@ public class AdditionalDataTest extends MongoTest {
         Thread.sleep(500);
         AddDat d2 = morphium.findById(AddDat.class, d.getMorphiumId());
         assert (d2 != null);
-        assert (d2.additionals == null || d2.additionals.size() == 0);
+        assert (d2.additionals == null || d2.additionals.isEmpty());
     }
 
     public static class AddDat extends UncachedObject {

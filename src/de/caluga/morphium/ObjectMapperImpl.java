@@ -599,7 +599,7 @@ public class ObjectMapperImpl implements ObjectMapper {
                             } else {
                                 data.put(k, createMap((Map<String, Object>) o.get(k)));
                             }
-                        } else if (o.get(k) instanceof List && ((List) o.get(k)).size() > 0 && ((List) o.get(k)).get(0) instanceof Map) {
+                        } else if (o.get(k) instanceof List && !((List) o.get(k)).isEmpty() && ((List) o.get(k)).get(0) instanceof Map) {
                             data.put(k, createList((List<Map<String, Object>>) o.get(k)));
                         } else {
                             data.put(k, o.get(k));
@@ -635,7 +635,7 @@ public class ObjectMapperImpl implements ObjectMapper {
                         if (id != null) {
                             if (reference.lazyLoading()) {
                                 List<String> lst = annotationHelper.getFields(fld.getType(), Id.class);
-                                if (lst.size() == 0)
+                                if (lst.isEmpty())
                                     throw new IllegalArgumentException("Referenced object does not have an ID? Is it an Entity?");
                                 if (id instanceof String && annotationHelper.getField(fld.getType(), lst.get(0)).getType().equals(MorphiumId.class)) {
                                     id = new MorphiumId(id.toString());
@@ -1057,7 +1057,7 @@ public class ObjectMapperImpl implements ObjectMapper {
 //                    Reference reference = forField != null ? forField.getAnnotation(Reference.class) : null;
 //
 //                    if (reference != null && reference.lazyLoading()) {
-//                        if (idFlds.size() == 0)
+//                        if (idFlds.isEmpty())
 //                            throw new IllegalArgumentException("Referenced object does not have an ID? Is it an Entity?");
 //                        toFillIn.add(morphium.createLazyLoadedEntity(clz, id, containerEntity, forField.getName()));
 //                    } else {

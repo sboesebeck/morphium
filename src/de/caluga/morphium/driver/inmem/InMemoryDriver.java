@@ -316,7 +316,7 @@ public class InMemoryDriver implements MorphiumDriver {
 
     private boolean matchesQuery(Map<String, Object> query, Map<String, Object> toCheck) {
         boolean matches = false;
-        if (query.size() == 0) return true;
+        if (query.isEmpty()) return true;
         if (query.containsKey("$where")) throw new RuntimeException("$where not implemented yet");
         for (String key : query.keySet()) {
             switch (key) {
@@ -500,7 +500,7 @@ public class InMemoryDriver implements MorphiumDriver {
     @Override
     public long count(String db, String collection, Map<String, Object> query, ReadPreference rp) throws MorphiumDriverException {
         List<Map<String, Object>> data = getCollection(db, collection);
-        if (query.size() == 0) {
+        if (query.isEmpty()) {
             return data.size();
         }
         long cnt = 0;
@@ -565,7 +565,7 @@ public class InMemoryDriver implements MorphiumDriver {
     @Override
     public Map<String, Object> update(String db, String collection, Map<String, Object> query, Map<String, Object> op, boolean multiple, boolean upsert, WriteConcern wc) throws MorphiumDriverException {
         List<Map<String, Object>> lst = find(db, collection, query, null, null, 0, multiple ? 0 : 1, true);
-        if (upsert && (lst == null || lst.size() == 0)) {
+        if (upsert && (lst == null || lst.isEmpty())) {
             throw new RuntimeException("Upsert not implemented yet!");
         }
         for (Map<String, Object> obj : lst) {

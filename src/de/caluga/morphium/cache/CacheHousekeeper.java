@@ -199,7 +199,7 @@ public class CacheHousekeeper extends Thread {
                                         toDelete.get(clz).add(lruTime.get(array[idx]).get(0));
                                         lruTime.get(array[idx]).remove(0);
                                         del++;
-                                        if (lruTime.get(array[idx]).size() == 0) {
+                                        if (lruTime.get(array[idx]).isEmpty()) {
                                             idx++;
                                         }
 
@@ -216,7 +216,7 @@ public class CacheHousekeeper extends Thread {
                                         toDelete.get(clz).add(fifoTime.get(array[array.length - 1 - idx]).get(0));
                                         fifoTime.get(array[array.length - 1 - idx]).remove(0);
                                         del++;
-                                        if (fifoTime.get(array[array.length - 1 - idx]).size() == 0) {
+                                        if (fifoTime.get(array[array.length - 1 - idx]).isEmpty()) {
                                             idx++;
                                         }
                                     }
@@ -233,7 +233,7 @@ public class CacheHousekeeper extends Thread {
                                         toDelete.putIfAbsent(clz, new ArrayList<String>());
                                         toDelete.get(clz).add(lruTime.get(array[idx]).get(0));
                                         del++;
-                                        if (lruTime.get(array[idx]).size() == 0) {
+                                        if (lruTime.get(array[idx]).isEmpty()) {
                                             idx++;
                                         }
                                     }

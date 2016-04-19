@@ -100,7 +100,7 @@ public class JavaxValidationStorageListener extends MorphiumStorageAdapter<Objec
             }
         }
 
-        if (violations.size() > 0) {
+        if (!violations.isEmpty()) {
             throw new ConstraintViolationException(new HashSet<ConstraintViolation<?>>(violations));
         }
     }

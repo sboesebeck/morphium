@@ -84,7 +84,7 @@ public class SubDocumentTests extends MongoTest {
         q = q.f("embed.value").eq("A value_not");
         List<ComplexObject> lst = q.asList();
         assert (lst != null);
-        assert (lst.size() == 0);
+        assert (lst.isEmpty());
     }
 
 

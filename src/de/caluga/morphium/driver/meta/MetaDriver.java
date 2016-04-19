@@ -142,7 +142,7 @@ public class MetaDriver extends DriverBase {
         if (getHostSeed().length < secondaries.size()) {
             log.debug("There are more nodes in replicaset than defined in seed...");
             for (String h : secondaries) {
-                if (getConnections(h).size() == 0) {
+                if (getConnections(h).isEmpty()) {
                     try {
                         createConnectionsForPool(h);
                     } catch (Exception e) {
@@ -154,7 +154,7 @@ public class MetaDriver extends DriverBase {
             log.info("some seed hosts were not reachable!");
         }
 
-        if (connectionPool.size() == 0) throw new MorphiumDriverException("Could not connect");
+        if (connectionPool.isEmpty()) throw new MorphiumDriverException("Could not connect");
         if (getTotalConnectionCount() == 0) {
             throw new MorphiumDriverException("Connection failed!");
         }
@@ -205,7 +205,7 @@ public class MetaDriver extends DriverBase {
     public void close() throws MorphiumDriverException {
         connected = false;
         for (String h : connectionPool.keySet()) {
-            while (connectionPool.get(h).size() > 0) {
+            while (!connectionPool.get(h).isEmpty()) {
                 try {
                     Connection c = connectionPool.get(h).remove(0);
                     c.close();
@@ -214,7 +214,7 @@ public class MetaDriver extends DriverBase {
             }
         }
         for (String h : connectionsInUse.keySet()) {
-            while (connectionsInUse.get(h).size() > 0) {
+            while (!connectionsInUse.get(h).isEmpty()) {
                 try {
                     Connection c = connectionsInUse.get(h).remove(0);
                     c.close();
@@ -599,7 +599,7 @@ public class MetaDriver extends DriverBase {
 
         List<Connection> masterConnections = getConnections(host);
         Connection c = null;
-        while (masterConnections.size() == 0) {
+        while (masterConnections.isEmpty()) {
             if (getConnectionsInUse(host).size() < getMaxConnectionsPerHost()) {
                 c = new Connection(createDriver(host));
                 masterConnections.add(c);
@@ -844,7 +844,7 @@ public class MetaDriver extends DriverBase {
                                         fastestAnswer = answerTime;
                                         fastestHost = d.getHostSeed()[0];
                                     }
-                                    if (getFromReply(reply,RunCommand.Response.hosts) != null && secondaries.size() == 0) {
+                                    if (getFromReply(reply, RunCommand.Response.hosts) != null && secondaries.isEmpty()) {
                                         secondaries = new Vector<>((List<String>) getFromReply(reply,RunCommand.Response.hosts));
                                     }
                                 }
