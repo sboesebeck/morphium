@@ -22,7 +22,7 @@ import java.util.*;
  * Time: 19:36
  * <p>
  */
-@SuppressWarnings({"ConstantConditions", "MismatchedQueryAndUpdateOfCollection", "unchecked", "MismatchedReadAndWriteOfArray"})
+@SuppressWarnings({"ConstantConditions", "MismatchedQueryAndUpdateOfCollection", "unchecked", "MismatchedReadAndWriteOfArray", "RedundantCast"})
 public class ObjectMapperImpl implements ObjectMapper {
     private static Logger log = new Logger(ObjectMapperImpl.class);
     private Map<Class<?>, NameProvider> nameProviders;
@@ -743,11 +743,12 @@ public class ObjectMapperImpl implements ObjectMapper {
                                     if (lst.get(i) instanceof Double) {
                                         Array.set(arr, i, ((Double) lst.get(i)).intValue());
                                     } else if (lst.get(i) instanceof Integer) {
-                                        Array.set(arr, i, ((Integer) lst.get(i)).intValue());
+                                        Array.set(arr, i, (Integer) lst.get(i));
                                     } else if (lst.get(i) instanceof Long) {
                                         Array.set(arr, i, ((Long) lst.get(i)).intValue());
                                     } else {
-                                        Array.set(arr, i, (Integer) lst.get(i));
+                                        //noinspection RedundantCast
+                                        Array.set(arr, i, lst.get(i));
                                     }
 
                                 } else if (fld.getType().getComponentType().equals(long.class)) {
@@ -756,9 +757,9 @@ public class ObjectMapperImpl implements ObjectMapper {
                                     } else if (lst.get(i) instanceof Integer) {
                                         Array.set(arr, i, ((Integer) lst.get(i)).longValue());
                                     } else if (lst.get(i) instanceof Long) {
-                                        Array.set(arr, i, ((Long) lst.get(i)).longValue());
-                                    } else {
                                         Array.set(arr, i, (Long) lst.get(i));
+                                    } else {
+                                        Array.set(arr, i, lst.get(i));
                                     }
 
                                 } else if (fld.getType().getComponentType().equals(float.class)) {
@@ -770,7 +771,7 @@ public class ObjectMapperImpl implements ObjectMapper {
                                     } else if (lst.get(i) instanceof Long) {
                                         Array.set(arr, i, ((Long) lst.get(i)).floatValue());
                                     } else {
-                                        Array.set(arr, i, (Float) lst.get(i));
+                                        Array.set(arr, i, lst.get(i));
                                     }
 
                                 } else if (fld.getType().getComponentType().equals(double.class)) {
@@ -781,7 +782,7 @@ public class ObjectMapperImpl implements ObjectMapper {
                                     } else if (lst.get(i) instanceof Long) {
                                         Array.set(arr, i, ((Long) lst.get(i)).doubleValue());
                                     } else {
-                                        Array.set(arr, i, (Double) lst.get(i));
+                                        Array.set(arr, i, lst.get(i));
                                     }
 
                                 } else if (fld.getType().getComponentType().equals(byte.class)) {
@@ -790,15 +791,15 @@ public class ObjectMapperImpl implements ObjectMapper {
                                     } else if (lst.get(i) instanceof Long) {
                                         Array.set(arr, i, ((Long) lst.get(i)).byteValue());
                                     } else {
-                                        Array.set(arr, i, (Byte) lst.get(i));
+                                        Array.set(arr, i, lst.get(i));
                                     }
                                 } else if (fld.getType().getComponentType().equals(boolean.class)) {
                                     if (lst.get(i) instanceof String) {
                                         Array.set(arr, i, lst.get(i).toString().equalsIgnoreCase("true"));
                                     } else if (lst.get(i) instanceof Integer) {
-                                        Array.set(arr, i, ((Integer) lst.get(i)).intValue() == 1);
+                                        Array.set(arr, i, (Integer) lst.get(i) == 1);
                                     } else {
-                                        Array.set(arr, i, (Boolean) lst.get(i));
+                                        Array.set(arr, i, lst.get(i));
                                     }
 
                                 }

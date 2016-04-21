@@ -221,11 +221,7 @@ public class SingleConnectThreaddedDriver extends DriverBase {
             Map<String, Object> ret = runCommand("admin", Utils.getMap("replSetGetStatus", 1));
             List<Map<String, Object>> mem = (List) ret.get("members");
             if (mem == null) return null;
-            for (Map<String, Object> d : mem) {
-                if (d.get("optime") instanceof Map) {
-                    d.put("optime", ((Map<String, Map<String, Object>>) d.get("optime")).get("ts"));
-                }
-            }
+            mem.stream().filter(d -> d.get("optime") instanceof Map).forEach(d -> d.put("optime", ((Map<String, Map<String, Object>>) d.get("optime")).get("ts")));
             return ret;
         }, getRetriesOnNetworkError(), getSleepBetweenErrorRetries());
     }
@@ -551,7 +547,7 @@ public class SingleConnectThreaddedDriver extends DriverBase {
         new NetworkCallHelper().doCall(() -> {
             int idx = 0;
             for (Map<String, Object> o : objs) {
-                if (o.get("_id") == null) o.put("_id", new MorphiumId());
+                o.putIfAbsent("_id", new MorphiumId());
             }
 
             while (idx < objs.size()) {
@@ -595,7 +591,7 @@ public class SingleConnectThreaddedDriver extends DriverBase {
             }
             List<Map<String, Object>> updateCmd = new ArrayList<>();
             for (Map<String, Object> obj : toUpdate) {
-                Map<String, Object> up = new HashMap<String, Object>();
+                Map<String, Object> up = new HashMap<>();
                 up.put("q", Utils.getMap("_id", obj.get("_id")));
                 up.put("u", obj);
                 up.put("upsert", true);

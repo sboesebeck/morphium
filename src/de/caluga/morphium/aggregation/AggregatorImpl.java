@@ -16,7 +16,7 @@ import java.util.*;
  */
 public class AggregatorImpl<T, R> implements Aggregator<T, R> {
     private Class<? extends T> type;
-    private List<Map<String, Object>> params = new ArrayList<>();
+    private final List<Map<String, Object>> params = new ArrayList<>();
     private Morphium morphium;
     private Class<? extends R> rType;
     private String collectionName;

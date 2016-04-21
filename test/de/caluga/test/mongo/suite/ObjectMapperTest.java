@@ -418,7 +418,7 @@ public class ObjectMapperTest extends MongoTest {
         }
         dur = System.currentTimeMillis() - start;
         log.info("De-Marshalling of ComplexObject 25000 times took " + dur + "ms");
-        assert (dur < 1000);
+        assert (dur < 1500);
 
     }
 

@@ -179,7 +179,6 @@ public abstract class DriverBase implements MorphiumDriver {
 
     @Override
     public void setDefaultFsync(boolean j) {
-        boolean defaultFsync = j;
     }
 
 

@@ -30,7 +30,7 @@ public class CachePerformanceInternalsTest {
     @Warmup(iterations = 2)
     @Threads(100)
     @BenchmarkMode({Mode.AverageTime, Mode.Throughput})
-    @OperationsPerInvocation(value = 1)
+    @OperationsPerInvocation()
     @Fork(1)
     @Measurement(iterations = 5, time = -1)
     public void writeVectorTest() {
@@ -43,7 +43,7 @@ public class CachePerformanceInternalsTest {
     @Warmup(iterations = 2)
     @Threads(100)
     @BenchmarkMode({Mode.AverageTime, Mode.Throughput})
-    @OperationsPerInvocation(value = 1)
+    @OperationsPerInvocation()
     @Fork(1)
     @Measurement(iterations = 5, time = -1)
     public void writeSynchronizedList() {
@@ -56,7 +56,7 @@ public class CachePerformanceInternalsTest {
     @Warmup(iterations = 2)
     @Threads(100)
     @BenchmarkMode({Mode.AverageTime, Mode.Throughput})
-    @OperationsPerInvocation(value = 1)
+    @OperationsPerInvocation()
     @Fork(1)
     @Measurement(iterations = 5, time = -1)
     public void zReadVectorTest() {
@@ -70,7 +70,7 @@ public class CachePerformanceInternalsTest {
     @Warmup(iterations = 2)
     @Threads(100)
     @BenchmarkMode({Mode.AverageTime, Mode.Throughput})
-    @OperationsPerInvocation(value = 1)
+    @OperationsPerInvocation()
     @Fork(1)
     @Measurement(iterations = 5, time = -1)
     public void zReadSynchronizedListTest() {

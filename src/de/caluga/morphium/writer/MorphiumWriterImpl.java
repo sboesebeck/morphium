@@ -611,7 +611,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                 } else {
                     Capped capped = morphium.getARHelper().getAnnotationFromHierarchy(c, Capped.class);
                     if (capped != null) {
-                        Map<String, Object> cmd = new HashMap<String, Object>();
+                        Map<String, Object> cmd = new HashMap<>();
                         cmd.put("convertToCapped", coll);
                         cmd.put("size", capped.maxSize());
                         cmd.put("max", capped.maxEntries());
@@ -1670,8 +1670,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                 String coll = morphium.getMapper().getCollectionName(cls);
                 morphium.firePreUpdateEvent(morphium.getARHelper().getRealClass(cls), push ? MorphiumStorageListener.UpdateTypes.PUSH : MorphiumStorageListener.UpdateTypes.PULL);
                 long start = System.currentTimeMillis();
-                List lst = value.stream().map(o -> marshallIfNecessary(o)).collect(Collectors.toList());
-                value = lst;
+                value = value.stream().map(o -> marshallIfNecessary(o)).collect(Collectors.toList());
                 try {
                     Map<String, Object> qobj = query.toQueryObject();
                     if (upsert) {
