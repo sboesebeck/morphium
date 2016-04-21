@@ -239,7 +239,7 @@ public class AutoVariableTest extends MongoTest {
 
     @Entity
     @NoCache
-    @CreationTime(checkForNew = false)
+    @CreationTime()
     public static class CTimeTest {
         @Id
         private MorphiumId morphiumId;

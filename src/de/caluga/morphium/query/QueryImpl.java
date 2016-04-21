@@ -699,7 +699,7 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
             log.debug("creating iterable for query - windowsize " + windowSize);
         }
         MorphiumIterator<T> it;
-        if (windowSize > 1) {
+        if (prefixWindows == 1) {
             it = new DefaultMorphiumIterator<>();
         } else {
             it = new PrefetchingDriverIterator<>();

@@ -167,14 +167,14 @@ public class AnnotationAndReflectionHelper {
             if (f == null) throw new RuntimeException("Field not found " + field + " in cls: " + clz.getName());
             if (f.isAnnotationPresent(Property.class)) {
                 Property p = f.getAnnotation(Property.class);
-                if (p.fieldName() != null && !p.fieldName().equals(".")) {
+                if (!p.fieldName().equals(".")) {
                     return p.fieldName();
                 }
             }
 
             if (f.isAnnotationPresent(Reference.class)) {
                 Reference p = f.getAnnotation(Reference.class);
-                if (p.fieldName() != null && !p.fieldName().equals(".")) {
+                if (!p.fieldName().equals(".")) {
                     return p.fieldName();
                 }
             }
@@ -298,19 +298,21 @@ public class AnnotationAndReflectionHelper {
         List<Field> flds = getAllFields(cls);
         Field ret = null;
         for (Field f : flds) {
-            if (ret == null && f.isAnnotationPresent(Property.class) && f.getAnnotation(Property.class).fieldName() != null && !".".equals(f.getAnnotation(Property.class).fieldName()) && f.getAnnotation(Property.class).fieldName().equals(fld)) {
+            if (ret == null && f.isAnnotationPresent(Property.class) && !".".equals(f.getAnnotation(Property.class).fieldName()) && f.getAnnotation(Property.class).fieldName().equals(fld)) {
                 f.setAccessible(true);
 
                 fc.put(key, f);
                 ret = f;
 
             }
-            if (ret == null && f.isAnnotationPresent(Reference.class) && f.getAnnotation(Reference.class).fieldName() != null && !".".equals(f.getAnnotation(Reference.class).fieldName()) && f.getAnnotation(Reference.class).fieldName().equals(fld)) {
+            if (ret == null && f.isAnnotationPresent(Reference.class) && !".".equals(f.getAnnotation(Reference.class).fieldName()) && f.getAnnotation(Reference.class).fieldName().equals(fld)) {
                 f.setAccessible(true);
+
                 fc.put(key, f);
                 ret = f;
 
             }
+
             if (ret == null && f.isAnnotationPresent(Aliases.class)) {
                 Aliases aliases = f.getAnnotation(Aliases.class);
                 String[] v = aliases.value();

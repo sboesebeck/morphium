@@ -758,7 +758,7 @@ public class MessagingTest extends MongoTest {
             }
             assert (!m.getProcessedBy().contains(msg.getSenderId()));
 //                assert(!msgCountById.containsKey(m.getMsgId().toString()));
-            msgCountById.put(m.getMsgId().toString(), 1l);
+            msgCountById.put(m.getMsgId().toString(), 1L);
             //simulate processing
             try {
                 Thread.sleep((long) (10 * Math.random()));

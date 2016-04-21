@@ -142,7 +142,7 @@ public class MetaDriver extends DriverBase {
         if (getHostSeed().length < secondaries.size()) {
             log.debug("There are more nodes in replicaset than defined in seed...");
             for (String h : secondaries) {
-                if (getConnections(h).isEmpty()) {
+                if (getConnections(h).size() == 0) {
                     try {
                         createConnectionsForPool(h);
                     } catch (Exception e) {

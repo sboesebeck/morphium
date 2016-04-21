@@ -13,7 +13,7 @@ import de.caluga.morphium.driver.bson.MorphiumId;
  */
 @NoCache
 @Entity
-@WriteSafety(waitForJournalCommit = false, waitForSync = true, timeout = -1, level = SafetyLevel.WAIT_FOR_ALL_SLAVES)
+@WriteSafety(waitForSync = true, timeout = -1, level = SafetyLevel.WAIT_FOR_ALL_SLAVES)
 @DefaultReadPreference(ReadPreferenceLevel.NEAREST)
 public class UncachedObject {
     @Index

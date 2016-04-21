@@ -66,7 +66,7 @@ public class MorphiumDriverIterator<T> implements MorphiumIterator<T> {
 
     @Override
     public long getCount() {
-        return 0;
+        return query.countAll();
     }
 
     @Override
@@ -82,7 +82,7 @@ public class MorphiumDriverIterator<T> implements MorphiumIterator<T> {
             int diff = cursor - currentBatch.getBatch().size();
             cursor = currentBatch.getBatch().size() - 1;
 
-            if (!hasNext()) return;
+            next();
             cursor += diff;
         }
     }
@@ -136,38 +136,44 @@ public class MorphiumDriverIterator<T> implements MorphiumIterator<T> {
     }
 
     private boolean doHasNext() {
-        try {
-            int size = currentBatch.getBatch().size();
-            if (currentBatch == null) {
+        if (currentBatch != null && currentBatch.getBatch() != null && currentBatch.getBatch().size() > cursor)
+            return true;
+        if (currentBatch == null && cursorExternal == 0) {
+            try {
                 currentBatch = query.getMorphium().getDriver().initIteration(query.getMorphium().getConfig().getDatabase(), query.getCollectionName(), query.toQueryObject(), query.getSort(), query.getFieldListForQuery(), query.getSkip(), query.getLimit(), getWindowSize(), query.getMorphium().getReadPreferenceForClass(query.getType()), null);
-                cursor = 0;
-                cursorExternal++;
-            } else if (currentBatch != null && cursor + 1 < size) {
-                cursor++;
-                cursorExternal++;
-                return true;
-            } else if (currentBatch != null && cursor + 1 == size) {
-                currentBatch = query.getMorphium().getDriver().nextIteration(currentBatch);
-                cursor = 0;
-                cursorExternal++;
+            } catch (MorphiumDriverException e) {
+                log.error("error during fetching first batch");
             }
-            if (multithreadded && currentBatch != null && currentBatch.getBatch() != null)
-                currentBatch.setBatch(Collections.synchronizedList(currentBatch.getBatch()));
-            if (currentBatch != null && currentBatch.getBatch() != null && size > 0)
-                return true;
-        } catch (MorphiumDriverException e) {
-            log.error("Got error during iteration...", e);
+            return doHasNext();
         }
         return false;
     }
 
     @Override
     public T next() {
-        if (currentBatch != null) {
-            T unmarshall = query.getMorphium().getMapper().unmarshall(query.getType(), currentBatch.getBatch().get(cursor));
-            query.getMorphium().firePostLoadEvent(unmarshall);
-            return unmarshall;
+        if (currentBatch == null && !hasNext()) return null;
+        T unmarshall = query.getMorphium().getMapper().unmarshall(query.getType(), currentBatch.getBatch().get(cursor));
+        query.getMorphium().firePostLoadEvent(unmarshall);
+        try {
+            if (currentBatch == null && cursorExternal == 0) {
+                currentBatch = query.getMorphium().getDriver().initIteration(query.getMorphium().getConfig().getDatabase(), query.getCollectionName(), query.toQueryObject(), query.getSort(), query.getFieldListForQuery(), query.getSkip(), query.getLimit(), getWindowSize(), query.getMorphium().getReadPreferenceForClass(query.getType()), null);
+                cursor = 0;
+            } else if (currentBatch != null && cursor + 1 < currentBatch.getBatch().size()) {
+                cursor++;
+            } else if (currentBatch != null && cursor + 1 == currentBatch.getBatch().size()) {
+                currentBatch = query.getMorphium().getDriver().nextIteration(currentBatch);
+                cursor = 0;
+            } else {
+                cursor++;
+            }
+            if (multithreadded && currentBatch != null && currentBatch.getBatch() != null)
+                currentBatch.setBatch(Collections.synchronizedList(currentBatch.getBatch()));
+
+        } catch (MorphiumDriverException e) {
+            log.error("Got error during iteration...", e);
         }
-        return null;
+        cursorExternal++;
+
+        return unmarshall;
     }
 }

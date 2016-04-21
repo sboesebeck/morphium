@@ -1,7 +1,10 @@
 package de.caluga.test.mongo.suite;
 
 import de.caluga.morphium.driver.bson.MorphiumId;
-import de.caluga.morphium.query.*;
+import de.caluga.morphium.query.MorphiumDriverIterator;
+import de.caluga.morphium.query.MorphiumIterator;
+import de.caluga.morphium.query.PrefetchingDriverIterator;
+import de.caluga.morphium.query.Query;
 import de.caluga.test.mongo.suite.data.CachedObject;
 import de.caluga.test.mongo.suite.data.UncachedObject;
 import org.junit.Test;
@@ -373,6 +376,21 @@ public class IteratorTest extends MongoTest {
 
         assert (u.getCounter() == 1000);
         log.info("Took " + (System.currentTimeMillis() - start) + " ms");
+
+        for (UncachedObject uc : qu.asIterable(100)) {
+            if (uc.getCounter() % 100 == 0)
+                log.info("Got msg " + uc.getCounter());
+        }
+        morphium.dropCollection(UncachedObject.class);
+        u = new UncachedObject();
+        u.setValue("Hello");
+        u.setCounter(1900);
+        morphium.store(u);
+        Thread.sleep(1500);
+        for (UncachedObject uc : morphium.createQueryFor(UncachedObject.class).asIterable(100)) {
+            log.info("Got another " + uc.getCounter());
+        }
+
     }
 
     @Test
@@ -642,7 +660,7 @@ public class IteratorTest extends MongoTest {
     public void iteratorTypeTest() throws Exception {
         Query<UncachedObject> qu = morphium.createQueryFor(UncachedObject.class).sort("counter");
         assert (qu.asIterable().getClass().equals(MorphiumDriverIterator.class));
-        assert (qu.asIterable(10).getClass().equals(DefaultMorphiumIterator.class));
+        assert (qu.asIterable(10).getClass().equals(MorphiumDriverIterator.class));
         assert (qu.asIterable(10, 5).getClass().equals(PrefetchingDriverIterator.class));
     }
 }

@@ -30,7 +30,7 @@ public class RSMonitor {
 
     public void start() {
         execute();
-        executorService.scheduleWithFixedDelay(() -> execute(), 1000, morphium.getConfig().getReplicaSetMonitoringTimeout(), TimeUnit.MILLISECONDS);
+        executorService.scheduleWithFixedDelay(this::execute, 1000, morphium.getConfig().getReplicaSetMonitoringTimeout(), TimeUnit.MILLISECONDS);
     }
 
     public void terminate() {
