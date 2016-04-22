@@ -198,7 +198,8 @@ public class PrefetchingDriverIterator<T> implements MorphiumIterator<T> {
             while (cursor != null) {
                 while (prefetchBuffer.size() >= numPrefetchBuffers && cursor != null) try {
                     //Busy wait for buffer to be processed
-                    if (System.currentTimeMillis() - lastAccess > query.getMorphium().getConfig().getSocketTimeout()) {
+                    int socketTimeout = query.getMorphium().getConfig().getSocketTimeout();
+                    if (socketTimeout > 0 && System.currentTimeMillis() - lastAccess > socketTimeout) {
                         log.error("Cursor timeout... closing");
                         try {
                             query.getMorphium().getDriver().closeIteration(cursor);
