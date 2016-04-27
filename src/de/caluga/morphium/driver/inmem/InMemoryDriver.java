@@ -471,7 +471,9 @@ public class InMemoryDriver implements MorphiumDriver {
         List<Map<String, Object>> data = getCollection(db, collection);
         List<Map<String, Object>> ret = new ArrayList<>();
         int count = 0;
-        for (Map<String, Object> o : data) {
+
+        for (int i = 0; i < data.size(); i++) {
+            Map<String, Object> o = data.get(i);
             count++;
             if (count < skip) {
                 continue;
