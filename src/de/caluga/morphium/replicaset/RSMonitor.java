@@ -9,7 +9,9 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
+import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * Used in a Thread or executor.
@@ -26,6 +28,17 @@ public class RSMonitor {
     public RSMonitor(Morphium morphium) {
         this.morphium = morphium;
         executorService = new ScheduledThreadPoolExecutor(1);
+        executorService.setThreadFactory(new ThreadFactory() {
+            AtomicInteger num = new AtomicInteger(1);
+
+            @Override
+            public Thread newThread(Runnable r) {
+                Thread ret = new Thread(r, "rsMonitor " + num);
+                num.set(num.get() + 1);
+                ret.setDaemon(true);
+                return ret;
+            }
+        });
     }
 
     public void start() {

@@ -34,6 +34,7 @@ import java.lang.reflect.Field;
 import java.net.UnknownHostException;
 import java.util.*;
 import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * This is the single access point for accessing MongoDB. This should
@@ -141,6 +142,17 @@ public class Morphium {
         asyncOperationsThreadPool = new ThreadPoolExecutor(getConfig().getThreadPoolAsyncOpCoreSize(), getConfig().getThreadPoolAsyncOpMaxSize(),
                 getConfig().getThreadPoolAsyncOpKeepAliveTime(), TimeUnit.MILLISECONDS,
                 new SynchronousQueue<>());
+        asyncOperationsThreadPool.setThreadFactory(new ThreadFactory() {
+            AtomicInteger num = new AtomicInteger(1);
+
+            @Override
+            public Thread newThread(Runnable r) {
+                Thread ret = new Thread(r, "asyncOp " + num);
+                num.set(num.get() + 1);
+                ret.setDaemon(true);
+                return ret;
+            }
+        });
         initializeAndConnect();
     }
 
@@ -1463,7 +1475,7 @@ public class Morphium {
         if (isReplicaSet() && w > 2) {
             de.caluga.morphium.replicaset.ReplicaSetStatus s = rsMonitor.getCurrentStatus();
 
-            if (s == null || s.getActiveNodes() == 0) {
+            if (getConfig().isReplicaset() && s == null || s.getActiveNodes() == 0) {
                 logger.warn("ReplicaSet status is null or no node active! Assuming default write concern");
                 return null;
             }
