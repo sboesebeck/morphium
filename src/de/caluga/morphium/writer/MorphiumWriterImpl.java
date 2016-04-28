@@ -15,8 +15,10 @@ import java.lang.reflect.Method;
 import java.text.SimpleDateFormat;
 import java.util.*;
 import java.util.concurrent.SynchronousQueue;
+import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
 
@@ -61,6 +63,17 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
 //                    logger.warn("Could not schedule...");
 //                }
 //            });
+            executor.setThreadFactory(new ThreadFactory() {
+                AtomicInteger num = new AtomicInteger(1);
+
+                @Override
+                public Thread newThread(Runnable r) {
+                    Thread ret = new Thread(r, "writer " + num);
+                    num.set(num.get() + 1);
+                    ret.setDaemon(true);
+                    return ret;
+                }
+            });
             m.addShutdownListener(this);
         }
     }

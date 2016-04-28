@@ -212,6 +212,7 @@ public class MongoTest {
 
             cfgtmp = MorphiumConfig.createFromJson(cfg.toString());
             cfgtmp.setDriverClass(InMemoryDriver.class.getName());
+            cfgtmp.setReplicasetMonitoring(false);
             morphiumInMemeory = new Morphium(cfgtmp);
 
             cfgtmp = MorphiumConfig.createFromJson(cfg.toString());
