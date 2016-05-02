@@ -27,7 +27,7 @@ import java.util.Map;
 @SuppressWarnings("AssertWithSideEffects")
 public class BasicFunctionalityTest extends MongoTest {
     public static final int NO_OBJECTS = 100;
-    private final static Logger log = new Logger(BasicFunctionalityTest.class);
+    private static final Logger log = new Logger(BasicFunctionalityTest.class);
 
     public BasicFunctionalityTest() {
     }
@@ -345,7 +345,7 @@ public class BasicFunctionalityTest extends MongoTest {
             Query<UncachedObject> q = morphium.createQueryFor(UncachedObject.class);
             q.f("counter").eq(i);
             List<UncachedObject> l = q.asList();
-            assert (l != null && l.size() > 0) : "Nothing found!?!?!?!? Value: " + i;
+            assert (l != null && !l.isEmpty()) : "Nothing found!?!?!?!? Value: " + i;
             UncachedObject fnd = l.get(0);
             assert (fnd != null) : "Error finding element with id " + i;
             assert (fnd.getCounter() == i) : "Counter not equal: " + fnd.getCounter() + " vs. " + i;
@@ -366,7 +366,7 @@ public class BasicFunctionalityTest extends MongoTest {
             Query<CachedObject> q = morphium.createQueryFor(CachedObject.class);
             q.f("counter").eq(i);
             List<CachedObject> l = q.asList();
-            assert (l != null && l.size() > 0) : "Nothing found!?!?!?!? " + i;
+            assert (l != null && !l.isEmpty()) : "Nothing found!?!?!?!? " + i;
             CachedObject fnd = l.get(0);
             assert (fnd != null) : "Error finding element with id " + i;
             assert (fnd.getCounter() == i) : "Counter not equal: " + fnd.getCounter() + " vs. " + i;

@@ -53,6 +53,7 @@ public class MorphiumDriverSpeedTest {
         cfg.setMaxWaitTime(30000);
         cfg.setMinConnectionsPerHost(1);
         cfg.setMaxConnections(100);
+        cfg.setLogLevelForClass(MetaDriver.class, 5);
         m = new Morphium(cfg);
 //        m.getDriver().connect();
 //        Thread.sleep(10000);
@@ -188,9 +189,10 @@ public class MorphiumDriverSpeedTest {
         long start = System.currentTimeMillis();
         m.dropCollection(UncachedObject.class);
         List<Thread> threads = new Vector<>();
-        for (int i = 0; i < 100; i++) {
+        for (int i = 0; i < 50; i++) {
             final int t = i;
             Thread thr = new Thread() {
+                @Override
                 public void run() {
                     for (int j = 0; j < 100; j++) {
                         UncachedObject uc = new UncachedObject();
@@ -210,11 +212,12 @@ public class MorphiumDriverSpeedTest {
 
         start = System.currentTimeMillis();
 
-        for (int i = 0; i < 100; i++) {
+        for (int i = 0; i < 50; i++) {
             final int t = i;
             Thread thr = new Thread() {
+                @Override
                 public void run() {
-                    for (int j = 0; j < 100; j++) {
+                    for (int j = 0; j < 1000; j++) {
                         Query<UncachedObject> q = m.createQueryFor(UncachedObject.class);
                         q.f("counter").eq(t * 100 + j);
                         UncachedObject uc = q.get();

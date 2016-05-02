@@ -153,17 +153,15 @@ public class Logger {
             //no setting yet, looking for prefixes
             int lng = 0;
             for (Map.Entry<Object, Object> p : System.getProperties().entrySet()) {
-                if (s.startsWith(p.getKey().toString())) {
-                    //prefix found
-                    if (p.getKey().toString().length() > lng) {
-                        //keeping the longest prefix
-                        //if s== log.level.de.caluga.morphium.ObjetMapperImpl
-                        // property: morphium.log.level.de.caluga.morphium=5
-                        // property: morphium.log.level.de.caluga=0
-                        // => keep only the longer one (5)
-                        lng = p.getKey().toString().length();
-                        v = p.getValue().toString();
-                    }
+                if (s.startsWith(p.getKey().toString()) && p.getKey().toString().length() > lng) {
+                    //keeping the longest prefix
+                    //if s== log.level.de.caluga.morphium.ObjetMapperImpl
+                    // property: morphium.log.level.de.caluga.morphium=5
+                    // property: morphium.log.level.de.caluga=0
+                    // => keep only the longer one (5)
+                    lng = p.getKey().toString().length();
+                    v = p.getValue().toString();
+
                 }
             }
         }

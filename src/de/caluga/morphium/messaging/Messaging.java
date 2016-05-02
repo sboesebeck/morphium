@@ -11,10 +11,8 @@ import de.caluga.morphium.query.Query;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.*;
-import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.LinkedBlockingQueue;
-import java.util.concurrent.ThreadPoolExecutor;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * User: Stephan Bösebeck
@@ -79,6 +77,17 @@ public class Messaging extends Thread implements ShutdownListener {
             threadPool = new ThreadPoolExecutor(morphium.getConfig().getThreadPoolMessagingCoreSize(), morphium.getConfig().getThreadPoolMessagingMaxSize(),
                     morphium.getConfig().getThreadPoolMessagingKeepAliveTime(), TimeUnit.MILLISECONDS,
                     new LinkedBlockingQueue<>());
+            threadPool.setThreadFactory(new ThreadFactory() {
+                AtomicInteger num = new AtomicInteger(1);
+
+                @Override
+                public Thread newThread(Runnable r) {
+                    Thread ret = new Thread(r, "messaging " + num);
+                    num.set(num.get() + 1);
+                    ret.setDaemon(true);
+                    return ret;
+                }
+            });
         }
         morphium.addShutdownListener(this);
 
@@ -125,6 +134,7 @@ public class Messaging extends Thread implements ShutdownListener {
         return q.asList();
     }
 
+    @Override
     public void run() {
         if (log.isDebugEnabled()) {
             log.debug("Messaging " + id + " started");
@@ -400,7 +410,7 @@ public class Messaging extends Thread implements ShutdownListener {
         m.setLockedBy(null);
         m.setLocked(0);
         m.setSenderHost(hostname);
-        if (m.getTo() != null && m.getTo().size() > 0) {
+        if (m.getTo() != null && !m.getTo().isEmpty()) {
             for (String recipient : m.getTo()) {
                 Msg msg = m.getCopy();
                 msg.setRecipient(recipient);

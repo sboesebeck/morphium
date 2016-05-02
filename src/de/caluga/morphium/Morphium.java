@@ -34,6 +34,7 @@ import java.lang.reflect.Field;
 import java.net.UnknownHostException;
 import java.util.*;
 import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * This is the single access point for accessing MongoDB. This should
@@ -59,7 +60,7 @@ public class Morphium {
      *
      * @see MorphiumConfig
      */
-    private final static Logger logger = new Logger(Morphium.class);
+    private static final Logger logger = new Logger(Morphium.class);
     private MorphiumConfig config;
     private ThreadLocal<Boolean> enableAutoValues = new ThreadLocal<>();
     private ThreadLocal<Boolean> enableReadCache = new ThreadLocal<>();
@@ -141,6 +142,17 @@ public class Morphium {
         asyncOperationsThreadPool = new ThreadPoolExecutor(getConfig().getThreadPoolAsyncOpCoreSize(), getConfig().getThreadPoolAsyncOpMaxSize(),
                 getConfig().getThreadPoolAsyncOpKeepAliveTime(), TimeUnit.MILLISECONDS,
                 new SynchronousQueue<>());
+        asyncOperationsThreadPool.setThreadFactory(new ThreadFactory() {
+            AtomicInteger num = new AtomicInteger(1);
+
+            @Override
+            public Thread newThread(Runnable r) {
+                Thread ret = new Thread(r, "asyncOp " + num);
+                num.set(num.get() + 1);
+                ret.setDaemon(true);
+                return ret;
+            }
+        });
         initializeAndConnect();
     }
 
@@ -163,6 +175,7 @@ public class Morphium {
 
         if (morphiumDriver == null) {
             Runtime.getRuntime().addShutdownHook(new Thread() {
+                @Override
                 public void run() {
                     try {
                         close();
@@ -279,7 +292,7 @@ public class Morphium {
     @SuppressWarnings("UnusedDeclaration")
     private boolean hasValidationSupport() {
         try {
-            Class c = getClass().getClassLoader().loadClass("javax.validation.ValidatorFactory");
+            getClass().getClassLoader().loadClass("javax.validation.ValidatorFactory");
 
         } catch (ClassNotFoundException cnf) {
             return false;
@@ -451,7 +464,7 @@ public class Morphium {
         }
 
         List<String> flds = annotationHelper.getFields(type, Index.class);
-        if (flds != null && flds.size() > 0) {
+        if (flds != null && !flds.isEmpty()) {
 
             for (String f : flds) {
                 Index i = annotationHelper.getField(type, f).getAnnotation(Index.class);
@@ -1177,7 +1190,7 @@ public class Morphium {
         try {
             Map<String, Object> findMetaData = new HashMap<>();
             List<Map<String, Object>> found = morphiumDriver.find(config.getDatabase(), collection, srch, null, null, 0, 1, 1, null, findMetaData);
-            if (found != null && found.size() > 0) {
+            if (found != null && !found.isEmpty()) {
                 Map<String, Object> dbo = found.get(0);
                 Object fromDb = objectMapper.unmarshall(o.getClass(), dbo);
                 if (fromDb == null) throw new RuntimeException("could not reread from db");
@@ -1462,7 +1475,7 @@ public class Morphium {
         if (isReplicaSet() && w > 2) {
             de.caluga.morphium.replicaset.ReplicaSetStatus s = rsMonitor.getCurrentStatus();
 
-            if (s == null || s.getActiveNodes() == 0) {
+            if (getConfig().isReplicaset() && s == null || s.getActiveNodes() == 0) {
                 logger.warn("ReplicaSet status is null or no node active! Assuming default write concern");
                 return null;
             }
@@ -1676,7 +1689,7 @@ public class Morphium {
         T ret = getCache().getFromIDCache(type, id);
         if (ret != null) return ret;
         List<String> ls = annotationHelper.getFields(type, Id.class);
-        if (ls.size() == 0) throw new RuntimeException("Cannot find by ID on non-Entity");
+        if (ls.isEmpty()) throw new RuntimeException("Cannot find by ID on non-Entity");
 
         return createQueryFor(type).setCollectionName(collection).f(ls.get(0)).eq(id).get();
     }
@@ -1775,7 +1788,7 @@ public class Morphium {
     }
 
     public <T> void store(List<T> lst, String collectionName, AsyncOperationCallback<T> callback) {
-        if (lst == null || lst.size() == 0) return;
+        if (lst == null || lst.isEmpty()) return;
         getWriterForClass(lst.get(0).getClass()).store(lst, collectionName, callback);
     }
 

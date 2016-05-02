@@ -114,7 +114,7 @@ public class MessagingTest extends MongoTest {
         q.sort(Msg.Fields.timestamp);
 
         List<Msg> messagesList = q.asList();
-        assert (messagesList.size() == 0) : "Got my own message?!?!?!" + messagesList.get(0).toString();
+        assert (messagesList.isEmpty()) : "Got my own message?!?!?!" + messagesList.get(0).toString();
 
         m = new Msg("name", MsgType.SINGLE, "msgid2", "value", 5000);
         m.setSender("sndId2");
@@ -758,7 +758,7 @@ public class MessagingTest extends MongoTest {
             }
             assert (!m.getProcessedBy().contains(msg.getSenderId()));
 //                assert(!msgCountById.containsKey(m.getMsgId().toString()));
-            msgCountById.put(m.getMsgId().toString(), 1l);
+            msgCountById.put(m.getMsgId().toString(), 1L);
             //simulate processing
             try {
                 Thread.sleep((long) (10 * Math.random()));

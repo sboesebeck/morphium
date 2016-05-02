@@ -64,7 +64,7 @@ public class FilterExpression {
     @Override
     public String toString() {
         StringBuilder c = new StringBuilder();
-        if (children != null && children.size() > 0) {
+        if (children != null && !children.isEmpty()) {
             c.append("[ ");
             for (FilterExpression fe : children) {
                 c.append(fe.toString());

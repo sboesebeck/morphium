@@ -90,6 +90,7 @@ public class SequenceTest extends MongoTest {
         final Vector<Long> data = new Vector<>();
         for (int i = 0; i < 10; i++) {
             Thread t = new Thread() {
+                @Override
                 public void run() {
                     for (int i = 0; i < 25; i++) {
                         long nv = sg1.getNextValue();
@@ -131,6 +132,7 @@ public class SequenceTest extends MongoTest {
         Vector<Thread> thr = new Vector<>();
         for (final SequenceGenerator g : gens) {
             Thread t = new Thread() {
+                @Override
                 public void run() {
                     double max = Math.random() * 100;
                     for (int i = 0; i < max; i++) {

@@ -64,7 +64,7 @@ public class PrefetchingMorphiumIterator<T> implements MorphiumIterator<T> {
                 q.sort("_id"); //always sort with id field if no sort is given
             }
             List list = q.asList();
-            if (list.size() == 0) {
+            if (list.isEmpty()) {
                 log.error("No results?");
             }
             return list;
@@ -128,7 +128,7 @@ public class PrefetchingMorphiumIterator<T> implements MorphiumIterator<T> {
             Thread.yield();
         }
         T ret;
-        if (prefetchBuffers[0].getData().size() == 0) {
+        if (prefetchBuffers[0].getData().isEmpty()) {
             ret = null;
         } else {
             ret = prefetchBuffers[0].getData().get(cursor % windowSize);

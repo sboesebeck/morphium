@@ -130,6 +130,7 @@ public class ObjectMapperTest extends MongoTest {
 
         for (int i = 0; i < 100; i++) {
             new Thread() {
+                @Override
                 public void run() {
                     ObjectMapperImpl om = (ObjectMapperImpl) morphium.getMapper();
                     assert (om.getCollectionName(CachedObject.class).equals("cached_object")) : "Cached object test failed";
@@ -417,7 +418,7 @@ public class ObjectMapperTest extends MongoTest {
         }
         dur = System.currentTimeMillis() - start;
         log.info("De-Marshalling of ComplexObject 25000 times took " + dur + "ms");
-        assert (dur < 1000);
+        assert (dur < 1500);
 
     }
 

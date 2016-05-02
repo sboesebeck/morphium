@@ -16,7 +16,7 @@ import java.util.*;
  */
 public class AggregatorImpl<T, R> implements Aggregator<T, R> {
     private Class<? extends T> type;
-    private List<Map<String, Object>> params = new ArrayList<>();
+    private final List<Map<String, Object>> params = new ArrayList<>();
     private Morphium morphium;
     private Class<? extends R> rType;
     private String collectionName;
@@ -94,6 +94,13 @@ public class AggregatorImpl<T, R> implements Aggregator<T, R> {
     public Aggregator<T, R> match(Query<T> q) {
         Map<String, Object> o = Utils.getMap("$match", q.toQueryObject());
         collectionName = q.getCollectionName();
+        params.add(o);
+        return this;
+    }
+
+    @Override
+    public Aggregator<T, R> matchSubQuery(Query<?> q) {
+        Map<String, Object> o = Utils.getMap("$match", q.toQueryObject());
         params.add(o);
         return this;
     }

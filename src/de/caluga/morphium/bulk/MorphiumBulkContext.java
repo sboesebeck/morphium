@@ -68,6 +68,7 @@ public class MorphiumBulkContext<T> {
             firePost();
         } else {
             new Thread() {
+                @Override
                 public void run() {
                     firePre();
                     try {

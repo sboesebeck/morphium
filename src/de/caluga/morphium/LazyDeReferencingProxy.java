@@ -8,7 +8,7 @@ import java.lang.reflect.Method;
 
 public class LazyDeReferencingProxy<T> implements MethodInterceptor, Serializable {
     private static final long serialVersionUID = 3777709000906217075L;
-    private transient final Morphium morphium;
+    private final transient Morphium morphium;
     private final String fieldname;
     private final Object container;
     private final String collectionName;
@@ -16,7 +16,7 @@ public class LazyDeReferencingProxy<T> implements MethodInterceptor, Serializabl
     private Class<? extends T> cls;
     private Object id;
 
-    private final static Logger log = new Logger(LazyDeReferencingProxy.class);
+    private static final Logger log = new Logger(LazyDeReferencingProxy.class);
 
     public LazyDeReferencingProxy(Morphium m, Class<? extends T> type, Object id, Object container, String fieldname, String collectionName) {
         cls = type;

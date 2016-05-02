@@ -47,7 +47,7 @@ public class CachePerformanceTest {
     @Warmup(iterations = 2)
     @Threads(10)
     @BenchmarkMode({Mode.AverageTime, Mode.Throughput})
-    @OperationsPerInvocation(value = 1)
+    @OperationsPerInvocation()
     @Fork(1)
     @Measurement(iterations = 5, time = -1)
     public void cachePerformanceTest() throws Exception {
@@ -87,7 +87,7 @@ public class CachePerformanceTest {
     @Warmup(iterations = 2)
     @Threads(10)
     @BenchmarkMode({Mode.AverageTime, Mode.Throughput})
-    @OperationsPerInvocation(value = 1)
+    @OperationsPerInvocation()
     @Fork(1)
     @Measurement(iterations = 5, time = -1)
     public void arHelperPerformanceTest() throws Exception {

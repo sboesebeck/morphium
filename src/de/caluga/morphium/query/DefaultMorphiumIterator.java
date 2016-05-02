@@ -82,7 +82,7 @@ public class DefaultMorphiumIterator<T> implements MorphiumIterator<T> {
             if (log.isDebugEnabled()) {
                 log.debug("Reached window boundary - read in: " + buffer.size() + " limit:" + windowSize + " pos: " + cursor);
             }
-            if (buffer == null || buffer.size() == 0) {
+            if (buffer == null || buffer.isEmpty()) {
                 log.fatal("Buffer is empty!?!?!?! cursor: " + cursor + " cnt: " + count + " window: " + windowSize + " query: " + q.toQueryObject().toString());
             } else {
                 updateLastValues(q, buffer);
