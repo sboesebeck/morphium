@@ -90,6 +90,7 @@ public class CacheHousekeeper extends Thread {
     }
 
     @SuppressWarnings({"unchecked", "ConstantConditions"})
+    @Override
     public void run() {
         while (running) {
             if (annotationHelper == null) {
@@ -172,14 +173,14 @@ public class CacheHousekeeper extends Thread {
                         CacheElement e = est.getValue(); //ch.get(k);
 
                         if (e == null || e.getFound() == null || System.currentTimeMillis() - e.getCreated() > time) {
-                            toDelete.putIfAbsent(clz, new ArrayList<String>());
+                            toDelete.putIfAbsent(clz, new ArrayList<>());
                             toDelete.get(clz).add(k);
                             del++;
                         } else {
-                            lruTime.putIfAbsent(e.getLru(), new ArrayList<String>());
+                            lruTime.putIfAbsent(e.getLru(), new ArrayList<>());
                             lruTime.get(e.getLru()).add(k);
                             long fifo = System.currentTimeMillis() - e.getCreated();
-                            fifoTime.putIfAbsent(fifo, new ArrayList<String>());
+                            fifoTime.putIfAbsent(fifo, new ArrayList<>());
                             fifoTime.get(fifo).add(k);
                         }
                     }
@@ -194,11 +195,11 @@ public class CacheHousekeeper extends Thread {
                                 idx = 0;
                                 while (cache.get(clz).size() - del > maxEntries) {
                                     if (lruTime.get(array[idx]) != null && lruTime.get(array[idx]).size() != 0) {
-                                        toDelete.putIfAbsent(clz, new ArrayList<String>());
+                                        toDelete.putIfAbsent(clz, new ArrayList<>());
                                         toDelete.get(clz).add(lruTime.get(array[idx]).get(0));
                                         lruTime.get(array[idx]).remove(0);
                                         del++;
-                                        if (lruTime.get(array[idx]).size() == 0) {
+                                        if (lruTime.get(array[idx]).isEmpty()) {
                                             idx++;
                                         }
 
@@ -211,11 +212,11 @@ public class CacheHousekeeper extends Thread {
                                 idx = 0;
                                 while (cache.get(clz).size() - del > maxEntries) {
                                     if (fifoTime.get(array[array.length - 1 - idx]) != null && fifoTime.get(array[array.length - 1 - idx]).size() != 0) {
-                                        toDelete.putIfAbsent(clz, new ArrayList<String>());
+                                        toDelete.putIfAbsent(clz, new ArrayList<>());
                                         toDelete.get(clz).add(fifoTime.get(array[array.length - 1 - idx]).get(0));
                                         fifoTime.get(array[array.length - 1 - idx]).remove(0);
                                         del++;
-                                        if (fifoTime.get(array[array.length - 1 - idx]).size() == 0) {
+                                        if (fifoTime.get(array[array.length - 1 - idx]).isEmpty()) {
                                             idx++;
                                         }
                                     }
@@ -229,10 +230,10 @@ public class CacheHousekeeper extends Thread {
                                 idx = 0;
                                 while (cache.get(clz).size() - del > maxEntries) {
                                     if (lruTime.get(array[idx]) != null && lruTime.get(array[idx]).size() != 0) {
-                                        toDelete.putIfAbsent(clz, new ArrayList<String>());
+                                        toDelete.putIfAbsent(clz, new ArrayList<>());
                                         toDelete.get(clz).add(lruTime.get(array[idx]).get(0));
                                         del++;
-                                        if (lruTime.get(array[idx]).size() == 0) {
+                                        if (lruTime.get(array[idx]).isEmpty()) {
                                             idx++;
                                         }
                                     }

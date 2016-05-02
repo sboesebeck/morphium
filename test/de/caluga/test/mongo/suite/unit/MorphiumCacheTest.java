@@ -89,7 +89,7 @@ public class MorphiumCacheTest {
         MorphiumCache imp = new MorphiumCacheImpl();
         assert (imp.getIdCache() != null);
         assert (imp.getIdCache() instanceof Map);
-        assert (imp.getIdCache().size() == 0);
+        assert (imp.getIdCache().isEmpty());
     }
 
     @Test

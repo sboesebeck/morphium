@@ -9,7 +9,7 @@ import java.util.Map;
 @SuppressWarnings("StringBufferMayBeStringBuilder")
 public class Statistics extends HashMap<String, Double> {
     private static final long serialVersionUID = -2368547656520608318L;
-    private transient final Morphium morphium;
+    private final transient Morphium morphium;
 
 
     @SuppressWarnings("rawtypes")

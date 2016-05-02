@@ -208,7 +208,7 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
                 up.setMultiple(false);
                 up.setUpsert(true); //insert for non-objectId
                 up.setQuery((morphium.createQueryFor(o.getClass()).f(morphium.getARHelper().getIdFieldName(o)).eq(morphium.getARHelper().getId(o))).toQueryObject());
-                Map<String, Object> cmd = new HashMap<String, Object>();
+                Map<String, Object> cmd = new HashMap<>();
                 up.setCmd(Utils.getMap("$set", cmd));
                 for (String f : morphium.getARHelper().getFields(o.getClass())) {
                     try {
@@ -226,7 +226,7 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
 
     @Override
     public <T> void store(final List<T> lst, final String collectionName, AsyncOperationCallback<T> c) {
-        if (lst == null || lst.size() == 0) {
+        if (lst == null || lst.isEmpty()) {
             if (c != null)
                 c.onOperationSucceeded(AsyncOperationType.WRITE, null, 0, lst, null);
             return;
@@ -243,7 +243,7 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
             for (T o : lst) {
                 map.put(o, morphium.getARHelper().getId(o) == null);
             }
-            List<Map<String, Object>> toInsert = new ArrayList<Map<String, Object>>();
+            List<Map<String, Object>> toInsert = new ArrayList<>();
             for (Map.Entry<Object, Boolean> entry : map.entrySet()) {
                 if (entry.getValue()) {
                     toInsert.add(morphium.getMapper().marshall(entry.getKey()));
@@ -279,7 +279,7 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
             r.setMultiple(false);
             r.setUpsert(false);
             r.setQuery(query.toQueryObject());
-            Map<String, Object> set = new HashMap<String, Object>();
+            Map<String, Object> set = new HashMap<>();
             r.setCmd(Utils.getMap("$set", set));
             for (String f : flds) {
                 String fld = morphium.getARHelper().getFieldName(query.getType(), f);
@@ -331,7 +331,7 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
             wr.setMultiple(multiple);
             morphium.getCache().clearCacheIfNecessary(query.getType());
             wr.setQuery(query.toQueryObject());
-            Map<String, Object> set = new HashMap<String, Object>();
+            Map<String, Object> set = new HashMap<>();
             wr.setCmd(Utils.getMap("$set", set));
             for (Map.Entry kv : values.entrySet()) {
                 String fld = morphium.getARHelper().getFieldName(query.getType(), kv.getKey().toString());
@@ -354,12 +354,12 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
             UpdateBulkRequest wr = new UpdateBulkRequest();
             wr.setQuery(query.toQueryObject());
             wr.setUpsert(upsert);
-            Map<String, Object> inc = new HashMap<String, Object>();
+            Map<String, Object> inc = new HashMap<>();
             wr.setCmd(Utils.getMap("$inc", inc));
             morphium.getCache().clearCacheIfNecessary(query.getType());
             for (Map.Entry kv : fieldsToInc.entrySet()) {
                 String fld = morphium.getARHelper().getFieldName(query.getType(), kv.getKey().toString());
-                inc.put(fld, (Double) kv.getValue());
+                inc.put(fld, kv.getValue());
             }
             morphium.firePostUpdateEvent(query.getType(), MorphiumStorageListener.UpdateTypes.INC);
         }, c, AsyncOperationType.INC);
@@ -445,6 +445,7 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
 
         housekeeping = new Thread() {
             @SuppressWarnings("SynchronizeOnNonFinalField")
+            @Override
             public void run() {
                 while (running) {
                     try {
@@ -455,7 +456,7 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
 
 
                         for (Class<?> clz : localBuffer) {
-                            if (opLog.get(clz) == null || opLog.get(clz).size() == 0) {
+                            if (opLog.get(clz) == null || opLog.get(clz).isEmpty()) {
                                 continue;
                             }
                             WriteBuffer w = morphium.getARHelper().getAnnotationFromHierarchy(clz, WriteBuffer.class);
@@ -774,7 +775,7 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
 //        synchronized (opLog) {
         localBuffer.addAll(opLog.keySet());
         for (Class<?> clz : localBuffer) {
-            if (opLog.get(clz) == null || opLog.get(clz).size() == 0) {
+            if (opLog.get(clz) == null || opLog.get(clz).isEmpty()) {
                 continue;
             }
             opLog.get(clz).addAll(flushQueueToMongo(opLog.get(clz)));

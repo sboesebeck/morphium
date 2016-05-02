@@ -54,6 +54,7 @@ public class PerformanceTests {
         for (int i = 0; i < threads; i++) {
             final int j = i;
             Thread t = new Thread() {
+                @Override
                 public void run() {
                     for (int k = 0; k < 1000; k++) {
 //                        synchronized (map) {
@@ -96,6 +97,7 @@ public class PerformanceTests {
         for (int i = 0; i < threads; i++) {
             final int j = i;
             Thread t = new Thread() {
+                @Override
                 public void run() {
                     for (int k = 0; k < 1000; k++) {
 //                        synchronized (map) {
@@ -178,6 +180,7 @@ public class PerformanceTests {
         for (int i = 0; i < threads; i++) {
             final int j = i;
             Thread t = new Thread() {
+                @Override
                 public void run() {
                     for (int k = 0; k < 1000; k++) {
 //                        synchronized (lst) {
@@ -210,6 +213,7 @@ public class PerformanceTests {
         for (int i = 0; i < threads; i++) {
             final int j = i;
             Thread t = new Thread() {
+                @Override
                 public void run() {
                     for (int k = 0; k < 1000; k++) {
 //                        synchronized (lst) {

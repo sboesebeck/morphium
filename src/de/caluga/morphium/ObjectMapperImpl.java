@@ -22,7 +22,7 @@ import java.util.*;
  * Time: 19:36
  * <p>
  */
-@SuppressWarnings({"ConstantConditions", "MismatchedQueryAndUpdateOfCollection", "unchecked", "MismatchedReadAndWriteOfArray"})
+@SuppressWarnings({"ConstantConditions", "MismatchedQueryAndUpdateOfCollection", "unchecked", "MismatchedReadAndWriteOfArray", "RedundantCast"})
 public class ObjectMapperImpl implements ObjectMapper {
     private static Logger log = new Logger(ObjectMapperImpl.class);
     private Map<Class<?>, NameProvider> nameProviders;
@@ -34,6 +34,7 @@ public class ObjectMapperImpl implements ObjectMapper {
 
     private List<Class<?>> mongoTypes;
     final ReflectionFactory reflection = ReflectionFactory.getReflectionFactory();
+    private ContainerFactory containerFactory;
 
     public ObjectMapperImpl() {
 
@@ -51,6 +52,17 @@ public class ObjectMapperImpl implements ObjectMapper {
         mongoTypes.add(Byte.class);
         customMapper = new Hashtable<>();
         customMapper.put(BigInteger.class, new BigIntegerTypeMapper());
+        containerFactory = new ContainerFactory() {
+            @Override
+            public Map createObjectContainer() {
+                return new HashMap<>();
+            }
+
+            @Override
+            public List creatArrayContainer() {
+                return new ArrayList();
+            }
+        };
 
 
     }
@@ -489,18 +501,8 @@ public class ObjectMapperImpl implements ObjectMapper {
 
     @Override
     public <T> T unmarshall(Class<? extends T> cls, String jsonString) throws ParseException {
-        ContainerFactory fact = new ContainerFactory() {
-            @Override
-            public Map createObjectContainer() {
-                return new HashMap<>();
-            }
 
-            @Override
-            public List creatArrayContainer() {
-                return new ArrayList();
-            }
-        };
-        HashMap<String, Object> obj = (HashMap<String, Object>) jsonParser.parse(jsonString, fact);
+        HashMap<String, Object> obj = (HashMap<String, Object>) jsonParser.parse(jsonString, containerFactory);
         return unmarshall(cls, obj);
 
 
@@ -597,7 +599,7 @@ public class ObjectMapperImpl implements ObjectMapper {
                             } else {
                                 data.put(k, createMap((Map<String, Object>) o.get(k)));
                             }
-                        } else if (o.get(k) instanceof List && ((List) o.get(k)).size() > 0 && ((List) o.get(k)).get(0) instanceof Map) {
+                        } else if (o.get(k) instanceof List && !((List) o.get(k)).isEmpty() && ((List) o.get(k)).get(0) instanceof Map) {
                             data.put(k, createList((List<Map<String, Object>>) o.get(k)));
                         } else {
                             data.put(k, o.get(k));
@@ -633,7 +635,7 @@ public class ObjectMapperImpl implements ObjectMapper {
                         if (id != null) {
                             if (reference.lazyLoading()) {
                                 List<String> lst = annotationHelper.getFields(fld.getType(), Id.class);
-                                if (lst.size() == 0)
+                                if (lst.isEmpty())
                                     throw new IllegalArgumentException("Referenced object does not have an ID? Is it an Entity?");
                                 if (id instanceof String && annotationHelper.getField(fld.getType(), lst.get(0)).getType().equals(MorphiumId.class)) {
                                     id = new MorphiumId(id.toString());
@@ -741,11 +743,12 @@ public class ObjectMapperImpl implements ObjectMapper {
                                     if (lst.get(i) instanceof Double) {
                                         Array.set(arr, i, ((Double) lst.get(i)).intValue());
                                     } else if (lst.get(i) instanceof Integer) {
-                                        Array.set(arr, i, ((Integer) lst.get(i)).intValue());
+                                        Array.set(arr, i, (Integer) lst.get(i));
                                     } else if (lst.get(i) instanceof Long) {
                                         Array.set(arr, i, ((Long) lst.get(i)).intValue());
                                     } else {
-                                        Array.set(arr, i, (Integer) lst.get(i));
+                                        //noinspection RedundantCast
+                                        Array.set(arr, i, lst.get(i));
                                     }
 
                                 } else if (fld.getType().getComponentType().equals(long.class)) {
@@ -754,9 +757,9 @@ public class ObjectMapperImpl implements ObjectMapper {
                                     } else if (lst.get(i) instanceof Integer) {
                                         Array.set(arr, i, ((Integer) lst.get(i)).longValue());
                                     } else if (lst.get(i) instanceof Long) {
-                                        Array.set(arr, i, ((Long) lst.get(i)).longValue());
-                                    } else {
                                         Array.set(arr, i, (Long) lst.get(i));
+                                    } else {
+                                        Array.set(arr, i, lst.get(i));
                                     }
 
                                 } else if (fld.getType().getComponentType().equals(float.class)) {
@@ -768,7 +771,7 @@ public class ObjectMapperImpl implements ObjectMapper {
                                     } else if (lst.get(i) instanceof Long) {
                                         Array.set(arr, i, ((Long) lst.get(i)).floatValue());
                                     } else {
-                                        Array.set(arr, i, (Float) lst.get(i));
+                                        Array.set(arr, i, lst.get(i));
                                     }
 
                                 } else if (fld.getType().getComponentType().equals(double.class)) {
@@ -779,7 +782,7 @@ public class ObjectMapperImpl implements ObjectMapper {
                                     } else if (lst.get(i) instanceof Long) {
                                         Array.set(arr, i, ((Long) lst.get(i)).doubleValue());
                                     } else {
-                                        Array.set(arr, i, (Double) lst.get(i));
+                                        Array.set(arr, i, lst.get(i));
                                     }
 
                                 } else if (fld.getType().getComponentType().equals(byte.class)) {
@@ -788,15 +791,15 @@ public class ObjectMapperImpl implements ObjectMapper {
                                     } else if (lst.get(i) instanceof Long) {
                                         Array.set(arr, i, ((Long) lst.get(i)).byteValue());
                                     } else {
-                                        Array.set(arr, i, (Byte) lst.get(i));
+                                        Array.set(arr, i, lst.get(i));
                                     }
                                 } else if (fld.getType().getComponentType().equals(boolean.class)) {
                                     if (lst.get(i) instanceof String) {
                                         Array.set(arr, i, lst.get(i).toString().equalsIgnoreCase("true"));
                                     } else if (lst.get(i) instanceof Integer) {
-                                        Array.set(arr, i, ((Integer) lst.get(i)).intValue() == 1);
+                                        Array.set(arr, i, (Integer) lst.get(i) == 1);
                                     } else {
-                                        Array.set(arr, i, (Boolean) lst.get(i));
+                                        Array.set(arr, i, lst.get(i));
                                     }
 
                                 }
@@ -1055,7 +1058,7 @@ public class ObjectMapperImpl implements ObjectMapper {
 //                    Reference reference = forField != null ? forField.getAnnotation(Reference.class) : null;
 //
 //                    if (reference != null && reference.lazyLoading()) {
-//                        if (idFlds.size() == 0)
+//                        if (idFlds.isEmpty())
 //                            throw new IllegalArgumentException("Referenced object does not have an ID? Is it an Entity?");
 //                        toFillIn.add(morphium.createLazyLoadedEntity(clz, id, containerEntity, forField.getName()));
 //                    } else {

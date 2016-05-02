@@ -1,5 +1,6 @@
 package de.caluga.test.mongo.suite;
 
+import de.caluga.morphium.Morphium;
 import de.caluga.morphium.annotations.ReadPreferenceLevel;
 import de.caluga.morphium.async.AsyncOperationCallback;
 import de.caluga.morphium.async.AsyncOperationType;
@@ -7,6 +8,10 @@ import de.caluga.morphium.query.Query;
 import de.caluga.test.mongo.suite.data.Person;
 import de.caluga.test.mongo.suite.data.UncachedObject;
 import org.junit.Test;
+import org.junit.experimental.theories.DataPoints;
+import org.junit.experimental.theories.Theories;
+import org.junit.experimental.theories.Theory;
+import org.junit.runner.RunWith;
 
 import java.util.ArrayList;
 import java.util.Date;
@@ -19,12 +24,18 @@ import java.util.List;
  * <p/>
  */
 @SuppressWarnings("AssertWithSideEffects")
+@RunWith(Theories.class)
 public class BulkInsertTest extends MongoTest {
     private boolean asyncSuccess = true;
     private boolean asyncCall = false;
 
-    @Test
-    public void maxWriteBatchTest() throws Exception {
+    @DataPoints
+    public static final Morphium[] morphiums = new Morphium[]{morphiumInMemeory, morphiumSingleConnectThreadded, morphiumMeta, morphiumMongodb};//getMorphiums().toArray(new Morphium[getMorphiums().size()]);
+
+
+    @Theory
+    public void maxWriteBatchTest(Morphium morphium) throws Exception {
+        logSeparator("Using driver: " + morphium.getDriver().getClass().getName());
         morphium.clearCollection(UncachedObject.class);
 
         List<UncachedObject> lst = new ArrayList<>();
@@ -35,7 +46,9 @@ public class BulkInsertTest extends MongoTest {
             lst.add(u);
         }
         morphium.storeList(lst);
-        assert (morphium.createQueryFor(UncachedObject.class).countAll() == 4212);
+        Thread.sleep(1000);
+        long l = morphium.createQueryFor(UncachedObject.class).countAll();
+        assert (l == 4212) : "Count wrong: " + l;
 
         for (UncachedObject u : lst) {
             u.setCounter(u.getCounter() + 1000);
@@ -51,8 +64,9 @@ public class BulkInsertTest extends MongoTest {
 
     }
 
-    @Test
-    public void bulkInsert() throws Exception {
+    @Theory
+    public void bulkInsert(Morphium morphium) throws Exception {
+        logSeparator("Using driver: " + morphium.getDriver().getClass().getName());
         morphium.clearCollection(UncachedObject.class);
         log.info("Start storing single");
         long start = System.currentTimeMillis();
@@ -88,8 +102,9 @@ public class BulkInsertTest extends MongoTest {
 
     }
 
-    @Test
-    public void bulkInsertAsync() throws Exception {
+    @Theory
+    public void bulkInsertAsync(Morphium morphium) throws Exception {
+        logSeparator("Using driver: " + morphium.getDriver().getClass().getName());
         morphium.clearCollection(UncachedObject.class);
         log.info("Start storing single");
         long start = System.currentTimeMillis();

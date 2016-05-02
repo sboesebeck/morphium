@@ -39,7 +39,7 @@ public class BasicReadWriteTest {
     @Warmup(iterations = 1)
     @Threads(1)
     @BenchmarkMode({Mode.SampleTime, Mode.All, Mode.AverageTime, Mode.Throughput})
-    @OperationsPerInvocation(value = 1)
+    @OperationsPerInvocation()
     @Fork(1)
     @Measurement(iterations = 5, time = -1)
     public void basicWriteTestAutoCappingEnabled() {
@@ -53,7 +53,7 @@ public class BasicReadWriteTest {
     @Warmup(iterations = 1)
     @Threads(1)
     @BenchmarkMode({Mode.SampleTime, Mode.All, Mode.AverageTime, Mode.Throughput})
-    @OperationsPerInvocation(value = 1)
+    @OperationsPerInvocation()
     @Fork(1)
     @Measurement(iterations = 5, time = -1)
     public void basicWriteTestAutoCappingDisabled() {

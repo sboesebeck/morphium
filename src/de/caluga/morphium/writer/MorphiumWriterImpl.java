@@ -15,8 +15,10 @@ import java.lang.reflect.Method;
 import java.text.SimpleDateFormat;
 import java.util.*;
 import java.util.concurrent.SynchronousQueue;
+import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
 
@@ -61,6 +63,17 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
 //                    logger.warn("Could not schedule...");
 //                }
 //            });
+            executor.setThreadFactory(new ThreadFactory() {
+                AtomicInteger num = new AtomicInteger(1);
+
+                @Override
+                public Thread newThread(Runnable r) {
+                    Thread ret = new Thread(r, "writer " + num);
+                    num.set(num.get() + 1);
+                    ret.setDaemon(true);
+                    return ret;
+                }
+            });
             m.addShutdownListener(this);
         }
     }
@@ -86,6 +99,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                 callback = cb;
             }
 
+            @Override
             public void run() {
                 long start = System.currentTimeMillis();
 
@@ -259,7 +273,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                 }
             }
             if (aNew) {
-                if (lst == null || lst.size() == 0) {
+                if (lst == null || lst.isEmpty()) {
                     logger.error("Unable to store creation time as @CreationTime for field is missing");
                 } else {
                     long now = System.currentTimeMillis();
@@ -296,7 +310,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
 
         if (morphium.getARHelper().isAnnotationPresentInHierarchy(type, LastChange.class)) {
             List<String> lst = morphium.getARHelper().getFields(type, LastChange.class);
-            if (lst != null && lst.size() > 0) {
+            if (lst != null && !lst.isEmpty()) {
                 long now = System.currentTimeMillis();
                 for (String ctf : lst) {
                     Object val = null;
@@ -341,9 +355,10 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                     callback = cb;
                 }
 
+                @Override
                 public void run() {
                     try {
-                        if (lst == null || lst.size() == 0) return;
+                        if (lst == null || lst.isEmpty()) return;
                         ArrayList<Map<String, Object>> dbLst = new ArrayList<>();
 //        DBCollection collection = morphium.getDbName().getCollection(collectionName);
                         WriteConcern wc = morphium.getWriteConcernForClass(lst.get(0).getClass());
@@ -426,6 +441,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                     callback = cb;
                 }
 
+                @Override
                 public void run() {
 //                    System.out.println(System.currentTimeMillis()+" -  storing" );
                     HashMap<Class, List<Object>> sorted = new HashMap<>();
@@ -499,7 +515,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                             }
 
                             long start = System.currentTimeMillis();
-                            if (dbLst.size() > 0) {
+                            if (!dbLst.isEmpty()) {
 //                                System.out.println(System.currentTimeMillis()+" -  driver call" );
                                 morphium.getDriver().store(morphium.getConfig().getDatabase(), coll, dbLst, wc);
 //                                System.out.println(System.currentTimeMillis()+" -  driver finish" );
@@ -608,7 +624,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                 } else {
                     Capped capped = morphium.getARHelper().getAnnotationFromHierarchy(c, Capped.class);
                     if (capped != null) {
-                        Map<String, Object> cmd = new HashMap<String, Object>();
+                        Map<String, Object> cmd = new HashMap<>();
                         cmd.put("convertToCapped", coll);
                         cmd.put("size", capped.maxSize());
                         cmd.put("max", capped.maxEntries());
@@ -1667,8 +1683,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                 String coll = morphium.getMapper().getCollectionName(cls);
                 morphium.firePreUpdateEvent(morphium.getARHelper().getRealClass(cls), push ? MorphiumStorageListener.UpdateTypes.PUSH : MorphiumStorageListener.UpdateTypes.PULL);
                 long start = System.currentTimeMillis();
-                List lst = value.stream().map(o -> marshallIfNecessary(o)).collect(Collectors.toList());
-                value = lst;
+                value = value.stream().map(o -> marshallIfNecessary(o)).collect(Collectors.toList());
                 try {
                     Map<String, Object> qobj = query.toQueryObject();
                     if (upsert) {
@@ -1791,6 +1806,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                 callback = cb;
             }
 
+            @Override
             public void run() {
                 List<String> fields = morphium.getARHelper().getFields(cls);
 

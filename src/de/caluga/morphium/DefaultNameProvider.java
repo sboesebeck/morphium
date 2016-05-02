@@ -23,7 +23,7 @@ public final class DefaultNameProvider implements NameProvider {
         } else {
 
             if (translateCamelCase) {
-                AnnotationAndReflectionHelper ar = null;
+                AnnotationAndReflectionHelper ar;
                 if (morphium != null) {
                     ar = morphium.getARHelper();
                 } else {

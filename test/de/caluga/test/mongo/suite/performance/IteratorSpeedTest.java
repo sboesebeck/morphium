@@ -52,7 +52,7 @@ public class IteratorSpeedTest {
     @Warmup(iterations = 2)
     @Threads(1)
     @BenchmarkMode({Mode.AverageTime})
-    @OperationsPerInvocation(value = 1)
+    @OperationsPerInvocation()
     @Fork(1)
     @Measurement(iterations = 5, time = -1)
     public void defaultIteratorTest() throws Exception {
@@ -71,7 +71,7 @@ public class IteratorSpeedTest {
     @Warmup(iterations = 2)
     @Threads(1)
     @BenchmarkMode({Mode.AverageTime})
-    @OperationsPerInvocation(value = 1)
+    @OperationsPerInvocation()
     @Fork(1)
     @Measurement(iterations = 5, time = -1)
     public void prefetchingIteratorTest() throws Exception {
@@ -88,7 +88,7 @@ public class IteratorSpeedTest {
     @Warmup(iterations = 2)
     @Threads(1)
     @BenchmarkMode({Mode.AverageTime})
-    @OperationsPerInvocation(value = 1)
+    @OperationsPerInvocation()
     @Fork(1)
     @Measurement(iterations = 5, time = -1)
     public void bufferedIteratorTest() throws Exception {
@@ -105,7 +105,7 @@ public class IteratorSpeedTest {
     @Warmup(iterations = 2)
     @Threads(1)
     @BenchmarkMode({Mode.AverageTime})
-    @OperationsPerInvocation(value = 1)
+    @OperationsPerInvocation()
     @Fork(1)
     @Measurement(iterations = 5, time = -1)
     public void oldPrefetchingIteratorTest() throws Exception {

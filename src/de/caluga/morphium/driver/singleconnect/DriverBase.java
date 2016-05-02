@@ -6,9 +6,12 @@ import de.caluga.morphium.driver.ReadPreference;
 import de.caluga.morphium.driver.WriteConcern;
 import de.caluga.morphium.driver.mongodb.Maximums;
 
+import java.net.InetAddress;
+import java.net.UnknownHostException;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Vector;
 
 /**
  * User: Stephan Bösebeck
@@ -36,7 +39,7 @@ public abstract class DriverBase implements MorphiumDriver {
     private boolean defaultJ = false;
     private int localThreshold = 0;
     private int heartbeatConnectionTimeout = 1000;
-    private String[] hostSeed;
+    private List<String> hostSeed;
     private int heartbeatSocketTimeout = 1000;
     private int heartbeatFrequency = 2000;
     private boolean useSSL = false;
@@ -179,7 +182,6 @@ public abstract class DriverBase implements MorphiumDriver {
 
     @Override
     public void setDefaultFsync(boolean j) {
-        boolean defaultFsync = j;
     }
 
 
@@ -226,7 +228,8 @@ public abstract class DriverBase implements MorphiumDriver {
 
     @Override
     public String[] getHostSeed() {
-        return hostSeed;
+        if (hostSeed == null) return null;
+        return hostSeed.toArray(new String[hostSeed.size()]);
     }
 
     @Override
@@ -347,7 +350,15 @@ public abstract class DriverBase implements MorphiumDriver {
 
     @Override
     public void setHostSeed(String... host) {
-        hostSeed = host;
+        if (hostSeed == null) hostSeed = new Vector<>();
+        for (String h : host) {
+            try {
+                hostSeed.add(getHostAdress(h));
+            } catch (UnknownHostException e) {
+                throw new RuntimeException("Could not add host", e);
+            }
+        }
+
     }
 
     @Override
@@ -406,4 +417,12 @@ public abstract class DriverBase implements MorphiumDriver {
     }
 
 
+    public String getHostAdress(String hn) throws UnknownHostException {
+        String hst[] = hn.split(":");
+        String h = hst[0];
+        int port = 27017;
+        if (hst.length > 1) port = Integer.valueOf(hst[1]);
+        InetAddress in = InetAddress.getByName(h);
+        return in.getHostAddress() + ":" + port;
+    }
 }

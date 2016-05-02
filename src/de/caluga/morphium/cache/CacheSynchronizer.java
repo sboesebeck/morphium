@@ -72,7 +72,7 @@ public class CacheSynchronizer implements MessageListener, MorphiumStorageListen
     }
 
     public void addSyncListener(Class type, CacheSyncListener cl) {
-        listenerForType.putIfAbsent(type, new Vector<CacheSyncListener>());
+        listenerForType.putIfAbsent(type, new Vector<>());
         listenerForType.get(type).add(cl);
     }
 

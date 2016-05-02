@@ -56,8 +56,7 @@ public class CustomCollectionNameTest extends MongoTest {
         EntityCollectionName eFetched = q.get();
         assert eFetched != null : "fetched before delete";
 
-        AsyncOperationCallback<EntityCollectionName> a = null;
-        m.delete(q, a);
+        m.delete(q, (AsyncOperationCallback<EntityCollectionName>) null);
 
         EntityCollectionName eFetched2 = q.get();
         assert eFetched2 == null : "fetched after delete";

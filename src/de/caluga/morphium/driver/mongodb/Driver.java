@@ -393,11 +393,7 @@ public class Driver implements MorphiumDriver {
             Document ret = mongo.getDatabase("admin").runCommand(new BasicDBObject("replSetGetStatus", 1));
             List<Document> mem = (List) ret.get("members");
             if (mem == null) return null;
-            for (Document d : mem) {
-                if (d.get("optime") instanceof Map) {
-                    d.put("optime", ((Map<String, Document>) d.get("optime")).get("ts"));
-                }
-            }
+            mem.stream().filter(d -> d.get("optime") instanceof Map).forEach(d -> d.put("optime", ((Map<String, Document>) d.get("optime")).get("ts")));
             return convertBSON(ret);
         }, retriesOnNetworkError, sleepBetweenErrorRetries);
 //        return null;
@@ -464,7 +460,7 @@ public class Driver implements MorphiumDriver {
                 }
             }
 
-            Map<String, Object> r = new HashMap<String, Object>();
+            Map<String, Object> r = new HashMap<>();
 
             MorphiumCursor<DBCursor> crs = new MorphiumCursor<>();
 
@@ -486,7 +482,7 @@ public class Driver implements MorphiumDriver {
         return (MorphiumCursor) DriverHelper.doCall(() -> {
             List<Map<String, Object>> values = new ArrayList<>();
             DBCursor ret = ((MorphiumCursor<DBCursor>) crs).getInternalCursorObject();
-            if (ret == null) return new HashMap<String, Object>(); //finished
+            if (ret == null) return new HashMap<>(); //finished
             int batchSize = ret.getBatchSize();
             while (ret.hasNext()) {
                 DBObject d = ret.next();
@@ -497,7 +493,7 @@ public class Driver implements MorphiumDriver {
                     break;
                 }
             }
-            Map<String, Object> r = new HashMap<String, Object>();
+            Map<String, Object> r = new HashMap<>();
 
             MorphiumCursor<DBCursor> crs1 = new MorphiumCursor<>();
             crs1.setCursorId(ret.getCursorId());
@@ -779,6 +775,10 @@ public class Driver implements MorphiumDriver {
             }
         }
         insert(db, collection, isnew, wc);
+//        for (Map<String,Object> o:isnew){
+//            Object id=o.get("_id");
+//            if (id instanceof ObjectId) o.put("_id",new MorphiumId(((ObjectId)id).toHexString()));
+//        }
         DriverHelper.doCall(() -> {
             DriverHelper.replaceMorphiumIdByObjectId(notnew);
             MongoCollection c = mongo.getDatabase(db).getCollection(collection);
@@ -798,6 +798,10 @@ public class Driver implements MorphiumDriver {
                 Document tDocument = new Document(toUpdate);
                 tDocument.remove("_id"); //not needed
                 c.replaceOne(filter, tDocument, o);
+
+
+                id = toUpdate.get("_id");
+                if (id instanceof ObjectId) toUpdate.put("_id", new MorphiumId(((ObjectId) id).toHexString()));
             }
 
             return null;
@@ -807,7 +811,7 @@ public class Driver implements MorphiumDriver {
     @Override
     public void insert(String db, String collection, List<Map<String, Object>> objs, de.caluga.morphium.driver.WriteConcern wc) throws MorphiumDriverException {
         DriverHelper.replaceMorphiumIdByObjectId(objs);
-        if (objs == null || objs.size() == 0) return;
+        if (objs == null || objs.isEmpty()) return;
         final List<Document> lst = objs.stream().map(Document::new).collect(Collectors.toList());
 
         DriverHelper.doCall(() -> {
@@ -866,7 +870,7 @@ public class Driver implements MorphiumDriver {
             } else {
                 res = coll.deleteOne(new BasicDBObject(query));
             }
-            Map<String, Object> r = new HashMap<String, Object>();
+            Map<String, Object> r = new HashMap<>();
             r.put("deleted", res.getDeletedCount());
             r.put("acc", res.wasAcknowledged());
 
@@ -927,7 +931,7 @@ public class Driver implements MorphiumDriver {
     @Override
     public boolean exists(String db, String collection) throws MorphiumDriverException {
         Map<String, Object> found = DriverHelper.doCall(() -> {
-            final Map<String, Object> ret = new HashMap<String, Object>();
+            final Map<String, Object> ret = new HashMap<>();
 
             Document result = mongo.getDatabase(db).runCommand(new Document("listCollections", 1));
             ArrayList<Document> batch = (ArrayList<Document>) (((Map) result.get("cursor")).get("firstBatch"));
