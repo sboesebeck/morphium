@@ -194,7 +194,7 @@ public class MorphiumDriverSpeedTest {
             Thread thr = new Thread() {
                 @Override
                 public void run() {
-                    for (int j = 0; j < 1000; j++) {
+                    for (int j = 0; j < 100; j++) {
                         UncachedObject uc = new UncachedObject();
                         uc.setCounter(t * 100 + j);
                         uc.setValue("By thread " + t);
