@@ -775,6 +775,10 @@ public class Driver implements MorphiumDriver {
             }
         }
         insert(db, collection, isnew, wc);
+//        for (Map<String,Object> o:isnew){
+//            Object id=o.get("_id");
+//            if (id instanceof ObjectId) o.put("_id",new MorphiumId(((ObjectId)id).toHexString()));
+//        }
         DriverHelper.doCall(() -> {
             DriverHelper.replaceMorphiumIdByObjectId(notnew);
             MongoCollection c = mongo.getDatabase(db).getCollection(collection);
@@ -794,6 +798,10 @@ public class Driver implements MorphiumDriver {
                 Document tDocument = new Document(toUpdate);
                 tDocument.remove("_id"); //not needed
                 c.replaceOne(filter, tDocument, o);
+
+
+                id = toUpdate.get("_id");
+                if (id instanceof ObjectId) toUpdate.put("_id", new MorphiumId(((ObjectId) id).toHexString()));
             }
 
             return null;
