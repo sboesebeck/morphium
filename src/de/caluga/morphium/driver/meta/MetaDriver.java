@@ -54,10 +54,11 @@ public class MetaDriver extends DriverBase {
     @Override
     public void connect(String replicasetName) throws MorphiumDriverException {
 //        setMaxConnectionsPerHost(1);
+        connected = true;
+
         for (String h : getHostSeed()) {
             createConnectionsForPool(h);
         }
-        connected = true;
         //some Housekeeping
         new Thread() {
 
@@ -92,13 +93,11 @@ public class MetaDriver extends DriverBase {
 
                     for (String h : getHostSeed()) {
                         if (arbiters.contains(h)) continue;
-
                         for (int i = getTotalConnectionsForHost(h); i < getMinConnectionsPerHost(); i++) {
-                            log.debug("Underrun - need to add connections...");
+                            if (!connected) break;
+//                            log.debug("Underrun - need to add connections...");
                             try {
-                                DriverBase d = createDriver(h);
-                                d.setSlaveOk(true);
-                                d.connect();
+                                DriverBase d = createAndConnectDriver(h);
                                 getConnections(h).add(new Connection(d));
                             } catch (MorphiumDriverException e) {
                                 log.error("Could not connect to host " + h, e);
@@ -121,6 +120,183 @@ public class MetaDriver extends DriverBase {
                 log.debug("Metadriver killed - terminating housekeeping thread");
             }
         }.start();
+
+        connected = true;
+        //Housekeeping Thread
+        Thread t = new Thread() {
+            @Override
+            public void run() {
+
+                while (connected) {
+                    try {
+                        for (String host : connectionPool.keySet()) {
+                            for (int i = 0; i < connectionPool.get(host).size(); i++) {
+                                //                        for (Connection c : connectionPool.get(host)) {
+                                if (i > connectionPool.get(host).size()) break;
+                                Connection c = connectionPool.get(host).get(i);
+                                housekeep(c);
+                                if (connectionsInUse.get(c.getHost()) != null)
+                                    connectionsInUse.get(c.getHost()).remove(c);
+                                if (connectionPool.get(c.getHost()) != null)
+                                    connectionPool.get(c.getHost()).remove(c);
+                                if (c.isMaster() && c.getHost().equals(currentMaster)) {
+                                    currentMaster = null;
+                                }
+                            }
+                        }
+                    } catch (Exception e) {
+                        log.error("Exception during houskeeping", e);
+                    }
+                    try {
+                        sleep(getHeartbeatFrequency());
+                    } catch (InterruptedException e) {
+                    }
+                }
+            }
+
+            public void housekeep(Connection c) {
+                if (c.getD() == null) return;
+                if (!c.getD().isConnected()) {
+                    log.error("Not connected!!!!");
+                    return;
+                }
+
+                try {
+                    if (!c.inUse && System.currentTimeMillis() - c.created > getMaxConnectionLifetime()) {
+                        connectionPool.get(c.getHost()).remove(c);
+                        if (c.inUse) {
+                            //some other thread was faster
+                            return;
+                        }
+                        log.debug("Maximum life time reached, killing myself");
+                        try {
+                            c.close();
+                        } catch (MorphiumDriverException e) {
+                        }
+
+//                                while (getTotalConnectionsForHost(getHost()) < getMinConnectionsPerHost()) {
+//                                    DriverBase b = createDriver(getHost());
+//                                    connectionPool.get(getHost()).add(new Connection(b));
+//                                }
+                        return;
+                    }
+                    if (!c.inUse && System.currentTimeMillis() - c.lru > getMaxConnectionIdleTime()) {
+                        if (connectionPool.get(c.getHost()).size() > getMinConnectionsPerHost()) {
+                            connectionPool.get(c.getHost()).remove(c);
+                            if (c.inUse) {
+                                //some other thread won
+                                return;
+                            }
+                            try {
+                                c.close();
+                            } catch (MorphiumDriverException e) {
+                            }
+                            return;
+                        }
+
+                    }
+                    Map<String, Object> reply = null;
+                    try {
+                        c.answerTime = 99999;
+                        long start = System.currentTimeMillis();
+                        reply = c.getD().runCommand(RunCommand.Command.local.name(), Utils.getMap(RunCommand.Response.ismaster.name(), true));
+                        c.answerTime = System.currentTimeMillis() - start;
+                        setReplicaSet(c.getFromReply(reply, RunCommand.Response.setName) != null && c.getFromReply(reply, RunCommand.Response.primary) != null);
+
+                    } catch (MorphiumDriverException e) {
+                        if (e.getMongoCode() != null && e.getMongoCode().toString().equals(RunCommand.ErrorCode.UNABLE_TO_CONNECT.getCode())) {
+                            c.ok = true;
+                            return;
+                        }
+                        log.error("Error with connection - exiting", e);
+                        c.ok = false;
+                        try {
+                            c.close();
+                        } catch (MorphiumDriverException e1) {
+                        }
+                        return;
+                    }
+
+                    if (!c.arbiter && c.getFromReply(reply, RunCommand.Response.arbiterOnly) != null && c.getFromReply(reply, RunCommand.Response.arbiterOnly).equals(true)) {
+//                                log.info("I'm an arbiter! Staying alive anyway!");
+                        if (!arbiters.contains(c.getHost())) arbiters.add(c.getHost());
+                        if (secondaries.contains(c.getHost())) secondaries.remove(c.getHost());
+//                                connectionPool.get(getHost()).remove(Connection.this);
+                        c.arbiter = true;
+                    }
+
+                    if (!c.arbiter && c.getFromReply(reply, RunCommand.Response.ismaster).equals(true)) {
+                        //got master connection...
+                        c.master = true;
+                        currentMaster = c.getHost();
+                    } else if (!c.arbiter && c.getFromReply(reply, RunCommand.Response.secondary).equals(true)) {
+                        c.master = false;
+                        if (currentMaster == null) {
+                            currentMaster = (String) c.getFromReply(reply, RunCommand.Response.primary);
+                        }
+                        if (currentMaster == null) {
+                            log.error("No master in replicaset!");
+                        }
+                        if (!secondaries.contains(c.getHost()) && !tempBlockedHosts.contains(c.getHost()))
+                            secondaries.add(c.getHost());
+                    } else {
+                        c.master = false;
+                        if (currentMaster == null) {
+                            currentMaster = (String) c.getFromReply(reply, RunCommand.Response.primary);
+                        }
+                    }
+
+                    if (isReplicaset()) {
+                        if (c.getFromReply(reply, RunCommand.Response.secondary).equals(false) && c.getFromReply(reply, RunCommand.Response.ismaster).equals(false)) {
+                            //recovering?!?!?
+                            secondaries.remove(c.getHost());
+                        } else {
+                            if (!c.arbiter && (fastestAnswer > c.answerTime || c.getD().getHostSeed()[0].equals(fastestHost))) {
+                                long tm = System.currentTimeMillis() - fastestHostTimestamp;
+                                long timeout = (long) ((2000 * Math.random()) + 100);
+                                if (tm < timeout) {
+                                    fastestAnswer = c.answerTime;
+                                    fastestHost = c.getD().getHostSeed()[0];
+                                    fastestHostTimestamp = System.currentTimeMillis();
+                                } else if (tm > timeout && fastestHost != null && fastestHost.equals(c.getHost())) {
+                                    fastestHost = null;
+                                    fastestAnswer = 99999999;
+                                }
+                            }
+                            if (c.getFromReply(reply, RunCommand.Response.hosts) != null && secondaries.isEmpty()) {
+                                Vector<String> s = new Vector<>((List<String>) c.getFromReply(reply, RunCommand.Response.hosts));
+                                for (int i = 0; i < s.size(); i++) {
+                                    String hn = s.get(i);
+                                    String adr = getHostAdress(hn);
+                                    secondaries.add(adr);
+                                }
+                            }
+                        }
+
+                    }
+
+
+                } catch (Exception e) {
+                    log.error("Connection broken!" + c.getD().getHostSeed()[0], e);
+                    try {
+                        c.getD().close();
+                    } catch (MorphiumDriverException e1) {
+                    }
+                    try {
+                        getConnections(c.getD().getHostSeed()[0]).remove(c);
+                        connectionsInUse.get(c.getD().getHostSeed()[0]).remove(c);
+                    } catch (Exception ex) {
+                    }
+                    if (c.getD().getHostSeed()[0].equals(fastestHost)) {
+                        fastestHost = null;
+                        fastestAnswer = 1000000;
+                    }
+                    return;
+                }
+            }
+        };
+        t.setDaemon(true);
+        t.start();
         while (currentMaster == null) {
             log.debug("Waiting for master...");
             try {
@@ -129,11 +305,12 @@ public class MetaDriver extends DriverBase {
                 e.printStackTrace();
             }
         }
+
+
         while (connectionPool.get(currentMaster) == null || getTotalConnectionsForHost(currentMaster) < getMinConnectionsPerHost()) {
             log.debug("no connection to current master yet! Retrying...");
             try {
-                DriverBase d = createDriver(currentMaster);
-                d.connect();
+                DriverBase d = createAndConnectDriver(currentMaster);
                 getConnections(currentMaster).add(new Connection(d));
             } catch (MorphiumDriverException e) {
                 log.error("Could not connect to master " + currentMaster, e);
@@ -166,6 +343,7 @@ public class MetaDriver extends DriverBase {
         }
 
         connected = true;
+
     }
 
     private int getTotalConnectionsForHost(String h) {
@@ -177,9 +355,8 @@ public class MetaDriver extends DriverBase {
     private void createConnectionsForPool(String h) {
         for (int i = getTotalConnectionsForHost(h); i < getMinConnectionsPerHost(); i++) {
             try {
-                log.info("Initial connect to host " + h);
-                DriverBase d = createDriver(h);
-                d.connect();
+//                log.info("Initial connect to host " + h);
+                DriverBase d = createAndConnectDriver(h);
                 getConnections(h).add(new Connection(d));
             } catch (MorphiumDriverException e) {
                 log.error("Could not connect to host " + h, e);
@@ -587,7 +764,7 @@ public class MetaDriver extends DriverBase {
         }
     }
 
-    private DriverBase createDriver(String host) throws MorphiumDriverException {
+    private DriverBase createAndConnectDriver(String host) throws MorphiumDriverException {
         DriverBase d = new SingleConnectThreaddedDriver();
         d.setHostSeed(host); //only connecting to one host
         d.setSocketKeepAlive(isSocketKeepAlive());
@@ -601,6 +778,7 @@ public class MetaDriver extends DriverBase {
         d.setReplicaSetName(getReplicaSetName());
         d.setDefaultW(getDefaultW());
         d.setDefaultReadPreference(getDefaultReadPreference());
+        if (!connected) return null; //bail out before creating a thread in vain
         d.connect(getReplicaSetName());
         d.setSlaveOk(true);
         return d;
@@ -629,7 +807,7 @@ public class MetaDriver extends DriverBase {
             }
 
             if (getConnections(host).isEmpty() && getTotalConnectionsForHost(host) < getMaxConnectionsPerHost()) {
-                c = new Connection(createDriver(host));
+                c = new Connection(createAndConnectDriver(host));
                 break;
             }
 
@@ -758,172 +936,13 @@ public class MetaDriver extends DriverBase {
         private boolean arbiter = false;
 
         public Connection(DriverBase dr) throws MorphiumDriverException {
+            if (dr == null) throw new IllegalArgumentException("Cannot create connection to null");
             this.d = dr;
             lru = System.currentTimeMillis();
             created = lru;
             synchronized (Connection.class) {
                 id = ++seq;
             }
-
-
-            //Housekeeping Thread
-            new Thread() {
-                @Override
-                public void run() {
-                    if (!d.isConnected()) {
-                        log.error("Not connected!!!!");
-                        return;
-                    }
-                    while (d.isConnected()) {
-                        try {
-                            if (!inUse && System.currentTimeMillis() - created > getMaxConnectionLifetime()) {
-                                connectionPool.get(getHost()).remove(Connection.this);
-                                if (inUse) {
-                                    //some other thread was faster
-                                    continue;
-                                }
-                                log.debug("Maximum life time reached, killing myself");
-                                try {
-                                    d.close();
-                                } catch (MorphiumDriverException e) {
-                                }
-
-//                                while (getTotalConnectionsForHost(getHost()) < getMinConnectionsPerHost()) {
-//                                    DriverBase b = createDriver(getHost());
-//                                    connectionPool.get(getHost()).add(new Connection(b));
-//                                }
-                                break;
-                            }
-                            if (!inUse && System.currentTimeMillis() - lru > getMaxConnectionIdleTime()) {
-                                if (connectionPool.get(getHost()).size() > getMinConnectionsPerHost()) {
-                                    connectionPool.get(getHost()).remove(Connection.this);
-                                    if (inUse) {
-                                        //some other thread won
-                                        continue;
-                                    }
-                                    try {
-                                        d.close();
-                                    } catch (MorphiumDriverException e) {
-                                    }
-                                    break;
-                                }
-
-                            }
-                            Map<String, Object> reply = null;
-                            try {
-                                answerTime = 99999;
-                                long start = System.currentTimeMillis();
-                                reply = d.runCommand(RunCommand.Command.local.name(), Utils.getMap(RunCommand.Response.ismaster.name(), true));
-                                answerTime = System.currentTimeMillis() - start;
-                                setReplicaSet(getFromReply(reply, RunCommand.Response.setName) != null && getFromReply(reply, RunCommand.Response.primary) != null);
-
-                            } catch (MorphiumDriverException e) {
-                                if (e.getMongoCode() != null && e.getMongoCode().toString().equals(RunCommand.ErrorCode.UNABLE_TO_CONNECT.getCode())) {
-                                    ok = true;
-                                    return;
-                                }
-                                log.error("Error with connection - exiting", e);
-                                ok = false;
-                                try {
-                                    d.close();
-                                } catch (MorphiumDriverException e1) {
-                                }
-                                return;
-                            }
-
-                            if (!arbiter && getFromReply(reply, RunCommand.Response.arbiterOnly) != null && getFromReply(reply, RunCommand.Response.arbiterOnly).equals(true)) {
-//                                log.info("I'm an arbiter! Staying alive anyway!");
-                                if (!arbiters.contains(getHost())) arbiters.add(getHost());
-                                if (secondaries.contains(getHost())) secondaries.remove(getHost());
-//                                connectionPool.get(getHost()).remove(Connection.this);
-                                arbiter = true;
-                            }
-
-                            if (!arbiter && getFromReply(reply, RunCommand.Response.ismaster).equals(true)) {
-                                //got master connection...
-                                master = true;
-                                currentMaster = getHost();
-                            } else if (!arbiter && getFromReply(reply, RunCommand.Response.secondary).equals(true)) {
-                                master = false;
-                                if (currentMaster == null) {
-                                    currentMaster = (String) getFromReply(reply, RunCommand.Response.primary);
-                                }
-                                if (currentMaster == null) {
-                                    log.error("No master in replicaset!");
-                                }
-                                if (!secondaries.contains(getHost()) && !tempBlockedHosts.contains(getHost()))
-                                    secondaries.add(getHost());
-                            } else {
-                                master = false;
-                                if (currentMaster == null) {
-                                    currentMaster = (String) getFromReply(reply, RunCommand.Response.primary);
-                                }
-                            }
-
-                            if (isReplicaset()) {
-                                if (getFromReply(reply, RunCommand.Response.secondary).equals(false) && getFromReply(reply, RunCommand.Response.ismaster).equals(false)) {
-                                    //recovering?!?!?
-                                    secondaries.remove(getHost());
-                                } else {
-                                    if (!arbiter && (fastestAnswer > answerTime || d.getHostSeed()[0].equals(fastestHost))) {
-                                        long tm = System.currentTimeMillis() - fastestHostTimestamp;
-                                        long timeout = (long) ((2000 * Math.random()) + 100);
-                                        if (tm < timeout) {
-                                            fastestAnswer = answerTime;
-                                            fastestHost = d.getHostSeed()[0];
-                                            fastestHostTimestamp = System.currentTimeMillis();
-                                        } else if (tm > timeout && fastestHost != null && fastestHost.equals(getHost())) {
-                                            fastestHost = null;
-                                            fastestAnswer = 99999999;
-                                        }
-                                    }
-                                    if (getFromReply(reply, RunCommand.Response.hosts) != null && secondaries.isEmpty()) {
-                                        Vector<String> s = new Vector<>((List<String>) getFromReply(reply, RunCommand.Response.hosts));
-                                        for (int i = 0; i < s.size(); i++) {
-                                            String hn = s.get(i);
-                                            String adr = getHostAdress(hn);
-                                            secondaries.add(adr);
-                                        }
-                                    }
-                                }
-
-                            }
-
-
-                                //todo: check for missing secondaries, like some that were added during runtime
-                                try {
-                                    sleep(getHeartbeatFrequency());
-                                } catch (InterruptedException e) {
-                                }
-
-
-                        } catch (Exception e) {
-                            log.error("Connection broken!" + d.getHostSeed()[0], e);
-                            try {
-                                d.close();
-                            } catch (MorphiumDriverException e1) {
-                            }
-                            try {
-                                getConnections(d.getHostSeed()[0]).remove(Connection.this);
-                                connectionsInUse.get(d.getHostSeed()[0]).remove(Connection.this);
-                            } catch (Exception ex) {
-                            }
-                            if (d.getHostSeed()[0].equals(fastestHost)) {
-                                fastestHost = null;
-                                fastestAnswer = 1000000;
-                            }
-                            return;
-                        }
-                    }
-                    if (connectionsInUse.get(getHost()) != null)
-                        connectionsInUse.get(getHost()).remove(Connection.this);
-                    if (connectionPool.get(getHost()) != null)
-                        connectionPool.get(getHost()).remove(Connection.this);
-                    if (isMaster() && getHost().equals(currentMaster)) {
-                        currentMaster = null;
-                    }
-                }
-            }.start();
 
         }
 
