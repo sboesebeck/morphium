@@ -139,9 +139,6 @@ public class MetaDriver extends DriverBase {
                                     connectionsInUse.get(c.getHost()).remove(c);
                                 if (connectionPool.get(c.getHost()) != null)
                                     connectionPool.get(c.getHost()).remove(c);
-                                if (c.isMaster() && c.getHost().equals(currentMaster)) {
-                                    currentMaster = null;
-                                }
                             }
                         }
                     } catch (Exception e) {

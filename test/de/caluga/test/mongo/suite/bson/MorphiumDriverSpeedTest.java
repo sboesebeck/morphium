@@ -48,11 +48,11 @@ public class MorphiumDriverSpeedTest {
 //        cfg.addHostToSeed("192.168.44.209:30002");
         cfg.addHostToSeed("localhost:27017");
         cfg.addHostToSeed("localhost:27018");
-        cfg.setReplicasetMonitoring(false);
+        cfg.setReplicasetMonitoring(true);
         cfg.setDriverClass(MetaDriver.class.getName());
         cfg.setMaxWaitTime(30000);
-        cfg.setMinConnectionsPerHost(100);
-        cfg.setMaxConnections(200);
+        cfg.setMinConnectionsPerHost(1);
+        cfg.setMaxConnections(100);
         cfg.setLogLevelForClass(MetaDriver.class, 5);
         m = new Morphium(cfg);
 //        m.getDriver().connect();
