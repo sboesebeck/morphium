@@ -49,6 +49,10 @@ public class SingleConnectThreaddedDriver extends DriverBase {
 
     @Override
     public void connect(String replSet) throws MorphiumDriverException {
+        if (s != null && s.isConnected() && !s.isClosed()) {
+            log.error("Already connected! not reconnecting!");
+            return;
+        }
         try {
             String host = getHostSeed()[0];
             String h[] = host.split(":");
