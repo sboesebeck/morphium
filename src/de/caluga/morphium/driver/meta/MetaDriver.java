@@ -626,8 +626,6 @@ public class MetaDriver extends DriverBase {
                 } catch (InterruptedException e1) {
                 }
                 //somebody was faster - retry
-                //TODO: Remove recursion!
-                return getConnection(host);
             }
 
             if (getConnections(host).isEmpty() && getTotalConnectionsForHost(host) < getMaxConnectionsPerHost()) {
