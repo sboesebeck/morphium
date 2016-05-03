@@ -51,8 +51,8 @@ public class MorphiumDriverSpeedTest {
         cfg.setReplicasetMonitoring(false);
         cfg.setDriverClass(MetaDriver.class.getName());
         cfg.setMaxWaitTime(30000);
-        cfg.setMinConnectionsPerHost(1);
-        cfg.setMaxConnections(100);
+        cfg.setMinConnectionsPerHost(100);
+        cfg.setMaxConnections(200);
         cfg.setLogLevelForClass(MetaDriver.class, 5);
         m = new Morphium(cfg);
 //        m.getDriver().connect();
