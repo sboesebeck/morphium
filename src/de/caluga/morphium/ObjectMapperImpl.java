@@ -1025,7 +1025,7 @@ public class ObjectMapperImpl implements ObjectMapper {
                         Class cls = (Class) listType.getActualTypeArguments()[0];
                         Entity entity = annotationHelper.getAnnotationFromHierarchy(cls, Entity.class); //(Entity) sc.getAnnotation(Entity.class);
                         Embedded embedded = annotationHelper.getAnnotationFromHierarchy(cls, Embedded.class);//(Embedded) sc.getAnnotation(Embedded.class);
-                        if (entity != null || embedded != null)
+                        if (hasCustomMapper(cls) || entity != null || embedded != null)
                             val = unmarshall(cls, (Map<String, Object>) val);
                     }
                     //Probably an "normal" map
