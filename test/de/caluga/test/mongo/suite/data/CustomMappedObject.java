@@ -36,7 +36,11 @@ public class CustomMappedObject {
 		
 		CustomMappedObject that = (CustomMappedObject) obj;
 		
+		if (this.getName() == null && that.getName() != null)
+			return false;
 		if (!this.getName().equals(that.getName()))
+			return false;
+		if (this.getValue() == null && that.getValue() != null)
 			return false;
 		if (!this.getValue().equals(that.getValue()))
 			return false;
