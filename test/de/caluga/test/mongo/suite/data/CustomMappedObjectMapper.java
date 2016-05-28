@@ -3,6 +3,8 @@ package de.caluga.test.mongo.suite.data;
 import java.util.HashMap;
 import java.util.Map;
 
+import org.bson.Document;
+
 import de.caluga.morphium.TypeMapper;
 
 public class CustomMappedObjectMapper implements TypeMapper<CustomMappedObject> {
@@ -14,7 +16,7 @@ public class CustomMappedObjectMapper implements TypeMapper<CustomMappedObject> 
 		map.put("name", o.getName());
 		map.put("string_value", o.getValue());
 		map.put("int_value", o.getIntValue());
-		return map;
+		return new Document("value", map);
 	}
 
 	@Override
