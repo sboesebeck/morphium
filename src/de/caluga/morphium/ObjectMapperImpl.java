@@ -15,6 +15,7 @@ import java.io.*;
 import java.lang.reflect.*;
 import java.math.BigInteger;
 import java.util.*;
+import java.util.Map.Entry;
 
 /**
  * User: Stpehan Bösebeck
@@ -688,9 +689,18 @@ public class ObjectMapperImpl implements ObjectMapper {
 //                    List lst = new ArrayList<Object>();
 //                    lst.add(value);
 //                    morphium.firePostLoad(lst);
+                } else if (hasCustomMapper(fld.getType())) {
+                	if (valueFromDb instanceof Map)
+                		value = unmarshall(fld.getType(), (HashMap<String, Object>) valueFromDb);
+                	else
+                		value = customMapper.get(fld.getType()).unmarshall(valueFromDb);
                 } else if (Map.class.isAssignableFrom(fld.getType())) {
                     Map<String, Object> map = (Map<String, Object>) valueFromDb;
-                    value = createMap(map);
+                    Map toFill = new HashMap();
+                    if (map != null) {
+                        fillMap((ParameterizedType) fld.getGenericType(), map, toFill, ret);
+                    }
+                    value = toFill;
                 } else if (Collection.class.isAssignableFrom(fld.getType()) || fld.getType().isArray()) {
 
                     List lst = new ArrayList();
@@ -732,7 +742,30 @@ public class ObjectMapperImpl implements ObjectMapper {
                     } else {
                         List<Map<String, Object>> l = (List<Map<String, Object>>) valueFromDb;
                         if (l != null) {
-                            fillList(fld, l, lst, ret);
+                        	// type is List<?> or ?[]
+                       	 	ParameterizedType type;
+                            if (fld.getGenericType() instanceof ParameterizedType)
+                            	type = (ParameterizedType) fld.getGenericType();
+                            else
+                            	// a real array! time to create a custom parameterized type!
+	                           	type = new ParameterizedType() {
+										
+										@Override
+										public Type getRawType() {
+											return Array.class;
+										}
+										
+										@Override
+										public Type getOwnerType() {
+											return null;
+										}
+										
+										@Override
+										public Type[] getActualTypeArguments() {
+											return new Type[]{fld.getType().getComponentType()};
+										}
+									};
+                        	fillList(fld, fld.getAnnotation(Reference.class), type, l, lst, ret);
                         }
                     }
                     if (fld.getType().isArray()) {
@@ -816,9 +849,7 @@ public class ObjectMapperImpl implements ObjectMapper {
                 } else {
                     if (fld.getType().isEnum()) {
                         value = Enum.valueOf((Class<? extends Enum>) fld.getType(), (String) valueFromDb);
-                    } else if (hasCustomMapper(fld.getType())) {
-                        value = customMapper.get(fld.getType()).unmarshall(valueFromDb);
-                    } else {
+                    } else  {
                         value = valueFromDb;
                     }
                 }
@@ -868,96 +899,63 @@ public class ObjectMapperImpl implements ObjectMapper {
         Map retMap = new HashMap(dbObject);
         if (dbObject != null) {
             for (String n : dbObject.keySet()) {
-
-                if (dbObject.get(n) instanceof Map) {
-                    Object val = dbObject.get(n);
-                    if (((Map<String, Object>) val).containsKey("class_name") || ((Map<String, Object>) val).containsKey("className")) {
-                        //Entity to map!
-                        String cn = (String) ((Map<String, Object>) val).get("class_name");
-                        if (cn == null) {
-                            cn = (String) ((Map<String, Object>) val).get("className");
-                        }
-                        try {
-                            Class ecls = Class.forName(cn);
-                            Object obj = unmarshall(ecls, (HashMap<String, Object>) dbObject.get(n));
-                            if (obj != null) retMap.put(n, obj);
-                        } catch (ClassNotFoundException e) {
-                            throw new RuntimeException(e);
-                        }
-                    } else if (((Map<String, Object>) val).containsKey("_b64data")) {
-                        String d = (String) ((Map<String, Object>) val).get("_b64data");
-                        BASE64Decoder dec = new BASE64Decoder();
-                        ObjectInputStream in = null;
-                        try {
-                            in = new ObjectInputStream(new ByteArrayInputStream(dec.decodeBuffer(d)));
-                            Object read = in.readObject();
-                            retMap.put(n, read);
-                        } catch (IOException | ClassNotFoundException e) {
-                            throw new RuntimeException(e);
-                        }
-
-                    } else {
-                        //maybe a map of maps? --> recurse
-                        retMap.put(n, createMap((Map<String, Object>) val));
-                    }
-                } else if (dbObject.get(n) instanceof List) {
-                    List<Map<String, Object>> lst = (List<Map<String, Object>>) dbObject.get(n);
-                    List mapValue = createList(lst);
-                    retMap.put(n, mapValue);
-                }
+            	retMap.put(n, unmarshallInternal(dbObject.get(n)));
             }
         } else {
             retMap = null;
         }
         return retMap;
     }
+    
+    private Object unmarshallInternal(Object val) {
+    	if (val instanceof Map) {
+	    	Map<String, Object> mapVal = (Map<String, Object>) val;
+            if (mapVal.containsKey("class_name") || mapVal.containsKey("className")) {
+                //Entity to map!
+                String cn = (String) mapVal.get("class_name");
+                if (cn == null) cn = (String) mapVal.get("className");
+                try {
+                    Class ecls = Class.forName(cn);
+                    Object obj = unmarshall(ecls, mapVal);
+                    if (obj != null) return obj;
+                } catch (ClassNotFoundException e) {
+                    throw new RuntimeException(e);
+                }
+            } else if (mapVal.containsKey("_b64data") || mapVal.containsKey("b64Data")) {
+                String d = (String) mapVal.get("_b64data");
+                if (d == null) d = (String) mapVal.get("b64Data");
+                BASE64Decoder dec = new BASE64Decoder();
+                ObjectInputStream in = null;
+                try {
+                    in = new ObjectInputStream(new ByteArrayInputStream(dec.decodeBuffer(d)));
+                    Object read = in.readObject();
+                    return read;
+                } catch (IOException | ClassNotFoundException e) {
+                    throw new RuntimeException(e);
+                }
+            } else {
+                //maybe a normal map --> recurse
+                return createMap(mapVal);
+            }
+        } else if (val instanceof List) {
+            List<Map<String, Object>> lst = (List<Map<String, Object>>) val;
+            List mapValue = createList(lst);
+            return mapValue;
+        }
+	    return val;
+    }
 
     private List createList(List<Map<String, Object>> lst) {
         List mapValue = new ArrayList();
         for (Object li : lst) {
-            if (li instanceof Map) {
-                if (((Map<String, Object>) li).containsKey("class_name") || ((Map<String, Object>) li).containsKey("className")) {
-                    String cn = (String) ((Map<String, Object>) li).get("class_name");
-                    if (cn == null) {
-                        cn = (String) ((Map<String, Object>) li).get("className");
-                    }
-                    try {
-                        Class ecls = Class.forName(cn);
-                        Object obj = unmarshall(ecls, (HashMap<String, Object>) li);
-                        if (obj != null) mapValue.add(obj);
-                    } catch (ClassNotFoundException e) {
-                        throw new RuntimeException(e);
-                    }
-                } else if (((Map<String, Object>) li).containsKey("_b64data")) {
-                    String d = (String) ((Map<String, Object>) li).get("_b64data");
-                    BASE64Decoder dec = new BASE64Decoder();
-                    ObjectInputStream in = null;
-                    try {
-                        in = new ObjectInputStream(new ByteArrayInputStream(dec.decodeBuffer(d)));
-                        Object read = in.readObject();
-                        mapValue.add(read);
-                    } catch (IOException | ClassNotFoundException e) {
-                        throw new RuntimeException(e);
-                    }
-
-                } else {
-
-
-                    mapValue.add(createMap((Map<String, Object>) li));
-                }
-            } else if (li instanceof List) {
-                mapValue.add(createList((List<Map<String, Object>>) li));
-            } else {
-                mapValue.add(li);
-            }
+            mapValue.add(unmarshallInternal(li));
         }
         return mapValue;
     }
-
+    
     @SuppressWarnings({"unchecked", "ConstantConditions"})
-    private void fillList(Field forField, List<Map<String, Object>> fromDB, List toFillIn, Object containerEntity) {
-        if (forField.isAnnotationPresent(Reference.class)) {
-            Reference ref = forField.getAnnotation(Reference.class);
+    private void fillList(Field forField, Reference ref, ParameterizedType listType, List<Map<String, Object>> fromDB, List toFillIn, Object containerEntity) {
+        if (ref != null) {
             for (Map<String, Object> obj : fromDB) {
                 if (obj == null) {
                     toFillIn.add(null);
@@ -987,55 +985,41 @@ public class ObjectMapperImpl implements ObjectMapper {
             return;
         }
         for (Object val : fromDB) {
-            if (val instanceof Map) {
-                if (((Map<String, Object>) val).containsKey("class_name") || ((Map<String, Object>) val).containsKey("className")) {
-                    //Entity to map!
-                    String cn = (String) ((Map<String, Object>) val).get("class_name");
-                    if (cn == null) {
-                        cn = (String) ((Map<String, Object>) val).get("className");
+        	if (val instanceof Map) {
+                if (listType != null) {    
+                	//have a list of something
+                	if (listType.getActualTypeArguments()[0] instanceof Class) {
+                		Class cls = (Class) listType.getActualTypeArguments()[0];
+                    
+	                	Entity entity = annotationHelper.getAnnotationFromHierarchy(cls, Entity.class); //(Entity) sc.getAnnotation(Entity.class);
+	                    Embedded embedded = annotationHelper.getAnnotationFromHierarchy(cls, Embedded.class);//(Embedded) sc.getAnnotation(Embedded.class);
+	                    if (entity != null || embedded != null || hasCustomMapper(cls)) {
+	                        toFillIn.add(unmarshall(cls, (Map<String, Object>) val));
+	                        continue;
+	                    }
+                	}
+                	// that is an actual map!
+                	else {
+    	            	HashMap mp = new HashMap();
+    	            	fillMap((ParameterizedType) listType.getActualTypeArguments()[0], (Map<String, Object>) val, mp, containerEntity);
+    	            	toFillIn.add(mp);
+    	            	continue;
                     }
-                    try {
-                        Class ecls = Class.forName(cn);
-                        Object um = unmarshall(ecls, (HashMap<String, Object>) val);
-                        if (um != null) toFillIn.add(um);
-                    } catch (ClassNotFoundException e) {
-                        throw new RuntimeException(e);
-                    }
-                } else if (((Map<String, Object>) val).containsKey("_b64data")) {
-                    String d = (String) ((Map<String, Object>) val).get("_b64data");
-                    if (d == null) d = (String) ((Map<String, Object>) val).get("b64Data");
-                    BASE64Decoder dec = new BASE64Decoder();
-                    ObjectInputStream in = null;
-                    try {
-                        in = new ObjectInputStream(new ByteArrayInputStream(dec.decodeBuffer(d)));
-                        Object read = in.readObject();
-                        toFillIn.add(read);
-                    } catch (IOException | ClassNotFoundException e) {
-                        throw new RuntimeException(e);
-                    }
-
-                } else {
-
-                    if (forField != null && forField.getGenericType() instanceof ParameterizedType) {
-                        //have a list of something
-                        ParameterizedType listType = (ParameterizedType) forField.getGenericType();
-                        while (listType.getActualTypeArguments()[0] instanceof ParameterizedType) {
-                            listType = (ParameterizedType) listType.getActualTypeArguments()[0];
-                        }
-                        Class cls = (Class) listType.getActualTypeArguments()[0];
-                        Entity entity = annotationHelper.getAnnotationFromHierarchy(cls, Entity.class); //(Entity) sc.getAnnotation(Entity.class);
-                        Embedded embedded = annotationHelper.getAnnotationFromHierarchy(cls, Embedded.class);//(Embedded) sc.getAnnotation(Embedded.class);
-                        if (entity != null || embedded != null)
-                            val = unmarshall(cls, (Map<String, Object>) val);
-                    }
-                    //Probably an "normal" map
-                    toFillIn.add(val);
+                }
+                else {
+	            	HashMap mp = new HashMap();
+	            	fillMap((ParameterizedType) listType.getActualTypeArguments()[0], (Map<String, Object>) val, mp, containerEntity);
+	            	toFillIn.add(mp);
+	            	continue;
                 }
             } else if (val instanceof MorphiumId) {
-                if (forField.getGenericType() instanceof ParameterizedType) {
+                if (listType != null) {
                     //have a list of something
-                    ParameterizedType listType = (ParameterizedType) forField.getGenericType();
-                    Class cls = (Class) listType.getActualTypeArguments()[0];
+                	Class cls;
+                	if (listType.getActualTypeArguments()[0] instanceof ParameterizedType)
+                		cls = (Class) ((ParameterizedType) listType.getActualTypeArguments()[0]).getRawType();
+                	else
+                		cls = (Class) listType.getActualTypeArguments()[0];
                     Query q = morphium.createQueryFor(cls);
                     q = q.f(annotationHelper.getFields(cls, Id.class).get(0)).eq(val);
                     toFillIn.add(q.get());
@@ -1043,44 +1027,79 @@ public class ObjectMapperImpl implements ObjectMapper {
                     log.warn("Cannot de-reference to unknown collection - trying to add Object only");
                     toFillIn.add(val);
                 }
-
+                continue;
             } else if (val instanceof List) {
                 //list in list
                 ArrayList lt = new ArrayList();
-                fillList(forField, (List<Map<String, Object>>) val, lt, containerEntity);
+                fillList(forField, ref, (ParameterizedType) listType.getActualTypeArguments()[0], (List<Map<String, Object>>) val, lt, containerEntity);
                 toFillIn.add(lt);
-//            } else if (val instanceof DBRef) {
-//                try {
-//                    DBRef ref = (DBRef) val;
-//                    Object id = ref.getId();
-//                    Class clz = Class.forName(ref.getCollectionName());
-//                    List<String> idFlds = annotationHelper.getFields(clz, Id.class);
-//                    Reference reference = forField != null ? forField.getAnnotation(Reference.class) : null;
-//
-//                    if (reference != null && reference.lazyLoading()) {
-//                        if (idFlds.isEmpty())
-//                            throw new IllegalArgumentException("Referenced object does not have an ID? Is it an Entity?");
-//                        toFillIn.add(morphium.createLazyLoadedEntity(clz, id, containerEntity, forField.getName()));
-//                    } else {
-//                        try {
-//                            morphium.fireWouldDereference(containerEntity, forField.getName(), id, clz, false);
-//                            Query q = morphium.createQueryFor(clz);
-//                            q = q.f(idFlds.get(0)).eq(id);
-//                            Object e = q.get();
-//                            toFillIn.add(e);
-//                            morphium.fireDidDereference(containerEntity, forField.getName(), e, false);
-//                        } catch (MorphiumAccessVetoException e1) {
-//                            log.info("Not de-referencing due to veto exception from Listeiner", e1);
-//                        }
-//                    }
-//                } catch (ClassNotFoundException e) {
-//                    throw new RuntimeException(e);
-//                }
+                continue;
 
-            } else {
-                toFillIn.add(val);
             }
+            toFillIn.add(unmarshallInternal(val));
         }
     }
+    
+    
+    @SuppressWarnings({"unchecked", "ConstantConditions"})
+    private void fillMap(ParameterizedType mapType, Map<String, Object> fromDB, Map toFillIn, Object containerEntity) {
+        for (Entry<String, Object> entry : fromDB.entrySet()) {
+        	String key = entry.getKey();
+        	Object val = entry.getValue();
+            if (val instanceof Map) {
+                if (mapType != null) {    
+                	//have a list of something
+                	
+                	if (mapType.getActualTypeArguments()[1] instanceof Class) {
+                		Class cls = (Class) mapType.getActualTypeArguments()[1];
+	                    
+	                    Entity entity = annotationHelper.getAnnotationFromHierarchy(cls, Entity.class); //(Entity) sc.getAnnotation(Entity.class);
+	                    Embedded embedded = annotationHelper.getAnnotationFromHierarchy(cls, Embedded.class);//(Embedded) sc.getAnnotation(Embedded.class);
+	                    if (entity != null || embedded != null || hasCustomMapper(cls)) {
+	                    	toFillIn.put(key, unmarshall(cls, (Map<String, Object>) val));
+	                        continue;
+	                    }
+                	}
+                	// this is an actual map
+                	else {
+                    	HashMap mp = new HashMap();
+                    	fillMap((ParameterizedType) mapType.getActualTypeArguments()[1], (Map<String, Object>) val, mp, containerEntity);
+                    	toFillIn.put(key, mp);
+                    	continue;
+                    }
+                }
+                else {
+                	HashMap mp = new HashMap();
+                	fillMap((ParameterizedType) mapType.getActualTypeArguments()[1], (Map<String, Object>) val, mp, containerEntity);
+                	toFillIn.put(key, mp);
+                	continue;
+                }
+            
+            } else if (val instanceof MorphiumId) {
+                if (mapType != null) {
+                    //have a list of something
+                	Class cls;
+                	if (mapType.getActualTypeArguments()[1] instanceof ParameterizedType)
+                		cls = (Class) ((ParameterizedType) mapType.getActualTypeArguments()[1]).getRawType();
+                	else
+                		cls = (Class) mapType.getActualTypeArguments()[1];
+                    Query q = morphium.createQueryFor(cls);
+                    q = q.f(annotationHelper.getFields(cls, Id.class).get(0)).eq(val);
+                    toFillIn.put(key, q.get());
+                } else {
+                    log.warn("Cannot de-reference to unknown collection - trying to add Object only");
+                    toFillIn.put(key, val);
+                }
+                continue;
+            } else if (val instanceof List) {
+                //list in list
+                ArrayList lt = new ArrayList();
+                fillList(null, null, (ParameterizedType) mapType.getActualTypeArguments()[1], (List<Map<String, Object>>) val, lt, containerEntity);
+                toFillIn.put(key, lt);
+                continue;
 
+            }
+            toFillIn.put(key, unmarshallInternal(val));
+        }
+    }
 }
