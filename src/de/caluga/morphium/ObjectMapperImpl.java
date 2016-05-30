@@ -988,22 +988,21 @@ public class ObjectMapperImpl implements ObjectMapper {
         	if (val instanceof Map) {
                 if (listType != null) {    
                 	//have a list of something
-                	if (listType.getActualTypeArguments()[0] instanceof Class) {
-                		Class cls = (Class) listType.getActualTypeArguments()[0];
-                    
-	                	Entity entity = annotationHelper.getAnnotationFromHierarchy(cls, Entity.class); //(Entity) sc.getAnnotation(Entity.class);
+                	Class cls = getElementClass(listType);
+                	if (Map.class.isAssignableFrom(cls)) {
+                		// that is an actual map!
+                    	HashMap mp = new HashMap();
+    	            	fillMap((ParameterizedType) listType.getActualTypeArguments()[0], (Map<String, Object>) val, mp, containerEntity);
+    	            	toFillIn.add(mp);
+    	            	continue;
+                	}
+                	else {
+                		Entity entity = annotationHelper.getAnnotationFromHierarchy(cls, Entity.class); //(Entity) sc.getAnnotation(Entity.class);
 	                    Embedded embedded = annotationHelper.getAnnotationFromHierarchy(cls, Embedded.class);//(Embedded) sc.getAnnotation(Embedded.class);
 	                    if (entity != null || embedded != null || hasCustomMapper(cls)) {
 	                        toFillIn.add(unmarshall(cls, (Map<String, Object>) val));
 	                        continue;
 	                    }
-                	}
-                	// that is an actual map!
-                	else {
-    	            	HashMap mp = new HashMap();
-    	            	fillMap((ParameterizedType) listType.getActualTypeArguments()[0], (Map<String, Object>) val, mp, containerEntity);
-    	            	toFillIn.add(mp);
-    	            	continue;
                     }
                 }
                 else {
@@ -1039,9 +1038,16 @@ public class ObjectMapperImpl implements ObjectMapper {
             toFillIn.add(unmarshallInternal(val));
         }
     }
-    
-    
-    @SuppressWarnings({"unchecked", "ConstantConditions"})
+      
+    private Class getElementClass(ParameterizedType parameterizedType) {
+    	Type[] parameters = parameterizedType.getActualTypeArguments();
+		Type relevantParameter = parameters[parameters.length - 1];
+    	if (relevantParameter instanceof Class)
+			return (Class) relevantParameter;
+    	return (Class) ((ParameterizedType) relevantParameter).getRawType();
+	}
+
+	@SuppressWarnings({"unchecked", "ConstantConditions"})
     private void fillMap(ParameterizedType mapType, Map<String, Object> fromDB, Map toFillIn, Object containerEntity) {
         for (Entry<String, Object> entry : fromDB.entrySet()) {
         	String key = entry.getKey();
@@ -1049,23 +1055,21 @@ public class ObjectMapperImpl implements ObjectMapper {
             if (val instanceof Map) {
                 if (mapType != null) {    
                 	//have a list of something
-                	
-                	if (mapType.getActualTypeArguments()[1] instanceof Class) {
-                		Class cls = (Class) mapType.getActualTypeArguments()[1];
-	                    
-	                    Entity entity = annotationHelper.getAnnotationFromHierarchy(cls, Entity.class); //(Entity) sc.getAnnotation(Entity.class);
+                	Class cls = getElementClass(mapType);
+                	if (Map.class.isAssignableFrom(cls)) {
+                		// this is an actual map
+                		HashMap mp = new HashMap();
+                    	fillMap((ParameterizedType) mapType.getActualTypeArguments()[1], (Map<String, Object>) val, mp, containerEntity);
+                    	toFillIn.put(key, mp);
+                    	continue;
+                	}
+                	else {
+                		Entity entity = annotationHelper.getAnnotationFromHierarchy(cls, Entity.class); //(Entity) sc.getAnnotation(Entity.class);
 	                    Embedded embedded = annotationHelper.getAnnotationFromHierarchy(cls, Embedded.class);//(Embedded) sc.getAnnotation(Embedded.class);
 	                    if (entity != null || embedded != null || hasCustomMapper(cls)) {
 	                    	toFillIn.put(key, unmarshall(cls, (Map<String, Object>) val));
 	                        continue;
 	                    }
-                	}
-                	// this is an actual map
-                	else {
-                    	HashMap mp = new HashMap();
-                    	fillMap((ParameterizedType) mapType.getActualTypeArguments()[1], (Map<String, Object>) val, mp, containerEntity);
-                    	toFillIn.put(key, mp);
-                    	continue;
                     }
                 }
                 else {
