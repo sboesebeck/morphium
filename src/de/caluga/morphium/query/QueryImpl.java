@@ -539,7 +539,7 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
             o.put("$and", lst);
             lst = new ArrayList<>();
         }
-        if (orQueries.size() != 0) {
+        if (!orQueries.isEmpty()) {
             for (Query<T> ex : orQueries) {
                 lst.add(ex.toQueryObject());
             }
@@ -551,7 +551,7 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
             }
         }
 
-        if (norQueries.size() != 0) {
+        if (!norQueries.isEmpty()) {
             for (Query<T> ex : norQueries) {
                 lst.add(ex.toQueryObject());
             }
@@ -580,7 +580,7 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
             setReadPreferenceLevel(pr.value());
         }
         List<String> fields = getARHelper().getFields(type, AdditionalData.class);
-        additionalDataPresent = fields != null && fields.size() != 0;
+        additionalDataPresent = fields != null && !fields.isEmpty();
     }
 
     @Override
