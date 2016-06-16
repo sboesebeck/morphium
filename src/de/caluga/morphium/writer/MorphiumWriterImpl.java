@@ -914,9 +914,9 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                 morphium.firePreRemove(lst);
                 long start = System.currentTimeMillis();
                 try {
-                    for (Class<T> cls : sortedMap.keySet()) {
-                        Query<T> orQuery = morphium.createQueryFor(cls);
-                        orQuery = orQuery.or(sortedMap.get(cls));
+                    for (Map.Entry<Class<T>, List<Query<T>>> classListEntry : sortedMap.entrySet()) {
+                        Query<T> orQuery = morphium.createQueryFor(classListEntry.getKey());
+                        orQuery = orQuery.or(classListEntry.getValue());
                         remove(orQuery, null); //sync call
                     }
                     morphium.firePostRemove(lst);

@@ -138,28 +138,28 @@ public class CacheSynchronizer implements MessageListener, MorphiumStorageListen
 
         Map<Class<?>, Map<Boolean, List<Object>>> sorted = new HashMap<>();
 
-        for (Object record : isNew.keySet()) {
-            Cache c = annotationHelper.getAnnotationFromHierarchy(record.getClass(), Cache.class); //(Cache) type.getAnnotation(Cache.class);
+        for (Map.Entry<Object, Boolean> objectBooleanEntry : isNew.entrySet()) {
+            Cache c = annotationHelper.getAnnotationFromHierarchy(objectBooleanEntry.getKey().getClass(), Cache.class); //(Cache) type.getAnnotation(Cache.class);
             if (c == null) continue; //not clearing cache for non-cached objects
             if (c.readCache() && c.clearOnWrite()) {
-                if (sorted.get(record.getClass()) == null) {
-                    sorted.put(record.getClass(), new HashMap<>());
-                    sorted.get(record.getClass()).put(true, new ArrayList<>());
-                    sorted.get(record.getClass()).put(false, new ArrayList<>());
+                if (sorted.get(objectBooleanEntry.getKey().getClass()) == null) {
+                    sorted.put(objectBooleanEntry.getKey().getClass(), new HashMap<>());
+                    sorted.get(objectBooleanEntry.getKey().getClass()).put(true, new ArrayList<>());
+                    sorted.get(objectBooleanEntry.getKey().getClass()).put(false, new ArrayList<>());
                 }
-                sorted.get(record.getClass()).get(isNew.get(record)).add(record);
+                sorted.get(objectBooleanEntry.getKey().getClass()).get(objectBooleanEntry.getValue()).add(objectBooleanEntry.getKey());
 
             }
         }
 
-        for (Class<?> cls : sorted.keySet()) {
-            Cache c = annotationHelper.getAnnotationFromHierarchy(cls, Cache.class); //(Cache) type.getAnnotation(Cache.class);
+        for (Map.Entry<Class<?>, Map<Boolean, List<Object>>> classMapEntry : sorted.entrySet()) {
+            Cache c = annotationHelper.getAnnotationFromHierarchy(classMapEntry.getKey(), Cache.class); //(Cache) type.getAnnotation(Cache.class);
 
             ArrayList<Object> toUpdate = new ArrayList<>();
             ArrayList<Object> toClrCachee = new ArrayList<>();
 
             //not new objects
-            for (Object record : sorted.get(cls).get(false)) {
+            for (Object record : classMapEntry.getValue().get(false)) {
                 if (c.syncCache().equals(Cache.SyncCacheStrategy.UPDATE_ENTRY) || c.syncCache().equals(Cache.SyncCacheStrategy.REMOVE_ENTRY_FROM_TYPE_CACHE)) {
                     toUpdate.add(record);
 
@@ -172,10 +172,10 @@ public class CacheSynchronizer implements MessageListener, MorphiumStorageListen
 //
 //                } else
 //cannot be updated, it's new
-            toClrCachee.addAll(sorted.get(cls).get(true).stream().filter(record -> c.syncCache().equals(Cache.SyncCacheStrategy.CLEAR_TYPE_CACHE)).collect(Collectors.toList()));
+            toClrCachee.addAll(classMapEntry.getValue().get(true).stream().filter(record -> c.syncCache().equals(Cache.SyncCacheStrategy.CLEAR_TYPE_CACHE)).collect(Collectors.toList()));
 
             if (toUpdate.size() != 0) {
-                Msg m = new Msg(CACHE_SYNC_RECORD, MsgType.MULTI, reason, cls.getName(), 30000);
+                Msg m = new Msg(CACHE_SYNC_RECORD, MsgType.MULTI, reason, classMapEntry.getKey().getName(), 30000);
 
                 toUpdate.stream().filter(k -> !k.getClass().equals(Msg.class)).forEach(k -> {
                     Object id = morphium.getId(k);
@@ -184,16 +184,16 @@ public class CacheSynchronizer implements MessageListener, MorphiumStorageListen
                     }
                 });
                 try {
-                    firePreSendEvent(cls, m);
+                    firePreSendEvent(classMapEntry.getKey(), m);
                     messaging.queueMessage(m);
-                    firePostSendEvent(cls, m);
+                    firePostSendEvent(classMapEntry.getKey(), m);
                 } catch (CacheSyncVetoException e) {
                     log.warn("could not send clear cache message: Veto by listener!", e);
                 }
             }
 
             if (toClrCachee.size() != 0) {
-                Msg m = new Msg(CACHE_SYNC_TYPE, MsgType.MULTI, reason, cls.getName(), 30000);
+                Msg m = new Msg(CACHE_SYNC_TYPE, MsgType.MULTI, reason, classMapEntry.getKey().getName(), 30000);
 
                 toUpdate.stream().filter(k -> !k.getClass().equals(Msg.class)).forEach(k -> {
                     Object id = morphium.getId(k);
@@ -202,9 +202,9 @@ public class CacheSynchronizer implements MessageListener, MorphiumStorageListen
                     }
                 });
                 try {
-                    firePreSendEvent(cls, m);
+                    firePreSendEvent(classMapEntry.getKey(), m);
                     messaging.queueMessage(m);
-                    firePostSendEvent(cls, m);
+                    firePostSendEvent(classMapEntry.getKey(), m);
                 } catch (CacheSyncVetoException e) {
                     log.warn("could not send clear cache message: Veto by listener!", e);
                 }
