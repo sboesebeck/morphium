@@ -230,7 +230,7 @@ public class SingleConnectDirectDriver extends DriverBase {
         if (limit > 0)
             doc.put("limit", limit);
         doc.put("skip", skip);
-        if (query.size() != 0)
+        if (!query.isEmpty())
             doc.put("filter", query);
         doc.put("sort", sort);
         doc.put("batchSize", batchSize);
@@ -347,7 +347,7 @@ public class SingleConnectDirectDriver extends DriverBase {
             if (limit > 0)
                 doc.put("limit", limit);
             doc.put("skip", skip);
-            if (query.size() != 0)
+            if (!query.isEmpty())
                 doc.put("filter", query);
             doc.put("sort", sort);
 
@@ -872,7 +872,7 @@ public class SingleConnectDirectDriver extends DriverBase {
     public boolean isCapped(String db, String coll) throws MorphiumDriverException {
         List<Map<String, Object>> lst = getCollectionInfo(db, coll);
         try {
-            if (lst.size() != 0 && lst.get(0).get("name").equals(coll)) {
+            if (!lst.isEmpty() && lst.get(0).get("name").equals(coll)) {
                 Object capped = ((Map) lst.get(0).get("options")).get("capped");
                 return capped != null && capped.equals(true);
             }

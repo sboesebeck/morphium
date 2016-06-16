@@ -122,15 +122,15 @@ public class BulkContext extends BulkRequestContext {
             }
             count++;
         }
-        if (inserts.size() != 0) {
+        if (!inserts.isEmpty()) {
             driver.insert(db, collection, inserts, wc);
         }
 
-        if (stores.size() != 0) {
+        if (!stores.isEmpty()) {
             driver.store(db, collection, stores, wc);
         }
 
-        if (updates.size() != 0) {
+        if (!updates.isEmpty()) {
             Map<String, Object> result = null;
             result = driver.update(db, collection, updates, ordered, wc);
         }
