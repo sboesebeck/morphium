@@ -694,7 +694,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
 
                 Map<String, Object> update = Utils.getMap("$set", Utils.getMap(fieldName, value.getClass().isEnum() ? value.toString() : value));
                 List<String> lastChangeFields = morphium.getARHelper().getFields(cls, LastChange.class);
-                if (lastChangeFields != null && lastChangeFields.size() != 0) {
+                if (lastChangeFields != null && !lastChangeFields.isEmpty()) {
                     for (String fL : lastChangeFields) {
                         Field fld = morphium.getARHelper().getField(cls, fL);
                         if (fld.getType().equals(Date.class)) {
@@ -706,7 +706,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                 }
 
                 List<String> creationTimeFields = morphium.getARHelper().getFields(cls, CreationTime.class);
-                if (upsert && creationTimeFields != null && creationTimeFields.size() != 0) {
+                if (upsert && creationTimeFields != null && !creationTimeFields.isEmpty()) {
                     long cnt = 0;
                     try {
                         cnt = morphium.getDriver().count(getDbName(), collection, query, null);
@@ -1238,8 +1238,8 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                     qobj = morphium.simplifyQueryObject(qobj);
                     List<String> creationTimeFlds = morphium.getARHelper().getFields(cls, CreationTime.class);
                     try {
-                        if (creationTimeFlds != null && creationTimeFlds.size() != 0 && morphium.getDriver().count(getDbName(), coll, qobj, null) == 0) {
-                            if (creationTimeFlds != null && creationTimeFlds.size() != 0) {
+                        if (creationTimeFlds != null && !creationTimeFlds.isEmpty() && morphium.getDriver().count(getDbName(), coll, qobj, null) == 0) {
+                            if (creationTimeFlds != null && !creationTimeFlds.isEmpty()) {
                                 for (String fL : creationTimeFlds) {
                                     Field fld = morphium.getARHelper().getField(cls, fL);
                                     if (fld.getType().equals(Date.class)) {
@@ -1258,7 +1258,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
 
 
                 List<String> latChangeFlds = morphium.getARHelper().getFields(cls, LastChange.class);
-                if (latChangeFlds != null && latChangeFlds.size() != 0) {
+                if (latChangeFlds != null && !latChangeFlds.isEmpty()) {
                     for (String fL : latChangeFlds) {
                         Field fld = morphium.getARHelper().getField(cls, fL);
                         if (fld.getType().equals(Date.class)) {
@@ -1394,7 +1394,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                     morphium.getDriver().update(getDbName(), coll, query, update, false, false, wc);
 
                     List<String> lastChangeFields = morphium.getARHelper().getFields(cls, LastChange.class);
-                    if (lastChangeFields != null && lastChangeFields.size() != 0) {
+                    if (lastChangeFields != null && !lastChangeFields.isEmpty()) {
                         update = Utils.getMap("$set", new HashMap<String, Object>());
                         for (String fL : lastChangeFields) {
                             Field fld = morphium.getARHelper().getField(cls, fL);
@@ -1474,7 +1474,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                     morphium.getDriver().update(getDbName(), coll, query, update, false, false, wc);
 
                     List<String> lastChangeFields = morphium.getARHelper().getFields(cls, LastChange.class);
-                    if (lastChangeFields != null && lastChangeFields.size() != 0) {
+                    if (lastChangeFields != null && !lastChangeFields.isEmpty()) {
                         update = Utils.getMap("$set", new HashMap<String, Object>());
                         for (String fL : lastChangeFields) {
                             Field fld = morphium.getARHelper().getField(cls, fL);
@@ -1607,7 +1607,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
         morphium.firePreUpdateEvent(morphium.getARHelper().getRealClass(cls), push ? MorphiumStorageListener.UpdateTypes.PUSH : MorphiumStorageListener.UpdateTypes.PULL);
 
         List<String> lastChangeFields = morphium.getARHelper().getFields(cls, LastChange.class);
-        if (lastChangeFields != null && lastChangeFields.size() != 0) {
+        if (lastChangeFields != null && !lastChangeFields.isEmpty()) {
             update.put("$set", new HashMap<String, Object>());
             for (String fL : lastChangeFields) {
                 Field fld = morphium.getARHelper().getField(cls, fL);
@@ -1622,7 +1622,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
         }
         if (upsert) {
             List<String> creationTimeFields = morphium.getARHelper().getFields(cls, CreationTime.class);
-            if (upsert && creationTimeFields != null && creationTimeFields.size() != 0) {
+            if (upsert && creationTimeFields != null && !creationTimeFields.isEmpty()) {
                 long cnt = 0;
                 try {
                     cnt = morphium.getDriver().count(getDbName(), coll, qobj, null);
@@ -1695,7 +1695,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                     Map<String, Object> update = Utils.getMap(push ? "$pushAll" : "$pullAll", set);
 
                     List<String> lastChangeFields = morphium.getARHelper().getFields(cls, LastChange.class);
-                    if (lastChangeFields != null && lastChangeFields.size() != 0) {
+                    if (lastChangeFields != null && !lastChangeFields.isEmpty()) {
                         update.put("$set", new HashMap<String, Object>());
                         for (String fL : lastChangeFields) {
                             Field fld = morphium.getARHelper().getField(cls, fL);
@@ -1710,7 +1710,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                     }
                     if (upsert) {
                         List<String> creationTimeFields = morphium.getARHelper().getFields(cls, CreationTime.class);
-                        if (upsert && creationTimeFields != null && creationTimeFields.size() != 0) {
+                        if (upsert && creationTimeFields != null && !creationTimeFields.isEmpty()) {
                             long cnt = 0;
                             try {
                                 cnt = morphium.getDriver().count(getDbName(), coll, qobj, null);
