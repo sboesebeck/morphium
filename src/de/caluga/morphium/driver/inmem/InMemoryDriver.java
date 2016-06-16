@@ -532,7 +532,7 @@ public class InMemoryDriver implements MorphiumDriver {
     public void insert(String db, String collection, List<Map<String, Object>> objs, WriteConcern wc) throws MorphiumDriverException {
         for (Map<String, Object> o : objs) {
             o.putIfAbsent("_id", new MorphiumId());
-            if (findByFieldValue(db, collection, "_id", o.get("_id")).size() != 0)
+            if (!findByFieldValue(db, collection, "_id", o.get("_id")).isEmpty())
                 throw new MorphiumDriverException("Duplicate _id!", null);
         }
         getCollection(db, collection).addAll(objs);
@@ -547,7 +547,7 @@ public class InMemoryDriver implements MorphiumDriver {
                 continue;
             }
             List<Map<String, Object>> srch = findByFieldValue(db, collection, "_id", o.get("_id"));
-            if (srch.size() != 0) {
+            if (!srch.isEmpty()) {
                 getCollection(db, collection).remove(srch.get(0));
             }
             getCollection(db, collection).add(o);

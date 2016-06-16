@@ -148,7 +148,7 @@ public class MetaDriver extends DriverBase {
             log.debug("There are more nodes in replicaset than defined in seed...");
             for (int i = 0; i < secondaries.size(); i++) {
                 String h = secondaries.get(i);
-                if (getConnections(h).size() == 0) {
+                if (getConnections(h).isEmpty()) {
                     try {
                         createConnectionsForPool(h);
                     } catch (Exception e) {
@@ -612,7 +612,7 @@ public class MetaDriver extends DriverBase {
         Connection c = null;
         while (c == null) {
             try {
-                if (getConnections(host).size() != 0) {
+                if (!getConnections(host).isEmpty()) {
                     c = getConnections(host).remove(0); //get first available connection;
                     if (c == null) {
                         log.fatal("Hä? could not get connection from pool");
