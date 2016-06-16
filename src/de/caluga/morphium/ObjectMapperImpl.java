@@ -584,25 +584,25 @@ public class ObjectMapperImpl implements ObjectMapper {
                     }
                     Set<String> keys = o.keySet();
                     Map<String, Object> data = new HashMap<>();
-                    for (String k : keys) {
-                        if (flds.contains(k)) {
+                    for (Map.Entry<String, Object> stringObjectEntry : o.entrySet()) {
+                        if (flds.contains(stringObjectEntry.getKey())) {
                             continue;
                         }
-                        if (k.equals("_id")) {
+                        if (stringObjectEntry.getKey().equals("_id")) {
                             //id already mapped
                             continue;
                         }
 
-                        if (o.get(k) instanceof Map) {
-                            if (((Map<String, Object>) o.get(k)).get("class_name") != null) {
-                                data.put(k, unmarshall(Class.forName((String) ((Map<String, Object>) o.get(k)).get("class_name")), (Map<String, Object>) o.get(k)));
+                        if (stringObjectEntry.getValue() instanceof Map) {
+                            if (((Map<String, Object>) stringObjectEntry.getValue()).get("class_name") != null) {
+                                data.put(stringObjectEntry.getKey(), unmarshall(Class.forName((String) ((Map<String, Object>) stringObjectEntry.getValue()).get("class_name")), (Map<String, Object>) stringObjectEntry.getValue()));
                             } else {
-                                data.put(k, createMap((Map<String, Object>) o.get(k)));
+                                data.put(stringObjectEntry.getKey(), createMap((Map<String, Object>) stringObjectEntry.getValue()));
                             }
-                        } else if (o.get(k) instanceof List && !((List) o.get(k)).isEmpty() && ((List) o.get(k)).get(0) instanceof Map) {
-                            data.put(k, createList((List<Map<String, Object>>) o.get(k)));
+                        } else if (stringObjectEntry.getValue() instanceof List && !((List) stringObjectEntry.getValue()).isEmpty() && ((List) stringObjectEntry.getValue()).get(0) instanceof Map) {
+                            data.put(stringObjectEntry.getKey(), createList((List<Map<String, Object>>) stringObjectEntry.getValue()));
                         } else {
-                            data.put(k, o.get(k));
+                            data.put(stringObjectEntry.getKey(), stringObjectEntry.getValue());
                         }
 
                     }
@@ -867,10 +867,10 @@ public class ObjectMapperImpl implements ObjectMapper {
     private Map createMap(Map<String, Object> dbObject) {
         Map retMap = new HashMap(dbObject);
         if (dbObject != null) {
-            for (String n : dbObject.keySet()) {
+            for (Map.Entry<String, Object> stringObjectEntry : dbObject.entrySet()) {
 
-                if (dbObject.get(n) instanceof Map) {
-                    Object val = dbObject.get(n);
+                if (stringObjectEntry.getValue() instanceof Map) {
+                    Object val = stringObjectEntry.getValue();
                     if (((Map<String, Object>) val).containsKey("class_name") || ((Map<String, Object>) val).containsKey("className")) {
                         //Entity to map!
                         String cn = (String) ((Map<String, Object>) val).get("class_name");
@@ -879,8 +879,8 @@ public class ObjectMapperImpl implements ObjectMapper {
                         }
                         try {
                             Class ecls = Class.forName(cn);
-                            Object obj = unmarshall(ecls, (HashMap<String, Object>) dbObject.get(n));
-                            if (obj != null) retMap.put(n, obj);
+                            Object obj = unmarshall(ecls, (HashMap<String, Object>) stringObjectEntry.getValue());
+                            if (obj != null) retMap.put(stringObjectEntry.getKey(), obj);
                         } catch (ClassNotFoundException e) {
                             throw new RuntimeException(e);
                         }
@@ -891,19 +891,19 @@ public class ObjectMapperImpl implements ObjectMapper {
                         try {
                             in = new ObjectInputStream(new ByteArrayInputStream(dec.decodeBuffer(d)));
                             Object read = in.readObject();
-                            retMap.put(n, read);
+                            retMap.put(stringObjectEntry.getKey(), read);
                         } catch (IOException | ClassNotFoundException e) {
                             throw new RuntimeException(e);
                         }
 
                     } else {
                         //maybe a map of maps? --> recurse
-                        retMap.put(n, createMap((Map<String, Object>) val));
+                        retMap.put(stringObjectEntry.getKey(), createMap((Map<String, Object>) val));
                     }
-                } else if (dbObject.get(n) instanceof List) {
-                    List<Map<String, Object>> lst = (List<Map<String, Object>>) dbObject.get(n);
+                } else if (stringObjectEntry.getValue() instanceof List) {
+                    List<Map<String, Object>> lst = (List<Map<String, Object>>) stringObjectEntry.getValue();
                     List mapValue = createList(lst);
-                    retMap.put(n, mapValue);
+                    retMap.put(stringObjectEntry.getKey(), mapValue);
                 }
             }
         } else {

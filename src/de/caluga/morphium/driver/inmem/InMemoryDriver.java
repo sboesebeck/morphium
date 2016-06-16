@@ -318,11 +318,11 @@ public class InMemoryDriver implements MorphiumDriver {
         boolean matches = false;
         if (query.isEmpty()) return true;
         if (query.containsKey("$where")) throw new RuntimeException("$where not implemented yet");
-        for (String key : query.keySet()) {
-            switch (key) {
+        for (Map.Entry<String, Object> stringObjectEntry : query.entrySet()) {
+            switch (stringObjectEntry.getKey()) {
                 case "$and": {
                     //list of field queries
-                    List<Map<String, Object>> lst = ((List<Map<String, Object>>) query.get(key));
+                    List<Map<String, Object>> lst = ((List<Map<String, Object>>) stringObjectEntry.getValue());
                     for (Map<String, Object> q : lst) {
                         if (!matchesQuery(q, toCheck)) return false;
                     }
@@ -330,7 +330,7 @@ public class InMemoryDriver implements MorphiumDriver {
                 }
                 case "$or": {
                     //list of or queries
-                    List<Map<String, Object>> lst = ((List<Map<String, Object>>) query.get(key));
+                    List<Map<String, Object>> lst = ((List<Map<String, Object>>) stringObjectEntry.getValue());
                     for (Map<String, Object> q : lst) {
                         if (matchesQuery(q, toCheck)) return true;
                     }
@@ -339,31 +339,31 @@ public class InMemoryDriver implements MorphiumDriver {
                 }
                 default:
                     //field check
-                    if (query.get(key) instanceof Map) {
+                    if (stringObjectEntry.getValue() instanceof Map) {
                         //probably a query operand
-                        Map<String, Object> q = (Map<String, Object>) query.get(key);
+                        Map<String, Object> q = (Map<String, Object>) stringObjectEntry.getValue();
                         assert (q.size() == 1);
                         String k = q.keySet().iterator().next();
                         switch (k) {
                             case "$lt":
-                                return ((Comparable) toCheck.get(key)).compareTo(q.get(k)) < 0;
+                                return ((Comparable) toCheck.get(stringObjectEntry.getKey())).compareTo(q.get(k)) < 0;
                             case "$lte":
-                                return ((Comparable) toCheck.get(key)).compareTo(q.get(k)) <= 0;
+                                return ((Comparable) toCheck.get(stringObjectEntry.getKey())).compareTo(q.get(k)) <= 0;
                             case "$gt":
-                                return ((Comparable) toCheck.get(key)).compareTo(q.get(k)) > 0;
+                                return ((Comparable) toCheck.get(stringObjectEntry.getKey())).compareTo(q.get(k)) > 0;
                             case "$gte":
-                                return ((Comparable) toCheck.get(key)).compareTo(q.get(k)) >= 0;
+                                return ((Comparable) toCheck.get(stringObjectEntry.getKey())).compareTo(q.get(k)) >= 0;
                             case "$mod":
-                                Number n = (Number) toCheck.get(key);
+                                Number n = (Number) toCheck.get(stringObjectEntry.getKey());
                                 List arr = (List) q.get(k);
                                 int div = ((Integer) arr.get(0));
                                 int rem = ((Integer) arr.get(1));
                                 return n.intValue() % div == rem;
                             case "$ne":
-                                return ((Comparable) toCheck.get(key)).compareTo(q.get(k)) != 0;
+                                return ((Comparable) toCheck.get(stringObjectEntry.getKey())).compareTo(q.get(k)) != 0;
                             case "$exists":
 
-                                boolean exists = (toCheck.containsKey(key));
+                                boolean exists = (toCheck.containsKey(stringObjectEntry.getKey()));
                                 if (q.get(k).equals(Boolean.TRUE) || q.get(k).equals("true") || q.get(k).equals(1)) {
                                     return exists;
                                 } else {
@@ -371,7 +371,7 @@ public class InMemoryDriver implements MorphiumDriver {
                                 }
                             case "$in":
                                 for (Object v : (List) q.get(k)) {
-                                    if (toCheck.get(key).equals(v)) return true;
+                                    if (toCheck.get(stringObjectEntry.getKey()).equals(v)) return true;
                                 }
                                 return false;
                             default:
@@ -382,7 +382,7 @@ public class InMemoryDriver implements MorphiumDriver {
                     } else {
                         //value comparison - should only be one here
                         assert (query.size() == 1);
-                        return toCheck.get(key).equals(query.get(key));
+                        return toCheck.get(stringObjectEntry.getKey()).equals(stringObjectEntry.getValue());
                     }
             }
         }
@@ -486,11 +486,11 @@ public class InMemoryDriver implements MorphiumDriver {
 
         if (sort != null) {
             ret.sort((o1, o2) -> {
-                for (String f : sort.keySet()) {
-                    if (o1.get(f).equals(o2.get(f))) {
+                for (Map.Entry<String, Integer> stringIntegerEntry : sort.entrySet()) {
+                    if (o1.get(stringIntegerEntry.getKey()).equals(o2.get(stringIntegerEntry.getKey()))) {
                         continue;
                     }
-                    return ((Comparable) o1.get(f)).compareTo(o2.get(f)) * sort.get(f);
+                    return ((Comparable) o1.get(stringIntegerEntry.getKey())).compareTo(o2.get(stringIntegerEntry.getKey())) * stringIntegerEntry.getValue();
                 }
                 return 0;
             });
@@ -571,9 +571,9 @@ public class InMemoryDriver implements MorphiumDriver {
             throw new RuntimeException("Upsert not implemented yet!");
         }
         for (Map<String, Object> obj : lst) {
-            for (String operand : op.keySet()) {
-                Map<String, Object> cmd = (Map<String, Object>) op.get(operand);
-                switch (operand) {
+            for (Map.Entry<String, Object> stringObjectEntry : op.entrySet()) {
+                Map<String, Object> cmd = (Map<String, Object>) stringObjectEntry.getValue();
+                switch (stringObjectEntry.getKey()) {
                     case "$set":
                         for (Map.Entry<String, Object> entry : cmd.entrySet()) {
                             obj.put(entry.getKey(), entry.getValue());
@@ -638,7 +638,7 @@ public class InMemoryDriver implements MorphiumDriver {
                         }
                         break;
                     default:
-                        throw new RuntimeException("unknown operand " + operand);
+                        throw new RuntimeException("unknown operand " + stringObjectEntry.getKey());
                 }
             }
         }

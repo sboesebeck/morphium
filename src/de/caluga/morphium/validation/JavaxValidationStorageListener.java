@@ -25,8 +25,8 @@ public class JavaxValidationStorageListener extends MorphiumStorageAdapter<Objec
 
     @Override
     public void preStore(Morphium m, Map<Object, Boolean> isNew) throws MorphiumAccessVetoException {
-        for (Object b : isNew.keySet()) {
-            preStore(m, b, isNew.get(b));
+        for (Map.Entry<Object, Boolean> objectBooleanEntry : isNew.entrySet()) {
+            preStore(m, objectBooleanEntry.getKey(), objectBooleanEntry.getValue());
         }
     }
 

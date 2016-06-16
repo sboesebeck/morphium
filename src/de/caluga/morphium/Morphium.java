@@ -1953,11 +1953,11 @@ public class Morphium {
             values.putIfAbsent(o.getClass(), new ArrayList<>());
             values.get(o.getClass()).add(o);
         }
-        for (Class cls : writers.keySet()) {
+        for (Map.Entry<Class<?>, MorphiumWriter> classMorphiumWriterEntry : writers.entrySet()) {
             try {
-                writers.get(cls).store((List<T>) values.get(cls), collection, callback);
+                classMorphiumWriterEntry.getValue().store((List<T>) values.get(classMorphiumWriterEntry.getKey()), collection, callback);
             } catch (Exception e) {
-                logger.error("Write failed for " + cls.getName() + " lst of size " + values.get(cls).size(), e);
+                logger.error("Write failed for " + classMorphiumWriterEntry.getKey().getName() + " lst of size " + values.get(classMorphiumWriterEntry.getKey()).size(), e);
             }
         }
     }

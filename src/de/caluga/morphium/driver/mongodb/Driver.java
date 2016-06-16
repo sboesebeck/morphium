@@ -563,8 +563,8 @@ public class Driver implements MorphiumDriver {
     private Map<String, Object> convertBSON(Map d) {
         Map<String, Object> obj = new HashMap<>();
 
-        for (Object k : d.keySet()) {
-            Object value = d.get(k);
+        for (Object o1 : d.entrySet()) {
+            Object value = ((Map.Entry) o1).getValue();
             if (value instanceof BsonTimestamp) {
                 value = (((BsonTimestamp) value).getTime() * 1000);
             } else if (value instanceof BSONTimestamp) {
@@ -610,7 +610,7 @@ public class Driver implements MorphiumDriver {
             } else if (value instanceof BSONObject) {
                 value = convertBSON((Map) value);
             }
-            obj.put(k.toString(), value);
+            obj.put(((Map.Entry) o1).getKey().toString(), value);
         }
         return obj;
     }

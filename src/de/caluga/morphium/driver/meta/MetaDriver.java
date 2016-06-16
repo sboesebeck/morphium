@@ -189,11 +189,11 @@ public class MetaDriver extends DriverBase {
 
     private int getTotalConnectionCount() {
         int c = 0;
-        for (String k : connectionPool.keySet()) {
-            c += connectionPool.get(k).size();
+        for (Map.Entry<String, List<Connection>> stringListEntry : connectionPool.entrySet()) {
+            c += stringListEntry.getValue().size();
         }
-        for (String k : connectionsInUse.keySet()) {
-            c += connectionsInUse.get(k).size();
+        for (Map.Entry<String, List<Connection>> stringListEntry : connectionsInUse.entrySet()) {
+            c += stringListEntry.getValue().size();
         }
         return c;
     }
@@ -216,19 +216,19 @@ public class MetaDriver extends DriverBase {
     @Override
     public void close() throws MorphiumDriverException {
         connected = false;
-        for (String h : connectionPool.keySet()) {
-            while (!connectionPool.get(h).isEmpty()) {
+        for (Map.Entry<String, List<Connection>> stringListEntry : connectionPool.entrySet()) {
+            while (!stringListEntry.getValue().isEmpty()) {
                 try {
-                    Connection c = connectionPool.get(h).remove(0);
+                    Connection c = stringListEntry.getValue().remove(0);
                     c.close();
                 } catch (Exception e) {
                 }
             }
         }
-        for (String h : connectionsInUse.keySet()) {
-            while (!connectionsInUse.get(h).isEmpty()) {
+        for (Map.Entry<String, List<Connection>> stringListEntry : connectionsInUse.entrySet()) {
+            while (!stringListEntry.getValue().isEmpty()) {
                 try {
-                    Connection c = connectionsInUse.get(h).remove(0);
+                    Connection c = stringListEntry.getValue().remove(0);
                     c.close();
                 } catch (Exception e) {
                 }
@@ -315,8 +315,8 @@ public class MetaDriver extends DriverBase {
         if (crs == null) return; //already closed
         SingleConnectCursor internalCursor = (SingleConnectCursor) crs.getInternalCursorObject();
         internalCursor.getDriver().closeIteration(crs);
-        for (String srv : connectionsInUse.keySet()) {
-            for (Connection c : connectionsInUse.get(srv)) {
+        for (Map.Entry<String, List<Connection>> stringListEntry : connectionsInUse.entrySet()) {
+            for (Connection c : stringListEntry.getValue()) {
                 if (c.getD().equals(internalCursor.getDriver())) {
                     freeConnection(c);
                     return;
