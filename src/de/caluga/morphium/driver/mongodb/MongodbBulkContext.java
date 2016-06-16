@@ -133,14 +133,14 @@ public class MongodbBulkContext extends BulkRequestContext {
                 lst.clear();
             }
         }
-        if (lst.size() != 0) {
+        if (!lst.isEmpty()) {
             results.add(commitWrite(lst));
             lst.clear();
         }
 
 
 
-        if (inserts.size() != 0) {
+        if (!inserts.isEmpty()) {
             for (Map.Entry<Document, Map<String, Object>> e : inserts.entrySet()) {
                 Object id = e.getKey().get("_id");
                 if (id instanceof ObjectId) {

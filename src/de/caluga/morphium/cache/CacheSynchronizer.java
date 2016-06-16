@@ -174,7 +174,7 @@ public class CacheSynchronizer implements MessageListener, MorphiumStorageListen
 //cannot be updated, it's new
             toClrCachee.addAll(sorted.get(cls).get(true).stream().filter(record -> c.syncCache().equals(Cache.SyncCacheStrategy.CLEAR_TYPE_CACHE)).collect(Collectors.toList()));
 
-            if (toUpdate.size() != 0) {
+            if (!toUpdate.isEmpty()) {
                 Msg m = new Msg(CACHE_SYNC_RECORD, MsgType.MULTI, reason, cls.getName(), 30000);
 
                 toUpdate.stream().filter(k -> !k.getClass().equals(Msg.class)).forEach(k -> {
@@ -192,7 +192,7 @@ public class CacheSynchronizer implements MessageListener, MorphiumStorageListen
                 }
             }
 
-            if (toClrCachee.size() != 0) {
+            if (!toClrCachee.isEmpty()) {
                 Msg m = new Msg(CACHE_SYNC_TYPE, MsgType.MULTI, reason, cls.getName(), 30000);
 
                 toUpdate.stream().filter(k -> !k.getClass().equals(Msg.class)).forEach(k -> {

@@ -944,7 +944,7 @@ public class Driver implements MorphiumDriver {
         }, retriesOnNetworkError, sleepBetweenErrorRetries);
 
 
-        return found != null && found.size() != 0;
+        return found != null && !found.isEmpty();
     }
 
     @Override
