@@ -98,10 +98,10 @@ public class MorphiumConfig {
     private String mongoLogin = null, mongoPassword = null;
 
     private boolean autoValues = true;
-    boolean readCacheEnabled = true;
-    boolean asyncWritesEnabled = true;
-    boolean bufferedWritesEnabled = true;
-    boolean camelCaseConversionEnabled = true;
+    private boolean readCacheEnabled = true;
+    private boolean asyncWritesEnabled = true;
+    private boolean bufferedWritesEnabled = true;
+    private boolean camelCaseConversionEnabled = true;
 
     //securitysettings
 //    private Class<? extends Object> userClass, roleClass, aclClass;

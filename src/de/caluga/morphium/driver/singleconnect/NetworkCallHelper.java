@@ -14,7 +14,7 @@ import java.util.Map;
  * this class capsulates these calls.
  **/
 public class NetworkCallHelper {
-    Logger logger = new Logger(NetworkCallHelper.class);
+    private Logger logger = new Logger(NetworkCallHelper.class);
 
 
     public Map<String, Object> doCall(MorphiumDriverOperation r, int maxRetry, int sleep) throws MorphiumDriverException {

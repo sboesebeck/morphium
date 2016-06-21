@@ -34,7 +34,7 @@ public class ObjectMapperImpl implements ObjectMapper {
     private Map<Class, TypeMapper> customMapper;
 
     private List<Class<?>> mongoTypes;
-    final ReflectionFactory reflection = ReflectionFactory.getReflectionFactory();
+    private final ReflectionFactory reflection = ReflectionFactory.getReflectionFactory();
     private ContainerFactory containerFactory;
 
     public ObjectMapperImpl() {
