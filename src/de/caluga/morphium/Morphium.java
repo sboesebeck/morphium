@@ -221,7 +221,6 @@ public class Morphium {
                 morphiumDriver.setCredentials(config.getMongoLogin(), config.getDatabase(), config.getMongoPassword().toCharArray());
             if (config.getMongoAdminUser() != null && config.getMongoAdminPwd() != null)
                 morphiumDriver.setCredentials(config.getMongoAdminUser(), "admin", config.getMongoAdminPwd().toCharArray());
-
             String[] seed = new String[config.getHostSeed().size()];
             for (int i = 0; i < seed.length; i++) {
                 seed[i] = config.getHostSeed().get(i);
