@@ -186,9 +186,8 @@ public class AnnotationAndReflectionHelper {
             ret = f.getName();
             Entity ent = getAnnotationFromHierarchy(cls, Entity.class); //(Entity) cls.getAnnotation(Entity.class);
             Embedded emb = getAnnotationFromHierarchy(cls, Embedded.class);//(Embedded) cls.getAnnotation(Embedded.class);
-            if (ccc && ent != null && ent.translateCamelCase()) {
-                ret = convertCamelCase(ret);
-            } else if (ccc && emb != null && emb.translateCamelCase()) {
+            if ((ccc && ent != null && ent.translateCamelCase())
+                    || (ccc && emb != null && emb.translateCamelCase())) {
                 ret = convertCamelCase(ret);
             }
         }

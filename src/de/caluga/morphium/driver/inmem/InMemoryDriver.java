@@ -517,9 +517,8 @@ public class InMemoryDriver implements MorphiumDriver {
         List<Map<String, Object>> data = getCollection(db, coll);
         for (Map<String, Object> obj : data) {
             if (obj.get(field) == null && value != null) continue;
-            if (obj.get(field) == null && value == null) {
-                ret.add(new HashMap<>(obj));
-            } else if (obj.get(field).equals(value)) {
+            if ((obj.get(field) == null && value == null)
+                    || obj.get(field).equals(value)) {
                 ret.add(new HashMap<>(obj));
             }
         }
