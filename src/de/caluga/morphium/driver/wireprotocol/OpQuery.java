@@ -12,16 +12,16 @@ import java.util.Map;
  * Query call implementation for MongoDB wire protocol
  **/
 public class OpQuery extends WireProtocolMessage {
-    int opCode = 2004;
+    private int opCode = 2004;
 
-    String db;
-    String coll;
-    int skip = 0;
-    int limit = 1;
-    Map<String, Object> doc;
+    private String db;
+    private String coll;
+    private int skip = 0;
+    private int limit = 1;
+    private Map<String, Object> doc;
 
-    int reqId;
-    int inReplyTo;
+    private int reqId;
+    private int inReplyTo;
 
 
     public int getOpCode() {

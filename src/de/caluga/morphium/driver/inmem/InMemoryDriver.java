@@ -740,7 +740,7 @@ public class InMemoryDriver implements MorphiumDriver {
     @Override
     public BulkRequestContext createBulkContext(Morphium m, String db, String collection, boolean ordered, WriteConcern wc) {
         return new BulkRequestContext(m) {
-            List<BulkRequest> requests = new ArrayList<>();
+            private List<BulkRequest> requests = new ArrayList<>();
 
             @Override
             public Map<String, Object> execute() {
