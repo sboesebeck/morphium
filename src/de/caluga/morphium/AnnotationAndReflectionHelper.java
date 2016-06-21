@@ -617,11 +617,12 @@ public class AnnotationAndReflectionHelper {
      * @return List of Strings, each a field name (as described in @Property or determined by name)
      */
     public List<String> getFields(Class cls, Class<? extends Annotation>... annotations) {
-        String k = cls.toString();
+        StringBuilder stringBuilder = new StringBuilder(cls.toString());
         for (Class<? extends Annotation> a : annotations) {
-            k += "/" + a.toString();
+            stringBuilder.append("/");
+            stringBuilder.append(a.toString());
         }
-        List<String> strings = fieldAnnotationListCache.get(k);
+        List<String> strings = fieldAnnotationListCache.get(stringBuilder.toString());
         if (strings != null) {
             return strings;
         }
@@ -679,7 +680,7 @@ public class AnnotationAndReflectionHelper {
             }
         }
 
-        fa.put(k, ret);
+        fa.put(stringBuilder.toString(), ret);
         fieldAnnotationListCache = fa;
         return ret;
     }

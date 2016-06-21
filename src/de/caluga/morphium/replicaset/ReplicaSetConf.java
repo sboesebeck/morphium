@@ -52,18 +52,19 @@ public class ReplicaSetConf {
 
     @Override
     public String toString() {
-        String m = "[ \n";
+        StringBuilder stringBuilder = new StringBuilder("[ \n");
         if (members != null) {
             for (ConfNode n : members) {
-                m += n.toString() + ",\n";
+                stringBuilder.append(n.toString());
+                stringBuilder.append(",\n");
             }
         }
-        m += " ]";
+        stringBuilder.append(" ]");
 
         return "ReplicaSetConf{" +
                 "id='" + id + '\'' +
                 ", version=" + version +
-                ", members=" + m +
+                ", members=" + stringBuilder.toString() +
                 '}';
     }
 }
