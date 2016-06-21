@@ -23,8 +23,6 @@ public class InMemoryDriver implements MorphiumDriver {
     // DBName => Collection => List of documents
     private Map<String, Map<String, List<Map<String, Object>>>> database = new ConcurrentHashMap<>();
 
-    private boolean replicaset = false;
-
     @Override
     public void setCredentials(String db, String login, char[] pwd) {
 
