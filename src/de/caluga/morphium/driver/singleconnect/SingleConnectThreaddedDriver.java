@@ -963,14 +963,14 @@ public class SingleConnectThreaddedDriver extends DriverBase {
             List<Map<String, Object>> lst = new ArrayList<>();
             Map<String, Object> idx = new HashMap<>();
             idx.put("key", index);
-            String key = "";
+            StringBuilder stringBuilder = new StringBuilder();
             for (String k : index.keySet()) {
-                key += k;
-                key += "-";
-                key += index.get(k);
+                stringBuilder.append(k);
+                stringBuilder.append("-");
+                stringBuilder.append(index.get(k));
             }
 
-            idx.put("name", "idx_" + key);
+            idx.put("name", "idx_" + stringBuilder.toString());
             if (options != null)
                 idx.putAll(options);
             lst.add(idx);
