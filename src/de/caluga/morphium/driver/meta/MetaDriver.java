@@ -37,12 +37,9 @@ public class MetaDriver extends DriverBase {
     private Map<String, Integer> errorCountByHost = new ConcurrentHashMap<>();
 
     private static ReadPreference primary = ReadPreference.primary();
-    private static ReadPreference secondary = ReadPreference.secondary();
     private static ReadPreference secondaryPreferred = ReadPreference.secondaryPreferred();
     private static ReadPreference primaryPreferred = ReadPreference.primaryPreferred();
-    private static ReadPreference nearest = ReadPreference.primary();
 
-    private static volatile int roundrobin = 0;
     private boolean connected = false;
     private long fastestHostTimestamp = System.currentTimeMillis();
 

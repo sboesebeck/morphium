@@ -1765,11 +1765,8 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
     public <T> void dropCollection(final Class<T> cls, final String collection, AsyncOperationCallback<T> callback) {
         if (morphium.getARHelper().isAnnotationPresentInHierarchy(cls, Entity.class)) {
             WriterTask r = new WriterTask() {
-                private AsyncOperationCallback<T> callback;
-
                 @Override
                 public void setCallback(AsyncOperationCallback cb) {
-                    callback = cb;
                 }
 
                 public void run() {
@@ -1799,11 +1796,9 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
     @Override
     public <T> void ensureIndex(final Class<T> cls, final String collection, final Map<String, Object> index, final Map<String, Object> options, AsyncOperationCallback<T> callback) {
         WriterTask r = new WriterTask() {
-            private AsyncOperationCallback<T> callback;
 
             @Override
             public void setCallback(AsyncOperationCallback cb) {
-                callback = cb;
             }
 
             @Override
