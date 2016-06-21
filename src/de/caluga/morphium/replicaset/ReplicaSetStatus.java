@@ -17,7 +17,6 @@ import java.util.List;
 @SuppressWarnings("UnusedDeclaration")
 @Embedded(translateCamelCase = false)
 public class ReplicaSetStatus {
-    private static Logger log = new Logger(ReplicaSetStatus.class);
     private String set;
     private String myState;
     private Date date;
@@ -96,20 +95,21 @@ public class ReplicaSetStatus {
 
     @Override
     public String toString() {
-        String m = "[ \n";
+        StringBuilder stringBuilder = new StringBuilder("[ \n");
         if (members != null) {
             for (ReplicaSetNode n : members) {
-                m = m + n.toString() + ",\n";
+                stringBuilder.append(n.toString());
+                stringBuilder.append(",\n");
             }
         }
-        m += "]";
+        stringBuilder.append("]");
 
         return "ReplicaSetStatus{" +
                 "active=" + getActiveNodes() +
                 ", set='" + set + '\'' +
                 ", myState='" + myState + '\'' +
                 ", date=" + date +
-                ", members=" + m +
+                ", members=" + stringBuilder.toString() +
                 ", config=" + config +
                 '}';
     }
