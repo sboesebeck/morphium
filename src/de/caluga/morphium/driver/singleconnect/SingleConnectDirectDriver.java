@@ -257,12 +257,13 @@ public class SingleConnectDirectDriver extends DriverBase {
             crs.setCursorId((Long) cursor.get("id"));
         }
 
-        if (cursor.get("firstBatch") != null) {
-            crs.setBatch((List) cursor.get("firstBatch"));
-        } else if (cursor.get("nextBatch") != null) {
-            crs.setBatch((List) cursor.get("nextBatch"));
+        if (cursor != null) {
+            if (cursor.get("firstBatch") != null) {
+                crs.setBatch((List) cursor.get("firstBatch"));
+            } else if (cursor.get("nextBatch") != null) {
+                crs.setBatch((List) cursor.get("nextBatch"));
+            }
         }
-
 
         SingleConnectCursor internalCursorData = new SingleConnectCursor(this);
         internalCursorData.setBatchSize(batchSize);
