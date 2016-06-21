@@ -23,8 +23,6 @@ public class InMemoryDriver implements MorphiumDriver {
     // DBName => Collection => List of documents
     private Map<String, Map<String, List<Map<String, Object>>>> database = new ConcurrentHashMap<>();
 
-    private boolean replicaset = false;
-
     @Override
     public void setCredentials(String db, String login, char[] pwd) {
 
@@ -742,7 +740,7 @@ public class InMemoryDriver implements MorphiumDriver {
     @Override
     public BulkRequestContext createBulkContext(Morphium m, String db, String collection, boolean ordered, WriteConcern wc) {
         return new BulkRequestContext(m) {
-            List<BulkRequest> requests = new ArrayList<>();
+            private List<BulkRequest> requests = new ArrayList<>();
 
             @Override
             public Map<String, Object> execute() {

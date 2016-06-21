@@ -64,7 +64,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
 //                }
 //            });
             executor.setThreadFactory(new ThreadFactory() {
-                AtomicInteger num = new AtomicInteger(1);
+                private AtomicInteger num = new AtomicInteger(1);
 
                 @Override
                 public Thread newThread(Runnable r) {
@@ -220,13 +220,14 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                                     Object invalidValue = m.invoke(v);
                                     m = v.getClass().getMethod("getPropertyPath");
                                     Iterable<?> pth = (Iterable) m.invoke(v);
-                                    String path = "";
+                                    StringBuilder stringBuilder = new StringBuilder();
                                     for (Object p : pth) {
                                         m = p.getClass().getMethod("getName");
                                         String name = (String) m.invoke(p);
-                                        path = path + "." + name;
+                                        stringBuilder.append(".");
+                                        stringBuilder.append(name);
                                     }
-                                    logger.error("Validation of " + type + " failed: " + msg + " - Invalid Value: " + invalidValue + " for path: " + path + "\n Tried to store: " + s);
+                                    logger.error("Validation of " + type + " failed: " + msg + " - Invalid Value: " + invalidValue + " for path: " + stringBuilder.toString() + "\n Tried to store: " + s);
                                 }
                             } catch (Exception e1) {
                                 logger.fatal("Could not get more information about validation error ", e1);
@@ -1765,11 +1766,8 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
     public <T> void dropCollection(final Class<T> cls, final String collection, AsyncOperationCallback<T> callback) {
         if (morphium.getARHelper().isAnnotationPresentInHierarchy(cls, Entity.class)) {
             WriterTask r = new WriterTask() {
-                private AsyncOperationCallback<T> callback;
-
                 @Override
                 public void setCallback(AsyncOperationCallback cb) {
-                    callback = cb;
                 }
 
                 public void run() {
@@ -1799,11 +1797,9 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
     @Override
     public <T> void ensureIndex(final Class<T> cls, final String collection, final Map<String, Object> index, final Map<String, Object> options, AsyncOperationCallback<T> callback) {
         WriterTask r = new WriterTask() {
-            private AsyncOperationCallback<T> callback;
 
             @Override
             public void setCallback(AsyncOperationCallback cb) {
-                callback = cb;
             }
 
             @Override

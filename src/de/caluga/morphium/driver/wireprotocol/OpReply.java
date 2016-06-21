@@ -15,18 +15,18 @@ import java.util.Map;
  **/
 
 public class OpReply extends WireProtocolMessage {
-    int reqId;
-    int inReplyTo;
+    private int reqId;
+    private int inReplyTo;
 
-    int size = 0;
-    int opcode = 1;
-    int flags;
-    long cursorId;
-    int startFrom;
-    int numReturned;
-    byte[] readBytes;
+    private int size = 0;
+    private int opcode = 1;
+    private int flags;
+    private long cursorId;
+    private int startFrom;
+    private int numReturned;
+    private byte[] readBytes;
     public long timestamp;
-    List<Map<String, Object>> documents;
+    private List<Map<String, Object>> documents;
 
     public OpReply() {
         timestamp = System.currentTimeMillis();
