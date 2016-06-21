@@ -109,6 +109,7 @@ public class MorphiumId implements Comparable<MorphiumId> {
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
+        if (o == null) return false;
         if (o.getClass() != this.getClass()) return false;
 
         MorphiumId morphiumId = (MorphiumId) o;

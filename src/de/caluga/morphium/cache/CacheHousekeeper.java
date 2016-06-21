@@ -96,9 +96,9 @@ public class CacheHousekeeper extends Thread {
             if (annotationHelper == null) {
                 try {
                     Thread.sleep(1000);
-                    continue;
                 } catch (InterruptedException e) {
                 }
+                continue;
             }
             try {
                 Map<Class, List<String>> toDelete = new HashMap<>();
