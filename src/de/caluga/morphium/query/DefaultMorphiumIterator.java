@@ -89,12 +89,16 @@ public class DefaultMorphiumIterator<T> implements MorphiumIterator<T> {
             }
 
         }
-        cursor++;
-        if (idx >= buffer.size()) {
-            log.debug("Trying to read past end of buffer - automatic deletion?");
+        if (buffer != null) {
+            cursor++;
+            if (idx >= buffer.size()) {
+                log.debug("Trying to read past end of buffer - automatic deletion?");
+                return null;
+            }
+            return buffer.get(idx);
+        } else {
             return null;
         }
-        return buffer.get(idx);
     }
 
     private void updateLastValues(Query<T> q, List<T> buffer) {
