@@ -64,7 +64,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
 //                }
 //            });
             executor.setThreadFactory(new ThreadFactory() {
-                AtomicInteger num = new AtomicInteger(1);
+                private AtomicInteger num = new AtomicInteger(1);
 
                 @Override
                 public Thread newThread(Runnable r) {

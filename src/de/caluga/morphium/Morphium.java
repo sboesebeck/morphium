@@ -143,7 +143,7 @@ public class Morphium {
                 getConfig().getThreadPoolAsyncOpKeepAliveTime(), TimeUnit.MILLISECONDS,
                 new SynchronousQueue<>());
         asyncOperationsThreadPool.setThreadFactory(new ThreadFactory() {
-            AtomicInteger num = new AtomicInteger(1);
+            private AtomicInteger num = new AtomicInteger(1);
 
             @Override
             public Thread newThread(Runnable r) {

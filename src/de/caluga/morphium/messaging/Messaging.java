@@ -78,7 +78,7 @@ public class Messaging extends Thread implements ShutdownListener {
                     morphium.getConfig().getThreadPoolMessagingKeepAliveTime(), TimeUnit.MILLISECONDS,
                     new LinkedBlockingQueue<>());
             threadPool.setThreadFactory(new ThreadFactory() {
-                AtomicInteger num = new AtomicInteger(1);
+                private AtomicInteger num = new AtomicInteger(1);
 
                 @Override
                 public Thread newThread(Runnable r) {
