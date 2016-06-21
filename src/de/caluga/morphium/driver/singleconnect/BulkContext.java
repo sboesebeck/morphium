@@ -20,7 +20,6 @@ import java.util.Map;
  * Bulk Context implementation for the singleconnect drivers
  */
 public class BulkContext extends BulkRequestContext {
-    private Logger log = new Logger(BulkContext.class);
     private DriverBase driver;
     private boolean ordered;
     private String db;

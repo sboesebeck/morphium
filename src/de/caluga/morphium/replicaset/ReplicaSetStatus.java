@@ -17,7 +17,6 @@ import java.util.List;
 @SuppressWarnings("UnusedDeclaration")
 @Embedded(translateCamelCase = false)
 public class ReplicaSetStatus {
-    private static Logger log = new Logger(ReplicaSetStatus.class);
     private String set;
     private String myState;
     private Date date;

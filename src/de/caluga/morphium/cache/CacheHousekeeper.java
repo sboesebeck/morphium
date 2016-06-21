@@ -16,13 +16,11 @@ import java.util.concurrent.ConcurrentHashMap;
 @SuppressWarnings("UnusedDeclaration")
 public class CacheHousekeeper extends Thread {
 
-    private static final String MONGODBLAYER_CACHE = "mongodblayer.cache";
     private int housekeepingIntervalPause = 500;
     private Map<Class<?>, Integer> validTimeForClass;
     private int gcTimeout = 5000;
     private boolean running = true;
     private Logger log = new Logger(CacheHousekeeper.class);
-    private MorphiumCache cache;
     private AnnotationAndReflectionHelper annotationHelper;
     private MorphiumCache morphiumCache;
 
