@@ -26,8 +26,6 @@ public class JavaUtilLoggingDelegate implements LoggerDelegate {
                 level = Level.INFO;
                 break;
             case 5:
-                level = Level.ALL;
-                break;
             default:
                 level = Level.ALL;
                 break;
