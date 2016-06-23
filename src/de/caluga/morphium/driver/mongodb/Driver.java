@@ -588,7 +588,9 @@ public class Driver implements MorphiumDriver {
                 //noinspection unchecked,unchecked
                 m.put("list", new ArrayList(((BasicDBList) value)));
                 value = convertBSON(m).get("list");
-            } else if (value instanceof BasicBSONObject) {
+            } else if (value instanceof BasicBSONObject
+                    || value instanceof Document
+                    || value instanceof BSONObject) {
                 value = convertBSON((Map) value);
             } else if (value instanceof BsonString) {
                 value = value.toString();
@@ -604,6 +606,10 @@ public class Driver implements MorphiumDriver {
                         v.add(o);
                 }
                 value = v;
+            } else if (value instanceof BsonArray) {
+                Map m = new HashMap<>();
+                m.put("list", new ArrayList(((BsonArray) value).getValues()));
+                value = convertBSON(m).get("list");
             } else if (value instanceof Document) {
                 value = convertBSON((Map) value);
             } else if (value instanceof BSONObject) {

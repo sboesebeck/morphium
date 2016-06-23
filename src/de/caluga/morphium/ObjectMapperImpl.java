@@ -433,7 +433,8 @@ public class ObjectMapperImpl implements ObjectMapper {
                     obj.put("name", ((Enum) lo).name());
                     lst.add(obj);
                     //throw new IllegalArgumentException("List of enums not supported yet");
-                } else if (lo.getClass().isPrimitive()) {
+                } else if (lo.getClass().isPrimitive()
+                        || mongoTypes.contains(lo.getClass())) {
                     lst.add(lo);
                 } else if (lo.getClass().isArray()) {
                     for (int i = 0; i < Array.getLength(lo); i++) {
@@ -444,8 +445,6 @@ public class ObjectMapperImpl implements ObjectMapper {
                         }
                     }
 
-                } else if (mongoTypes.contains(lo.getClass())) {
-                    lst.add(lo);
                 } else {
                     lst.add(marshall(lo));
                 }

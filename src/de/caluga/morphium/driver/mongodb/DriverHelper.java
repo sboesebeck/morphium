@@ -91,11 +91,9 @@ public class DriverHelper {
                     } else if (e.getValue() instanceof Collection) {
                         for (Object o : (Collection) e.getValue()) {
                             if (o == null) continue;
-                            if (o instanceof Map) {
-                                replaceMorphiumIdByObjectId(o);
-                            } else if (o instanceof List) {
-                                replaceMorphiumIdByObjectId(o);
-                            } else if (o.getClass().isArray()) {
+                            if (o instanceof Map
+                                    || o instanceof List
+                                    || o.getClass().isArray()) {
                                 replaceMorphiumIdByObjectId(o);
                             }
                         }
