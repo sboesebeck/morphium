@@ -87,7 +87,7 @@ public class AnnotationAndReflectionHelper {
             }
             return (T) annotationCache.get(cls).get(anCls);
         }
-        T ret = null;
+        T ret;
         annotationCache.putIfAbsent(cls, new HashMap<>());
 
         ret = cls.getAnnotation(anCls);
@@ -140,9 +140,10 @@ public class AnnotationAndReflectionHelper {
         return hasAdditionalData.get(clz);
     }
 
+    @SuppressWarnings("StatementWithEmptyBody")
     public String getFieldName(Class clz, String field) {
         Class cls = getRealClass(clz);
-        if (field.contains(".")) {
+        if (field.contains(".") || field.contains("(") || field.contains("$")) {
             //searching for a sub-element?
             //no check possible
             return field;
@@ -298,7 +299,7 @@ public class AnnotationAndReflectionHelper {
         List<Field> flds = getAllFields(cls);
         Field ret = null;
         for (Field f : flds) {
-            if (ret == null && f.isAnnotationPresent(Property.class) && !".".equals(f.getAnnotation(Property.class).fieldName()) && f.getAnnotation(Property.class).fieldName().equals(fld)) {
+            if (f.isAnnotationPresent(Property.class) && !".".equals(f.getAnnotation(Property.class).fieldName()) && f.getAnnotation(Property.class).fieldName().equals(fld)) {
                 f.setAccessible(true);
 
                 fc.put(key, f);
@@ -592,7 +593,7 @@ public class AnnotationAndReflectionHelper {
     }
 
     public Field getIdField(Object o) {
-        Class<?> cls = null;
+        Class<?> cls;
         if (o instanceof Class) {
             cls = getRealClass((Class<?>) o);
         } else {

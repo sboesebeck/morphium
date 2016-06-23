@@ -44,9 +44,7 @@ public class CustomMappedObject {
 			return false;
 		if (!this.getValue().equals(that.getValue()))
 			return false;
-		if (this.getIntValue() != that.getIntValue())
-			return false;
-		
-		return true;
+		return this.getIntValue() == that.getIntValue();
+
 	}
 }

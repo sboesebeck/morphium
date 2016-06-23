@@ -47,11 +47,11 @@ public class PrefetchingMorphiumIterator<T> implements MorphiumIterator<T> {
     }
 
 
-    private List<T> getBuffer(int windowNumber) {
+    private List getBuffer(int windowNumber) {
         try {
             int skp = windowNumber * windowSize;
 //            System.out.println("Getting buffer win: " + windowNumber + " skip: " + skp + " windowSize: " + windowSize+" Count: "+count+"   limit: "+limit);
-            Query q = null;
+            Query q;
 
             q = theQuery.clone();
 
@@ -93,8 +93,10 @@ public class PrefetchingMorphiumIterator<T> implements MorphiumIterator<T> {
 
         if (prefetchBuffers == null) {
             //first iteration
+            //noinspection unchecked
             prefetchBuffers = new Container[prefetchWindows];
             prefetchBuffers[0] = new Container<>();
+            //noinspection unchecked
             prefetchBuffers[0].setData(getBuffer(cursor / windowSize));
 
             for (int i = cursor / windowSize + 1; i < prefetchWindows; i++) {
@@ -106,6 +108,7 @@ public class PrefetchingMorphiumIterator<T> implements MorphiumIterator<T> {
 //                }
                 Runnable cmd = () -> {
                     if (idx * windowSize <= limit && idx * windowSize <= count) {
+                        //noinspection unchecked
                         c.setData(getBuffer(idx));
                     }
                 };
@@ -146,6 +149,7 @@ public class PrefetchingMorphiumIterator<T> implements MorphiumIterator<T> {
 
                 theQuery.getMorphium().queueTask(() -> {
 //                        System.out.println("Executing..." + win + " / " + cursor + " / " + executorService.getActiveCount() + " / queue: " + executorService.getQueue().size());
+                    //noinspection unchecked
                     container.setData(getBuffer(win));
                 });
             }
@@ -162,13 +166,18 @@ public class PrefetchingMorphiumIterator<T> implements MorphiumIterator<T> {
     }
 
     @Override
+    public int getWindowSize() {
+        return windowSize;
+    }
+
+    @Override
     public void setWindowSize(int sz) {
         windowSize = sz;
     }
 
     @Override
-    public int getWindowSize() {
-        return windowSize;
+    public Query<T> getQuery() {
+        return theQuery;
     }
 
     @Override
@@ -182,11 +191,6 @@ public class PrefetchingMorphiumIterator<T> implements MorphiumIterator<T> {
         if (limit <= 0) {
             limit = count;
         }
-    }
-
-    @Override
-    public Query<T> getQuery() {
-        return theQuery;
     }
 
     @Override

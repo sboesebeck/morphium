@@ -19,6 +19,7 @@ import java.util.*;
  * Reads from any node, as this produces lots of reads! All Writes will block until <b>all nodes</b> have confirmed the
  * write!
  */
+@SuppressWarnings("WeakerAccess")
 @Entity
 @NoCache
 //timeout <0 - setting relative to replication lag
@@ -29,22 +30,6 @@ import java.util.*;
 @Index({"sender,locked_by,processed_by,recipient,-timestamp", "locked_by,processed_by,recipient,timestamp"})
 public class Msg {
 
-
-    public  enum Fields {
-        processedBy,
-        lockedBy,
-        msgId,
-        locked,
-        type,
-        inAnswerTo,
-        msg,
-        additional,
-        value,
-        timestamp,
-        sender,
-        ttl,
-        recipient
-    }
 
     @Index
     private List<String> processedBy;
@@ -70,12 +55,10 @@ public class Msg {
     private String value;
     @Index
     private long timestamp;
-
     @Index(options = "expireAfterSeconds:0")
     private Date deleteAt;
     @Transient
     private Boolean exclusive = null;
-
     public Msg() {
         // msgId = UUID.randomUUID().toString();
         lockedBy = "ALL";
@@ -117,6 +100,10 @@ public class Msg {
         return recipient;
     }
 
+    public void setRecipient(String recipient) {
+        this.recipient = recipient;
+    }
+
     public String getSenderHost() {
         return senderHost;
     }
@@ -129,8 +116,8 @@ public class Msg {
         return deleteAt;
     }
 
-    public void setRecipient(String recipient) {
-        this.recipient = recipient;
+    public void setDeleteAt(Date deleteAt) {
+        this.deleteAt = deleteAt;
     }
 
     public void addRecipient(String id) {
@@ -385,7 +372,19 @@ public class Msg {
         return ret;  //To change body of created methods use File | Settings | File Templates.
     }
 
-    public void setDeleteAt(Date deleteAt) {
-        this.deleteAt = deleteAt;
+    public enum Fields {
+        processedBy,
+        lockedBy,
+        msgId,
+        locked,
+        type,
+        inAnswerTo,
+        msg,
+        additional,
+        value,
+        timestamp,
+        sender,
+        ttl,
+        recipient
     }
 }

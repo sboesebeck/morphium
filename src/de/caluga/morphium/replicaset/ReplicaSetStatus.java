@@ -1,6 +1,5 @@
 package de.caluga.morphium.replicaset;
 
-import de.caluga.morphium.Logger;
 import de.caluga.morphium.annotations.Embedded;
 import de.caluga.morphium.annotations.Transient;
 

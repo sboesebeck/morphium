@@ -60,14 +60,7 @@ public class JavaxValidationStorageListener extends MorphiumStorageAdapter<Objec
                         for (Object o : lst) {
                             map.put(o, isNew);
                         }
-                        try {
-                            preStore(m, map);
-                        } catch (ConstraintViolationException e) {
-                            Set<ConstraintViolation<?>> constraintViolations = e.getConstraintViolations();
-                            for (ConstraintViolation v : constraintViolations) {
-                                violations.add(v);
-                            }
-                        }
+                        validatePrestor(m, violations, map);
 
                     }
 
@@ -84,14 +77,7 @@ public class JavaxValidationStorageListener extends MorphiumStorageAdapter<Objec
                         for (Object val : map.values()) {
                             lst.put(val, isNew);
                         }
-                        try {
-                            preStore(m, lst);
-                        } catch (ConstraintViolationException e) {
-                            Set<ConstraintViolation<?>> constraintViolations = e.getConstraintViolations();
-                            for (ConstraintViolation v : constraintViolations) {
-                                violations.add(v);
-                            }
-                        }
+                        validatePrestor(m, violations, lst);
                     }
 
                 } catch (IllegalAccessException e) {
@@ -101,7 +87,18 @@ public class JavaxValidationStorageListener extends MorphiumStorageAdapter<Objec
         }
 
         if (!violations.isEmpty()) {
-            throw new ConstraintViolationException(new HashSet<ConstraintViolation<?>>(violations));
+            throw new ConstraintViolationException(new HashSet<>(violations));
+        }
+    }
+
+    private void validatePrestor(Morphium m, Set<ConstraintViolation<Object>> violations, Map<Object, Boolean> map) {
+        try {
+            preStore(m, map);
+        } catch (ConstraintViolationException e) {
+            Set<ConstraintViolation<?>> constraintViolations = e.getConstraintViolations();
+            //ADDall not possible due to generics mess
+            //noinspection Convert2streamapi
+            for (ConstraintViolation v : constraintViolations) violations.add(v);
         }
     }
 

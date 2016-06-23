@@ -92,6 +92,7 @@ public class CacheHousekeeper extends Thread {
     public void run() {
         while (running) {
             if (annotationHelper == null) {
+                //noinspection EmptyCatchBlock
                 try {
                     Thread.sleep(1000);
                 } catch (InterruptedException e) {

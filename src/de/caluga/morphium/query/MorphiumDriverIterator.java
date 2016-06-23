@@ -28,16 +28,21 @@ public class MorphiumDriverIterator<T> implements MorphiumIterator<T> {
     private int windowSize = -1;
 
     @Override
-    public void setWindowSize(int sz) {
-        windowSize = sz;
-    }
-
-    @Override
     public int getWindowSize() {
         if (query == null) return 0;
         if (windowSize <= 0)
             windowSize = query.getMorphium().getConfig().getCursorBatchSize();
         return windowSize;
+    }
+
+    @Override
+    public void setWindowSize(int sz) {
+        windowSize = sz;
+    }
+
+    @Override
+    public Query<T> getQuery() {
+        return query;
     }
 
     @Override
@@ -47,11 +52,6 @@ public class MorphiumDriverIterator<T> implements MorphiumIterator<T> {
         } catch (CloneNotSupportedException e) {
             throw new RuntimeException(e);
         }
-    }
-
-    @Override
-    public Query<T> getQuery() {
-        return query;
     }
 
     @Override
@@ -140,6 +140,7 @@ public class MorphiumDriverIterator<T> implements MorphiumIterator<T> {
             return true;
         if (currentBatch == null && cursorExternal == 0) {
             try {
+                //noinspection unchecked
                 currentBatch = query.getMorphium().getDriver().initIteration(query.getMorphium().getConfig().getDatabase(), query.getCollectionName(), query.toQueryObject(), query.getSort(), query.getFieldListForQuery(), query.getSkip(), query.getLimit(), getWindowSize(), query.getMorphium().getReadPreferenceForClass(query.getType()), null);
             } catch (MorphiumDriverException e) {
                 log.error("error during fetching first batch");
@@ -156,11 +157,13 @@ public class MorphiumDriverIterator<T> implements MorphiumIterator<T> {
         query.getMorphium().firePostLoadEvent(unmarshall);
         try {
             if (currentBatch == null && cursorExternal == 0) {
+                //noinspection unchecked
                 currentBatch = query.getMorphium().getDriver().initIteration(query.getMorphium().getConfig().getDatabase(), query.getCollectionName(), query.toQueryObject(), query.getSort(), query.getFieldListForQuery(), query.getSkip(), query.getLimit(), getWindowSize(), query.getMorphium().getReadPreferenceForClass(query.getType()), null);
                 cursor = 0;
             } else if (currentBatch != null && cursor + 1 < currentBatch.getBatch().size()) {
                 cursor++;
             } else if (currentBatch != null && cursor + 1 == currentBatch.getBatch().size()) {
+                //noinspection unchecked
                 currentBatch = query.getMorphium().getDriver().nextIteration(currentBatch);
                 cursor = 0;
             } else {

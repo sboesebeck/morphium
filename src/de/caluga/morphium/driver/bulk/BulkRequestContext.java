@@ -11,6 +11,7 @@ import java.util.Map;
 /**
  * context for doing bulk request.
  **/
+@SuppressWarnings("WeakerAccess")
 public abstract class BulkRequestContext {
     private boolean odererd = false;
     private int batchSize;

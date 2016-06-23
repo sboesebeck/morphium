@@ -22,6 +22,7 @@ import org.bson.types.ObjectId;
 import java.util.*;
 import java.util.stream.Collectors;
 
+@SuppressWarnings("WeakerAccess")
 public class Driver implements MorphiumDriver {
     private Logger log = new Logger(Driver.class);
     private String[] hostSeed;
@@ -89,8 +90,18 @@ public class Driver implements MorphiumDriver {
     }
 
     @Override
+    public void setDefaultFsync(boolean j) {
+        defaultFsync = j;
+    }
+
+    @Override
     public String[] getHostSeed() {
         return hostSeed;
+    }
+
+    @Override
+    public void setHostSeed(String... host) {
+        hostSeed = host;
     }
 
     @Override
@@ -99,8 +110,18 @@ public class Driver implements MorphiumDriver {
     }
 
     @Override
+    public void setMaxConnectionsPerHost(int mx) {
+        maxConnectionsPerHost = mx;
+    }
+
+    @Override
     public int getMinConnectionsPerHost() {
         return minConnectionsPerHost;
+    }
+
+    @Override
+    public void setMinConnectionsPerHost(int mx) {
+        minConnectionsPerHost = mx;
     }
 
     @Override
@@ -109,8 +130,18 @@ public class Driver implements MorphiumDriver {
     }
 
     @Override
+    public void setMaxConnectionLifetime(int timeout) {
+        maxConnectionLifetime = timeout;
+    }
+
+    @Override
     public int getMaxConnectionIdleTime() {
         return maxConnectionIdleTime;
+    }
+
+    @Override
+    public void setMaxConnectionIdleTime(int time) {
+        maxConnectionIdleTime = time;
     }
 
     @Override
@@ -119,13 +150,28 @@ public class Driver implements MorphiumDriver {
     }
 
     @Override
+    public void setSocketTimeout(int timeout) {
+        socketTimeout = timeout;
+    }
+
+    @Override
     public int getConnectionTimeout() {
         return connectionTimeout;
     }
 
     @Override
+    public void setConnectionTimeout(int timeout) {
+        connectionTimeout = timeout;
+    }
+
+    @Override
     public int getDefaultW() {
         return defaultW;
+    }
+
+    @Override
+    public void setDefaultW(int w) {
+        defaultW = w;
     }
 
     @Override
@@ -138,25 +184,9 @@ public class Driver implements MorphiumDriver {
         return heartbeatFrequency;
     }
 
-
-    @Override
-    public void setHeartbeatSocketTimeout(int heartbeatSocketTimeout) {
-        this.heartbeatSocketTimeout = heartbeatSocketTimeout;
-    }
-
-    @Override
-    public void setUseSSL(boolean useSSL) {
-        this.useSSL = useSSL;
-    }
-
     @Override
     public void setHeartbeatFrequency(int heartbeatFrequency) {
         this.heartbeatFrequency = heartbeatFrequency;
-    }
-
-    @Override
-    public void setWriteTimeout(int writeTimeout) {
-        this.writeTimeout = writeTimeout;
     }
 
     @Override
@@ -179,8 +209,18 @@ public class Driver implements MorphiumDriver {
     }
 
     @Override
+    public void setHeartbeatSocketTimeout(int heartbeatSocketTimeout) {
+        this.heartbeatSocketTimeout = heartbeatSocketTimeout;
+    }
+
+    @Override
     public boolean isUseSSL() {
         return useSSL;
+    }
+
+    @Override
+    public void setUseSSL(boolean useSSL) {
+        this.useSSL = useSSL;
     }
 
     @Override
@@ -189,8 +229,18 @@ public class Driver implements MorphiumDriver {
     }
 
     @Override
+    public void setDefaultJ(boolean j) {
+        defaultJ = j;
+    }
+
+    @Override
     public int getWriteTimeout() {
         return writeTimeout;
+    }
+
+    @Override
+    public void setWriteTimeout(int writeTimeout) {
+        this.writeTimeout = writeTimeout;
     }
 
     @Override
@@ -199,43 +249,8 @@ public class Driver implements MorphiumDriver {
     }
 
     @Override
-    public void setHostSeed(String... host) {
-        hostSeed = host;
-    }
-
-    @Override
-    public void setMaxConnectionsPerHost(int mx) {
-        maxConnectionsPerHost = mx;
-    }
-
-    @Override
-    public void setMinConnectionsPerHost(int mx) {
-        minConnectionsPerHost = mx;
-    }
-
-    @Override
-    public void setMaxConnectionLifetime(int timeout) {
-        maxConnectionLifetime = timeout;
-    }
-
-    @Override
-    public void setMaxConnectionIdleTime(int time) {
-        maxConnectionIdleTime = time;
-    }
-
-    @Override
-    public void setSocketTimeout(int timeout) {
-        socketTimeout = timeout;
-    }
-
-    @Override
-    public void setConnectionTimeout(int timeout) {
-        connectionTimeout = timeout;
-    }
-
-    @Override
-    public void setDefaultW(int w) {
-        defaultW = w;
+    public void setLocalThreshold(int thr) {
+        localThreshold = thr;
     }
 
     @Override
@@ -326,7 +341,6 @@ public class Driver implements MorphiumDriver {
         }
     }
 
-
     @Override
     public Maximums getMaximums() {
         if (maximums == null) {
@@ -354,28 +368,13 @@ public class Driver implements MorphiumDriver {
     }
 
     @Override
-    public void setDefaultJ(boolean j) {
-        defaultJ = j;
-    }
-
-    @Override
-    public void setDefaultWriteTimeout(int wt) {
-        writeTimeout = wt;
-    }
-
-    @Override
     public int getDefaultWriteTimeout() {
         return writeTimeout;
     }
 
     @Override
-    public void setLocalThreshold(int thr) {
-        localThreshold = thr;
-    }
-
-    @Override
-    public void setDefaultFsync(boolean j) {
-        defaultFsync = j;
+    public void setDefaultWriteTimeout(int wt) {
+        writeTimeout = wt;
     }
 
     @Override
@@ -391,8 +390,9 @@ public class Driver implements MorphiumDriver {
     public Map<String, Object> getReplsetStatus() throws MorphiumDriverException {
         return DriverHelper.doCall(() -> {
             Document ret = mongo.getDatabase("admin").runCommand(new BasicDBObject("replSetGetStatus", 1));
-            List<Document> mem = (List) ret.get("members");
+            @SuppressWarnings("unchecked") List<Document> mem = (List) ret.get("members");
             if (mem == null) return null;
+            //noinspection unchecked
             mem.stream().filter(d -> d.get("optime") instanceof Map).forEach(d -> d.put("optime", ((Map<String, Document>) d.get("optime")).get("ts")));
             return convertBSON(ret);
         }, retriesOnNetworkError, sleepBetweenErrorRetries);
@@ -481,7 +481,7 @@ public class Driver implements MorphiumDriver {
     public MorphiumCursor nextIteration(final MorphiumCursor crs) throws MorphiumDriverException {
         return (MorphiumCursor) DriverHelper.doCall(() -> {
             List<Map<String, Object>> values = new ArrayList<>();
-            DBCursor ret = ((MorphiumCursor<DBCursor>) crs).getInternalCursorObject();
+            @SuppressWarnings("unchecked") DBCursor ret = ((MorphiumCursor<DBCursor>) crs).getInternalCursorObject();
             if (ret == null) return new HashMap<>(); //finished
             int batchSize = ret.getBatchSize();
             while (ret.hasNext()) {
@@ -512,7 +512,7 @@ public class Driver implements MorphiumDriver {
     public void closeIteration(MorphiumCursor crs) throws MorphiumDriverException {
         DriverHelper.doCall(() -> {
             if (crs != null) {
-                DBCursor ret = ((MorphiumCursor<DBCursor>) crs).getInternalCursorObject();
+                @SuppressWarnings("unchecked") DBCursor ret = ((MorphiumCursor<DBCursor>) crs).getInternalCursorObject();
                 ret.close();
             }
             return null;
@@ -585,6 +585,7 @@ public class Driver implements MorphiumDriver {
                 value = ((ObjectId) value).toHexString();
             } else if (value instanceof BasicDBList) {
                 Map m = new HashMap<>();
+                //noinspection unchecked,unchecked
                 m.put("list", new ArrayList(((BasicDBList) value)));
                 value = convertBSON(m).get("list");
             } else if (value instanceof BasicBSONObject) {
@@ -596,15 +597,13 @@ public class Driver implements MorphiumDriver {
 
                 for (Object o : (List) value) {
                     if (o instanceof BSON || o instanceof BsonValue || o instanceof Map)
+                        //noinspection unchecked
                         v.add(convertBSON((Map) o));
                     else
+                        //noinspection unchecked
                         v.add(o);
                 }
                 value = v;
-            } else if (value instanceof BsonArray) {
-                Map m = new HashMap<>();
-                m.put("list", new ArrayList(((BsonArray) value).getValues()));
-                value = convertBSON(m).get("list");
             } else if (value instanceof Document) {
                 value = convertBSON((Map) value);
             } else if (value instanceof BSONObject) {
@@ -619,7 +618,7 @@ public class Driver implements MorphiumDriver {
     @SuppressWarnings("Duplicates")
     public DBCollection getColl(DB database, String collection, ReadPreference readPreference, de.caluga.morphium.driver.WriteConcern wc) {
         DBCollection coll = database.getCollection(collection);
-        com.mongodb.ReadPreference prf = null;
+        com.mongodb.ReadPreference prf;
 
         if (readPreference == null) readPreference = defaultReadPreference;
         if (readPreference != null) {
@@ -689,7 +688,7 @@ public class Driver implements MorphiumDriver {
     @SuppressWarnings("Duplicates")
     public MongoCollection<Document> getCollection(MongoDatabase database, String collection, ReadPreference readPreference, de.caluga.morphium.driver.WriteConcern wc) {
         MongoCollection<Document> coll = database.getCollection(collection);
-        com.mongodb.ReadPreference prf = null;
+        com.mongodb.ReadPreference prf;
 
         if (readPreference == null) readPreference = defaultReadPreference;
         if (readPreference != null) {
@@ -797,6 +796,7 @@ public class Driver implements MorphiumDriver {
 //                    Document update = new Document("$set", toUpdate);
                 Document tDocument = new Document(toUpdate);
                 tDocument.remove("_id"); //not needed
+                //noinspection unchecked
                 c.replaceOne(filter, tDocument, o);
 
 
@@ -817,11 +817,13 @@ public class Driver implements MorphiumDriver {
         DriverHelper.doCall(() -> {
             MongoCollection c = mongo.getDatabase(db).getCollection(collection);
             if (lst.size() == 1) {
+                //noinspection unchecked
                 c.insertOne(lst.get(0));
             } else {
                 InsertManyOptions imo = new InsertManyOptions();
                 imo.ordered(false);
 
+                //noinspection unchecked
                 c.insertMany(lst, imo);
             }
 
@@ -934,7 +936,7 @@ public class Driver implements MorphiumDriver {
             final Map<String, Object> ret = new HashMap<>();
 
             Document result = mongo.getDatabase(db).runCommand(new Document("listCollections", 1));
-            ArrayList<Document> batch = (ArrayList<Document>) (((Map) result.get("cursor")).get("firstBatch"));
+            @SuppressWarnings("unchecked") ArrayList<Document> batch = (ArrayList<Document>) (((Map) result.get("cursor")).get("firstBatch"));
             for (Document d : batch) {
                 if (d.get("name").equals(collection)) {
                     return d;
@@ -949,6 +951,7 @@ public class Driver implements MorphiumDriver {
 
     @Override
     public List<Map<String, Object>> getIndexes(String db, String collection) throws MorphiumDriverException {
+        //noinspection unchecked
         return (List<Map<String, Object>>) DriverHelper.doCall(() -> {
             List<Map<String, Object>> values = new ArrayList<>();
             for (Document d : mongo.getDatabase(db).getCollection(collection).listIndexes()) {
@@ -1003,6 +1006,7 @@ public class Driver implements MorphiumDriver {
         GroupCommand cmd = new GroupCommand(collection,
                 k, new BasicDBObject(query), ini, jsReduce, jsFinalize);
 
+        //noinspection unchecked
         return convertBSON((Map<? extends String, ?>) cmd.toDBObject());
     }
 
@@ -1012,23 +1016,25 @@ public class Driver implements MorphiumDriver {
                                                boolean explain, boolean allowDiskUse, ReadPreference readPreference) throws MorphiumDriverException {
         List list = new ArrayList<>();
         DriverHelper.replaceMorphiumIdByObjectId(pipeline);
+        //noinspection unchecked
         list.addAll(pipeline.stream().map(BasicDBObject::new).collect(Collectors.toList()));
 
         AggregationOptions opts = AggregationOptions.builder().allowDiskUse(allowDiskUse).build();
 
 
         if (explain) {
-            CommandResult ret = getColl(mongo.getDB(db), collection, getDefaultReadPreference(), null).explainAggregate(list, opts);
+            @SuppressWarnings("unchecked") CommandResult ret = getColl(mongo.getDB(db), collection, getDefaultReadPreference(), null).explainAggregate(list, opts);
             List<Map<String, Object>> o = new ArrayList<>();
             o.add(new HashMap<>(ret));
             return o;
         } else {
-            Cursor ret = getColl(mongo.getDB(db), collection, getDefaultReadPreference(), null).aggregate(list, opts);
+            @SuppressWarnings("unchecked") Cursor ret = getColl(mongo.getDB(db), collection, getDefaultReadPreference(), null).aggregate(list, opts);
             List<Map<String, Object>> result = new ArrayList<>();
 
             while (ret.hasNext()) {
                 DBObject doc = ret.next();
                 if (doc instanceof Map) {
+                    //noinspection unchecked
                     result.add(convertBSON(new HashMap<>((Map) doc)));
                 } else {
                     throw new MorphiumDriverException("Something went terribly wrong!", null);

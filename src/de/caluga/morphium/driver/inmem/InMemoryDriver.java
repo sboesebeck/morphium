@@ -18,6 +18,7 @@ import java.util.concurrent.ConcurrentHashMap;
  * InMemory implementation of the MorphiumDriver interface. can be used for testing or caching. Does not cover all
  * functionality yet.
  */
+@SuppressWarnings("WeakerAccess")
 public class InMemoryDriver implements MorphiumDriver {
     private Logger log = new Logger(InMemoryDriver.class);
     // DBName => Collection => List of documents
@@ -31,6 +32,11 @@ public class InMemoryDriver implements MorphiumDriver {
     @Override
     public int getDefaultWriteTimeout() {
         return 0;
+    }
+
+    @Override
+    public void setDefaultWriteTimeout(int wt) {
+
     }
 
     @Override
@@ -49,8 +55,18 @@ public class InMemoryDriver implements MorphiumDriver {
     }
 
     @Override
+    public void setDefaultFsync(boolean j) {
+
+    }
+
+    @Override
     public String[] getHostSeed() {
         return new String[0];
+    }
+
+    @Override
+    public void setHostSeed(String... host) {
+
     }
 
     @Override
@@ -59,8 +75,18 @@ public class InMemoryDriver implements MorphiumDriver {
     }
 
     @Override
+    public void setMaxConnectionsPerHost(int mx) {
+
+    }
+
+    @Override
     public int getMinConnectionsPerHost() {
         return 0;
+    }
+
+    @Override
+    public void setMinConnectionsPerHost(int mx) {
+
     }
 
     @Override
@@ -69,8 +95,18 @@ public class InMemoryDriver implements MorphiumDriver {
     }
 
     @Override
+    public void setMaxConnectionLifetime(int timeout) {
+
+    }
+
+    @Override
     public int getMaxConnectionIdleTime() {
         return 0;
+    }
+
+    @Override
+    public void setMaxConnectionIdleTime(int time) {
+
     }
 
     @Override
@@ -79,13 +115,28 @@ public class InMemoryDriver implements MorphiumDriver {
     }
 
     @Override
+    public void setSocketTimeout(int timeout) {
+
+    }
+
+    @Override
     public int getConnectionTimeout() {
         return 0;
     }
 
     @Override
+    public void setConnectionTimeout(int timeout) {
+
+    }
+
+    @Override
     public int getDefaultW() {
         return 0;
+    }
+
+    @Override
+    public void setDefaultW(int w) {
+
     }
 
     @Override
@@ -99,22 +150,7 @@ public class InMemoryDriver implements MorphiumDriver {
     }
 
     @Override
-    public void setHeartbeatSocketTimeout(int heartbeatSocketTimeout) {
-
-    }
-
-    @Override
-    public void setUseSSL(boolean useSSL) {
-
-    }
-
-    @Override
     public void setHeartbeatFrequency(int heartbeatFrequency) {
-
-    }
-
-    @Override
-    public void setWriteTimeout(int writeTimeout) {
 
     }
 
@@ -134,8 +170,18 @@ public class InMemoryDriver implements MorphiumDriver {
     }
 
     @Override
+    public void setHeartbeatSocketTimeout(int heartbeatSocketTimeout) {
+
+    }
+
+    @Override
     public boolean isUseSSL() {
         return false;
+    }
+
+    @Override
+    public void setUseSSL(boolean useSSL) {
+
     }
 
     @Override
@@ -144,8 +190,18 @@ public class InMemoryDriver implements MorphiumDriver {
     }
 
     @Override
+    public void setDefaultJ(boolean j) {
+
+    }
+
+    @Override
     public int getWriteTimeout() {
         return 0;
+    }
+
+    @Override
+    public void setWriteTimeout(int writeTimeout) {
+
     }
 
     @Override
@@ -154,42 +210,7 @@ public class InMemoryDriver implements MorphiumDriver {
     }
 
     @Override
-    public void setHostSeed(String... host) {
-
-    }
-
-    @Override
-    public void setMaxConnectionsPerHost(int mx) {
-
-    }
-
-    @Override
-    public void setMinConnectionsPerHost(int mx) {
-
-    }
-
-    @Override
-    public void setMaxConnectionLifetime(int timeout) {
-
-    }
-
-    @Override
-    public void setMaxConnectionIdleTime(int time) {
-
-    }
-
-    @Override
-    public void setSocketTimeout(int timeout) {
-
-    }
-
-    @Override
-    public void setConnectionTimeout(int timeout) {
-
-    }
-
-    @Override
-    public void setDefaultW(int w) {
+    public void setLocalThreshold(int thr) {
 
     }
 
@@ -243,23 +264,8 @@ public class InMemoryDriver implements MorphiumDriver {
     }
 
     @Override
-    public void setDefaultJ(boolean j) {
-
-    }
-
-    @Override
-    public void setDefaultWriteTimeout(int wt) {
-
-    }
-
-    @Override
-    public void setLocalThreshold(int thr) {
-
-    }
-
-    @Override
-    public void setDefaultFsync(boolean j) {
-
+    public int getRetriesOnNetworkError() {
+        return 0;
     }
 
     @Override
@@ -268,18 +274,13 @@ public class InMemoryDriver implements MorphiumDriver {
     }
 
     @Override
-    public int getRetriesOnNetworkError() {
+    public int getSleepBetweenErrorRetries() {
         return 0;
     }
 
     @Override
     public void setSleepBetweenErrorRetries(int s) {
 
-    }
-
-    @Override
-    public int getSleepBetweenErrorRetries() {
-        return 0;
     }
 
     @Override
@@ -316,11 +317,12 @@ public class InMemoryDriver implements MorphiumDriver {
         boolean matches = false;
         if (query.isEmpty()) return true;
         if (query.containsKey("$where")) throw new RuntimeException("$where not implemented yet");
+        //noinspection LoopStatementThatDoesntLoop
         for (String key : query.keySet()) {
             switch (key) {
                 case "$and": {
                     //list of field queries
-                    List<Map<String, Object>> lst = ((List<Map<String, Object>>) query.get(key));
+                    @SuppressWarnings("unchecked") List<Map<String, Object>> lst = ((List<Map<String, Object>>) query.get(key));
                     for (Map<String, Object> q : lst) {
                         if (!matchesQuery(q, toCheck)) return false;
                     }
@@ -328,7 +330,7 @@ public class InMemoryDriver implements MorphiumDriver {
                 }
                 case "$or": {
                     //list of or queries
-                    List<Map<String, Object>> lst = ((List<Map<String, Object>>) query.get(key));
+                    @SuppressWarnings("unchecked") List<Map<String, Object>> lst = ((List<Map<String, Object>>) query.get(key));
                     for (Map<String, Object> q : lst) {
                         if (matchesQuery(q, toCheck)) return true;
                     }
@@ -339,17 +341,21 @@ public class InMemoryDriver implements MorphiumDriver {
                     //field check
                     if (query.get(key) instanceof Map) {
                         //probably a query operand
-                        Map<String, Object> q = (Map<String, Object>) query.get(key);
+                        @SuppressWarnings("unchecked") Map<String, Object> q = (Map<String, Object>) query.get(key);
                         assert (q.size() == 1);
                         String k = q.keySet().iterator().next();
                         switch (k) {
                             case "$lt":
+                                //noinspection unchecked
                                 return ((Comparable) toCheck.get(key)).compareTo(q.get(k)) < 0;
                             case "$lte":
+                                //noinspection unchecked
                                 return ((Comparable) toCheck.get(key)).compareTo(q.get(k)) <= 0;
                             case "$gt":
+                                //noinspection unchecked
                                 return ((Comparable) toCheck.get(key)).compareTo(q.get(k)) > 0;
                             case "$gte":
+                                //noinspection unchecked
                                 return ((Comparable) toCheck.get(key)).compareTo(q.get(k)) >= 0;
                             case "$mod":
                                 Number n = (Number) toCheck.get(key);
@@ -358,6 +364,7 @@ public class InMemoryDriver implements MorphiumDriver {
                                 int rem = ((Integer) arr.get(1));
                                 return n.intValue() % div == rem;
                             case "$ne":
+                                //noinspection unchecked
                                 return ((Comparable) toCheck.get(key)).compareTo(q.get(k)) != 0;
                             case "$exists":
 
@@ -384,7 +391,7 @@ public class InMemoryDriver implements MorphiumDriver {
                     }
             }
         }
-        return matches;
+        return false;
     }
 
     @Override
@@ -404,6 +411,7 @@ public class InMemoryDriver implements MorphiumDriver {
         inCrs.setFindMetaData(findMetaData);
         inCrs.setReadPreference(readPreference);
         inCrs.setSort(sort);
+        //noinspection unchecked
         crs.setInternalCursorObject(inCrs);
         int l = batchSize;
         if (limit != 0 && limit < batchSize) {
@@ -413,6 +421,7 @@ public class InMemoryDriver implements MorphiumDriver {
         crs.setBatch(res);
 
         if (res.size() < batchSize) {
+            //noinspection unchecked
             crs.setInternalCursorObject(null); //cursor ended - no more data
         } else {
             inCrs.dataRead = res.size();
@@ -451,9 +460,11 @@ public class InMemoryDriver implements MorphiumDriver {
         next.setBatch(res);
         if (res.size() < inCrs.getBatchSize()) {
             //finished!
+            //noinspection unchecked
             next.setInternalCursorObject(null);
         } else {
             inCrs.setDataRead(oldCrs.getDataRead() + res.size());
+            //noinspection unchecked
             next.setInternalCursorObject(inCrs);
         }
         return next;
@@ -470,6 +481,7 @@ public class InMemoryDriver implements MorphiumDriver {
         List<Map<String, Object>> ret = new ArrayList<>();
         int count = 0;
 
+        //noinspection ForLoopReplaceableByForEach
         for (int i = 0; i < data.size(); i++) {
             Map<String, Object> o = data.get(i);
             count++;
@@ -488,6 +500,7 @@ public class InMemoryDriver implements MorphiumDriver {
                     if (o1.get(f).equals(o2.get(f))) {
                         continue;
                     }
+                    //noinspection unchecked
                     return ((Comparable) o1.get(f)).compareTo(o2.get(f)) * sort.get(f);
                 }
                 return 0;
@@ -570,7 +583,7 @@ public class InMemoryDriver implements MorphiumDriver {
         }
         for (Map<String, Object> obj : lst) {
             for (String operand : op.keySet()) {
-                Map<String, Object> cmd = (Map<String, Object>) op.get(operand);
+                @SuppressWarnings("unchecked") Map<String, Object> cmd = (Map<String, Object>) op.get(operand);
                 switch (operand) {
                     case "$set":
                         for (Map.Entry<String, Object> entry : cmd.entrySet()) {
@@ -622,6 +635,7 @@ public class InMemoryDriver implements MorphiumDriver {
                     case "$min":
                         for (Map.Entry<String, Object> entry : cmd.entrySet()) {
                             Comparable value = (Comparable) obj.get(entry.getKey());
+                            //noinspection unchecked
                             if (value.compareTo(entry.getValue()) > 0) {
                                 obj.put(entry.getKey(), entry.getValue());
                             }
@@ -630,6 +644,7 @@ public class InMemoryDriver implements MorphiumDriver {
                     case "$max":
                         for (Map.Entry<String, Object> entry : cmd.entrySet()) {
                             Comparable value = (Comparable) obj.get(entry.getKey());
+                            //noinspection unchecked
                             if (value.compareTo(entry.getValue()) < 0) {
                                 obj.put(entry.getKey(), entry.getValue());
                             }
@@ -748,8 +763,6 @@ public class InMemoryDriver implements MorphiumDriver {
                     for (BulkRequest r : requests) {
                         if (r instanceof InsertBulkRequest) {
                             insert(db, collection, ((InsertBulkRequest) r).getToInsert(), null);
-                        } else if (r instanceof StoreBulkRequest) {
-                            store(db, collection, ((StoreBulkRequest) r).getToInsert(), null);
                         } else if (r instanceof UpdateBulkRequest) {
                             UpdateBulkRequest up = (UpdateBulkRequest) r;
                             update(db, collection, up.getQuery(), up.getCmd(), up.isMultiple(), up.isUpsert(), null);

@@ -1,11 +1,9 @@
 package de.caluga.morphium.driver.singleconnect;
 
-import de.caluga.morphium.Logger;
 import de.caluga.morphium.Morphium;
 import de.caluga.morphium.driver.MorphiumDriverException;
 import de.caluga.morphium.driver.WriteConcern;
 import de.caluga.morphium.driver.bulk.*;
-import de.caluga.morphium.driver.mongodb.DriverHelper;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -19,6 +17,7 @@ import java.util.Map;
  * <p>
  * Bulk Context implementation for the singleconnect drivers
  */
+@SuppressWarnings("WeakerAccess")
 public class BulkContext extends BulkRequestContext {
     private DriverBase driver;
     private boolean ordered;
@@ -73,14 +72,13 @@ public class BulkContext extends BulkRequestContext {
     }
 
 
+    @SuppressWarnings("StatementWithEmptyBody")
     @Override
     public Map<String, Object> execute() throws MorphiumDriverException {
 
 
-//        List<WriteModel<? extends Document>> lst = new ArrayList<>();
         int count = 0;
         List<Map<String, Object>> results = new ArrayList<>();
-        DriverHelper helper = new DriverHelper();
         List<Map<String, Object>> inserts = new ArrayList<>();
         List<Map<String, Object>> stores = new ArrayList<>();
         List<Map<String, Object>> updates = new ArrayList<>();

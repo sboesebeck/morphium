@@ -19,6 +19,7 @@ import java.io.OutputStream;
  * 8-31	Reserved	Must be set to 0.
  *
  **/
+@SuppressWarnings("WeakerAccess")
 public abstract class WireProtocolMessage {
 
 
@@ -34,87 +35,6 @@ public abstract class WireProtocolMessage {
      */
     protected int flags;
 
-
-    public int getFlags() {
-        return flags;
-    }
-
-    public void setFlags(int flags) {
-        this.flags = flags;
-    }
-
-
-    public void setTailableCursor(boolean t) {
-        if (t) {
-            flags = flags | TAILABLE_CURSOR;
-        } else {
-            flags = flags & ~TAILABLE_CURSOR;
-        }
-    }
-
-    public void setSlaveOk(boolean t) {
-        if (t) {
-            flags = flags | SLAVE_OK;
-        } else {
-            flags = flags & ~SLAVE_OK;
-        }
-    }
-
-    public void setNoCursorTimeout(boolean t) {
-        if (t) {
-            flags = flags | NO_CURSOR_TIMEOUT;
-        } else {
-            flags = flags & ~NO_CURSOR_TIMEOUT;
-        }
-    }
-
-    public void setAwaitData(boolean t) {
-        if (t) {
-            flags = flags | AWAIT_DATA;
-        } else {
-            flags = flags & ~AWAIT_DATA;
-        }
-    }
-
-    public void setPartial(boolean t) {
-        if (t) {
-            flags = flags | PARTIAL;
-        } else {
-            flags = flags & ~PARTIAL;
-        }
-    }
-
-    public boolean isPartial() {
-        return (flags & PARTIAL) != 0;
-    }
-
-    public boolean isAwaitData() {
-        return (flags & AWAIT_DATA) != 0;
-    }
-
-
-    public boolean isTailable() {
-        return (flags & TAILABLE_CURSOR) != 0;
-    }
-
-
-    public boolean isSlaveOk() {
-        return (flags & SLAVE_OK) != 0;
-    }
-
-
-    public boolean isNoCursorTimeout() {
-        return (flags & NO_CURSOR_TIMEOUT) != 0;
-    }
-
-
-    public void writeInt(int value, OutputStream to) throws IOException {
-        to.write(((byte) ((value) & 0xff)));
-        to.write(((byte) ((value >> 8) & 0xff)));
-        to.write(((byte) ((value >> 16) & 0xff)));
-        to.write(((byte) ((value >> 24) & 0xff)));
-    }
-
     public static int readInt(byte[] bytes, int idx) {
         return (bytes[idx] & 0xff) | ((bytes[idx + 1] & 0xff) << 8) | ((bytes[idx + 2] & 0xff) << 16) | ((bytes[idx + 3] & 0xff) << 24);
     }
@@ -129,6 +49,82 @@ public abstract class WireProtocolMessage {
                 ((long) (bytes[idx + 6] & 0xFF) << 48) |
                 ((long) (bytes[idx + 7] & 0xFF) << 56);
 
+    }
+
+    public int getFlags() {
+        return flags;
+    }
+
+    public void setFlags(int flags) {
+        this.flags = flags;
+    }
+
+    public void setTailableCursor(boolean t) {
+        if (t) {
+            flags = flags | TAILABLE_CURSOR;
+        } else {
+            flags = flags & ~TAILABLE_CURSOR;
+        }
+    }
+
+    public boolean isPartial() {
+        return (flags & PARTIAL) != 0;
+    }
+
+    public void setPartial(boolean t) {
+        if (t) {
+            flags = flags | PARTIAL;
+        } else {
+            flags = flags & ~PARTIAL;
+        }
+    }
+
+    public boolean isAwaitData() {
+        return (flags & AWAIT_DATA) != 0;
+    }
+
+    public void setAwaitData(boolean t) {
+        if (t) {
+            flags = flags | AWAIT_DATA;
+        } else {
+            flags = flags & ~AWAIT_DATA;
+        }
+    }
+
+    public boolean isTailable() {
+        return (flags & TAILABLE_CURSOR) != 0;
+    }
+
+
+    public boolean isSlaveOk() {
+        return (flags & SLAVE_OK) != 0;
+    }
+
+    public void setSlaveOk(boolean t) {
+        if (t) {
+            flags = flags | SLAVE_OK;
+        } else {
+            flags = flags & ~SLAVE_OK;
+        }
+    }
+
+    public boolean isNoCursorTimeout() {
+        return (flags & NO_CURSOR_TIMEOUT) != 0;
+    }
+
+    public void setNoCursorTimeout(boolean t) {
+        if (t) {
+            flags = flags | NO_CURSOR_TIMEOUT;
+        } else {
+            flags = flags & ~NO_CURSOR_TIMEOUT;
+        }
+    }
+
+    public void writeInt(int value, OutputStream to) throws IOException {
+        to.write(((byte) ((value) & 0xff)));
+        to.write(((byte) ((value >> 8) & 0xff)));
+        to.write(((byte) ((value >> 16) & 0xff)));
+        to.write(((byte) ((value >> 24) & 0xff)));
     }
 
     public void writeString(String n, OutputStream to) throws IOException {

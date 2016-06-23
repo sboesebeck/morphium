@@ -27,13 +27,12 @@ import java.util.UUID;
 
 @SuppressWarnings("UnusedDeclaration")
 public class SequenceGenerator {
+    private static Logger log = new Logger(SequenceGenerator.class);
     private int inc;
     private long startValue;
     private Morphium morphium;
     private String id;
     private String name;
-
-    private static Logger log = new Logger(SequenceGenerator.class);
 
 
     public SequenceGenerator(Morphium m, String n) {
@@ -109,6 +108,7 @@ public class SequenceGenerator {
                 log.error("Was locked for more than 30s - assuming error, resetting lock");
                 sequence.setLockedBy(null);
                 morphium.store(sequence);
+                //noinspection EmptyCatchBlock
                 try {
                     Thread.sleep(500);
                 } catch (InterruptedException e) {

@@ -12,12 +12,36 @@ import java.util.regex.Pattern;
  * <p>
  * encoding BSON for sending data do mongodb
  */
+@SuppressWarnings("WeakerAccess")
 public class BsonEncoder {
     private ByteArrayOutputStream out;
 
     public BsonEncoder() {
 
         out = new ByteArrayOutputStream();
+    }
+
+    public static byte[] encodeDocument(Map<String, Object> m) {
+        ByteArrayOutputStream o = new ByteArrayOutputStream();
+        for (Map.Entry<String, Object> e : m.entrySet()) {
+            BsonEncoder enc = new BsonEncoder();
+            enc.encodeObject(e.getKey(), e.getValue());
+            try {
+                o.write(enc.getBytes());
+            } catch (IOException e1) {
+                e1.printStackTrace();
+            }
+        }
+
+        ByteArrayOutputStream o2 = new ByteArrayOutputStream();
+        for (int i = 3; i >= 0; i--) o2.write((byte) ((o.size() + 4 + 1 >> ((7 - i) * 8)) & 0xff));
+        try {
+            o2.write(o.toByteArray());
+            o2.write(0x00);
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+        return o2.toByteArray();
     }
 
     private BsonEncoder string(String s) {
@@ -43,7 +67,6 @@ public class BsonEncoder {
         return this;
     }
 
-
     public byte[] getBytes() {
 //        ByteArrayOutputStream n = new ByteArrayOutputStream();
 ////        int sz = out.size() + 5; //4 + terminating 0
@@ -56,30 +79,6 @@ public class BsonEncoder {
 //        n.write(0x00);
 //        return n.toByteArray();
         return out.toByteArray();
-    }
-
-
-    public static byte[] encodeDocument(Map<String, Object> m) {
-        ByteArrayOutputStream o = new ByteArrayOutputStream();
-        for (Map.Entry<String, Object> e : m.entrySet()) {
-            BsonEncoder enc = new BsonEncoder();
-            enc.encodeObject(e.getKey(), e.getValue());
-            try {
-                o.write(enc.getBytes());
-            } catch (IOException e1) {
-                e1.printStackTrace();
-            }
-        }
-
-        ByteArrayOutputStream o2 = new ByteArrayOutputStream();
-        for (int i = 3; i >= 0; i--) o2.write((byte) ((o.size() + 4 + 1 >> ((7 - i) * 8)) & 0xff));
-        try {
-            o2.write(o.toByteArray());
-            o2.write(0x00);
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
-        return o2.toByteArray();
     }
 
     private BsonEncoder encodeObject(String n, Object v) {
@@ -102,6 +101,12 @@ public class BsonEncoder {
 
             Map<String, Object> doc = new HashMap<>();
             int cnt = 0;
+            if (Collection.class.isAssignableFrom(v.getClass())) {
+                List l = new ArrayList();
+                l.addAll((Collection) v);
+                v = l;
+
+            }
             for (Object o : (List) v) {
                 //cString(""+(cnt++));
 //                encodeObject("" + (cnt++), o);
@@ -113,7 +118,7 @@ public class BsonEncoder {
         } else if (v instanceof Map || Map.class.isAssignableFrom(v.getClass())) {
             writeByte(3);
             cString(n);
-            byte[] b = BsonEncoder.encodeDocument(((Map<String, Object>) v));
+            @SuppressWarnings({"unchecked", "ConstantConditions"}) byte[] b = BsonEncoder.encodeDocument(((Map<String, Object>) v));
             writeBytes(b);
         } else if (v instanceof MongoBob) {
             //binary data

@@ -18,12 +18,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 public class MorphiumId implements Comparable<MorphiumId> {
 
     private static final int THE_MACHINE_ID;
-    private int machineId;
     private static final AtomicInteger COUNT = new AtomicInteger(new SecureRandom().nextInt());
-    private final short pid;
-    private final int counter;
-    private final int timestamp;
-
     public static ThreadLocal<Short> threadPid;
 
     static {
@@ -33,6 +28,11 @@ public class MorphiumId implements Comparable<MorphiumId> {
             throw new RuntimeException(e);
         }
     }
+
+    private final short pid;
+    private final int counter;
+    private final int timestamp;
+    private int machineId;
 
     public MorphiumId() {
         this((Date)null);
@@ -57,20 +57,6 @@ public class MorphiumId implements Comparable<MorphiumId> {
         this(bytes, 0);
     }
 
-    private static byte[] hexToByte(String s) {
-        if (s == null || s.length() != 24 || s.matches("[g-zG-Z]")) {
-            throw new IllegalArgumentException("no hex string: " + s);
-        } else {
-            byte[] b = new byte[12];
-
-            for (int i = 0; i < b.length; ++i) {
-                b[i] = (byte) Integer.parseInt(s.substring(i * 2, i * 2 + 2), 16);
-            }
-
-            return b;
-        }
-    }
-
     private MorphiumId(short pid, int c, int ts) {
         this.pid = pid;
         counter = c;
@@ -91,6 +77,74 @@ public class MorphiumId implements Comparable<MorphiumId> {
         }
     }
 
+    private static byte[] hexToByte(String s) {
+        if (s == null || s.length() != 24 || s.matches("[g-zG-Z]")) {
+            throw new IllegalArgumentException("no hex string: " + s);
+        } else {
+            byte[] b = new byte[12];
+
+            for (int i = 0; i < b.length; ++i) {
+                b[i] = (byte) Integer.parseInt(s.substring(i * 2, i * 2 + 2), 16);
+            }
+
+            return b;
+        }
+    }
+
+    private static short createPID() {
+//        if (threadPid == null || threadPid.get() == null) {
+
+        short processId;
+        try {
+            String pName = java.lang.management.ManagementFactory.getRuntimeMXBean().getName();
+            if (pName.contains("@")) {
+                processId = (short) Integer.parseInt(pName.substring(0, pName.indexOf('@')));
+            } else {
+                processId = (short) pName.hashCode();
+            }
+        } catch (Throwable t) {
+            new Logger(MorphiumId.class).error("could not get processID - using random fallback");
+            processId = (short) new SecureRandom().nextInt();
+        }
+//            threadPid = new ThreadLocal<>();
+//            threadPid.set(processId);
+        return processId;
+//        }
+//
+//        return threadPid.get();
+    }
+
+    private static int createMachineId() {
+        int machineId = 0;
+        try {
+            Enumeration<NetworkInterface> e = NetworkInterface.getNetworkInterfaces();
+            StringBuilder b = new StringBuilder();
+
+            while (e.hasMoreElements()) {
+                NetworkInterface ni = e.nextElement();
+                byte[] hwAdress = ni.getHardwareAddress();
+                if (hwAdress != null) {
+                    ByteBuffer buf = ByteBuffer.wrap(hwAdress);
+                    try {
+                        b.append(buf.getChar());
+                        b.append(buf.getChar());
+                        b.append(buf.getChar());
+                    } catch (BufferUnderflowException shortHardwareAddressException) {
+                        //cannot be
+                    }
+                }
+            }
+            machineId = b.toString().hashCode();
+        } catch (Throwable t) {
+            new Logger(MorphiumId.class).error("error accessing nics to create machine identifier... using fallback", t);
+        }
+
+        if (machineId == 0) machineId = (new SecureRandom().nextInt());
+
+        machineId = machineId & 0x00ffffff;
+        return machineId;
+    }
+
     private int readInt(byte[] bytes, int idx, int len) {
         switch (len) {
             case 4:
@@ -105,7 +159,6 @@ public class MorphiumId implements Comparable<MorphiumId> {
 
     }
 
-
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
@@ -114,9 +167,7 @@ public class MorphiumId implements Comparable<MorphiumId> {
 
         MorphiumId morphiumId = (MorphiumId) o;
 
-        if (machineId != morphiumId.machineId) return false;
-        if (pid != morphiumId.pid) return false;
-        return counter == morphiumId.counter && timestamp == morphiumId.timestamp;
+        return machineId == morphiumId.machineId && pid == morphiumId.pid && counter == morphiumId.counter && timestamp == morphiumId.timestamp;
 
     }
 
@@ -152,61 +203,6 @@ public class MorphiumId implements Comparable<MorphiumId> {
         storeShort(bytes, 7, pid);
         storeInt3Byte(bytes, 9, counter);
         return bytes;
-    }
-
-    private static short createPID() {
-//        if (threadPid == null || threadPid.get() == null) {
-
-            short processId;
-            try {
-                String pName = java.lang.management.ManagementFactory.getRuntimeMXBean().getName();
-                if (pName.contains("@")) {
-                    processId = (short) Integer.parseInt(pName.substring(0, pName.indexOf('@')));
-                } else {
-                    processId = (short) pName.hashCode();
-                }
-            } catch (Throwable t) {
-                new Logger(MorphiumId.class).error("could not get processID - using random fallback");
-                processId = (short) new SecureRandom().nextInt();
-            }
-//            threadPid = new ThreadLocal<>();
-//            threadPid.set(processId);
-        return processId;
-//        }
-//
-//        return threadPid.get();
-    }
-
-
-    private static int createMachineId() {
-        int machineId = 0;
-        try {
-            Enumeration<NetworkInterface> e = NetworkInterface.getNetworkInterfaces();
-            StringBuilder b = new StringBuilder();
-
-            while (e.hasMoreElements()) {
-                NetworkInterface ni = e.nextElement();
-                byte[] hwAdress = ni.getHardwareAddress();
-                if (hwAdress != null) {
-                    ByteBuffer buf = ByteBuffer.wrap(hwAdress);
-                    try {
-                        b.append(buf.getChar());
-                        b.append(buf.getChar());
-                        b.append(buf.getChar());
-                    } catch (BufferUnderflowException shortHardwareAddressException) {
-                        //cannot be
-                    }
-                }
-            }
-            machineId = b.toString().hashCode();
-        } catch (Throwable t) {
-            new Logger(MorphiumId.class).error("error accessing nics to create machine identifier... using fallback", t);
-        }
-
-        if (machineId == 0) machineId = (new SecureRandom().nextInt());
-
-        machineId = machineId & 0x00ffffff;
-        return machineId;
     }
 
     public long getTime() {

@@ -32,7 +32,7 @@ import java.util.stream.Collectors;
  *
  * @see MorphiumWriter
  */
-@SuppressWarnings({"ConstantConditions", "unchecked"})
+@SuppressWarnings({"ConstantConditions", "unchecked", "ConfusingArgumentToVarargsMethod", "WeakerAccess"})
 public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
     private static Logger logger = new Logger(MorphiumWriterImpl.class);
     private Morphium morphium;
@@ -708,7 +708,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
 
                 List<String> creationTimeFields = morphium.getARHelper().getFields(cls, CreationTime.class);
                 if (upsert && creationTimeFields != null && !creationTimeFields.isEmpty()) {
-                    long cnt = 0;
+                    long cnt;
                     try {
                         cnt = morphium.getDriver().count(getDbName(), collection, query, null);
                     } catch (MorphiumDriverException e) {
@@ -905,7 +905,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
 
                 for (T o : lst) {
                     if (sortedMap.get(o.getClass()) == null) {
-                        List<Query<T>> queries = new ArrayList<>();
+                        @SuppressWarnings("MismatchedQueryAndUpdateOfCollection") List<Query<T>> queries = new ArrayList<>();
                         sortedMap.put((Class<T>) o.getClass(), queries);
                     }
                     Query<T> q = (Query<T>) morphium.createQueryFor(o.getClass());
@@ -1624,7 +1624,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
         if (upsert) {
             List<String> creationTimeFields = morphium.getARHelper().getFields(cls, CreationTime.class);
             if (upsert && creationTimeFields != null && !creationTimeFields.isEmpty()) {
-                long cnt = 0;
+                long cnt;
                 try {
                     cnt = morphium.getDriver().count(getDbName(), coll, qobj, null);
                 } catch (MorphiumDriverException e) {
@@ -1712,7 +1712,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                     if (upsert) {
                         List<String> creationTimeFields = morphium.getARHelper().getFields(cls, CreationTime.class);
                         if (upsert && creationTimeFields != null && !creationTimeFields.isEmpty()) {
-                            long cnt = 0;
+                            long cnt;
                             try {
                                 cnt = morphium.getDriver().count(getDbName(), coll, qobj, null);
                             } catch (MorphiumDriverException e) {

@@ -26,7 +26,7 @@ import java.util.concurrent.ThreadPoolExecutor;
  * </code>
  * AND is the default!
  */
-@SuppressWarnings("UnusedDeclaration")
+@SuppressWarnings({"UnusedDeclaration", "unchecked"})
 public interface Query<T> extends Cloneable {
     /**
      * set the where string for this query - where-String needs to be valid java script! Errors will only be shown in MongoD-Log!
@@ -128,7 +128,7 @@ public interface Query<T> extends Cloneable {
      *
      * @param e expression
      */
-    void addChild(FilterExpression e);
+    Query<T> addChild(FilterExpression e);
 
     /**
      * create a db object from this query and all of it's child nodes
@@ -145,6 +145,13 @@ public interface Query<T> extends Cloneable {
     Class<? extends T> getType();
 
     /**
+     * what type to use
+     *
+     * @param type type
+     */
+    void setType(Class<? extends T> type);
+
+    /**
      * the result as list
      *
      * @return list
@@ -157,7 +164,6 @@ public interface Query<T> extends Cloneable {
      * create an iterator / iterable for this query, default windowSize (10), prefetch windows 1
      */
     MorphiumIterator<T> asIterable();
-
 
     MorphiumIterator<T> asIterable(int windowSize, Class<? extends MorphiumIterator<T>> it);
 
@@ -179,7 +185,6 @@ public interface Query<T> extends Cloneable {
 
     MorphiumIterator<T> asIterable(int windowSize, int prefixWindows);
 
-
     /**
      * get only 1 result (first one in result list)
      *
@@ -189,7 +194,6 @@ public interface Query<T> extends Cloneable {
 
     void get(AsyncOperationCallback<T> callback);
 
-
     /**
      * only return the IDs of objects (useful if objects are really large)
      *
@@ -198,13 +202,6 @@ public interface Query<T> extends Cloneable {
     <R> List<R> idList();
 
     void idList(AsyncOperationCallback<T> callback);
-
-    /**
-     * what type to use
-     *
-     * @param type type
-     */
-    void setType(Class<? extends T> type);
 
     /**
      * create a new empty query for the same type using the same mapper as this
@@ -271,14 +268,14 @@ public interface Query<T> extends Cloneable {
 
     int getNumberOfPendingRequests();
 
+    String getCollectionName();
+
     /**
      * use a different collection name for the query
      *
      * @param n
      */
     Query<T> setCollectionName(String n);
-
-    String getCollectionName();
 
     @Deprecated
     List<T> textSearch(String... texts);
@@ -292,17 +289,17 @@ public interface Query<T> extends Cloneable {
 
     void delete();
 
-    void setAutoValuesEnabled(boolean autoValues);
-
     boolean isAutoValuesEnabled();
+
+    Query<T> setAutoValuesEnabled(boolean autoValues);
 
     String[] getTags();
 
-    void addTag(String name, String value);
+    Query<T> addTag(String name, String value);
 
-    void disableAutoValues();
+    Query<T> disableAutoValues();
 
-    void enableAutoValues();
+    Query<T> enableAutoValues();
 
 
     Query<T> text(String... text);
@@ -311,13 +308,21 @@ public interface Query<T> extends Cloneable {
 
     Query<T> text(String metaScoreField, TextSearchLanguages lang, String... text);
 
-    void setReturnedFields(String... fl);
+    Query<T> setProjection(String... fl);
 
-    void addReturnedField(String f);
+    Query<T> addProjection(String f);
 
-    void setReturnedFields(Enum... fl);
+    Query<T> addProjection(String f, String projectOperator);
 
-    void addReturnedField(Enum f);
+    Query<T> addProjection(Enum f, String projectOperator);
+
+    Query<T> setProjection(Enum... fl);
+
+    Query<T> addProjection(Enum f);
+
+    Query<T> hideFieldInProjection(String f);
+
+    Query<T> hideFieldInProjection(Enum f);
 
 
     Map<String, Object> getFieldListForQuery();
