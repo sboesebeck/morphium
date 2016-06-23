@@ -42,6 +42,7 @@ import java.util.concurrent.atomic.AtomicInteger;
  * @author stephan
  */
 
+@SuppressWarnings("WeakerAccess")
 public class Morphium {
 
     /**
@@ -82,10 +83,6 @@ public class Morphium {
     private List<DereferencingListener> lazyDereferencingListeners = new CopyOnWriteArrayList<>();
     private MorphiumDriver morphiumDriver;
 
-    public MorphiumConfig getConfig() {
-        return config;
-    }
-
     public Morphium() {
         profilingListeners = new CopyOnWriteArrayList<>();
 
@@ -104,7 +101,6 @@ public class Morphium {
 
     }
 
-
     public Morphium(String host, int port, String db) {
         this();
         MorphiumConfig cfg = new MorphiumConfig(db, 100, 5000, 5000);
@@ -115,6 +111,7 @@ public class Morphium {
         }
         setConfig(cfg);
     }
+
 
     /**
      * init the MongoDbLayer. Uses Morphium-Configuration Object for Configuration.
@@ -129,8 +126,8 @@ public class Morphium {
         setConfig(cfg);
     }
 
-    public ThreadPoolExecutor getAsyncOperationsThreadPool() {
-        return asyncOperationsThreadPool;
+    public MorphiumConfig getConfig() {
+        return config;
     }
 
     public void setConfig(MorphiumConfig cfg) {
@@ -156,6 +153,9 @@ public class Morphium {
         initializeAndConnect();
     }
 
+    public ThreadPoolExecutor getAsyncOperationsThreadPool() {
+        return asyncOperationsThreadPool;
+    }
 
     public void registerTypeMapper(Class c, TypeMapper m) {
         getMapper().registerCustomTypeMapper(c, m);
@@ -358,6 +358,7 @@ public class Morphium {
     }
 
     public <T> void unset(final T toSet, final String field) {
+        //noinspection unchecked
         unset(toSet, field, (AsyncOperationCallback) null);
     }
 
@@ -439,7 +440,7 @@ public class Morphium {
 
     public <T> void ensureIndicesFor(Class<T> type, String onCollection, AsyncOperationCallback<T> callback) {
         if (annotationHelper.isAnnotationPresentInHierarchy(type, Index.class)) {
-            List<Annotation> lst = annotationHelper.getAllAnnotationsFromHierachy(type, Index.class);
+            @SuppressWarnings("unchecked") List<Annotation> lst = annotationHelper.getAllAnnotationsFromHierachy(type, Index.class);
             for (Annotation a : lst) {
                 Index i = (Index) a;
                 if (i.value().length > 0) {
@@ -462,7 +463,7 @@ public class Morphium {
             }
         }
 
-        List<String> flds = annotationHelper.getFields(type, Index.class);
+        @SuppressWarnings("unchecked") List<String> flds = annotationHelper.getFields(type, Index.class);
         if (flds != null && !flds.isEmpty()) {
 
             for (String f : flds) {
@@ -487,10 +488,10 @@ public class Morphium {
      * converts the given type to capped collection in Mongo, even if no @capped is defined!
      * <b>Warning:</b> depending on size this might take some time!
      *
-     * @param c
-     * @param size
-     * @param cb
-     * @param <T>
+     * @param c entity type
+     * @param size size of capped collection
+     * @param cb callback
+     * @param <T> type
      */
     public <T> void convertToCapped(Class<T> c, int size, AsyncOperationCallback<T> cb) {
         convertToCapped(getMapper().getCollectionName(c), size, cb);
@@ -519,7 +520,7 @@ public class Morphium {
 
     public Map<String, Object> execCommand(Map<String, Object> command) {
         Map<String, Object> cmd = new LinkedHashMap<>(command);
-        Map<String, Object> ret = null;
+        Map<String, Object> ret;
         try {
             ret = morphiumDriver.runCommand(config.getDatabase(), cmd);
         } catch (MorphiumDriverException e) {
@@ -585,9 +586,10 @@ public class Morphium {
     public Map<String, Object> simplifyQueryObject(Map<String, Object> q) {
         if (q.keySet().size() == 1 && q.get("$and") != null) {
             Map<String, Object> ret = new HashMap<>();
-            List<Map<String, Object>> lst = (List<Map<String, Object>>) q.get("$and");
+            @SuppressWarnings("unchecked") List<Map<String, Object>> lst = (List<Map<String, Object>>) q.get("$and");
             for (Object o : lst) {
                 if (o instanceof Map) {
+                    //noinspection unchecked
                     ret.putAll(((Map) o));
                 } else {
                     //something we cannot handle
@@ -1176,15 +1178,15 @@ public class Morphium {
 //        DBCollection col = config.getDb().getCollection(collection);
         Map<String, Object> srch = new HashMap<>();
         srch.put("_id", id);
-        List<Field> lst = annotationHelper.getAllFields(o.getClass());
-        Map<String, Object> fields = new HashMap<>();
-        for (Field f : lst) {
-            if (f.isAnnotationPresent(WriteOnly.class) || f.isAnnotationPresent(Transient.class)) {
-                continue;
-            }
-            String n = annotationHelper.getFieldName(o.getClass(), f.getName());
-            fields.put(n, 1);
-        }
+//        List<Field> lst = annotationHelper.getAllFields(o.getClass());
+//        Map<String, Object> fields = new HashMap<>();
+//        for (Field f : lst) {
+//            if (f.isAnnotationPresent(WriteOnly.class) || f.isAnnotationPresent(Transient.class)) {
+//                continue;
+//            }
+//            String n = annotationHelper.getFieldName(o.getClass(), f.getName());
+//            fields.put(n, 1);
+//        }
 
         try {
             Map<String, Object> findMetaData = new HashMap<>();
@@ -1193,7 +1195,7 @@ public class Morphium {
                 Map<String, Object> dbo = found.get(0);
                 Object fromDb = objectMapper.unmarshall(o.getClass(), dbo);
                 if (fromDb == null) throw new RuntimeException("could not reread from db");
-                List<String> flds = annotationHelper.getFields(o.getClass());
+                @SuppressWarnings("unchecked") List<String> flds = annotationHelper.getFields(o.getClass());
                 for (String f : flds) {
                     Field fld = annotationHelper.getField(o.getClass(), f);
                     if (java.lang.reflect.Modifier.isStatic(fld.getModifiers())) {
@@ -1219,6 +1221,7 @@ public class Morphium {
     public void firePreStore(Object o, boolean isNew) {
         if (o == null) return;
         for (MorphiumStorageListener l : listeners) {
+            //noinspection unchecked
             l.preStore(this, o, isNew);
         }
         annotationHelper.callLifecycleMethod(PreStore.class, o);
@@ -1227,6 +1230,7 @@ public class Morphium {
 
     public void firePostStore(Object o, boolean isNew) {
         for (MorphiumStorageListener l : listeners) {
+            //noinspection unchecked
             l.postStore(this, o, isNew);
         }
         annotationHelper.callLifecycleMethod(PostStore.class, o);
@@ -1236,6 +1240,7 @@ public class Morphium {
 
     public void firePreDrop(Class cls) {
         for (MorphiumStorageListener l : listeners) {
+            //noinspection unchecked
             l.preDrop(this, cls);
         }
 
@@ -1243,6 +1248,7 @@ public class Morphium {
 
     public <T> void firePostStore(Map<T, Boolean> isNew) {
         for (MorphiumStorageListener l : listeners) {
+            //noinspection unchecked
             l.postStore(this, isNew);
         }
         for (Object o : isNew.keySet()) annotationHelper.callLifecycleMethod(PreStore.class, o);
@@ -1251,6 +1257,7 @@ public class Morphium {
 
     public <T> void firePostRemove(List<T> toRemove) {
         for (MorphiumStorageListener l : listeners) {
+            //noinspection unchecked
             l.postRemove(this, toRemove);
         }
         for (Object o : toRemove) annotationHelper.callLifecycleMethod(PostRemove.class, o);
@@ -1259,6 +1266,7 @@ public class Morphium {
 
     public <T> void firePostLoad(List<T> loaded) {
         for (MorphiumStorageListener l : listeners) {
+            //noinspection unchecked
             l.postLoad(this, loaded);
         }
         for (Object o : loaded) annotationHelper.callLifecycleMethod(PostLoad.class, o);
@@ -1268,6 +1276,7 @@ public class Morphium {
 
     public void firePreStore(Map<Object, Boolean> isNew) {
         for (MorphiumStorageListener l : listeners) {
+            //noinspection unchecked
             l.preStore(this, isNew);
         }
         for (Object o : isNew.keySet()) annotationHelper.callLifecycleMethod(PreStore.class, o);
@@ -1275,6 +1284,7 @@ public class Morphium {
 
     public <T> void firePreRemove(List<T> lst) {
         for (MorphiumStorageListener l : listeners) {
+            //noinspection unchecked
             l.preRemove(this, lst);
         }
         for (T o : lst) annotationHelper.callLifecycleMethod(PreRemove.class, o);
@@ -1282,6 +1292,7 @@ public class Morphium {
 
     public void firePreRemove(Object o) {
         for (MorphiumStorageListener l : listeners) {
+            //noinspection unchecked
             l.preRemove(this, o);
         }
         annotationHelper.callLifecycleMethod(PreRemove.class, o);
@@ -1342,9 +1353,11 @@ public class Morphium {
      */
     public <T> T deReference(T obj) {
         if (obj instanceof LazyDeReferencingProxy) {
+            //noinspection unchecked
             obj = ((LazyDeReferencingProxy<T>) obj).__getDeref();
         }
         if (obj instanceof PartiallyUpdateableProxy) {
+            //noinspection unchecked
             obj = ((PartiallyUpdateableProxy<T>) obj).__getDeref();
         }
         List<Field> flds = getARHelper().getAllFields(obj.getClass());
@@ -1608,6 +1621,7 @@ public class Morphium {
     }
 
     public <T> Query<T> createQueryFor(Class<? extends T> type, String usingCollectionName) {
+        //noinspection unchecked
         return (Query<T>) createQueryFor(type).setCollectionName(usingCollectionName);
     }
 
@@ -1669,6 +1683,7 @@ public class Morphium {
 
     public Map<String, Object> group(Query q, Map<String, Object> initial, String jsReduce, String jsFinalize, ReadPreference rp, String... keys) {
         try {
+            //noinspection unchecked
             return morphiumDriver.group(config.getDatabase(), objectMapper.getCollectionName(q.getType()), q.toQueryObject(), initial, jsReduce, jsFinalize, rp, keys);
         } catch (MorphiumDriverException e) {
             throw new RuntimeException(e);
@@ -1687,7 +1702,7 @@ public class Morphium {
     public <T> T findById(Class<? extends T> type, Object id, String collection) {
         T ret = getCache().getFromIDCache(type, id);
         if (ret != null) return ret;
-        List<String> ls = annotationHelper.getFields(type, Id.class);
+        @SuppressWarnings("unchecked") List<String> ls = annotationHelper.getFields(type, Id.class);
         if (ls.isEmpty()) throw new RuntimeException("Cannot find by ID on non-Entity");
 
         return createQueryFor(type).setCollectionName(collection).f(ls.get(0)).eq(id).get();
@@ -1904,6 +1919,7 @@ public class Morphium {
         if (o instanceof List) {
             storeList((List) o);
         } else if (o instanceof Collection) {
+            //noinspection unchecked,unchecked
             storeList(new ArrayList<>((Collection) o));
         }
         store(o, null);
@@ -1911,8 +1927,10 @@ public class Morphium {
 
     public <T> void store(T o, final AsyncOperationCallback<T> callback) {
         if (o instanceof List) {
+            //noinspection unchecked
             storeList((List) o, callback);
         } else if (o instanceof Collection) {
+            //noinspection unchecked,unchecked
             storeList(new ArrayList<>((Collection) o), callback);
         }
         store(o, getMapper().getCollectionName(o.getClass()), callback);
@@ -1920,8 +1938,10 @@ public class Morphium {
 
     public <T> void store(T o, String collection, final AsyncOperationCallback<T> callback) {
         if (o instanceof List) {
+            //noinspection unchecked
             storeList((List) o, collection, callback);
         } else if (o instanceof Collection) {
+            //noinspection unchecked,unchecked
             storeList(new ArrayList<>((Collection) o), collection, callback);
         }
 
@@ -1954,6 +1974,7 @@ public class Morphium {
         }
         for (Class cls : writers.keySet()) {
             try {
+                //noinspection unchecked
                 writers.get(cls).store((List<T>) values.get(cls), collection, callback);
             } catch (Exception e) {
                 logger.error("Write failed for " + cls.getName() + " lst of size " + values.get(cls).size(), e);
@@ -2026,6 +2047,7 @@ public class Morphium {
 
     public <T> void delete(final T lo, final AsyncOperationCallback<T> callback) {
         if (lo instanceof Query) {
+            //noinspection unchecked
             delete((Query) lo, callback);
             return;
         }
@@ -2281,12 +2303,14 @@ public class Morphium {
 
     public <T, E, I> void fireWouldDereference(E container, String fieldname, I id, Class<? extends T> cls, boolean lazy) {
         for (DereferencingListener l : this.lazyDereferencingListeners) {
+            //noinspection unchecked
             l.wouldDereference(container, fieldname, id, cls, lazy);
         }
     }
 
     public <T> void fireDidDereference(Object container, String fieldname, T deReferenced, boolean lazy) {
         for (DereferencingListener l : this.lazyDereferencingListeners) {
+            //noinspection unchecked
             l.didDereference(container, fieldname, deReferenced, lazy);
         }
     }

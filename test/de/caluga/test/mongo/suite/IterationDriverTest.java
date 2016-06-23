@@ -47,7 +47,7 @@ public class IterationDriverTest extends MongoTest {
         assert (((Map<String, Object>) crs.getBatch().get(0)).get("counter").equals(1001));
         crs = morphium.getDriver().nextIteration(crs);
         assert (crs == null) : "Cursor should be null!";
-        morphium.getDriver().closeIteration(crs);
+        morphium.getDriver().closeIteration(null);
 
         //cleaning up
         morphium.dropCollection(UncachedObject.class);

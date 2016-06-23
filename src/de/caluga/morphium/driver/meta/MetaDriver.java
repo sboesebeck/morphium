@@ -23,8 +23,11 @@ import java.util.concurrent.ConcurrentHashMap;
  * for testing.
  */
 public class MetaDriver extends DriverBase {
-    private Logger log = new Logger(MetaDriver.class);
     private static volatile long seq;
+    private static ReadPreference primary = ReadPreference.primary();
+    private static ReadPreference secondaryPreferred = ReadPreference.secondaryPreferred();
+    private static ReadPreference primaryPreferred = ReadPreference.primaryPreferred();
+    private Logger log = new Logger(MetaDriver.class);
     private Map<String, List<Connection>> connectionPool = new ConcurrentHashMap<>();
     private Map<String, List<Connection>> connectionsInUse = new ConcurrentHashMap<>();
     private String currentMaster;
@@ -33,13 +36,7 @@ public class MetaDriver extends DriverBase {
     private List<String> tempBlockedHosts = Collections.synchronizedList(new ArrayList<>());
     private long fastestAnswer = 10000000;
     private String fastestHost = null;
-
     private Map<String, Integer> errorCountByHost = new ConcurrentHashMap<>();
-
-    private static ReadPreference primary = ReadPreference.primary();
-    private static ReadPreference secondaryPreferred = ReadPreference.secondaryPreferred();
-    private static ReadPreference primaryPreferred = ReadPreference.primaryPreferred();
-
     private boolean connected = false;
     private long fastestHostTimestamp = System.currentTimeMillis();
 
@@ -62,6 +59,7 @@ public class MetaDriver extends DriverBase {
             @Override
             public void run() {
                 while (isConnected()) {
+                    //noinspection EmptyCatchBlock
                     try {
                         Thread.sleep(2500);
                     } catch (InterruptedException e) {
@@ -141,6 +139,7 @@ public class MetaDriver extends DriverBase {
                     } catch (Exception e) {
                         log.error("Exception during houskeeping", e);
                     }
+                    //noinspection EmptyCatchBlock
                     try {
                         sleep(getHeartbeatFrequency());
                     } catch (InterruptedException e) {
@@ -163,6 +162,7 @@ public class MetaDriver extends DriverBase {
                             return;
                         }
                         log.debug("Maximum life time reached, killing myself");
+                        //noinspection EmptyCatchBlock
                         try {
                             c.close();
                         } catch (MorphiumDriverException e) {
@@ -181,6 +181,7 @@ public class MetaDriver extends DriverBase {
                                 //some other thread won
                                 return;
                             }
+                            //noinspection EmptyCatchBlock
                             try {
                                 c.close();
                             } catch (MorphiumDriverException e) {
@@ -189,7 +190,7 @@ public class MetaDriver extends DriverBase {
                         }
 
                     }
-                    Map<String, Object> reply = null;
+                    Map<String, Object> reply;
                     try {
                         c.answerTime = 99999;
                         long start = System.currentTimeMillis();
@@ -204,6 +205,7 @@ public class MetaDriver extends DriverBase {
                         }
                         log.error("Error with connection - exiting", e);
                         c.ok = false;
+                        //noinspection EmptyCatchBlock
                         try {
                             c.close();
                         } catch (MorphiumDriverException e1) {
@@ -258,7 +260,8 @@ public class MetaDriver extends DriverBase {
                                 }
                             }
                             if (c.getFromReply(reply, RunCommand.Response.hosts) != null && secondaries.isEmpty()) {
-                                Vector<String> s = new Vector<>((List<String>) c.getFromReply(reply, RunCommand.Response.hosts));
+                                @SuppressWarnings("unchecked") Vector<String> s = new Vector<>((List<String>) c.getFromReply(reply, RunCommand.Response.hosts));
+                                //noinspection ForLoopReplaceableByForEach
                                 for (int i = 0; i < s.size(); i++) {
                                     String hn = s.get(i);
                                     String adr = getHostAdress(hn);
@@ -272,10 +275,12 @@ public class MetaDriver extends DriverBase {
 
                 } catch (Exception e) {
                     log.error("Connection broken!" + c.getD().getHostSeed()[0], e);
+                    //noinspection EmptyCatchBlock
                     try {
                         c.getD().close();
                     } catch (MorphiumDriverException e1) {
                     }
+                    //noinspection EmptyCatchBlock
                     try {
                         getConnections(c.getD().getHostSeed()[0]).remove(c);
                         connectionsInUse.get(c.getD().getHostSeed()[0]).remove(c);
@@ -285,7 +290,6 @@ public class MetaDriver extends DriverBase {
                         fastestHost = null;
                         fastestAnswer = 1000000;
                     }
-                    return;
                 }
             }
         };
@@ -309,6 +313,7 @@ public class MetaDriver extends DriverBase {
             } catch (MorphiumDriverException e) {
                 log.error("Could not connect to master " + currentMaster, e);
             }
+            //noinspection EmptyCatchBlock
             try {
                 Thread.sleep(1000);
             } catch (InterruptedException e) {
@@ -317,6 +322,7 @@ public class MetaDriver extends DriverBase {
         }
         if (getHostSeed().length < secondaries.size()) {
             log.debug("There are more nodes in replicaset than defined in seed...");
+            //noinspection ForLoopReplaceableByForEach
             for (int i = 0; i < secondaries.size(); i++) {
                 String h = secondaries.get(i);
                 if (getConnections(h).isEmpty()) {
@@ -389,6 +395,7 @@ public class MetaDriver extends DriverBase {
         connected = false;
         for (String h : connectionPool.keySet()) {
             while (!connectionPool.get(h).isEmpty()) {
+                //noinspection EmptyCatchBlock
                 try {
                     Connection c = connectionPool.get(h).remove(0);
                     c.close();
@@ -398,6 +405,7 @@ public class MetaDriver extends DriverBase {
         }
         for (String h : connectionsInUse.keySet()) {
             while (!connectionsInUse.get(h).isEmpty()) {
+                //noinspection EmptyCatchBlock
                 try {
                     Connection c = connectionsInUse.get(h).remove(0);
                     c.close();
@@ -781,8 +789,8 @@ public class MetaDriver extends DriverBase {
     private Connection getConnection(String host) throws MorphiumDriverException {
         long start = System.currentTimeMillis();
 //        log.info(Thread.currentThread().getId()+": connections for "+host+": "+getTotalConnectionsForHost(host));
-        Connection c = null;
-        while (c == null) {
+        Connection c;
+        while (true) {
             try {
                 if (!getConnections(host).isEmpty()) {
                     c = getConnections(host).remove(0); //get first available connection;
@@ -793,6 +801,7 @@ public class MetaDriver extends DriverBase {
                     }
                 }
             } catch (Exception e) {
+                //noinspection EmptyCatchBlock
                 try {
                     Thread.sleep(100);
                 } catch (InterruptedException e1) {
@@ -809,6 +818,7 @@ public class MetaDriver extends DriverBase {
                 if (System.currentTimeMillis() - start > getMaxWaitTime()) {
                     throw new MorphiumDriverNetworkException("could not get Connection! Waited >" + getMaxWaitTime() + "ms");
                 }
+                //noinspection EmptyCatchBlock
                 try {
                     Thread.sleep(100);
                 } catch (InterruptedException e) {

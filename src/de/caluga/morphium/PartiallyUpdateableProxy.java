@@ -50,6 +50,7 @@ public class PartiallyUpdateableProxy<T> implements MethodInterceptor, Partially
         if (method.getName().startsWith("set") || method.isAnnotationPresent(PartialUpdate.class)) {
             PartialUpdate up = method.getAnnotation(PartialUpdate.class);
             if (up != null) {
+                //noinspection unchecked
                 if (!ah.getFields(o.getClass()).contains(up.value())) {
                     throw new IllegalArgumentException("Field " + up.value() + " is not known to Type " + o.getClass().getName());
                 }

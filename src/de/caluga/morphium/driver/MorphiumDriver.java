@@ -15,6 +15,7 @@ import java.util.Map;
  * All drivers need to implement this interface. you can add your own drivers to morphium. These are actually not
  * limited to be mongodb drivers. There is also an InMemory implementation.
  **/
+@SuppressWarnings("BooleanMethodIsAlwaysInverted")
 public interface MorphiumDriver {
 
     void setCredentials(String db, String login, char[] pwd);
@@ -25,33 +26,45 @@ public interface MorphiumDriver {
 
     boolean isDefaultFsync();
 
+    void setDefaultFsync(boolean j);
+
     String[] getHostSeed();
+
+    void setHostSeed(String... host);
 
     int getMaxConnectionsPerHost();
 
+    void setMaxConnectionsPerHost(int mx);
+
     int getMinConnectionsPerHost();
+
+    void setMinConnectionsPerHost(int mx);
 
     int getMaxConnectionLifetime();
 
+    void setMaxConnectionLifetime(int timeout);
+
     int getMaxConnectionIdleTime();
+
+    void setMaxConnectionIdleTime(int time);
 
     int getSocketTimeout();
 
+    void setSocketTimeout(int timeout);
+
     int getConnectionTimeout();
 
+    void setConnectionTimeout(int timeout);
+
     int getDefaultW();
+
+    void setDefaultW(int w);
 
     int getMaxBlockintThreadMultiplier();
 
     int getHeartbeatFrequency();
 
-    void setHeartbeatSocketTimeout(int heartbeatSocketTimeout);
-
-    void setUseSSL(boolean useSSL);
-
     void setHeartbeatFrequency(int heartbeatFrequency);
-
-    void setWriteTimeout(int writeTimeout);
 
     void setDefaultBatchSize(int defaultBatchSize);
 
@@ -59,29 +72,23 @@ public interface MorphiumDriver {
 
     int getHeartbeatSocketTimeout();
 
+    void setHeartbeatSocketTimeout(int heartbeatSocketTimeout);
+
     boolean isUseSSL();
+
+    void setUseSSL(boolean useSSL);
 
     boolean isDefaultJ();
 
+    void setDefaultJ(boolean j);
+
     int getWriteTimeout();
+
+    void setWriteTimeout(int writeTimeout);
 
     int getLocalThreshold();
 
-    void setHostSeed(String... host);
-
-    void setMaxConnectionsPerHost(int mx);
-
-    void setMinConnectionsPerHost(int mx);
-
-    void setMaxConnectionLifetime(int timeout);
-
-    void setMaxConnectionIdleTime(int time);
-
-    void setSocketTimeout(int timeout);
-
-    void setConnectionTimeout(int timeout);
-
-    void setDefaultW(int w);
+    void setLocalThreshold(int thr);
 
     void setMaxBlockingThreadMultiplier(int m);
 
@@ -97,28 +104,21 @@ public interface MorphiumDriver {
 
     void connect(String replicasetName) throws MorphiumDriverException;
 
-
     Maximums getMaximums();
 
     boolean isConnected();
 
-    void setDefaultJ(boolean j);
+    int getDefaultWriteTimeout();
 
     void setDefaultWriteTimeout(int wt);
 
-    int getDefaultWriteTimeout();
-
-    void setLocalThreshold(int thr);
-
-    void setDefaultFsync(boolean j);
+    int getRetriesOnNetworkError();
 
     void setRetriesOnNetworkError(int r);
 
-    int getRetriesOnNetworkError();
+    int getSleepBetweenErrorRetries();
 
     void setSleepBetweenErrorRetries(int s);
-
-    int getSleepBetweenErrorRetries();
 
     void close() throws MorphiumDriverException;
 

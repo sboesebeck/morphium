@@ -9,6 +9,7 @@ import java.util.Map;
 /**
  * Created by stephan on 25.04.15.
  */
+@SuppressWarnings("WeakerAccess")
 public class Logger {
     public static final int defaultLevel = 1;
     public static final boolean defaultSynced = false;
@@ -43,36 +44,34 @@ public class Logger {
             v = defaultFile;
         }
 
-        if (v != null) {
-            file = v;
-            if (v.startsWith("class:")) {
-                try {
-                    delegate = (LoggerDelegate) Class.forName(v.substring(v.indexOf(":") + 1)).newInstance();
-                } catch (Exception e) {
-                    e.printStackTrace();
-                    out = new PrintWriter(new OutputStreamWriter(System.out));
-                }
-            } else {
+        file = v;
+        if (v.startsWith("class:")) {
+            try {
+                delegate = (LoggerDelegate) Class.forName(v.substring(v.indexOf(":") + 1)).newInstance();
+            } catch (Exception e) {
+                e.printStackTrace();
+                out = new PrintWriter(new OutputStreamWriter(System.out));
+            }
+        } else {
 
-                switch (v) {
-                    case "-":
-                    case "STDOUT":
-                        out = new PrintWriter(new OutputStreamWriter(System.out));
-                        close = false;
-                        break;
-                    case "STDERR":
-                        out = new PrintWriter(new OutputStreamWriter(System.err));
-                        close = false;
-                        break;
-                    default:
-                        try {
-                            out = new PrintWriter(new BufferedWriter(new FileWriter(v, true)));
-                            close = true;
-                        } catch (IOException e) {
-                            error(null, e);
-                        }
-                        break;
-                }
+            switch (v) {
+                case "-":
+                case "STDOUT":
+                    out = new PrintWriter(new OutputStreamWriter(System.out));
+                    close = false;
+                    break;
+                case "STDERR":
+                    out = new PrintWriter(new OutputStreamWriter(System.err));
+                    close = false;
+                    break;
+                default:
+                    try {
+                        out = new PrintWriter(new BufferedWriter(new FileWriter(v, true)));
+                        close = true;
+                    } catch (IOException e) {
+                        error(null, e);
+                    }
+                    break;
             }
         }
 
@@ -106,6 +105,10 @@ public class Logger {
 
 
 //        info("Logger " + name + " instanciated: Level: " + level + " Synced: " + synced + " file: " + file);
+    }
+
+    public Logger(Class cls) {
+        this(cls.getName());
     }
 
     @Override
@@ -173,12 +176,12 @@ public class Logger {
         level = lv;
     }
 
-    public void setLevel(Object o) {
-        //ignore
-    }
-
     public int getLevel() {
         return level;
+    }
+
+    public void setLevel(Object o) {
+        //ignore
     }
 
     public boolean isEnabledFor(Object o) {
@@ -204,11 +207,6 @@ public class Logger {
     public boolean isFatalEnabled() {
         return level >= 1;
     }
-
-    public Logger(Class cls) {
-        this(cls.getName());
-    }
-
 
     public void info(Object msg) {
         info(msg.toString(), null);

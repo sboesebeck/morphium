@@ -18,6 +18,7 @@ import java.util.List;
 /**
  * Created by stephan on 26.11.15.
  */
+@SuppressWarnings("AssertWithSideEffects")
 public class AnnotationAndReflectionHelperTest {
     private AnnotationAndReflectionHelper arHelper = new AnnotationAndReflectionHelper(true);
 

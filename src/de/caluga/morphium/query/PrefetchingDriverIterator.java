@@ -42,12 +42,6 @@ public class PrefetchingDriverIterator<T> implements MorphiumIterator<T> {
     }
 
     @Override
-    public void setWindowSize(int sz) {
-        checkAndUpdateLastAccess();
-        this.batchsize = sz;
-    }
-
-    @Override
     public int getWindowSize() {
         checkAndUpdateLastAccess();
 
@@ -55,16 +49,22 @@ public class PrefetchingDriverIterator<T> implements MorphiumIterator<T> {
     }
 
     @Override
-    public void setQuery(Query<T> q) {
+    public void setWindowSize(int sz) {
         checkAndUpdateLastAccess();
-
-        query = q;
+        this.batchsize = sz;
     }
 
     @Override
     public Query<T> getQuery() {
         checkAndUpdateLastAccess();
         return query;
+    }
+
+    @Override
+    public void setQuery(Query<T> q) {
+        checkAndUpdateLastAccess();
+
+        query = q;
     }
 
     @Override
@@ -180,7 +180,7 @@ public class PrefetchingDriverIterator<T> implements MorphiumIterator<T> {
     }
 
     private List<T> getBatch(MorphiumCursor crs) {
-        List<Map<String, Object>> batch = crs.getBatch();
+        @SuppressWarnings("unchecked") List<Map<String, Object>> batch = crs.getBatch();
         List<T> ret = new ArrayList<>();
         if (batch == null) return ret;
         for (Map<String, Object> obj : batch) {
@@ -196,7 +196,8 @@ public class PrefetchingDriverIterator<T> implements MorphiumIterator<T> {
         query.getMorphium().queueTask(() -> {
             log.info("Starting prefetching...");
             while (cursor != null) {
-                while (prefetchBuffer.size() >= numPrefetchBuffers && cursor != null) try {
+                while (prefetchBuffer.size() >= numPrefetchBuffers && cursor != null) //noinspection EmptyCatchBlock
+                    try {
                     //Busy wait for buffer to be processed
                     int socketTimeout = query.getMorphium().getConfig().getSocketTimeout();
                     if (socketTimeout > 0 && System.currentTimeMillis() - lastAccess > socketTimeout) {

@@ -175,10 +175,20 @@ public class MorphiumCacheImpl implements MorphiumCache {
         return cache; //(Map<Class<?>, Map<String, CacheElement>>) (((ConcurrentHashMap) cache).clone());
     }
 
+    @Override
+    public void setCache(Map<Class<?>, Map<String, CacheElement>> cache) {
+        this.cache = cache;
+    }
+
     @SuppressWarnings("unchecked")
     @Override
     public Map<Class<?>, Map<Object, Object>> getIdCache() {
         return idCache; //(Map<Class<?>, Map<Object, Object>>) (((ConcurrentHashMap) idCache).clone());
+    }
+
+    @Override
+    public void setIdCache(Map<Class<?>, Map<Object, Object>> c) {
+        idCache = c;
     }
 
     @SuppressWarnings("unchecked")
@@ -219,7 +229,6 @@ public class MorphiumCacheImpl implements MorphiumCache {
         return b.toString();
     }
 
-
     /**
      * create unique cache key for queries, also honoring skip & limit and sorting
      *
@@ -228,9 +237,9 @@ public class MorphiumCacheImpl implements MorphiumCache {
      */
     @Override
     public String getCacheKey(Query q) {
+        //noinspection unchecked,unchecked
         return getCacheKey(q.toQueryObject(), q.getSort(), q.getCollectionName(), q.getSkip(), q.getLimit());
     }
-
 
     @Override
     public void clearCachefor(Class<?> cls) {
@@ -252,11 +261,6 @@ public class MorphiumCacheImpl implements MorphiumCache {
     @Override
     public void resetCache() {
         setCache(new ConcurrentHashMap<>());
-    }
-
-    @Override
-    public void setCache(Map<Class<?>, Map<String, CacheElement>> cache) {
-        this.cache = cache;
     }
 
     @SuppressWarnings("unchecked")
@@ -297,11 +301,6 @@ public class MorphiumCacheImpl implements MorphiumCache {
         }
 //        setCache(c);
 //        setIdCache(idc);
-    }
-
-    @Override
-    public void setIdCache(Map<Class<?>, Map<Object, Object>> c) {
-        idCache = c;
     }
 
 

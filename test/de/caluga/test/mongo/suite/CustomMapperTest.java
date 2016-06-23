@@ -2,17 +2,12 @@ package de.caluga.test.mongo.suite;
 
 import de.caluga.morphium.annotations.ReadPreferenceLevel;
 import de.caluga.morphium.query.Query;
-import de.caluga.test.mongo.suite.MongoTest;
 import de.caluga.test.mongo.suite.data.CustomMappedObject;
-import de.caluga.test.mongo.suite.data.EmbeddedObject;
-import de.caluga.test.mongo.suite.data.UncachedObject;
 import de.caluga.test.mongo.suite.data.CustomMappedObjectMapper;
 import de.caluga.test.mongo.suite.data.ObjectWithCustomMappedObject;
-
 import org.junit.Test;
 
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;

@@ -35,7 +35,7 @@ public class MorphiumBulkContext<T> {
 
     public Map<String, Object> runBulk() {
         firePre();
-        Map<String, Object> ret = null;
+        Map<String, Object> ret;
         try {
             ret = ctx.execute();
         } catch (MorphiumDriverException e) {
@@ -73,8 +73,10 @@ public class MorphiumBulkContext<T> {
                     firePre();
                     try {
                         Map<String, Object> ret = ctx.execute();
+                        //noinspection unchecked
                         c.onOperationSucceeded(AsyncOperationType.BULK, null, 0, null, null, ret);
                     } catch (Exception e) {
+                        //noinspection unchecked
                         c.onOperationError(AsyncOperationType.BULK, null, 0, null, e, null);
                     }
                     firePost();
@@ -241,10 +243,12 @@ public class MorphiumBulkContext<T> {
     }
 
     public void addSetRequest(T obj, String field, Object value, boolean upsert) {
+        //noinspection unchecked
         addSetRequest(ctx.getMorphium().createQueryFor((Class<T>) obj.getClass()).f(ctx.getMorphium().getARHelper().getIdFieldName(obj)).eq(ctx.getMorphium().getARHelper().getId(obj)), field, value, upsert, false);
     }
 
     public void addUnSetRequest(T obj, String field, Object value, boolean upsert) {
+        //noinspection unchecked
         addUnsetRequest(ctx.getMorphium().createQueryFor((Class<T>) obj.getClass()).f(ctx.getMorphium().getARHelper().getIdFieldName(obj)).eq(ctx.getMorphium().getARHelper().getId(obj)), field, value, upsert, false);
     }
 
@@ -261,6 +265,7 @@ public class MorphiumBulkContext<T> {
     }
 
     public void addIncRequest(T obj, String field, Number value, boolean upsert) {
+        //noinspection unchecked
         addIncRequest(ctx.getMorphium().createQueryFor((Class<T>) obj.getClass()).f(ctx.getMorphium().getARHelper().getIdFieldName(obj)).eq(ctx.getMorphium().getARHelper().getId(obj)), field, value, upsert, false);
     }
 
@@ -273,6 +278,7 @@ public class MorphiumBulkContext<T> {
     }
 
     public void addCurrentDateRequest(T obj, String field, boolean upsert) {
+        //noinspection unchecked
         addCurrentDateRequest(ctx.getMorphium().createQueryFor((Class<T>) obj.getClass()).f(ctx.getMorphium().getARHelper().getIdFieldName(obj)).eq(ctx.getMorphium().getARHelper().getId(obj)), upsert, false, field);
     }
 
@@ -285,6 +291,7 @@ public class MorphiumBulkContext<T> {
     }
 
     public void addMinRequest(T obj, String field, Object value, boolean upsert) {
+        //noinspection unchecked
         addMinRequest(ctx.getMorphium().createQueryFor((Class<T>) obj.getClass()).f(ctx.getMorphium().getARHelper().getIdFieldName(obj)).eq(ctx.getMorphium().getARHelper().getId(obj)), field, value, upsert, false);
     }
 
@@ -297,6 +304,7 @@ public class MorphiumBulkContext<T> {
     }
 
     public void addMaxRequest(T obj, String field, Object value, boolean upsert) {
+        //noinspection unchecked
         addMaxRequest(ctx.getMorphium().createQueryFor((Class<T>) obj.getClass()).f(ctx.getMorphium().getARHelper().getIdFieldName(obj)).eq(ctx.getMorphium().getARHelper().getId(obj)), field, value, upsert, false);
     }
 
@@ -305,6 +313,7 @@ public class MorphiumBulkContext<T> {
     }
 
     public void addRenameRequest(T obj, String field, String newName, boolean upsert) {
+        //noinspection unchecked
         addRenameRequest(ctx.getMorphium().createQueryFor((Class<T>) obj.getClass()).f(ctx.getMorphium().getARHelper().getIdFieldName(obj)).eq(ctx.getMorphium().getARHelper().getId(obj)), field, newName, upsert, false);
     }
 
@@ -313,6 +322,7 @@ public class MorphiumBulkContext<T> {
     }
 
     public void addMulRequest(T obj, String field, Number value, boolean upsert) {
+        //noinspection unchecked
         addMulRequest(ctx.getMorphium().createQueryFor((Class<T>) obj.getClass()).f(ctx.getMorphium().getARHelper().getIdFieldName(obj)).eq(ctx.getMorphium().getARHelper().getId(obj)), field, value, upsert, false);
     }
 
@@ -321,6 +331,7 @@ public class MorphiumBulkContext<T> {
     }
 
     public void addPopRequest(T obj, String field, boolean upsert) {
+        //noinspection unchecked
         addPopRequest(ctx.getMorphium().createQueryFor((Class<T>) obj.getClass()).f(ctx.getMorphium().getARHelper().getIdFieldName(obj)).eq(ctx.getMorphium().getARHelper().getId(obj)), field, upsert, false);
     }
 
@@ -329,6 +340,7 @@ public class MorphiumBulkContext<T> {
     }
 
     public void addPushRequest(T obj, String field, Object value, boolean upsert) {
+        //noinspection unchecked
         addPushRequest(ctx.getMorphium().createQueryFor((Class<T>) obj.getClass()).f(ctx.getMorphium().getARHelper().getIdFieldName(obj)).eq(ctx.getMorphium().getARHelper().getId(obj)), field, value, upsert, false);
     }
 

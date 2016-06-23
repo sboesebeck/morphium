@@ -79,7 +79,7 @@ public class DriverHelper {
     public static void replaceMorphiumIdByObjectId(Object in) {
         if (in == null) return;
         if (in instanceof Map) {
-            Map<String, Object> m = (Map) in;
+            @SuppressWarnings("unchecked") Map<String, Object> m = (Map) in;
             Map<String, Object> toSet = new HashMap<>();
             try {
                 for (Map.Entry e : m.entrySet()) {
@@ -104,6 +104,7 @@ public class DriverHelper {
                     }
                 }
                 for (Map.Entry<String, Object> e : toSet.entrySet()) {
+                    //noinspection unchecked
                     ((Map) in).put(e.getKey(), e.getValue());
                 }
 
@@ -113,6 +114,7 @@ public class DriverHelper {
             }
         } else if (in instanceof Collection) {
             Collection c = (Collection) in;
+            //noinspection unchecked
             c.forEach(DriverHelper::replaceMorphiumIdByObjectId);
         } else if (in.getClass().isArray()) {
 

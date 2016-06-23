@@ -4,7 +4,6 @@ import com.mongodb.bulk.BulkWriteResult;
 import com.mongodb.client.model.*;
 import de.caluga.morphium.Logger;
 import de.caluga.morphium.Morphium;
-import de.caluga.morphium.Utils;
 import de.caluga.morphium.driver.ReadPreference;
 import de.caluga.morphium.driver.WriteConcern;
 import de.caluga.morphium.driver.bson.MorphiumId;
@@ -24,6 +23,7 @@ import java.util.Map;
  * <p>
  * Bulk context
  */
+@SuppressWarnings("WeakerAccess")
 public class MongodbBulkContext extends BulkRequestContext {
     private Logger log = new Logger(MongodbBulkContext.class);
     private Driver driver;
@@ -97,14 +97,6 @@ public class MongodbBulkContext extends BulkRequestContext {
                     inserts.put(document, o);
                 }
 
-            } else if (br instanceof StoreBulkRequest) {
-                StoreBulkRequest ib = (StoreBulkRequest) br;
-                DriverHelper.replaceMorphiumIdByObjectId(ib.getToInsert());
-                for (Map<String, Object> o : ib.getToInsert()) {
-                    Document document = new Document(o);
-                    lst.add(new ReplaceOneModel<>(new Document(Utils.getMap("_id", o.get("_id"))), document));
-                    inserts.put(document, o);
-                }
             } else if (br instanceof DeleteBulkRequest) {
                 DeleteBulkRequest dbr = (DeleteBulkRequest) br;
                 DriverHelper.replaceMorphiumIdByObjectId(((DeleteBulkRequest) br).getQuery());
@@ -122,8 +114,10 @@ public class MongodbBulkContext extends BulkRequestContext {
                 DriverHelper.replaceMorphiumIdByObjectId(up.getCmd());
                 if (up.isMultiple()) {
                     UpdateManyModel updateModel = new UpdateManyModel(new Document(up.getQuery()), new Document(up.getCmd()), upd);
+                    //noinspection unchecked
                     lst.add(updateModel);
                 } else {
+                    //noinspection unchecked
                     lst.add(new UpdateOneModel(new Document(up.getQuery()), new Document(up.getCmd()), upd));
                 }
             }

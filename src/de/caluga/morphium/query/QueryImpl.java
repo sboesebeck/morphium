@@ -20,6 +20,7 @@ import java.util.stream.Collectors;
  * Time: 22:14
  * <p>
  */
+@SuppressWarnings("WeakerAccess")
 public class QueryImpl<T> implements Query<T>, Cloneable {
     private static Logger log = new Logger(Query.class);
     private String where;
@@ -36,7 +37,7 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
     private String collectionName;
     private String srv = null;
 
-    private Map<String, Integer> fieldList;
+    private Map<String, Object> fieldList;
 
     private boolean autoValuesEnabled = true;
     private Map<String, Object> additionalFields;
@@ -69,32 +70,36 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
     }
 
     @Override
-    public void addTag(String name, String value) {
+    public Query<T> addTag(String name, String value) {
         if (tags != null) {
             tags += ",";
         } else {
             tags = "";
         }
         tags += name + ":" + value;
+        return this;
     }
 
 
     @Override
-    public void disableAutoValues() {
+    public Query<T> disableAutoValues() {
         autoValuesEnabled = false;
+        return this;
     }
 
     @Override
-    public void enableAutoValues() {
+    public Query<T> enableAutoValues() {
         autoValuesEnabled = true;
+        return this;
     }
 
     public boolean isAutoValuesEnabled() {
         return autoValuesEnabled;
     }
 
-    public void setAutoValuesEnabled(boolean autoValuesEnabled) {
+    public Query<T> setAutoValuesEnabled(boolean autoValuesEnabled) {
         this.autoValuesEnabled = autoValuesEnabled;
+        return this;
     }
 
     @Override
@@ -195,7 +200,7 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
 
         List<T> ret = new ArrayList<>();
 
-        List<Map<String, Object>> obj = null;
+        List<Map<String, Object>> obj;
         Map<String, Object> findMetaData = new HashMap<>();
         try {
             obj = morphium.getDriver().find(morphium.getConfig().getDatabase(), getCollectionName(), query, sort, lst, skip, limit, 100, getRP(), findMetaData);
@@ -290,8 +295,9 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
     }
 
     @Override
-    public void addChild(FilterExpression ex) {
+    public Query<T> addChild(FilterExpression ex) {
         andExpr.add(ex);
+        return this;
     }
 
     @Override
@@ -328,7 +334,7 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
 
     public MongoField<T> f(String f) {
         StringBuilder fieldPath = new StringBuilder();
-        String cf = f;
+        String cf;
         Class<?> clz = type;
         if (f.contains(".")) {
             String[] fieldNames = f.split("\\.");
@@ -481,7 +487,7 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
     public long countAll() {
         morphium.inc(StatisticKeys.READS);
         long start = System.currentTimeMillis();
-        long ret = 0;
+        long ret;
         try {
             ret = morphium.getDriver().count(morphium.getConfig().getDatabase(), getCollectionName(), toQueryObject(), getRP());
         } catch (MorphiumDriverException e) {
@@ -544,6 +550,7 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
                 lst.add(ex.toQueryObject());
             }
             if (o.get("$and") != null) {
+                //noinspection unchecked
                 ((List<Map<String, Object>>) o.get("$and")).
                         add(Utils.getMap("$or", lst));
             } else {
@@ -556,6 +563,7 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
                 lst.add(ex.toQueryObject());
             }
             if (o.get("$and") != null) {
+                //noinspection unchecked
                 ((List<Map<String, Object>>) o.get("$and")).
                         add(Utils.getMap("$nor", lst));
             } else {
@@ -579,7 +587,7 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
         if (pr != null) {
             setReadPreferenceLevel(pr.value());
         }
-        List<String> fields = getARHelper().getFields(type, AdditionalData.class);
+        @SuppressWarnings("unchecked") List<String> fields = getARHelper().getFields(type, AdditionalData.class);
         additionalDataPresent = fields != null && !fields.isEmpty();
     }
 
@@ -714,7 +722,7 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
         if (!autoValuesEnabled) return;
         if (!morphium.isAutoValuesEnabledForThread()) return;
         if (getARHelper().isAnnotationPresentInHierarchy(type, LastAccess.class)) {
-            List<String> lst = getARHelper().getFields(type, LastAccess.class);
+            @SuppressWarnings("unchecked") List<String> lst = getARHelper().getFields(type, LastAccess.class);
             for (String ctf : lst) {
                 Field f = getARHelper().getField(type, ctf);
                 if (f != null) {
@@ -771,7 +779,7 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
 
     @Override
     public T getById(Object id) {
-        List<String> flds = getARHelper().getFields(type, Id.class);
+        @SuppressWarnings("unchecked") List<String> flds = getARHelper().getFields(type, Id.class);
         if (flds == null || flds.isEmpty()) {
             throw new RuntimeException("Type does not have an ID-Field? " + type.getSimpleName());
         }
@@ -823,7 +831,7 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
         Map<String, Object> fl = getFieldListForQuery();
 
         Map<String, Object> findMetaData = new HashMap<>();
-        List<Map<String, Object>> srch = null;
+        List<Map<String, Object>> srch;
         try {
             srch = morphium.getDriver().find(morphium.getConfig().getDatabase(), getCollectionName(), toQueryObject(), getSort(), fl, getSkip(), getLimit(), 1, getRP(), findMetaData);
         } catch (MorphiumDriverException e) {
@@ -839,7 +847,7 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
             return null;
         }
 
-        Map<String, Object> ret = null;
+        Map<String, Object> ret;
         ret = srch.get(0);
         srv = (String) findMetaData.get("server");
         List<T> lst = new ArrayList<>(1);
@@ -895,6 +903,7 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
             if (morphium.getCache().isCached(type, ck)) {
                 morphium.inc(StatisticKeys.CHITS);
                 //casts are not nice... any idea how to change that?
+                //noinspection unchecked
                 return (List<R>) morphium.getCache().getFromCache(type, ck);
             }
             morphium.inc(StatisticKeys.CMISS);
@@ -907,7 +916,7 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
 //                DBCursor query = collection.find(toQueryObject(), new HashMap<String, Object>("_id", 1)); //only get IDs
         Map<String, Object> findMetadata = new HashMap<>();
 
-        List<Map<String, Object>> query = null;
+        List<Map<String, Object>> query;
         try {
             query = morphium.getDriver().find(morphium.getConfig().getDatabase(), getCollectionName(), toQueryObject(), null, Utils.getMap("_id", 1), skip, limit, 1, getRP(), findMetadata);
         } catch (MorphiumDriverException e) {
@@ -915,11 +924,13 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
             throw new RuntimeException(e);
         }
 
+        //noinspection unchecked
         ret.addAll(query.stream().map(o -> (R) o.get("_id")).collect(Collectors.toList()));
         srv = (String) findMetadata.get("server");
         long dur = System.currentTimeMillis() - start;
         morphium.fireProfilingReadEvent(this, dur, ReadAccessType.ID_LIST);
         if (useCache) {
+            //noinspection unchecked
             morphium.getCache().addToCache(ck, (Class<? extends R>) type, ret);
         }
         return ret;
@@ -927,7 +938,7 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
 
     public Query<T> clone() throws CloneNotSupportedException {
         try {
-            QueryImpl<T> ret = (QueryImpl<T>) super.clone();
+            @SuppressWarnings("unchecked") QueryImpl<T> ret = (QueryImpl<T>) super.clone();
             if (andExpr != null) {
                 ret.andExpr = new ArrayList<>();
                 ret.andExpr.addAll(andExpr);
@@ -1003,6 +1014,7 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
         }
         f.setValue(Utils.getMap("$search", b.toString()));
         if (lang != null) {
+            //noinspection unchecked
             ((Map<String, Object>) f.getValue()).put("$language", lang.toString());
         }
         addChild(f);
@@ -1044,7 +1056,7 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
             txt.put("language", lang.name());
         }
 
-        Map<String, Object> result = null;
+        Map<String, Object> result;
         try {
             result = morphium.getDriver().runCommand(morphium.getConfig().getDatabase(), txt);
         } catch (MorphiumDriverException e) {
@@ -1053,10 +1065,10 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
         }
 
 
-        List<Map<String, Object>> lst = (List<Map<String, Object>>) result.get("results");
+        @SuppressWarnings("unchecked") List<Map<String, Object>> lst = (List<Map<String, Object>>) result.get("results");
         List<T> ret = new ArrayList<>();
         for (Object o : lst) {
-            Map<String, Object> obj = (Map<String, Object>) o;
+            @SuppressWarnings("unchecked") Map<String, Object> obj = (Map<String, Object>) o;
             T unmarshall = morphium.getMapper().unmarshall(getType(), obj);
             if (unmarshall != null) ret.add(unmarshall);
         }
@@ -1064,33 +1076,71 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
     }
 
     @Override
-    public void setReturnedFields(Enum... fl) {
+    public Query<T> setProjection(Enum... fl) {
         for (Enum f : fl) {
-            addReturnedField(f);
+            addProjection(f);
         }
+        return this;
     }
 
     @Override
-    public void setReturnedFields(String... fl) {
+    public Query<T> setProjection(String... fl) {
         fieldList = new HashMap<>();
         for (String f : fl) {
-            addReturnedField(f);
+            addProjection(f);
         }
-    }
-
-
-    @Override
-    public void addReturnedField(Enum f) {
-        addReturnedField(f.name());
+        return this;
     }
 
     @Override
-    public void addReturnedField(String f) {
+    public Query<T> addProjection(Enum f, String projectOperator) {
+        addProjection(f.name(), projectOperator);
+        return this;
+    }
+
+    @Override
+    public Query<T> addProjection(Enum f) {
+        addProjection(f.name());
+        return this;
+    }
+
+    @Override
+    public Query<T> addProjection(String f) {
         if (fieldList == null) {
             fieldList = new HashMap<>();
         }
         String n = getARHelper().getFieldName(type, f);
         fieldList.put(n, 1);
+        return this;
+    }
+
+    @Override
+    public Query<T> addProjection(String f, String projectOperator) {
+        if (fieldList == null) fieldList = new HashMap<>();
+        String n = getARHelper().getFieldName(type, f);
+        fieldList.put(n, projectOperator);
+        return this;
+    }
+
+    @Override
+    public Query<T> hideFieldInProjection(String f) {
+        if (fieldList == null) {
+            fieldList = new HashMap<>();
+
+        }
+//        if (fieldList.size()==0){
+//            for (Field fld:getARHelper().getAllFields(type)){
+//                fieldList.put(getARHelper().getFieldName(type,fld.getName()),1); //enable all
+//            }
+//        }
+//        fieldList.remove(f);
+        fieldList.put(getARHelper().getFieldName(type, f), 0);
+        return this;
+    }
+
+    @Override
+    public Query<T> hideFieldInProjection(Enum f) {
+        return hideFieldInProjection(f.name());
     }
 
     @Override

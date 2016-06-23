@@ -16,6 +16,7 @@ import java.lang.reflect.*;
 import java.math.BigInteger;
 import java.util.*;
 import java.util.Map.Entry;
+import java.util.stream.Collectors;
 
 /**
  * User: Stpehan Bösebeck
@@ -26,15 +27,13 @@ import java.util.Map.Entry;
 @SuppressWarnings({"ConstantConditions", "MismatchedQueryAndUpdateOfCollection", "unchecked", "MismatchedReadAndWriteOfArray", "RedundantCast"})
 public class ObjectMapperImpl implements ObjectMapper {
     private static Logger log = new Logger(ObjectMapperImpl.class);
+    private final ReflectionFactory reflection = ReflectionFactory.getReflectionFactory();
     private Map<Class<?>, NameProvider> nameProviders;
     private AnnotationAndReflectionHelper annotationHelper = new AnnotationAndReflectionHelper(true);
     private Morphium morphium;
     private JSONParser jsonParser = new JSONParser();
-
     private Map<Class, TypeMapper> customMapper;
-
     private List<Class<?>> mongoTypes;
-    private final ReflectionFactory reflection = ReflectionFactory.getReflectionFactory();
     private ContainerFactory containerFactory;
 
     public ObjectMapperImpl() {
@@ -68,6 +67,10 @@ public class ObjectMapperImpl implements ObjectMapper {
 
     }
 
+    @Override
+    public Morphium getMorphium() {
+        return morphium;
+    }
 
     /**
      * will automatically be called after instanciation by Morphium
@@ -83,11 +86,6 @@ public class ObjectMapperImpl implements ObjectMapper {
         } else {
             annotationHelper = new AnnotationAndReflectionHelper(true);
         }
-    }
-
-    @Override
-    public Morphium getMorphium() {
-        return morphium;
     }
 
     /**
@@ -353,7 +351,7 @@ public class ObjectMapperImpl implements ObjectMapper {
                     //check, what type field has
 
                     //Store Entities recursively
-                    Class<?> valueClass = null;
+                    Class<?> valueClass;
 
                     if (value == null) {
                         valueClass = fld.getType();
@@ -621,7 +619,7 @@ public class ObjectMapperImpl implements ObjectMapper {
                     if (morphium == null) {
                         log.fatal("Morphium not set - could not de-reference!");
                     } else {
-                        Object id = null;
+                        Object id;
                         if (!(valueFromDb instanceof Map)) {
                             id = valueFromDb;
                         } else {
@@ -925,11 +923,10 @@ public class ObjectMapperImpl implements ObjectMapper {
                 String d = (String) mapVal.get("_b64data");
                 if (d == null) d = (String) mapVal.get("b64Data");
                 BASE64Decoder dec = new BASE64Decoder();
-                ObjectInputStream in = null;
+                ObjectInputStream in;
                 try {
                     in = new ObjectInputStream(new ByteArrayInputStream(dec.decodeBuffer(d)));
-                    Object read = in.readObject();
-                    return read;
+                    return in.readObject();
                 } catch (IOException | ClassNotFoundException e) {
                     throw new RuntimeException(e);
                 }
@@ -939,18 +936,13 @@ public class ObjectMapperImpl implements ObjectMapper {
             }
         } else if (val instanceof List) {
             List<Map<String, Object>> lst = (List<Map<String, Object>>) val;
-            List mapValue = createList(lst);
-            return mapValue;
+            return createList(lst);
         }
 	    return val;
     }
 
     private List createList(List<Map<String, Object>> lst) {
-        List mapValue = new ArrayList();
-        for (Object li : lst) {
-            mapValue.add(unmarshallInternal(li));
-        }
-        return mapValue;
+        return lst.stream().map(this::unmarshallInternal).collect(Collectors.toList());
     }
     
     @SuppressWarnings({"unchecked", "ConstantConditions"})
@@ -963,7 +955,7 @@ public class ObjectMapperImpl implements ObjectMapper {
                 }
 
                 MorphiumReference r = unmarshall(MorphiumReference.class, obj);
-                Class type = null;
+                Class type;
                 try {
                     type = Class.forName(r.getClassName());
                 } catch (ClassNotFoundException e) {

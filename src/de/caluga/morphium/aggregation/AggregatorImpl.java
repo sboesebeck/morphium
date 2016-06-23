@@ -15,8 +15,8 @@ import java.util.*;
  * <p/>
  */
 public class AggregatorImpl<T, R> implements Aggregator<T, R> {
-    private Class<? extends T> type;
     private final List<Map<String, Object>> params = new ArrayList<>();
+    private Class<? extends T> type;
     private Morphium morphium;
     private Class<? extends R> rType;
     private String collectionName;
@@ -44,18 +44,13 @@ public class AggregatorImpl<T, R> implements Aggregator<T, R> {
     }
 
     @Override
-    public void setMorphium(Morphium m) {
-        morphium = m;
-    }
-
-    @Override
     public Morphium getMorphium() {
         return morphium;
     }
 
     @Override
-    public void setSearchType(Class<? extends T> type) {
-        this.type = type;
+    public void setMorphium(Morphium m) {
+        morphium = m;
     }
 
     @Override
@@ -64,8 +59,8 @@ public class AggregatorImpl<T, R> implements Aggregator<T, R> {
     }
 
     @Override
-    public void setResultType(Class<? extends R> type) {
-        rType = type;
+    public void setSearchType(Class<? extends T> type) {
+        this.type = type;
     }
 
     @Override
@@ -73,6 +68,10 @@ public class AggregatorImpl<T, R> implements Aggregator<T, R> {
         return rType;
     }
 
+    @Override
+    public void setResultType(Class<? extends R> type) {
+        rType = type;
+    }
 
     @Override
     public Aggregator<T, R> project(String... m) {
@@ -159,11 +158,6 @@ public class AggregatorImpl<T, R> implements Aggregator<T, R> {
     }
 
     @Override
-    public void setCollectionName(String cn) {
-        collectionName = cn;
-    }
-
-    @Override
     public String getCollectionName() {
         if (collectionName == null) {
             collectionName = morphium.getMapper().getCollectionName(type);
@@ -172,12 +166,18 @@ public class AggregatorImpl<T, R> implements Aggregator<T, R> {
     }
 
     @Override
+    public void setCollectionName(String cn) {
+        collectionName = cn;
+    }
+
+    @Override
     public Group<T, R> group(Map<String, Object> id) {
-        return new Group(this, id);
+        return new Group<>(this, id);
     }
 
     @Override
     public Group<T, R> groupSubObj(Map<String, String> idSubObject) {
+        //noinspection unchecked,unchecked
         return new Group(this, idSubObject);
     }
 

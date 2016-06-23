@@ -15,17 +15,15 @@ import java.util.Map;
  **/
 
 public class OpReply extends WireProtocolMessage {
+    public long timestamp;
     private int reqId;
     private int inReplyTo;
-
     private int size = 0;
     private int opcode = 1;
     private int flags;
     private long cursorId;
     private int startFrom;
     private int numReturned;
-    private byte[] readBytes;
-    public long timestamp;
     private List<Map<String, Object>> documents;
 
     public OpReply() {
@@ -33,7 +31,6 @@ public class OpReply extends WireProtocolMessage {
     }
 
     public void parse(byte[] bytes) throws UnsupportedEncodingException {
-        readBytes = bytes;
         parse(bytes, 0);
     }
 

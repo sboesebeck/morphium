@@ -9,6 +9,7 @@ import java.util.regex.Pattern;
 /**
  * decoding BSON coming from mongodb
  **/
+@SuppressWarnings("WeakerAccess")
 public class BsonDecoder {
 
     public Map<String, Object> decodeDocument(byte[] in) throws UnsupportedEncodingException {

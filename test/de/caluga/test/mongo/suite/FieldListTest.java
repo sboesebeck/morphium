@@ -26,7 +26,7 @@ public class FieldListTest extends MongoTest {
         waitForWrites();
 
         Query<UncachedObject> q = morphium.createQueryFor(UncachedObject.class);
-        q.addReturnedField(UncachedObject.Fields.counter);
+        q.addProjection(UncachedObject.Fields.counter);
 
         q = q.f(UncachedObject.Fields.counter).eq(30);
         UncachedObject uc = q.get();

@@ -18,10 +18,11 @@ import java.util.concurrent.atomic.AtomicInteger;
  * Checks for the replicaset status periodically.
  * Used in order to get number of currently active nodes and their state
  */
+@SuppressWarnings("WeakerAccess")
 public class RSMonitor {
     private static Logger logger = new Logger(RSMonitor.class);
-    private Morphium morphium;
     private final ScheduledThreadPoolExecutor executorService;
+    private Morphium morphium;
     private ReplicaSetStatus currentStatus;
     private int nullcounter = 0;
 

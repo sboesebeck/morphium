@@ -21,6 +21,7 @@ import java.util.Vector;
  *
  * Base for custom drivers
  */
+@SuppressWarnings("WeakerAccess")
 public abstract class DriverBase implements MorphiumDriver {
     private volatile int rqid = 10000;
     private int maxWait = 1000;
@@ -92,9 +93,8 @@ public abstract class DriverBase implements MorphiumDriver {
     }
 
     @Override
-    public void setRetriesOnNetworkError(int r) {
-        if (r < 1) r = 1;
-        retriesOnNetworkError = r;
+    public void setCredentials(Map<String, String[]> credentials) {
+
     }
 
     @Override
@@ -103,9 +103,9 @@ public abstract class DriverBase implements MorphiumDriver {
     }
 
     @Override
-    public void setSleepBetweenErrorRetries(int s) {
-        if (s < 100) s = 100;
-        sleepBetweenRetries = s;
+    public void setRetriesOnNetworkError(int r) {
+        if (r < 1) r = 1;
+        retriesOnNetworkError = r;
     }
 
     @Override
@@ -113,10 +113,10 @@ public abstract class DriverBase implements MorphiumDriver {
         return sleepBetweenRetries;
     }
 
-
     @Override
-    public void setDefaultReadPreference(ReadPreference rp) {
-        defaultRP = rp;
+    public void setSleepBetweenErrorRetries(int s) {
+        if (s < 100) s = 100;
+        sleepBetweenRetries = s;
     }
 
     public int getMaxBsonObjectSize() {
@@ -159,31 +159,15 @@ public abstract class DriverBase implements MorphiumDriver {
         }
     }
 
-
-    @Override
-    public void setDefaultJ(boolean j) {
-        defaultJ = j;
-    }
-
-    @Override
-    public void setDefaultWriteTimeout(int wt) {
-        defaultWriteTimeout = wt;
-    }
-
     @Override
     public int getDefaultWriteTimeout() {
         return defaultWriteTimeout;
     }
 
     @Override
-    public void setLocalThreshold(int thr) {
-        localThreshold = thr;
+    public void setDefaultWriteTimeout(int wt) {
+        defaultWriteTimeout = wt;
     }
-
-    @Override
-    public void setDefaultFsync(boolean j) {
-    }
-
 
     @Override
     public int getHeartbeatConnectTimeout() {
@@ -204,7 +188,6 @@ public abstract class DriverBase implements MorphiumDriver {
     public void setMaxWaitTime(int maxWaitTime) {
         this.maxWait = maxWaitTime;
     }
-
 
     @Override
     public boolean isSocketKeepAlive() {
@@ -227,125 +210,13 @@ public abstract class DriverBase implements MorphiumDriver {
     }
 
     @Override
+    public void setDefaultFsync(boolean j) {
+    }
+
+    @Override
     public String[] getHostSeed() {
         if (hostSeed == null) return null;
         return hostSeed.toArray(new String[hostSeed.size()]);
-    }
-
-    @Override
-    public int getMaxConnectionsPerHost() {
-        return maxConnectionsPerHost;
-    }
-
-    @Override
-    public int getMinConnectionsPerHost() {
-        return minConnectionsPerHost;
-    }
-
-    @Override
-    public int getMaxConnectionLifetime() {
-        return maxConnectionLifetime;
-    }
-
-    @Override
-    public int getMaxConnectionIdleTime() {
-        return maxConnectionIdleTime;
-    }
-
-    @Override
-    public int getSocketTimeout() {
-        return soTimeout;
-    }
-
-    @Override
-    public int getConnectionTimeout() {
-        return connectionTimeout;
-    }
-
-    @Override
-    public int getDefaultW() {
-        return defaultW;
-    }
-
-    @Override
-    public int getMaxBlockintThreadMultiplier() {
-        return maxBlockingThreadsMultiplier;
-    }
-
-    @Override
-    public int getHeartbeatFrequency() {
-        return heartbeatFrequency;
-    }
-
-    @Override
-    public void setHeartbeatSocketTimeout(int heartbeatSocketTimeout) {
-        this.heartbeatSocketTimeout = heartbeatSocketTimeout;
-    }
-
-    public abstract Map<String, Object> update(String db, String collection, List<Map<String, Object>> updateCommand, boolean ordered, WriteConcern wc) throws MorphiumDriverException;
-
-
-    @Override
-    public Maximums getMaximums() {
-        Maximums max = new Maximums();
-        max.setMaxBsonSize(maxBsonObjectSize);
-        max.setMaxMessageSize(maxMessageSize);
-        max.setMaxWriteBatchSize(maxWriteBatchSize);
-        return max;
-    }
-
-    @Override
-    public void setUseSSL(boolean useSSL) {
-
-    }
-
-    public ReadPreference getDefaultReadPreference() {
-        return defaultRP;
-    }
-
-    @Override
-    public void setHeartbeatFrequency(int heartbeatFrequency) {
-
-    }
-
-    @Override
-    public void setWriteTimeout(int writeTimeout) {
-
-    }
-
-    @Override
-    public void setDefaultBatchSize(int defaultBatchSize) {
-
-    }
-
-    @Override
-    public void setCredentials(Map<String, String[]> credentials) {
-
-    }
-
-    @Override
-    public int getHeartbeatSocketTimeout() {
-        return heartbeatSocketTimeout;
-    }
-
-    @Override
-    public boolean isUseSSL() {
-        return useSSL;
-    }
-
-    @Override
-    public boolean isDefaultJ() {
-        return defaultJ;
-    }
-
-    @Override
-    public int getWriteTimeout() {
-        return defaultWriteTimeout;
-    }
-
-    @Override
-    public int getLocalThreshold() {
-        return localThreshold;
     }
 
     @Override
@@ -362,8 +233,18 @@ public abstract class DriverBase implements MorphiumDriver {
     }
 
     @Override
+    public int getMaxConnectionsPerHost() {
+        return maxConnectionsPerHost;
+    }
+
+    @Override
     public void setMaxConnectionsPerHost(int mx) {
         maxConnectionsPerHost = mx;
+    }
+
+    @Override
+    public int getMinConnectionsPerHost() {
+        return minConnectionsPerHost;
     }
 
     @Override
@@ -372,8 +253,18 @@ public abstract class DriverBase implements MorphiumDriver {
     }
 
     @Override
+    public int getMaxConnectionLifetime() {
+        return maxConnectionLifetime;
+    }
+
+    @Override
     public void setMaxConnectionLifetime(int timeout) {
         maxConnectionLifetime = timeout;
+    }
+
+    @Override
+    public int getMaxConnectionIdleTime() {
+        return maxConnectionIdleTime;
     }
 
     @Override
@@ -382,8 +273,18 @@ public abstract class DriverBase implements MorphiumDriver {
     }
 
     @Override
+    public int getSocketTimeout() {
+        return soTimeout;
+    }
+
+    @Override
     public void setSocketTimeout(int timeout) {
         soTimeout = timeout;
+    }
+
+    @Override
+    public int getConnectionTimeout() {
+        return connectionTimeout;
     }
 
     @Override
@@ -392,8 +293,103 @@ public abstract class DriverBase implements MorphiumDriver {
     }
 
     @Override
+    public int getDefaultW() {
+        return defaultW;
+    }
+
+    @Override
     public void setDefaultW(int w) {
         defaultW = w;
+    }
+
+    @Override
+    public int getMaxBlockintThreadMultiplier() {
+        return maxBlockingThreadsMultiplier;
+    }
+
+    @Override
+    public int getHeartbeatFrequency() {
+        return heartbeatFrequency;
+    }
+
+    @Override
+    public void setHeartbeatFrequency(int heartbeatFrequency) {
+
+    }
+
+    public abstract Map<String, Object> update(String db, String collection, List<Map<String, Object>> updateCommand, boolean ordered, WriteConcern wc) throws MorphiumDriverException;
+
+    @Override
+    public Maximums getMaximums() {
+        Maximums max = new Maximums();
+        max.setMaxBsonSize(maxBsonObjectSize);
+        max.setMaxMessageSize(maxMessageSize);
+        max.setMaxWriteBatchSize(maxWriteBatchSize);
+        return max;
+    }
+
+    public ReadPreference getDefaultReadPreference() {
+        return defaultRP;
+    }
+
+    @Override
+    public void setDefaultReadPreference(ReadPreference rp) {
+        defaultRP = rp;
+    }
+
+    @Override
+    public void setDefaultBatchSize(int defaultBatchSize) {
+
+    }
+
+    @Override
+    public int getHeartbeatSocketTimeout() {
+        return heartbeatSocketTimeout;
+    }
+
+    @Override
+    public void setHeartbeatSocketTimeout(int heartbeatSocketTimeout) {
+        this.heartbeatSocketTimeout = heartbeatSocketTimeout;
+    }
+
+    @Override
+    public boolean isUseSSL() {
+        return useSSL;
+    }
+
+    @Override
+    public void setUseSSL(boolean useSSL) {
+
+    }
+
+    @Override
+    public boolean isDefaultJ() {
+        return defaultJ;
+    }
+
+    @Override
+    public void setDefaultJ(boolean j) {
+        defaultJ = j;
+    }
+
+    @Override
+    public int getWriteTimeout() {
+        return defaultWriteTimeout;
+    }
+
+    @Override
+    public void setWriteTimeout(int writeTimeout) {
+
+    }
+
+    @Override
+    public int getLocalThreshold() {
+        return localThreshold;
+    }
+
+    @Override
+    public void setLocalThreshold(int thr) {
+        localThreshold = thr;
     }
 
     @Override

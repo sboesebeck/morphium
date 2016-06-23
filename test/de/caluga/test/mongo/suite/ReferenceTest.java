@@ -110,14 +110,14 @@ public class ReferenceTest extends MongoTest {
         q = morphium.createQueryFor(ReferenceContainer.class).f("lst").eq(toSearchFor);
         rcRead = q.get();
         assert (rcRead != null);
-        assert (rcRead.getUc().getCounter() != toSearchFor.getCounter());
+        assert (rcRead.getUc().getCounter() != (toSearchFor != null ? toSearchFor.getCounter() : 0));
         assert (rcRead.getCo() != null);
         assert (rcRead.getId().equals(rc.getId()));
 
         q = morphium.createQueryFor(ReferenceContainer.class).f("lzyLst").eq(toSearchFor2);
         rcRead = q.get();
         assert (rcRead != null);
-        assert (rcRead.getUc().getCounter() != toSearchFor2.getCounter());
+        assert (rcRead.getUc().getCounter() != (toSearchFor2 != null ? toSearchFor2.getCounter() : 0));
         assert (rcRead.getCo() != null);
         assert (rcRead.getId().equals(rc.getId()));
     }
@@ -230,40 +230,6 @@ public class ReferenceTest extends MongoTest {
         assert (didDeref = true);
     }
 
-    @Lifecycle
-    @Entity
-    public static class SimpleDoublyLinkedEntity {
-        @Id
-        MorphiumId id;
-        @Reference(lazyLoading = true, automaticStore = false)
-        SimpleDoublyLinkedEntity prev, next;
-        int value;
-
-        public SimpleDoublyLinkedEntity() {
-        }
-
-        public SimpleDoublyLinkedEntity(int value) {
-            this.value = value;
-        }
-
-        public void setPrev(SimpleDoublyLinkedEntity prev) {
-            this.prev = prev;
-            prev.next = this;
-        }
-
-        public SimpleDoublyLinkedEntity getPrev() {
-            return prev;
-        }
-
-        public SimpleDoublyLinkedEntity getNext() {
-            return next;
-        }
-
-        public int getValue() {
-            return value;
-        }
-    }
-
     @Test
     public void testSimpleDoublyLinkedStructure() {
         Morphium m = morphium;
@@ -297,24 +263,54 @@ public class ReferenceTest extends MongoTest {
 
     }
 
+    @Lifecycle
+    @Entity
+    public static class SimpleDoublyLinkedEntity {
+        @Id
+        MorphiumId id;
+        @Reference(lazyLoading = true, automaticStore = false)
+        SimpleDoublyLinkedEntity prev, next;
+        int value;
+
+        public SimpleDoublyLinkedEntity() {
+        }
+
+        public SimpleDoublyLinkedEntity(int value) {
+            this.value = value;
+        }
+
+        public SimpleDoublyLinkedEntity getPrev() {
+            return prev;
+        }
+
+        public void setPrev(SimpleDoublyLinkedEntity prev) {
+            this.prev = prev;
+            prev.next = this;
+        }
+
+        public SimpleDoublyLinkedEntity getNext() {
+            return next;
+        }
+
+        public int getValue() {
+            return value;
+        }
+    }
+
     @Entity
     @WriteSafety(waitForSync = true, waitForJournalCommit = true, level = SafetyLevel.WAIT_FOR_ALL_SLAVES)
     @NoCache
     public static class ReferenceContainer {
+        @Reference
+        ArrayList<UncachedObject> lst;
+        @Reference(lazyLoading = true)
+        List<UncachedObject> lzyLst;
         @Id
         private MorphiumId id;
-
         @Reference
         private UncachedObject uc;
         @Reference
         private CachedObject co;
-
-        @Reference
-        ArrayList<UncachedObject> lst;
-
-        @Reference(lazyLoading = true)
-        List<UncachedObject> lzyLst;
-
         @Reference(lazyLoading = true)
         private UncachedObject lazyUc;
 

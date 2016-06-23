@@ -142,23 +142,6 @@ public class MorphiumConfig {
     private String requiredReplicaSetName = null;
     private int cursorBatchSize = 1000;
 
-    public boolean isReplicaset() {
-        return replicaset;
-    }
-
-    public void setReplicasetMonitoring(boolean replicaset) {
-        this.replicaset = replicaset;
-    }
-
-    public String getDriverClass() {
-        if (driverClass == null) driverClass = Driver.class.getName();
-        return driverClass;
-    }
-
-    public void setDriverClass(String driverClass) {
-        this.driverClass = driverClass;
-    }
-
     public MorphiumConfig(Properties prop) {
         AnnotationAndReflectionHelper an = new AnnotationAndReflectionHelper(true); //settings always convert camel case
         List<Field> flds = an.getAllFields(MorphiumConfig.class);
@@ -199,7 +182,6 @@ public class MorphiumConfig {
         this("test", 10, 60000, 10000);
     }
 
-
     public MorphiumConfig(String db, int maxConnections, int globalCacheValidTime, int housekeepingTimeout) {
         database = db;
         this.maxConnections = maxConnections;
@@ -207,23 +189,6 @@ public class MorphiumConfig {
         this.housekeepingTimeout = housekeepingTimeout;
 
     }
-
-    public boolean isAutoIndexAndCappedCreationOnWrite() {
-        return autoIndexAndCappedCreationOnWrite;
-    }
-
-    public void setAutoIndexAndCappedCreationOnWrite(boolean autoIndexAndCappedCreationOnWrite) {
-        this.autoIndexAndCappedCreationOnWrite = autoIndexAndCappedCreationOnWrite;
-    }
-
-    public boolean isCheckForNew() {
-        return checkForNew;
-    }
-
-    public void setCheckForNew(boolean checkForNew) {
-        this.checkForNew = checkForNew;
-    }
-
 
     public static MorphiumConfig createFromJson(String json) throws ParseException, NoSuchFieldException, ClassNotFoundException, IllegalAccessException, InstantiationException, UnknownHostException, NoSuchMethodException, InvocationTargetException {
         MorphiumConfig cfg = new ObjectMapperImpl().unmarshall(MorphiumConfig.class, json);
@@ -258,6 +223,43 @@ public class MorphiumConfig {
 
         cfg.getAggregatorFactory().setAggregatorClass(cfg.getAggregatorClass());
         cfg.getQueryFact().setQueryImpl(cfg.getQueryClass());
+    }
+
+    public static MorphiumConfig fromProperties(Properties p) throws ClassNotFoundException, NoSuchFieldException, InstantiationException, IllegalAccessException, UnknownHostException {
+        return new MorphiumConfig(p);
+    }
+
+    public boolean isReplicaset() {
+        return replicaset;
+    }
+
+    public void setReplicasetMonitoring(boolean replicaset) {
+        this.replicaset = replicaset;
+    }
+
+    public String getDriverClass() {
+        if (driverClass == null) driverClass = Driver.class.getName();
+        return driverClass;
+    }
+
+    public void setDriverClass(String driverClass) {
+        this.driverClass = driverClass;
+    }
+
+    public boolean isAutoIndexAndCappedCreationOnWrite() {
+        return autoIndexAndCappedCreationOnWrite;
+    }
+
+    public void setAutoIndexAndCappedCreationOnWrite(boolean autoIndexAndCappedCreationOnWrite) {
+        this.autoIndexAndCappedCreationOnWrite = autoIndexAndCappedCreationOnWrite;
+    }
+
+    public boolean isCheckForNew() {
+        return checkForNew;
+    }
+
+    public void setCheckForNew(boolean checkForNew) {
+        this.checkForNew = checkForNew;
     }
 
     public int getRetriesOnNetworkError() {
@@ -428,7 +430,6 @@ public class MorphiumConfig {
         this.bufferedWriter = bufferedWriter;
     }
 
-
     public MorphiumWriter getWriter() {
         if (writer == null) {
             writer = new MorphiumWriterImpl();
@@ -564,7 +565,6 @@ public class MorphiumConfig {
         this.writeCacheTimeout = writeCacheTimeout;
     }
 
-
     /**
      * setting hosts as Host:Port
      *
@@ -610,12 +610,10 @@ public class MorphiumConfig {
 
     }
 
-
     public void addHostToSeed(String host, int port) throws UnknownHostException {
         host = host.replaceAll(" ", "") + ":" + port;
         hostSeed.add(host);
     }
-
 
     public void addHostToSeed(String host) throws UnknownHostException {
         host = host.replaceAll(" ", "");
@@ -701,30 +699,39 @@ public class MorphiumConfig {
         getAsyncWriter();
 
         if (!defaults.getWriter().getClass().equals(getWriter().getClass())) {
+            //noinspection unchecked
             p.put("writer_I_ClassName", getWriter().getClass().getName());
         }
         if (!defaults.getBufferedWriter().getClass().equals(getBufferedWriter().getClass())) {
+            //noinspection unchecked
             p.put("bufferedWriter_I_ClassName", getBufferedWriter().getClass().getName());
         }
         if (!defaults.getAsyncWriter().getClass().equals(getAsyncWriter().getClass())) {
+            //noinspection unchecked
             p.put("asyncWriter_I_ClassName", getAsyncWriter().getClass().getName());
         }
         if ((getCache() != null)) {
+            //noinspection unchecked
             p.put("cache_I_ClassName", getCache().getClass().getName());
         }
         if (!defaults.getAggregatorClass().equals(getAggregatorClass())) {
+            //noinspection unchecked
             p.put("aggregatorClass_C_ClassName", getAggregatorClass().getName());
         }
         if (!defaults.getAggregatorFactory().getClass().equals(getAggregatorFactory().getClass())) {
+            //noinspection unchecked
             p.put("aggregatorFactory_I_ClassName", getAggregatorFactory().getClass().getName());
         }
         if (!defaults.getOmClass().equals(getOmClass())) {
+            //noinspection unchecked
             p.put("omClass_C_ClassName", getOmClass().getName());
         }
         if (!defaults.getQueryClass().equals(getQueryClass())) {
+            //noinspection unchecked
             p.put("queryClass_C_ClassName", getQueryClass().getName());
         }
         if (!defaults.getQueryFact().getClass().equals(getQueryFact().getClass())) {
+            //noinspection unchecked
             p.put("queryFact_I_ClassName", getQueryFact().getClass().getName());
         }
     }
@@ -788,7 +795,6 @@ public class MorphiumConfig {
         this.retryWaitTimeAsyncWriter = retryWaitTimeAsyncWriter;
     }
 
-
     /**
      * returns a property set only containing non-default values set
      *
@@ -813,10 +819,6 @@ public class MorphiumConfig {
         addClassSettingsTo(p);
 
         return p;
-    }
-
-    public static MorphiumConfig fromProperties(Properties p) throws ClassNotFoundException, NoSuchFieldException, InstantiationException, IllegalAccessException, UnknownHostException {
-        return new MorphiumConfig(p);
     }
 
     public boolean isReadCacheEnabled() {
@@ -867,12 +869,12 @@ public class MorphiumConfig {
         bufferedWritesEnabled = true;
     }
 
-    public void setAutoValuesEnabled(boolean enabled) {
-        autoValues = enabled;
-    }
-
     public boolean isAutoValuesEnabled() {
         return autoValues;
+    }
+
+    public void setAutoValuesEnabled(boolean enabled) {
+        autoValues = enabled;
     }
 
     public void enableAutoValues() {
