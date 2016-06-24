@@ -259,18 +259,7 @@ public class Messaging extends Thread implements ShutdownListener {
                     };
 
 
-                    if (multithreadded) {
-                        boolean queued = false;
-                        while (!queued) {
-                            try {
-                                threadPool.execute(r);
-                                queued = true;
-                            } catch (Throwable ignored) {
-                            }
-                        }
-                    } else {
-                        r.run();
-                    }
+                    queueOrRun(r);
                 }
 
                 //wait for all threads to finish
@@ -282,18 +271,7 @@ public class Messaging extends Thread implements ShutdownListener {
                 morphium.storeList(toStore, getCollectionName());
                 morphium.delete(toRemove, getCollectionName());
                 for (Runnable r : toExec) {
-                    if (multithreadded) {
-                        boolean queued = false;
-                        while (!queued) {
-                            try {
-                                threadPool.execute(r);
-                                queued = true;
-                            } catch (Throwable ignored) {
-                            }
-                        }
-                    } else {
-                        r.run();
-                    }
+                    queueOrRun(r);
                 }
                 while (morphium.getWriteBufferCount() > 0) {
                     Thread.sleep(100);
@@ -315,6 +293,21 @@ public class Messaging extends Thread implements ShutdownListener {
         if (!running) {
             listeners.clear();
             listenerByName.clear();
+        }
+    }
+
+    private void queueOrRun(Runnable r) {
+        if (multithreadded) {
+            boolean queued = false;
+            while (!queued) {
+                try {
+                    threadPool.execute(r);
+                    queued = true;
+                } catch (Throwable ignored) {
+                }
+            }
+        } else {
+            r.run();
         }
     }
 
