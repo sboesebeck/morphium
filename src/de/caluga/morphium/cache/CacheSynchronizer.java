@@ -180,32 +180,18 @@ public class CacheSynchronizer implements MessageListener, MorphiumStorageListen
             //                } else
             //cannot be updated, it's new
             toClrCachee.addAll(sorted.get(cls).get(true).stream().filter(record -> c.syncCache().equals(Cache.SyncCacheStrategy.CLEAR_TYPE_CACHE)).collect(Collectors.toList()));
-
+            Msg m = null;
             if (!toUpdate.isEmpty()) {
-                Msg m = new Msg(CACHE_SYNC_RECORD, MsgType.MULTI, reason, cls.getName(), 30000);
-
-                toUpdate.stream().filter(k -> !k.getClass().equals(Msg.class)).forEach(k -> {
-                    Object id = morphium.getId(k);
-                    if (id != null) {
-                        m.addAdditional(id.toString());
-                    }
-                });
-                try {
-                    firePreSendEvent(cls, m);
-                    messaging.queueMessage(m);
-                    firePostSendEvent(cls, m);
-                } catch (CacheSyncVetoException e) {
-                    log.warn("could not send clear cache message: Veto by listener!", e);
-                }
+                m = new Msg(CACHE_SYNC_RECORD, MsgType.MULTI, reason, cls.getName(), 30000);
+            } else if (!toClrCachee.isEmpty()) {
+                m = new Msg(CACHE_SYNC_TYPE, MsgType.MULTI, reason, cls.getName(), 30000);
             }
-
-            if (!toClrCachee.isEmpty()) {
-                Msg m = new Msg(CACHE_SYNC_TYPE, MsgType.MULTI, reason, cls.getName(), 30000);
-
+            if (m != null) {
+                Msg finalM = m;
                 toUpdate.stream().filter(k -> !k.getClass().equals(Msg.class)).forEach(k -> {
                     Object id = morphium.getId(k);
                     if (id != null) {
-                        m.addAdditional(id.toString());
+                        finalM.addAdditional(id.toString());
                     }
                 });
                 try {

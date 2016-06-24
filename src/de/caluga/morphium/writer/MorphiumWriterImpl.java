@@ -708,14 +708,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                 Map<String, Object> update = Utils.getMap("$set", Utils.getMap(fieldName, value.getClass().isEnum() ? value.toString() : value));
                 List<String> lastChangeFields = morphium.getARHelper().getFields(cls, LastChange.class);
                 if (lastChangeFields != null && !lastChangeFields.isEmpty()) {
-                    for (String fL : lastChangeFields) {
-                        Field fld = morphium.getARHelper().getField(cls, fL);
-                        if (fld.getType().equals(Date.class)) {
-                            ((Map<String, Object>) update.get("$set")).put(fL, new Date());
-                        } else {
-                            ((Map<String, Object>) update.get("$set")).put(fL, System.currentTimeMillis());
-                        }
-                    }
+                    updateField(cls, update, lastChangeFields);
                 }
 
                 List<String> creationTimeFields = morphium.getARHelper().getFields(cls, CreationTime.class);
@@ -729,14 +722,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                     }
                     if (cnt == 0) {
                         //not found, would insert
-                        for (String fL : creationTimeFields) {
-                            Field fld = morphium.getARHelper().getField(cls, fL);
-                            if (fld.getType().equals(Date.class)) {
-                                ((Map<String, Object>) update.get("$set")).put(fL, new Date());
-                            } else {
-                                ((Map<String, Object>) update.get("$set")).put(fL, System.currentTimeMillis());
-                            }
-                        }
+                        updateField(cls, update, creationTimeFields);
                     }
                 }
 
@@ -772,6 +758,17 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
             }
         };
         submitAndBlockIfNecessary(callback, r);
+    }
+
+    private void updateField(Class cls, Map<String, Object> update, List<String> lastChangeFields) {
+        for (String fL : lastChangeFields) {
+            Field fld = morphium.getARHelper().getField(cls, fL);
+            if (fld.getType().equals(Date.class)) {
+                ((Map<String, Object>) update.get("$set")).put(fL, new Date());
+            } else {
+                ((Map<String, Object>) update.get("$set")).put(fL, System.currentTimeMillis());
+            }
+        }
     }
 
     public <T> void submitAndBlockIfNecessary(AsyncOperationCallback<T> callback, WriterTask<T> r) {
@@ -1281,14 +1278,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                     try {
                         if (creationTimeFlds != null && !creationTimeFlds.isEmpty() && morphium.getDriver().count(getDbName(), coll, qobj, null) == 0) {
                             if (creationTimeFlds != null && !creationTimeFlds.isEmpty()) {
-                                for (String fL : creationTimeFlds) {
-                                    Field fld = morphium.getARHelper().getField(cls, fL);
-                                    if (fld.getType().equals(Date.class)) {
-                                        ((Map<String, Object>) update.get("$set")).put(fL, new Date());
-                                    } else {
-                                        ((Map<String, Object>) update.get("$set")).put(fL, System.currentTimeMillis());
-                                    }
-                                }
+                                updateField(cls, update, creationTimeFlds);
                             }
                         }
                     } catch (MorphiumDriverException e) {
@@ -1300,14 +1290,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
 
                 List<String> latChangeFlds = morphium.getARHelper().getFields(cls, LastChange.class);
                 if (latChangeFlds != null && !latChangeFlds.isEmpty()) {
-                    for (String fL : latChangeFlds) {
-                        Field fld = morphium.getARHelper().getField(cls, fL);
-                        if (fld.getType().equals(Date.class)) {
-                            ((Map<String, Object>) update.get("$set")).put(fL, new Date());
-                        } else {
-                            ((Map<String, Object>) update.get("$set")).put(fL, System.currentTimeMillis());
-                        }
-                    }
+                    updateField(cls, update, latChangeFlds);
                 }
 
 
@@ -1407,13 +1390,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
             store(toSet, collection, callback);
         }
 
-        WriterTask r = new WriterTask() {
-            private AsyncOperationCallback<T> callback;
-
-            @Override
-            public void setCallback(AsyncOperationCallback cb) {
-                callback = cb;
-            }
+        WriterTask r = new WT() {
 
             @Override
             public void run() {
@@ -1435,51 +1412,11 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                 Map<String, Object> update = Utils.getMap("$unset", Utils.getMap(fieldName, 1));
                 WriteConcern wc = morphium.getWriteConcernForClass(toSet.getClass());
 
-                long start = System.currentTimeMillis();
-
-                try {
-                    if (morphium.getConfig().isAutoIndexAndCappedCreationOnWrite() && !morphium.getDriver().exists(getDbName(), coll)) {
-                        createCappedColl(cls, coll);
-                        morphium.ensureIndicesFor(cls, coll, callback);
-                    }
-                    morphium.getDriver().update(getDbName(), coll, query, update, false, false, wc);
-
-                    List<String> lastChangeFields = morphium.getARHelper().getFields(cls, LastChange.class);
-                    if (lastChangeFields != null && !lastChangeFields.isEmpty()) {
-                        update = Utils.getMap("$set", new HashMap<String, Object>());
-                        for (String fL : lastChangeFields) {
-                            Field fld = morphium.getARHelper().getField(cls, fL);
-                            if (fld.getType().equals(Date.class)) {
-                                ((Map<String, Object>) update.get("$set")).put(fL, new Date());
-                            } else {
-                                ((Map<String, Object>) update.get("$set")).put(fL, System.currentTimeMillis());
-                            }
-                        }
-
-                        morphium.getDriver().update(getDbName(), coll, query, update, false, false, wc);
-                    }
-
-                    long dur = System.currentTimeMillis() - start;
-                    morphium.fireProfilingWriteEvent(toSet.getClass(), update, dur, false, WriteAccessType.SINGLE_UPDATE);
-                    morphium.getCache().clearCacheIfNecessary(cls);
-
-                    try {
-                        f.set(toSet, null);
-                    } catch (IllegalAccessException e) {
-                        //May happen, if null is not allowed for example
-                    }
-                    morphium.firePostUpdateEvent(morphium.getARHelper().getRealClass(cls), MorphiumStorageListener.UpdateTypes.UNSET);
-                    if (callback != null) {
-                        callback.onOperationSucceeded(AsyncOperationType.UNSET, null, System.currentTimeMillis() - start, null, toSet, field);
-                    }
-                } catch (Exception e) {
-                    if (callback == null) {
-                        throw new RuntimeException(e);
-                    }
-                    callback.onOperationError(AsyncOperationType.UNSET, null, System.currentTimeMillis() - start, e.getMessage(), e, toSet, field);
-                }
+                doUpdate(cls, toSet, coll, field, query, f, update, wc);
 
             }
+
+
         };
         submitAndBlockIfNecessary(callback, r);
     }
@@ -1494,13 +1431,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
             store(obj, collection, callback);
         }
 
-        WriterTask r = new WriterTask() {
-            private AsyncOperationCallback<T> callback;
-
-            @Override
-            public void setCallback(AsyncOperationCallback cb) {
-                callback = cb;
-            }
+        WriterTask r = new WT() {
 
             @Override
             public void run() {
@@ -1522,50 +1453,9 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                 Map<String, Object> update = Utils.getMap("$pop", Utils.getMap(fieldName, first ? -1 : 1));
                 WriteConcern wc = morphium.getWriteConcernForClass(obj.getClass());
 
-                long start = System.currentTimeMillis();
 
-                try {
-                    if (morphium.getConfig().isAutoIndexAndCappedCreationOnWrite() && !morphium.getDriver().exists(getDbName(), coll)) {
-                        createCappedColl(cls, coll);
-                        morphium.ensureIndicesFor(cls, coll, callback);
-                    }
-                    morphium.getDriver().update(getDbName(), coll, query, update, false, false, wc);
+                doUpdate(cls, obj, coll, field, query, f, update, wc);
 
-                    List<String> lastChangeFields = morphium.getARHelper().getFields(cls, LastChange.class);
-                    if (lastChangeFields != null && !lastChangeFields.isEmpty()) {
-                        update = Utils.getMap("$set", new HashMap<String, Object>());
-                        for (String fL : lastChangeFields) {
-                            Field fld = morphium.getARHelper().getField(cls, fL);
-                            if (fld.getType().equals(Date.class)) {
-                                ((Map<String, Object>) update.get("$set")).put(fL, new Date());
-                            } else {
-                                ((Map<String, Object>) update.get("$set")).put(fL, System.currentTimeMillis());
-                            }
-                        }
-                        morphium.getDriver().update(getDbName(), coll, query, update, false, false, wc);
-
-                    }
-
-
-                    long dur = System.currentTimeMillis() - start;
-                    morphium.fireProfilingWriteEvent(obj.getClass(), update, dur, false, WriteAccessType.SINGLE_UPDATE);
-                    morphium.getCache().clearCacheIfNecessary(cls);
-
-                    try {
-                        f.set(obj, null);
-                    } catch (IllegalAccessException e) {
-                        //May happen, if null is not allowed for example
-                    }
-                    morphium.firePostUpdateEvent(morphium.getARHelper().getRealClass(cls), MorphiumStorageListener.UpdateTypes.UNSET);
-                    if (callback != null) {
-                        callback.onOperationSucceeded(AsyncOperationType.UNSET, null, System.currentTimeMillis() - start, null, obj, field);
-                    }
-                } catch (Exception e) {
-                    if (callback == null) {
-                        throw new RuntimeException(e);
-                    }
-                    callback.onOperationError(AsyncOperationType.UNSET, null, System.currentTimeMillis() - start, e.getMessage(), e, obj, field);
-                }
 
             }
         };
@@ -1673,41 +1563,10 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
         List<String> lastChangeFields = morphium.getARHelper().getFields(cls, LastChange.class);
         if (lastChangeFields != null && !lastChangeFields.isEmpty()) {
             update.put("$set", new HashMap<String, Object>());
-            for (String fL : lastChangeFields) {
-                Field fld = morphium.getARHelper().getField(cls, fL);
-
-                if (fld.getType().equals(Date.class)) {
-
-                    ((Map<String, Object>) update.get("$set")).put(fL, new Date());
-                } else {
-                    ((Map<String, Object>) update.get("$set")).put(fL, System.currentTimeMillis());
-                }
-            }
+            updateField(cls, update, lastChangeFields);
         }
         if (upsert) {
-            List<String> creationTimeFields = morphium.getARHelper().getFields(cls, CreationTime.class);
-            if (upsert && creationTimeFields != null && !creationTimeFields.isEmpty()) {
-                long cnt;
-                try {
-                    cnt = morphium.getDriver().count(getDbName(), coll, qobj, null);
-                } catch (MorphiumDriverException e) {
-                    //TODO: Implement Handling
-                    throw new RuntimeException(e);
-                }
-                if (cnt == 0) {
-                    //not found, would insert
-                    update.putIfAbsent("$set", new HashMap<String, Object>());
-                    for (String fL : creationTimeFields) {
-                        Field fld = morphium.getARHelper().getField(cls, fL);
-
-                        if (fld.getType().equals(Date.class)) {
-                            ((Map<String, Object>) update.get("$set")).put(fL, new Date());
-                        } else {
-                            ((Map<String, Object>) update.get("$set")).put(fL, System.currentTimeMillis());
-                        }
-                    }
-                }
-            }
+            doUpsert(upsert, cls, coll, qobj, update);
         }
 
         WriteConcern wc = morphium.getWriteConcernForClass(cls);
@@ -1727,6 +1586,24 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
         morphium.fireProfilingWriteEvent(cls, update, dur, upsert, multiple ? WriteAccessType.BULK_UPDATE : WriteAccessType.SINGLE_UPDATE);
         morphium.getCache().clearCacheIfNecessary(cls);
         morphium.firePostUpdateEvent(morphium.getARHelper().getRealClass(cls), push ? MorphiumStorageListener.UpdateTypes.PUSH : MorphiumStorageListener.UpdateTypes.PULL);
+    }
+
+    private void doUpsert(boolean upsert, Class<?> cls, String coll, Map<String, Object> qobj, Map<String, Object> update) {
+        List<String> creationTimeFields = morphium.getARHelper().getFields(cls, CreationTime.class);
+        if (upsert && creationTimeFields != null && !creationTimeFields.isEmpty()) {
+            long cnt;
+            try {
+                cnt = morphium.getDriver().count(getDbName(), coll, qobj, null);
+            } catch (MorphiumDriverException e) {
+                //TODO: Implement Handling
+                throw new RuntimeException(e);
+            }
+            if (cnt == 0) {
+                //not found, would insert
+                update.putIfAbsent("$set", new HashMap<String, Object>());
+                updateField(cls, update, creationTimeFields);
+            }
+        }
     }
 
     @Override
@@ -1761,41 +1638,10 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                     List<String> lastChangeFields = morphium.getARHelper().getFields(cls, LastChange.class);
                     if (lastChangeFields != null && !lastChangeFields.isEmpty()) {
                         update.put("$set", new HashMap<String, Object>());
-                        for (String fL : lastChangeFields) {
-                            Field fld = morphium.getARHelper().getField(cls, fL);
-
-                            if (fld.getType().equals(Date.class)) {
-
-                                ((Map<String, Object>) update.get("$set")).put(fL, new Date());
-                            } else {
-                                ((Map<String, Object>) update.get("$set")).put(fL, System.currentTimeMillis());
-                            }
-                        }
+                        updateField(cls, update, lastChangeFields);
                     }
                     if (upsert) {
-                        List<String> creationTimeFields = morphium.getARHelper().getFields(cls, CreationTime.class);
-                        if (upsert && creationTimeFields != null && !creationTimeFields.isEmpty()) {
-                            long cnt;
-                            try {
-                                cnt = morphium.getDriver().count(getDbName(), coll, qobj, null);
-                            } catch (MorphiumDriverException e) {
-                                //TODO: Implement Handling
-                                throw new RuntimeException(e);
-                            }
-                            if (cnt == 0) {
-                                //not found, would insert
-                                update.putIfAbsent("$set", new HashMap<String, Object>());
-                                for (String fL : creationTimeFields) {
-                                    Field fld = morphium.getARHelper().getField(cls, fL);
-
-                                    if (fld.getType().equals(Date.class)) {
-                                        ((Map<String, Object>) update.get("$set")).put(fL, new Date());
-                                    } else {
-                                        ((Map<String, Object>) update.get("$set")).put(fL, System.currentTimeMillis());
-                                    }
-                                }
-                            }
-                        }
+                        doUpsert(upsert, cls, coll, qobj, update);
                     }
 
                     WriteConcern wc = morphium.getWriteConcernForClass(cls);
@@ -1914,6 +1760,54 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                 executor.shutdownNow();
             } catch (Exception e) {
                 //swallow
+            }
+        }
+    }
+
+    public abstract class WT<T> implements WriterTask<T> {
+        private AsyncOperationCallback<T> callback;
+
+        @Override
+        public void setCallback(AsyncOperationCallback cb) {
+            callback = cb;
+        }
+
+        public void doUpdate(Class cls, T toSet, String coll, String field, Map<String, Object> query, Field f, Map<String, Object> update, WriteConcern wc) {
+            long start = System.currentTimeMillis();
+
+            try {
+                if (morphium.getConfig().isAutoIndexAndCappedCreationOnWrite() && !morphium.getDriver().exists(getDbName(), coll)) {
+                    createCappedColl(cls, coll);
+                    morphium.ensureIndicesFor(cls, coll, callback);
+                }
+                morphium.getDriver().update(getDbName(), coll, query, update, false, false, wc);
+
+                List<String> lastChangeFields = morphium.getARHelper().getFields(cls, LastChange.class);
+                if (lastChangeFields != null && !lastChangeFields.isEmpty()) {
+                    update = Utils.getMap("$set", new HashMap<String, Object>());
+                    updateField(cls, update, lastChangeFields);
+
+                    morphium.getDriver().update(getDbName(), coll, query, update, false, false, wc);
+                }
+
+                long dur = System.currentTimeMillis() - start;
+                morphium.fireProfilingWriteEvent(toSet.getClass(), update, dur, false, WriteAccessType.SINGLE_UPDATE);
+                morphium.getCache().clearCacheIfNecessary(cls);
+
+                try {
+                    f.set(toSet, null);
+                } catch (IllegalAccessException e) {
+                    //May happen, if null is not allowed for example
+                }
+                morphium.firePostUpdateEvent(morphium.getARHelper().getRealClass(cls), MorphiumStorageListener.UpdateTypes.UNSET);
+                if (callback != null) {
+                    callback.onOperationSucceeded(AsyncOperationType.UNSET, null, System.currentTimeMillis() - start, null, toSet, field);
+                }
+            } catch (Exception e) {
+                if (callback == null) {
+                    throw new RuntimeException(e);
+                }
+                callback.onOperationError(AsyncOperationType.UNSET, null, System.currentTimeMillis() - start, e.getMessage(), e, toSet, field);
             }
         }
     }
