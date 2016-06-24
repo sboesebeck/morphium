@@ -113,7 +113,9 @@ public class LazyLoadingTest extends MongoTest {
         log.info("LZRead: " + lzRead.getClass().getName());
         assert (!lzRead.getClass().getName().contains("$EnhancerByCGLIB$")) : "Lazy loader in Root-Object?";
         Double rd = morphium.getStatistics().get(StatisticKeys.READS.name());
-        if (rd == null) rd = 0.0;
+        if (rd == null) {
+            rd = 0.0;
+        }
         //Field f=morphium.getConfig().getMapper().getField(LazyLoadingObject.class,"lazy_uncached");
 
         int cnt = lzRead.getLazyUncached().getCounter();
@@ -227,7 +229,7 @@ public class LazyLoadingTest extends MongoTest {
         for (int i = 0; i < numberOfObjects; i++) {
             Query<LazyLoadingObject> coq = morphium.createQueryFor(LazyLoadingObject.class);
             coq = coq.f("name").eq("Lazy " + i);
-//            storage.add(coq.get()); //should only be one!!!
+            //            storage.add(coq.get()); //should only be one!!!
             coq.get();
         }
         dur = System.currentTimeMillis() - start;
@@ -310,6 +312,35 @@ public class LazyLoadingTest extends MongoTest {
 
     }
 
+    @Test
+    public void testLazyRef() throws Exception {
+        Morphium m = morphium;
+        m.clearCollection(SimpleEntity.class);
+
+        SimpleEntity s1 = new SimpleEntity(1);
+        SimpleEntity s2 = new SimpleEntity(2);
+        SimpleEntity s3 = new SimpleEntity(3);
+
+        m.store(s1);
+        m.store(s3);
+
+
+        s2.ref = s1;
+        s2.lazyRef = s3;
+        m.store(s2);
+        Thread.sleep(200);
+
+        SimpleEntity s1Fetched = m.createQueryFor(SimpleEntity.class).f("value").eq(1).get();
+        assert (s1Fetched.value == 1);
+        SimpleEntity s2Fetched = m.createQueryFor(SimpleEntity.class).f("value").eq(2).get();
+        assert (s2Fetched.value == 2);
+        SimpleEntity s3Fetched = m.createQueryFor(SimpleEntity.class).f("value").eq(3).get();
+        assert (s3Fetched.value == 3);
+        assert (s2Fetched.getRef().getValue() == 1);
+        System.out.println(s2Fetched.lazyRef.value);
+        assert (s2Fetched.getLazyRef().getValue() == 3);
+
+    }
 
     @Entity
     public static class SimpleEntity {
@@ -360,37 +391,6 @@ public class LazyLoadingTest extends MongoTest {
         public void setId(MorphiumId id) {
             this.id = id;
         }
-    }
-
-
-    @Test
-    public void testLazyRef() throws Exception {
-        Morphium m = morphium;
-        m.clearCollection(SimpleEntity.class);
-
-        SimpleEntity s1 = new SimpleEntity(1);
-        SimpleEntity s2 = new SimpleEntity(2);
-        SimpleEntity s3 = new SimpleEntity(3);
-
-        m.store(s1);
-        m.store(s3);
-
-
-        s2.ref = s1;
-        s2.lazyRef = s3;
-        m.store(s2);
-        Thread.sleep(200);
-
-        SimpleEntity s1Fetched = m.createQueryFor(SimpleEntity.class).f("value").eq(1).get();
-        assert (s1Fetched.value == 1);
-        SimpleEntity s2Fetched = m.createQueryFor(SimpleEntity.class).f("value").eq(2).get();
-        assert (s2Fetched.value == 2);
-        SimpleEntity s3Fetched = m.createQueryFor(SimpleEntity.class).f("value").eq(3).get();
-        assert (s3Fetched.value == 3);
-        assert (s2Fetched.getRef().getValue() == 1);
-        System.out.println(s2Fetched.lazyRef.value);
-        assert (s2Fetched.getLazyRef().getValue() == 3);
-
     }
 
 }

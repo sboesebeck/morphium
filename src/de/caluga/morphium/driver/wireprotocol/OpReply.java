@@ -115,7 +115,9 @@ public class OpReply extends WireProtocolMessage {
         offset += 4;
         opcode = readInt(bytes, offset);
         offset += 4;
-        if (opcode != 1) throw new IllegalArgumentException("Unknown Opcode " + opcode);
+        if (opcode != 1) {
+            throw new IllegalArgumentException("Unknown Opcode " + opcode);
+        }
         flags = readInt(bytes, offset);
         offset += 4;
         cursorId = readLong(bytes, offset);

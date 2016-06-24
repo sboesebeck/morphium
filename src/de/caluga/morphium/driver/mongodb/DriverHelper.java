@@ -77,7 +77,9 @@ public class DriverHelper {
     }
 
     public static void replaceMorphiumIdByObjectId(Object in) {
-        if (in == null) return;
+        if (in == null) {
+            return;
+        }
         if (in instanceof Map) {
             @SuppressWarnings("unchecked") Map<String, Object> m = (Map) in;
             Map<String, Object> toSet = new HashMap<>();
@@ -90,7 +92,9 @@ public class DriverHelper {
                         toSet.put((String) e.getKey(), new ObjectId(((MorphiumReference) e.getValue()).getId().toString()));
                     } else if (e.getValue() instanceof Collection) {
                         for (Object o : (Collection) e.getValue()) {
-                            if (o == null) continue;
+                            if (o == null) {
+                                continue;
+                            }
                             if (o instanceof Map
                                     || o instanceof List
                                     || o.getClass().isArray()) {
@@ -108,7 +112,7 @@ public class DriverHelper {
 
             } catch (Exception e) {
                 new Logger(DriverHelper.class).fatal("Error replacing mongoid", e);
-//                throw new RuntimeException(e);
+                //                throw new RuntimeException(e);
             }
         } else if (in instanceof Collection) {
             Collection c = (Collection) in;

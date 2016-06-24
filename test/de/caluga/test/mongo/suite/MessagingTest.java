@@ -104,7 +104,7 @@ public class MessagingTest extends MongoTest {
         morphium.store(m);
 
         Query<Msg> q = morphium.createQueryFor(Msg.class);
-//        morphium.remove(q);
+        //        morphium.remove(q);
         //locking messages...
         q = q.f(Msg.Fields.sender).ne(id).f(Msg.Fields.lockedBy).eq(null).f(Msg.Fields.processedBy).ne(id);
         morphium.set(q, Msg.Fields.lockedBy, id);
@@ -353,7 +353,7 @@ public class MessagingTest extends MongoTest {
                 error = true;
             }
             log.info("DM-M1 got message " + m.toString());
-//                assert (m.getSender().equals(m2.getSenderId())) : "Sender is not M2?!?!? m2_id: " + m2.getSenderId() + " - message sender: " + m.getSender();
+            //                assert (m.getSender().equals(m2.getSenderId())) : "Sender is not M2?!?!? m2_id: " + m2.getSenderId() + " - message sender: " + m.getSender();
             return null;
         });
 
@@ -361,7 +361,7 @@ public class MessagingTest extends MongoTest {
             gotMessage2 = true;
             assert (m.getTo() == null || m.getTo().contains(m2.getSenderId())) : "wrongly received message?";
             log.info("DM-M2 got message " + m.toString());
-//                assert (m.getSender().equals(m1.getSenderId())) : "Sender is not M1?!?!? m1_id: " + m1.getSenderId() + " - message sender: " + m.getSender();
+            //                assert (m.getSender().equals(m1.getSenderId())) : "Sender is not M1?!?!? m1_id: " + m1.getSenderId() + " - message sender: " + m.getSender();
             return null;
         });
 
@@ -369,7 +369,7 @@ public class MessagingTest extends MongoTest {
             gotMessage3 = true;
             assert (m.getTo() == null || m.getTo().contains(m3.getSenderId())) : "wrongly received message?";
             log.info("DM-M3 got message " + m.toString());
-//                assert (m.getSender().equals(m1.getSenderId())) : "Sender is not M1?!?!? m1_id: " + m1.getSenderId() + " - message sender: " + m.getSender();
+            //                assert (m.getSender().equals(m1.getSenderId())) : "Sender is not M1?!?!? m1_id: " + m1.getSenderId() + " - message sender: " + m.getSender();
             return null;
         });
 
@@ -501,7 +501,7 @@ public class MessagingTest extends MongoTest {
             log.info("M3 got answer " + m.toString());
             assert (lastMsgId != null) : "Last message == null?";
             assert (m.getInAnswerTo().equals(lastMsgId)) : "Wrong answer????" + lastMsgId.toString() + " != " + m.getInAnswerTo().toString();
-//                assert (m.getSender().equals(m1.getSenderId())) : "Sender is not M1?!?!? m1_id: " + m1.getSenderId() + " - message sender: " + m.getSender();
+            //                assert (m.getSender().equals(m1.getSenderId())) : "Sender is not M1?!?!? m1_id: " + m1.getSenderId() + " - message sender: " + m.getSender();
             return null;
         });
 
@@ -560,7 +560,9 @@ public class MessagingTest extends MongoTest {
                     assert (!m.getSender().equals(msg.getSenderId())) : "Got message from myself?";
                     synchronized (processedMessages) {
                         Integer pr = processedMessages.get(m.getMsgId());
-                        if (pr == null) pr = 0;
+                        if (pr == null) {
+                            pr = 0;
+                        }
                         processedMessages.put(m.getMsgId(), pr + 1);
                         procCounter++;
                     }
@@ -730,8 +732,8 @@ public class MessagingTest extends MongoTest {
         long start = System.currentTimeMillis();
         consumer.start();
         while (processed[0] < numberOfMessages) {
-//            ThreadMXBean thbean = ManagementFactory.getThreadMXBean();
-//            log.info("Running threads: " + thbean.getThreadCount());
+            //            ThreadMXBean thbean = ManagementFactory.getThreadMXBean();
+            //            log.info("Running threads: " + thbean.getThreadCount());
             Thread.sleep(15);
         }
         long dur = System.currentTimeMillis() - start;
@@ -757,7 +759,7 @@ public class MessagingTest extends MongoTest {
                 log.info("Processed: " + processed[0]);
             }
             assert (!m.getProcessedBy().contains(msg.getSenderId()));
-//                assert(!msgCountById.containsKey(m.getMsgId().toString()));
+            //                assert(!msgCountById.containsKey(m.getMsgId().toString()));
             msgCountById.put(m.getMsgId().toString(), 1L);
             //simulate processing
             try {
@@ -781,8 +783,8 @@ public class MessagingTest extends MongoTest {
         long start = System.currentTimeMillis();
         consumer.start();
         while (processed[0] < numberOfMessages) {
-//            ThreadMXBean thbean = ManagementFactory.getThreadMXBean();
-//            log.info("Running threads: " + thbean.getThreadCount());
+            //            ThreadMXBean thbean = ManagementFactory.getThreadMXBean();
+            //            log.info("Running threads: " + thbean.getThreadCount());
             log.info("Processed " + processed[0]);
             Thread.sleep(1500);
         }
@@ -836,9 +838,15 @@ public class MessagingTest extends MongoTest {
         Thread.sleep(1000);
 
         int rec = 0;
-        if (gotMessage1) rec++;
-        if (gotMessage2) rec++;
-        if (gotMessage3) rec++;
+        if (gotMessage1) {
+            rec++;
+        }
+        if (gotMessage2) {
+            rec++;
+        }
+        if (gotMessage3) {
+            rec++;
+        }
         assert (rec == 1);
 
         assert (m1.getNumberOfMessages() == 0);

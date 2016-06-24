@@ -57,13 +57,13 @@ public class PerformanceTests {
                 @Override
                 public void run() {
                     for (int k = 0; k < 1000; k++) {
-//                        synchronized (map) {
+                        //                        synchronized (map) {
                         try {
                             map.get("hello " + j + " - " + k);
                         } catch (Throwable e) {
                             //ignore
                         }
-//                        }
+                        //                        }
                     }
                     threadCount++;
                 }
@@ -71,7 +71,7 @@ public class PerformanceTests {
             thr.add(t);
             t.start();
         }
-//        System.out.println("Waiting for threads...");
+        //        System.out.println("Waiting for threads...");
 
         for (Thread t : thr)
             try {
@@ -79,12 +79,12 @@ public class PerformanceTests {
             } catch (InterruptedException e) {
                 e.printStackTrace();
             }
-//        while (threadCount < threads) {
-//            System.out.println("Waiting for reads..");
-//            Thread.yield();
-//        }
+        //        while (threadCount < threads) {
+        //            System.out.println("Waiting for reads..");
+        //            Thread.yield();
+        //        }
         dur = System.currentTimeMillis() - start;
-//        System.out.println("read took           : " + dur);
+        //        System.out.println("read took           : " + dur);
         return dur;
     }
 
@@ -100,13 +100,13 @@ public class PerformanceTests {
                 @Override
                 public void run() {
                     for (int k = 0; k < 1000; k++) {
-//                        synchronized (map) {
+                        //                        synchronized (map) {
                         try {
                             map.put("hello " + j + " - " + k, j + k);
                         } catch (Throwable e) {
                             //ignore
                         }
-//                        }
+                        //                        }
                     }
                     threadCount++;
                 }
@@ -114,7 +114,7 @@ public class PerformanceTests {
             thr.add(t);
             t.start();
         }
-//        System.out.println("Waiting for threads...");
+        //        System.out.println("Waiting for threads...");
         for (Thread t : thr)
             try {
                 t.join(1000);
@@ -123,10 +123,10 @@ public class PerformanceTests {
             }
 
         long dur = System.currentTimeMillis() - start;
-//        System.out.println("write took          : " + dur);
+        //        System.out.println("write took          : " + dur);
         int max = (threads * 1000);
         int missing = max - map.size();
-//        System.out.println("Counting            : " + map.size() + " missing: " + missing);
+        //        System.out.println("Counting            : " + map.size() + " missing: " + missing);
 
         return dur;
     }
@@ -183,13 +183,13 @@ public class PerformanceTests {
                 @Override
                 public void run() {
                     for (int k = 0; k < 1000; k++) {
-//                        synchronized (lst) {
+                        //                        synchronized (lst) {
                         try {
                             lst.add("hello " + j + " - " + k);
                         } catch (Throwable e) {
                             //ignore
                         }
-//                        }
+                        //                        }
                     }
                     threadCount++;
                 }
@@ -216,14 +216,15 @@ public class PerformanceTests {
                 @Override
                 public void run() {
                     for (int k = 0; k < 1000; k++) {
-//                        synchronized (lst) {
+                        //                        synchronized (lst) {
                         try {
-                            if (j * 1000 + k < lst.size())
+                            if (j * 1000 + k < lst.size()) {
                                 lst.get(j * 1000 + k);
+                            }
                         } catch (Throwable e) {
                             //ignore
                         }
-//                        }
+                        //                        }
                     }
                     threadCount++;
                 }

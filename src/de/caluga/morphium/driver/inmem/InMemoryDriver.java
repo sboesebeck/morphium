@@ -314,9 +314,12 @@ public class InMemoryDriver implements MorphiumDriver {
 
 
     private boolean matchesQuery(Map<String, Object> query, Map<String, Object> toCheck) {
-        boolean matches = false;
-        if (query.isEmpty()) return true;
-        if (query.containsKey("$where")) throw new RuntimeException("$where not implemented yet");
+        if (query.isEmpty()) {
+            return true;
+        }
+        if (query.containsKey("$where")) {
+            throw new RuntimeException("$where not implemented yet");
+        }
         //noinspection LoopStatementThatDoesntLoop
         for (String key : query.keySet()) {
             switch (key) {
@@ -324,7 +327,9 @@ public class InMemoryDriver implements MorphiumDriver {
                     //list of field queries
                     @SuppressWarnings("unchecked") List<Map<String, Object>> lst = ((List<Map<String, Object>>) query.get(key));
                     for (Map<String, Object> q : lst) {
-                        if (!matchesQuery(q, toCheck)) return false;
+                        if (!matchesQuery(q, toCheck)) {
+                            return false;
+                        }
                     }
                     return true;
                 }
@@ -332,7 +337,9 @@ public class InMemoryDriver implements MorphiumDriver {
                     //list of or queries
                     @SuppressWarnings("unchecked") List<Map<String, Object>> lst = ((List<Map<String, Object>>) query.get(key));
                     for (Map<String, Object> q : lst) {
-                        if (matchesQuery(q, toCheck)) return true;
+                        if (matchesQuery(q, toCheck)) {
+                            return true;
+                        }
                     }
                     return false;
 
@@ -376,7 +383,9 @@ public class InMemoryDriver implements MorphiumDriver {
                                 }
                             case "$in":
                                 for (Object v : (List) q.get(k)) {
-                                    if (toCheck.get(key).equals(v)) return true;
+                                    if (toCheck.get(key).equals(v)) {
+                                        return true;
+                                    }
                                 }
                                 return false;
                             default:
@@ -402,7 +411,9 @@ public class InMemoryDriver implements MorphiumDriver {
         inCrs.skip = skip;
         inCrs.limit = limit;
         inCrs.batchSize = batchSize;
-        if (batchSize == 0) inCrs.batchSize = 1000;
+        if (batchSize == 0) {
+            inCrs.batchSize = 1000;
+        }
 
         inCrs.setCollection(collection);
         inCrs.setDb(db);
@@ -435,7 +446,9 @@ public class InMemoryDriver implements MorphiumDriver {
         next.setCursorId(crs.getCursorId());
 
         InMemoryCursor oldCrs = (InMemoryCursor) crs.getInternalCursorObject();
-        if (oldCrs == null) return null;
+        if (oldCrs == null) {
+            return null;
+        }
 
         InMemoryCursor inCrs = new InMemoryCursor();
         inCrs.setReadPreference(oldCrs.getReadPreference());
@@ -488,8 +501,12 @@ public class InMemoryDriver implements MorphiumDriver {
             if (count < skip) {
                 continue;
             }
-            if (matchesQuery(query, o)) ret.add(internal ? o : new HashMap<>(o));
-            if (limit > 0 && ret.size() >= limit) break;
+            if (matchesQuery(query, o)) {
+                ret.add(internal ? o : new HashMap<>(o));
+            }
+            if (limit > 0 && ret.size() >= limit) {
+                break;
+            }
 
             //todo add projection
         }
@@ -518,7 +535,9 @@ public class InMemoryDriver implements MorphiumDriver {
         }
         long cnt = 0;
         for (Map<String, Object> o : data) {
-            if (matchesQuery(query, o)) cnt++;
+            if (matchesQuery(query, o)) {
+                cnt++;
+            }
         }
 
         return cnt;
@@ -529,7 +548,9 @@ public class InMemoryDriver implements MorphiumDriver {
 
         List<Map<String, Object>> data = getCollection(db, coll);
         for (Map<String, Object> obj : data) {
-            if (obj.get(field) == null && value != null) continue;
+            if (obj.get(field) == null && value != null) {
+                continue;
+            }
             if ((obj.get(field) == null && value == null)
                     || obj.get(field).equals(value)) {
                 ret.add(new HashMap<>(obj));
@@ -542,8 +563,9 @@ public class InMemoryDriver implements MorphiumDriver {
     public void insert(String db, String collection, List<Map<String, Object>> objs, WriteConcern wc) throws MorphiumDriverException {
         for (Map<String, Object> o : objs) {
             o.putIfAbsent("_id", new MorphiumId());
-            if (!findByFieldValue(db, collection, "_id", o.get("_id")).isEmpty())
+            if (!findByFieldValue(db, collection, "_id", o.get("_id")).isEmpty()) {
                 throw new MorphiumDriverException("Duplicate _id!", null);
+            }
         }
         getCollection(db, collection).addAll(objs);
     }

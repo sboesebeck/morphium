@@ -28,26 +28,24 @@ import java.util.Map;
 public class ObjectMapperTest extends MongoTest {
 
     @Test
-    public void customTypeMapperTest() throws  Exception {
+    public void customTypeMapperTest() throws Exception {
         ObjectMapper om = morphium.getMapper();
-        BigInteger tst=new BigInteger("affedeadbeefaffedeadbeef42",16);
+        BigInteger tst = new BigInteger("affedeadbeefaffedeadbeef42", 16);
         Map<String, Object> d = om.marshall(tst);
 
-        BigInteger bi=om.unmarshall(BigInteger.class,d);
-        assert(bi!=null);
-        assert(tst.equals(bi));
+        BigInteger bi = om.unmarshall(BigInteger.class, d);
+        assert (bi != null);
+        assert (tst.equals(bi));
 
-        BIObject bio=new BIObject();
-        bio.biValue=tst;
+        BIObject bio = new BIObject();
+        bio.biValue = tst;
         morphium.store(bio);
 
         BIObject bio2 = morphium.createQueryFor(BIObject.class).get();
-        assert(bio2!=null);
-        assert(bio2.biValue!=null);
-        assert(bio2.biValue.equals(tst));
+        assert (bio2 != null);
+        assert (bio2.biValue != null);
+        assert (bio2.biValue.equals(tst));
     }
-
-
 
 
     @Test
@@ -230,7 +228,7 @@ public class ObjectMapperTest extends MongoTest {
         o = new UncachedObject();
         o.setCounter(12345);
         o.setValue("Referenced value");
-//        o.setMongoId(new MongoId(new Date()));
+        //        o.setMongoId(new MongoId(new Date()));
         morphium.store(o);
 
         co.setRef(o);
@@ -396,11 +394,11 @@ public class ObjectMapperTest extends MongoTest {
         o.setEmbed(em);
         o.setChanged(System.currentTimeMillis());
         o.setCreated(System.currentTimeMillis());
-//        o.setcRef();
+        //        o.setcRef();
         o.setEinText("Text");
         o.setEntityEmbeded(new UncachedObject());
         o.setNullValue(23);
-//        o.setRef();
+        //        o.setRef();
         o.setTrans("Trans");
         Map<String, Object> marshall = null;
         ObjectMapperImpl om = (ObjectMapperImpl) morphium.getMapper();
@@ -434,9 +432,9 @@ public class ObjectMapperTest extends MongoTest {
         o.setEmbed(em);
         o.setChanged(System.currentTimeMillis());
         o.setCreated(System.currentTimeMillis());
-//        o.setcRef();
+        //        o.setcRef();
         o.setEinText("Text");
-//        o.setEntityEmbeded(new UncachedObject());
+        //        o.setEntityEmbeded(new UncachedObject());
         o.setNullValue(23);
         o.setTrans("Trans");
         UncachedObject uc = new UncachedObject();
@@ -480,9 +478,9 @@ public class ObjectMapperTest extends MongoTest {
         o.setEmbed(em);
         o.setChanged(System.currentTimeMillis());
         o.setCreated(System.currentTimeMillis());
-//        o.setcRef();
+        //        o.setcRef();
         o.setEinText("Text");
-//        o.setEntityEmbeded(new UncachedObject());
+        //        o.setEntityEmbeded(new UncachedObject());
         o.setNullValue(23);
         o.setTrans("Trans");
         CachedObject cc = new CachedObject();
@@ -527,15 +525,6 @@ public class ObjectMapperTest extends MongoTest {
         assert (o.getValue().equals("test"));
     }
 
-
-    public static class NoDefaultConstructorUncachedObject extends UncachedObject {
-        public NoDefaultConstructorUncachedObject(String v, int c) {
-            setCounter(c);
-            setValue(v);
-        }
-    }
-
-
     @Test
     public void mapTest() throws Exception {
         ObjectMapper m = morphium.getMapper();
@@ -550,6 +539,13 @@ public class ObjectMapperTest extends MongoTest {
         o = m.unmarshall(MappedObject.class, Utils.toJsonString(dbo));
 
         assert (o.aMap.get("test") != null);
+    }
+
+    public static class NoDefaultConstructorUncachedObject extends UncachedObject {
+        public NoDefaultConstructorUncachedObject(String v, int c) {
+            setCounter(c);
+            setValue(v);
+        }
     }
 
     @Entity

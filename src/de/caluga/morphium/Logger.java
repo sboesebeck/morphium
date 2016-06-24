@@ -33,8 +33,11 @@ public class Logger {
             v = getSetting("log.level." + name);
         }
 
-        if (v != null) level = Integer.parseInt(v);
-        else level = defaultLevel;
+        if (v != null) {
+            level = Integer.parseInt(v);
+        } else {
+            level = defaultLevel;
+        }
 
         v = getSetting("log.file");
         if (getSetting("log.file." + name) != null) {
@@ -76,7 +79,9 @@ public class Logger {
         }
 
         v = getSetting("log.synced");
-        if (getSetting("log.synced." + name) != null) v = getSetting("log.synced." + name);
+        if (getSetting("log.synced." + name) != null) {
+            v = getSetting("log.synced." + name);
+        }
         if (v != null) {
             synced = v.equals("true");
         } else {
@@ -84,7 +89,9 @@ public class Logger {
         }
 
         v = getSetting("log.delegate");
-        if (getSetting("log.delegate." + name) != null) v = getSetting("log.delegate." + name);
+        if (getSetting("log.delegate." + name) != null) {
+            v = getSetting("log.delegate." + name);
+        }
         if (v != null) {
             switch (v) {
                 case "log4j":
@@ -104,7 +111,7 @@ public class Logger {
         }
 
 
-//        info("Logger " + name + " instanciated: Level: " + level + " Synced: " + synced + " file: " + file);
+        //        info("Logger " + name + " instanciated: Level: " + level + " Synced: " + synced + " file: " + file);
     }
 
     public Logger(Class cls) {
@@ -115,8 +122,9 @@ public class Logger {
     protected void finalize() throws Throwable {
         super.finalize();
         out.flush();
-        if (close)
+        if (close) {
             out.close();
+        }
 
     }
 
@@ -302,8 +310,9 @@ public class Logger {
     }
 
     private void doLog(int lv, String msg, Throwable t) {
-        if (level >= lv)
+        if (level >= lv) {
             delegate.log(prfx, lv, msg, t);
+        }
     }
 
     public PrintWriter getOutput() {
@@ -338,8 +347,9 @@ public class Logger {
             out.print("[");
             StackTraceElement[] st = new Exception().getStackTrace();
             int idx = 0;
-            while ((st[idx].getClassName().equals(this.getClass().getName()) || st[idx].getClassName().equals(Logger.class.getName())) && idx <= st.length)
+            while ((st[idx].getClassName().equals(this.getClass().getName()) || st[idx].getClassName().equals(Logger.class.getName())) && idx <= st.length) {
                 idx++;
+            }
             out.print(st[idx].getClassName());
             out.print(".");
             out.print(st[idx].getMethodName());
@@ -353,9 +363,9 @@ public class Logger {
             if (t != null) {
                 t.printStackTrace();
             }
-            if (synced)
+            if (synced) {
                 out.flush();
-
+            }
         }
     }
 }

@@ -84,7 +84,7 @@ public class MongoFieldImpl<T> implements MongoField<T> {
                         // list of references, this should be part of
                         //
                         // need to compare DBRefs
-//                        val = new MorphiumReference(val.getClass().getName(), id);
+                        //                        val = new MorphiumReference(val.getClass().getName(), id);
                         fldStr = fldStr + ".id"; //references in lists - id field in morphiumreference!!!!
                     }
                 }
@@ -251,19 +251,23 @@ public class MongoFieldImpl<T> implements MongoField<T> {
         lst.add(p1);
         lst.add(p2);
 
+        createFilterExpressionList(lst, "$box");
+        return query;
+    }
+
+    private void createFilterExpressionList(List<Object> lst, String type) {
         List<FilterExpression> expressionList = new ArrayList<>();
 
         FilterExpression withinExpression = new FilterExpression();
         withinExpression.setField("$within");
 
         Map<String, Object> box = new HashMap<>();
-        box.put("$box", lst);
+        box.put(type, lst);
         withinExpression.setValue(box);
 
         expressionList.add(withinExpression);
 
         add(expressionList);
-        return query;
     }
 
     @Override
@@ -279,18 +283,7 @@ public class MongoFieldImpl<T> implements MongoField<T> {
             lst.add(p1);
         }
 
-        List<FilterExpression> expressionList = new ArrayList<>();
-
-        FilterExpression withinExpression = new FilterExpression();
-        withinExpression.setField("$within");
-
-        Map<String, Object> box = new HashMap<>();
-        box.put("$polygon", lst);
-        withinExpression.setValue(box);
-
-        expressionList.add(withinExpression);
-
-        add(expressionList);
+        createFilterExpressionList(lst, "$polygon");
         return query;
     }
 

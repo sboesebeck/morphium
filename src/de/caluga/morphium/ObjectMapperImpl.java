@@ -146,7 +146,9 @@ public class ObjectMapperImpl implements ObjectMapper {
 
     @Override
     public Object marshallIfNecessary(Object o) {
-        if (o == null) return null;
+        if (o == null) {
+            return null;
+        }
         if (annotationHelper.isEntity(o)) {
             return marshall(o);
         }
@@ -305,7 +307,9 @@ public class ObjectMapperImpl implements ObjectMapper {
                                                 throw new RuntimeException("Could not automagically store references as morphium is not set!");
                                             }
                                             String coll = r.targetCollection();
-                                            if (coll.equals(".")) coll = null;
+                                            if (coll.equals(".")) {
+                                                coll = null;
+                                            }
                                             morphium.storeNoCache(rec, coll);
                                             id = annotationHelper.getId(rec);
                                         } else {
@@ -509,7 +513,9 @@ public class ObjectMapperImpl implements ObjectMapper {
     @SuppressWarnings("unchecked")
     @Override
     public <T> T unmarshall(Class<? extends T> theClass, Map<String, Object> o) {
-        if (o == null) return null;
+        if (o == null) {
+            return null;
+        }
         Class cls = theClass;
         try {
             if (hasCustomMapper(cls)) {
@@ -519,9 +525,9 @@ public class ObjectMapperImpl implements ObjectMapper {
                 cls = BinarySerializedObject.class;
             }
             if (o.get("class_name") != null || o.get("className") != null) {
-//                if (log.isDebugEnabled()) {
-//                    log.debug("overriding cls - it's defined in dbObject");
-//                }
+                //                if (log.isDebugEnabled()) {
+                //                    log.debug("overriding cls - it's defined in dbObject");
+                //                }
                 try {
                     String cN = (String) o.get("class_name");
                     if (cN == null) {
@@ -633,15 +639,16 @@ public class ObjectMapperImpl implements ObjectMapper {
                         if (id != null) {
                             if (reference.lazyLoading()) {
                                 List<String> lst = annotationHelper.getFields(fld.getType(), Id.class);
-                                if (lst.isEmpty())
+                                if (lst.isEmpty()) {
                                     throw new IllegalArgumentException("Referenced object does not have an ID? Is it an Entity?");
+                                }
                                 if (id instanceof String && annotationHelper.getField(fld.getType(), lst.get(0)).getType().equals(MorphiumId.class)) {
                                     id = new MorphiumId(id.toString());
                                 }
                                 value = morphium.createLazyLoadedEntity(fld.getType(), id, ret, f, collection);
                             } else {
-//                                Query q = morphium.createQueryFor(fld.getSearchType());
-//                                q.f("_id").eq(id);
+                                //                                Query q = morphium.createQueryFor(fld.getSearchType());
+                                //                                q.f("_id").eq(id);
                                 try {
                                     morphium.fireWouldDereference(ret, f, id, fld.getType(), false);
                                     value = morphium.findById(fld.getType(), id, collection);
@@ -683,14 +690,15 @@ public class ObjectMapperImpl implements ObjectMapper {
                 } else if (annotationHelper.isAnnotationPresentInHierarchy(fld.getType(), Entity.class) || annotationHelper.isAnnotationPresentInHierarchy(fld.getType(), Embedded.class)) {
                     //entity! embedded
                     value = unmarshall(fld.getType(), (HashMap<String, Object>) valueFromDb);
-//                    List lst = new ArrayList<Object>();
-//                    lst.add(value);
-//                    morphium.firePostLoad(lst);
+                    //                    List lst = new ArrayList<Object>();
+                    //                    lst.add(value);
+                    //                    morphium.firePostLoad(lst);
                 } else if (hasCustomMapper(fld.getType())) {
-                	if (valueFromDb instanceof Map)
-                		value = unmarshall(fld.getType(), (HashMap<String, Object>) valueFromDb);
-                	else
-                		value = customMapper.get(fld.getType()).unmarshall(valueFromDb);
+                    if (valueFromDb instanceof Map) {
+                        value = unmarshall(fld.getType(), (HashMap<String, Object>) valueFromDb);
+                    } else {
+                        value = customMapper.get(fld.getType()).unmarshall(valueFromDb);
+                    }
                 } else if (Map.class.isAssignableFrom(fld.getType())) {
                     Map<String, Object> map = (Map<String, Object>) valueFromDb;
                     Map toFill = new HashMap();
@@ -739,30 +747,32 @@ public class ObjectMapperImpl implements ObjectMapper {
                     } else {
                         List<Map<String, Object>> l = (List<Map<String, Object>>) valueFromDb;
                         if (l != null) {
-                        	// type is List<?> or ?[]
-                       	 	ParameterizedType type;
-                            if (fld.getGenericType() instanceof ParameterizedType)
-                            	type = (ParameterizedType) fld.getGenericType();
-                            else
-                            	// a real array! time to create a custom parameterized type!
-	                           	type = new ParameterizedType() {
-										
-										@Override
-										public Type getRawType() {
-											return Array.class;
-										}
-										
-										@Override
-										public Type getOwnerType() {
-											return null;
-										}
-										
-										@Override
-										public Type[] getActualTypeArguments() {
-											return new Type[]{fld.getType().getComponentType()};
-										}
-									};
-                        	fillList(fld, fld.getAnnotation(Reference.class), type, l, lst, ret);
+                            // type is List<?> or ?[]
+                            ParameterizedType type;
+                            if (fld.getGenericType() instanceof ParameterizedType) {
+                                type = (ParameterizedType) fld.getGenericType();
+                            } else
+                            // a real array! time to create a custom parameterized type!
+                            {
+                                type = new ParameterizedType() {
+
+                                    @Override
+                                    public Type getRawType() {
+                                        return Array.class;
+                                    }
+
+                                    @Override
+                                    public Type getOwnerType() {
+                                        return null;
+                                    }
+
+                                    @Override
+                                    public Type[] getActualTypeArguments() {
+                                        return new Type[]{fld.getType().getComponentType()};
+                                    }
+                                };
+                            }
+                            fillList(fld, fld.getAnnotation(Reference.class), type, l, lst, ret);
                         }
                     }
                     if (fld.getType().isArray()) {
@@ -846,7 +856,7 @@ public class ObjectMapperImpl implements ObjectMapper {
                 } else {
                     if (fld.getType().isEnum()) {
                         value = Enum.valueOf((Class<? extends Enum>) fld.getType(), (String) valueFromDb);
-                    } else  {
+                    } else {
                         value = valueFromDb;
                     }
                 }
@@ -866,7 +876,7 @@ public class ObjectMapperImpl implements ObjectMapper {
                         log.warn("ID type missmatch - field is string but got objectId from mongo - converting");
                         field.set(ret, o.get("_id").toString());
                     } else if (field.getType().equals(MorphiumId.class) && o.get("_id").getClass().equals(String.class)) {
-//                        log.warn("ID type missmatch - field is objectId but got string from db - trying conversion");
+                        //                        log.warn("ID type missmatch - field is objectId but got string from db - trying conversion");
                         field.set(ret, new MorphiumId((String) o.get("_id")));
                     } else {
                         log.error("ID type missmatch");
@@ -896,31 +906,37 @@ public class ObjectMapperImpl implements ObjectMapper {
         Map retMap = new HashMap(dbObject);
         if (dbObject != null) {
             for (String n : dbObject.keySet()) {
-            	retMap.put(n, unmarshallInternal(dbObject.get(n)));
+                retMap.put(n, unmarshallInternal(dbObject.get(n)));
             }
         } else {
             retMap = null;
         }
         return retMap;
     }
-    
+
     private Object unmarshallInternal(Object val) {
-    	if (val instanceof Map) {
-	    	Map<String, Object> mapVal = (Map<String, Object>) val;
+        if (val instanceof Map) {
+            Map<String, Object> mapVal = (Map<String, Object>) val;
             if (mapVal.containsKey("class_name") || mapVal.containsKey("className")) {
                 //Entity to map!
                 String cn = (String) mapVal.get("class_name");
-                if (cn == null) cn = (String) mapVal.get("className");
+                if (cn == null) {
+                    cn = (String) mapVal.get("className");
+                }
                 try {
                     Class ecls = Class.forName(cn);
                     Object obj = unmarshall(ecls, mapVal);
-                    if (obj != null) return obj;
+                    if (obj != null) {
+                        return obj;
+                    }
                 } catch (ClassNotFoundException e) {
                     throw new RuntimeException(e);
                 }
             } else if (mapVal.containsKey("_b64data") || mapVal.containsKey("b64Data")) {
                 String d = (String) mapVal.get("_b64data");
-                if (d == null) d = (String) mapVal.get("b64Data");
+                if (d == null) {
+                    d = (String) mapVal.get("b64Data");
+                }
                 BASE64Decoder dec = new BASE64Decoder();
                 ObjectInputStream in;
                 try {
@@ -937,13 +953,13 @@ public class ObjectMapperImpl implements ObjectMapper {
             List<Map<String, Object>> lst = (List<Map<String, Object>>) val;
             return createList(lst);
         }
-	    return val;
+        return val;
     }
 
     private List createList(List<Map<String, Object>> lst) {
         return lst.stream().map(this::unmarshallInternal).collect(Collectors.toList());
     }
-    
+
     @SuppressWarnings({"unchecked", "ConstantConditions"})
     private void fillList(Field forField, Reference ref, ParameterizedType listType, List<Map<String, Object>> fromDB, List toFillIn, Object containerEntity) {
         if (ref != null) {
@@ -976,40 +992,39 @@ public class ObjectMapperImpl implements ObjectMapper {
             return;
         }
         for (Object val : fromDB) {
-        	if (val instanceof Map) {
-                if (listType != null) {    
-                	//have a list of something
-                	Class cls = getElementClass(listType);
-                	if (Map.class.isAssignableFrom(cls)) {
-                		// that is an actual map!
-                    	HashMap mp = new HashMap();
-    	            	fillMap((ParameterizedType) listType.getActualTypeArguments()[0], (Map<String, Object>) val, mp, containerEntity);
-    	            	toFillIn.add(mp);
-    	            	continue;
-                	}
-                	else {
-                		Entity entity = annotationHelper.getAnnotationFromHierarchy(cls, Entity.class); //(Entity) sc.getAnnotation(Entity.class);
-	                    Embedded embedded = annotationHelper.getAnnotationFromHierarchy(cls, Embedded.class);//(Embedded) sc.getAnnotation(Embedded.class);
-	                    if (entity != null || embedded != null || hasCustomMapper(cls)) {
-	                        toFillIn.add(unmarshall(cls, (Map<String, Object>) val));
-	                        continue;
-	                    }
+            if (val instanceof Map) {
+                if (listType != null) {
+                    //have a list of something
+                    Class cls = getElementClass(listType);
+                    if (Map.class.isAssignableFrom(cls)) {
+                        // that is an actual map!
+                        HashMap mp = new HashMap();
+                        fillMap((ParameterizedType) listType.getActualTypeArguments()[0], (Map<String, Object>) val, mp, containerEntity);
+                        toFillIn.add(mp);
+                        continue;
+                    } else {
+                        Entity entity = annotationHelper.getAnnotationFromHierarchy(cls, Entity.class); //(Entity) sc.getAnnotation(Entity.class);
+                        Embedded embedded = annotationHelper.getAnnotationFromHierarchy(cls, Embedded.class);//(Embedded) sc.getAnnotation(Embedded.class);
+                        if (entity != null || embedded != null || hasCustomMapper(cls)) {
+                            toFillIn.add(unmarshall(cls, (Map<String, Object>) val));
+                            continue;
+                        }
                     }
-                }
-                else {
-	            	HashMap mp = new HashMap();
-	            	fillMap((ParameterizedType) listType.getActualTypeArguments()[0], (Map<String, Object>) val, mp, containerEntity);
-	            	toFillIn.add(mp);
-	            	continue;
+                } else {
+                    HashMap mp = new HashMap();
+                    fillMap((ParameterizedType) listType.getActualTypeArguments()[0], (Map<String, Object>) val, mp, containerEntity);
+                    toFillIn.add(mp);
+                    continue;
                 }
             } else if (val instanceof MorphiumId) {
                 if (listType != null) {
                     //have a list of something
-                	Class cls;
-                	if (listType.getActualTypeArguments()[0] instanceof ParameterizedType)
-                		cls = (Class) ((ParameterizedType) listType.getActualTypeArguments()[0]).getRawType();
-                	else
-                		cls = (Class) listType.getActualTypeArguments()[0];
+                    Class cls;
+                    if (listType.getActualTypeArguments()[0] instanceof ParameterizedType) {
+                        cls = (Class) ((ParameterizedType) listType.getActualTypeArguments()[0]).getRawType();
+                    } else {
+                        cls = (Class) listType.getActualTypeArguments()[0];
+                    }
                     Query q = morphium.createQueryFor(cls);
                     q = q.f(annotationHelper.getFields(cls, Id.class).get(0)).eq(val);
                     toFillIn.add(q.get());
@@ -1029,55 +1044,55 @@ public class ObjectMapperImpl implements ObjectMapper {
             toFillIn.add(unmarshallInternal(val));
         }
     }
-      
-    private Class getElementClass(ParameterizedType parameterizedType) {
-    	Type[] parameters = parameterizedType.getActualTypeArguments();
-		Type relevantParameter = parameters[parameters.length - 1];
-    	if (relevantParameter instanceof Class)
-			return (Class) relevantParameter;
-    	return (Class) ((ParameterizedType) relevantParameter).getRawType();
-	}
 
-	@SuppressWarnings({"unchecked", "ConstantConditions"})
+    private Class getElementClass(ParameterizedType parameterizedType) {
+        Type[] parameters = parameterizedType.getActualTypeArguments();
+        Type relevantParameter = parameters[parameters.length - 1];
+        if (relevantParameter instanceof Class) {
+            return (Class) relevantParameter;
+        }
+        return (Class) ((ParameterizedType) relevantParameter).getRawType();
+    }
+
+    @SuppressWarnings({"unchecked", "ConstantConditions"})
     private void fillMap(ParameterizedType mapType, Map<String, Object> fromDB, Map toFillIn, Object containerEntity) {
         for (Entry<String, Object> entry : fromDB.entrySet()) {
-        	String key = entry.getKey();
-        	Object val = entry.getValue();
+            String key = entry.getKey();
+            Object val = entry.getValue();
             if (val instanceof Map) {
-                if (mapType != null) {    
-                	//have a list of something
-                	Class cls = getElementClass(mapType);
-                	if (Map.class.isAssignableFrom(cls)) {
-                		// this is an actual map
-                		HashMap mp = new HashMap();
-                    	fillMap((ParameterizedType) mapType.getActualTypeArguments()[1], (Map<String, Object>) val, mp, containerEntity);
-                    	toFillIn.put(key, mp);
-                    	continue;
-                	}
-                	else {
-                		Entity entity = annotationHelper.getAnnotationFromHierarchy(cls, Entity.class); //(Entity) sc.getAnnotation(Entity.class);
-	                    Embedded embedded = annotationHelper.getAnnotationFromHierarchy(cls, Embedded.class);//(Embedded) sc.getAnnotation(Embedded.class);
-	                    if (entity != null || embedded != null || hasCustomMapper(cls)) {
-	                    	toFillIn.put(key, unmarshall(cls, (Map<String, Object>) val));
-	                        continue;
-	                    }
+                if (mapType != null) {
+                    //have a list of something
+                    Class cls = getElementClass(mapType);
+                    if (Map.class.isAssignableFrom(cls)) {
+                        // this is an actual map
+                        HashMap mp = new HashMap();
+                        fillMap((ParameterizedType) mapType.getActualTypeArguments()[1], (Map<String, Object>) val, mp, containerEntity);
+                        toFillIn.put(key, mp);
+                        continue;
+                    } else {
+                        Entity entity = annotationHelper.getAnnotationFromHierarchy(cls, Entity.class); //(Entity) sc.getAnnotation(Entity.class);
+                        Embedded embedded = annotationHelper.getAnnotationFromHierarchy(cls, Embedded.class);//(Embedded) sc.getAnnotation(Embedded.class);
+                        if (entity != null || embedded != null || hasCustomMapper(cls)) {
+                            toFillIn.put(key, unmarshall(cls, (Map<String, Object>) val));
+                            continue;
+                        }
                     }
+                } else {
+                    HashMap mp = new HashMap();
+                    fillMap((ParameterizedType) mapType.getActualTypeArguments()[1], (Map<String, Object>) val, mp, containerEntity);
+                    toFillIn.put(key, mp);
+                    continue;
                 }
-                else {
-                	HashMap mp = new HashMap();
-                	fillMap((ParameterizedType) mapType.getActualTypeArguments()[1], (Map<String, Object>) val, mp, containerEntity);
-                	toFillIn.put(key, mp);
-                	continue;
-                }
-            
+
             } else if (val instanceof MorphiumId) {
                 if (mapType != null) {
                     //have a list of something
-                	Class cls;
-                	if (mapType.getActualTypeArguments()[1] instanceof ParameterizedType)
-                		cls = (Class) ((ParameterizedType) mapType.getActualTypeArguments()[1]).getRawType();
-                	else
-                		cls = (Class) mapType.getActualTypeArguments()[1];
+                    Class cls;
+                    if (mapType.getActualTypeArguments()[1] instanceof ParameterizedType) {
+                        cls = (Class) ((ParameterizedType) mapType.getActualTypeArguments()[1]).getRawType();
+                    } else {
+                        cls = (Class) mapType.getActualTypeArguments()[1];
+                    }
                     Query q = morphium.createQueryFor(cls);
                     q = q.f(annotationHelper.getFields(cls, Id.class).get(0)).eq(val);
                     toFillIn.put(key, q.get());

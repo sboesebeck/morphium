@@ -66,7 +66,6 @@ public class CacheListenerTest extends MongoTest {
         }
 
 
-
     }
 
 }

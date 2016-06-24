@@ -62,8 +62,9 @@ public class ReferenceTest extends MongoTest {
             UncachedObject uc = new UncachedObject();
             uc.setValue("list value " + i);
             uc.setCounter(i);
-            if (i == 4)
+            if (i == 4) {
                 toSearchFor = uc;
+            }
             lst.add(uc);
         }
         morphium.storeList(lst);
@@ -201,8 +202,9 @@ public class ReferenceTest extends MongoTest {
             UncachedObject uc = new UncachedObject();
             uc.setValue("list value " + i);
             uc.setCounter(i);
-            if (i == 4)
+            if (i == 4) {
                 lst.add(uc);
+            }
         }
         morphium.storeList(lst);
         rc.setLst(lst);

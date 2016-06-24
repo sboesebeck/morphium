@@ -239,16 +239,16 @@ public class BasicFunctionalityTest extends MongoTest {
 
     }
 
-//    @Test
-//    public void currentOpTest() throws Exception{
-//        new Thread() {
-//            public void run() {
-//                createUncachedObjects(1000);
-//            }
-//        }.start();
-//        List<Map<String, Object>> lst = morphium.getDriver().find("local", "$cmd.sys.inprog", new HashMap<String, Object>(), null, null, 0, 1000, 1000, null, null);
-//        log.info("got: "+lst.size());
-//    }
+    //    @Test
+    //    public void currentOpTest() throws Exception{
+    //        new Thread() {
+    //            public void run() {
+    //                createUncachedObjects(1000);
+    //            }
+    //        }.start();
+    //        List<Map<String, Object>> lst = morphium.getDriver().find("local", "$cmd.sys.inprog", new HashMap<String, Object>(), null, null, 0, 1000, 1000, null, null);
+    //        log.info("got: "+lst.size());
+    //    }
 
     @Test
     public void orTest() {
@@ -299,7 +299,7 @@ public class BasicFunctionalityTest extends MongoTest {
         }
         long dur = System.currentTimeMillis() - start;
         log.info("Storing single took " + dur + " ms");
-//        assert (dur < NO_OBJECTS * 5) : "Storing took way too long";
+        //        assert (dur < NO_OBJECTS * 5) : "Storing took way too long";
         Thread.sleep(1500);
         log.info("Searching for objects");
 
@@ -315,6 +315,7 @@ public class BasicFunctionalityTest extends MongoTest {
         Embedded em = morphium.getARHelper().getAnnotationFromHierarchy(EmbeddedObject.class, Embedded.class);
         assert (em != null);
     }
+
     @Test
     public void uncachedListTest() throws Exception {
         morphium.clearCollection(UncachedObject.class);
@@ -362,7 +363,9 @@ public class BasicFunctionalityTest extends MongoTest {
         start = System.currentTimeMillis();
         for (int idx = 1; idx <= NO_OBJECTS * 3.5; idx++) {
             int i = (int) (Math.random() * (double) NO_OBJECTS);
-            if (i == 0) i = 1;
+            if (i == 0) {
+                i = 1;
+            }
             Query<CachedObject> q = morphium.createQueryFor(CachedObject.class);
             q.f("counter").eq(i);
             List<CachedObject> l = q.asList();
@@ -466,11 +469,11 @@ public class BasicFunctionalityTest extends MongoTest {
         waitForAsyncOperationToStart(1000000);
         waitForWrites();
         //Still waiting - storing lists is not shown in number of write buffer entries
-//        try {
-//            Thread.sleep(2000);
-//        } catch (InterruptedException e) {
-//            throw new RuntimeException(e);
-//        }
+        //        try {
+        //            Thread.sleep(2000);
+        //        } catch (InterruptedException e) {
+        //            throw new RuntimeException(e);
+        //        }
         Query<UncachedObject> qu = morphium.createQueryFor(UncachedObject.class);
         assert (qu.countAll() == uncached) : "Difference in object count for cached objects. Wrote " + uncached + " found: " + qu.countAll();
         Query<CachedObject> q = morphium.createQueryFor(CachedObject.class);

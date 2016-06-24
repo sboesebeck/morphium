@@ -8,24 +8,31 @@ import java.util.logging.Level;
  * logger delegate that passes on all calls to JUL
  **/
 public class JavaUtilLoggingDelegate implements LoggerDelegate {
+    public final static int LOG_OFF = 0;
+    public final static int LOG_SEVERE = 1;
+    public final static int LOG_SEVERER = 2;
+    public final static int LOG_WARN = 3;
+    public final static int LOG_INFO = 4;
+    public final static int LOG_ALL = 5;
+
     @Override
     public void log(String loggerName, int lv, String msg, Throwable t) {
         java.util.logging.Level level;
 
         switch (lv) {
-            case 0:
+            case LOG_OFF:
                 return;
-            case 1:
-            case 2:
+            case LOG_SEVERE:
+            case LOG_SEVERER:
                 level = Level.SEVERE;
                 break;
-            case 3:
+            case LOG_WARN:
                 level = Level.WARNING;
                 break;
-            case 4:
+            case LOG_INFO:
                 level = Level.INFO;
                 break;
-            case 5:
+            case LOG_ALL:
             default:
                 level = Level.ALL;
                 break;

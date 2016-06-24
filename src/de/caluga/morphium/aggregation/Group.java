@@ -19,11 +19,6 @@ public class Group<T, R> {
 
     private List<Map<String, Object>> operators = new ArrayList<>();
 
-    private Map<String, Object> getMap(String key, Object value) {
-        Map<String, Object> ret = new HashMap<>();
-        ret.put(key, value);
-        return ret;
-    }
     public Group(Aggregator<T, R> ag, String id) {
         aggregator = ag;
         this.id = getMap("_id", id);
@@ -32,6 +27,12 @@ public class Group<T, R> {
     public Group(Aggregator<T, R> ag, Map<String, Object> id) {
         aggregator = ag;
         this.id = getMap("_id", id);
+    }
+
+    private Map<String, Object> getMap(String key, Object value) {
+        Map<String, Object> ret = new HashMap<>();
+        ret.put(key, value);
+        return ret;
     }
 
     public Group<T, R> addToSet(Map<String, Object> param) {

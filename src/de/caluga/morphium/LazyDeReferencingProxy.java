@@ -8,6 +8,7 @@ import java.lang.reflect.Method;
 
 public class LazyDeReferencingProxy<T> implements MethodInterceptor, Serializable {
     private static final long serialVersionUID = 3777709000906217075L;
+    private static final Logger log = new Logger(LazyDeReferencingProxy.class);
     private final transient Morphium morphium;
     private final String fieldname;
     private final Object container;
@@ -15,8 +16,6 @@ public class LazyDeReferencingProxy<T> implements MethodInterceptor, Serializabl
     private T deReferenced;
     private Class<? extends T> cls;
     private Object id;
-
-    private static final Logger log = new Logger(LazyDeReferencingProxy.class);
 
     public LazyDeReferencingProxy(Morphium m, Class<? extends T> type, Object id, Object container, String fieldname, String collectionName) {
         cls = type;
@@ -42,7 +41,7 @@ public class LazyDeReferencingProxy<T> implements MethodInterceptor, Serializabl
 
     @Override
     public Object intercept(Object o, Method method, Object[] objects, MethodProxy methodProxy) throws Throwable {
-//        log.error("MEthod trigger "+method.getName());
+        //        log.error("MEthod trigger "+method.getName());
         if (method.getName().equals("getClass")) {
             return cls;
         }
@@ -69,8 +68,9 @@ public class LazyDeReferencingProxy<T> implements MethodInterceptor, Serializabl
 
     private void dereference() {
         if (deReferenced == null) {
-            if (log.isDebugEnabled())
+            if (log.isDebugEnabled()) {
                 log.debug("DeReferencing due to first access");
+            }
             try {
                 morphium.fireWouldDereference(container, fieldname, id, cls, true);
                 deReferenced = morphium.findById(cls, id, collectionName);

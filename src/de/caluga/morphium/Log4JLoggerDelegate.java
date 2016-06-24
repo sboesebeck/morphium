@@ -36,7 +36,9 @@ public class Log4JLoggerDelegate implements LoggerDelegate {
                     break;
             }
 
-            if (mname.isEmpty()) return;
+            if (mname.isEmpty()) {
+                return;
+            }
             if (!((Boolean) logger.getClass().getMethod("is" + capitalize(mname) + "Enabled").invoke(logger))) {
                 return;
             }

@@ -196,13 +196,13 @@ public class Morphium {
             morphiumDriver.setMaxConnectionsPerHost(config.getMaxConnections());
             morphiumDriver.setSocketKeepAlive((config.isSocketKeepAlive()));
             morphiumDriver.setMaxBlockingThreadMultiplier(config.getBlockingThreadsMultiplier());
-//            drv.cursorFinalizerEnabled(config.isCursorFinalizerEnabled());
-//            drv.alwaysUseMBeans(config.isAlwaysUseMBeans());
+            //            drv.cursorFinalizerEnabled(config.isCursorFinalizerEnabled());
+            //            drv.alwaysUseMBeans(config.isAlwaysUseMBeans());
             morphiumDriver.setHeartbeatConnectTimeout(config.getHeartbeatConnectTimeout());
             morphiumDriver.setHeartbeatFrequency(config.getHeartbeatFrequency());
             morphiumDriver.setHeartbeatSocketTimeout(config.getHeartbeatSocketTimeout());
             morphiumDriver.setMinConnectionsPerHost(config.getMinConnectionsPerHost());
-//            drv.setMinminHeartbeatFrequency(config.getMinHearbeatFrequency());
+            //            drv.setMinminHeartbeatFrequency(config.getMinHearbeatFrequency());
             morphiumDriver.setLocalThreshold(config.getLocalThreashold());
             morphiumDriver.setMaxConnectionIdleTime(config.getMaxConnectionIdleTime());
             morphiumDriver.setMaxConnectionLifetime(config.getMaxConnectionLifeTime());
@@ -217,10 +217,12 @@ public class Morphium {
                 throw new RuntimeException("Error - no server address specified!");
             }
 
-            if (config.getMongoLogin() != null && config.getMongoPassword() != null)
+            if (config.getMongoLogin() != null && config.getMongoPassword() != null) {
                 morphiumDriver.setCredentials(config.getMongoLogin(), config.getDatabase(), config.getMongoPassword().toCharArray());
-            if (config.getMongoAdminUser() != null && config.getMongoAdminPwd() != null)
+            }
+            if (config.getMongoAdminUser() != null && config.getMongoAdminPwd() != null) {
                 morphiumDriver.setCredentials(config.getMongoAdminUser(), "admin", config.getMongoAdminPwd().toCharArray());
+            }
             String[] seed = new String[config.getHostSeed().size()];
             for (int i = 0; i < seed.length; i++) {
                 seed[i] = config.getHostSeed().get(i);
@@ -380,7 +382,9 @@ public class Morphium {
 
 
     public <T> void unset(final T toSet, String collection, final String field, final AsyncOperationCallback<T> callback) {
-        if (toSet == null) throw new RuntimeException("Cannot update null!");
+        if (toSet == null) {
+            throw new RuntimeException("Cannot update null!");
+        }
         MorphiumWriter wr = getWriterForClass(toSet.getClass());
         wr.unset(toSet, collection, field, callback);
     }
@@ -488,10 +492,10 @@ public class Morphium {
      * converts the given type to capped collection in Mongo, even if no @capped is defined!
      * <b>Warning:</b> depending on size this might take some time!
      *
-     * @param c entity type
+     * @param c    entity type
      * @param size size of capped collection
-     * @param cb callback
-     * @param <T> type
+     * @param cb   callback
+     * @param <T>  type
      */
     public <T> void convertToCapped(Class<T> c, int size, AsyncOperationCallback<T> cb) {
         convertToCapped(getMapper().getCollectionName(c), size, cb);
@@ -503,7 +507,7 @@ public class Morphium {
         Map<String, Object> cmd = new LinkedHashMap<>();
         cmd.put("convertToCapped", coll);
         cmd.put("size", size);
-//        cmd.put("max", max);
+        //        cmd.put("max", max);
         try {
             morphiumDriver.runCommand(config.getDatabase(), cmd);
         } catch (MorphiumDriverException e) {
@@ -542,15 +546,17 @@ public class Morphium {
     public <T> void ensureCapped(final Class<T> c, final AsyncOperationCallback<T> callback) {
         Runnable r = () -> {
             String coll = getMapper().getCollectionName(c);
-//                DBCollection collection = null;
+            //                DBCollection collection = null;
 
             try {
                 boolean exists = morphiumDriver.exists(config.getDatabase(), coll);
-                if (exists && morphiumDriver.isCapped(config.getDatabase(), coll))
+                if (exists && morphiumDriver.isCapped(config.getDatabase(), coll)) {
                     return;
+                }
                 if (config.isAutoIndexAndCappedCreationOnWrite() && !exists) {
-                    if (logger.isDebugEnabled())
+                    if (logger.isDebugEnabled()) {
                         logger.debug("Collection does not exist - ensuring indices / capped status");
+                    }
                     Map<String, Object> cmd = new LinkedHashMap<>();
                     cmd.put("create", coll);
                     Capped capped = annotationHelper.getAnnotationFromHierarchy(c, Capped.class);
@@ -578,7 +584,7 @@ public class Morphium {
             r.run();
         } else {
             asyncOperationsThreadPool.execute(r);
-//            new Thread(r).start();
+            //            new Thread(r).start();
         }
     }
 
@@ -683,7 +689,9 @@ public class Morphium {
      * @param <T>      - the type
      */
     public <T> void push(final Query<T> query, final String field, final Object value, final boolean upsert, final boolean multiple, final AsyncOperationCallback<T> callback) {
-        if (query == null || field == null) throw new RuntimeException("Cannot update null!");
+        if (query == null || field == null) {
+            throw new RuntimeException("Cannot update null!");
+        }
         getWriterForClass(query.getType()).pushPull(true, query, field, value, upsert, multiple, null);
 
     }
@@ -704,7 +712,9 @@ public class Morphium {
      * @param <T>      - type
      */
     public <T> void pull(final Query<T> query, final String field, final Object value, final boolean upsert, final boolean multiple, final AsyncOperationCallback<T> callback) {
-        if (query == null || field == null) throw new RuntimeException("Cannot update null!");
+        if (query == null || field == null) {
+            throw new RuntimeException("Cannot update null!");
+        }
         MorphiumWriter wr = getWriterForClass(query.getType());
         wr.pushPull(false, query, field, value, upsert, multiple, callback);
     }
@@ -714,7 +724,9 @@ public class Morphium {
     }
 
     public <T> void pushAll(final Query<T> query, final String field, final List<?> value, final boolean upsert, final boolean multiple, final AsyncOperationCallback<T> callback) {
-        if (query == null || field == null) throw new RuntimeException("Cannot update null!");
+        if (query == null || field == null) {
+            throw new RuntimeException("Cannot update null!");
+        }
         MorphiumWriter wr = getWriterForClass(query.getType());
         wr.pushPullAll(true, query, field, value, upsert, multiple, callback);
 
@@ -762,7 +774,9 @@ public class Morphium {
     }
 
     public <T> void set(final Query<T> query, final Map<String, Object> map, final boolean upsert, final boolean multiple, AsyncOperationCallback<T> callback) {
-        if (query == null) throw new RuntimeException("Cannot update null!");
+        if (query == null) {
+            throw new RuntimeException("Cannot update null!");
+        }
         getWriterForClass(query.getType()).set(query, map, upsert, multiple, callback);
     }
 
@@ -793,7 +807,9 @@ public class Morphium {
     }
 
     public <T> void set(final T toSet, String collection, final String field, final Object value, boolean upserts, boolean multiple, AsyncOperationCallback<T> callback) {
-        if (toSet == null) throw new RuntimeException("Cannot update null!");
+        if (toSet == null) {
+            throw new RuntimeException("Cannot update null!");
+        }
 
         if (getId(toSet) == null) {
             logger.info("just storing object as it is new...");
@@ -930,7 +946,9 @@ public class Morphium {
     }
 
     public <T> void inc(final Query<T> query, final Map<String, Number> toUptad, final boolean upsert, final boolean multiple, AsyncOperationCallback<T> callback) {
-        if (query == null) throw new RuntimeException("Cannot update null!");
+        if (query == null) {
+            throw new RuntimeException("Cannot update null!");
+        }
         getWriterForClass(query.getType()).inc(query, toUptad, upsert, multiple, callback);
     }
 
@@ -951,23 +969,31 @@ public class Morphium {
     }
 
     public <T> void inc(final Query<T> query, final String name, final long amount, final boolean upsert, final boolean multiple, final AsyncOperationCallback<T> callback) {
-        if (query == null) throw new RuntimeException("Cannot update null!");
+        if (query == null) {
+            throw new RuntimeException("Cannot update null!");
+        }
         getWriterForClass(query.getType()).inc(query, name, amount, upsert, multiple, callback);
     }
 
     public <T> void inc(final Query<T> query, final String name, final int amount, final boolean upsert, final boolean multiple, final AsyncOperationCallback<T> callback) {
-        if (query == null) throw new RuntimeException("Cannot update null!");
+        if (query == null) {
+            throw new RuntimeException("Cannot update null!");
+        }
         getWriterForClass(query.getType()).inc(query, name, amount, upsert, multiple, callback);
     }
 
     public <T> void inc(final Query<T> query, final String name, final double amount, final boolean upsert, final boolean multiple, final AsyncOperationCallback<T> callback) {
-        if (query == null) throw new RuntimeException("Cannot update null!");
+        if (query == null) {
+            throw new RuntimeException("Cannot update null!");
+        }
         getWriterForClass(query.getType()).inc(query, name, amount, upsert, multiple, callback);
 
     }
 
     public <T> void inc(final Query<T> query, final String name, final Number amount, final boolean upsert, final boolean multiple, final AsyncOperationCallback<T> callback) {
-        if (query == null) throw new RuntimeException("Cannot update null!");
+        if (query == null) {
+            throw new RuntimeException("Cannot update null!");
+        }
         getWriterForClass(query.getType()).inc(query, name, amount, upsert, multiple, callback);
 
     }
@@ -1037,7 +1063,9 @@ public class Morphium {
     }
 
     public <T> void inc(final T toSet, String collection, final String field, final double i, final AsyncOperationCallback<T> callback) {
-        if (toSet == null) throw new RuntimeException("Cannot update null!");
+        if (toSet == null) {
+            throw new RuntimeException("Cannot update null!");
+        }
 
         if (getId(toSet) == null) {
             logger.info("just storing object as it is new...");
@@ -1048,7 +1076,9 @@ public class Morphium {
     }
 
     public <T> void inc(final T toSet, String collection, final String field, final int i, final AsyncOperationCallback<T> callback) {
-        if (toSet == null) throw new RuntimeException("Cannot update null!");
+        if (toSet == null) {
+            throw new RuntimeException("Cannot update null!");
+        }
 
         if (getId(toSet) == null) {
             logger.info("just storing object as it is new...");
@@ -1059,7 +1089,9 @@ public class Morphium {
     }
 
     public <T> void inc(final T toSet, String collection, final String field, final long i, final AsyncOperationCallback<T> callback) {
-        if (toSet == null) throw new RuntimeException("Cannot update null!");
+        if (toSet == null) {
+            throw new RuntimeException("Cannot update null!");
+        }
 
         if (getId(toSet) == null) {
             logger.info("just storing object as it is new...");
@@ -1070,7 +1102,9 @@ public class Morphium {
     }
 
     public <T> void inc(final T toSet, String collection, final String field, final Number i, final AsyncOperationCallback<T> callback) {
-        if (toSet == null) throw new RuntimeException("Cannot update null!");
+        if (toSet == null) {
+            throw new RuntimeException("Cannot update null!");
+        }
 
         if (getId(toSet) == null) {
             logger.info("just storing object as it is new...");
@@ -1138,13 +1172,17 @@ public class Morphium {
     }
 
     public <T> void updateUsingFields(final T ent, String collection, AsyncOperationCallback<T> callback, final String... fields) {
-        if (ent == null) return;
-        if (fields.length == 0) return; //not doing an update - no change
+        if (ent == null) {
+            return;
+        }
+        if (fields.length == 0) {
+            return; //not doing an update - no change
+        }
 
-//        if (annotationHelper.isAnnotationPresentInHierarchy(ent.getClass(), NoCache.class)) {
-//            config.getWriter().updateUsingFields(ent, collection, null, fields);
-//            return;
-//        }
+        //        if (annotationHelper.isAnnotationPresentInHierarchy(ent.getClass(), NoCache.class)) {
+        //            config.getWriter().updateUsingFields(ent, collection, null, fields);
+        //            return;
+        //        }
         getWriterForClass(ent.getClass()).updateUsingFields(ent, collection, null, fields);
     }
 
@@ -1170,23 +1208,25 @@ public class Morphium {
     }
 
     public <T> T reread(T o, String collection) {
-        if (o == null) return null;
+        if (o == null) {
+            return null;
+        }
         Object id = getId(o);
         if (id == null) {
             return null;
         }
-//        DBCollection col = config.getDb().getCollection(collection);
+        //        DBCollection col = config.getDb().getCollection(collection);
         Map<String, Object> srch = new HashMap<>();
         srch.put("_id", id);
-//        List<Field> lst = annotationHelper.getAllFields(o.getClass());
-//        Map<String, Object> fields = new HashMap<>();
-//        for (Field f : lst) {
-//            if (f.isAnnotationPresent(WriteOnly.class) || f.isAnnotationPresent(Transient.class)) {
-//                continue;
-//            }
-//            String n = annotationHelper.getFieldName(o.getClass(), f.getName());
-//            fields.put(n, 1);
-//        }
+        //        List<Field> lst = annotationHelper.getAllFields(o.getClass());
+        //        Map<String, Object> fields = new HashMap<>();
+        //        for (Field f : lst) {
+        //            if (f.isAnnotationPresent(WriteOnly.class) || f.isAnnotationPresent(Transient.class)) {
+        //                continue;
+        //            }
+        //            String n = annotationHelper.getFieldName(o.getClass(), f.getName());
+        //            fields.put(n, 1);
+        //        }
 
         try {
             Map<String, Object> findMetaData = new HashMap<>();
@@ -1194,7 +1234,9 @@ public class Morphium {
             if (found != null && !found.isEmpty()) {
                 Map<String, Object> dbo = found.get(0);
                 Object fromDb = objectMapper.unmarshall(o.getClass(), dbo);
-                if (fromDb == null) throw new RuntimeException("could not reread from db");
+                if (fromDb == null) {
+                    throw new RuntimeException("could not reread from db");
+                }
                 @SuppressWarnings("unchecked") List<String> flds = annotationHelper.getFields(o.getClass());
                 for (String f : flds) {
                     Field fld = annotationHelper.getField(o.getClass(), f);
@@ -1219,7 +1261,9 @@ public class Morphium {
 
     ///Event handling
     public void firePreStore(Object o, boolean isNew) {
-        if (o == null) return;
+        if (o == null) {
+            return;
+        }
         for (MorphiumStorageListener l : listeners) {
             //noinspection unchecked
             l.preStore(this, o, isNew);
@@ -1407,7 +1451,9 @@ public class Morphium {
     }
 
     public ReplicaSetStatus getCurrentRSState() {
-        if (rsMonitor == null) return null;
+        if (rsMonitor == null) {
+            return null;
+        }
         return rsMonitor.getCurrentStatus();
     }
 
@@ -1416,46 +1462,48 @@ public class Morphium {
         return config.isReplicaset();
     }
 
-//
-//    public void handleNetworkError(int i, Throwable e) {
-//        logger.info("Handling network error..." + e.getClass().getName());
-//        if (e.getClass().getName().equals("javax.validation.ConstraintViolationException")) {
-//            throw ((RuntimeException) e);
-//        }
-//        if (e instanceof DuplicateKeyException) {
-//            throw new RuntimeException(e);
-//        }
-//        if (e.getMessage() != null && (e.getMessage().equals("can't find a master")
-//                || e.getMessage().startsWith("No replica set members available in")
-//                || e.getMessage().equals("not talking to master and retries used up"))
-//                || (e instanceof WriteConcernException && e.getMessage() != null && e.getMessage().contains("not master"))
-//                || e instanceof MongoException) {
-//            if (i + 1 < getConfig().getRetriesOnNetworkError()) {
-//                logger.warn("Retry because of network error: " + e.getMessage());
-//                try {
-//                    Thread.sleep(getConfig().getSleepBetweenNetworkErrorRetries());
-//                } catch (InterruptedException ignored) {
-//                }
-//
-//            } else {
-//                logger.info("no retries left - re-throwing exception");
-//                if (e instanceof RuntimeException) {
-//                    throw ((RuntimeException) e);
-//                }
-//                throw (new RuntimeException(e));
-//            }
-//        } else {
-//            if (e instanceof RuntimeException) {
-//                throw ((RuntimeException) e);
-//            }
-//            throw (new RuntimeException(e));
-//        }
-//    }
+    //
+    //    public void handleNetworkError(int i, Throwable e) {
+    //        logger.info("Handling network error..." + e.getClass().getName());
+    //        if (e.getClass().getName().equals("javax.validation.ConstraintViolationException")) {
+    //            throw ((RuntimeException) e);
+    //        }
+    //        if (e instanceof DuplicateKeyException) {
+    //            throw new RuntimeException(e);
+    //        }
+    //        if (e.getMessage() != null && (e.getMessage().equals("can't find a master")
+    //                || e.getMessage().startsWith("No replica set members available in")
+    //                || e.getMessage().equals("not talking to master and retries used up"))
+    //                || (e instanceof WriteConcernException && e.getMessage() != null && e.getMessage().contains("not master"))
+    //                || e instanceof MongoException) {
+    //            if (i + 1 < getConfig().getRetriesOnNetworkError()) {
+    //                logger.warn("Retry because of network error: " + e.getMessage());
+    //                try {
+    //                    Thread.sleep(getConfig().getSleepBetweenNetworkErrorRetries());
+    //                } catch (InterruptedException ignored) {
+    //                }
+    //
+    //            } else {
+    //                logger.info("no retries left - re-throwing exception");
+    //                if (e instanceof RuntimeException) {
+    //                    throw ((RuntimeException) e);
+    //                }
+    //                throw (new RuntimeException(e));
+    //            }
+    //        } else {
+    //            if (e instanceof RuntimeException) {
+    //                throw ((RuntimeException) e);
+    //            }
+    //            throw (new RuntimeException(e));
+    //        }
+    //    }
 
 
     public ReadPreference getReadPreferenceForClass(Class<?> cls) {
         DefaultReadPreference rp = annotationHelper.getAnnotationFromHierarchy(cls, DefaultReadPreference.class);
-        if (rp == null) return config.getDefaultReadPreference();
+        if (rp == null) {
+            return config.getDefaultReadPreference();
+        }
         return rp.value().getPref();
     }
 
@@ -1470,9 +1518,13 @@ public class Morphium {
 
     @SuppressWarnings("ConstantConditions")
     public WriteConcern getWriteConcernForClass(Class<?> cls) {
-        if (logger.isDebugEnabled()) logger.debug("returning write concern for " + cls.getSimpleName());
+        if (logger.isDebugEnabled()) {
+            logger.debug("returning write concern for " + cls.getSimpleName());
+        }
         WriteSafety safety = annotationHelper.getAnnotationFromHierarchy(cls, WriteSafety.class);  // cls.getAnnotation(WriteSafety.class);
-        if (safety == null) return null;
+        if (safety == null) {
+            return null;
+        }
         @SuppressWarnings("deprecation") boolean fsync = safety.waitForSync();
         boolean j = safety.waitForJournalCommit();
 
@@ -1491,7 +1543,9 @@ public class Morphium {
                 logger.warn("ReplicaSet status is null or no node active! Assuming default write concern");
                 return null;
             }
-            if (logger.isDebugEnabled()) logger.debug("Active nodes now: " + s.getActiveNodes());
+            if (logger.isDebugEnabled()) {
+                logger.debug("Active nodes now: " + s.getActiveNodes());
+            }
             int activeNodes = s.getActiveNodes();
 
             long masterOpTime = 0;
@@ -1519,7 +1573,9 @@ public class Morphium {
                 if (maxReplLag < 0) {
                     maxReplLag = -maxReplLag;
                 }
-                if (maxReplLag == 0) maxReplLag = 1;
+                if (maxReplLag == 0) {
+                    maxReplLag = 1;
+                }
                 timeout = maxReplLag * 3000;
                 if (maxReplLag > 10) {
                     logger.warn("Warning: replication lag too high! timeout set to " + timeout + "ms - replication Lag is " + maxReplLag + "s - write should take place in Background!");
@@ -1701,9 +1757,13 @@ public class Morphium {
 
     public <T> T findById(Class<? extends T> type, Object id, String collection) {
         T ret = getCache().getFromIDCache(type, id);
-        if (ret != null) return ret;
+        if (ret != null) {
+            return ret;
+        }
         @SuppressWarnings("unchecked") List<String> ls = annotationHelper.getFields(type, Id.class);
-        if (ls.isEmpty()) throw new RuntimeException("Cannot find by ID on non-Entity");
+        if (ls.isEmpty()) {
+            throw new RuntimeException("Cannot find by ID on non-Entity");
+        }
 
         return createQueryFor(type).setCollectionName(collection).f(ls.get(0)).eq(id).get();
     }
@@ -1802,7 +1862,9 @@ public class Morphium {
     }
 
     public <T> void store(List<T> lst, String collectionName, AsyncOperationCallback<T> callback) {
-        if (lst == null || lst.isEmpty()) return;
+        if (lst == null || lst.isEmpty()) {
+            return;
+        }
         getWriterForClass(lst.get(0).getClass()).store(lst, collectionName, callback);
     }
 
@@ -1852,7 +1914,9 @@ public class Morphium {
     }
 
     public List<Map<String, Object>> createIndexMapFrom(String[] fldStr) {
-        if (fldStr.length == 0) return null;
+        if (fldStr.length == 0) {
+            return null;
+        }
         List<Map<String, Object>> lst = new ArrayList<>();
 
 
@@ -2104,8 +2168,9 @@ public class Morphium {
         } catch (Exception e) {
             logger.debug("Ignoring interrupted-exception");
         }
-        if (rsMonitor != null)
+        if (rsMonitor != null) {
             rsMonitor.terminate();
+        }
 
         config.getAsyncWriter().close();
         config.getBufferedWriter().close();
@@ -2116,7 +2181,7 @@ public class Morphium {
             e.printStackTrace();
         }
         config = null;
-//        MorphiumSingleton.reset();
+        //        MorphiumSingleton.reset();
     }
 
     public String createCamelCase(String n) {
@@ -2136,17 +2201,17 @@ public class Morphium {
 
     public <T, R> List<R> aggregate(Aggregator<T, R> a) {
 
-//        DBCollection coll = null;
-//        for (int i = 0; i < getConfig().getRetriesOnNetworkError(); i++) {
-//            try {
-//                String collectionName = a.getCollectionName();
-//                if (collectionName == null) collectionName = objectMapper.getCollectionName(a.getSearchType());
-//                coll = config.getDb().getCollection(collectionName);
-//                break;
-//            } catch (Throwable e) {
-//                handleNetworkError(i, e);
-//            }
-//        }
+        //        DBCollection coll = null;
+        //        for (int i = 0; i < getConfig().getRetriesOnNetworkError(); i++) {
+        //            try {
+        //                String collectionName = a.getCollectionName();
+        //                if (collectionName == null) collectionName = objectMapper.getCollectionName(a.getSearchType());
+        //                coll = config.getDb().getCollection(collectionName);
+        //                break;
+        //            } catch (Throwable e) {
+        //                handleNetworkError(i, e);
+        //            }
+        //        }
         List<Map<String, Object>> agList = a.toAggregationList();
         try {
             List<Map<String, Object>> ret = getDriver().aggregate(config.getDatabase(), a.getCollectionName(), agList, a.isExplain(), a.isUseDisk(), getReadPreferenceForClass(a.getSearchType()));
@@ -2158,26 +2223,26 @@ public class Morphium {
         } catch (MorphiumDriverException e) {
             throw new RuntimeException(e);
         }
-//        Map<String, Object> first = agList.get(0);
-//        agList.remove(0);
-//        AggregationOutput resp = null;
-//        for (int i = 0; i < getConfig().getRetriesOnNetworkError(); i++) {
-//            try {
-//                resp = coll.aggregate(first, agList.toArray(new Map<String, Object>[agList.size()]));
-//                break;
-//            } catch (Throwable t) {
-//                handleNetworkError(i, t);
-//            }
-//        }
-//        List<R> ret = new ArrayList<>();
-//        if (resp != null) {
-//            for (Map<String, Object> o : resp.results()) {
-//                R obj = getMapper().unmarshall(a.getResultType(), o);
-//                if (obj == null) continue;
-//                ret.add(obj);
-//            }
-//        }
-//        return ret;
+        //        Map<String, Object> first = agList.get(0);
+        //        agList.remove(0);
+        //        AggregationOutput resp = null;
+        //        for (int i = 0; i < getConfig().getRetriesOnNetworkError(); i++) {
+        //            try {
+        //                resp = coll.aggregate(first, agList.toArray(new Map<String, Object>[agList.size()]));
+        //                break;
+        //            } catch (Throwable t) {
+        //                handleNetworkError(i, t);
+        //            }
+        //        }
+        //        List<R> ret = new ArrayList<>();
+        //        if (resp != null) {
+        //            for (Map<String, Object> o : resp.results()) {
+        //                R obj = getMapper().unmarshall(a.getResultType(), o);
+        //                if (obj == null) continue;
+        //                ret.add(obj);
+        //            }
+        //        }
+        //        return ret;
     }
 
     /**
@@ -2202,7 +2267,9 @@ public class Morphium {
 
     @SuppressWarnings("unchecked")
     public <T> MongoField<T> createMongoField() {
-        if (config == null) return new MongoFieldImpl<>();
+        if (config == null) {
+            return new MongoFieldImpl<>();
+        }
         try {
             return (MongoField<T>) config.getFieldImplClass().newInstance();
         } catch (InstantiationException | IllegalAccessException e) {

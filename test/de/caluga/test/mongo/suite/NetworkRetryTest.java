@@ -21,7 +21,9 @@ public class NetworkRetryTest extends MongoTest {
 
     @Test
     public void networRetryTestAsList() throws Exception {
-        if (!doTest) return;
+        if (!doTest) {
+            return;
+        }
         createUncachedObjects(1000);
         morphium.getConfig().setRetriesOnNetworkError(10);
         morphium.getConfig().setSleepBetweenNetworkErrorRetries(500);
@@ -38,7 +40,9 @@ public class NetworkRetryTest extends MongoTest {
 
     @Test
     public void networkRetryTestGet() throws Exception {
-        if (!doTest) return;
+        if (!doTest) {
+            return;
+        }
         createUncachedObjects(1000);
         morphium.getConfig().setRetriesOnNetworkError(10);
         morphium.getConfig().setSleepBetweenNetworkErrorRetries(500);
@@ -56,7 +60,9 @@ public class NetworkRetryTest extends MongoTest {
 
     @Test
     public void networkRetryTestComplexQuery() throws Exception {
-        if (!doTest) return;
+        if (!doTest) {
+            return;
+        }
         createUncachedObjects(1000);
         morphium.getConfig().setRetriesOnNetworkError(10);
         morphium.getConfig().setSleepBetweenNetworkErrorRetries(2000);
@@ -74,7 +80,9 @@ public class NetworkRetryTest extends MongoTest {
 
     @Test
     public void networkRetryTestIterator() throws Exception {
-        if (!doTest) return;
+        if (!doTest) {
+            return;
+        }
         createUncachedObjects(1000);
         morphium.getConfig().setRetriesOnNetworkError(10);
         morphium.getConfig().setSleepBetweenNetworkErrorRetries(500);
@@ -93,7 +101,9 @@ public class NetworkRetryTest extends MongoTest {
 
     @Test
     public void networkRetryTestSave() throws Exception {
-        if (!doTest) return;
+        if (!doTest) {
+            return;
+        }
         morphium.getConfig().setRetriesOnNetworkError(10);
         morphium.getConfig().setSleepBetweenNetworkErrorRetries(2500);
 
@@ -110,7 +120,9 @@ public class NetworkRetryTest extends MongoTest {
 
     @Test
     public void networkRetryTestBulkSave() throws Exception {
-        if (!doTest) return;
+        if (!doTest) {
+            return;
+        }
         morphium.getConfig().setRetriesOnNetworkError(10);
         morphium.getConfig().setSleepBetweenNetworkErrorRetries(2500);
 
@@ -132,7 +144,9 @@ public class NetworkRetryTest extends MongoTest {
 
     @Test
     public void networkRetryTestUpdate() throws Exception {
-        if (!doTest) return;
+        if (!doTest) {
+            return;
+        }
         morphium.getConfig().setRetriesOnNetworkError(10);
         morphium.getConfig().setSleepBetweenNetworkErrorRetries(2500);
 
@@ -149,7 +163,9 @@ public class NetworkRetryTest extends MongoTest {
 
     @Test
     public void pushTest() throws Exception {
-        if (!doTest) return;
+        if (!doTest) {
+            return;
+        }
         morphium.getConfig().setRetriesOnNetworkError(10);
         morphium.getConfig().setSleepBetweenNetworkErrorRetries(2500);
         morphium.dropCollection(ListContainer.class);
@@ -176,7 +192,9 @@ public class NetworkRetryTest extends MongoTest {
 
     @Test
     public void pushAllTest() throws Exception {
-        if (!doTest) return;
+        if (!doTest) {
+            return;
+        }
         morphium.getConfig().setRetriesOnNetworkError(10);
         morphium.getConfig().setSleepBetweenNetworkErrorRetries(2500);
         morphium.dropCollection(ListContainer.class);
@@ -206,7 +224,9 @@ public class NetworkRetryTest extends MongoTest {
 
     @Test
     public void incTest() throws Exception {
-        if (!doTest) return;
+        if (!doTest) {
+            return;
+        }
         morphium.getConfig().setRetriesOnNetworkError(10);
         morphium.getConfig().setSleepBetweenNetworkErrorRetries(2500);
         createUncachedObjects(1000);
@@ -222,7 +242,9 @@ public class NetworkRetryTest extends MongoTest {
 
     @Test
     public void decTest() throws Exception {
-        if (!doTest) return;
+        if (!doTest) {
+            return;
+        }
         morphium.getConfig().setRetriesOnNetworkError(10);
         morphium.getConfig().setSleepBetweenNetworkErrorRetries(2500);
         createUncachedObjects(1000);

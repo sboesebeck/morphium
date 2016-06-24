@@ -293,8 +293,9 @@ public class MorphiumTest extends MongoTest {
         morphium.convertToCapped(UncachedObject.class, 2500, null);
         Thread.sleep(500);
         for (int i = 0; i < 500; i++) {
-            if (i % 100 == 0)
+            if (i % 100 == 0) {
                 log.info("Sored " + i);
+            }
             UncachedObject uc = new UncachedObject();
             uc.setCounter(i + 100);
             uc.setValue("nothing");

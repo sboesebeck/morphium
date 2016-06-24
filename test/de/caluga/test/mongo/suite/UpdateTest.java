@@ -117,7 +117,7 @@ public class UpdateTest extends MongoTest {
         List<UncachedObject> lst = q.asList(); //read the data after update
         for (UncachedObject u : lst) {
             assert (u.getCounter() > 0 && u.getCounter() <= 55) : "Counter wrong: " + u.getCounter();
-//            assert(u.getValue().equals("Uncached "+(u.getCounter()-40))):"Value wrong: Counter: "+u.getCounter()+" Value;: "+u.getValue();
+            //            assert(u.getValue().equals("Uncached "+(u.getCounter()-40))):"Value wrong: Counter: "+u.getCounter()+" Value;: "+u.getValue();
         }
 
     }
@@ -152,15 +152,6 @@ public class UpdateTest extends MongoTest {
 
     }
 
-
-    public static class EnumUC extends UncachedObject {
-        private Value val;
-    }
-
-    public enum Value {
-        v1, v2, v3
-    }
-
     @Test
     public void pushTest() throws Exception {
         morphium.dropCollection(ListContainer.class);
@@ -179,7 +170,6 @@ public class UpdateTest extends MongoTest {
         assert (cont.getLongList().contains(12345L)) : "No push?";
 
     }
-
 
     @Test
     public void pushEntityTest() throws Exception {
@@ -278,6 +268,14 @@ public class UpdateTest extends MongoTest {
         assert (lc2.getEmbeddedObjectList() != null);
         assert (lc2.getEmbeddedObjectList().size() == 3) : "Size wrong should be 3 is " + lc2.getEmbeddedObjectList().size();
         assert (lc2.getEmbeddedObjectList().get(0).getTest() == 1L);
+    }
+
+    public enum Value {
+        v1, v2, v3
+    }
+
+    public static class EnumUC extends UncachedObject {
+        private Value val;
     }
 
     public static class UncachedMultipleCounter extends UncachedObject {

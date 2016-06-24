@@ -29,9 +29,12 @@ public class MorphiumDriverIterator<T> implements MorphiumIterator<T> {
 
     @Override
     public int getWindowSize() {
-        if (query == null) return 0;
-        if (windowSize <= 0)
+        if (query == null) {
+            return 0;
+        }
+        if (windowSize <= 0) {
             windowSize = query.getMorphium().getConfig().getCursorBatchSize();
+        }
         return windowSize;
     }
 
@@ -91,7 +94,9 @@ public class MorphiumDriverIterator<T> implements MorphiumIterator<T> {
     public void back(int jump) {
         cursor -= jump;
         cursorExternal -= jump;
-        if (cursor < 0) throw new IllegalArgumentException("cannot jumb back over batch boundaries!");
+        if (cursor < 0) {
+            throw new IllegalArgumentException("cannot jumb back over batch boundaries!");
+        }
     }
 
     @Override
@@ -136,8 +141,9 @@ public class MorphiumDriverIterator<T> implements MorphiumIterator<T> {
     }
 
     private boolean doHasNext() {
-        if (currentBatch != null && currentBatch.getBatch() != null && currentBatch.getBatch().size() > cursor)
+        if (currentBatch != null && currentBatch.getBatch() != null && currentBatch.getBatch().size() > cursor) {
             return true;
+        }
         if (currentBatch == null && cursorExternal == 0) {
             try {
                 //noinspection unchecked
@@ -152,7 +158,9 @@ public class MorphiumDriverIterator<T> implements MorphiumIterator<T> {
 
     @Override
     public T next() {
-        if (currentBatch == null && !hasNext()) return null;
+        if (currentBatch == null && !hasNext()) {
+            return null;
+        }
         T unmarshall = query.getMorphium().getMapper().unmarshall(query.getType(), currentBatch.getBatch().get(cursor));
         query.getMorphium().firePostLoadEvent(unmarshall);
         try {
@@ -169,8 +177,9 @@ public class MorphiumDriverIterator<T> implements MorphiumIterator<T> {
             } else {
                 cursor++;
             }
-            if (multithreadded && currentBatch != null && currentBatch.getBatch() != null)
+            if (multithreadded && currentBatch != null && currentBatch.getBatch() != null) {
                 currentBatch.setBatch(Collections.synchronizedList(currentBatch.getBatch()));
+            }
 
         } catch (MorphiumDriverException e) {
             log.error("Got error during iteration...", e);

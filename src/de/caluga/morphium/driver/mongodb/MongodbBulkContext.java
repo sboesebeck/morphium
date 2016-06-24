@@ -133,7 +133,6 @@ public class MongodbBulkContext extends BulkRequestContext {
         }
 
 
-
         if (!inserts.isEmpty()) {
             for (Map.Entry<Document, Map<String, Object>> e : inserts.entrySet()) {
                 Object id = e.getKey().get("_id");

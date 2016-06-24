@@ -37,16 +37,15 @@ import java.util.logging.Level;
  */
 public class MongoTest {
 
-    private static List<Morphium> morphiums;
-    protected Logger log;
-    private static Properties props;
     public static Morphium morphium;
-
     public static Morphium morphiumInMemeory;
     public static Morphium morphiumSingleConnect;
     public static Morphium morphiumSingleConnectThreadded;
     public static Morphium morphiumMeta;
     public static Morphium morphiumMongodb;
+    private static List<Morphium> morphiums;
+    private static Properties props;
+    protected Logger log;
 
 
     public MongoTest() {
@@ -55,7 +54,7 @@ public class MongoTest {
         log.setSynced(true);
     }
 
-    public static Properties getProps() {
+    public static synchronized Properties getProps() {
         if (props == null) {
             props = new Properties();
         }
@@ -75,48 +74,48 @@ public class MongoTest {
     }
 
     @org.junit.BeforeClass
-    public static void setUpClass() throws Exception {
-//        System.setProperty("morphium.log.level", "4");
-//        System.setProperty("morphium.log.synced", "true");
-//        System.setProperty("morphium.log.file", "-");
+    public static synchronized void setUpClass() throws Exception {
+        //        System.setProperty("morphium.log.level", "4");
+        //        System.setProperty("morphium.log.synced", "true");
+        //        System.setProperty("morphium.log.file", "-");
         java.util.logging.Logger l = java.util.logging.Logger.getGlobal();
         l.setLevel(Level.SEVERE);
-//        l.addHandler(new Handler() {
-//            @Override
-//            public void publish(LogRecord record) {
-//                Logger l=new Logger(record.getLoggerName());
-//                if (record.getLevel().equals(Level.ALL)) {
-//                    l.debug(record.getMessage(),record.getThrown());
-//                } else if (record.getLevel().equals(Level.FINE)) {
-//                    l.warn(record.getMessage(),record.getThrown());
-//                } else if (record.getLevel().equals(Level.FINER)) {
-//                    l.info(record.getMessage(),record.getThrown());
-//                } else if (record.getLevel().equals(Level.FINEST)) {
-//                    l.debug(record.getMessage(),record.getThrown());
-//                } else if (record.getLevel().equals(Level.CONFIG)) {
-//                    l.debug(record.getMessage(),record.getThrown());
-//                } else if (record.getLevel().equals(Level.INFO)) {
-//                    l.info(record.getMessage(),record.getThrown());
-//                } else if (record.getLevel().equals(Level.WARNING)) {
-//                    l.warn(record.getMessage(),record.getThrown());
-//                } else if (record.getLevel().equals(Level.SEVERE)) {
-//                    l.fatal(record.getMessage(),record.getThrown());
-//                } else  {
-//                    l.info(record.getMessage(),record.getThrown());
-//
-//                }
-//            }
-//
-//            @Override
-//            public void flush() {
-//
-//            }
-//
-//            @Override
-//            public void close() throws SecurityException {
-//
-//            }
-//        });
+        //        l.addHandler(new Handler() {
+        //            @Override
+        //            public void publish(LogRecord record) {
+        //                Logger l=new Logger(record.getLoggerName());
+        //                if (record.getLevel().equals(Level.ALL)) {
+        //                    l.debug(record.getMessage(),record.getThrown());
+        //                } else if (record.getLevel().equals(Level.FINE)) {
+        //                    l.warn(record.getMessage(),record.getThrown());
+        //                } else if (record.getLevel().equals(Level.FINER)) {
+        //                    l.info(record.getMessage(),record.getThrown());
+        //                } else if (record.getLevel().equals(Level.FINEST)) {
+        //                    l.debug(record.getMessage(),record.getThrown());
+        //                } else if (record.getLevel().equals(Level.CONFIG)) {
+        //                    l.debug(record.getMessage(),record.getThrown());
+        //                } else if (record.getLevel().equals(Level.INFO)) {
+        //                    l.info(record.getMessage(),record.getThrown());
+        //                } else if (record.getLevel().equals(Level.WARNING)) {
+        //                    l.warn(record.getMessage(),record.getThrown());
+        //                } else if (record.getLevel().equals(Level.SEVERE)) {
+        //                    l.fatal(record.getMessage(),record.getThrown());
+        //                } else  {
+        //                    l.info(record.getMessage(),record.getThrown());
+        //
+        //                }
+        //            }
+        //
+        //            @Override
+        //            public void flush() {
+        //
+        //            }
+        //
+        //            @Override
+        //            public void close() throws SecurityException {
+        //
+        //            }
+        //        });
         l = java.util.logging.Logger.getLogger("connection");
         l.setLevel(java.util.logging.Level.OFF);
         if (morphium == null) {
@@ -130,8 +129,8 @@ public class MongoTest {
                 //creating default config
                 cfg = new MorphiumConfig("morphium_test", 2055, 50000, 5000);
                 cfg.addHostToSeed("localhost", 27017);
-//                cfg.addHostToSeed("localhost", 27018);
-//                cfg.addHostToSeed("localhost", 27019);
+                //                cfg.addHostToSeed("localhost", 27018);
+                //                cfg.addHostToSeed("localhost", 27019);
                 cfg.setWriteCacheTimeout(1000);
                 cfg.setConnectionTimeout(2000);
                 cfg.setMaxWaitTime(2000);
@@ -159,17 +158,17 @@ public class MongoTest {
                 cfg.setGlobalW(1);
 
 
-//            cfg.setMongoAdminUser("adm");
-//            cfg.setMongoAdminPwd("adm");
-////
-//            cfg.setMongoLogin("tst");
-//            cfg.setMongoPassword("tst");
-//            cfg.setMongoLogin("morphium");
-//            cfg.setMongoPassword("tst");
+                //            cfg.setMongoAdminUser("adm");
+                //            cfg.setMongoAdminPwd("adm");
+                ////
+                //            cfg.setMongoLogin("tst");
+                //            cfg.setMongoPassword("tst");
+                //            cfg.setMongoLogin("morphium");
+                //            cfg.setMongoPassword("tst");
 
                 //necessary for Replicaset Status to work
-//            cfg.setMongoAdminUser("admin");
-//            cfg.setMongoAdminPwd("admin");
+                //            cfg.setMongoAdminUser("admin");
+                //            cfg.setMongoAdminPwd("admin");
 
                 cfg.setMaxAutoReconnectTime(5000);
                 cfg.setDefaultReadPreference(ReadPreference.nearest());
@@ -190,15 +189,15 @@ public class MongoTest {
             cfg.setLogLevelForPrefix("de.caluga.test", 5);
             cfg.setLogSyncedForPrefix("de.caluga.test", true);
             cfg.setLogLevelForClass(SingleConnectThreaddedDriver.class, 5);
-//            cfg.setLogLevelForPrefix("de.caluga.morphium.driver", 3);
-//            cfg.setLogLevelForPrefix(MetaDriver.class.getName(), 5);
+            //            cfg.setLogLevelForPrefix("de.caluga.morphium.driver", 3);
+            //            cfg.setLogLevelForPrefix(MetaDriver.class.getName(), 5);
 
             //InMemoryTest
-//            cfg.setDriverClass(InMemoryDriver.class.getName());
+            //            cfg.setDriverClass(InMemoryDriver.class.getName());
             //MetaDriverTEst
-//            cfg.setDriverClass(MetaDriver.class.getName());
-//            cfg.setDriverClass(SingleConnectDirectDriver.class.getName());
-//            cfg.setDriverClass(InMemoryDriver.class.getName());
+            //            cfg.setDriverClass(MetaDriver.class.getName());
+            //            cfg.setDriverClass(SingleConnectDirectDriver.class.getName());
+            //            cfg.setDriverClass(InMemoryDriver.class.getName());
             cfg.setReplicasetMonitoring(true);
 
 
@@ -224,46 +223,46 @@ public class MongoTest {
             morphiumSingleConnectThreadded = new Morphium(cfgtmp);
 
 
-//            morphium.addListener(new MorphiumStorageAdapter() {
-//                @Override
-//                public void preStore(Morphium m, Object r, boolean isNew) {
-//                    if (m.getARHelper().isBufferedWrite(r.getClass())) {
-//                        new Logger(MongoTest.class).info("Buffered store of "+r.getClass());
-//                    }
-//                }
-//
-//                @Override
-//                public void preRemove(Morphium m, Object r) {
-//                     if (m.getARHelper().isBufferedWrite(r.getClass())) {
-//                        new Logger(MongoTest.class).info("Buffered remove of "+r.getClass());
-//                    }
-//                }
-//
-//                @Override
-//                public void preRemove(Morphium m, Query q) {
-//                    if (m.getARHelper().isBufferedWrite(q.getType())) {
-//                        new Logger(MongoTest.class).info("Buffered remove of "+q.getType(),new Exception());
-//                    }
-//                }
-//
-//                @Override
-//                public void preDrop(Morphium m, Class cls) {
-//                    if (m.getARHelper().isBufferedWrite(cls)) {//                        new Logger(MongoTest.class).info("Buffered drop of "+cls);
-//                    }
-//                }
-//
-//                @Override
-//                public void preUpdate(Morphium m, Class cls, Enum updateType) {
-//                    if (m.getARHelper().isBufferedWrite(cls)) {
-//                        new Logger(MongoTest.class).info("Buffered update of "+cls);
-//                    }
-//                }
-//            });
+            //            morphium.addListener(new MorphiumStorageAdapter() {
+            //                @Override
+            //                public void preStore(Morphium m, Object r, boolean isNew) {
+            //                    if (m.getARHelper().isBufferedWrite(r.getClass())) {
+            //                        new Logger(MongoTest.class).info("Buffered store of "+r.getClass());
+            //                    }
+            //                }
+            //
+            //                @Override
+            //                public void preRemove(Morphium m, Object r) {
+            //                     if (m.getARHelper().isBufferedWrite(r.getClass())) {
+            //                        new Logger(MongoTest.class).info("Buffered remove of "+r.getClass());
+            //                    }
+            //                }
+            //
+            //                @Override
+            //                public void preRemove(Morphium m, Query q) {
+            //                    if (m.getARHelper().isBufferedWrite(q.getType())) {
+            //                        new Logger(MongoTest.class).info("Buffered remove of "+q.getType(),new Exception());
+            //                    }
+            //                }
+            //
+            //                @Override
+            //                public void preDrop(Morphium m, Class cls) {
+            //                    if (m.getARHelper().isBufferedWrite(cls)) {//                        new Logger(MongoTest.class).info("Buffered drop of "+cls);
+            //                    }
+            //                }
+            //
+            //                @Override
+            //                public void preUpdate(Morphium m, Class cls, Enum updateType) {
+            //                    if (m.getARHelper().isBufferedWrite(cls)) {
+            //                        new Logger(MongoTest.class).info("Buffered update of "+cls);
+            //                    }
+            //                }
+            //            });
         }
     }
 
 
-    public static List<Morphium> getMorphiums() {
+    public static synchronized List<Morphium> getMorphiums() {
         if (morphiums == null) {
             morphiums = new ArrayList<>();
             morphiums.add(morphiumMongodb);
@@ -287,14 +286,16 @@ public class MongoTest {
     @org.junit.AfterClass
     public static void tearDownClass() throws Exception {
         new Logger(MongoTest.class).info("NOT Shutting down - might be reused!");
-//        morphium.close();
+        //        morphium.close();
     }
 
     public boolean waitForAsyncOperationToStart(int maxWaits) {
         int cnt = 0;
         while (morphium.getWriteBufferCount() == 0) {
             Thread.yield();
-            if (cnt++ > maxWaits) return false;
+            if (cnt++ > maxWaits) {
+                return false;
+            }
         }
         return true;
     }
@@ -368,11 +369,11 @@ public class MongoTest {
             morphium.dropCollection(EnumEntity.class, cb);
             morphium.dropCollection(Msg.class, cb);
             morphium.dropCollection(Person.class, cb);
-//            morphium.ensureIndex(UncachedObject.class, "counter", "value");
-//            morphium.ensureIndex(CachedObject.class, "counter", "value");
+            //            morphium.ensureIndex(UncachedObject.class, "counter", "value");
+            //            morphium.ensureIndex(CachedObject.class, "counter", "value");
             waitForAsyncOperationToStart(1000);
             waitForWrites();
-//            Thread.sleep(1000);
+            //            Thread.sleep(1000);
             int count = 0;
             while (count < 10) {
                 count++;
@@ -412,8 +413,9 @@ public class MongoTest {
         int count = 0;
         while (morphium.getWriteBufferCount() > 0) {
             count++;
-            if (count % 100 == 0)
+            if (count % 100 == 0) {
                 log.info("still " + morphium.getWriteBufferCount() + " writers active (" + morphium.getBufferedWriterBufferCount() + " + " + morphium.getWriterBufferCount() + ")");
+            }
             try {
                 Thread.sleep(100);
             } catch (InterruptedException ex) {

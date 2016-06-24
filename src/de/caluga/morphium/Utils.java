@@ -24,7 +24,9 @@ public class Utils {
             b.append(" [ ");
 
             for (Object obj : ((Collection) o)) {
-                if (comma) b.append(", ");
+                if (comma) {
+                    b.append(", ");
+                }
                 comma = true;
                 b.append(toJsonString(obj));
             }
@@ -101,8 +103,9 @@ public class Utils {
         int mainIdx = 0;
 
         int end = b.length;
-        if (sz > 0 && sz < b.length)
+        if (sz > 0 && sz < b.length) {
             end = sz;
+        }
         while (mainIdx < end) {
             sb.append(getHex((byte) (mainIdx >> 24 & 0xff)));
             sb.append(getHex((byte) (mainIdx >> 16 & 0xff)));

@@ -18,7 +18,7 @@ import java.util.Vector;
  * Date: 03.12.15
  * Time: 22:36
  * <p>
- *
+ * <p>
  * Base for custom drivers
  */
 @SuppressWarnings("WeakerAccess")
@@ -104,7 +104,9 @@ public abstract class DriverBase implements MorphiumDriver {
 
     @Override
     public void setRetriesOnNetworkError(int r) {
-        if (r < 1) r = 1;
+        if (r < 1) {
+            r = 1;
+        }
         retriesOnNetworkError = r;
     }
 
@@ -115,7 +117,9 @@ public abstract class DriverBase implements MorphiumDriver {
 
     @Override
     public void setSleepBetweenErrorRetries(int s) {
-        if (s < 100) s = 100;
+        if (s < 100) {
+            s = 100;
+        }
         sleepBetweenRetries = s;
     }
 
@@ -215,13 +219,17 @@ public abstract class DriverBase implements MorphiumDriver {
 
     @Override
     public String[] getHostSeed() {
-        if (hostSeed == null) return null;
+        if (hostSeed == null) {
+            return null;
+        }
         return hostSeed.toArray(new String[hostSeed.size()]);
     }
 
     @Override
     public void setHostSeed(String... host) {
-        if (hostSeed == null) hostSeed = new Vector<>();
+        if (hostSeed == null) {
+            hostSeed = new Vector<>();
+        }
         for (String h : host) {
             try {
                 hostSeed.add(getHostAdress(h));
@@ -417,7 +425,9 @@ public abstract class DriverBase implements MorphiumDriver {
         String hst[] = hn.split(":");
         String h = hst[0];
         int port = 27017;
-        if (hst.length > 1) port = Integer.valueOf(hst[1]);
+        if (hst.length > 1) {
+            port = Integer.valueOf(hst[1]);
+        }
         InetAddress in = InetAddress.getByName(h);
         return in.getHostAddress() + ":" + port;
     }

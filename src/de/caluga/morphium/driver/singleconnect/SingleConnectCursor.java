@@ -18,6 +18,7 @@ public class SingleConnectCursor {
     public SingleConnectCursor(DriverBase drv) {
         this.driver = drv;
     }
+
     public String getCollection() {
         return collection;
     }
@@ -39,10 +40,11 @@ public class SingleConnectCursor {
         return db;
     }
 
-    public DriverBase getDriver() {
-        return driver;
-    }
     public void setDb(String db) {
         this.db = db;
+    }
+
+    public DriverBase getDriver() {
+        return driver;
     }
 }

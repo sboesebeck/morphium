@@ -55,6 +55,43 @@ public class LifecycleTest extends MongoTest {
 
     }
 
+    @Test
+    public void testLazyLoading() {
+
+        Morphium m = morphium;
+        m.clearCollection(EntityPostLoad.class);
+
+        EntityPostLoad e = new EntityPostLoad("test");
+        e.emb = new EmbeddedPostLoad("testEmb");
+        m.store(e);
+
+        EntityPostLoad eFetched = m.createQueryFor(EntityPostLoad.class).get();
+
+        assertEquals("value:", "test", eFetched.value);
+        assertEquals("post load:", "OK", eFetched.testPostLoad);
+        assertEquals("post load: fields initiated:", eFetched.value, eFetched.testPostLoadValue);
+
+        EmbeddedPostLoad emb = eFetched.getEmb();
+        assertEquals("embedded: value:", "testEmb", emb.value);
+        assertEquals("embedded: post load:", "OK", emb.testPostLoad);
+        assertEquals("embedded: post load: fields initiated:", emb.value, emb.testPostLoadValue);
+
+        eFetched.value = "newVal";
+        m.store(eFetched);
+        assertEquals("Embedded: preStore", eFetched.getEmb().testPreStore, "OK");
+        assertEquals("Embedded: postStore", eFetched.getEmb().testPostStore, "OK");
+
+        m.delete(eFetched);
+        assertEquals("Embedded: preDel", eFetched.getEmb().testPreRemove, "OK");
+        assertEquals("Embedded: postDel", eFetched.getEmb().testPostRemove, "OK");
+
+
+    }
+
+    private void assertEquals(String s, String test, String value) {
+        assert (test.equals(value)) : s;
+    }
+
     @Entity
     @NoCache
     @Lifecycle
@@ -121,16 +158,15 @@ public class LifecycleTest extends MongoTest {
         }
     }
 
-
     @Entity
     @Lifecycle
     public static class EntityPostLoad {
-        @Id
-        MorphiumId id;
         @Transient
         public String testPostLoad, testPostLoadValue;
         public EmbeddedPostLoad emb;
         public String value;
+        @Id
+        MorphiumId id;
 
         public EntityPostLoad(String value) {
             this.value = value;
@@ -153,7 +189,7 @@ public class LifecycleTest extends MongoTest {
         @Transient
         public String testPostLoad, testPostLoadValue;
         @Transient
-        public String testPreRemove,testPreStore,testPostStore;
+        public String testPreRemove, testPreStore, testPostStore;
         public String value;
         @Transient
         private String testPostRemove;
@@ -172,62 +208,24 @@ public class LifecycleTest extends MongoTest {
         }
 
         @PreStore
-        public void preStore(){
-            testPreStore="OK";
+        public void preStore() {
+            testPreStore = "OK";
         }
 
         @PostStore
         public void postStore() {
-            testPostStore="OK";
+            testPostStore = "OK";
         }
 
         @PreRemove
         public void preRemove() {
-            testPreRemove="OK";
+            testPreRemove = "OK";
         }
 
         @PostRemove
         public void postRemove() {
-            testPostRemove="OK";
+            testPostRemove = "OK";
         }
-    }
-
-
-    @Test
-    public void testLazyLoading() {
-
-        Morphium m = morphium;
-        m.clearCollection(EntityPostLoad.class);
-
-        EntityPostLoad e = new EntityPostLoad("test");
-        e.emb = new EmbeddedPostLoad("testEmb");
-        m.store(e);
-
-        EntityPostLoad eFetched = m.createQueryFor(EntityPostLoad.class).get();
-
-        assertEquals("value:", "test", eFetched.value);
-        assertEquals("post load:", "OK", eFetched.testPostLoad);
-        assertEquals("post load: fields initiated:", eFetched.value, eFetched.testPostLoadValue);
-
-        EmbeddedPostLoad emb = eFetched.getEmb();
-        assertEquals("embedded: value:", "testEmb", emb.value);
-        assertEquals("embedded: post load:", "OK", emb.testPostLoad);
-        assertEquals("embedded: post load: fields initiated:", emb.value, emb.testPostLoadValue);
-
-        eFetched.value="newVal";
-        m.store(eFetched);
-        assertEquals("Embedded: preStore", eFetched.getEmb().testPreStore, "OK");
-        assertEquals("Embedded: postStore", eFetched.getEmb().testPostStore, "OK");
-
-        m.delete(eFetched);
-        assertEquals("Embedded: preDel", eFetched.getEmb().testPreRemove, "OK");
-        assertEquals("Embedded: postDel",eFetched.getEmb().testPostRemove,"OK");
-
-
-    }
-
-    private void assertEquals(String s, String test, String value) {
-        assert (test.equals(value)) : s;
     }
 
 }

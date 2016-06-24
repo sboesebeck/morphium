@@ -30,19 +30,19 @@ public class DriverPerformanceTest extends MongoTest {
 
     @TearDown
     public void teardown() {
-//        log.info("Tearing down things...");
-//        if (Thread.currentThread().isInterrupted()) log.error("Already interrupted!");
-//        try {
-////            Thread.sleep(3000);
-//            for (Morphium m:getMorphiums()){
-//                m.close();
-//                if (Thread.currentThread().isInterrupted()){
-//                    log.error("Stopping morphium "+m.getClass().getName()+" interrupts current thread!");
-//                }
-//            }
-//        } catch (Exception e) {
-//
-//        }
+        //        log.info("Tearing down things...");
+        //        if (Thread.currentThread().isInterrupted()) log.error("Already interrupted!");
+        //        try {
+        ////            Thread.sleep(3000);
+        //            for (Morphium m:getMorphiums()){
+        //                m.close();
+        //                if (Thread.currentThread().isInterrupted()){
+        //                    log.error("Stopping morphium "+m.getClass().getName()+" interrupts current thread!");
+        //                }
+        //            }
+        //        } catch (Exception e) {
+        //
+        //        }
     }
 
     @Benchmark
