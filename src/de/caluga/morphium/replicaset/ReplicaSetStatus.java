@@ -79,15 +79,16 @@ public class ReplicaSetStatus {
                         ignore = true;
                     }
                 }
-                if (!ignore)
+                if (!ignore) {
                     up++;
+                }
             }
         }
-//        for (ConfNode c:config.getMembers()) {
-//            if (c.getHidden()!=null && c.getHidden()) {
-//                up--; //removing hidden nodes
-//            }
-//        }
+        //        for (ConfNode c:config.getMembers()) {
+        //            if (c.getHidden()!=null && c.getHidden()) {
+        //                up--; //removing hidden nodes
+        //            }
+        //        }
         return up;
     }
 

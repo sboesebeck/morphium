@@ -41,7 +41,7 @@ public class ConnectTest extends BaseTest {
         Map<String, Object> query = new LinkedHashMap<>();
         HashMap<String, Object> qu = new HashMap<>();
 
-//        q.put("_id", new MongoId());
+        //        q.put("_id", new MongoId());
 
         query.put("find", "test_coll");
         query.put("limit", 123);
@@ -55,29 +55,29 @@ public class ConnectTest extends BaseTest {
 
         q.setReqId(255);
         q.setFlags(0);
-//        q.setLimit(10);
-//        q.setSkip(0);
+        //        q.setLimit(10);
+        //        q.setSkip(0);
         q.setInReplyTo(0);
 
         //Msg...
-//        ByteArrayOutputStream buffer = new ByteArrayOutputStream();
-//        writeInt(1, buffer); //request-id
-//        writeInt(0, buffer); //answer
-//        writeInt(2004, buffer); //opcode OP_QUERY
-//        writeInt(0, buffer); //flags
-//        writeString("tst.test_coll", buffer);
-//        writeInt(0, buffer); //number to skip
-//        writeInt(10, buffer); //return
+        //        ByteArrayOutputStream buffer = new ByteArrayOutputStream();
+        //        writeInt(1, buffer); //request-id
+        //        writeInt(0, buffer); //answer
+        //        writeInt(2004, buffer); //opcode OP_QUERY
+        //        writeInt(0, buffer); //flags
+        //        writeString("tst.test_coll", buffer);
+        //        writeInt(0, buffer); //number to skip
+        //        writeInt(10, buffer); //return
 
 
-//        query.put("_id", new MongoId());
-//        BsonEncoder enc = new BsonEncoder();
-//        byte[] bytes = BsonEncoder.encodeDocument(query);
-//        buffer.write(bytes);
+        //        query.put("_id", new MongoId());
+        //        BsonEncoder enc = new BsonEncoder();
+        //        byte[] bytes = BsonEncoder.encodeDocument(query);
+        //        buffer.write(bytes);
 
-//        writeInt(buffer.size() + 4, out);
-//        out.write(buffer.toByteArray());
-//        out.flush();
+        //        writeInt(buffer.size() + 4, out);
+        //        out.write(buffer.toByteArray());
+        //        out.flush();
 
 
         out.write(q.bytes());
@@ -109,8 +109,6 @@ public class ConnectTest extends BaseTest {
 
 
     }
-
-
 
 
 }

@@ -12,13 +12,15 @@ import java.math.BigInteger;
 public class BigIntegerTypeMapper implements TypeMapper<BigInteger> {
     @Override
     public Object marshall(BigInteger o) {
-//        DBObject ret=new BasicDBObject();
+        //        DBObject ret=new BasicDBObject();
         return o.toString(16);
     }
 
     @Override
     public BigInteger unmarshall(Object d) {
-        if (d == null) return null;
-        return new BigInteger(d.toString(),16);
+        if (d == null) {
+            return null;
+        }
+        return new BigInteger(d.toString(), 16);
     }
 }

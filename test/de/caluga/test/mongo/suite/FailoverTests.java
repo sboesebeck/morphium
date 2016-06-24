@@ -61,7 +61,7 @@ public class FailoverTests extends MongoTest {
                         try {
                             Query<UncachedObject> q = morphium.createQueryFor(UncachedObject.class);
                             long cnt = q.asList().size();
-//                            log.info("reading..." + cnt);
+                            //                            log.info("reading..." + cnt);
                             assert (cnt > 0);
                             Thread.sleep((long) (1000 * Math.random() + 100));
                         } catch (Exception e) {
@@ -78,7 +78,7 @@ public class FailoverTests extends MongoTest {
             public void run() {
                 while (read) {
                     Query<UncachedObject> q = morphium.createQueryFor(UncachedObject.class);
-//        q.f("counter").lt(10000);
+                    //        q.f("counter").lt(10000);
                     long cnt = q.countAll();
                     log.info("Last count       : " + cnt);
                     log.info("Number of writes : " + writes);
@@ -97,14 +97,14 @@ public class FailoverTests extends MongoTest {
         }
 
         Query<UncachedObject> q = morphium.createQueryFor(UncachedObject.class);
-//        q.f("counter").lt(10000);
+        //        q.f("counter").lt(10000);
         long cnt = q.countAll();
         log.info("Last count       : " + cnt);
         log.info("Number of writes : " + writes);
         log.info("Write errors     : " + writeError);
         log.info("Read errors      : " + readError);
-//        assert(cnt==writes):"Writes wrong: "+writes+" vs count: "+cnt;
-//        assert(writeError<5):"Write errors: "+writeError;
+        //        assert(cnt==writes):"Writes wrong: "+writes+" vs count: "+cnt;
+        //        assert(writeError<5):"Write errors: "+writeError;
         log.info("Done test");
     }
 
@@ -128,7 +128,7 @@ public class FailoverTests extends MongoTest {
                     o.setCounter(i++);
                     writes++;
                     morphium.store(o);
-//                    log.info("Wrote. " + writes);
+                    //                    log.info("Wrote. " + writes);
 
                 } catch (Exception e) {
                     log.error("Error during storage", e);

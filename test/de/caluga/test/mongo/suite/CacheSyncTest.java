@@ -204,16 +204,10 @@ public class CacheSyncTest extends MongoTest {
             //wait for things to get started...
             Thread.yield();
             cnt++;
-            if (cnt > max) return;
+            if (cnt > max) {
+                return;
+            }
         }
-    }
-
-
-    @Cache(syncCache = Cache.SyncCacheStrategy.UPDATE_ENTRY)
-    @WriteBuffer(timeout = 1000)
-    @WriteSafety(waitForJournalCommit = true, level = SafetyLevel.WAIT_FOR_ALL_SLAVES)
-    public static class IdCachedObject extends CachedObject {
-
     }
 
     @Test
@@ -302,7 +296,6 @@ public class CacheSyncTest extends MongoTest {
 
     }
 
-
     @Test
     public void cacheSyncTest() throws Exception {
         morphium.dropCollection(Msg.class);
@@ -386,16 +379,23 @@ public class CacheSyncTest extends MongoTest {
         long l = m1.createQueryFor(Msg.class).countAll();
         assert (l <= 1) : "too many messages? " + l;
 
-//        createCachedObjects(50);
+        //        createCachedObjects(50);
 
 
-//        Thread.sleep(90000); //wait for messages to be cleared
-//        assert(m1.createQueryFor(Msg.class).countAll()==0);
+        //        Thread.sleep(90000); //wait for messages to be cleared
+        //        assert(m1.createQueryFor(Msg.class).countAll()==0);
         cs1.detach();
         cs2.detach();
         msg1.setRunning(false);
         msg2.setRunning(false);
         m2.close();
+
+    }
+
+    @Cache(syncCache = Cache.SyncCacheStrategy.UPDATE_ENTRY)
+    @WriteBuffer(timeout = 1000)
+    @WriteSafety(waitForJournalCommit = true, level = SafetyLevel.WAIT_FOR_ALL_SLAVES)
+    public static class IdCachedObject extends CachedObject {
 
     }
 

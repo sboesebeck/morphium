@@ -74,17 +74,17 @@ public class TextIndexTest extends MongoTest {
         }
 
         //TODO - solve sort of text indexes
-//        HashMap<String, Integer> sort = new HashMap<>();
-//        sort.put("score", morphium.getMap("$meta", "textScore"));
+        //        HashMap<String, Integer> sort = new HashMap<>();
+        //        sort.put("score", morphium.getMap("$meta", "textScore"));
 
-//        p.sort(sort);
-//        float last = 999999;
-//        for (Person pers : p.asIterable()) {
-//            log.info(" Name: " + pers.getNachname() + " score: " + pers.getScore());
-//            assert (pers.getScore() > 0);
-//            assert (last >= pers.getScore());
-//            last = pers.getScore();
-//        }
+        //        p.sort(sort);
+        //        float last = 999999;
+        //        for (Person pers : p.asIterable()) {
+        //            log.info(" Name: " + pers.getNachname() + " score: " + pers.getScore());
+        //            assert (pers.getScore() > 0);
+        //            assert (last >= pers.getScore());
+        //            last = pers.getScore();
+        //        }
 
     }
 

@@ -52,7 +52,7 @@ public class IndexTest extends MongoTest {
         boolean foundName = false;
         boolean foundLst = false;
 
-//        assert (false);
+        //        assert (false);
         for (Map<String, Object> i : idx) {
             System.out.println(i.toString());
             Map<String, Object> key = (Map<String, Object>) i.get("key");
@@ -147,20 +147,16 @@ public class IndexTest extends MongoTest {
     @Entity
     @Index(value = {"-name, timer", "-name, -timer", "lst:2d", "name:text"}, options = {"unique:1", "", "", ""})
     public static class IndexedObject {
+        @Id
+        MorphiumId id;
         @Property
         @Index(decrement = true)
         private int timer;
-
         @Index
         private String name;
-
         private String someOther;
-
         //Index defined up
         private List<Integer> lst;
-
-        @Id
-        MorphiumId id;
 
         public IndexedObject() {
         }

@@ -32,6 +32,12 @@ public class InterfacePolymorphismTest extends MongoTest {
         }
     }
 
+    @Embedded(polymorph = true)
+    @NoCache
+    public interface IPolyTest {
+        int getNumber();
+    }
+
     @Entity
     public static class IfaceTestType {
         @Id
@@ -56,16 +62,11 @@ public class InterfacePolymorphismTest extends MongoTest {
         }
     }
 
-    @Embedded(polymorph = true)
-    @NoCache
-    public interface IPolyTest {
-        int getNumber();
-    }
-
     public static class SubClass implements IPolyTest {
         private int number;
 
-        private SubClass() {}
+        private SubClass() {
+        }
 
         public SubClass(int num) {
             number = num;

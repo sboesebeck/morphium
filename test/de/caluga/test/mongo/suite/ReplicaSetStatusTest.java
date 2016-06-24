@@ -37,7 +37,7 @@ public class ReplicaSetStatusTest extends MongoTest {
         assert (w.isJ());
         assert (!w.isFsync());
         assert (w.getWtimeout() == 10000);
-//        assert (w.raiseNetworkErrors());
+        //        assert (w.raiseNetworkErrors());
     }
 
     @Entity

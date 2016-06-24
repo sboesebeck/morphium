@@ -34,9 +34,9 @@ public class IteratorTest extends MongoTest {
         for (final MorphiumIterator<UncachedObject> it : toTest) {
 
             log.info("Running test with " + it.getClass().getName());
-//        final MorphiumIterator<UncachedObject> it = qu.asIterable(1000, 15);
+            //        final MorphiumIterator<UncachedObject> it = qu.asIterable(1000, 15);
             it.setMultithreaddedAccess(true);
-//            data = Collections.synchronizedList(new ArrayList<>());
+            //            data = Collections.synchronizedList(new ArrayList<>());
 
             final Vector<Thread> threads = new Vector<>();
             for (int i = 0; i < 3; i++) {
@@ -48,8 +48,8 @@ public class IteratorTest extends MongoTest {
                             int cnt = 0;
                             while (it.hasNext()) {
                                 UncachedObject uc = it.next();
-//                                assert (!data.contains(uc.getMorphiumId())); //cannot guarantee that as hasNext() and nex() are not executed atomically!
-//                                data.add(uc.getMorphiumId());
+                                //                                assert (!data.contains(uc.getMorphiumId())); //cannot guarantee that as hasNext() and nex() are not executed atomically!
+                                //                                data.add(uc.getMorphiumId());
                                 cnt++;
                                 if (cnt % 1000 == 0) {
                                     log.info("Got " + cnt);
@@ -98,7 +98,7 @@ public class IteratorTest extends MongoTest {
                     log.info("Starting thread..." + myNum);
                     Query<UncachedObject> qu = morphium.createQueryFor(UncachedObject.class).sort("counter");
                     qu.setCollectionName("test_uc");
-//                    MorphiumIterator<UncachedObject> it = qu.asIterable(5000, 15);
+                    //                    MorphiumIterator<UncachedObject> it = qu.asIterable(5000, 15);
                     MorphiumIterator<UncachedObject>[] toTest = new MorphiumIterator[]{qu.asIterable(), qu.asIterable(1000, 1), qu.asIterable(1000)};
                     for (MorphiumIterator<UncachedObject> it : toTest) {
                         for (UncachedObject uc : it) {
@@ -131,19 +131,20 @@ public class IteratorTest extends MongoTest {
         qu.setCollectionName("test_uc");
         MorphiumIterator<UncachedObject>[] toTest = new MorphiumIterator[]{qu.asIterable(10, 1), qu.asIterable(10)};
         for (MorphiumIterator<UncachedObject> it : toTest) {
-//        MorphiumIterator<UncachedObject> it = qu.asIterable(1000, 3);
+            //        MorphiumIterator<UncachedObject> it = qu.asIterable(1000, 3);
             for (UncachedObject u : it) {
                 Query<CachedObject> other = morphium.createQueryFor(CachedObject.class).f("counter").gt(u.getCounter() % 100).f("counter").lt(u.getCounter() % 100 + 10).sort("counter");
                 MorphiumIterator<CachedObject> otherIt = other.asIterable();
                 assert (it.getCursor() == u.getCounter());
                 for (CachedObject co : otherIt) {
-//                log.info("iterating otherIt: "+otherIt.getNumberOfThreads()+" "+co.getCounter());
-//                Thread.sleep(200);
+                    //                log.info("iterating otherIt: "+otherIt.getNumberOfThreads()+" "+co.getCounter());
+                    //                Thread.sleep(200);
                     assert (co.getValue() != null);
                     assert (co.getCounter() > u.getCounter() % 100 && co.getCounter() < u.getCounter() % 100 + 10);
                 }
-                if (it.getCursor() % 100 == 0)
+                if (it.getCursor() % 100 == 0) {
                     log.info("Iteration it: " + it.getCursor() + "/" + it.getCount());
+                }
             }
         }
 
@@ -161,12 +162,12 @@ public class IteratorTest extends MongoTest {
         long start = System.currentTimeMillis();
         while (it.hasNext()) {
             UncachedObject o = it.next();
-//            log.info("." + it.getCursor()+": "+o.getCounter());
-//            if (it.getCursor()%1000==0) {
-//                ThreadMXBean thbean = ManagementFactory.getThreadMXBean();
-//                log.info("Running threads: " + thbean.getThreadCount());
-//                log.info("Buffers: "+it.getCurrentBufferSize());
-//            }
+            //            log.info("." + it.getCursor()+": "+o.getCounter());
+            //            if (it.getCursor()%1000==0) {
+            //                ThreadMXBean thbean = ManagementFactory.getThreadMXBean();
+            //                log.info("Running threads: " + thbean.getThreadCount());
+            //                log.info("Buffers: "+it.getCurrentBufferSize());
+            //            }
             assert (it.getCursor() == o.getCounter()) : "cursor=" + it.getCursor() + " != counter=" + o.getCounter();
         }
 
@@ -181,10 +182,10 @@ public class IteratorTest extends MongoTest {
         while (it.hasNext()) {
             UncachedObject o = it.next();
             assert (it.getCursor() == o.getCounter());
-//            if (it.getCursor()%1000==0) {
-//                ThreadMXBean thbean = ManagementFactory.getThreadMXBean();
-//                log.info("Running threads: " + thbean.getThreadCount());
-//            }
+            //            if (it.getCursor()%1000==0) {
+            //                ThreadMXBean thbean = ManagementFactory.getThreadMXBean();
+            //                log.info("Running threads: " + thbean.getThreadCount());
+            //            }
 
         }
         log.info("iterator 1000/5 Took " + (System.currentTimeMillis() - start) + " ms");
@@ -223,45 +224,45 @@ public class IteratorTest extends MongoTest {
         }
         log.info("iterator singlethreadded Took " + (System.currentTimeMillis() - start) + " ms");
 
-//
-//
-//        log.info("iterating 100/5");
-//        start = System.currentTimeMillis();
-//        it = qu.asIterable(100, 5);
-//
-//        while (it.hasNext()) {
-//            UncachedObject o = it.next();
-//            assert (it.getCursor() == o.getCounter());
-//
-//        }
-//
-//        log.info("iterator 100/5 Took " + (System.currentTimeMillis() - start) + " ms");
+        //
+        //
+        //        log.info("iterating 100/5");
+        //        start = System.currentTimeMillis();
+        //        it = qu.asIterable(100, 5);
+        //
+        //        while (it.hasNext()) {
+        //            UncachedObject o = it.next();
+        //            assert (it.getCursor() == o.getCounter());
+        //
+        //        }
+        //
+        //        log.info("iterator 100/5 Took " + (System.currentTimeMillis() - start) + " ms");
 
-//
-//        log.info("iterating 100/15");
-//        start = System.currentTimeMillis();
-//        it = qu.asIterable(100, 15);
-//
-//        while (it.hasNext()) {
-//            UncachedObject o = it.next();
-//            assert (it.getCursor() == o.getCounter());
-//
-//        }
-//
-//        log.info("iterator 100/15 Took " + (System.currentTimeMillis() - start) + " ms");
+        //
+        //        log.info("iterating 100/15");
+        //        start = System.currentTimeMillis();
+        //        it = qu.asIterable(100, 15);
+        //
+        //        while (it.hasNext()) {
+        //            UncachedObject o = it.next();
+        //            assert (it.getCursor() == o.getCounter());
+        //
+        //        }
+        //
+        //        log.info("iterator 100/15 Took " + (System.currentTimeMillis() - start) + " ms");
 
 
-//        log.info("iterating 100/100");
-//        start = System.currentTimeMillis();
-//        it = qu.asIterable(100, 100);
-//
-//        while (it.hasNext()) {
-//            UncachedObject o = it.next();
-//            assert (it.getCursor() == o.getCounter());
-//
-//        }
-//
-//        log.info("iterator 100/100 Took " + (System.currentTimeMillis() - start) + " ms");
+        //        log.info("iterating 100/100");
+        //        start = System.currentTimeMillis();
+        //        it = qu.asIterable(100, 100);
+        //
+        //        while (it.hasNext()) {
+        //            UncachedObject o = it.next();
+        //            assert (it.getCursor() == o.getCounter());
+        //
+        //        }
+        //
+        //        log.info("iterator 100/100 Took " + (System.currentTimeMillis() - start) + " ms");
 
 
         log.info("iterating 1000/50");
@@ -378,8 +379,9 @@ public class IteratorTest extends MongoTest {
         log.info("Took " + (System.currentTimeMillis() - start) + " ms");
 
         for (UncachedObject uc : qu.asIterable(100)) {
-            if (uc.getCounter() % 100 == 0)
+            if (uc.getCounter() % 100 == 0) {
                 log.info("Got msg " + uc.getCounter());
+            }
         }
         morphium.dropCollection(UncachedObject.class);
         u = new UncachedObject();
@@ -464,7 +466,7 @@ public class IteratorTest extends MongoTest {
         createUncachedObjects(278);
         Query<UncachedObject> qu = morphium.createQueryFor(UncachedObject.class);
         qu = qu.sort("_id");
-//        MorphiumIterator<UncachedObject> it = qu.asIterable(10);
+        //        MorphiumIterator<UncachedObject> it = qu.asIterable(10);
 
         MorphiumIterator<UncachedObject>[] toTest = new MorphiumIterator[]{qu.asIterable(20, 1), qu.asIterable(20, 10), qu.asIterable(20)};
         for (MorphiumIterator<UncachedObject> it : toTest) {
@@ -497,7 +499,7 @@ public class IteratorTest extends MongoTest {
         for (final MorphiumIterator<UncachedObject> it : toTest) {
             long start = System.currentTimeMillis();
 
-//        MorphiumIterator<UncachedObject> it = qu.asIterable(3);
+            //        MorphiumIterator<UncachedObject> it = qu.asIterable(3);
             assert (it.hasNext());
             UncachedObject u = it.next();
             assert (u.getCounter() == 1);
@@ -530,7 +532,7 @@ public class IteratorTest extends MongoTest {
         long start = System.currentTimeMillis();
         MorphiumIterator<UncachedObject>[] toTest = new MorphiumIterator[]{qu.asIterable(3, 1), qu.asIterable(3, 3), qu.asIterable(3)};
         for (MorphiumIterator<UncachedObject> it : toTest) {
-//        MorphiumIterator<UncachedObject> it = qu.asIterable(3);
+            //        MorphiumIterator<UncachedObject> it = qu.asIterable(3);
             int count = 0;
             while (it.hasNext()) {
                 count++;
@@ -630,7 +632,7 @@ public class IteratorTest extends MongoTest {
         createUncachedObjects(1000);
 
         Query<UncachedObject> query = morphium.createQueryFor(UncachedObject.class).sort("counter");
-//        MorphiumIterator<UncachedObject> it = query.asIterable(10, 10);
+        //        MorphiumIterator<UncachedObject> it = query.asIterable(10, 10);
         MorphiumIterator<UncachedObject>[] toTest = new MorphiumIterator[]{query.asIterable(10, 10), query.asIterable(10)};
         for (MorphiumIterator<UncachedObject> it : toTest) {
             it.setMultithreaddedAccess(false);

@@ -157,20 +157,28 @@ public class PrefetchingDriverIterator<T> implements MorphiumIterator<T> {
             //startup
             try {
                 cursor = query.getMorphium().getDriver().initIteration(query.getMorphium().getConfig().getDatabase(), query.getCollectionName(), query.toQueryObject(), query.getSort(), query.getFieldListForQuery(), query.getSkip(), query.getLimit(), batchsize, query.getMorphium().getReadPreferenceForClass(query.getType()), null);
-                if (cursor == null) return false;
-                if (cursor.getBatch() == null) return false;
+                if (cursor == null) {
+                    return false;
+                }
+                if (cursor.getBatch() == null) {
+                    return false;
+                }
                 //Starting background process for filling buffer
                 prefetchBuffer.add(getBatch(cursor));
                 startPrefetch();
 
-                if (!prefetchBuffer.get(0).isEmpty()) return true;
+                if (!prefetchBuffer.get(0).isEmpty()) {
+                    return true;
+                }
 
             } catch (MorphiumDriverException e) {
                 e.printStackTrace();
             }
 
         }
-        while (prefetchBuffer.size() <= 1 && cursor != null) Thread.yield(); //for end of data detection
+        while (prefetchBuffer.size() <= 1 && cursor != null) {
+            Thread.yield(); //for end of data detection
+        }
         if (prefetchBuffer.isEmpty() && cursor == null) {
             return false;
         }
@@ -182,7 +190,9 @@ public class PrefetchingDriverIterator<T> implements MorphiumIterator<T> {
     private List<T> getBatch(MorphiumCursor crs) {
         @SuppressWarnings("unchecked") List<Map<String, Object>> batch = crs.getBatch();
         List<T> ret = new ArrayList<>();
-        if (batch == null) return ret;
+        if (batch == null) {
+            return ret;
+        }
         for (Map<String, Object> obj : batch) {
             T unmarshall = query.getMorphium().getMapper().unmarshall(query.getType(), obj);
 
@@ -197,25 +207,29 @@ public class PrefetchingDriverIterator<T> implements MorphiumIterator<T> {
             log.info("Starting prefetching...");
             while (cursor != null) {
                 while (prefetchBuffer.size() >= numPrefetchBuffers && cursor != null) //noinspection EmptyCatchBlock
+                {
                     try {
-                    //Busy wait for buffer to be processed
-                    int socketTimeout = query.getMorphium().getConfig().getSocketTimeout();
-                    if (socketTimeout > 0 && System.currentTimeMillis() - lastAccess > socketTimeout) {
-                        log.error("Cursor timeout... closing");
-                        try {
-                            query.getMorphium().getDriver().closeIteration(cursor);
-                        } catch (MorphiumDriverException e) {
-                            //e.printStackTrace(); Swallow it, as it is probably timedout anyway
+                        //Busy wait for buffer to be processed
+                        int socketTimeout = query.getMorphium().getConfig().getSocketTimeout();
+                        if (socketTimeout > 0 && System.currentTimeMillis() - lastAccess > socketTimeout) {
+                            log.error("Cursor timeout... closing");
+                            try {
+                                query.getMorphium().getDriver().closeIteration(cursor);
+                            } catch (MorphiumDriverException e) {
+                                //e.printStackTrace(); Swallow it, as it is probably timedout anyway
+                            }
+                            cursor = null;
+                            return;
                         }
-                        cursor = null;
-                        return;
+                        Thread.sleep(50);
+                    } catch (InterruptedException e) {
                     }
-                    Thread.sleep(50);
-                } catch (InterruptedException e) {
                 }
                 while (prefetchBuffer.size() < numPrefetchBuffers) {
                     try {
-                        if (cursor == null) break;
+                        if (cursor == null) {
+                            break;
+                        }
                         MorphiumCursor crs = query.getMorphium().getDriver().nextIteration(cursor);
                         if (crs == null || crs.getBatch() == null || crs.getBatch().isEmpty()) {
                             cursor = null;
@@ -238,12 +252,16 @@ public class PrefetchingDriverIterator<T> implements MorphiumIterator<T> {
     public T next() {
         checkAndUpdateLastAccess();
         if (cursor == null && !startedAlready) {
-            if (!hasNext()) return null;
+            if (!hasNext()) {
+                return null;
+            }
         }
         if (cursorPos != 0 && cursorPos % getWindowSize() == 0) {
             prefetchBuffer.remove(0);
         }
-        while (prefetchBuffer.isEmpty() && cursor != null) Thread.yield();
+        while (prefetchBuffer.isEmpty() && cursor != null) {
+            Thread.yield();
+        }
         if (prefetchBuffer.isEmpty()) {
             log.error("Prefetchbuffer is empty!");
             return null;
@@ -252,7 +270,9 @@ public class PrefetchingDriverIterator<T> implements MorphiumIterator<T> {
     }
 
     private void checkAndUpdateLastAccess() {
-        if (query == null) return;
+        if (query == null) {
+            return;
+        }
         if (System.currentTimeMillis() - lastAccess > query.getMorphium().getConfig().getMaxWaitTime()) {
             throw new RuntimeException("Cursor timeout - max wait time reached");
         }

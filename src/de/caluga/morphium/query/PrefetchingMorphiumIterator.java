@@ -31,8 +31,8 @@ public class PrefetchingMorphiumIterator<T> implements MorphiumIterator<T> {
 
     public PrefetchingMorphiumIterator() {
         log.warn("Prefetching Iterator is relaying on skip-functionality of mongo which can cause problems in some cases - use DefaultMorphiumIterator instead");
-//        workQueue = new ArrayBlockingQueue<>(1000, true);
-//        executorService = new ThreadPoolExecutor(10, 100, 1000, TimeUnit.MILLISECONDS, workQueue);
+        //        workQueue = new ArrayBlockingQueue<>(1000, true);
+        //        executorService = new ThreadPoolExecutor(10, 100, 1000, TimeUnit.MILLISECONDS, workQueue);
 
     }
 
@@ -50,7 +50,7 @@ public class PrefetchingMorphiumIterator<T> implements MorphiumIterator<T> {
     private List getBuffer(int windowNumber) {
         try {
             int skp = windowNumber * windowSize;
-//            System.out.println("Getting buffer win: " + windowNumber + " skip: " + skp + " windowSize: " + windowSize+" Count: "+count+"   limit: "+limit);
+            //            System.out.println("Getting buffer win: " + windowNumber + " skip: " + skp + " windowSize: " + windowSize+" Count: "+count+"   limit: "+limit);
             Query q;
 
             q = theQuery.clone();
@@ -103,9 +103,9 @@ public class PrefetchingMorphiumIterator<T> implements MorphiumIterator<T> {
                 final Container<T> c = new Container<>();
                 prefetchBuffers[i] = c;
                 final int idx = i;
-//                while (executorService.getQueue().remainingCapacity() < 100) {
-//                    Thread.yield();
-//                }
+                //                while (executorService.getQueue().remainingCapacity() < 100) {
+                //                    Thread.yield();
+                //                }
                 Runnable cmd = () -> {
                     if (idx * windowSize <= limit && idx * windowSize <= count) {
                         //noinspection unchecked
@@ -148,7 +148,7 @@ public class PrefetchingMorphiumIterator<T> implements MorphiumIterator<T> {
                 final Container<T> container = prefetchBuffers[prefetchWindows - 1];
 
                 theQuery.getMorphium().queueTask(() -> {
-//                        System.out.println("Executing..." + win + " / " + cursor + " / " + executorService.getActiveCount() + " / queue: " + executorService.getQueue().size());
+                    //                        System.out.println("Executing..." + win + " / " + cursor + " / " + executorService.getActiveCount() + " / queue: " + executorService.getQueue().size());
                     //noinspection unchecked
                     container.setData(getBuffer(win));
                 });
@@ -195,12 +195,18 @@ public class PrefetchingMorphiumIterator<T> implements MorphiumIterator<T> {
 
     @Override
     public int getCurrentBufferSize() {
-        if (prefetchBuffers == null) return 0;
-        if (prefetchBuffers[0] == null || prefetchBuffers[0].getData() == null) return 0;
+        if (prefetchBuffers == null) {
+            return 0;
+        }
+        if (prefetchBuffers[0] == null || prefetchBuffers[0].getData() == null) {
+            return 0;
+        }
 
         int cnt = 0;
         for (Container<T> buffer : prefetchBuffers) {
-            if (buffer.getData() == null) continue;
+            if (buffer.getData() == null) {
+                continue;
+            }
             cnt += buffer.getData().size();
         }
         return cnt;
@@ -208,8 +214,9 @@ public class PrefetchingMorphiumIterator<T> implements MorphiumIterator<T> {
 
     @Override
     public List<T> getCurrentBuffer() {
-        if (prefetchBuffers == null || prefetchBuffers[0] == null || prefetchBuffers[0].getData() == null)
+        if (prefetchBuffers == null || prefetchBuffers[0] == null || prefetchBuffers[0].getData() == null) {
             return new ArrayList<>();
+        }
         return prefetchBuffers[0].getData();
     }
 
@@ -277,15 +284,15 @@ public class PrefetchingMorphiumIterator<T> implements MorphiumIterator<T> {
     @Override
     public int getNumberOfAvailableThreads() {
         return theQuery.getMorphium().getNumberOfAvailableThreads();
-//        executorService.
-//        return workQueue.remainingCapacity();
+        //        executorService.
+        //        return workQueue.remainingCapacity();
 
     }
 
 
     @Override
     public int getNumberOfThreads() {
-//        return workQueue.size();
+        //        return workQueue.size();
         return theQuery.getMorphium().getActiveThreads();
     }
 

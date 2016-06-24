@@ -101,7 +101,7 @@ public class MorphiumCacheImpl implements MorphiumCache {
                 idCacheClone.putIfAbsent(type, new ConcurrentHashMap<>());
                 idCacheClone.get(type).put(annotationHelper.getId(record), record);
             }
-//            setIdCache(idCacheClone);
+            //            setIdCache(idCacheClone);
         }
 
         CacheElement<T> e = new CacheElement<>(ret);
@@ -111,11 +111,9 @@ public class MorphiumCacheImpl implements MorphiumCache {
         cache.get(type).put(k, e);
 
         //atomar execution of this operand - no synchronization needed
-//        cache = cl;
+        //        cache = cl;
 
     }
-
-
 
 
     @Override
@@ -130,12 +128,12 @@ public class MorphiumCacheImpl implements MorphiumCache {
 
     @Override
     public boolean isCached(Class<?> type, String k) {
-//        Cache c = annotationHelper.getAnnotationFromHierarchy(type, Cache.class); ///type.getAnnotation(Cache.class);
-//        if (c != null) {
-//            if (!c.readCache()) return false;
-//        } else {
-//            return false;
-//        }
+        //        Cache c = annotationHelper.getAnnotationFromHierarchy(type, Cache.class); ///type.getAnnotation(Cache.class);
+        //        if (c != null) {
+        //            if (!c.readCache()) return false;
+        //        } else {
+        //            return false;
+        //        }
         Map<Class<?>, Map<String, CacheElement>> snapshotCache = cache;
 
         try {
@@ -158,7 +156,9 @@ public class MorphiumCacheImpl implements MorphiumCache {
     @SuppressWarnings("unchecked")
     public <T> List<T> getFromCache(Class<? extends T> type, String k) {
         Map<Class<?>, Map<String, CacheElement>> snapshotCache = cache;
-        if (snapshotCache.get(type) == null || snapshotCache.get(type).get(k) == null) return null;
+        if (snapshotCache.get(type) == null || snapshotCache.get(type).get(k) == null) {
+            return null;
+        }
         try {
             final CacheElement cacheElement = snapshotCache.get(type).get(k);
             cacheElement.setLru(System.currentTimeMillis());
@@ -266,8 +266,8 @@ public class MorphiumCacheImpl implements MorphiumCache {
     @SuppressWarnings("unchecked")
     @Override
     public void removeEntryFromCache(Class cls, Object id) {
-//        Map<Class<?>, Map<String, CacheElement>> c = getCache();
-//        Map<Class<?>, Map<Object, Object>> idc = getIdCache();
+        //        Map<Class<?>, Map<String, CacheElement>> c = getCache();
+        //        Map<Class<?>, Map<Object, Object>> idc = getIdCache();
         if (idCache.get(cls) != null && idCache.get(cls).get(id) != null) {
             for (CacheListener cl : cacheListeners) {
                 if (!cl.wouldRemoveEntryFromCache(cls, id, idCache.get(cls).get(id))) {
@@ -299,8 +299,8 @@ public class MorphiumCacheImpl implements MorphiumCache {
         for (String k : toRemove) {
             cache.get(cls).remove(k);
         }
-//        setCache(c);
-//        setIdCache(idc);
+        //        setCache(c);
+        //        setIdCache(idc);
     }
 
 

@@ -117,7 +117,9 @@ public class DefaultMorphiumIterator<T> implements MorphiumIterator<T> {
             Map<String, Integer> sort = q.getSort();
             Query<T> ret = q.clone();
             for (Map.Entry<String, Integer> e : sort.entrySet()) {
-                if (lastValues.get(e.getKey()) == null) continue;
+                if (lastValues.get(e.getKey()) == null) {
+                    continue;
+                }
                 if (e.getValue().equals(-1)) {
                     ret.f(e.getKey()).lt(lastValues.get(e.getKey()));
                 } else {
@@ -138,13 +140,18 @@ public class DefaultMorphiumIterator<T> implements MorphiumIterator<T> {
     }
 
     @Override
+    public int getWindowSize() {
+        return windowSize;
+    }
+
+    @Override
     public void setWindowSize(int sz) {
         windowSize = sz;
     }
 
     @Override
-    public int getWindowSize() {
-        return windowSize;
+    public Query<T> getQuery() {
+        return theQuery;
     }
 
     @Override
@@ -161,13 +168,10 @@ public class DefaultMorphiumIterator<T> implements MorphiumIterator<T> {
     }
 
     @Override
-    public Query<T> getQuery() {
-        return theQuery;
-    }
-
-    @Override
     public int getCurrentBufferSize() {
-        if (buffer == null) return 0;
+        if (buffer == null) {
+            return 0;
+        }
         return buffer.size();
     }
 
@@ -189,13 +193,13 @@ public class DefaultMorphiumIterator<T> implements MorphiumIterator<T> {
     @Override
     public void ahead(int jump) {
         //end of buffer index
-//        if ((cursor / windowSize) * windowSize + windowSize <= cursor + jump) {
-//            if (log.isDebugEnabled()) {
-//                log.debug("Would jump over boundary - resetting buffer");
-//            }
-//            buffer = null;
-//        }
-//        cursor += jump;
+        //        if ((cursor / windowSize) * windowSize + windowSize <= cursor + jump) {
+        //            if (log.isDebugEnabled()) {
+        //                log.debug("Would jump over boundary - resetting buffer");
+        //            }
+        //            buffer = null;
+        //        }
+        //        cursor += jump;
         for (int i = 0; i < jump && hasNext(); i++) next();
     }
 
@@ -205,7 +209,9 @@ public class DefaultMorphiumIterator<T> implements MorphiumIterator<T> {
         lastValues.clear();
         cursor = 0;
         buffer = null;
-        if (newCursor < 0) return;
+        if (newCursor < 0) {
+            return;
+        }
         for (int i = 0; i < newCursor && hasNext(); i++) next();
 
     }

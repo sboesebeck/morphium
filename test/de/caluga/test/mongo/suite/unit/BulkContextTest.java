@@ -18,15 +18,16 @@ import java.util.List;
  */
 public class BulkContextTest extends MongoTest {
     boolean cb = false;
+
     @Test
     public void testRunBulk() throws Exception {
         createUncachedObjects(100);
-//        MorphiumBulkContext<UncachedObject> c=testAddInsertRequest();
-//        c.runBulk();
-//        c=testAddDeleteRequest();
-//        c.runBulk();
-//        c=testAddDeleteRequest1();
-//        c.runBulk();
+        //        MorphiumBulkContext<UncachedObject> c=testAddInsertRequest();
+        //        c.runBulk();
+        //        c=testAddDeleteRequest();
+        //        c.runBulk();
+        //        c=testAddDeleteRequest1();
+        //        c.runBulk();
 
     }
 
@@ -45,32 +46,32 @@ public class BulkContextTest extends MongoTest {
                 log.error("Got error: ", t);
             }
         };
-//        MorphiumBulkContext<UncachedObject> c=testAddInsertRequest();
-//        c.runBulk(callback);
-//        cb=false;
-//        int count=100;
-//        while(cb==false) {
-//            Thread.sleep(100);
-//            count--;
-//            assert(count>0);
-//        }
-//        c=testAddDeleteRequest();
-//        c.runBulk(callback);
-//        count=100;
-//        while(cb==false) {
-//            Thread.sleep(100);
-//            count--;
-//            assert(count>0);
-//        }
-//
-//        c=testAddDeleteRequest1();
-//        c.runBulk(callback);
-//        count=100;
-//        while(cb==false) {
-//            Thread.sleep(100);
-//            count--;
-//            assert(count>0);
-//        }
+        //        MorphiumBulkContext<UncachedObject> c=testAddInsertRequest();
+        //        c.runBulk(callback);
+        //        cb=false;
+        //        int count=100;
+        //        while(cb==false) {
+        //            Thread.sleep(100);
+        //            count--;
+        //            assert(count>0);
+        //        }
+        //        c=testAddDeleteRequest();
+        //        c.runBulk(callback);
+        //        count=100;
+        //        while(cb==false) {
+        //            Thread.sleep(100);
+        //            count--;
+        //            assert(count>0);
+        //        }
+        //
+        //        c=testAddDeleteRequest1();
+        //        c.runBulk(callback);
+        //        count=100;
+        //        while(cb==false) {
+        //            Thread.sleep(100);
+        //            count--;
+        //            assert(count>0);
+        //        }
     }
 
     @Test
@@ -118,7 +119,7 @@ public class BulkContextTest extends MongoTest {
         MorphiumBulkContext<UncachedObject> c = morphium.createBulkRequestContext(UncachedObject.class, false);
         c.addCustomUpdateRequest(morphium.createQueryFor(UncachedObject.class).f("counter").eq(20), Utils.getMap("$set", Utils.getMap("counter", -20)), false, false);
         assert (c.getNumberOfRequests() == 1);
-        
+
     }
 
     @Test

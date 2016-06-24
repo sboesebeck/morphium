@@ -101,7 +101,9 @@ public class AnnotationAndReflectionHelper {
                     break;
                 }
                 z = z.getSuperclass();
-                if (z == null) break;
+                if (z == null) {
+                    break;
+                }
             }
 
             if (ret == null) {
@@ -149,8 +151,8 @@ public class AnnotationAndReflectionHelper {
             return field;
         }
         if (fieldNameCache.containsKey(clz) && fieldNameCache.get(clz).get(field) != null) {
-                return fieldNameCache.get(clz).get(field);
-            }
+            return fieldNameCache.get(clz).get(field);
+        }
 
 
         String ret = field;
@@ -165,7 +167,9 @@ public class AnnotationAndReflectionHelper {
             if (f == null && hasAdditionalData(clz)) {
                 return field;
             }
-            if (f == null) throw new RuntimeException("Field not found " + field + " in cls: " + clz.getName());
+            if (f == null) {
+                throw new RuntimeException("Field not found " + field + " in cls: " + clz.getName());
+            }
             if (f.isAnnotationPresent(Property.class)) {
                 Property p = f.getAnnotation(Property.class);
                 if (!p.fieldName().equals(".")) {
@@ -234,7 +238,9 @@ public class AnnotationAndReflectionHelper {
      */
     @SuppressWarnings("StringBufferMayBeStringBuilder")
     public String convertCamelCase(String n) {
-        if (!ccc) return n;
+        if (!ccc) {
+            return n;
+        }
         StringBuilder b = new StringBuilder();
         for (int i = 0; i < n.length() - 1; i++) {
             if (Character.isUpperCase(n.charAt(i)) && i > 0) {
@@ -271,7 +277,7 @@ public class AnnotationAndReflectionHelper {
         //we need to run through it in the right order
         //in order to allow Inheritance to "shadow" fields
         for (Class c : hierachy) {
-//            Class c = hierachy.get(i);
+            //            Class c = hierachy.get(i);
             Collections.addAll(ret, c.getDeclaredFields());
         }
         fieldListCache.put(clz, ret);
@@ -340,7 +346,9 @@ public class AnnotationAndReflectionHelper {
                 ret = f;
             }
 
-            if (ret != null) break;
+            if (ret != null) {
+                break;
+            }
 
         }
         fieldCache = fc;
@@ -352,7 +360,9 @@ public class AnnotationAndReflectionHelper {
 
     public boolean isEntity(Object o) {
         Class cls;
-        if (o == null) return false;
+        if (o == null) {
+            return false;
+        }
 
         if (o instanceof Class) {
             cls = getRealClass((Class) o);
@@ -665,10 +675,10 @@ public class AnnotationAndReflectionHelper {
                 ret.add(f.getAnnotation(Property.class).fieldName());
                 continue;
             }
-//            if (f.isAnnotationPresent(Id.class)) {
-//                ret.add(f.getName());
-//                continue;
-//            }
+            //            if (f.isAnnotationPresent(Id.class)) {
+            //                ret.add(f.getName());
+            //                continue;
+            //            }
             if (f.isAnnotationPresent(Transient.class)) {
                 continue;
             }
@@ -705,7 +715,9 @@ public class AnnotationAndReflectionHelper {
 
     public final Class getTypeOfField(Class<?> cls, String fld) {
         Field f = getField(cls, fld);
-        if (f == null) return null;
+        if (f == null) {
+            return null;
+        }
         return f.getType();
     }
 
@@ -759,7 +771,9 @@ public class AnnotationAndReflectionHelper {
             }
             z = z.getSuperclass();
 
-            if (z == null) break;
+            if (z == null) {
+                break;
+            }
         }
 
         return ret;
@@ -768,27 +782,39 @@ public class AnnotationAndReflectionHelper {
 
     @SuppressWarnings("unchecked")
     public String getLastChangeField(Class<?> cls) {
-        if (!storesLastChange(cls)) return null;
+        if (!storesLastChange(cls)) {
+            return null;
+        }
         List<String> lst = getFields(cls, LastChange.class);
-        if (lst == null || lst.isEmpty()) return null;
+        if (lst == null || lst.isEmpty()) {
+            return null;
+        }
         return lst.get(0);
     }
 
 
     @SuppressWarnings("unchecked")
     public String getLastAccessField(Class<?> cls) {
-        if (!storesLastAccess(cls)) return null;
+        if (!storesLastAccess(cls)) {
+            return null;
+        }
         List<String> lst = getFields(cls, LastAccess.class);
-        if (lst == null || lst.isEmpty()) return null;
+        if (lst == null || lst.isEmpty()) {
+            return null;
+        }
         return lst.get(0);
     }
 
 
     @SuppressWarnings("unchecked")
     public String getCreationTimeField(Class<?> cls) {
-        if (!storesCreation(cls)) return null;
+        if (!storesCreation(cls)) {
+            return null;
+        }
         List<String> lst = getFields(cls, CreationTime.class);
-        if (lst == null || lst.isEmpty()) return null;
+        if (lst == null || lst.isEmpty()) {
+            return null;
+        }
         return lst.get(0);
     }
 
@@ -798,7 +824,9 @@ public class AnnotationAndReflectionHelper {
     }
 
     private void callLifecycleMethod(Class<? extends Annotation> type, Object on, List calledOn) {
-        if (on == null) return;
+        if (on == null) {
+            return;
+        }
         if (on.getClass().getName().contains("$$EnhancerByCGLIB$$")) {
             try {
                 Field f1 = on.getClass().getDeclaredField("CGLIB$CALLBACK_0");
@@ -806,14 +834,18 @@ public class AnnotationAndReflectionHelper {
                 Object delegate = f1.get(on);
                 Method m = delegate.getClass().getMethod("__getPureDeref");
                 on = m.invoke(delegate);
-                if (on == null) return;
+                if (on == null) {
+                    return;
+                }
             } catch (Exception e) {
                 //throw new RuntimeException(e);
                 log.error("Exception: ", e);
             }
         }
 
-        if (calledOn.contains(on)) return;
+        if (calledOn.contains(on)) {
+            return;
+        }
         calledOn.add(on);
         //No synchronized block - might cause the methods to be put twice into the
         //hashtabel - but for performance reasons, it's ok...

@@ -35,7 +35,7 @@ public class Aggregation extends MongoTest {
         a = a.limit(15);
         //group by - in dem Fall ALL, könnte auch beliebig sein
         a = a.group("all").avg("schnitt", "$counter").sum("summe", "$counter").sum("anz", 1).last("letzter", "$counter").first("erster", "$counter").end();
-//        a = a.group("a2").avg("schnitt", "$counter").sum("summe", "$counter").sum("anz", 1).last("letzter", "$counter").first("erster", "$counter").end();
+        //        a = a.group("a2").avg("schnitt", "$counter").sum("summe", "$counter").sum("anz", 1).last("letzter", "$counter").first("erster", "$counter").end();
         //ergebnis projezieren
         HashMap<String, Object> projection = new HashMap<>();
         projection.put("summe", 1);

@@ -92,7 +92,7 @@ public class BulkContext extends BulkRequestContext {
                     stores.clear();
                 }
             } else if (br instanceof InsertBulkRequest) {
-//                //Insert...
+                //                //Insert...
                 InsertBulkRequest ib = (InsertBulkRequest) br;
                 inserts.addAll(((InsertBulkRequest) br).getToInsert());
                 if (inserts.size() >= driver.getMaxWriteBatchSize()) {
@@ -103,7 +103,7 @@ public class BulkContext extends BulkRequestContext {
                 //no real bulk operation here
                 driver.delete(db, collection, ((DeleteBulkRequest) br).getQuery(), ((DeleteBulkRequest) br).isMultiple(), wc);
             } else {
-//                //update
+                //                //update
                 UpdateBulkRequest up = (UpdateBulkRequest) br;
                 Map<String, Object> cmd = new HashMap<>();
                 cmd.put("q", up.getQuery());
@@ -132,10 +132,10 @@ public class BulkContext extends BulkRequestContext {
             result = driver.update(db, collection, updates, ordered, wc);
         }
 
-//
-//
+        //
+        //
         Map<String, Object> res = new HashMap<>();
-//
+        //
         int delCount = 0;
         int matchedCount = 0;
         int insertCount = 0;
@@ -143,19 +143,19 @@ public class BulkContext extends BulkRequestContext {
         int upsertCount = 0;
         for (Map<String, Object> r : results) {
             //TODO - get metadata
-//            delCount += r.getDeletedCount();
-//            matchedCount += r.getMatchedCount();
-//            insertCount += r.getInsertedCount();
-//            modifiedCount += r.getModifiedCount();
-//            upsertCount += r.getUpserts().size();
+            //            delCount += r.getDeletedCount();
+            //            matchedCount += r.getMatchedCount();
+            //            insertCount += r.getInsertedCount();
+            //            modifiedCount += r.getModifiedCount();
+            //            upsertCount += r.getUpserts().size();
         }
-//
-//        res.put("num_del", delCount);
-//        res.put("num_matched", matchedCount);
-//        res.put("num_insert", insertCount);
-//        res.put("num_modified", modifiedCount);
-//        res.put("num_upserts", upsertCount);
-//        return res;
+        //
+        //        res.put("num_del", delCount);
+        //        res.put("num_matched", matchedCount);
+        //        res.put("num_insert", insertCount);
+        //        res.put("num_modified", modifiedCount);
+        //        res.put("num_upserts", upsertCount);
+        //        return res;
         return null;
     }
 

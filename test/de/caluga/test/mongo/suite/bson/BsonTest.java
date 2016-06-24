@@ -40,7 +40,7 @@ public class BsonTest extends BaseTest {
         byte[] bytes = BsonEncoder.encodeDocument(doc);
 
         log.error(Utils.getHex(bytes));
-//        System.err.println(Utils.getHex(bytes));
+        //        System.err.println(Utils.getHex(bytes));
 
         BsonDecoder dec = new BsonDecoder();
         Map<String, Object> aDoc = dec.decodeDocument(bytes);
@@ -53,7 +53,9 @@ public class BsonTest extends BaseTest {
         List<MorphiumId> lst = new ArrayList<>();
         log.info("Creating...");
         for (int i = 0; i < 10000; i++) {
-            if (i % 1000 == 0) log.info("Created " + i);
+            if (i % 1000 == 0) {
+                log.info("Created " + i);
+            }
             MorphiumId id = new MorphiumId();
             assert (!lst.contains(id));
             lst.add(id);

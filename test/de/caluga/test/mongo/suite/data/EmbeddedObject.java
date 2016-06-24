@@ -40,8 +40,12 @@ public class EmbeddedObject {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (!(o instanceof EmbeddedObject)) return false;
+        if (this == o) {
+            return true;
+        }
+        if (!(o instanceof EmbeddedObject)) {
+            return false;
+        }
 
         EmbeddedObject that = (EmbeddedObject) o;
 

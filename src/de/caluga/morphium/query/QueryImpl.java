@@ -65,7 +65,9 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
 
     @Override
     public String[] getTags() {
-        if (tags == null) return new String[0];
+        if (tags == null) {
+            return new String[0];
+        }
         return tags.split(",");
     }
 
@@ -184,7 +186,7 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
     public void setARHelpter(AnnotationAndReflectionHelper ar) {
         arHelper = ar;
     }
-    
+
 
     @Override
     public List<T> complexQuery(Map<String, Object> query, Map<String, Integer> sort, int skip, int limit) {
@@ -210,7 +212,9 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
         }
         for (Map<String, Object> in : obj) {
             T unmarshall = morphium.getMapper().unmarshall(type, in);
-            if (unmarshall != null) ret.add(unmarshall);
+            if (unmarshall != null) {
+                ret.add(unmarshall);
+            }
         }
         srv = (String) findMetaData.get("server");
         morphium.fireProfilingReadEvent(this, System.currentTimeMillis() - start, ReadAccessType.AS_LIST);
@@ -227,7 +231,7 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
         lst.put("_id", 1);
         Entity e = getARHelper().getAnnotationFromHierarchy(type, Entity.class);
         if (e.polymorph()) {
-//            lst.put("class_name", 1);
+            //            lst.put("class_name", 1);
             return new HashMap<>();
         }
 
@@ -344,10 +348,10 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
                 if (field == null) {
                     throw new IllegalArgumentException("Field " + fieldNameInstance + " not found!");
                 }
-//                if (field.isAnnotationPresent(Reference.class)) {
-//                    //cannot join
-//                    throw new IllegalArgumentException("cannot subquery references: " + fieldNameInstance + " of type " + clz.getName() + " has @Reference");
-//                }
+                //                if (field.isAnnotationPresent(Reference.class)) {
+                //                    //cannot join
+                //                    throw new IllegalArgumentException("cannot subquery references: " + fieldNameInstance + " of type " + clz.getName() + " has @Reference");
+                //                }
                 fieldPath.append(fieldNameInstance);
                 fieldPath.append('.');
                 clz = field.getType();
@@ -501,7 +505,9 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
 
 
     private de.caluga.morphium.driver.ReadPreference getRP() {
-        if (readPreferenceLevel == null) return null;
+        if (readPreferenceLevel == null) {
+            return null;
+        }
         switch (readPreferenceLevel) {
             case PRIMARY:
                 return de.caluga.morphium.driver.ReadPreference.primary();
@@ -593,7 +599,9 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
 
     @Override
     public void asList(final AsyncOperationCallback<T> callback) {
-        if (callback == null) throw new IllegalArgumentException("callback is null");
+        if (callback == null) {
+            throw new IllegalArgumentException("callback is null");
+        }
         Runnable r = () -> {
             long start = System.currentTimeMillis();
             try {
@@ -719,8 +727,12 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
     }
 
     private void updateLastAccess(T unmarshall) {
-        if (!autoValuesEnabled) return;
-        if (!morphium.isAutoValuesEnabledForThread()) return;
+        if (!autoValuesEnabled) {
+            return;
+        }
+        if (!morphium.isAutoValuesEnabledForThread()) {
+            return;
+        }
         if (getARHelper().isAnnotationPresentInHierarchy(type, LastAccess.class)) {
             @SuppressWarnings("unchecked") List<String> lst = getARHelper().getFields(type, LastAccess.class);
             for (String ctf : lst) {
@@ -743,7 +755,7 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
                         Object id = getARHelper().getId(unmarshall);
                         //Cannot use store, as this would trigger an update of last changed...
                         morphium.getDriver().update(morphium.getConfig().getDatabase(), getCollectionName(), Utils.getMap("_id", id), Utils.getMap("$set", Utils.getMap(ctf, currentTime)), false, false, null);
-//                        morphium.getDatabase().getCollection(collName).update(new HashMap<String, Object>("_id", id), new HashMap<String, Object>("$set", new HashMap<String, Object>(ctf, currentTime)));
+                        //                        morphium.getDatabase().getCollection(collName).update(new HashMap<String, Object>("_id", id), new HashMap<String, Object>("$set", new HashMap<String, Object>(ctf, currentTime)));
                     } catch (Exception e) {
                         log.error("Could not set modification time");
                         throw new RuntimeException(e);
@@ -752,17 +764,19 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
             }
 
             //Storing access timestamps
-//            List<T> l=new ArrayList<T>();
-//            l.add(unmarshall);
-//            morphium.getWriterForClass(unmarshall.getClass()).store(l,null);
+            //            List<T> l=new ArrayList<T>();
+            //            l.add(unmarshall);
+            //            morphium.getWriterForClass(unmarshall.getClass()).store(l,null);
 
-//            morphium.store(unmarshall);
+            //            morphium.store(unmarshall);
         }
     }
 
     @Override
     public void getById(final Object id, final AsyncOperationCallback<T> callback) {
-        if (callback == null) throw new IllegalArgumentException("Callback is null");
+        if (callback == null) {
+            throw new IllegalArgumentException("Callback is null");
+        }
         Runnable c = () -> {
             long start = System.currentTimeMillis();
             try {
@@ -791,7 +805,9 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
 
     @Override
     public void get(final AsyncOperationCallback<T> callback) {
-        if (callback == null) throw new IllegalArgumentException("Callback is null");
+        if (callback == null) {
+            throw new IllegalArgumentException("Callback is null");
+        }
         Runnable r = () -> {
             long start = System.currentTimeMillis();
             try {
@@ -876,7 +892,9 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
 
     @Override
     public void idList(final AsyncOperationCallback<T> callback) {
-        if (callback == null) throw new IllegalArgumentException("Callable is null?");
+        if (callback == null) {
+            throw new IllegalArgumentException("Callable is null?");
+        }
         Runnable r = () -> {
             long start = System.currentTimeMillis();
             try {
@@ -911,9 +929,9 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
             morphium.inc(StatisticKeys.NO_CACHED_READS);
         }
         long start = System.currentTimeMillis();
-//        DBCollection collection = morphium.getDatabase().getCollection(getCollectionName());
-//        setReadPreferenceFor(collection);
-//                DBCursor query = collection.find(toQueryObject(), new HashMap<String, Object>("_id", 1)); //only get IDs
+        //        DBCollection collection = morphium.getDatabase().getCollection(getCollectionName());
+        //        setReadPreferenceFor(collection);
+        //                DBCursor query = collection.find(toQueryObject(), new HashMap<String, Object>("_id", 1)); //only get IDs
         Map<String, Object> findMetadata = new HashMap<>();
 
         List<Map<String, Object>> query;
@@ -1036,16 +1054,18 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
     @Override
     @Deprecated
     public List<T> textSearch(TextSearchLanguages lang, String... texts) {
-        if (texts.length == 0) return new ArrayList<>();
+        if (texts.length == 0) {
+            return new ArrayList<>();
+        }
 
         Map<String, Object> txt = new HashMap<>();
         txt.put("text", getCollectionName());
         StringBuilder b = new StringBuilder();
         for (String t : texts) {
-//            b.append("\"");
+            //            b.append("\"");
             b.append(t);
             b.append(" ");
-//            b.append("\" ");
+            //            b.append("\" ");
         }
         txt.put("search", b.toString());
         txt.put("filter", toQueryObject());
@@ -1070,7 +1090,9 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
         for (Object o : lst) {
             @SuppressWarnings("unchecked") Map<String, Object> obj = (Map<String, Object>) o;
             T unmarshall = morphium.getMapper().unmarshall(getType(), obj);
-            if (unmarshall != null) ret.add(unmarshall);
+            if (unmarshall != null) {
+                ret.add(unmarshall);
+            }
         }
         return ret;
     }
@@ -1116,7 +1138,9 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
 
     @Override
     public Query<T> addProjection(String f, String projectOperator) {
-        if (fieldList == null) fieldList = new HashMap<>();
+        if (fieldList == null) {
+            fieldList = new HashMap<>();
+        }
         String n = getARHelper().getFieldName(type, f);
         fieldList.put(n, projectOperator);
         return this;
@@ -1128,12 +1152,12 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
             fieldList = new HashMap<>();
 
         }
-//        if (fieldList.size()==0){
-//            for (Field fld:getARHelper().getAllFields(type)){
-//                fieldList.put(getARHelper().getFieldName(type,fld.getName()),1); //enable all
-//            }
-//        }
-//        fieldList.remove(f);
+        //        if (fieldList.size()==0){
+        //            for (Field fld:getARHelper().getAllFields(type)){
+        //                fieldList.put(getARHelper().getFieldName(type,fld.getName()),1); //enable all
+        //            }
+        //        }
+        //        fieldList.remove(f);
         fieldList.put(getARHelper().getFieldName(type, f), 0);
         return this;
     }

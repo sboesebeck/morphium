@@ -40,7 +40,7 @@ public class NameProviderTest extends MongoTest {
         waitForWrites();
         String colName = morphium.getMapper().getCollectionName(LogObject.class);
         assert (colName.endsWith("_Test"));
-//        DBCollection col = morphium.getDatabase().getCollection(colName);
+        //        DBCollection col = morphium.getDatabase().getCollection(colName);
         long count = morphium.createQueryFor(LogObject.class, colName).countAll();
         assert (count == 100) : "Error - did not store?? " + count;
     }

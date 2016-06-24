@@ -21,7 +21,7 @@ public class PartiallyUpdateableProxy<T> implements MethodInterceptor, Partially
     public PartiallyUpdateableProxy(Morphium m, T o) {
         updateableFields = Collections.synchronizedList(new ArrayList<>());
         reference = o;
-//        morphium = m;
+        //        morphium = m;
         ah = m.getARHelper();
     }
 
@@ -75,6 +75,6 @@ public class PartiallyUpdateableProxy<T> implements MethodInterceptor, Partially
             return reference;
         }
         return method.invoke(reference, objects);
-//            return methodProxy.invokeSuper(reference, objects);
+        //            return methodProxy.invokeSuper(reference, objects);
     }
 }

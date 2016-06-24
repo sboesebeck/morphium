@@ -136,7 +136,9 @@ public class AutoVariableTest extends MongoTest {
         morphium.set(q, "value", "all_same", false, true);
         long cmp = 0;
         for (LCTest tst : q.asIterable()) {
-            if (cmp == 0) cmp = tst.lastChange;
+            if (cmp == 0) {
+                cmp = tst.lastChange;
+            }
             assert (tst.lastChange != 0);
             assert (tst.lastChange == cmp);
             assert (tst.lastChangeDate != null);
@@ -154,7 +156,7 @@ public class AutoVariableTest extends MongoTest {
             Thread.sleep(100);
             log.info("... waiting...");
         }
-//        Thread.sleep(1000);
+        //        Thread.sleep(1000);
         CTimeTestStringId record = new CTimeTestStringId();
         record.mongoId = "12345";
         record.value = "v1";

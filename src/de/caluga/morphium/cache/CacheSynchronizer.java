@@ -31,14 +31,11 @@ import java.util.stream.Collectors;
  */
 @SuppressWarnings("UnusedDeclaration")
 public class CacheSynchronizer implements MessageListener, MorphiumStorageListener<Object> {
-    private static final Logger log = new Logger(CacheSynchronizer.class);
-
-    private Messaging messaging;
-    private Morphium morphium;
-
     public static final String CACHE_SYNC_TYPE = "cacheSyncType";
     public static final String CACHE_SYNC_RECORD = "cacheSyncRecord";
-
+    private static final Logger log = new Logger(CacheSynchronizer.class);
+    private Messaging messaging;
+    private Morphium morphium;
     private List<CacheSyncListener> listeners = Collections.synchronizedList(new ArrayList<>());
     private Hashtable<Class<?>, Vector<CacheSyncListener>> listenerForType = new Hashtable<>();
     private boolean attached;
@@ -88,7 +85,9 @@ public class CacheSynchronizer implements MessageListener, MorphiumStorageListen
         for (CacheSyncListener cl : listeners) {
             cl.postSendClearMsg(type, m);
         }
-        if (type == null) return;
+        if (type == null) {
+            return;
+        }
         if (listenerForType.get(type) != null) {
             for (CacheSyncListener cl : listenerForType.get(type)) {
                 cl.postSendClearMsg(type, m);
@@ -100,7 +99,9 @@ public class CacheSynchronizer implements MessageListener, MorphiumStorageListen
         for (CacheSyncListener cl : listeners) {
             cl.preSendClearMsg(type, m);
         }
-        if (type == null) return;
+        if (type == null) {
+            return;
+        }
         if (listenerForType.get(type) != null) {
             for (CacheSyncListener cl : listenerForType.get(type)) {
                 cl.preSendClearMsg(type, m);
@@ -112,7 +113,9 @@ public class CacheSynchronizer implements MessageListener, MorphiumStorageListen
         for (CacheSyncListener cl : listeners) {
             cl.preClear(type, m);
         }
-        if (type == null) return;
+        if (type == null) {
+            return;
+        }
         if (listenerForType.get(type) != null) {
             for (CacheSyncListener cl : listenerForType.get(type)) {
                 cl.preClear(type, m);
@@ -124,7 +127,9 @@ public class CacheSynchronizer implements MessageListener, MorphiumStorageListen
         for (CacheSyncListener cl : listeners) {
             cl.postClear(type, m);
         }
-        if (type == null) return;
+        if (type == null) {
+            return;
+        }
         if (listenerForType.get(type) != null) {
             for (CacheSyncListener cl : listenerForType.get(type)) {
                 cl.postClear(type, m);
@@ -133,14 +138,16 @@ public class CacheSynchronizer implements MessageListener, MorphiumStorageListen
     }
 
     public void sendClearMessage(String reason, Map<Object, Boolean> isNew) {
-//        long start = System.currentTimeMillis();
+        //        long start = System.currentTimeMillis();
 
 
         Map<Class<?>, Map<Boolean, List<Object>>> sorted = new HashMap<>();
 
         for (Object record : isNew.keySet()) {
             Cache c = annotationHelper.getAnnotationFromHierarchy(record.getClass(), Cache.class); //(Cache) type.getAnnotation(Cache.class);
-            if (c == null) continue; //not clearing cache for non-cached objects
+            if (c == null) {
+                continue; //not clearing cache for non-cached objects
+            }
             if (c.readCache() && c.clearOnWrite()) {
                 if (sorted.get(record.getClass()) == null) {
                     sorted.put(record.getClass(), new HashMap<>());
@@ -169,9 +176,9 @@ public class CacheSynchronizer implements MessageListener, MorphiumStorageListen
             }
             //new objects
             //                if (c.syncCache().equals(Cache.SyncCacheStrategy.UPDATE_ENTRY) || c.syncCache().equals(Cache.SyncCacheStrategy.REMOVE_ENTRY_FROM_TYPE_CACHE)) {
-//
-//                } else
-//cannot be updated, it's new
+            //
+            //                } else
+            //cannot be updated, it's new
             toClrCachee.addAll(sorted.get(cls).get(true).stream().filter(record -> c.syncCache().equals(Cache.SyncCacheStrategy.CLEAR_TYPE_CACHE)).collect(Collectors.toList()));
 
             if (!toUpdate.isEmpty()) {
@@ -211,8 +218,8 @@ public class CacheSynchronizer implements MessageListener, MorphiumStorageListen
             }
         }
 
-//        long dur = System.currentTimeMillis() - start;
-//        log.info("Queueing cache sync message took "+dur+" ms");
+        //        long dur = System.currentTimeMillis() - start;
+        //        log.info("Queueing cache sync message took "+dur+" ms");
     }
 
     public void sendClearMessage(Class type, String reason) {
@@ -226,10 +233,14 @@ public class CacheSynchronizer implements MessageListener, MorphiumStorageListen
      * @param reason - reason
      */
     public void sendClearMessage(Class type, String reason, boolean force) {
-        if (type.equals(Msg.class)) return;
+        if (type.equals(Msg.class)) {
+            return;
+        }
         Msg m = new Msg(CACHE_SYNC_TYPE, MsgType.MULTI, reason, type.getName(), 30000);
         Cache c = annotationHelper.getAnnotationFromHierarchy(type, Cache.class); //(Cache) type.getAnnotation(Cache.class);
-        if (c == null) return; //not clearing cache for non-cached objects
+        if (c == null) {
+            return; //not clearing cache for non-cached objects
+        }
         if ((c.readCache() && c.clearOnWrite() && !c.syncCache().equals(Cache.SyncCacheStrategy.NONE)) || force) {
             try {
                 firePreSendEvent(type, m);

@@ -21,8 +21,9 @@ public class BasicReadWriteTest {
     @Setup
     public void setup() {
         try {
-            if (MongoTest.morphium == null)
+            if (MongoTest.morphium == null) {
                 MongoTest.setUpClass();
+            }
             morphium = MongoTest.morphium;
         } catch (Exception e) {
             //TODO: Implement Handling

@@ -13,34 +13,11 @@ public class ReadPreference {
     private ReadPreferenceType type;
     private Map<String, String> tagSet;
 
-    public ReadPreferenceType getType() {
-        return type;
-    }
-
-    public void setType(ReadPreferenceType type) {
-        this.type = type;
-    }
-
-    public Map<String, String> getTagSet() {
-        return tagSet;
-    }
-
-    public void setTagSet(Map<String, String> tagSet) {
-        this.tagSet = tagSet;
-    }
-
-    public void addTag(String key, String value) {
-        if (tagSet == null) tagSet = new HashMap<>();
-        tagSet.put(key, value);
-    }
-
-
     public static ReadPreference primary() {
         ReadPreference rp = new ReadPreference();
         rp.setType(ReadPreferenceType.PRIMARY);
         return rp;
     }
-
 
     public static ReadPreference primaryPreferred() {
         ReadPreference rp = new ReadPreference();
@@ -65,5 +42,28 @@ public class ReadPreference {
         ReadPreference rp = new ReadPreference();
         rp.setType(ReadPreferenceType.NEAREST);
         return rp;
+    }
+
+    public ReadPreferenceType getType() {
+        return type;
+    }
+
+    public void setType(ReadPreferenceType type) {
+        this.type = type;
+    }
+
+    public Map<String, String> getTagSet() {
+        return tagSet;
+    }
+
+    public void setTagSet(Map<String, String> tagSet) {
+        this.tagSet = tagSet;
+    }
+
+    public void addTag(String key, String value) {
+        if (tagSet == null) {
+            tagSet = new HashMap<>();
+        }
+        tagSet.put(key, value);
     }
 }

@@ -32,7 +32,9 @@ public class JavaxValidationStorageListener extends MorphiumStorageAdapter<Objec
 
     @Override
     public void preStore(Morphium m, Object r, boolean isNew) {
-        if (r == null) return;
+        if (r == null) {
+            return;
+        }
         AnnotationAndReflectionHelper annotationHelper = m.getARHelper();
         if (!annotationHelper.isAnnotationPresentInHierarchy(r.getClass(), Entity.class) && !annotationHelper.isAnnotationPresentInHierarchy(r.getClass(), Embedded.class)) {
             return;
@@ -45,7 +47,9 @@ public class JavaxValidationStorageListener extends MorphiumStorageAdapter<Objec
                     annotationHelper.isAnnotationPresentInHierarchy(field.getType(), Entity.class)) {
                 //also check it
                 try {
-                    if (field.get(r) == null) continue;
+                    if (field.get(r) == null) {
+                        continue;
+                    }
                     Set<ConstraintViolation<Object>> v = validator.validate(field.get(r));
                     violations.addAll(v);
                 } catch (IllegalAccessException e) {

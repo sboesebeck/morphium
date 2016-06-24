@@ -17,6 +17,7 @@ public class MorphiumDriverException extends Exception {
     public MorphiumDriverException(String message) {
         super(message);
     }
+
     public MorphiumDriverException(String message, Throwable cause) {
         super(message, cause);
     }

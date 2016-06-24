@@ -6,5 +6,6 @@ package de.caluga.morphium;
 public interface TypeMapper<T> {
 
     Object marshall(T o);
+
     T unmarshall(Object d);
 }

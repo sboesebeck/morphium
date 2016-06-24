@@ -35,7 +35,7 @@ public class MorphiumId implements Comparable<MorphiumId> {
     private int machineId;
 
     public MorphiumId() {
-        this((Date)null);
+        this((Date) null);
     }
 
     public MorphiumId(Date date) {
@@ -92,7 +92,7 @@ public class MorphiumId implements Comparable<MorphiumId> {
     }
 
     private static short createPID() {
-//        if (threadPid == null || threadPid.get() == null) {
+        //        if (threadPid == null || threadPid.get() == null) {
 
         short processId;
         try {
@@ -106,12 +106,12 @@ public class MorphiumId implements Comparable<MorphiumId> {
             new Logger(MorphiumId.class).error("could not get processID - using random fallback");
             processId = (short) new SecureRandom().nextInt();
         }
-//            threadPid = new ThreadLocal<>();
-//            threadPid.set(processId);
+        //            threadPid = new ThreadLocal<>();
+        //            threadPid.set(processId);
         return processId;
-//        }
-//
-//        return threadPid.get();
+        //        }
+        //
+        //        return threadPid.get();
     }
 
     private static int createMachineId() {
@@ -139,7 +139,9 @@ public class MorphiumId implements Comparable<MorphiumId> {
             new Logger(MorphiumId.class).error("error accessing nics to create machine identifier... using fallback", t);
         }
 
-        if (machineId == 0) machineId = (new SecureRandom().nextInt());
+        if (machineId == 0) {
+            machineId = (new SecureRandom().nextInt());
+        }
 
         machineId = machineId & 0x00ffffff;
         return machineId;
@@ -161,9 +163,15 @@ public class MorphiumId implements Comparable<MorphiumId> {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null) return false;
-        if (o.getClass() != this.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null) {
+            return false;
+        }
+        if (o.getClass() != this.getClass()) {
+            return false;
+        }
 
         MorphiumId morphiumId = (MorphiumId) o;
 
@@ -226,7 +234,9 @@ public class MorphiumId implements Comparable<MorphiumId> {
 
     @Override
     public int compareTo(MorphiumId o) {
-        if (o == null) return -1;
+        if (o == null) {
+            return -1;
+        }
         return toString().compareTo(o.toString());
     }
 }

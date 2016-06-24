@@ -102,7 +102,9 @@ public class BufferedWriterTest extends MongoTest {
         while (true) {
 
             long count = morphium.createQueryFor(BufferedBySizeWriteNewObject.class).countAll();
-            if (count == amount) break;
+            if (count == amount) {
+                break;
+            }
             log.info("Amount written: " + count + " but Write buffer: " + morphium.getWriteBufferCount());
             Thread.sleep(1000);
         }
@@ -126,7 +128,9 @@ public class BufferedWriterTest extends MongoTest {
             int writeBufferCount = morphium.getWriteBufferCount();
             System.out.println("Amount written: " + count + " but Write buffer: " + writeBufferCount);
             Thread.sleep(10);
-            if (writeBufferCount == 0) break;
+            if (writeBufferCount == 0) {
+                break;
+            }
         }
         assert (System.currentTimeMillis() - start < 120000);
     }
@@ -145,9 +149,11 @@ public class BufferedWriterTest extends MongoTest {
         while (true) {
 
             long count = morphium.createQueryFor(BufferedByTimeObject.class).countAll();
-            if (count == amount) break;
+            if (count == amount) {
+                break;
+            }
             System.out.println("Amount written: " + count + " but Write buffer: " + morphium.getWriteBufferCount());
-//            assert (morphium.getWriteBufferCount() != 0);
+            //            assert (morphium.getWriteBufferCount() != 0);
             Thread.sleep(100);
         }
         assert (System.currentTimeMillis() - start < 120000);
@@ -205,7 +211,9 @@ public class BufferedWriterTest extends MongoTest {
             buf.setEntityEmbeded(uc);
             m.store(buf);
         }
-        while (m.getWriteBufferCount() != 0) Thread.sleep(100);
+        while (m.getWriteBufferCount() != 0) {
+            Thread.sleep(100);
+        }
         Thread.sleep(200);
         ComplexObjectBuffered buf = m.createQueryFor(ComplexObjectBuffered.class).f("ein_text").eq("The text " + 0).get();
         assert (buf != null);
@@ -223,7 +231,9 @@ public class BufferedWriterTest extends MongoTest {
             so.setMyId("id_" + i);
             m.store(so);
         }
-        while (m.getWriteBufferCount() != 0) Thread.sleep(100);
+        while (m.getWriteBufferCount() != 0) {
+            Thread.sleep(100);
+        }
         Thread.sleep(11200);
         assert (m.createQueryFor(SimpleObject.class).countAll() == 100) : "Count is " + m.createQueryFor(SimpleObject.class).countAll();
 
@@ -234,7 +244,9 @@ public class BufferedWriterTest extends MongoTest {
             so.setMyId("id_" + i);
             m.store(so);
         }
-        while (m.getWriteBufferCount() != 0) Thread.sleep(100);
+        while (m.getWriteBufferCount() != 0) {
+            Thread.sleep(100);
+        }
         assert (m.createQueryFor(SimpleObject.class).countAll() == 100);
     }
 

@@ -104,7 +104,7 @@ public class MorphiumConfig {
     private boolean camelCaseConversionEnabled = true;
 
     //securitysettings
-//    private Class<? extends Object> userClass, roleClass, aclClass;
+    //    private Class<? extends Object> userClass, roleClass, aclClass;
     private String mongoAdminUser, mongoAdminPwd; //THE superuser!
     @Transient
     private Class<? extends ObjectMapper> omClass = ObjectMapperImpl.class;
@@ -146,7 +146,9 @@ public class MorphiumConfig {
         AnnotationAndReflectionHelper an = new AnnotationAndReflectionHelper(true); //settings always convert camel case
         List<Field> flds = an.getAllFields(MorphiumConfig.class);
         for (Field f : flds) {
-            if (f.isAnnotationPresent(Transient.class)) continue;
+            if (f.isAnnotationPresent(Transient.class)) {
+                continue;
+            }
             f.setAccessible(true);
             if (prop.getProperty(f.getName()) != null) {
                 try {
@@ -207,9 +209,13 @@ public class MorphiumConfig {
                 }
 
             } else {
-                if (!k.endsWith("ClassName")) continue;
+                if (!k.endsWith("ClassName")) {
+                    continue;
+                }
                 String n[] = k.split("_");
-                if (n.length != 3) continue;
+                if (n.length != 3) {
+                    continue;
+                }
                 Class cls = Class.forName(value);
                 Field f = MorphiumConfig.class.getDeclaredField(n[0]);
                 f.setAccessible(true);
@@ -238,7 +244,9 @@ public class MorphiumConfig {
     }
 
     public String getDriverClass() {
-        if (driverClass == null) driverClass = Driver.class.getName();
+        if (driverClass == null) {
+            driverClass = Driver.class.getName();
+        }
         return driverClass;
     }
 
@@ -299,10 +307,10 @@ public class MorphiumConfig {
     }
 
     public MorphiumCache getCache() {
-//        if (cache == null) {
-//            cache = new MorphiumCacheImpl();
-//
-//        }
+        //        if (cache == null) {
+        //            cache = new MorphiumCacheImpl();
+        //
+        //        }
         return cache;
     }
 
@@ -534,8 +542,9 @@ public class MorphiumConfig {
         } catch (IllegalArgumentException e) {
             readPreferenceType = null;
         }
-        if (readPreferenceType == null)
+        if (readPreferenceType == null) {
             throw new RuntimeException("Could not set defaultReadPreferenceByString " + stringDefaultReadPreference);
+        }
         ReadPreference defaultReadPreference = new ReadPreference();
         defaultReadPreference.setType(readPreferenceType);
         this.defaultReadPreference = defaultReadPreference;
@@ -806,7 +815,9 @@ public class MorphiumConfig {
         AnnotationAndReflectionHelper an = new AnnotationAndReflectionHelper(true);
         List<Field> flds = an.getAllFields(MorphiumConfig.class);
         for (Field f : flds) {
-            if (f.isAnnotationPresent(Transient.class)) continue;
+            if (f.isAnnotationPresent(Transient.class)) {
+                continue;
+            }
             f.setAccessible(true);
             try {
                 if (f.get(this) != null && !f.get(this).equals(f.get(defaults))) {
@@ -1112,7 +1123,9 @@ public class MorphiumConfig {
 
 
     public List<Map<String, String>> getDefaultTagSet() {
-        if (defaultTags == null) return null;
+        if (defaultTags == null) {
+            return null;
+        }
         List<Map<String, String>> tagList = new ArrayList<>();
 
         for (String t : defaultTags.split(",")) {

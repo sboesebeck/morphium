@@ -22,8 +22,9 @@ public class IteratorSpeedTest {
     @Setup
     public void setup() {
         try {
-            if (morphium == null)
+            if (morphium == null) {
                 MongoTest.setUpClass();
+            }
             morphium = MongoTest.morphiumMeta;
             for (int i = 0; i < 10000; i++) {
                 UncachedObject uc = new UncachedObject();
@@ -41,7 +42,7 @@ public class IteratorSpeedTest {
     public void teardown() {
         morphium.dropCollection(UncachedObject.class);
 
-//        morphium.close();
+        //        morphium.close();
         try {
             MongoTest.getMorphiums().forEach(Morphium::close);
         } catch (Exception e) {

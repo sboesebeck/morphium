@@ -20,16 +20,21 @@ public class BsonDecoder {
 
     public int decodeDocumentIn(Map<String, Object> ret, byte[] in, int startIndex) throws UnsupportedEncodingException {
         int sz = readInt(in, startIndex);
-        if (sz > in.length)
+        if (sz > in.length) {
             throw new RuntimeException("error - size differs! read " + sz + " but buffer is " + in.length);
+        }
 
         for (int idx = startIndex + 4; startIndex - 4 - idx < sz; ) {
             String name;
             byte type = in[idx++];
-            if (type == 0) break; //end of document
+            if (type == 0) {
+                break; //end of document
+            }
 
             int l = 0;
-            while (in[idx + l] != 0) l++;
+            while (in[idx + l] != 0) {
+                l++;
+            }
             name = new String(in, idx, l, "UTF-8");
             idx += l + 1; //trailling 0
 
@@ -69,7 +74,7 @@ public class BsonDecoder {
 
                 case 0x05:
                     //binary data
-//                    throw new RuntimeException("Not implemented yet!");
+                    //                    throw new RuntimeException("Not implemented yet!");
                     int boblen = readInt(in, idx);
                     byte[] bobdata = new byte[boblen];
                     //skipping subtype!
@@ -108,12 +113,16 @@ public class BsonDecoder {
                 case 0x0b:
                     //regex
                     l = 0;
-                    while (in[idx + l] != 0) l++;
+                    while (in[idx + l] != 0) {
+                        l++;
+                    }
                     String pattern = new String(in, idx, l, "UTF-8");
                     idx += l;
 
                     l = 0;
-                    while (in[idx + l] != 0) l++;
+                    while (in[idx + l] != 0) {
+                        l++;
+                    }
                     String opts = new String(in, idx, l, "UTF-8");
                     idx += l;
                     int flags = 0;
@@ -160,7 +169,7 @@ public class BsonDecoder {
                     break;
                 case 0x11:
                     //timestamp - internal
-//                    throw new RuntimeException("Got internaltimestamp");
+                    //                    throw new RuntimeException("Got internaltimestamp");
                 case 0x12:
                     //64 bit long
                     value = readLong(in, idx);

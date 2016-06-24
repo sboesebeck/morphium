@@ -44,8 +44,8 @@ public class MorphiumDriverSpeedTest {
     public void speedCompareMultithread() throws Exception {
         Morphium m = null;
         MorphiumConfig cfg = new MorphiumConfig("morphium_test", 100, 1000, 1000);
-//        cfg.addHostToSeed("192.168.44.209:30001");
-//        cfg.addHostToSeed("192.168.44.209:30002");
+        //        cfg.addHostToSeed("192.168.44.209:30001");
+        //        cfg.addHostToSeed("192.168.44.209:30002");
         cfg.addHostToSeed("localhost:27017");
         cfg.addHostToSeed("localhost:27018");
         cfg.setReplicasetMonitoring(true);
@@ -55,8 +55,8 @@ public class MorphiumDriverSpeedTest {
         cfg.setMaxConnections(100);
         cfg.setLogLevelForClass(MetaDriver.class, 5);
         m = new Morphium(cfg);
-//        m.getDriver().connect();
-//        Thread.sleep(10000);
+        //        m.getDriver().connect();
+        //        Thread.sleep(10000);
         log.info("Testing multithreadded with Metadriver:");
         multithreadTest(m);
         m.close();
@@ -71,8 +71,8 @@ public class MorphiumDriverSpeedTest {
         cfg.setMaxConnections(100);
         cfg.setMaxWaitTime(3000);
         m = new Morphium(cfg);
-//        m.getDriver().connect();
-//        Thread.sleep(10000);
+        //        m.getDriver().connect();
+        //        Thread.sleep(10000);
         log.info("Testing multithreadded with SingeConnect driver:");
         multithreadTest(m);
         m.close();
@@ -85,8 +85,8 @@ public class MorphiumDriverSpeedTest {
         cfg.setMaxConnections(100);
         cfg.setMaxWaitTime(3000);
         m = new Morphium(cfg);
-//        m.getDriver().connect();
-//        Thread.sleep(10000);
+        //        m.getDriver().connect();
+        //        Thread.sleep(10000);
         log.info("Testing multithreadded with SingeConnectDirect driver:");
         multithreadTest(m);
         m.close();
@@ -125,8 +125,8 @@ public class MorphiumDriverSpeedTest {
         cfg.setMaxWaitTime(30000);
         cfg.setMaxWaitTime(30000);
         m = new Morphium(cfg);
-//        m.getDriver().connect();
-//        Thread.sleep(10000);
+        //        m.getDriver().connect();
+        //        Thread.sleep(10000);
         log.info("Testing with Metadriver:");
         doTest(m);
         doTest(m);
@@ -139,8 +139,8 @@ public class MorphiumDriverSpeedTest {
         cfg.setDriverClass(SingleConnectThreaddedDriver.class.getName());
         cfg.setMaxWaitTime(3000);
         m = new Morphium(cfg);
-//        m.getDriver().connect();
-//        Thread.sleep(10000);
+        //        m.getDriver().connect();
+        //        Thread.sleep(10000);
         log.info("Testing with SingeConnect driver:");
         doTest(m);
         doTest(m);
@@ -154,8 +154,8 @@ public class MorphiumDriverSpeedTest {
         cfg.setDriverClass(SingleConnectDirectDriver.class.getName());
         cfg.setMaxWaitTime(3000);
         m = new Morphium(cfg);
-//        m.getDriver().connect();
-//        Thread.sleep(10000);
+        //        m.getDriver().connect();
+        //        Thread.sleep(10000);
         log.info("Testing with SingeConnectDirect driver:");
         doTest(m);
         doTest(m);
@@ -200,15 +200,15 @@ public class MorphiumDriverSpeedTest {
                         uc.setValue("By thread " + t);
                         m.store(uc);
                     }
-//                    log.info("Thread " + t + " finished!");
+                    //                    log.info("Thread " + t + " finished!");
                 }
             };
             threads.add(thr);
             thr.start();
         }
-//        for (Thread t : threads) t.join();
-//        long dur = System.currentTimeMillis() - start;
-//        log.info("Storing took " + dur);
+        //        for (Thread t : threads) t.join();
+        //        long dur = System.currentTimeMillis() - start;
+        //        log.info("Storing took " + dur);
 
         start = System.currentTimeMillis();
 
@@ -222,15 +222,15 @@ public class MorphiumDriverSpeedTest {
                         q.f("counter").eq(t * 100 + j);
                         UncachedObject uc = q.get();
                     }
-//                    log.info("Thread " + t + " finished!");
+                    //                    log.info("Thread " + t + " finished!");
                 }
             };
             threads.add(thr);
             thr.start();
         }
         for (Thread t : threads) t.join();
-//        dur = System.currentTimeMillis() - start;
-//        log.info("Reading took " + dur);
+        //        dur = System.currentTimeMillis() - start;
+        //        log.info("Reading took " + dur);
 
         long dur = System.currentTimeMillis() - startTotal;
         log.info("Overall dur " + dur);
@@ -259,7 +259,7 @@ public class MorphiumDriverSpeedTest {
         dur = System.currentTimeMillis() - start;
         log.info("Count took:  " + dur);
         assert (c == countObjs);
-//        log.info("Counter=="+c);
+        //        log.info("Counter=="+c);
 
         start = System.currentTimeMillis();
         lst = m.createQueryFor(UncachedObject.class).asList();
@@ -303,14 +303,14 @@ public class MorphiumDriverSpeedTest {
         }
         drv.insert("morphium_test", "tst", lst, null);
 
-//        Thread.sleep(1000);
+        //        Thread.sleep(1000);
 
         lst = drv.find("morphium_test", "tst", new HashMap<>(), null, null, 0, 0, 1000, null, null);
         log.info("List: " + lst.size());
         assert (lst.size() == countObjs);
 
         drv.delete("morphium_test", "tst", Utils.getMap("counter", 100), false, null);
-//        Thread.sleep(1000);
+        //        Thread.sleep(1000);
         lst = drv.find("morphium_test", "tst", new HashMap<>(), null, null, 0, 0, 1000, null, null);
         assert (lst.size() != countObjs) : "Size is still " + lst.size();
         assert (lst.size() == countObjs - 1) : "Size is not correct " + lst.size();
@@ -347,14 +347,14 @@ public class MorphiumDriverSpeedTest {
         }
         drv.insert("morphium_test", "tst", lst, null);
 
-//        Thread.sleep(1000);
+        //        Thread.sleep(1000);
 
         lst = drv.find("morphium_test", "tst", new HashMap<>(), null, null, 0, 0, 1000, null, null);
         log.info("List: " + lst.size());
         assert (lst.size() == countObjs);
 
         drv.delete("morphium_test", "tst", Utils.getMap("counter", 100), false, null);
-//        Thread.sleep(1000);
+        //        Thread.sleep(1000);
         lst = drv.find("morphium_test", "tst", new HashMap<>(), null, null, 0, 0, 1000, null, null);
         assert (lst.size() != countObjs) : "Size is still " + lst.size();
         assert (lst.size() == countObjs - 1) : "Size is not correct " + lst.size();
@@ -404,7 +404,7 @@ public class MorphiumDriverSpeedTest {
         while ((l = br.readLine()) != null) {
             int len = l.length();
             String d = l.substring(11, len < 58 ? l.length() - 1 : 58);
-//            d=d.replaceAll(" ","");
+            //            d=d.replaceAll(" ","");
             log.info("got " + d);
             for (String n : d.split(" ")) {
                 String c1 = n.substring(0, 0);

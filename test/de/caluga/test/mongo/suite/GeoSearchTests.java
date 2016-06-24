@@ -22,7 +22,7 @@ public class GeoSearchTests extends MongoTest {
     public void nearTest() throws Exception {
         morphium.dropCollection(Place.class);
         ArrayList<Place> toStore = new ArrayList<>();
-//        morphium.ensureIndicesFor(Place.class);
+        //        morphium.ensureIndicesFor(Place.class);
         for (int i = 0; i < 1000; i++) {
             Place p = new Place();
             List<Double> pos = new ArrayList<>();
@@ -47,7 +47,7 @@ public class GeoSearchTests extends MongoTest {
     public void nearSphereTest() throws Exception {
         morphium.dropCollection(Place.class);
         ArrayList<Place> toStore = new ArrayList<>();
-//        morphium.ensureIndicesFor(Place.class);
+        //        morphium.ensureIndicesFor(Place.class);
         for (int i = 0; i < 1000; i++) {
             Place p = new Place();
             List<Double> pos = new ArrayList<>();
@@ -72,7 +72,7 @@ public class GeoSearchTests extends MongoTest {
     public void boxTest() throws Exception {
         morphium.dropCollection(Place.class);
         ArrayList<Place> toStore = new ArrayList<>();
-//        morphium.ensureIndicesFor(Place.class);
+        //        morphium.ensureIndicesFor(Place.class);
         for (int i = 0; i < 1000; i++) {
             Place p = new Place();
             List<Double> pos = new ArrayList<>();
@@ -98,7 +98,7 @@ public class GeoSearchTests extends MongoTest {
     public void centerSphereTest() throws Exception {
         morphium.dropCollection(Place.class);
         ArrayList<Place> toStore = new ArrayList<>();
-//        morphium.ensureIndicesFor(Place.class);
+        //        morphium.ensureIndicesFor(Place.class);
         for (int i = 0; i < 1000; i++) {
             Place p = new Place();
             List<Double> pos = new ArrayList<>();
@@ -124,7 +124,7 @@ public class GeoSearchTests extends MongoTest {
     public void polygonTest() throws Exception {
         morphium.dropCollection(Place.class);
         ArrayList<Place> toStore = new ArrayList<>();
-//        morphium.ensureIndicesFor(Place.class);
+        //        morphium.ensureIndicesFor(Place.class);
         for (int i = 0; i < 1000; i++) {
             Place p = new Place();
             List<Double> pos = new ArrayList<>();
@@ -150,7 +150,7 @@ public class GeoSearchTests extends MongoTest {
     public void centerTest() throws Exception {
         morphium.dropCollection(Place.class);
         ArrayList<Place> toStore = new ArrayList<>();
-//        morphium.ensureIndicesFor(Place.class);
+        //        morphium.ensureIndicesFor(Place.class);
         for (int i = 0; i < 1000; i++) {
             Place p = new Place();
             List<Double> pos = new ArrayList<>();
@@ -179,11 +179,10 @@ public class GeoSearchTests extends MongoTest {
     @DefaultReadPreference(ReadPreferenceLevel.PRIMARY)
     @Entity
     public static class Place {
-        @Id
-        private MorphiumId id;
-
         public List<Double> position;
         public String name;
+        @Id
+        private MorphiumId id;
 
         public MorphiumId getId() {
             return id;

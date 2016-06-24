@@ -73,9 +73,9 @@ public class MassCacheTest extends MongoTest {
         start = System.currentTimeMillis();
         for (int i = 0; i < WRITING_THREADS; i++) {
             for (int j = 0; j < NO_OBJECTS; j++) {
-//                CachedObject o = new CachedObject();
-//                o.setCounter(j + 1);
-//                o.setValue("Writing thread " + i + " " + j);
+                //                CachedObject o = new CachedObject();
+                //                o.setCounter(j + 1);
+                //                o.setValue("Writing thread " + i + " " + j);
                 Query<CachedObject> q = morphium.createQueryFor(CachedObject.class);
                 q.f("counter").eq(j + 1).f("value").eq("Writing thread " + i + " " + j);
                 List<CachedObject> lst = morphium.find(q);

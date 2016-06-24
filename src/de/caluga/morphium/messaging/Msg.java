@@ -59,6 +59,7 @@ public class Msg {
     private Date deleteAt;
     @Transient
     private Boolean exclusive = null;
+
     public Msg() {
         // msgId = UUID.randomUUID().toString();
         lockedBy = "ALL";
@@ -91,8 +92,11 @@ public class Msg {
      * @param exclusive
      */
     public void setExclusive(boolean exclusive) {
-        if (!exclusive) lockedBy = "ALL";
-        else lockedBy = null;
+        if (!exclusive) {
+            lockedBy = "ALL";
+        } else {
+            lockedBy = null;
+        }
         this.exclusive = exclusive;
     }
 
@@ -145,7 +149,9 @@ public class Msg {
     }
 
     public void removeValue(String key) {
-        if (mapValue == null) return;
+        if (mapValue == null) {
+            return;
+        }
         mapValue.remove(key);
     }
 
@@ -276,7 +282,9 @@ public class Msg {
     }
 
     public void removeAdditional(String value) {
-        if (additional == null) return;
+        if (additional == null) {
+            return;
+        }
         additional.remove(value);
     }
 
@@ -365,7 +373,7 @@ public class Msg {
         ret.setType(type);
         ret.setValue(value);
         ret.setMsg(msg);
-//        ret.setMsgId();
+        //        ret.setMsgId();
         ret.setMapValue(mapValue);
         ret.setTo(to);
 
