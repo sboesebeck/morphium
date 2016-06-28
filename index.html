@@ -84,8 +84,10 @@ take a look at the <a href="https://github.com/sboesebeck/morphium/wiki/_pages">
 <h1>Morphium 3.0 overview</h1>
 <a href="https://raw.githubusercontent.com/sboesebeck/morphium/master/Morphium_overview.png"><img src="https://raw.githubusercontent.com/sboesebeck/morphium/master/Morphium_overview.png" size="50%"/></a>
 
+<h1>New MorphiumDriver API</h1>
+<p>With 3.0 we introduced the MorphiumDriver API into morphium. This abstracts the whole connection process to the driver layer. Everything is encapsulated - and due to this encapsulation, you can also connect to different things, not only Mongo.</p>
 <p>there are different implementation of the MorphiumDriver interface already part of the project. There is the "default"-Driver, which uses the official Mongodb implementation to connect to mongo,
-then there are some Test Implementations of own Drivers (SingleConnectDriver and SingleConnectDriverThreadded) and an InMemoryDriver, which is really helpful when testing things.</p>
+then there are some Test Implementations of own Drivers (SingleConnectDriver, SingleConnectDriverThreadded and one Driver called MetaDriver) and an InMemoryDriver, which is really helpful when testing things.</p>
 
 <p>In future, there will be more drivers in different projects, like <a href="https://github.com/sboesebeck/influxDBMorphiumDriver">here</a>. This is a MorphiumDriver implementation for InfluxDB.</p>
 <h1>
