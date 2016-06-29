@@ -132,12 +132,12 @@
         <dependency>
             <groupId>org.mongodb</groupId>
             <artifactId>mongo-java-driver</artifactId>
-            <version>LATEST</version>
+            <version>RELEASE</version>
         </dependency>
         <dependency>
             <groupId>com.googlecode.json-simple</groupId>
             <artifactId>json-simple</artifactId>
-            <version>LATEST</version>
+            <version>RELEASE</version>
         </dependency>
 
         <!-- for validation, we compile against the validation API -->
