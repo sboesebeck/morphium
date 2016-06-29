@@ -17,16 +17,27 @@ public class WriteConcern {
     //>1: number of nodes
     //-1: all available Replicaset Nodes
     //-2: Majority
-    private int w;
+    private final int w;
 
     //journaled
-    private boolean j;
-    private boolean fsync;
+    private final boolean j;
+    private final boolean fsync;
 
     /**
      * write timeout
      */
-    private int wtimeout;
+    private final int wtimeout;
+
+    private WriteConcern(int w, boolean fsync, boolean j, int wtimeout) {
+        this.w = w;
+        this.j = j;
+        this.wtimeout = wtimeout;
+        this.fsync = fsync;
+    }
+
+    public static WriteConcern getWc(int w, boolean fsync, boolean j, int wtimeout) {
+        return new WriteConcern(w, fsync, j, wtimeout);
+    }
 
     public int getW() {
         return w;
@@ -42,17 +53,6 @@ public class WriteConcern {
 
     public int getWtimeout() {
         return wtimeout;
-    }
-
-    private WriteConcern(int w, boolean fsync, boolean j, int wtimeout) {
-        this.w = w;
-        this.j = j;
-        this.wtimeout = wtimeout;
-        this.fsync = fsync;
-    }
-
-    public static WriteConcern getWc(int w, boolean fsync, boolean j, int wtimeout) {
-        return new WriteConcern(w, fsync, j, wtimeout);
     }
 
 }

@@ -28,7 +28,7 @@ public enum MongoType {
     MIN_KEY(255),
     MAX_KEY(127);
 
-    private int number;
+    private final int number;
 
     MongoType(int nr) {
         number = nr;

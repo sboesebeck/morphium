@@ -6,6 +6,7 @@ import de.caluga.morphium.annotations.Property;
 /**
  * Created by stephan on 17.11.14.
  */
+@SuppressWarnings("WeakerAccess")
 @Embedded
 public class BinarySerializedObject {
     @Property(fieldName = "_b64data")

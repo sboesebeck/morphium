@@ -17,9 +17,8 @@ import java.util.List;
  */
 public class MorphiumDriverIterator<T> implements MorphiumIterator<T> {
 
+    private final Logger log = new Logger(MorphiumDriverIterator.class);
     private Query<T> query;
-    private Logger log = new Logger(MorphiumDriverIterator.class);
-
     private MorphiumCursor<T> currentBatch = null;
 
     private int cursor = 0;

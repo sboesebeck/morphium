@@ -2,7 +2,6 @@ package de.caluga.morphium.replicaset;
 
 import de.caluga.morphium.Logger;
 import de.caluga.morphium.Morphium;
-import de.caluga.morphium.MorphiumConfig;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -20,9 +19,9 @@ import java.util.concurrent.atomic.AtomicInteger;
  */
 @SuppressWarnings("WeakerAccess")
 public class RSMonitor {
-    private static Logger logger = new Logger(RSMonitor.class);
+    private static final Logger logger = new Logger(RSMonitor.class);
     private final ScheduledThreadPoolExecutor executorService;
-    private Morphium morphium;
+    private final Morphium morphium;
     private ReplicaSetStatus currentStatus;
     private int nullcounter = 0;
 
@@ -30,7 +29,7 @@ public class RSMonitor {
         this.morphium = morphium;
         executorService = new ScheduledThreadPoolExecutor(1);
         executorService.setThreadFactory(new ThreadFactory() {
-            private AtomicInteger num = new AtomicInteger(1);
+            private final AtomicInteger num = new AtomicInteger(1);
 
             @Override
             public Thread newThread(Runnable r) {
@@ -87,19 +86,8 @@ public class RSMonitor {
     public de.caluga.morphium.replicaset.ReplicaSetStatus getReplicaSetStatus(boolean full) {
         if (morphium.isReplicaSet()) {
             try {
-                //                DB adminDB = morphium.getDriver().("admin");
-                MorphiumConfig config = morphium.getConfig();
-                //                if (config.getMongoAdminUser() != null) {
-                //                    if (!adminDB.authenticate(config.getMongoAdminUser(), config.getMongoAdminPwd().toCharArray())) {
-                //                        logger.error("Authentication as admin failed!");
-                //                        return null;
-                //                    }
-                //                }
-
-
                 Map<String, Object> res = morphium.getDriver().getReplsetStatus();
                 de.caluga.morphium.replicaset.ReplicaSetStatus status = morphium.getMapper().unmarshall(de.caluga.morphium.replicaset.ReplicaSetStatus.class, res);
-                int idx = 0;
 
                 if (full) {
                     Map<String, Object> findMetaData = new HashMap<>();

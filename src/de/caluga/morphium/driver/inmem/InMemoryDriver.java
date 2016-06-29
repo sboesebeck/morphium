@@ -20,9 +20,9 @@ import java.util.concurrent.ConcurrentHashMap;
  */
 @SuppressWarnings("WeakerAccess")
 public class InMemoryDriver implements MorphiumDriver {
-    private Logger log = new Logger(InMemoryDriver.class);
+    private final Logger log = new Logger(InMemoryDriver.class);
     // DBName => Collection => List of documents
-    private Map<String, Map<String, List<Map<String, Object>>>> database = new ConcurrentHashMap<>();
+    private final Map<String, Map<String, List<Map<String, Object>>>> database = new ConcurrentHashMap<>();
 
     @Override
     public void setCredentials(String db, String login, char[] pwd) {
@@ -776,7 +776,7 @@ public class InMemoryDriver implements MorphiumDriver {
     @Override
     public BulkRequestContext createBulkContext(Morphium m, String db, String collection, boolean ordered, WriteConcern wc) {
         return new BulkRequestContext(m) {
-            private List<BulkRequest> requests = new ArrayList<>();
+            private final List<BulkRequest> requests = new ArrayList<>();
 
             @Override
             public Map<String, Object> execute() {

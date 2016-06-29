@@ -34,7 +34,7 @@ import java.util.stream.Collectors;
  */
 @SuppressWarnings({"ConstantConditions", "unchecked", "ConfusingArgumentToVarargsMethod", "WeakerAccess"})
 public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
-    private static Logger logger = new Logger(MorphiumWriterImpl.class);
+    private static final Logger logger = new Logger(MorphiumWriterImpl.class);
     private Morphium morphium;
     private int maximumRetries = 10;
     private int pause = 250;
@@ -64,7 +64,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
             //                }
             //            });
             executor.setThreadFactory(new ThreadFactory() {
-                private AtomicInteger num = new AtomicInteger(1);
+                private final AtomicInteger num = new AtomicInteger(1);
 
                 @Override
                 public Thread newThread(Runnable r) {
@@ -455,7 +455,6 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                     //                    System.out.println(System.currentTimeMillis()+" -  storing" );
                     HashMap<Class, List<Object>> sorted = new HashMap<>();
                     HashMap<Object, Boolean> isNew = new HashMap<>();
-                    int cnt = 0;
                     for (Object o : lst) {
                         Class type = morphium.getARHelper().getRealClass(o.getClass());
                         if (!morphium.getARHelper().isAnnotationPresentInHierarchy(type, Entity.class)) {

@@ -15,7 +15,7 @@ import java.util.Map;
  **/
 
 public class OpReply extends WireProtocolMessage {
-    public long timestamp;
+    public final long timestamp;
     private int reqId;
     private int inReplyTo;
     private int size = 0;

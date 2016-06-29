@@ -25,14 +25,14 @@ import java.util.Map;
  */
 @SuppressWarnings("WeakerAccess")
 public class MongodbBulkContext extends BulkRequestContext {
-    private Logger log = new Logger(MongodbBulkContext.class);
-    private Driver driver;
-    private boolean ordered;
-    private String db;
-    private String collection;
-    private WriteConcern wc;
+    private final Logger log = new Logger(MongodbBulkContext.class);
+    private final Driver driver;
+    private final boolean ordered;
+    private final String db;
+    private final String collection;
+    private final WriteConcern wc;
 
-    private List<BulkRequest> requests;
+    private final List<BulkRequest> requests;
 
     public MongodbBulkContext(Morphium m, String db, String collection, Driver driver, boolean ordered, int batchSize, WriteConcern wc) {
         super(m);
@@ -85,7 +85,6 @@ public class MongodbBulkContext extends BulkRequestContext {
         Map<Document, Map<String, Object>> inserts = new HashMap<>();
         int count = 0;
         List<BulkWriteResult> results = new ArrayList<>();
-        DriverHelper helper = new DriverHelper();
         for (BulkRequest br : requests) {
             if (br instanceof InsertBulkRequest) {
                 //Insert...

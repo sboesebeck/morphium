@@ -9,6 +9,7 @@ import de.caluga.morphium.async.AsyncOperationCallback;
  * <p/>
  * TODO: Add documentation here
  */
+@SuppressWarnings("WeakerAccess")
 public interface WriterTask<T> extends Runnable {
     void setCallback(AsyncOperationCallback<T> cb);
 }

@@ -24,16 +24,13 @@ import java.util.concurrent.ConcurrentHashMap;
  */
 public class DefaultMorphiumIterator<T> implements MorphiumIterator<T> {
 
+    private final Logger log = new Logger(DefaultMorphiumIterator.class);
     private int windowSize = 1;
-
     private Query<T> theQuery;
     private List<T> buffer;
     private int cursor = 0;
     private long count = 0;
-
     private Map<String, Object> lastValues = new HashMap<>();
-
-    private Logger log = new Logger(DefaultMorphiumIterator.class);
     private long limit;
 
     @Override

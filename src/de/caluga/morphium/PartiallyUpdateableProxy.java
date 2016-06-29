@@ -13,10 +13,10 @@ import java.util.List;
 public class PartiallyUpdateableProxy<T> implements MethodInterceptor, PartiallyUpdateable, Serializable {
     private static final long serialVersionUID = -1277417045334974980L;
     //    private final transient Morphium morphium;
-    private AnnotationAndReflectionHelper ah;
+    private final AnnotationAndReflectionHelper ah;
 
-    private List<String> updateableFields;
-    private T reference;
+    private final List<String> updateableFields;
+    private final T reference;
 
     public PartiallyUpdateableProxy(Morphium m, T o) {
         updateableFields = Collections.synchronizedList(new ArrayList<>());

@@ -25,7 +25,7 @@ import java.util.stream.Collectors;
  */
 public class SingleConnectDirectDriver extends DriverBase {
 
-    private Logger log = new Logger(SingleConnectThreaddedDriver.class);
+    private final Logger log = new Logger(SingleConnectThreaddedDriver.class);
     private Socket s;
     private OutputStream out;
     private InputStream in;
@@ -252,7 +252,6 @@ public class SingleConnectDirectDriver extends DriverBase {
         q.setFlags(0);
         q.setInReplyTo(0);
 
-        List<Map<String, Object>> ret = null;
         OpReply reply;
         synchronized (SingleConnectDirectDriver.this) {
             sendQuery(q);
@@ -351,8 +350,6 @@ public class SingleConnectDirectDriver extends DriverBase {
         List<Long> cursors = new ArrayList<>();
         cursors.add(crs.getCursorId());
         m.put("cursors", cursors);
-        Map<String, Object> result = runCommand(internalCursor.getDb(), m);
-        //        log.info("Got result");
     }
 
     @Override

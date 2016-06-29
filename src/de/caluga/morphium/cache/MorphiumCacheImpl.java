@@ -19,14 +19,12 @@ import java.util.concurrent.ConcurrentHashMap;
  * The Cache implementation for morphium.
  */
 public class MorphiumCacheImpl implements MorphiumCache {
+    private final List<CacheListener> cacheListeners;
+    private final Logger logger = new Logger(MorphiumCacheImpl.class);
+    private final CacheHousekeeper cacheHousekeeper;
     private Map<Class<?>, Map<String, CacheElement>> cache;
     private Map<Class<?>, Map<Object, Object>> idCache;
     private AnnotationAndReflectionHelper annotationHelper = new AnnotationAndReflectionHelper(false); //only used to get id's and annotations, camalcase conversion never happens
-
-    private List<CacheListener> cacheListeners;
-
-    private Logger logger = new Logger(MorphiumCacheImpl.class);
-    private CacheHousekeeper cacheHousekeeper;
 
 
     public MorphiumCacheImpl() {

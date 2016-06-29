@@ -22,9 +22,9 @@ import org.bson.types.ObjectId;
 import java.util.*;
 import java.util.stream.Collectors;
 
-@SuppressWarnings("WeakerAccess")
+@SuppressWarnings({"WeakerAccess", "deprecation"})
 public class Driver implements MorphiumDriver {
-    private Logger log = new Logger(Driver.class);
+    private final Logger log = new Logger(Driver.class);
     private String[] hostSeed;
     private int maxConnectionsPerHost = 50;
     private int minConnectionsPerHost = 10;
@@ -428,6 +428,7 @@ public class Driver implements MorphiumDriver {
     @Override
     public MorphiumCursor initIteration(String db, String collection, Map<String, Object> query, Map<String, Integer> sort, Map<String, Object> projection, int skip, int limit, int batchSize, ReadPreference readPreference, final Map<String, Object> findMetaData) throws MorphiumDriverException {
         DriverHelper.replaceMorphiumIdByObjectId(query);
+        //noinspection ConstantConditions
         return (MorphiumCursor) DriverHelper.doCall(() -> {
 
             DB database = mongo.getDB(db);
@@ -435,13 +436,7 @@ public class Driver implements MorphiumDriver {
             DBCollection coll = getColl(database, collection, readPreference, null);
             DBCursor ret = coll.find(new BasicDBObject(query), projection != null ? new BasicDBObject(projection) : null);
 
-            if (findMetaData != null) {
-                if (ret.getServerAddress() != null) {
-                    findMetaData.put("server", ret.getServerAddress().getHost() + ":" + ret.getServerAddress().getPort());
-                }
-                findMetaData.put("cursorId", ret.getCursorId());
-                findMetaData.put("collection", ret.getCollection().getName());
-            }
+            handleMetaData(findMetaData, ret);
 
             if (sort != null) {
                 ret = ret.sort(new BasicDBObject(sort));
@@ -486,8 +481,19 @@ public class Driver implements MorphiumDriver {
         }, retriesOnNetworkError, sleepBetweenErrorRetries).get("result");
     }
 
+    private void handleMetaData(Map<String, Object> findMetaData, DBCursor ret) {
+        if (findMetaData != null) {
+            if (ret.getServerAddress() != null) {
+                findMetaData.put("server", ret.getServerAddress().getHost() + ":" + ret.getServerAddress().getPort());
+            }
+            findMetaData.put("cursorId", ret.getCursorId());
+            findMetaData.put("collection", ret.getCollection().getName());
+        }
+    }
+
     @Override
     public MorphiumCursor nextIteration(final MorphiumCursor crs) throws MorphiumDriverException {
+        //noinspection ConstantConditions
         return (MorphiumCursor) DriverHelper.doCall(() -> {
             List<Map<String, Object>> values = new ArrayList<>();
             @SuppressWarnings("unchecked") DBCursor ret = ((MorphiumCursor<DBCursor>) crs).getInternalCursorObject();
@@ -544,13 +550,7 @@ public class Driver implements MorphiumDriver {
 
                 DBCursor ret = coll.find(new BasicDBObject(query), projection != null ? new BasicDBObject(projection) : null);
                 ret.hasNext();
-                if (findMetaData != null) {
-                    if (ret.getServerAddress() != null) {
-                        findMetaData.put("server", ret.getServerAddress().getHost() + ":" + ret.getServerAddress().getPort());
-                    }
-                    findMetaData.put("cursorId", ret.getCursorId());
-                    findMetaData.put("collection", ret.getCollection().getName());
-                }
+                handleMetaData(findMetaData, ret);
 
                 if (sort != null) {
                     ret = ret.sort(new BasicDBObject(sort));
@@ -620,21 +620,27 @@ public class Driver implements MorphiumDriver {
                     if (o instanceof BSON || o instanceof BsonValue || o instanceof Map)
                     //noinspection unchecked
                     {
+                        //noinspection unchecked
                         v.add(convertBSON((Map) o));
                     } else
                     //noinspection unchecked
                     {
+                        //noinspection unchecked
                         v.add(o);
                     }
                 }
                 value = v;
-            } else if (value instanceof BsonArray) {
+            } else //noinspection ConstantConditions
+                if (value instanceof BsonArray) {
                 Map m = new HashMap<>();
+                    //noinspection unchecked,unchecked
                 m.put("list", new ArrayList(((BsonArray) value).getValues()));
                 value = convertBSON(m).get("list");
-            } else if (value instanceof Document) {
+                } else //noinspection ConstantConditions
+                    if (value instanceof Document) {
                 value = convertBSON((Map) value);
-            } else if (value instanceof BSONObject) {
+                    } else //noinspection ConstantConditions
+                        if (value instanceof BSONObject) {
                 value = convertBSON((Map) value);
             }
             obj.put(k.toString(), value);
@@ -1007,7 +1013,7 @@ public class Driver implements MorphiumDriver {
 
     @Override
     public List<Map<String, Object>> getIndexes(String db, String collection) throws MorphiumDriverException {
-        //noinspection unchecked
+        //noinspection unchecked,ConstantConditions
         return (List<Map<String, Object>>) DriverHelper.doCall(() -> {
             List<Map<String, Object>> values = new ArrayList<>();
             for (Document d : mongo.getDatabase(db).getCollection(collection).listIndexes()) {

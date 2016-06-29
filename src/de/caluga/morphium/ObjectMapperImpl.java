@@ -26,15 +26,15 @@ import java.util.stream.Collectors;
  */
 @SuppressWarnings({"ConstantConditions", "MismatchedQueryAndUpdateOfCollection", "unchecked", "MismatchedReadAndWriteOfArray", "RedundantCast"})
 public class ObjectMapperImpl implements ObjectMapper {
-    private static Logger log = new Logger(ObjectMapperImpl.class);
+    private static final Logger log = new Logger(ObjectMapperImpl.class);
     private final ReflectionFactory reflection = ReflectionFactory.getReflectionFactory();
-    private Map<Class<?>, NameProvider> nameProviders;
+    private final Map<Class<?>, NameProvider> nameProviders;
+    private final JSONParser jsonParser = new JSONParser();
+    private final Map<Class, TypeMapper> customMapper;
+    private final List<Class<?>> mongoTypes;
+    private final ContainerFactory containerFactory;
     private AnnotationAndReflectionHelper annotationHelper = new AnnotationAndReflectionHelper(true);
     private Morphium morphium;
-    private JSONParser jsonParser = new JSONParser();
-    private Map<Class, TypeMapper> customMapper;
-    private List<Class<?>> mongoTypes;
-    private ContainerFactory containerFactory;
 
     public ObjectMapperImpl() {
 

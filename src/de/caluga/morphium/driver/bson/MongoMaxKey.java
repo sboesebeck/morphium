@@ -7,5 +7,6 @@ package de.caluga.morphium.driver.bson;
  * <p>
  * Max Key marker class for BSON
  */
+@SuppressWarnings("WeakerAccess")
 public class MongoMaxKey {
 }

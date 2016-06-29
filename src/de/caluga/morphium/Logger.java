@@ -14,10 +14,9 @@ public class Logger {
     public static final int defaultLevel = 1;
     public static final boolean defaultSynced = false;
     public static final String defaultFile = "-";
-
+    private final String prfx;
+    private final DateFormat df = new SimpleDateFormat("YYYY-MM-dd HH:mm:ss.SSS");
     private int level = 5;
-    private String prfx;
-    private DateFormat df = new SimpleDateFormat("YYYY-MM-dd HH:mm:ss.SSS");
     private String file;
     private PrintWriter out = new PrintWriter(new OutputStreamWriter(System.out));
     private boolean synced = false;

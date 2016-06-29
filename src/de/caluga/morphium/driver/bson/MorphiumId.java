@@ -39,7 +39,6 @@ public class MorphiumId implements Comparable<MorphiumId> {
     }
 
     public MorphiumId(Date date) {
-        long start = System.currentTimeMillis();
 
         pid = createPID();
         counter = COUNT.getAndIncrement() & 0x00ffffff;

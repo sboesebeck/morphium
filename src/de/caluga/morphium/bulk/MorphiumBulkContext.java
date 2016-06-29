@@ -22,11 +22,11 @@ import java.util.Map;
  * context for doing bulk operations. What it does is, it stores all operations here and will send them to mongodb en block
  **/
 public class MorphiumBulkContext<T> {
-    private Logger log = new Logger(MorphiumBulkContext.class);
-    private BulkRequestContext ctx;
+    private final Logger log = new Logger(MorphiumBulkContext.class);
+    private final BulkRequestContext ctx;
 
-    private List<Runnable> preEvents = new ArrayList<>();
-    private List<Runnable> postEvents = new ArrayList<>();
+    private final List<Runnable> preEvents = new ArrayList<>();
+    private final List<Runnable> postEvents = new ArrayList<>();
 
     public MorphiumBulkContext(BulkRequestContext ctx) {
         this.ctx = ctx;
