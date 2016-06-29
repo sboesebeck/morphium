@@ -116,7 +116,7 @@ public class BsonDecoder {
                     while (in[idx + l] != 0) {
                         l++;
                     }
-                    String pattern = new String(in, idx, l, "UTF-8");
+                    //                    String pattern = new String(in, idx, l, "UTF-8");
                     idx += l;
 
                     l = 0;

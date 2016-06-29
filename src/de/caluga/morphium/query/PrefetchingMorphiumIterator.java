@@ -15,14 +15,12 @@ import java.util.List;
  * This iterator read WINDOWSIZE objects from Mongo and holds them in memory, until iterated over them.
  */
 public class PrefetchingMorphiumIterator<T> implements MorphiumIterator<T> {
+    private final Logger log = new Logger(MorphiumIterator.class);
     private int windowSize = 1;
-
     private Query<T> theQuery;
     private Container<T>[] prefetchBuffers;
     private int cursor = 0;
     private long count = 0;
-
-    private Logger log = new Logger(MorphiumIterator.class);
     private long limit;
     private int prefetchWindows = 2;
 
@@ -307,6 +305,7 @@ public class PrefetchingMorphiumIterator<T> implements MorphiumIterator<T> {
         multithreaddedAccess = mu;
     }
 
+    @SuppressWarnings("TypeParameterHidesVisibleType")
     private class Container<T> {
         private List<T> data;
 

@@ -22,7 +22,7 @@ import java.util.stream.Collectors;
  */
 @SuppressWarnings("WeakerAccess")
 public class QueryImpl<T> implements Query<T>, Cloneable {
-    private static Logger log = new Logger(Query.class);
+    private static final Logger log = new Logger(Query.class);
     private String where;
     private Class<? extends T> type;
     private List<FilterExpression> andExpr;
@@ -751,7 +751,6 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
 
                         }
                         ObjectMapper mapper = morphium.getMapper();
-                        String collName = mapper.getCollectionName(unmarshall.getClass());
                         Object id = getARHelper().getId(unmarshall);
                         //Cannot use store, as this would trigger an update of last changed...
                         morphium.getDriver().update(morphium.getConfig().getDatabase(), getCollectionName(), Utils.getMap("_id", id), Utils.getMap("$set", Utils.getMap(ctf, currentTime)), false, false, null);
@@ -1048,6 +1047,7 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
     @Override
     @Deprecated
     public List<T> textSearch(String... texts) {
+        //noinspection deprecation
         return textSearch(TextSearchLanguages.mongo_default, texts);
     }
 

@@ -29,12 +29,12 @@ import java.util.stream.Stream;
 @SuppressWarnings({"EmptyCatchBlock", "SynchronizeOnNonFinalField", "WeakerAccess"})
 public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
 
-    private static Logger logger = new Logger(BufferedMorphiumWriterImpl.class);
+    private static final Logger logger = new Logger(BufferedMorphiumWriterImpl.class);
+    //needs to be securely stored
+    private final Map<Class<?>, List<WriteBufferEntry>> opLog = new ConcurrentHashMap<>(); //synced
+    private final Map<Class<?>, Long> lastRun = new ConcurrentHashMap<>();
     private Morphium morphium;
     private MorphiumWriter directWriter;
-    //needs to be securely stored
-    private Map<Class<?>, List<WriteBufferEntry>> opLog = new ConcurrentHashMap<>(); //synced
-    private Map<Class<?>, Long> lastRun = new ConcurrentHashMap<>();
     private Thread housekeeping;
     private boolean running = true;
     private boolean orderedExecution = false;
@@ -49,6 +49,7 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
             long start = System.currentTimeMillis();
             while (housekeeping.isAlive()) {
                 if (System.currentTimeMillis() - start > 1000) {
+                    //noinspection deprecation
                     housekeeping.stop();
                     break;
                 }
@@ -271,7 +272,7 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
         if (c == null) {
             c = new AsyncOpAdapter<>();
         }
-        final AsyncOperationCallback<T> callback = c;
+        //        final AsyncOperationCallback<T> callback = c;
         morphium.inc(StatisticKeys.WRITES_CACHED);
         addToWriteQueue(ent.getClass(), collection, ctx -> {
             //                directWriter.updateUsingFields(ent, collection, callback, fields);
@@ -309,7 +310,7 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
         if (c == null) {
             c = new AsyncOpAdapter<>();
         }
-        final AsyncOperationCallback<T> callback = c;
+        //        final AsyncOperationCallback<T> callback = c;
         morphium.inc(StatisticKeys.WRITES_CACHED);
         addToWriteQueue(toSet.getClass(), collection, ctx -> {
             //                directWriter.set(toSet, collection, field, value, upsert, multiple, callback);
@@ -335,7 +336,7 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
         if (c == null) {
             c = new AsyncOpAdapter<>();
         }
-        final AsyncOperationCallback<T> callback = c;
+        //        final AsyncOperationCallback<T> callback = c;
         morphium.inc(StatisticKeys.WRITES_CACHED);
         addToWriteQueue(query.getType(), query.getCollectionName(), ctx -> {
             //                directWriter.set(toSet, collection, field, value, upsert, multiple, callback);
@@ -361,7 +362,7 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
         if (c == null) {
             c = new AsyncOpAdapter<>();
         }
-        final AsyncOperationCallback<T> callback = c;
+        //        final AsyncOperationCallback<T> callback = c;
         morphium.inc(StatisticKeys.WRITES_CACHED);
         addToWriteQueue(query.getType(), query.getCollectionName(), ctx -> {
             //                directWriter.set(toSet, collection, field, value, upsert, multiple, callback);
@@ -555,7 +556,7 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
         if (c == null) {
             c = new AsyncOpAdapter<>();
         }
-        final AsyncOperationCallback<T> callback = c;
+        //        final AsyncOperationCallback<T> callback = c;
         morphium.inc(StatisticKeys.WRITES_CACHED);
         for (final T obj : lst) {
             remove(obj, null, c);
@@ -567,7 +568,7 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
         if (c == null) {
             c = new AsyncOpAdapter<>();
         }
-        final AsyncOperationCallback<T> cb = c;
+        //        final AsyncOperationCallback<T> cb = c;
         morphium.inc(StatisticKeys.WRITES_CACHED);
         addToWriteQueue(q.getType(), q.getCollectionName(), ctx -> {
             morphium.firePreRemoveEvent(q);
@@ -694,7 +695,7 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
         if (c == null) {
             c = new AsyncOpAdapter<>();
         }
-        final AsyncOperationCallback<T> callback = c;
+        //        final AsyncOperationCallback<T> callback = c;
         morphium.inc(StatisticKeys.WRITES_CACHED);
         addToWriteQueue(query.getType(), query.getCollectionName(), ctx -> {
             //                directWriter.set(toSet, collection, field, value, upsert, multiple, callback);
@@ -822,6 +823,7 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
             Thread.sleep((morphium.getConfig().getWriteBufferTimeGranularity()));
 
             if (housekeeping != null) {
+                //noinspection deprecation
                 housekeeping.stop();
             }
         } catch (Throwable e) {
@@ -843,12 +845,12 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
     }
 
     private class WriteBufferEntry {
+        private final String collection;
         private BufferedBulkOp toRun;
         private AsyncOperationCallback cb;
         private AsyncOperationType type;
         private long timestamp;
         private Class entityType;
-        private String collection;
 
         private WriteBufferEntry(Class entitiyType, String collectionName, BufferedBulkOp toRun, long timestamp, AsyncOperationCallback c, AsyncOperationType t) {
             this.toRun = toRun;

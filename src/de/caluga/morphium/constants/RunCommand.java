@@ -18,7 +18,7 @@ public final class RunCommand {
     public enum ErrorCode {
         UNABLE_TO_CONNECT("20");
 
-        private String code;
+        private final String code;
 
         ErrorCode(String code) {
             this.code = code;

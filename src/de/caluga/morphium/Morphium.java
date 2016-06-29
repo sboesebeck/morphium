@@ -62,25 +62,20 @@ public class Morphium {
      * @see MorphiumConfig
      */
     private static final Logger logger = new Logger(Morphium.class);
+    private final ThreadLocal<Boolean> enableAutoValues = new ThreadLocal<>();
+    private final ThreadLocal<Boolean> enableReadCache = new ThreadLocal<>();
+    private final ThreadLocal<Boolean> disableWriteBuffer = new ThreadLocal<>();
+    private final ThreadLocal<Boolean> disableAsyncWrites = new ThreadLocal<>();
+    private final List<ProfilingListener> profilingListeners;
+    private final List<ShutdownListener> shutDownListeners = new CopyOnWriteArrayList<>();
+    private final List<DereferencingListener> lazyDereferencingListeners = new CopyOnWriteArrayList<>();
     private MorphiumConfig config;
-    private ThreadLocal<Boolean> enableAutoValues = new ThreadLocal<>();
-    private ThreadLocal<Boolean> enableReadCache = new ThreadLocal<>();
-    private ThreadLocal<Boolean> disableWriteBuffer = new ThreadLocal<>();
-    private ThreadLocal<Boolean> disableAsyncWrites = new ThreadLocal<>();
-
     private Map<StatisticKeys, StatisticValue> stats = new ConcurrentHashMap<>();
-
-
     private List<MorphiumStorageListener> listeners = new CopyOnWriteArrayList<>();
-    private List<ProfilingListener> profilingListeners;
-    private List<ShutdownListener> shutDownListeners = new CopyOnWriteArrayList<>();
-
     private AnnotationAndReflectionHelper annotationHelper;
     private ObjectMapper objectMapper;
     private RSMonitor rsMonitor;
-
     private ThreadPoolExecutor asyncOperationsThreadPool;
-    private List<DereferencingListener> lazyDereferencingListeners = new CopyOnWriteArrayList<>();
     private MorphiumDriver morphiumDriver;
 
     public Morphium() {
@@ -140,7 +135,7 @@ public class Morphium {
                 getConfig().getThreadPoolAsyncOpKeepAliveTime(), TimeUnit.MILLISECONDS,
                 new SynchronousQueue<>());
         asyncOperationsThreadPool.setThreadFactory(new ThreadFactory() {
-            private AtomicInteger num = new AtomicInteger(1);
+            private final AtomicInteger num = new AtomicInteger(1);
 
             @Override
             public Thread newThread(Runnable r) {

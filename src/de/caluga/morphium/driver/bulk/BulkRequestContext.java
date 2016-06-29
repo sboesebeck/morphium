@@ -13,9 +13,9 @@ import java.util.Map;
  **/
 @SuppressWarnings("WeakerAccess")
 public abstract class BulkRequestContext {
+    private final Morphium morphium;
     private boolean odererd = false;
     private int batchSize;
-    private Morphium morphium;
 
     public BulkRequestContext(Morphium m) {
         morphium = m;

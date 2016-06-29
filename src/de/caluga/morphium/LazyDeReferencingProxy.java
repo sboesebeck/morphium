@@ -13,9 +13,9 @@ public class LazyDeReferencingProxy<T> implements MethodInterceptor, Serializabl
     private final String fieldname;
     private final Object container;
     private final String collectionName;
+    private final Class<? extends T> cls;
+    private final Object id;
     private T deReferenced;
-    private Class<? extends T> cls;
-    private Object id;
 
     public LazyDeReferencingProxy(Morphium m, Class<? extends T> type, Object id, Object container, String fieldname, String collectionName) {
         cls = type;

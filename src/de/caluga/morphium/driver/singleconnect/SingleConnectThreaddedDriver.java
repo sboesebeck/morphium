@@ -24,7 +24,7 @@ import java.util.stream.Collectors;
 public class SingleConnectThreaddedDriver extends DriverBase {
 
     private final List<OpReply> replies = Collections.synchronizedList(new ArrayList<>());
-    private Logger log = new Logger(SingleConnectThreaddedDriver.class);
+    private final Logger log = new Logger(SingleConnectThreaddedDriver.class);
     private Socket s;
     private OutputStream out;
     private InputStream in;
@@ -146,9 +146,7 @@ public class SingleConnectThreaddedDriver extends DriverBase {
                                 synchronized (replies) {
                                     replies.add(reply);
                                     ArrayList<OpReply> toRemove = replies.stream().filter(r -> System.currentTimeMillis() - r.timestamp > getHeartbeatSocketTimeout()).collect(Collectors.toCollection(ArrayList::new));
-                                    for (OpReply r : toRemove) {
-                                        replies.remove(r);
-                                    }
+                                    toRemove.forEach(replies::remove);
                                 }
                             } catch (Exception e) {
                                 log.error("Could not read", e);
@@ -303,7 +301,6 @@ public class SingleConnectThreaddedDriver extends DriverBase {
         q.setFlags(0);
         q.setInReplyTo(0);
 
-        List<Map<String, Object>> ret = null;
         OpReply reply;
         sendQuery(q);
 
@@ -451,7 +448,6 @@ public class SingleConnectThreaddedDriver extends DriverBase {
         OpReply reply;
         OpQuery q;
         Map<String, Object> doc;
-        boolean hasMore = true;
         while (true) {
             reply = getReply(waitingfor);
             if (reply.getInReplyTo() != waitingfor) {

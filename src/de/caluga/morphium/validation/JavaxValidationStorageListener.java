@@ -15,7 +15,7 @@ import java.util.*;
 @SuppressWarnings({"ConstantConditions", "unchecked"})
 public class JavaxValidationStorageListener extends MorphiumStorageAdapter<Object> {
 
-    private Validator validator;
+    private final Validator validator;
 
     public JavaxValidationStorageListener() {
         ValidatorFactory factory = Validation.buildDefaultValidatorFactory();

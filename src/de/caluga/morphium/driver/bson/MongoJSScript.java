@@ -7,6 +7,7 @@ import java.util.Map;
 /**
  * JSCript implemantation for BSON
  **/
+@SuppressWarnings("WeakerAccess")
 public class MongoJSScript {
     private String js;
     private Map<String, Object> context;

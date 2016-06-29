@@ -26,15 +26,15 @@ import java.util.concurrent.ConcurrentHashMap;
 @SuppressWarnings("unchecked")
 public class AnnotationAndReflectionHelper {
     private final Annotation annotationNotPresent = () -> null;
-    private Logger log = new Logger(AnnotationAndReflectionHelper.class);
+    private final Logger log = new Logger(AnnotationAndReflectionHelper.class);
+    private final Map<Class<?>, Class<?>> realClassCache = new ConcurrentHashMap<>();
+    private final Map<Class<?>, List<Field>> fieldListCache = new ConcurrentHashMap<>();
+    private final Map<Class<?>, Map<Class<? extends Annotation>, Annotation>> annotationCache;
+    private final Map<Class<?>, Map<String, String>> fieldNameCache;
     private Map<String, Field> fieldCache = new ConcurrentHashMap<>();
-    private Map<Class<?>, Class<?>> realClassCache = new ConcurrentHashMap<>();
-    private Map<Class<?>, List<Field>> fieldListCache = new ConcurrentHashMap<>();
     private Map<String, List<String>> fieldAnnotationListCache = new ConcurrentHashMap<>();
     private Map<Class<?>, Map<Class<? extends Annotation>, Method>> lifeCycleMethods;
     private Map<Class<?>, Boolean> hasAdditionalData;
-    private Map<Class<?>, Map<Class<? extends Annotation>, Annotation>> annotationCache;
-    private Map<Class<?>, Map<String, String>> fieldNameCache;
     private boolean ccc = true;
 
     public AnnotationAndReflectionHelper(boolean convertCamelCase) {

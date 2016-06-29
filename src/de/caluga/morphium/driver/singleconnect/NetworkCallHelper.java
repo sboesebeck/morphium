@@ -13,8 +13,9 @@ import java.util.Map;
  * Mongodb throws errors on failover to the client, so we need to repeat all network calls several times
  * this class capsulates these calls.
  **/
+@SuppressWarnings("WeakerAccess")
 public class NetworkCallHelper {
-    private Logger logger = new Logger(NetworkCallHelper.class);
+    private final Logger logger = new Logger(NetworkCallHelper.class);
 
 
     public Map<String, Object> doCall(MorphiumDriverOperation r, int maxRetry, int sleep) throws MorphiumDriverException {

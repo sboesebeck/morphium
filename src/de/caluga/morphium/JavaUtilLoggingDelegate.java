@@ -8,11 +8,17 @@ import java.util.logging.Level;
  * logger delegate that passes on all calls to JUL
  **/
 public class JavaUtilLoggingDelegate implements LoggerDelegate {
+    @SuppressWarnings("WeakerAccess")
     public final static int LOG_OFF = 0;
+    @SuppressWarnings("WeakerAccess")
     public final static int LOG_SEVERE = 1;
+    @SuppressWarnings("WeakerAccess")
     public final static int LOG_SEVERER = 2;
+    @SuppressWarnings("WeakerAccess")
     public final static int LOG_WARN = 3;
+    @SuppressWarnings("WeakerAccess")
     public final static int LOG_INFO = 4;
+    @SuppressWarnings("WeakerAccess")
     public final static int LOG_ALL = 5;
 
     @Override

@@ -19,6 +19,7 @@ import java.util.Map;
 /**
  * helper class
  */
+@SuppressWarnings("WeakerAccess")
 public class DriverHelper {
     //Logger logger = new Logger(DriverHelper.class);
 

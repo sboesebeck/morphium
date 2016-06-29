@@ -19,13 +19,13 @@ import java.util.Map;
  */
 @SuppressWarnings("WeakerAccess")
 public class BulkContext extends BulkRequestContext {
-    private DriverBase driver;
-    private boolean ordered;
-    private String db;
-    private String collection;
-    private WriteConcern wc;
+    private final DriverBase driver;
+    private final boolean ordered;
+    private final String db;
+    private final String collection;
+    private final WriteConcern wc;
 
-    private List<BulkRequest> requests;
+    private final List<BulkRequest> requests;
 
     public BulkContext(Morphium m, String db, String collection, DriverBase driver, boolean ordered, int batchSize, WriteConcern wc) {
         super(m);
@@ -93,7 +93,7 @@ public class BulkContext extends BulkRequestContext {
                 }
             } else if (br instanceof InsertBulkRequest) {
                 //                //Insert...
-                InsertBulkRequest ib = (InsertBulkRequest) br;
+                //                InsertBulkRequest ib = (InsertBulkRequest) br;
                 inserts.addAll(((InsertBulkRequest) br).getToInsert());
                 if (inserts.size() >= driver.getMaxWriteBatchSize()) {
                     driver.insert(db, collection, inserts, wc);
@@ -112,7 +112,7 @@ public class BulkContext extends BulkRequestContext {
                 cmd.put("multi", up.isMultiple());
                 updates.add(cmd);
                 if (updates.size() >= driver.getMaxWriteBatchSize()) {
-                    Map<String, Object> result = null;
+                    @SuppressWarnings("UnusedAssignment") Map<String, Object> result = null;
                     result = driver.update(db, collection, updates, ordered, wc);
                     updates.clear();
                 }
@@ -129,6 +129,7 @@ public class BulkContext extends BulkRequestContext {
 
         if (!updates.isEmpty()) {
             Map<String, Object> result = null;
+            //noinspection UnusedAssignment
             result = driver.update(db, collection, updates, ordered, wc);
         }
 
@@ -137,10 +138,10 @@ public class BulkContext extends BulkRequestContext {
         Map<String, Object> res = new HashMap<>();
         //
         int delCount = 0;
-        int matchedCount = 0;
-        int insertCount = 0;
-        int modifiedCount = 0;
-        int upsertCount = 0;
+        @SuppressWarnings("UnusedAssignment") int matchedCount = 0;
+        @SuppressWarnings("UnusedAssignment") int insertCount = 0;
+        @SuppressWarnings("UnusedAssignment") int modifiedCount = 0;
+        @SuppressWarnings("UnusedAssignment") int upsertCount = 0;
         for (Map<String, Object> r : results) {
             //TODO - get metadata
             //            delCount += r.getDeletedCount();

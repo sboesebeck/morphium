@@ -14,7 +14,7 @@ import java.util.regex.Pattern;
  */
 @SuppressWarnings("WeakerAccess")
 public class BsonEncoder {
-    private ByteArrayOutputStream out;
+    private final ByteArrayOutputStream out;
 
     public BsonEncoder() {
 
@@ -103,10 +103,12 @@ public class BsonEncoder {
             int cnt = 0;
             if (Collection.class.isAssignableFrom(v.getClass())) {
                 List l = new ArrayList();
+                //noinspection unchecked
                 l.addAll((Collection) v);
                 v = l;
 
             }
+            //noinspection ConstantConditions
             for (Object o : (List) v) {
                 //cString(""+(cnt++));
                 //                encodeObject("" + (cnt++), o);
@@ -175,16 +177,16 @@ public class BsonEncoder {
             ///with w/ scope 0xf, otherwise 0xd
             MongoJSScript s = (MongoJSScript) v;
             if (s.getContext() != null) {
-                try {
+                //                try {
                     writeByte(0x0f);
                     byte[] b = BsonEncoder.encodeDocument(s.getContext());
-                    long sz = n.getBytes("UTF-8").length + 1 + 4 + b.length; //size+stringlength+1 (ending 0)+document length
+                //                    long sz = n.getBytes("UTF-8").length + 1 + 4 + b.length; //size+stringlength+1 (ending 0)+document length
                     string(n);
 
                     writeBytes(b);
-                } catch (IOException e) {
-                    e.printStackTrace();
-                }
+                //                } catch (IOException e) {
+                //                    e.printStackTrace();
+                //                }
 
             }
         } else if (v.getClass().isAssignableFrom(Integer.class)) {

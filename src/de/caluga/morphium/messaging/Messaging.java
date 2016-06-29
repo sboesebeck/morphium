@@ -270,9 +270,7 @@ public class Messaging extends Thread implements ShutdownListener {
                 }
                 morphium.storeList(toStore, getCollectionName());
                 morphium.delete(toRemove, getCollectionName());
-                for (Runnable r : toExec) {
-                    queueOrRun(r);
-                }
+                toExec.forEach(this::queueOrRun);
                 while (morphium.getWriteBufferCount() > 0) {
                     Thread.sleep(100);
                 }

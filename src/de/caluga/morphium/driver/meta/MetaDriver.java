@@ -23,20 +23,20 @@ import java.util.concurrent.ConcurrentHashMap;
  * for testing.
  */
 public class MetaDriver extends DriverBase {
+    private static final ReadPreference primary = ReadPreference.primary();
+    private static final ReadPreference secondaryPreferred = ReadPreference.secondaryPreferred();
+    private static final ReadPreference primaryPreferred = ReadPreference.primaryPreferred();
     private static volatile long seq;
-    private static ReadPreference primary = ReadPreference.primary();
-    private static ReadPreference secondaryPreferred = ReadPreference.secondaryPreferred();
-    private static ReadPreference primaryPreferred = ReadPreference.primaryPreferred();
-    private Logger log = new Logger(MetaDriver.class);
-    private Map<String, List<Connection>> connectionPool = new ConcurrentHashMap<>();
-    private Map<String, List<Connection>> connectionsInUse = new ConcurrentHashMap<>();
+    private final Logger log = new Logger(MetaDriver.class);
+    private final Map<String, List<Connection>> connectionPool = new ConcurrentHashMap<>();
+    private final Map<String, List<Connection>> connectionsInUse = new ConcurrentHashMap<>();
+    private final List<String> secondaries = Collections.synchronizedList(new ArrayList<>());
+    private final List<String> arbiters = Collections.synchronizedList(new ArrayList<>());
+    private final List<String> tempBlockedHosts = Collections.synchronizedList(new ArrayList<>());
+    private final Map<String, Integer> errorCountByHost = new ConcurrentHashMap<>();
     private String currentMaster;
-    private List<String> secondaries = Collections.synchronizedList(new ArrayList<>());
-    private List<String> arbiters = Collections.synchronizedList(new ArrayList<>());
-    private List<String> tempBlockedHosts = Collections.synchronizedList(new ArrayList<>());
     private long fastestAnswer = 10000000;
     private String fastestHost = null;
-    private Map<String, Integer> errorCountByHost = new ConcurrentHashMap<>();
     private boolean connected = false;
     private long fastestHostTimestamp = System.currentTimeMillis();
 
@@ -412,29 +412,24 @@ public class MetaDriver extends DriverBase {
     @Override
     public void close() throws MorphiumDriverException {
         connected = false;
-        for (String h : connectionPool.keySet()) {
-            while (!connectionPool.get(h).isEmpty()) {
-                //noinspection EmptyCatchBlock
-                try {
-                    Connection c = connectionPool.get(h).remove(0);
-                    c.close();
-                } catch (Exception e) {
-                }
-            }
-        }
-        for (String h : connectionsInUse.keySet()) {
-            while (!connectionsInUse.get(h).isEmpty()) {
-                //noinspection EmptyCatchBlock
-                try {
-                    Connection c = connectionsInUse.get(h).remove(0);
-                    c.close();
-                } catch (Exception e) {
-                }
-            }
-        }
+        closeConnections(connectionPool);
+        closeConnections(connectionsInUse);
         while (getTotalConnectionCount() > 0) {
             log.error("Still connected?!?!? " + getTotalConnectionCount());
             close();
+        }
+    }
+
+    private void closeConnections(Map<String, List<Connection>> pool) {
+        for (String h : pool.keySet()) {
+            while (!pool.get(h).isEmpty()) {
+                //noinspection EmptyCatchBlock
+                try {
+                    Connection c = pool.get(h).remove(0);
+                    c.close();
+                } catch (Exception e) {
+                }
+            }
         }
     }
 
