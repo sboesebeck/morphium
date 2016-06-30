@@ -314,6 +314,7 @@ public class Morphium {
         return morphiumDriver;
     }
 
+    @SuppressWarnings("unused")
     public void setDriver(MorphiumDriver drv) {
         morphiumDriver = drv;
     }
@@ -367,6 +368,7 @@ public class Morphium {
         unset(toSet, collection, field.name(), null);
     }
 
+    @SuppressWarnings("unused")
     public <T> void unset(final T toSet, String collection, final Enum field, final AsyncOperationCallback<T> callback) {
         unset(toSet, collection, field.name(), callback);
     }
@@ -404,6 +406,7 @@ public class Morphium {
         getWriterForClass(q.getType()).unset(q, cb, false, field);
     }
 
+    @SuppressWarnings({"unused", "UnusedParameters"})
     public <T> void unsetQ(Query<T> q, AsyncOperationCallback<T> cb, boolean multiple, String... field) {
         getWriterForClass(q.getType()).unset(q, cb, false, field);
     }
@@ -498,6 +501,7 @@ public class Morphium {
         ensureIndicesFor(c, cb);
     }
 
+    @SuppressWarnings("UnusedParameters")
     public <T> void convertToCapped(String coll, int size, AsyncOperationCallback<T> cb) {
         Map<String, Object> cmd = new LinkedHashMap<>();
         cmd.put("convertToCapped", coll);
@@ -622,6 +626,7 @@ public class Morphium {
         getWriterForClass(query.getType()).set(query, toSet, false, false, callback);
     }
 
+    @SuppressWarnings("unused")
     public void setEnum(Query<?> query, Map<Enum, Object> values, boolean upsert, boolean multiple) {
         HashMap<String, Object> toSet = new HashMap<>();
         for (Map.Entry<Enum, Object> est : values.entrySet()) {
@@ -644,6 +649,7 @@ public class Morphium {
         push(query, field, value, false, true);
     }
 
+    @SuppressWarnings("unused")
     public void pull(Query<?> query, String field, Object value) {
         pull(query, field, value, false, true);
     }
@@ -684,6 +690,7 @@ public class Morphium {
      * @param callback - will be called, when operation succeeds - synchronous call, if null
      * @param <T>      - the type
      */
+    @SuppressWarnings("UnusedParameters")
     public <T> void push(final Query<T> query, final String field, final Object value, final boolean upsert, final boolean multiple, final AsyncOperationCallback<T> callback) {
         if (query == null || field == null) {
             throw new RuntimeException("Cannot update null!");
@@ -741,10 +748,12 @@ public class Morphium {
      * @param upsert   - insert, if it does not exist (query needs to be simple!)
      * @param multiple - update several documents, if false, only first hit will be updated
      */
+    @SuppressWarnings("unused")
     public <T> void set(Query<T> query, Enum field, Object val, boolean upsert, boolean multiple) {
         set(query, field.name(), val, upsert, multiple, (AsyncOperationCallback<Query<T>>) null);
     }
 
+    @SuppressWarnings("unused")
     public <T> void set(Query<T> query, Enum field, Object val, boolean upsert, boolean multiple, AsyncOperationCallback<Query<T>> callback) {
         set(query, field.name(), val, upsert, multiple, callback);
     }
@@ -777,10 +786,12 @@ public class Morphium {
     }
 
 
+    @SuppressWarnings("unused")
     public <T> void set(T toSet, Enum field, Object value, AsyncOperationCallback<T> callback) {
         set(toSet, field.name(), value, callback);
     }
 
+    @SuppressWarnings("unused")
     public void set(Object toSet, Enum field, Object value) {
         set(toSet, field.name(), value, null);
     }
@@ -830,14 +841,17 @@ public class Morphium {
         dec(query, field.name(), -amount, upsert, multiple);
     }
 
+    @SuppressWarnings("unused")
     public void dec(Query<?> query, Enum field, long amount, boolean upsert, boolean multiple) {
         dec(query, field.name(), -amount, upsert, multiple);
     }
 
+    @SuppressWarnings("unused")
     public void dec(Query<?> query, Enum field, Number amount, boolean upsert, boolean multiple) {
         dec(query, field.name(), -amount.doubleValue(), upsert, multiple);
     }
 
+    @SuppressWarnings("unused")
     public void dec(Query<?> query, Enum field, int amount, boolean upsert, boolean multiple) {
         dec(query, field.name(), -amount, upsert, multiple);
     }
@@ -854,14 +868,17 @@ public class Morphium {
         inc(query, field, -amount, upsert, multiple);
     }
 
+    @SuppressWarnings("unused")
     public void dec(Query<?> query, String field, Number amount, boolean upsert, boolean multiple) {
         inc(query, field, -amount.doubleValue(), upsert, multiple);
     }
 
+    @SuppressWarnings("unused")
     public void dec(Query<?> query, String field, double amount) {
         inc(query, field, -amount, false, false);
     }
 
+    @SuppressWarnings("unused")
     public void dec(Query<?> query, String field, long amount) {
         inc(query, field, -amount, false, false);
     }
@@ -870,6 +887,7 @@ public class Morphium {
         inc(query, field, -amount, false, false);
     }
 
+    @SuppressWarnings("unused")
     public void dec(Query<?> query, String field, Number amount) {
         inc(query, field, -amount.doubleValue(), false, false);
     }
@@ -879,19 +897,23 @@ public class Morphium {
         inc(query, field, -amount, false, false);
     }
 
+    @SuppressWarnings("unused")
     public void dec(Query<?> query, Enum field, long amount) {
         inc(query, field, -amount, false, false);
     }
 
+    @SuppressWarnings("unused")
     public void dec(Query<?> query, Enum field, int amount) {
         inc(query, field, -amount, false, false);
     }
 
+    @SuppressWarnings("unused")
     public void dec(Query<?> query, Enum field, Number amount) {
         inc(query, field, -amount.doubleValue(), false, false);
     }
 
 
+    @SuppressWarnings("unused")
     public void inc(Query<?> query, String field, long amount) {
         inc(query, field, amount, false, false);
     }
@@ -900,10 +922,12 @@ public class Morphium {
         inc(query, field, amount, false, false);
     }
 
+    @SuppressWarnings("unused")
     public void inc(Query<?> query, String field, Number amount) {
         inc(query, field, amount, false, false);
     }
 
+    @SuppressWarnings("unused")
     public void inc(Query<?> query, String field, double amount) {
         inc(query, field, amount, false, false);
     }
@@ -913,14 +937,17 @@ public class Morphium {
         inc(query, field, amount, false, false);
     }
 
+    @SuppressWarnings("unused")
     public void inc(Query<?> query, Enum field, long amount) {
         inc(query, field, amount, false, false);
     }
 
+    @SuppressWarnings("unused")
     public void inc(Query<?> query, Enum field, int amount) {
         inc(query, field, amount, false, false);
     }
 
+    @SuppressWarnings("unused")
     public void inc(Query<?> query, Enum field, Number amount) {
         inc(query, field, amount, false, false);
     }
@@ -1010,6 +1037,7 @@ public class Morphium {
      * decreasing a value of a given object
      * calles <code>inc(toDec,field,-amount);</code>
      */
+    @SuppressWarnings("unused")
     public void dec(Object toDec, String field, double amount) {
         inc(toDec, field, -amount);
     }
@@ -1018,10 +1046,12 @@ public class Morphium {
         inc(toDec, field, -amount);
     }
 
+    @SuppressWarnings("unused")
     public void dec(Object toDec, String field, long amount) {
         inc(toDec, field, -amount);
     }
 
+    @SuppressWarnings("unused")
     public void dec(Object toDec, String field, Number amount) {
         inc(toDec, field, -amount.doubleValue());
     }
@@ -1038,6 +1068,7 @@ public class Morphium {
         inc(toSet, field, i, null);
     }
 
+    @SuppressWarnings("unused")
     public void inc(final Object toSet, final String field, final Number i) {
         inc(toSet, field, i, null);
     }
@@ -1133,6 +1164,7 @@ public class Morphium {
         }
     }
 
+    @SuppressWarnings("unused")
     public <T> void delete(List<T> lst, AsyncOperationCallback<T> callback) {
         ArrayList<T> directDel = new ArrayList<>();
         ArrayList<T> bufferedDel = new ArrayList<>();
@@ -1167,6 +1199,7 @@ public class Morphium {
         updateUsingFields(ent, getMapper().getCollectionName(ent.getClass()), callback, fields);
     }
 
+    @SuppressWarnings("UnusedParameters")
     public <T> void updateUsingFields(final T ent, String collection, AsyncOperationCallback<T> callback, final String... fields) {
         if (ent == null) {
             return;
@@ -1391,6 +1424,7 @@ public class Morphium {
      * @param <T> - type
      * @return the dereferenced object
      */
+    @SuppressWarnings("unused")
     public <T> T deReference(T obj) {
         if (obj instanceof LazyDeReferencingProxy) {
             //noinspection unchecked
@@ -1442,6 +1476,7 @@ public class Morphium {
      *
      * @return replica set status
      */
+    @SuppressWarnings("unused")
     private de.caluga.morphium.replicaset.ReplicaSetStatus getReplicaSetStatus() {
         return rsMonitor.getReplicaSetStatus(false);
     }
@@ -1507,6 +1542,7 @@ public class Morphium {
         return new MorphiumBulkContext(getDriver().createBulkContext(this, config.getDatabase(), getMapper().getCollectionName(type), ordered, getWriteConcernForClass(type)));
     }
 
+    @SuppressWarnings("unused")
     public MorphiumBulkContext createBulkRequestContext(String collection, boolean ordered) {
         return new MorphiumBulkContext(getDriver().createBulkContext(this, config.getDatabase(), collection, ordered, null));
     }
@@ -1648,6 +1684,7 @@ public class Morphium {
      * @param cls -class
      */
 
+    @SuppressWarnings("unused")
     public void clearCollectionOneByOne(Class<?> cls) {
         inc(StatisticKeys.WRITES);
         List<?> lst = readAll(cls);
@@ -1689,6 +1726,7 @@ public class Morphium {
     }
 
 
+    @SuppressWarnings("unused")
     public List<Object> distinct(Enum key, Class c) {
         return distinct(key.name(), c);
     }
@@ -1697,6 +1735,7 @@ public class Morphium {
      * returns a distinct list of values of the given collection
      * Attention: these values are not unmarshalled, you might get MongoMap<String,Object>s
      */
+    @SuppressWarnings("unused")
     public List<Object> distinct(Enum key, Query q) {
         return distinct(key.name(), q);
     }
@@ -1723,7 +1762,7 @@ public class Morphium {
         }
     }
 
-    @SuppressWarnings("unchecked")
+    @SuppressWarnings({"unchecked", "unused"})
     public List<Object> distinct(String key, String collectionName) {
         try {
             return morphiumDriver.distinct(config.getDatabase(), collectionName, key, new HashMap<>(), config.getDefaultReadPreference());
@@ -1794,6 +1833,7 @@ public class Morphium {
         storeNoCache(lst, getMapper().getCollectionName(lst.getClass()), null);
     }
 
+    @SuppressWarnings("unused")
     public <T> void storeNoCache(T o, AsyncOperationCallback<T> callback) {
         storeNoCache(o, getMapper().getCollectionName(o.getClass()), callback);
     }
@@ -1819,6 +1859,7 @@ public class Morphium {
         config.getBufferedWriter().store(lst, collection, callback);
     }
 
+    @SuppressWarnings("unused")
     public void flush() {
         config.getBufferedWriter().flush();
         config.getWriter().flush();
@@ -1841,10 +1882,12 @@ public class Morphium {
         getWriterForClass(cls).dropCollection(cls, getMapper().getCollectionName(cls), null);
     }
 
+    @SuppressWarnings("unused")
     public <T> void ensureIndex(Class<T> cls, Map<String, Object> index, AsyncOperationCallback<T> callback) {
         ensureIndex(cls, getMapper().getCollectionName(cls), index, callback);
     }
 
+    @SuppressWarnings("unused")
     public <T> void ensureIndex(Class<T> cls, String collection, Map<String, Object> index, Map<String, Object> options, AsyncOperationCallback<T> callback) {
         getWriterForClass(cls).ensureIndex(cls, collection, index, options, callback);
     }
@@ -1853,10 +1896,12 @@ public class Morphium {
         getWriterForClass(cls).ensureIndex(cls, collection, index, null, callback);
     }
 
+    @SuppressWarnings("unused")
     public int writeBufferCount() {
         return config.getWriter().writeBufferCount() + config.getBufferedWriter().writeBufferCount();
     }
 
+    @SuppressWarnings("unused")
     public <T> void store(List<T> lst, String collectionName, AsyncOperationCallback<T> callback) {
         if (lst == null || lst.isEmpty()) {
             return;
@@ -1869,10 +1914,12 @@ public class Morphium {
         getWriterForClass(cls).ensureIndex(cls, getMapper().getCollectionName(cls), index, null, null);
     }
 
+    @SuppressWarnings("unused")
     public void ensureIndex(Class<?> cls, String collection, Map<String, Object> index, Map<String, Object> options) {
         getWriterForClass(cls).ensureIndex(cls, collection, index, options, null);
     }
 
+    @SuppressWarnings("unused")
     public void ensureIndex(Class<?> cls, String collection, Map<String, Object> index) {
         getWriterForClass(cls).ensureIndex(cls, collection, index, null, null);
     }
@@ -1960,11 +2007,13 @@ public class Morphium {
     }
 
 
+    @SuppressWarnings("unused")
     public void ensureIndex(Class<?> cls, String... fldStr) {
         ensureIndex(cls, null, fldStr);
     }
 
 
+    @SuppressWarnings("unused")
     public void ensureIndex(Class<?> cls, Enum... fldStr) {
         ensureIndex(cls, null, fldStr);
     }
@@ -2079,14 +2128,17 @@ public class Morphium {
         getWriterForClass(o.getType()).remove(o, callback);
     }
 
+    @SuppressWarnings("unused")
     public <T> void pushPull(boolean push, Query<T> query, String field, Object value, boolean upsert, boolean multiple, AsyncOperationCallback<T> callback) {
         getWriterForClass(query.getType()).pushPull(push, query, field, value, upsert, multiple, callback);
     }
 
+    @SuppressWarnings("unused")
     public <T> void pushPullAll(boolean push, Query<T> query, String field, List<?> value, boolean upsert, boolean multiple, AsyncOperationCallback<T> callback) {
         getWriterForClass(query.getType()).pushPullAll(push, query, field, value, upsert, multiple, callback);
     }
 
+    @SuppressWarnings("unused")
     public <T> void pullAll(Query<T> query, String field, List<?> value, boolean upsert, boolean multiple, AsyncOperationCallback<T> callback) {
         getWriterForClass(query.getType()).pushPullAll(false, query, field, value, upsert, multiple, callback);
     }
@@ -2114,6 +2166,7 @@ public class Morphium {
         getWriterForClass(lo.getClass()).remove(lo, getMapper().getCollectionName(lo.getClass()), callback);
     }
 
+    @SuppressWarnings("unused")
     public <T> void delete(final T lo, String collection, final AsyncOperationCallback<T> callback) {
         getWriterForClass(lo.getClass()).remove(lo, collection, callback);
     }
@@ -2149,6 +2202,7 @@ public class Morphium {
         shutDownListeners.add(l);
     }
 
+    @SuppressWarnings("unused")
     public void removeShutdownListener(ShutdownListener l) {
         shutDownListeners.remove(l);
     }
@@ -2180,6 +2234,7 @@ public class Morphium {
         //        MorphiumSingleton.reset();
     }
 
+    @SuppressWarnings("unused")
     public String createCamelCase(String n) {
         return annotationHelper.createCamelCase(n, false);
     }
@@ -2282,6 +2337,7 @@ public class Morphium {
         return config.getBufferedWriter().writeBufferCount();
     }
 
+    @SuppressWarnings("unused")
     public int getAsyncWriterBufferCount() {
         return config.getAsyncWriter().writeBufferCount();
     }
@@ -2290,10 +2346,12 @@ public class Morphium {
         return config.getWriter().writeBufferCount();
     }
 
+    @SuppressWarnings("unused")
     public void disableAutoValuesForThread() {
         enableAutoValues.set(false);
     }
 
+    @SuppressWarnings("unused")
     public void enableAutoValuesForThread() {
         enableAutoValues.set(true);
     }
@@ -2302,10 +2360,12 @@ public class Morphium {
         return ((enableAutoValues.get() == null || enableAutoValues.get()) && config.isAutoValuesEnabled());
     }
 
+    @SuppressWarnings("unused")
     public void disableReadCacheForThread() {
         enableReadCache.set(false);
     }
 
+    @SuppressWarnings("unused")
     public void enableReadCacheForThread() {
         enableReadCache.set(true);
     }
@@ -2315,10 +2375,12 @@ public class Morphium {
     }
 
 
+    @SuppressWarnings("unused")
     public void disableWriteBufferForThread() {
         disableWriteBuffer.set(false);
     }
 
+    @SuppressWarnings("unused")
     public void enableWriteBufferForThread() {
         disableWriteBuffer.set(true);
     }
@@ -2328,10 +2390,12 @@ public class Morphium {
     }
 
 
+    @SuppressWarnings("unused")
     public void disableAsyncWritesForThread() {
         disableAsyncWrites.set(false);
     }
 
+    @SuppressWarnings("unused")
     public void enableAsyncWritesForThread() {
         disableAsyncWrites.set(true);
     }

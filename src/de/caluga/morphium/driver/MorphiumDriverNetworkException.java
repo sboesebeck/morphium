@@ -8,6 +8,7 @@ import java.util.Map;
  * network related issues when accessing the database
  **/
 public class MorphiumDriverNetworkException extends MorphiumDriverException {
+    @SuppressWarnings("unused")
     public MorphiumDriverNetworkException(String msg, Throwable t, String collection, String db, Map<String, Object> query) {
         super(msg, t, collection, db, query);
     }

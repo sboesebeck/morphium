@@ -397,6 +397,7 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
         return this;
     }
 
+    @SuppressWarnings("unused")
     private Query<T> getClone() {
         try {
             return clone();

@@ -14,11 +14,14 @@ import java.util.concurrent.ThreadPoolExecutor;
 public interface QueryFactory {
     <T> Query<T> createQuery(Morphium m, Class<? extends T> type);
 
+    @SuppressWarnings("unused")
     Class<? extends Query> getQueryImpl();
 
     void setQueryImpl(Class<? extends Query> queryImpl);
 
+    @SuppressWarnings("unused")
     void setExecutor(ThreadPoolExecutor ex);
 
+    @SuppressWarnings({"unused", "UnusedParameters"})
     ThreadPoolExecutor getExecutor(Morphium m);
 }

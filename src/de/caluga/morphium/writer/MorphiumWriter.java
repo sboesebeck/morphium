@@ -81,6 +81,7 @@ public interface MorphiumWriter {
 
     <T> void remove(List<T> lst, AsyncOperationCallback<T> callback);
 
+    @SuppressWarnings("unused")
     <T> void remove(Query<T> q, boolean multiple, AsyncOperationCallback<T> callback);
 
     <T> void remove(T o, String collection, AsyncOperationCallback<T> callback);
@@ -106,8 +107,10 @@ public interface MorphiumWriter {
      */
     <T> void unset(T toSet, String collection, String field, AsyncOperationCallback<T> callback);
 
+    @SuppressWarnings("unused")
     <T> void pop(T obj, String collection, String field, boolean first, AsyncOperationCallback<T> callback);
 
+    @SuppressWarnings("unused")
     <T> void unset(Query<T> query, String field, boolean multiple, AsyncOperationCallback<T> callback);
 
     <T> void unset(Query<T> query, AsyncOperationCallback<T> callback, boolean multiple, String... fields);

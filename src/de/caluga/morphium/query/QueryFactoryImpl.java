@@ -15,16 +15,17 @@ public class QueryFactoryImpl implements QueryFactory {
     private Class<? extends Query> queryImpl;
     private ThreadPoolExecutor executor = null;
 
+    @SuppressWarnings("unused")
     public QueryFactoryImpl() {
+    }
+
+    public QueryFactoryImpl(Class<? extends Query> qi) {
+        queryImpl = qi;
     }
 
     @Override
     public void setExecutor(ThreadPoolExecutor ex) {
         executor = ex;
-    }
-
-    public QueryFactoryImpl(Class<? extends Query> qi) {
-        queryImpl = qi;
     }
 
     @Override

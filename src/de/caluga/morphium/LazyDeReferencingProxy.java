@@ -26,6 +26,7 @@ public class LazyDeReferencingProxy<T> implements MethodInterceptor, Serializabl
         this.collectionName = collectionName;
     }
 
+    @SuppressWarnings("unused")
     public T __getPureDeref() {
         return deReferenced;
     }

@@ -88,6 +88,7 @@ public abstract class DriverBase implements MorphiumDriver {
     }
 
 
+    @SuppressWarnings("unused")
     public Map<String, Map<String, char[]>> getCredentials() {
         return credentials;
     }
@@ -123,6 +124,7 @@ public abstract class DriverBase implements MorphiumDriver {
         sleepBetweenRetries = s;
     }
 
+    @SuppressWarnings("unused")
     public int getMaxBsonObjectSize() {
         return maxBsonObjectSize;
     }
@@ -148,6 +150,7 @@ public abstract class DriverBase implements MorphiumDriver {
     }
 
 
+    @SuppressWarnings("unused")
     public boolean isReplicaSet() {
         return replicaSet;
     }

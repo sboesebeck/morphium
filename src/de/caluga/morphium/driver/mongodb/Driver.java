@@ -199,6 +199,7 @@ public class Driver implements MorphiumDriver {
         this.credentials = credentials;
     }
 
+    @SuppressWarnings("unused")
     public void setMongo(MongoClient mongo) {
         this.mongo = mongo;
     }
@@ -1185,6 +1186,7 @@ public class Driver implements MorphiumDriver {
         return mongo.getDatabase(db);
     }
 
+    @SuppressWarnings("unused")
     public MongoCollection getCollection(String db, String coll) {
 
         return mongo.getDatabase(db).getCollection(coll);

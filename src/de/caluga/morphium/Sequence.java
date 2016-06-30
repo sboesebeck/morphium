@@ -35,10 +35,12 @@ public class Sequence {
         return lockedAt;
     }
 
+    @SuppressWarnings("unused")
     public void setLockedAt(long lockedAt) {
         this.lockedAt = lockedAt;
     }
 
+    @SuppressWarnings("unused")
     public String getName() {
         return name;
     }
@@ -55,6 +57,7 @@ public class Sequence {
         this.currentValue = currentValue;
     }
 
+    @SuppressWarnings("unused")
     public String getLockedBy() {
         return lockedBy;
     }
@@ -63,6 +66,7 @@ public class Sequence {
         this.lockedBy = lockedBy;
     }
 
+    @SuppressWarnings("unused")
     public MorphiumId getId() {
         return id;
     }

@@ -1006,6 +1006,7 @@ public class MetaDriver extends DriverBase {
         private long answerTime;
         private boolean arbiter = false;
 
+        @SuppressWarnings("RedundantThrows")
         public Connection(DriverBase dr) throws MorphiumDriverException {
             if (dr == null) {
                 throw new IllegalArgumentException("Cannot create connection to null");
@@ -1032,14 +1033,17 @@ public class MetaDriver extends DriverBase {
             d.close();
         }
 
+        @SuppressWarnings("unused")
         public boolean isOk() {
             return ok;
         }
 
+        @SuppressWarnings("unused")
         public boolean isMaster() {
             return master;
         }
 
+        @SuppressWarnings("unused")
         public boolean isInUse() {
             return inUse;
         }
@@ -1055,34 +1059,42 @@ public class MetaDriver extends DriverBase {
             return d;
         }
 
+        @SuppressWarnings("unused")
         public void setD(DriverBase d) {
             this.d = d;
         }
 
+        @SuppressWarnings("unused")
         public long getCreated() {
             return created;
         }
 
+        @SuppressWarnings("unused")
         public void setCreated(long created) {
             this.created = created;
         }
 
+        @SuppressWarnings("unused")
         public long getLru() {
             return lru;
         }
 
+        @SuppressWarnings("unused")
         public void setLru(long lru) {
             this.lru = lru;
         }
 
+        @SuppressWarnings("unused")
         public long getOptime() {
             return optime;
         }
 
+        @SuppressWarnings("unused")
         public void setOptime(long optime) {
             this.optime = optime;
         }
 
+        @SuppressWarnings("unused")
         public long getId() {
             return id;
         }

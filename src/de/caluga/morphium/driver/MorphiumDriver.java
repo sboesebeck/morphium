@@ -20,82 +20,109 @@ public interface MorphiumDriver {
 
     void setCredentials(String db, String login, char[] pwd);
 
+    @SuppressWarnings("unused")
     boolean isReplicaset();
 
+    @SuppressWarnings("unused")
     String[] getCredentials(String db);
 
+    @SuppressWarnings("unused")
     boolean isDefaultFsync();
 
+    @SuppressWarnings("unused")
     void setDefaultFsync(boolean j);
 
     String[] getHostSeed();
 
     void setHostSeed(String... host);
 
+    @SuppressWarnings("unused")
     int getMaxConnectionsPerHost();
 
     void setMaxConnectionsPerHost(int mx);
 
+    @SuppressWarnings("unused")
     int getMinConnectionsPerHost();
 
     void setMinConnectionsPerHost(int mx);
 
+    @SuppressWarnings("unused")
     int getMaxConnectionLifetime();
 
     void setMaxConnectionLifetime(int timeout);
 
+    @SuppressWarnings("unused")
     int getMaxConnectionIdleTime();
 
     void setMaxConnectionIdleTime(int time);
 
+    @SuppressWarnings("unused")
     int getSocketTimeout();
 
     void setSocketTimeout(int timeout);
 
+    @SuppressWarnings("unused")
     int getConnectionTimeout();
 
     void setConnectionTimeout(int timeout);
 
+    @SuppressWarnings("unused")
     int getDefaultW();
 
+    @SuppressWarnings("unused")
     void setDefaultW(int w);
 
+    @SuppressWarnings("unused")
     int getMaxBlockintThreadMultiplier();
 
+    @SuppressWarnings("unused")
     int getHeartbeatFrequency();
 
     void setHeartbeatFrequency(int heartbeatFrequency);
 
+    @SuppressWarnings("unused")
     void setDefaultBatchSize(int defaultBatchSize);
 
+    @SuppressWarnings("unused")
     void setCredentials(Map<String, String[]> credentials);
 
+    @SuppressWarnings("unused")
     int getHeartbeatSocketTimeout();
 
     void setHeartbeatSocketTimeout(int heartbeatSocketTimeout);
 
+    @SuppressWarnings("unused")
     boolean isUseSSL();
 
+    @SuppressWarnings("unused")
     void setUseSSL(boolean useSSL);
 
+    @SuppressWarnings("unused")
     boolean isDefaultJ();
 
+    @SuppressWarnings("unused")
     void setDefaultJ(boolean j);
 
+    @SuppressWarnings("unused")
     int getWriteTimeout();
 
+    @SuppressWarnings("unused")
     void setWriteTimeout(int writeTimeout);
 
+    @SuppressWarnings("unused")
     int getLocalThreshold();
 
     void setLocalThreshold(int thr);
 
     void setMaxBlockingThreadMultiplier(int m);
 
+    @SuppressWarnings("unused")
     void heartBeatFrequency(int t);
 
+    @SuppressWarnings("unused")
     void heartBeatSocketTimeout(int t);
 
+    @SuppressWarnings("unused")
     void useSsl(boolean ssl);
 
     void connect() throws MorphiumDriverException;
@@ -104,28 +131,37 @@ public interface MorphiumDriver {
 
     void connect(String replicasetName) throws MorphiumDriverException;
 
+    @SuppressWarnings("unused")
     Maximums getMaximums();
 
     boolean isConnected();
 
+    @SuppressWarnings("unused")
     int getDefaultWriteTimeout();
 
+    @SuppressWarnings("unused")
     void setDefaultWriteTimeout(int wt);
 
+    @SuppressWarnings("unused")
     int getRetriesOnNetworkError();
 
+    @SuppressWarnings("unused")
     void setRetriesOnNetworkError(int r);
 
+    @SuppressWarnings("unused")
     int getSleepBetweenErrorRetries();
 
+    @SuppressWarnings("unused")
     void setSleepBetweenErrorRetries(int s);
 
     void close() throws MorphiumDriverException;
 
     Map<String, Object> getReplsetStatus() throws MorphiumDriverException;
 
+    @SuppressWarnings("unused")
     Map<String, Object> getDBStats(String db) throws MorphiumDriverException;
 
+    @SuppressWarnings("unused")
     Map<String, Object> getOps(long threshold) throws MorphiumDriverException;
 
     Map<String, Object> runCommand(String db, Map<String, Object> cmd) throws MorphiumDriverException;
@@ -169,8 +205,10 @@ public interface MorphiumDriver {
 
     void drop(String db, String collection, WriteConcern wc) throws MorphiumDriverException;
 
+    @SuppressWarnings("unused")
     void drop(String db, WriteConcern wc) throws MorphiumDriverException;
 
+    @SuppressWarnings("unused")
     boolean exists(String db) throws MorphiumDriverException;
 
     List<Object> distinct(String db, String collection, String field, Map<String, Object> filter, ReadPreference rp) throws MorphiumDriverException;
@@ -179,20 +217,24 @@ public interface MorphiumDriver {
 
     List<Map<String, Object>> getIndexes(String db, String collection) throws MorphiumDriverException;
 
+    @SuppressWarnings("unused")
     List<String> getCollectionNames(String db) throws MorphiumDriverException;
 
     Map<String, Object> group(String db, String coll, Map<String, Object> query, Map<String, Object> initial, String jsReduce, String jsFinalize, ReadPreference rp, String... keys) throws MorphiumDriverException;
 
     List<Map<String, Object>> aggregate(String db, String collection, List<Map<String, Object>> pipeline, boolean explain, boolean allowDiskUse, ReadPreference readPreference) throws MorphiumDriverException;
 
+    @SuppressWarnings("unused")
     boolean isSocketKeepAlive();
 
     void setSocketKeepAlive(boolean socketKeepAlive);
 
+    @SuppressWarnings("unused")
     int getHeartbeatConnectTimeout();
 
     void setHeartbeatConnectTimeout(int heartbeatConnectTimeout);
 
+    @SuppressWarnings("unused")
     int getMaxWaitTime();
 
     void setMaxWaitTime(int maxWaitTime);

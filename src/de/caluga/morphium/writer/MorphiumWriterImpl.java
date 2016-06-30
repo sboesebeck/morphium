@@ -610,6 +610,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
      *
      * @param c - type
      */
+    @SuppressWarnings("unused")
     public <T> void convertToCapped(final Class<T> c) {
         convertToCapped(c, null);
     }
@@ -664,6 +665,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
     }
 
 
+    @SuppressWarnings({"unused", "UnusedParameters"})
     private void executeWriteBatch(List<Object> es, Class c, WriteConcern wc, BulkRequestContext bulkCtx, long start) {
         try {
             bulkCtx.execute();

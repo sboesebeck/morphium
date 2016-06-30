@@ -56,10 +56,12 @@ public class ReadPreference {
         return tagSet;
     }
 
+    @SuppressWarnings("unused")
     public void setTagSet(Map<String, String> tagSet) {
         this.tagSet = tagSet;
     }
 
+    @SuppressWarnings("unused")
     public void addTag(String key, String value) {
         if (tagSet == null) {
             tagSet = new HashMap<>();

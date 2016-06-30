@@ -17,6 +17,7 @@ public class MongoBob {
         return data;
     }
 
+    @SuppressWarnings("unused")
     public void setData(byte[] data) {
         this.data = data;
     }

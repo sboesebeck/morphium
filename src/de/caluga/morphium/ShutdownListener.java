@@ -8,5 +8,6 @@ package de.caluga.morphium;
  * Will be called, whenever Morphium-instance is shut down. Call morphium.addShutdownListener to be informed...
  */
 public interface ShutdownListener {
+    @SuppressWarnings("UnusedParameters")
     void onShutdown(Morphium m);
 }

@@ -57,6 +57,7 @@ public class MorphiumBulkContext<T> {
         postEvents.forEach(Runnable::run);
     }
 
+    @SuppressWarnings("unused")
     public void runBulk(AsyncOperationCallback c) {
         if (c == null) {
             firePre();
@@ -242,11 +243,13 @@ public class MorphiumBulkContext<T> {
         postEvents.add(() -> ctx.getMorphium().firePostUpdateEvent(query.getType(), MorphiumStorageListener.UpdateTypes.CUSTOM));
     }
 
+    @SuppressWarnings("unused")
     public void addSetRequest(T obj, String field, Object value, boolean upsert) {
         //noinspection unchecked
         addSetRequest(ctx.getMorphium().createQueryFor((Class<T>) obj.getClass()).f(ctx.getMorphium().getARHelper().getIdFieldName(obj)).eq(ctx.getMorphium().getARHelper().getId(obj)), field, value, upsert, false);
     }
 
+    @SuppressWarnings("unused")
     public void addUnSetRequest(T obj, String field, Object value, boolean upsert) {
         //noinspection unchecked
         addUnsetRequest(ctx.getMorphium().createQueryFor((Class<T>) obj.getClass()).f(ctx.getMorphium().getARHelper().getIdFieldName(obj)).eq(ctx.getMorphium().getARHelper().getId(obj)), field, value, upsert, false);
@@ -264,6 +267,7 @@ public class MorphiumBulkContext<T> {
         createUpdateRequest(query, "$inc", Utils.getMap(field, value), upsert, multiple);
     }
 
+    @SuppressWarnings("unused")
     public void addIncRequest(T obj, String field, Number value, boolean upsert) {
         //noinspection unchecked
         addIncRequest(ctx.getMorphium().createQueryFor((Class<T>) obj.getClass()).f(ctx.getMorphium().getARHelper().getIdFieldName(obj)).eq(ctx.getMorphium().getARHelper().getId(obj)), field, value, upsert, false);
@@ -349,14 +353,17 @@ public class MorphiumBulkContext<T> {
         createUpdateRequest(query, "$set", toSet, upsert, multiple);
     }
 
+    @SuppressWarnings("unused")
     public void addUnsetRequest(Query<T> query, Map<String, Object> toSet, boolean upsert, boolean multiple) {
         createUpdateRequest(query, "$unset", toSet, upsert, multiple);
     }
 
+    @SuppressWarnings("unused")
     public void addIncRequest(Query<T> query, Map<String, Number> toInc, boolean upsert, boolean multiple) {
         createUpdateRequest(query, "$inc", toInc, upsert, multiple);
     }
 
+    @SuppressWarnings("unused")
     public void addPushRequest(Query<T> query, String field, List<Object> value, boolean upsert, boolean multiple) {
         createUpdateRequest(query, "$push", Utils.getMap(field, value), upsert, multiple);
     }

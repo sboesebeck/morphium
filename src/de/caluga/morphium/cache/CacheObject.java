@@ -14,6 +14,7 @@ public class CacheObject<T> {
     private String key;
     private Class<? extends T> type;
 
+    @SuppressWarnings("unused")
     public Class<? extends T> getType() {
         return type;
     }
@@ -22,6 +23,7 @@ public class CacheObject<T> {
         this.type = type;
     }
 
+    @SuppressWarnings("unused")
     public List<T> getResult() {
         return result;
     }
@@ -30,6 +32,7 @@ public class CacheObject<T> {
         this.result = result;
     }
 
+    @SuppressWarnings("unused")
     public String getKey() {
         return key;
     }
