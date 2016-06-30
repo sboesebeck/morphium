@@ -181,6 +181,7 @@ public class BsonDecoder {
                     break;
                 case 0x7f:
                     //max key
+                    //noinspection UnusedAssignment
                     value = new MongoMaxKey();
                 default:
                     throw new RuntimeException("unknown data type: " + in[idx]);

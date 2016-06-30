@@ -36,5 +36,6 @@ public interface DereferencingListener<T, E, I> {
      * @param lazy                      - true, if lazy loaded reference
      * @return
      */
+    @SuppressWarnings("UnusedReturnValue")
     T didDereference(E entitiyIncludingReference, String fieldInEntity, T referencedObject, boolean lazy); //returns the object to set as de-referenced object. referencedObject would be null, if not found
 }

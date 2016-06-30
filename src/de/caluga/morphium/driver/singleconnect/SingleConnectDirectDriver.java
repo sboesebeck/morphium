@@ -350,6 +350,7 @@ public class SingleConnectDirectDriver extends DriverBase {
         List<Long> cursors = new ArrayList<>();
         cursors.add(crs.getCursorId());
         m.put("cursors", cursors);
+
     }
 
     @Override

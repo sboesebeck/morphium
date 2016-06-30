@@ -44,6 +44,7 @@ public class BsonEncoder {
         return o2.toByteArray();
     }
 
+    @SuppressWarnings("UnusedReturnValue")
     private BsonEncoder string(String s) {
         try {
             byte[] b = s.getBytes("UTF-8");
@@ -56,6 +57,7 @@ public class BsonEncoder {
         return this;
     }
 
+    @SuppressWarnings("UnusedReturnValue")
     private BsonEncoder cString(String s) {
         try {
             byte[] b = s.getBytes("UTF-8");
@@ -81,6 +83,7 @@ public class BsonEncoder {
         return out.toByteArray();
     }
 
+    @SuppressWarnings("UnusedReturnValue")
     private BsonEncoder encodeObject(String n, Object v) {
 
         if (v == null) {
