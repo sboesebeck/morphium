@@ -187,10 +187,12 @@ public class Logger {
         return level;
     }
 
+    @SuppressWarnings("EmptyMethod")
     public void setLevel(Object o) {
         //ignore
     }
 
+    @SuppressWarnings("SameReturnValue")
     public boolean isEnabledFor(Object o) {
         return true;
     }

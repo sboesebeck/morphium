@@ -128,6 +128,7 @@ public interface Query<T> extends Cloneable {
      *
      * @param e expression
      */
+    @SuppressWarnings("UnusedReturnValue")
     Query<T> addChild(FilterExpression e);
 
     /**
@@ -291,6 +292,7 @@ public interface Query<T> extends Cloneable {
 
     boolean isAutoValuesEnabled();
 
+    @SuppressWarnings("UnusedReturnValue")
     Query<T> setAutoValuesEnabled(boolean autoValues);
 
     String[] getTags();

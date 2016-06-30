@@ -625,6 +625,7 @@ public class Morphium {
     public void setEnum(Query<?> query, Map<Enum, Object> values, boolean upsert, boolean multiple) {
         HashMap<String, Object> toSet = new HashMap<>();
         for (Map.Entry<Enum, Object> est : values.entrySet()) {
+            //noinspection SuspiciousMethodCalls,SuspiciousMethodCalls
             toSet.put(est.getKey().name(), values.get(est.getValue()));
         }
         set(query, toSet, upsert, multiple);

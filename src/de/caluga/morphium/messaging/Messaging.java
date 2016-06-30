@@ -73,6 +73,7 @@ public class Messaging extends Thread implements ShutdownListener {
             threadPool = new ThreadPoolExecutor(morphium.getConfig().getThreadPoolMessagingCoreSize(), morphium.getConfig().getThreadPoolMessagingMaxSize(),
                     morphium.getConfig().getThreadPoolMessagingKeepAliveTime(), TimeUnit.MILLISECONDS,
                     new LinkedBlockingQueue<>());
+            //noinspection unused,unused
             threadPool.setThreadFactory(new ThreadFactory() {
                 private AtomicInteger num = new AtomicInteger(1);
 
@@ -387,6 +388,7 @@ public class Messaging extends Thread implements ShutdownListener {
     private void storeMsg(Msg m, boolean async) {
         AsyncOperationCallback cb = null;
         if (async) {
+            //noinspection unused,unused
             cb = new AsyncOperationCallback() {
                 @Override
                 public void onOperationSucceeded(AsyncOperationType type, Query q, long duration, List result, Object entity, Object... param) {

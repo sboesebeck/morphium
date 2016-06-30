@@ -14,14 +14,9 @@ import java.util.Map;
  *         These listeners will be informed about Storing _any_ object in morphium!
  */
 public interface MorphiumStorageListener<T> {
-    enum UpdateTypes {
-        SET, UNSET, PUSH, PULL, INC, DEC, MUL, MIN, MAX, RENAME, POP, CURRENTDATE, CUSTOM,
-    }
-
     void preStore(Morphium m, T r, boolean isNew) throws MorphiumAccessVetoException;
 
     void preStore(Morphium m, Map<T, Boolean> isNew) throws MorphiumAccessVetoException;
-
 
     void postStore(Morphium m, T r, boolean isNew);
 
@@ -29,6 +24,7 @@ public interface MorphiumStorageListener<T> {
 
     void preRemove(Morphium m, Query<T> q) throws MorphiumAccessVetoException;
 
+    @SuppressWarnings("EmptyMethod")
     void preRemove(Morphium m, T r) throws MorphiumAccessVetoException;
 
     void postRemove(Morphium m, T r);
@@ -41,12 +37,18 @@ public interface MorphiumStorageListener<T> {
 
     void postRemove(Morphium m, Query<T> q);
 
+    @SuppressWarnings("EmptyMethod")
     void postLoad(Morphium m, T o);
 
+    @SuppressWarnings("EmptyMethod")
     void postLoad(Morphium m, List<T> o);
 
     void preUpdate(Morphium m, Class<? extends T> cls, Enum updateType) throws MorphiumAccessVetoException;
 
     void postUpdate(Morphium m, Class<? extends T> cls, Enum updateType);
+
+    enum UpdateTypes {
+        SET, UNSET, PUSH, PULL, INC, DEC, MUL, MIN, MAX, RENAME, POP, CURRENTDATE, CUSTOM,
+    }
 
 }

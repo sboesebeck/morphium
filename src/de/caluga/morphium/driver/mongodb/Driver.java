@@ -540,6 +540,7 @@ public class Driver implements MorphiumDriver {
     @SuppressWarnings("ALL")
     public List<Map<String, Object>> find(String db, String collection, Map<String, Object> query, Map<String, Integer> sort, Map<String, Object> projection, int skip, int limit, int batchSize, ReadPreference readPreference, final Map<String, Object> findMetaData) throws MorphiumDriverException {
         DriverHelper.replaceMorphiumIdByObjectId(query);
+        //noinspection unused
         return (List<Map<String, Object>>) DriverHelper.doCall(new MorphiumDriverOperation() {
             @Override
             public Map<String, Object> execute() {

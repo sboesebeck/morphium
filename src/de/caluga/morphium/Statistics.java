@@ -53,11 +53,13 @@ public class Statistics extends HashMap<String, Double> {
         throw new RuntimeException("not allowed");
     }
 
+    @SuppressWarnings("EmptyMethod")
     @Override
     public boolean equals(Object o) {
         return super.equals(o);
     }
 
+    @SuppressWarnings("EmptyMethod")
     @Override
     public int hashCode() {
         return super.hashCode();
