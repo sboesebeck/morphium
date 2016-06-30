@@ -30,6 +30,7 @@ public class PartiallyUpdateableProxy<T> implements MethodInterceptor, Partially
         return reference;
     }
 
+    @SuppressWarnings("unused")
     public T __getPureDeref() {
         //do nothing - will be intercepted
         return reference;

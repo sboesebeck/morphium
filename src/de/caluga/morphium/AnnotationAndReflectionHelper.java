@@ -735,18 +735,22 @@ public class AnnotationAndReflectionHelper {
     }
 
 
+    @SuppressWarnings("unused")
     public Long getLongValue(Object o, String fld) {
         return (Long) getValue(o, fld);
     }
 
+    @SuppressWarnings("unused")
     public String getStringValue(Object o, String fld) {
         return (String) getValue(o, fld);
     }
 
+    @SuppressWarnings("unused")
     public Date getDateValue(Object o, String fld) {
         return (Date) getValue(o, fld);
     }
 
+    @SuppressWarnings("unused")
     public Double getDoubleValue(Object o, String fld) {
         return (Double) getValue(o, fld);
     }
@@ -780,7 +784,7 @@ public class AnnotationAndReflectionHelper {
     }
 
 
-    @SuppressWarnings("unchecked")
+    @SuppressWarnings({"unchecked", "unused"})
     public String getLastChangeField(Class<?> cls) {
         if (!storesLastChange(cls)) {
             return null;
@@ -793,7 +797,7 @@ public class AnnotationAndReflectionHelper {
     }
 
 
-    @SuppressWarnings("unchecked")
+    @SuppressWarnings({"unchecked", "unused"})
     public String getLastAccessField(Class<?> cls) {
         if (!storesLastAccess(cls)) {
             return null;
@@ -806,7 +810,7 @@ public class AnnotationAndReflectionHelper {
     }
 
 
-    @SuppressWarnings("unchecked")
+    @SuppressWarnings({"unchecked", "unused"})
     public String getCreationTimeField(Class<?> cls) {
         if (!storesCreation(cls)) {
             return null;

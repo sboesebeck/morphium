@@ -19,6 +19,7 @@ public class MorphiumId implements Comparable<MorphiumId> {
 
     private static final int THE_MACHINE_ID;
     private static final AtomicInteger COUNT = new AtomicInteger(new SecureRandom().nextInt());
+    @SuppressWarnings("unused")
     public static ThreadLocal<Short> threadPid;
 
     static {

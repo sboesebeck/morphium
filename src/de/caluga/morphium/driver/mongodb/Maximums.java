@@ -8,27 +8,29 @@ public class Maximums {
     private Integer maxMessageSize;
     private Integer maxWriteBatchSize;
 
+    @SuppressWarnings("unused")
+    public Integer getMaxBsonSize() {
+        return maxBsonSize;
+    }
+
     public void setMaxBsonSize(Integer maxBsonSize) {
         this.maxBsonSize = maxBsonSize;
     }
 
-    public Integer getMaxBsonSize() {
-        return maxBsonSize;
+    @SuppressWarnings("unused")
+    public Integer getMaxMessageSize() {
+        return maxMessageSize;
     }
 
     public void setMaxMessageSize(Integer maxMessageSize) {
         this.maxMessageSize = maxMessageSize;
     }
 
-    public Integer getMaxMessageSize() {
-        return maxMessageSize;
+    public Integer getMaxWriteBatchSize() {
+        return maxWriteBatchSize;
     }
 
     public void setMaxWriteBatchSize(Integer maxWriteBatchSize) {
         this.maxWriteBatchSize = maxWriteBatchSize;
-    }
-
-    public Integer getMaxWriteBatchSize() {
-        return maxWriteBatchSize;
     }
 }

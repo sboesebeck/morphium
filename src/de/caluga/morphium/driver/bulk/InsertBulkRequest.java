@@ -19,6 +19,7 @@ public class InsertBulkRequest extends BulkRequest {
         return toInsert;
     }
 
+    @SuppressWarnings("unused")
     public void setToInsert(List<Map<String, Object>> toInsert) {
         this.toInsert = toInsert;
     }

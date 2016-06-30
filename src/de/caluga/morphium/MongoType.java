@@ -9,24 +9,24 @@ package de.caluga.morphium;
  * see also: http://www.mongodb.org/display/DOCS/Advanced+Queries#AdvancedQueries-ConditionalOperators
  */
 public enum MongoType {
-    DOUBLE(1),
-    STRING(2),
-    OBJECT(3),
-    ARRAY(4),
-    BINARY(5),
-    OBJECT_ID(7),
-    BOOLEAN(8),
-    DATE(9),
-    NULL(10),
-    REGEX(11),
-    JS_CODE(13),
-    SYMBOL(14),
-    JS_CODE_W_SCOPE(15),
-    INTEGER32(16),
-    TIMESTAMP(17),
-    INTEGER64(18),
-    MIN_KEY(255),
-    MAX_KEY(127);
+    @SuppressWarnings("unused")DOUBLE(1),
+    @SuppressWarnings("unused")STRING(2),
+    @SuppressWarnings("unused")OBJECT(3),
+    @SuppressWarnings("unused")ARRAY(4),
+    @SuppressWarnings("unused")BINARY(5),
+    @SuppressWarnings("unused")OBJECT_ID(7),
+    @SuppressWarnings("unused")BOOLEAN(8),
+    @SuppressWarnings("unused")DATE(9),
+    @SuppressWarnings("unused")NULL(10),
+    @SuppressWarnings("unused")REGEX(11),
+    @SuppressWarnings("unused")JS_CODE(13),
+    @SuppressWarnings("unused")SYMBOL(14),
+    @SuppressWarnings("unused")JS_CODE_W_SCOPE(15),
+    @SuppressWarnings("unused")INTEGER32(16),
+    @SuppressWarnings("unused")TIMESTAMP(17),
+    @SuppressWarnings("unused")INTEGER64(18),
+    @SuppressWarnings("unused")MIN_KEY(255),
+    @SuppressWarnings("unused")MAX_KEY(127);
 
     private final int number;
 

@@ -13,5 +13,6 @@ public interface MessageListener {
      * process message, send answer
      * if null is returned, no answer is sent
      */
+    @SuppressWarnings("UnusedParameters")
     Msg onMessage(Messaging msg, Msg m);
 }

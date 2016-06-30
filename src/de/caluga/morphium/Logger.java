@@ -9,7 +9,7 @@ import java.util.Map;
 /**
  * Created by stephan on 25.04.15.
  */
-@SuppressWarnings("WeakerAccess")
+@SuppressWarnings({"WeakerAccess", "DefaultFileTemplate"})
 public class Logger {
     public static final int defaultLevel = 1;
     public static final boolean defaultSynced = false;
@@ -131,6 +131,7 @@ public class Logger {
         return file;
     }
 
+    @SuppressWarnings("unused")
     public void setFile(String v) {
         if (!file.equals("-") && !file.equals("STDOUT") && !file.equals("STDERR ")) {
             out.flush();
@@ -187,12 +188,12 @@ public class Logger {
         return level;
     }
 
-    @SuppressWarnings("EmptyMethod")
+    @SuppressWarnings({"EmptyMethod", "unused", "UnusedParameters"})
     public void setLevel(Object o) {
         //ignore
     }
 
-    @SuppressWarnings("SameReturnValue")
+    @SuppressWarnings({"SameReturnValue", "unused", "UnusedParameters"})
     public boolean isEnabledFor(Object o) {
         return true;
     }
@@ -201,22 +202,27 @@ public class Logger {
         return level >= 5;
     }
 
+    @SuppressWarnings("unused")
     public boolean isInfoEnabled() {
         return level >= 4;
     }
 
+    @SuppressWarnings("unused")
     public boolean isWarnEnabled() {
         return level >= 3;
     }
 
+    @SuppressWarnings("unused")
     public boolean isErrorEnabled() {
         return level >= 2;
     }
 
+    @SuppressWarnings("unused")
     public boolean isFatalEnabled() {
         return level >= 1;
     }
 
+    @SuppressWarnings("unused")
     public void info(Object msg) {
         info(msg.toString(), null);
     }
@@ -225,6 +231,7 @@ public class Logger {
         info(msg, null);
     }
 
+    @SuppressWarnings("unused")
     public void info(Throwable t) {
         info(null, t);
     }
@@ -234,6 +241,7 @@ public class Logger {
 
     }
 
+    @SuppressWarnings("unused")
     public void debug(Object msg) {
         debug(msg.toString());
     }
@@ -242,6 +250,7 @@ public class Logger {
         debug(msg, null);
     }
 
+    @SuppressWarnings("unused")
     public void debug(Throwable t) {
         debug(null, t);
     }
@@ -251,6 +260,7 @@ public class Logger {
 
     }
 
+    @SuppressWarnings("unused")
     public void warn(Object msg) {
         warn(msg.toString(), null);
     }
@@ -259,6 +269,7 @@ public class Logger {
         warn(msg, null);
     }
 
+    @SuppressWarnings("unused")
     public void warn(Throwable t) {
         warn(null, t);
     }
@@ -268,6 +279,7 @@ public class Logger {
 
     }
 
+    @SuppressWarnings("unused")
     public void error(Object msg) {
         error(msg.toString(), null);
     }
@@ -285,6 +297,7 @@ public class Logger {
 
     }
 
+    @SuppressWarnings("unused")
     public void fatal(Object msg) {
         fatal(msg.toString(), null);
     }
@@ -302,6 +315,7 @@ public class Logger {
     }
 
 
+    @SuppressWarnings("unused")
     public boolean isSynced() {
         return synced;
     }

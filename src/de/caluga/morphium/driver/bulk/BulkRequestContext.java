@@ -25,14 +25,17 @@ public abstract class BulkRequestContext {
         return morphium;
     }
 
+    @SuppressWarnings("unused")
     public boolean isOdererd() {
         return odererd;
     }
 
+    @SuppressWarnings("unused")
     public void setOdererd(boolean odererd) {
         this.odererd = odererd;
     }
 
+    @SuppressWarnings("unused")
     public int getBatchSize() {
         return batchSize;
     }
@@ -45,6 +48,7 @@ public abstract class BulkRequestContext {
 
     public abstract UpdateBulkRequest addUpdateBulkRequest();
 
+    @SuppressWarnings("unused")
     public abstract StoreBulkRequest addStoreBulkRequest(List<Map<String, Object>> toStore);
 
     public abstract InsertBulkRequest addInsertBulkReqpest(List<Map<String, Object>> toInsert);

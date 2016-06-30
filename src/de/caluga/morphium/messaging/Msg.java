@@ -79,6 +79,7 @@ public class Msg {
         this.ttl = ttl;
     }
 
+    @SuppressWarnings("unused")
     public boolean isExclusive() {
         if (exclusive == null) {
             return getLockedBy() != null && !getLockedBy().equals("ALL");
@@ -100,6 +101,7 @@ public class Msg {
         this.exclusive = exclusive;
     }
 
+    @SuppressWarnings("unused")
     public String getRecipient() {
         return recipient;
     }
@@ -108,6 +110,7 @@ public class Msg {
         this.recipient = recipient;
     }
 
+    @SuppressWarnings("unused")
     public String getSenderHost() {
         return senderHost;
     }
@@ -116,6 +119,7 @@ public class Msg {
         this.senderHost = senderHost;
     }
 
+    @SuppressWarnings("unused")
     public Date getDeleteAt() {
         return deleteAt;
     }
@@ -134,6 +138,7 @@ public class Msg {
         }
     }
 
+    @SuppressWarnings("unused")
     public void removeRecipient(String id) {
         if (to != null) {
 
@@ -148,6 +153,7 @@ public class Msg {
         mapValue.put(key, value);
     }
 
+    @SuppressWarnings("unused")
     public void removeValue(String key) {
         if (mapValue == null) {
             return;
@@ -155,6 +161,7 @@ public class Msg {
         mapValue.remove(key);
     }
 
+    @SuppressWarnings("unused")
     public Map<String, Object> getMapValue() {
         return mapValue;
     }
@@ -226,6 +233,7 @@ public class Msg {
         this.lockedBy = lockedBy;
     }
 
+    @SuppressWarnings("unused")
     public long getLocked() {
         return locked;
     }
@@ -281,6 +289,7 @@ public class Msg {
         additional.add(value);
     }
 
+    @SuppressWarnings("unused")
     public void removeAdditional(String value) {
         if (additional == null) {
             return;
@@ -319,6 +328,7 @@ public class Msg {
                 '}';
     }
 
+    @SuppressWarnings("unused")
     @PreStore
     public void preStore() {
         if (sender == null) {
@@ -384,15 +394,15 @@ public class Msg {
         processedBy,
         lockedBy,
         msgId,
-        locked,
-        type,
-        inAnswerTo,
-        msg,
-        additional,
-        value,
+        @SuppressWarnings("unused")locked,
+        @SuppressWarnings("unused")type,
+        @SuppressWarnings("unused")inAnswerTo,
+        @SuppressWarnings("unused")msg,
+        @SuppressWarnings("unused")additional,
+        @SuppressWarnings("unused")value,
         timestamp,
         sender,
-        ttl,
+        @SuppressWarnings("unused")ttl,
         recipient
     }
 }

@@ -58,6 +58,7 @@ public abstract class WireProtocolMessage {
         this.flags = flags;
     }
 
+    @SuppressWarnings("unused")
     public void setTailableCursor(boolean t) {
         if (t) {
             flags = flags | TAILABLE_CURSOR;
@@ -66,10 +67,12 @@ public abstract class WireProtocolMessage {
         }
     }
 
+    @SuppressWarnings("unused")
     public boolean isPartial() {
         return (flags & PARTIAL) != 0;
     }
 
+    @SuppressWarnings("unused")
     public void setPartial(boolean t) {
         if (t) {
             flags = flags | PARTIAL;
@@ -78,10 +81,12 @@ public abstract class WireProtocolMessage {
         }
     }
 
+    @SuppressWarnings("unused")
     public boolean isAwaitData() {
         return (flags & AWAIT_DATA) != 0;
     }
 
+    @SuppressWarnings("unused")
     public void setAwaitData(boolean t) {
         if (t) {
             flags = flags | AWAIT_DATA;
@@ -90,15 +95,18 @@ public abstract class WireProtocolMessage {
         }
     }
 
+    @SuppressWarnings("unused")
     public boolean isTailable() {
         return (flags & TAILABLE_CURSOR) != 0;
     }
 
 
+    @SuppressWarnings("unused")
     public boolean isSlaveOk() {
         return (flags & SLAVE_OK) != 0;
     }
 
+    @SuppressWarnings("unused")
     public void setSlaveOk(boolean t) {
         if (t) {
             flags = flags | SLAVE_OK;
@@ -107,10 +115,12 @@ public abstract class WireProtocolMessage {
         }
     }
 
+    @SuppressWarnings("unused")
     public boolean isNoCursorTimeout() {
         return (flags & NO_CURSOR_TIMEOUT) != 0;
     }
 
+    @SuppressWarnings("unused")
     public void setNoCursorTimeout(boolean t) {
         if (t) {
             flags = flags | NO_CURSOR_TIMEOUT;

@@ -31,11 +31,13 @@ public class PrefetchingDriverIterator<T> implements MorphiumIterator<T> {
         prefetchBuffer = new CopyOnWriteArrayList<>();//Collections.synchronizedList(new ArrayList<>());
     }
 
+    @SuppressWarnings("unused")
     public List<List<T>> getPrefetchBuffer() {
         checkAndUpdateLastAccess();
         return prefetchBuffer;
     }
 
+    @SuppressWarnings("unused")
     public void setPrefetchBuffer(List<List<T>> prefetchBuffer) {
         checkAndUpdateLastAccess();
         this.prefetchBuffer = prefetchBuffer;

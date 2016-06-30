@@ -25,17 +25,18 @@ import java.util.Map;
  */
 public interface Aggregator<T, R> {
 
-    void setMorphium(Morphium m);
-
+    @SuppressWarnings("unused")
     Morphium getMorphium();
 
-    void setSearchType(Class<? extends T> type);
+    void setMorphium(Morphium m);
 
     Class<? extends T> getSearchType();
 
-    void setResultType(Class<? extends R> type);
+    void setSearchType(Class<? extends T> type);
 
     Class<? extends R> getResultType();
+
+    void setResultType(Class<? extends R> type);
 
     Aggregator<T, R> project(Map<String, Object> m);  //field -> other field, field -> 0,1
 
@@ -48,26 +49,32 @@ public interface Aggregator<T, R> {
      * Do not use it for the base query!
      *
      * @param q
-     * @return
+     * @return aggregator
      */
+    @SuppressWarnings("unused")
     Aggregator<T, R> matchSubQuery(Query<?> q);
 
     Aggregator<T, R> limit(int num);
 
+    @SuppressWarnings("unused")
     Aggregator<T, R> skip(int num);
 
+    @SuppressWarnings("unused")
     Aggregator<T, R> unwind(String listField);
 
     Aggregator<T, R> sort(String... prefixed);
 
+    @SuppressWarnings("unused")
     Aggregator<T, R> sort(Map<String, Integer> sort);
-
-    void setCollectionName(String cn);
 
     String getCollectionName();
 
+    @SuppressWarnings("unused")
+    void setCollectionName(String cn);
+
     Group<T, R> group(Map<String, Object> id);
 
+    @SuppressWarnings("unused")
     Group<T, R> groupSubObj(Map<String, String> idSubObject);
 
     Group<T, R> group(String id);
@@ -78,14 +85,17 @@ public interface Aggregator<T, R> {
 
     List<R> aggregate();
 
+    @SuppressWarnings("unused")
     void aggregate(AsyncOperationCallback<R> callback);
-
-    void setExplain(boolean explain);
-
-    void setUseDisk(boolean useDisk);
 
     boolean isExplain();
 
+    @SuppressWarnings("unused")
+    void setExplain(boolean explain);
+
     boolean isUseDisk();
+
+    @SuppressWarnings("unused")
+    void setUseDisk(boolean useDisk);
 
 }

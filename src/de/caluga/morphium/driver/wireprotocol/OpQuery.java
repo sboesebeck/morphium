@@ -24,10 +24,12 @@ public class OpQuery extends WireProtocolMessage {
     private int inReplyTo;
 
 
+    @SuppressWarnings("unused")
     public int getOpCode() {
         return opCode;
     }
 
+    @SuppressWarnings("unused")
     public void setOpCode(int opCode) {
         this.opCode = opCode;
     }
@@ -40,6 +42,7 @@ public class OpQuery extends WireProtocolMessage {
         this.db = db;
     }
 
+    @SuppressWarnings("unused")
     public String getColl() {
         return coll;
     }
@@ -48,6 +51,7 @@ public class OpQuery extends WireProtocolMessage {
         this.coll = coll;
     }
 
+    @SuppressWarnings("unused")
     public int getSkip() {
         return skip;
     }
@@ -56,6 +60,7 @@ public class OpQuery extends WireProtocolMessage {
         this.skip = skip;
     }
 
+    @SuppressWarnings("unused")
     public int getLimit() {
         return limit;
     }
@@ -64,6 +69,7 @@ public class OpQuery extends WireProtocolMessage {
         this.limit = limit;
     }
 
+    @SuppressWarnings("unused")
     public Map<String, Object> getDoc() {
         return doc;
     }
@@ -80,6 +86,7 @@ public class OpQuery extends WireProtocolMessage {
         this.reqId = reqId;
     }
 
+    @SuppressWarnings("unused")
     public int getInReplyTo() {
         return inReplyTo;
     }

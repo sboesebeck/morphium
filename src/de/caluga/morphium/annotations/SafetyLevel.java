@@ -8,7 +8,7 @@ package de.caluga.morphium.annotations;
  * Define the type of Write safety.
  */
 public enum SafetyLevel {
-    NORMAL(0), BASIC(1), WAIT_FOR_SLAVE(2), WAIT_FOR_ALL_SLAVES(3), MAJORITY(-99);
+    NORMAL(0), @SuppressWarnings("unused")BASIC(1), WAIT_FOR_SLAVE(2), WAIT_FOR_ALL_SLAVES(3), MAJORITY(-99);
 
     private final int value;
 

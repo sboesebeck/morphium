@@ -37,6 +37,7 @@ public class MorphiumDriverException extends Exception {
         this.mongoCode = mongoCode;
     }
 
+    @SuppressWarnings("unused")
     public Object getMongoReason() {
         return mongoReason;
     }
@@ -45,26 +46,32 @@ public class MorphiumDriverException extends Exception {
         this.mongoReason = mongoReason;
     }
 
+    @SuppressWarnings("unused")
     public String getCollection() {
         return collection;
     }
 
+    @SuppressWarnings("unused")
     public void setCollection(String collection) {
         this.collection = collection;
     }
 
+    @SuppressWarnings("unused")
     public String getDb() {
         return db;
     }
 
+    @SuppressWarnings("unused")
     public void setDb(String db) {
         this.db = db;
     }
 
+    @SuppressWarnings("unused")
     public Map<String, Object> getQuery() {
         return query;
     }
 
+    @SuppressWarnings("unused")
     public void setQuery(Map<String, Object> query) {
         this.query = query;
     }

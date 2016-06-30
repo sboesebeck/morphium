@@ -60,10 +60,12 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
         }
     }
 
+    @SuppressWarnings("unused")
     public boolean isOrderedExecution() {
         return orderedExecution;
     }
 
+    @SuppressWarnings("unused")
     public void setOrderedExecution(boolean orderedExecution) {
         this.orderedExecution = orderedExecution;
     }
@@ -762,6 +764,7 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
         }, c, AsyncOperationType.REMOVE);
     }
 
+    @SuppressWarnings("unused")
     public <T> void ensureIndex(final Class<T> cls, final String collection, final Map<String, Object> index, AsyncOperationCallback<T> c) {
         ensureIndex(cls, collection, index, null, c);
     }
@@ -869,6 +872,7 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
             return entityType;
         }
 
+        @SuppressWarnings("unused")
         public void setEntityType(Class entityType) {
             this.entityType = entityType;
         }
@@ -877,6 +881,7 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
             return type;
         }
 
+        @SuppressWarnings("unused")
         public void setType(AsyncOperationType type) {
             this.type = type;
         }
@@ -885,6 +890,7 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
             return cb;
         }
 
+        @SuppressWarnings("unused")
         public void setCb(AsyncOperationCallback cb) {
             this.cb = cb;
         }
@@ -893,6 +899,7 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
             return toRun;
         }
 
+        @SuppressWarnings("unused")
         public void setToRun(BufferedBulkOp toRun) {
             this.toRun = toRun;
         }
@@ -901,6 +908,7 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
             return timestamp;
         }
 
+        @SuppressWarnings("unused")
         public void setTimestamp(long timestamp) {
             this.timestamp = timestamp;
         }

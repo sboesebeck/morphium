@@ -8,10 +8,6 @@ package de.caluga.morphium.cache;
  * To change this template use File | Settings | File Templates.
  */
 public interface CacheListener {
-    enum Operation {
-        delete, store, update,
-    }
-
     /**
      * ability to alter cached entries or avoid caching overall
      *
@@ -24,4 +20,8 @@ public interface CacheListener {
     <T> boolean wouldClearCache(Class<T> affectedEntityType);
 
     <T> boolean wouldRemoveEntryFromCache(Class cls, Object id, Object entity);
+
+    enum Operation {
+        @SuppressWarnings("unused")delete, @SuppressWarnings("unused")store, @SuppressWarnings("unused")update,
+    }
 }

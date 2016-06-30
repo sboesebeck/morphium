@@ -22,6 +22,7 @@ public class MorphiumReference {
         return referencedClassName;
     }
 
+    @SuppressWarnings("unused")
     public void setClassName(String className) {
         this.referencedClassName = className;
     }

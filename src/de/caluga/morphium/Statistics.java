@@ -34,6 +34,7 @@ public class Statistics extends HashMap<String, Double> {
     }
 
 
+    @SuppressWarnings("unused")
     public Double get(Enum key) {
         return get(key.name());
     }

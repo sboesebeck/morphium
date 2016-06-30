@@ -5,7 +5,7 @@ package de.caluga.morphium.driver;
  */
 
 
-@SuppressWarnings("WeakerAccess")
+@SuppressWarnings({"WeakerAccess", "unused", "DefaultFileTemplate"})
 public class MorphiumCollection {
 
     private String collection;

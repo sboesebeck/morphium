@@ -38,6 +38,7 @@ public class OpReply extends WireProtocolMessage {
         return reqId;
     }
 
+    @SuppressWarnings("unused")
     public void setReqId(int reqId) {
         this.reqId = reqId;
     }
@@ -46,22 +47,27 @@ public class OpReply extends WireProtocolMessage {
         return inReplyTo;
     }
 
+    @SuppressWarnings("unused")
     public void setInReplyTo(int inReplyTo) {
         this.inReplyTo = inReplyTo;
     }
 
+    @SuppressWarnings("unused")
     public int getSize() {
         return size;
     }
 
+    @SuppressWarnings("unused")
     public void setSize(int size) {
         this.size = size;
     }
 
+    @SuppressWarnings("unused")
     public int getOpcode() {
         return opcode;
     }
 
+    @SuppressWarnings("unused")
     public void setOpcode(int opcode) {
         this.opcode = opcode;
     }
@@ -78,6 +84,7 @@ public class OpReply extends WireProtocolMessage {
         return cursorId;
     }
 
+    @SuppressWarnings("unused")
     public void setCursorId(long cursorId) {
         this.cursorId = cursorId;
     }
@@ -86,14 +93,17 @@ public class OpReply extends WireProtocolMessage {
         return startFrom;
     }
 
+    @SuppressWarnings("unused")
     public void setStartFrom(int startFrom) {
         this.startFrom = startFrom;
     }
 
+    @SuppressWarnings("unused")
     public int getNumReturned() {
         return numReturned;
     }
 
+    @SuppressWarnings("unused")
     public void setNumReturned(int numReturned) {
         this.numReturned = numReturned;
     }
@@ -102,6 +112,7 @@ public class OpReply extends WireProtocolMessage {
         return documents;
     }
 
+    @SuppressWarnings("unused")
     public void setDocuments(List<Map<String, Object>> documents) {
         this.documents = documents;
     }
@@ -138,6 +149,7 @@ public class OpReply extends WireProtocolMessage {
 
     }
 
+    @SuppressWarnings("unused")
     public int getOpCode() {
         return opcode;
     }

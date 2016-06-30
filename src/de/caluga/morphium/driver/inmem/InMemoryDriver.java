@@ -489,6 +489,7 @@ public class InMemoryDriver implements MorphiumDriver {
     }
 
 
+    @SuppressWarnings({"RedundantThrows", "UnusedParameters"})
     private List<Map<String, Object>> find(String db, String collection, Map<String, Object> query, Map<String, Integer> sort, Map<String, Object> projection, int skip, int limit, boolean internal) throws MorphiumDriverException {
         List<Map<String, Object>> data = getCollection(db, collection);
         List<Map<String, Object>> ret = new ArrayList<>();
@@ -927,6 +928,7 @@ public class InMemoryDriver implements MorphiumDriver {
             return skip;
         }
 
+        @SuppressWarnings("unused")
         public void setSkip(int skip) {
             this.skip = skip;
         }

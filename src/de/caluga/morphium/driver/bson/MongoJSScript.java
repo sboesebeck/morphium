@@ -21,10 +21,12 @@ public class MongoJSScript {
         this.js = js;
     }
 
+    @SuppressWarnings("unused")
     public String getJs() {
         return js;
     }
 
+    @SuppressWarnings("unused")
     public void setJs(String js) {
         this.js = js;
     }
@@ -33,6 +35,7 @@ public class MongoJSScript {
         return context;
     }
 
+    @SuppressWarnings("unused")
     public void setContext(Map<String, Object> context) {
         this.context = context;
     }
