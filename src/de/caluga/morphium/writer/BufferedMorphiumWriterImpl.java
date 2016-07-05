@@ -142,7 +142,7 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
             }
         }
 
-        if (size > 0 && opLog.get(type).size() > size) {
+        if (size > 0 && opLog.get(type) != null && opLog.get(type).size() > size) {
             logger.warn("WARNING: Write buffer for type " + type.getName() + " maximum exceeded: " + opLog.get(type).size() + " entries now, max is " + size);
             BulkRequestContext ctx = morphium.getDriver().createBulkContext(morphium, morphium.getConfig().getDatabase(), collectionName, ordered, morphium.getWriteConcernForClass(type));
             if (opLog.get(type) == null) {
