@@ -993,6 +993,24 @@ public class ObjectMapperImpl implements ObjectMapper {
         }
         for (Object val : fromDB) {
             if (val instanceof Map) {
+                //Override type if className is specified - needed for polymoprh lists etc.
+                if (((Map<String, Object>) val).containsKey("class_name") || ((Map<String, Object>) val).containsKey("className")) {
+                    //Entity to map!
+                    String cn = (String) ((Map<String, Object>) val).get("class_name");
+                    if (cn == null) {
+                        cn = (String) ((Map<String, Object>) val).get("className");
+                    }
+                    try {
+                        Class ecls = Class.forName(cn);
+                        Object um = unmarshall(ecls, (HashMap<String, Object>) val);
+                        if (um != null) {
+                            toFillIn.add(um);
+                        }
+                    } catch (ClassNotFoundException e) {
+                        throw new RuntimeException(e);
+                    }
+                    continue;
+                }
                 if (listType != null) {
                     //have a list of something
                     Class cls = getElementClass(listType);
@@ -1051,7 +1069,14 @@ public class ObjectMapperImpl implements ObjectMapper {
         if (relevantParameter instanceof Class) {
             return (Class) relevantParameter;
         }
-        return (Class) ((ParameterizedType) relevantParameter).getRawType();
+        if (relevantParameter instanceof ParameterizedType) {
+            return (Class) ((ParameterizedType) relevantParameter).getRawType();
+        } else if (relevantParameter instanceof WildcardType) {
+            return (Class) ((WildcardType) relevantParameter).getClass();
+        } else {
+            log.error("Could not determin type of element!");
+            return Object.class;
+        }
     }
 
     @SuppressWarnings({"unchecked", "ConstantConditions"})
