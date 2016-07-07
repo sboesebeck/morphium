@@ -4,6 +4,7 @@ package de.caluga.morphium.driver.bson;/**
 
 import de.caluga.morphium.Logger;
 
+import java.io.Serializable;
 import java.net.NetworkInterface;
 import java.nio.BufferUnderflowException;
 import java.nio.ByteBuffer;
@@ -15,7 +16,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 /**
  * Morphium representation of an ID. similar to BSON ID
  **/
-public class MorphiumId implements Comparable<MorphiumId> {
+public class MorphiumId implements Comparable<MorphiumId>, Serializable {
 
     private static final int THE_MACHINE_ID;
     private static final AtomicInteger COUNT = new AtomicInteger(new SecureRandom().nextInt());
