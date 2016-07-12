@@ -1007,7 +1007,7 @@ public class ObjectMapperImpl implements ObjectMapper {
                             toFillIn.add(um);
                         }
                     } catch (ClassNotFoundException e) {
-                        throw new RuntimeException(e);
+                        throw new IllegalArgumentException("Could not find class", e);
                     }
                     continue;
                 }
@@ -1030,8 +1030,13 @@ public class ObjectMapperImpl implements ObjectMapper {
                     }
                 } else {
                     HashMap mp = new HashMap();
-                    fillMap((ParameterizedType) listType.getActualTypeArguments()[0], (Map<String, Object>) val, mp, containerEntity);
-                    toFillIn.add(mp);
+                    if (listType != null) {
+                        fillMap((ParameterizedType) listType.getActualTypeArguments()[0], (Map<String, Object>) val, mp, containerEntity);
+                        toFillIn.add(mp);
+                    } else {
+                        log.warn("Cannot de-reference to unknown collection type - trying object instead");
+                        toFillIn.add(val);
+                    }
                     continue;
                 }
             } else if (val instanceof MorphiumId) {
@@ -1054,8 +1059,13 @@ public class ObjectMapperImpl implements ObjectMapper {
             } else if (val instanceof List) {
                 //list in list
                 ArrayList lt = new ArrayList();
-                fillList(forField, ref, (ParameterizedType) listType.getActualTypeArguments()[0], (List<Map<String, Object>>) val, lt, containerEntity);
-                toFillIn.add(lt);
+                if (listType != null) {
+                    fillList(forField, ref, (ParameterizedType) listType.getActualTypeArguments()[0], (List<Map<String, Object>>) val, lt, containerEntity);
+                    toFillIn.add(lt);
+                } else {
+                    log.warn("Cannot de-reference to unknown collection - trying to add Object only");
+                    toFillIn.add(val);
+                }
                 continue;
 
             }
@@ -1070,9 +1080,20 @@ public class ObjectMapperImpl implements ObjectMapper {
             return (Class) relevantParameter;
         }
         if (relevantParameter instanceof ParameterizedType) {
-            return (Class) ((ParameterizedType) relevantParameter).getRawType();
+
+            ParameterizedType parameterType = (ParameterizedType) relevantParameter;
+            if (parameterType.getRawType() instanceof Class) {
+                return (Class) parameterType.getRawType();
+            } else {
+                try {
+                    return Class.forName(parameterType.getTypeName());
+                } catch (ClassNotFoundException e) {
+                    log.error("Could not determin class for type " + parameterType.getRawType().getTypeName());
+                    return Object.class;
+                }
+            }
         } else if (relevantParameter instanceof WildcardType) {
-            return (Class) ((WildcardType) relevantParameter).getClass();
+            return ((WildcardType) relevantParameter).getClass();
         } else {
             log.error("Could not determin type of element!");
             return Object.class;
