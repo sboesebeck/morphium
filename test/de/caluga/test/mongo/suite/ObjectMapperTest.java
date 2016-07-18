@@ -462,7 +462,7 @@ public class ObjectMapperTest extends MongoTest {
         }
         dur = System.currentTimeMillis() - start;
         log.info("De-Marshalling of ComplexObject with uncached references 25000 times took " + dur + "ms");
-        assert (dur < 10000);
+        assert (dur < 14000);
 
     }
 
