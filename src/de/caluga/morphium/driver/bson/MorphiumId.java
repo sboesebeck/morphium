@@ -51,7 +51,7 @@ public class MorphiumId implements Comparable<MorphiumId>, Serializable {
     }
 
     public MorphiumId(String hexString) {
-        this(hexToByte(hexString.toUpperCase()));
+        this(hexToByte(hexString.toLowerCase()));
     }
 
     public MorphiumId(byte[] bytes) {
@@ -219,7 +219,7 @@ public class MorphiumId implements Comparable<MorphiumId>, Serializable {
     }
 
     public String toString() {
-        String[] chars = {"0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "A", "B", "C", "D", "E", "F",};
+        String[] chars = {"0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "a", "b", "c", "d", "e", "f",};
         byte[] b = getBytes();
 
         StringBuilder bld = new StringBuilder();
