@@ -3,6 +3,7 @@ package de.caluga.morphium.driver.mongodb;/**
  */
 
 import com.mongodb.*;
+import com.mongodb.client.MapReduceIterable;
 import com.mongodb.client.MongoCollection;
 import com.mongodb.client.MongoDatabase;
 import com.mongodb.client.model.InsertManyOptions;
@@ -1201,5 +1202,17 @@ public class Driver implements MorphiumDriver {
             return null;
         }, retriesOnNetworkError, sleepBetweenErrorRetries);
 
+    }
+
+    @Override
+    public List<Map<String, Object>> mapReduce(String db, String collection, String mapping, String reducing) throws MorphiumDriverException {
+        MapReduceIterable<Document> res = mongo.getDatabase(db).getCollection(collection).mapReduce(mapping, reducing);
+        ArrayList<Map<String, Object>> ret = new ArrayList<>();
+        for (Document d : res) {
+            HashMap<String, Object> doc = new HashMap<>();
+            doc.putAll(d);
+            ret.add(doc);
+        }
+        return ret;
     }
 }
