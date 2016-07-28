@@ -2240,6 +2240,22 @@ public class Morphium {
     }
 
 
+    ////////////////////////////////
+    /////// MAP/REDUCE
+    /////
+
+    public <T> List<T> mapReduce(Class<? extends T> type, String map, String reduce) throws MorphiumDriverException {
+        List<Map<String, Object>> result = getDriver().mapReduce(getConfig().getDatabase(), getMapper().getCollectionName(type), map, reduce);
+        List<T> ret = new ArrayList<T>();
+
+        for (Map<String, Object> o : result) {
+            ret.add(getMapper().unmarshall(type, o));
+        }
+        return ret;
+
+    }
+
+
     /////////////////
     //// AGGREGATOR Support
     ///
