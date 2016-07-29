@@ -34,6 +34,15 @@ public class UncachedObject {
     @Id
     private MorphiumId morphiumId;
 
+    public UncachedObject() {
+
+    }
+
+    public UncachedObject(String value, int counter) {
+        this.value = value;
+        this.counter = counter;
+    }
+
     public double getDval() {
         return dval;
     }

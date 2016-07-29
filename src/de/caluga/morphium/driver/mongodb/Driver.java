@@ -3,6 +3,7 @@ package de.caluga.morphium.driver.mongodb;/**
  */
 
 import com.mongodb.*;
+import com.mongodb.client.FindIterable;
 import com.mongodb.client.MapReduceIterable;
 import com.mongodb.client.MongoCollection;
 import com.mongodb.client.MongoDatabase;
@@ -21,6 +22,7 @@ import org.bson.types.BSONTimestamp;
 import org.bson.types.ObjectId;
 
 import java.util.*;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 @SuppressWarnings({"WeakerAccess", "deprecation"})
@@ -483,6 +485,54 @@ public class Driver implements MorphiumDriver {
         }, retriesOnNetworkError, sleepBetweenErrorRetries).get("result");
     }
 
+
+    @Override
+    public void tailableIteration(String db, String collection, final Map<String, Object> query, Map<String, Integer> sort, Map<String, Object> projection, int skip, int limit, int batchSize, ReadPreference readPreference, int timeout, DriverTailableIterationCallback cb) throws MorphiumDriverException {
+        DriverHelper.replaceMorphiumIdByObjectId(query);
+        //noinspection ConstantConditions
+        DriverHelper.doCall(() -> {
+            MongoDatabase database = mongo.getDatabase(db);
+            //                MongoDatabase database = mongo.getDatabase(db);
+            MongoCollection<Document> coll = getCollection(database, collection, readPreference, null);
+            FindIterable<Document> ret = coll.find(new BasicDBObject(query));
+            if (projection != null) {
+                ret.projection(new BasicDBObject(projection));
+            }
+
+            if (sort != null) {
+                ret = ret.sort(new BasicDBObject(sort));
+            }
+            if (skip != 0) {
+                ret = ret.skip(skip);
+            }
+            if (limit != 0) {
+                ret = ret.limit(limit);
+            }
+            if (batchSize != 0) {
+                ret.batchSize(batchSize);
+            } else {
+                ret.batchSize(defaultBatchSize);
+            }
+
+            ret.cursorType(CursorType.TailableAwait);
+            if (timeout == 0) {
+                ret.noCursorTimeout(true);
+            } else {
+                ret.maxAwaitTime(timeout, TimeUnit.MILLISECONDS);
+                ret.maxTime(timeout, TimeUnit.MILLISECONDS);
+            }
+            long start = System.currentTimeMillis();
+            for (Document d : ret) {
+                Map<String, Object> obj = convertBSON(d);
+                if (!cb.incomingData(obj, System.currentTimeMillis() - start)) {
+                    break;
+                }
+            }
+            //no close possible
+            return null;
+        }, retriesOnNetworkError, sleepBetweenErrorRetries);
+    }
+
     private void handleMetaData(Map<String, Object> findMetaData, DBCursor ret) {
         if (findMetaData != null) {
             if (ret.getServerAddress() != null) {
@@ -635,17 +685,17 @@ public class Driver implements MorphiumDriver {
                 value = v;
             } else //noinspection ConstantConditions
                 if (value instanceof BsonArray) {
-                Map m = new HashMap<>();
+                    Map m = new HashMap<>();
                     //noinspection unchecked,unchecked
-                m.put("list", new ArrayList(((BsonArray) value).getValues()));
-                value = convertBSON(m).get("list");
+                    m.put("list", new ArrayList(((BsonArray) value).getValues()));
+                    value = convertBSON(m).get("list");
                 } else //noinspection ConstantConditions
                     if (value instanceof Document) {
-                value = convertBSON((Map) value);
+                        value = convertBSON((Map) value);
                     } else //noinspection ConstantConditions
                         if (value instanceof BSONObject) {
-                value = convertBSON((Map) value);
-            }
+                            value = convertBSON((Map) value);
+                        }
             obj.put(k.toString(), value);
         }
         return obj;
