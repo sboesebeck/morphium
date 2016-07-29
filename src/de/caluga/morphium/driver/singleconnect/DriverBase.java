@@ -1,7 +1,10 @@
 package de.caluga.morphium.driver.singleconnect;
 
 import de.caluga.morphium.Utils;
-import de.caluga.morphium.driver.*;
+import de.caluga.morphium.driver.MorphiumDriver;
+import de.caluga.morphium.driver.MorphiumDriverException;
+import de.caluga.morphium.driver.ReadPreference;
+import de.caluga.morphium.driver.WriteConcern;
 import de.caluga.morphium.driver.bson.MongoJSScript;
 import de.caluga.morphium.driver.mongodb.Maximums;
 
@@ -489,8 +492,4 @@ public abstract class DriverBase implements MorphiumDriver {
         return ret;
     }
 
-    @Override
-    public void tailableIteration(String db, String collection, Map<String, Object> query, Map<String, Integer> sort, Map<String, Object> projection, int skip, int limit, int batchSize, ReadPreference readPreference, int timeout, DriverTailableIterationCallback cb) throws MorphiumDriverException {
-        throw new FunctionNotSupportedException("not implemented yet, sorry");
-    }
 }

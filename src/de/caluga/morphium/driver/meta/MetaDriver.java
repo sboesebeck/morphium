@@ -773,6 +773,21 @@ public class MetaDriver extends DriverBase {
     }
 
     @Override
+    public void tailableIteration(String db, String collection, Map<String, Object> query, Map<String, Integer> sort, Map<String, Object> projection, int skip, int limit, int batchSize, ReadPreference readPreference, int timeout, DriverTailableIterationCallback cb) throws MorphiumDriverException {
+        Connection c = null;
+        try {
+            c = getConnection(readPreference);
+            c.getD().tailableIteration(db, collection, query, sort, projection, skip, limit, batchSize, readPreference, timeout, cb);
+        } catch (MorphiumDriverNetworkException ex) {
+            if (c != null) {
+                incErrorCount(c.getHost());
+            }
+            throw ex;
+        } finally {
+            freeConnection(c);
+        }
+    }
+    @Override
     public List<Map<String, Object>> aggregate(String db, String collection, List<Map<String, Object>> pipeline, boolean explain, boolean allowDiskUse, ReadPreference readPreference) throws MorphiumDriverException {
         Connection c = null;
         try {

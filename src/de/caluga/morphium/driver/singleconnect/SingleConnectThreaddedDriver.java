@@ -496,6 +496,10 @@ public class SingleConnectThreaddedDriver extends DriverBase {
     }
 
     private OpReply getReply(int waitingfor) throws MorphiumDriverException {
+        return getReply(waitingfor, getMaxWaitTime());
+    }
+
+    private OpReply getReply(int waitingfor, int maxWait) throws MorphiumDriverException {
         waitingForReply++;
         try {
             long start = System.currentTimeMillis();
@@ -512,7 +516,7 @@ public class SingleConnectThreaddedDriver extends DriverBase {
                             return replies.remove(i);
                         }
                     }
-                    if (System.currentTimeMillis() - start > getMaxWaitTime()) {
+                    if (System.currentTimeMillis() - start > maxWait) {
                         throw new MorphiumDriverNetworkException("could not get reply in time");
                     }
                 }
@@ -1025,5 +1029,108 @@ public class SingleConnectThreaddedDriver extends DriverBase {
 
     }
 
+    @Override
+    public void tailableIteration(String db, String collection, Map<String, Object> query, Map<String, Integer> s, Map<String, Object> projection, int skip, int limit, int batchSize, ReadPreference readPreference, int timeout, DriverTailableIterationCallback cb) throws MorphiumDriverException {
+        if (s == null) {
+            s = new HashMap<>();
+        }
+        final Map<String, Integer> sort = s;
+        //noinspection unchecked
+        new NetworkCallHelper().doCall(() -> {
+            OpQuery q = new OpQuery();
+            q.setDb(db);
+            q.setColl("$cmd");
+            q.setLimit(1);
+            q.setSkip(0);
+            q.setReqId(getNextId());
+
+            Map<String, Object> doc = new LinkedHashMap<>();
+            doc.put("find", collection);
+            if (limit > 0) {
+                doc.put("limit", limit);
+            }
+            doc.put("skip", skip);
+            if (!query.isEmpty()) {
+                doc.put("filter", query);
+            }
+            if (projection != null) {
+                doc.put("projection", projection);
+            }
+            doc.put("sort", sort);
+            doc.put("batchSize", batchSize);
+            q.setDoc(doc);
+            q.setInReplyTo(0);
+            q.setTailableCursor(true);
+            q.setAwaitData(true);
+            //q.setFlags(q.getFlags()+16); Hack for No_timeout!
+            long start = System.currentTimeMillis();
+            List<Map<String, Object>> ret = null;
+            sendQuery(q);
+
+            OpReply reply = null;
+            int waitingfor = q.getReqId();
+            while (true) {
+                int t = timeout;
+                if (t == 0) {
+                    t = Integer.MAX_VALUE;
+                }
+                reply = getReply(waitingfor, t);
+                if (reply.getInReplyTo() != waitingfor) {
+                    throw new MorphiumDriverNetworkException("Wrong answer - waiting for " + waitingfor + " but got " + reply.getInReplyTo());
+                }
+                @SuppressWarnings("unchecked") Map<String, Object> cursor = (Map<String, Object>) reply.getDocuments().get(0).get("cursor");
+                if (cursor == null) {
+                    //                    //trying result
+                    if (reply.getDocuments().get(0).get("result") != null) {
+                        //noinspection unchecked
+                        for (Map<String, Object> d : (List<Map<String, Object>>) reply.getDocuments().get(0).get("result")) {
+                            cb.incomingData(d, System.currentTimeMillis() - start);
+                        }
+                    }
+                    //                    log.error("did not get cursor. Data: " + Utils.toJsonString(reply.getDocuments().get(0)));
+                    //                    throw new MorphiumDriverException("did not get any data, cursor == null!");
+
+                    log.info("Retrying");
+                    continue;
+                }
+                if (cursor.get("firstBatch") != null) {
+                    //noinspection unchecked
+                    for (Map<String, Object> d : (List<Map<String, Object>>) cursor.get("firstBatch")) {
+                        cb.incomingData(d, System.currentTimeMillis() - start);
+                    }
+                } else if (cursor.get("nextBatch") != null) {
+                    //noinspection unchecked
+                    for (Map<String, Object> d : (List<Map<String, Object>>) cursor.get("nextBatch")) {
+                        cb.incomingData(d, System.currentTimeMillis() - start);
+                    }
+                }
+                if (((Long) cursor.get("id")) != 0) {
+                    //                        log.info("getting next batch for cursor " + cursor.get("id"));
+                    //there is more! Sending getMore!
+                    //there is more! Sending getMore!
+
+                    //                } else {
+                    //                    break;
+                    waitingfor = Integer.valueOf(cursor.get("id").toString());
+                }
+                q = new OpQuery();
+                q.setColl("$cmd");
+                q.setDb(db);
+                q.setReqId(getNextId());
+                q.setSkip(0);
+
+                q.setLimit(1);
+                doc = new LinkedHashMap<>();
+                doc.put("getMore", (long) waitingfor);
+                doc.put("collection", collection);
+                doc.put("batchSize", batchSize);
+                q.setDoc(doc);
+                waitingfor = q.getReqId();
+                sendQuery(q);
+                log.info("While....");
+            }
+
+        }, getRetriesOnNetworkError(), getSleepBetweenErrorRetries());
+    }
 
 }
