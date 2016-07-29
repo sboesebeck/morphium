@@ -1204,15 +1204,38 @@ public class Driver implements MorphiumDriver {
 
     }
 
+
     @Override
     public List<Map<String, Object>> mapReduce(String db, String collection, String mapping, String reducing) throws MorphiumDriverException {
+        return mapReduce(db, collection, mapping, reducing, null, null);
+    }
+
+    @Override
+    public List<Map<String, Object>> mapReduce(String db, String collection, String mapping, String reducing, Map<String, Object> query) throws MorphiumDriverException {
+        return mapReduce(db, collection, mapping, reducing, query, null);
+    }
+
+    @Override
+    public List<Map<String, Object>> mapReduce(String db, String collection, String mapping, String reducing, Map<String, Object> query, Map<String, Object> sorting) throws MorphiumDriverException {
         MapReduceIterable<Document> res = mongo.getDatabase(db).getCollection(collection).mapReduce(mapping, reducing);
+        if (query != null) {
+            BasicDBObject v = new BasicDBObject(query);
+            res.filter(v);
+        }
+        if (sorting != null) {
+            res.sort(new BasicDBObject(sorting));
+        }
         ArrayList<Map<String, Object>> ret = new ArrayList<>();
         for (Document d : res) {
-            HashMap<String, Object> doc = new HashMap<>();
-            doc.putAll(d);
-            ret.add(doc);
+            Map<String, Object> value = (Map) d.get("value");
+            for (Map.Entry<String, Object> s : value.entrySet()) {
+                if (s.getValue() instanceof ObjectId) {
+                    value.put(s.getKey(), new MorphiumId(((ObjectId) s.getValue()).toHexString()));
+                }
+            }
+            ret.add(value);
         }
+
         return ret;
     }
 }
