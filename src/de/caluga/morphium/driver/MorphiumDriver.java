@@ -168,6 +168,8 @@ public interface MorphiumDriver {
 
     MorphiumCursor initIteration(String db, String collection, Map<String, Object> query, Map<String, Integer> sort, Map<String, Object> projection, int skip, int limit, int batchSize, ReadPreference readPreference, Map<String, Object> findMetaData) throws MorphiumDriverException;
 
+    void tailableIteration(String db, String collection, Map<String, Object> query, Map<String, Integer> sort, Map<String, Object> projection, int skip, int limit, int batchSize, ReadPreference readPreference, int timeout, DriverTailableIterationCallback cb) throws MorphiumDriverException;
+
     MorphiumCursor nextIteration(MorphiumCursor crs) throws MorphiumDriverException;
 
     void closeIteration(MorphiumCursor crs) throws MorphiumDriverException;
