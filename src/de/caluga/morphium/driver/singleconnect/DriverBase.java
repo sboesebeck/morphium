@@ -1,17 +1,16 @@
 package de.caluga.morphium.driver.singleconnect;
 
+import de.caluga.morphium.Utils;
 import de.caluga.morphium.driver.MorphiumDriver;
 import de.caluga.morphium.driver.MorphiumDriverException;
 import de.caluga.morphium.driver.ReadPreference;
 import de.caluga.morphium.driver.WriteConcern;
+import de.caluga.morphium.driver.bson.MongoJSScript;
 import de.caluga.morphium.driver.mongodb.Maximums;
 
 import java.net.InetAddress;
 import java.net.UnknownHostException;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Vector;
+import java.util.*;
 
 /**
  * User: Stephan Bösebeck
@@ -433,5 +432,63 @@ public abstract class DriverBase implements MorphiumDriver {
         }
         InetAddress in = InetAddress.getByName(h);
         return in.getHostAddress() + ":" + port;
+    }
+
+
+    @Override
+    public List<Map<String, Object>> mapReduce(String db, String collection, String mapping, String reducing, Map<String, Object> query) throws MorphiumDriverException {
+        return mapReduce(db, collection, mapping, reducing, query, null);
+    }
+
+    @Override
+    public List<Map<String, Object>> mapReduce(String db, String collection, String mapping, String reducing) throws MorphiumDriverException {
+        return mapReduce(db, collection, mapping, reducing, null, null);
+    }
+
+    @Override
+    public List<Map<String, Object>> mapReduce(String db, String collection, String mapping, String reducing, Map<String, Object> query, Map<String, Object> sorting) throws MorphiumDriverException {
+        Map<String, Object> cmd = new LinkedHashMap<>();
+        /*
+         mapReduce: <collection>,
+                 map: <function>,
+                 reduce: <function>,
+                 finalize: <function>,
+                 out: <output>,
+                 query: <document>,
+                 sort: <document>,
+                 limit: <number>,
+                 scope: <document>,
+                 jsMode: <boolean>,
+                 verbose: <boolean>,
+                 bypassDocumentValidation: <boolean>
+         */
+
+        cmd.put("mapReduce", collection);
+        cmd.put("map", new MongoJSScript(mapping));
+        cmd.put("reduce", new MongoJSScript(reducing));
+        cmd.put("out", Utils.getMap("inline", 1));
+        if (query != null) {
+            cmd.put("query", query);
+        }
+        if (sorting != null) {
+            cmd.put("sort", sorting);
+        }
+        Map<String, Object> result = runCommand(db, cmd);
+        if (result == null) {
+            throw new MorphiumDriverException("Could not get proper result");
+        }
+        List<Map<String, Object>> results = (List<Map<String, Object>>) result.get("results");
+        if (results == null) {
+            return new ArrayList<>();
+        }
+
+
+        ArrayList<Map<String, Object>> ret = new ArrayList<>();
+        for (Map<String, Object> d : results) {
+            Map<String, Object> value = (Map) d.get("value");
+            ret.add(value);
+        }
+
+        return ret;
     }
 }

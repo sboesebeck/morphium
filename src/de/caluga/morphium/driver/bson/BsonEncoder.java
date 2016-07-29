@@ -182,14 +182,22 @@ public class BsonEncoder {
             if (s.getContext() != null) {
                 //                try {
                     writeByte(0x0f);
-                    byte[] b = BsonEncoder.encodeDocument(s.getContext());
                 //                    long sz = n.getBytes("UTF-8").length + 1 + 4 + b.length; //size+stringlength+1 (ending 0)+document length
-                    string(n);
-
-                    writeBytes(b);
+                cString(n);
+                int l = s.getJs().length() + 4; //String length
+                byte[] b = BsonEncoder.encodeDocument(s.getContext());
+                l = l + b.length;
+                writeByte(l);
+                string(s.getJs());
+                writeBytes(b);
                 //                } catch (IOException e) {
                 //                    e.printStackTrace();
                 //                }
+
+            } else {
+                writeByte(0x0d);
+                cString(n);
+                string(s.getJs());
 
             }
         } else if (v.getClass().isAssignableFrom(Integer.class)) {

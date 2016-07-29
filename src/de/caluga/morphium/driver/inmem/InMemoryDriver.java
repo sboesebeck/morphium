@@ -837,6 +837,20 @@ public class InMemoryDriver implements MorphiumDriver {
 
     }
 
+    @Override
+    public List<Map<String, Object>> mapReduce(String db, String collection, String mapping, String reducing) throws MorphiumDriverException {
+        throw new FunctionNotSupportedException("no map reduce in memory");
+    }
+
+    @Override
+    public List<Map<String, Object>> mapReduce(String db, String collection, String mapping, String reducing, Map<String, Object> query) throws MorphiumDriverException {
+        throw new FunctionNotSupportedException("no map reduce in memory");
+    }
+
+    @Override
+    public List<Map<String, Object>> mapReduce(String db, String collection, String mapping, String reducing, Map<String, Object> query, Map<String, Object> sorting) throws MorphiumDriverException {
+        throw new FunctionNotSupportedException("no map reduce in memory");
+    }
 
     private class InMemoryCursor {
         private int skip;
