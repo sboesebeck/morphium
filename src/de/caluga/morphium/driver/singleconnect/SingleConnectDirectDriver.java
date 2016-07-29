@@ -959,4 +959,10 @@ public class SingleConnectDirectDriver extends DriverBase {
 
     }
 
+
+    @Override
+    public void tailableIteration(String db, String collection, Map<String, Object> query, Map<String, Integer> sort, Map<String, Object> projection, int skip, int limit, int batchSize, ReadPreference readPreference, int timeout, DriverTailableIterationCallback cb) throws MorphiumDriverException {
+        throw new FunctionNotSupportedException("not implemented yet, sorry");
+    }
+
 }
