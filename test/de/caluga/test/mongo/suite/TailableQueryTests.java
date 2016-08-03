@@ -41,16 +41,16 @@ public class TailableQueryTests extends MongoTest {
                         }
                     }
                 });
-                assert (false);
+                assert (found);
             }
         }.start();
 
-        Thread.sleep(1000);
+        Thread.sleep(500);
         assert (found);
         found = false;
         log.info("Storing 3...");
         m.store(new CappedCollectionTest.CappedCol("Test 3 - quit", 3));
-        Thread.sleep(1000);
+        Thread.sleep(1500);
         assert (found);
 
     }
