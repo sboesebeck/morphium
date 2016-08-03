@@ -495,11 +495,13 @@ public class SingleConnectThreaddedDriver extends DriverBase {
         return ret;
     }
 
-    private OpReply getReply(long waitingfor) throws MorphiumDriverException {
+
+    protected OpReply getReply(long waitingfor) throws MorphiumDriverException {
         return getReply(waitingfor, getMaxWaitTime());
     }
 
-    private OpReply getReply(long waitingfor, int maxWait) throws MorphiumDriverException {
+    @Override
+    protected OpReply getReply(long waitingfor, int maxWait) throws MorphiumDriverException {
         waitingForReply++;
         try {
             long start = System.currentTimeMillis();
@@ -527,7 +529,8 @@ public class SingleConnectThreaddedDriver extends DriverBase {
         }
     }
 
-    private void sendQuery(OpQuery q) throws MorphiumDriverException {
+    @Override
+    protected void sendQuery(OpQuery q) throws MorphiumDriverException {
         boolean retry = true;
         if (q.getDb() == null) {
             throw new IllegalArgumentException("cannot send command without db");
@@ -1027,171 +1030,6 @@ public class SingleConnectThreaddedDriver extends DriverBase {
             return null;
         }, getRetriesOnNetworkError(), getSleepBetweenErrorRetries());
 
-    }
-
-    @Override
-    public void tailableIteration(String db, String collection, Map<String, Object> query, Map<String, Integer> s, Map<String, Object> projection, int skip, int limit, int batchSize, ReadPreference readPreference, int timeout, DriverTailableIterationCallback cb) throws MorphiumDriverException {
-        if (s == null) {
-            s = new HashMap<>();
-        }
-        final Map<String, Integer> sort = s;
-        //noinspection unchecked
-        new NetworkCallHelper().doCall(() -> {
-            OpQuery q = new OpQuery();
-            q.setDb(db);
-            q.setColl("$cmd");
-            q.setLimit(1);
-            q.setSkip(0);
-            q.setReqId(getNextId());
-
-            Map<String, Object> doc = new LinkedHashMap<>();
-            doc.put("find", collection);
-            if (limit > 0) {
-                doc.put("limit", limit);
-            }
-            doc.put("skip", skip);
-            if (!query.isEmpty()) {
-                doc.put("filter", query);
-            }
-            if (projection != null) {
-                doc.put("projection", projection);
-            }
-            doc.put("sort", sort);
-            doc.put("batchSize", batchSize);
-            doc.put("maxTimeMS", timeout);
-            doc.put("tailable", true);
-            doc.put("awaitData", true);
-            q.setDoc(doc);
-            q.setInReplyTo(0);
-            q.setTailableCursor(true);
-            q.setAwaitData(true);
-            q.setNoCursorTimeout(true);
-
-            long start = System.currentTimeMillis();
-            List<Map<String, Object>> ret = null;
-            sendQuery(q);
-
-            OpReply reply = null;
-            long waitingfor = q.getReqId();
-            long cursorId = 0;
-            log.info("Starting...");
-            int t = timeout;
-            if (t == 0) {
-                t = 10000000;
-            }
-            while (true) {
-                log.info("reading result");
-                reply = getReply(waitingfor, t);
-
-                if (reply.getInReplyTo() != waitingfor) {
-                    throw new MorphiumDriverNetworkException("Wrong answer - waiting for " + waitingfor + " but got " + reply.getInReplyTo());
-                }
-                @SuppressWarnings("unchecked") Map<String, Object> cursor = (Map<String, Object>) reply.getDocuments().get(0).get("cursor");
-                if (cursor == null) {
-                    log.info("no-cursor result");
-                    //                    //trying result
-                    if (reply.getDocuments().get(0).get("result") != null) {
-                        //noinspection unchecked
-                        for (Map<String, Object> d : (List<Map<String, Object>>) reply.getDocuments().get(0).get("result")) {
-                            if (!cb.incomingData(d, System.currentTimeMillis() - start)) {
-                                return null;
-                            }
-                        }
-                    }
-                    log.error("did not get cursor. Data: " + Utils.toJsonString(reply.getDocuments().get(0)));
-                    //                    throw new MorphiumDriverException("did not get any data, cursor == null!");
-
-                    log.info("Retrying");
-                    continue;
-                }
-                if (cursor.get("firstBatch") != null) {
-                    log.info("Firstbatch...");
-                    //noinspection unchecked
-                    for (Map<String, Object> d : (List<Map<String, Object>>) cursor.get("firstBatch")) {
-                        if (!cb.incomingData(d, System.currentTimeMillis() - start)) {
-                            return null;
-                        }
-                    }
-                } else if (cursor.get("nextBatch") != null) {
-                    log.info("NextBatch...");
-                    //noinspection unchecked
-                    for (Map<String, Object> d : (List<Map<String, Object>>) cursor.get("nextBatch")) {
-                        if (!cb.incomingData(d, System.currentTimeMillis() - start)) {
-                            return null;
-                        }
-                    }
-                }
-                if (((Long) cursor.get("id")) != 0) {
-                    //                        log.info("getting next batch for cursor " + cursor.get("id"));
-                    //there is more! Sending getMore!
-                    //there is more! Sending getMore!
-
-                    //                } else {
-                    //                    break;
-                    log.info("CursorID:" + cursor.get("id").toString());
-                    cursorId = Long.valueOf(cursor.get("id").toString());
-                } else {
-                    log.error("Cursor closed - reviving!");
-                    try {
-                        Thread.sleep(100);
-                    } catch (InterruptedException e) {
-                        e.printStackTrace();
-                    }
-                    q = new OpQuery();
-                    q.setDb(db);
-                    q.setColl("$cmd");
-                    q.setLimit(1);
-                    q.setSkip(0);
-                    q.setReqId(getNextId());
-
-                    doc = new LinkedHashMap<>();
-                    doc.put("find", collection);
-                    if (limit > 0) {
-                        doc.put("limit", limit);
-                    }
-                    doc.put("skip", skip);
-                    if (!query.isEmpty()) {
-                        doc.put("filter", query);
-                    }
-                    if (projection != null) {
-                        doc.put("projection", projection);
-                    }
-                    doc.put("sort", sort);
-                    doc.put("batchSize", 1);
-                    doc.put("maxTimeMS", timeout);
-                    q.setDoc(doc);
-                    q.setInReplyTo(0);
-                    q.setTailableCursor(true);
-                    q.setAwaitData(true);
-                    q.setNoCursorTimeout(true);
-                    sendQuery(q);
-                    continue;
-                }
-                q = new OpQuery();
-                q.setColl("$cmd");
-                q.setDb(db);
-                q.setReqId(getNextId());
-                q.setSkip(0);
-                q.setTailableCursor(true);
-                q.setAwaitData(true);
-                q.setNoCursorTimeout(true);
-                q.setSlaveOk(false);
-                q.setLimit(1);
-                doc = new LinkedHashMap<>();
-                doc.put("getMore", cursorId);
-                doc.put("collection", collection);
-                doc.put("batchSize", batchSize);
-                doc.put("maxTimeMS", timeout);
-
-                q.setDoc(doc);
-                waitingfor = q.getReqId();
-                sendQuery(q);
-
-                log.info("sent getmore....");
-
-            }
-
-        }, getRetriesOnNetworkError(), getSleepBetweenErrorRetries());
     }
 
 }
