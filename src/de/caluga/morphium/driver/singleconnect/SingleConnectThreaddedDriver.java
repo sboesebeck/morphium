@@ -1057,7 +1057,7 @@ public class SingleConnectThreaddedDriver extends DriverBase {
                 doc.put("projection", projection);
             }
             doc.put("sort", sort);
-            doc.put("batchSize", 1);
+            doc.put("batchSize", batchSize);
             doc.put("maxTimeMS", timeout);
             doc.put("tailable", true);
             doc.put("awaitData", true);
@@ -1180,7 +1180,7 @@ public class SingleConnectThreaddedDriver extends DriverBase {
                 doc = new LinkedHashMap<>();
                 doc.put("getMore", cursorId);
                 doc.put("collection", collection);
-                doc.put("batchSize", 1);
+                doc.put("batchSize", batchSize);
                 doc.put("maxTimeMS", timeout);
 
                 q.setDoc(doc);
