@@ -10,6 +10,8 @@ import de.caluga.morphium.driver.singleconnect.BulkContext;
 import de.caluga.morphium.driver.singleconnect.DriverBase;
 import de.caluga.morphium.driver.singleconnect.SingleConnectCursor;
 import de.caluga.morphium.driver.singleconnect.SingleConnectThreaddedDriver;
+import de.caluga.morphium.driver.wireprotocol.OpQuery;
+import de.caluga.morphium.driver.wireprotocol.OpReply;
 
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
@@ -1006,6 +1008,15 @@ public class MetaDriver extends DriverBase {
 
     }
 
+    @Override
+    protected void sendQuery(OpQuery q) throws MorphiumDriverException {
+
+    }
+
+    @Override
+    protected OpReply getReply(long waitingFor, int timeout) throws MorphiumDriverException {
+        return null;
+    }
 
     private class Connection {
         private DriverBase d;
@@ -1141,6 +1152,4 @@ public class MetaDriver extends DriverBase {
             lru = System.currentTimeMillis();
         }
     }
-
-
 }
