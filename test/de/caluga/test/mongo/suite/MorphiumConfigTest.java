@@ -73,15 +73,20 @@ public class MorphiumConfigTest extends MongoTest {
         p.put("socketTimeout", "1000");
         p.put("database", "thingy");
         p.put("hosts", "localhost:27017");
+        p.put("globalLogSynced", "true");
+        p.put("globalLogLevel", "1");
 
         MorphiumConfig cfg = MorphiumConfig.fromProperties(p);
         assert (cfg.getHostSeed().size() == 1);
         assert (cfg.getDatabase().equals("thingy"));
         assert (cfg.getSocketTimeout() == 1000);
+        assert (cfg.getGlobalLogLevel() == 1);
     }
 
     @Test
     public void testToProperties() throws Exception {
+        morphium.getConfig().setGlobalLogLevel(5);
+        morphium.getConfig().setGlobalLogSynced(true);
         Properties p = morphium.getConfig().asProperties();
         for (Object k : p.keySet()) {
             log.info("Key: " + k + " Value: " + p.get(k));
