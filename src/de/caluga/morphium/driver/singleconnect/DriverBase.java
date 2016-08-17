@@ -1,17 +1,16 @@
 package de.caluga.morphium.driver.singleconnect;
 
-import de.caluga.morphium.driver.MorphiumDriver;
-import de.caluga.morphium.driver.MorphiumDriverException;
-import de.caluga.morphium.driver.ReadPreference;
-import de.caluga.morphium.driver.WriteConcern;
+import de.caluga.morphium.Logger;
+import de.caluga.morphium.Utils;
+import de.caluga.morphium.driver.*;
+import de.caluga.morphium.driver.bson.MongoJSScript;
 import de.caluga.morphium.driver.mongodb.Maximums;
+import de.caluga.morphium.driver.wireprotocol.OpQuery;
+import de.caluga.morphium.driver.wireprotocol.OpReply;
 
 import java.net.InetAddress;
 import java.net.UnknownHostException;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Vector;
+import java.util.*;
 
 /**
  * User: Stephan Bösebeck
@@ -53,6 +52,8 @@ public abstract class DriverBase implements MorphiumDriver {
     private int maxConnectionsPerHost = 100;
     private int defaultWriteTimeout = 10000;
 
+
+    private Logger log = new Logger(DriverBase.class);
     private boolean slaveOk = true;
 
     public boolean isSlaveOk() {
@@ -434,4 +435,264 @@ public abstract class DriverBase implements MorphiumDriver {
         InetAddress in = InetAddress.getByName(h);
         return in.getHostAddress() + ":" + port;
     }
+
+
+    @Override
+    public List<Map<String, Object>> mapReduce(String db, String collection, String mapping, String reducing, Map<String, Object> query) throws MorphiumDriverException {
+        return mapReduce(db, collection, mapping, reducing, query, null);
+    }
+
+    @Override
+    public List<Map<String, Object>> mapReduce(String db, String collection, String mapping, String reducing) throws MorphiumDriverException {
+        return mapReduce(db, collection, mapping, reducing, null, null);
+    }
+
+    @Override
+    public List<Map<String, Object>> mapReduce(String db, String collection, String mapping, String reducing, Map<String, Object> query, Map<String, Object> sorting) throws MorphiumDriverException {
+        Map<String, Object> cmd = new LinkedHashMap<>();
+        /*
+         mapReduce: <collection>,
+                 map: <function>,
+                 reduce: <function>,
+                 finalize: <function>,
+                 out: <output>,
+                 query: <document>,
+                 sort: <document>,
+                 limit: <number>,
+                 scope: <document>,
+                 jsMode: <boolean>,
+                 verbose: <boolean>,
+                 bypassDocumentValidation: <boolean>
+         */
+
+        cmd.put("mapReduce", collection);
+        cmd.put("map", new MongoJSScript(mapping));
+        cmd.put("reduce", new MongoJSScript(reducing));
+        cmd.put("out", Utils.getMap("inline", 1));
+        if (query != null) {
+            cmd.put("query", query);
+        }
+        if (sorting != null) {
+            cmd.put("sort", sorting);
+        }
+        Map<String, Object> result = runCommand(db, cmd);
+        if (result == null) {
+            throw new MorphiumDriverException("Could not get proper result");
+        }
+        List<Map<String, Object>> results = (List<Map<String, Object>>) result.get("results");
+        if (results == null) {
+            return new ArrayList<>();
+        }
+
+
+        ArrayList<Map<String, Object>> ret = new ArrayList<>();
+        for (Map<String, Object> d : results) {
+            Map<String, Object> value = (Map) d.get("value");
+            ret.add(value);
+        }
+
+        return ret;
+    }
+
+    protected abstract void sendQuery(OpQuery q) throws MorphiumDriverException;
+
+    protected abstract OpReply getReply(long waitingFor, int timeout) throws MorphiumDriverException;
+
+
+    protected void killCursors(String db, String coll, long... ids) throws MorphiumDriverException {
+        List<Long> cursorIds = new ArrayList<>();
+        for (long l : ids) {
+            if (l != 0) {
+                cursorIds.add(l);
+            }
+        }
+        if (cursorIds.isEmpty()) {
+            return;
+        }
+
+        OpQuery q = new OpQuery();
+        q.setDb(db);
+        q.setColl("$cmd");
+        q.setLimit(1);
+        q.setSkip(0);
+        q.setReqId(getNextId());
+
+        Map<String, Object> doc = new LinkedHashMap<>();
+        doc.put("killCursors", coll);
+        doc.put("cursors", cursorIds);
+        q.setDoc(doc);
+        sendQuery(q);
+
+    }
+
+
+    @Override
+    public void tailableIteration(String db, String collection, Map<String, Object> query, Map<String, Integer> s, Map<String, Object> projection, int skip, int limit, int batchSize, ReadPreference readPreference, int timeout, DriverTailableIterationCallback cb) throws MorphiumDriverException {
+        if (s == null) {
+            s = new HashMap<>();
+        }
+        final Map<String, Integer> sort = s;
+        //noinspection unchecked
+        new NetworkCallHelper().doCall(() -> {
+            OpQuery q = new OpQuery();
+            q.setDb(db);
+            q.setColl("$cmd");
+            q.setLimit(1);
+            q.setSkip(0);
+            q.setReqId(getNextId());
+
+            Map<String, Object> doc = new LinkedHashMap<>();
+            doc.put("find", collection);
+            if (limit > 0) {
+                doc.put("limit", limit);
+            }
+            doc.put("skip", skip);
+            if (!query.isEmpty()) {
+                doc.put("filter", query);
+            }
+            if (projection != null) {
+                doc.put("projection", projection);
+            }
+            int t = timeout;
+            if (t == 0) {
+                t = Integer.MAX_VALUE;
+            }
+            doc.put("sort", sort);
+            doc.put("batchSize", batchSize);
+            doc.put("maxTimeMS", t);
+            doc.put("tailable", true);
+            doc.put("awaitData", true);
+            q.setDoc(doc);
+            q.setInReplyTo(0);
+            q.setTailableCursor(true);
+            q.setAwaitData(true);
+            q.setNoCursorTimeout(true);
+
+            long start = System.currentTimeMillis();
+            List<Map<String, Object>> ret = null;
+            sendQuery(q);
+
+            OpReply reply = null;
+            long waitingfor = q.getReqId();
+            long cursorId = 0;
+            log.info("Starting...");
+
+            while (true) {
+                log.info("reading result");
+                reply = getReply(waitingfor, t);
+
+                if (reply.getInReplyTo() != waitingfor) {
+                    throw new MorphiumDriverNetworkException("Wrong answer - waiting for " + waitingfor + " but got " + reply.getInReplyTo());
+                }
+                @SuppressWarnings("unchecked") Map<String, Object> cursor = (Map<String, Object>) reply.getDocuments().get(0).get("cursor");
+                if (cursor == null) {
+                    log.info("no-cursor result");
+                    //                    //trying result
+                    if (reply.getDocuments().get(0).get("result") != null) {
+                        //noinspection unchecked
+                        for (Map<String, Object> d : (List<Map<String, Object>>) reply.getDocuments().get(0).get("result")) {
+                            if (!cb.incomingData(d, System.currentTimeMillis() - start)) {
+                                return null;
+                            }
+                        }
+                    }
+                    log.error("did not get cursor. Data: " + Utils.toJsonString(reply.getDocuments().get(0)));
+                    //                    throw new MorphiumDriverException("did not get any data, cursor == null!");
+
+                    log.info("Retrying");
+                    continue;
+                }
+                if (cursor.get("firstBatch") != null) {
+                    log.info("Firstbatch...");
+                    //noinspection unchecked
+                    for (Map<String, Object> d : (List<Map<String, Object>>) cursor.get("firstBatch")) {
+                        if (!cb.incomingData(d, System.currentTimeMillis() - start)) {
+                            return null;
+                        }
+                    }
+                } else if (cursor.get("nextBatch") != null) {
+                    log.info("NextBatch...");
+                    //noinspection unchecked
+                    for (Map<String, Object> d : (List<Map<String, Object>>) cursor.get("nextBatch")) {
+                        if (!cb.incomingData(d, System.currentTimeMillis() - start)) {
+                            return null;
+                        }
+                    }
+                }
+                if (((Long) cursor.get("id")) != 0) {
+                    //                        log.info("getting next batch for cursor " + cursor.get("id"));
+                    //there is more! Sending getMore!
+                    //there is more! Sending getMore!
+
+                    //                } else {
+                    //                    break;
+                    log.info("CursorID:" + cursor.get("id").toString());
+                    cursorId = Long.valueOf(cursor.get("id").toString());
+                } else {
+                    log.error("Cursor closed - reviving!");
+                    try {
+                        Thread.sleep(100);
+                    } catch (InterruptedException e) {
+                        e.printStackTrace();
+                    }
+                    q = new OpQuery();
+                    q.setDb(db);
+                    q.setColl("$cmd");
+                    q.setLimit(1);
+                    q.setSkip(0);
+                    q.setReqId(getNextId());
+
+                    doc = new LinkedHashMap<>();
+                    doc.put("find", collection);
+                    if (limit > 0) {
+                        doc.put("limit", limit);
+                    }
+                    doc.put("skip", skip);
+                    if (!query.isEmpty()) {
+                        doc.put("filter", query);
+                    }
+                    if (projection != null) {
+                        doc.put("projection", projection);
+                    }
+                    doc.put("sort", sort);
+                    doc.put("batchSize", 1);
+                    doc.put("maxTimeMS", timeout);
+                    q.setDoc(doc);
+                    q.setInReplyTo(0);
+                    q.setTailableCursor(true);
+                    q.setAwaitData(true);
+                    q.setNoCursorTimeout(true);
+                    sendQuery(q);
+                    continue;
+                }
+                q = new OpQuery();
+                q.setColl("$cmd");
+                q.setDb(db);
+                q.setReqId(getNextId());
+                q.setSkip(0);
+                q.setTailableCursor(true);
+                q.setAwaitData(true);
+                q.setNoCursorTimeout(true);
+                q.setSlaveOk(false);
+                q.setLimit(1);
+                doc = new LinkedHashMap<>();
+                doc.put("getMore", cursorId);
+                doc.put("collection", collection);
+                doc.put("batchSize", batchSize);
+                doc.put("maxTimeMS", timeout);
+
+                q.setDoc(doc);
+                waitingfor = q.getReqId();
+                sendQuery(q);
+
+                log.info("sent getmore....");
+
+            }
+
+        }, getRetriesOnNetworkError(), getSleepBetweenErrorRetries());
+
+
+    }
+
+
 }

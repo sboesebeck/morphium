@@ -93,7 +93,12 @@ public class SingleConnectDirectDriver extends DriverBase {
         }
     }
 
-    private synchronized OpReply getReply() throws MorphiumDriverNetworkException {
+    @Override
+    protected OpReply getReply(long waitingFor, int timeout) throws MorphiumDriverException {
+        return getReply();
+    }
+
+    protected synchronized OpReply getReply() throws MorphiumDriverNetworkException {
         byte[] inBuffer = new byte[16];
         int numRead;
         try {
@@ -451,7 +456,7 @@ public class SingleConnectDirectDriver extends DriverBase {
         return ret;
     }
 
-    private void sendQuery(OpQuery q) throws MorphiumDriverException {
+    protected void sendQuery(OpQuery q) throws MorphiumDriverException {
         boolean retry = true;
         long start = System.currentTimeMillis();
         while (retry) {

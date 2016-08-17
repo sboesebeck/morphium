@@ -760,6 +760,11 @@ public class InMemoryDriver implements MorphiumDriver {
     }
 
     @Override
+    public void tailableIteration(String db, String collection, Map<String, Object> query, Map<String, Integer> sort, Map<String, Object> projection, int skip, int limit, int batchSize, ReadPreference readPreference, int timeout, DriverTailableIterationCallback cb) throws MorphiumDriverException {
+        throw new FunctionNotSupportedException("not possible in Mem yet");
+    }
+
+    @Override
     public int getMaxWaitTime() {
         return 0;
     }
@@ -837,6 +842,20 @@ public class InMemoryDriver implements MorphiumDriver {
 
     }
 
+    @Override
+    public List<Map<String, Object>> mapReduce(String db, String collection, String mapping, String reducing) throws MorphiumDriverException {
+        throw new FunctionNotSupportedException("no map reduce in memory");
+    }
+
+    @Override
+    public List<Map<String, Object>> mapReduce(String db, String collection, String mapping, String reducing, Map<String, Object> query) throws MorphiumDriverException {
+        throw new FunctionNotSupportedException("no map reduce in memory");
+    }
+
+    @Override
+    public List<Map<String, Object>> mapReduce(String db, String collection, String mapping, String reducing, Map<String, Object> query, Map<String, Object> sorting) throws MorphiumDriverException {
+        throw new FunctionNotSupportedException("no map reduce in memory");
+    }
 
     private class InMemoryCursor {
         private int skip;

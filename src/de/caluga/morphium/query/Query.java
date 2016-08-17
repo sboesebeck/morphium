@@ -186,6 +186,9 @@ public interface Query<T> extends Cloneable {
 
     MorphiumIterator<T> asIterable(int windowSize, int prefixWindows);
 
+
+    void tail(int bufferSize, int maxWait, AsyncOperationCallback<T> cb);
+
     /**
      * get only 1 result (first one in result list)
      *

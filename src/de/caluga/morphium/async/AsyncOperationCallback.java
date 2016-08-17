@@ -13,6 +13,7 @@ import java.util.List;
  */
 public interface AsyncOperationCallback<T> {
     /**
+     * throw morphium access veto exception if you want to stop any subsequent calls
      * @param type     - type of operation performed
      * @param q        - the query for the operation (might be null)
      * @param duration - duration of the whole thing

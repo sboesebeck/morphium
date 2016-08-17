@@ -495,7 +495,13 @@ public class SingleConnectThreaddedDriver extends DriverBase {
         return ret;
     }
 
-    private OpReply getReply(int waitingfor) throws MorphiumDriverException {
+
+    protected OpReply getReply(long waitingfor) throws MorphiumDriverException {
+        return getReply(waitingfor, getMaxWaitTime());
+    }
+
+    @Override
+    protected OpReply getReply(long waitingfor, int maxWait) throws MorphiumDriverException {
         waitingForReply++;
         try {
             long start = System.currentTimeMillis();
@@ -512,7 +518,7 @@ public class SingleConnectThreaddedDriver extends DriverBase {
                             return replies.remove(i);
                         }
                     }
-                    if (System.currentTimeMillis() - start > getMaxWaitTime()) {
+                    if (System.currentTimeMillis() - start > maxWait) {
                         throw new MorphiumDriverNetworkException("could not get reply in time");
                     }
                 }
@@ -523,7 +529,8 @@ public class SingleConnectThreaddedDriver extends DriverBase {
         }
     }
 
-    private void sendQuery(OpQuery q) throws MorphiumDriverException {
+    @Override
+    protected void sendQuery(OpQuery q) throws MorphiumDriverException {
         boolean retry = true;
         if (q.getDb() == null) {
             throw new IllegalArgumentException("cannot send command without db");
@@ -1024,6 +1031,5 @@ public class SingleConnectThreaddedDriver extends DriverBase {
         }, getRetriesOnNetworkError(), getSleepBetweenErrorRetries());
 
     }
-
 
 }

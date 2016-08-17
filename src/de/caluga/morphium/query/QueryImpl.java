@@ -1163,6 +1163,32 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
         return this;
     }
 
+    /**
+     * do a tail query
+     *
+     * @param batchSize - determins how much data is read in one step
+     * @param maxWait   - how long to wait _at most_ for data
+     * @param cb        - the callback being called for _every single document_ - the entity field is filled, lists will be null
+     */
+    @Override
+    public void tail(int batchSize, int maxWait, AsyncOperationCallback<T> cb) {
+        try {
+            morphium.getDriver().tailableIteration(morphium.getConfig().getDatabase(), getCollectionName(), toQueryObject(), getSort(), fieldList, getSkip(), getLimit(), batchSize, getRP(), maxWait, (data, dur) -> {
+                        T entity = morphium.getMapper().unmarshall(getType(), data);
+                        try {
+                            cb.onOperationSucceeded(AsyncOperationType.READ, QueryImpl.this, dur, null, entity);
+                        } catch (MorphiumAccessVetoException ex) {
+                            log.info("Veto Exception " + ex.getMessage());
+                            return false;
+                        }
+                        return true;
+                    }
+            );
+        } catch (MorphiumDriverException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
     @Override
     public Query<T> hideFieldInProjection(Enum f) {
         return hideFieldInProjection(f.name());
