@@ -93,4 +93,33 @@ public class MorphiumConfigTest extends MongoTest {
         assert (cfg.getHostSeed().size() != 0);
         assert (cfg.getQueryClass() != null);
     }
+
+    @Test
+    public void testToPropertiesPrefix() throws Exception {
+        Properties p = morphium.getConfig().asProperties("prefix");
+        for (Object k : p.keySet()) {
+            log.info("Key: " + k + " Value: " + p.get(k));
+            assert (k.toString().startsWith("prefix."));
+        }
+        p.store(System.out, "testproperties");
+
+        MorphiumConfig cfg = MorphiumConfig.fromProperties("prefix", p);
+        assert (cfg.getDatabase().equals(morphium.getConfig().getDatabase()));
+        assert (cfg.getHostSeed().size() != 0);
+        assert (cfg.getQueryClass() != null);
+    }
+
+    @Test
+    public void testReadWithPrefix() throws Exception {
+        Properties p = new Properties();
+        p.put("prefix.maximumRetriesAsyncWriter", "10");
+        p.put("prefix.socketTimeout", "1000");
+        p.put("prefix.hosts", "localhost:27017");
+        MorphiumConfig cfg = MorphiumConfig.fromProperties(p);
+        assert (cfg.getHostSeed().size() == 1);
+        assert (cfg.getDatabase().equals("thingy"));
+        assert (cfg.getSocketTimeout() == 1000);
+    }
+
+
 }

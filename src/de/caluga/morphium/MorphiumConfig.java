@@ -143,29 +143,39 @@ public class MorphiumConfig {
     private int cursorBatchSize = 1000;
 
     public MorphiumConfig(Properties prop) {
+        this(null, prop);
+    }
+
+    public MorphiumConfig(String prefix, Properties prop) {
         AnnotationAndReflectionHelper an = new AnnotationAndReflectionHelper(true); //settings always convert camel case
         List<Field> flds = an.getAllFields(MorphiumConfig.class);
+        if (prefix != null) {
+            prefix += ".";
+        } else {
+            prefix = "";
+        }
         for (Field f : flds) {
             if (f.isAnnotationPresent(Transient.class)) {
                 continue;
             }
             f.setAccessible(true);
-            if (prop.getProperty(f.getName()) != null) {
+            String fName = prefix + f.getName();
+            if (prop.getProperty(fName) != null) {
                 try {
                     if (f.getType().equals(int.class) || f.getType().equals(Integer.class)) {
-                        f.set(this, Integer.parseInt((String) prop.get(f.getName())));
+                        f.set(this, Integer.parseInt((String) prop.get(fName)));
                     } else if (f.getType().equals(String.class)) {
-                        f.set(this, prop.get(f.getName()));
+                        f.set(this, prop.get(fName));
                     } else if (List.class.isAssignableFrom(f.getType())) {
-                        String lst = (String) prop.get(f.getName());
+                        String lst = (String) prop.get(fName);
                         List<String> l = new ArrayList<>();
                         lst = lst.replaceAll("[\\[\\]]", "");
                         Collections.addAll(l, lst.split(","));
                         f.set(this, l);
                     } else if (f.getType().equals(boolean.class) || f.getType().equals(Boolean.class)) {
-                        f.set(this, prop.get(f.getName()).equals("true"));
+                        f.set(this, prop.get(fName).equals("true"));
                     } else if (f.getType().equals(long.class) || f.getType().equals(Long.class)) {
-                        f.set(this, Long.parseLong((String) prop.get(f.getName())));
+                        f.set(this, Long.parseLong((String) prop.get(fName)));
                     }
                 } catch (IllegalAccessException e) {
                     throw new RuntimeException(e);
@@ -212,6 +222,9 @@ public class MorphiumConfig {
                 if (!k.endsWith("ClassName")) {
                     continue;
                 }
+                if (k.contains(".")) {
+                    k = k.substring(0, k.indexOf(".") + 1);
+                }
                 String n[] = k.split("_");
                 if (n.length != 3) {
                     continue;
@@ -231,6 +244,9 @@ public class MorphiumConfig {
         cfg.getQueryFact().setQueryImpl(cfg.getQueryClass());
     }
 
+    public static MorphiumConfig fromProperties(String prefix, Properties p) throws ClassNotFoundException, NoSuchFieldException, InstantiationException, IllegalAccessException, UnknownHostException {
+        return new MorphiumConfig(prefix, p);
+    }
     public static MorphiumConfig fromProperties(Properties p) throws ClassNotFoundException, NoSuchFieldException, InstantiationException, IllegalAccessException, UnknownHostException {
         return new MorphiumConfig(p);
     }
@@ -696,12 +712,12 @@ public class MorphiumConfig {
 
     private void updateAdditionals() {
         restoreData = new HashMap<>();
-        addClassSettingsTo(restoreData);
+        addClassSettingsTo("", restoreData);
 
 
     }
 
-    private void addClassSettingsTo(Map p) {
+    private void addClassSettingsTo(String prefix, Map p) {
         MorphiumConfig defaults = new MorphiumConfig();
         getWriter();
         getBufferedWriter();
@@ -709,39 +725,39 @@ public class MorphiumConfig {
 
         if (!defaults.getWriter().getClass().equals(getWriter().getClass())) {
             //noinspection unchecked
-            p.put("writer_I_ClassName", getWriter().getClass().getName());
+            p.put(prefix + "writer_I_ClassName", getWriter().getClass().getName());
         }
         if (!defaults.getBufferedWriter().getClass().equals(getBufferedWriter().getClass())) {
             //noinspection unchecked
-            p.put("bufferedWriter_I_ClassName", getBufferedWriter().getClass().getName());
+            p.put(prefix + "bufferedWriter_I_ClassName", getBufferedWriter().getClass().getName());
         }
         if (!defaults.getAsyncWriter().getClass().equals(getAsyncWriter().getClass())) {
             //noinspection unchecked
-            p.put("asyncWriter_I_ClassName", getAsyncWriter().getClass().getName());
+            p.put(prefix + "asyncWriter_I_ClassName", getAsyncWriter().getClass().getName());
         }
         if ((getCache() != null)) {
             //noinspection unchecked
-            p.put("cache_I_ClassName", getCache().getClass().getName());
+            p.put(prefix + "cache_I_ClassName", getCache().getClass().getName());
         }
         if (!defaults.getAggregatorClass().equals(getAggregatorClass())) {
             //noinspection unchecked
-            p.put("aggregatorClass_C_ClassName", getAggregatorClass().getName());
+            p.put(prefix + "aggregatorClass_C_ClassName", getAggregatorClass().getName());
         }
         if (!defaults.getAggregatorFactory().getClass().equals(getAggregatorFactory().getClass())) {
             //noinspection unchecked
-            p.put("aggregatorFactory_I_ClassName", getAggregatorFactory().getClass().getName());
+            p.put(prefix + "aggregatorFactory_I_ClassName", getAggregatorFactory().getClass().getName());
         }
         if (!defaults.getOmClass().equals(getOmClass())) {
             //noinspection unchecked
-            p.put("omClass_C_ClassName", getOmClass().getName());
+            p.put(prefix + "omClass_C_ClassName", getOmClass().getName());
         }
         if (!defaults.getQueryClass().equals(getQueryClass())) {
             //noinspection unchecked
-            p.put("queryClass_C_ClassName", getQueryClass().getName());
+            p.put(prefix + "queryClass_C_ClassName", getQueryClass().getName());
         }
         if (!defaults.getQueryFact().getClass().equals(getQueryFact().getClass())) {
             //noinspection unchecked
-            p.put("queryFact_I_ClassName", getQueryFact().getClass().getName());
+            p.put(prefix + "queryFact_I_ClassName", getQueryFact().getClass().getName());
         }
     }
 
@@ -810,6 +826,15 @@ public class MorphiumConfig {
      * @return
      */
     public Properties asProperties() {
+        return asProperties(null);
+    }
+
+    public Properties asProperties(String prefix) {
+        if (prefix == null) {
+            prefix = "";
+        } else {
+            prefix = prefix + ".";
+        }
         MorphiumConfig defaults = new MorphiumConfig();
         Properties p = new Properties();
         AnnotationAndReflectionHelper an = new AnnotationAndReflectionHelper(true);
@@ -821,13 +846,13 @@ public class MorphiumConfig {
             f.setAccessible(true);
             try {
                 if (f.get(this) != null && !f.get(this).equals(f.get(defaults))) {
-                    p.put(f.getName(), f.get(this).toString());
+                    p.put(prefix + f.getName(), f.get(this).toString());
                 }
             } catch (IllegalAccessException e) {
                 throw new RuntimeException(e);
             }
         }
-        addClassSettingsTo(p);
+        addClassSettingsTo(prefix, p);
 
         return p;
     }

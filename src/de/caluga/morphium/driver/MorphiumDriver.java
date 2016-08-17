@@ -168,6 +168,8 @@ public interface MorphiumDriver {
 
     MorphiumCursor initIteration(String db, String collection, Map<String, Object> query, Map<String, Integer> sort, Map<String, Object> projection, int skip, int limit, int batchSize, ReadPreference readPreference, Map<String, Object> findMetaData) throws MorphiumDriverException;
 
+    void tailableIteration(String db, String collection, Map<String, Object> query, Map<String, Integer> sort, Map<String, Object> projection, int skip, int limit, int batchSize, ReadPreference readPreference, int timeout, DriverTailableIterationCallback cb) throws MorphiumDriverException;
+
     MorphiumCursor nextIteration(MorphiumCursor crs) throws MorphiumDriverException;
 
     void closeIteration(MorphiumCursor crs) throws MorphiumDriverException;
@@ -244,4 +246,11 @@ public interface MorphiumDriver {
     BulkRequestContext createBulkContext(Morphium m, String db, String collection, boolean ordered, WriteConcern wc);
 
     void createIndex(String db, String collection, Map<String, Object> index, Map<String, Object> options) throws MorphiumDriverException;
+
+
+    List<Map<String, Object>> mapReduce(String db, String collection, String mapping, String reducing) throws MorphiumDriverException;
+
+    List<Map<String, Object>> mapReduce(String db, String collection, String mapping, String reducing, Map<String, Object> query) throws MorphiumDriverException;
+
+    List<Map<String, Object>> mapReduce(String db, String collection, String mapping, String reducing, Map<String, Object> query, Map<String, Object> sorting) throws MorphiumDriverException;
 }
