@@ -143,29 +143,39 @@ public class MorphiumConfig {
     private int cursorBatchSize = 1000;
 
     public MorphiumConfig(Properties prop) {
+        this(null, prop);
+    }
+
+    public MorphiumConfig(String prefix, Properties prop) {
         AnnotationAndReflectionHelper an = new AnnotationAndReflectionHelper(true); //settings always convert camel case
         List<Field> flds = an.getAllFields(MorphiumConfig.class);
+        if (prefix != null) {
+            prefix += ".";
+        } else {
+            prefix = "";
+        }
         for (Field f : flds) {
             if (f.isAnnotationPresent(Transient.class)) {
                 continue;
             }
             f.setAccessible(true);
-            if (prop.getProperty(f.getName()) != null) {
+            String fName = prefix + f.getName();
+            if (prop.getProperty(fName) != null) {
                 try {
                     if (f.getType().equals(int.class) || f.getType().equals(Integer.class)) {
-                        f.set(this, Integer.parseInt((String) prop.get(f.getName())));
+                        f.set(this, Integer.parseInt((String) prop.get(fName)));
                     } else if (f.getType().equals(String.class)) {
-                        f.set(this, prop.get(f.getName()));
+                        f.set(this, prop.get(fName));
                     } else if (List.class.isAssignableFrom(f.getType())) {
-                        String lst = (String) prop.get(f.getName());
+                        String lst = (String) prop.get(fName);
                         List<String> l = new ArrayList<>();
                         lst = lst.replaceAll("[\\[\\]]", "");
                         Collections.addAll(l, lst.split(","));
                         f.set(this, l);
                     } else if (f.getType().equals(boolean.class) || f.getType().equals(Boolean.class)) {
-                        f.set(this, prop.get(f.getName()).equals("true"));
+                        f.set(this, prop.get(fName).equals("true"));
                     } else if (f.getType().equals(long.class) || f.getType().equals(Long.class)) {
-                        f.set(this, Long.parseLong((String) prop.get(f.getName())));
+                        f.set(this, Long.parseLong((String) prop.get(fName)));
                     }
                 } catch (IllegalAccessException e) {
                     throw new RuntimeException(e);
