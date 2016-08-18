@@ -46,6 +46,26 @@ public class LogTest extends MongoTest {
         assert (l.getFile().equals("-"));
     }
 
+    @Test
+    public void updateLogTestSettings() throws Exception {
+        morphium.getConfig().setGlobalUpdateLogSettingsInterval(100);
+        Logger l = new Logger("test.class");
+        int lv = l.getLevel();
+
+        if (lv < 5) {
+            lv++;
+        } else {
+            lv = 1;
+        }
+
+        l.fatal("Log level: " + lv);
+        morphium.getConfig().setGlobalLogLevel(lv);
+        assert (l.getLevel() != lv);
+        Thread.sleep(200);
+        l.fatal("Logging again");
+        assert (l.getLevel() == lv);
+        l.fatal("Level is now: " + lv);
+    }
 
     public static class TestLogDelegate implements LoggerDelegate {
 

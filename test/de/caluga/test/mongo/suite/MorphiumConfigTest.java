@@ -122,10 +122,16 @@ public class MorphiumConfigTest extends MongoTest {
         p.put("prefix.maximumRetriesAsyncWriter", "10");
         p.put("prefix.socketTimeout", "1000");
         p.put("prefix.hosts", "localhost:27017");
-        MorphiumConfig cfg = MorphiumConfig.fromProperties(p);
+        p.put("prefix.log.level", "5");
+        p.put("prefix.log.level.de.caluga.morphium", "1");
+        p.put("prefix.database", "thingy");
+        p.put("prefix.socketTimeout", "1000");
+        MorphiumConfig cfg = MorphiumConfig.fromProperties("prefix", p);
         assert (cfg.getHostSeed().size() == 1);
         assert (cfg.getDatabase().equals("thingy"));
         assert (cfg.getSocketTimeout() == 1000);
+        p = System.getProperties();
+        assert (p.get("morphium.log.level.de.caluga.morphium") != null);
     }
 
 

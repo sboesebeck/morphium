@@ -183,7 +183,26 @@ public class MorphiumConfig {
                 }
             }
         }
+        if (hostSeed == null || hostSeed.isEmpty()) {
+            String lst = (String) prop.get(prefix + "hosts");
+            if (lst != null) {
+                lst = lst.replaceAll("[\\[\\]]", "");
+                for (String s : lst.split(",")) {
+                    addHostToSeed(s);
+                }
+            }
+        }
 
+        if (globalLogFile == null) {
+            globalLogFile = "-";
+        }
+        //Store log settings!
+        for (Object k : prop.keySet()) {
+            String key = (String) k;
+            if (key.startsWith(prefix + "log.")) {
+                System.getProperties().put("morphium." + key.substring(prefix.length()), prop.get(k));
+            }
+        }
         try {
             parseClassSettings(this, prop);
         } catch (UnknownHostException | InstantiationException | IllegalAccessException | NoSuchFieldException | ClassNotFoundException e) {
@@ -213,7 +232,8 @@ public class MorphiumConfig {
         for (Object ko : settings.keySet()) {
             String k = (String) ko;
             String value = (String) settings.get(k);
-            if (k.equals("hosts")) {
+            if (k.equals("hosts") || k.equals("hostSeed")) {
+                value = value.replaceAll("\\[", "").replaceAll("\\]", "");
                 for (String adr : value.split(",")) {
                     String a[] = adr.split(":");
                     cfg.addHostToSeed(a[0].trim(), Integer.parseInt(a[1].trim()));
@@ -248,6 +268,7 @@ public class MorphiumConfig {
     public static MorphiumConfig fromProperties(String prefix, Properties p) throws ClassNotFoundException, NoSuchFieldException, InstantiationException, IllegalAccessException, UnknownHostException {
         return new MorphiumConfig(prefix, p);
     }
+
     public static MorphiumConfig fromProperties(Properties p) throws ClassNotFoundException, NoSuchFieldException, InstantiationException, IllegalAccessException, UnknownHostException {
         return new MorphiumConfig(p);
     }
@@ -596,11 +617,11 @@ public class MorphiumConfig {
      *
      * @param str list of hosts, with or without port
      */
-    public void setHostSeed(List<String> str) throws UnknownHostException {
+    public void setHostSeed(List<String> str) {
         hostSeed = str;
     }
 
-    public void setHostSeed(List<String> str, List<Integer> ports) throws UnknownHostException {
+    public void setHostSeed(List<String> str, List<Integer> ports) {
         hostSeed.clear();
         for (int i = 0; i < str.size(); i++) {
             String host = str.get(i).replaceAll(" ", "") + ":" + ports.get(i);
@@ -612,7 +633,7 @@ public class MorphiumConfig {
         return hostSeed;
     }
 
-    public void setHostSeed(String hostPorts) throws UnknownHostException {
+    public void setHostSeed(String hostPorts) {
         hostSeed.clear();
         String h[] = hostPorts.split(",");
         for (String host : h) {
@@ -620,7 +641,7 @@ public class MorphiumConfig {
         }
     }
 
-    public void setHostSeed(String hosts, String ports) throws UnknownHostException {
+    public void setHostSeed(String hosts, String ports) {
         hostSeed.clear();
         hosts = hosts.replaceAll(" ", "");
         ports = ports.replaceAll(" ", "");
@@ -636,12 +657,12 @@ public class MorphiumConfig {
 
     }
 
-    public void addHostToSeed(String host, int port) throws UnknownHostException {
+    public void addHostToSeed(String host, int port) {
         host = host.replaceAll(" ", "") + ":" + port;
         hostSeed.add(host);
     }
 
-    public void addHostToSeed(String host) throws UnknownHostException {
+    public void addHostToSeed(String host) {
         host = host.replaceAll(" ", "");
         if (host.contains(":")) {
             String[] h = host.split(":");
