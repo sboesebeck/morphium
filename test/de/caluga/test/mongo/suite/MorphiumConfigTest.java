@@ -101,7 +101,9 @@ public class MorphiumConfigTest extends MongoTest {
 
     @Test
     public void testToPropertiesPrefix() throws Exception {
+        morphium.getConfig().setLogLevelForClass(MorphiumConfig.class, 5);
         Properties p = morphium.getConfig().asProperties("prefix");
+
         for (Object k : p.keySet()) {
             log.info("Key: " + k + " Value: " + p.get(k));
             assert (k.toString().startsWith("prefix."));
