@@ -21,7 +21,7 @@ public class Logger {
     private PrintWriter out = new PrintWriter(new OutputStreamWriter(System.out));
     private boolean synced = false;
     private boolean close = false;
-    private int updateSettingsEvery = 10000;
+    private int updateSettingsEvery = -1;
     private LoggerDelegate delegate = new DefaultLoggerDelegate();
     private long timestamp = 0;
 
@@ -339,7 +339,7 @@ public class Logger {
 
     private void doLog(int lv, String msg, Throwable t) {
         if (level >= lv) {
-            if (System.currentTimeMillis() - timestamp > updateSettingsEvery) {
+            if (updateSettingsEvery > 0 && System.currentTimeMillis() - timestamp > updateSettingsEvery) {
                 timestamp = System.currentTimeMillis();
                 updateSettings(prfx);
             }

@@ -58,6 +58,7 @@ public class MorphiumConfig {
     private int globalLogLevel = 0;
     private boolean globalLogSynced = false;
     private String globalLogFile = null;
+    private int globalUpdateLogSettingsInterval = -1;
 
     //maximum number of tries to queue a write operation
     private int maximumRetriesBufferedWriter = 10;
@@ -1109,6 +1110,15 @@ public class MorphiumConfig {
     public void setGlobalLogLevel(int globalLogLevel) {
         this.globalLogLevel = globalLogLevel;
         System.getProperties().put("morphium.log.level", "" + globalLogLevel);
+    }
+
+    public int getGlobalUpdateLogSettingsInterval() {
+        return globalUpdateLogSettingsInterval;
+    }
+
+    public void setGlobalUpdateLogSettingsInterval(int globalUpdateLogSettingsInterval) {
+        this.globalUpdateLogSettingsInterval = globalUpdateLogSettingsInterval;
+        System.getProperties().put("morphium.log.updateSettingsInterval", "" + globalLogLevel);
     }
 
     public boolean isGlobalLogSynced() {
