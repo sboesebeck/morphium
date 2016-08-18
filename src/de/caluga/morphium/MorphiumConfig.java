@@ -830,6 +830,15 @@ public class MorphiumConfig {
     }
 
     public Properties asProperties(String prefix) {
+        return asProperties(prefix, true);
+    }
+
+    /**
+     * @param prefix          prefix to use in property keys
+     * @param effectiveConfig when true, use the current effective config, including overrides from Environment
+     * @return
+     */
+    public Properties asProperties(String prefix, boolean effectiveConfig) {
         if (prefix == null) {
             prefix = "";
         } else {
@@ -854,6 +863,18 @@ public class MorphiumConfig {
         }
         addClassSettingsTo(prefix, p);
 
+        if (effectiveConfig) {
+            Properties sysprop = System.getProperties();
+
+            for (Object sysk : sysprop.keySet()) {
+                String k = (String) sysk;
+                if (k.startsWith("morphium.")) {
+                    String value = sysprop.get(k).toString();
+                    k = k.substring(9);
+                    p.put(prefix + k, value);
+                }
+            }
+        }
         return p;
     }
 

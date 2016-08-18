@@ -14,17 +14,28 @@ public class Logger {
     public static final int defaultLevel = 1;
     public static final boolean defaultSynced = false;
     public static final String defaultFile = "-";
-    private final String prfx;
     private final DateFormat df = new SimpleDateFormat("YYYY-MM-dd HH:mm:ss.SSS");
+    private String prfx;
     private int level = 5;
     private String file;
     private PrintWriter out = new PrintWriter(new OutputStreamWriter(System.out));
     private boolean synced = false;
     private boolean close = false;
+    private int updateSettingsEvery = 10000;
     private LoggerDelegate delegate = new DefaultLoggerDelegate();
+    private long timestamp = 0;
 
     public Logger(String name) {
+        updateSettings(name);
 
+        //        info("Logger " + name + " instanciated: Level: " + level + " Synced: " + synced + " file: " + file);
+    }
+
+    public Logger(Class cls) {
+        this(cls.getName());
+    }
+
+    private void updateSettings(String name) {
         prfx = name;
 
         String v = getSetting("log.level");
@@ -108,13 +119,15 @@ public class Logger {
                     break;
             }
         }
-
-
-        //        info("Logger " + name + " instanciated: Level: " + level + " Synced: " + synced + " file: " + file);
-    }
-
-    public Logger(Class cls) {
-        this(cls.getName());
+        v = getSetting("log.updateSettingsInterval");
+        if (getSetting("log.updateSettingsInterval." + name) != null) {
+            v = getSetting("log.updateSettingsInterval." + name);
+        }
+        try {
+            updateSettingsEvery = Integer.valueOf(v);
+        } catch (NumberFormatException e) {
+            error("Could not set number " + v);
+        }
     }
 
     @Override
@@ -326,6 +339,10 @@ public class Logger {
 
     private void doLog(int lv, String msg, Throwable t) {
         if (level >= lv) {
+            if (System.currentTimeMillis() - timestamp > updateSettingsEvery) {
+                timestamp = System.currentTimeMillis();
+                updateSettings(prfx);
+            }
             delegate.log(prfx, lv, msg, t);
         }
     }
