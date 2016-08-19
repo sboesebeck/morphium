@@ -73,15 +73,20 @@ public class MorphiumConfigTest extends MongoTest {
         p.put("socketTimeout", "1000");
         p.put("database", "thingy");
         p.put("hosts", "localhost:27017");
+        p.put("globalLogSynced", "true");
+        p.put("globalLogLevel", "1");
 
         MorphiumConfig cfg = MorphiumConfig.fromProperties(p);
         assert (cfg.getHostSeed().size() == 1);
         assert (cfg.getDatabase().equals("thingy"));
         assert (cfg.getSocketTimeout() == 1000);
+        assert (cfg.getGlobalLogLevel() == 1);
     }
 
     @Test
     public void testToProperties() throws Exception {
+        morphium.getConfig().setGlobalLogLevel(5);
+        morphium.getConfig().setGlobalLogSynced(true);
         Properties p = morphium.getConfig().asProperties();
         for (Object k : p.keySet()) {
             log.info("Key: " + k + " Value: " + p.get(k));
@@ -96,7 +101,9 @@ public class MorphiumConfigTest extends MongoTest {
 
     @Test
     public void testToPropertiesPrefix() throws Exception {
+        morphium.getConfig().setLogLevelForClass(MorphiumConfig.class, 5);
         Properties p = morphium.getConfig().asProperties("prefix");
+
         for (Object k : p.keySet()) {
             log.info("Key: " + k + " Value: " + p.get(k));
             assert (k.toString().startsWith("prefix."));
@@ -115,10 +122,16 @@ public class MorphiumConfigTest extends MongoTest {
         p.put("prefix.maximumRetriesAsyncWriter", "10");
         p.put("prefix.socketTimeout", "1000");
         p.put("prefix.hosts", "localhost:27017");
-        MorphiumConfig cfg = MorphiumConfig.fromProperties(p);
+        p.put("prefix.log.level", "5");
+        p.put("prefix.log.level.de.caluga.morphium", "1");
+        p.put("prefix.database", "thingy");
+        p.put("prefix.socketTimeout", "1000");
+        MorphiumConfig cfg = MorphiumConfig.fromProperties("prefix", p);
         assert (cfg.getHostSeed().size() == 1);
         assert (cfg.getDatabase().equals("thingy"));
         assert (cfg.getSocketTimeout() == 1000);
+        p = System.getProperties();
+        assert (p.get("morphium.log.level.de.caluga.morphium") != null);
     }
 
 
