@@ -195,11 +195,23 @@ public class MorphiumConfig {
         if (globalLogFile == null) {
             globalLogFile = "-";
         }
+        if (prop.containsKey(prefix + "log.level")) {
+            setGlobalLogLevel(Integer.valueOf((String) prop.get(prefix + "log.level")));
+        }
+        if (prop.containsKey(prefix + "log.file")) {
+            setGlobalLogFile((String) prop.get(prefix + "log.file"));
+        }
+        if (prop.containsKey(prefix + "log.synced")) {
+            setGlobalLogSynced(prop.get(prefix + "log.synced").equals("true"));
+        }
+        setGlobalLogLevel(globalLogLevel);
+        setGlobalLogSynced(globalLogSynced);
+        setGlobalLogFile(globalLogFile);
         //Store log settings!
         for (Object k : prop.keySet()) {
             String key = (String) k;
             if (key.startsWith(prefix + "log.")) {
-                System.getProperties().put("morphium." + key.substring(prefix.length()), prop.get(k));
+                System.setProperty("morphium." + key.substring(prefix.length()), prop.get(k).toString());
             }
         }
         try {
@@ -1130,7 +1142,7 @@ public class MorphiumConfig {
 
     public void setGlobalLogLevel(int globalLogLevel) {
         this.globalLogLevel = globalLogLevel;
-        System.getProperties().put("morphium.log.level", "" + globalLogLevel);
+        System.setProperty("morphium.log.level", "" + globalLogLevel);
         LoggerRegistry.get().updateSettings();
     }
 
@@ -1140,7 +1152,7 @@ public class MorphiumConfig {
 
     public void setGlobalLogSynced(boolean globalLogSynced) {
         this.globalLogSynced = globalLogSynced;
-        System.getProperties().put("morphium.log.synced", "" + globalLogSynced);
+        System.setProperty("morphium.log.synced", "" + globalLogSynced);
         LoggerRegistry.get().updateSettings();
 
     }
@@ -1151,7 +1163,7 @@ public class MorphiumConfig {
 
     public void setGlobalLogFile(String globalLogFile) {
         this.globalLogFile = globalLogFile;
-        System.getProperties().put("morphium.log.file", globalLogFile);
+        System.setProperty("morphium.log.file", globalLogFile);
         LoggerRegistry.get().updateSettings();
     }
 
@@ -1160,7 +1172,7 @@ public class MorphiumConfig {
     }
 
     public void setLogFileForPrefix(String prf, String file) {
-        System.getProperties().put("morphium.log.file." + prf, file);
+        System.setProperty("morphium.log.file." + prf, file);
         LoggerRegistry.get().updateSettings();
     }
 
@@ -1169,7 +1181,7 @@ public class MorphiumConfig {
     }
 
     public void setLogLevelForPrefix(String cls, int level) {
-        System.getProperties().put("morphium.log.level." + cls, level);
+        System.setProperty("morphium.log.level." + cls, "" + level);
         LoggerRegistry.get().updateSettings();
     }
 
@@ -1178,7 +1190,7 @@ public class MorphiumConfig {
     }
 
     public void setLogSyncedForPrefix(String cls, boolean synced) {
-        System.getProperties().put("morphium.log.synced." + cls, synced);
+        System.setProperty("morphium.log.synced." + cls, synced ? "true" : "false");
         LoggerRegistry.get().updateSettings();
     }
 
