@@ -4,6 +4,7 @@ package de.caluga.test.mongo.suite;/**
 
 import de.caluga.morphium.Logger;
 import de.caluga.morphium.LoggerDelegate;
+import de.caluga.morphium.LoggerRegistry;
 import org.junit.Test;
 
 /**
@@ -48,7 +49,6 @@ public class LogTest extends MongoTest {
 
     @Test
     public void updateLogTestSettings() throws Exception {
-        morphium.getConfig().setGlobalUpdateLogSettingsInterval(100);
         Logger l = new Logger("test.class");
         int lv = l.getLevel();
 
@@ -60,11 +60,20 @@ public class LogTest extends MongoTest {
 
         l.fatal("Log level: " + lv);
         morphium.getConfig().setGlobalLogLevel(lv);
-        assert (l.getLevel() != lv);
-        Thread.sleep(200);
-        l.fatal("Logging again");
         assert (l.getLevel() == lv);
         l.fatal("Level is now: " + lv);
+    }
+
+    @Test
+    public void logRegistryTest() throws Exception {
+        int num = LoggerRegistry.get().getNumberOfRegisteredLoggers();
+        log.info("Registered: " + num);
+        for (int i = 0; i < 10; i++) new Logger("prefix");
+        int num2 = LoggerRegistry.get().getNumberOfRegisteredLoggers();
+        log.info("Registered: " + num2);
+        System.gc();
+        int num3 = LoggerRegistry.get().getNumberOfRegisteredLoggers();
+        log.info("Registered: " + num3);
     }
 
     public static class TestLogDelegate implements LoggerDelegate {

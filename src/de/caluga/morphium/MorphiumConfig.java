@@ -58,7 +58,6 @@ public class MorphiumConfig {
     private int globalLogLevel = 0;
     private boolean globalLogSynced = false;
     private String globalLogFile = null;
-    private int globalUpdateLogSettingsInterval = -1;
 
     //maximum number of tries to queue a write operation
     private int maximumRetriesBufferedWriter = 10;
@@ -208,6 +207,7 @@ public class MorphiumConfig {
         } catch (UnknownHostException | InstantiationException | IllegalAccessException | NoSuchFieldException | ClassNotFoundException e) {
             throw new RuntimeException(e);
         }
+        LoggerRegistry.get().updateSettings();
     }
 
     public MorphiumConfig() {
@@ -1131,15 +1131,7 @@ public class MorphiumConfig {
     public void setGlobalLogLevel(int globalLogLevel) {
         this.globalLogLevel = globalLogLevel;
         System.getProperties().put("morphium.log.level", "" + globalLogLevel);
-    }
-
-    public int getGlobalUpdateLogSettingsInterval() {
-        return globalUpdateLogSettingsInterval;
-    }
-
-    public void setGlobalUpdateLogSettingsInterval(int globalUpdateLogSettingsInterval) {
-        this.globalUpdateLogSettingsInterval = globalUpdateLogSettingsInterval;
-        System.getProperties().put("morphium.log.updateSettingsInterval", "" + globalLogLevel);
+        LoggerRegistry.get().updateSettings();
     }
 
     public boolean isGlobalLogSynced() {
@@ -1149,6 +1141,7 @@ public class MorphiumConfig {
     public void setGlobalLogSynced(boolean globalLogSynced) {
         this.globalLogSynced = globalLogSynced;
         System.getProperties().put("morphium.log.synced", "" + globalLogSynced);
+        LoggerRegistry.get().updateSettings();
 
     }
 
@@ -1159,6 +1152,7 @@ public class MorphiumConfig {
     public void setGlobalLogFile(String globalLogFile) {
         this.globalLogFile = globalLogFile;
         System.getProperties().put("morphium.log.file", globalLogFile);
+        LoggerRegistry.get().updateSettings();
     }
 
     public void setLogFileForClass(Class cls, String file) {
@@ -1167,6 +1161,7 @@ public class MorphiumConfig {
 
     public void setLogFileForPrefix(String prf, String file) {
         System.getProperties().put("morphium.log.file." + prf, file);
+        LoggerRegistry.get().updateSettings();
     }
 
     public void setLogLevelForClass(Class cls, int level) {
@@ -1175,6 +1170,7 @@ public class MorphiumConfig {
 
     public void setLogLevelForPrefix(String cls, int level) {
         System.getProperties().put("morphium.log.level." + cls, level);
+        LoggerRegistry.get().updateSettings();
     }
 
     public void setLogSyncedForClass(Class cls, boolean synced) {
@@ -1183,6 +1179,7 @@ public class MorphiumConfig {
 
     public void setLogSyncedForPrefix(String cls, boolean synced) {
         System.getProperties().put("morphium.log.synced." + cls, synced);
+        LoggerRegistry.get().updateSettings();
     }
 
     public String getDefaultTags() {
@@ -1219,4 +1216,6 @@ public class MorphiumConfig {
     public void setCursorBatchSize(int cursorBatchSize) {
         this.cursorBatchSize = cursorBatchSize;
     }
+
+
 }
