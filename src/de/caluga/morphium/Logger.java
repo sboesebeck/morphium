@@ -376,6 +376,7 @@ public class Logger {
             out.print(st[idx].getMethodName());
             out.print("():");
             out.print(st[idx].getLineNumber());
+            out.print("]");
             out.print("\t");
             if (msg != null) {
                 out.print(msg);
