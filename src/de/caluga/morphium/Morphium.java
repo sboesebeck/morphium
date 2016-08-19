@@ -31,7 +31,6 @@ import net.sf.cglib.proxy.Enhancer;
 import java.io.Serializable;
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Field;
-import java.net.UnknownHostException;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -86,11 +85,7 @@ public class Morphium {
     public Morphium(String host, String db) {
         this();
         MorphiumConfig cfg = new MorphiumConfig(db, 100, 5000, 5000);
-        try {
-            cfg.addHostToSeed(host);
-        } catch (UnknownHostException e) {
-            throw new RuntimeException(e);
-        }
+        cfg.addHostToSeed(host);
         cfg.setReplicasetMonitoring(false);
         setConfig(cfg);
 
@@ -99,11 +94,8 @@ public class Morphium {
     public Morphium(String host, int port, String db) {
         this();
         MorphiumConfig cfg = new MorphiumConfig(db, 100, 5000, 5000);
-        try {
-            cfg.addHostToSeed(host, port);
-        } catch (UnknownHostException e) {
-            throw new RuntimeException(e);
-        }
+        cfg.addHostToSeed(host, port);
+
         setConfig(cfg);
     }
 

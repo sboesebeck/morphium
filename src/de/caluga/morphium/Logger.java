@@ -14,22 +14,34 @@ public class Logger {
     public static final int defaultLevel = 1;
     public static final boolean defaultSynced = false;
     public static final String defaultFile = "-";
-    private final String prfx;
     private final DateFormat df = new SimpleDateFormat("YYYY-MM-dd HH:mm:ss.SSS");
+    private String prfx;
     private int level = 5;
     private String file;
     private PrintWriter out = new PrintWriter(new OutputStreamWriter(System.out));
     private boolean synced = false;
     private boolean close = false;
     private LoggerDelegate delegate = new DefaultLoggerDelegate();
+    private long timestamp = 0;
 
     public Logger(String name) {
-
         prfx = name;
+        updateSettings();
+        LoggerRegistry.get().registerLogger(this);
+
+        //        info("Logger " + name + " instanciated: Level: " + level + " Synced: " + synced + " file: " + file);
+    }
+
+    public Logger(Class cls) {
+        this(cls.getName());
+    }
+
+    public void updateSettings() {
+
 
         String v = getSetting("log.level");
-        if (getSetting("log.level." + name) != null) {
-            v = getSetting("log.level." + name);
+        if (getSetting("log.level." + prfx) != null) {
+            v = getSetting("log.level." + prfx);
         }
 
         if (v != null) {
@@ -39,8 +51,8 @@ public class Logger {
         }
 
         v = getSetting("log.file");
-        if (getSetting("log.file." + name) != null) {
-            v = getSetting("log.file." + name);
+        if (getSetting("log.file." + prfx) != null) {
+            v = getSetting("log.file." + prfx);
         }
         if (v == null) {
             v = defaultFile;
@@ -78,8 +90,8 @@ public class Logger {
         }
 
         v = getSetting("log.synced");
-        if (getSetting("log.synced." + name) != null) {
-            v = getSetting("log.synced." + name);
+        if (getSetting("log.synced." + prfx) != null) {
+            v = getSetting("log.synced." + prfx);
         }
         if (v != null) {
             synced = v.equals("true");
@@ -88,8 +100,8 @@ public class Logger {
         }
 
         v = getSetting("log.delegate");
-        if (getSetting("log.delegate." + name) != null) {
-            v = getSetting("log.delegate." + name);
+        if (getSetting("log.delegate." + prfx) != null) {
+            v = getSetting("log.delegate." + prfx);
         }
         if (v != null) {
             switch (v) {
@@ -109,12 +121,6 @@ public class Logger {
             }
         }
 
-
-        //        info("Logger " + name + " instanciated: Level: " + level + " Synced: " + synced + " file: " + file);
-    }
-
-    public Logger(Class cls) {
-        this(cls.getName());
     }
 
     @Override
@@ -370,6 +376,7 @@ public class Logger {
             out.print(st[idx].getMethodName());
             out.print("():");
             out.print(st[idx].getLineNumber());
+            out.print("]");
             out.print("\t");
             if (msg != null) {
                 out.print(msg);
