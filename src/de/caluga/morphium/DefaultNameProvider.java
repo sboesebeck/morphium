@@ -1,5 +1,7 @@
 package de.caluga.morphium;
 
+import java.util.Hashtable;
+
 /**
  * User: Stephan Bösebeck
  * Date: 19.06.12
@@ -8,28 +10,32 @@ package de.caluga.morphium;
  * Name Providers define the name of a given collection. Can be set in config for any type
  */
 public final class DefaultNameProvider implements NameProvider {
+    private Hashtable<Class<?>, String> collectionNameCache = new Hashtable<>();
 
     @Override
     public String getCollectionName(Class<?> type, ObjectMapper om, boolean translateCamelCase, boolean useFQN, String specifiedName, Morphium morphium) {
+        String name = collectionNameCache.get(type);
+        if (name == null) {
 
-        String name = type.getSimpleName();
+            name = type.getSimpleName();
 
 
-        if (useFQN) {
-            name = type.getName().replaceAll("\\.", "_");
-        }
-        if (specifiedName != null) {
-            name = specifiedName;
-        } else {
+            if (useFQN) {
+                name = type.getName().replaceAll("\\.", "_");
+            }
+            if (specifiedName != null) {
+                name = specifiedName;
+            } else {
 
-            if (translateCamelCase) {
-                AnnotationAndReflectionHelper ar;
-                if (morphium != null) {
-                    ar = morphium.getARHelper();
-                } else {
-                    ar = new AnnotationAndReflectionHelper(true);
+                if (translateCamelCase) {
+                    AnnotationAndReflectionHelper ar;
+                    if (morphium != null) {
+                        ar = morphium.getARHelper();
+                    } else {
+                        ar = new AnnotationAndReflectionHelper(true);
+                    }
+                    name = ar.convertCamelCase(name);
                 }
-                name = ar.convertCamelCase(name);
             }
         }
         return name;
