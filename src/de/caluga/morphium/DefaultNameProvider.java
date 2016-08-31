@@ -37,6 +37,12 @@ public final class DefaultNameProvider implements NameProvider {
                     name = ar.convertCamelCase(name);
                 }
             }
+            try {
+                collectionNameCache.put(type, name);
+            } catch (Exception e) {
+                //swallow exception. If add did not work, it will eventually
+                new Logger(DefaultNameProvider.class).debug("Could not store name in cache!");
+            }
         }
         return name;
     }
