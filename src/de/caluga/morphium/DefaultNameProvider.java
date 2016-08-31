@@ -14,29 +14,26 @@ public final class DefaultNameProvider implements NameProvider {
 
     @Override
     public String getCollectionName(Class<?> type, ObjectMapper om, boolean translateCamelCase, boolean useFQN, String specifiedName, Morphium morphium) {
-        String name = collectionNameCache.get(type);
+        String name = specifiedName;
         if (name == null) {
-
+            name = collectionNameCache.get(type);
+        }
+        if (name == null) {
             name = type.getSimpleName();
-
-
             if (useFQN) {
                 name = type.getName().replaceAll("\\.", "_");
             }
-            if (specifiedName != null) {
-                name = specifiedName;
-            } else {
 
-                if (translateCamelCase) {
-                    AnnotationAndReflectionHelper ar;
-                    if (morphium != null) {
-                        ar = morphium.getARHelper();
-                    } else {
-                        ar = new AnnotationAndReflectionHelper(true);
-                    }
-                    name = ar.convertCamelCase(name);
+            if (translateCamelCase) {
+                AnnotationAndReflectionHelper ar;
+                if (morphium != null) {
+                    ar = morphium.getARHelper();
+                } else {
+                    ar = new AnnotationAndReflectionHelper(true);
                 }
+                name = ar.convertCamelCase(name);
             }
+
             try {
                 collectionNameCache.put(type, name);
             } catch (Exception e) {
