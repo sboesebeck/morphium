@@ -1035,10 +1035,7 @@ public class Driver implements MorphiumDriver {
         final List<Object> ret = new ArrayList<>();
         DriverHelper.doCall(() -> {
             List it = getColl(mongo.getDB(db), collection, getDefaultReadPreference(), null).distinct(field, new BasicDBObject(filter));
-            //                it = it.filter(new Document(filter));
-            for (Object value : it) {
-                ret.add(it);
-            }
+            ret.addAll(it);
             return null;
         }, retriesOnNetworkError, sleepBetweenErrorRetries);
 
