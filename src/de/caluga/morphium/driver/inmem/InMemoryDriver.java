@@ -711,7 +711,20 @@ public class InMemoryDriver implements MorphiumDriver {
 
     @Override
     public List<Object> distinct(String db, String collection, String field, Map<String, Object> filter, ReadPreference rp) throws MorphiumDriverException {
-        return null;
+        List<Map<String, Object>> list = getDB(db).get(collection);
+        Set<Object> distinctValues = new HashSet<>();
+
+        if (list != null && !list.isEmpty()) {
+            for (Map<String, Object> doc : list) {
+                if (doc != null && !doc.isEmpty() && doc.get(field) != null) {
+                    distinctValues.add(doc.get(field));
+                }
+            }
+        }
+        List<Object> distinctValuesList =new ArrayList<>();
+        distinctValuesList.addAll(distinctValues);
+
+        return distinctValuesList;
     }
 
     @Override
