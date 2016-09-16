@@ -300,6 +300,10 @@ public class MongoTest {
         return true;
     }
 
+    public void createUncachedObjectsInMemory(int amount) {
+        createUncachedObjects(morphiumInMemeory, amount);
+    }
+
     public void createUncachedObjects(int amount) {
         createUncachedObjects(morphium, amount);
     }
