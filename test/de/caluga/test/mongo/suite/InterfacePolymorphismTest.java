@@ -24,7 +24,7 @@ public class InterfacePolymorphismTest extends MongoTest {
         ifaceTestType.setName("A Complex Type");
         ifaceTestType.setPolyTest(new SubClass(11));
         morphium.store(ifaceTestType);
-
+        Thread.sleep(100);
         assert (morphium.createQueryFor(IfaceTestType.class).countAll() == 1);
         List<IfaceTestType> lst = morphium.createQueryFor(IfaceTestType.class).asList();
         for (IfaceTestType tst : lst) {
