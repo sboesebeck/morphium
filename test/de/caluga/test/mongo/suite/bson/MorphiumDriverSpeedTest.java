@@ -40,78 +40,78 @@ public class MorphiumDriverSpeedTest {
     }
 
 
-    @Test
-    public void speedCompareMultithread() throws Exception {
-        Morphium m = null;
-        MorphiumConfig cfg = new MorphiumConfig("morphium_test", 100, 1000, 1000);
-        //        cfg.addHostToSeed("192.168.44.209:30001");
-        //        cfg.addHostToSeed("192.168.44.209:30002");
-        cfg.addHostToSeed("localhost:27017");
-        cfg.addHostToSeed("localhost:27018");
-        cfg.setReplicasetMonitoring(true);
-        cfg.setDriverClass(MetaDriver.class.getName());
-        cfg.setMaxWaitTime(30000);
-        cfg.setMinConnectionsPerHost(1);
-        cfg.setMaxConnections(100);
-        cfg.setLogLevelForClass(MetaDriver.class, 5);
-        m = new Morphium(cfg);
-        //        m.getDriver().connect();
-        //        Thread.sleep(10000);
-        log.info("Testing multithreadded with Metadriver:");
-        multithreadTest(m);
-        m.close();
-        //wait for threads to finish...
-        Thread.sleep(5000);
-
-        cfg = new MorphiumConfig("morphium_test", 100, 1000, 1000);
-        cfg.addHostToSeed("localhost");
-        cfg.setReplicasetMonitoring(false);
-        cfg.setDriverClass(SingleConnectThreaddedDriver.class.getName());
-        cfg.setMinConnectionsPerHost(1);
-        cfg.setMaxConnections(100);
-        cfg.setMaxWaitTime(3000);
-        m = new Morphium(cfg);
-        //        m.getDriver().connect();
-        //        Thread.sleep(10000);
-        log.info("Testing multithreadded with SingeConnect driver:");
-        multithreadTest(m);
-        m.close();
-
-        cfg = new MorphiumConfig("morphium_test", 100, 1000, 1000);
-        cfg.addHostToSeed("localhost");
-        cfg.setReplicasetMonitoring(false);
-        cfg.setDriverClass(SingleConnectDirectDriver.class.getName());
-        cfg.setMinConnectionsPerHost(1);
-        cfg.setMaxConnections(100);
-        cfg.setMaxWaitTime(3000);
-        m = new Morphium(cfg);
-        //        m.getDriver().connect();
-        //        Thread.sleep(10000);
-        log.info("Testing multithreadded with SingeConnectDirect driver:");
-        multithreadTest(m);
-        m.close();
-
-        cfg = new MorphiumConfig("morphium_test", 100, 1000, 1000);
-        cfg.addHostToSeed("localhost");
-        cfg.setReplicasetMonitoring(false);
-        cfg.setMinConnectionsPerHost(1);
-        cfg.setMaxConnections(100);
-        m = new Morphium(cfg);
-
-        log.info("Testing multithreadded with mongodb driver:");
-        multithreadTest(m);
-        m.close();
-
-        cfg = new MorphiumConfig("morphium_test", 100, 1000, 1000);
-        cfg.setDriverClass(InMemoryDriver.class.getName());
-        cfg.addHostToSeed("localhost");
-        cfg.setReplicasetMonitoring(false);
-        m = new Morphium(cfg);
-        log.info("Testing with inMemory driver:");
-        multithreadTest(m);
-        m.close();
-
-    }
+    //    @Test
+    //    public void speedCompareMultithread() throws Exception {
+    //        Morphium m = null;
+    //        MorphiumConfig cfg = new MorphiumConfig("morphium_test", 100, 1000, 1000);
+    //        //        cfg.addHostToSeed("192.168.44.209:30001");
+    //        //        cfg.addHostToSeed("192.168.44.209:30002");
+    //        cfg.addHostToSeed("localhost:27017");
+    //        cfg.addHostToSeed("localhost:27018");
+    //        cfg.setReplicasetMonitoring(true);
+    //        cfg.setDriverClass(MetaDriver.class.getName());
+    //        cfg.setMaxWaitTime(30000);
+    //        cfg.setMinConnectionsPerHost(1);
+    //        cfg.setMaxConnections(100);
+    //        cfg.setLogLevelForClass(MetaDriver.class, 5);
+    //        m = new Morphium(cfg);
+    //        //        m.getDriver().connect();
+    //        //        Thread.sleep(10000);
+    //        log.info("Testing multithreadded with Metadriver:");
+    //        multithreadTest(m);
+    //        m.close();
+    //        //wait for threads to finish...
+    //        Thread.sleep(5000);
+    //
+    //        cfg = new MorphiumConfig("morphium_test", 100, 1000, 1000);
+    //        cfg.addHostToSeed("localhost");
+    //        cfg.setReplicasetMonitoring(false);
+    //        cfg.setDriverClass(SingleConnectThreaddedDriver.class.getName());
+    //        cfg.setMinConnectionsPerHost(1);
+    //        cfg.setMaxConnections(100);
+    //        cfg.setMaxWaitTime(3000);
+    //        m = new Morphium(cfg);
+    //        //        m.getDriver().connect();
+    //        //        Thread.sleep(10000);
+    //        log.info("Testing multithreadded with SingeConnect driver:");
+    //        multithreadTest(m);
+    //        m.close();
+    //
+    //        cfg = new MorphiumConfig("morphium_test", 100, 1000, 1000);
+    //        cfg.addHostToSeed("localhost");
+    //        cfg.setReplicasetMonitoring(false);
+    //        cfg.setDriverClass(SingleConnectDirectDriver.class.getName());
+    //        cfg.setMinConnectionsPerHost(1);
+    //        cfg.setMaxConnections(100);
+    //        cfg.setMaxWaitTime(3000);
+    //        m = new Morphium(cfg);
+    //        //        m.getDriver().connect();
+    //        //        Thread.sleep(10000);
+    //        log.info("Testing multithreadded with SingeConnectDirect driver:");
+    //        multithreadTest(m);
+    //        m.close();
+    //
+    //        cfg = new MorphiumConfig("morphium_test", 100, 1000, 1000);
+    //        cfg.addHostToSeed("localhost");
+    //        cfg.setReplicasetMonitoring(false);
+    //        cfg.setMinConnectionsPerHost(1);
+    //        cfg.setMaxConnections(100);
+    //        m = new Morphium(cfg);
+    //
+    //        log.info("Testing multithreadded with mongodb driver:");
+    //        multithreadTest(m);
+    //        m.close();
+    //
+    //        cfg = new MorphiumConfig("morphium_test", 100, 1000, 1000);
+    //        cfg.setDriverClass(InMemoryDriver.class.getName());
+    //        cfg.addHostToSeed("localhost");
+    //        cfg.setReplicasetMonitoring(false);
+    //        m = new Morphium(cfg);
+    //        log.info("Testing with inMemory driver:");
+    //        multithreadTest(m);
+    //        m.close();
+    //
+    //    }
 
     @Test
     public void speedCompare() throws Exception {

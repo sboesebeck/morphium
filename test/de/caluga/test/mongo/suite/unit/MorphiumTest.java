@@ -99,6 +99,7 @@ public class MorphiumTest extends MongoTest {
         createUncachedObjects(100);
         UncachedObject uc = morphium.findByField(UncachedObject.class, UncachedObject.Fields.counter, 50).get(0);
         morphium.unset(uc, "value");
+        Thread.sleep(100);
         uc = morphium.reread(uc);
         assert (uc.getValue() == null);
     }
@@ -127,6 +128,7 @@ public class MorphiumTest extends MongoTest {
         createUncachedObjects(100);
         UncachedObject uc = morphium.findByField(UncachedObject.class, UncachedObject.Fields.counter, 50).get(0);
         morphium.unset(uc, "uncached_object", UncachedObject.Fields.value);
+        Thread.sleep(100);
         uc = morphium.reread(uc);
         assert (uc.getValue() == null);
     }
