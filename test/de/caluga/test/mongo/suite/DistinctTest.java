@@ -26,6 +26,7 @@ public class DistinctTest extends MongoTest {
 
     @Test
     public void distinctTestInMemory() throws Exception {
+        morphiumInMemeory.dropCollection(UncachedObject.class);
         createUncachedObjectsInMemory(100);
 
         List lst = morphiumInMemeory.createQueryFor(UncachedObject.class).distinct("counter");
