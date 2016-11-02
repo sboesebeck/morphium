@@ -79,23 +79,32 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
         //        BulkRequestContext ctx = morphium.getDriver().createBulkContext(morphium.getConfig().getDatabase(), "", false, null);
         //        BulkRequestContext octx = morphium.getDriver().createBulkContext(morphium.getConfig().getDatabase(), "", true, null);
 
-        for (WriteBufferEntry entry : localQueue) {
-            try {
-                if (bulkByCollectionName.get(entry.getCollectionName()) == null) {
-                    WriteBuffer w = morphium.getARHelper().getAnnotationFromHierarchy(entry.getEntityType(), WriteBuffer.class);
-                    bulkByCollectionName.put(entry.getCollectionName(), morphium.getDriver().createBulkContext(morphium, morphium.getConfig().getDatabase(), entry.getCollectionName(), w.ordered(), morphium.getWriteConcernForClass(entry.getEntityType())));
-                }
-                //                logger.info("Queueing a request of type "+entry.getType());
-                entry.getToRun().queue(bulkByCollectionName.get(entry.getCollectionName()));
-                //noinspection unchecked
-                entry.getCb().onOperationSucceeded(entry.getType(), null, 0, null, null);
+        try {
+            for (WriteBufferEntry entry : localQueue) {
+                try {
+                    if (bulkByCollectionName.get(entry.getCollectionName()) == null) {
+                        WriteBuffer w = morphium.getARHelper().getAnnotationFromHierarchy(entry.getEntityType(), WriteBuffer.class);
+                        bulkByCollectionName.put(entry.getCollectionName(), morphium.getDriver().createBulkContext(morphium, morphium.getConfig().getDatabase(), entry.getCollectionName(), w.ordered(), morphium.getWriteConcernForClass(entry.getEntityType())));
+                    }
+                    //                logger.info("Queueing a request of type "+entry.getType());
+                    entry.getToRun().queue(bulkByCollectionName.get(entry.getCollectionName()));
+                    //noinspection unchecked
+                    entry.getCb().onOperationSucceeded(entry.getType(), null, 0, null, null);
 
-            } catch (RejectedExecutionException e) {
-                logger.info("too much load - add write to next run");
-                didNotWrite.add(entry);
-            } catch (Exception e) {
-                logger.error("could not write", e);
+                } catch (RejectedExecutionException e) {
+                    logger.info("too much load - add write to next run");
+                    didNotWrite.add(entry);
+                } catch (Exception e) {
+                    logger.error("could not write", e);
+                }
             }
+        } catch (ConcurrentModificationException e) {
+            logger.warn("Got concurrent Mod Exception - slowing down and retrying");
+            try {
+                Thread.sleep(100);
+            } catch (InterruptedException e1) {
+            }
+            flushQueueToMongo(localQueue);
         }
         try {
             for (BulkRequestContext ctx : bulkByCollectionName.values()) {
