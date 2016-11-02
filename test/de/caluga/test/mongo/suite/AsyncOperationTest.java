@@ -148,7 +148,6 @@ public class AsyncOperationTest extends MongoTest {
         Thread.sleep(1000);
         assert (morphium.getDriver().exists("morphium_test", "async_object"));
 
-        long start = System.currentTimeMillis();
         for (int i = 0; i < 500; i++) {
             if (i % 10 == 0) {
                 log.info("Stored " + i + " objects");
@@ -159,8 +158,6 @@ public class AsyncOperationTest extends MongoTest {
             morphium.store(ao);
         }
 
-        long end = System.currentTimeMillis();
-        assert (end - start < 8000);
         waitForWrites();
         Thread.sleep(100);
         assert (morphium.createQueryFor(AsyncObject.class).countAll() != 0);

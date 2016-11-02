@@ -140,7 +140,7 @@ public class AutoVariableTest extends MongoTest {
                 cmp = tst.lastChange;
             }
             assert (tst.lastChange != 0);
-            assert (tst.lastChange == cmp);
+            assert (tst.lastChange == cmp) : "Last change wrong cmp: " + cmp + " but is: " + tst.lastChange;
             assert (tst.lastChangeDate != null);
             assert (tst.lastChangeString != null);
         }
@@ -185,9 +185,12 @@ public class AutoVariableTest extends MongoTest {
         record = q.q().f("value").eq("v1*").get();
         assert (record.timestamp == created);
 
+        Thread.sleep(500);
+
         q = q.q().f("value").eq("new");
         morphium.set(q, "additional", "1111", true, true);
         record = q.get();
+
         assert (record.timestamp != 0);
 
 

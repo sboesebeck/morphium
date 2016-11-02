@@ -237,13 +237,9 @@ public class MorphiumConfig {
     public static MorphiumConfig createFromJson(String json) throws ParseException, NoSuchFieldException, ClassNotFoundException, IllegalAccessException, InstantiationException, UnknownHostException, NoSuchMethodException, InvocationTargetException {
         MorphiumConfig cfg = new ObjectMapperImpl().unmarshall(MorphiumConfig.class, json);
         parseClassSettings(cfg, cfg.restoreData);
-        return cfg;
-    }
-
-    private static void parseClassSettings(MorphiumConfig cfg, Map settings) throws UnknownHostException, ClassNotFoundException, NoSuchFieldException, IllegalAccessException, InstantiationException {
-        for (Object ko : settings.keySet()) {
+        for (Object ko : cfg.restoreData.keySet()) {
             String k = (String) ko;
-            String value = (String) settings.get(k);
+            String value = cfg.restoreData.get(k);
             if (k.equals("hosts") || k.equals("hostSeed")) {
                 value = value.replaceAll("\\[", "").replaceAll("\\]", "");
                 for (String adr : value.split(",")) {
@@ -251,25 +247,32 @@ public class MorphiumConfig {
                     cfg.addHostToSeed(a[0].trim(), Integer.parseInt(a[1].trim()));
                 }
 
-            } else {
-                if (!k.endsWith("ClassName")) {
-                    continue;
-                }
-                if (k.contains(".")) {
-                    k = k.substring(0, k.indexOf(".") + 1);
-                }
-                String n[] = k.split("_");
-                if (n.length != 3) {
-                    continue;
-                }
-                Class cls = Class.forName(value);
-                Field f = MorphiumConfig.class.getDeclaredField(n[0]);
-                f.setAccessible(true);
-                if (n[1].equals("C")) {
-                    f.set(cfg, cls);
-                } else if (n[1].equals("I")) {
-                    f.set(cfg, cls.newInstance());
-                }
+            }
+        }
+        return cfg;
+    }
+
+    private static void parseClassSettings(MorphiumConfig cfg, Map settings) throws UnknownHostException, ClassNotFoundException, NoSuchFieldException, IllegalAccessException, InstantiationException {
+        for (Object ko : settings.keySet()) {
+            String k = (String) ko;
+            String value = (String) settings.get(k);
+            if (!k.endsWith("ClassName")) {
+                continue;
+            }
+            if (k.contains(".")) {
+                k = k.substring(0, k.indexOf(".") + 1);
+            }
+            String n[] = k.split("_");
+            if (n.length != 3) {
+                continue;
+            }
+            Class cls = Class.forName(value);
+            Field f = MorphiumConfig.class.getDeclaredField(n[0]);
+            f.setAccessible(true);
+            if (n[1].equals("C")) {
+                f.set(cfg, cls);
+            } else if (n[1].equals("I")) {
+                f.set(cfg, cls.newInstance());
             }
         }
 

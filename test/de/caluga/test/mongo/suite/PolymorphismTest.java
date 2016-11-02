@@ -32,7 +32,7 @@ public class PolymorphismTest extends MongoTest {
         sb.setPoly("poly super");
         sb.setSub("sub");
         morphium.store(sb);
-
+        Thread.sleep(100);
         assert (morphium.createQueryFor(PolyTest.class).countAll() == 2);
         List<PolyTest> lst = morphium.createQueryFor(PolyTest.class).asList();
         for (PolyTest tst : lst) {

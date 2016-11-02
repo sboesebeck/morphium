@@ -56,6 +56,7 @@ public class DriverHelper {
                 || e.getClass().getName().contains("MongoSocketException")
                 || e.getClass().getName().contains("MongoNotPrimaryException")
                 || e.getClass().getName().contains("MongoInterruptedException")
+                || e.getClass().getName().contains("MongoNodeIsRecoveringException")
                 || e.getMessage() != null && (e.getMessage().equals("can't find a master")
                 || e.getMessage().startsWith("No replica set members available in")
                 || e.getMessage().equals("not talking to master and retries used up"))
