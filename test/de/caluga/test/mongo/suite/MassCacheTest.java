@@ -179,52 +179,56 @@ public class MassCacheTest extends MongoTest {
         morphium.getConfig().disableReadCache();
         morphium.getConfig().disableBufferedWrites();
         morphium.resetStatistics();
-        log.info("Preparing test data...");
-        for (int j = 0; j < NO_OBJECTS; j++) {
-            CachedObject o = new CachedObject();
-            o.setCounter(j + 1);
-            o.setValue("Test " + j);
-            morphium.store(o);
-        }
-        waitForWrites();
-        log.info("Done.");
-
-        for (int j = 0; j < 3; j++) {
-            for (int i = 0; i < NO_OBJECTS; i++) {
-                Query<CachedObject> q = morphium.createQueryFor(CachedObject.class);
-                q.f("value").eq("Test " + i);
-                List<CachedObject> lst = q.asList();
-                assert (lst != null) : "List is NULL????";
-                assert (!lst.isEmpty()) : "Not found?!?!? Value: Test " + i;
-                assert (lst.get(0).getValue().equals("Test " + i)) : "Wrong value!";
-                log.info("found " + lst.size() + " elements for value: " + lst.get(0).getValue());
-
+        try {
+            log.info("Preparing test data...");
+            for (int j = 0; j < NO_OBJECTS; j++) {
+                CachedObject o = new CachedObject();
+                o.setCounter(j + 1);
+                o.setValue("Test " + j);
+                morphium.store(o);
             }
-        }
-        printStats();
+            waitForWrites();
+            log.info("Done.");
 
-        Map<String, Double> statistics = morphium.getStatistics();
-        assert (statistics.get("CACHE_ENTRIES") == 0);
-        assert (statistics.get("WRITES_CACHED") == 0);
-        morphium.getConfig().enableReadCache();
-        for (int j = 0; j < 3; j++) {
-            for (int i = 0; i < NO_OBJECTS; i++) {
-                Query<CachedObject> q = morphium.createQueryFor(CachedObject.class);
-                q.f("value").eq("Test " + i);
-                List<CachedObject> lst = q.asList();
-                assert (lst != null) : "List is NULL????";
-                assert (!lst.isEmpty()) : "Not found?!?!? Value: Test " + i;
-                assert (lst.get(0).getValue().equals("Test " + i)) : "Wrong value!";
-                log.info("found " + lst.size() + " elements for value: " + lst.get(0).getValue());
+            for (int j = 0; j < 3; j++) {
+                for (int i = 0; i < NO_OBJECTS; i++) {
+                    Query<CachedObject> q = morphium.createQueryFor(CachedObject.class);
+                    q.f("value").eq("Test " + i);
+                    List<CachedObject> lst = q.asList();
+                    assert (lst != null) : "List is NULL????";
+                    assert (!lst.isEmpty()) : "Not found?!?!? Value: Test " + i;
+                    assert (lst.get(0).getValue().equals("Test " + i)) : "Wrong value!";
+                    log.info("found " + lst.size() + " elements for value: " + lst.get(0).getValue());
 
+                }
             }
+            printStats();
+
+            Map<String, Double> statistics = morphium.getStatistics();
+            assert (statistics.get("X-Entries for: de.caluga.test.mongo.suite.data.CachedObject") == null || statistics.get("X-Entries for: de.caluga.test.mongo.suite.data.CachedObject") == 0);
+            assert (statistics.get("WRITES_CACHED") == 0);
+            morphium.getConfig().enableReadCache();
+            for (int j = 0; j < 3; j++) {
+                for (int i = 0; i < NO_OBJECTS; i++) {
+                    Query<CachedObject> q = morphium.createQueryFor(CachedObject.class);
+                    q.f("value").eq("Test " + i);
+                    List<CachedObject> lst = q.asList();
+                    assert (lst != null) : "List is NULL????";
+                    assert (!lst.isEmpty()) : "Not found?!?!? Value: Test " + i;
+                    assert (lst.get(0).getValue().equals("Test " + i)) : "Wrong value!";
+                    log.info("found " + lst.size() + " elements for value: " + lst.get(0).getValue());
+
+                }
+            }
+            printStats();
+            statistics = morphium.getStatistics();
+            assert (statistics.get("CACHE_ENTRIES") != 0);
+            assert (statistics.get("X-Entries for: de.caluga.test.mongo.suite.data.CachedObject") != null && statistics.get("X-Entries for: de.caluga.test.mongo.suite.data.CachedObject") > 0);
+            assert (statistics.get("CHITS") != 0);
+        } finally {
+            morphium.getConfig().enableReadCache();
+            morphium.getConfig().enableBufferedWrites();
         }
-        printStats();
-        statistics = morphium.getStatistics();
-        assert (statistics.get("CACHE_ENTRIES") != 0);
-        assert (statistics.get("CHITS") != 0);
-        morphium.getConfig().enableReadCache();
-        morphium.getConfig().enableBufferedWrites();
     }
 
     @Test

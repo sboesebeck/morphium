@@ -189,6 +189,8 @@ public class MongoTest {
             cfg.setLogLevelForPrefix("de.caluga.test", 5);
             cfg.setLogSyncedForPrefix("de.caluga.test", true);
             cfg.setLogLevelForClass(SingleConnectThreaddedDriver.class, 5);
+            cfg.setRetriesOnNetworkError(5);
+            cfg.setSleepBetweenNetworkErrorRetries(150);
             //            cfg.setLogLevelForPrefix("de.caluga.morphium.driver", 3);
             //            cfg.setLogLevelForPrefix(MetaDriver.class.getName(), 5);
 
@@ -298,6 +300,10 @@ public class MongoTest {
             }
         }
         return true;
+    }
+
+    public void createUncachedObjectsInMemory(int amount) {
+        createUncachedObjects(morphiumInMemeory, amount);
     }
 
     public void createUncachedObjects(int amount) {
