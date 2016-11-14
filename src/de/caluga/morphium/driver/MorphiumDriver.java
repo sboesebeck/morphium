@@ -18,6 +18,8 @@ import java.util.Map;
 @SuppressWarnings("BooleanMethodIsAlwaysInverted")
 public interface MorphiumDriver {
 
+    List<String> listDatabases() throws MorphiumDriverException;
+
     void setCredentials(String db, String login, char[] pwd);
 
     @SuppressWarnings("unused")

@@ -288,6 +288,14 @@ public class Morphium {
         return true;
     }
 
+    public List<String> listDatabases() {
+        try {
+            return getDriver().listDatabases();
+        } catch (MorphiumDriverException e) {
+            throw new RuntimeException("Could not list databases", e);
+        }
+    }
+
     public void addListener(MorphiumStorageListener lst) {
         List<MorphiumStorageListener> newList = new ArrayList<>();
         newList.addAll(listeners);

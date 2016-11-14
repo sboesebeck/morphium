@@ -56,6 +56,16 @@ public class BasicFunctionalityTest extends MongoTest {
     }
 
     @Test
+    public void getDatabaseTest() {
+        List<String> dbs = morphium.listDatabases();
+        assert (dbs != null);
+        assert (dbs.size() != 0);
+        for (String s : dbs) {
+            log.info("Got DB: " + s);
+        }
+    }
+
+    @Test
     public void sortTest() throws Exception {
         for (int i = 1; i <= NO_OBJECTS; i++) {
             UncachedObject o = new UncachedObject();
