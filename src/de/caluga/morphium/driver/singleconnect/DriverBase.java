@@ -79,6 +79,27 @@ public abstract class DriverBase implements MorphiumDriver {
         return replicaSet;
     }
 
+    @Override
+    public List<String> listDatabases() throws MorphiumDriverException {
+        if (!isConnected()) {
+            return null;
+        }
+        Map<String, Object> command = new HashMap<>();
+        command.put("listDatabases", 1);
+        Map<String, Object> res = runCommand("admin", command);
+        List<String> ret = new ArrayList<>();
+        if (res.get("databases") != null) {
+            List<Map<String, Object>> lst = (List<Map<String, Object>>) res.get("databases");
+            for (Map<String, Object> db : lst) {
+                if (db.get("name") != null) {
+                    ret.add(db.get("name").toString());
+                } else {
+                    log.error("No DB Name for this entry...");
+                }
+            }
+        }
+        return ret;
+    }
 
     public String getReplicaSetName() {
         return replicaSetName;
