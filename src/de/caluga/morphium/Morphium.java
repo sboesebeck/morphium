@@ -296,6 +296,27 @@ public class Morphium {
         }
     }
 
+
+    public List<String> listCollections() {
+        return listCollections(null);
+    }
+
+    public List<String> listCollections(String pattern) {
+        try {
+            return getDriver().listCollections(getConfig().getDatabase(), pattern);
+        } catch (MorphiumDriverException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    public void reconnectToDb(String db) {
+        Properties prop = getConfig().asProperties();
+        close();
+        MorphiumConfig cfg = new MorphiumConfig(prop);
+        //cfg.setDatabase(db);
+        setConfig(cfg);
+    }
+
     public void addListener(MorphiumStorageListener lst) {
         List<MorphiumStorageListener> newList = new ArrayList<>();
         newList.addAll(listeners);
@@ -2209,7 +2230,7 @@ public class Morphium {
 
     public void close() {
         asyncOperationsThreadPool.shutdownNow();
-
+        asyncOperationsThreadPool = null;
         for (ShutdownListener l : shutDownListeners) {
             l.onShutdown(this);
         }
@@ -2220,6 +2241,7 @@ public class Morphium {
         }
         if (rsMonitor != null) {
             rsMonitor.terminate();
+            rsMonitor = null;
         }
 
         config.getAsyncWriter().close();
@@ -2230,7 +2252,11 @@ public class Morphium {
         } catch (MorphiumDriverException e) {
             e.printStackTrace();
         }
+        config.setBufferedWriter(null);
+        config.setAsyncWriter(null);
+        config.setWriter(null);
         config = null;
+        morphiumDriver = null;
         //        MorphiumSingleton.reset();
     }
 

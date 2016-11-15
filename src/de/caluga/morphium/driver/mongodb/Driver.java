@@ -23,6 +23,7 @@ import org.bson.types.ObjectId;
 
 import java.util.*;
 import java.util.concurrent.TimeUnit;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 @SuppressWarnings({"WeakerAccess", "deprecation"})
@@ -93,6 +94,51 @@ public class Driver implements MorphiumDriver {
             }
         }
         return ret;
+    }
+
+    @Override
+    public List<String> listCollections(String db, String pattern) throws MorphiumDriverException {
+        if (!isConnected()) {
+            return null;
+        }
+        Map<String, Object> command = new LinkedHashMap<>();
+        command.put("listCollections", 1);
+        if (pattern != null) {
+            Map<String, Object> query = new HashMap<>();
+            query.put("name", Pattern.compile(pattern));
+            command.put("filter", query);
+        }
+        Map<String, Object> res = runCommand(db, command);
+        List<Map<String, Object>> colList = new ArrayList<>();
+        List<String> colNames = new ArrayList<>();
+        addToListFromCursor(db, colList, res);
+
+        for (Map<String, Object> col : colList) {
+            colNames.add(col.get("name").toString());
+        }
+        return colNames;
+    }
+
+    private void addToListFromCursor(String db, List<Map<String, Object>> data, Map<String, Object> res) throws MorphiumDriverException {
+        boolean valid = false;
+        Map<String, Object> crs = (Map<String, Object>) res.get("cursor");
+        do {
+            if (crs.get("firstBatch") != null) {
+                data.addAll((List<Map<String, Object>>) crs.get("firstBatch"));
+            } else if (crs.get("nextBatch") != null) {
+                data.addAll((List<Map<String, Object>>) crs.get("firstBatch"));
+            }
+            //next iteration.
+            Map<String, Object> doc = new LinkedHashMap<>();
+            if (crs.get("id") != null && !crs.get("id").toString().equals("0")) {
+                valid = true;
+                doc.put("getMore", crs.get("id"));
+                crs = runCommand(db, doc);
+            } else {
+                valid = false;
+            }
+
+        } while (valid);
     }
 
     public ReadPreference getDefaultReadPreference() {

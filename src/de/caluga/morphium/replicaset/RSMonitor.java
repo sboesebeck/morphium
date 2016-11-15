@@ -48,6 +48,12 @@ public class RSMonitor {
 
     public void terminate() {
         executorService.shutdownNow();
+        while (!executorService.isShutdown()) {
+            try {
+                Thread.sleep(100);
+            } catch (InterruptedException e) {
+            }
+        }
     }
 
     public void execute() {
