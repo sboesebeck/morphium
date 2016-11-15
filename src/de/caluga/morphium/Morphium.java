@@ -19,9 +19,7 @@ import de.caluga.morphium.driver.bson.MorphiumId;
 import de.caluga.morphium.query.MongoField;
 import de.caluga.morphium.query.MongoFieldImpl;
 import de.caluga.morphium.query.Query;
-import de.caluga.morphium.replicaset.RSMonitor;
-import de.caluga.morphium.replicaset.ReplicaSetNode;
-import de.caluga.morphium.replicaset.ReplicaSetStatus;
+import de.caluga.morphium.replicaset.*;
 import de.caluga.morphium.validation.JavaxValidationStorageListener;
 import de.caluga.morphium.writer.BufferedMorphiumWriterImpl;
 import de.caluga.morphium.writer.MorphiumWriter;
@@ -76,6 +74,8 @@ public class Morphium {
     private RSMonitor rsMonitor;
     private ThreadPoolExecutor asyncOperationsThreadPool;
     private MorphiumDriver morphiumDriver;
+    private Thread oplogMonitorThread;
+    private OplogMonitor oplogMonitor;
 
     public Morphium() {
         profilingListeners = new CopyOnWriteArrayList<>();
@@ -137,6 +137,7 @@ public class Morphium {
                 return ret;
             }
         });
+
         initializeAndConnect();
     }
 
@@ -246,6 +247,14 @@ public class Morphium {
         config.getCache().setAnnotationAndReflectionHelper(getARHelper());
         config.getCache().setGlobalCacheTimeout(config.getGlobalCacheValidTime());
         config.getCache().setHouskeepingIntervalPause(config.getHousekeepingTimeout());
+
+        if (getConfig().isOplogMonitorEnabled()) {
+            oplogMonitor = new OplogMonitor(this);
+            oplogMonitorThread = new Thread(oplogMonitor);
+            oplogMonitorThread.setDaemon(true);
+            oplogMonitorThread.setName("oplogmonitor");
+            oplogMonitorThread.start();
+        }
 
         if (hasValidationSupport()) {
             logger.info("Adding javax.validation Support...");
@@ -2252,6 +2261,21 @@ public class Morphium {
         } catch (MorphiumDriverException e) {
             e.printStackTrace();
         }
+        if (oplogMonitor != null) {
+            oplogMonitor.terminate();
+            try {
+                Thread.sleep(1000); //wait for it to finish...
+            } catch (InterruptedException e) {
+                //ignoring interrupted excepition
+            }
+        }
+        if (oplogMonitorThread != null) {
+            try {
+                oplogMonitorThread.interrupt();
+            } catch (Exception e) {
+                //ignoring
+            }
+        }
         config.setBufferedWriter(null);
         config.setAsyncWriter(null);
         config.setWriter(null);
@@ -2266,6 +2290,17 @@ public class Morphium {
     }
 
 
+    public void addOplogListener(OplogListener lst) {
+        if (oplogMonitor != null) {
+            oplogMonitor.addListener(lst);
+        }
+    }
+
+    public void removeOplogListener(OplogListener lst) {
+        if (oplogMonitor != null) {
+            oplogMonitor.removeListener(lst);
+        }
+    }
     ////////////////////////////////
     /////// MAP/REDUCE
     /////

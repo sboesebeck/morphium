@@ -645,7 +645,7 @@ public abstract class DriverBase implements MorphiumDriver {
             log.info("Starting...");
 
             while (true) {
-                log.info("reading result");
+                log.debug("reading result");
                 reply = getReply(waitingfor, t);
 
                 if (reply.getInReplyTo() != waitingfor) {
@@ -653,7 +653,7 @@ public abstract class DriverBase implements MorphiumDriver {
                 }
                 @SuppressWarnings("unchecked") Map<String, Object> cursor = (Map<String, Object>) reply.getDocuments().get(0).get("cursor");
                 if (cursor == null) {
-                    log.info("no-cursor result");
+                    log.debug("no-cursor result");
                     //                    //trying result
                     if (reply.getDocuments().get(0).get("result") != null) {
                         //noinspection unchecked
@@ -666,11 +666,11 @@ public abstract class DriverBase implements MorphiumDriver {
                     log.error("did not get cursor. Data: " + Utils.toJsonString(reply.getDocuments().get(0)));
                     //                    throw new MorphiumDriverException("did not get any data, cursor == null!");
 
-                    log.info("Retrying");
+                    log.debug("Retrying");
                     continue;
                 }
                 if (cursor.get("firstBatch") != null) {
-                    log.info("Firstbatch...");
+                    log.debug("Firstbatch...");
                     //noinspection unchecked
                     for (Map<String, Object> d : (List<Map<String, Object>>) cursor.get("firstBatch")) {
                         if (!cb.incomingData(d, System.currentTimeMillis() - start)) {
@@ -678,7 +678,7 @@ public abstract class DriverBase implements MorphiumDriver {
                         }
                     }
                 } else if (cursor.get("nextBatch") != null) {
-                    log.info("NextBatch...");
+                    log.debug("NextBatch...");
                     //noinspection unchecked
                     for (Map<String, Object> d : (List<Map<String, Object>>) cursor.get("nextBatch")) {
                         if (!cb.incomingData(d, System.currentTimeMillis() - start)) {
@@ -693,7 +693,7 @@ public abstract class DriverBase implements MorphiumDriver {
 
                     //                } else {
                     //                    break;
-                    log.info("CursorID:" + cursor.get("id").toString());
+                    log.debug("CursorID:" + cursor.get("id").toString());
                     cursorId = Long.valueOf(cursor.get("id").toString());
                 } else {
                     log.error("Cursor closed - reviving!");
@@ -752,7 +752,7 @@ public abstract class DriverBase implements MorphiumDriver {
                 waitingfor = q.getReqId();
                 sendQuery(q);
 
-                log.info("sent getmore....");
+                log.debug("sent getmore....");
 
             }
 
