@@ -191,6 +191,7 @@ public class MongoTest {
             cfg.setLogLevelForClass(SingleConnectThreaddedDriver.class, 5);
             cfg.setRetriesOnNetworkError(5);
             cfg.setSleepBetweenNetworkErrorRetries(150);
+            cfg.setOplogMonitorEnabled(true);
             //            cfg.setLogLevelForPrefix("de.caluga.morphium.driver", 3);
             //            cfg.setLogLevelForPrefix(MetaDriver.class.getName(), 5);
 
@@ -208,20 +209,24 @@ public class MongoTest {
             morphiumMongodb = morphium;
             MorphiumConfig cfgtmp = MorphiumConfig.createFromJson(cfg.toString());
             cfgtmp.setDriverClass(MetaDriver.class.getName());
+            cfgtmp.setOplogMonitorEnabled(false);
             morphiumMeta = new Morphium(cfgtmp);
 
 
             cfgtmp = MorphiumConfig.createFromJson(cfg.toString());
             cfgtmp.setDriverClass(InMemoryDriver.class.getName());
             cfgtmp.setReplicasetMonitoring(false);
+            cfgtmp.setOplogMonitorEnabled(false);
             morphiumInMemeory = new Morphium(cfgtmp);
 
             cfgtmp = MorphiumConfig.createFromJson(cfg.toString());
             cfgtmp.setDriverClass(SingleConnectDirectDriver.class.getName());
+            cfgtmp.setOplogMonitorEnabled(false);
             morphiumSingleConnect = new Morphium(cfgtmp);
 
             cfgtmp = MorphiumConfig.createFromJson(cfg.toString());
             cfgtmp.setDriverClass(SingleConnectThreaddedDriver.class.getName());
+            cfgtmp.setOplogMonitorEnabled(false);
             morphiumSingleConnectThreadded = new Morphium(cfgtmp);
 
 
