@@ -32,6 +32,23 @@ public class InMemoryDriver implements MorphiumDriver {
     }
 
     @Override
+    public List<String> listCollections(String db, String pattern) throws MorphiumDriverException {
+
+        Set<String> collections = database.get(db).keySet();
+        List<String> ret = new ArrayList<>();
+        if (pattern == null) {
+            ret.addAll(collections);
+        } else {
+            for (String col : ret) {
+                if (col.matches(pattern)) {
+                    ret.add(col);
+                }
+            }
+        }
+        return ret;
+    }
+
+    @Override
     public void setCredentials(String db, String login, char[] pwd) {
 
     }
