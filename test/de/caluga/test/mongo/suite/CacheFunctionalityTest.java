@@ -53,6 +53,33 @@ public class CacheFunctionalityTest extends MongoTest {
     }
 
     @Test
+    public void emptyResultTest() throws Exception {
+        morphium.getCache().setDefaultCacheTime(CacheObject.class);
+        int amount = 100;
+        createCachedObjects(amount);
+        Thread.sleep(1500);
+
+        long start = System.currentTimeMillis();
+        for (int i = 0; i < 1000; i++) {
+            if (i % 100 == 0) {
+                log.info("Reached " + i);#
+            }
+            CachedObject o = morphium.createQueryFor(CachedObject.class).f("counter").eq(amount + 1).get();
+            assert (o == null);
+            List<CachedObject> lst = morphium.createQueryFor(CachedObject.class).f("counter").gt(amount + 1).asList();
+            assert (lst == null | lst.size() == 0);
+        }
+        long dur = System.currentTimeMillis() - start;
+
+        log.info("Duration: " + dur + "ms");
+        log.info("Duration: " + dur + "ms");
+
+        log.info("Cache hit ratio: " + morphium.getStatistics().get(StatisticKeys.CHITSPERC.name()));
+        log.info("Cache hits     : " + morphium.getStatistics().get(StatisticKeys.CHITS.name()));
+        log.info("Cache miss     : " + morphium.getStatistics().get(StatisticKeys.CMISS.name()));
+    }
+
+    @Test
     public void multiThreadAccessTest() throws Exception {
         int amount = 1000;
         createCachedObjects(amount);
