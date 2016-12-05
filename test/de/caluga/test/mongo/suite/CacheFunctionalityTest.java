@@ -62,7 +62,7 @@ public class CacheFunctionalityTest extends MongoTest {
         long start = System.currentTimeMillis();
         for (int i = 0; i < 1000; i++) {
             if (i % 100 == 0) {
-                log.info("Reached " + i);#
+                log.info("Reached " + i);
             }
             CachedObject o = morphium.createQueryFor(CachedObject.class).f("counter").eq(amount + 1).get();
             assert (o == null);
