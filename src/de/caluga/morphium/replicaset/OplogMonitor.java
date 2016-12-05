@@ -2,6 +2,7 @@ package de.caluga.morphium.replicaset;
 
 import de.caluga.morphium.Logger;
 import de.caluga.morphium.Morphium;
+import de.caluga.morphium.ShutdownListener;
 import de.caluga.morphium.driver.DriverTailableIterationCallback;
 import de.caluga.morphium.driver.MorphiumDriverException;
 import org.bson.types.BSONTimestamp;
@@ -14,21 +15,19 @@ import java.util.concurrent.ConcurrentLinkedDeque;
 /**
  * Created by stephan on 15.11.16.
  */
-public class OplogMonitor implements Runnable {
+public class OplogMonitor implements Runnable, ShutdownListener {
     private Collection<OplogListener> listeners;
     private Morphium morphium;
     private boolean running = true;
     private Logger log = new Logger(OplogMonitor.class);
     private long timestamp;
+    private Thread oplogMonitorThread;
 
     public OplogMonitor(Morphium m) {
         morphium = m;
         listeners = new ConcurrentLinkedDeque<OplogListener>();
         timestamp = System.currentTimeMillis() / 1000;
-    }
-
-    public void terminate() {
-        running = false;
+        morphium.addShutdownListener(this);
     }
 
     public void addListener(OplogListener lst) {
@@ -39,9 +38,40 @@ public class OplogMonitor implements Runnable {
         listeners.remove(lst);
     }
 
+
+    public void start() {
+        if (oplogMonitorThread != null) {
+            throw new RuntimeException("Already running!");
+        }
+        oplogMonitorThread = new Thread(this);
+        oplogMonitorThread.setDaemon(true);
+        oplogMonitorThread.setName("oplogmonitor");
+        oplogMonitorThread.start();
+    }
+
+    public void stop() {
+        running = false;
+        long start = System.currentTimeMillis();
+        while (oplogMonitorThread.isAlive()) {
+            try {
+                Thread.sleep(100);
+            } catch (InterruptedException e) {
+                //ignoring it
+            }
+            if (System.currentTimeMillis() - start > 1000) {
+                break;
+            }
+        }
+        if (oplogMonitorThread.isAlive()) {
+            oplogMonitorThread.interrupt();
+        }
+        oplogMonitorThread = null;
+        morphium.removeShutdownListener(this);
+    }
+
     @Override
     public void run() {
-        while (true) {
+        while (running) {
             try {
                 Map<String, Object> q = new HashMap<>();
                 Map<String, Object> q2 = new HashMap<>();
@@ -72,4 +102,8 @@ public class OplogMonitor implements Runnable {
         }
     }
 
+    @Override
+    public void onShutdown(Morphium m) {
+        stop();
+    }
 }
