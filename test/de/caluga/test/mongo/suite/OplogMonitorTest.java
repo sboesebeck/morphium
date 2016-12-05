@@ -2,6 +2,7 @@ package de.caluga.test.mongo.suite;
 
 import de.caluga.morphium.Utils;
 import de.caluga.morphium.replicaset.OplogListener;
+import de.caluga.morphium.replicaset.OplogMonitor;
 import de.caluga.test.mongo.suite.data.UncachedObject;
 import org.junit.Test;
 
@@ -22,8 +23,10 @@ public class OplogMonitorTest extends MongoTest {
                 gotIt = true;
             }
         };
+        OplogMonitor olm = new OplogMonitor(morphium);
+        olm.addListener(lst);
+        olm.start();
 
-        morphium.addOplogListener(lst);
         Thread.sleep(100);
         UncachedObject u = new UncachedObject("test", 123);
         morphium.store(u);
@@ -32,11 +35,13 @@ public class OplogMonitorTest extends MongoTest {
         assert (gotIt);
         gotIt = false;
 
-        morphium.removeOplogListener(lst);
+        olm.removeListener(lst);
         u = new UncachedObject("test", 123);
         morphium.store(u);
         Thread.sleep(200);
         assert (!gotIt);
+
+        olm.stop();
     }
 
 }
