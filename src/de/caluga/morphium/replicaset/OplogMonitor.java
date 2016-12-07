@@ -9,8 +9,10 @@ import org.bson.types.BSONTimestamp;
 
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.concurrent.ConcurrentLinkedDeque;
+import java.util.regex.Pattern;
 
 /**
  * Created by stephan on 15.11.16.
@@ -23,11 +25,25 @@ public class OplogMonitor implements Runnable, ShutdownListener {
     private long timestamp;
     private Thread oplogMonitorThread;
 
+    private String nameSpace;
+    private boolean useRegex;
+
+
     public OplogMonitor(Morphium m) {
+        this(m, null, false);
+    }
+
+    public OplogMonitor(Morphium m, Class<?> entity) {
+        this(m, m.getConfig().getDatabase() + "." + m.getMapper().getCollectionName(entity), false);
+    }
+
+    public OplogMonitor(Morphium m, String nameSpace, boolean regex) {
         morphium = m;
         listeners = new ConcurrentLinkedDeque<OplogListener>();
         timestamp = System.currentTimeMillis() / 1000;
         morphium.addShutdownListener(this);
+        this.nameSpace = nameSpace;
+        this.useRegex = regex;
     }
 
     public void addListener(OplogListener lst) {
@@ -38,6 +54,9 @@ public class OplogMonitor implements Runnable, ShutdownListener {
         listeners.remove(lst);
     }
 
+    public boolean isUseRegex() {
+        return useRegex;
+    }
 
     public void start() {
         if (oplogMonitorThread != null) {
@@ -69,15 +88,32 @@ public class OplogMonitor implements Runnable, ShutdownListener {
         morphium.removeShutdownListener(this);
     }
 
+    public String getNameSpace() {
+        return nameSpace;
+    }
+
     @Override
     public void run() {
+        Map<String, Object> q = new LinkedHashMap<>();
+        Map<String, Object> q2 = new HashMap<>();
+        q2.put("$gt", new BSONTimestamp((int) timestamp, 0));
+        String ns = null;
+
+
+        if (nameSpace != null) {
+            ns = morphium.getConfig().getDatabase() + "." + nameSpace;
+            if (nameSpace.contains(".") && !useRegex) {
+                ns = nameSpace; //assuming you specify DB
+            }
+            if (useRegex) {
+                q.put("ns", Pattern.compile(ns));
+            } else {
+                q.put("ns", ns);
+            }
+        }
+        q.put("ts", q2);
         while (running) {
             try {
-                Map<String, Object> q = new HashMap<>();
-                Map<String, Object> q2 = new HashMap<>();
-                q2.put("$gt", new BSONTimestamp((int) timestamp, 0));
-                q.put("ts", q2);
-
                 morphium.getDriver().tailableIteration("local", "oplog.rs", q, null, null, 0, 0, 1000, null, 1000, new DriverTailableIterationCallback() {
                     @Override
                     public boolean incomingData(Map<String, Object> data, long dur) {
