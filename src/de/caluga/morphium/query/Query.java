@@ -52,6 +52,20 @@ public interface Query<T> extends Cloneable {
     String getServer();
 
     /**
+     * use this db instead of the default one
+     *
+     * @param db
+     */
+    void overrideDB(String db);
+
+    /**
+     * return the DB name the query is going to be executed on or was executed on
+     *
+     * @return
+     */
+    String getDB();
+
+    /**
      * same as f(field.name())
      *
      * @param field field
