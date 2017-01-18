@@ -476,6 +476,7 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
             @SuppressWarnings("SynchronizeOnNonFinalField")
             @Override
             public void run() {
+                setName("BufferedWriter_thread");
                 while (running) {
                     try {
                         //processing and clearing write cache...

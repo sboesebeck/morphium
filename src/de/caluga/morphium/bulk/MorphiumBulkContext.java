@@ -68,7 +68,7 @@ public class MorphiumBulkContext<T> {
             }
             firePost();
         } else {
-            new Thread() {
+            Thread thr = new Thread() {
                 @Override
                 public void run() {
                     firePre();
@@ -82,7 +82,9 @@ public class MorphiumBulkContext<T> {
                     }
                     firePost();
                 }
-            }.start();
+            };
+            thr.setName("run-bulk-thr");
+            thr.start();
         }
     }
 
