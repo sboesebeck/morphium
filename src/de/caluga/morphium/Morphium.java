@@ -168,6 +168,7 @@ public class Morphium {
             Runtime.getRuntime().addShutdownHook(new Thread() {
                 @Override
                 public void run() {
+                    setName("shutdown_hook");
                     try {
                         close();
                     } catch (Exception e) {
