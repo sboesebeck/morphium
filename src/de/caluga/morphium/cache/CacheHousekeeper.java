@@ -6,6 +6,8 @@ package de.caluga.morphium.cache;
 
 import de.caluga.morphium.AnnotationAndReflectionHelper;
 import de.caluga.morphium.Logger;
+import de.caluga.morphium.Morphium;
+import de.caluga.morphium.ShutdownListener;
 import de.caluga.morphium.annotations.caching.Cache;
 import de.caluga.morphium.annotations.caching.Cache.ClearStrategy;
 import de.caluga.morphium.annotations.caching.NoCache;
@@ -14,7 +16,7 @@ import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
 @SuppressWarnings("UnusedDeclaration")
-public class CacheHousekeeper extends Thread {
+public class CacheHousekeeper extends Thread implements ShutdownListener {
 
     private int housekeepingIntervalPause = 500;
     private Map<Class<?>, Integer> validTimeForClass;
@@ -277,5 +279,10 @@ public class CacheHousekeeper extends Thread {
             }
         }
 
+    }
+
+    @Override
+    public void onShutdown(Morphium m) {
+        end();
     }
 }
