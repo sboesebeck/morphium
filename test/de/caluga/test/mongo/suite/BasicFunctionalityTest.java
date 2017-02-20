@@ -56,6 +56,40 @@ public class BasicFunctionalityTest extends MongoTest {
     }
 
     @Test
+    public void getDatabaseListTest() {
+        List<String> dbs = morphium.listDatabases();
+        assert (dbs != null);
+        assert (dbs.size() != 0);
+        for (String s : dbs) {
+            log.info("Got DB: " + s);
+        }
+    }
+
+
+    @Test
+    public void reconnectDatabaseTest() throws Exception {
+        List<String> dbs = morphium.listDatabases();
+        assert (dbs != null);
+        assert (dbs.size() != 0);
+        for (String s : dbs) {
+            log.info("Got DB: " + s);
+            morphium.reconnectToDb(s);
+            log.info("Logged in...");
+            Thread.sleep(1000);
+        }
+
+        morphium.reconnectToDb("morphium_test");
+    }
+
+    @Test
+    public void listCollections() throws Exception {
+        UncachedObject u = new UncachedObject("test", 1);
+
+        List<String> cols = morphium.listCollections();
+        assert (cols != null);
+    }
+
+    @Test
     public void sortTest() throws Exception {
         for (int i = 1; i <= NO_OBJECTS; i++) {
             UncachedObject o = new UncachedObject();

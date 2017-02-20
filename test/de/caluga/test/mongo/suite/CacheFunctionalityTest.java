@@ -19,13 +19,13 @@ public class CacheFunctionalityTest extends MongoTest {
     @Test
     public void accessTest() throws Exception {
         morphium.getCache().setValidCacheTime(CachedObject.class, 1000000);
-        int amount = 10000;
+        int amount = 1000;
         createCachedObjects(amount);
         Thread.sleep(5000);
         for (int i = 0; i < amount; i++) {
             CachedObject o = morphium.createQueryFor(CachedObject.class).f("counter").eq(i + 1).get();
             assert (o != null) : "Not found: " + i;
-            if (i % 1000 == 0) {
+            if (i % 100 == 0) {
                 log.info("Read " + i);
                 log.info("Cached: " + morphium.getStatistics().get(StatisticKeys.CACHE_ENTRIES.name()));
             }
@@ -34,22 +34,48 @@ public class CacheFunctionalityTest extends MongoTest {
         //cache warming finished...
         log.info("cache warmed... starting...");
         long start = System.currentTimeMillis();
-        for (int i = 0; i < 100000; i++) {
-            if (i % 1000 == 0) {
+        for (int i = 0; i < 15000; i++) {
+            if (i % 500 == 0) {
                 log.info("Reached " + i);
             }
             CachedObject o = morphium.createQueryFor(CachedObject.class).f("counter").eq((int) (Math.random() * amount) + 1).get();
         }
         long dur = System.currentTimeMillis() - start;
 
+        checkStats(dur);
+        morphium.getCache().setDefaultCacheTime(CacheObject.class);
+    }
+
+    @Test
+    public void emptyResultTest() throws Exception {
+        morphium.getCache().setDefaultCacheTime(CacheObject.class);
+        int amount = 100;
+        createCachedObjects(amount);
+        Thread.sleep(1500);
+
+        long start = System.currentTimeMillis();
+        for (int i = 0; i < 1000; i++) {
+            if (i % 100 == 0) {
+                log.info("Reached " + i);
+            }
+            CachedObject o = morphium.createQueryFor(CachedObject.class).f("counter").eq(amount + 1).get();
+            assert (o == null);
+            List<CachedObject> lst = morphium.createQueryFor(CachedObject.class).f("counter").gt(amount + 1).asList();
+            assert (lst == null | lst.size() == 0);
+        }
+        long dur = System.currentTimeMillis() - start;
+
+        checkStats(dur);
+    }
+
+    private void checkStats(long dur) {
+        log.info("Duration: " + dur + "ms");
         log.info("Duration: " + dur + "ms");
 
         log.info("Cache hit ratio: " + morphium.getStatistics().get(StatisticKeys.CHITSPERC.name()));
         log.info("Cache hits     : " + morphium.getStatistics().get(StatisticKeys.CHITS.name()));
         log.info("Cache miss     : " + morphium.getStatistics().get(StatisticKeys.CMISS.name()));
-
-        assert (morphium.getStatistics().get(StatisticKeys.CHITS.name()) >= 90); //first 10000 reads for cache warming!
-        morphium.getCache().setDefaultCacheTime(CacheObject.class);
+        assert (morphium.getStatistics().get(StatisticKeys.CHITS.name()) >= 90);
     }
 
     @Test
@@ -89,13 +115,7 @@ public class CacheFunctionalityTest extends MongoTest {
 
         long dur = System.currentTimeMillis() - start;
 
-        log.info("Duration: " + dur + "ms");
-
-        log.info("Cache hit ratio: " + morphium.getStatistics().get(StatisticKeys.CHITSPERC.name()));
-        log.info("Cache hits     : " + morphium.getStatistics().get(StatisticKeys.CHITS.name()));
-        log.info("Cache miss     : " + morphium.getStatistics().get(StatisticKeys.CMISS.name()));
-
-        assert (morphium.getStatistics().get(StatisticKeys.CHITS.name()) >= 90); //first 10000 reads for cache warming!
+        checkStats(dur);
     }
 
 

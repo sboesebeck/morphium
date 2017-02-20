@@ -19,6 +19,7 @@ import de.caluga.morphium.driver.bson.MorphiumId;
 import de.caluga.morphium.query.MongoField;
 import de.caluga.morphium.query.MongoFieldImpl;
 import de.caluga.morphium.query.Query;
+import de.caluga.morphium.replicaset.OplogMonitor;
 import de.caluga.morphium.replicaset.RSMonitor;
 import de.caluga.morphium.replicaset.ReplicaSetNode;
 import de.caluga.morphium.replicaset.ReplicaSetStatus;
@@ -76,6 +77,8 @@ public class Morphium {
     private RSMonitor rsMonitor;
     private ThreadPoolExecutor asyncOperationsThreadPool;
     private MorphiumDriver morphiumDriver;
+    private Thread oplogMonitorThread;
+    private OplogMonitor oplogMonitor;
 
     public Morphium() {
         profilingListeners = new CopyOnWriteArrayList<>();
@@ -137,6 +140,7 @@ public class Morphium {
                 return ret;
             }
         });
+
         initializeAndConnect();
     }
 
@@ -164,6 +168,7 @@ public class Morphium {
             Runtime.getRuntime().addShutdownHook(new Thread() {
                 @Override
                 public void run() {
+                    setName("shutdown_hook");
                     try {
                         close();
                     } catch (Exception e) {
@@ -247,6 +252,14 @@ public class Morphium {
         config.getCache().setGlobalCacheTimeout(config.getGlobalCacheValidTime());
         config.getCache().setHouskeepingIntervalPause(config.getHousekeepingTimeout());
 
+        //        if (getConfig().isOplogMonitorEnabled()) {
+        //            oplogMonitor = new OplogMonitor(this);
+        //            oplogMonitorThread = new Thread(oplogMonitor);
+        //            oplogMonitorThread.setDaemon(true);
+        //            oplogMonitorThread.setName("oplogmonitor");
+        //            oplogMonitorThread.start();
+        //        }
+
         if (hasValidationSupport()) {
             logger.info("Adding javax.validation Support...");
             addListener(new JavaxValidationStorageListener());
@@ -286,6 +299,35 @@ public class Morphium {
             return false;
         }
         return true;
+    }
+
+    public List<String> listDatabases() {
+        try {
+            return getDriver().listDatabases();
+        } catch (MorphiumDriverException e) {
+            throw new RuntimeException("Could not list databases", e);
+        }
+    }
+
+
+    public List<String> listCollections() {
+        return listCollections(null);
+    }
+
+    public List<String> listCollections(String pattern) {
+        try {
+            return getDriver().listCollections(getConfig().getDatabase(), pattern);
+        } catch (MorphiumDriverException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    public void reconnectToDb(String db) {
+        Properties prop = getConfig().asProperties();
+        close();
+        MorphiumConfig cfg = new MorphiumConfig(prop);
+        //cfg.setDatabase(db);
+        setConfig(cfg);
     }
 
     public void addListener(MorphiumStorageListener lst) {
@@ -2201,7 +2243,7 @@ public class Morphium {
 
     public void close() {
         asyncOperationsThreadPool.shutdownNow();
-
+        asyncOperationsThreadPool = null;
         for (ShutdownListener l : shutDownListeners) {
             l.onShutdown(this);
         }
@@ -2212,6 +2254,7 @@ public class Morphium {
         }
         if (rsMonitor != null) {
             rsMonitor.terminate();
+            rsMonitor = null;
         }
 
         config.getAsyncWriter().close();
@@ -2222,7 +2265,26 @@ public class Morphium {
         } catch (MorphiumDriverException e) {
             e.printStackTrace();
         }
+        //        if (oplogMonitor != null) {
+        //            oplogMonitor.terminate();
+        //            try {
+        //                Thread.sleep(1000); //wait for it to finish...
+        //            } catch (InterruptedException e) {
+        //                //ignoring interrupted excepition
+        //            }
+        //        }
+        //        if (oplogMonitorThread != null) {
+        //            try {
+        //                oplogMonitorThread.interrupt();
+        //            } catch (Exception e) {
+        //                //ignoring
+        //            }
+        //        }
+        config.setBufferedWriter(null);
+        config.setAsyncWriter(null);
+        config.setWriter(null);
         config = null;
+        morphiumDriver = null;
         //        MorphiumSingleton.reset();
     }
 
@@ -2232,6 +2294,17 @@ public class Morphium {
     }
 
 
+    //    public void addOplogListener(OplogListener lst) {
+    //        if (oplogMonitor != null) {
+    //            oplogMonitor.addListener(lst);
+    //        }
+    //    }
+    //
+    //    public void removeOplogListener(OplogListener lst) {
+    //        if (oplogMonitor != null) {
+    //            oplogMonitor.removeListener(lst);
+    //        }
+    //    }
     ////////////////////////////////
     /////// MAP/REDUCE
     /////

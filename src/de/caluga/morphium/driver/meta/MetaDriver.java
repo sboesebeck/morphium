@@ -60,6 +60,7 @@ public class MetaDriver extends DriverBase {
 
             @Override
             public void run() {
+                setName("MetaDriver-housekeeping");
                 while (isConnected()) {
                     //noinspection EmptyCatchBlock
                     try {
