@@ -71,6 +71,7 @@ public class SingleConnectThreaddedDriver extends DriverBase {
             Thread reader = new Thread() {
                 @Override
                 public void run() {
+                    setName("singleconnecthreaddeddriver_thread");
                     byte[] inBuffer = new byte[16];
                     int errorcount = 0;
                     while (s != null && s.isConnected()) {

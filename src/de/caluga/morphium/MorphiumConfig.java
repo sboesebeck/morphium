@@ -141,6 +141,7 @@ public class MorphiumConfig {
     private String defaultTags;
     private String requiredReplicaSetName = null;
     private int cursorBatchSize = 1000;
+    private boolean oplogMonitorEnabled = false;
 
     public MorphiumConfig(Properties prop) {
         this(null, prop);
@@ -369,6 +370,14 @@ public class MorphiumConfig {
 
     public void setCache(MorphiumCache cache) {
         this.cache = cache;
+    }
+
+    public boolean isOplogMonitorEnabled() {
+        return this.oplogMonitorEnabled;
+    }
+
+    public void setOplogMonitorEnabled(boolean op) {
+        this.oplogMonitorEnabled = op;
     }
 
     public int getWriteBufferTime() {

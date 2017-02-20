@@ -25,6 +25,30 @@ public class InMemoryDriver implements MorphiumDriver {
     private final Map<String, Map<String, List<Map<String, Object>>>> database = new ConcurrentHashMap<>();
 
     @Override
+    public List<String> listDatabases() throws MorphiumDriverException {
+        List<String> lst = new ArrayList<>();
+        lst.addAll(database.keySet());
+        return lst;
+    }
+
+    @Override
+    public List<String> listCollections(String db, String pattern) throws MorphiumDriverException {
+
+        Set<String> collections = database.get(db).keySet();
+        List<String> ret = new ArrayList<>();
+        if (pattern == null) {
+            ret.addAll(collections);
+        } else {
+            for (String col : ret) {
+                if (col.matches(pattern)) {
+                    ret.add(col);
+                }
+            }
+        }
+        return ret;
+    }
+
+    @Override
     public void setCredentials(String db, String login, char[] pwd) {
 
     }

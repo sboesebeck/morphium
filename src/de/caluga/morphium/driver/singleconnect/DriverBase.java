@@ -11,6 +11,7 @@ import de.caluga.morphium.driver.wireprotocol.OpReply;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.*;
+import java.util.regex.Pattern;
 
 /**
  * User: Stephan Bösebeck
@@ -79,6 +80,72 @@ public abstract class DriverBase implements MorphiumDriver {
         return replicaSet;
     }
 
+    @Override
+    public List<String> listDatabases() throws MorphiumDriverException {
+        if (!isConnected()) {
+            return null;
+        }
+        Map<String, Object> command = new HashMap<>();
+        command.put("listDatabases", 1);
+        Map<String, Object> res = runCommand("admin", command);
+        List<String> ret = new ArrayList<>();
+        if (res.get("databases") != null) {
+            List<Map<String, Object>> lst = (List<Map<String, Object>>) res.get("databases");
+            for (Map<String, Object> db : lst) {
+                if (db.get("name") != null) {
+                    ret.add(db.get("name").toString());
+                } else {
+                    log.error("No DB Name for this entry...");
+                }
+            }
+        }
+        return ret;
+    }
+
+    @Override
+    public List<String> listCollections(String db, String pattern) throws MorphiumDriverException {
+        if (!isConnected()) {
+            return null;
+        }
+        Map<String, Object> command = new LinkedHashMap<>();
+        command.put("listCollections", 1);
+        if (pattern != null) {
+            Map<String, Object> query = new HashMap<>();
+            query.put("name", Pattern.compile(pattern));
+            command.put("filter", query);
+        }
+        Map<String, Object> res = runCommand(db, command);
+        List<Map<String, Object>> colList = new ArrayList<>();
+        List<String> colNames = new ArrayList<>();
+        addToListFromCursor(db, colList, res);
+
+        for (Map<String, Object> col : colList) {
+            colNames.add(col.get("name").toString());
+        }
+        return colNames;
+    }
+
+    private void addToListFromCursor(String db, List<Map<String, Object>> data, Map<String, Object> res) throws MorphiumDriverException {
+        boolean valid = false;
+        Map<String, Object> crs = (Map<String, Object>) res.get("cursor");
+        do {
+            if (crs.get("firstBatch") != null) {
+                data.addAll((List<Map<String, Object>>) crs.get("firstBatch"));
+            } else if (crs.get("nextBatch") != null) {
+                data.addAll((List<Map<String, Object>>) crs.get("firstBatch"));
+            }
+            //next iteration.
+            Map<String, Object> doc = new LinkedHashMap<>();
+            if (crs.get("id") != null && !crs.get("id").toString().equals("0")) {
+                valid = true;
+                doc.put("getMore", crs.get("id"));
+                crs = runCommand(db, doc);
+            } else {
+                valid = false;
+            }
+
+        } while (valid);
+    }
 
     public String getReplicaSetName() {
         return replicaSetName;
@@ -578,7 +645,7 @@ public abstract class DriverBase implements MorphiumDriver {
             log.info("Starting...");
 
             while (true) {
-                log.info("reading result");
+                log.debug("reading result");
                 reply = getReply(waitingfor, t);
 
                 if (reply.getInReplyTo() != waitingfor) {
@@ -586,7 +653,7 @@ public abstract class DriverBase implements MorphiumDriver {
                 }
                 @SuppressWarnings("unchecked") Map<String, Object> cursor = (Map<String, Object>) reply.getDocuments().get(0).get("cursor");
                 if (cursor == null) {
-                    log.info("no-cursor result");
+                    log.debug("no-cursor result");
                     //                    //trying result
                     if (reply.getDocuments().get(0).get("result") != null) {
                         //noinspection unchecked
@@ -599,11 +666,11 @@ public abstract class DriverBase implements MorphiumDriver {
                     log.error("did not get cursor. Data: " + Utils.toJsonString(reply.getDocuments().get(0)));
                     //                    throw new MorphiumDriverException("did not get any data, cursor == null!");
 
-                    log.info("Retrying");
+                    log.debug("Retrying");
                     continue;
                 }
                 if (cursor.get("firstBatch") != null) {
-                    log.info("Firstbatch...");
+                    log.debug("Firstbatch...");
                     //noinspection unchecked
                     for (Map<String, Object> d : (List<Map<String, Object>>) cursor.get("firstBatch")) {
                         if (!cb.incomingData(d, System.currentTimeMillis() - start)) {
@@ -611,7 +678,7 @@ public abstract class DriverBase implements MorphiumDriver {
                         }
                     }
                 } else if (cursor.get("nextBatch") != null) {
-                    log.info("NextBatch...");
+                    log.debug("NextBatch...");
                     //noinspection unchecked
                     for (Map<String, Object> d : (List<Map<String, Object>>) cursor.get("nextBatch")) {
                         if (!cb.incomingData(d, System.currentTimeMillis() - start)) {
@@ -626,7 +693,7 @@ public abstract class DriverBase implements MorphiumDriver {
 
                     //                } else {
                     //                    break;
-                    log.info("CursorID:" + cursor.get("id").toString());
+                    log.debug("CursorID:" + cursor.get("id").toString());
                     cursorId = Long.valueOf(cursor.get("id").toString());
                 } else {
                     log.error("Cursor closed - reviving!");
@@ -685,7 +752,7 @@ public abstract class DriverBase implements MorphiumDriver {
                 waitingfor = q.getReqId();
                 sendQuery(q);
 
-                log.info("sent getmore....");
+                log.debug("sent getmore....");
 
             }
 

@@ -18,6 +18,8 @@ import java.util.Map;
 @SuppressWarnings("BooleanMethodIsAlwaysInverted")
 public interface MorphiumDriver {
 
+    List<String> listDatabases() throws MorphiumDriverException;
+
     void setCredentials(String db, String login, char[] pwd);
 
     @SuppressWarnings("unused")
@@ -253,4 +255,12 @@ public interface MorphiumDriver {
     List<Map<String, Object>> mapReduce(String db, String collection, String mapping, String reducing, Map<String, Object> query) throws MorphiumDriverException;
 
     List<Map<String, Object>> mapReduce(String db, String collection, String mapping, String reducing, Map<String, Object> query, Map<String, Object> sorting) throws MorphiumDriverException;
+
+    /**
+     * list collections whose name match the pattern
+     *
+     * @param pattern regular expression for the collection, might be null
+     * @return
+     */
+    List<String> listCollections(String db, String pattern) throws MorphiumDriverException;
 }
