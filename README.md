@@ -98,7 +98,7 @@ Defining an Entity is quite simple as well:
 All Entities need an ID field. This field can by any type you like. If it is not `ObjectID` or `MorphiumID, you need to create the id yourself.
 
 - Before Morphium 3.x: If the type is `org.bson.types.ObjectId`, it will be created by mongo, if not - you need to take care of that.
-- Since Morphium 3: To encapsulate dependencies better, morphium is not relying on mongodb code directly. Hence in your code, you do not use `ObjectID anymore, but MorphiumID. 
+- Since Morphium 3: To encapsulate dependencies better, morphium is not relying on mongodb code directly. Hence in your code, you do not use `ObjectID` anymore, but MorphiumID. 
 These are more or less source compatible, migration should be easy. But the rule from abve applies here to, if you use MorphiumID, you do not need to create the ID, Mongo is doing it.
 
 Only entities can be referenced, as you need an ID for that. The type of the ID is not important.
