@@ -77,7 +77,7 @@ Defining an Entity is quite simple as well:
   @Cache
   public class MyEntity {
     @Id
-    private ObjectId myId; 
+    private MorphiumId myId; 
   
     private String aField;
   
@@ -95,10 +95,15 @@ Defining an Entity is quite simple as well:
   }
 ```
 
-All entities need to have an @Id field. If the type is org.bson.types.ObjectId, it will be created by mongo, if not - you need to take care of that.
-References only work to other entities (of course).
-You can also use Maps, Lists or Arrays, all may also include other Entities or Embedded types.
+All Entities need an ID field. This field can by any type you like. If it is not `ObjectID` or `MorphiumID, you need to create the id yourself.
 
+- Before Morphium 3.x: If the type is `org.bson.types.ObjectId`, it will be created by mongo, if not - you need to take care of that.
+- Since Morphium 3: To encapsulate dependencies better, morphium is not relying on mongodb code directly. Hence in your code, you do not use `ObjectID anymore, but MorphiumID. 
+These are more or less source compatible, migration should be easy. But the rule from abve applies here to, if you use MorphiumID, you do not need to create the ID, Mongo is doing it.
+
+Only entities can be referenced, as you need an ID for that. The type of the ID is not important.
+You can also use Maps, Lists or Arrays, all may also include other Entities or Embedded types.
+``
 ## Use enum instead of strings for queries
 As using strings to query your object might be a bit error prone, you also can use enums instead of field name strings:
 ```java
@@ -111,7 +116,7 @@ in our example, the batch would look like this:
   @Cache
   public class MyEntity {
     @Id
-    private ObjectId myId; 
+    private MorphiumId myId; 
   
     private String aField;
   
