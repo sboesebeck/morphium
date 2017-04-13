@@ -153,6 +153,9 @@ public class MongoTest {
                 cfg.setHeartbeatFrequency(500);
                 cfg.setMinHearbeatFrequency(1000);
 
+                cfg.setGlobalCacheValidTime(1000);
+                cfg.setHousekeepingTimeout(500);
+
                 cfg.setGlobalFsync(false);
                 cfg.setGlobalJ(false);
                 cfg.setGlobalW(1);
