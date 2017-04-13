@@ -3,9 +3,11 @@ package de.caluga.test.mongo.suite;/**
  */
 
 import de.caluga.morphium.StatisticKeys;
+import de.caluga.morphium.annotations.caching.Cache;
 import de.caluga.morphium.cache.CacheObject;
 import de.caluga.morphium.query.Query;
 import de.caluga.test.mongo.suite.data.CachedObject;
+import de.caluga.test.mongo.suite.data.UncachedObject;
 import org.junit.Test;
 
 import java.util.ArrayList;
@@ -79,6 +81,33 @@ public class CacheFunctionalityTest extends MongoTest {
     }
 
     @Test
+    public void globalCacheSettingsTest() throws Exception {
+        int gcTime = morphium.getConfig().getGlobalCacheValidTime();
+        int hcTime = morphium.getConfig().getHousekeepingTimeout();
+        Cache cache = morphium.getARHelper().getAnnotationFromHierarchy(SpecCacedOjbect.class, Cache.class);
+        log.info("Housekeeping: " + hcTime);
+        log.info("Cache valid:  " + gcTime);
+        assert (cache.timeout() == -1);
+
+        int amount = 100;
+        for (int i = 0; i < amount; i++) {
+            SpecCacedOjbect sp = new SpecCacedOjbect();
+            sp.setCounter(i);
+            sp.setValue("Value " + i);
+            morphium.store(sp);
+        }
+        for (int i = 0; i < amount; i++) {
+            assert (morphium.createQueryFor(SpecCacedOjbect.class).f("counter").eq(i).get() != null);
+        }
+        assert (morphium.getCache().getCache().get(SpecCacedOjbect.class).size() > 0);
+        Thread.sleep(hcTime + 100);
+        assert (morphium.getCache().getCache().get(SpecCacedOjbect.class).size() > 0);
+        Thread.sleep(gcTime);
+        assert (morphium.getCache().getCache().get(SpecCacedOjbect.class).size() == 0);
+
+    }
+
+    @Test
     public void multiThreadAccessTest() throws Exception {
         int amount = 1000;
         createCachedObjects(amount);
@@ -116,6 +145,12 @@ public class CacheFunctionalityTest extends MongoTest {
         long dur = System.currentTimeMillis() - start;
 
         checkStats(dur);
+    }
+
+
+    @Cache
+    public static class SpecCacedOjbect extends UncachedObject {
+
     }
 
 
