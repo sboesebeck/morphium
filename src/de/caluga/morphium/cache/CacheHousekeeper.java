@@ -118,7 +118,9 @@ public class CacheHousekeeper extends Thread implements ShutdownListener {
                     ClearStrategy strategy = null;
                     if (noCache == null) {
                         if (cacheSettings != null) {
-                            time = cacheSettings.timeout();
+                            if (cacheSettings.timeout() != -1) {
+                                time = cacheSettings.timeout();
+                            }
                             maxEntries = cacheSettings.maxEntries();
                             strategy = cacheSettings.strategy();
 

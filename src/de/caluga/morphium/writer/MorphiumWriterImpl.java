@@ -491,7 +491,15 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                         }
                         if (isn) {
                             if (!morphium.getARHelper().getIdField(o).getType().equals(MorphiumId.class) && morphium.getId(o) == null) {
-                                throw new IllegalArgumentException("Cannot automatically set non -MongoId IDs");
+                                if (morphium.getARHelper().getIdField(o).getType().equals(String.class)) {
+                                    try {
+                                        morphium.getARHelper().getIdField(o).set(o, new MorphiumId());
+                                    } catch (IllegalAccessException e) {
+                                        throw new RuntimeException("Could not sett id-string", e);
+                                    }
+                                } else {
+                                    throw new IllegalArgumentException("Cannot automatically set non -MongoId IDs");
+                                }
                             }
                             isNew.put(o, true);
                         } else {

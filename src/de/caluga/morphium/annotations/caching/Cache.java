@@ -13,7 +13,7 @@ import static java.lang.annotation.ElementType.TYPE;
 
 /**
  * Define the caching configuration of a given MongoDbObject. The options are as follows:
- * timeout: int timout in ms when a cache entry becomes invalid
+ * timeout: int timout in ms when a cache entry becomes invalid, default -1 means use globalCacheValidTime
  * maxEntries: default -1 means unlimited (Only limited by Memory, uses SoftReferences!)
  * clearOnWrite: clear cache if one element is written
  * strategy: when using fixed number of entries, define how to remove additional entries
@@ -25,7 +25,7 @@ import static java.lang.annotation.ElementType.TYPE;
 @Target({TYPE})
 @Retention(RetentionPolicy.RUNTIME)
 public @interface Cache {
-    int timeout() default 60000;
+    int timeout() default -1;
 
     boolean clearOnWrite() default true;
 
