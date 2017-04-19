@@ -79,7 +79,7 @@ public class LogTest extends MongoTest {
     public static class TestLogDelegate implements LoggerDelegate {
 
         @Override
-        public void log(String loggerName, int lv, String msg, Throwable t) {
+        public void log(String loggerName, int lv, String msg, boolean synced, Throwable t) {
             logCalled = true;
         }
     }
