@@ -8,7 +8,7 @@ package de.caluga.morphium;/**
 public class Log4JLoggerDelegate implements LoggerDelegate {
 
     @Override
-    public void log(String name, int lv, String msg, Throwable t) {
+    public void log(String name, int lv, String msg, boolean synced, Throwable t) {
         try {
             Object logger = Class.forName("org.log4j.Logger").getMethod("getLogger").invoke(null, name);
 

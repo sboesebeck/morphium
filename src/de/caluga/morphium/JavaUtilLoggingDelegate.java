@@ -22,7 +22,7 @@ public class JavaUtilLoggingDelegate implements LoggerDelegate {
     public final static int LOG_ALL = 5;
 
     @Override
-    public void log(String loggerName, int lv, String msg, Throwable t) {
+    public void log(String loggerName, int lv, String msg, boolean synced, Throwable t) {
         java.util.logging.Level level;
 
         switch (lv) {
