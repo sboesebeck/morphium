@@ -5,5 +5,5 @@ package de.caluga.morphium;
  */
 @SuppressWarnings("DefaultFileTemplate")
 public interface LoggerDelegate {
-    void log(String loggerName, int lv, String msg, Throwable t);
+    void log(String loggerName, int lv, String msg, boolean synced, Throwable t);
 }
