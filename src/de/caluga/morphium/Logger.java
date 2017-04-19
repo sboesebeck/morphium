@@ -332,7 +332,7 @@ public class Logger {
 
     private void doLog(int lv, String msg, Throwable t) {
         if (level >= lv) {
-            delegate.log(prfx, lv, msg, t);
+            delegate.log(prfx, lv, msg, synced, t);
         }
     }
 
@@ -343,7 +343,7 @@ public class Logger {
     private class DefaultLoggerDelegate implements LoggerDelegate {
 
         @Override
-        public void log(String name, int lv, String msg, Throwable t) {
+        public void log(String name, int lv, String msg, boolean sync, Throwable t) {
             out.print(df.format(new Date()));
             out.print(":");
             switch (lv) {
@@ -385,7 +385,7 @@ public class Logger {
             if (t != null) {
                 t.printStackTrace();
             }
-            if (synced) {
+            if (sync) {
                 out.flush();
             }
         }
