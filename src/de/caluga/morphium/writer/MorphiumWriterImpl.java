@@ -12,7 +12,6 @@ import de.caluga.morphium.query.Query;
 
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
-import java.text.SimpleDateFormat;
 import java.util.*;
 import java.util.concurrent.SynchronousQueue;
 import java.util.concurrent.ThreadFactory;
@@ -127,15 +126,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                     boolean isNew = id == null;
                     Object reread = null;
                     if (morphium.isAutoValuesEnabledForThread()) {
-                        CreationTime creationTime = morphium.getARHelper().getAnnotationFromHierarchy(type, CreationTime.class);
-                        if (id != null && (morphium.getConfig().isCheckForNew() || (creationTime != null && creationTime.checkForNew()))
-                                && !morphium.getARHelper().getIdField(o).getType().equals(MorphiumId.class)) {
-                            //check if it exists
-                            reread = morphium.findById(o.getClass(), id);
-                            isNew = reread == null;
-                        }
-                        isNew = setAutoValues(o, type, id, isNew, reread);
-
+                        isNew = morphium.setAutoValues(o);
                     }
                     morphium.firePreStore(o, isNew);
 
@@ -249,104 +240,6 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
         submitAndBlockIfNecessary(callback, r);
     }
 
-    private <T> boolean setAutoValues(T o, Class type, Object id, boolean aNew, Object reread) throws IllegalAccessException {
-        if (!morphium.isAutoValuesEnabledForThread()) {
-            return aNew;
-        }
-        //new object - need to store creation time
-        if (morphium.getARHelper().isAnnotationPresentInHierarchy(type, CreationTime.class)) {
-            CreationTime ct = morphium.getARHelper().getAnnotationFromHierarchy(o.getClass(), CreationTime.class);
-            boolean checkForNew = ct.checkForNew() || morphium.getConfig().isCheckForNew();
-            List<String> lst = morphium.getARHelper().getFields(type, CreationTime.class);
-            for (String fld : lst) {
-                Field field = morphium.getARHelper().getField(o.getClass(), fld);
-                if (id != null) {
-                    if (checkForNew && reread == null) {
-                        reread = morphium.findById(o.getClass(), id);
-                        aNew = reread == null;
-                    } else {
-                        if (reread == null) {
-                            aNew = (id instanceof MorphiumId && id == null); //if id null, is new. if id!=null probably not, if type is objectId
-                        } else {
-                            Object value = field.get(reread);
-                            field.set(o, value);
-                            aNew = false;
-                        }
-                    }
-                } else {
-                    aNew = true;
-                }
-            }
-            if (aNew) {
-                if (lst == null || lst.isEmpty()) {
-                    logger.error("Unable to store creation time as @CreationTime for field is missing");
-                } else {
-                    long now = System.currentTimeMillis();
-                    for (String ctf : lst) {
-                        Object val = null;
-
-                        Field f = morphium.getARHelper().getField(type, ctf);
-                        if (f.getType().equals(long.class) || f.getType().equals(Long.class)) {
-                            val = now;
-                        } else if (f.getType().equals(Date.class)) {
-                            val = new Date(now);
-                        } else if (f.getType().equals(String.class)) {
-                            CreationTime ctField = f.getAnnotation(CreationTime.class);
-                            SimpleDateFormat df = new SimpleDateFormat(ctField.dateFormat());
-                            val = df.format(now);
-                        }
-
-                        if (f != null) {
-                            try {
-                                f.set(o, val);
-                            } catch (IllegalAccessException e) {
-                                logger.error("Could not set creation time", e);
-
-                            }
-                        }
-
-                    }
-
-                }
-
-            }
-        }
-
-
-        if (morphium.getARHelper().isAnnotationPresentInHierarchy(type, LastChange.class)) {
-            List<String> lst = morphium.getARHelper().getFields(type, LastChange.class);
-            if (lst != null && !lst.isEmpty()) {
-                long now = System.currentTimeMillis();
-                for (String ctf : lst) {
-                    Object val = null;
-
-                    Field f = morphium.getARHelper().getField(type, ctf);
-                    if (f.getType().equals(long.class) || f.getType().equals(Long.class)) {
-                        val = now;
-                    } else if (f.getType().equals(Date.class)) {
-                        val = new Date(now);
-                    } else if (f.getType().equals(String.class)) {
-                        LastChange ctField = f.getAnnotation(LastChange.class);
-                        SimpleDateFormat df = new SimpleDateFormat(ctField.dateFormat());
-                        val = df.format(now);
-                    }
-
-                    if (f != null) {
-                        try {
-                            f.set(o, val);
-                        } catch (IllegalAccessException e) {
-                            logger.error("Could not set modification time", e);
-
-                        }
-                    }
-                }
-            } else {
-                logger.warn("Could not store last change - @LastChange missing!");
-            }
-
-        }
-        return aNew;
-    }
 
     @Override
     public <T> void store(final List<T> lst, String collectionName, AsyncOperationCallback<T> callback) {
@@ -395,7 +288,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                                     isn = reread == null;
                                 }
                                 try {
-                                    isn = setAutoValues(record, record.getClass(), id, isn, reread);
+                                    isn = morphium.setAutoValues(record);
                                 } catch (IllegalAccessException e) {
                                     logger.error(e);
                                 }
@@ -489,7 +382,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                         Object reread = null;
                         if (morphium.getARHelper().getAnnotationFromHierarchy(o.getClass(), CreationTime.class) != null) {
                             try {
-                                isn = setAutoValues(o, o.getClass(), morphium.getId(o), isn, reread);
+                                isn = morphium.setAutoValues(o);
                             } catch (IllegalAccessException e) {
                                 logger.error(e);
                             }
@@ -522,7 +415,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                             String coll = morphium.getMapper().getCollectionName(c);
 
                             if (morphium.getConfig().isAutoIndexAndCappedCreationOnWrite() && !morphium.getDriver().exists(morphium.getConfig().getDatabase(), coll)) {
-                                createCappedColl(c);
+                                createCappedColl(c, coll);
                                 morphium.ensureIndicesFor(c, coll, callback);
                             }
 

@@ -1,6 +1,7 @@
 package de.caluga.morphium.writer;
 
 import de.caluga.morphium.*;
+import de.caluga.morphium.annotations.Capped;
 import de.caluga.morphium.annotations.caching.WriteBuffer;
 import de.caluga.morphium.async.AsyncOperationCallback;
 import de.caluga.morphium.async.AsyncOperationType;
@@ -70,7 +71,39 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
         this.orderedExecution = orderedExecution;
     }
 
+    private void createCappedColl(Class c) {
+        createCappedColl(c, null);
+    }
+
+    private void createCappedColl(Class c, String n) {
+        if (logger.isDebugEnabled()) {
+            logger.debug("Collection does not exist - ensuring indices / capped status");
+        }
+        Map<String, Object> cmd = new LinkedHashMap<>();
+        cmd.put("create", n != null ? n : morphium.getMapper().getCollectionName(c));
+        Capped capped = morphium.getARHelper().getAnnotationFromHierarchy(c, Capped.class);
+        if (capped != null) {
+            cmd.put("capped", true);
+            cmd.put("size", capped.maxSize());
+            cmd.put("max", capped.maxEntries());
+        } else {
+            //            logger.warn("cannot cap collection for class " + c.getName() + " not @Capped");
+            return;
+        }
+        cmd.put("autoIndexId", (morphium.getARHelper().getIdField(c).getType().equals(MorphiumId.class)));
+        try {
+            morphium.getDriver().runCommand(morphium.getConfig().getDatabase(), cmd);
+        } catch (MorphiumDriverException e) {
+            //TODO: Implement Handling
+            throw new RuntimeException(e);
+        }
+    }
+
+
     private List<WriteBufferEntry> flushQueueToMongo(List<WriteBufferEntry> localQueue) {
+        if (localQueue == null) {
+            return null;
+        }
         //either buffer size reached, or time is up => queue writes
         List<WriteBufferEntry> didNotWrite = new ArrayList<>();
         Map<String, BulkRequestContext> bulkByCollectionName = new HashMap<>();
@@ -81,6 +114,10 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
 
         try {
             for (WriteBufferEntry entry : localQueue) {
+                if (morphium.getConfig().isAutoIndexAndCappedCreationOnWrite() && !morphium.getDriver().exists(morphium.getConfig().getDatabase(), entry.getCollectionName())) {
+                    createCappedColl(entry.getEntityType(), entry.getCollectionName());
+                    morphium.ensureIndicesFor(entry.getEntityType(), entry.getCollectionName(), entry.getCb());
+                }
                 try {
                     if (bulkByCollectionName.get(entry.getCollectionName()) == null) {
                         WriteBuffer w = morphium.getARHelper().getAnnotationFromHierarchy(entry.getEntityType(), WriteBuffer.class);
@@ -104,6 +141,9 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
             } catch (InterruptedException e1) {
             }
             flushQueueToMongo(localQueue);
+        } catch (MorphiumDriverException ex) {
+            logger.error("Got error during write!", ex);
+            throw new RuntimeException(ex);
         }
         try {
             for (BulkRequestContext ctx : bulkByCollectionName.values()) {
@@ -193,9 +233,10 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
                     if (logger.isDebugEnabled()) {
                         logger.debug("Deleting oldest entry");
                     }
-                    if (!opLog.get(type).isEmpty()) {
+                    if (opLog != null && opLog.get(type) != null && !opLog.get(type).isEmpty()) {
                         opLog.get(type).remove(0);
                     }
+                    opLog.putIfAbsent(type, new ArrayList<>());
                     opLog.get(type).add(wb);
                     return;
             }
@@ -265,6 +306,15 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
         }
         morphium.inc(StatisticKeys.WRITES_CACHED);
 
+        if (morphium.isAutoValuesEnabledForThread()) {
+            for (T obj : lst) {
+                try {
+                    morphium.setAutoValues(obj);
+                } catch (IllegalAccessException e) {
+                    logger.error("Could not set auto variables", e);
+                }
+            }
+        }
         final AsyncOperationCallback<T> finalC = c;
         addToWriteQueue(lst.get(0).getClass(), collectionName, ctx -> {
             Map<Object, Boolean> map = new HashMap<>();
@@ -833,7 +883,10 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
         if (opLog.get(type) == null || opLog.get(type).isEmpty()) {
             return;
         }
-        opLog.get(type).addAll(flushQueueToMongo(opLog.get(type)));
+        List<WriteBufferEntry> c = flushQueueToMongo(opLog.get(type));
+        if (c != null) {
+            opLog.get(type).addAll(c);
+        }
     }
 
     @Override

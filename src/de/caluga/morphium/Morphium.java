@@ -32,6 +32,7 @@ import net.sf.cglib.proxy.Enhancer;
 import java.io.Serializable;
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Field;
+import java.text.SimpleDateFormat;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -1848,6 +1849,109 @@ public class Morphium {
         return findByField(cls, fld.name(), val);
     }
 
+
+    public <T> boolean setAutoValues(T o) throws IllegalAccessException {
+        Class type = o.getClass();
+        Object id = getARHelper().getId(o);
+        boolean aNew = id == null;
+        if (!isAutoValuesEnabledForThread()) {
+            return aNew;
+        }
+        Object reread = null;
+        //new object - need to store creation time
+        if (getARHelper().isAnnotationPresentInHierarchy(type, CreationTime.class)) {
+            CreationTime ct = getARHelper().getAnnotationFromHierarchy(o.getClass(), CreationTime.class);
+            boolean checkForNew = ct.checkForNew() || getConfig().isCheckForNew();
+            List<String> lst = getARHelper().getFields(type, CreationTime.class);
+            for (String fld : lst) {
+                Field field = getARHelper().getField(o.getClass(), fld);
+                if (id != null) {
+                    if (checkForNew && reread == null) {
+                        reread = findById(o.getClass(), id);
+                        aNew = reread == null;
+                    } else {
+                        if (reread == null) {
+                            aNew = (id instanceof MorphiumId && id == null); //if id null, is new. if id!=null probably not, if type is objectId
+                        } else {
+                            Object value = field.get(reread);
+                            field.set(o, value);
+                            aNew = false;
+                        }
+                    }
+                } else {
+                    aNew = true;
+                }
+            }
+            if (aNew) {
+                if (lst == null || lst.isEmpty()) {
+                    logger.error("Unable to store creation time as @CreationTime for field is missing");
+                } else {
+                    long now = System.currentTimeMillis();
+                    for (String ctf : lst) {
+                        Object val = null;
+
+                        Field f = getARHelper().getField(type, ctf);
+                        if (f.getType().equals(long.class) || f.getType().equals(Long.class)) {
+                            val = now;
+                        } else if (f.getType().equals(Date.class)) {
+                            val = new Date(now);
+                        } else if (f.getType().equals(String.class)) {
+                            CreationTime ctField = f.getAnnotation(CreationTime.class);
+                            SimpleDateFormat df = new SimpleDateFormat(ctField.dateFormat());
+                            val = df.format(now);
+                        }
+
+                        if (f != null) {
+                            try {
+                                f.set(o, val);
+                            } catch (IllegalAccessException e) {
+                                logger.error("Could not set creation time", e);
+
+                            }
+                        }
+
+                    }
+
+                }
+
+            }
+        }
+
+
+        if (getARHelper().isAnnotationPresentInHierarchy(type, LastChange.class)) {
+            List<String> lst = getARHelper().getFields(type, LastChange.class);
+            if (lst != null && !lst.isEmpty()) {
+                long now = System.currentTimeMillis();
+                for (String ctf : lst) {
+                    Object val = null;
+
+                    Field f = getARHelper().getField(type, ctf);
+                    if (f.getType().equals(long.class) || f.getType().equals(Long.class)) {
+                        val = now;
+                    } else if (f.getType().equals(Date.class)) {
+                        val = new Date(now);
+                    } else if (f.getType().equals(String.class)) {
+                        LastChange ctField = f.getAnnotation(LastChange.class);
+                        SimpleDateFormat df = new SimpleDateFormat(ctField.dateFormat());
+                        val = df.format(now);
+                    }
+
+                    if (f != null) {
+                        try {
+                            f.set(o, val);
+                        } catch (IllegalAccessException e) {
+                            logger.error("Could not set modification time", e);
+
+                        }
+                    }
+                }
+            } else {
+                logger.warn("Could not store last change - @LastChange missing!");
+            }
+
+        }
+        return aNew;
+    }
 
     /**
      * Erase cache entries for the given type. is being called after every store
