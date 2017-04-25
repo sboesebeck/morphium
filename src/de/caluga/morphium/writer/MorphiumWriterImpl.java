@@ -439,6 +439,11 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
     }
 
     @Override
+    public void flush(Class type) {
+        //nothing to do here
+    }
+
+    @Override
     public <T> void store(final List<T> lst, AsyncOperationCallback<T> callback) {
 
         if (!lst.isEmpty()) {

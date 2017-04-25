@@ -1899,6 +1899,11 @@ public class Morphium {
         config.getWriter().flush();
     }
 
+    public void flush(Class type) {
+        config.getBufferedWriter().flush(type);
+        config.getWriter().flush(type);
+    }
+
 
     public Object getId(Object o) {
         return annotationHelper.getId(o);
