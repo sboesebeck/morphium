@@ -821,6 +821,14 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
     }
 
     @Override
+    public void flush(Class type) {
+        if (opLog.get(type) == null || opLog.get(type).isEmpty()) {
+            return;
+        }
+        opLog.get(type).addAll(flushQueueToMongo(opLog.get(type)));
+    }
+
+    @Override
     protected void finalize() throws Throwable {
         onShutdown(morphium);
 

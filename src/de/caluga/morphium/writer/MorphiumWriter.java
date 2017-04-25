@@ -127,6 +127,8 @@ public interface MorphiumWriter {
 
     void flush();
 
+    void flush(Class type);
+
     void setMaximumQueingTries(int n);
 
     void setPauseBetweenTries(int p);
