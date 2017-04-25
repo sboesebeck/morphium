@@ -100,10 +100,12 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
     }
 
 
-    private List<WriteBufferEntry> flushQueueToMongo(List<WriteBufferEntry> localQueue) {
-        if (localQueue == null) {
-            return null;
+    private void flushQueueToMongo(List<WriteBufferEntry> q) {
+        if (q == null) {
+            return;
         }
+        List<WriteBufferEntry> localQueue = new ArrayList<>();
+        localQueue.addAll(q);
         //either buffer size reached, or time is up => queue writes
         List<WriteBufferEntry> didNotWrite = new ArrayList<>();
         Map<String, BulkRequestContext> bulkByCollectionName = new HashMap<>();
@@ -111,7 +113,6 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
 
         //        BulkRequestContext ctx = morphium.getDriver().createBulkContext(morphium.getConfig().getDatabase(), "", false, null);
         //        BulkRequestContext octx = morphium.getDriver().createBulkContext(morphium.getConfig().getDatabase(), "", true, null);
-
         try {
             for (WriteBufferEntry entry : localQueue) {
                 if (morphium.getConfig().isAutoIndexAndCappedCreationOnWrite() && !morphium.getDriver().exists(morphium.getConfig().getDatabase(), entry.getCollectionName())) {
@@ -134,13 +135,6 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
                     logger.error("could not write", e);
                 }
             }
-        } catch (ConcurrentModificationException e) {
-            logger.warn("Got concurrent Mod Exception - slowing down and retrying");
-            try {
-                Thread.sleep(100);
-            } catch (InterruptedException e1) {
-            }
-            flushQueueToMongo(localQueue);
         } catch (MorphiumDriverException ex) {
             logger.error("Got error during write!", ex);
             throw new RuntimeException(ex);
@@ -159,21 +153,13 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
         } catch (Exception e) {
             logger.error("Error during exeecution of unordered bulk", e);
         }
-        while (true) {
-            try {
-                for (WriteBufferEntry entry : localQueue) {
-                    morphium.clearCacheforClassIfNecessary(entry.getEntityType());
-                }
-                break;
-            } catch (ConcurrentModificationException ex) {
-                logger.warn("Got concurrent Mod Exception when clearing caches - slowing down and retrying");
-                try {
-                    Thread.sleep(100);
-                } catch (InterruptedException e1) {
-                }
+        for (WriteBufferEntry entry : localQueue) {
+            morphium.clearCacheforClassIfNecessary(entry.getEntityType());
+            if (!didNotWrite.contains(entry)) {
+                q.remove(entry);
             }
         }
-        return didNotWrite;
+
     }
 
 
@@ -600,14 +586,14 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
                 localQueue = opLog.remove(clz);
                 //                            opLog.put(clz, new Vector<WriteBufferEntry>());
 
-                List<WriteBufferEntry> c = flushQueueToMongo(localQueue);
-                if (c != null) {
+                flushQueueToMongo(localQueue);
+                if (!localQueue.isEmpty()) {
                     if (opLog.get(clz) == null) {
                         synchronized (opLog) {
                             opLog.putIfAbsent(clz, Collections.synchronizedList(new ArrayList<>()));
                         }
                     }
-                    opLog.get(clz).addAll(c);
+                    opLog.get(clz).addAll(localQueue);
                 }
             }
 
@@ -873,7 +859,7 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
             if (opLog.get(clz) == null || opLog.get(clz).isEmpty()) {
                 continue;
             }
-            opLog.get(clz).addAll(flushQueueToMongo(opLog.get(clz)));
+            flushQueueToMongo(opLog.get(clz));
         }
         //        }
     }
@@ -883,10 +869,7 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
         if (opLog.get(type) == null || opLog.get(type).isEmpty()) {
             return;
         }
-        List<WriteBufferEntry> c = flushQueueToMongo(opLog.get(type));
-        if (c != null) {
-            opLog.get(type).addAll(c);
-        }
+        flushQueueToMongo(opLog.get(type));
     }
 
     @Override
