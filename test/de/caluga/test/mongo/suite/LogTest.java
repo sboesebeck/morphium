@@ -19,7 +19,7 @@ public class LogTest extends MongoTest {
         String f = l.getFile();
         log.info("File: " + f);
         assert (f.equals("-"));
-        assert (l.getLevel() > 1);
+        assert (l.getLevel() > 1) : "Loglevel wrong: " + l.getLevel();
     }
 
     @Test

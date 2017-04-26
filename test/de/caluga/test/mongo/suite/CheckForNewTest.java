@@ -90,7 +90,7 @@ public class CheckForNewTest extends MongoTest {
 
 
     @Entity
-    @CreationTime
+    @CreationTime(checkForNew = false)
     public static class TestID {
         @Id
         public String theId;
