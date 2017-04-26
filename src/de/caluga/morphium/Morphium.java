@@ -1869,6 +1869,12 @@ public class Morphium {
                     if (checkForNew && reread == null) {
                         reread = findById(o.getClass(), id);
                         aNew = reread == null;
+                        //read creation time
+                        if (reread != null) {
+                            Object value = field.get(reread);
+                            field.set(o, value);
+                            aNew = false;
+                        }
                     } else {
                         if (reread == null) {
                             aNew = (id instanceof MorphiumId && id == null); //if id null, is new. if id!=null probably not, if type is objectId
