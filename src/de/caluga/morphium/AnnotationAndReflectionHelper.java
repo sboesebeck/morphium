@@ -4,6 +4,7 @@ import de.caluga.morphium.annotations.*;
 import de.caluga.morphium.annotations.caching.AsyncWrites;
 import de.caluga.morphium.annotations.caching.WriteBuffer;
 import de.caluga.morphium.annotations.lifecycle.Lifecycle;
+import de.caluga.morphium.driver.bson.MorphiumId;
 
 import java.lang.annotation.Annotation;
 import java.lang.reflect.*;
@@ -488,6 +489,8 @@ public class AnnotationAndReflectionHelper {
                                     f.set(o, s.equalsIgnoreCase("true"));
                                 } else if (f.getType().equals(Float.class) || f.getType().equals(float.class)) {
                                     f.set(o, Float.parseFloat(s));
+                                } else if (f.getType().equals(MorphiumId.class)) {
+                                    f.set(o, new MorphiumId(s));
                                 } else {
                                     throw new RuntimeException("could not set field " + fld + ": Field has type " + f.getType().toString() + " got type " + value.getClass().toString());
                                 }
