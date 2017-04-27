@@ -98,7 +98,7 @@ public class MorphiumCacheTest {
         Map<String, Object> q = Utils.getMap("counter", 999);
         Map<String, Integer> sort = Utils.getIntMap("counter", -1);
 
-        String k = imp.getCacheKey(q, sort, "uncached_object", 123, 321);
+        String k = imp.getCacheKey(q, sort, null, "uncached_object", 123, 321);
         assert (k.equals("{counter=999} c:uncached_object l:321 s:123 sort: counter:-1"));
     }
 

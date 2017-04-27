@@ -16,23 +16,23 @@ import java.util.Map;
 public interface MorphiumCache {
     <T> void addToCache(String k, Class<? extends T> type, List<T> ret);
 
-    String getCacheKey(Map<String, Object> qo, Map<String, Integer> sort, String collection, int skip, int limit);
+    String getCacheKey(Map<String, Object> qo, Map<String, Integer> sort, Map<String, Object> project, String collection, int skip, int limit);
 
     <T> List<T> getFromCache(Class<? extends T> type, String k);
 
     Map<Class<?>, Map<String, CacheElement>> getCache();
 
+    void setCache(Map<Class<?>, Map<String, CacheElement>> cache);
+
     Map<Class<?>, Map<Object, Object>> getIdCache();
 
-    void clearCachefor(Class<?> cls);
+    void setIdCache(Map<Class<?>, Map<Object, Object>> c);
 
-    void setCache(Map<Class<?>, Map<String, CacheElement>> cache);
+    void clearCachefor(Class<?> cls);
 
     void resetCache();
 
     void removeEntryFromCache(Class cls, Object id);
-
-    void setIdCache(Map<Class<?>, Map<Object, Object>> c);
 
     <T> T getFromIDCache(Class<? extends T> type, Object id);
 
