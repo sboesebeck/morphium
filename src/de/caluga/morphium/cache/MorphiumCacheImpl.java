@@ -210,7 +210,7 @@ public class MorphiumCacheImpl implements MorphiumCache {
 
     @SuppressWarnings("StringBufferMayBeStringBuilder")
     @Override
-    public String getCacheKey(Map<String, Object> qo, Map<String, Integer> sort, String collection, int skip, int limit) {
+    public String getCacheKey(Map<String, Object> qo, Map<String, Integer> sort, Map<String, Object> projection, String collection, int skip, int limit) {
         StringBuilder b = new StringBuilder();
         b.append(qo.toString());
         b.append(" c:").append(collection);
@@ -221,6 +221,12 @@ public class MorphiumCacheImpl implements MorphiumCache {
         if (sort != null) {
             b.append(" sort:");
             for (Map.Entry<String, Integer> s : sort.entrySet()) {
+                b.append(" ").append(s.getKey()).append(":").append(s.getValue());
+            }
+        }
+        if (projection != null) {
+            b.append(" project:");
+            for (Map.Entry<String, Object> s : projection.entrySet()) {
                 b.append(" ").append(s.getKey()).append(":").append(s.getValue());
             }
         }
@@ -236,7 +242,7 @@ public class MorphiumCacheImpl implements MorphiumCache {
     @Override
     public String getCacheKey(Query q) {
         //noinspection unchecked,unchecked
-        return getCacheKey(q.toQueryObject(), q.getSort(), q.getCollectionName(), q.getSkip(), q.getLimit());
+        return getCacheKey(q.toQueryObject(), q.getSort(), q.getFieldListForQuery(), q.getCollectionName(), q.getSkip(), q.getLimit());
     }
 
     @Override

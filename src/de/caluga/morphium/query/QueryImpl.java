@@ -205,13 +205,13 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
     public List<T> complexQuery(Map<String, Object> query, Map<String, Integer> sort, int skip, int limit) {
         Cache ca = getARHelper().getAnnotationFromHierarchy(type, Cache.class); //type.getAnnotation(Cache.class);
         boolean useCache = ca != null && ca.readCache() && morphium.isReadCacheEnabledForThread();
-        String ck = morphium.getCache().getCacheKey(query, sort, getCollectionName(), skip, limit);
+        Map<String, Object> lst = getFieldListForQuery();
+        String ck = morphium.getCache().getCacheKey(query, sort, lst, getCollectionName(), skip, limit);
         if (useCache && morphium.getCache().isCached(type, ck)) {
             return morphium.getCache().getFromCache(type, ck);
         }
 
         long start = System.currentTimeMillis();
-        Map<String, Object> lst = getFieldListForQuery();
 
         List<T> ret = new ArrayList<>();
 
