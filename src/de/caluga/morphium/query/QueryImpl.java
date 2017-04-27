@@ -241,15 +241,36 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
     public Map<String, Object> getFieldListForQuery() {
         List<Field> fldlst = getARHelper().getAllFields(type);
         Map<String, Object> lst = new HashMap<>();
-        lst.put("_id", 1);
         Entity e = getARHelper().getAnnotationFromHierarchy(type, Entity.class);
         if (e.polymorph()) {
             //            lst.put("class_name", 1);
             return new HashMap<>();
         }
-
+        lst.put("_id", 1);
         if (fieldList != null) {
             lst.putAll(fieldList);
+            boolean negative = true;
+            for (Object v : fieldList.values()) {
+                if (!v.equals(0)) {
+                    negative = false;
+                    break;
+                }
+            }
+
+            boolean positive = true;
+            for (Object v : fieldList.values()) {
+                if (v.equals(0)) {
+                    positive = false;
+                    break;
+                }
+            }
+
+            if (negative && positive) {
+                throw new RuntimeException("Projection cannot add _and_ remove fields!");
+            }
+            if (negative) {
+                lst.remove("_id");
+            }
         } else {
             for (Field f : fldlst) {
                 if (f.isAnnotationPresent(AdditionalData.class)) {
@@ -1145,8 +1166,14 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
         if (fieldList == null) {
             fieldList = new HashMap<>();
         }
+        int v = 1;
+
+        if (f.startsWith("-")) {
+            f = f.substring(1);
+            v = 0;
+        }
         String n = getARHelper().getFieldName(type, f);
-        fieldList.put(n, 1);
+        fieldList.put(n, v);
         return this;
     }
 
