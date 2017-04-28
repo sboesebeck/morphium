@@ -92,7 +92,7 @@ public class MorphiumCacheImpl implements MorphiumCache {
                 return;
             }
         }
-        if (!k.endsWith("idlist")) {
+        if (!k.endsWith("idlist") && !k.contains("project:")) {
             //copy from idCache
             Map<Class<?>, Map<Object, Object>> idCacheClone = idCache; // getIdCache();
             for (T record : ret) {
