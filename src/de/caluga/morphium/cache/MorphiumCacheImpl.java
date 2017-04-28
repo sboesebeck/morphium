@@ -231,7 +231,7 @@ public class MorphiumCacheImpl implements MorphiumCache {
             boolean addProjection = false;
             if (projection.size() == fields.size()) {
                 for (Field f : fields) {
-                    if (!projection.containsKey(f.getName())) {
+                    if (!projection.containsKey(annotationHelper.getFieldName(type, f.getName()))) {
                         addProjection = true;
                         break;
                     }
