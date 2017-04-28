@@ -1,15 +1,15 @@
 package de.caluga.test.mongo.suite.unit;
 
+import de.caluga.morphium.AnnotationAndReflectionHelper;
 import de.caluga.morphium.Utils;
 import de.caluga.morphium.cache.*;
 import de.caluga.morphium.driver.bson.MorphiumId;
 import de.caluga.test.mongo.suite.data.CachedObject;
+import de.caluga.test.mongo.suite.data.UncachedObject;
 import org.junit.Test;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.lang.reflect.Field;
+import java.util.*;
 
 /**
  * User: Stephan Bösebeck
@@ -93,13 +93,55 @@ public class MorphiumCacheTest {
     }
 
     @Test
+    public void testGetIdCacheAdding() throws Exception {
+        MorphiumCache imp = new MorphiumCacheImpl();
+        imp.setAnnotationAndReflectionHelper(new AnnotationAndReflectionHelper(true));
+        Map<String, Object> q = Utils.getMap("counter", 999);
+        Map<String, Integer> sort = Utils.getIntMap("counter", -1);
+        String k = imp.getCacheKey(UncachedObject.class, q, sort, null, "uncached_object", 123, 321);
+        UncachedObject uc = new UncachedObject();
+        uc.setMorphiumId(new MorphiumId());
+        uc.setCounter(123);
+        imp.addToCache(k, UncachedObject.class, Arrays.asList(uc));
+        assert (imp.getIdCache().size() != 0);
+        assert (imp.getCache().size() != 0);
+
+        imp.getIdCache().clear();
+        imp.getCache().clear();
+
+        k = imp.getCacheKey(UncachedObject.class, q, sort, Utils.getMap("counter", 0), "uncached_object", 123, 321);
+        imp.addToCache(k, UncachedObject.class, Arrays.asList(uc));
+        assert (imp.getIdCache().size() == 0);
+        assert (imp.getCache().size() != 0);
+    }
+
+    @Test
     public void testGetCacheKey() throws Exception {
         MorphiumCache imp = new MorphiumCacheImpl();
         Map<String, Object> q = Utils.getMap("counter", 999);
         Map<String, Integer> sort = Utils.getIntMap("counter", -1);
 
-        String k = imp.getCacheKey(q, sort, null, "uncached_object", 123, 321);
-        assert (k.equals("{counter=999} c:uncached_object l:321 s:123 sort: counter:-1"));
+        String k = imp.getCacheKey(UncachedObject.class, q, sort, null, "uncached_object", 123, 321);
+        assert (k.equals("{counter=999} c:uncached_object l:321 s:123 sort:{ counter:-1}"));
+    }
+
+    @Test
+    public void testGetCacheKeyProjection() throws Exception {
+        MorphiumCache imp = new MorphiumCacheImpl();
+        Map<String, Object> q = Utils.getMap("counter", 999);
+        Map<String, Integer> sort = Utils.getIntMap("counter", -1);
+
+        String k = imp.getCacheKey(UncachedObject.class, q, sort, Utils.getMap("value", -1), "uncached_object", 123, 321);
+        assert (k.equals("{counter=999} c:uncached_object l:321 s:123 sort:{ counter:-1} project:{ value:-1}"));
+        AnnotationAndReflectionHelper ar = new AnnotationAndReflectionHelper(true);
+        List<Field> lst = ar.getAllFields(UncachedObject.class);
+        Map<String, Object> projection = new HashMap<>();
+        for (Field f : lst) {
+            projection.put(f.getName(), 1);
+        }
+
+        k = imp.getCacheKey(UncachedObject.class, q, sort, projection, "uncached_object", 123, 321);
+        assert (k.equals("{counter=999} c:uncached_object l:321 s:123 sort:{ counter:-1}"));
     }
 
 

@@ -206,7 +206,7 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
         Cache ca = getARHelper().getAnnotationFromHierarchy(type, Cache.class); //type.getAnnotation(Cache.class);
         boolean useCache = ca != null && ca.readCache() && morphium.isReadCacheEnabledForThread();
         Map<String, Object> lst = getFieldListForQuery();
-        String ck = morphium.getCache().getCacheKey(query, sort, lst, getCollectionName(), skip, limit);
+        String ck = morphium.getCache().getCacheKey(type, query, sort, lst, getCollectionName(), skip, limit);
         if (useCache && morphium.getCache().isCached(type, ck)) {
             return morphium.getCache().getFromCache(type, ck);
         }
