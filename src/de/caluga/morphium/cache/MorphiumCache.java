@@ -16,7 +16,7 @@ import java.util.Map;
 public interface MorphiumCache {
     <T> void addToCache(String k, Class<? extends T> type, List<T> ret);
 
-    String getCacheKey(Map<String, Object> qo, Map<String, Integer> sort, Map<String, Object> project, String collection, int skip, int limit);
+    String getCacheKey(Class type, Map<String, Object> qo, Map<String, Integer> sort, Map<String, Object> project, String collection, int skip, int limit);
 
     <T> List<T> getFromCache(Class<? extends T> type, String k);
 

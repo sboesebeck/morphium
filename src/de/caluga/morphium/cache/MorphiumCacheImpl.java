@@ -5,6 +5,7 @@ import de.caluga.morphium.Logger;
 import de.caluga.morphium.annotations.caching.Cache;
 import de.caluga.morphium.query.Query;
 
+import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -210,7 +211,7 @@ public class MorphiumCacheImpl implements MorphiumCache {
 
     @SuppressWarnings("StringBufferMayBeStringBuilder")
     @Override
-    public String getCacheKey(Map<String, Object> qo, Map<String, Integer> sort, Map<String, Object> projection, String collection, int skip, int limit) {
+    public String getCacheKey(Class type, Map<String, Object> qo, Map<String, Integer> sort, Map<String, Object> projection, String collection, int skip, int limit) {
         StringBuilder b = new StringBuilder();
         b.append(qo.toString());
         b.append(" c:").append(collection);
@@ -219,15 +220,32 @@ public class MorphiumCacheImpl implements MorphiumCache {
         b.append(" s:");
         b.append(skip);
         if (sort != null) {
-            b.append(" sort:");
+            b.append(" sort:{");
             for (Map.Entry<String, Integer> s : sort.entrySet()) {
                 b.append(" ").append(s.getKey()).append(":").append(s.getValue());
             }
+            b.append("}");
         }
         if (projection != null) {
-            b.append(" project:");
-            for (Map.Entry<String, Object> s : projection.entrySet()) {
-                b.append(" ").append(s.getKey()).append(":").append(s.getValue());
+            List<Field> fields = annotationHelper.getAllFields(type);
+            boolean addProjection = false;
+            if (projection.size() == fields.size()) {
+                for (Field f : fields) {
+                    if (!projection.containsKey(f.getName())) {
+                        addProjection = true;
+                        break;
+                    }
+                }
+            } else {
+                addProjection = true;
+            }
+
+            if (addProjection) {
+                b.append(" project:{");
+                for (Map.Entry<String, Object> s : projection.entrySet()) {
+                    b.append(" ").append(s.getKey()).append(":").append(s.getValue());
+                }
+                b.append("}");
             }
         }
         return b.toString();
@@ -242,7 +260,7 @@ public class MorphiumCacheImpl implements MorphiumCache {
     @Override
     public String getCacheKey(Query q) {
         //noinspection unchecked,unchecked
-        return getCacheKey(q.toQueryObject(), q.getSort(), q.getFieldListForQuery(), q.getCollectionName(), q.getSkip(), q.getLimit());
+        return getCacheKey(q.getType(), q.toQueryObject(), q.getSort(), q.getFieldListForQuery(), q.getCollectionName(), q.getSkip(), q.getLimit());
     }
 
     @Override
