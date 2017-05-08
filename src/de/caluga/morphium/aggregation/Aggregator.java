@@ -79,8 +79,6 @@ public interface Aggregator<T, R> {
 
     Group<T, R> group(String id);
 
-    List<Map<String, Object>> toAggregationList();
-
     void addOperator(Map<String, Object> o);
 
     List<R> aggregate();
