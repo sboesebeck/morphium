@@ -45,10 +45,6 @@ public class Aggregation extends MongoTest {
         projection.put("first", "$erster");
         a = a.project(projection);
 
-        List<Map<String, Object>> obj = a.toAggregationList();
-        for (Map<String, Object> o : obj) {
-            log.info("Object: " + o.toString());
-        }
         List<Aggregate> lst = a.aggregate();
         assert (lst.size() == 1) : "Size wrong: " + lst.size();
         log.info("Sum  : " + lst.get(0).getSumme());
@@ -59,6 +55,46 @@ public class Aggregation extends MongoTest {
 
 
         assert (lst.get(0).getAnzahl() == 15) : "did not find 15, instead found: " + lst.get(0).getAnzahl();
+
+    }
+
+    @Test
+    public void testPush() throws Exception {
+        morphium.clearCollection(UncachedObject.class);
+        for (int i = 0; i < 100; i++) {
+            UncachedObject u = new UncachedObject();
+            u.setCounter(i % 3);
+            u.setValue("" + i % 5);
+            morphium.store(u);
+        }
+        Aggregator<UncachedObject, AggregatePush> agr = morphium.createAggregator(UncachedObject.class, AggregatePush.class);
+        agr.group("$value").sum("count", 1).sum("sum_counts", "$counter").push("values", "counter", "$counter").end();
+        List<AggregatePush> lst = agr.aggregate();
+        assert (lst != null);
+        assert (lst.size() == 5);
+        assert (lst.get(0).getCount() == 20);
+        assert (lst.get(0).getSumCounts() == 19);
+        assert (lst.get(0).getValues().size() == 20);
+    }
+
+    @Test
+    public void testAddToSet() throws Exception {
+        morphium.clearCollection(UncachedObject.class);
+        for (int i = 0; i < 100; i++) {
+            UncachedObject u = new UncachedObject();
+            u.setCounter(i % 3);
+            u.setValue("" + i % 5);
+            morphium.store(u);
+        }
+        Aggregator<UncachedObject, AggregatePush> agr = morphium.createAggregator(UncachedObject.class, AggregatePush.class);
+        //Ending a group is not longer necessary... but the aggregator will warn!
+        agr.group("$value").sum("count", 1).sum("sum_counts", "$counter").addToSet("values", "$counter");
+        List<AggregatePush> lst = agr.aggregate();
+        assert (lst != null);
+        assert (lst.size() == 5);
+        assert (lst.get(0).getValues().size() == 3);
+        assert (lst.get(0).getSumCounts() >= 19);
+        assert (lst.get(0).getCount() == 20);
 
     }
 
@@ -108,7 +144,6 @@ public class Aggregation extends MongoTest {
         db.put("$mod", params);
         a = a.sort("$counter");
         a = a.group(db).sum("summe", "$counter").sum("anzahl", 1).avg("schnitt", "$counter").end();
-        List<Map<String, Object>> obj = a.toAggregationList();
         List<Aggregate> lst = a.aggregate();
         assert (lst.size() == 3);
         for (Aggregate ag : lst) {
@@ -181,5 +216,32 @@ public class Aggregation extends MongoTest {
         }
     }
 
+    @Embedded
+    public static class AggregatePush {
+        private List<Map<String, Object>> values;
+        private long sumCounts;
+        private long count;
+
+        @Property(fieldName = "_id")
+        private String theGeneratedId;
+
+        public List<Map<String, Object>> getValues() {
+            return values;
+        }
+
+        public long getSumCounts() {
+            return sumCounts;
+        }
+
+        public long getCount() {
+            return count;
+        }
+
+
+        public String getTheGeneratedId() {
+            return theGeneratedId;
+        }
+
+    }
 
 }
