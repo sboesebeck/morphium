@@ -16,6 +16,7 @@ import java.util.*;
  */
 public class AggregatorImpl<T, R> implements Aggregator<T, R> {
     private final List<Map<String, Object>> params = new ArrayList<>();
+    private final List<Group<T, R>> groups = new ArrayList<>();
     private Class<? extends T> type;
     private Morphium morphium;
     private Class<? extends R> rType;
@@ -178,12 +179,16 @@ public class AggregatorImpl<T, R> implements Aggregator<T, R> {
     @Override
     public Group<T, R> groupSubObj(Map<String, String> idSubObject) {
         //noinspection unchecked,unchecked
-        return new Group(this, idSubObject);
+        Group gr = new Group(this, idSubObject);
+        groups.add(gr);
+        return gr;
     }
 
     @Override
     public Group<T, R> group(String id) {
-        return new Group<>(this, id);
+        Group<T, R> gr = new Group<>(this, id);
+        groups.add(gr);
+        return gr;
     }
 
     @Override
@@ -212,6 +217,10 @@ public class AggregatorImpl<T, R> implements Aggregator<T, R> {
 
     @Override
     public List<Map<String, Object>> toAggregationList() {
+        for (Group<T, R> g : groups) {
+            g.end();
+        }
+        groups.clear();
         return params;
     }
 

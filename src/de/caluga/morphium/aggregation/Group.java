@@ -1,5 +1,7 @@
 package de.caluga.morphium.aggregation;
 
+import de.caluga.morphium.Logger;
+
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -14,8 +16,10 @@ import java.util.Map;
  */
 @SuppressWarnings("UnusedDeclaration")
 public class Group<T, R> {
+    private Logger log = new Logger(Group.class);
     private Aggregator<T, R> aggregator;
     private Map<String, Object> id;
+    private boolean ended = false;
 
     private List<Map<String, Object>> operators = new ArrayList<>();
 
@@ -35,8 +39,15 @@ public class Group<T, R> {
         return ret;
     }
 
-    public Group<T, R> addToSet(Map<String, Object> param) {
-        Map<String, Object> o = getMap("$addToSet", param);
+    public Group<T, R> addToSet(String name, Object p) {
+        Map<String, Object> o = getMap(name, getMap("$addToSet", p));
+        operators.add(o);
+        return this;
+
+    }
+
+    public Group<T, R> addToSet(String name, Map<String, Object> param) {
+        Map<String, Object> o = getMap(name, getMap("$addToSet", param));
         operators.add(o);
         return this;
     } //don't know what this actually should do???
@@ -71,8 +82,8 @@ public class Group<T, R> {
         return this;
     }
 
-    public Group<T, R> push(String name, Object p) {
-        Map<String, Object> o = getMap(name, getMap("$push", p));
+    public Group<T, R> push(String name, String vn, String value) {
+        Map<String, Object> o = getMap(name, getMap("$push", getMap(vn, value)));
         operators.add(o);
         return this;
     }
@@ -96,12 +107,30 @@ public class Group<T, R> {
         return sum(name, (Object) p);
     }
 
+    public Group<T, R> stdDevPop(String name, Object value) {
+        operators.add(getMap(name, getMap("$stdDevPop", value)));
+        return this;
+    }
+
+    public Group<T, R> stdDevSamp(String name, Object value) {
+        operators.add(getMap(name, getMap("stdDevSamp", value)));
+        return this;
+    }
+
+
+
+
     public Aggregator<T, R> end() {
+        if (ended) {
+            log.error("Group.end() already called!");
+            return aggregator;
+        }
         Map<String, Object> params = new HashMap<>();
         params.putAll(id);
         operators.forEach(params::putAll);
         Map<String, Object> obj = getMap("$group", params);
         aggregator.addOperator(obj);
+        ended = true;
         return aggregator;
     }
 
