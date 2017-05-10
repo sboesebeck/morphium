@@ -82,6 +82,11 @@ public class Group<T, R> {
         return this;
     }
 
+    public Group<T, R> push(String name, Object o) {
+        Map<String, Object> jp = getMap(name, getMap("$push", o));
+        operators.add(jp);
+        return this;
+    }
     public Group<T, R> push(String name, String vn, String value) {
         Map<String, Object> o = getMap(name, getMap("$push", getMap(vn, value)));
         operators.add(o);
