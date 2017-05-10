@@ -141,7 +141,7 @@ public class MorphiumCacheTest {
         }
 
         k = imp.getCacheKey(UncachedObject.class, q, sort, projection, "uncached_object", 123, 321);
-        assert (k.equals("{counter=999} c:uncached_object l:321 s:123 sort:{ counter:-1}"));
+        assert (k.equals("{counter=999} c:uncached_object l:321 s:123 sort:{ counter:-1} project:{ dval:1 morphiumId:1 binaryData:1 longData:1 boolData:1 doubleData:1 floatData:1 counter:1 value:1 intData:1}"));
     }
 
 
