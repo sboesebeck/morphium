@@ -26,6 +26,19 @@ import static org.junit.Assert.fail;
 public class ListTests extends MongoTest {
 
     @Test
+    public void listStoringTest() throws Exception {
+        List<UncachedObject> lst = new ArrayList<>();
+        for (int i = 0; i < 100; i++) {
+            Uc u = new Uc();
+            u.setCounter(i);
+            u.setValue("V: " + i);
+            lst.add(u);
+        }
+        morphium.storeList(lst);
+        assert (morphium.createQueryFor(UncachedObject.class, "UCTest").countAll() == 100);
+    }
+
+    @Test
     public void simpleListTest() throws Exception {
         ListContainer lst = new ListContainer();
         int count = 2;
@@ -231,6 +244,9 @@ public class ListTests extends MongoTest {
 
     }
 
+    @Entity(collectionName = "UCTest")
+    public static class Uc extends UncachedObject {
+    }
     @Entity
     public static class MyListContainer {
         @Id
