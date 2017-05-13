@@ -2254,18 +2254,22 @@ public class Morphium {
     public <T> void storeList(List<T> lst, final AsyncOperationCallback<T> callback) {
         //have to sort list - might have different objects
         List<T> storeDirect = new ArrayList<>();
-        final List<T> storeInBg = new ArrayList<>();
+        if (isWriteBufferEnabledForThread()) {
+            final List<T> storeInBg = new ArrayList<>();
 
-        //checking permission - might take some time ;-(
-        for (T o : lst) {
-            if (annotationHelper.isBufferedWrite(getARHelper().getRealClass(o.getClass()))) {
-                storeInBg.add(o);
-            } else {
-                storeDirect.add(o);
+            //checking permission - might take some time ;-(
+            for (T o : lst) {
+                if (annotationHelper.isBufferedWrite(getARHelper().getRealClass(o.getClass()))) {
+                    storeInBg.add(o);
+                } else {
+                    storeDirect.add(o);
+                }
             }
+            config.getBufferedWriter().store(storeInBg, callback);
+            config.getWriter().store(storeDirect, callback);
+        } else {
+            config.getWriter().store(lst, callback);
         }
-        config.getBufferedWriter().store(storeInBg, callback);
-        config.getWriter().store(storeDirect, callback);
     }
 
 
