@@ -27,6 +27,7 @@ public class ListTests extends MongoTest {
 
     @Test
     public void listStoringTest() throws Exception {
+        morphium.dropCollection(Uc.class);
         List<UncachedObject> lst = new ArrayList<>();
         for (int i = 0; i < 100; i++) {
             Uc u = new Uc();
@@ -35,7 +36,8 @@ public class ListTests extends MongoTest {
             lst.add(u);
         }
         morphium.storeList(lst);
-        assert (morphium.createQueryFor(UncachedObject.class, "UCTest").countAll() == 100);
+        long count = morphium.createQueryFor(UncachedObject.class, "UCTest").countAll();
+        assert (count == 100) : "Count wrong " + count;
     }
 
     @Test
