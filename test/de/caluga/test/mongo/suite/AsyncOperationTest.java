@@ -126,6 +126,7 @@ public class AsyncOperationTest extends MongoTest {
             public void onOperationError(AsyncOperationType type, Query<UncachedObject> q, long duration, String error, Throwable t, UncachedObject entity, Object... param) {
                 //To change body of implemented methods use File | Settings | File Templates.
                 log.error("got async error callback", t);
+                //noinspection ConstantConditions
                 assert (false);
             }
         });

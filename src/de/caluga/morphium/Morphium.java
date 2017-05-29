@@ -1877,7 +1877,7 @@ public class Morphium {
                         }
                     } else {
                         if (reread == null) {
-                            aNew = (id instanceof MorphiumId && id == null); //if id null, is new. if id!=null probably not, if type is objectId
+                            aNew = (id instanceof MorphiumId); //if id null, is new. if id!=null probably not, if type is objectId
                         } else {
                             Object value = field.get(reread);
                             field.set(o, value);
@@ -1889,7 +1889,7 @@ public class Morphium {
                 }
             }
             if (aNew) {
-                if (lst == null || lst.isEmpty()) {
+                if (lst.isEmpty()) {
                     logger.error("Unable to store creation time as @CreationTime for field is missing");
                 } else {
                     long now = System.currentTimeMillis();
@@ -1907,13 +1907,11 @@ public class Morphium {
                             val = df.format(now);
                         }
 
-                        if (f != null) {
-                            try {
-                                f.set(o, val);
-                            } catch (IllegalAccessException e) {
-                                logger.error("Could not set creation time", e);
+                        try {
+                            f.set(o, val);
+                        } catch (IllegalAccessException e) {
+                            logger.error("Could not set creation time", e);
 
-                            }
                         }
 
                     }
@@ -1942,13 +1940,11 @@ public class Morphium {
                         val = df.format(now);
                     }
 
-                    if (f != null) {
-                        try {
-                            f.set(o, val);
-                        } catch (IllegalAccessException e) {
-                            logger.error("Could not set modification time", e);
+                    try {
+                        f.set(o, val);
+                    } catch (IllegalAccessException e) {
+                        logger.error("Could not set modification time", e);
 
-                        }
                     }
                 }
             } else {

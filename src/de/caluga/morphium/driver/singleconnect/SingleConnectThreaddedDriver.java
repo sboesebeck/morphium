@@ -147,7 +147,7 @@ public class SingleConnectThreaddedDriver extends DriverBase {
                                 synchronized (replies) {
                                     replies.add(reply);
                                     ArrayList<OpReply> toRemove = replies.stream().filter(r -> System.currentTimeMillis() - r.timestamp > getHeartbeatSocketTimeout()).collect(Collectors.toCollection(ArrayList::new));
-                                    toRemove.forEach(replies::remove);
+                                    replies.removeAll(toRemove);
                                 }
                             } catch (Exception e) {
                                 log.error("Could not read", e);

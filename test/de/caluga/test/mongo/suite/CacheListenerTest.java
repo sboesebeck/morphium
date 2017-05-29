@@ -14,9 +14,9 @@ import org.junit.Test;
  */
 @SuppressWarnings("AssertWithSideEffects")
 public class CacheListenerTest extends MongoTest {
-    boolean wouldAdd = false;
-    boolean wouldClear = false;
-    boolean wouldRemove = false;
+    private boolean wouldAdd = false;
+    private boolean wouldClear = false;
+    private boolean wouldRemove = false;
 
 
     @Test

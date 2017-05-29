@@ -219,7 +219,7 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
                     if (logger.isDebugEnabled()) {
                         logger.debug("Deleting oldest entry");
                     }
-                    if (opLog != null && opLog.get(type) != null && !opLog.get(type).isEmpty()) {
+                    if (opLog.get(type) != null && !opLog.get(type).isEmpty()) {
                         opLog.get(type).remove(0);
                     }
                     opLog.putIfAbsent(type, new ArrayList<>());
