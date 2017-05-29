@@ -452,6 +452,7 @@ public class BasicFunctionalityTest extends MongoTest {
             log.info("Got exception, good!");
             return;
         }
+        //noinspection ConstantConditions
         assert (false) : "Exception missing!";
     }
 

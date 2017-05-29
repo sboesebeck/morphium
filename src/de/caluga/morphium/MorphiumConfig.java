@@ -242,7 +242,7 @@ public class MorphiumConfig {
             String k = (String) ko;
             String value = cfg.restoreData.get(k);
             if (k.equals("hosts") || k.equals("hostSeed")) {
-                value = value.replaceAll("\\[", "").replaceAll("\\]", "");
+                value = value.replaceAll("\\[", "").replaceAll("]", "");
                 for (String adr : value.split(",")) {
                     String a[] = adr.split(":");
                     cfg.addHostToSeed(a[0].trim(), Integer.parseInt(a[1].trim()));

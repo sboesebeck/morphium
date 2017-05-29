@@ -228,7 +228,9 @@ public class ReferenceTest extends MongoTest {
 
         ReferenceContainer rcRead = morphium.createQueryFor(ReferenceContainer.class).get();
 
+        //noinspection ConstantConditions
         assert (wouldDeref = true);
+        //noinspection ConstantConditions
         assert (didDeref = true);
     }
 

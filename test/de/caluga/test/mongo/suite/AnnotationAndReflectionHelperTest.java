@@ -14,6 +14,7 @@ import org.junit.Test;
 
 import java.lang.reflect.Field;
 import java.util.List;
+import java.util.Objects;
 
 /**
  * Created by stephan on 26.11.15.
@@ -143,7 +144,7 @@ public class AnnotationAndReflectionHelperTest {
 
     @Test
     public void testGetTypeOfField() throws Exception {
-        assert (arHelper.getTypeOfField(UncachedObject.class, "value").equals(String.class));
+        assert (Objects.equals(arHelper.getTypeOfField(UncachedObject.class, "value"), String.class));
     }
 
     @Test

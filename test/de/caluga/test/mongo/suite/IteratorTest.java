@@ -76,10 +76,12 @@ public class IteratorTest extends MongoTest {
     @Test
     public void emptyResultIteratorTest() throws Exception {
         for (UncachedObject uc : morphium.createQueryFor(UncachedObject.class).asIterable(1000)) {
+            //noinspection ConstantConditions
             assert (false);
         }
 
         for (UncachedObject uc : morphium.createQueryFor(UncachedObject.class).sort("-counter").asIterable(1000)) {
+            //noinspection ConstantConditions
             assert (false);
         }
     }
