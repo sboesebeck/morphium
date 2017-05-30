@@ -11,5 +11,6 @@ public interface DriverTailableIterationCallback {
      * @param dur  - duration since start
      * @return true, if you want to continue reading
      */
+    @SuppressWarnings("BooleanMethodIsAlwaysInverted")
     boolean incomingData(Map<String, Object> data, long dur);
 }
