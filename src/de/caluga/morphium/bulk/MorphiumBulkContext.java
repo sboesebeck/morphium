@@ -68,21 +68,18 @@ public class MorphiumBulkContext<T> {
             }
             firePost();
         } else {
-            Thread thr = new Thread() {
-                @Override
-                public void run() {
-                    firePre();
-                    try {
-                        Map<String, Object> ret = ctx.execute();
-                        //noinspection unchecked
-                        c.onOperationSucceeded(AsyncOperationType.BULK, null, 0, null, null, ret);
-                    } catch (Exception e) {
-                        //noinspection unchecked
-                        c.onOperationError(AsyncOperationType.BULK, null, 0, null, e, null);
-                    }
-                    firePost();
+            Thread thr = new Thread(() -> {
+                firePre();
+                try {
+                    Map<String, Object> ret = ctx.execute();
+                    //noinspection unchecked
+                    c.onOperationSucceeded(AsyncOperationType.BULK, null, 0, null, null, ret);
+                } catch (Exception e) {
+                    //noinspection unchecked
+                    c.onOperationError(AsyncOperationType.BULK, null, 0, null, e, null);
                 }
-            };
+                firePost();
+            });
             thr.setName("run-bulk-thr");
             thr.start();
         }

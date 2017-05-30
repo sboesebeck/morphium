@@ -10,7 +10,7 @@ import java.util.Hashtable;
  * Name Providers define the name of a given collection. Can be set in config for any type
  */
 public final class DefaultNameProvider implements NameProvider {
-    private Hashtable<Class<?>, String> collectionNameCache = new Hashtable<>();
+    private final Hashtable<Class<?>, String> collectionNameCache = new Hashtable<>();
 
     @Override
     public String getCollectionName(Class<?> type, ObjectMapper om, boolean translateCamelCase, boolean useFQN, String specifiedName, Morphium morphium) {

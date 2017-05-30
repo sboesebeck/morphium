@@ -117,6 +117,7 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
             for (WriteBufferEntry entry : localQueue) {
                 if (morphium.getConfig().isAutoIndexAndCappedCreationOnWrite() && !morphium.getDriver().exists(morphium.getConfig().getDatabase(), entry.getCollectionName())) {
                     createCappedColl(entry.getEntityType(), entry.getCollectionName());
+                    //noinspection unchecked,unchecked
                     morphium.ensureIndicesFor(entry.getEntityType(), entry.getCollectionName(), entry.getCb());
                 }
                 try {
@@ -207,7 +208,7 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
                     break;
                 case WRITE_OLD:
 
-                    Collections.sort(opLog.get(type), (o1, o2) -> Long.valueOf(o1.getTimestamp()).compareTo(o2.getTimestamp()));
+                    opLog.get(type).sort((o1, o2) -> Long.valueOf(o1.getTimestamp()).compareTo(o2.getTimestamp()));
 
                     opLog.get(type).get(0).getToRun().queue(ctx);
                     opLog.get(type).remove(0);
@@ -215,7 +216,7 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
                     break;
                 case DEL_OLD:
 
-                    Collections.sort(opLog.get(type), (o1, o2) -> Long.valueOf(o1.getTimestamp()).compareTo(o2.getTimestamp()));
+                    opLog.get(type).sort((o1, o2) -> Long.valueOf(o1.getTimestamp()).compareTo(o2.getTimestamp()));
                     if (logger.isDebugEnabled()) {
                         logger.debug("Deleting oldest entry");
                     }

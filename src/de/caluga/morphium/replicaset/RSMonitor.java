@@ -52,6 +52,7 @@ public class RSMonitor {
             try {
                 Thread.sleep(100);
             } catch (InterruptedException e) {
+                //ignored
             }
         }
     }
@@ -75,7 +76,7 @@ public class RSMonitor {
                 executorService.shutdownNow();
             }
         } catch (Exception ignored) {
-
+            //ignored
         }
     }
 

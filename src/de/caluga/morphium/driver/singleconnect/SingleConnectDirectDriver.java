@@ -98,7 +98,7 @@ public class SingleConnectDirectDriver extends DriverBase {
         return getReply();
     }
 
-    protected synchronized OpReply getReply() throws MorphiumDriverNetworkException {
+    private synchronized OpReply getReply() throws MorphiumDriverNetworkException {
         byte[] inBuffer = new byte[16];
         int numRead;
         try {
@@ -350,7 +350,7 @@ public class SingleConnectDirectDriver extends DriverBase {
             return;
         }
         SingleConnectCursor internalCursor = (SingleConnectCursor) crs.getInternalCursorObject();
-        Map<String, Object> m = new LinkedHashMap<>();
+        @SuppressWarnings("MismatchedQueryAndUpdateOfCollection") Map<String, Object> m = new LinkedHashMap<>();
         m.put("killCursors", internalCursor.getCollection());
         List<Long> cursors = new ArrayList<>();
         cursors.add(crs.getCursorId());
@@ -388,7 +388,7 @@ public class SingleConnectDirectDriver extends DriverBase {
             q.setFlags(0);
             q.setInReplyTo(0);
 
-            List<Map<String, Object>> ret = null;
+            List<Map<String, Object>> ret;
             synchronized (SingleConnectDirectDriver.this) {
                 sendQuery(q);
 
@@ -492,7 +492,7 @@ public class SingleConnectDirectDriver extends DriverBase {
             q.setFlags(0);
             q.setInReplyTo(0);
 
-            OpReply rep = null;
+            OpReply rep;
             synchronized (SingleConnectDirectDriver.this) {
                 sendQuery(q);
                 rep = waitForReply(db, collection, query, q.getReqId());
@@ -641,10 +641,9 @@ public class SingleConnectDirectDriver extends DriverBase {
             synchronized (SingleConnectDirectDriver.this) {
                 sendQuery(op);
 
-                OpReply reply = null;
                 int waitingfor = op.getReqId();
                 //        if (wc == null || wc.getW() == 0) {
-                reply = waitForReply(db, collection, query, waitingfor);
+                waitForReply(db, collection, query, waitingfor);
                 //        }
             }
             return null;

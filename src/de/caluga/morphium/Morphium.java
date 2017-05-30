@@ -1709,6 +1709,7 @@ public class Morphium {
     public void clearCollection(Class<?> cls, String colName) {
         Query q = createQueryFor(cls);
         q.setCollectionName(colName);
+        //noinspection unchecked
         delete(q);
     }
 
@@ -1862,7 +1863,7 @@ public class Morphium {
         if (getARHelper().isAnnotationPresentInHierarchy(type, CreationTime.class)) {
             CreationTime ct = getARHelper().getAnnotationFromHierarchy(o.getClass(), CreationTime.class);
             boolean checkForNew = ct.checkForNew() || getConfig().isCheckForNew();
-            List<String> lst = getARHelper().getFields(type, CreationTime.class);
+            @SuppressWarnings("unchecked") List<String> lst = getARHelper().getFields(type, CreationTime.class);
             for (String fld : lst) {
                 Field field = getARHelper().getField(o.getClass(), fld);
                 if (id != null) {
@@ -1923,7 +1924,7 @@ public class Morphium {
 
 
         if (getARHelper().isAnnotationPresentInHierarchy(type, LastChange.class)) {
-            List<String> lst = getARHelper().getFields(type, LastChange.class);
+            @SuppressWarnings("unchecked") List<String> lst = getARHelper().getFields(type, LastChange.class);
             if (lst != null && !lst.isEmpty()) {
                 long now = System.currentTimeMillis();
                 for (String ctf : lst) {
@@ -2171,6 +2172,7 @@ public class Morphium {
      */
     public <T> void store(T o) {
         if (o instanceof List) {
+            //noinspection unchecked
             storeList((List) o);
         } else if (o instanceof Collection) {
             //noinspection unchecked,unchecked
@@ -2426,7 +2428,7 @@ public class Morphium {
 
     public <T> List<T> mapReduce(Class<? extends T> type, String map, String reduce) throws MorphiumDriverException {
         List<Map<String, Object>> result = getDriver().mapReduce(getConfig().getDatabase(), getMapper().getCollectionName(type), map, reduce);
-        List<T> ret = new ArrayList<T>();
+        List<T> ret = new ArrayList<>();
 
         for (Map<String, Object> o : result) {
             ret.add(getMapper().unmarshall(type, o));

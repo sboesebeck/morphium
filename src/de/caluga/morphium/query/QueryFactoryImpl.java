@@ -46,7 +46,7 @@ public class QueryFactoryImpl implements QueryFactory {
     @Override
     public <T> Query<T> createQuery(Morphium m, Class<? extends T> type) {
         try {
-            Query<T> q = queryImpl.newInstance();
+            @SuppressWarnings("unchecked") Query<T> q = queryImpl.newInstance();
             q.setMorphium(m);
             q.setType(type);
             q.setExecutor(m.getAsyncOperationsThreadPool());
