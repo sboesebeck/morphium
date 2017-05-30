@@ -992,21 +992,12 @@ public class MetaDriver extends DriverBase {
     }
 
     private void incErrorCount(String host) {
-        if (errorCountByHost.get(host) == null) {
-            errorCountByHost.put(host, 1);
-        } else {
-            errorCountByHost.put(host, errorCountByHost.get(host) + 1);
-        }
+        errorCountByHost.merge(host, 1, (a, b) -> a + b);
 
     }
 
     private void decErrorCount(String host) {
-        if (errorCountByHost.get(host) == null) {
-            errorCountByHost.put(host, 0);
-        } else {
-            errorCountByHost.put(host, errorCountByHost.get(host) - 1);
-        }
-
+        errorCountByHost.merge(host, 0, (a, b) -> a - b);
     }
 
     @Override

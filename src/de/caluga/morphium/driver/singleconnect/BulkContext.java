@@ -78,7 +78,7 @@ public class BulkContext extends BulkRequestContext {
 
 
         int count = 0;
-        List<Map<String, Object>> results = new ArrayList<>();
+        @SuppressWarnings("MismatchedQueryAndUpdateOfCollection") List<Map<String, Object>> results = new ArrayList<>();
         List<Map<String, Object>> inserts = new ArrayList<>();
         List<Map<String, Object>> stores = new ArrayList<>();
         List<Map<String, Object>> updates = new ArrayList<>();
@@ -112,8 +112,7 @@ public class BulkContext extends BulkRequestContext {
                 cmd.put("multi", up.isMultiple());
                 updates.add(cmd);
                 if (updates.size() >= driver.getMaxWriteBatchSize()) {
-                    @SuppressWarnings("UnusedAssignment") Map<String, Object> result = null;
-                    result = driver.update(db, collection, updates, ordered, wc);
+                    driver.update(db, collection, updates, ordered, wc);
                     updates.clear();
                 }
             }

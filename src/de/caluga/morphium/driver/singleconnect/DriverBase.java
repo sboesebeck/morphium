@@ -23,11 +23,11 @@ import java.util.regex.Pattern;
  */
 @SuppressWarnings("WeakerAccess")
 public abstract class DriverBase implements MorphiumDriver {
+    private final Logger log = new Logger(DriverBase.class);
     private volatile int rqid = 10000;
     private int maxWait = 1000;
     private boolean keepAlive = true;
     private int soTimeout = 1000;
-
     private Map<String, Map<String, char[]>> credentials;
     private int maxBsonObjectSize;
     private int maxMessageSize = 16 * 1024 * 1024;
@@ -52,9 +52,6 @@ public abstract class DriverBase implements MorphiumDriver {
     private int minConnectionsPerHost = 1;
     private int maxConnectionsPerHost = 100;
     private int defaultWriteTimeout = 10000;
-
-
-    private Logger log = new Logger(DriverBase.class);
     private boolean slaveOk = true;
 
     public boolean isSlaveOk() {
@@ -90,7 +87,7 @@ public abstract class DriverBase implements MorphiumDriver {
         Map<String, Object> res = runCommand("admin", command);
         List<String> ret = new ArrayList<>();
         if (res.get("databases") != null) {
-            List<Map<String, Object>> lst = (List<Map<String, Object>>) res.get("databases");
+            @SuppressWarnings("unchecked") List<Map<String, Object>> lst = (List<Map<String, Object>>) res.get("databases");
             for (Map<String, Object> db : lst) {
                 if (db.get("name") != null) {
                     ret.add(db.get("name").toString());
@@ -126,12 +123,14 @@ public abstract class DriverBase implements MorphiumDriver {
     }
 
     private void addToListFromCursor(String db, List<Map<String, Object>> data, Map<String, Object> res) throws MorphiumDriverException {
-        boolean valid = false;
-        Map<String, Object> crs = (Map<String, Object>) res.get("cursor");
+        boolean valid;
+        @SuppressWarnings("unchecked") Map<String, Object> crs = (Map<String, Object>) res.get("cursor");
         do {
             if (crs.get("firstBatch") != null) {
+                //noinspection unchecked
                 data.addAll((List<Map<String, Object>>) crs.get("firstBatch"));
             } else if (crs.get("nextBatch") != null) {
+                //noinspection unchecked
                 data.addAll((List<Map<String, Object>>) crs.get("firstBatch"));
             }
             //next iteration.
@@ -546,7 +545,7 @@ public abstract class DriverBase implements MorphiumDriver {
         if (result == null) {
             throw new MorphiumDriverException("Could not get proper result");
         }
-        List<Map<String, Object>> results = (List<Map<String, Object>>) result.get("results");
+        @SuppressWarnings("unchecked") List<Map<String, Object>> results = (List<Map<String, Object>>) result.get("results");
         if (results == null) {
             return new ArrayList<>();
         }
@@ -554,7 +553,7 @@ public abstract class DriverBase implements MorphiumDriver {
 
         ArrayList<Map<String, Object>> ret = new ArrayList<>();
         for (Map<String, Object> d : results) {
-            Map<String, Object> value = (Map) d.get("value");
+            @SuppressWarnings("unchecked") Map<String, Object> value = (Map) d.get("value");
             ret.add(value);
         }
 
@@ -639,9 +638,9 @@ public abstract class DriverBase implements MorphiumDriver {
             List<Map<String, Object>> ret = null;
             sendQuery(q);
 
-            OpReply reply = null;
+            OpReply reply;
             long waitingfor = q.getReqId();
-            long cursorId = 0;
+            long cursorId;
             log.info("Starting...");
 
             while (true) {

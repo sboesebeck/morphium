@@ -84,6 +84,7 @@ public class Driver implements MorphiumDriver {
         Map<String, Object> res = runCommand("admin", command);
         List<String> ret = new ArrayList<>();
         if (res.get("databases") != null) {
+            //noinspection unchecked
             List<Map<String, Object>> lst = (List<Map<String, Object>>) res.get("databases");
             for (Map<String, Object> db : lst) {
                 if (db.get("name") != null) {
@@ -119,11 +120,14 @@ public class Driver implements MorphiumDriver {
         return colNames;
     }
 
+    @SuppressWarnings("unchecked")
     private void addToListFromCursor(String db, List<Map<String, Object>> data, Map<String, Object> res) throws MorphiumDriverException {
         boolean valid = false;
+        //noinspection unchecked
         Map<String, Object> crs = (Map<String, Object>) res.get("cursor");
         do {
             if (crs.get("firstBatch") != null) {
+                //noinspection unchecked
                 data.addAll((List<Map<String, Object>>) crs.get("firstBatch"));
             } else if (crs.get("nextBatch") != null) {
                 data.addAll((List<Map<String, Object>>) crs.get("firstBatch"));
@@ -1342,6 +1346,7 @@ public class Driver implements MorphiumDriver {
         }
         ArrayList<Map<String, Object>> ret = new ArrayList<>();
         for (Document d : res) {
+            //noinspection unchecked
             Map<String, Object> value = (Map) d.get("value");
             for (Map.Entry<String, Object> s : value.entrySet()) {
                 if (s.getValue() instanceof ObjectId) {

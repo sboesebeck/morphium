@@ -180,7 +180,9 @@ public class AggregatorImpl<T, R> implements Aggregator<T, R> {
     public Group<T, R> groupSubObj(Map<String, String> idSubObject) {
         //noinspection unchecked,unchecked
         Group gr = new Group(this, idSubObject);
+        //noinspection unchecked
         groups.add(gr);
+        //noinspection unchecked
         return gr;
     }
 

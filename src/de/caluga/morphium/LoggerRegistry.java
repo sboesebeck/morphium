@@ -10,7 +10,7 @@ import java.util.Vector;
 public class LoggerRegistry {
     private static LoggerRegistry instance;
 
-    private List<WeakReference<Logger>> registry;
+    private final List<WeakReference<Logger>> registry;
 
     private LoggerRegistry() {
         registry = new Vector<>();
@@ -28,7 +28,7 @@ public class LoggerRegistry {
     }
 
     public void registerLogger(Logger l) {
-        WeakReference<Logger> w = new WeakReference<Logger>(l);
+        WeakReference<Logger> w = new WeakReference<>(l);
         registry.add(w);
     }
 
@@ -49,6 +49,7 @@ public class LoggerRegistry {
     public int getNumberOfRegisteredLoggers() {
         for (int i = 0; i < registry.size(); i++) {
             Logger l;
+            //noinspection UnusedAssignment
             while ((l = registry.get(i).get()) == null) {
                 registry.remove(i++);
                 if (i >= registry.size()) {

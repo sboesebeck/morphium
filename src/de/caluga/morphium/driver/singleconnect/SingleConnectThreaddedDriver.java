@@ -433,7 +433,7 @@ public class SingleConnectThreaddedDriver extends DriverBase {
             q.setDoc(doc);
             q.setInReplyTo(0);
 
-            List<Map<String, Object>> ret = null;
+            List<Map<String, Object>> ret;
             sendQuery(q);
 
             OpReply reply = null;
@@ -497,7 +497,7 @@ public class SingleConnectThreaddedDriver extends DriverBase {
     }
 
 
-    protected OpReply getReply(long waitingfor) throws MorphiumDriverException {
+    private OpReply getReply(long waitingfor) throws MorphiumDriverException {
         return getReply(waitingfor, getMaxWaitTime());
     }
 
@@ -577,7 +577,7 @@ public class SingleConnectThreaddedDriver extends DriverBase {
 
             q.setInReplyTo(0);
 
-            OpReply rep = null;
+            OpReply rep;
             sendQuery(q);
             rep = waitForReply(db, collection, query, q.getReqId());
             Integer n = (Integer) rep.getDocuments().get(0).get("n");
@@ -730,10 +730,9 @@ public class SingleConnectThreaddedDriver extends DriverBase {
 
             sendQuery(op);
 
-            OpReply reply = null;
             int waitingfor = op.getReqId();
             //        if (wc == null || wc.getW() == 0) {
-            reply = waitForReply(db, collection, query, waitingfor);
+            waitForReply(db, collection, query, waitingfor);
             //        }
             return null;
         }, getRetriesOnNetworkError(), getSleepBetweenErrorRetries());

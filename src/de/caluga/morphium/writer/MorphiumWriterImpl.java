@@ -278,7 +278,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                             Map<String, Object> marshall = morphium.getMapper().marshall(record);
                             Object id = morphium.getARHelper().getId(record);
                             boolean isn = id == null;
-                            Object reread = null;
+                            Object reread;
                             if (morphium.isAutoValuesEnabledForThread()) {
                                 CreationTime creationTime = morphium.getARHelper().getAnnotationFromHierarchy(record.getClass(), CreationTime.class);
                                 if (!isn && (morphium.getConfig().isCheckForNew() || (creationTime != null && creationTime.checkForNew()))
