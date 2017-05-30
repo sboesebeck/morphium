@@ -122,7 +122,7 @@ public class Driver implements MorphiumDriver {
 
     @SuppressWarnings("unchecked")
     private void addToListFromCursor(String db, List<Map<String, Object>> data, Map<String, Object> res) throws MorphiumDriverException {
-        boolean valid = false;
+        boolean valid;
         //noinspection unchecked
         Map<String, Object> crs = (Map<String, Object>) res.get("cursor");
         do {
