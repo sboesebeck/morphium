@@ -34,6 +34,9 @@ public class TextIndexTest extends MongoTest {
         Query<Person> p = morphium.createQueryFor(Person.class);
         List<Person> lst = p.text(Query.TextSearchLanguages.english, "hugo", "bruce").asList();
         assert (lst.size() == 2) : "size is " + lst.size();
+        p = morphium.createQueryFor(Person.class);
+        lst = p.text(Query.TextSearchLanguages.english, false, false, "Hugo", "Bruce").asList();
+        assert (lst.size() == 2) : "size is " + lst.size();
     }
 
 
