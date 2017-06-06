@@ -5,6 +5,7 @@ package de.caluga.morphium;/**
 import java.io.UnsupportedEncodingException;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.Map;
 
 /**
@@ -72,7 +73,7 @@ public class Utils {
     }
 
     public static <K, V> Map<K, V> getMap(K key, V value) {
-        HashMap<K, V> ret = new HashMap<>();
+        LinkedHashMap<K, V> ret = new LinkedHashMap<>();
         ret.put(key, value);
         return ret;
     }

@@ -1056,7 +1056,7 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
     }
 
     @Override
-    public Query<T> text(String metaScoreField, TextSearchLanguages lang, String... text) {
+    public Query<T> text(String metaScoreField, TextSearchLanguages lang, boolean caseSensitive, boolean diacriticSensitive, String... text) {
         FilterExpression f = new FilterExpression();
         f.setField("$text");
         StringBuilder b = new StringBuilder();
@@ -1064,7 +1064,10 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
             b.append(t);
             b.append(" ");
         }
-        f.setValue(Utils.getMap("$search", b.toString()));
+        Map<String, Object> srch = Utils.getMap("$search", b.toString());
+        srch.put("$caseSensitive", caseSensitive);
+        srch.put("$diacriticSensitive", diacriticSensitive);
+        f.setValue(srch);
         if (lang != null) {
             //noinspection unchecked
             ((Map<String, Object>) f.getValue()).put("$language", lang.toString());
@@ -1076,7 +1079,11 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
         }
 
         return this;
+    }
 
+    @Override
+    public Query<T> text(String metaScoreField, TextSearchLanguages lang, String... text) {
+        return text(metaScoreField, lang, true, true, text);
     }
 
     @Override
