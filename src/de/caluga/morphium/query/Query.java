@@ -325,6 +325,8 @@ public interface Query<T> extends Cloneable {
 
     Query<T> text(TextSearchLanguages lang, String... text);
 
+    Query<T> text(String metaScoreField, TextSearchLanguages lang, boolean caseSensitive, boolean diacriticSensitive, String... text);
+
     Query<T> text(String metaScoreField, TextSearchLanguages lang, String... text);
 
     Query<T> setProjection(String... fl);
