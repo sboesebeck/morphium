@@ -1056,6 +1056,11 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
     }
 
     @Override
+    public Query<T> text(TextSearchLanguages lang, boolean caseSensitive, boolean diacriticSensitive, String... text) {
+        return text(null, lang, caseSensitive, diacriticSensitive, text);
+    }
+
+    @Override
     public Query<T> text(String metaScoreField, TextSearchLanguages lang, boolean caseSensitive, boolean diacriticSensitive, String... text) {
         FilterExpression f = new FilterExpression();
         f.setField("$text");
