@@ -674,7 +674,6 @@ public class Driver implements MorphiumDriver {
                 DBCollection coll = getColl(database, collection, readPreference, null);
 
                 DBCursor ret = coll.find(new BasicDBObject(query), projection != null ? new BasicDBObject(projection) : null);
-                ret.hasNext();
                 handleMetaData(findMetaData, ret);
 
                 if (sort != null) {
@@ -692,13 +691,14 @@ public class Driver implements MorphiumDriver {
                     ret.batchSize(defaultBatchSize);
                 }
                 List<Map<String, Object>> values = new ArrayList<>();
-                for (DBObject d : ret) {
+                while(ret.hasNext()){
+                    DBObject d=ret.next();
                     Map<String, Object> obj = convertBSON((BasicDBObject) d);
                     values.add(obj);
                 }
                 Map<String, Object> r = new HashMap<String, Object>();
                 r.put("result", values);
-
+                ret.close();
                 return r;
             }
         }, retriesOnNetworkError, sleepBetweenErrorRetries).get("result");
