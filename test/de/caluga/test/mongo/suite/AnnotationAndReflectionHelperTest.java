@@ -2,9 +2,7 @@ package de.caluga.test.mongo.suite;
 
 import de.caluga.morphium.AnnotationAndReflectionHelper;
 import de.caluga.morphium.Morphium;
-import de.caluga.morphium.annotations.Entity;
-import de.caluga.morphium.annotations.Id;
-import de.caluga.morphium.annotations.Index;
+import de.caluga.morphium.annotations.*;
 import de.caluga.morphium.annotations.caching.Cache;
 import de.caluga.morphium.driver.bson.MorphiumId;
 import de.caluga.test.mongo.suite.data.CachedObject;
@@ -169,4 +167,53 @@ public class AnnotationAndReflectionHelperTest {
     public void testGetAllAnnotationsFromHierachy() throws Exception {
         assert (arHelper.getAllAnnotationsFromHierachy(UncachedObject.class).size() == 4) : "wrong: " + arHelper.getAllAnnotationsFromHierachy(UncachedObject.class).size();
     }
+
+    @Test
+    public void testIgnorFieldsAnnotation() throws Exception {
+        assert (!arHelper.getFields(TestClass.class).contains("var1"));
+        assert (arHelper.getFields(TestClass.class).contains("var2"));
+    }
+
+    @Test
+    public void testLimitToFieldsAnnotationList() throws Exception {
+        assert (!arHelper.getFields(TestClass2.class).contains("var2") && !arHelper.getFields(TestClass2.class).contains("var3"));
+        assert (arHelper.getFields(TestClass2.class).contains("var1"));
+    }
+
+    @Test
+    public void testLimitToFieldsAnnotationType() throws Exception {
+        assert (arHelper.getFields(TestClass3.class).contains("var1"));
+        assert (arHelper.getFields(TestClass3.class).contains("var2"));
+        assert (arHelper.getFields(TestClass3.class).contains("var3"));
+        assert (!arHelper.getFields(TestClass3.class).contains("not_valid"));
+        assert (!arHelper.getFields(TestClass3.class).contains("notValid"));
+
+    }
+
+    @Entity
+    @IgnoreFields({"var1", "var3"})
+    public class TestClass {
+        @Id
+        public MorphiumId id;
+        public int var1;
+        public int var2;
+        public int var3;
+    }
+
+    @Entity
+    @LimitToFields({"var1"})
+    public class TestClass2 {
+        @Id
+        public MorphiumId id;
+        public int var1;
+        public int var2;
+        public int var3;
+    }
+
+    @Entity
+    @LimitToFields(type = TestClass2.class)
+    public class TestClass3 extends TestClass2 {
+        public String notValid;
+    }
+
 }

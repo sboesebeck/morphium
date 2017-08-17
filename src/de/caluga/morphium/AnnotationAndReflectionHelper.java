@@ -652,7 +652,32 @@ public class AnnotationAndReflectionHelper {
         if (embedded == null && entity == null) {
             throw new IllegalArgumentException("This class " + cls.getName() + " does not have @Entity or @Embedded set, not even in hierachy - illegal!");
         }
+
         boolean tcc = entity == null ? embedded.translateCamelCase() : entity.translateCamelCase();
+
+        IgnoreFields ignoreFields = getAnnotationFromHierarchy(sc, IgnoreFields.class);
+        LimitToFields limitToFields = getAnnotationFromHierarchy(sc, LimitToFields.class);
+
+        List<String> fieldsToIgnore = new ArrayList<>();
+        if (ignoreFields != null && ignoreFields.value().length != 0) {
+            for (String f : ignoreFields.value()) {
+                fieldsToIgnore.add(f);
+            }
+        }
+
+        List<String> fieldsToLimitTo = new ArrayList<>();
+        if (limitToFields != null && limitToFields.value().length != 0) {
+            for (String f : limitToFields.value()) {
+                fieldsToLimitTo.add(f);
+            }
+        }
+        if (limitToFields != null && !limitToFields.type().equals(Object.class)) {
+            List<Field> flds = getAllFields(limitToFields.type());
+            for (Field f : flds) {
+                fieldsToLimitTo.add(getFieldName(limitToFields.type(), f.getName()));
+            }
+        }
+
         //getting class hierachy
         List<Field> fld = getAllFields(cls);
         for (Field f : fld) {
@@ -686,9 +711,29 @@ public class AnnotationAndReflectionHelper {
                 continue;
             }
 
+            //ignoring fields...
+
             if (tcc && ccc) {
-                ret.add(convertCamelCase(f.getName()));
+                String conv = convertCamelCase(f.getName());
+
+                if (fieldsToIgnore.contains(f.getName()) || fieldsToIgnore.contains(f.getName())) {
+                    continue;
+                }
+                if (!fieldsToLimitTo.isEmpty()) {
+                    if (!fieldsToLimitTo.contains(conv) && !fieldsToLimitTo.contains(f.getName())) {
+                        continue;
+                    }
+                }
+                ret.add(conv);
             } else {
+                if (fieldsToIgnore.contains(f.getName())) {
+                    continue;
+                }
+                if (!fieldsToLimitTo.isEmpty()) {
+                    if (!fieldsToLimitTo.contains(f.getName())) {
+                        continue;
+                    }
+                }
                 ret.add(f.getName());
             }
         }
