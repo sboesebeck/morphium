@@ -15,6 +15,9 @@ import static java.lang.annotation.ElementType.TYPE;
  * <p>
  * Attention: when limiting to a type, this will include all fields defined in that class, NOT honoring
  * fields that might be ignored by
+ *
+ * it will be inherited by subclasses, so in subclasses you will need to add all fields manually, use the type
+ * or an empty version. Setting type to Object.class uses all fields again.
  */
 @Target({TYPE})
 @Retention(RetentionPolicy.RUNTIME)

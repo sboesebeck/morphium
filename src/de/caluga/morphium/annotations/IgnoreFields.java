@@ -14,6 +14,8 @@ import static java.lang.annotation.ElementType.TYPE;
  * Field names are JAVA Fields, not translated ones for mongo
  * <p>
  * IgnoreFields will not be honored for fields marked with @Property and a custom fieldname
+ *
+ * this will be inherited by subclasses!
  */
 @Target({TYPE})
 @Retention(RetentionPolicy.RUNTIME)
