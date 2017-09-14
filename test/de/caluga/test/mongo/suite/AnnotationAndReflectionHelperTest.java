@@ -190,6 +190,29 @@ public class AnnotationAndReflectionHelperTest {
 
     }
 
+
+    @Test
+    public void testLimitToFieldsContains() throws Exception {
+        assert (!arHelper.getFields(TestClass4.class).contains("var1"));
+        assert (!arHelper.getFields(TestClass4.class).contains("var2"));
+        assert (!arHelper.getFields(TestClass4.class).contains("var3"));
+        assert (!arHelper.getFields(TestClass4.class).contains("id"));
+        assert (!arHelper.getFields(TestClass4.class).contains("_id"));
+        assert (arHelper.getFields(TestClass4.class).contains("something"));
+
+    }
+
+    @Test
+    public void testLimitToFieldsRegex() throws Exception {
+        assert (!arHelper.getFields(TestClass5.class).contains("var1"));
+        assert (!arHelper.getFields(TestClass5.class).contains("var2"));
+        assert (arHelper.getFields(TestClass5.class).contains("var3"));
+        assert (!arHelper.getFields(TestClass5.class).contains("id"));
+        assert (!arHelper.getFields(TestClass5.class).contains("_id"));
+        assert (arHelper.getFields(TestClass5.class).contains("something"));
+
+    }
+
     @Entity
     @IgnoreFields({"var1", "var3"})
     public class TestClass {
@@ -213,7 +236,29 @@ public class AnnotationAndReflectionHelperTest {
     @Entity
     @LimitToFields(type = TestClass2.class)
     public class TestClass3 extends TestClass2 {
+
         public String notValid;
     }
 
+    @Entity
+    @IgnoreFields({"~var", "id"})
+    public class TestClass4 {
+        @Id
+        public MorphiumId id;
+        public int var1;
+        public int var2;
+        public int var3;
+        public int something;
+    }
+
+    @Entity
+    @IgnoreFields({"/.*var[12].*/", "id"})
+    public class TestClass5 {
+        @Id
+        public MorphiumId id;
+        public int var1;
+        public int var2;
+        public int var3;
+        public int something;
+    }
 }
