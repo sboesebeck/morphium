@@ -12,6 +12,7 @@ import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.regex.Pattern;
 
 /**
  * User: Stephan Bösebeck
@@ -659,17 +660,25 @@ public class AnnotationAndReflectionHelper {
         LimitToFields limitToFields = getAnnotationFromHierarchy(sc, LimitToFields.class);
 
         List<String> fieldsToIgnore = new ArrayList<>();
+        List<String> ignoreContains = new ArrayList<>();
+        List<Pattern> ignoreRexex = new ArrayList<>();
         if (ignoreFields != null && ignoreFields.value().length != 0) {
             for (String f : ignoreFields.value()) {
+                if (f.startsWith("~")) {
+                    ignoreContains.add(f.substring(1));
+                    continue;
+                }
+                if (f.startsWith("/") && f.endsWith("/")) {
+                    ignoreRexex.add(Pattern.compile(f.substring(1).substring(0, f.length() - 2)));
+                    continue;
+                }
                 fieldsToIgnore.add(f);
             }
         }
 
         List<String> fieldsToLimitTo = new ArrayList<>();
         if (limitToFields != null && limitToFields.value().length != 0) {
-            for (String f : limitToFields.value()) {
-                fieldsToLimitTo.add(f);
-            }
+            fieldsToLimitTo.addAll(Arrays.asList(limitToFields.value()));
         }
         if (limitToFields != null && !limitToFields.type().equals(Object.class)) {
             List<Field> flds = getAllFields(limitToFields.type());
@@ -713,29 +722,41 @@ public class AnnotationAndReflectionHelper {
 
             //ignoring fields...
 
+            boolean ignore = false;
+            String conv = f.getName();
             if (tcc && ccc) {
-                String conv = convertCamelCase(f.getName());
-
-                if (fieldsToIgnore.contains(f.getName()) || fieldsToIgnore.contains(f.getName())) {
-                    continue;
-                }
-                if (!fieldsToLimitTo.isEmpty()) {
-                    if (!fieldsToLimitTo.contains(conv) && !fieldsToLimitTo.contains(f.getName())) {
-                        continue;
-                    }
-                }
-                ret.add(conv);
-            } else {
-                if (fieldsToIgnore.contains(f.getName())) {
-                    continue;
-                }
-                if (!fieldsToLimitTo.isEmpty()) {
-                    if (!fieldsToLimitTo.contains(f.getName())) {
-                        continue;
-                    }
-                }
-                ret.add(f.getName());
+                conv = convertCamelCase(f.getName());
             }
+            if (fieldsToIgnore.contains(conv) || fieldsToIgnore.contains(f.getName())) {
+                ignore = true;
+            }
+
+
+            if (!ignore) {
+                for (String ign : ignoreContains) {
+                    if (f.getName().contains(ign) || conv.contains(ign)) {
+                        ignore = true;
+                    }
+                }
+            }
+
+            if (!ignore) {
+                for (Pattern reg : ignoreRexex) {
+                    if (reg.matcher(f.getName()).matches() || reg.matcher(conv).matches()) {
+                        ignore = true;
+                    }
+                }
+            }
+
+            if (!ignore && !fieldsToLimitTo.isEmpty()) {
+                if (!fieldsToLimitTo.contains(conv) && !fieldsToLimitTo.contains(f.getName())) {
+                    ignore = true;
+                }
+            }
+
+
+            if (!ignore)
+                ret.add(conv);
         }
 
         fa.put(stringBuilder.toString(), ret);

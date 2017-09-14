@@ -664,7 +664,7 @@ public class ObjectMapperImpl implements ObjectMapper {
                     }
                 } else if (fld.isAnnotationPresent(Id.class)) {
                     value = o.get("_id");
-                    if (!value.getClass().equals(fld.getType())) {
+                    if (value != null && !value.getClass().equals(fld.getType())) {
                         log.debug("read value and field type differ...");
                         if (fld.getType().equals(MorphiumId.class)) {
                             log.debug("trying objectID conversion");
