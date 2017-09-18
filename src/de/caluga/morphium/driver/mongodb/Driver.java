@@ -921,7 +921,7 @@ public class Driver implements MorphiumDriver {
                 writeConcern = writeConcern.withFsync(wc.isFsync());
                 writeConcern = writeConcern.withJ(wc.isJ());
             } else {
-                writeConcern = new com.mongodb.WriteConcern(wc.getW(), wc.getWtimeout(), wc.isFsync(), wc.isJ());
+                writeConcern = new com.mongodb.WriteConcern(wc.getW(), wc.getWtimeout() >= 0 ? wc.getWtimeout() : 0, wc.isFsync(), wc.isJ());
             }
             coll = coll.withWriteConcern(writeConcern);
         }

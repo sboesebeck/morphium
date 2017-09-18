@@ -19,6 +19,10 @@ public class ReplicaSetStatusTest extends MongoTest {
 
     @Test
     public void testReplicaSetMonitoring() throws Exception {
+        if (!morphium.isReplicaSet()) {
+            log.warn("Cannot test replicaset on non-replicaset installation");
+            return;
+        }
         int cnt = 0;
         while (morphium.getCurrentRSState() == null) {
             cnt++;
@@ -31,6 +35,10 @@ public class ReplicaSetStatusTest extends MongoTest {
 
     @Test
     public void testWriteConcern() throws Exception {
+        if (!morphium.isReplicaSet()) {
+            log.warn("Cannot test replicaset on non-replicaset installation");
+            return;
+        }
         WriteConcern w = morphium.getWriteConcernForClass(SecureObject.class);
         int c = morphium.getCurrentRSState().getActiveNodes();
         assert (w.getW() == c) : "W=" + w.getW() + " but should be: " + c;

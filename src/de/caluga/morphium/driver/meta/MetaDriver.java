@@ -403,6 +403,10 @@ public class MetaDriver extends DriverBase {
     }
 
     private List<Connection> getConnections(String h) {
+        if (h == null) {
+            log.error("Host is null - cannot get pool!");
+            return null;
+        }
         connectionPool.putIfAbsent(h, Collections.synchronizedList(new ArrayList<>()));
         return connectionPool.get(h);
     }
@@ -790,6 +794,7 @@ public class MetaDriver extends DriverBase {
             freeConnection(c);
         }
     }
+
     @Override
     public List<Map<String, Object>> aggregate(String db, String collection, List<Map<String, Object>> pipeline, boolean explain, boolean allowDiskUse, ReadPreference readPreference) throws MorphiumDriverException {
         Connection c = null;
@@ -923,7 +928,7 @@ public class MetaDriver extends DriverBase {
         //        int idx = (int) (System.currentTimeMillis() % secondaries.size());
         //balancing
 
-        String least = null;
+        String least = currentMaster;
         int min = 9999;
         for (String h : secondaries) {
             if (connectionsInUse.get(h) == null) {

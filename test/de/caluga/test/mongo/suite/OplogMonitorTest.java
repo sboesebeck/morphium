@@ -17,6 +17,10 @@ public class OplogMonitorTest extends MongoTest {
 
     @Test
     public void oplogNotificationTest() throws Exception {
+        if (!morphium.isReplicaSet()) {
+            log.warn("Cannot test oplog on non-replicaset installation");
+            return;
+        }
         OplogListener lst = new OplogListener() {
             @Override
             public void incomingData(Map<String, Object> data) {
@@ -48,6 +52,10 @@ public class OplogMonitorTest extends MongoTest {
 
     @Test
     public void oplogNameSpaceNotificationTest() throws Exception {
+        if (!morphium.isReplicaSet()) {
+            log.warn("Cannot test oplog on non-replicaset installation");
+            return;
+        }
         OplogListener lst = new OplogListener() {
             @Override
             public void incomingData(Map<String, Object> data) {
@@ -86,12 +94,13 @@ public class OplogMonitorTest extends MongoTest {
 
     @Test
     public void oplogNameSpaceRegexNotificationTest() throws Exception {
-        OplogListener lst = new OplogListener() {
-            @Override
-            public void incomingData(Map<String, Object> data) {
-                gotIt = true;
-                log.info("Got data:" + Utils.toJsonString(data));
-            }
+        if (!morphium.isReplicaSet()) {
+            log.warn("Cannot test oplog on non-replicaset installation");
+            return;
+        }
+        OplogListener lst = data -> {
+            gotIt = true;
+            log.info("Got data:" + Utils.toJsonString(data));
         };
         OplogMonitor olm = new OplogMonitor(morphium, ".*cached.*", true);
         olm.addListener(lst);

@@ -29,7 +29,7 @@ public class LastAccessTest extends MongoTest {
         assert (tst.getLastChange() > 0) : "No last change set?";
         assert (tst.getLastChange() > creationTime) : "No last change set?";
         long lastChange = tst.getLastChange();
-        assert (tst.getCreationTime() == creationTime) : "Creation time change?";
+        assert (tst.getCreationTime() == creationTime) : "Creation time change? was: " + creationTime + " is " + tst.getCreationTime();
 
         Query<TstObjLA> q = morphium.createQueryFor(TstObjLA.class);
         Thread.sleep(1000);
