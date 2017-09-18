@@ -1860,7 +1860,7 @@ public class Morphium {
         }
         Object reread = null;
         //new object - need to store creation time
-        if (getARHelper().isAnnotationPresentInHierarchy(type, CreationTime.class)) {
+        if (getARHelper().isAnnotationPresentInHierarchy(type, CreationTime.class) && aNew) {
             CreationTime ct = getARHelper().getAnnotationFromHierarchy(o.getClass(), CreationTime.class);
             boolean checkForNew = ct.checkForNew() || getConfig().isCheckForNew();
             @SuppressWarnings("unchecked") List<String> lst = getARHelper().getFields(type, CreationTime.class);

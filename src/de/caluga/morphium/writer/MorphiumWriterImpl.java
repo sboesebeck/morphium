@@ -9,6 +9,7 @@ import de.caluga.morphium.driver.WriteConcern;
 import de.caluga.morphium.driver.bson.MorphiumId;
 import de.caluga.morphium.driver.bulk.BulkRequestContext;
 import de.caluga.morphium.query.Query;
+import org.bson.types.ObjectId;
 
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
@@ -441,7 +442,11 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                                         logger.error("cannot update mongo_id...");
                                     } else {
                                         try {
-                                            morphium.getARHelper().getIdField(entity).set(entity, o.get("_id"));
+                                            Field idField = morphium.getARHelper().getIdField(entity);
+                                            if (o.get("_id") instanceof ObjectId && idField.getType().equals(MorphiumId.class)) {
+
+                                                idField.set(entity, new MorphiumId(((ObjectId) o.get("_id")).toByteArray()));
+                                            }
 
                                         } catch (Exception e) {
                                             logger.error("Setting of mongo_id failed", e);

@@ -45,7 +45,7 @@ public class TailableQueryTests extends MongoTest {
             }
         }.start();
 
-        Thread.sleep(500);
+        Thread.sleep(1500);
         assert (found);
         found = false;
         log.info("Storing 3...");
