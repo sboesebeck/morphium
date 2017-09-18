@@ -726,7 +726,7 @@ public class Driver implements MorphiumDriver {
             } else if (value instanceof BsonDouble) {
                 value = ((BsonDouble) value).getValue();
             } else if (value instanceof ObjectId) {
-                value = ((ObjectId) value).toHexString();
+                value = new MorphiumId(((ObjectId) value).toByteArray());
             } else if (value instanceof BasicDBList) {
                 Map m = new HashMap<>();
                 //noinspection unchecked,unchecked

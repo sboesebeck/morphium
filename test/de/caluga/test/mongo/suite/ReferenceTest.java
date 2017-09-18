@@ -264,7 +264,33 @@ public class ReferenceTest extends MongoTest {
         assert (e1.getValue() == e2.getPrev().getValue());
         assert (e2.getValue() == e1.getNext().getValue());
 
+    }
 
+
+    @Test
+    public void mapReferenceTest() {
+        morphium.clearCollection(ReferenceContainer.class);
+        ReferenceContainer c = new ReferenceContainer();
+        Map<String, UncachedObject> m = new HashMap<>();
+        for (int i = 0; i < 10; i++) {
+            UncachedObject uc = new UncachedObject();
+            uc.setCounter(i);
+            uc.setValue("" + i);
+            m.put("" + i, uc);
+        }
+        c.map = m;
+        morphium.store(c);
+
+        ReferenceContainer cont = morphium.createQueryFor(ReferenceContainer.class).get();
+
+        assert (cont.id.equals(c.id));
+        for (int i = 0; i < 10; i++) {
+            assert (cont.map.get("" + i).getCounter() == i);
+            assert (cont.map.get("" + i).getValue().equals("" + i));
+            assert (cont.map.get("" + i).getMorphiumId().equals(c.map.get("" + i).getMorphiumId()));
+
+
+        }
     }
 
     @Lifecycle
@@ -301,12 +327,16 @@ public class ReferenceTest extends MongoTest {
         }
     }
 
+
     @Entity
     @WriteSafety(waitForSync = true, waitForJournalCommit = true, level = SafetyLevel.WAIT_FOR_ALL_SLAVES)
     @NoCache
     public static class ReferenceContainer {
         @Reference
         ArrayList<UncachedObject> lst;
+        @Reference
+        Map<String, UncachedObject> map;
+
         @Reference(lazyLoading = true)
         List<UncachedObject> lzyLst;
         @Id
@@ -320,6 +350,14 @@ public class ReferenceTest extends MongoTest {
 
         public List<UncachedObject> getLzyLst() {
             return lzyLst;
+        }
+
+        public Map<String, UncachedObject> getMap() {
+            return map;
+        }
+
+        public void setMap(Map<String, UncachedObject> map) {
+            this.map = map;
         }
 
         public void setLzyLst(List<UncachedObject> lzyLst) {
