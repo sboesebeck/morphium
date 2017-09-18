@@ -10,6 +10,7 @@ import de.caluga.morphium.StatisticKeys;
 import de.caluga.morphium.annotations.Embedded;
 import de.caluga.morphium.annotations.Entity;
 import de.caluga.morphium.annotations.Id;
+import de.caluga.morphium.driver.bson.MorphiumId;
 import de.caluga.morphium.query.Query;
 import de.caluga.test.mongo.suite.data.CachedObject;
 import de.caluga.test.mongo.suite.data.EmbeddedObject;
@@ -18,6 +19,7 @@ import org.junit.Test;
 
 import java.lang.reflect.Field;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -593,5 +595,47 @@ public class BasicFunctionalityTest extends MongoTest {
 
     }
 
+    @Test
+    public void listOfIdsTest() throws Exception {
+        morphium.dropCollection(ListOfIdsContainer.class);
+        List<MorphiumId> lst = new ArrayList<>();
+
+        for (int i = 0; i < 10; i++) {
+            lst.add(new MorphiumId());
+        }
+
+        Map<String, MorphiumId> map = new HashMap<>();
+        for (int i = 0; i < 10; i++) map.put("" + i, new MorphiumId());
+        ListOfIdsContainer c = new ListOfIdsContainer();
+        c.value = "a value";
+        c.others = lst;
+        c.idMap = map;
+        c.simpleId = new MorphiumId();
+
+
+        morphium.store(c);
+
+        Query<ListOfIdsContainer> q = morphium.createQueryFor(ListOfIdsContainer.class);
+        ListOfIdsContainer cnt = q.get();
+
+        assert (c.id.equals(cnt.id));
+        assert (c.value.equals(cnt.value));
+
+        for (int i = 0; i < 10; i++) {
+            assert (c.others.get(i).equals(cnt.others.get(i)));
+            assert (c.idMap.get("" + i).equals(cnt.idMap.get("" + i)));
+        }
+
+    }
+
+    @Entity
+    public static class ListOfIdsContainer {
+        @Id
+        public MorphiumId id;
+        public List<MorphiumId> others;
+        public Map<String, MorphiumId> idMap;
+        public MorphiumId simpleId;
+        public String value;
+    }
 
 }

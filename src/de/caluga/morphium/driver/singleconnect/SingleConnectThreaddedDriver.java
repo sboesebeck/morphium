@@ -743,6 +743,10 @@ public class SingleConnectThreaddedDriver extends DriverBase {
         reply = getReply(waitingfor);
         if (!reply.getDocuments().get(0).get("ok").equals(1) && !reply.getDocuments().get(0).get("ok").equals(1.0)) {
             Object code = reply.getDocuments().get(0).get("code");
+            if (code.equals(Integer.valueOf(76))) {
+                log.info("not running as replicaSet");
+                return reply;
+            }
             Object errmsg = reply.getDocuments().get(0).get("errmsg");
             MorphiumDriverException mde = new MorphiumDriverException("Operation failed on " + getHostSeed()[0] + " - error: " + code + " - " + errmsg, null, collection, db, query);
             mde.setMongoCode(code);
