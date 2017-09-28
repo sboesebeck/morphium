@@ -15,9 +15,9 @@ public class MapReduceTest extends MongoTest {
     public void mapReduce() throws Exception {
         createUncachedObjects(100);
 
-        doSimpleMRTest(morphiumMeta);
-        doSimpleMRTest(morphiumMongodb);
-
+        doSimpleMRTest(morphium);
+//        doSimpleMRTest(morphiumMongodb);
+//
     }
 
     private void doSimpleMRTest(Morphium m) throws Exception {

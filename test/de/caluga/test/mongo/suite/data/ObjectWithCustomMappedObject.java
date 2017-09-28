@@ -3,7 +3,7 @@ package de.caluga.test.mongo.suite.data;
 import de.caluga.morphium.annotations.Entity;
 import de.caluga.morphium.annotations.Id;
 import de.caluga.morphium.annotations.caching.Cache;
-import de.caluga.morphium.driver.bson.MorphiumId;
+import de.caluga.morphium.driver.MorphiumId;
 
 import java.util.List;
 import java.util.Map;

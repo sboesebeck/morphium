@@ -1,6 +1,5 @@
 package de.caluga.test.mongo.suite;
 
-import de.caluga.morphium.Morphium;
 import de.caluga.morphium.annotations.ReadPreferenceLevel;
 import de.caluga.morphium.async.AsyncOperationCallback;
 import de.caluga.morphium.async.AsyncOperationType;
@@ -8,9 +7,7 @@ import de.caluga.morphium.query.Query;
 import de.caluga.test.mongo.suite.data.Person;
 import de.caluga.test.mongo.suite.data.UncachedObject;
 import org.junit.Test;
-import org.junit.experimental.theories.DataPoints;
 import org.junit.experimental.theories.Theories;
-import org.junit.experimental.theories.Theory;
 import org.junit.runner.RunWith;
 
 import java.util.ArrayList;
@@ -29,12 +26,8 @@ public class BulkInsertTest extends MongoTest {
     private boolean asyncSuccess = true;
     private boolean asyncCall = false;
 
-    @DataPoints
-    public static final Morphium[] morphiums = new Morphium[]{morphiumInMemeory, morphiumSingleConnectThreadded, morphiumMeta, morphiumMongodb};//getMorphiums().toArray(new Morphium[getMorphiums().size()]);
-
-
-    @Theory
-    public void maxWriteBatchTest(Morphium morphium) throws Exception {
+    @Test
+    public void maxWriteBatchTest() throws Exception {
         logSeparator("Using driver: " + morphium.getDriver().getClass().getName());
         morphium.clearCollection(UncachedObject.class);
 
@@ -64,8 +57,8 @@ public class BulkInsertTest extends MongoTest {
 
     }
 
-    @Theory
-    public void bulkInsert(Morphium morphium) throws Exception {
+    @Test
+    public void bulkInsert() throws Exception {
         logSeparator("Using driver: " + morphium.getDriver().getClass().getName());
         morphium.clearCollection(UncachedObject.class);
         log.info("Start storing single");
@@ -102,8 +95,8 @@ public class BulkInsertTest extends MongoTest {
 
     }
 
-    @Theory
-    public void bulkInsertAsync(Morphium morphium) throws Exception {
+    @Test
+    public void bulkInsertAsync() throws Exception {
         logSeparator("Using driver: " + morphium.getDriver().getClass().getName());
         morphium.clearCollection(UncachedObject.class);
         log.info("Start storing single");

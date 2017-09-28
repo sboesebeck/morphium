@@ -7,7 +7,7 @@ import de.caluga.morphium.MorphiumReference;
 import de.caluga.morphium.driver.MorphiumDriverException;
 import de.caluga.morphium.driver.MorphiumDriverNetworkException;
 import de.caluga.morphium.driver.MorphiumDriverOperation;
-import de.caluga.morphium.driver.bson.MorphiumId;
+import de.caluga.morphium.driver.MorphiumId;
 import org.bson.types.ObjectId;
 
 import java.lang.reflect.Array;

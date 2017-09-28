@@ -15,7 +15,6 @@ import de.caluga.morphium.Logger;
 import de.caluga.morphium.Morphium;
 import de.caluga.morphium.driver.*;
 import de.caluga.morphium.driver.ReadPreference;
-import de.caluga.morphium.driver.bson.MorphiumId;
 import de.caluga.morphium.driver.bulk.BulkRequestContext;
 import org.bson.*;
 import org.bson.types.BSONTimestamp;
@@ -974,6 +973,12 @@ public class Driver implements MorphiumDriver {
                 //                    toUpdate.remove("_id");
                 //                    Document update = new Document("$set", toUpdate);
                 Document tDocument = new Document(toUpdate);
+                for (String k : tDocument.keySet()) {
+                    if (tDocument.get(k) instanceof byte[]) {
+                        BsonBinary b = new BsonBinary((byte[]) tDocument.get(k));
+                        tDocument.put(k, b);
+                    }
+                }
                 tDocument.remove("_id"); //not needed
                 //noinspection unchecked
                 c.replaceOne(filter, tDocument, o);
@@ -997,6 +1002,14 @@ public class Driver implements MorphiumDriver {
         }
         final List<Document> lst = objs.stream().map(Document::new).collect(Collectors.toList());
 
+        for (Document d : lst) {
+            for (String k : d.keySet()) {
+                if (d.get(k) instanceof byte[]) {
+                    BsonBinary b = new BsonBinary((byte[]) d.get(k));
+                    d.put(k, b);
+                }
+            }
+        }
         DriverHelper.doCall(() -> {
             MongoCollection c = mongo.getDatabase(db).getCollection(collection);
             if (lst.size() == 1) {

@@ -2,7 +2,7 @@ package de.caluga.test.mongo.suite;
 
 import de.caluga.morphium.annotations.Entity;
 import de.caluga.morphium.annotations.Id;
-import de.caluga.morphium.driver.bson.MorphiumId;
+import de.caluga.morphium.driver.MorphiumId;
 import org.junit.Test;
 
 import java.io.Serializable;

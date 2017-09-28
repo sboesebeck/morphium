@@ -6,7 +6,7 @@ package de.caluga.test.mongo.suite.data;
 
 import de.caluga.morphium.annotations.*;
 import de.caluga.morphium.annotations.caching.NoCache;
-import de.caluga.morphium.driver.bson.MorphiumId;
+import de.caluga.morphium.driver.MorphiumId;
 
 /**
  * @author stephan

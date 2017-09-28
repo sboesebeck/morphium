@@ -5,7 +5,7 @@ import de.caluga.morphium.annotations.Id;
 import de.caluga.morphium.annotations.SafetyLevel;
 import de.caluga.morphium.annotations.WriteSafety;
 import de.caluga.morphium.annotations.caching.NoCache;
-import de.caluga.morphium.driver.bson.MorphiumId;
+import de.caluga.morphium.driver.MorphiumId;
 
 import java.util.List;
 import java.util.Map;

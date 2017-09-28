@@ -1,6 +1,6 @@
 package de.caluga.test.mongo.suite;
 
-import de.caluga.morphium.driver.bson.MorphiumId;
+import de.caluga.morphium.driver.MorphiumId;
 import de.caluga.morphium.query.QueryImpl;
 import de.caluga.test.mongo.suite.data.UncachedObject;
 import org.junit.Test;

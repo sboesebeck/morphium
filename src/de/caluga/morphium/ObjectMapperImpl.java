@@ -1,7 +1,7 @@
 package de.caluga.morphium;
 
 import de.caluga.morphium.annotations.*;
-import de.caluga.morphium.driver.bson.MorphiumId;
+import de.caluga.morphium.driver.MorphiumId;
 import de.caluga.morphium.mapping.BigIntegerTypeMapper;
 import de.caluga.morphium.query.Query;
 import org.bson.types.ObjectId;
@@ -157,6 +157,9 @@ public class ObjectMapperImpl implements ObjectMapper {
             return o;
         }
         if (o.getClass().isArray()) {
+            if (o.getClass().getComponentType().equals(byte.class)) {
+                return o;
+            }
             ArrayList lst = new ArrayList();
             for (int i = 0; i < Array.getLength(o); i++) {
                 lst.add(marshallIfNecessary(Array.get(o, i)));
@@ -387,11 +390,13 @@ public class ObjectMapperImpl implements ObjectMapper {
                                 //create MongoHashMap<String,Object>-Map
                                 v = createDBMap((Map) v);
                             } else if (v.getClass().isArray()) {
-                                List lst = new ArrayList<>();
-                                for (int i = 0; i < Array.getLength(v); i++) {
-                                    lst.add(marshallIfNecessary(Array.get(v, i)));
+                                if (!v.getClass().getComponentType().equals(byte.class)) {
+                                    List lst = new ArrayList<>();
+                                    for (int i = 0; i < Array.getLength(v); i++) {
+                                        lst.add(marshallIfNecessary(Array.get(v, i)));
+                                    }
+                                    v = createDBList(lst);
                                 }
-                                v = createDBList(lst);
                             } else if (v instanceof List) {
                                 v = createDBList((List) v);
                             } else if (v instanceof Iterable) {
@@ -469,14 +474,17 @@ public class ObjectMapperImpl implements ObjectMapper {
                         || mongoTypes.contains(lo.getClass())) {
                     lst.add(lo);
                 } else if (lo.getClass().isArray()) {
-                    for (int i = 0; i < Array.getLength(lo); i++) {
-                        try {
-                            lst.add(marshallIfNecessary(Array.get(lo, i)));
-                        } catch (Exception e) {
-                            lst.add(marshallIfNecessary(((Integer) Array.get(lo, i)).byteValue()));
+                    if (lo.getClass().getComponentType().equals(byte.class)) {
+                        lst.add(lo);
+                    } else {
+                        for (int i = 0; i < Array.getLength(lo); i++) {
+                            try {
+                                lst.add(marshallIfNecessary(Array.get(lo, i)));
+                            } catch (Exception e) {
+                                lst.add(marshallIfNecessary(((Integer) Array.get(lo, i)).byteValue()));
+                            }
                         }
                     }
-
                 } else {
                     lst.add(marshall(lo));
                 }
@@ -511,11 +519,13 @@ public class ObjectMapperImpl implements ObjectMapper {
                 } else if (mval instanceof List) {
                     mval = createDBList((List) mval);
                 } else if (mval.getClass().isArray()) {
-                    ArrayList lst = new ArrayList();
-                    for (int i = 0; i < Array.getLength(mval); i++) {
-                        lst.add(marshallIfNecessary(Array.get(mval, i)));
+                    if (!mval.getClass().getComponentType().equals(byte.class)) {
+                        ArrayList lst = new ArrayList();
+                        for (int i = 0; i < Array.getLength(mval); i++) {
+                            lst.add(marshallIfNecessary(Array.get(mval, i)));
+                        }
+                        mval = createDBList(lst);
                     }
-                    mval = createDBList(lst);
                 } else if (mval.getClass().isEnum()) {
                     Map<String, Object> obj = new HashMap<>();
                     obj.put("class_name", mval.getClass().getName());

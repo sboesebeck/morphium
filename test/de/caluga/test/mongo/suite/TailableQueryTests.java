@@ -5,24 +5,20 @@ import de.caluga.morphium.MorphiumAccessVetoException;
 import de.caluga.morphium.async.AsyncCallbackAdapter;
 import de.caluga.morphium.async.AsyncOperationType;
 import de.caluga.morphium.query.Query;
-import org.junit.experimental.theories.DataPoints;
-import org.junit.experimental.theories.Theories;
-import org.junit.experimental.theories.Theory;
-import org.junit.runner.RunWith;
+import org.junit.Test;
 
 import java.util.List;
 
 /**
  * Created by stephan on 29.07.16.
  */
-@RunWith(Theories.class)
+
 public class TailableQueryTests extends MongoTest {
-    @DataPoints
-    public static final Morphium[] morphiums = new Morphium[]{morphiumMeta, morphiumMongodb};//getMorphiums().toArray(new Morphium[getMorphiums().size()]);
     boolean found = false;
 
-    @Theory
-    public void tailableTest(Morphium m) throws Exception {
+    @Test
+    public void tailableTest() throws Exception {
+        Morphium m = morphium;
         m.dropCollection(CappedCollectionTest.CappedCol.class);
         CappedCollectionTest.CappedCol o = new CappedCollectionTest.CappedCol("Test1", 1);
         m.store(o);

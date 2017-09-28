@@ -1,18 +1,12 @@
 package de.caluga.test.mongo.suite;
 
-import de.caluga.morphium.AnnotationAndReflectionHelper;
 import de.caluga.morphium.Logger;
 import de.caluga.morphium.Morphium;
 import de.caluga.morphium.MorphiumConfig;
 import de.caluga.morphium.async.AsyncOperationCallback;
 import de.caluga.morphium.async.AsyncOperationType;
 import de.caluga.morphium.driver.ReadPreference;
-import de.caluga.morphium.driver.inmem.InMemoryDriver;
-import de.caluga.morphium.driver.meta.MetaDriver;
-import de.caluga.morphium.driver.singleconnect.SingleConnectDirectDriver;
-import de.caluga.morphium.driver.singleconnect.SingleConnectThreaddedDriver;
 import de.caluga.morphium.messaging.Msg;
-import de.caluga.morphium.query.PrefetchingMorphiumIterator;
 import de.caluga.morphium.query.Query;
 import de.caluga.test.mongo.suite.data.CachedObject;
 import de.caluga.test.mongo.suite.data.Person;
@@ -28,6 +22,11 @@ import java.util.Map;
 import java.util.Properties;
 import java.util.logging.Level;
 
+//import de.caluga.morphium.driver.inmem.InMemoryDriver;
+//import de.caluga.morphium.driver.meta.MetaDriver;
+//import de.caluga.morphium.driver.singleconnect.SingleConnectDirectDriver;
+//import de.caluga.morphium.driver.singleconnect.SingleConnectThreaddedDriver;
+
 
 /**
  * User: Stpehan Bösebeck
@@ -38,12 +37,6 @@ import java.util.logging.Level;
 public class MongoTest {
 
     public static Morphium morphium;
-    public static Morphium morphiumInMemeory;
-    public static Morphium morphiumSingleConnect;
-    public static Morphium morphiumSingleConnectThreadded;
-    public static Morphium morphiumMeta;
-    public static Morphium morphiumMongodb;
-    private static List<Morphium> morphiums;
     private static Properties props;
     protected Logger log;
 
@@ -180,21 +173,21 @@ public class MongoTest {
                 cfg.setBlockingThreadsMultiplier(2);
                 storeProps();
             }
-            cfg.setDefaultReadPreference(ReadPreference.secondaryPreferred());
-            cfg.setDefaultReadPreferenceType("SECONDARY_PREFERRED");
-            //Setting up logging
-            cfg.setGlobalLogLevel(4);
-            cfg.setGlobalLogFile("-");
-            cfg.setGlobalLogSynced(true);
-
-            cfg.setLogLevelForClass(AnnotationAndReflectionHelper.class, 4);
-            cfg.setLogLevelForClass(PrefetchingMorphiumIterator.class, 3);
-            cfg.setLogLevelForPrefix("de.caluga.test", 5);
-            cfg.setLogSyncedForPrefix("de.caluga.test", true);
-            cfg.setLogLevelForClass(SingleConnectThreaddedDriver.class, 5);
-            cfg.setRetriesOnNetworkError(5);
-            cfg.setSleepBetweenNetworkErrorRetries(150);
-            cfg.setOplogMonitorEnabled(true);
+//            cfg.setDefaultReadPreference(ReadPreference.secondaryPreferred());
+//            cfg.setDefaultReadPreferenceType("SECONDARY_PREFERRED");
+//            //Setting up logging
+//            cfg.setGlobalLogLevel(4);
+//            cfg.setGlobalLogFile("-");
+//            cfg.setGlobalLogSynced(true);
+//
+//            cfg.setLogLevelForClass(AnnotationAndReflectionHelper.class, 4);
+//            cfg.setLogLevelForClass(PrefetchingMorphiumIterator.class, 3);
+//            cfg.setLogLevelForPrefix("de.caluga.test", 5);
+//            cfg.setLogSyncedForPrefix("de.caluga.test", true);
+//            cfg.setLogLevelForClass(SingleConnectThreaddedDriver.class, 5);
+//            cfg.setRetriesOnNetworkError(5);
+//            cfg.setSleepBetweenNetworkErrorRetries(150);
+//            cfg.setOplogMonitorEnabled(true);
             //            cfg.setLogLevelForPrefix("de.caluga.morphium.driver", 3);
             //            cfg.setLogLevelForPrefix(MetaDriver.class.getName(), 5);
 
@@ -209,29 +202,29 @@ public class MongoTest {
 
 
             morphium = new Morphium(cfg);
-
-            morphiumMongodb = morphium;
-            MorphiumConfig cfgtmp = MorphiumConfig.createFromJson(cfg.toString());
-            cfgtmp.setDriverClass(MetaDriver.class.getName());
-            cfgtmp.setOplogMonitorEnabled(false);
-            morphiumMeta = new Morphium(cfgtmp);
-
-
-            cfgtmp = MorphiumConfig.createFromJson(cfg.toString());
-            cfgtmp.setDriverClass(InMemoryDriver.class.getName());
-            cfgtmp.setReplicasetMonitoring(false);
-            cfgtmp.setOplogMonitorEnabled(false);
-            morphiumInMemeory = new Morphium(cfgtmp);
-
-            cfgtmp = MorphiumConfig.createFromJson(cfg.toString());
-            cfgtmp.setDriverClass(SingleConnectDirectDriver.class.getName());
-            cfgtmp.setOplogMonitorEnabled(false);
-            morphiumSingleConnect = new Morphium(cfgtmp);
-
-            cfgtmp = MorphiumConfig.createFromJson(cfg.toString());
-            cfgtmp.setDriverClass(SingleConnectThreaddedDriver.class.getName());
-            cfgtmp.setOplogMonitorEnabled(false);
-            morphiumSingleConnectThreadded = new Morphium(cfgtmp);
+//
+//            morphiumMongodb = morphium;
+//            MorphiumConfig cfgtmp = MorphiumConfig.createFromJson(cfg.toString());
+//            cfgtmp.setDriverClass(MetaDriver.class.getName());
+//            cfgtmp.setOplogMonitorEnabled(false);
+//            morphiumMeta = new Morphium(cfgtmp);
+//
+//
+//            cfgtmp = MorphiumConfig.createFromJson(cfg.toString());
+//            cfgtmp.setDriverClass(InMemoryDriver.class.getName());
+//            cfgtmp.setReplicasetMonitoring(false);
+//            cfgtmp.setOplogMonitorEnabled(false);
+//            morphiumInMemeory = new Morphium(cfgtmp);
+//
+//            cfgtmp = MorphiumConfig.createFromJson(cfg.toString());
+//            cfgtmp.setDriverClass(SingleConnectDirectDriver.class.getName());
+//            cfgtmp.setOplogMonitorEnabled(false);
+//            morphiumSingleConnect = new Morphium(cfgtmp);
+//
+//            cfgtmp = MorphiumConfig.createFromJson(cfg.toString());
+//            cfgtmp.setDriverClass(SingleConnectThreaddedDriver.class.getName());
+//            cfgtmp.setOplogMonitorEnabled(false);
+//            morphiumSingleConnectThreadded = new Morphium(cfgtmp);
 
 
             //            morphium.addListener(new MorphiumStorageAdapter() {
@@ -272,18 +265,18 @@ public class MongoTest {
         }
     }
 
-
-    public static synchronized List<Morphium> getMorphiums() {
-        if (morphiums == null) {
-            morphiums = new ArrayList<>();
-            morphiums.add(morphiumMongodb);
-            morphiums.add(morphiumInMemeory);
-            morphiums.add(morphiumSingleConnect);
-            morphiums.add(morphiumSingleConnectThreadded);
-            morphiums.add(morphiumMeta);
-        }
-        return morphiums;
-    }
+//
+//    public static synchronized List<Morphium> getMorphiums() {
+//        if (morphiums == null) {
+//            morphiums = new ArrayList<>();
+//            morphiums.add(morphiumMongodb);
+//            morphiums.add(morphiumInMemeory);
+//            morphiums.add(morphiumSingleConnect);
+//            morphiums.add(morphiumSingleConnectThreadded);
+//            morphiums.add(morphiumMeta);
+//        }
+//        return morphiums;
+//    }
 
     private static void storeProps() {
         File f = getFile();
@@ -310,10 +303,10 @@ public class MongoTest {
         }
         return true;
     }
-
-    public void createUncachedObjectsInMemory(int amount) {
-        createUncachedObjects(morphiumInMemeory, amount);
-    }
+//
+//    public void createUncachedObjectsInMemory(int amount) {
+//        createUncachedObjects(morphiumInMemeory, amount);
+//    }
 
     public void createUncachedObjects(int amount) {
         createUncachedObjects(morphium, amount);

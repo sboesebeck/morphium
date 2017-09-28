@@ -320,6 +320,13 @@ public class MorphiumConfig {
         return checkForNew;
     }
 
+    /**
+     * if set to false, all checks if an entity is new when CreationTime is used is switched off
+     * if set to true, only those, whose CreationTime settings use checkfornew will work
+     * default false
+     *
+     * @param checkForNew
+     */
     public void setCheckForNew(boolean checkForNew) {
         this.checkForNew = checkForNew;
     }

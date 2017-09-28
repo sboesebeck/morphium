@@ -4,7 +4,7 @@ import de.caluga.morphium.annotations.*;
 import de.caluga.morphium.annotations.caching.AsyncWrites;
 import de.caluga.morphium.annotations.caching.WriteBuffer;
 import de.caluga.morphium.annotations.lifecycle.Lifecycle;
-import de.caluga.morphium.driver.bson.MorphiumId;
+import de.caluga.morphium.driver.MorphiumId;
 
 import java.lang.annotation.Annotation;
 import java.lang.reflect.*;
