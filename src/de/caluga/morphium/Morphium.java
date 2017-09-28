@@ -11,11 +11,7 @@ import de.caluga.morphium.async.AsyncOperationCallback;
 import de.caluga.morphium.bulk.MorphiumBulkContext;
 import de.caluga.morphium.cache.MorphiumCache;
 import de.caluga.morphium.cache.MorphiumCacheImpl;
-import de.caluga.morphium.driver.MorphiumDriver;
-import de.caluga.morphium.driver.MorphiumDriverException;
-import de.caluga.morphium.driver.ReadPreference;
-import de.caluga.morphium.driver.WriteConcern;
-import de.caluga.morphium.driver.bson.MorphiumId;
+import de.caluga.morphium.driver.*;
 import de.caluga.morphium.query.MongoField;
 import de.caluga.morphium.query.MongoFieldImpl;
 import de.caluga.morphium.query.Query;
@@ -1860,8 +1856,13 @@ public class Morphium {
         }
         Object reread = null;
         //new object - need to store creation time
+        CreationTime ct = getARHelper().getAnnotationFromHierarchy(o.getClass(), CreationTime.class);
+        if (ct != null && config.isCheckForNew() && ct.checkForNew() && !aNew) {
+            //check if it is new or not
+            reread = reread(o);
+            aNew = reread == null;
+        }
         if (getARHelper().isAnnotationPresentInHierarchy(type, CreationTime.class) && aNew) {
-            CreationTime ct = getARHelper().getAnnotationFromHierarchy(o.getClass(), CreationTime.class);
             boolean checkForNew = ct.checkForNew() || getConfig().isCheckForNew();
             @SuppressWarnings("unchecked") List<String> lst = getARHelper().getFields(type, CreationTime.class);
             for (String fld : lst) {

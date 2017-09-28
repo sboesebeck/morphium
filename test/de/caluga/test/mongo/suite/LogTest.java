@@ -15,6 +15,7 @@ public class LogTest extends MongoTest {
 
     @Test
     public void loggerTest() {
+        morphium.getConfig().setLogLevelForPrefix("loggertest", 3);
         Logger l = new Logger("loggertest");
         String f = l.getFile();
         log.info("File: " + f);

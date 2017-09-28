@@ -1,7 +1,7 @@
 package de.caluga.test.mongo.suite;
 
 import de.caluga.morphium.annotations.*;
-import de.caluga.morphium.driver.bson.MorphiumId;
+import de.caluga.morphium.driver.MorphiumId;
 import de.caluga.test.mongo.suite.data.UncachedObject;
 import org.junit.Test;
 

@@ -1,7 +1,7 @@
 package de.caluga.morphium;
 
 import de.caluga.morphium.driver.MorphiumDriverException;
-import de.caluga.morphium.driver.bson.MorphiumId;
+import de.caluga.morphium.driver.MorphiumId;
 import de.caluga.morphium.query.Query;
 
 import java.util.HashMap;

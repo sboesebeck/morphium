@@ -23,15 +23,15 @@ public class DistinctTest extends MongoTest {
         lst = morphium.createQueryFor(UncachedObject.class).distinct("value");
         assert (lst.size() == 1);
     }
-
-    @Test
-    public void distinctTestInMemory() throws Exception {
-        morphiumInMemeory.dropCollection(UncachedObject.class);
-        createUncachedObjectsInMemory(100);
-
-        List lst = morphiumInMemeory.createQueryFor(UncachedObject.class).distinct("counter");
-        assert (lst.size() == 100);
-        lst = morphiumInMemeory.createQueryFor(UncachedObject.class).distinct("value");
-        assert (lst.size() == 1);
-    }
+//
+//    @Test
+//    public void distinctTestInMemory() throws Exception {
+//        morphiumInMemeory.dropCollection(UncachedObject.class);
+//        createUncachedObjectsInMemory(100);
+//
+//        List lst = morphiumInMemeory.createQueryFor(UncachedObject.class).distinct("counter");
+//        assert (lst.size() == 100);
+//        lst = morphiumInMemeory.createQueryFor(UncachedObject.class).distinct("value");
+//        assert (lst.size() == 1);
+//    }
 }

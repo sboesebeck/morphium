@@ -8,7 +8,7 @@ import de.caluga.morphium.annotations.Entity;
 import de.caluga.morphium.annotations.Id;
 import de.caluga.morphium.annotations.SafetyLevel;
 import de.caluga.morphium.annotations.WriteSafety;
-import de.caluga.morphium.driver.bson.MorphiumId;
+import de.caluga.morphium.driver.MorphiumId;
 import de.caluga.test.mongo.suite.data.UncachedObject;
 import org.junit.Test;
 

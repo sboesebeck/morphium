@@ -10,7 +10,7 @@ import de.caluga.morphium.StatisticKeys;
 import de.caluga.morphium.annotations.Embedded;
 import de.caluga.morphium.annotations.Entity;
 import de.caluga.morphium.annotations.Id;
-import de.caluga.morphium.driver.bson.MorphiumId;
+import de.caluga.morphium.driver.MorphiumId;
 import de.caluga.morphium.query.Query;
 import de.caluga.test.mongo.suite.data.CachedObject;
 import de.caluga.test.mongo.suite.data.EmbeddedObject;
@@ -177,6 +177,33 @@ public class BasicFunctionalityTest extends MongoTest {
         }
 
 
+    }
+
+    @Test
+    public void updateBinaryDataTest() throws Exception {
+        UncachedObject o = new UncachedObject();
+        byte[] binaryData = new byte[100];
+        for (int i = 0; i < binaryData.length; i++) {
+            binaryData[i] = (byte) i;
+        }
+        o.setBinaryData(binaryData);
+        morphium.store(o);
+
+
+        waitForAsyncOperationToStart(1000000);
+        waitForWrites();
+        morphium.reread(o);
+        for (int i = 0; i < binaryData.length; i++) {
+            binaryData[i] = (byte) (i + 2);
+        }
+        o.setBinaryData(binaryData);
+        morphium.store(o);
+        waitForAsyncOperationToStart(1000000);
+        waitForWrites();
+
+        for (int i = 0; i < o.getBinaryData().length; i++) {
+            assert (o.getBinaryData()[i] == binaryData[i]);
+        }
     }
 
     @Test

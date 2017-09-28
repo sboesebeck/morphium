@@ -10,7 +10,7 @@ import de.caluga.morphium.annotations.caching.WriteBuffer;
 import de.caluga.morphium.cache.CacheSyncListener;
 import de.caluga.morphium.cache.CacheSyncVetoException;
 import de.caluga.morphium.cache.CacheSynchronizer;
-import de.caluga.morphium.driver.bson.MorphiumId;
+import de.caluga.morphium.driver.MorphiumId;
 import de.caluga.morphium.messaging.Messaging;
 import de.caluga.morphium.messaging.Msg;
 import de.caluga.morphium.query.Query;

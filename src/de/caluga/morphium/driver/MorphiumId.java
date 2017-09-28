@@ -1,4 +1,4 @@
-package de.caluga.morphium.driver.bson;/**
+package de.caluga.morphium.driver;/**
  * Created by stephan on 27.10.15.
  */
 

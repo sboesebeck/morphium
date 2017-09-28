@@ -5,7 +5,7 @@ import de.caluga.morphium.MongoType;
 import de.caluga.morphium.ObjectMapper;
 import de.caluga.morphium.annotations.Entity;
 import de.caluga.morphium.annotations.Reference;
-import de.caluga.morphium.driver.bson.MorphiumId;
+import de.caluga.morphium.driver.MorphiumId;
 
 import java.lang.reflect.Field;
 import java.util.*;

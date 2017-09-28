@@ -5,8 +5,8 @@ import de.caluga.morphium.annotations.*;
 import de.caluga.morphium.async.AsyncOperationCallback;
 import de.caluga.morphium.async.AsyncOperationType;
 import de.caluga.morphium.driver.MorphiumDriverException;
+import de.caluga.morphium.driver.MorphiumId;
 import de.caluga.morphium.driver.WriteConcern;
-import de.caluga.morphium.driver.bson.MorphiumId;
 import de.caluga.morphium.driver.bulk.BulkRequestContext;
 import de.caluga.morphium.query.Query;
 import org.bson.types.ObjectId;
@@ -380,8 +380,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                         sorted.putIfAbsent(o.getClass(), new ArrayList<>());
                         sorted.get(o.getClass()).add(o);
                         boolean isn = morphium.getId(o) == null;
-                        Object reread = null;
-                        if (morphium.getARHelper().getAnnotationFromHierarchy(o.getClass(), CreationTime.class) != null) {
+                        if (morphium.getARHelper().isAnnotationPresentInHierarchy(o.getClass(), CreationTime.class)) {
                             try {
                                 isn = morphium.setAutoValues(o);
                             } catch (IllegalAccessException e) {
@@ -446,6 +445,10 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                                             if (o.get("_id") instanceof ObjectId && idField.getType().equals(MorphiumId.class)) {
 
                                                 idField.set(entity, new MorphiumId(((ObjectId) o.get("_id")).toByteArray()));
+                                            } else if (idField.getType().equals(String.class) && !o.get("_id").getClass().equals(String.class)) {
+                                                idField.set(entity, o.get("_id").toString());
+                                            } else if (idField.getType().isAssignableFrom(o.get("_id").getClass())) {
+                                                idField.set(entity, o.get("_id"));
                                             }
 
                                         } catch (Exception e) {

@@ -18,6 +18,8 @@ public class CheckForNewTest extends MongoTest {
 
     @Test
     public void testCheckForNew() throws Exception {
+        //although checkfornew is enabled, it will not update created
+        //as the @CreationTime annotation disables it
         morphium.getConfig().setCheckForNew(true);
         morphium.delete(morphium.createQueryFor(TestID.class));
 
@@ -25,30 +27,37 @@ public class CheckForNewTest extends MongoTest {
         tst.theId = "1";
         tst.theValue = "value";
         morphium.store(tst);
-        assert (tst.created != null);
+        assert (tst.created == null);
 
 
         tst = new TestID();
         tst.theId = "2";
         tst.theValue = "value2";
         morphium.store(tst);
-        assert (tst.created != null);
-
-        Date cr = tst.created;
+        assert (tst.created == null);
 
         tst = new TestID();
         tst.theId = "2";
         tst.theValue = "value";
         morphium.store(tst);
-        assert (tst.created != null);
-        assert (tst.created.equals(cr));
+        assert (tst.created == null);
+
+        tst.created = new Date();
+        Date cr = tst.created;
+
+        morphium.store(tst);
+        assert (cr.equals(tst.created));
+
+        morphium.reread(tst);
+        assert (cr.equals(tst.created));
+
         morphium.getConfig().setCheckForNew(false);
     }
 
 
     @Test
     public void testCheckForNew2() throws Exception {
-        morphium.getConfig().setCheckForNew(false);
+        morphium.getConfig().setCheckForNew(true);
         morphium.delete(morphium.createQueryFor(TestID2.class));
 
         TestID2 tst = new TestID2();
@@ -73,7 +82,7 @@ public class CheckForNewTest extends MongoTest {
         assert (tst.created != null);
         assert (tst.created.equals(cr));
 
-
+        morphium.getConfig().setCheckForNew(false);
     }
 
     @Entity
