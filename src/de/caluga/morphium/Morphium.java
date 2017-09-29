@@ -6,6 +6,7 @@ package de.caluga.morphium;
 
 import de.caluga.morphium.aggregation.Aggregator;
 import de.caluga.morphium.annotations.*;
+import de.caluga.morphium.annotations.caching.Cache;
 import de.caluga.morphium.annotations.lifecycle.*;
 import de.caluga.morphium.async.AsyncOperationCallback;
 import de.caluga.morphium.bulk.MorphiumBulkContext;
@@ -1825,6 +1826,12 @@ public class Morphium {
     public <T> T findById(Class<? extends T> type, Object id, String collection) {
         T ret = getCache().getFromIDCache(type, id);
         if (ret != null) {
+            if (annotationHelper.isAnnotationPresentInHierarchy(type, Cache.class)) {
+                if (annotationHelper.getAnnotationFromHierarchy(type, Cache.class).readCache()) {
+                    inc(StatisticKeys.CHITS);
+                }
+            }
+            inc(StatisticKeys.READS);
             return ret;
         }
         @SuppressWarnings("unchecked") List<String> ls = annotationHelper.getFields(type, Id.class);
