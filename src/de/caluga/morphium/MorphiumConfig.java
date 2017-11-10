@@ -51,7 +51,7 @@ public class MorphiumConfig {
     private boolean safeMode = false;
     private boolean globalFsync = false;
     private boolean globalJ = false;
-    private boolean checkForNew = false;
+    private boolean checkForNew = true;
     private int writeTimeout = 0;
     private boolean replicaset = true;
 

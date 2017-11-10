@@ -153,6 +153,8 @@ public class MongoTest {
                 cfg.setGlobalJ(false);
                 cfg.setGlobalW(1);
 
+                cfg.setCheckForNew(true);
+
 
                 //            cfg.setMongoAdminUser("adm");
                 //            cfg.setMongoAdminPwd("adm");
