@@ -33,7 +33,7 @@ public class Utils {
             }
             b.append("]");
             return b.toString();
-        } else if (o instanceof String) {
+        } else if ((o instanceof String) || (o instanceof MorphiumId) || (o.getClass().isEnum())) {
             return "\"" + o.toString() + "\"";
         } else if (!(o instanceof Map)) {
             return o.toString();
