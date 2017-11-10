@@ -1484,7 +1484,7 @@ This logger is built for performance and thread safety. It works find in high lo
 *   if you want to use your own logging implementation, just tell morphium the log delegate as filename, e.g. `morphium.log.file=de.caluga.morphium.log.MyLogDelegate`
 *   of course, all this configuration can be done in code as well.
 
- [1]: http://www.boesebeck.name/wp-content/uploads/2014/09/MorphiumDoku.pdf
+ [1]: https://caluga.de/file/591a20f6722c740f15a3effe
  [2]: http://www.mongodb.org
  [3]: http://api.mongodb.org/java/current/com/mongodb/WriteConcern.html
- [4]: http://www.caluga.de/MorphiumDoku.html
+ [4]: https://caluga.de/v/2014/9/5/morphium_doku_v3_0
