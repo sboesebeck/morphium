@@ -2,6 +2,8 @@ package de.caluga.morphium;/**
  * Created by stephan on 25.11.15.
  */
 
+import de.caluga.morphium.driver.MorphiumId;
+
 import java.io.UnsupportedEncodingException;
 import java.util.Collection;
 import java.util.HashMap;

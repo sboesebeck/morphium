@@ -150,6 +150,7 @@ public class AutoVariableTest extends MongoTest {
 
     @Test
     public void testCTNonOjbectId() throws Exception {
+        morphium.getConfig().setCheckForNew(true);
         morphium.dropCollection(CTimeTestStringId.class);
         log.info("Waiting for collection to be dropped...");
         while (morphium.getDriver().exists(morphium.getConfig().getDatabase(), morphium.getMapper().getCollectionName(CTimeTestStringId.class))) {
