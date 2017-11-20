@@ -18,6 +18,8 @@ import static java.lang.annotation.ElementType.TYPE;
 @Target({TYPE})
 @Retention(RetentionPolicy.RUNTIME)
 public @interface WriteBuffer {
+    STRATEGY strategy() default STRATEGY.WAIT;
+
     /**
      * what to do when max buffer entries is reached
      * WRITE_NEW: write newest entry (synchronous and not add to buffer)
@@ -27,10 +29,8 @@ public @interface WriteBuffer {
      * JUST_WARN: increase buffer and warn about it
      */
     enum STRATEGY {
-        WRITE_NEW, WRITE_OLD, IGNORE_NEW, DEL_OLD, JUST_WARN,
+        WRITE_NEW, WRITE_OLD, IGNORE_NEW, DEL_OLD, JUST_WARN, WAIT,
     }
-
-    STRATEGY strategy() default STRATEGY.JUST_WARN;
 
     boolean value() default true;
 
