@@ -172,7 +172,7 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
         WriteBuffer w = morphium.getARHelper().getAnnotationFromHierarchy(type, WriteBuffer.class);
         int size = 0;
         //        int timeout = morphium.getConfig().getWriteBufferTime();
-        WriteBuffer.STRATEGY strategy = WriteBuffer.STRATEGY.JUST_WARN;
+        WriteBuffer.STRATEGY strategy = WriteBuffer.STRATEGY.WAIT;
         boolean ordered = false;
         if (w != null) {
             ordered = w.ordered();
@@ -195,6 +195,18 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
                 }
             }
             switch (strategy) {
+                case WAIT:
+                    long start = System.currentTimeMillis();
+                    while (true) {
+                        if (morphium.getConfig().getMaxWaitTime() > 0 && System.currentTimeMillis() - start > morphium.getConfig().getMaxWaitTime()) {
+                            logger.fatal("Could not write - maxWaitTime exeeded!");
+                            throw new RuntimeException("could now write - maxWaitTimeExceded");
+                        }
+                        Thread.yield();
+                        if (opLog.get(type) == null || opLog.get(type).size() > size || size <= 0) {
+                            break;
+                        }
+                    }
                 case JUST_WARN:
                     opLog.get(type).add(wb);
                     break;
