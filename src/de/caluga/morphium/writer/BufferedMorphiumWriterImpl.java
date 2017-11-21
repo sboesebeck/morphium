@@ -198,8 +198,12 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
                 case WAIT:
                     long start = System.currentTimeMillis();
                     while (true) {
-                        if (morphium.getConfig().getMaxWaitTime() > 0 && System.currentTimeMillis() - start > morphium.getConfig().getMaxWaitTime()) {
-                            logger.fatal("Could not write - maxWaitTime exeeded!");
+                        int timeout = w.timeout();
+                        if (morphium.getConfig().getMaxWaitTime() > 0 && morphium.getConfig().getMaxWaitTime() > timeout) {
+                            timeout = morphium.getConfig().getMaxWaitTime();
+                        }
+                        if (timeout > 0 && System.currentTimeMillis() - start > timeout) {
+                            logger.fatal("Could not write - maxWaitTime/timeout exceeded!");
                             throw new RuntimeException("could now write - maxWaitTimeExceded " + morphium.getConfig().getMaxWaitTime() + "ms");
                         }
                         Thread.yield();
