@@ -200,7 +200,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
         } else if (idf.get(record) == null && idf.getType().equals(String.class)) {
             idf.set(record, new MorphiumId().toString());
         } else {
-            throw new RuntimeException("Cannot set ID");
+            throw new IllegalArgumentException("Cannot set ID of non-ID-Type");
         }
     }
 

@@ -119,7 +119,7 @@ public class OplogMonitorTest extends MongoTest {
         co.setValue("123");
         morphium.store(co);
 
-        Thread.sleep(600);
+        Thread.sleep(1600);
         assert (gotIt);
 
 
