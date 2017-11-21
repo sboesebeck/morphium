@@ -4,12 +4,10 @@ import com.mongodb.bulk.BulkWriteResult;
 import com.mongodb.client.model.*;
 import de.caluga.morphium.Logger;
 import de.caluga.morphium.Morphium;
-import de.caluga.morphium.driver.MorphiumId;
 import de.caluga.morphium.driver.ReadPreference;
 import de.caluga.morphium.driver.WriteConcern;
 import de.caluga.morphium.driver.bulk.*;
 import org.bson.Document;
-import org.bson.types.ObjectId;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -82,7 +80,6 @@ public class MongodbBulkContext extends BulkRequestContext {
     @Override
     public Map<String, Object> execute() {
         List<WriteModel<? extends Document>> lst = new ArrayList<>();
-        Map<Document, Map<String, Object>> inserts = new HashMap<>();
         int count = 0;
         List<BulkWriteResult> results = new ArrayList<>();
         for (BulkRequest br : requests) {
@@ -93,7 +90,6 @@ public class MongodbBulkContext extends BulkRequestContext {
                 for (Map<String, Object> o : ib.getToInsert()) {
                     Document document = new Document(o);
                     lst.add(new InsertOneModel<>(document));
-                    inserts.put(document, o);
                 }
 
             } else if (br instanceof DeleteBulkRequest) {
@@ -131,19 +127,6 @@ public class MongodbBulkContext extends BulkRequestContext {
             lst.clear();
         }
 
-
-        if (!inserts.isEmpty()) {
-            for (Map.Entry<Document, Map<String, Object>> e : inserts.entrySet()) {
-                Object id = e.getKey().get("_id");
-                if (id instanceof ObjectId) {
-                    id = new MorphiumId(((ObjectId) id).toHexString());
-                }
-                e.getValue().put("_id", id);
-                if (e.getValue().get("_id") == null) {
-                    log.fatal("objects were stored, but no _id returned!!!!!!!!!");
-                }
-            }
-        }
 
         Map<String, Object> res = new HashMap<>();
 

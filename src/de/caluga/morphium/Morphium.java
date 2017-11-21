@@ -473,6 +473,10 @@ public class Morphium {
     }
 
     public <T> void ensureIndicesFor(Class<T> type, String onCollection, AsyncOperationCallback<T> callback) {
+        ensureIndicesFor(type, onCollection, callback, getWriterForClass(type));
+    }
+
+    public <T> void ensureIndicesFor(Class<T> type, String onCollection, AsyncOperationCallback<T> callback, MorphiumWriter wr) {
         if (annotationHelper.isAnnotationPresentInHierarchy(type, Index.class)) {
             @SuppressWarnings("unchecked") List<Annotation> lst = annotationHelper.getAllAnnotationsFromHierachy(type, Index.class);
             for (Annotation a : lst) {
@@ -490,7 +494,7 @@ public class Morphium {
                         if (options != null && options.size() > cnt) {
                             optionsMap = options.get(cnt);
                         }
-                        getWriterForClass(type).ensureIndex(type, onCollection, m, optionsMap, callback);
+                        wr.ensureIndex(type, onCollection, m, optionsMap, callback);
                         cnt++;
                     }
                 }
@@ -512,7 +516,7 @@ public class Morphium {
                 if (createIndexMapFrom(i.options()) != null) {
                     optionsMap = createIndexMapFrom(i.options()).get(0);
                 }
-                getWriterForClass(type).ensureIndex(type, onCollection, idx, optionsMap, callback);
+                wr.ensureIndex(type, onCollection, idx, optionsMap, callback);
             }
         }
     }
@@ -2223,6 +2227,7 @@ public class Morphium {
                 writers.get(cls).insert((List<T>) values.get(cls), collection, callback);
             } catch (Exception e) {
                 logger.error("Write failed for " + cls.getName() + " lst of size " + values.get(cls).size(), e);
+                throw new RuntimeException(e);
             }
         }
     }

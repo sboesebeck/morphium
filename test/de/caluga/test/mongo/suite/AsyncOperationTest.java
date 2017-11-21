@@ -47,7 +47,7 @@ public class AsyncOperationTest extends MongoTest {
                 assert false;
             }
         });
-        Thread.sleep(100);
+        Thread.sleep(200);
         assert (asyncCall);
         asyncCall = false;
         uc = uc.q();
