@@ -703,6 +703,23 @@ public class BasicFunctionalityTest extends MongoTest {
         long c = morphium.createQueryFor(UncachedObject.class).countAll();
         System.err.println("Found " + c);
         assert (c == 100);
+        List<UncachedObject> lst2 = new ArrayList<>();
+        for (int i = 0; i < 10; i++) {
+            UncachedObject uc = new UncachedObject();
+            uc.setCounter(i);
+            uc.setValue("" + i);
+            lst2.add(uc);
+        }
+        lst2.add(lst.get(0));
+        boolean ex = false;
+        try {
+            morphium.insert(lst);
+        } catch (Throwable e) {
+            log.info("Exception expected!");
+            ex = true;
+        }
+        assert (ex);
+
     }
 
 

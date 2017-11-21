@@ -15,7 +15,7 @@ import de.caluga.morphium.driver.MorphiumId;
  */
 @Entity
 @Cache(maxEntries = 20000, strategy = Cache.ClearStrategy.LRU, syncCache = Cache.SyncCacheStrategy.CLEAR_TYPE_CACHE, timeout = 15000)
-@WriteBuffer(timeout = 500, size = 100)
+@WriteBuffer(timeout = 500, size = 100, strategy = WriteBuffer.STRATEGY.JUST_WARN)
 @WriteSafety(level = SafetyLevel.WAIT_FOR_ALL_SLAVES, timeout = 3000, waitForJournalCommit = true)
 public class CachedObject {
     @Index

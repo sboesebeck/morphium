@@ -43,7 +43,7 @@ public class MassCacheTest extends MongoTest {
                         o.setValue(getName() + " " + j);
                         log.info("Storing...");
                         morphium.store(o);
-                        log.info("Stored object..." + getId() + " / " + getName());
+                        log.info("Stored object..." + j + ": " + getId() + " / " + getName());
                     }
                 }
             };
@@ -65,10 +65,17 @@ public class MassCacheTest extends MongoTest {
         }
 
         waitForWrites();
-
+        log.info("Waiting for changes to be propagated...");
+        dur = System.currentTimeMillis() - start;
+        int goal = NO_OBJECTS * WRITING_THREADS;
+        while (true) {
+            Thread.sleep(1500);
+            long l = morphium.createQueryFor(CachedObject.class).countAll();
+            log.info("Waiting for writes..." + l + "/" + goal);
+            if (l == goal) break;
+        }
         dur = System.currentTimeMillis() - start;
         log.info("Writing took " + dur + " ms");
-        Thread.sleep(2500);
         log.info("Checking consistency");
         start = System.currentTimeMillis();
         for (int i = 0; i < WRITING_THREADS; i++) {

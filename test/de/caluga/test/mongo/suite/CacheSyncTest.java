@@ -102,7 +102,7 @@ public class CacheSyncTest extends MongoTest {
         System.out.println("Stats " + morphium.getStatistics().toString());
         assert (morphium.getStatistics().get(StatisticKeys.CACHE_ENTRIES.name()) != null) : "Cache entries not set?";
         cs1.sendClearAllMessage("test");
-        Thread.sleep(2500);
+        Thread.sleep(5500);
         if ((morphium.getStatistics().get(StatisticKeys.CACHE_ENTRIES.name()) != 0)) {
             throw new AssertionError("Cache entries set? Entries: " + morphium.getStatistics().get(StatisticKeys.CACHE_ENTRIES.name()));
         }

@@ -48,6 +48,7 @@ public class DeleteTest extends MongoTest {
 
     @Test
     public void cachedDeleteSingle() throws Exception {
+        morphium.dropCollection(UncachedObject.class);
         createCachedObjects(10);
         waitForWrites();
         long c = morphium.createQueryFor(CachedObject.class).countAll();

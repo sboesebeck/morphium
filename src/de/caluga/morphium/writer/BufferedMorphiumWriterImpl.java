@@ -118,7 +118,7 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
                 if (morphium.getConfig().isAutoIndexAndCappedCreationOnWrite() && !morphium.getDriver().exists(morphium.getConfig().getDatabase(), entry.getCollectionName())) {
                     createCappedColl(entry.getEntityType(), entry.getCollectionName());
                     //noinspection unchecked,unchecked
-                    morphium.ensureIndicesFor(entry.getEntityType(), entry.getCollectionName(), entry.getCb());
+                    morphium.ensureIndicesFor(entry.getEntityType(), entry.getCollectionName(), entry.getCb(), directWriter);
                 }
                 try {
                     if (bulkByCollectionName.get(entry.getCollectionName()) == null) {
@@ -172,7 +172,7 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
         WriteBuffer w = morphium.getARHelper().getAnnotationFromHierarchy(type, WriteBuffer.class);
         int size = 0;
         //        int timeout = morphium.getConfig().getWriteBufferTime();
-        WriteBuffer.STRATEGY strategy = WriteBuffer.STRATEGY.WAIT;
+        WriteBuffer.STRATEGY strategy = WriteBuffer.STRATEGY.JUST_WARN;
         boolean ordered = false;
         if (w != null) {
             ordered = w.ordered();
@@ -200,11 +200,16 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
                     while (true) {
                         if (morphium.getConfig().getMaxWaitTime() > 0 && System.currentTimeMillis() - start > morphium.getConfig().getMaxWaitTime()) {
                             logger.fatal("Could not write - maxWaitTime exeeded!");
-                            throw new RuntimeException("could now write - maxWaitTimeExceded");
+                            throw new RuntimeException("could now write - maxWaitTimeExceded " + morphium.getConfig().getMaxWaitTime() + "ms");
                         }
                         Thread.yield();
-                        if (opLog.get(type) == null || opLog.get(type).size() > size || size <= 0) {
+                        if (opLog.get(type) == null || opLog.get(type).size() < size) {
                             break;
+                        }
+                    }
+                    if (opLog.get(type) == null) {
+                        synchronized (opLog) {
+                            opLog.putIfAbsent(type, Collections.synchronizedList(new ArrayList<>()));
                         }
                     }
                 case JUST_WARN:
