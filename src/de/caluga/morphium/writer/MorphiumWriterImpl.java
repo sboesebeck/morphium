@@ -9,7 +9,6 @@ import de.caluga.morphium.driver.MorphiumId;
 import de.caluga.morphium.driver.WriteConcern;
 import de.caluga.morphium.driver.bulk.BulkRequestContext;
 import de.caluga.morphium.query.Query;
-import org.bson.types.ObjectId;
 
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
@@ -82,13 +81,323 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
         executor.shutdownNow();
     }
 
+
+    @Override
+    public <T> void insert(List<T> lst, AsyncOperationCallback<T> callback) {
+
+        if (!lst.isEmpty()) {
+            WriterTask r = new WriterTask() {
+                private AsyncOperationCallback<T> callback;
+
+                @Override
+                public void setCallback(AsyncOperationCallback cb) {
+                    callback = cb;
+                }
+
+                @Override
+                public void run() {
+                    //                    System.out.println(System.currentTimeMillis()+" -  storing" );
+                    HashMap<Class, List<Object>> sorted = new HashMap<>();
+                    for (Object o : lst) {
+                        Class type = morphium.getARHelper().getRealClass(o.getClass());
+                        if (!morphium.getARHelper().isAnnotationPresentInHierarchy(type, Entity.class)) {
+                            logger.error("Not an entity! Storing not possible! Even not in list!");
+                            continue;
+                        }
+                        morphium.inc(StatisticKeys.WRITES);
+                        if (morphium.getARHelper().isAnnotationPresentInHierarchy(type, PartialUpdate.class)) {
+                            //not part of list, acutally...
+                            if ((o instanceof PartiallyUpdateable)) {
+                                //todo: use batch write
+                                morphium.updateUsingFields(o, ((PartiallyUpdateable) o).getAlteredFields().toArray(new String[((PartiallyUpdateable) o).getAlteredFields().size()]));
+                                ((PartiallyUpdateable) o).clearAlteredFields();
+                                continue;
+                            }
+                        }
+                        o = morphium.getARHelper().getRealObject(o);
+                        if (o == null) {
+                            logger.warn("Illegal Reference? - cannot store Lazy-Loaded / Partial Update Proxy without delegate!");
+                            return;
+                        }
+
+
+                        sorted.putIfAbsent(o.getClass(), new ArrayList<>());
+                        sorted.get(o.getClass()).add(o);
+                        if (morphium.getARHelper().isAnnotationPresentInHierarchy(o.getClass(), CreationTime.class)) {
+                            try {
+                                morphium.setAutoValues(o);
+                            } catch (IllegalAccessException e) {
+                                logger.error(e);
+                            }
+                        }
+
+                        handleStringIds(o);
+
+                        morphium.firePreStore(o, true);
+                    }
+                    long allStart = System.currentTimeMillis();
+                    try {
+                        for (Map.Entry<Class, List<Object>> es : sorted.entrySet()) {
+                            Class c = es.getKey();
+                            ArrayList<Map<String, Object>> dbLst = new ArrayList<>();
+                            //bulk insert... check if something already exists
+                            WriteConcern wc = morphium.getWriteConcernForClass(c);
+                            String coll = morphium.getMapper().getCollectionName(c);
+
+                            createIndexAndCaps(c, coll, callback);
+
+                            HashMap<Integer, Object> mapMarshalledNewObjects = new HashMap<>();
+                            for (Object record : es.getValue()) {
+                                setIdIfNull(record);
+                                Map<String, Object> marshall = morphium.getMapper().marshall(record);
+                                dbLst.add(marshall);
+                                mapMarshalledNewObjects.put(dbLst.size() - 1, record);
+                            }
+
+                            long start = System.currentTimeMillis();
+                            if (!dbLst.isEmpty()) {
+
+                                morphium.getDriver().insert(morphium.getConfig().getDatabase(), coll, dbLst, wc);
+                                int idx = 0;
+
+                                //                                System.out.println(System.currentTimeMillis()+" -  finish" );
+                            }
+                            morphium.getCache().clearCacheIfNecessary(c);
+                            long dur = System.currentTimeMillis() - start;
+                            //bulk insert
+                            morphium.fireProfilingWriteEvent(c, dbLst, dur, true, WriteAccessType.BULK_INSERT);
+                            //null because key changed => mongo _id
+                            es.getValue().forEach(record -> { //null because key changed => mongo _id
+                                morphium.firePostStore(record, true);
+                            });
+                        }
+
+                        if (callback != null) {
+                            callback.onOperationSucceeded(AsyncOperationType.WRITE, null, System.currentTimeMillis() - allStart, null, null, lst);
+                        }
+                    } catch (Exception e) {
+                        if (e instanceof RuntimeException) {
+                            throw (RuntimeException) e;
+                        }
+                        if (callback == null) {
+                            throw new RuntimeException(e);
+                        }
+                        callback.onOperationError(AsyncOperationType.WRITE, null, System.currentTimeMillis() - allStart, e.getMessage(), e, null, lst);
+                    }
+                    //                    System.out.println(System.currentTimeMillis()+" -  finish" );
+                }
+            };
+            submitAndBlockIfNecessary(callback, r);
+        }
+
+    }
+
+    private void setIdIfNull(Object record) throws IllegalAccessException {
+        Field idf = morphium.getARHelper().getIdField(record);
+        if (idf.get(record) != null) return;
+        if (idf.get(record) == null && idf.getType().equals(MorphiumId.class)) {
+            idf.set(record, new MorphiumId());
+        } else if (idf.get(record) == null && idf.getType().equals(String.class)) {
+            idf.set(record, new MorphiumId().toString());
+        } else {
+            throw new RuntimeException("Cannot set ID");
+        }
+    }
+
+
+    private void handleStringIds(Object o) {
+        if (!morphium.getARHelper().getIdField(o).getType().equals(MorphiumId.class) && morphium.getId(o) == null) {
+            if (morphium.getARHelper().getIdField(o).getType().equals(String.class)) {
+                try {
+                    morphium.getARHelper().getIdField(o).set(o, new MorphiumId());
+                } catch (IllegalAccessException e) {
+                    throw new RuntimeException("Could not sett id-string", e);
+                }
+            } else {
+                throw new IllegalArgumentException("Cannot automatically set non -MongoId IDs");
+            }
+        }
+    }
+
+
+    @Override
+    public <T> void insert(List<T> lst, String cn, AsyncOperationCallback<T> callback) {
+        if (!lst.isEmpty()) {
+            WriterTask r = new WriterTask() {
+
+                private AsyncOperationCallback<T> callback;
+
+                @Override
+                public void setCallback(AsyncOperationCallback cb) {
+                    callback = cb;
+                }
+
+                @Override
+                public void run() {
+                    try {
+                        String collectionName = cn;
+                        if (lst == null || lst.isEmpty()) {
+                            return;
+                        }
+                        ArrayList<Map<String, Object>> dbLst = new ArrayList<>();
+                        //        DBCollection collection = morphium.getDbName().getCollection(collectionName);
+                        WriteConcern wc = morphium.getWriteConcernForClass(lst.get(0).getClass());
+
+                        //        BulkWriteOperation bulkWriteOperation = collection.initializeUnorderedBulkOperation();
+                        //                        BulkRequestContext bulk = morphium.getDriver().createBulkContext(morphium, morphium.getConfig().getDatabase(), collectionName, false, wc);
+                        HashMap<Object, Boolean> isNew = new HashMap<>();
+                        for (Object o : lst) {
+                            isNew.put(o, true);
+                            try {
+                                setIdIfNull(o);
+                            } catch (IllegalAccessException e) {
+                                throw new RuntimeException(e);
+                            }
+                            dbLst.add(morphium.getMapper().marshall(o));
+                        }
+                        if (morphium.getConfig().isAutoIndexAndCappedCreationOnWrite() && !morphium.getDriver().exists(morphium.getConfig().getDatabase(), collectionName)) {
+                            logger.warn("collection does not exist while storing list -  taking first element of list to ensure indices");
+                            createCappedColl(lst.get(0).getClass());
+                            morphium.ensureIndicesFor((Class<T>) lst.get(0).getClass(), collectionName, callback);
+                        }
+                        long start = System.currentTimeMillis();
+                        //                        int cnt = 0;
+                        morphium.firePreStore(isNew);
+
+
+                        long dur = System.currentTimeMillis() - start;
+                        morphium.fireProfilingWriteEvent(lst.get(0).getClass(), lst, dur, true, WriteAccessType.BULK_UPDATE);
+
+                        start = System.currentTimeMillis();
+                        if (collectionName == null) {
+                            collectionName = morphium.getMapper().getCollectionName(lst.get(0).getClass());
+                        }
+                        morphium.getDriver().insert(morphium.getConfig().getDatabase(), collectionName, dbLst, wc);
+                        dur = System.currentTimeMillis() - start;
+                        List<Class> cleared = new ArrayList<>();
+                        for (Object o : lst) {
+                            if (cleared.contains(o.getClass())) {
+                                continue;
+                            }
+                            cleared.add(o.getClass());
+                            morphium.getCache().clearCacheIfNecessary(o.getClass());
+                        }
+                        //bulk insert
+                        morphium.fireProfilingWriteEvent(lst.get(0).getClass(), dbLst, dur, true, WriteAccessType.BULK_INSERT);
+                        morphium.firePostStore(isNew);
+                    } catch (MorphiumDriverException e) {
+                        //TODO: Implement Handling
+                        throw new RuntimeException(e);
+                    }
+                }
+            };
+            submitAndBlockIfNecessary(callback, r);
+        }
+    }
+
+
+    @Override
+    public <T> void insert(final T obj, final String collection, AsyncOperationCallback<T> callback) {
+        if (obj instanceof List) {
+            insert((List) obj, callback);
+            return;
+        }
+        WriterTask r = new WriterTask() {
+            private AsyncOperationCallback<T> callback;
+
+            @Override
+            public void setCallback(AsyncOperationCallback cb) {
+                callback = cb;
+            }
+
+            @Override
+            public void run() {
+                long start = System.currentTimeMillis();
+
+                try {
+                    T o = obj;
+                    Class type = morphium.getARHelper().getRealClass(o.getClass());
+                    if (!morphium.getARHelper().isAnnotationPresentInHierarchy(type, Entity.class)) {
+                        throw new RuntimeException("Not an entity: " + type.getSimpleName() + " Storing not possible!");
+                    }
+                    morphium.inc(StatisticKeys.WRITES);
+
+
+                    o = morphium.getARHelper().getRealObject(o);
+                    if (o == null) {
+                        logger.warn("Illegal Reference? - cannot store Lazy-Loaded / Partial Update Proxy without delegate!");
+                        return;
+                    }
+                    if (morphium.isAutoValuesEnabledForThread()) {
+                        morphium.setAutoValues(o);
+                    }
+                    morphium.firePreStore(o, true);
+
+                    setIdIfNull(o);
+
+                    Map<String, Object> marshall = morphium.getMapper().marshall(o);
+
+                    String coll = collection;
+                    if (coll == null) {
+                        coll = morphium.getMapper().getCollectionName(type);
+                    }
+                    createIndexAndCaps(type, coll, callback);
+
+
+                    WriteConcern wc = morphium.getWriteConcernForClass(type);
+                    List<Map<String, Object>> objs = new ArrayList<>();
+                    objs.add(marshall);
+                    try {
+
+                        morphium.getDriver().insert(morphium.getConfig().getDatabase(), coll, objs, wc);
+                    } catch (Throwable t) {
+                        throw new RuntimeException(t);
+                    }
+                    long dur = System.currentTimeMillis() - start;
+                    morphium.fireProfilingWriteEvent(o.getClass(), marshall, dur, true, WriteAccessType.SINGLE_INSERT);
+
+
+                    morphium.getCache().clearCacheIfNecessary(o.getClass());
+                    morphium.firePostStore(o, true);
+                    if (callback != null) {
+                        callback.onOperationSucceeded(AsyncOperationType.WRITE, null, System.currentTimeMillis() - start, null, obj);
+                    }
+                } catch (Exception e) {
+                    checkViolations(e);
+                    if (callback == null) {
+                        if (e instanceof RuntimeException) {
+                            throw ((RuntimeException) e);
+                        }
+                        throw new RuntimeException(e);
+                    }
+                    callback.onOperationError(AsyncOperationType.WRITE, null, System.currentTimeMillis() - start, e.getMessage(), e, obj);
+                }
+            }
+
+
+        };
+        submitAndBlockIfNecessary(callback, r);
+    }
+
+    private <T> void createIndexAndCaps(Class type, String coll, AsyncOperationCallback<T> callback) throws MorphiumDriverException {
+        if (morphium.getConfig().isAutoIndexAndCappedCreationOnWrite() && !morphium.getDriver().exists(getDbName(), coll)) {
+            if (logger.isDebugEnabled()) {
+                logger.debug("Collection " + coll + " does not exist - ensuring indices");
+            }
+            createCappedColl(type);
+            morphium.ensureIndicesFor(type, coll, callback);
+        }
+    }
+
+
+
     /**
      * @param obj - object to store
      */
     @Override
     public <T> void store(final T obj, final String collection, AsyncOperationCallback<T> callback) {
         if (obj instanceof List) {
-            store((List) obj, callback);
+            store((List) obj, collection, callback);
             return;
         }
         WriterTask r = new WriterTask() {
@@ -125,25 +434,18 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                         return;
                     }
                     boolean isNew = id == null;
-                    Object reread = null;
                     if (morphium.isAutoValuesEnabledForThread()) {
                         isNew = morphium.setAutoValues(o);
                     }
                     morphium.firePreStore(o, isNew);
-
+                    setIdIfNull(o);
                     Map<String, Object> marshall = morphium.getMapper().marshall(o);
 
                     String coll = collection;
                     if (coll == null) {
                         coll = morphium.getMapper().getCollectionName(type);
                     }
-                    if (morphium.getConfig().isAutoIndexAndCappedCreationOnWrite() && !morphium.getDriver().exists(getDbName(), coll)) {
-                        if (logger.isDebugEnabled()) {
-                            logger.debug("Collection " + coll + " does not exist - ensuring indices");
-                        }
-                        createCappedColl(o.getClass());
-                        morphium.ensureIndicesFor(type, coll, callback);
-                    }
+                    createIndexAndCaps(type, coll, callback);
 
 
                     WriteConcern wc = morphium.getWriteConcernForClass(type);
@@ -169,25 +471,6 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                         if (flds == null) {
                             throw new RuntimeException("Object does not have an ID field!");
                         }
-                        try {
-                            //Setting new ID (if object was new created) to Entity
-
-                            Field fld = morphium.getARHelper().getField(o.getClass(), flds.get(0));
-                            if (fld.getType().equals(marshall.get("_id").getClass())) {
-                                fld.set(o, marshall.get("_id"));
-                            } else {
-                                //Driver abstraction makes id conversion necessary!
-                                if (fld.getType().equals(String.class)) {
-                                    fld.set(o, marshall.get("_id").toString());
-                                } else if (fld.getType().equals(MorphiumId.class)) {
-                                    fld.set(o, new MorphiumId(marshall.get("_id").toString()));
-                                } else {
-                                    throw new IllegalArgumentException("cannot convert ID for given object - id type is: " + fld.getType().getName() + "! Please set ID before write");
-                                }
-                            }
-                        } catch (IllegalAccessException e) {
-                            throw new RuntimeException(e);
-                        }
                     }
 
                     morphium.getCache().clearCacheIfNecessary(o.getClass());
@@ -196,38 +479,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                         callback.onOperationSucceeded(AsyncOperationType.WRITE, null, System.currentTimeMillis() - start, null, obj);
                     }
                 } catch (Exception e) {
-                    if (e instanceof RuntimeException) {
-                        if (e.getClass().getName().equals("javax.validation.ConstraintViolationException")) {
-                            //using reflection to get fields etc... in order to remove strong dependency
-                            try {
-                                Method m = e.getClass().getMethod("getConstraintViolations");
-
-                                Set violations = (Set) m.invoke(e);
-                                for (Object v : violations) {
-                                    m = v.getClass().getMethod("getMessage");
-                                    String msg = (String) m.invoke(v);
-                                    m = v.getClass().getMethod("getRootBean");
-                                    Object bean = m.invoke(v);
-                                    String s = Utils.toJsonString(bean);
-                                    String type = bean.getClass().getName();
-                                    m = v.getClass().getMethod("getInvalidValue");
-                                    Object invalidValue = m.invoke(v);
-                                    m = v.getClass().getMethod("getPropertyPath");
-                                    Iterable<?> pth = (Iterable) m.invoke(v);
-                                    StringBuilder stringBuilder = new StringBuilder();
-                                    for (Object p : pth) {
-                                        m = p.getClass().getMethod("getName");
-                                        String name = (String) m.invoke(p);
-                                        stringBuilder.append(".");
-                                        stringBuilder.append(name);
-                                    }
-                                    logger.error("Validation of " + type + " failed: " + msg + " - Invalid Value: " + invalidValue + " for path: " + stringBuilder.toString() + "\n Tried to store: " + s);
-                                }
-                            } catch (Exception e1) {
-                                logger.fatal("Could not get more information about validation error ", e1);
-                            }
-                        }
-                    }
+                    checkViolations(e);
                     if (callback == null) {
                         if (e instanceof RuntimeException) {
                             throw ((RuntimeException) e);
@@ -241,9 +493,44 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
         submitAndBlockIfNecessary(callback, r);
     }
 
+    private void checkViolations(Exception e) {
+        if (e instanceof RuntimeException) {
+            if (e.getClass().getName().equals("javax.validation.ConstraintViolationException")) {
+                //using reflection to get fields etc... in order to remove strong dependency
+                try {
+                    Method m = e.getClass().getMethod("getConstraintViolations");
+
+                    Set violations = (Set) m.invoke(e);
+                    for (Object v : violations) {
+                        m = v.getClass().getMethod("getMessage");
+                        String msg = (String) m.invoke(v);
+                        m = v.getClass().getMethod("getRootBean");
+                        Object bean = m.invoke(v);
+                        String s = Utils.toJsonString(bean);
+                        String type = bean.getClass().getName();
+                        m = v.getClass().getMethod("getInvalidValue");
+                        Object invalidValue = m.invoke(v);
+                        m = v.getClass().getMethod("getPropertyPath");
+                        Iterable<?> pth = (Iterable) m.invoke(v);
+                        StringBuilder stringBuilder = new StringBuilder();
+                        for (Object p : pth) {
+                            m = p.getClass().getMethod("getName");
+                            String name = (String) m.invoke(p);
+                            stringBuilder.append(".");
+                            stringBuilder.append(name);
+                        }
+                        logger.error("Validation of " + type + " failed: " + msg + " - Invalid Value: " + invalidValue + " for path: " + stringBuilder.toString() + "\n Tried to store: " + s);
+                    }
+                } catch (Exception e1) {
+                    logger.fatal("Could not get more information about validation error ", e1);
+                }
+            }
+        }
+    }
+
 
     @Override
-    public <T> void store(final List<T> lst, String collectionName, AsyncOperationCallback<T> callback) {
+    public <T> void store(final List<T> lst, String cln, AsyncOperationCallback<T> callback) {
         if (!lst.isEmpty()) {
             WriterTask r = new WriterTask() {
 
@@ -257,6 +544,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                 @Override
                 public void run() {
                     try {
+                        String collectionName = cln;
                         if (lst == null || lst.isEmpty()) {
                             return;
                         }
@@ -276,7 +564,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                         //                        int cnt = 0;
                         List<Class<?>> types = new ArrayList<>();
                         for (Object record : lst) {
-                            Map<String, Object> marshall = morphium.getMapper().marshall(record);
+
                             Object id = morphium.getARHelper().getId(record);
                             boolean isn = id == null;
                             Object reread;
@@ -299,6 +587,12 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                             if (!types.contains(record.getClass())) {
                                 types.add(record.getClass());
                             }
+                            try {
+                                setIdIfNull(record);
+                            } catch (IllegalAccessException e) {
+                                throw new RuntimeException(e);
+                            }
+                            Map<String, Object> marshall = morphium.getMapper().marshall(record);
                             dbLst.add(marshall);
                         }
                         morphium.firePreStore(isNew);
@@ -308,7 +602,9 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                         morphium.fireProfilingWriteEvent(lst.get(0).getClass(), lst, dur, false, WriteAccessType.BULK_UPDATE);
 
                         start = System.currentTimeMillis();
-
+                        if (collectionName == null) {
+                            collectionName = morphium.getMapper().getCollectionName(lst.get(0).getClass());
+                        }
                         morphium.getDriver().store(morphium.getConfig().getDatabase(), collectionName, dbLst, wc);
                         dur = System.currentTimeMillis() - start;
                         for (Class<?> c : types) {
@@ -388,17 +684,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                             }
                         }
                         if (isn) {
-                            if (!morphium.getARHelper().getIdField(o).getType().equals(MorphiumId.class) && morphium.getId(o) == null) {
-                                if (morphium.getARHelper().getIdField(o).getType().equals(String.class)) {
-                                    try {
-                                        morphium.getARHelper().getIdField(o).set(o, new MorphiumId());
-                                    } catch (IllegalAccessException e) {
-                                        throw new RuntimeException("Could not sett id-string", e);
-                                    }
-                                } else {
-                                    throw new IllegalArgumentException("Cannot automatically set non -MongoId IDs");
-                                }
-                            }
+                            handleStringIds(o);
                             isNew.put(o, true);
                         } else {
                             isNew.put(o, false);
@@ -422,6 +708,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
 
                             HashMap<Integer, Object> mapMarshalledNewObjects = new HashMap<>();
                             for (Object record : es.getValue()) {
+                                setIdIfNull(record);
                                 Map<String, Object> marshall = morphium.getMapper().marshall(record);
                                 dbLst.add(marshall);
                                 mapMarshalledNewObjects.put(dbLst.size() - 1, record);
@@ -435,27 +722,6 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                                 //                                doStoreList(dbLst, wc, coll);
                                 //                                System.out.println(System.currentTimeMillis()+" -  updating ids" );
                                 int idx = 0;
-                                for (Map<String, Object> o : dbLst) {
-                                    Object entity = mapMarshalledNewObjects.get(idx++);
-                                    if (entity == null) {
-                                        logger.error("cannot update mongo_id...");
-                                    } else {
-                                        try {
-                                            Field idField = morphium.getARHelper().getIdField(entity);
-                                            if (o.get("_id") instanceof ObjectId && idField.getType().equals(MorphiumId.class)) {
-
-                                                idField.set(entity, new MorphiumId(((ObjectId) o.get("_id")).toByteArray()));
-                                            } else if (idField.getType().equals(String.class) && !o.get("_id").getClass().equals(String.class)) {
-                                                idField.set(entity, o.get("_id").toString());
-                                            } else if (idField.getType().isAssignableFrom(o.get("_id").getClass())) {
-                                                idField.set(entity, o.get("_id"));
-                                            }
-
-                                        } catch (Exception e) {
-                                            logger.error("Setting of mongo_id failed", e);
-                                        }
-                                    }
-                                }
                                 //                                System.out.println(System.currentTimeMillis()+" -  finish" );
                             }
                             morphium.getCache().clearCacheIfNecessary(c);
@@ -463,7 +729,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                             //bulk insert
                             morphium.fireProfilingWriteEvent(c, dbLst, dur, true, WriteAccessType.BULK_INSERT);
                             //null because key changed => mongo _id
-                            es.getValue().stream().filter(record -> isNew.get(record) == null || isNew.get(record)).forEach(record -> { //null because key changed => mongo _id
+                            es.getValue().forEach(record -> { //null because key changed => mongo _id
                                 morphium.firePostStore(record, true);
                             });
                         }

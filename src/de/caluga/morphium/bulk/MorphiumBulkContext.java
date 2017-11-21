@@ -184,7 +184,7 @@ public class MorphiumBulkContext<T> {
             isNew.put(o, marshall.get("_id") == null);
         }
 
-        ctx.addInsertBulkReqpest(ins);
+        ctx.addInsertBulkRequest(ins);
         preEvents.add(() -> {
             if (toInsert.size() == 1) {
                 ctx.getMorphium().firePreStore(toInsert.get(0), ctx.getMorphium().getARHelper().getId(toInsert.get(0)) == null);

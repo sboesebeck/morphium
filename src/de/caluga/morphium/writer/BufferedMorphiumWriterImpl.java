@@ -252,6 +252,88 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
     }
 
     @Override
+    public <T> void insert(T o, String collection, AsyncOperationCallback<T> c) {
+        if (c == null) {
+            c = new AsyncOpAdapter<>();
+        }
+        morphium.inc(StatisticKeys.WRITES_CACHED);
+        addToWriteQueue(o.getClass(), collection, ctx -> {
+            //do nothing
+            morphium.firePreStore(o, true);
+            ArrayList<Map<String, Object>> objToInsert = new ArrayList<>();
+            try {
+                setIdIfNull(o);
+            } catch (IllegalAccessException e) {
+                e.printStackTrace();
+            }
+            objToInsert.add(morphium.getMapper().marshall(o));
+            InsertBulkRequest ins = ctx.addInsertBulkRequest(objToInsert);
+
+            //                morphium.clearCacheforClassIfNecessary(o.getClass());
+            morphium.firePostStore(o, true);
+        }, c, AsyncOperationType.WRITE);
+    }
+
+    private <T> void setIdIfNull(T o) throws IllegalAccessException {
+        Field idf = morphium.getARHelper().getIdField(o);
+        if (idf.get(o) != null) return;
+        if (idf.get(o) == null && idf.getType().equals(MorphiumId.class)) {
+            idf.set(o, new MorphiumId());
+        } else if (idf.get(o) == null && idf.getType().equals(String.class)) {
+            idf.set(o, new MorphiumId().toString());
+        } else {
+            throw new RuntimeException("Cannot set ID");
+        }
+    }
+
+    @Override
+    public <T> void insert(List<T> o, AsyncOperationCallback<T> callback) {
+        store(o, null, callback);
+    }
+
+    @Override
+    public <T> void insert(List<T> lst, String collectionName, AsyncOperationCallback<T> c) {
+        if (lst == null || lst.isEmpty()) {
+            if (c != null) {
+                c.onOperationSucceeded(AsyncOperationType.WRITE, null, 0, lst, null);
+            }
+            return;
+        }
+        if (c == null) {
+            c = new AsyncOpAdapter<>();
+        }
+        morphium.inc(StatisticKeys.WRITES_CACHED);
+
+        if (morphium.isAutoValuesEnabledForThread()) {
+            for (T obj : lst) {
+                try {
+                    morphium.setAutoValues(obj);
+                } catch (IllegalAccessException e) {
+                    logger.error("Could not set auto variables", e);
+                }
+            }
+        }
+        final AsyncOperationCallback<T> finalC = c;
+        addToWriteQueue(lst.get(0).getClass(), collectionName, ctx -> {
+            Map<Object, Boolean> map = new HashMap<>();
+            List<Map<String, Object>> marshalled = new ArrayList<>();
+            for (T o : lst) {
+                map.put(o, true);
+                try {
+                    setIdIfNull(o);
+                } catch (IllegalAccessException e) {
+                    throw new RuntimeException(e);
+                }
+                marshalled.add(morphium.getMapper().marshall(o));
+            }
+            morphium.firePreStore(map);
+
+            ctx.addInsertBulkRequest(marshalled);
+            morphium.firePostStore(map);
+        }, c, AsyncOperationType.WRITE);
+    }
+
+    @Override
     public <T> void store(final T o, final String collection, AsyncOperationCallback<T> c) {
         if (c == null) {
             c = new AsyncOpAdapter<>();
@@ -267,8 +349,13 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
             morphium.firePreStore(o, isNew);
             if (isNew) {
                 ArrayList<Map<String, Object>> objToInsert = new ArrayList<>();
+                try {
+                    setIdIfNull(o);
+                } catch (IllegalAccessException e) {
+                    throw new RuntimeException(e);
+                }
                 objToInsert.add(morphium.getMapper().marshall(o));
-                InsertBulkRequest ins = ctx.addInsertBulkReqpest(objToInsert);
+                InsertBulkRequest ins = ctx.addInsertBulkRequest(objToInsert);
             } else {
 
                 UpdateBulkRequest up = ctx.addUpdateBulkRequest();
@@ -317,20 +404,25 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
         final AsyncOperationCallback<T> finalC = c;
         addToWriteQueue(lst.get(0).getClass(), collectionName, ctx -> {
             Map<Object, Boolean> map = new HashMap<>();
-            morphium.firePreStore(map);
             for (T o : lst) {
                 map.put(o, morphium.getARHelper().getId(o) == null);
             }
+            morphium.firePreStore(map);
             List<Map<String, Object>> toInsert = new ArrayList<>();
             for (Map.Entry<Object, Boolean> entry : map.entrySet()) {
                 if (entry.getValue()) {
+                    try {
+                        setIdIfNull(entry.getKey());
+                    } catch (IllegalAccessException e) {
+                        throw new RuntimeException(e);
+                    }
                     toInsert.add(morphium.getMapper().marshall(entry.getKey()));
                 } else {
                     //noinspection unchecked
                     store((T) entry.getKey(), morphium.getMapper().getCollectionName(entry.getKey().getClass()), finalC);
                 }
             }
-            ctx.addInsertBulkReqpest(toInsert);
+            ctx.addInsertBulkRequest(toInsert);
             morphium.firePostStore(map);
         }, c, AsyncOperationType.WRITE);
     }
