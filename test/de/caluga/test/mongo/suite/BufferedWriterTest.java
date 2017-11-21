@@ -13,6 +13,7 @@ import org.junit.Test;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Vector;
 
 /**
  * User: Stephan Bösebeck
@@ -230,6 +231,24 @@ public class BufferedWriterTest extends MongoTest {
     }
 
     @Test
+    public void testWriteBufferBySizeWithWaitStrategy() throws Exception {
+        morphium.dropCollection(BufferedBySizeWaitObject.class);
+        waitForAsyncOperationToStart(10000);
+        waitForWrites();
+        int amount = 1500;
+        for (int i = 0; i < amount; i++) {
+            BufferedBySizeWaitObject bo = new BufferedBySizeWaitObject();
+            bo.setCounter(i);
+            bo.setValue("a value");
+            morphium.store(bo);
+        }
+        log.info("Writes prepared - waiting");
+        Thread.sleep(4000);
+        long count = morphium.createQueryFor(BufferedBySizeIgnoreNewObject.class).countAll();
+        assert (count < 1500);
+    }
+
+    @Test
     public void testComplexObject() throws Exception {
         Morphium m = morphium;
         m.dropCollection(ComplexObjectBuffered.class);
@@ -248,10 +267,53 @@ public class BufferedWriterTest extends MongoTest {
         while (m.getWriteBufferCount() != 0) {
             Thread.sleep(100);
         }
-        Thread.sleep(200);
+        Thread.sleep(500);
         ComplexObjectBuffered buf = m.createQueryFor(ComplexObjectBuffered.class).f("ein_text").eq("The text " + 0).get();
         assert (buf != null);
         assert (m.createQueryFor(ComplexObjectBuffered.class).countAll() == 100);
+    }
+
+
+    @Test
+    public void parallelWritingTest() throws Exception {
+        morphium.dropCollection(SimpleObject.class);
+        int threads = 5;
+        int count = 100;
+
+        Vector<Thread> thr = new Vector<>();
+        for (int i = 0; i < threads; i++) {
+            Thread t = new Thread() {
+                public void run() {
+                    try {
+                        for (int j = 0; j < count; j++) {
+                            SimpleObject o = new SimpleObject();
+                            o.setCount(j);
+                            o.setValue(getName());
+                            morphium.store(o);
+                        }
+                    } catch (Exception e) {
+                        e.printStackTrace();
+                    }
+                    thr.remove(this);
+                }
+            };
+            t.setName("Thread-" + i);
+            thr.add(t);
+            t.start();
+        }
+
+        waitForWrites();
+        while (!thr.isEmpty()) {
+            log.info("waiting for threads: " + thr.size());
+            Thread.sleep(1000);
+        }
+        log.info("WRiting finished");
+
+        Thread.sleep(5000);
+        long c = morphium.createQueryFor(SimpleObject.class).countAll();
+        log.info("waiting..." + c);
+        assert (c == 500);
+
     }
 
     @Test
@@ -327,6 +389,11 @@ public class BufferedWriterTest extends MongoTest {
     @WriteBuffer(timeout = 5500)
     @NoCache
     public static class BufferedByTimeObject extends UncachedObject {
+
+    }
+
+    @WriteBuffer(size = 150, strategy = WriteBuffer.STRATEGY.WAIT)
+    public static class BufferedBySizeWaitObject extends UncachedObject {
 
     }
 
