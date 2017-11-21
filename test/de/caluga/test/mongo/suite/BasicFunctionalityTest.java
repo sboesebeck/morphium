@@ -655,6 +655,57 @@ public class BasicFunctionalityTest extends MongoTest {
 
     }
 
+    @Test
+    public void insertTest() throws Exception {
+        morphium.dropCollection(UncachedObject.class);
+        UncachedObject uc = new UncachedObject();
+        uc.setCounter(1);
+        uc.setValue("A value");
+        log.info("Storing new value - no problem");
+        morphium.insert(uc);
+        assert (uc.getMorphiumId() != null);
+        Thread.sleep(200);
+        assert (morphium.findById(UncachedObject.class, uc.getMorphiumId()) != null);
+
+        log.info("Inserting again - exception expected");
+        boolean ex = false;
+        try {
+            morphium.insert(uc);
+        } catch (Exception e) {
+            log.info("Got exception as expected " + e.getMessage());
+            ex = true;
+        }
+        assert (ex);
+        uc = new UncachedObject();
+        uc.setValue("2");
+        uc.setMorphiumId(new MorphiumId());
+        uc.setCounter(3);
+        morphium.insert(uc);
+        Thread.sleep(200);
+        assert (morphium.findById(UncachedObject.class, uc.getMorphiumId()) != null);
+
+    }
+
+
+    @Test
+    public void insertListTest() throws Exception {
+
+        morphium.dropCollection(UncachedObject.class);
+        List<UncachedObject> lst = new ArrayList<>();
+        for (int i = 0; i < 100; i++) {
+            UncachedObject uc = new UncachedObject();
+            uc.setCounter(i);
+            uc.setValue("" + i);
+            lst.add(uc);
+        }
+        morphium.insert(lst);
+        Thread.sleep(500);
+        long c = morphium.createQueryFor(UncachedObject.class).countAll();
+        System.err.println("Found " + c);
+        assert (c == 100);
+    }
+
+
     @Entity
     public static class ListOfIdsContainer {
         @Id

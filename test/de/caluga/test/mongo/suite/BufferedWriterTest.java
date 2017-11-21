@@ -11,6 +11,9 @@ import de.caluga.test.mongo.suite.data.EmbeddedObject;
 import de.caluga.test.mongo.suite.data.UncachedObject;
 import org.junit.Test;
 
+import java.util.ArrayList;
+import java.util.List;
+
 /**
  * User: Stephan Bösebeck
  * Date: 22.03.13
@@ -20,8 +23,39 @@ import org.junit.Test;
  */
 public class BufferedWriterTest extends MongoTest {
 
+
     @Test
     public void testWriteBufferUpsert() throws Exception {
+        morphium.dropCollection(BufferedBySizeObject.class);
+
+        waitForAsyncOperationToStart(10000);
+        waitForWrites();
+        List<BufferedBySizeObject> lst = new ArrayList<>();
+        for (int i = 0; i < 200; i++) {
+            BufferedBySizeObject buf = new BufferedBySizeObject();
+            buf.setCounter(i);
+            buf.setValue("V: " + i);
+            lst.add(buf);
+        }
+
+        for (BufferedBySizeObject b : lst) {
+            morphium.store(b);
+        }
+        Thread.sleep(3000);
+        waitForAsyncOperationToStart(10000);
+        waitForWrites();
+        for (BufferedBySizeObject b : lst) {
+            b.setValue(b.getValue() + 100);
+            morphium.store(b);
+        }
+        Thread.sleep(3000);
+        waitForAsyncOperationToStart(10000);
+        waitForWrites();
+        assert (morphium.createQueryFor(BufferedBySizeObject.class).countAll() == 200);
+
+    }
+    @Test
+    public void testWriteBufferUpdate() throws Exception {
         morphium.dropCollection(BufferedBySizeObject.class);
 
         waitForAsyncOperationToStart(10000);
