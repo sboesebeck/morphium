@@ -207,7 +207,12 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
                             throw new RuntimeException("could now write - maxWaitTimeExceded " + morphium.getConfig().getMaxWaitTime() + "ms");
                         }
                         Thread.yield();
-                        if (opLog.get(type) == null || opLog.get(type).size() < size) {
+                        try {
+                            if (opLog.get(type) == null || opLog.get(type).size() < size) {
+                                break;
+                            }
+                        } catch (NullPointerException e) {
+                            //Can happen - Multithreadded acces... 
                             break;
                         }
                     }

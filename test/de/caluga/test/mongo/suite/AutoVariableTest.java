@@ -184,8 +184,10 @@ public class AutoVariableTest extends MongoTest {
 
         record.value = "v1*";
         morphium.store(record);
+        Thread.sleep(250);
         record = q.q().f("value").eq("v1*").get();
-        assert (record.timestamp == created);
+        assert (record != null) : "Not found!";
+        assert (record.timestamp == created) : "Record timestamp " + record.timestamp;
 
         Thread.sleep(500);
 
