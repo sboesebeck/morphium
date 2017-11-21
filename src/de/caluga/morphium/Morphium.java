@@ -2173,6 +2173,68 @@ public class Morphium {
     }
 
 
+    public <T> void insert(T o) {
+        if (o instanceof List) {
+            insertList((List) o, null);
+        } else if (o instanceof Collection) {
+            //noinspection unchecked,unchecked
+            insertList(new ArrayList<>((Collection) o), null);
+        } else {
+            insert(o, null);
+        }
+    }
+
+    public <T> void insert(T o, AsyncOperationCallback<T> callback) {
+        if (o instanceof List) {
+            //noinspection unchecked
+            insertList((List) o, callback);
+        } else if (o instanceof Collection) {
+            //noinspection unchecked,unchecked
+            insertList(new ArrayList<>((Collection) o), callback);
+        } else {
+            insert(o, getMapper().getCollectionName(o.getClass()), callback);
+        }
+    }
+
+
+    private <T> void insert(T o, String collection, AsyncOperationCallback<T> callback) {
+        if (o instanceof List) {
+            //noinspection unchecked
+            insertList((List) o, collection, callback);
+        } else if (o instanceof Collection) {
+            //noinspection unchecked,unchecked
+            insertList(new ArrayList<>((Collection) o), collection, callback);
+        }
+
+        getWriterForClass(o.getClass()).insert(o, collection, callback);
+    }
+
+    private <T> void insertList(List lst, String collection, AsyncOperationCallback<T> callback) {
+        Map<Class<?>, MorphiumWriter> writers = new HashMap<>();
+        Map<Class<?>, List<Object>> values = new HashMap<>();
+        for (Object o : lst) {
+            writers.putIfAbsent(o.getClass(), getWriterForClass(o.getClass()));
+            values.putIfAbsent(o.getClass(), new ArrayList<>());
+            values.get(o.getClass()).add(o);
+        }
+        for (Class cls : writers.keySet()) {
+            try {
+                //noinspection unchecked
+                writers.get(cls).insert((List<T>) values.get(cls), collection, callback);
+            } catch (Exception e) {
+                logger.error("Write failed for " + cls.getName() + " lst of size " + values.get(cls).size(), e);
+            }
+        }
+    }
+
+    private <T> void insertList(List arrayList, AsyncOperationCallback<T> callback) {
+        insertList(arrayList, null, callback);
+    }
+
+    private <T> void insertList(List arrayList) {
+        insertList(arrayList, null, null);
+    }
+
     /**
      * Stores a single Object. Clears the corresponding cache
      *
@@ -2185,8 +2247,9 @@ public class Morphium {
         } else if (o instanceof Collection) {
             //noinspection unchecked,unchecked
             storeList(new ArrayList<>((Collection) o));
+        } else {
+            store(o, null);
         }
-        store(o, null);
     }
 
     public <T> void store(T o, final AsyncOperationCallback<T> callback) {
@@ -2196,8 +2259,9 @@ public class Morphium {
         } else if (o instanceof Collection) {
             //noinspection unchecked,unchecked
             storeList(new ArrayList<>((Collection) o), callback);
+        } else {
+            store(o, getMapper().getCollectionName(o.getClass()), callback);
         }
-        store(o, getMapper().getCollectionName(o.getClass()), callback);
     }
 
     public <T> void store(T o, String collection, final AsyncOperationCallback<T> callback) {

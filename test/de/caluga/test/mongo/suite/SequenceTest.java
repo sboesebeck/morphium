@@ -124,7 +124,7 @@ public class SequenceTest extends MongoTest {
         morphium.dropCollection(Sequence.class);
         Vector<SequenceGenerator> gens = new Vector<>();
         //creating lots of sequences
-        for (int i = 0; i < 20; i++) {
+        for (int i = 0; i < 10; i++) {
             SequenceGenerator sg1 = new SequenceGenerator(morphium, "tstseq_" + i, i % 3 + 1, i);
             gens.add(sg1);
         }
@@ -134,7 +134,7 @@ public class SequenceTest extends MongoTest {
             Thread t = new Thread() {
                 @Override
                 public void run() {
-                    double max = Math.random() * 100;
+                    double max = Math.random() * 10;
                     for (int i = 0; i < max; i++) {
                         long cv = g.getCurrentValue();
                         long nv = g.getNextValue();

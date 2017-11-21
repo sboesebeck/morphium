@@ -24,6 +24,8 @@ public interface MorphiumWriter {
      */
     <T> void store(T o, String collection, AsyncOperationCallback<T> callback);
 
+    <T> void insert(T o, String collection, AsyncOperationCallback<T> callback);
+
     /**
      * stores the given list of objects, should be entities or embedded.
      *
@@ -31,6 +33,12 @@ public interface MorphiumWriter {
      */
     <T> void store(List<T> lst, AsyncOperationCallback<T> callback);
 
+    <T> void insert(List<T> o, AsyncOperationCallback<T> callback);
+
+
+    <T> void store(List<T> lst, String collectionName, AsyncOperationCallback<T> callback);
+
+    <T> void insert(List<T> lst, String collectionName, AsyncOperationCallback<T> callback);
     /**
      * update an object using fields specified
      *
@@ -123,7 +131,6 @@ public interface MorphiumWriter {
 
     int writeBufferCount();
 
-    <T> void store(List<T> lst, String collectionName, AsyncOperationCallback<T> callback);
 
     void flush();
 
