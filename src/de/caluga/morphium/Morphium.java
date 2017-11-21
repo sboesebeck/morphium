@@ -1870,7 +1870,7 @@ public class Morphium {
         CreationTime ct = getARHelper().getAnnotationFromHierarchy(o.getClass(), CreationTime.class);
         if (ct != null && config.isCheckForNew() && ct.checkForNew() && !aNew) {
             //check if it is new or not
-            reread = reread(o);
+            reread = findById(getARHelper().getRealClass(o.getClass()), getARHelper().getId(o));//reread(o);
             aNew = reread == null;
         }
         if (getARHelper().isAnnotationPresentInHierarchy(type, CreationTime.class) && aNew) {
@@ -2277,8 +2277,11 @@ public class Morphium {
             //noinspection unchecked,unchecked
             storeList(new ArrayList<>((Collection) o), collection, callback);
         }
-
-        getWriterForClass(o.getClass()).store(o, collection, callback);
+        if (getARHelper().getId(o) != null) {
+            getWriterForClass(o.getClass()).store(o, collection, callback);
+        } else {
+            getWriterForClass(o.getClass()).insert(o, collection, callback);
+        }
     }
 
     public <T> void store(List<T> lst, AsyncOperationCallback<T> callback) {
@@ -2329,21 +2332,42 @@ public class Morphium {
     public <T> void storeList(List<T> lst, final AsyncOperationCallback<T> callback) {
         //have to sort list - might have different objects
         List<T> storeDirect = new ArrayList<>();
+        List<T> insertDirect = new ArrayList<>();
         if (isWriteBufferEnabledForThread()) {
             final List<T> storeInBg = new ArrayList<>();
+            final List<T> insertInBg = new ArrayList<>();
 
             //checking permission - might take some time ;-(
             for (T o : lst) {
                 if (annotationHelper.isBufferedWrite(getARHelper().getRealClass(o.getClass()))) {
-                    storeInBg.add(o);
+                    if (getARHelper().getId(o) == null) {
+                        insertInBg.add(o);
+                    } else {
+                        storeInBg.add(o);
+                    }
                 } else {
-                    storeDirect.add(o);
+                    if (getARHelper().getId(o) == null) {
+                        insertDirect.add(o);
+                    } else {
+                        storeDirect.add(o);
+                    }
                 }
             }
             config.getBufferedWriter().store(storeInBg, callback);
             config.getWriter().store(storeDirect, callback);
+            config.getBufferedWriter().insert(insertInBg, callback);
+            config.getWriter().insert(insertDirect, callback);
         } else {
-            config.getWriter().store(lst, callback);
+
+            for (T o : lst) {
+                if (getARHelper().getId(o) == null) {
+                    insertDirect.add(o);
+                } else {
+                    storeDirect.add(o);
+                }
+            }
+            config.getWriter().store(storeDirect, callback);
+            config.getWriter().insert(insertDirect, callback);
         }
     }
 

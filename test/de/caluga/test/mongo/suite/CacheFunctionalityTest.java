@@ -111,7 +111,7 @@ public class CacheFunctionalityTest extends MongoTest {
     public void multiThreadAccessTest() throws Exception {
         int amount = 1000;
         createCachedObjects(amount);
-        Thread.sleep(500);
+        Thread.sleep(1500);
         for (int i = 0; i < amount; i++) {
             CachedObject o = morphium.createQueryFor(CachedObject.class).f("counter").eq(i + 1).get();
             assert (o != null) : "Not found: " + i;

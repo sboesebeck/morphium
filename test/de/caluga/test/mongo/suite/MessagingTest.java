@@ -835,7 +835,7 @@ public class MessagingTest extends MongoTest {
         m.setName("A message");
 
         sender.queueMessage(m);
-        Thread.sleep(1000);
+        Thread.sleep(2000);
 
         int rec = 0;
         if (gotMessage1) {

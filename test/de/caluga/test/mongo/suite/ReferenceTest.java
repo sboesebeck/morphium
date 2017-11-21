@@ -232,6 +232,7 @@ public class ReferenceTest extends MongoTest {
         assert (wouldDeref = true);
         //noinspection ConstantConditions
         assert (didDeref = true);
+        morphium.removeDerrferencingListener(deRef);
     }
 
     @Test
