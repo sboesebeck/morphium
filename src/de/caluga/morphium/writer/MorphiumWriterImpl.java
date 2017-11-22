@@ -1909,7 +1909,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                     idx.put(fn, es.getValue());
                 }
                 long start = System.currentTimeMillis();
-                Map<String, Object> keys = new HashMap<>(idx);
+                Map<String, Object> keys = new LinkedHashMap<>(idx);
                 String coll = collection;
                 if (coll == null) {
                     coll = morphium.getMapper().getCollectionName(cls);
