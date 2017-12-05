@@ -3,7 +3,7 @@ package de.caluga.morphium.replicaset;
 import de.caluga.morphium.Morphium;
 import de.caluga.morphium.ShutdownListener;
 import de.caluga.morphium.driver.MorphiumDriverException;
-import org.bson.types.BSONTimestamp;
+import org.bson.BsonTimestamp;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -95,7 +95,7 @@ public class OplogMonitor implements Runnable, ShutdownListener {
     public void run() {
         Map<String, Object> q = new LinkedHashMap<>();
         Map<String, Object> q2 = new HashMap<>();
-        q2.put("$gt", new BSONTimestamp((int) timestamp, 0));
+        q2.put("$gt", new BsonTimestamp((int) timestamp, 0));
         String ns;
 
 
