@@ -1,7 +1,8 @@
 package de.caluga.test.mongo.suite;
 
-import de.caluga.morphium.Logger;
 import org.junit.Test;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -14,7 +15,7 @@ import java.util.Map;
  * TODO: Add documentation here
  */
 public class CloneMapTest {
-    private Logger log = new Logger(CloneMapTest.class);
+    private Logger log = LoggerFactory.getLogger(CloneMapTest.class);
 
     @Test
     public void testCompare() {

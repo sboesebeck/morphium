@@ -1,6 +1,9 @@
 package de.caluga.morphium.cache;
 
-import de.caluga.morphium.*;
+import de.caluga.morphium.AnnotationAndReflectionHelper;
+import de.caluga.morphium.Morphium;
+import de.caluga.morphium.MorphiumAccessVetoException;
+import de.caluga.morphium.MorphiumStorageListener;
 import de.caluga.morphium.annotations.Entity;
 import de.caluga.morphium.annotations.caching.Cache;
 import de.caluga.morphium.messaging.MessageListener;
@@ -8,6 +11,8 @@ import de.caluga.morphium.messaging.Messaging;
 import de.caluga.morphium.messaging.Msg;
 import de.caluga.morphium.messaging.MsgType;
 import de.caluga.morphium.query.Query;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.*;
 import java.util.stream.Collectors;
@@ -33,7 +38,7 @@ import java.util.stream.Collectors;
 public class CacheSynchronizer implements MessageListener, MorphiumStorageListener<Object> {
     public static final String CACHE_SYNC_TYPE = "cacheSyncType";
     public static final String CACHE_SYNC_RECORD = "cacheSyncRecord";
-    private static final Logger log = new Logger(CacheSynchronizer.class);
+    private static final Logger log = LoggerFactory.getLogger(CacheSynchronizer.class);
     private Messaging messaging;
     private Morphium morphium;
     private List<CacheSyncListener> listeners = Collections.synchronizedList(new ArrayList<>());

@@ -1,12 +1,13 @@
 package de.caluga.morphium.messaging;
 
-import de.caluga.morphium.Logger;
 import de.caluga.morphium.Morphium;
 import de.caluga.morphium.ShutdownListener;
 import de.caluga.morphium.async.AsyncOperationCallback;
 import de.caluga.morphium.async.AsyncOperationType;
 import de.caluga.morphium.query.MorphiumIterator;
 import de.caluga.morphium.query.Query;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.net.InetAddress;
 import java.net.UnknownHostException;
@@ -23,7 +24,7 @@ import java.util.concurrent.atomic.AtomicInteger;
  */
 @SuppressWarnings({"ConstantConditions", "unchecked", "UnusedDeclaration"})
 public class Messaging extends Thread implements ShutdownListener {
-    private static Logger log = new Logger(Messaging.class);
+    private static Logger log = LoggerFactory.getLogger(Messaging.class);
 
     private Morphium morphium;
     private boolean running;
@@ -181,7 +182,7 @@ public class Messaging extends Thread implements ShutdownListener {
                     }
                     Runnable r = () -> {
                         if (m.getProcessedBy() != null && m.getProcessedBy().contains(id)) {
-                            log.fatal("Was already processed - ERROR?");
+                            log.error("Was already processed - ERROR?");
                             throw new RuntimeException("was already processed - error on mongo query result!");
                         }
                         final Msg msg = morphium.reread(m, getCollectionName()); //make sure it's current version in DB

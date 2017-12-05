@@ -2,9 +2,10 @@ package de.caluga.morphium.query;/**
  * Created by stephan on 04.04.16.
  */
 
-import de.caluga.morphium.Logger;
 import de.caluga.morphium.driver.MorphiumCursor;
 import de.caluga.morphium.driver.MorphiumDriverException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.ArrayList;
 import java.util.Iterator;
@@ -17,7 +18,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
  * iterating over huge collections using the db interal cursor. This iterator does create a thread reading the data
  **/
 public class PrefetchingDriverIterator<T> implements MorphiumIterator<T> {
-    private final Logger log = new de.caluga.morphium.Logger(PrefetchingDriverIterator.class);
+    private final Logger log = LoggerFactory.getLogger(PrefetchingDriverIterator.class);
     private long lastAccess = System.currentTimeMillis();
     private List<List<T>> prefetchBuffer; //each entry is one buffer
     private Query<T> query;

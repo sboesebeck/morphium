@@ -18,9 +18,9 @@ import de.caluga.morphium.writer.BufferedMorphiumWriterImpl;
 import de.caluga.morphium.writer.MorphiumWriter;
 import de.caluga.morphium.writer.MorphiumWriterImpl;
 import org.json.simple.parser.ParseException;
+import org.slf4j.LoggerFactory;
 
 import java.lang.reflect.Field;
-import java.lang.reflect.InvocationTargetException;
 import java.net.UnknownHostException;
 import java.util.*;
 
@@ -54,10 +54,6 @@ public class MorphiumConfig {
     private boolean checkForNew = true;
     private int writeTimeout = 0;
     private boolean replicaset = true;
-
-    private int globalLogLevel = 0;
-    private boolean globalLogSynced = false;
-    private String globalLogFile = null;
 
     //maximum number of tries to queue a write operation
     private int maximumRetriesBufferedWriter = 10;
@@ -193,21 +189,7 @@ public class MorphiumConfig {
             }
         }
 
-        if (globalLogFile == null) {
-            globalLogFile = "-";
-        }
-        if (prop.containsKey(prefix + "log.level")) {
-            setGlobalLogLevel(Integer.valueOf((String) prop.get(prefix + "log.level")));
-        }
-        if (prop.containsKey(prefix + "log.file")) {
-            setGlobalLogFile((String) prop.get(prefix + "log.file"));
-        }
-        if (prop.containsKey(prefix + "log.synced")) {
-            setGlobalLogSynced(prop.get(prefix + "log.synced").equals("true"));
-        }
-        setGlobalLogLevel(globalLogLevel);
-        setGlobalLogSynced(globalLogSynced);
-        setGlobalLogFile(globalLogFile);
+
         //Store log settings!
         for (Object k : prop.keySet()) {
             String key = (String) k;
@@ -220,7 +202,6 @@ public class MorphiumConfig {
         } catch (UnknownHostException | InstantiationException | IllegalAccessException | NoSuchFieldException | ClassNotFoundException e) {
             throw new RuntimeException(e);
         }
-        LoggerRegistry.get().updateSettings();
     }
 
     public MorphiumConfig() {
@@ -235,7 +216,7 @@ public class MorphiumConfig {
 
     }
 
-    public static MorphiumConfig createFromJson(String json) throws ParseException, NoSuchFieldException, ClassNotFoundException, IllegalAccessException, InstantiationException, UnknownHostException, NoSuchMethodException, InvocationTargetException {
+    public static MorphiumConfig createFromJson(String json) throws ParseException, NoSuchFieldException, ClassNotFoundException, IllegalAccessException, InstantiationException, UnknownHostException {
         MorphiumConfig cfg = new ObjectMapperImpl().unmarshall(MorphiumConfig.class, json);
         parseClassSettings(cfg, cfg.restoreData);
         for (Object ko : cfg.restoreData.keySet()) {
@@ -253,7 +234,7 @@ public class MorphiumConfig {
         return cfg;
     }
 
-    private static void parseClassSettings(MorphiumConfig cfg, Map settings) throws UnknownHostException, ClassNotFoundException, NoSuchFieldException, IllegalAccessException, InstantiationException {
+    private static void parseClassSettings(MorphiumConfig cfg, Map settings) throws ClassNotFoundException, NoSuchFieldException, IllegalAccessException, InstantiationException {
         for (Object ko : settings.keySet()) {
             String k = (String) ko;
             String value = (String) settings.get(k);
@@ -281,11 +262,11 @@ public class MorphiumConfig {
         cfg.getQueryFact().setQueryImpl(cfg.getQueryClass());
     }
 
-    public static MorphiumConfig fromProperties(String prefix, Properties p) throws ClassNotFoundException, NoSuchFieldException, InstantiationException, IllegalAccessException, UnknownHostException {
+    public static MorphiumConfig fromProperties(String prefix, Properties p) {
         return new MorphiumConfig(prefix, p);
     }
 
-    public static MorphiumConfig fromProperties(Properties p) throws ClassNotFoundException, NoSuchFieldException, InstantiationException, IllegalAccessException, UnknownHostException {
+    public static MorphiumConfig fromProperties(Properties p) {
         return new MorphiumConfig(p);
     }
 
@@ -337,7 +318,7 @@ public class MorphiumConfig {
 
     public void setRetriesOnNetworkError(int retriesOnNetworkError) {
         if (retriesOnNetworkError == 0) {
-            new Logger(MorphiumConfig.class).warn("Cannot set retries on network error to 0 - minimum is 1");
+            LoggerFactory.getLogger(MorphiumConfig.class).warn("Cannot set retries on network error to 0 - minimum is 1");
             retriesOnNetworkError = 1;
         }
         this.retriesOnNetworkError = retriesOnNetworkError;
@@ -1155,63 +1136,6 @@ public class MorphiumConfig {
         this.requiredReplicaSetName = requiredReplicaSetName;
     }
 
-    public int getGlobalLogLevel() {
-        return globalLogLevel;
-    }
-
-    public void setGlobalLogLevel(int globalLogLevel) {
-        this.globalLogLevel = globalLogLevel;
-        System.setProperty("morphium.log.level", "" + globalLogLevel);
-        LoggerRegistry.get().updateSettings();
-    }
-
-    public boolean isGlobalLogSynced() {
-        return globalLogSynced;
-    }
-
-    public void setGlobalLogSynced(boolean globalLogSynced) {
-        this.globalLogSynced = globalLogSynced;
-        System.setProperty("morphium.log.synced", "" + globalLogSynced);
-        LoggerRegistry.get().updateSettings();
-
-    }
-
-    public String getGlobalLogFile() {
-        return globalLogFile;
-    }
-
-    public void setGlobalLogFile(String globalLogFile) {
-        this.globalLogFile = globalLogFile;
-        System.setProperty("morphium.log.file", globalLogFile);
-        LoggerRegistry.get().updateSettings();
-    }
-
-    public void setLogFileForClass(Class cls, String file) {
-        setLogFileForPrefix(cls.getName(), file);
-    }
-
-    public void setLogFileForPrefix(String prf, String file) {
-        System.setProperty("morphium.log.file." + prf, file);
-        LoggerRegistry.get().updateSettings();
-    }
-
-    public void setLogLevelForClass(Class cls, int level) {
-        setLogLevelForPrefix(cls.getName(), level);
-    }
-
-    public void setLogLevelForPrefix(String cls, int level) {
-        System.setProperty("morphium.log.level." + cls, "" + level);
-        LoggerRegistry.get().updateSettings();
-    }
-
-    public void setLogSyncedForClass(Class cls, boolean synced) {
-        setLogSyncedForPrefix(cls.getName(), synced);
-    }
-
-    public void setLogSyncedForPrefix(String cls, boolean synced) {
-        System.setProperty("morphium.log.synced." + cls, synced ? "true" : "false");
-        LoggerRegistry.get().updateSettings();
-    }
 
     public String getDefaultTags() {
         return defaultTags;

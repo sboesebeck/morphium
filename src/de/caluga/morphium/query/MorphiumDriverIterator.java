@@ -1,8 +1,9 @@
 package de.caluga.morphium.query;
 
-import de.caluga.morphium.Logger;
 import de.caluga.morphium.driver.MorphiumCursor;
 import de.caluga.morphium.driver.MorphiumDriverException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.Collections;
 import java.util.Iterator;
@@ -17,7 +18,7 @@ import java.util.List;
  */
 public class MorphiumDriverIterator<T> implements MorphiumIterator<T> {
 
-    private final Logger log = new Logger(MorphiumDriverIterator.class);
+    private final Logger log = LoggerFactory.getLogger(MorphiumDriverIterator.class);
     private Query<T> query;
     private MorphiumCursor<T> currentBatch = null;
 
