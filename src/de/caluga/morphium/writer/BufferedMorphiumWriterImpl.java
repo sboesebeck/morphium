@@ -12,6 +12,8 @@ import de.caluga.morphium.driver.bulk.DeleteBulkRequest;
 import de.caluga.morphium.driver.bulk.InsertBulkRequest;
 import de.caluga.morphium.driver.bulk.UpdateBulkRequest;
 import de.caluga.morphium.query.Query;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.lang.reflect.Field;
 import java.util.*;
@@ -30,7 +32,7 @@ import java.util.stream.Stream;
 @SuppressWarnings({"EmptyCatchBlock", "SynchronizeOnNonFinalField", "WeakerAccess"})
 public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
 
-    private static final Logger logger = new Logger(BufferedMorphiumWriterImpl.class);
+    private static final Logger logger = LoggerFactory.getLogger(BufferedMorphiumWriterImpl.class);
     //needs to be securely stored
     private final Map<Class<?>, List<WriteBufferEntry>> opLog = new ConcurrentHashMap<>(); //synced
     private final Map<Class<?>, Long> lastRun = new ConcurrentHashMap<>();
@@ -203,7 +205,7 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
                             timeout = morphium.getConfig().getMaxWaitTime();
                         }
                         if (timeout > 0 && System.currentTimeMillis() - start > timeout) {
-                            logger.fatal("Could not write - maxWaitTime/timeout exceeded!");
+                            logger.error("Could not write - maxWaitTime/timeout exceeded!");
                             throw new RuntimeException("could now write - maxWaitTimeExceded " + morphium.getConfig().getMaxWaitTime() + "ms");
                         }
                         Thread.yield();

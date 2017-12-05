@@ -1,8 +1,12 @@
 package de.caluga.morphium.validation;
 
-import de.caluga.morphium.*;
+import de.caluga.morphium.AnnotationAndReflectionHelper;
+import de.caluga.morphium.Morphium;
+import de.caluga.morphium.MorphiumAccessVetoException;
+import de.caluga.morphium.MorphiumStorageAdapter;
 import de.caluga.morphium.annotations.Embedded;
 import de.caluga.morphium.annotations.Entity;
+import org.slf4j.LoggerFactory;
 
 import javax.validation.*;
 import java.lang.reflect.Field;
@@ -53,7 +57,7 @@ public class JavaxValidationStorageListener extends MorphiumStorageAdapter<Objec
                     Set<ConstraintViolation<Object>> v = validator.validate(field.get(r));
                     violations.addAll(v);
                 } catch (IllegalAccessException e) {
-                    new Logger(JavaxValidationStorageListener.class).error("Could not access Field: " + f);
+                    LoggerFactory.getLogger(JavaxValidationStorageListener.class).error("Could not access Field: " + f);
                 }
             } else if (Collection.class.isAssignableFrom(field.getType())) {
                 //list handling
@@ -69,7 +73,7 @@ public class JavaxValidationStorageListener extends MorphiumStorageAdapter<Objec
                     }
 
                 } catch (IllegalAccessException e) {
-                    new Logger(JavaxValidationStorageListener.class).error("Could not access list field: " + f);
+                    LoggerFactory.getLogger(JavaxValidationStorageListener.class).error("Could not access list field: " + f);
                 }
             } else if (Map.class.isAssignableFrom(field.getType())) {
                 //usually only strings are allowed as keys - especially no embedded or entitiy types

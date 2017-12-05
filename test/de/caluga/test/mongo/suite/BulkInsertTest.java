@@ -28,7 +28,7 @@ public class BulkInsertTest extends MongoTest {
 
     @Test
     public void maxWriteBatchTest() throws Exception {
-        logSeparator("Using driver: " + morphium.getDriver().getClass().getName());
+        //logSeparator("Using driver: " + morphium.getDriver().getClass().getName());
         morphium.clearCollection(UncachedObject.class);
 
         List<UncachedObject> lst = new ArrayList<>();
@@ -58,8 +58,8 @@ public class BulkInsertTest extends MongoTest {
     }
 
     @Test
-    public void bulkInsert() throws Exception {
-        logSeparator("Using driver: " + morphium.getDriver().getClass().getName());
+    public void bulkInsert() {
+        //logSeparator("Using driver: " + morphium.getDriver().getClass().getName());
         morphium.clearCollection(UncachedObject.class);
         log.info("Start storing single");
         long start = System.currentTimeMillis();
@@ -97,7 +97,7 @@ public class BulkInsertTest extends MongoTest {
 
     @Test
     public void bulkInsertAsync() throws Exception {
-        logSeparator("Using driver: " + morphium.getDriver().getClass().getName());
+        //logSeparator("Using driver: " + morphium.getDriver().getClass().getName());
         morphium.clearCollection(UncachedObject.class);
         log.info("Start storing single");
         long start = System.currentTimeMillis();
@@ -148,7 +148,7 @@ public class BulkInsertTest extends MongoTest {
 
 
     @Test(expected = IllegalArgumentException.class)
-    public void bulkInsertNonId() throws Exception {
+    public void bulkInsertNonId() {
         morphium.dropCollection(Person.class);
         List<Person> prs = new ArrayList<>();
         for (int i = 0; i < 100; i++) {

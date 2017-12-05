@@ -11,7 +11,6 @@ import com.mongodb.client.model.InsertManyOptions;
 import com.mongodb.client.model.UpdateOptions;
 import com.mongodb.client.result.DeleteResult;
 import com.mongodb.client.result.UpdateResult;
-import de.caluga.morphium.Logger;
 import de.caluga.morphium.Morphium;
 import de.caluga.morphium.driver.*;
 import de.caluga.morphium.driver.ReadPreference;
@@ -19,6 +18,8 @@ import de.caluga.morphium.driver.bulk.BulkRequestContext;
 import org.bson.*;
 import org.bson.types.BSONTimestamp;
 import org.bson.types.ObjectId;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.*;
 import java.util.concurrent.TimeUnit;
@@ -27,7 +28,7 @@ import java.util.stream.Collectors;
 
 @SuppressWarnings({"WeakerAccess", "deprecation"})
 public class Driver implements MorphiumDriver {
-    private final Logger log = new Logger(Driver.class);
+    private final Logger log = LoggerFactory.getLogger(Driver.class);
     private String[] hostSeed;
     private int maxConnectionsPerHost = 50;
     private int minConnectionsPerHost = 10;
@@ -486,7 +487,7 @@ public class Driver implements MorphiumDriver {
     }
 
     @Override
-    public Map<String, Object> getOps(long threshold) throws MorphiumDriverException {
+    public Map<String, Object> getOps(long threshold) {
         throw new RuntimeException("Not implemented yet, sorry...");
         //        return null;
     }
@@ -1104,7 +1105,7 @@ public class Driver implements MorphiumDriver {
     }
 
     @Override
-    public boolean exists(String db) throws MorphiumDriverException {
+    public boolean exists(String db) {
         for (String dbName : mongo.getDatabaseNames()) {
             if (dbName.equals(db)) {
                 return true;
@@ -1348,7 +1349,7 @@ public class Driver implements MorphiumDriver {
     }
 
     @Override
-    public List<Map<String, Object>> mapReduce(String db, String collection, String mapping, String reducing, Map<String, Object> query, Map<String, Object> sorting) throws MorphiumDriverException {
+    public List<Map<String, Object>> mapReduce(String db, String collection, String mapping, String reducing, Map<String, Object> query, Map<String, Object> sorting) {
         MapReduceIterable<Document> res = mongo.getDatabase(db).getCollection(collection).mapReduce(mapping, reducing);
         if (query != null) {
             BasicDBObject v = new BasicDBObject(query);

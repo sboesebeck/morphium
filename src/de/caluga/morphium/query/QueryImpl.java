@@ -6,6 +6,8 @@ import de.caluga.morphium.annotations.caching.Cache;
 import de.caluga.morphium.async.AsyncOperationCallback;
 import de.caluga.morphium.async.AsyncOperationType;
 import de.caluga.morphium.driver.MorphiumDriverException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.lang.reflect.Array;
 import java.lang.reflect.Field;
@@ -22,7 +24,7 @@ import java.util.stream.Collectors;
  */
 @SuppressWarnings("WeakerAccess")
 public class QueryImpl<T> implements Query<T>, Cloneable {
-    private static final Logger log = new Logger(Query.class);
+    private static final Logger log = LoggerFactory.getLogger(Query.class);
     private String where;
     private Class<? extends T> type;
     private List<FilterExpression> andExpr;
@@ -988,7 +990,7 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
         return ret;
     }
 
-    public Query<T> clone() throws CloneNotSupportedException {
+    public Query<T> clone() {
         try {
             @SuppressWarnings("unchecked") QueryImpl<T> ret = (QueryImpl<T>) super.clone();
             if (andExpr != null) {

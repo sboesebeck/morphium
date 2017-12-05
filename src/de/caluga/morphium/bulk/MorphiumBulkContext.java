@@ -2,7 +2,6 @@ package de.caluga.morphium.bulk;/**
  * Created by stephan on 18.11.15.
  */
 
-import de.caluga.morphium.Logger;
 import de.caluga.morphium.MorphiumStorageListener;
 import de.caluga.morphium.Utils;
 import de.caluga.morphium.async.AsyncOperationCallback;
@@ -12,6 +11,8 @@ import de.caluga.morphium.driver.bulk.BulkRequestContext;
 import de.caluga.morphium.driver.bulk.DeleteBulkRequest;
 import de.caluga.morphium.driver.bulk.UpdateBulkRequest;
 import de.caluga.morphium.query.Query;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -22,7 +23,7 @@ import java.util.Map;
  * context for doing bulk operations. What it does is, it stores all operations here and will send them to mongodb en block
  **/
 public class MorphiumBulkContext<T> {
-    private final Logger log = new Logger(MorphiumBulkContext.class);
+    private final Logger log = LoggerFactory.getLogger(MorphiumBulkContext.class);
     private final BulkRequestContext ctx;
 
     private final List<Runnable> preEvents = new ArrayList<>();
