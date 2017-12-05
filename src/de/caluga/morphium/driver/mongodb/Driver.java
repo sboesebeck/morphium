@@ -2,6 +2,7 @@ package de.caluga.morphium.driver.mongodb;/**
  * Created by stephan on 05.11.15.
  */
 
+
 import com.mongodb.*;
 import com.mongodb.client.FindIterable;
 import com.mongodb.client.MapReduceIterable;
@@ -16,7 +17,6 @@ import de.caluga.morphium.driver.*;
 import de.caluga.morphium.driver.ReadPreference;
 import de.caluga.morphium.driver.bulk.BulkRequestContext;
 import org.bson.*;
-import org.bson.types.BSONTimestamp;
 import org.bson.types.ObjectId;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -711,8 +711,8 @@ public class Driver implements MorphiumDriver {
             Object value = d.get(k);
             if (value instanceof BsonTimestamp) {
                 value = (((BsonTimestamp) value).getTime() * 1000);
-            } else if (value instanceof BSONTimestamp) {
-                value = (((BSONTimestamp) value).getTime() * 1000);
+            } else if (value instanceof BsonTimestamp) {
+                value = (((BsonTimestamp) value).getTime() * 1000);
             } else if (value instanceof BsonDocument) {
                 value = convertBSON((Map) value);
             } else if (value instanceof BsonBoolean) {
@@ -1339,12 +1339,12 @@ public class Driver implements MorphiumDriver {
 
 
     @Override
-    public List<Map<String, Object>> mapReduce(String db, String collection, String mapping, String reducing) throws MorphiumDriverException {
+    public List<Map<String, Object>> mapReduce(String db, String collection, String mapping, String reducing) {
         return mapReduce(db, collection, mapping, reducing, null, null);
     }
 
     @Override
-    public List<Map<String, Object>> mapReduce(String db, String collection, String mapping, String reducing, Map<String, Object> query) throws MorphiumDriverException {
+    public List<Map<String, Object>> mapReduce(String db, String collection, String mapping, String reducing, Map<String, Object> query) {
         return mapReduce(db, collection, mapping, reducing, query, null);
     }
 

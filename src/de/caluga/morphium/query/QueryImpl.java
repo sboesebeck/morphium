@@ -435,12 +435,7 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
 
     @SuppressWarnings("unused")
     private Query<T> getClone() {
-        try {
-            return clone();
-        } catch (CloneNotSupportedException e) {
-            log.error("Clone not supported?!?!?!");
-            throw new RuntimeException(e);
-        }
+        return clone();
     }
 
     @SafeVarargs

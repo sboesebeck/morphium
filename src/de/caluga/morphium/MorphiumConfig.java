@@ -21,7 +21,6 @@ import org.json.simple.parser.ParseException;
 import org.slf4j.LoggerFactory;
 
 import java.lang.reflect.Field;
-import java.net.UnknownHostException;
 import java.util.*;
 
 /**
@@ -199,7 +198,7 @@ public class MorphiumConfig {
         }
         try {
             parseClassSettings(this, prop);
-        } catch (UnknownHostException | InstantiationException | IllegalAccessException | NoSuchFieldException | ClassNotFoundException e) {
+        } catch (InstantiationException | IllegalAccessException | NoSuchFieldException | ClassNotFoundException e) {
             throw new RuntimeException(e);
         }
     }
@@ -216,7 +215,7 @@ public class MorphiumConfig {
 
     }
 
-    public static MorphiumConfig createFromJson(String json) throws ParseException, NoSuchFieldException, ClassNotFoundException, IllegalAccessException, InstantiationException, UnknownHostException {
+    public static MorphiumConfig createFromJson(String json) throws ParseException, NoSuchFieldException, ClassNotFoundException, IllegalAccessException, InstantiationException {
         MorphiumConfig cfg = new ObjectMapperImpl().unmarshall(MorphiumConfig.class, json);
         parseClassSettings(cfg, cfg.restoreData);
         for (Object ko : cfg.restoreData.keySet()) {
