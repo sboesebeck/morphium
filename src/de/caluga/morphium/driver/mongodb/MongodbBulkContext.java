@@ -2,12 +2,13 @@ package de.caluga.morphium.driver.mongodb;
 
 import com.mongodb.bulk.BulkWriteResult;
 import com.mongodb.client.model.*;
-import de.caluga.morphium.Logger;
 import de.caluga.morphium.Morphium;
 import de.caluga.morphium.driver.ReadPreference;
 import de.caluga.morphium.driver.WriteConcern;
 import de.caluga.morphium.driver.bulk.*;
 import org.bson.Document;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -23,7 +24,7 @@ import java.util.Map;
  */
 @SuppressWarnings("WeakerAccess")
 public class MongodbBulkContext extends BulkRequestContext {
-    private final Logger log = new Logger(MongodbBulkContext.class);
+    private final Logger log = LoggerFactory.getLogger(MongodbBulkContext.class);
     private final Driver driver;
     private final boolean ordered;
     private final String db;

@@ -1,10 +1,11 @@
 package de.caluga.morphium.replicaset;
 
-import de.caluga.morphium.Logger;
 import de.caluga.morphium.Morphium;
 import de.caluga.morphium.ShutdownListener;
 import de.caluga.morphium.driver.MorphiumDriverException;
 import org.bson.types.BSONTimestamp;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.Collection;
 import java.util.HashMap;
@@ -19,7 +20,7 @@ import java.util.regex.Pattern;
 public class OplogMonitor implements Runnable, ShutdownListener {
     private final Collection<OplogListener> listeners;
     private final Morphium morphium;
-    private final Logger log = new Logger(OplogMonitor.class);
+    private final Logger log = LoggerFactory.getLogger(OplogMonitor.class);
     private final String nameSpace;
     private final boolean useRegex;
     private boolean running = true;

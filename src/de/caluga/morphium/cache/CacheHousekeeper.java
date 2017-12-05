@@ -5,12 +5,13 @@
 package de.caluga.morphium.cache;
 
 import de.caluga.morphium.AnnotationAndReflectionHelper;
-import de.caluga.morphium.Logger;
 import de.caluga.morphium.Morphium;
 import de.caluga.morphium.ShutdownListener;
 import de.caluga.morphium.annotations.caching.Cache;
 import de.caluga.morphium.annotations.caching.Cache.ClearStrategy;
 import de.caluga.morphium.annotations.caching.NoCache;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
@@ -22,7 +23,7 @@ public class CacheHousekeeper extends Thread implements ShutdownListener {
     private Map<Class<?>, Integer> validTimeForClass;
     private int gcTimeout = 5000;
     private boolean running = true;
-    private Logger log = new Logger(CacheHousekeeper.class);
+    private Logger log = LoggerFactory.getLogger(CacheHousekeeper.class);
     private AnnotationAndReflectionHelper annotationHelper;
     private MorphiumCache morphiumCache;
 
@@ -145,19 +146,19 @@ public class CacheHousekeeper extends Thread implements ShutdownListener {
                             //                                        time = Integer.parseInt(setting.getMapValue().get(clz.getName()));
                             //
                             //                                    } catch (Exception e1) {
-                            //                                        new Logger("MongoDbLayer").warn("Timout could not be parsed for class " + clz.getName());
+                            //                                        LoggerFactory.getLogger("MongoDbLayer").warn("Timout could not be parsed for class " + clz.getName());
                             //                                    }
                             //                                    try {
                             //                                        maxEntries = Integer.parseInt(setting.getMapValue().get(clz.getName() + "_max_entries"));
                             //                                    } catch (Exception e1) {
-                            //                                        new Logger("MongoDbLayer").warn("Max Entries could not be parsed for class " + clz.getName() + " Using " + maxEntries);
+                            //                                        LoggerFactory.getLogger("MongoDbLayer").warn("Max Entries could not be parsed for class " + clz.getName() + " Using " + maxEntries);
                             //                                        setting.getMapValue().put(clz.getName() + "_max_entries", "" + maxEntries);
                             //                                        morphium.getConfig().getConfigManager().storeSetting(setting);
                             //                                    }
                             //                                    try {
                             //                                        strategy = ClearStrategy.valueOf(setting.getMapValue().get(clz.getName() + "_clear_strategy"));
                             //                                    } catch (Exception e2) {
-                            //                                        new Logger("MongoDbLayer").warn("STrategycould not be parsed for class " + clz.getName() + " Using " + strategy.name());
+                            //                                        LoggerFactory.getLogger("MongoDbLayer").warn("STrategycould not be parsed for class " + clz.getName() + " Using " + strategy.name());
                             //                                        setting.getMapValue().put(clz.getName() + "_clear_strategy", strategy.name());
                             //                                        morphium.getConfig().getConfigManager().storeSetting(setting);
                             //                                    }

@@ -1,9 +1,10 @@
 package de.caluga.morphium.cache;
 
 import de.caluga.morphium.AnnotationAndReflectionHelper;
-import de.caluga.morphium.Logger;
 import de.caluga.morphium.annotations.caching.Cache;
 import de.caluga.morphium.query.Query;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.lang.reflect.Field;
 import java.util.ArrayList;
@@ -21,7 +22,7 @@ import java.util.concurrent.ConcurrentHashMap;
  */
 public class MorphiumCacheImpl implements MorphiumCache {
     private final List<CacheListener> cacheListeners;
-    private final Logger logger = new Logger(MorphiumCacheImpl.class);
+    private final Logger logger = LoggerFactory.getLogger(MorphiumCacheImpl.class);
     private final CacheHousekeeper cacheHousekeeper;
     private Map<Class<?>, Map<String, CacheElement>> cache;
     private Map<Class<?>, Map<Object, Object>> idCache;
