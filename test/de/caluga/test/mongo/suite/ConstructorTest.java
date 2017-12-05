@@ -13,7 +13,7 @@ import org.junit.Test;
 public class ConstructorTest {
 
     @Test
-    public void testConstructors() throws Exception {
+    public void testConstructors() {
         Morphium m = new Morphium("localhost", "morphium-test");
         m.createQueryFor(UncachedObject.class).limit(10).asList();
         m.close();
@@ -37,7 +37,7 @@ public class ConstructorTest {
     }
 
     @Test
-    public void severalMorphiumTest() throws Exception {
+    public void severalMorphiumTest() {
         Morphium m = new Morphium("localhost", "morphium-test");
         UncachedObject o = new UncachedObject();
         o.setValue("Tst: " + System.nanoTime());
@@ -48,6 +48,8 @@ public class ConstructorTest {
 
         MorphiumConfig cfg = new MorphiumConfig("morphium-test", 10, 1000, 1000);
         cfg.addHostToSeed("localhost");
+        cfg.setReplicasetMonitoring(false);
+
         Morphium m2 = new Morphium(cfg);
 
         assert (m2.createQueryFor(UncachedObject.class).countAll() >= 1);
