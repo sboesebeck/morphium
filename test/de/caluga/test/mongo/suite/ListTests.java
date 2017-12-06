@@ -26,7 +26,7 @@ import static org.junit.Assert.fail;
 public class ListTests extends MongoTest {
 
     @Test
-    public void listStoringTest() throws Exception {
+    public void listStoringTest() {
         morphium.dropCollection(Uc.class);
         List<UncachedObject> lst = new ArrayList<>();
         for (int i = 0; i < 100; i++) {
@@ -101,7 +101,7 @@ public class ListTests extends MongoTest {
     }
 
     @Test
-    public void nullValueListTest() throws Exception {
+    public void nullValueListTest() {
         ListContainer lst = new ListContainer();
         int count = 2;
 
@@ -146,7 +146,7 @@ public class ListTests extends MongoTest {
 
 
     @Test
-    public void singleEntryListTest() throws Exception {
+    public void singleEntryListTest() {
         morphium.dropCollection(UncachedObject.class);
         List<UncachedObject> lst = new ArrayList<>();
         lst.add(new UncachedObject());
@@ -190,7 +190,7 @@ public class ListTests extends MongoTest {
             ListWildcardContainer testObejectToLoadFromDB = (ListWildcardContainer) q.get();
         } catch (Exception e) {
             fail("error while restoring object from db | " + e.getMessage());
-            log.error(e);
+            log.error(e.getMessage(), e);
         }
     }
 

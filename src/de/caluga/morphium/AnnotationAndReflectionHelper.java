@@ -5,6 +5,8 @@ import de.caluga.morphium.annotations.caching.AsyncWrites;
 import de.caluga.morphium.annotations.caching.WriteBuffer;
 import de.caluga.morphium.annotations.lifecycle.Lifecycle;
 import de.caluga.morphium.driver.MorphiumId;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.lang.annotation.Annotation;
 import java.lang.reflect.*;
@@ -28,7 +30,7 @@ import java.util.regex.Pattern;
 @SuppressWarnings("unchecked")
 public class AnnotationAndReflectionHelper {
     private final Annotation annotationNotPresent = () -> null;
-    private final Logger log = new Logger(AnnotationAndReflectionHelper.class);
+    private final Logger log = LoggerFactory.getLogger(AnnotationAndReflectionHelper.class);
     private final Map<Class<?>, Class<?>> realClassCache = new ConcurrentHashMap<>();
     private final Map<Class<?>, List<Field>> fieldListCache = new ConcurrentHashMap<>();
     private final Map<Class<?>, Map<Class<? extends Annotation>, Annotation>> annotationCache;
@@ -385,7 +387,7 @@ public class AnnotationAndReflectionHelper {
                 return f.get(o);
             }
         } catch (IllegalAccessException e) {
-            log.fatal("Illegal access to field " + fld + " of type " + o.getClass().getSimpleName());
+            log.error("Illegal access to field " + fld + " of type " + o.getClass().getSimpleName());
 
         }
         return null;
@@ -568,7 +570,7 @@ public class AnnotationAndReflectionHelper {
                 }
             }
         } catch (IllegalAccessException e) {
-            log.fatal("Illegal access to field " + fld + " of toype " + o.getClass().getSimpleName());
+            log.error("Illegal access to field " + fld + " of toype " + o.getClass().getSimpleName());
         }
     }
 
