@@ -1,6 +1,5 @@
 package de.caluga.test.mongo.suite;
 
-import de.caluga.morphium.Logger;
 import de.caluga.morphium.Morphium;
 import de.caluga.morphium.MorphiumConfig;
 import de.caluga.morphium.async.AsyncOperationCallback;
@@ -11,6 +10,8 @@ import de.caluga.morphium.query.Query;
 import de.caluga.test.mongo.suite.data.CachedObject;
 import de.caluga.test.mongo.suite.data.Person;
 import de.caluga.test.mongo.suite.data.UncachedObject;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.File;
 import java.io.FileReader;
@@ -42,9 +43,7 @@ public class MongoTest {
 
 
     public MongoTest() {
-        log = new Logger(getClass().getName());
-        log.setLevel(5);
-        log.setSynced(true);
+        log = LoggerFactory.getLogger(getClass().getName());
     }
 
     public static synchronized Properties getProps() {
@@ -76,7 +75,7 @@ public class MongoTest {
         //        l.addHandler(new Handler() {
         //            @Override
         //            public void publish(LogRecord record) {
-        //                Logger l=new Logger(record.getLoggerName());
+        //                Logger l=LoggerFactory.getLogger(record.getLoggerName());
         //                if (record.getLevel().equals(Level.ALL)) {
         //                    l.debug(record.getMessage(),record.getThrown());
         //                } else if (record.getLevel().equals(Level.FINE)) {
@@ -233,34 +232,34 @@ public class MongoTest {
             //                @Override
             //                public void preStore(Morphium m, Object r, boolean isNew) {
             //                    if (m.getARHelper().isBufferedWrite(r.getClass())) {
-            //                        new Logger(MongoTest.class).info("Buffered store of "+r.getClass());
+            //                        LoggerFactory.getLogger(MongoTest.class).info("Buffered store of "+r.getClass());
             //                    }
             //                }
             //
             //                @Override
             //                public void preRemove(Morphium m, Object r) {
             //                     if (m.getARHelper().isBufferedWrite(r.getClass())) {
-            //                        new Logger(MongoTest.class).info("Buffered remove of "+r.getClass());
+            //                        LoggerFactory.getLogger(MongoTest.class).info("Buffered remove of "+r.getClass());
             //                    }
             //                }
             //
             //                @Override
             //                public void preRemove(Morphium m, Query q) {
             //                    if (m.getARHelper().isBufferedWrite(q.getType())) {
-            //                        new Logger(MongoTest.class).info("Buffered remove of "+q.getType(),new Exception());
+            //                        LoggerFactory.getLogger(MongoTest.class).info("Buffered remove of "+q.getType(),new Exception());
             //                    }
             //                }
             //
             //                @Override
             //                public void preDrop(Morphium m, Class cls) {
-            //                    if (m.getARHelper().isBufferedWrite(cls)) {//                        new Logger(MongoTest.class).info("Buffered drop of "+cls);
+            //                    if (m.getARHelper().isBufferedWrite(cls)) {//                        LoggerFactory.getLogger(MongoTest.class).info("Buffered drop of "+cls);
             //                    }
             //                }
             //
             //                @Override
             //                public void preUpdate(Morphium m, Class cls, Enum updateType) {
             //                    if (m.getARHelper().isBufferedWrite(cls)) {
-            //                        new Logger(MongoTest.class).info("Buffered update of "+cls);
+            //                        LoggerFactory.getLogger(MongoTest.class).info("Buffered update of "+cls);
             //                    }
             //                }
             //            });
@@ -290,8 +289,8 @@ public class MongoTest {
     }
 
     @org.junit.AfterClass
-    public static void tearDownClass() throws Exception {
-        new Logger(MongoTest.class).info("NOT Shutting down - might be reused!");
+    public static void tearDownClass() {
+        LoggerFactory.getLogger(MongoTest.class).info("NOT Shutting down - might be reused!");
         //        morphium.close();
     }
 
@@ -358,7 +357,7 @@ public class MongoTest {
     }
 
     @org.junit.Before
-    public void setUp() throws Exception {
+    public void setUp() {
 
         try {
             log.info("Preparing collections...");
@@ -399,14 +398,14 @@ public class MongoTest {
 
             log.info("Preparation finished");
         } catch (Exception e) {
-            log.fatal("Error during preparation!");
+            log.error("Error during preparation!");
             e.printStackTrace();
         }
 
     }
 
     @org.junit.After
-    public void tearDown() throws Exception {
+    public void tearDown() {
         log.info("Cleaning up...");
         morphium.dropCollection(UncachedObject.class);
         morphium.dropCollection(CachedObject.class);
@@ -438,9 +437,4 @@ public class MongoTest {
         }
     }
 
-    public void logSeparator(String s) {
-        log.getOutput().println("\n\n************************************************************");
-        log.getOutput().println("***    " + s);
-        log.getOutput().println("************************************************************\n");
-    }
 }

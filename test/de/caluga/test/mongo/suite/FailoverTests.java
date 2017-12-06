@@ -1,11 +1,12 @@
 package de.caluga.test.mongo.suite;
 
-import de.caluga.morphium.Logger;
 import de.caluga.morphium.Morphium;
 import de.caluga.morphium.annotations.Embedded;
 import de.caluga.morphium.query.Query;
 import de.caluga.test.mongo.suite.data.UncachedObject;
 import org.junit.Test;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import javax.swing.*;
 
@@ -16,7 +17,7 @@ import javax.swing.*;
  * <p/>
  */
 public class FailoverTests extends MongoTest {
-    private static Logger log = new Logger(FailoverTests.class);
+    private static Logger log = LoggerFactory.getLogger(FailoverTests.class);
     private static int writeError = 0;
     private static int readError = 0;
     private static int writes = 0;

@@ -31,7 +31,6 @@ public class Statistics extends HashMap<String, Double> {
         super.put(StatisticKeys.WRITE_BUFFER_ENTRIES.name(), (double) morphium.getWriteBufferCount());
         super.put(StatisticKeys.CHITSPERC.name(), ((double) morphium.getStats().get(StatisticKeys.CHITS).get()) / (morphium.getStats().get(StatisticKeys.CHITS).get() + morphium.getStats().get(StatisticKeys.CMISS).get()) * 100.0);
         super.put(StatisticKeys.CMISSPERC.name(), ((double) morphium.getStats().get(StatisticKeys.CMISS).get()) / (morphium.getStats().get(StatisticKeys.CHITS).get() + morphium.getStats().get(StatisticKeys.CMISS).get()) * 100.0);
-        super.put(StatisticKeys.REGISTERED_LOGGERS.name(), (double) LoggerRegistry.get().getNumberOfRegisteredLoggers());
     }
 
 
