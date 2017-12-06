@@ -71,10 +71,10 @@ public class DriverHelper {
 
             } else {
                 LoggerFactory.getLogger(DriverHelper.class).info("no retries left - re-throwing exception");
-                throw (new MorphiumDriverNetworkException("Network error error", e));
+                throw (new MorphiumDriverNetworkException("Network error error: " + e.getMessage(), e));
             }
         } else {
-            throw (new MorphiumDriverException("internal error", e));
+            throw (new MorphiumDriverException("internal error: " + e.getMessage(), e));
         }
     }
 
