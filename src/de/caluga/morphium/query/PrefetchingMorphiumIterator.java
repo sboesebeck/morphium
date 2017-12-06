@@ -1,6 +1,7 @@
 package de.caluga.morphium.query;
 
-import de.caluga.morphium.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.ArrayList;
 import java.util.Iterator;
@@ -15,7 +16,7 @@ import java.util.List;
  * This iterator read WINDOWSIZE objects from Mongo and holds them in memory, until iterated over them.
  */
 public class PrefetchingMorphiumIterator<T> implements MorphiumIterator<T> {
-    private final Logger log = new Logger(MorphiumIterator.class);
+    private final Logger log = LoggerFactory.getLogger(MorphiumIterator.class);
     private int windowSize = 1;
     private Query<T> theQuery;
     private Container<T>[] prefetchBuffers;
@@ -67,7 +68,7 @@ public class PrefetchingMorphiumIterator<T> implements MorphiumIterator<T> {
             }
             return list;
         } catch (CloneNotSupportedException e) {
-            log.fatal("CLONE FAILED!?!?!?!?");
+            log.error("CLONE FAILED!?!?!?!?");
             return new ArrayList<>();
         }
     }

@@ -4,7 +4,8 @@ package de.caluga.morphium.query;
  * Created by stephan on 03.06.15.
  */
 
-import de.caluga.morphium.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.HashMap;
 import java.util.Iterator;
@@ -24,7 +25,7 @@ import java.util.concurrent.ConcurrentHashMap;
  */
 public class DefaultMorphiumIterator<T> implements MorphiumIterator<T> {
 
-    private final Logger log = new Logger(DefaultMorphiumIterator.class);
+    private final Logger log = LoggerFactory.getLogger(DefaultMorphiumIterator.class);
     private int windowSize = 1;
     private Query<T> theQuery;
     private List<T> buffer;
@@ -80,7 +81,7 @@ public class DefaultMorphiumIterator<T> implements MorphiumIterator<T> {
                 log.debug("Reached window boundary - read in: " + buffer.size() + " limit:" + windowSize + " pos: " + cursor);
             }
             if (buffer == null || buffer.isEmpty()) {
-                log.fatal("Buffer is empty!?!?!?! cursor: " + cursor + " cnt: " + count + " window: " + windowSize + " query: " + q.toQueryObject().toString());
+                log.error("Buffer is empty!?!?!?! cursor: " + cursor + " cnt: " + count + " window: " + windowSize + " query: " + q.toQueryObject().toString());
             } else {
                 updateLastValues(q, buffer);
             }
