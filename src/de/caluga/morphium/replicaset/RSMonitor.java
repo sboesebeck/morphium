@@ -43,8 +43,8 @@ public class RSMonitor {
     }
 
     public void start() {
-        execute();
         executorService.scheduleWithFixedDelay(this::execute, 1000, morphium.getConfig().getReplicaSetMonitoringTimeout(), TimeUnit.MILLISECONDS);
+        execute();
     }
 
     public void terminate() {
@@ -140,6 +140,11 @@ public class RSMonitor {
                 return status;
             } catch (Exception e) {
                 logger.warn("Could not get Replicaset status: " + e.getMessage(), e);
+                if (e.getMessage().contains(" 'not running with --replSet'")) {
+                    logger.warn("Mongo not configured for replicaset! Disabling monitoring for now");
+                    morphium.getConfig().setReplicasetMonitoring(false);
+                    terminate();
+                }
                 logger.warn("Tried connection to: ");
                 for (String adr : morphium.getConfig().getHostSeed()) {
                     logger.warn("   " + adr);
