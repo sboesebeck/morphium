@@ -644,6 +644,12 @@ public class MorphiumConfig {
         return hostSeed;
     }
 
+    public void setHostSeed(String... hostPorts){
+        hostSeed.clear();
+        for (String h:hostPorts){
+            addHostToSeed(h);
+        }
+    }
     public void setHostSeed(String hostPorts) {
         hostSeed.clear();
         String h[] = hostPorts.split(",");

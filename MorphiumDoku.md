@@ -1,13 +1,3 @@
-Title: Morphium Documentation
-Author: Stephan Bösebeck
-URL: http://sboesebeck.github.io/morphium/
-morphium_version: 3.0
-mongodb_version: 3.2
-html header:    <link rel="stylesheet" href="http://yandex.st/highlightjs/7.3/styles/default.min.css">
-    <script src="http://yandex.st/highlightjs/7.3/highlight.min.js"></script>
-    <script>hljs.initHighlightingOnLoad();</script>
-...
-
 # Morphium Documentation
 
 This documentation is refering to *Morphium* version [%morphium_version] and mongodb [%mongodb_version]. this documentation follows "MultiMarkdown" and was created using the MultiMarkdownComposer.
@@ -45,7 +35,9 @@ Usually *Morphium* replaces camel case by underscore-separated strings. So an Ob
 
 ### Changes in Version 3.0 ###
 
-####Motivation####
+
+#### Motivation ####
+
 Morphium 3.0 brings a lot improvements and changes, most of them are not really visible to the user, but unfortunately some of them make V3.x incompatible to V2.x.
 
 The changes were triggered by the recent mongodb java driver update to also 3.0, which brings a whole new API. This API is (unfortunately also) not backward compatible[^not quite true, the driver contains both versions actually, but old API is usually marked _deprecated_]. This made it hard to add the changes in the official driver into morphium. Some of the changes made it also impossible to implement some features in morphium as it was before. So - the current implementation of morphium uses both old and new API - wich will break eventually.
@@ -118,7 +110,7 @@ The next example shows how to store and access data from mongo:
 
     //creating connection 
     MorphiumConfig cfg=new MorphiumConfig(); 
-    cfg.setHosts("localhost:27018", "mongo1","mongo3.home"); 
+    cfg.setHostSeed("localhost:27018", "mongo1","mongo3.home"); 
     //connect to a replicaset 
     //if you want to connect to a shared environment, you'd add the addresses of 
     //the mongos-servers here 
@@ -315,16 +307,14 @@ This is done by using the `Query` object. You need to create one for every entit
 
 After that querying is very fluent. You add one option at a time, by default all conditions are AND-associated:
 
-```
-   Query<MyEntity> q=morphium.createQueryFor(MyEntity.class);
-   q=q.f("a_field").eq("Value");
-   q=q.f("counter").lt(10);
-   q=q.f("name").ne("Stephan").f("zip").eq("1234");
-```
+    Query<MyEntity> q=morphium.createQueryFor(MyEntity.class);
+    q=q.f("a_field").eq("Value");
+    q=q.f("counter").lt(10);
+    q=q.f("name").ne("Stephan").f("zip").eq("1234");
+
 
 The `f` method stands for "field" and returns a *Morphium* internal representation of mongo fields. Threre you can call the operators, in our case it `eq` for equals, `lt` for less then and `ne` not equal. There are a lot more operators you might use, all those are defined in the `MongoField` interface:
 
-```
     public Query<t> all(List</t>
     public Query<T> eq(Object val);
     public Query<T> ne(Object val);
@@ -413,33 +403,33 @@ As already mentioned, the query by default creates AND-queries. If you need to c
 
 `or` takes a list of queries as argument, so a query might be built this way:
 
-```
-   Query<MyEntity> q=morphium.createQueryFor(MyEntity.class);
-   q=q.or(q.q().f("counter").le(10),q.q().f("name").eq("Morphium"));
-```
+
+    Query<MyEntity> q=morphium.createQueryFor(MyEntity.class);
+    q=q.or(q.q().f("counter").le(10),q.q().f("name").eq("Morphium"));
+
 
 This would create an OR-Query asking for all "MyEntities", that have a counter less than or equal to 10 OR whose name is "Morphium". You can add as much or-queries as you like. OR-Queries can actually be combined with and queries as well:
 
-`Query<MyEntity> q=morphium.createQueryFor(MyEntity.class);
-   q=q.f("counter").ge(2);
-   q=q.or(q.q().f("counter").le(10),q.q().f("name").eq("Morphium"));`
+    Query<MyEntity> q=morphium.createQueryFor(MyEntity.class);
+    q=q.f("counter").ge(2);
+    q=q.or(q.q().f("counter").le(10),q.q().f("name").eq("Morphium"));`
 
 In that case, the query would be something like: counter is greater than 2 AND (counter is less then or equal to 10 OR name is "Morphium")
 
 Combining and and or-queries is also possible, although the syntax would look a bit unfamiliar:
 
-```
-   Query<MyEntity> q=morphium.createQueryFor(MyEntity.class);
-q=q.f("counter").lt(100).or(q.q().f("counter").mod(3,0),q.q().f("value").ne("v");
-```
+
+    Query<MyEntity> q=morphium.createQueryFor(MyEntity.class);
+    q=q.f("counter").lt(100).or(q.q().f("counter").mod(3,0),q.q().f("value").ne("v");
+
 This would create a query returning all entries that do have a `counter` of less than 100 AND where the modulo to base 3 of the value `counter` equals 0, and the value of the field `value` equals "v".
 
-Quite complex, eh?
+*Quite complex, eh?*
 
 Well, there is more to it... it is possible, to create a query using a "where"-String... there you can add `JavaScript` code for your query. This code will be executed at the mongodb node, executing your query:
 
-`Query<MyEntity> q=morphium.createQueryFor(MyEntity.class);
-   q=q.where("this.counter > 10");`
+    Query<MyEntity> q=morphium.createQueryFor(MyEntity.class);
+    q=q.where("this.counter > 10");
 
 **Attention**: you can javascript code in that where clause, but you cannot access the `db` object there. This was changed when switching to Mongodb 2.6 with V8 Javascript engine
 
@@ -451,8 +441,8 @@ Using the `@Cache` annotation, you can define cache settings on a per type (= cl
 
 Cache synchronization was already mentioned above. The system of cache synchronization needs a messaging subsystem (see [Messaging] below). You just need to start the cache synchronizer yourself, if you want caches to be synchronized.
 
-`CacheSynchronizer cs=new CacheSynchronizer(morphium);
-    cs.start();`
+    CacheSynchronizer cs=new CacheSynchronizer(morphium);
+    cs.start();
 
 If you want to stop your cache synchronizing process, just call `cs.setRunning(false);` . The synchronizer will stop after a while (depending on your cache synchronization timeout).
 
@@ -671,9 +661,9 @@ But in *Morphium* you can of course change that behaviour. Easiest way is to swi
 
 If you need to have only several types converted, but not all, you have to have the conversion globally enabled, and only switch it off for certain types. This is done in either the `@Entity` or `@Embedded` annotation.
 
-`@Entity(convertCamelCase=false)
-public class MyEntity {
-     private String myField;`
+    @Entity(convertCamelCase=false)
+    public class MyEntity {
+       private String myField;`
 
 This example will create a collection called `MyEntity` (no conversion) and the field will be called `myField` in mongo as well (no conversion).
 
@@ -683,8 +673,8 @@ This example will create a collection called `MyEntity` (no conversion) and the 
 
 you can tell *Morphium* to use the full qualified classname as basis for the collection name, not the simple class name. This would batch in createing a collection `de_caluga_morphium_my_entity` for a class called `de.caluga.morphium.MyEntity`. Just set the flag `useFQN` in the entity annotation to `true`.
 
-`@Entity(useFQN=true)
-public class MyEntity {`
+    @Entity(useFQN=true)
+    public class MyEntity {`
 
 Recommendation is, not to use the full qualified classname unless it's really needed.
 
@@ -694,14 +684,16 @@ In addition to that, you can define custom names of fields and collections using
 
 For entities you may set a custom name by using the `collectionName` value for the annotation:
 
-`@Entity(collectionName="totallyDifferent")
-public class MyEntity {
-    private String myValue;` the collection name will be `totallyDifferent` in mongo. Keep in mind that camel case conversion for fields will still take place. So in that case, the field name would probably be `my_value`. (if camel case conversion is enabled in config)
+    @Entity(collectionName="totallyDifferent") 
+    public class MyEntity {
+        private String myValue;
+ 
+the collection name will be `totallyDifferent` in mongo. Keep in mind that camel case conversion for fields will still take place. So in that case, the field name would probably be `my_value`. (if camel case conversion is enabled in config)
 
 You can also specify the name of a field using the property annotation:
 
-`@Property(fieldName="my_wonderful_field")
-   private String something;`
+    @Property(fieldName="my_wonderful_field")
+    private String something;`
 
 Again, this only affects this field (in this case, it will be called `my_wondwerful_field` in mongo) and this field won't be converted camelcase. This might cause a mix up of cases in your mongodb, so please use this with care.
 
@@ -760,23 +752,23 @@ If you specify your ID to be of a different kind (like String), you need to make
 
 Indexes are *very* important in mongo, so you should definitely define your indexes as soon as possible during your development. Indexes can be defined on the Entity itself, there are several ways to do so: - @Id always creates an index - you can add an `@Index` to any field to have that indexed:
 
-`@Index
-    private String name;`
+	@Index
+    private String name;
 
 *   you can define combined indexes using the `@Index` annotation at the class itself:
 
-`@Index({"counter, name","value,thing,-counter"}
-public class MyEntity {`
+	@Index({"counter, name","value,thing,-counter"}
+	public class MyEntity {
 
 This would create two combined indexes: one with `counter` and `name` (both ascending) and one with `value`, `thing` and descending `counter`. You could also define single field indexes using this annotations, but it`s easier to read adding the annotation direktly to the field.
 - Indexes will be created automatically if you _create_ the collection. If you want the indexes to be created, even if there is already data stores, you need to call`morphium.ensureIndicesFor(MyEntity.class)`- You also may create your own indexes, which are not defined in annotations by calling`morphium.ensureIndex()`. As parameter you pass on a Map containing field name and order (-1 or 1) or just a prefixed list of strings (like` "-counter","name"`).
 
 Every Index might have a set of options which define the kind of this index. Like `buildInBackground` or `unique`. You need to add those as second parameter to the Index-Annotation:
 
-`@Entity
- @Index(value = {"-name, timer", "-name, -timer", "lst:2d", "name:text"}, 
+	@Entity
+	 @Index(value = {"-name, timer", "-name, -timer", "lst:2d", "name:text"}, 
                 options = {"unique:1", "", "", ""})
-    public static class IndexedObject {`
+    public static class IndexedObject {
 
 here 4 indexes are created. The first two ar more or less standard, wheres the `lst` index is a geospacial one and the index on `name` is a text index (only since mongo 2.6). If you need to define options for one of your indexes, you need to define it for all of them (here, only the first index is unique).
 
@@ -889,7 +881,8 @@ Tells *Morphium* to create a capped collection for this object (see capped colle
 
 Parameters:
 
-| ----|----| | maxSize | maximum size in byte. Is used when converting to a capped collection |  
+| --- | --- | 
+| maxSize | maximum size in byte. Is used when converting to a capped collection |
 | maxNumber | number of entries for this capped collection |
 
 ### AdditionalData
@@ -902,9 +895,9 @@ by default this map is read only. But if you want to change those values or add 
 
 It's possible to define aliases for field names with this annotation (hence it has to be added to a field).
 
-`java
-   @Alias({"stringList","string_list"})
-   List<String> strLst;`
+
+  	 @Alias({"stringList","string_list"})
+   	List<String> strLst;
 
 in this case, when reading an object from Mongodb, the name of the field strLst might also be `stringList` or `string_list` in mongo. When storing it, it will always be stored as `strLst` or `str_lst` according to config.
 

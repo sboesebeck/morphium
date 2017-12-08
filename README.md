@@ -35,10 +35,11 @@ before accessing mongo via Morphium, you need to configure Morphium. this is don
 ```java
   MorphiumConfig cfg = new MorphiumConfig();
   cfg.setDatabase("testdb");
-  cfg.addHost("localhost", 27017);
+  cfg.addHostToSeed("localhost", 27017);
 ```
+The seed of hosts is at least one node from the replicaset. Actually, only one is needed, as the configuration of the replicaset is read by the driver to know which machines are available. Attention: if it happens that exactly the hosts of the replicaset you defined here are not available, morphium won't start and you will end up with an exception.
 
-you can also configure Morphium using properties: new MorphiumConfig(properties); or a json-String: MorphiumConfig cfg = MorphiumConfig.createFromJson(json);
+you can also configure Morphium using properties: `new MorphiumConfig(properties);` or a json-String: `MorphiumConfig cfg = MorphiumConfig.createFromJson(json);`
 
 After that, you just need to instantiate Morphium:
 
@@ -46,7 +47,7 @@ After that, you just need to instantiate Morphium:
   Morphium m=new Morphium(cfg);
 ```
 
-There are some convenience constructors available since V2.2.23 which make your life a bit easier:
+There are some convenience constructors available since _V2.2.23_ which make your life a bit easier:
 
 ```
    Morphium m=new Morphium("localhost","test-db");
