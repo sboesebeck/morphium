@@ -5,6 +5,8 @@ This documentation is refering to *Morphium* version [%morphium_version] and mon
 HTML Version here: [MorphiumDoku][4]
 If you just want to start right now, read [quick start]!
 
+Refer to the latest version [here](https://caluga.de/v/2014/9/5/morphium_doku_v3_0)
+
 ## Ideas and concepts
 
 When we started using MongoDB there was no fully capable POJO Mapper available. The only thing that was close to useable was Morphia (which is now developed by [MongoDb][2]. Unfortunately, Morphia had some issues, and lacked some features, we'd like to have, like (besides the usual features fast mapping, reliable query interface and so on):
