@@ -1,6 +1,8 @@
 morphium
 ========
 
+*ATTENTION:* _please refer to the latest version [here](https://caluga.de/v/2014/9/5/morphium_doku_v3_0) - this version might be outdated!_
+
 Morphium - Java Object Mapper and Caching Layer for MongoDB
 
 Morphium is a POJO Object mapper for Accessing Mongodb. Some of the main Features of Morphium:
@@ -25,7 +27,7 @@ Morphium is a POJO Object mapper for Accessing Mongodb. Some of the main Feature
 - Support for partial updated objects (when writing, only the changes of the object are transferred) 
 - Almost any operation morphium provides is async capable. That means, if you pass it an `AsyncOperationListener` as argument, you won't get a batch now, but after the async operation finished via the callback
 
-for questions and feature requests / bug reports also have a look at the google group morphium-discuss@googlegroups.com
+For questions and feature requests / bug reports also have a look at the google group morphium-discuss@googlegroups.com or join us at slack https://join.slack.com/t/team-morphium/shared_invite/enQtMjgwODMzMzEzMTU5LTA1MjdmZmM5YTM3NjRmZTE2ZGE4NDllYTA0NTUzYjU2MzkxZTJhODlmZGQ2MThjMGY0NmRkMWE1NDE2YmQxYjI
 
 
 Quick Start
