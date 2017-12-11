@@ -1,6 +1,8 @@
 morphium
 ========
 
+*ATTENTION:* _please refer to the latest version [here](https://caluga.de/v/2014/9/5/morphium_doku_v3_0) - this version might be outdated!_
+
 Morphium - Java Object Mapper and Caching Layer for MongoDB
 
 Morphium is a POJO Object mapper for Accessing Mongodb. Some of the main Features of Morphium:
@@ -25,7 +27,7 @@ Morphium is a POJO Object mapper for Accessing Mongodb. Some of the main Feature
 - Support for partial updated objects (when writing, only the changes of the object are transferred) 
 - Almost any operation morphium provides is async capable. That means, if you pass it an `AsyncOperationListener` as argument, you won't get a batch now, but after the async operation finished via the callback
 
-for questions and feature requests / bug reports also have a look at the google group morphium-discuss@googlegroups.com
+For questions and feature requests / bug reports also have a look at the google group morphium-discuss@googlegroups.com or join us at slack https://join.slack.com/t/team-morphium/shared_invite/enQtMjgwODMzMzEzMTU5LTA1MjdmZmM5YTM3NjRmZTE2ZGE4NDllYTA0NTUzYjU2MzkxZTJhODlmZGQ2MThjMGY0NmRkMWE1NDE2YmQxYjI
 
 
 Quick Start
@@ -35,10 +37,11 @@ before accessing mongo via Morphium, you need to configure Morphium. this is don
 ```java
   MorphiumConfig cfg = new MorphiumConfig();
   cfg.setDatabase("testdb");
-  cfg.addHost("localhost", 27017);
+  cfg.addHostToSeed("localhost", 27017);
 ```
+The seed of hosts is at least one node from the replicaset. Actually, only one is needed, as the configuration of the replicaset is read by the driver to know which machines are available. Attention: if it happens that exactly the hosts of the replicaset you defined here are not available, morphium won't start and you will end up with an exception.
 
-you can also configure Morphium using properties: new MorphiumConfig(properties); or a json-String: MorphiumConfig cfg = MorphiumConfig.createFromJson(json);
+you can also configure Morphium using properties: `new MorphiumConfig(properties);` or a json-String: `MorphiumConfig cfg = MorphiumConfig.createFromJson(json);`
 
 After that, you just need to instantiate Morphium:
 
@@ -46,7 +49,7 @@ After that, you just need to instantiate Morphium:
   Morphium m=new Morphium(cfg);
 ```
 
-There are some convenience constructors available since V2.2.23 which make your life a bit easier:
+There are some convenience constructors available since _V2.2.23_ which make your life a bit easier:
 
 ```
    Morphium m=new Morphium("localhost","test-db");
