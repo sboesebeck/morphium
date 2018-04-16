@@ -161,9 +161,9 @@ public class Messaging extends Thread implements ShutdownListener {
                 values.put("locked", System.currentTimeMillis());
                 morphium.set(q, values, false, processMultiple);
                 q = q.q();
-                q.or(q.q().f(Msg.Fields.lockedBy).eq(id),
-                        q.q().f(Msg.Fields.lockedBy).eq("ALL").f(Msg.Fields.processedBy).ne(id).f(Msg.Fields.recipient).eq(id),
-                        q.q().f(Msg.Fields.lockedBy).eq("ALL").f(Msg.Fields.processedBy).ne(id).f(Msg.Fields.recipient).eq(null));
+                q.or(q.q().f(Msg.Fields.lockedBy).eq(id),   //locked by me
+                        q.q().f(Msg.Fields.lockedBy).eq("ALL").f(Msg.Fields.processedBy).ne(id).f(Msg.Fields.recipient).eq(id),           //direct message, not exclusive. 1 -> n could be 1->1
+                        q.q().f(Msg.Fields.lockedBy).eq("ALL").f(Msg.Fields.processedBy).ne(id).f(Msg.Fields.recipient).eq(null));   //Boradcast message 1->all
                 q.sort(Msg.Fields.timestamp);
 
                 //                List<Msg> messages = q.asList();
@@ -230,6 +230,9 @@ public class Messaging extends Thread implements ShutdownListener {
                         } catch (Throwable t) {
                             //                        msg.addAdditional("Processing of message failed by "+getSenderId()+": "+t.getMessage());
                             log.error("Processing failed", t);
+                            // Improvement:
+                            // if non exclusive, put message back to queue, add my id processing_by
+                            //if exclusive, send an answer
                         }
 
                         //                            if (msg.getType().equals(MsgType.SINGLE)) {
