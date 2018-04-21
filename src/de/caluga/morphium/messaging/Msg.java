@@ -39,7 +39,6 @@ public class Msg {
     private String lockedBy;
     @Index
     private long locked;
-    private MsgType type;
     private long ttl;
     private String sender;
     private String senderHost;
@@ -58,7 +57,7 @@ public class Msg {
     @Index(options = "expireAfterSeconds:0")
     private Date deleteAt;
     @Transient
-    private Boolean exclusive = null;
+    private Boolean exclusive = false;
 
     public Msg() {
         // msgId = UUID.randomUUID().toString();
@@ -67,16 +66,21 @@ public class Msg {
     }
 
     public Msg(String name, String msg, String value) {
-        this(name, MsgType.MULTI, msg, value, 30000);
+        this(name, msg, value, 30000, false);
     }
 
-    public Msg(String name, MsgType t, String msg, String value, long ttl) {
+    public Msg(String name, String msg, String value, long ttl) {
+        this(name, msg, value, ttl, false);
+    }
+
+    public Msg(String name, String msg, String value, long ttl, boolean exclusive) {
         this();
         this.name = name;
         this.msg = msg;
         this.value = value;
-        this.type = t;
         this.ttl = ttl;
+        setExclusive(exclusive);
+
     }
 
     @SuppressWarnings("unused")
@@ -250,14 +254,6 @@ public class Msg {
         this.sender = sender;
     }
 
-    public MsgType getType() {
-        return type;
-    }
-
-    public void setType(MsgType type) {
-        this.type = type;
-    }
-
     public long getTtl() {
         return ttl;
     }
@@ -312,7 +308,6 @@ public class Msg {
                 ", inAnswerTo='" + inAnswerTo + '\'' +
                 ", lockedBy='" + lockedBy + '\'' +
                 ", locked=" + locked +
-                ", type=" + type +
                 ", ttl=" + ttl +
                 ", sender='" + sender + '\'' +
                 ", name='" + name + '\'' +
@@ -334,10 +329,6 @@ public class Msg {
         if (sender == null) {
             throw new RuntimeException("Cannot send msg anonymously - set Sender first!");
         }
-        if (type == null) {
-            LoggerFactory.getLogger(Msg.class).warn("Messagetype not set - using SINGLE");
-            type = MsgType.SINGLE;
-        }
         if (name == null) {
             throw new RuntimeException("Cannot send a message without name!");
         }
@@ -354,7 +345,7 @@ public class Msg {
 
 
     public Msg createAnswerMsg() {
-        Msg ret = new Msg(name, type, msg, value, ttl);
+        Msg ret = new Msg(name, msg, value, ttl);
         ret.setInAnswerTo(msgId);
         ret.addRecipient(sender);
         return ret;
@@ -380,7 +371,6 @@ public class Msg {
         ret.setRecipient(recipient);
         ret.setTimestamp(timestamp);
         ret.setTtl(ttl);
-        ret.setType(type);
         ret.setValue(value);
         ret.setMsg(msg);
         //        ret.setMsgId();

@@ -4,7 +4,6 @@ import de.caluga.morphium.driver.MorphiumId;
 import de.caluga.morphium.messaging.MessageListener;
 import de.caluga.morphium.messaging.Messaging;
 import de.caluga.morphium.messaging.Msg;
-import de.caluga.morphium.messaging.MsgType;
 import de.caluga.morphium.query.Query;
 import org.junit.Test;
 
@@ -49,7 +48,7 @@ public class MessagingTest extends MongoTest {
         });
         m2.start();
 
-        Msg msg = new Msg("tst", MsgType.MULTI, "msg", "value", 30000);
+        Msg msg = new Msg("tst", "msg", "value", 30000);
         msg.setExclusive(false);
         m.storeMessage(msg);
         Thread.sleep(1);
@@ -58,7 +57,7 @@ public class MessagingTest extends MongoTest {
         q.setCollectionName("mmsg_msg2");
         assert (q.countAll() == 0);
 
-        msg = new Msg("tst2", MsgType.MULTI, "msg", "value", 30000);
+        msg = new Msg("tst2", "msg", "value", 30000);
         msg.setExclusive(false);
         m2.storeMessage(msg);
         q = morphium.createQueryFor(Msg.class);
@@ -87,7 +86,6 @@ public class MessagingTest extends MongoTest {
         Thread.sleep(5000);
 
         assert (m.getTimestamp() > 0) : "Timestamp not updated?";
-        assert (m.getType().equals(MsgType.SINGLE)) : "Default should be single?";
 
     }
 
@@ -98,7 +96,7 @@ public class MessagingTest extends MongoTest {
         String id = "meine ID";
 
 
-        Msg m = new Msg("name", MsgType.SINGLE, "Msgid1", "value", 5000);
+        Msg m = new Msg("name", "Msgid1", "value", 5000);
         m.setSender(id);
         m.setExclusive(true);
         morphium.store(m);
@@ -116,7 +114,7 @@ public class MessagingTest extends MongoTest {
         List<Msg> messagesList = q.asList();
         assert (messagesList.isEmpty()) : "Got my own message?!?!?!" + messagesList.get(0).toString();
 
-        m = new Msg("name", MsgType.SINGLE, "msgid2", "value", 5000);
+        m = new Msg("name", "msgid2", "value", 5000);
         m.setSender("sndId2");
         m.setExclusive(true);
         morphium.store(m);
@@ -142,7 +140,7 @@ public class MessagingTest extends MongoTest {
         Messaging producer = new Messaging(morphium, 500, false);
         producer.start();
         for (int i = 0; i < 1000; i++) {
-            Msg m = new Msg("test" + i, MsgType.SINGLE, "tm", "" + i + System.currentTimeMillis(), 10000);
+            Msg m = new Msg("test" + i, "tm", "" + i + System.currentTimeMillis(), 10000);
             producer.storeMessage(m);
         }
         final int[] count = {0};
@@ -178,13 +176,13 @@ public class MessagingTest extends MongoTest {
             gotMessage = true;
             return null;
         });
-        messaging.storeMessage(new Msg("Testmessage", MsgType.MULTI, "A message", "the value - for now", 5000));
+        messaging.storeMessage(new Msg("Testmessage", "A message", "the value - for now", 5000));
 
         Thread.sleep(1000);
         assert (!gotMessage) : "Message recieved from self?!?!?!";
         log.info("Dig not get own message - cool!");
 
-        Msg m = new Msg("meine Message", MsgType.SINGLE, "The Message", "value is a string", 5000);
+        Msg m = new Msg("meine Message", "The Message", "value is a string", 5000);
         m.setMsgId(new MorphiumId());
         m.setSender("Another sender");
 
@@ -576,7 +574,7 @@ public class MessagingTest extends MongoTest {
         long start = System.currentTimeMillis();
         for (int i = 0; i < numberOfMessages; i++) {
             int m = (int) (Math.random() * systems.size());
-            Msg msg = new Msg("test" + i, MsgType.MULTI, "The message for msg " + i, "a value", ttl);
+            Msg msg = new Msg("test" + i, "The message for msg " + i, "a value", ttl);
             msg.addAdditional("Additional Value " + i);
             msg.setExclusive(false);
             systems.get(m).storeMessage(msg);
