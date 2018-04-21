@@ -21,6 +21,10 @@ import java.util.concurrent.atomic.AtomicInteger;
  * Time: 15:48
  * <p/>
  * Messaging implements a simple, threadsafe and messaging api. Used for cache synchronization.
+ * Msg can have several modes:
+ * - LockedBy set to ALL (Exclusive Messages): every listener may process it (in parallel), means 1->n. e.g. Cache sync
+ * - LockedBy null (non exclusive messages): only one listener at a time
+ * - Message listeners may return a Message as answer. Or throw a MessageRejectedException.c
  */
 @SuppressWarnings({"ConstantConditions", "unchecked", "UnusedDeclaration"})
 public class Messaging extends Thread implements ShutdownListener {
@@ -227,6 +231,18 @@ public class Messaging extends Thread implements ShutdownListener {
                                     }
                                 }
                             }
+                        } catch (MessageRejectedException mre) {
+                            log.error("Message rejected by listener: " + mre.getMessage());
+                            if (mre.isSendAnswer()) {
+                                Msg answer = new Msg(msg.getName(), "message rejected by listener", mre.getMessage());
+                                msg.setDeleteAt(new Date(System.currentTimeMillis() + msg.getTtl()));
+                                msg.sendAnswer(Messaging.this, answer);
+
+                            }
+                            if (mre.isContinueProcessing()) {
+                                updateProcessedByAndReleaseLock(msg);
+                                return;
+                            }
                         } catch (Throwable t) {
                             //                        msg.addAdditional("Processing of message failed by "+getSenderId()+": "+t.getMessage());
                             log.error("Processing failed", t);
@@ -239,11 +255,7 @@ public class Messaging extends Thread implements ShutdownListener {
                         //updating it to be processed by others...
                         if (msg.getLockedBy().equals("ALL")) {
                             toExec.add(() -> {
-                                Query<Msg> idq = morphium.createQueryFor(Msg.class);
-                                idq.setCollectionName(getCollectionName());
-                                idq.f(Msg.Fields.msgId).eq(msg.getMsgId());
-
-                                morphium.push(idq, Msg.Fields.processedBy, id);
+                                updateProcessedByAndReleaseLock(msg);
                             });
 
                         } else {
@@ -254,9 +266,6 @@ public class Messaging extends Thread implements ShutdownListener {
                             //                                msg.setLockedBy(null);
                             //                                msg.setLocked(0);
                             //                                toStore.add(msg);
-                        }
-                        if (msg.getType().equals(MsgType.SINGLE) && !toRemove.contains(msg)) {
-                            toRemove.add(msg);
                         }
                     };
 
@@ -294,6 +303,18 @@ public class Messaging extends Thread implements ShutdownListener {
             listeners.clear();
             listenerByName.clear();
         }
+    }
+
+
+    private void updateProcessedByAndReleaseLock(Msg msg) {
+        Query<Msg> idq = morphium.createQueryFor(Msg.class);
+        idq.setCollectionName(getCollectionName());
+        idq.f(Msg.Fields.msgId).eq(msg.getMsgId());
+        if (msg.getLockedBy().equals(id)) {
+            //releasing lock
+            morphium.set(idq, Msg.Fields.lockedBy, null);
+        }
+        morphium.push(idq, Msg.Fields.processedBy, id);
     }
 
     private void queueOrRun(Runnable r) {
