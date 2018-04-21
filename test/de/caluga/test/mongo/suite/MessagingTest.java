@@ -316,7 +316,7 @@ public class MessagingTest extends MongoTest {
         m2.setRunning(false);
         m3.setRunning(false);
         m4.setRunning(false);
-        Thread.sleep(1000);
+        Thread.sleep(2000);
         assert (!m1.isAlive()) : "M1 still running";
         assert (!m2.isAlive()) : "M2 still running";
         assert (!m3.isAlive()) : "M3 still running";
