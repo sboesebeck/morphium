@@ -11,6 +11,19 @@ public class MessageRejectedException extends RuntimeException {
     private boolean continueProcessing = false;
     private boolean sendAnswer = false;
 
+    public MessageRejectedException(String reason){
+        this(reason,false,false);
+    }
+
+    public MessageRejectedException(String reason,boolean continueProcessing){
+        this(reason,continueProcessing,false);
+    }
+    public MessageRejectedException(String reason,boolean continueProcessing,boolean sendAnswer){
+        super(reason);
+        this.continueProcessing=continueProcessing;
+        this.sendAnswer=sendAnswer;
+    }
+
     public boolean isContinueProcessing() {
         return continueProcessing;
     }
