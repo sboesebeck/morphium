@@ -2,6 +2,7 @@ package de.caluga.test.mongo.suite;
 
 import de.caluga.morphium.driver.MorphiumId;
 import de.caluga.morphium.messaging.MessageListener;
+import de.caluga.morphium.messaging.MessageRejectedException;
 import de.caluga.morphium.messaging.Messaging;
 import de.caluga.morphium.messaging.Msg;
 import de.caluga.morphium.query.Query;
@@ -321,6 +322,52 @@ public class MessagingTest extends MongoTest {
         assert (!m2.isAlive()) : "M2 still running";
         assert (!m3.isAlive()) : "M3 still running";
         assert (!m4.isAlive()) : "M4 still running";
+
+
+    }
+
+
+    @Test
+    public void testRejectMessage() throws Exception {
+        morphium.clearCollection(Msg.class);
+        final Messaging sender=new Messaging(morphium,100,false);
+        final Messaging rec1=new Messaging(morphium,100,false);
+        final Messaging rec2=new Messaging(morphium,500,false);
+
+        sender.start();
+        rec1.start();
+        rec2.start();
+        gotMessage1 = false;
+        gotMessage2 = false;
+        gotMessage3 = false;
+
+        rec1.addMessageListener((msg, m) -> {
+            gotMessage1=true;
+            throw new MessageRejectedException("rejected",true,false);
+        });
+        rec2.addMessageListener((msg, m) -> {
+            gotMessage2=true;
+            log.info("Processing message "+m.getValue());
+            return null;
+        });
+        sender.addMessageListener((msg,m)->{
+            gotMessage3=true;
+            log.info("Receiver got message");
+            if (m.getInAnswerTo()==null){
+                log.error("Message is not an anser! ERROR!");
+                throw new RuntimeException("Error");
+            }
+            return null;
+        });
+
+        sender.storeMessage(new Msg("test","messaage","value"));
+
+        Thread.sleep(1000);
+        assert(gotMessage1);
+        assert(gotMessage2);
+        assert(!gotMessage3);
+
+
 
 
     }

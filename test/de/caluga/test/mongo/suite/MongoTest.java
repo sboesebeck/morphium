@@ -21,7 +21,9 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
+import java.util.logging.Handler;
 import java.util.logging.Level;
+import java.util.logging.LogRecord;
 
 //import de.caluga.morphium.driver.inmem.InMemoryDriver;
 //import de.caluga.morphium.driver.meta.MetaDriver;
@@ -67,47 +69,44 @@ public class MongoTest {
 
     @org.junit.BeforeClass
     public static synchronized void setUpClass() throws Exception {
-        //        System.setProperty("morphium.log.level", "4");
-        //        System.setProperty("morphium.log.synced", "true");
-        //        System.setProperty("morphium.log.file", "-");
         java.util.logging.Logger l = java.util.logging.Logger.getGlobal();
         l.setLevel(Level.SEVERE);
-        //        l.addHandler(new Handler() {
-        //            @Override
-        //            public void publish(LogRecord record) {
-        //                Logger l=LoggerFactory.getLogger(record.getLoggerName());
-        //                if (record.getLevel().equals(Level.ALL)) {
-        //                    l.debug(record.getMessage(),record.getThrown());
-        //                } else if (record.getLevel().equals(Level.FINE)) {
-        //                    l.warn(record.getMessage(),record.getThrown());
-        //                } else if (record.getLevel().equals(Level.FINER)) {
-        //                    l.info(record.getMessage(),record.getThrown());
-        //                } else if (record.getLevel().equals(Level.FINEST)) {
-        //                    l.debug(record.getMessage(),record.getThrown());
-        //                } else if (record.getLevel().equals(Level.CONFIG)) {
-        //                    l.debug(record.getMessage(),record.getThrown());
-        //                } else if (record.getLevel().equals(Level.INFO)) {
-        //                    l.info(record.getMessage(),record.getThrown());
-        //                } else if (record.getLevel().equals(Level.WARNING)) {
-        //                    l.warn(record.getMessage(),record.getThrown());
-        //                } else if (record.getLevel().equals(Level.SEVERE)) {
-        //                    l.fatal(record.getMessage(),record.getThrown());
-        //                } else  {
-        //                    l.info(record.getMessage(),record.getThrown());
-        //
-        //                }
-        //            }
-        //
-        //            @Override
-        //            public void flush() {
-        //
-        //            }
-        //
-        //            @Override
-        //            public void close() throws SecurityException {
-        //
-        //            }
-        //        });
+                l.addHandler(new Handler() {
+                    @Override
+                    public void publish(LogRecord record) {
+//                        Logger l=LoggerFactory.getLogger(record.getLoggerName());
+//                        if (record.getLevel().equals(Level.ALL)) {
+//                            l.debug(record.getMessage(),record.getThrown());
+//                        } else if (record.getLevel().equals(Level.FINE)) {
+//                            l.warn(record.getMessage(),record.getThrown());
+//                        } else if (record.getLevel().equals(Level.FINER)) {
+//                            l.info(record.getMessage(),record.getThrown());
+//                        } else if (record.getLevel().equals(Level.FINEST)) {
+//                            l.debug(record.getMessage(),record.getThrown());
+//                        } else if (record.getLevel().equals(Level.CONFIG)) {
+//                            l.debug(record.getMessage(),record.getThrown());
+//                        } else if (record.getLevel().equals(Level.INFO)) {
+//                            l.info(record.getMessage(),record.getThrown());
+//                        } else if (record.getLevel().equals(Level.WARNING)) {
+//                            l.warn(record.getMessage(),record.getThrown());
+//                        } else if (record.getLevel().equals(Level.SEVERE)) {
+//                            l.error(record.getMessage(),record.getThrown());
+//                        } else  {
+//                            l.info(record.getMessage(),record.getThrown());
+//
+//                        }
+                    }
+
+                    @Override
+                    public void flush() {
+
+                    }
+
+                    @Override
+                    public void close() throws SecurityException {
+
+                    }
+                });
         l = java.util.logging.Logger.getLogger("connection");
         l.setLevel(java.util.logging.Level.OFF);
         if (morphium == null) {
