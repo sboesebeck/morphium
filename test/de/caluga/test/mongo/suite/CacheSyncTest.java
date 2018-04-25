@@ -46,7 +46,7 @@ public class CacheSyncTest extends MongoTest {
         waitForWrites();
         cnt = q.countAll();
         assert (cnt == 1) : "there should be one msg, there are " + cnt;
-        msg.setRunning(false);
+        msg.terminate();
         cs.detach();
     }
 
@@ -106,8 +106,8 @@ public class CacheSyncTest extends MongoTest {
         if ((morphium.getStatistics().get(StatisticKeys.CACHE_ENTRIES.name()) != 0)) {
             throw new AssertionError("Cache entries set? Entries: " + morphium.getStatistics().get(StatisticKeys.CACHE_ENTRIES.name()));
         }
-        msg1.setRunning(false);
-        msg2.setRunning(false);
+        msg1.terminate();
+        msg2.terminate();
         cs1.detach();
         cs2.detach();
     }
@@ -193,7 +193,7 @@ public class CacheSyncTest extends MongoTest {
         log.info("Updating with synchronizer: " + dur + " ms");
 
 
-        msg1.setRunning(false);
+        msg1.terminate();
         cs1.detach();
 
     }
@@ -277,8 +277,8 @@ public class CacheSyncTest extends MongoTest {
                     throw new RuntimeException(e);
                 }
 
-                msg1.setRunning(false);
-                msg2.setRunning(false);
+                msg1.terminate();
+                msg2.terminate();
                 cs1.detach();
                 cs2.detach();
 
@@ -386,8 +386,8 @@ public class CacheSyncTest extends MongoTest {
         //        assert(m1.createQueryFor(Msg.class).countAll()==0);
         cs1.detach();
         cs2.detach();
-        msg1.setRunning(false);
-        msg2.setRunning(false);
+        msg1.terminate();
+        msg2.terminate();
         m2.close();
 
     }

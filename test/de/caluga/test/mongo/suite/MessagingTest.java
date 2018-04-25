@@ -69,8 +69,8 @@ public class MessagingTest extends MongoTest {
         Thread.sleep(4000);
         assert (!gotMessage1);
         assert (!gotMessage2);
-        m.setRunning(false);
-        m2.setRunning(false);
+        m.terminate();
+        m2.terminate();
         Thread.sleep(1000);
         assert (!m.isAlive());
         assert (!m2.isAlive());
@@ -155,8 +155,8 @@ public class MessagingTest extends MongoTest {
         consumer.start();
 
         Thread.sleep(10000);
-        consumer.setRunning(false);
-        producer.setRunning(false);
+        consumer.terminate();
+        producer.terminate();
         log.info("Messages processed: " + count[0]);
         log.info("Messages left: " + consumer.getMessageCount());
 
@@ -196,7 +196,7 @@ public class MessagingTest extends MongoTest {
         Thread.sleep(5000);
         assert (!gotMessage) : "Got message again?!?!?!";
 
-        messaging.setRunning(false);
+        messaging.terminate();
         Thread.sleep(1000);
         assert (!messaging.isAlive()) : "Messaging still running?!?";
     }
@@ -246,8 +246,8 @@ public class MessagingTest extends MongoTest {
         assert (gotMessage1) : "Message not recieved yet?!?!?";
         gotMessage1 = false;
         assert (!error);
-        m1.setRunning(false);
-        m2.setRunning(false);
+        m1.terminate();
+        m2.terminate();
         Thread.sleep(1000);
         assert (!m1.isAlive()) : "m1 still running?";
         assert (!m2.isAlive()) : "m2 still running?";
@@ -313,10 +313,10 @@ public class MessagingTest extends MongoTest {
         assert (gotMessage1) : "Message not recieved yet by m1?!?!?";
         assert (gotMessage3) : "Message not recieved yet by m3?!?!?";
         assert (gotMessage4) : "Message not recieved yet by m4?!?!?";
-        m1.setRunning(false);
-        m2.setRunning(false);
-        m3.setRunning(false);
-        m4.setRunning(false);
+        m1.terminate();
+        m2.terminate();
+        m3.terminate();
+        m4.terminate();
         Thread.sleep(2000);
         assert (!m1.isAlive()) : "M1 still running";
         assert (!m2.isAlive()) : "M2 still running";
@@ -475,9 +475,9 @@ public class MessagingTest extends MongoTest {
         assert (!gotMessage3) : "Message not recieved again by m3?!?!?";
         assert (!error);
 
-        m1.setRunning(false);
-        m2.setRunning(false);
-        m3.setRunning(false);
+        m1.terminate();
+        m2.terminate();
+        m3.terminate();
         Thread.sleep(1000);
     }
 
@@ -569,9 +569,9 @@ public class MessagingTest extends MongoTest {
 
         assert (!gotMessage3 && !gotMessage1 && !gotMessage2) : "Message processing repeat?";
 
-        m1.setRunning(false);
-        m2.setRunning(false);
-        onlyAnswers.setRunning(false);
+        m1.terminate();
+        m2.terminate();
+        onlyAnswers.terminate();
         Thread.sleep(1000);
     }
 
@@ -660,7 +660,7 @@ public class MessagingTest extends MongoTest {
 
         //Stopping all
         for (Messaging m : systems) {
-            m.setRunning(false);
+            m.terminate();
         }
         Thread.sleep(1000);
         for (Messaging m : systems) {
@@ -737,9 +737,9 @@ public class MessagingTest extends MongoTest {
         assert (!gotMessage3) : "m3 did get msg again?";
         assert (!error);
 
-        m1.setRunning(false);
-        m2.setRunning(false);
-        m3.setRunning(false);
+        m1.terminate();
+        m2.terminate();
+        m3.terminate();
         Thread.sleep(1000);
     }
 
@@ -783,8 +783,8 @@ public class MessagingTest extends MongoTest {
         }
         long dur = System.currentTimeMillis() - start;
         log.info("Processing took " + dur + " ms");
-        producer.setRunning(false);
-        consumer.setRunning(false);
+        producer.terminate();
+        consumer.terminate();
         Thread.sleep(1000);
     }
 
@@ -835,8 +835,8 @@ public class MessagingTest extends MongoTest {
         }
         long dur = System.currentTimeMillis() - start;
         log.info("Processing took " + dur + " ms");
-        producer.setRunning(false);
-        consumer.setRunning(false);
+        producer.terminate();
+        consumer.terminate();
         log.info("Waitingh for threads to finish");
         Thread.sleep(1000);
 
@@ -895,9 +895,9 @@ public class MessagingTest extends MongoTest {
         assert (rec == 1);
 
         assert (m1.getNumberOfMessages() == 0);
-        m1.setRunning(false);
-        m2.setRunning(false);
-        m3.setRunning(false);
+        m1.terminate();
+        m2.terminate();
+        m3.terminate();
 
 
     }

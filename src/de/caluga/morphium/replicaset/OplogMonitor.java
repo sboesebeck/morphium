@@ -67,6 +67,10 @@ public class OplogMonitor implements Runnable, ShutdownListener {
         oplogMonitorThread.start();
     }
 
+    public boolean isRunning() {
+        return running;
+    }
+
     public void stop() {
         running = false;
         long start = System.currentTimeMillis();
