@@ -1,5 +1,6 @@
 package de.caluga.test.mongo.suite;
 
+import ch.qos.logback.classic.LoggerContext;
 import de.caluga.morphium.Morphium;
 import de.caluga.morphium.MorphiumConfig;
 import de.caluga.morphium.async.AsyncOperationCallback;
@@ -43,7 +44,6 @@ public class MongoTest {
     private static Properties props;
     protected Logger log;
 
-
     public MongoTest() {
         log = LoggerFactory.getLogger(getClass().getName());
     }
@@ -69,6 +69,9 @@ public class MongoTest {
 
     @org.junit.BeforeClass
     public static synchronized void setUpClass() throws Exception {
+        LoggerContext loggerContext = (LoggerContext) LoggerFactory.getILoggerFactory();
+        Logger rootLogger = loggerContext.getLogger("org.mongodb.driver");
+        ((ch.qos.logback.classic.Logger) rootLogger).setLevel(ch.qos.logback.classic.Level.INFO);
         java.util.logging.Logger l = java.util.logging.Logger.getGlobal();
         l.setLevel(Level.SEVERE);
                 l.addHandler(new Handler() {

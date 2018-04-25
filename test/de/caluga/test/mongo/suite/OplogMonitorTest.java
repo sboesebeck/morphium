@@ -40,11 +40,17 @@ public class OplogMonitorTest extends MongoTest {
         assert (gotIt);
         gotIt = false;
 
+        morphium.set(u, UncachedObject.Fields.value, "new value");
+        Thread.sleep(550);
+        assert (gotIt);
+        gotIt = false;
+
         olm.removeListener(lst);
         u = new UncachedObject("test", 123);
         morphium.store(u);
         Thread.sleep(200);
         assert (!gotIt);
+
 
         olm.stop();
     }
