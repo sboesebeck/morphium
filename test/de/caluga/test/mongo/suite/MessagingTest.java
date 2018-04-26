@@ -956,7 +956,7 @@ public class MessagingTest extends MongoTest {
         if (gotMessage3) {
             rec++;
         }
-        assert (rec == 1);
+        assert (rec == 1):"rec is "+rec;
 
         assert (m1.getNumberOfMessages() == 0);
         m1.terminate();

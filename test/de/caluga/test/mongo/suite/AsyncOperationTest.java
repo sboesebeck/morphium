@@ -150,7 +150,7 @@ public class AsyncOperationTest extends MongoTest {
     public void testAsyncWriter() throws Exception {
         morphium.dropCollection(AsyncObject.class);
         morphium.ensureIndicesFor(AsyncObject.class);
-        Thread.sleep(1000);
+        Thread.sleep(2000);
         assert (morphium.getDriver().exists("morphium_test", "async_object"));
 
         for (int i = 0; i < 500; i++) {
