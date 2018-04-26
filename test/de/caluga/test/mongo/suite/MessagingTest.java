@@ -656,6 +656,7 @@ public class MessagingTest extends MongoTest {
         waitForWrites();
         log.info("...all messages persisted!");
         int last = 0;
+        Thread.sleep(1000);
         //See if whole number of messages processed is correct
         //keep in mind: a message is never recieved by the sender, hence numberOfWorkers-1
         while (true) {
@@ -767,49 +768,86 @@ public class MessagingTest extends MongoTest {
         Thread.sleep(1000);
     }
 
-
     @Test
-    public void messagingPerformanceTest() throws Exception {
+    public void messagingSendReceiveThreaddedTest() throws Exception {
         morphium.clearCollection(Msg.class);
-        final Messaging producer = new Messaging(morphium, 100, true);
-        final Messaging consumer = new Messaging(morphium, 10, true);
-        final int[] processed = {0};
-        consumer.addMessageListener((msg, m) -> {
-            processed[0]++;
-            if (processed[0] % 1000 == 0) {
-                log.info("Processed: " + processed[0]);
+        final Messaging producer = new Messaging(morphium, 100, true,false,10);
+        final Messaging consumer = new Messaging(morphium, 10, true,true,10);
+        producer.start();
+        consumer.start();
+        final int[] processed={0};
+        consumer.addMessageListener(new MessageListener() {
+            @Override
+            public Msg onMessage(Messaging msg, Msg m) {
+                processed[0]++;
+                //simulate processing
+                try {
+                    Thread.sleep((long) (10*Math.random()));
+                } catch (InterruptedException e) {
+
+                }
+                return null;
             }
-            //simulate processing
-            try {
-                Thread.sleep((long) (10 * Math.random()));
-            } catch (InterruptedException e) {
-                e.printStackTrace();
-            }
-            return null;
         });
 
-        int numberOfMessages = 10000;
-        for (int i = 0; i < numberOfMessages; i++) {
-            Msg m = new Msg("msg", "m", "v");
-            m.setTtl(5 * 60 * 1000);
-            if (i % 1000 == 0) {
-                log.info("created msg " + i + " / " + numberOfMessages);
-            }
-            producer.storeMessage(m);
+        int amount=1000;
+
+        for (int i =0;i<amount;i++){
+            producer.storeMessage(new Msg("Test "+i,"msg "+i,"value "+i));
         }
-        log.info("Start message processing....");
-        long start = System.currentTimeMillis();
-        consumer.start();
-        while (processed[0] < numberOfMessages) {
-            //            ThreadMXBean thbean = ManagementFactory.getThreadMXBean();
-            //            log.info("Running threads: " + thbean.getThreadCount());
-            Thread.sleep(15);
+
+        for (int i =0; i<30 && processed[0]<amount;i++) {
+            Thread.sleep(1000);
+            log.info("Still processing: "+processed[0]);
         }
-        long dur = System.currentTimeMillis() - start;
-        log.info("Processing took " + dur + " ms");
+        assert(processed[0]==amount):"Did process "+processed[0];
+
         producer.terminate();
         consumer.terminate();
         Thread.sleep(1000);
+
+    }
+
+
+    @Test
+    public void messagingSendReceiveTest() throws Exception {
+        morphium.clearCollection(Msg.class);
+        final Messaging producer = new Messaging(morphium, 100, true);
+        final Messaging consumer = new Messaging(morphium, 10, true);
+        producer.start();
+        consumer.start();
+        final int[] processed={0};
+        consumer.addMessageListener(new MessageListener() {
+            @Override
+            public Msg onMessage(Messaging msg, Msg m) {
+//                log.info("Got Message "+m.getName()+" / "+m.getMsg()+" / "+m.getValue());
+                processed[0]++;
+                //simulate processing
+                try {
+                    Thread.sleep((long) (10*Math.random()));
+                } catch (InterruptedException e) {
+
+                }
+                return null;
+            }
+        });
+
+        int amount=1000;
+
+        for (int i =0;i<amount;i++){
+            producer.storeMessage(new Msg("Test "+i,"msg "+i,"value "+i));
+        }
+
+        for (int i =0; i<30 && processed[0]<amount;i++) {
+            Thread.sleep(1000);
+            log.info("Still processing: "+processed[0]);
+        }
+        assert(processed[0]==amount):"Did process "+processed[0];
+
+        producer.terminate();
+        consumer.terminate();
+        Thread.sleep(1000);
+
     }
 
 
@@ -818,6 +856,8 @@ public class MessagingTest extends MongoTest {
         morphium.clearCollection(Msg.class);
         final Messaging producer = new Messaging(morphium, 100, true);
         final Messaging consumer = new Messaging(morphium, 10, true, true, 2000);
+        consumer.start();
+        producer.start();
         final int[] processed = {0};
         final Map<String, Long> msgCountById = new Hashtable<>();
         consumer.addMessageListener((msg, m) -> {
@@ -848,9 +888,9 @@ public class MessagingTest extends MongoTest {
             }
             producer.storeMessage(m);
         }
-        log.info("Start message processing....");
+
         long start = System.currentTimeMillis();
-        consumer.start();
+
         while (processed[0] < numberOfMessages) {
             //            ThreadMXBean thbean = ManagementFactory.getThreadMXBean();
             //            log.info("Running threads: " + thbean.getThreadCount());

@@ -118,7 +118,7 @@ public class OplogMonitor implements Runnable, ShutdownListener {
         q.put("ts", q2);
         while (running) {
             try {
-                morphium.getDriver().tailableIteration("local", "oplog.rs", q, null, null, 0, 0, 1000, null, 1000, (data, dur) -> {
+                morphium.getDriver().tailableIteration("local", "oplog.rs", q, null, null, 0, 0, 1000, null, 60000, (data, dur) -> {
                     if (!running){
                         return false;
                     }
