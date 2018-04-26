@@ -656,6 +656,9 @@ public class ObjectMapperImpl implements ObjectMapper {
                     continue;
                 }
                 if (valueFromDb == null) {
+                    if (!fld.getType().isPrimitive()) {
+                        fld.set(ret, null);
+                    }
                     continue;
                 }
                 Object value = null;

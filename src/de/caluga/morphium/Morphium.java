@@ -1584,9 +1584,9 @@ public class Morphium {
 
     @SuppressWarnings("ConstantConditions")
     public WriteConcern getWriteConcernForClass(Class<?> cls) {
-        if (logger.isDebugEnabled()) {
-            logger.debug("returning write concern for " + cls.getSimpleName());
-        }
+//        if (logger.isDebugEnabled()) {
+//            logger.debug("returning write concern for " + cls.getSimpleName());
+//        }
         WriteSafety safety = annotationHelper.getAnnotationFromHierarchy(cls, WriteSafety.class);  // cls.getAnnotation(WriteSafety.class);
         if (safety == null) {
             return null;

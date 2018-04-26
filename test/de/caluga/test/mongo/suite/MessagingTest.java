@@ -313,6 +313,25 @@ public class MessagingTest extends MongoTest {
         assert (gotMessage1) : "Message not recieved yet by m1?!?!?";
         assert (gotMessage3) : "Message not recieved yet by m3?!?!?";
         assert (gotMessage4) : "Message not recieved yet by m4?!?!?";
+
+
+        gotMessage1 = false;
+        gotMessage2 = false;
+        gotMessage3 = false;
+        gotMessage4 = false;
+
+        m1.storeMessage(new Msg("testmsg_excl","This is the message","value",30000,true));
+        Thread.sleep(5000);
+        int cnt=0;
+        if (gotMessage1)cnt++;
+        if (gotMessage2)cnt++;
+        if (gotMessage3)cnt++;
+        if (gotMessage4)cnt++;
+
+        assert(cnt!=0):"Message was  not received";
+        assert(cnt==1):"Message was received too often: "+cnt;
+
+
         m1.terminate();
         m2.terminate();
         m3.terminate();
@@ -354,19 +373,24 @@ public class MessagingTest extends MongoTest {
             gotMessage3=true;
             log.info("Receiver got message");
             if (m.getInAnswerTo()==null){
-                log.error("Message is not an anser! ERROR!");
+                log.error("Message is not an answer! ERROR!");
                 throw new RuntimeException("Error");
             }
             return null;
         });
 
-        sender.storeMessage(new Msg("test","messaage","value"));
+        sender.storeMessage(new Msg("test","message","value"));
 
         Thread.sleep(1000);
         assert(gotMessage1);
         assert(gotMessage2);
         assert(!gotMessage3);
 
+
+        sender.terminate();
+        rec1.terminate();
+        rec2.terminate();
+        Thread.sleep(2000);
 
 
 

@@ -158,23 +158,27 @@ public class Messaging extends Thread implements ShutdownListener {
 
 
         if (useOplogMonitor) {
-            oplogMonitor = new OplogMonitor(morphium, Msg.class);
+            oplogMonitor = new OplogMonitor(morphium, getCollectionName(),false);
             oplogMonitor.addListener(new OplogListener() {
                 @Override
                 public void incomingData(Map<String, Object> data) {
+//                    log.debug("incoming message via oplogmonitor");
                     if (data.get("op").equals("i")) {
                         //insert => new Message
+                        log.debug("New message incoming");
                         Msg obj = morphium.getMapper().unmarshall(Msg.class, (Map<String, Object>) data.get("o"));
-                        if (obj.getSender().equals(id) || obj.getProcessedBy().contains(id)) {
+                        if (obj.getSender().equals(id) || (obj.getProcessedBy()!=null && obj.getProcessedBy().contains(id))) {
                             //ignoring my own messages
                             return;
                         }
-                        if (obj.isExclusive() && obj.getLockedBy() == null && (obj.getRecipient() == null || obj.getRecipient().equals(id))) {
+                        //do not process messages, that are exclusive, but already processed or not for me / all
+                        if (obj.isExclusive() && obj.getLockedBy() == null && (obj.getRecipient() == null || obj.getRecipient().equals(id)) && (obj.getProcessedBy()==null ||!obj.getProcessedBy().contains(id))) {
                             // locking
+                            log.info("trying to lock exclusive message");
                             lockAndProcess(obj);
 
-                        } else if (obj.getLockedBy().equals("ALL") || obj.getRecipient().equals(id)) {
-                            //I need process this message... it is either for all or for me directly
+                        } else if (!obj.isExclusive()|| (obj.getRecipient()!=null  && obj.getRecipient().equals(id))) {
+                            //I need process this new message... it is either for all or for me directly
                             List<Msg> lst = new ArrayList<>();
                             lst.add(obj);
                             try {
@@ -188,15 +192,21 @@ public class Messaging extends Thread implements ShutdownListener {
 
                     } else if (data.get("op").equals("u")) {
                         //dealing with updates... i could have "lost" a lock
+//                        if (((Map<String,Object>)data.get("o")).get("$set")!=null){
+//                            //there is a set-update
+//                        }
                         Msg obj = morphium.findById(Msg.class, new MorphiumId(((Map<String, Object>) data.get("o2")).get("_id").toString()));
-                        if (obj.isExclusive() && obj.getLockedBy() == null && (obj.getRecipient() == null || obj.getRecipient().equals(id))) {
+                        if (obj!=null && obj.isExclusive() && obj.getLockedBy() == null && (obj.getRecipient() == null || obj.getRecipient().equals(id))) {
+                            log.debug("Update of msg - trying to lock");
                             // locking
                             lockAndProcess(obj);
                         }
+                        //if msg was not exclusive, we should have processed it on insert
 
                     }
                 }
             });
+            oplogMonitor.start();
         } else {
             Map<String, Object> values = new HashMap<>();
             while (running) {
@@ -257,8 +267,8 @@ public class Messaging extends Thread implements ShutdownListener {
         values.put("locked_by", id);
         values.put("locked", System.currentTimeMillis());
         morphium.set(q, values, false, false);
-        morphium.reread(obj);
-        if (obj.getLockedBy().equals(id)) {
+        obj=morphium.reread(obj);
+        if (obj!=null && obj.getLockedBy()!=null && obj.getLockedBy().equals(id)) {
             List<Msg> lst = new ArrayList<>();
             lst.add(obj);
             try {
@@ -511,8 +521,7 @@ public class Messaging extends Thread implements ShutdownListener {
         m.setDeleteAt(new Date(System.currentTimeMillis() + m.getTtl()));
         m.setSender(id);
         m.addProcessedId(id);
-        m.setLockedBy(null);
-        m.setLocked(0);
+
         m.setSenderHost(hostname);
         if (m.getTo() != null && !m.getTo().isEmpty()) {
             for (String recipient : m.getTo()) {
