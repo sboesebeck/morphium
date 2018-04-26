@@ -79,6 +79,7 @@ public class CheckForNewTest extends MongoTest {
         tst.theId = "2";
         tst.theValue = "value";
         morphium.store(tst);
+        Thread.sleep(250);
         assert (tst.created != null);
         assert (tst.created.equals(cr));
 

@@ -158,6 +158,7 @@ public class Messaging extends Thread implements ShutdownListener {
 
 
         if (useOplogMonitor) {
+            log.info("init Messaging  using oplogmonitor");
             oplogMonitor = new OplogMonitor(morphium, getCollectionName(),false);
             oplogMonitor.addListener(new OplogListener() {
                 @Override
@@ -165,9 +166,9 @@ public class Messaging extends Thread implements ShutdownListener {
 //                    log.debug("incoming message via oplogmonitor");
                     if (data.get("op").equals("i")) {
                         //insert => new Message
-                        log.debug("New message incoming");
+//                        log.debug("New message incoming");
                         Msg obj = morphium.getMapper().unmarshall(Msg.class, (Map<String, Object>) data.get("o"));
-                        if (obj.getSender().equals(id) || (obj.getProcessedBy()!=null && obj.getProcessedBy().contains(id))) {
+                        if (obj.getSender().equals(id) || (obj.getProcessedBy()!=null && obj.getProcessedBy().contains(id)) || (obj.getRecipient()!=null && !obj.getRecipient().equals(id))) {
                             //ignoring my own messages
                             return;
                         }
@@ -267,6 +268,12 @@ public class Messaging extends Thread implements ShutdownListener {
         values.put("locked_by", id);
         values.put("locked", System.currentTimeMillis());
         morphium.set(q, values, false, false);
+        try {
+            //wait for the locking to be saved
+            Thread.sleep(10);
+        } catch (InterruptedException e) {
+
+        }
         obj=morphium.reread(obj);
         if (obj!=null && obj.getLockedBy()!=null && obj.getLockedBy().equals(id)) {
             List<Msg> lst = new ArrayList<>();
@@ -377,12 +384,13 @@ public class Messaging extends Thread implements ShutdownListener {
 
 
             queueOrRun(r);
+
         }
 
         //wait for all threads to finish
         if (multithreadded) {
             while (threadPool != null && threadPool.getActiveCount() > 0) {
-                Thread.sleep(100);
+                Thread.yield();
             }
         }
         morphium.storeList(toStore, getCollectionName());
@@ -414,6 +422,10 @@ public class Messaging extends Thread implements ShutdownListener {
                     queued = true;
                 } catch (Throwable ignored) {
                 }
+            }
+            //throtteling to windowSize - do not create more threads than windowSize
+            while (threadPool.getActiveCount()>windowSize){
+                Thread.yield();
             }
         } else {
             r.run();

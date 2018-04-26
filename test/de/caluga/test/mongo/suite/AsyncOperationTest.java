@@ -1,11 +1,15 @@
 package de.caluga.test.mongo.suite;
 
 import de.caluga.morphium.annotations.Entity;
+import de.caluga.morphium.annotations.Id;
 import de.caluga.morphium.annotations.SafetyLevel;
 import de.caluga.morphium.annotations.WriteSafety;
 import de.caluga.morphium.annotations.caching.AsyncWrites;
+import de.caluga.morphium.annotations.lifecycle.Lifecycle;
+import de.caluga.morphium.annotations.lifecycle.PreStore;
 import de.caluga.morphium.async.AsyncOperationCallback;
 import de.caluga.morphium.async.AsyncOperationType;
+import de.caluga.morphium.driver.MorphiumId;
 import de.caluga.morphium.query.Query;
 import de.caluga.test.mongo.suite.data.UncachedObject;
 import org.junit.Test;
@@ -169,8 +173,6 @@ public class AsyncOperationTest extends MongoTest {
     public void asyncErrorHandling() throws Exception {
         log.info("upcoming Error Message + Exception is expected");
         WrongObject wo = new WrongObject();
-        morphium.store(wo);
-
         callback = false;
         morphium.store(wo, new AsyncOperationCallback<WrongObject>() {
             @Override
@@ -193,7 +195,10 @@ public class AsyncOperationTest extends MongoTest {
     @AsyncWrites
     @Entity
     @WriteSafety(level = SafetyLevel.NORMAL)
+    @Lifecycle
     public static class WrongObject {
+        @Id
+        private MorphiumId id;
         private String value;
 
         public String getValue() {
@@ -202,6 +207,11 @@ public class AsyncOperationTest extends MongoTest {
 
         public void setValue(String value) {
             this.value = value;
+        }
+
+        @PreStore
+        public void preStore(){
+            throw new RuntimeException("error");
         }
     }
 

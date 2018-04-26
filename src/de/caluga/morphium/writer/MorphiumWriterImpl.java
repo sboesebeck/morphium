@@ -1816,7 +1816,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
 
                     field = morphium.getARHelper().getFieldName(cls, field);
                     Map<String, Object> set = Utils.getMap(field, value);
-                    Map<String, Object> update = Utils.getMap(push ? "$pushAll" : "$pullAll", set);
+                    Map<String, Object> update = Utils.getMap(push ? "$push" : "$pullAll", set);
 
                     List<String> lastChangeFields = morphium.getARHelper().getFields(cls, LastChange.class);
                     if (lastChangeFields != null && !lastChangeFields.isEmpty()) {
