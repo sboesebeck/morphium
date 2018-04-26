@@ -36,6 +36,7 @@ public class Msg {
     @Id
     private MorphiumId msgId;
     @Index
+    @UseIfnull
     private String lockedBy;
     @Index
     private long locked;
@@ -56,13 +57,13 @@ public class Msg {
     private long timestamp;
     @Index(options = "expireAfterSeconds:0")
     private Date deleteAt;
-    @Transient
-    private Boolean exclusive = false;
+//    @Transient
+//    private Boolean exclusive = false;
 
     public Msg() {
         // msgId = UUID.randomUUID().toString();
         lockedBy = "ALL";
-        exclusive = false;
+//        exclusive = false;
     }
 
     public Msg(String name, String msg, String value) {
@@ -85,10 +86,7 @@ public class Msg {
 
     @SuppressWarnings("unused")
     public boolean isExclusive() {
-        if (exclusive == null) {
-            return getLockedBy() != null && !getLockedBy().equals("ALL");
-        }
-        return exclusive;
+        return getLockedBy() == null || !getLockedBy().equals("ALL");
     }
 
     /**
@@ -102,7 +100,6 @@ public class Msg {
         } else {
             lockedBy = null;
         }
-        this.exclusive = exclusive;
     }
 
     @SuppressWarnings("unused")
@@ -336,10 +333,10 @@ public class Msg {
             LoggerFactory.getLogger(Msg.class).warn("Defaulting msg ttl to 30sec");
             ttl = 30000;
         }
-        if (!exclusive) {
-            locked = System.currentTimeMillis();
-            lockedBy = "ALL";
-        }
+//        if (!isExclusive()) {
+//            locked = System.currentTimeMillis();
+//            lockedBy = "ALL";
+//        }
         timestamp = System.currentTimeMillis();
     }
 
@@ -361,7 +358,6 @@ public class Msg {
     public Msg getCopy() {
         Msg ret = new Msg();
         ret.setAdditional(additional);
-        ret.setExclusive(exclusive);
         ret.setInAnswerTo(inAnswerTo);
         ret.setLocked(locked);
         ret.setLockedBy(lockedBy);
@@ -384,15 +380,15 @@ public class Msg {
         processedBy,
         lockedBy,
         msgId,
-        @SuppressWarnings("unused")locked,
-        @SuppressWarnings("unused")type,
-        @SuppressWarnings("unused")inAnswerTo,
-        @SuppressWarnings("unused")msg,
-        @SuppressWarnings("unused")additional,
-        @SuppressWarnings("unused")value,
+        @SuppressWarnings("unused") locked,
+        @SuppressWarnings("unused") type,
+        @SuppressWarnings("unused") inAnswerTo,
+        @SuppressWarnings("unused") msg,
+        @SuppressWarnings("unused") additional,
+        @SuppressWarnings("unused") value,
         timestamp,
         sender,
-        @SuppressWarnings("unused")ttl,
+        @SuppressWarnings("unused") ttl,
         recipient
     }
 }
