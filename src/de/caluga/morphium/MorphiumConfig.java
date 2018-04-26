@@ -676,6 +676,9 @@ public class MorphiumConfig {
 
     public void addHostToSeed(String host, int port) {
         host = host.replaceAll(" ", "") + ":" + port;
+        if (hostSeed==null){
+            hostSeed=new ArrayList<>();
+        }
         hostSeed.add(host);
     }
 
