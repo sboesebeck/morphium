@@ -88,6 +88,7 @@ public class OplogMonitor implements Runnable, ShutdownListener {
             oplogMonitorThread.interrupt();
         }
         oplogMonitorThread = null;
+        listeners.clear();
         morphium.removeShutdownListener(this);
     }
 
@@ -118,6 +119,9 @@ public class OplogMonitor implements Runnable, ShutdownListener {
         while (running) {
             try {
                 morphium.getDriver().tailableIteration("local", "oplog.rs", q, null, null, 0, 0, 1000, null, 1000, (data, dur) -> {
+                    if (!running){
+                        return false;
+                    }
                     timestamp = (Integer) data.get("ts");
                     for (OplogListener lst : listeners) {
                         try {
@@ -126,7 +130,7 @@ public class OplogMonitor implements Runnable, ShutdownListener {
                             log.error("listener threw exception", e);
                         }
                     }
-                    return true;
+                    return running;
                 });
             } catch (MorphiumDriverException e) {
                 e.printStackTrace();
