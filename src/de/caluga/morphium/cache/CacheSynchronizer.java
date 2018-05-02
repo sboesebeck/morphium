@@ -9,7 +9,6 @@ import de.caluga.morphium.annotations.caching.Cache;
 import de.caluga.morphium.messaging.MessageListener;
 import de.caluga.morphium.messaging.Messaging;
 import de.caluga.morphium.messaging.Msg;
-import de.caluga.morphium.messaging.MsgType;
 import de.caluga.morphium.query.Query;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -187,9 +186,9 @@ public class CacheSynchronizer implements MessageListener, MorphiumStorageListen
             toClrCachee.addAll(sorted.get(cls).get(true).stream().filter(record -> c.syncCache().equals(Cache.SyncCacheStrategy.CLEAR_TYPE_CACHE)).collect(Collectors.toList()));
             Msg m = null;
             if (!toUpdate.isEmpty()) {
-                m = new Msg(CACHE_SYNC_RECORD, MsgType.MULTI, reason, cls.getName(), 30000);
+                m = new Msg(CACHE_SYNC_RECORD, reason, cls.getName(), 30000);
             } else if (!toClrCachee.isEmpty()) {
-                m = new Msg(CACHE_SYNC_TYPE, MsgType.MULTI, reason, cls.getName(), 30000);
+                m = new Msg(CACHE_SYNC_TYPE, reason, cls.getName(), 30000);
             }
             if (m != null) {
                 Msg finalM = m;
@@ -227,7 +226,7 @@ public class CacheSynchronizer implements MessageListener, MorphiumStorageListen
         if (type.equals(Msg.class)) {
             return;
         }
-        Msg m = new Msg(CACHE_SYNC_TYPE, MsgType.MULTI, reason, type.getName(), 30000);
+        Msg m = new Msg(CACHE_SYNC_TYPE, reason, type.getName(), 30000);
         Cache c = annotationHelper.getAnnotationFromHierarchy(type, Cache.class); //(Cache) type.getAnnotation(Cache.class);
         if (c == null) {
             return; //not clearing cache for non-cached objects
@@ -255,7 +254,7 @@ public class CacheSynchronizer implements MessageListener, MorphiumStorageListen
     }
 
     public void sendClearAllMessage(String reason) {
-        Msg m = new Msg(CACHE_SYNC_TYPE, MsgType.MULTI, reason, "ALL", 30000);
+        Msg m = new Msg(CACHE_SYNC_TYPE, reason, "ALL", 30000);
         try {
             firePreSendEvent(null, m);
             messaging.queueMessage(m);

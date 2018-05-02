@@ -656,6 +656,9 @@ public class ObjectMapperImpl implements ObjectMapper {
                     continue;
                 }
                 if (valueFromDb == null) {
+                    if (!fld.getType().isPrimitive()) {
+                        fld.set(ret, null);
+                    }
                     continue;
                 }
                 Object value = null;
@@ -1158,10 +1161,20 @@ public class ObjectMapperImpl implements ObjectMapper {
                 continue;
             } else if (val instanceof List) {
                 //list in list
-                ArrayList lt = new ArrayList();
                 if (listType != null) {
-                    fillList(forField, ref, (ParameterizedType) listType.getActualTypeArguments()[0], (List<Map<String, Object>>) val, lt, containerEntity);
-                    toFillIn.add(lt);
+                    ArrayList lt = new ArrayList();
+                    Class lstt= null;
+                    try {
+                        lstt = Class.forName(listType.getActualTypeArguments()[0].getTypeName());
+                    } catch (ClassNotFoundException e) {
+                        //could not find it, assuming list type
+                    }
+                    if (lstt==null || lstt.isAssignableFrom(List.class)) {
+                        fillList(forField, ref, (ParameterizedType) listType.getActualTypeArguments()[0], (List<Map<String, Object>>) val, lt, containerEntity);
+                        toFillIn.add(lt);
+                    } else {
+                        fillList(forField, ref, listType, (List<Map<String, Object>>) val, toFillIn, containerEntity);
+                    }
                 } else {
                     log.warn("Cannot de-reference to unknown collection - trying to add Object only");
                     toFillIn.add(val);
