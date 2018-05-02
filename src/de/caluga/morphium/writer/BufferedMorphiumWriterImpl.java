@@ -21,6 +21,8 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.stream.Stream;
 
+import static de.caluga.morphium.annotations.caching.WriteBuffer.STRATEGY.JUST_WARN;
+
 /**
  * User: Stephan Bösebeck
  * Date: 11.03.13
@@ -174,7 +176,7 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
         WriteBuffer w = morphium.getARHelper().getAnnotationFromHierarchy(type, WriteBuffer.class);
         int size = 0;
         //        int timeout = morphium.getConfig().getWriteBufferTime();
-        WriteBuffer.STRATEGY strategy = WriteBuffer.STRATEGY.JUST_WARN;
+        WriteBuffer.STRATEGY strategy = JUST_WARN;
         boolean ordered = false;
         if (w != null) {
             ordered = w.ordered();
@@ -191,69 +193,68 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
         if (size > 0 && opLog.get(type) != null && opLog.get(type).size() > size) {
             logger.warn("WARNING: Write buffer for type " + type.getName() + " maximum exceeded: " + opLog.get(type).size() + " entries now, max is " + size);
             BulkRequestContext ctx = morphium.getDriver().createBulkContext(morphium, morphium.getConfig().getDatabase(), collectionName, ordered, morphium.getWriteConcernForClass(type));
-            if (opLog.get(type) == null) {
-                synchronized (opLog) {
+            synchronized (opLog) {
+                if (opLog.get(type) == null) {
                     opLog.putIfAbsent(type, Collections.synchronizedList(new ArrayList<>()));
                 }
-            }
-            switch (strategy) {
-                case WAIT:
-                    long start = System.currentTimeMillis();
-                    while (true) {
-                        int timeout = w.timeout();
-                        if (morphium.getConfig().getMaxWaitTime() > 0 && morphium.getConfig().getMaxWaitTime() > timeout) {
-                            timeout = morphium.getConfig().getMaxWaitTime();
-                        }
-                        if (timeout > 0 && System.currentTimeMillis() - start > timeout) {
-                            logger.error("Could not write - maxWaitTime/timeout exceeded!");
-                            throw new RuntimeException("could now write - maxWaitTimeExceded " + morphium.getConfig().getMaxWaitTime() + "ms");
-                        }
-                        Thread.yield();
-                        try {
-                            if (opLog.get(type) == null || opLog.get(type).size() < size) {
+                switch (strategy) {
+
+                    case WAIT:
+                        long start = System.currentTimeMillis();
+                        while (true) {
+                            int timeout = w.timeout();
+                            if (morphium.getConfig().getMaxWaitTime() > 0 && morphium.getConfig().getMaxWaitTime() > timeout) {
+                                timeout = morphium.getConfig().getMaxWaitTime();
+                            }
+                            if (timeout > 0 && System.currentTimeMillis() - start > timeout) {
+                                logger.error("Could not write - maxWaitTime/timeout exceeded!");
+                                throw new RuntimeException("could now write - maxWaitTimeExceded " + morphium.getConfig().getMaxWaitTime() + "ms");
+                            }
+                            Thread.yield();
+                            try {
+                                if (opLog.get(type) == null || opLog.get(type).size() < size) {
+                                    break;
+                                }
+                            } catch (NullPointerException e) {
+                                //Can happen - Multithreadded acces...
                                 break;
                             }
-                        } catch (NullPointerException e) {
-                            //Can happen - Multithreadded acces... 
-                            break;
                         }
-                    }
-                    if (opLog.get(type) == null) {
-                        synchronized (opLog) {
+                        if (opLog.get(type) == null) {
+
                             opLog.putIfAbsent(type, Collections.synchronizedList(new ArrayList<>()));
                         }
-                    }
-                case JUST_WARN:
-                    opLog.get(type).add(wb);
-                    break;
-                case IGNORE_NEW:
-                    logger.warn("ignoring new incoming...");
-                    return;
-                case WRITE_NEW:
-                    logger.warn("directly writing data... due to strategy setting");
-                    r.queue(ctx);
-                    //                        ctx.execute();
-                    break;
-                case WRITE_OLD:
+                    case JUST_WARN:
+                        opLog.get(type).add(wb);
+                        break;
+                    case IGNORE_NEW:
+                        logger.warn("ignoring new incoming...");
+                        return;
+                    case WRITE_NEW:
+                        logger.warn("directly writing data... due to strategy setting");
+                        r.queue(ctx);
+                        //                        ctx.execute();
+                        break;
+                    case WRITE_OLD:
 
-                    opLog.get(type).sort((o1, o2) -> Long.valueOf(o1.getTimestamp()).compareTo(o2.getTimestamp()));
-
-                    opLog.get(type).get(0).getToRun().queue(ctx);
-                    opLog.get(type).remove(0);
-                    opLog.get(type).add(wb);
-                    break;
-                case DEL_OLD:
-
-                    opLog.get(type).sort((o1, o2) -> Long.valueOf(o1.getTimestamp()).compareTo(o2.getTimestamp()));
-                    if (logger.isDebugEnabled()) {
-                        logger.debug("Deleting oldest entry");
-                    }
-                    if (opLog.get(type) != null && !opLog.get(type).isEmpty()) {
+                        opLog.get(type).sort((o1, o2) -> Long.valueOf(o1.getTimestamp()).compareTo(o2.getTimestamp()));
+                        opLog.get(type).get(0).getToRun().queue(ctx);
                         opLog.get(type).remove(0);
-                    }
-                    opLog.putIfAbsent(type, new ArrayList<>());
-                    opLog.get(type).add(wb);
-                    return;
+                        opLog.get(type).add(wb);
+                        break;
+                    case DEL_OLD:
+
+                        opLog.get(type).sort((o1, o2) -> Long.valueOf(o1.getTimestamp()).compareTo(o2.getTimestamp()));
+                        if (logger.isDebugEnabled()) {
+                            logger.debug("Deleting oldest entry");
+                        }
+                        if (opLog.get(type) != null && !opLog.get(type).isEmpty()) {
+                            opLog.get(type).remove(0);
+                        }
+                        opLog.putIfAbsent(type, new ArrayList<>());
+                        opLog.get(type).add(wb);
+                        return;
+                }
             }
             try {
                 ctx.execute();
