@@ -156,27 +156,6 @@ public class Messaging extends Thread implements ShutdownListener {
             log.debug("Messaging " + id + " started");
         }
 
-            try {
-                Query<Msg> q = morphium.createQueryFor(Msg.class);
-                q.setCollectionName(getCollectionName());
-                //                //removing all outdated stuff
-                //                q = q.where("this.ttl<" + System.currentTimeMillis() + "-this.timestamp");
-                //                if (log.isDebugEnabled() && q.countAll() > 0) {
-                //                    log.debug("Deleting outdate messages: " + q.countAll());
-                //                }
-                //                morphium.remove(q);
-                //                q = q.q();
-                //locking messages...
-                q.or(q.q().f(Msg.Fields.sender).ne(id).f(Msg.Fields.lockedBy).eq(null).f(Msg.Fields.processedBy).ne(id).f(Msg.Fields.recipient).eq(null),
-                        q.q().f(Msg.Fields.sender).ne(id).f(Msg.Fields.lockedBy).eq(null).f(Msg.Fields.processedBy).ne(id).f(Msg.Fields.recipient).eq(id));
-                values.put("locked_by", id);
-                values.put("locked", System.currentTimeMillis());
-                morphium.set(q, values, false, processMultiple);
-                q = q.q();
-                q.or(q.q().f(Msg.Fields.lockedBy).eq(id),   //locked by me
-                        q.q().f(Msg.Fields.lockedBy).eq("ALL").f(Msg.Fields.processedBy).ne(id).f(Msg.Fields.recipient).eq(id),           //direct message, not exclusive. 1 -> n could be 1->1
-                        q.q().f(Msg.Fields.lockedBy).eq("ALL").f(Msg.Fields.processedBy).ne(id).f(Msg.Fields.recipient).eq(null));   //Boradcast message 1->all
-                q.sort(Msg.Fields.timestamp);
 
         if (useOplogMonitor) {
             log.info("init Messaging  using oplogmonitor");
@@ -208,12 +187,8 @@ public class Messaging extends Thread implements ShutdownListener {
                             } catch (Exception e) {
                                 log.error("Error during message processing ", e);
                             }
-                        } catch (Throwable t) {
-                            //                        msg.addAdditional("Processing of message failed by "+getSenderId()+": "+t.getMessage());
-                            log.error("Processing failed", t);
-                            // Improvement:
-                            // if non exclusive, put message back to queue, add my id processing_by
-                            //if exclusive, send an answer
+                        } else {
+                            log.debug("Message is not for me");
                         }
 
                     } else if (data.get("op").equals("u")) {
