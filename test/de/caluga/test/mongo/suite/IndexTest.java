@@ -19,7 +19,7 @@ import java.util.Map;
  */
 public class IndexTest extends MongoTest {
     @Test
-    public void createIndexMapFromTest() throws Exception {
+    public void createIndexMapFromTest() {
         List<Map<String, Object>> idx = morphium.createIndexMapFrom(new String[]{"-timer , -namne", "bla, fasel, blub"});
         assert (idx.size() == 2) : "Created indexes: " + idx.size();
         assert (idx.get(0).get("timer").equals(-1));

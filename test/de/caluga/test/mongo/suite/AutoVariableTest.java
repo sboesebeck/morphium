@@ -87,7 +87,7 @@ public class AutoVariableTest extends MongoTest {
     }
 
     @Test
-    public void testAutoVariablesBulkWrite() throws Exception {
+    public void testAutoVariablesBulkWrite() {
         morphium.dropCollection(CTimeTest.class);
         List<CTimeTest> lst = new ArrayList<>();
         for (int i = 0; i < 100; i++) {

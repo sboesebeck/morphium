@@ -27,7 +27,7 @@ public class HierarchyTest extends MongoTest {
     }
 
     @Test
-    public void testHierarchy() throws Exception {
+    public void testHierarchy() {
         assert (new AnnotationAndReflectionHelper(true).isAnnotationPresentInHierarchy(SubClass.class, Entity.class)) : "hierarchy not found";
         String n = new ObjectMapperImpl().getCollectionName(de.caluga.test.mongo.suite.HierarchyTest.SubClass.class);
         assert (!n.equals("uncached_object")) : "Wrong collection name!";

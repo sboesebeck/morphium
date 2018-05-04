@@ -17,7 +17,7 @@ import java.util.Date;
 public class CheckForNewTest extends MongoTest {
 
     @Test
-    public void testCheckForNew() throws Exception {
+    public void testCheckForNew() {
         //although checkfornew is enabled, it will not update created
         //as the @CreationTime annotation disables it
         morphium.getConfig().setCheckForNew(true);

@@ -68,7 +68,7 @@ public class MongoTest {
     }
 
     @org.junit.BeforeClass
-    public static synchronized void setUpClass() throws Exception {
+    public static synchronized void setUpClass() {
         LoggerContext loggerContext = (LoggerContext) LoggerFactory.getILoggerFactory();
         Logger rootLogger = loggerContext.getLogger("org.mongodb.driver");
         ((ch.qos.logback.classic.Logger) rootLogger).setLevel(ch.qos.logback.classic.Level.INFO);

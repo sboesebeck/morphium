@@ -92,7 +92,7 @@ public class MessagingTest extends MongoTest {
 
 
     @Test
-    public void messageQueueTest() throws Exception {
+    public void messageQueueTest() {
         morphium.clearCollection(Msg.class);
         String id = "meine ID";
 

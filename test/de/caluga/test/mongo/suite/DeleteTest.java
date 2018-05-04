@@ -15,7 +15,7 @@ import java.util.List;
 public class DeleteTest extends MongoTest {
 
     @Test
-    public void uncachedDeleteSingle() throws Exception {
+    public void uncachedDeleteSingle() {
         createUncachedObjects(10);
         long c = morphium.createQueryFor(UncachedObject.class).countAll();
         assert (c == 10);

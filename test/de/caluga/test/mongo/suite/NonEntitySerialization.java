@@ -17,7 +17,7 @@ import java.util.Map;
 public class NonEntitySerialization extends MongoTest {
 
     @Test
-    public void testNonEntity() throws Exception {
+    public void testNonEntity() {
         NonEntity ne = new NonEntity();
         ne.setInteger(42);
         ne.setValue("Thank you for the fish");
