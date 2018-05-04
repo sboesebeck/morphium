@@ -13,7 +13,7 @@ import java.util.Date;
  */
 public class AliasesTest extends MongoTest {
     @Test
-    public void aliasTest() throws Exception {
+    public void aliasTest() {
         Query<ComplexObject> q = morphium.createQueryFor(ComplexObject.class).f("last_changed").eq(new Date());
         assert (q != null) : "Null Query?!?!?";
         assert (q.toQueryObject().toString().startsWith("{changed=")) : "Wrong query: " + q.toQueryObject().toString();

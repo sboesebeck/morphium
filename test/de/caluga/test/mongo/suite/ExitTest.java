@@ -11,7 +11,7 @@ import de.caluga.test.mongo.suite.data.CachedObject;
  **/
 public class ExitTest {
 
-    public static void main(String args[]) throws Exception {
+    public static void main(String args[]) {
         // Morphium m=new Morphium("localhost:27017","morphium-test");
 
         MorphiumConfig cfg = new MorphiumConfig();

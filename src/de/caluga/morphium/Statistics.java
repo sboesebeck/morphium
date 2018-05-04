@@ -69,7 +69,7 @@ public class Statistics extends HashMap<String, Double> {
     @Override
     public String toString() {
         StringBuilder b = new StringBuilder();
-        StatisticKeys[] lst = morphium.getStats().keySet().toArray(new StatisticKeys[morphium.getStats().keySet().size()]);
+        StatisticKeys[] lst = morphium.getStats().keySet().toArray(new StatisticKeys[0]);
         Arrays.sort(lst);
         for (StatisticKeys k : lst) {
             b.append("- ");

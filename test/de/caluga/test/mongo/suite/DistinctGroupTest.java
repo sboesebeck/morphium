@@ -39,7 +39,7 @@ public class DistinctGroupTest extends MongoTest {
     }
 
     @Test
-    public void groupTest() throws Exception {
+    public void groupTest() {
         createUncachedObjects(100);
         HashMap<String, Object> initial = new HashMap<>();
         initial.put("count", 0);

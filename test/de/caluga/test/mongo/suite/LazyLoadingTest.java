@@ -67,7 +67,7 @@ public class LazyLoadingTest extends MongoTest {
     }
 
     @Test
-    public void lazyLoadingTest() throws Exception {
+    public void lazyLoadingTest() {
         Query<LazyLoadingObject> q = morphium.createQueryFor(LazyLoadingObject.class);
         //clean
         morphium.delete(q);
@@ -146,7 +146,7 @@ public class LazyLoadingTest extends MongoTest {
 
 
     @Test
-    public void lazyLoadingPerformanceTest() throws Exception {
+    public void lazyLoadingPerformanceTest() {
         Query<LazyLoadingObject> q = morphium.createQueryFor(LazyLoadingObject.class);
         //clean
         morphium.delete(q);

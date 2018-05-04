@@ -108,8 +108,7 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
         if (q == null) {
             return;
         }
-        List<WriteBufferEntry> localQueue = new ArrayList<>();
-        localQueue.addAll(q);
+        List<WriteBufferEntry> localQueue = new ArrayList<>(q);
         //either buffer size reached, or time is up => queue writes
         List<WriteBufferEntry> didNotWrite = new ArrayList<>();
         Map<String, BulkRequestContext> bulkByCollectionName = new HashMap<>();
@@ -646,9 +645,8 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
                 while (running) {
                     try {
                         //processing and clearing write cache...
-                        List<Class<?>> localBuffer = new ArrayList<>();
                         //                        synchronized (opLog) {
-                        localBuffer.addAll(opLog.keySet());
+                        List<Class<?>> localBuffer = new ArrayList<>(opLog.keySet());
 
 
                         for (Class<?> clz : localBuffer) {

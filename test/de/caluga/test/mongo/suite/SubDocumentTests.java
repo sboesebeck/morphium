@@ -17,7 +17,7 @@ import java.util.List;
 public class SubDocumentTests extends MongoTest {
 
     @Test
-    public void testSubDocQuery() throws Exception {
+    public void testSubDocQuery() {
         UncachedObject o = new UncachedObject();
         o.setCounter(111);
         o.setValue("Embedded object");
@@ -53,7 +53,7 @@ public class SubDocumentTests extends MongoTest {
     }
 
     @Test
-    public void testSubDocNoExistQuery() throws Exception {
+    public void testSubDocNoExistQuery() {
         UncachedObject o = new UncachedObject();
         o.setCounter(111);
         o.setValue("Embedded object");
@@ -89,7 +89,7 @@ public class SubDocumentTests extends MongoTest {
 
 
     @Test
-    public void testSubDocumentIndex() throws Exception {
+    public void testSubDocumentIndex() {
         morphium.ensureIndicesFor(SubDocumentIndex.class);
     }
 
