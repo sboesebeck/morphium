@@ -711,8 +711,6 @@ public class Driver implements MorphiumDriver {
             Object value = d.get(k);
             if (value instanceof BsonTimestamp) {
                 value = (((BsonTimestamp) value).getTime() * 1000);
-            } else if (value instanceof BsonTimestamp) {
-                value = (((BsonTimestamp) value).getTime() * 1000);
             } else if (value instanceof BsonDocument) {
                 value = convertBSON((Map) value);
             } else if (value instanceof BsonBoolean) {
@@ -1212,10 +1210,9 @@ public class Driver implements MorphiumDriver {
     @Override
     public List<Map<String, Object>> aggregate(String db, String collection, List<Map<String, Object>> pipeline,
                                                boolean explain, boolean allowDiskUse, ReadPreference readPreference) throws MorphiumDriverException {
-        List list = new ArrayList<>();
         DriverHelper.replaceMorphiumIdByObjectId(pipeline);
         //noinspection unchecked
-        list.addAll(pipeline.stream().map(BasicDBObject::new).collect(Collectors.toList()));
+        List list = new ArrayList<>(pipeline.stream().map(BasicDBObject::new).collect(Collectors.toList()));
 
         AggregationOptions opts = AggregationOptions.builder().allowDiskUse(allowDiskUse).build();
 

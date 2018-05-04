@@ -194,7 +194,7 @@ public class CacheHousekeeper extends Thread implements ShutdownListener {
                         int idx;
                         switch (strategy) {
                             case LRU:
-                                array = lruTime.keySet().toArray(new Long[lruTime.keySet().size()]);
+                                array = lruTime.keySet().toArray(new Long[0]);
                                 Arrays.sort(array);
                                 idx = 0;
                                 while (cache.get(clz).size() - del > maxEntries) {
@@ -211,7 +211,7 @@ public class CacheHousekeeper extends Thread implements ShutdownListener {
                                 }
                                 break;
                             case FIFO:
-                                array = fifoTime.keySet().toArray(new Long[fifoTime.keySet().size()]);
+                                array = fifoTime.keySet().toArray(new Long[0]);
                                 Arrays.sort(array);
                                 idx = 0;
                                 while (cache.get(clz).size() - del > maxEntries) {
@@ -227,10 +227,10 @@ public class CacheHousekeeper extends Thread implements ShutdownListener {
                                 }
                                 break;
                             case RANDOM:
-                                array = fifoTime.keySet().toArray(new Long[fifoTime.keySet().size()]);
+                                array = fifoTime.keySet().toArray(new Long[0]);
                                 List<Long> lst = Arrays.asList(array);
                                 Collections.shuffle(lst);
-                                array = lst.toArray(new Long[lst.size()]);
+                                array = lst.toArray(new Long[0]);
                                 idx = 0;
                                 while (cache.get(clz).size() - del > maxEntries) {
                                     if (lruTime.get(array[idx]) != null && !lruTime.get(array[idx]).isEmpty()) {

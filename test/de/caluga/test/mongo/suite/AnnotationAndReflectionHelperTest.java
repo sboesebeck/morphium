@@ -22,23 +22,23 @@ public class AnnotationAndReflectionHelperTest {
     private AnnotationAndReflectionHelper arHelper = new AnnotationAndReflectionHelper(true);
 
     @Test
-    public void testIsAnnotationPresentInHierarchy() throws Exception {
+    public void testIsAnnotationPresentInHierarchy() {
         assert (arHelper.isAnnotationPresentInHierarchy(UncachedObject.class, Entity.class));
         assert (arHelper.isAnnotationPresentInHierarchy(CachedObject.class, Cache.class));
     }
 
     @Test
-    public void testGetRealClass() throws Exception {
+    public void testGetRealClass() {
         assert (arHelper.getRealClass(UncachedObject.class).equals(UncachedObject.class));
     }
 
     @Test
-    public void testIsBufferedWrite() throws Exception {
+    public void testIsBufferedWrite() {
         assert (arHelper.isBufferedWrite(CachedObject.class));
     }
 
     @Test
-    public void testGetAnnotationFromHierarchy() throws Exception {
+    public void testGetAnnotationFromHierarchy() {
         assert (arHelper.getAnnotationFromHierarchy(UncachedObject.class, Entity.class) != null);
         assert (arHelper.getAnnotationFromHierarchy(new UncachedObject() {
             private String justASubclass;
@@ -47,12 +47,12 @@ public class AnnotationAndReflectionHelperTest {
     }
 
     @Test
-    public void testHasAdditionalData() throws Exception {
+    public void testHasAdditionalData() {
         assert (arHelper.hasAdditionalData(AdditionalDataTest.AddDat.class));
     }
 
     @Test
-    public void testGetFieldName() throws Exception {
+    public void testGetFieldName() {
         String fld = arHelper.getFieldName(UncachedObject.class, "counter");
         assert (fld != null);
         assert (fld.equals("counter"));
@@ -63,13 +63,13 @@ public class AnnotationAndReflectionHelperTest {
     }
 
     @Test
-    public void testCreateCamelCase() throws Exception {
+    public void testCreateCamelCase() {
         assert (arHelper.createCamelCase("hello_world", false).equals("helloWorld"));
         assert (arHelper.createCamelCase("hello_world", true).equals("HelloWorld"));
     }
 
     @Test
-    public void testConvertCamelCase() throws Exception {
+    public void testConvertCamelCase() {
         assert (arHelper.convertCamelCase("hello_world").equals("hello_world"));
     }
 
@@ -81,20 +81,20 @@ public class AnnotationAndReflectionHelperTest {
     }
 
     @Test
-    public void testGetField() throws Exception {
+    public void testGetField() {
         Field fl = arHelper.getField(UncachedObject.class, "counter");
         assert (fl != null);
         assert (fl.getName().equals("counter"));
     }
 
     @Test
-    public void testIsEntity() throws Exception {
+    public void testIsEntity() {
         assert (arHelper.isEntity(UncachedObject.class));
         assert (arHelper.isEntity(EmbeddedObject.class));
     }
 
     @Test
-    public void testGetValue() throws Exception {
+    public void testGetValue() {
         UncachedObject uc = new UncachedObject();
         uc.setCounter(123);
         Object c = arHelper.getValue(uc, "counter");
@@ -103,21 +103,21 @@ public class AnnotationAndReflectionHelperTest {
     }
 
     @Test
-    public void testSetValue() throws Exception {
+    public void testSetValue() {
         UncachedObject uc = new UncachedObject();
         arHelper.setValue(uc, 123, "counter");
         assert (uc.getCounter() == 123);
     }
 
     @Test
-    public void testGetId() throws Exception {
+    public void testGetId() {
         UncachedObject uc = new UncachedObject();
         uc.setMorphiumId(new MorphiumId());
         assert (arHelper.getId(uc).equals(uc.getMorphiumId()));
     }
 
     @Test
-    public void testGetIdFieldName() throws Exception {
+    public void testGetIdFieldName() {
         String idFld = arHelper.getIdFieldName(new UncachedObject());
         assert (idFld.equals("morphium_id")) : "wrong " + idFld;
     }
@@ -128,60 +128,60 @@ public class AnnotationAndReflectionHelperTest {
     }
 
     @Test
-    public void testGetFields() throws Exception {
+    public void testGetFields() {
         assert (arHelper.getFields(UncachedObject.class, Id.class).size() == 1);
         assert (arHelper.getFields(UncachedObject.class, Index.class).size() == 2);
     }
 
     @Test
-    public void testGetRealObject() throws Exception {
+    public void testGetRealObject() {
         Morphium m = new Morphium();
         Object pr = m.createPartiallyUpdateableEntity(new UncachedObject());
         assert (arHelper.getRealObject(pr).getClass().equals(UncachedObject.class));
     }
 
     @Test
-    public void testGetTypeOfField() throws Exception {
+    public void testGetTypeOfField() {
         assert (Objects.equals(arHelper.getTypeOfField(UncachedObject.class, "value"), String.class));
     }
 
     @Test
-    public void testStoresLastChange() throws Exception {
+    public void testStoresLastChange() {
         assert (!arHelper.storesLastChange(UncachedObject.class));
         assert (arHelper.storesLastChange(AutoVariableTest.LCTest.class));
     }
 
     @Test
-    public void testStoresLastAccess() throws Exception {
+    public void testStoresLastAccess() {
         assert (!arHelper.storesLastAccess(UncachedObject.class));
         assert (arHelper.storesLastAccess(AutoVariableTest.LATest.class));
     }
 
     @Test
-    public void testStoresCreation() throws Exception {
+    public void testStoresCreation() {
         assert (!arHelper.storesCreation(UncachedObject.class));
         assert (arHelper.storesCreation(AutoVariableTest.CTimeTest.class));
     }
 
     @Test
-    public void testGetAllAnnotationsFromHierachy() throws Exception {
+    public void testGetAllAnnotationsFromHierachy() {
         assert (arHelper.getAllAnnotationsFromHierachy(UncachedObject.class).size() == 4) : "wrong: " + arHelper.getAllAnnotationsFromHierachy(UncachedObject.class).size();
     }
 
     @Test
-    public void testIgnorFieldsAnnotation() throws Exception {
+    public void testIgnorFieldsAnnotation() {
         assert (!arHelper.getFields(TestClass.class).contains("var1"));
         assert (arHelper.getFields(TestClass.class).contains("var2"));
     }
 
     @Test
-    public void testLimitToFieldsAnnotationList() throws Exception {
+    public void testLimitToFieldsAnnotationList() {
         assert (!arHelper.getFields(TestClass2.class).contains("var2") && !arHelper.getFields(TestClass2.class).contains("var3"));
         assert (arHelper.getFields(TestClass2.class).contains("var1"));
     }
 
     @Test
-    public void testLimitToFieldsAnnotationType() throws Exception {
+    public void testLimitToFieldsAnnotationType() {
         assert (arHelper.getFields(TestClass3.class).contains("var1"));
         assert (arHelper.getFields(TestClass3.class).contains("var2"));
         assert (arHelper.getFields(TestClass3.class).contains("var3"));
@@ -192,7 +192,7 @@ public class AnnotationAndReflectionHelperTest {
 
 
     @Test
-    public void testLimitToFieldsContains() throws Exception {
+    public void testLimitToFieldsContains() {
         assert (!arHelper.getFields(TestClass4.class).contains("var1"));
         assert (!arHelper.getFields(TestClass4.class).contains("var2"));
         assert (!arHelper.getFields(TestClass4.class).contains("var3"));
@@ -203,7 +203,7 @@ public class AnnotationAndReflectionHelperTest {
     }
 
     @Test
-    public void testLimitToFieldsRegex() throws Exception {
+    public void testLimitToFieldsRegex() {
         assert (!arHelper.getFields(TestClass5.class).contains("var1"));
         assert (!arHelper.getFields(TestClass5.class).contains("var2"));
         assert (arHelper.getFields(TestClass5.class).contains("var3"));

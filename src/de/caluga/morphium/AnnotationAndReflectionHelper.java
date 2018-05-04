@@ -116,7 +116,7 @@ public class AnnotationAndReflectionHelper {
                 Collections.addAll(interfaces, cls.getInterfaces());
                 while (!interfaces.isEmpty()) {
                     Class<?> iface = interfaces.poll();
-                    if (iface.isAnnotationPresent(anCls)) {
+                    if (iface != null && iface.isAnnotationPresent(anCls)) {
                         ret = iface.getAnnotation(anCls);
                         break; //no need to look further, found annotation
                     }

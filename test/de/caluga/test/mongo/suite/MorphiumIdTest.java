@@ -13,7 +13,7 @@ import org.junit.Test;
 public class MorphiumIdTest {
 
     @Test
-    public void threaddedCreationTest() throws Exception {
+    public void threaddedCreationTest() {
         for (int i = 0; i < 1000; i++) {
             new Thread() {
                 @Override

@@ -17,7 +17,7 @@ import java.util.Date;
 @SuppressWarnings("AssertWithSideEffects")
 public class NonObjectIdTest extends MongoTest {
     @Test
-    public void nonObjectIdTest() throws Exception {
+    public void nonObjectIdTest() {
 
         Person p = new Person();
         p.setId("ABC123");
@@ -51,7 +51,7 @@ public class NonObjectIdTest extends MongoTest {
     }
 
     @Test(expected = IllegalArgumentException.class)
-    public void nonObjectIdTestFail() throws Exception {
+    public void nonObjectIdTestFail() {
         Tst t = new Tst();
         t.str = "test-a-string";
 

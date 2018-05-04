@@ -67,7 +67,7 @@ public class MorphiumConfigTest extends MongoTest {
 
 
     @Test
-    public void partialPropsTest() throws Exception {
+    public void partialPropsTest() {
         Properties p = new Properties();
         p.put("maximumRetriesAsyncWriter", "10");
         p.put("socketTimeout", "1000");
@@ -111,7 +111,7 @@ public class MorphiumConfigTest extends MongoTest {
     }
 
     @Test
-    public void testReadWithPrefix() throws Exception {
+    public void testReadWithPrefix() {
         Properties p = new Properties();
         p.put("prefix.maximumRetriesAsyncWriter", "10");
         p.put("prefix.socketTimeout", "1000");

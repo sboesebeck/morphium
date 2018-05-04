@@ -131,8 +131,7 @@ public class Group<T, R> {
             log.error("Group.end() already called!");
             return aggregator;
         }
-        Map<String, Object> params = new HashMap<>();
-        params.putAll(id);
+        Map<String, Object> params = new HashMap<>(id);
         operators.forEach(params::putAll);
         Map<String, Object> obj = getMap("$group", params);
         aggregator.addOperator(obj);

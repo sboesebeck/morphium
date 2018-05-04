@@ -15,7 +15,7 @@ import java.util.Map;
 public class ServerStatusTest extends MongoTest {
 
     @Test
-    public void getServerStatus() throws Exception {
+    public void getServerStatus() {
         Morphium m = morphium;
         Map res = m.execCommand("serverStatus");
 

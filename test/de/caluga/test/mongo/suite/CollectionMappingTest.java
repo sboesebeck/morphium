@@ -11,7 +11,7 @@ import org.junit.Test;
  */
 public class CollectionMappingTest extends MongoTest {
     @Test
-    public void collectionMappingTest() throws Exception {
+    public void collectionMappingTest() {
         String n = morphium.getMapper().getCollectionName(CachedObject.class);
         assert (n.equals("cached_object")) : "Collection wrong";
         n = morphium.getMapper().getCollectionName(ComplexObject.class);

@@ -567,9 +567,6 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
         if (andExpr.size() == 1 && onlyAnd) {
             return andExpr.get(0).dbObject();
         }
-        if (andExpr.size() == 1 && onlyAnd) {
-            return andExpr.get(0).dbObject();
-        }
 
         if (andExpr.isEmpty() && onlyAnd) {
             return o;
@@ -943,7 +940,6 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
     public <R> List<R> idList() {
         Cache c = getARHelper().getAnnotationFromHierarchy(type, Cache.class);//type.getAnnotation(Cache.class);
         boolean useCache = c != null && c.readCache() && morphium.isReadCacheEnabledForThread();
-        List<R> ret = new ArrayList<>();
         String ck = morphium.getCache().getCacheKey(this);
         ck += " idlist";
         morphium.inc(StatisticKeys.READS);
@@ -974,7 +970,7 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
         }
 
         //noinspection unchecked
-        ret.addAll(query.stream().map(o -> (R) o.get("_id")).collect(Collectors.toList()));
+        List<R> ret = new ArrayList<>(query.stream().map(o -> (R) o.get("_id")).collect(Collectors.toList()));
         srv = (String) findMetadata.get("server");
         long dur = System.currentTimeMillis() - start;
         morphium.fireProfilingReadEvent(this, dur, ReadAccessType.ID_LIST);
