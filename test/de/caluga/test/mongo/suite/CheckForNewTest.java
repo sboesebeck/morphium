@@ -58,7 +58,7 @@ public class CheckForNewTest extends MongoTest {
     @Test
     public void testCheckForNew2() throws Exception {
         morphium.getConfig().setCheckForNew(true);
-        morphium.delete(morphium.createQueryFor(TestID2.class));
+        morphium.dropCollection(TestID2.class);
 
         TestID2 tst = new TestID2();
         tst.theId = "1";
@@ -73,15 +73,6 @@ public class CheckForNewTest extends MongoTest {
         morphium.store(tst);
         assert (tst.created != null);
 
-        Date cr = tst.created;
-
-        tst = new TestID2();
-        tst.theId = "2";
-        tst.theValue = "value";
-        morphium.store(tst);
-        Thread.sleep(250);
-        assert (tst.created != null);
-        assert (tst.created.equals(cr));
 
         morphium.getConfig().setCheckForNew(false);
     }

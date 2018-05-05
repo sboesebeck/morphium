@@ -561,6 +561,7 @@ public class Messaging extends Thread implements ShutdownListener {
                 threadPool.shutdownNow();
                 threadPool = null;
             }
+            if (oplogMonitor != null) oplogMonitor.stop();
         } catch (Exception e) {
             //swallow
         }
