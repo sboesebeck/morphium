@@ -14,7 +14,7 @@ Morphium is a POJO Object mapper for Accessing Mongodb. Some of the main Feature
 - Cluster Awareness
 - Cache synchronization between cluster nodes
 - Asynchronous and Buffered write access
-- Messaging
+- Messaging (for mor information about Messaging via morphium, read this blog entry: https://caluga.de/v/2018/5/5/mongodb_messaging_via_morphium)
 - fluent interface for querying mongodb
 - support for the MongoDB aggregator framework
 - support for complex queries
