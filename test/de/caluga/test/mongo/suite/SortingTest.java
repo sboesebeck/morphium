@@ -48,7 +48,7 @@ public class SortingTest extends MongoTest {
     }
 
     @Test
-    public void sortTestDescending() throws Exception {
+    public void sortTestDescending() {
         prepare();
         log.info("Sorting objects...");
         Query<UncachedObject> q = morphium.createQueryFor(UncachedObject.class);
@@ -86,7 +86,7 @@ public class SortingTest extends MongoTest {
 
 
     @Test
-    public void sortTestAscending() throws Exception {
+    public void sortTestAscending() {
         prepare();
 
         Query<UncachedObject> q = morphium.createQueryFor(UncachedObject.class);
@@ -122,7 +122,7 @@ public class SortingTest extends MongoTest {
 
 
     @Test
-    public void sortTestLimit() throws Exception {
+    public void sortTestLimit() {
         prepare();
 
         Query<UncachedObject> q = morphium.createQueryFor(UncachedObject.class);

@@ -74,7 +74,7 @@ public class IteratorTest extends MongoTest {
     }
 
     @Test
-    public void emptyResultIteratorTest() throws Exception {
+    public void emptyResultIteratorTest() {
         for (UncachedObject uc : morphium.createQueryFor(UncachedObject.class).asIterable(1000)) {
             //noinspection ConstantConditions
             assert (false);
@@ -125,7 +125,7 @@ public class IteratorTest extends MongoTest {
 
 
     @Test
-    public void doubleIteratorTest() throws Exception {
+    public void doubleIteratorTest() {
         createTestUc();
         createCachedObjects(1000);
 
@@ -154,7 +154,7 @@ public class IteratorTest extends MongoTest {
     }
 
     @Test
-    public void iterationSpeedTest() throws Exception {
+    public void iterationSpeedTest() {
         createTestUc();
         Query<UncachedObject> qu = morphium.createQueryFor(UncachedObject.class).sort("_id");
         qu.setCollectionName("test_uc");
@@ -398,7 +398,7 @@ public class IteratorTest extends MongoTest {
     }
 
     @Test
-    public void basicPefetchIteratorTest() throws Exception {
+    public void basicPefetchIteratorTest() {
         createUncachedObjects(1000);
 
         Query<UncachedObject> qu = getUncachedObjectQuery();
@@ -464,7 +464,7 @@ public class IteratorTest extends MongoTest {
     }
 
     @Test
-    public void iteratorRepeatTest() throws Exception {
+    public void iteratorRepeatTest() {
         createUncachedObjects(278);
         Query<UncachedObject> qu = morphium.createQueryFor(UncachedObject.class);
         qu = qu.sort("_id");
@@ -567,7 +567,7 @@ public class IteratorTest extends MongoTest {
 
 
     @Test
-    public void iterableSkipsTest() throws Exception {
+    public void iterableSkipsTest() {
         createUncachedObjects(100);
         Query<UncachedObject> qu = getUncachedObjectQuery();
 
@@ -603,7 +603,7 @@ public class IteratorTest extends MongoTest {
 
 
     @Test
-    public void expectedBehaviorTest() throws Exception {
+    public void expectedBehaviorTest() {
         createUncachedObjects(10);
         long start = System.currentTimeMillis();
         Query<UncachedObject> qu = morphium.createQueryFor(UncachedObject.class).sort("-counter");
@@ -652,7 +652,7 @@ public class IteratorTest extends MongoTest {
 
 
     @Test
-    public void prefetchTest() throws Exception {
+    public void prefetchTest() {
         createUncachedObjects(1000);
         Query<UncachedObject> qu = morphium.createQueryFor(UncachedObject.class).sort("counter");
 
@@ -665,7 +665,7 @@ public class IteratorTest extends MongoTest {
     }
 
     @Test
-    public void iteratorTypeTest() throws Exception {
+    public void iteratorTypeTest() {
         Query<UncachedObject> qu = morphium.createQueryFor(UncachedObject.class).sort("counter");
         assert (qu.asIterable().getClass().equals(MorphiumDriverIterator.class));
         assert (qu.asIterable(10).getClass().equals(MorphiumDriverIterator.class));

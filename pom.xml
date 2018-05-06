@@ -4,7 +4,7 @@
 
     <groupId>de.caluga</groupId>
     <artifactId>morphium</artifactId>
-    <version>3.1.8</version>
+    <version>3.2.0-BETA1</version>
     <packaging>jar</packaging>
     <parent>
         <groupId>org.sonatype.oss</groupId>
@@ -112,6 +112,23 @@
             <scope>test</scope>
         </dependency>
         <dependency>
+            <groupId>org.slf4j</groupId>
+            <artifactId>slf4j-api</artifactId>
+            <version>1.7.21</version>
+        </dependency>
+        <dependency>
+            <groupId>ch.qos.logback</groupId>
+            <artifactId>logback-core</artifactId>
+            <version>1.2.3</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>ch.qos.logback</groupId>
+            <artifactId>logback-classic</artifactId>
+            <version>1.2.3</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
             <groupId>org.openjdk.jmh</groupId>
             <artifactId>jmh-generator-annprocess</artifactId>
             <version>1.0</version>
@@ -131,8 +148,20 @@
 
         <dependency>
             <groupId>org.mongodb</groupId>
-            <artifactId>mongodb-driver</artifactId>
+            <artifactId>bson</artifactId>
             <version>3.5.0</version>
+            <scope>provided</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.mongodb</groupId>
+            <artifactId>mongodb-driver-core</artifactId>
+            <version>3.6.3</version>
+            <scope>provided</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.mongodb</groupId>
+            <artifactId>mongodb-driver</artifactId>
+            <version>3.6.3</version>
             <scope>provided</scope>
         </dependency>
         <dependency>

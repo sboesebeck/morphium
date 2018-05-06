@@ -28,7 +28,7 @@ import java.util.Map;
 public class ObjectMapperTest extends MongoTest {
 
     @Test
-    public void customTypeMapperTest() throws Exception {
+    public void customTypeMapperTest() {
         ObjectMapper om = morphium.getMapper();
         BigInteger tst = new BigInteger("affedeadbeefaffedeadbeef42", 16);
         Map<String, Object> d = om.marshall(tst);
@@ -57,7 +57,7 @@ public class ObjectMapperTest extends MongoTest {
     }
 
     @Test
-    public void objectToStringParseTest() throws Exception {
+    public void objectToStringParseTest() {
         ObjectMapper om = morphium.getMapper();
         UncachedObject o = new UncachedObject();
         o.setValue("A test");
@@ -71,7 +71,7 @@ public class ObjectMapperTest extends MongoTest {
 
 
     @Test
-    public void listContainerStringParseTest() throws Exception {
+    public void listContainerStringParseTest() {
         ObjectMapper om = morphium.getMapper();
         ListContainer o = new ListContainer();
         o.addLong(1234);
@@ -87,7 +87,7 @@ public class ObjectMapperTest extends MongoTest {
     }
 
     @Test
-    public void testCreateCamelCase() throws Exception {
+    public void testCreateCamelCase() {
         AnnotationAndReflectionHelper om = new AnnotationAndReflectionHelper(true);
         assert (om.createCamelCase("this_is_a_test", false).equals("thisIsATest")) : "Error camil case translation not working";
         assert (om.createCamelCase("a_test_this_is", true).equals("ATestThisIs")) : "Error - capitalized String wrong";
@@ -96,13 +96,13 @@ public class ObjectMapperTest extends MongoTest {
     }
 
     @Test
-    public void testConvertCamelCase() throws Exception {
+    public void testConvertCamelCase() {
         AnnotationAndReflectionHelper om = new AnnotationAndReflectionHelper(true);
         assert (om.convertCamelCase("thisIsATest").equals("this_is_a_test")) : "Conversion failed!";
     }
 
     @Test
-    public void testDisableConvertCamelCase() throws Exception {
+    public void testDisableConvertCamelCase() {
         AnnotationAndReflectionHelper om = new AnnotationAndReflectionHelper(false);
         String fn = om.getFieldName(UncachedObject.class, "intData");
 
@@ -115,7 +115,7 @@ public class ObjectMapperTest extends MongoTest {
     }
 
     @Test
-    public void testGetCollectionName() throws Exception {
+    public void testGetCollectionName() {
         ObjectMapperImpl om = (ObjectMapperImpl) morphium.getMapper();
         assert (om.getCollectionName(CachedObject.class).equals("cached_object")) : "Cached object test failed";
         assert (om.getCollectionName(UncachedObject.class).equals("uncached_object")) : "Uncached object test failed";
@@ -124,7 +124,7 @@ public class ObjectMapperTest extends MongoTest {
 
 
     @Test
-    public void massiveParallelGetCollectionNameTest() throws Exception {
+    public void massiveParallelGetCollectionNameTest() {
 
         for (int i = 0; i < 100; i++) {
             new Thread() {
@@ -142,7 +142,7 @@ public class ObjectMapperTest extends MongoTest {
     }
 
     @Test
-    public void testMarshall() throws Exception {
+    public void testMarshall() {
         ObjectMapperImpl om = (ObjectMapperImpl) morphium.getMapper();
         UncachedObject o = new UncachedObject();
         o.setCounter(12345);
@@ -155,7 +155,7 @@ public class ObjectMapperTest extends MongoTest {
     }
 
     @Test
-    public void testUnmarshall() throws Exception {
+    public void testUnmarshall() {
         ObjectMapperImpl om = (ObjectMapperImpl) morphium.getMapper();
         Map<String, Object> dbo = new HashMap<>();
         dbo.put("counter", 12345);
@@ -164,7 +164,7 @@ public class ObjectMapperTest extends MongoTest {
     }
 
     @Test
-    public void testGetId() throws Exception {
+    public void testGetId() {
         ObjectMapperImpl om = (ObjectMapperImpl) morphium.getMapper();
         AnnotationAndReflectionHelper an = new AnnotationAndReflectionHelper(true);
         UncachedObject o = new UncachedObject();
@@ -177,7 +177,7 @@ public class ObjectMapperTest extends MongoTest {
 
 
     @Test
-    public void testIsEntity() throws Exception {
+    public void testIsEntity() {
         AnnotationAndReflectionHelper om = new AnnotationAndReflectionHelper(true);
         assert (om.isEntity(UncachedObject.class)) : "Uncached Object no Entity?=!?=!?";
         assert (om.isEntity(new UncachedObject())) : "Uncached Object no Entity?=!?=!?";
@@ -185,7 +185,7 @@ public class ObjectMapperTest extends MongoTest {
     }
 
     @Test
-    public void testGetValue() throws Exception {
+    public void testGetValue() {
         AnnotationAndReflectionHelper an = new AnnotationAndReflectionHelper(true);
         UncachedObject o = new UncachedObject();
         o.setCounter(12345);
@@ -195,7 +195,7 @@ public class ObjectMapperTest extends MongoTest {
     }
 
     @Test
-    public void testSetValue() throws Exception {
+    public void testSetValue() {
         AnnotationAndReflectionHelper om = new AnnotationAndReflectionHelper(true);
         UncachedObject o = new UncachedObject();
         o.setCounter(12345);
@@ -378,7 +378,7 @@ public class ObjectMapperTest extends MongoTest {
         }
         dur = System.currentTimeMillis() - start;
         log.info("De-Marshalling of CachedObject 25000 times took " + dur + "ms");
-        assert (dur < 1000);
+        assert (dur < 1400);
 
     }
 

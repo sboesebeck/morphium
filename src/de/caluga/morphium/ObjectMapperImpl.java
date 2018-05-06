@@ -8,6 +8,8 @@ import org.bson.types.ObjectId;
 import org.json.simple.parser.ContainerFactory;
 import org.json.simple.parser.JSONParser;
 import org.json.simple.parser.ParseException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import sun.misc.BASE64Decoder;
 import sun.misc.BASE64Encoder;
 import sun.reflect.ReflectionFactory;
@@ -27,7 +29,7 @@ import java.util.stream.Collectors;
  */
 @SuppressWarnings({"ConstantConditions", "MismatchedQueryAndUpdateOfCollection", "unchecked", "MismatchedReadAndWriteOfArray", "RedundantCast"})
 public class ObjectMapperImpl implements ObjectMapper {
-    private static final Logger log = new Logger(ObjectMapperImpl.class);
+    private static final Logger log = LoggerFactory.getLogger(ObjectMapperImpl.class);
     private final ReflectionFactory reflection = ReflectionFactory.getReflectionFactory();
     private final Map<Class<?>, NameProvider> nameProviders;
     private final JSONParser jsonParser = new JSONParser();
@@ -345,7 +347,7 @@ public class ObjectMapperImpl implements ObjectMapper {
                                 if (r.automaticStore()) {
                                     //Attention: this could cause an endless loop!
                                     if (morphium == null) {
-                                        log.fatal("Could not store - no Morphium set!");
+                                        log.error("Could not store - no Morphium set!");
                                     } else {
                                         morphium.storeNoCache(value);
                                     }
@@ -424,7 +426,7 @@ public class ObjectMapperImpl implements ObjectMapper {
                 dbo.put(fName, v);
 
             } catch (IllegalAccessException exc) {
-                log.fatal("Illegal Access to field " + f);
+                log.error("Illegal Access to field " + f);
             }
 
         }
@@ -600,7 +602,7 @@ public class ObjectMapperImpl implements ObjectMapper {
                             cls, Object.class.getDeclaredConstructor());
                     ret = constructor.newInstance();
                 } catch (Exception e) {
-                    log.error(e);
+                    log.error("Exception", e);
                 }
             }
             if (ret == null) {
@@ -654,6 +656,9 @@ public class ObjectMapperImpl implements ObjectMapper {
                     continue;
                 }
                 if (valueFromDb == null) {
+                    if (!fld.getType().isPrimitive()) {
+                        fld.set(ret, null);
+                    }
                     continue;
                 }
                 Object value = null;
@@ -662,7 +667,7 @@ public class ObjectMapperImpl implements ObjectMapper {
                     Reference reference = fld.getAnnotation(Reference.class);
                     MorphiumReference r = null;
                     if (morphium == null) {
-                        log.fatal("Morphium not set - could not de-reference!");
+                        log.error("Morphium not set - could not de-reference!");
                     } else {
                         if (Map.class.isAssignableFrom(fld.getType())) {
                             Map<Object, Object> v = new HashMap<>();
@@ -1156,10 +1161,20 @@ public class ObjectMapperImpl implements ObjectMapper {
                 continue;
             } else if (val instanceof List) {
                 //list in list
-                ArrayList lt = new ArrayList();
                 if (listType != null) {
-                    fillList(forField, ref, (ParameterizedType) listType.getActualTypeArguments()[0], (List<Map<String, Object>>) val, lt, containerEntity);
-                    toFillIn.add(lt);
+                    ArrayList lt = new ArrayList();
+                    Class lstt= null;
+                    try {
+                        lstt = Class.forName(listType.getActualTypeArguments()[0].getTypeName());
+                    } catch (ClassNotFoundException e) {
+                        //could not find it, assuming list type
+                    }
+                    if (lstt==null || lstt.isAssignableFrom(List.class)) {
+                        fillList(forField, ref, (ParameterizedType) listType.getActualTypeArguments()[0], (List<Map<String, Object>>) val, lt, containerEntity);
+                        toFillIn.add(lt);
+                    } else {
+                        fillList(forField, ref, listType, (List<Map<String, Object>>) val, toFillIn, containerEntity);
+                    }
                 } else {
                     log.warn("Cannot de-reference to unknown collection - trying to add Object only");
                     toFillIn.add(val);

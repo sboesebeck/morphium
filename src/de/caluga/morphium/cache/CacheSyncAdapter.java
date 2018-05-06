@@ -11,7 +11,7 @@ import de.caluga.morphium.messaging.Msg;
 @SuppressWarnings("UnusedDeclaration")
 public class CacheSyncAdapter implements CacheSyncListener {
     @Override
-    public void preClear(Class cls, Msg m) throws CacheSyncVetoException {
+    public void preClear(Class cls, Msg m) {
     }
 
     @Override
@@ -19,7 +19,7 @@ public class CacheSyncAdapter implements CacheSyncListener {
     }
 
     @Override
-    public void preSendClearMsg(Class cls, Msg m) throws CacheSyncVetoException {
+    public void preSendClearMsg(Class cls, Msg m) {
     }
 
     @Override

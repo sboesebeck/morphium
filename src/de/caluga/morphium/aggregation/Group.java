@@ -1,6 +1,7 @@
 package de.caluga.morphium.aggregation;
 
-import de.caluga.morphium.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -16,7 +17,7 @@ import java.util.Map;
  */
 @SuppressWarnings("UnusedDeclaration")
 public class Group<T, R> {
-    private Logger log = new Logger(Group.class);
+    private Logger log = LoggerFactory.getLogger(Group.class);
     private Aggregator<T, R> aggregator;
     private Map<String, Object> id;
     private boolean ended = false;
@@ -130,8 +131,7 @@ public class Group<T, R> {
             log.error("Group.end() already called!");
             return aggregator;
         }
-        Map<String, Object> params = new HashMap<>();
-        params.putAll(id);
+        Map<String, Object> params = new HashMap<>(id);
         operators.forEach(params::putAll);
         Map<String, Object> obj = getMap("$group", params);
         aggregator.addOperator(obj);

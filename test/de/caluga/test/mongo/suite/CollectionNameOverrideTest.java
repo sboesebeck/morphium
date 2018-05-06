@@ -48,7 +48,7 @@ public class CollectionNameOverrideTest extends MongoTest {
     }
 
     @Test
-    public void cacheTest() throws Exception {
+    public void cacheTest() {
         morphium.dropCollection(UncachedObject.class, "uncached_collection_test_2", null);
         createCachedObjects(100);
         CachedObject o = new CachedObject();

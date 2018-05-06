@@ -19,7 +19,7 @@ import java.util.List;
 public class GeoSearchTests extends MongoTest {
 
     @Test
-    public void nearTest() throws Exception {
+    public void nearTest() {
         morphium.dropCollection(Place.class);
         ArrayList<Place> toStore = new ArrayList<>();
         //        morphium.ensureIndicesFor(Place.class);
@@ -44,7 +44,7 @@ public class GeoSearchTests extends MongoTest {
     }
 
     @Test
-    public void nearSphereTest() throws Exception {
+    public void nearSphereTest() {
         morphium.dropCollection(Place.class);
         ArrayList<Place> toStore = new ArrayList<>();
         //        morphium.ensureIndicesFor(Place.class);
@@ -69,7 +69,7 @@ public class GeoSearchTests extends MongoTest {
     }
 
     @Test
-    public void boxTest() throws Exception {
+    public void boxTest() {
         morphium.dropCollection(Place.class);
         ArrayList<Place> toStore = new ArrayList<>();
         //        morphium.ensureIndicesFor(Place.class);
@@ -95,7 +95,7 @@ public class GeoSearchTests extends MongoTest {
     }
 
     @Test
-    public void centerSphereTest() throws Exception {
+    public void centerSphereTest() {
         morphium.dropCollection(Place.class);
         ArrayList<Place> toStore = new ArrayList<>();
         //        morphium.ensureIndicesFor(Place.class);
@@ -121,7 +121,7 @@ public class GeoSearchTests extends MongoTest {
     }
 
     @Test
-    public void polygonTest() throws Exception {
+    public void polygonTest() {
         morphium.dropCollection(Place.class);
         ArrayList<Place> toStore = new ArrayList<>();
         //        morphium.ensureIndicesFor(Place.class);
@@ -147,7 +147,7 @@ public class GeoSearchTests extends MongoTest {
     }
 
     @Test
-    public void centerTest() throws Exception {
+    public void centerTest() {
         morphium.dropCollection(Place.class);
         ArrayList<Place> toStore = new ArrayList<>();
         //        morphium.ensureIndicesFor(Place.class);

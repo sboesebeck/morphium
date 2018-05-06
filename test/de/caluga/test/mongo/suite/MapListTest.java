@@ -57,7 +57,7 @@ public class MapListTest extends MongoTest {
     }
 
     @Test
-    public void mapListEmbTest() throws Exception {
+    public void mapListEmbTest() {
         morphium.dropCollection(MapListObject.class);
 
         CMapListObject o = new CMapListObject();
@@ -117,7 +117,7 @@ public class MapListTest extends MongoTest {
     }
 
     @Test
-    public void testComplexList() throws Exception {
+    public void testComplexList() {
         morphium.dropCollection(MapListObject.class);
 
         CMapListObject o = new CMapListObject();
@@ -142,7 +142,7 @@ public class MapListTest extends MongoTest {
     }
 
     @Test
-    public void testMapOfListsString() throws Exception {
+    public void testMapOfListsString() {
         morphium.dropCollection(MapListObject.class);
 
         CMapListObject o = new CMapListObject();
@@ -167,7 +167,7 @@ public class MapListTest extends MongoTest {
     }
 
     @Test
-    public void testMapOfListsEmb() throws Exception {
+    public void testMapOfListsEmb() {
         morphium.dropCollection(MapListObject.class);
 
         CMapListObject o = new CMapListObject();
@@ -196,7 +196,7 @@ public class MapListTest extends MongoTest {
     }
 
     @Test
-    public void testMapOfMaps() throws Exception {
+    public void testMapOfMaps() {
         morphium.dropCollection(MapListObject.class);
 
         CMapListObject o = new CMapListObject();
@@ -224,7 +224,7 @@ public class MapListTest extends MongoTest {
     }
 
     @Test
-    public void testMapOfMapEmbObj() throws Exception {
+    public void testMapOfMapEmbObj() {
         morphium.dropCollection(MapListObject.class);
 
         CMapListObject o = new CMapListObject();
@@ -252,7 +252,7 @@ public class MapListTest extends MongoTest {
     }
 
     @Test
-    public void testListOfListOfMap() throws Exception {
+    public void testListOfListOfMap() {
         morphium.dropCollection(MapListObject.class);
 
         CMapListObject o = new CMapListObject();
@@ -276,13 +276,13 @@ public class MapListTest extends MongoTest {
         l2.add(map);
         map = new HashMap<>();
         map.put("k51", "v11");
-        map.put("k51", "v21");
-        map.put("k51", "v31");
+        map.put("k533", "v21");
+        map.put("k513", "v31");
         l2.add(map);
         map = new HashMap<>();
         map.put("k512", "v11");
-        map.put("k512", "v21");
-        map.put("k512", "v31");
+        map.put("k514", "v21");
+        map.put("k513", "v31");
         l2.add(map);
 
         lst.add(l2);
@@ -295,7 +295,7 @@ public class MapListTest extends MongoTest {
     }
 
     @Test
-    public void testMapListMapEmb() throws Exception {
+    public void testMapListMapEmb() {
         morphium.dropCollection(MapListObject.class);
         CMapListObject o = new CMapListObject();
         Map<String, List<Map<String, EmbObj>>> map = new HashMap<>();

@@ -1,13 +1,14 @@
 package de.caluga.test.mongo.suite.performance;
 
 import de.caluga.morphium.AnnotationAndReflectionHelper;
-import de.caluga.morphium.Logger;
 import de.caluga.morphium.Morphium;
 import de.caluga.morphium.annotations.caching.Cache;
 import de.caluga.morphium.cache.MorphiumCache;
 import de.caluga.test.mongo.suite.MongoTest;
 import de.caluga.test.mongo.suite.data.CachedObject;
 import org.openjdk.jmh.annotations.*;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -23,7 +24,7 @@ import java.util.List;
 public class CachePerformanceTest {
 
     private Morphium morphium;
-    private Logger log = new Logger(CachePerformanceTest.class);
+    private Logger log = LoggerFactory.getLogger(CachePerformanceTest.class);
 
 
     @Setup

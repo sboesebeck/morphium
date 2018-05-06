@@ -202,16 +202,14 @@ public class MongoFieldImpl<T> implements MongoField<T> {
 
     @Override
     public Query<T> in(Collection<?> vals) {
-        List<Object> lst = new ArrayList<>();
-        lst.addAll(vals);
+        List<Object> lst = new ArrayList<>(vals);
         add("$in", lst);
         return query;
     }
 
     @Override
     public Query<T> nin(Collection<?> vals) {
-        List<Object> lst = new ArrayList<>();
-        lst.addAll(vals);
+        List<Object> lst = new ArrayList<>(vals);
         add("$nin", lst);
         return query;
     }

@@ -51,7 +51,7 @@ public class ArrayTest extends MongoTest {
     }
 
     @Test
-    public void testArrays() throws Exception {
+    public void testArrays() {
         morphium.clearCollection(ArrayTestObj.class);
         ArrayTestObj obj = new ArrayTestObj();
         obj.setName("Name");

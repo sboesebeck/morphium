@@ -13,7 +13,7 @@ import de.caluga.test.mongo.suite.data.UncachedObject;
 public class QuitProperlyTest {
 
 
-    public static void main(String args[]) throws Exception {
+    public static void main(String args[]) {
         MorphiumConfig cfg = new MorphiumConfig("morphium-test", 10, 1000, 1000);
         cfg.addHostToSeed("localhost");
         Morphium m = new Morphium(cfg);

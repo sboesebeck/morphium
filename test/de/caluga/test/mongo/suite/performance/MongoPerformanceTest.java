@@ -16,7 +16,7 @@ import java.util.List;
 public class MongoPerformanceTest extends MongoTest {
 
     @Test
-    public void timeToStore() throws Exception {
+    public void timeToStore() {
         int c = 0;
         UncachedObject uc = new UncachedObject();
         uc.setCounter(c);

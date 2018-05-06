@@ -5,7 +5,6 @@
 package de.caluga.test.mongo.suite;
 
 import de.caluga.morphium.AnnotationAndReflectionHelper;
-import de.caluga.morphium.Logger;
 import de.caluga.morphium.StatisticKeys;
 import de.caluga.morphium.annotations.Embedded;
 import de.caluga.morphium.annotations.Entity;
@@ -16,6 +15,8 @@ import de.caluga.test.mongo.suite.data.CachedObject;
 import de.caluga.test.mongo.suite.data.EmbeddedObject;
 import de.caluga.test.mongo.suite.data.UncachedObject;
 import org.junit.Test;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.lang.reflect.Field;
 import java.util.ArrayList;
@@ -29,13 +30,13 @@ import java.util.Map;
 @SuppressWarnings("AssertWithSideEffects")
 public class BasicFunctionalityTest extends MongoTest {
     public static final int NO_OBJECTS = 100;
-    private static final Logger log = new Logger(BasicFunctionalityTest.class);
+    private static final Logger log = LoggerFactory.getLogger(BasicFunctionalityTest.class);
 
     public BasicFunctionalityTest() {
     }
 
     @Test
-    public void subObjectQueryTest() throws Exception {
+    public void subObjectQueryTest() {
         Query<ComplexObject> q = morphium.createQueryFor(ComplexObject.class);
 
         q = q.f("embed.testValueLong").eq(null).f("entityEmbeded.binaryData").eq(null);
@@ -49,7 +50,7 @@ public class BasicFunctionalityTest extends MongoTest {
     }
 
     @Test(expected = IllegalArgumentException.class)
-    public void subObjectQueryTestUnknownField() throws Exception {
+    public void subObjectQueryTestUnknownField() {
         Query<ComplexObject> q = morphium.createQueryFor(ComplexObject.class);
 
         q = q.f("embed.testValueLong").eq(null).f("entityEmbeded.binaryData.non_existent").eq(null);
@@ -84,7 +85,7 @@ public class BasicFunctionalityTest extends MongoTest {
     }
 
     @Test
-    public void listCollections() throws Exception {
+    public void listCollections() {
         UncachedObject u = new UncachedObject("test", 1);
 
         List<String> cols = morphium.listCollections();
@@ -120,7 +121,7 @@ public class BasicFunctionalityTest extends MongoTest {
     }
 
     @Test
-    public void arrayOfPrimitivesTest() throws Exception {
+    public void arrayOfPrimitivesTest() {
         UncachedObject o = new UncachedObject();
         int[] binaryData = new int[100];
         for (int i = 0; i < binaryData.length; i++) {
@@ -180,7 +181,7 @@ public class BasicFunctionalityTest extends MongoTest {
     }
 
     @Test
-    public void updateBinaryDataTest() throws Exception {
+    public void updateBinaryDataTest() {
         UncachedObject o = new UncachedObject();
         byte[] binaryData = new byte[100];
         for (int i = 0; i < binaryData.length; i++) {
@@ -207,7 +208,7 @@ public class BasicFunctionalityTest extends MongoTest {
     }
 
     @Test
-    public void binaryDataTest() throws Exception {
+    public void binaryDataTest() {
         UncachedObject o = new UncachedObject();
         byte[] binaryData = new byte[100];
         for (int i = 0; i < binaryData.length; i++) {
@@ -225,7 +226,7 @@ public class BasicFunctionalityTest extends MongoTest {
     }
 
     @Test
-    public void whereTest() throws Exception {
+    public void whereTest() {
         for (int i = 1; i <= NO_OBJECTS; i++) {
             UncachedObject o = new UncachedObject();
             o.setCounter(i);
@@ -265,7 +266,7 @@ public class BasicFunctionalityTest extends MongoTest {
     }
 
     @Test
-    public void notExistsTest() throws Exception {
+    public void notExistsTest() {
         for (int i = 1; i <= 10; i++) {
             UncachedObject o = new UncachedObject();
             o.setCounter(i);
@@ -372,7 +373,7 @@ public class BasicFunctionalityTest extends MongoTest {
     }
 
     @Test
-    public void testAnnotationCache() throws Exception {
+    public void testAnnotationCache() {
         Entity e = morphium.getARHelper().getAnnotationFromHierarchy(EmbeddedObject.class, Entity.class);
         assert (e == null);
         Embedded em = morphium.getARHelper().getAnnotationFromHierarchy(EmbeddedObject.class, Embedded.class);
@@ -623,7 +624,7 @@ public class BasicFunctionalityTest extends MongoTest {
     }
 
     @Test
-    public void listOfIdsTest() throws Exception {
+    public void listOfIdsTest() {
         morphium.dropCollection(ListOfIdsContainer.class);
         List<MorphiumId> lst = new ArrayList<>();
 
