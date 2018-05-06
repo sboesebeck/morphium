@@ -44,7 +44,7 @@ public class UpdateTest extends MongoTest {
     }
 
     @Test
-    public void incTest() throws Exception {
+    public void incTest() {
         for (int i = 1; i <= 50; i++) {
             UncachedObject o = new UncachedObject();
             o.setCounter(i);
@@ -142,7 +142,7 @@ public class UpdateTest extends MongoTest {
     }
 
     @Test
-    public void setTestEnum() throws Exception {
+    public void setTestEnum() {
         EnumUC u = new EnumUC();
         u.setCounter(1);
         u.setValue("something");
@@ -153,7 +153,7 @@ public class UpdateTest extends MongoTest {
     }
 
     @Test
-    public void pushTest() throws Exception {
+    public void pushTest() {
         morphium.dropCollection(ListContainer.class);
         for (int i = 1; i <= 50; i++) {
             ListContainer lc = new ListContainer();
@@ -172,7 +172,7 @@ public class UpdateTest extends MongoTest {
     }
 
     @Test
-    public void pushEntityTest() throws Exception {
+    public void pushEntityTest() {
         morphium.dropCollection(ListContainer.class);
 
         for (int i = 1; i <= 50; i++) {

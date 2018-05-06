@@ -9,6 +9,8 @@ import de.caluga.morphium.driver.MorphiumId;
 import de.caluga.morphium.driver.WriteConcern;
 import de.caluga.morphium.driver.bulk.BulkRequestContext;
 import de.caluga.morphium.query.Query;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
@@ -33,7 +35,7 @@ import java.util.stream.Collectors;
  */
 @SuppressWarnings({"ConstantConditions", "unchecked", "ConfusingArgumentToVarargsMethod", "WeakerAccess"})
 public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
-    private static final Logger logger = new Logger(MorphiumWriterImpl.class);
+    private static final Logger logger = LoggerFactory.getLogger(MorphiumWriterImpl.class);
     private Morphium morphium;
     private int maximumRetries = 10;
     private int pause = 250;
@@ -127,7 +129,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                             try {
                                 morphium.setAutoValues(o);
                             } catch (IllegalAccessException e) {
-                                logger.error(e);
+                                logger.error(e.getMessage(), e);
                             }
                         }
 
@@ -522,7 +524,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                         logger.error("Validation of " + type + " failed: " + msg + " - Invalid Value: " + invalidValue + " for path: " + stringBuilder.toString() + "\n Tried to store: " + s);
                     }
                 } catch (Exception e1) {
-                    logger.fatal("Could not get more information about validation error ", e1);
+                    logger.error("Could not get more information about validation error ", e1);
                 }
             }
         }
@@ -579,7 +581,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                                 try {
                                     isn = morphium.setAutoValues(record);
                                 } catch (IllegalAccessException e) {
-                                    logger.error(e);
+                                    logger.error(e.getMessage(), e);
                                 }
                             }
                             isNew.put(record, isn);
@@ -680,7 +682,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                             try {
                                 isn = morphium.setAutoValues(o);
                             } catch (IllegalAccessException e) {
-                                logger.error(e);
+                                logger.error(e.getMessage(), e);
                             }
                         }
                         if (isn) {
@@ -1814,7 +1816,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
 
                     field = morphium.getARHelper().getFieldName(cls, field);
                     Map<String, Object> set = Utils.getMap(field, value);
-                    Map<String, Object> update = Utils.getMap(push ? "$pushAll" : "$pullAll", set);
+                    Map<String, Object> update = Utils.getMap(push ? "$push" : "$pullAll", set);
 
                     List<String> lastChangeFields = morphium.getARHelper().getFields(cls, LastChange.class);
                     if (lastChangeFields != null && !lastChangeFields.isEmpty()) {

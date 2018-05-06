@@ -14,7 +14,7 @@ import org.junit.Test;
 public class WhereTest extends MongoTest {
 
     @Test
-    public void testWhere() throws Exception {
+    public void testWhere() {
         super.createUncachedObjects(100);
 
         Query<UncachedObject> q = morphium.createQueryFor(UncachedObject.class);

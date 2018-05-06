@@ -20,7 +20,7 @@ import java.util.List;
  */
 public class WriteBufferCountTest extends MongoTest {
     @Test
-    public void testWbCount() throws Exception {
+    public void testWbCount() {
         List<UncachedObject> lst = new ArrayList<>();
         for (int i = 0; i < 10000; i++) {
             UncachedObject uc = new UncachedObject();
@@ -62,7 +62,7 @@ public class WriteBufferCountTest extends MongoTest {
 
 
     @Test
-    public void threadNumberTest() throws Exception {
+    public void threadNumberTest() {
         ThreadMXBean thbean = ManagementFactory.getThreadMXBean();
         log.info("Running threads: " + thbean.getThreadCount());
         assert (thbean.getThreadCount() < 1000);

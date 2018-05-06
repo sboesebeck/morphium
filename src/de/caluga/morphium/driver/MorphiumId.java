@@ -2,7 +2,7 @@ package de.caluga.morphium.driver;/**
  * Created by stephan on 27.10.15.
  */
 
-import de.caluga.morphium.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.Serializable;
 import java.net.NetworkInterface;
@@ -104,7 +104,7 @@ public class MorphiumId implements Comparable<MorphiumId>, Serializable {
                 processId = (short) pName.hashCode();
             }
         } catch (Throwable t) {
-            new Logger(MorphiumId.class).error("could not get processID - using random fallback");
+            LoggerFactory.getLogger(MorphiumId.class).error("could not get processID - using random fallback");
             processId = (short) new SecureRandom().nextInt();
         }
         //            threadPid = new ThreadLocal<>();
@@ -137,7 +137,7 @@ public class MorphiumId implements Comparable<MorphiumId>, Serializable {
             }
             machineId = b.toString().hashCode();
         } catch (Throwable t) {
-            new Logger(MorphiumId.class).error("error accessing nics to create machine identifier... using fallback", t);
+            LoggerFactory.getLogger(MorphiumId.class).error("error accessing nics to create machine identifier... using fallback", t);
         }
 
         if (machineId == 0) {

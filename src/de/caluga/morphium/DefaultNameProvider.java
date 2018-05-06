@@ -1,5 +1,7 @@
 package de.caluga.morphium;
 
+import org.slf4j.LoggerFactory;
+
 import java.util.Hashtable;
 
 /**
@@ -38,7 +40,7 @@ public final class DefaultNameProvider implements NameProvider {
                 collectionNameCache.put(type, name);
             } catch (Exception e) {
                 //swallow exception. If add did not work, it will eventually
-                new Logger(DefaultNameProvider.class).debug("Could not store name in cache!");
+                LoggerFactory.getLogger(DefaultNameProvider.class).debug("Could not store name in cache!");
             }
         }
         return name;

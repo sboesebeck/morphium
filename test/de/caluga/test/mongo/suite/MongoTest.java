@@ -1,6 +1,6 @@
 package de.caluga.test.mongo.suite;
 
-import de.caluga.morphium.Logger;
+import ch.qos.logback.classic.LoggerContext;
 import de.caluga.morphium.Morphium;
 import de.caluga.morphium.MorphiumConfig;
 import de.caluga.morphium.async.AsyncOperationCallback;
@@ -11,6 +11,8 @@ import de.caluga.morphium.query.Query;
 import de.caluga.test.mongo.suite.data.CachedObject;
 import de.caluga.test.mongo.suite.data.Person;
 import de.caluga.test.mongo.suite.data.UncachedObject;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.File;
 import java.io.FileReader;
@@ -20,7 +22,9 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
+import java.util.logging.Handler;
 import java.util.logging.Level;
+import java.util.logging.LogRecord;
 
 //import de.caluga.morphium.driver.inmem.InMemoryDriver;
 //import de.caluga.morphium.driver.meta.MetaDriver;
@@ -40,11 +44,8 @@ public class MongoTest {
     private static Properties props;
     protected Logger log;
 
-
     public MongoTest() {
-        log = new Logger(getClass().getName());
-        log.setLevel(5);
-        log.setSynced(true);
+        log = LoggerFactory.getLogger(getClass().getName());
     }
 
     public static synchronized Properties getProps() {
@@ -67,48 +68,48 @@ public class MongoTest {
     }
 
     @org.junit.BeforeClass
-    public static synchronized void setUpClass() throws Exception {
-        //        System.setProperty("morphium.log.level", "4");
-        //        System.setProperty("morphium.log.synced", "true");
-        //        System.setProperty("morphium.log.file", "-");
+    public static synchronized void setUpClass() {
+        LoggerContext loggerContext = (LoggerContext) LoggerFactory.getILoggerFactory();
+        Logger rootLogger = loggerContext.getLogger("org.mongodb.driver");
+        ((ch.qos.logback.classic.Logger) rootLogger).setLevel(ch.qos.logback.classic.Level.INFO);
         java.util.logging.Logger l = java.util.logging.Logger.getGlobal();
         l.setLevel(Level.SEVERE);
-        //        l.addHandler(new Handler() {
-        //            @Override
-        //            public void publish(LogRecord record) {
-        //                Logger l=new Logger(record.getLoggerName());
-        //                if (record.getLevel().equals(Level.ALL)) {
-        //                    l.debug(record.getMessage(),record.getThrown());
-        //                } else if (record.getLevel().equals(Level.FINE)) {
-        //                    l.warn(record.getMessage(),record.getThrown());
-        //                } else if (record.getLevel().equals(Level.FINER)) {
-        //                    l.info(record.getMessage(),record.getThrown());
-        //                } else if (record.getLevel().equals(Level.FINEST)) {
-        //                    l.debug(record.getMessage(),record.getThrown());
-        //                } else if (record.getLevel().equals(Level.CONFIG)) {
-        //                    l.debug(record.getMessage(),record.getThrown());
-        //                } else if (record.getLevel().equals(Level.INFO)) {
-        //                    l.info(record.getMessage(),record.getThrown());
-        //                } else if (record.getLevel().equals(Level.WARNING)) {
-        //                    l.warn(record.getMessage(),record.getThrown());
-        //                } else if (record.getLevel().equals(Level.SEVERE)) {
-        //                    l.fatal(record.getMessage(),record.getThrown());
-        //                } else  {
-        //                    l.info(record.getMessage(),record.getThrown());
-        //
-        //                }
-        //            }
-        //
-        //            @Override
-        //            public void flush() {
-        //
-        //            }
-        //
-        //            @Override
-        //            public void close() throws SecurityException {
-        //
-        //            }
-        //        });
+                l.addHandler(new Handler() {
+                    @Override
+                    public void publish(LogRecord record) {
+//                        Logger l=LoggerFactory.getLogger(record.getLoggerName());
+//                        if (record.getLevel().equals(Level.ALL)) {
+//                            l.debug(record.getMessage(),record.getThrown());
+//                        } else if (record.getLevel().equals(Level.FINE)) {
+//                            l.warn(record.getMessage(),record.getThrown());
+//                        } else if (record.getLevel().equals(Level.FINER)) {
+//                            l.info(record.getMessage(),record.getThrown());
+//                        } else if (record.getLevel().equals(Level.FINEST)) {
+//                            l.debug(record.getMessage(),record.getThrown());
+//                        } else if (record.getLevel().equals(Level.CONFIG)) {
+//                            l.debug(record.getMessage(),record.getThrown());
+//                        } else if (record.getLevel().equals(Level.INFO)) {
+//                            l.info(record.getMessage(),record.getThrown());
+//                        } else if (record.getLevel().equals(Level.WARNING)) {
+//                            l.warn(record.getMessage(),record.getThrown());
+//                        } else if (record.getLevel().equals(Level.SEVERE)) {
+//                            l.error(record.getMessage(),record.getThrown());
+//                        } else  {
+//                            l.info(record.getMessage(),record.getThrown());
+//
+//                        }
+                    }
+
+                    @Override
+                    public void flush() {
+
+                    }
+
+                    @Override
+                    public void close() throws SecurityException {
+
+                    }
+                });
         l = java.util.logging.Logger.getLogger("connection");
         l.setLevel(java.util.logging.Level.OFF);
         if (morphium == null) {
@@ -233,34 +234,34 @@ public class MongoTest {
             //                @Override
             //                public void preStore(Morphium m, Object r, boolean isNew) {
             //                    if (m.getARHelper().isBufferedWrite(r.getClass())) {
-            //                        new Logger(MongoTest.class).info("Buffered store of "+r.getClass());
+            //                        LoggerFactory.getLogger(MongoTest.class).info("Buffered store of "+r.getClass());
             //                    }
             //                }
             //
             //                @Override
             //                public void preRemove(Morphium m, Object r) {
             //                     if (m.getARHelper().isBufferedWrite(r.getClass())) {
-            //                        new Logger(MongoTest.class).info("Buffered remove of "+r.getClass());
+            //                        LoggerFactory.getLogger(MongoTest.class).info("Buffered remove of "+r.getClass());
             //                    }
             //                }
             //
             //                @Override
             //                public void preRemove(Morphium m, Query q) {
             //                    if (m.getARHelper().isBufferedWrite(q.getType())) {
-            //                        new Logger(MongoTest.class).info("Buffered remove of "+q.getType(),new Exception());
+            //                        LoggerFactory.getLogger(MongoTest.class).info("Buffered remove of "+q.getType(),new Exception());
             //                    }
             //                }
             //
             //                @Override
             //                public void preDrop(Morphium m, Class cls) {
-            //                    if (m.getARHelper().isBufferedWrite(cls)) {//                        new Logger(MongoTest.class).info("Buffered drop of "+cls);
+            //                    if (m.getARHelper().isBufferedWrite(cls)) {//                        LoggerFactory.getLogger(MongoTest.class).info("Buffered drop of "+cls);
             //                    }
             //                }
             //
             //                @Override
             //                public void preUpdate(Morphium m, Class cls, Enum updateType) {
             //                    if (m.getARHelper().isBufferedWrite(cls)) {
-            //                        new Logger(MongoTest.class).info("Buffered update of "+cls);
+            //                        LoggerFactory.getLogger(MongoTest.class).info("Buffered update of "+cls);
             //                    }
             //                }
             //            });
@@ -290,8 +291,8 @@ public class MongoTest {
     }
 
     @org.junit.AfterClass
-    public static void tearDownClass() throws Exception {
-        new Logger(MongoTest.class).info("NOT Shutting down - might be reused!");
+    public static void tearDownClass() {
+        LoggerFactory.getLogger(MongoTest.class).info("NOT Shutting down - might be reused!");
         //        morphium.close();
     }
 
@@ -358,7 +359,7 @@ public class MongoTest {
     }
 
     @org.junit.Before
-    public void setUp() throws Exception {
+    public void setUp() {
 
         try {
             log.info("Preparing collections...");
@@ -399,14 +400,14 @@ public class MongoTest {
 
             log.info("Preparation finished");
         } catch (Exception e) {
-            log.fatal("Error during preparation!");
+            log.error("Error during preparation!");
             e.printStackTrace();
         }
 
     }
 
     @org.junit.After
-    public void tearDown() throws Exception {
+    public void tearDown() {
         log.info("Cleaning up...");
         morphium.dropCollection(UncachedObject.class);
         morphium.dropCollection(CachedObject.class);
@@ -438,9 +439,4 @@ public class MongoTest {
         }
     }
 
-    public void logSeparator(String s) {
-        log.getOutput().println("\n\n************************************************************");
-        log.getOutput().println("***    " + s);
-        log.getOutput().println("************************************************************\n");
-    }
 }

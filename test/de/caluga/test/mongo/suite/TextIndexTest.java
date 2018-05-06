@@ -20,7 +20,7 @@ import java.util.List;
 public class TextIndexTest extends MongoTest {
 
     @Test
-    public void textIndexTest() throws Exception {
+    public void textIndexTest() {
         morphium.dropCollection(Person.class);
         try {
             morphium.ensureIndicesFor(Person.class);
@@ -41,7 +41,7 @@ public class TextIndexTest extends MongoTest {
 
 
     @Test
-    public void textOperatorTest() throws Exception {
+    public void textOperatorTest() {
         morphium.dropCollection(Person.class);
         try {
             morphium.ensureIndicesFor(Person.class);

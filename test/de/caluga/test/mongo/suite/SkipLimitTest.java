@@ -13,7 +13,7 @@ import java.util.List;
  */
 public class SkipLimitTest extends MongoTest {
     @Test
-    public void skipTest() throws Exception {
+    public void skipTest() {
         createUncachedObjects(100);
         UncachedObject o = morphium.createQueryFor(UncachedObject.class).f("counter").lt(100).skip(10).sort("counter").get();
         assert (o.getCounter() == 11) : "Counter is " + o.getCounter();
@@ -22,7 +22,7 @@ public class SkipLimitTest extends MongoTest {
 
 
     @Test
-    public void limitTest() throws Exception {
+    public void limitTest() {
         createUncachedObjects(100);
 
         List<UncachedObject> l = morphium.createQueryFor(UncachedObject.class).f("counter").lt(100).limit(10).sort("counter").asList();
@@ -30,7 +30,7 @@ public class SkipLimitTest extends MongoTest {
     }
 
     @Test
-    public void skipLimitTest() throws Exception {
+    public void skipLimitTest() {
         createUncachedObjects(100);
 
         List<UncachedObject> l = morphium.createQueryFor(UncachedObject.class).f("counter").lt(100).skip(50).limit(10).sort("counter").asList();

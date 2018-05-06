@@ -2,13 +2,13 @@ package de.caluga.morphium.driver.mongodb;/**
  * Created by stephan on 09.11.15.
  */
 
-import de.caluga.morphium.Logger;
 import de.caluga.morphium.MorphiumReference;
 import de.caluga.morphium.driver.MorphiumDriverException;
 import de.caluga.morphium.driver.MorphiumDriverNetworkException;
 import de.caluga.morphium.driver.MorphiumDriverOperation;
 import de.caluga.morphium.driver.MorphiumId;
 import org.bson.types.ObjectId;
+import org.slf4j.LoggerFactory;
 
 import java.lang.reflect.Array;
 import java.util.Collection;
@@ -21,7 +21,7 @@ import java.util.Map;
  */
 @SuppressWarnings("WeakerAccess")
 public class DriverHelper {
-    //Logger logger = new Logger(DriverHelper.class);
+    //Logger logger = LoggerFactory.getLogger(DriverHelper.class);
 
 
     public static Map<String, Object> doCall(MorphiumDriverOperation r, int maxRetry, int sleep) throws MorphiumDriverException {
@@ -37,7 +37,7 @@ public class DriverHelper {
 
 
     private static void handleNetworkError(int max, int i, int sleep, Throwable e) throws MorphiumDriverException {
-        new Logger(DriverHelper.class).info("Handling network error..." + e.getClass().getName());
+        LoggerFactory.getLogger(DriverHelper.class).info("Handling network error..." + e.getClass().getName());
         if (e.getClass().getName().equals("javax.validation.ConstraintViolationException")) {
             throw (new MorphiumDriverException("Validation error", e));
         }
@@ -63,18 +63,18 @@ public class DriverHelper {
                 || (e.getClass().getName().contains("WriteConcernException") && e.getMessage() != null && e.getMessage().contains("not master"))
                 || e.getClass().getName().contains("MongoException")) {
             if (i + 1 < max) {
-                new Logger(DriverHelper.class).warn("Retry because of network error: " + e.getMessage());
+                LoggerFactory.getLogger(DriverHelper.class).warn("Retry because of network error: " + e.getMessage());
                 try {
                     Thread.sleep(sleep);
                 } catch (InterruptedException ignored) {
                 }
 
             } else {
-                new Logger(DriverHelper.class).info("no retries left - re-throwing exception");
-                throw (new MorphiumDriverNetworkException("Network error error", e));
+                LoggerFactory.getLogger(DriverHelper.class).info("no retries left - re-throwing exception");
+                throw (new MorphiumDriverNetworkException("Network error error: " + e.getMessage(), e));
             }
         } else {
-            throw (new MorphiumDriverException("internal error", e));
+            throw (new MorphiumDriverException("internal error: " + e.getMessage(), e));
         }
     }
 
@@ -113,7 +113,7 @@ public class DriverHelper {
                 }
 
             } catch (Exception e) {
-                new Logger(DriverHelper.class).fatal("Error replacing mongoid", e);
+                LoggerFactory.getLogger(DriverHelper.class).error("Error replacing mongoid", e);
                 //                throw new RuntimeException(e);
             }
         } else if (in instanceof Collection) {

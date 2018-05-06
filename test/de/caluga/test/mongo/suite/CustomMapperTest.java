@@ -24,7 +24,7 @@ public class CustomMapperTest extends MongoTest {
     private final int count = 2;
 
     @Test
-    public void customMappedObjectTest() throws Exception {
+    public void customMappedObjectTest() {
         morphium.registerTypeMapper(CustomMappedObject.class, new CustomMappedObjectMapper());
         morphium.dropCollection(ObjectWithCustomMappedObject.class);
 
@@ -88,7 +88,7 @@ public class CustomMapperTest extends MongoTest {
     }
 
     @Test
-    public void complexCustomMappingTest() throws Exception {
+    public void complexCustomMappingTest() {
         morphium.registerTypeMapper(CustomMappedObject.class, new CustomMappedObjectMapper());
         morphium.dropCollection(ObjectWithCustomMappedObject.class);
 

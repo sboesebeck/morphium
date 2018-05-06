@@ -19,7 +19,7 @@ public class CustomCollectionNameTest extends MongoTest {
 
 
     @Test
-    public void testUpdateInOtherCollection() throws Exception {
+    public void testUpdateInOtherCollection() {
         Morphium m = morphium;
         String collectionName = "entity_collection_name_update";
         m.clearCollection(EntityCollectionName.class, collectionName);
@@ -43,7 +43,7 @@ public class CustomCollectionNameTest extends MongoTest {
     }
 
     @Test
-    public void testDeleteInOtherCollection() throws Exception {
+    public void testDeleteInOtherCollection() {
 
         Morphium m = morphium;
         String collectionName = "entity_collection_name_delete";

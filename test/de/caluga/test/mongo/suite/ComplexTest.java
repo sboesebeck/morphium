@@ -162,7 +162,7 @@ public class ComplexTest extends MongoTest {
 
 
     @Test
-    public void referenceQuery() throws Exception {
+    public void referenceQuery() {
 
         UncachedObject o = new UncachedObject();
         o.setCounter(15);
@@ -187,7 +187,7 @@ public class ComplexTest extends MongoTest {
     }
 
     @Test
-    public void searchForSubObj() throws Exception {
+    public void searchForSubObj() {
         UncachedObject o = new UncachedObject();
         o.setCounter(15);
         o.setValue("Uncached " + 15);

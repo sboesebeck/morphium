@@ -1,7 +1,8 @@
 package de.caluga.morphium.replicaset;
 
-import de.caluga.morphium.Logger;
 import de.caluga.morphium.Morphium;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -19,7 +20,7 @@ import java.util.concurrent.atomic.AtomicInteger;
  */
 @SuppressWarnings("WeakerAccess")
 public class RSMonitor {
-    private static final Logger logger = new Logger(RSMonitor.class);
+    private static final Logger logger = LoggerFactory.getLogger(RSMonitor.class);
     private final ScheduledThreadPoolExecutor executorService;
     private final Morphium morphium;
     private ReplicaSetStatus currentStatus;
@@ -42,8 +43,8 @@ public class RSMonitor {
     }
 
     public void start() {
-        execute();
         executorService.scheduleWithFixedDelay(this::execute, 1000, morphium.getConfig().getReplicaSetMonitoringTimeout(), TimeUnit.MILLISECONDS);
+        execute();
     }
 
     public void terminate() {
@@ -139,6 +140,11 @@ public class RSMonitor {
                 return status;
             } catch (Exception e) {
                 logger.warn("Could not get Replicaset status: " + e.getMessage(), e);
+                if (e.getMessage().contains(" 'not running with --replSet'")) {
+                    logger.warn("Mongo not configured for replicaset! Disabling monitoring for now");
+                    morphium.getConfig().setReplicasetMonitoring(false);
+                    terminate();
+                }
                 logger.warn("Tried connection to: ");
                 for (String adr : morphium.getConfig().getHostSeed()) {
                     logger.warn("   " + adr);

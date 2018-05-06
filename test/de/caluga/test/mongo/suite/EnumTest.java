@@ -15,7 +15,7 @@ import java.util.List;
 public class EnumTest extends MongoTest {
 
     @Test
-    public void enumTest() throws Exception {
+    public void enumTest() {
         morphium.clearCollection(EnumEntity.class);
         EnumEntity ent = new EnumEntity();
         ent.setTst(TestEnum.TEST1);
@@ -33,7 +33,7 @@ public class EnumTest extends MongoTest {
     }
 
     @Test
-    public void enumListTest() throws Exception {
+    public void enumListTest() {
         morphium.clearCollection(EnumEntity.class);
         EnumEntity ent = new EnumEntity();
         ent.setTst(TestEnum.TEST1);

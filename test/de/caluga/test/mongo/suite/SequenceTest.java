@@ -15,7 +15,7 @@ import java.util.Vector;
  */
 public class SequenceTest extends MongoTest {
     @Test
-    public void singleSequenceTest() throws Exception {
+    public void singleSequenceTest() {
         morphium.dropCollection(Sequence.class);
         SequenceGenerator sg = new SequenceGenerator(morphium, "tstseq", 1, 1);
         long v = sg.getNextValue();
@@ -25,7 +25,7 @@ public class SequenceTest extends MongoTest {
     }
 
     @Test
-    public void multiSequenceTest() throws Exception {
+    public void multiSequenceTest() {
         morphium.dropCollection(Sequence.class);
         SequenceGenerator sg1 = new SequenceGenerator(morphium, "tstseq1", 1, 1);
         SequenceGenerator sg2 = new SequenceGenerator(morphium, "tstseq2", 1, 1);
@@ -43,7 +43,7 @@ public class SequenceTest extends MongoTest {
     }
 
     @Test
-    public void errorLockedSequenceTest() throws Exception {
+    public void errorLockedSequenceTest() {
         morphium.dropCollection(Sequence.class);
         SequenceGenerator sg = new SequenceGenerator(morphium, "test", 1, 1);
         sg.getNextValue(); //initializing
@@ -61,7 +61,7 @@ public class SequenceTest extends MongoTest {
     }
 
     @Test
-    public void massiveMultiSequenceTest() throws Exception {
+    public void massiveMultiSequenceTest() {
         morphium.dropCollection(Sequence.class);
         Vector<SequenceGenerator> gens = new Vector<>();
         //creating lots of sequences
