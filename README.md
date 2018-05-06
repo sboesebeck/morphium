@@ -14,7 +14,7 @@ Morphium is a POJO Object mapper for Accessing Mongodb. Some of the main Feature
 - Cluster Awareness
 - Cache synchronization between cluster nodes
 - Asynchronous and Buffered write access
-- Messaging
+- Messaging (for mor information about Messaging via morphium, read this blog entry: https://caluga.de/v/2018/5/5/mongodb_messaging_via_morphium)
 - fluent interface for querying mongodb
 - support for the MongoDB aggregator framework
 - support for complex queries
@@ -27,7 +27,8 @@ Morphium is a POJO Object mapper for Accessing Mongodb. Some of the main Feature
 - Support for partial updated objects (when writing, only the changes of the object are transferred) 
 - Almost any operation morphium provides is async capable. That means, if you pass it an `AsyncOperationListener` as argument, you won't get a batch now, but after the async operation finished via the callback
 
-For questions and feature requests / bug reports also have a look at the google group morphium-discuss@googlegroups.com or join us at slack https://join.slack.com/t/team-morphium/shared_invite/enQtMjgwODMzMzEzMTU5LTA1MjdmZmM5YTM3NjRmZTE2ZGE4NDllYTA0NTUzYjU2MzkxZTJhODlmZGQ2MThjMGY0NmRkMWE1NDE2YmQxYjI
+for questions and feature requests / bug reports also have a look at the google group morphium-discuss@googlegroups.com
+or join us at _slack_ https://join.slack.com/t/team-morphium/shared_invite/enQtMjgwODMzMzEzMTU5LTA1MjdmZmM5YTM3NjRmZTE2ZGE4NDllYTA0NTUzYjU2MzkxZTJhODlmZGQ2MThjMGY0NmRkMWE1NDE2YmQxYjI
 
 
 Quick Start
