@@ -2,13 +2,14 @@ package de.caluga.test.mongo.suite.performance;/**
  * Created by stephan on 04.04.16.
  */
 
-import de.caluga.morphium.Logger;
 import de.caluga.morphium.Morphium;
 import de.caluga.morphium.query.PrefetchingMorphiumIterator;
 import de.caluga.morphium.query.Query;
 import de.caluga.test.mongo.suite.MongoTest;
 import de.caluga.test.mongo.suite.data.UncachedObject;
 import org.openjdk.jmh.annotations.*;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 
 /**
@@ -16,7 +17,7 @@ import org.openjdk.jmh.annotations.*;
  **/
 @State(Scope.Benchmark)
 public class IteratorSpeedTest {
-    private Logger log = new Logger(IteratorSpeedTest.class);
+    private Logger log = LoggerFactory.getLogger(IteratorSpeedTest.class);
     private Morphium morphium;
 
     @Setup
@@ -51,7 +52,7 @@ public class IteratorSpeedTest {
     @OperationsPerInvocation()
     @Fork(1)
     @Measurement(iterations = 5, time = -1)
-    public void defaultIteratorTest() throws Exception {
+    public void defaultIteratorTest() {
         log.info("Running default iterator test");
         Query<UncachedObject> q = morphium.createQueryFor(UncachedObject.class).sort("counter");
         int sum = 0;
@@ -70,7 +71,7 @@ public class IteratorSpeedTest {
     @OperationsPerInvocation()
     @Fork(1)
     @Measurement(iterations = 5, time = -1)
-    public void prefetchingIteratorTest() throws Exception {
+    public void prefetchingIteratorTest() {
         Query<UncachedObject> q = morphium.createQueryFor(UncachedObject.class).sort("counter");
         int sum = 0;
         for (UncachedObject o : q.asIterable(1000, 5)) {
@@ -87,7 +88,7 @@ public class IteratorSpeedTest {
     @OperationsPerInvocation()
     @Fork(1)
     @Measurement(iterations = 5, time = -1)
-    public void bufferedIteratorTest() throws Exception {
+    public void bufferedIteratorTest() {
         Query<UncachedObject> q = morphium.createQueryFor(UncachedObject.class).sort("counter");
         int sum = 0;
         for (UncachedObject o : q.asIterable(1000)) {
@@ -104,7 +105,7 @@ public class IteratorSpeedTest {
     @OperationsPerInvocation()
     @Fork(1)
     @Measurement(iterations = 5, time = -1)
-    public void oldPrefetchingIteratorTest() throws Exception {
+    public void oldPrefetchingIteratorTest() {
         Query<UncachedObject> q = morphium.createQueryFor(UncachedObject.class).sort("counter");
         int sum = 0;
         for (UncachedObject o : q.asIterable(1000, new PrefetchingMorphiumIterator<>())) {

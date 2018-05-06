@@ -8,7 +8,6 @@ import de.caluga.morphium.annotations.WriteSafety;
 import de.caluga.morphium.annotations.caching.Cache;
 import de.caluga.morphium.annotations.caching.WriteBuffer;
 import de.caluga.morphium.cache.CacheSyncListener;
-import de.caluga.morphium.cache.CacheSyncVetoException;
 import de.caluga.morphium.cache.CacheSynchronizer;
 import de.caluga.morphium.driver.MorphiumId;
 import de.caluga.morphium.messaging.Messaging;
@@ -46,12 +45,12 @@ public class CacheSyncTest extends MongoTest {
         waitForWrites();
         cnt = q.countAll();
         assert (cnt == 1) : "there should be one msg, there are " + cnt;
-        msg.setRunning(false);
+        msg.terminate();
         cs.detach();
     }
 
     @Test
-    public void removeFromCacheTest() throws Exception {
+    public void removeFromCacheTest() {
         for (int i = 0; i < 100; i++) {
             CachedObject o = new CachedObject();
             o.setCounter(i);
@@ -106,8 +105,8 @@ public class CacheSyncTest extends MongoTest {
         if ((morphium.getStatistics().get(StatisticKeys.CACHE_ENTRIES.name()) != 0)) {
             throw new AssertionError("Cache entries set? Entries: " + morphium.getStatistics().get(StatisticKeys.CACHE_ENTRIES.name()));
         }
-        msg1.setRunning(false);
-        msg2.setRunning(false);
+        msg1.terminate();
+        msg2.terminate();
         cs1.detach();
         cs2.detach();
     }
@@ -193,7 +192,7 @@ public class CacheSyncTest extends MongoTest {
         log.info("Updating with synchronizer: " + dur + " ms");
 
 
-        msg1.setRunning(false);
+        msg1.terminate();
         cs1.detach();
 
     }
@@ -222,7 +221,7 @@ public class CacheSyncTest extends MongoTest {
         final CacheSynchronizer cs1 = new CacheSynchronizer(msg1, morphium);
         cs1.addSyncListener(new CacheSyncListener() {
             @Override
-            public void preClear(Class cls, Msg m) throws CacheSyncVetoException {
+            public void preClear(Class cls, Msg m) {
             }
 
             @Override
@@ -230,7 +229,7 @@ public class CacheSyncTest extends MongoTest {
             }
 
             @Override
-            public void preSendClearMsg(Class cls, Msg m) throws CacheSyncVetoException {
+            public void preSendClearMsg(Class cls, Msg m) {
                 log.info("in preSendClearMsg");
                 preSendClear = true;
             }
@@ -245,7 +244,7 @@ public class CacheSyncTest extends MongoTest {
         final CacheSynchronizer cs2 = new CacheSynchronizer(msg2, morphium);
         cs2.addSyncListener(new CacheSyncListener() {
             @Override
-            public void preClear(Class cls, Msg m) throws CacheSyncVetoException {
+            public void preClear(Class cls, Msg m) {
                 log.info("in preClear");
                 preClear = true;
             }
@@ -257,7 +256,7 @@ public class CacheSyncTest extends MongoTest {
             }
 
             @Override
-            public void preSendClearMsg(Class cls, Msg m) throws CacheSyncVetoException {
+            public void preSendClearMsg(Class cls, Msg m) {
             }
 
             @Override
@@ -277,10 +276,10 @@ public class CacheSyncTest extends MongoTest {
                     throw new RuntimeException(e);
                 }
 
-                msg1.setRunning(false);
-                msg2.setRunning(false);
                 cs1.detach();
                 cs2.detach();
+                msg1.terminate();
+                msg2.terminate();
 
             }
         }.start();
@@ -330,7 +329,7 @@ public class CacheSyncTest extends MongoTest {
         CachedObject o = m1.createQueryFor(CachedObject.class).f("counter").eq(155).get();
         cs2.addSyncListener(CachedObject.class, new CacheSyncListener() {
             @Override
-            public void preClear(Class cls, Msg m) throws CacheSyncVetoException {
+            public void preClear(Class cls, Msg m) {
                 log.info("Should clear cache");
                 preClear = true;
             }
@@ -342,7 +341,7 @@ public class CacheSyncTest extends MongoTest {
             }
 
             @Override
-            public void preSendClearMsg(Class cls, Msg m) throws CacheSyncVetoException {
+            public void preSendClearMsg(Class cls, Msg m) {
                 log.info("will send clear message");
                 preSendClear = true;
             }
@@ -386,8 +385,8 @@ public class CacheSyncTest extends MongoTest {
         //        assert(m1.createQueryFor(Msg.class).countAll()==0);
         cs1.detach();
         cs2.detach();
-        msg1.setRunning(false);
-        msg2.setRunning(false);
+        msg1.terminate();
+        msg2.terminate();
         m2.close();
 
     }

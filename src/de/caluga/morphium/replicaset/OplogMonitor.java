@@ -1,10 +1,11 @@
 package de.caluga.morphium.replicaset;
 
-import de.caluga.morphium.Logger;
 import de.caluga.morphium.Morphium;
 import de.caluga.morphium.ShutdownListener;
 import de.caluga.morphium.driver.MorphiumDriverException;
-import org.bson.types.BSONTimestamp;
+import org.bson.BsonTimestamp;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.Collection;
 import java.util.HashMap;
@@ -19,7 +20,7 @@ import java.util.regex.Pattern;
 public class OplogMonitor implements Runnable, ShutdownListener {
     private final Collection<OplogListener> listeners;
     private final Morphium morphium;
-    private final Logger log = new Logger(OplogMonitor.class);
+    private final Logger log = LoggerFactory.getLogger(OplogMonitor.class);
     private final String nameSpace;
     private final boolean useRegex;
     private boolean running = true;
@@ -66,6 +67,10 @@ public class OplogMonitor implements Runnable, ShutdownListener {
         oplogMonitorThread.start();
     }
 
+    public boolean isRunning() {
+        return running;
+    }
+
     public void stop() {
         running = false;
         long start = System.currentTimeMillis();
@@ -83,6 +88,7 @@ public class OplogMonitor implements Runnable, ShutdownListener {
             oplogMonitorThread.interrupt();
         }
         oplogMonitorThread = null;
+        listeners.clear();
         morphium.removeShutdownListener(this);
     }
 
@@ -94,7 +100,7 @@ public class OplogMonitor implements Runnable, ShutdownListener {
     public void run() {
         Map<String, Object> q = new LinkedHashMap<>();
         Map<String, Object> q2 = new HashMap<>();
-        q2.put("$gt", new BSONTimestamp((int) timestamp, 0));
+        q2.put("$gt", new BsonTimestamp((int) timestamp, 0));
         String ns;
 
 
@@ -112,7 +118,10 @@ public class OplogMonitor implements Runnable, ShutdownListener {
         q.put("ts", q2);
         while (running) {
             try {
-                morphium.getDriver().tailableIteration("local", "oplog.rs", q, null, null, 0, 0, 1000, null, 1000, (data, dur) -> {
+                morphium.getDriver().tailableIteration("local", "oplog.rs", q, null, null, 0, 0, 1000, null, 60000, (data, dur) -> {
+                    if (!running){
+                        return false;
+                    }
                     timestamp = (Integer) data.get("ts");
                     for (OplogListener lst : listeners) {
                         try {
@@ -121,7 +130,7 @@ public class OplogMonitor implements Runnable, ShutdownListener {
                             log.error("listener threw exception", e);
                         }
                     }
-                    return true;
+                    return running;
                 });
             } catch (MorphiumDriverException e) {
                 e.printStackTrace();

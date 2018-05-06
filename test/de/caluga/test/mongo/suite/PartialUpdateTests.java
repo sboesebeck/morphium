@@ -38,7 +38,7 @@ public class PartialUpdateTests extends MongoTest {
     }
 
     @Test
-    public void partialUpdateTest() throws Exception {
+    public void partialUpdateTest() {
         morphium.clearCollection(PartUpdTestObj.class);
         PartUpdTestObj o = new PartUpdTestObj();
         o.setName("1st");

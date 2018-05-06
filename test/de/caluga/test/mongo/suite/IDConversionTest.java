@@ -14,7 +14,7 @@ import org.junit.Test;
  */
 public class IDConversionTest extends MongoTest {
     @Test
-    public void testIdConversion() throws Exception {
+    public void testIdConversion() {
         QueryImpl qu = new QueryImpl();
         qu.setMorphium(morphium);
         qu.setType(UncachedObject.class);

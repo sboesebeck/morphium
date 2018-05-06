@@ -15,7 +15,7 @@ public class PerformanceTests {
 
 
     @Test
-    public void hashmapVsHashtableTest() throws Exception {
+    public void hashmapVsHashtableTest() {
         int retries = 20;
 
         System.out.println("Testing with HashMap: ");
@@ -133,7 +133,7 @@ public class PerformanceTests {
 
 
     @Test
-    public void testListVsVector() throws Exception {
+    public void testListVsVector() {
         List<String> lst = new ArrayList<>();
         System.out.println("\nTesting with ArraList");
         testWrite(lst);
@@ -150,7 +150,7 @@ public class PerformanceTests {
     }
 
     @Test
-    public void testCreation() throws Exception {
+    public void testCreation() {
         long start = System.currentTimeMillis();
         for (int i = 0; i < 1000000; i++) {
             new Vector<String>();

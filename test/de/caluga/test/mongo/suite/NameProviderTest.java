@@ -20,13 +20,13 @@ import org.junit.Test;
  */
 public class NameProviderTest extends MongoTest {
     @Test
-    public void testNameProvider() throws Exception {
+    public void testNameProvider() {
         String colName = morphium.getMapper().getCollectionName(LogObject.class);
         assert (colName.endsWith("_Test"));
     }
 
     @Test
-    public void testStoreWithNameProvider() throws Exception {
+    public void testStoreWithNameProvider() {
         morphium.dropCollection(LogObject.class);
         morphium.dropCollection(LogObject.class, "LogObject_Test", null);
         for (int i = 0; i < 100; i++) {
@@ -47,7 +47,7 @@ public class NameProviderTest extends MongoTest {
 
 
     @Test
-    public void overrideNameProviderTest() throws Exception {
+    public void overrideNameProviderTest() {
         morphium.clearCollection(UncachedObject.class);
         morphium.getMapper().setNameProviderForClass(UncachedObject.class, new MyNp());
         String col = morphium.getMapper().getCollectionName(UncachedObject.class);

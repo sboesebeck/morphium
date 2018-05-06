@@ -6,6 +6,8 @@ import de.caluga.morphium.annotations.caching.Cache;
 import de.caluga.morphium.async.AsyncOperationCallback;
 import de.caluga.morphium.async.AsyncOperationType;
 import de.caluga.morphium.driver.MorphiumDriverException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.lang.reflect.Array;
 import java.lang.reflect.Field;
@@ -22,7 +24,7 @@ import java.util.stream.Collectors;
  */
 @SuppressWarnings("WeakerAccess")
 public class QueryImpl<T> implements Query<T>, Cloneable {
-    private static final Logger log = new Logger(Query.class);
+    private static final Logger log = LoggerFactory.getLogger(Query.class);
     private String where;
     private Class<? extends T> type;
     private List<FilterExpression> andExpr;
@@ -433,12 +435,7 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
 
     @SuppressWarnings("unused")
     private Query<T> getClone() {
-        try {
-            return clone();
-        } catch (CloneNotSupportedException e) {
-            log.error("Clone not supported?!?!?!");
-            throw new RuntimeException(e);
-        }
+        return clone();
     }
 
     @SafeVarargs
@@ -566,9 +563,6 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
         boolean onlyAnd = orQueries.isEmpty() && norQueries.isEmpty() && where == null;
         if (where != null) {
             o.put("$where", where);
-        }
-        if (andExpr.size() == 1 && onlyAnd) {
-            return andExpr.get(0).dbObject();
         }
         if (andExpr.size() == 1 && onlyAnd) {
             return andExpr.get(0).dbObject();
@@ -946,7 +940,6 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
     public <R> List<R> idList() {
         Cache c = getARHelper().getAnnotationFromHierarchy(type, Cache.class);//type.getAnnotation(Cache.class);
         boolean useCache = c != null && c.readCache() && morphium.isReadCacheEnabledForThread();
-        List<R> ret = new ArrayList<>();
         String ck = morphium.getCache().getCacheKey(this);
         ck += " idlist";
         morphium.inc(StatisticKeys.READS);
@@ -977,7 +970,7 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
         }
 
         //noinspection unchecked
-        ret.addAll(query.stream().map(o -> (R) o.get("_id")).collect(Collectors.toList()));
+        List<R> ret = new ArrayList<>(query.stream().map(o -> (R) o.get("_id")).collect(Collectors.toList()));
         srv = (String) findMetadata.get("server");
         long dur = System.currentTimeMillis() - start;
         morphium.fireProfilingReadEvent(this, dur, ReadAccessType.ID_LIST);
@@ -988,7 +981,7 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
         return ret;
     }
 
-    public Query<T> clone() throws CloneNotSupportedException {
+    public Query<T> clone() {
         try {
             @SuppressWarnings("unchecked") QueryImpl<T> ret = (QueryImpl<T>) super.clone();
             if (andExpr != null) {

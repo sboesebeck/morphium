@@ -3,6 +3,8 @@ package de.caluga.morphium;
 import de.caluga.morphium.driver.MorphiumDriverException;
 import de.caluga.morphium.driver.MorphiumId;
 import de.caluga.morphium.query.Query;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -27,7 +29,7 @@ import java.util.UUID;
 
 @SuppressWarnings("UnusedDeclaration")
 public class SequenceGenerator {
-    private static Logger log = new Logger(SequenceGenerator.class);
+    private static Logger log = LoggerFactory.getLogger(SequenceGenerator.class);
     private int inc;
     private long startValue;
     private Morphium morphium;

@@ -1,12 +1,13 @@
 package de.caluga.test.mongo.suite;
 
-import de.caluga.morphium.Logger;
 import de.caluga.morphium.annotations.Entity;
 import de.caluga.morphium.annotations.SafetyLevel;
 import de.caluga.morphium.annotations.WriteSafety;
 import de.caluga.morphium.driver.WriteConcern;
 import de.caluga.test.mongo.suite.data.UncachedObject;
 import org.junit.Test;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * User: Stephan Bösebeck
@@ -15,7 +16,7 @@ import org.junit.Test;
  * <p/>
  */
 public class ReplicaSetStatusTest extends MongoTest {
-    private static Logger log = new Logger(ReplicaSetStatusTest.class);
+    private static Logger log = LoggerFactory.getLogger(ReplicaSetStatusTest.class);
 
     @Test
     public void testReplicaSetMonitoring() throws Exception {
@@ -34,7 +35,7 @@ public class ReplicaSetStatusTest extends MongoTest {
     }
 
     @Test
-    public void testWriteConcern() throws Exception {
+    public void testWriteConcern() {
         if (!morphium.isReplicaSet()) {
             log.warn("Cannot test replicaset on non-replicaset installation");
             return;

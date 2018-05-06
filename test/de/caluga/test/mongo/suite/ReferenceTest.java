@@ -30,7 +30,7 @@ public class ReferenceTest extends MongoTest {
     private boolean wouldDeref = false;
 
     @Test
-    public void storeReferenceTest() throws Exception {
+    public void storeReferenceTest() {
         morphium.dropCollection(ReferenceContainer.class);
 
         UncachedObject uc1 = new UncachedObject();
@@ -152,7 +152,7 @@ public class ReferenceTest extends MongoTest {
 
 
     @Test
-    public void referenceListenerTest() throws Exception {
+    public void referenceListenerTest() {
         DereferencingListener deRef = new DereferencingListener() {
             @Override
             public void wouldDereference(Object entityIncludingReference, String fieldInEntity, Object id, Class typeReferenced, boolean lazy) throws MorphiumAccessVetoException {

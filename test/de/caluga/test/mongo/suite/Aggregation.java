@@ -20,7 +20,7 @@ import java.util.Map;
  */
 public class Aggregation extends MongoTest {
     @Test
-    public void aggregatorTest() throws Exception {
+    public void aggregatorTest() {
         createUncachedObjects(1000);
 
         Aggregator<UncachedObject, Aggregate> a = morphium.createAggregator(UncachedObject.class, Aggregate.class);
@@ -59,7 +59,7 @@ public class Aggregation extends MongoTest {
     }
 
     @Test
-    public void testPush() throws Exception {
+    public void testPush() {
         morphium.clearCollection(UncachedObject.class);
         for (int i = 0; i < 100; i++) {
             UncachedObject u = new UncachedObject();
@@ -78,7 +78,7 @@ public class Aggregation extends MongoTest {
     }
 
     @Test
-    public void testAddToSet() throws Exception {
+    public void testAddToSet() {
         morphium.clearCollection(UncachedObject.class);
         for (int i = 0; i < 100; i++) {
             UncachedObject u = new UncachedObject();
@@ -99,7 +99,7 @@ public class Aggregation extends MongoTest {
     }
 
     @Test
-    public void aggregationTestcompare() throws Exception {
+    public void aggregationTestcompare() {
         log.info("Preparing data");
         createUncachedObjects(10000);
         log.info("done... starting");

@@ -15,7 +15,7 @@ import java.util.List;
 public class DistinctTest extends MongoTest {
 
     @Test
-    public void distinctTest() throws Exception {
+    public void distinctTest() {
         createUncachedObjects(100);
 
         List lst = morphium.createQueryFor(UncachedObject.class).distinct("counter");

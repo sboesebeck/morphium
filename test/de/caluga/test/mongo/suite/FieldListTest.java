@@ -21,7 +21,7 @@ import java.util.Map;
 public class FieldListTest extends MongoTest {
 
     @Test
-    public void testFieldList() throws Exception {
+    public void testFieldList() {
         createUncachedObjects(100);
         waitForWrites();
 
