@@ -81,7 +81,7 @@ Simple example on how to use *Morphium*:
 
 First you need to create data to be stored in Mongo. This should be some simple class like this one here:
 
-```
+```java
     @Entity
     public class MyEntity {
         @Id
@@ -99,17 +99,18 @@ The names are usually translated from camel case (like `aField`) into lowercase 
 
 In mongo the corresponding object would be stored in a collection named `my_entity` and would look like this:
 
+```java
     {
       _id: ObjectId("53ce59864882233112aa018df"),
       a_field: 123,
       other: "value"
     }
-    
+```
 
 By default, null values are not serialized to mongo. So in this example, there is no field "property".
-
 The next example shows how to store and access data from mongo:
 
+```java
     //creating connection 
     MorphiumConfig cfg=new MorphiumConfig(); 
     cfg.setHostSeed("localhost:27018", "mongo1","mongo3.home"); 
@@ -120,28 +121,24 @@ The next example shows how to store and access data from mongo:
     //Morphium (or better: mongodb driver) will figure out the others
     //connect 
     Morphium morphium=new Morphium(cfg);
-    
     //Create an entity 
     MyEntity ent=new MyEntity(); 
     ent.setAField(123); 
     ent.setOther("value"); 
     ent.setProperty(122l); 
     morphium.store(ent);
-    
     //the query object is used to access mongo 
     Query<MyEntity> q=morphium.createQueryFor(MyEntity.class); 
     q=q.f("a_field").eq(123); 
     q=q.f("other").eq("value"); 
     q=q.f("property").lt(123).f("property").gt(100);
-    
-    List<MyEntity> lst=q.asList();
-    
+    List<MyEntity> lst=q.asList(); 
     //or use iterator 
     for (MyEntity e:q.asIterable(100,2)) { 
         // iterate in windows of 100 objects 
         // 2 windows lookAhead 
     }
-    
+```
 
 This gives a short glance of how *Morphium* works and how it can be used. But *Morphium* is capable of many more things...
 
@@ -244,7 +241,7 @@ To get the properties for the current configuration, just call `asProperties()` 
 
 Here is an example property-file:
 
-```
+```java
 maxWaitTime=1000
 maximumRetriesBufferedWriter=1
 maxConnections=100
@@ -280,7 +277,7 @@ In some cases it's more convenient to use a singleton Instance to access *Morphi
 
 The `MorphiumSingleton` is configured similar to the normal Morphium instance. Just set the config and you're good to go.
 
-```
+```java
     MorphiumConfig config=new MorphiumConfig(); //..configure it here
     MorphiumSingleton.setConfig(config);
     MorphiumSingleton.get().createQueryFor(MyEntity.class).f(...)
@@ -309,14 +306,16 @@ This is done by using the `Query` object. You need to create one for every entit
 
 After that querying is very fluent. You add one option at a time, by default all conditions are AND-associated:
 
+```java
     Query<MyEntity> q=morphium.createQueryFor(MyEntity.class);
     q=q.f("a_field").eq("Value");
     q=q.f("counter").lt(10);
     q=q.f("name").ne("Stephan").f("zip").eq("1234");
-
+```
 
 The `f` method stands for "field" and returns a *Morphium* internal representation of mongo fields. Threre you can call the operators, in our case it `eq` for equals, `lt` for less then and `ne` not equal. There are a lot more operators you might use, all those are defined in the `MongoField` interface:
 
+```java
     public Query<t> all(List</t>
     public Query<T> eq(Object val);
     public Query<T> ne(Object val);
@@ -405,24 +404,27 @@ As already mentioned, the query by default creates AND-queries. If you need to c
 
 `or` takes a list of queries as argument, so a query might be built this way:
 
-
+```java
     Query<MyEntity> q=morphium.createQueryFor(MyEntity.class);
     q=q.or(q.q().f("counter").le(10),q.q().f("name").eq("Morphium"));
-
+```
 
 This would create an OR-Query asking for all "MyEntities", that have a counter less than or equal to 10 OR whose name is "Morphium". You can add as much or-queries as you like. OR-Queries can actually be combined with and queries as well:
 
+```java
     Query<MyEntity> q=morphium.createQueryFor(MyEntity.class);
     q=q.f("counter").ge(2);
     q=q.or(q.q().f("counter").le(10),q.q().f("name").eq("Morphium"));`
+```
 
 In that case, the query would be something like: counter is greater than 2 AND (counter is less then or equal to 10 OR name is "Morphium")
 
 Combining and and or-queries is also possible, although the syntax would look a bit unfamiliar:
 
-
+```java
     Query<MyEntity> q=morphium.createQueryFor(MyEntity.class);
     q=q.f("counter").lt(100).or(q.q().f("counter").mod(3,0),q.q().f("value").ne("v");
+```
 
 This would create a query returning all entries that do have a `counter` of less than 100 AND where the modulo to base 3 of the value `counter` equals 0, and the value of the field `value` equals "v".
 
@@ -430,8 +432,10 @@ This would create a query returning all entries that do have a `counter` of less
 
 Well, there is more to it... it is possible, to create a query using a "where"-String... there you can add `JavaScript` code for your query. This code will be executed at the mongodb node, executing your query:
 
+```java
     Query<MyEntity> q=morphium.createQueryFor(MyEntity.class);
     q=q.where("this.counter > 10");
+```
 
 **Attention**: you can javascript code in that where clause, but you cannot access the `db` object there. This was changed when switching to Mongodb 2.6 with V8 Javascript engine
 
@@ -443,8 +447,10 @@ Using the `@Cache` annotation, you can define cache settings on a per type (= cl
 
 Cache synchronization was already mentioned above. The system of cache synchronization needs a messaging subsystem (see [Messaging] below). You just need to start the cache synchronizer yourself, if you want caches to be synchronized.
 
+```java
     CacheSynchronizer cs=new CacheSynchronizer(morphium);
     cs.start();
+```
 
 If you want to stop your cache synchronizing process, just call `cs.setRunning(false);` . The synchronizer will stop after a while (depending on your cache synchronization timeout).
 
@@ -489,9 +495,9 @@ That means, an `asList()` call on a query object can take an `AsyncCallback` as 
 Morphium does have support for Aggregation in mongo. The aggregation Framework was introduced in mongo with V2.6 and is a alternative to MapReduce (which is still used). We implemented support for the new Aggregation framework into mongo. Up until now, there was no request for MapReduce - if you need it, please let me know.
 
 Here is how the aggregation framework is used from mongo (see more info on the aggregation framework at [MongoDb][2]
-
 This is the Unit test for Aggregation support in Mongo:
 
+```java
     @Test public void aggregatorTest() throws Exception { 
         createUncachedObjects(1000);
     
@@ -593,7 +599,7 @@ This is the Unit test for Aggregation support in Mongo:
             this.theGeneratedId = theGeneratedId;
         }
     }
-    
+```   
 
 The class `Aggregate` is used to hold the batch of the aggregation.
 
@@ -605,6 +611,7 @@ Technically it's implemented as a `JavaxValidationStorageListener` which is a st
 
 an example on how to use validation:
 
+```java
     @Id private MorphiumId id;
     
     @Min(3)
@@ -625,17 +632,18 @@ an example on how to use validation:
     
     @Email
     private String email;
-    
+```
 
 Those validation rules will be enforced upon storing the corresponding object:
 
+```java
     @Test(expected = ConstraintViolationException.class)
     public void testNotNull() {
         ValidationTestObject o = getValidObject();
         o.setAnotherInt(null);
         MorphiumSingleton.get().store(o);
     }
-    
+```
 
 ### Polymorphism
 
@@ -686,16 +694,20 @@ In addition to that, you can define custom names of fields and collections using
 
 For entities you may set a custom name by using the `collectionName` value for the annotation:
 
+```java
     @Entity(collectionName="totallyDifferent") 
     public class MyEntity {
         private String myValue;
- 
+```
+
 the collection name will be `totallyDifferent` in mongo. Keep in mind that camel case conversion for fields will still take place. So in that case, the field name would probably be `my_value`. (if camel case conversion is enabled in config)
 
 You can also specify the name of a field using the property annotation:
 
+```java
     @Property(fieldName="my_wonderful_field")
     private String something;`
+```
 
 Again, this only affects this field (in this case, it will be called `my_wondwerful_field` in mongo) and this field won't be converted camelcase. This might cause a mix up of cases in your mongodb, so please use this with care.
 
@@ -709,6 +721,7 @@ In some cases it might be necessary to have the collection name calculated dynam
 
 You can define a NameProvider for your entity in the `@Entity` annotation. You need to specify the type there. By default, the NameProvider for all Entities is `DefaultNameProvider`. Which acutally looks like this:
 
+```java
     public final class DefaultNameProvider implements NameProvider {
     
     @Override
@@ -731,7 +744,7 @@ You can define a NameProvider for your entity in the `@Entity` annotation. You n
     
     
     }
-    
+```  
 
 You can use your own provider to calculate collection names depending on time and date or for example depending on the querying host name (like: create a log collection for each server separately or create a collection storing logs for only one month each).
 
@@ -743,19 +756,22 @@ Entitys in *Morphium* ar just "Plain old Java Objects" (POJOs). So you just crea
 
 If you specify your ID to be of a different kind (like String), you need to make sure, that the String is set, when the object will be written. Otherwise you might not find the object again. So the shortest Entity would look like this:
 
+```java
     @Entity
     public class MyEntity {
        @Id private MorphiumId id;
        //.. add getter and setter here
     }
-    
+```
 
 ### indexes
 
 Indexes are *very* important in mongo, so you should definitely define your indexes as soon as possible during your development. Indexes can be defined on the Entity itself, there are several ways to do so: - @Id always creates an index - you can add an `@Index` to any field to have that indexed:
 
+```java
 	@Index
     private String name;
+```
 
 *   you can define combined indexes using the `@Index` annotation at the class itself:
 
@@ -767,10 +783,12 @@ This would create two combined indexes: one with `counter` and `name` (both asce
 
 Every Index might have a set of options which define the kind of this index. Like `buildInBackground` or `unique`. You need to add those as second parameter to the Index-Annotation:
 
+```java
 	@Entity
 	 @Index(value = {"-name, timer", "-name, -timer", "lst:2d", "name:text"}, 
                 options = {"unique:1", "", "", ""})
     public static class IndexedObject {
+```
 
 here 4 indexes are created. The first two ar more or less standard, wheres the `lst` index is a geospacial one and the index on `name` is a text index (only since mongo 2.6). If you need to define options for one of your indexes, you need to define it for all of them (here, only the first index is unique).
 
@@ -784,26 +802,29 @@ Similar as with indexes, you can define you collection to be capped using the `@
 
 Querying is done via the Query-Object, which is created by *Morphium* itself (using the Query Factory). The definition of the query is done using the fluent interface:
 
+```java
     Query<MyEntity> query=morphium.createQueryFor(MyEntity.class);
     query=query.f("id").eq(new MorphiumId());
     query=query.f("valueField").eq("the value");
     query=query.f("counter").lt(22);
     query=query.f("personName").matches("[a-zA-Z]+");
     query=query.limit(100).sort("counter");
-    
+```
 
 In this example, I refer to several fields of different types. The Query itself is always of the same basic syntax:
 
+```java
     queryObject=queryObject.f(FIELDNAME).OPERATION(Value);
     queryObject=queryObject.skip(NUMBER); //skip a number of entreis
     queryObject=queryObject.limig(NUMBER); // limit batch
     queryObject.sort(FIELD_TO_SORTBY);`
-    
+```
 
 As field name you may either use the name of the field as it is in mongo or the name of the field in java. If you specify an unknown field to *Morphium*, a `RuntimeException` will be raised.
 
 For definition of the query, it's also a good practice to define enums for all of your fields. This makes it hard to have mistypes in a query:
 
+```java
     public class MyEntity {
       private MorphiumId id;
       private Double value;
@@ -812,7 +833,7 @@ For definition of the query, it's also a good practice to define enums for all o
       //.... field accessors
       public enum Fields { id, value, personName,counter, }
     }
-    
+```
 
 There is a plugin for intelliJ creating those enums automatically. Then, when defining the query, you don't have to type in the name of the field, just use the field enum:
 
@@ -883,7 +904,7 @@ Tells *Morphium* to create a capped collection for this object (see capped colle
 
 Parameters:
 
-| --- | --- | 
+|---|---| 
 | maxSize | maximum size in byte. Is used when converting to a capped collection |
 | maxNumber | number of entries for this capped collection |
 
@@ -897,9 +918,10 @@ by default this map is read only. But if you want to change those values or add 
 
 It's possible to define aliases for field names with this annotation (hence it has to be added to a field).
 
-
+```java
   	 @Alias({"stringList","string_list"})
    	List<String> strLst;
+```
 
 in this case, when reading an object from Mongodb, the name of the field strLst might also be `stringList` or `string_list` in mongo. When storing it, it will always be stored as `strLst` or `str_lst` according to config.
 
@@ -1075,7 +1097,7 @@ If `@Lifecycle` is added to the type, `@PostUpdate` may define the method to be 
 *   a simple json parser (json-simple)
 
 Here is the excerpt from the pom.xml:
-
+```xml
     <dependency> 
       <groupid>cglib</groupid> 
       <artifactid>cglib</artifactid> 
@@ -1096,7 +1118,7 @@ Here is the excerpt from the pom.xml:
       <artifactid>json-simple</artifactid> 
       <version>1.1</version> 
     </dependency>
-    
+```   
 
 There is one kind of "optional" Dependency: If hibernate validation is available, it's being used. If it cannot be found in class path, it's no problem.
 
@@ -1106,6 +1128,7 @@ All those Code examples are part of the *Morphium* source distribution. All of t
 
 ### Simple Write / Read
 
+```java
     for (int i = 1; i <= NO_OBJECTS; i++) { 
         UncachedObject o = new UncachedObject(); 
         o.setCounter(i); 
@@ -1128,10 +1151,11 @@ All those Code examples are part of the *Morphium* source distribution. All of t
         q = MorphiumSingleton.get().createQueryFor(UncachedObject.class);
         q = q.f("counter").gt(0).sort("-counter").limit(5);
         assert (st == q.asList().size()) : "List length differ?";
-    
+``` 
 
 And:
 
+```java
     Query<complexobject> q = MorphiumSingleton.get().createQueryFor(ComplexObject.class);
     
         q = q.f("embed.testValueLong").eq(null).f("entityEmbeded.binaryData").eq(null);
@@ -1142,10 +1166,11 @@ And:
         queryString = q.toQueryObject().toString();
         log.info(queryString);
         assert (queryString.contains("embed.test_value_long") && queryString.contains("entityEmbeded.binary_data"));
-    
+```
 
 ### Asynchronous Write
 
+```java
     @Test
     public void asyncStoreTest() throws Exception {
         asyncCall = false;
@@ -1189,10 +1214,12 @@ And:
         assert MorphiumSingleton.get().createQueryFor(UncachedObject.class).f("counter").eq(0).countAll() > 0;
         assert (asyncCall);
     }
-    
+```
+ 
 
 ### Asynchronous Read
 
+```java
     @Test
     public void asyncReadTest() throws Exception {
         asyncCall = false;
@@ -1223,10 +1250,11 @@ And:
         }
         assert (asyncCall);
     }
-    
+```  
 
 ### Iterator
 
+```java
     @Test
     public void basicIteratorTest() throws Exception {
         createUncachedObjects(1000);
@@ -1261,7 +1289,7 @@ And:
         assert (u.getCounter() == 1000);
         log.info("Took " + (System.currentTimeMillis() - start) + " ms");
     }
-    
+```  
 
 ### Messaging
 
@@ -1308,7 +1336,7 @@ And:
     
 
 ### Cache Synchronization
-
+```java
     @Test
     public void cacheSyncTest() throws Exception {
         MorphiumSingleton.get().dropCollection(Msg.class);
@@ -1396,10 +1424,11 @@ And:
         msg2.setRunning(false);
         m2.close();
     }
-    
+```    
 
 ### Geo Spacial Search
 
+```java
     @Test
     public void nearTest() throws Exception {
         MorphiumSingleton.get().dropCollection(Place.class);
@@ -1462,22 +1491,11 @@ And:
             this.name = name;
         }
     }
-    
+```  
 
 # the problems with Logging
 
-today there is a whole bunch of loggin frameworks. Every one is more capable than the other. Most commond probably are java.util.logging and log4j. Morphium used log4j quite some time. But in our high load environment we encountered problems with the logging itself. Also we had problems, that every library did use a different logging framework.
-
-Morphium since V2.2.21 does use its own logger. This can be configured using Environment variables (in linux like `export morphium_log_file=/var/log/morphium.log`) or java system parameters (like java -Dmorphium.log.level=5).
-
-This logger is built for performance and thread safety. It works find in high load environments. And has the following features:
-
-*   it is instanciated with `new` - no singleton. Lesser performance / synchronization issues
-*   it has several options for configuration. (see above). You can define global settings like `morphium.log.file` but you can also define settings for a prefix of a fqdn, like `morphium.log.file.de.caluga.morphium`. For example `java -Dmorphium.log.level=2 -Dmorphium.log.level.de.caluga.morphium.messaging=5` would switch on debugging only for the messaging package, the default has level 2 (which is ERROR)
-*   it is possible to define 3 Things in the way described above (either global or class / package sepcific): FileName (real path, or STDOUT or STDERR), Log level (0=none, 1=FATAL, 2=ERROR, 3=WARN, 4=INFO, 5=DEBUG) and whether the output should be synced or buffered (synced=false)
-*   if you want to use log4j or java.util.logging as logging, you can set the log filename to `log4j` or `jul` accordingly
-*   if you want to use your own logging implementation, just tell morphium the log delegate as filename, e.g. `morphium.log.file=de.caluga.morphium.log.MyLogDelegate`
-*   of course, all this configuration can be done in code as well.
+This chapter is opsolete, Morphium now uses logback for logging.
 
  [1]: https://caluga.de/file/591a20f6722c740f15a3effe
  [2]: http://www.mongodb.org

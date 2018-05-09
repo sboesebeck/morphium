@@ -119,7 +119,7 @@ public class Messaging extends Thread implements ShutdownListener {
             hostname = "unknown host";
         }
 
-        m.ensureIndicesFor(Msg.class, queueName);
+        m.ensureIndicesFor(Msg.class, getCollectionName());
         //        try {
         //            m.ensureIndex(Msg.class, Msg.Fields.lockedBy, Msg.Fields.timestamp);
         //            m.ensureIndex(Msg.class, Msg.Fields.lockedBy, Msg.Fields.processedBy);
@@ -263,6 +263,7 @@ public class Messaging extends Thread implements ShutdownListener {
 
     private void lockAndProcess(Msg obj) {
         Query<Msg> q = morphium.createQueryFor(Msg.class);
+        q.setCollectionName(getCollectionName());
         q.f("_id").eq(obj.getMsgId());
         Map<String, Object> values = new HashMap<>();
         values.put("locked_by", id);
