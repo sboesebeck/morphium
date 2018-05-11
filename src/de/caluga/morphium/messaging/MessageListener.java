@@ -6,7 +6,7 @@ package de.caluga.morphium.messaging;
  * Time: 17:19
  * <p/>
  */
-public interface MessageListener {
+public interface MessageListener<T extends Msg> {
 
 
     /**
@@ -14,5 +14,5 @@ public interface MessageListener {
      * if null is returned, no answer is sent
      */
     @SuppressWarnings("UnusedParameters")
-    Msg onMessage(Messaging msg, Msg m);
+    T onMessage(Messaging msg, T m);
 }
