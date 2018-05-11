@@ -340,7 +340,6 @@ public class Messaging extends Thread implements ShutdownListener {
                                 answer = new Msg(msg.getName(), "received", "");
                             }
                             if (answer != null) {
-                                msg.setDeleteAt(new Date(System.currentTimeMillis() + msg.getTtl()));
                                 msg.sendAnswer(Messaging.this, answer);
                             }
                         }
@@ -349,7 +348,6 @@ public class Messaging extends Thread implements ShutdownListener {
                     log.error("Message rejected by listener: " + mre.getMessage());
                     if (mre.isSendAnswer()) {
                         Msg answer = new Msg(msg.getName(), "message rejected by listener", mre.getMessage());
-                        msg.setDeleteAt(new Date(System.currentTimeMillis() + msg.getTtl()));
                         msg.sendAnswer(Messaging.this, answer);
 
                     }
