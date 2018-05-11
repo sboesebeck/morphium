@@ -20,7 +20,7 @@ import java.util.*;
  * write!
  */
 @SuppressWarnings("WeakerAccess")
-@Entity
+@Entity(polymorph = true)
 @NoCache
 //timeout <0 - setting relative to replication lag
 //timeout == 0 - wait forever
@@ -29,8 +29,6 @@ import java.util.*;
 @Lifecycle
 @Index({"sender,locked_by,processed_by,recipient,-timestamp", "locked_by,processed_by,recipient,timestamp"})
 public class Msg {
-
-
     @Index
     private List<String> processedBy;
     @Id
