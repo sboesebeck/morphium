@@ -337,6 +337,9 @@ public class Msg {
 //            locked = System.currentTimeMillis();
 //            lockedBy = "ALL";
 //        }
+        if (deleteAt == null) {
+            deleteAt = new Date(System.currentTimeMillis() + ttl);
+        }
         timestamp = System.currentTimeMillis();
     }
 
