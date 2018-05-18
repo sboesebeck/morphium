@@ -104,10 +104,10 @@ public class CacheHousekeeper extends Thread implements ShutdownListener {
             }
             try {
                 Map<Class, List<String>> toDelete = new HashMap<>();
-                Map<Class<?>, Map<String, CacheElement>> cache = morphiumCache.getCache();
-                for (Map.Entry<Class<?>, Map<String, CacheElement>> es : cache.entrySet()) {
+                Map<Class<?>, Map<String, CacheObject>> cache = ((MorphiumCacheImpl) morphiumCache).getCache();
+                for (Map.Entry<Class<?>, Map<String, CacheObject>> es : cache.entrySet()) {
                     Class<?> clz = es.getKey();
-                    Map<String, CacheElement> ch = es.getValue();
+                    Map<String, CacheObject> ch = es.getValue();
 
 
                     int maxEntries = -1;
@@ -172,11 +172,11 @@ public class CacheHousekeeper extends Thread implements ShutdownListener {
                     }
 
                     int del = 0;
-                    for (Map.Entry<String, CacheElement> est : ch.entrySet()) {
+                    for (Map.Entry<String, CacheObject> est : ch.entrySet()) {
                         String k = est.getKey();
-                        CacheElement e = est.getValue(); //ch.get(k);
+                        CacheObject e = est.getValue(); //ch.get(k);
 
-                        if (e == null || e.getFound() == null || System.currentTimeMillis() - e.getCreated() > time) {
+                        if (e == null || e.getResult() == null || System.currentTimeMillis() - e.getCreated() > time) {
                             toDelete.putIfAbsent(clz, new ArrayList<>());
                             toDelete.get(clz).add(k);
                             del++;
@@ -261,7 +261,7 @@ public class CacheHousekeeper extends Thread implements ShutdownListener {
                         }
                         if (inIdCache) {
                             //remove objects from id cache
-                            for (Object f : cache.get(cls).get(k).getFound()) {
+                            for (Object f : (List) cache.get(cls).get(k).getResult()) {
                                 morphiumCache.getIdCache().get(cls).remove(annotationHelper.getId(f));
                             }
                         }

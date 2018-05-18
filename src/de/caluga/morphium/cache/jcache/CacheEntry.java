@@ -1,4 +1,4 @@
-package de.caluga.morphium.cache;
+package de.caluga.morphium.cache.jcache;
 
 /**
  * Created with IntelliJ IDEA.
@@ -7,16 +7,17 @@ package de.caluga.morphium.cache;
  * Time: 10:06
  * To change this template use File | Settings | File Templates.
  */
-public class CacheObject<T> {
-    private Object result;
+public class CacheEntry<T> {
+    private T result;
     private String key;
     private Class<? extends T> type;
     private long created;
     private long lru;
 
 
-    public CacheObject(T result) {
+    public CacheEntry(T result) {
         this.result = result;
+        type = (Class<? extends T>) result.getClass();
         created = System.currentTimeMillis();
     }
 
@@ -30,12 +31,12 @@ public class CacheObject<T> {
     }
 
     @SuppressWarnings("unused")
-    public Object getResult() {
+    public T getResult() {
         lru = System.currentTimeMillis();
         return result;
     }
 
-    public void setResult(Object result) {
+    public void setResult(T result) {
         this.result = result;
     }
 
