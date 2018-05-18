@@ -187,6 +187,12 @@
             <version>4.2.0.Final</version>
             <scope>provided</scope>
         </dependency>
+        <dependency>
+            <groupId>javax.cache</groupId>
+            <artifactId>cache-api</artifactId>
+            <version>RELEASE</version>
+            <scope>provided</scope>
+        </dependency>
 
 	<dependency>
 	    <groupId>org.apache.commons</groupId>

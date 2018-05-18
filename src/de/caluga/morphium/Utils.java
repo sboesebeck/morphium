@@ -5,10 +5,8 @@ package de.caluga.morphium;/**
 import de.caluga.morphium.driver.MorphiumId;
 
 import java.io.UnsupportedEncodingException;
-import java.util.Collection;
-import java.util.HashMap;
-import java.util.LinkedHashMap;
-import java.util.Map;
+import java.lang.reflect.Field;
+import java.util.*;
 
 /**
  * Utility class
@@ -162,4 +160,44 @@ public class Utils {
         return ret;
     }
 
+    public static String getCacheKey(Class type, Map<String, Object> qo, Map<String, Integer> sort, Map<String, Object> projection, String collection, int skip, int limit, AnnotationAndReflectionHelper anHelper) {
+
+        StringBuilder b = new StringBuilder();
+        b.append(qo.toString());
+        b.append(" c:").append(collection);
+        b.append(" l:");
+        b.append(limit);
+        b.append(" s:");
+        b.append(skip);
+        if (sort != null) {
+            b.append(" sort:{");
+            for (Map.Entry<String, Integer> s : sort.entrySet()) {
+                b.append(" ").append(s.getKey()).append(":").append(s.getValue());
+            }
+            b.append("}");
+        }
+        if (projection != null) {
+            List<Field> fields = anHelper.getAllFields(type);
+            boolean addProjection = false;
+            if (projection.size() == fields.size()) {
+                for (Field f : fields) {
+                    if (!projection.containsKey(anHelper.getFieldName(type, f.getName()))) {
+                        addProjection = true;
+                        break;
+                    }
+                }
+            } else {
+                addProjection = true;
+            }
+
+            if (addProjection) {
+                b.append(" project:{");
+                for (Map.Entry<String, Object> s : projection.entrySet()) {
+                    b.append(" ").append(s.getKey()).append(":").append(s.getValue());
+                }
+                b.append("}");
+            }
+        }
+        return b.toString();
+    }
 }
