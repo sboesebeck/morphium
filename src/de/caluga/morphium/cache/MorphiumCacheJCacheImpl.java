@@ -7,17 +7,17 @@ import de.caluga.morphium.cache.jcache.CacheEntry;
 import de.caluga.morphium.cache.jcache.CacheImpl;
 import de.caluga.morphium.cache.jcache.CachingProviderImpl;
 import de.caluga.morphium.query.Query;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import javax.cache.Cache;
 import javax.cache.CacheManager;
 import javax.cache.Caching;
+import javax.cache.event.*;
 import javax.cache.spi.CachingProvider;
 import java.net.URI;
 import java.net.URISyntaxException;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 /**
  * User: Stephan Bösebeck
@@ -26,13 +26,18 @@ import java.util.Map;
  * <p>
  * TODO: Add documentation here
  */
-public class MorphiumCacheJCacheImpl implements MorphiumCache {
+public class MorphiumCacheJCacheImpl implements MorphiumCache, CacheEntryExpiredListener, CacheEntryCreatedListener, CacheEntryRemovedListener, CacheEntryUpdatedListener {
     public final static String RESULT_CACHE_NAME = "resultCache";
     public final static String ID_CACHE_NAME = "idCache";
 
-    CachingProvider cp;
-    MorphiumConfig cfg;
+    private CachingProvider cp;
+    private MorphiumConfig cfg;
+
     private AnnotationAndReflectionHelper anHelper = new AnnotationAndReflectionHelper(false);
+
+    private List<CacheListener> cacheListeners = new Vector<>();
+
+    private Logger log = LoggerFactory.getLogger(MorphiumCacheJCacheImpl.class);
 
     public MorphiumCacheJCacheImpl() {
         if (System.getProperty(Caching.JAVAX_CACHE_CACHING_PROVIDER) == null) {
@@ -50,10 +55,10 @@ public class MorphiumCacheJCacheImpl implements MorphiumCache {
         List idLst = new ArrayList();
         for (T obj : ret) {
             Object id = anHelper.getId(obj);
-            idCache.put(id, new CacheEntry(obj));
+            idCache.put(id, new CacheEntry(obj, id));
             idLst.add(id);
         }
-        resultCache.put(k, new CacheEntry(idLst));
+        resultCache.put(k, new CacheEntry(idLst, k));
     }
 
     private <T> CacheManager getCacheManager(Class<? extends T> type) {
@@ -91,12 +96,14 @@ public class MorphiumCacheJCacheImpl implements MorphiumCache {
         List<T> result = new ArrayList<>();
 
         CacheEntry<List<Object>> res = resultCache.get(k);
-        for (Object id : res.getResult()) {
-            if (!idCache.containsKey(id)) {
-                //not found in id-cache - need to read?
-                return null;
+        if (res != null) {
+            for (Object id : res.getResult()) {
+                if (!idCache.containsKey(id)) {
+                    //not found in id-cache - need to read?
+                    return null;
+                }
+                result.add(idCache.get(id).getResult());
             }
-            result.add(idCache.get(id).getResult());
         }
         return result;
     }
@@ -164,17 +171,17 @@ public class MorphiumCacheJCacheImpl implements MorphiumCache {
 
     @Override
     public void addCacheListener(CacheListener cl) {
-
+        cacheListeners.add(cl);
     }
 
     @Override
     public void removeCacheListener(CacheListener cl) {
-
+        cacheListeners.remove(cl);
     }
 
     @Override
     public boolean isListenerRegistered(CacheListener cl) {
-        return false;
+        return cacheListeners.contains(cl);
     }
 
     @Override
@@ -203,4 +210,57 @@ public class MorphiumCacheJCacheImpl implements MorphiumCache {
     }
 
 
+    @Override
+    public void onCreated(Iterable iterable) throws CacheEntryListenerException {
+        for (CacheListener cl : cacheListeners) {
+            iterable.forEach(o -> {
+                CacheEntryEvent<Object, CacheObject> evt = (CacheEntryEvent) o;
+                cl.wouldAddToCache(evt.getKey(), evt.getValue(), false);
+            });
+
+        }
+    }
+
+    @Override
+    public void onExpired(Iterable iterable) throws CacheEntryListenerException {
+        for (CacheListener cl : cacheListeners) {
+            iterable.forEach(o -> {
+                CacheEntryEvent<Object, CacheObject> evt = (CacheEntryEvent) o;
+                cl.wouldRemoveEntryFromCache(evt.getKey(), evt.getValue(), true);
+            });
+
+        }
+    }
+
+    @Override
+    public void onRemoved(Iterable iterable) throws CacheEntryListenerException {
+        for (CacheListener cl : cacheListeners) {
+            iterable.forEach(o -> {
+                CacheEntryEvent<Object, CacheObject> evt = (CacheEntryEvent) o;
+                if (evt.getKey() == null) {
+                    //clear / removeall
+                    try {
+                        cl.wouldClearCache(Class.forName(evt.getSource().getCacheManager().getURI().toString()));
+                    } catch (ClassNotFoundException e) {
+                        //TODO: Implement Handling
+                        throw new CacheEntryListenerException("Could not get type", e);
+                    }
+                } else {
+                    cl.wouldRemoveEntryFromCache(evt.getKey(), evt.getValue(), false);
+                }
+            });
+
+        }
+    }
+
+    @Override
+    public void onUpdated(Iterable iterable) throws CacheEntryListenerException {
+        for (CacheListener cl : cacheListeners) {
+            iterable.forEach(o -> {
+                CacheEntryEvent<Object, CacheObject> evt = (CacheEntryEvent) o;
+                cl.wouldAddToCache(evt.getKey(), evt.getValue(), true);
+            });
+
+        }
+    }
 }

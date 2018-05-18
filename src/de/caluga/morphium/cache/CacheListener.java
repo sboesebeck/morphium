@@ -15,13 +15,10 @@ public interface CacheListener {
      * @param <T>     - the type
      * @return null, if not to cache
      */
-    <T> CacheObject<T> wouldAddToCache(CacheObject<T> toCache);
+    <T> CacheObject<T> wouldAddToCache(Object k, CacheObject<T> toCache, boolean updated);
 
     <T> boolean wouldClearCache(Class<T> affectedEntityType);
 
-    <T> boolean wouldRemoveEntryFromCache(Class cls, Object id, Object entity);
+    <T> boolean wouldRemoveEntryFromCache(Object key, CacheObject<T> toRemove, boolean expired);
 
-    enum Operation {
-        @SuppressWarnings("unused")delete, @SuppressWarnings("unused")store, @SuppressWarnings("unused")update,
-    }
 }

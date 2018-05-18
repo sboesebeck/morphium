@@ -9,14 +9,15 @@ package de.caluga.morphium.cache.jcache;
  */
 public class CacheEntry<T> {
     private T result;
-    private String key;
+    private Object key;
     private Class<? extends T> type;
     private long created;
     private long lru;
 
 
-    public CacheEntry(T result) {
+    public CacheEntry(T result, Object key) {
         this.result = result;
+        this.key = key;
         type = (Class<? extends T>) result.getClass();
         created = System.currentTimeMillis();
     }
@@ -41,7 +42,7 @@ public class CacheEntry<T> {
     }
 
     @SuppressWarnings("unused")
-    public String getKey() {
+    public Object getKey() {
         return key;
     }
 
