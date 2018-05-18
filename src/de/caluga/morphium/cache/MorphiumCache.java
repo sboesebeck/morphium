@@ -20,10 +20,6 @@ public interface MorphiumCache {
 
     <T> List<T> getFromCache(Class<? extends T> type, String k);
 
-    Map<Class<?>, Map<String, CacheElement>> getCache();
-
-    void setCache(Map<Class<?>, Map<String, CacheElement>> cache);
-
     Map<Class<?>, Map<Object, Object>> getIdCache();
 
     void setIdCache(Map<Class<?>, Map<Object, Object>> c);
@@ -54,7 +50,20 @@ public interface MorphiumCache {
 
     void setHouskeepingIntervalPause(int p);
 
+    /**
+     * override the settings given in @Cache annotation with this value
+     * this is useful to change cache behaviour during runtime
+     *
+     * @param type
+     * @param time
+     */
     void setValidCacheTime(Class type, int time);
 
+    /**
+     * reset cache time settings to default, if settings were cahnged using setValidCacheTime
+     * @param type
+     */
     void setDefaultCacheTime(Class type);
+
+    Map<String, Integer> getSizes();
 }

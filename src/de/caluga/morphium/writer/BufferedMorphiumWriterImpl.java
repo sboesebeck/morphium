@@ -992,16 +992,11 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
         flushQueueToMongo(opLog.get(type));
     }
 
-    @Override
-    protected void finalize() throws Throwable {
-        onShutdown(morphium);
 
-        super.finalize();
-    }
 
     @Override
     public void onShutdown(Morphium m) {
-        logger.info("Stopping housekeeping thread");
+        logger.debug("Stopping housekeeping thread");
         running = false;
         flush();
         try {

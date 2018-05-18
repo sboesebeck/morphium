@@ -1,7 +1,5 @@
 package de.caluga.morphium;
 
-import de.caluga.morphium.cache.CacheElement;
-
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
@@ -19,12 +17,13 @@ public class Statistics extends HashMap<String, Double> {
             super.put(et.getKey().name(), (double) et.getValue().get());
         }
         double entries = 0;
-        Map<Class<?>, Map<String, CacheElement>> cc = morphium.getCache().getCache();
-        for (Map.Entry<Class<?>, Map<String, CacheElement>> en : cc.entrySet()) {
-            Map<String, CacheElement> lst = en.getValue();
-            entries += lst.size();
-            super.put("X-Entries for: " + en.getKey().getName(), (double) lst.size());
+
+        Map<String, Integer> map = morphium.getCache().getSizes();
+        for (Map.Entry<String, Integer> e : map.entrySet()) {
+            super.put("X-Entries for: " + e.getKey(), (double) e.getValue());
+            entries += e.getValue();
         }
+
         super.put(StatisticKeys.CACHE_ENTRIES.name(), entries);
 
 

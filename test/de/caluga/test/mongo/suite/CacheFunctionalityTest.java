@@ -5,6 +5,8 @@ package de.caluga.test.mongo.suite;/**
 import de.caluga.morphium.StatisticKeys;
 import de.caluga.morphium.annotations.caching.Cache;
 import de.caluga.morphium.cache.CacheObject;
+import de.caluga.morphium.cache.MorphiumCacheImpl;
+import de.caluga.morphium.cache.MorphiumCacheJCacheImpl;
 import de.caluga.morphium.query.Query;
 import de.caluga.test.mongo.suite.data.CachedObject;
 import de.caluga.test.mongo.suite.data.UncachedObject;
@@ -20,6 +22,8 @@ public class CacheFunctionalityTest extends MongoTest {
 
     @Test
     public void accessTest() throws Exception {
+        morphium.getConfig().setCache(new MorphiumCacheJCacheImpl());
+
         morphium.getCache().setValidCacheTime(CachedObject.class, 1000000);
         int amount = 1000;
         createCachedObjects(amount);
@@ -46,6 +50,7 @@ public class CacheFunctionalityTest extends MongoTest {
 
         checkStats(dur);
         morphium.getCache().setDefaultCacheTime(CacheObject.class);
+        morphium.getConfig().setCache(new MorphiumCacheImpl());
     }
 
     @Test
@@ -99,11 +104,11 @@ public class CacheFunctionalityTest extends MongoTest {
         for (int i = 0; i < amount; i++) {
             assert (morphium.createQueryFor(SpecCacedOjbect.class).f("counter").eq(i).get() != null);
         }
-        assert (morphium.getCache().getCache().get(SpecCacedOjbect.class).size() > 0);
+        assert (morphium.getCache().getSizes().get(SpecCacedOjbect.class.getName() + ":idCache") > 0);
         Thread.sleep(hcTime + 100);
-        assert (morphium.getCache().getCache().get(SpecCacedOjbect.class).size() > 0);
+        assert (morphium.getCache().getSizes().get(SpecCacedOjbect.class.getName() + ":idCache") > 0);
         Thread.sleep(gcTime);
-        assert (morphium.getCache().getCache().get(SpecCacedOjbect.class).size() == 0);
+        assert (morphium.getCache().getSizes().get(SpecCacedOjbect.class.getName() + ":idCache") == 0);
 
     }
 
