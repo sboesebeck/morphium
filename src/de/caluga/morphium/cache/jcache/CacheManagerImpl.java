@@ -1,5 +1,6 @@
 package de.caluga.morphium.cache.jcache;
 
+import de.caluga.morphium.AnnotationAndReflectionHelper;
 import de.caluga.morphium.MorphiumConfig;
 
 import javax.cache.Cache;
@@ -35,8 +36,14 @@ public class CacheManagerImpl implements CacheManager {
     public CacheManagerImpl(Properties settings) {
 
         cfg = MorphiumConfig.fromProperties(settings);
-        //TODO: settings übernehmen!!!!
-        housekeeping.schedule(() -> {
+        hkHelper.setGlobalValidCacheTime(cfg.getGlobalCacheValidTime());
+        hkHelper.setAnnotationHelper(new AnnotationAndReflectionHelper(false));
+
+        housekeeping.scheduleWithFixedDelay(new Runnable() {
+            @Override
+            public void run() {
+
+
             for (String k : caches.keySet()) {
                 try {
                     hkHelper.housekeep((CacheImpl) caches.get(k), Class.forName(uri.toString()));
@@ -46,7 +53,8 @@ public class CacheManagerImpl implements CacheManager {
                 }
             }
 
-        }, cfg.getHousekeepingTimeout(), TimeUnit.MILLISECONDS);
+            }
+        }, 1000, 5000, TimeUnit.MILLISECONDS);
     }
 
     public void setCachingProvider(CachingProvider cachingProvider) {
@@ -97,6 +105,7 @@ public class CacheManagerImpl implements CacheManager {
     @Override
     public <K, V, C extends Configuration<K, V>> Cache<K, V> createCache(String cacheName, C configuration) throws IllegalArgumentException {
         CacheImpl cache = new CacheImpl();
+        cache.setCacheManager(this);
         caches.put(cacheName, cache);
         return (Cache<K, V>) cache;
 
@@ -152,4 +161,28 @@ public class CacheManagerImpl implements CacheManager {
     public <T> T unwrap(Class<T> clazz) {
         return null;
     }
+
+
+    public void setValidCacheTime(int time) {
+        try {
+            hkHelper.setValidCacheTime(getTypeClass(), time);
+        } catch (ClassNotFoundException e) {
+            //TODO: Implement Handling
+            throw new RuntimeException(e);
+        }
+    }
+
+    public void setDefaultCacheTime(Class type) {
+        try {
+            hkHelper.setDefaultValidCacheTime(getTypeClass());
+        } catch (ClassNotFoundException e) {
+            //TODO: Implement Handling
+            throw new RuntimeException(e);
+        }
+    }
+
+    private Class<?> getTypeClass() throws ClassNotFoundException {
+        return Class.forName(getURI().toString());
+    }
+
 }

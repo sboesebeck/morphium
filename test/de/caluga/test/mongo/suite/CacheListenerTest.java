@@ -23,8 +23,9 @@ public class CacheListenerTest extends MongoTest {
     public void callbackTest() throws Exception {
         CacheListener cl;
         cl = new CacheListener() {
+
             @Override
-            public <T> CacheObject<T> wouldAddToCache(CacheObject<T> toCache) {
+            public <T> CacheObject<T> wouldAddToCache(Object k, CacheObject<T> toCache, boolean updated) {
                 wouldAdd = true;
                 return toCache;
             }
@@ -37,10 +38,11 @@ public class CacheListenerTest extends MongoTest {
             }
 
             @Override
-            public <T> boolean wouldRemoveEntryFromCache(Class cls, Object id, Object entity) {
+            public <T> boolean wouldRemoveEntryFromCache(Object key, CacheObject<T> toRemove, boolean expired) {
                 wouldRemove = true;
                 return true;
             }
+
         };
         try {
             morphium.getCache().addCacheListener(cl);

@@ -49,8 +49,8 @@ public class JCacheTest {
 
         List<MorphiumId> idlst = new ArrayList<>();
         idlst.add(cachedObject.getId());
-        results.put("search key", new CacheEntry<>(idlst));
-        idCache.put(cachedObject.getId(), new CacheEntry<>(cachedObject));
+        results.put("search key", new CacheEntry<>(idlst, "search key"));
+        idCache.put(cachedObject.getId(), new CacheEntry<>(cachedObject, cachedObject.getId()));
         assert (results.get("search key") != null);
         assert (idCache.get(cachedObject.getId()).getResult().equals(cachedObject));
         assert (results.get("search key").getCreated() != 0);

@@ -85,10 +85,10 @@ public class MorphiumCacheImpl implements MorphiumCache {
         co.setKey(k);
         co.setType(type);
         for (CacheListener cl : cacheListeners) {
-            co = cl.wouldAddToCache(co);
-            if (co == null) {
-                return;
-            }
+//            co = cl.wouldAddToCache(co);
+//            if (co == null) {
+//                return;
+//            }
         }
         if (!k.endsWith("idlist") && !k.contains("project:")) {
             //copy from idCache
@@ -251,10 +251,10 @@ public class MorphiumCacheImpl implements MorphiumCache {
         //        Map<Class<?>, Map<Object, Object>> idc = getIdCache();
         if (idCache.get(cls) != null && idCache.get(cls).get(id) != null) {
             for (CacheListener cl : cacheListeners) {
-                if (!cl.wouldRemoveEntryFromCache(cls, id, idCache.get(cls).get(id))) {
-                    logger.info("Not removing from cache due to veto from CacheListener " + cl.getClass().getName());
-                    return;
-                }
+//                if (!cl.wouldRemoveEntryFromCache(cls, id, idCache.get(cls).get(id))) {
+//                    logger.info("Not removing from cache due to veto from CacheListener " + cl.getClass().getName());
+//                    return;
+//                }
             }
         }
         idCache.get(cls).remove(id);
