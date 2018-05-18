@@ -7,7 +7,6 @@ package de.caluga.morphium.cache.jcache;
 import de.caluga.morphium.AnnotationAndReflectionHelper;
 import de.caluga.morphium.annotations.caching.Cache;
 import de.caluga.morphium.annotations.caching.Cache.ClearStrategy;
-import de.caluga.morphium.cache.CacheObject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -17,7 +16,6 @@ import java.util.concurrent.ConcurrentHashMap;
 @SuppressWarnings("UnusedDeclaration")
 public class HouseKeepingHelper {
 
-    private int housekeepingIntervalPause = 500;
     private Map<Class<?>, Integer> validTimeForClass = new ConcurrentHashMap<>();
     ;
     private int gcTimeout = 5000;
@@ -30,10 +28,6 @@ public class HouseKeepingHelper {
 
     public void setGlobalValidCacheTime(int gc) {
         gcTimeout = gc;
-    }
-
-    public void setHouskeepingPause(int p) {
-        housekeepingIntervalPause = p;
     }
 
     public void setAnnotationHelper(AnnotationAndReflectionHelper hlp) {
@@ -56,13 +50,13 @@ public class HouseKeepingHelper {
     public void housekeep(CacheImpl cache, Class clz) {
         try {
 
-            Map<Class, List<String>> toDelete = new HashMap<>();
+            List<Object> toDelete = new ArrayList<>();
             int maxEntries = -1;
             Cache cacheSettings = getAnnotationHelper().getAnnotationFromHierarchy(clz, Cache.class);//clz.getAnnotation(Cache.class);
             ClearStrategy strategy = null;
             int time = gcTimeout;
-            HashMap<Long, List<String>> lruTime = new HashMap<>();
-            HashMap<Long, List<String>> fifoTime = new HashMap<>();
+            HashMap<Long, List<Object>> lruTime = new HashMap<>();
+            HashMap<Long, List<Object>> fifoTime = new HashMap<>();
 
             if (validTimeForClass.get(clz) != null) {
                 time = validTimeForClass.get(clz);
@@ -78,15 +72,14 @@ public class HouseKeepingHelper {
                 strategy = cacheSettings.strategy();
                 validTimeForClass.putIfAbsent(clz, time);
             }
-            Iterator<javax.cache.Cache.Entry<String, CacheObject>> it = cache.iterator();
+            Iterator<javax.cache.Cache.Entry<String, CacheEntry>> it = cache.iterator();
             while (it.hasNext()) {
-                javax.cache.Cache.Entry<String, CacheObject> es = it.next();
-                CacheObject ch = es.getValue();
+                javax.cache.Cache.Entry<String, CacheEntry> es = it.next();
+                CacheEntry ch = es.getValue();
 
 
                 if (ch == null || ch.getResult() == null || System.currentTimeMillis() - ch.getCreated() > time) {
-                    toDelete.putIfAbsent(clz, new ArrayList<>());
-                    toDelete.get(clz).add(ch.getKey());
+                    toDelete.add(ch.getKey());
                     del++;
                 } else {
                     lruTime.putIfAbsent(ch.getLru(), new ArrayList<>());
@@ -107,8 +100,7 @@ public class HouseKeepingHelper {
                         idx = 0;
                         while (cache.size() - del > maxEntries) {
                             if (lruTime.get(array[idx]) != null && !lruTime.get(array[idx]).isEmpty()) {
-                                toDelete.putIfAbsent(clz, new ArrayList<>());
-                                toDelete.get(clz).add(lruTime.get(array[idx]).get(0));
+                                toDelete.add(lruTime.get(array[idx]).get(0));
                                 lruTime.get(array[idx]).remove(0);
                                 del++;
                                 if (lruTime.get(array[idx]).isEmpty()) {
@@ -124,8 +116,7 @@ public class HouseKeepingHelper {
                         idx = 0;
                         while (cache.size() - del > maxEntries) {
                             if (fifoTime.get(array[array.length - 1 - idx]) != null && !fifoTime.get(array[array.length - 1 - idx]).isEmpty()) {
-                                toDelete.putIfAbsent(clz, new ArrayList<>());
-                                toDelete.get(clz).add(fifoTime.get(array[array.length - 1 - idx]).get(0));
+                                toDelete.add(fifoTime.get(array[array.length - 1 - idx]).get(0));
                                 fifoTime.get(array[array.length - 1 - idx]).remove(0);
                                 del++;
                                 if (fifoTime.get(array[array.length - 1 - idx]).isEmpty()) {
@@ -142,8 +133,7 @@ public class HouseKeepingHelper {
                         idx = 0;
                         while (cache.size() - del > maxEntries) {
                             if (lruTime.get(array[idx]) != null && !lruTime.get(array[idx]).isEmpty()) {
-                                toDelete.putIfAbsent(clz, new ArrayList<>());
-                                toDelete.get(clz).add(lruTime.get(array[idx]).get(0));
+                                toDelete.add(lruTime.get(array[idx]).get(0));
                                 del++;
                                 if (lruTime.get(array[idx]).isEmpty()) {
                                     idx++;
@@ -156,6 +146,9 @@ public class HouseKeepingHelper {
             }
             //                morphium.getCache().setCache(cache);
             //                morphium.getCache().setIdCache(idCacheClone);
+            for (Object k : toDelete) {
+                cache.expire(k);
+            }
 
 
         } catch (Throwable e) {
