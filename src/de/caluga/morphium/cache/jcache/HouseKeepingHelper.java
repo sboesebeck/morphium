@@ -47,9 +47,9 @@ public class HouseKeepingHelper {
     }
 
 
-    public void housekeep(CacheImpl cache, Class clz) {
+    public void housekeep(javax.cache.Cache cache) {
         try {
-
+            Class clz = Class.forName(cache.getName().substring(cache.getName().indexOf("|") + 1));
             List<Object> toDelete = new ArrayList<>();
             int maxEntries = -1;
             Cache cacheSettings = getAnnotationHelper().getAnnotationFromHierarchy(clz, Cache.class);//clz.getAnnotation(Cache.class);
@@ -73,7 +73,9 @@ public class HouseKeepingHelper {
                 validTimeForClass.putIfAbsent(clz, time);
             }
             Iterator<javax.cache.Cache.Entry<String, CacheEntry>> it = cache.iterator();
+            int size = 0;
             while (it.hasNext()) {
+                size++;
                 javax.cache.Cache.Entry<String, CacheEntry> es = it.next();
                 CacheEntry ch = es.getValue();
 
@@ -90,7 +92,8 @@ public class HouseKeepingHelper {
                 }
             }
             //                    cache.put(clz, ch);
-            if (maxEntries > 0 && cache.size() - del > maxEntries) {
+
+            if (maxEntries > 0 && size - del > maxEntries) {
                 Long[] array;
                 int idx;
                 switch (strategy) {
@@ -98,7 +101,7 @@ public class HouseKeepingHelper {
                         array = lruTime.keySet().toArray(new Long[0]);
                         Arrays.sort(array);
                         idx = 0;
-                        while (cache.size() - del > maxEntries) {
+                        while (size - del > maxEntries) {
                             if (lruTime.get(array[idx]) != null && !lruTime.get(array[idx]).isEmpty()) {
                                 toDelete.add(lruTime.get(array[idx]).get(0));
                                 lruTime.get(array[idx]).remove(0);
@@ -114,7 +117,7 @@ public class HouseKeepingHelper {
                         array = fifoTime.keySet().toArray(new Long[0]);
                         Arrays.sort(array);
                         idx = 0;
-                        while (cache.size() - del > maxEntries) {
+                        while (size - del > maxEntries) {
                             if (fifoTime.get(array[array.length - 1 - idx]) != null && !fifoTime.get(array[array.length - 1 - idx]).isEmpty()) {
                                 toDelete.add(fifoTime.get(array[array.length - 1 - idx]).get(0));
                                 fifoTime.get(array[array.length - 1 - idx]).remove(0);
@@ -131,7 +134,7 @@ public class HouseKeepingHelper {
                         Collections.shuffle(lst);
                         array = lst.toArray(new Long[0]);
                         idx = 0;
-                        while (cache.size() - del > maxEntries) {
+                        while (size - del > maxEntries) {
                             if (lruTime.get(array[idx]) != null && !lruTime.get(array[idx]).isEmpty()) {
                                 toDelete.add(lruTime.get(array[idx]).get(0));
                                 del++;
@@ -143,12 +146,14 @@ public class HouseKeepingHelper {
                         break;
                 }
 
+                //                morphium.getCache().setCache(cache);
+                //                morphium.getCache().setIdCache(idCacheClone);
+                for (Object k : toDelete) {
+                    cache.remove(k);
+                }
+
             }
-            //                morphium.getCache().setCache(cache);
-            //                morphium.getCache().setIdCache(idCacheClone);
-            for (Object k : toDelete) {
-                cache.expire(k);
-            }
+
 
 
         } catch (Throwable e) {

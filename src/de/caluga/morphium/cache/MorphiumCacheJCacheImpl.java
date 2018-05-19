@@ -4,8 +4,8 @@ import de.caluga.morphium.AnnotationAndReflectionHelper;
 import de.caluga.morphium.MorphiumConfig;
 import de.caluga.morphium.Utils;
 import de.caluga.morphium.cache.jcache.CacheEntry;
-import de.caluga.morphium.cache.jcache.CacheImpl;
 import de.caluga.morphium.cache.jcache.CachingProviderImpl;
+import de.caluga.morphium.cache.jcache.HouseKeepingHelper;
 import de.caluga.morphium.query.Query;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -13,11 +13,13 @@ import org.slf4j.LoggerFactory;
 import javax.cache.Cache;
 import javax.cache.CacheManager;
 import javax.cache.Caching;
+import javax.cache.configuration.MutableConfiguration;
 import javax.cache.event.*;
-import javax.cache.spi.CachingProvider;
-import java.net.URI;
-import java.net.URISyntaxException;
+import javax.cache.expiry.EternalExpiryPolicy;
+import java.lang.reflect.Method;
 import java.util.*;
+import java.util.concurrent.ScheduledThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 
 /**
  * User: Stephan Bösebeck
@@ -30,8 +32,11 @@ public class MorphiumCacheJCacheImpl implements MorphiumCache, CacheEntryExpired
     public final static String RESULT_CACHE_NAME = "resultCache";
     public final static String ID_CACHE_NAME = "idCache";
 
-    private CachingProvider cp;
+    private CacheManager cacheManager;
     private MorphiumConfig cfg;
+
+    private Map<Class, Cache> idCaches = new HashMap<>();
+    private Map<Class, Cache> resultCaches = new HashMap<>();
 
     private AnnotationAndReflectionHelper anHelper = new AnnotationAndReflectionHelper(false);
 
@@ -39,46 +44,81 @@ public class MorphiumCacheJCacheImpl implements MorphiumCache, CacheEntryExpired
 
     private Logger log = LoggerFactory.getLogger(MorphiumCacheJCacheImpl.class);
 
+    private ScheduledThreadPoolExecutor housekeeping = new ScheduledThreadPoolExecutor(1);
+    private HouseKeepingHelper hkHelper = new HouseKeepingHelper();
+    private final Runnable hkTask;
+
     public MorphiumCacheJCacheImpl() {
-        if (System.getProperty(Caching.JAVAX_CACHE_CACHING_PROVIDER) == null) {
-            System.setProperty(Caching.JAVAX_CACHE_CACHING_PROVIDER, CachingProviderImpl.class.getName());
-        }
         cfg = new MorphiumConfig();
-        cp = Caching.getCachingProvider();
+
+        hkHelper.setGlobalValidCacheTime(cfg.getGlobalCacheValidTime());
+        hkHelper.setAnnotationHelper(new AnnotationAndReflectionHelper(false));
+        hkTask = () -> {
+            Iterator<String> it = getCacheManager().getCacheNames().iterator();
+            while (it.hasNext()) {
+                String k = it.next();
+                hkHelper.housekeep(getCacheManager().getCache(k));
+            }
+
+        };
+        housekeeping.scheduleWithFixedDelay(hkTask, 1000, 5000, TimeUnit.MILLISECONDS);
+    }
+
+    @Override
+    public void setCacheManager(CacheManager cacheManager) {
+        this.cacheManager = cacheManager;
+        resultCaches.clear();
+        idCaches.clear();
+    }
+
+    @Override
+    public CacheManager getCacheManager() {
+        if (cacheManager == null) {
+            try {
+                cacheManager = Caching.getCachingProvider().getCacheManager();
+            } catch (Exception e) {
+                log.info("using default cache Manager - " + e.getMessage());
+                cacheManager = new CachingProviderImpl().getCacheManager();
+            }
+        }
+        return cacheManager;
     }
 
     @Override
     public <T> void addToCache(String k, Class<? extends T> type, List<T> ret) {
-        CacheManager mgr = getCacheManager(type);
-        Cache idCache = mgr.getCache(ID_CACHE_NAME);
-        Cache resultCache = mgr.getCache(RESULT_CACHE_NAME);
-        List idLst = new ArrayList();
+        Cache idCache = getIdCache(type);
+        Cache resultCache = getResultCache(type);
         for (T obj : ret) {
             Object id = anHelper.getId(obj);
-            idCache.put(id, new CacheEntry(obj, id));
-            idLst.add(id);
+            if (!idCache.containsKey(id)) {
+                idCache.put(id, new CacheEntry(obj, id));
+            }
         }
-        resultCache.put(k, new CacheEntry(idLst, k));
-    }
-
-    private <T> CacheManager getCacheManager(Class<? extends T> type) {
-        try {
-            return cp.getCacheManager(new URI(type.getName()), this.getClass().getClassLoader(), cfg.asProperties());
-        } catch (URISyntaxException e) {
-            //TODO: Implement Handling
-            throw new RuntimeException(e);
-        }
+        resultCache.put(k, new CacheEntry(ret, k));
     }
 
     @Override
     public Map<String, Integer> getSizes() {
         Map<String, Integer> ret = new HashMap<>();
-        for (CacheManager cm : ((CachingProviderImpl) cp).getCacheManagers()) {
-            CacheImpl<String, List> c = (CacheImpl) cm.getCache(RESULT_CACHE_NAME);
-            ret.put(cm.getURI().toString() + ":" + RESULT_CACHE_NAME, c.size());
-            c = (CacheImpl) cm.getCache(ID_CACHE_NAME);
-            ret.put(cm.getURI().toString() + ":" + ID_CACHE_NAME, c.size());
 
+        Iterator<String> it = getCacheManager().getCacheNames().iterator();
+        while (it.hasNext()) {
+            String n = it.next();
+            Cache c = getCacheManager().getCache(n);
+            try {
+                //GetSize works with MorphiumCache and EHCache
+                Method m = c.getClass().getMethod("getSize");
+                ret.put(n, (Integer) m.invoke(c));
+            } catch (Exception e) {
+                Iterator iterator = c.iterator();
+                int size = 0;
+                while (iterator.hasNext()) {
+                    iterator.next();
+                    size++;
+                }
+
+                ret.put(n, size);
+            }
         }
         return ret;
     }
@@ -90,61 +130,91 @@ public class MorphiumCacheJCacheImpl implements MorphiumCache, CacheEntryExpired
 
     @Override
     public <T> List<T> getFromCache(Class<? extends T> type, String k) {
-        CacheManager mgr = getCacheManager(type);
-        Cache<Object, CacheEntry<T>> idCache = mgr.getCache(ID_CACHE_NAME);
-        Cache<Object, CacheEntry<List<Object>>> resultCache = mgr.getCache(RESULT_CACHE_NAME);
-        List<T> result = new ArrayList<>();
-
-        CacheEntry<List<Object>> res = resultCache.get(k);
-        if (res != null) {
-            for (Object id : res.getResult()) {
-                if (!idCache.containsKey(id)) {
-                    //not found in id-cache - need to read?
-                    return null;
-                }
-                result.add(idCache.get(id).getResult());
-            }
+        Cache<Object, CacheEntry<List<T>>> resultCache = getResultCache(type);
+        if (resultCache.get(k) != null) {
+            return resultCache.get(k).getResult();
+        } else {
+            return null;
         }
-        return result;
     }
 
-    @Override
-    public Map<Class<?>, Map<Object, Object>> getIdCache() {
-        return null;
+    private <T> Cache<Object, CacheEntry<T>> getIdCache(Class<? extends T> type) {
+        if (idCaches.containsKey(type)) {
+            return (Cache<Object, CacheEntry<T>>) idCaches.get(type);
+        }
+        Cache<Object, CacheEntry<T>> cache;
+        log.info("Creating new cache for " + type.getName());
+        MutableConfiguration config =
+                new MutableConfiguration<>()
+                        .setTypes(Object.class, Object.class)
+                        .setExpiryPolicyFactory(EternalExpiryPolicy.factoryOf())
+                        .setStoreByValue(false)
+                        .setStatisticsEnabled(false);
+        cache = getCacheManager().createCache(ID_CACHE_NAME + "|" + type.getName(), config);
+        idCaches.put(type, cache);
+        return cache;
     }
 
-    @Override
-    public void setIdCache(Map<Class<?>, Map<Object, Object>> c) {
-
+    private <T> Cache<Object, CacheEntry<List<T>>> getResultCache(Class<? extends T> type) {
+        if (resultCaches.containsKey(type)) {
+            return resultCaches.get(type);
+        }
+        Cache<Object, CacheEntry<List<T>>> cache = null;
+        log.info("Creating new cache for " + type.getName());
+        MutableConfiguration config =
+                new MutableConfiguration<>()
+                        .setTypes(Object.class, Object.class)
+                        .setStoreByValue(false)
+                        .setExpiryPolicyFactory(EternalExpiryPolicy.factoryOf())
+                        .setStatisticsEnabled(false);
+        cache = getCacheManager().createCache(RESULT_CACHE_NAME + "|" + type.getName(), config);
+        resultCaches.put(type, cache);
+        return cache;
     }
 
     @Override
     public void clearCachefor(Class<?> cls) {
-        CacheManager mgr = getCacheManager(cls);
-        mgr.getCache(RESULT_CACHE_NAME).clear();
-        mgr.getCache(ID_CACHE_NAME).clear();
+        getIdCache(cls).clear();
+        getResultCache(cls).clear();
     }
 
     @Override
     public void resetCache() {
-        cp.close();
-        cp = Caching.getCachingProvider();
+        getCacheManager().close();
+    }
 
+    @Override
+    public void removeEntryFromIdCache(Class cls, Object id) {
+        getIdCache(cls).remove(id);
     }
 
     @Override
     public void removeEntryFromCache(Class cls, Object id) {
-        CacheManager mgr = getCacheManager(cls);
-        //run trhouh all results to find this ID
-        //remove those entries
-        //remove id from idcache
-        //TODO mfg.getCache("id")
+        Object obj = getIdCache(cls).get(id);
+        if (obj != null) {
+            getIdCache(cls).remove(id);
+        }
+        Set<String> toRemove = new HashSet<>();
+        Iterator<Cache.Entry<String, CacheEntry>> it = getResultCache(cls).iterator();
+        while (it.hasNext()) {
+            Cache.Entry<String, CacheEntry> entry = it.next();
+            for (Object el : (List) entry.getValue().getResult()) {
+                Object lid = anHelper.getId(el);
+                if (lid == null) {
+                    log.error("Null id in CACHE?");
+                    toRemove.add(entry.getKey());
+                }
+                if (lid != null && lid.equals(id)) {
+                    toRemove.add(entry.getKey());
+                }
+            }
+        }
+        getResultCache(cls).removeAll(toRemove);
     }
 
     @Override
     public <T> T getFromIDCache(Class<? extends T> type, Object id) {
-        CacheManager mgr = getCacheManager(type);
-        Cache<Object, CacheEntry<T>> c = mgr.getCache(ID_CACHE_NAME);
+        Cache<Object, CacheEntry<T>> c = getIdCache(type);
         if (!c.containsKey(id)) return null;
         return c.get(id).getResult();
     }
@@ -156,7 +226,7 @@ public class MorphiumCacheJCacheImpl implements MorphiumCache, CacheEntryExpired
 
     @Override
     public boolean isCached(Class<?> type, String k) {
-        return getCacheManager(type).getCache(RESULT_CACHE_NAME).containsKey(k);
+        return getResultCache(type).containsKey(k);
     }
 
     @Override
@@ -186,7 +256,7 @@ public class MorphiumCacheJCacheImpl implements MorphiumCache, CacheEntryExpired
 
     @Override
     public void setGlobalCacheTimeout(int tm) {
-
+        hkHelper.setGlobalValidCacheTime(tm);
     }
 
     @Override
@@ -196,17 +266,18 @@ public class MorphiumCacheJCacheImpl implements MorphiumCache, CacheEntryExpired
 
     @Override
     public void setHouskeepingIntervalPause(int p) {
-
+        housekeeping.remove(hkTask);
+        housekeeping.scheduleAtFixedRate(hkTask, p, p, TimeUnit.MILLISECONDS);
     }
 
     @Override
     public void setValidCacheTime(Class type, int time) {
-
+        hkHelper.setValidCacheTime(type, time);
     }
 
     @Override
     public void setDefaultCacheTime(Class type) {
-
+        hkHelper.setDefaultValidCacheTime(type);
     }
 
 

@@ -30,7 +30,7 @@ public class CachingProviderImpl implements CachingProvider {
             CacheManagerImpl cacheManager = new CacheManagerImpl(properties);
             cacheManager.setCachingProvider(this);
             cacheManager.setUri(uri);
-            managers.putIfAbsent(uri, cacheManager);
+            managers.put(uri, cacheManager);
         }
         return managers.get(uri);
     }

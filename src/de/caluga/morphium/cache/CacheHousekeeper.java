@@ -253,18 +253,15 @@ public class CacheHousekeeper extends Thread implements ShutdownListener {
                 for (Map.Entry<Class, List<String>> et : toDelete.entrySet()) {
                     Class cls = et.getKey();
 
-                    boolean inIdCache = morphiumCache.getIdCache().get(cls) != null;
 
                     for (String k : et.getValue()) {
                         if (k.endsWith("idlist")) {
                             continue;
                         }
-                        if (inIdCache) {
                             //remove objects from id cache
                             for (Object f : (List) cache.get(cls).get(k).getResult()) {
-                                morphiumCache.getIdCache().get(cls).remove(annotationHelper.getId(f));
+                                morphiumCache.removeEntryFromIdCache(cls, annotationHelper.getId(f));
                             }
-                        }
                         cache.get(cls).remove(k);
                     }
                 }

@@ -30,7 +30,7 @@ public class CacheImpl<K, CE> implements Cache<K, CacheEntry<CE>> {
     private Logger log = LoggerFactory.getLogger(CacheImpl.class);
 
     public void setCacheManager(CacheManager cm) {
-        cacheManager = cacheManager;
+        cacheManager = cm;
     }
 
     @Override
@@ -297,7 +297,7 @@ public class CacheImpl<K, CE> implements Cache<K, CacheEntry<CE>> {
         };
     }
 
-    public int size() {
+    public int getSize() {
         return theCache.size();
     }
 

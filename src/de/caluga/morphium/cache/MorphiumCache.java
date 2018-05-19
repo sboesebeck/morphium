@@ -3,6 +3,7 @@ package de.caluga.morphium.cache;
 import de.caluga.morphium.AnnotationAndReflectionHelper;
 import de.caluga.morphium.query.Query;
 
+import javax.cache.CacheManager;
 import java.util.List;
 import java.util.Map;
 
@@ -20,13 +21,11 @@ public interface MorphiumCache {
 
     <T> List<T> getFromCache(Class<? extends T> type, String k);
 
-    Map<Class<?>, Map<Object, Object>> getIdCache();
-
-    void setIdCache(Map<Class<?>, Map<Object, Object>> c);
-
     void clearCachefor(Class<?> cls);
 
     void resetCache();
+
+    void removeEntryFromIdCache(Class cls, Object id);
 
     void removeEntryFromCache(Class cls, Object id);
 
@@ -66,4 +65,9 @@ public interface MorphiumCache {
     void setDefaultCacheTime(Class type);
 
     Map<String, Integer> getSizes();
+
+    void setCacheManager(CacheManager cacheManager);
+
+    CacheManager getCacheManager();
+
 }

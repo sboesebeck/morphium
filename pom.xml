@@ -101,7 +101,12 @@
                 </configuration>
             </plugin>
         </plugins>
+        <testResources>
+            <testResource>
+                <directory>${project.basedir}/testresources</directory>
+            </testResource>
 
+        </testResources>
     </build>
 
     <dependencies>
@@ -179,6 +184,12 @@
             <artifactId>validation-api</artifactId>
             <version>1.0.0.GA</version>
             <scope>provided</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.ehcache</groupId>
+            <artifactId>jcache</artifactId>
+            <version>RELEASE</version>
+            <scope>test</scope>
         </dependency>
 
         <dependency>
