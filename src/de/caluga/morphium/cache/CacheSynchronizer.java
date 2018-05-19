@@ -400,26 +400,19 @@ public class CacheSynchronizer implements MessageListener, MorphiumStorageListen
                         if (c.readCache()) {
                             try {
                                 firePreClearEvent(cls, m);
-                                Map<Class<?>, Map<Object, Object>> idCache = morphium.getCache().getIdCache();
+//                                Map<Class<?>, Map<Object, Object>> idCache = morphium.getCache().getIdCache();
                                 for (Object id : m.getAdditional()) {
-                                    if (idCache.get(cls) != null) {
-                                        Object toUpdate = idCache.get(cls).get(id);
-                                        if (toUpdate == null && (id instanceof String)) {
-                                            //Try objectId
-                                            toUpdate = idCache.get(cls).get(id);
-                                        }
+                                    Object toUpdate = morphium.getCache().getFromIDCache(cls, id);//idCache.get(cls).get(id);
                                         if (toUpdate != null) {
                                             //Object is updated in place!
                                             if (c.syncCache().equals(Cache.SyncCacheStrategy.REMOVE_ENTRY_FROM_TYPE_CACHE)) {
                                                 morphium.getCache().removeEntryFromCache(cls, id);
                                             } else {
-                                                morphium.reread(idCache.get(cls).get(id));
+                                                morphium.reread(morphium.getCache().getFromIDCache(cls, id));
 
                                             }
                                         }
-                                    }
                                 }
-                                morphium.getCache().setIdCache(idCache);
                                 answer.setMsg("cache cleared for type: " + m.getValue());
                                 firePostClearEvent(cls, m);
                             } catch (CacheSyncVetoException e) {

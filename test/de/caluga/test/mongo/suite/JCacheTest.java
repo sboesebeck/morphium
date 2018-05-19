@@ -1,22 +1,12 @@
 package de.caluga.test.mongo.suite;
 
-import de.caluga.morphium.MorphiumConfig;
-import de.caluga.morphium.cache.CacheObject;
-import de.caluga.morphium.cache.jcache.CacheEntry;
-import de.caluga.morphium.cache.jcache.CachingProviderImpl;
-import de.caluga.morphium.driver.MorphiumId;
+import de.caluga.morphium.cache.MorphiumCache;
 import de.caluga.test.mongo.suite.data.CachedObject;
 import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import javax.cache.Cache;
-import javax.cache.CacheManager;
-import javax.cache.Caching;
-import javax.cache.spi.CachingProvider;
-import java.net.URI;
-import java.util.ArrayList;
-import java.util.List;
+import java.util.Map;
 
 /**
  * User: Stephan Bösebeck
@@ -25,35 +15,34 @@ import java.util.List;
  * <p>
  * TODO: Add documentation here
  */
-public class JCacheTest {
+public class JCacheTest extends MongoTest {
     private Logger log = LoggerFactory.getLogger(JCacheTest.class);
 
     @Test
     public void getProviderTest() throws Exception {
-        if (System.getProperty(Caching.JAVAX_CACHE_CACHING_PROVIDER) == null) {
-            System.setProperty(Caching.JAVAX_CACHE_CACHING_PROVIDER, CachingProviderImpl.class.getName());
+        MorphiumCache cache = morphium.getCache();
+//        CacheManager def = cache.getCacheManager();
+//        cache.setCacheManager(new CacheManagerImpl(morphium.getConfig().asProperties()));
+
+        for (int i = 0; i < 100; i++) {
+            CachedObject o = new CachedObject();
+            o.setValue("test " + i);
+            o.setCounter(i);
+            morphium.store(o);
         }
-        CachingProvider cp = Caching.getCachingProvider();
-        assert (cp != null);
-        URI c = new URI(CachedObject.class.getName());
-        log.info("URI: " + c.toString());
+        Thread.sleep(3000);
+        morphium.createQueryFor(CachedObject.class).f("counter").eq(12).get();
+        morphium.createQueryFor(CachedObject.class).f("counter").eq(12).get();
+        morphium.createQueryFor(CachedObject.class).f("counter").eq(12).get();
+        morphium.createQueryFor(CachedObject.class).f("counter").eq(55).get();
+        morphium.createQueryFor(CachedObject.class).f("counter").eq(13).get();
+        morphium.createQueryFor(CachedObject.class).f("counter").eq(34).get();
 
-        MorphiumConfig cfg = new MorphiumConfig();
-        CacheManager mgr = cp.getCacheManager(c, this.getClass().getClassLoader(), cfg.asProperties());
-        Cache<MorphiumId, CacheEntry<CachedObject>> idCache = mgr.getCache("idcache");
-        Cache<String, CacheEntry<List<MorphiumId>>> results = mgr.getCache("results");
-
-        CachedObject cachedObject = new CachedObject();
-        cachedObject.setId(new MorphiumId());
-        CacheObject<CachedObject> obj = new CacheObject<>(cachedObject);
-
-        List<MorphiumId> idlst = new ArrayList<>();
-        idlst.add(cachedObject.getId());
-        results.put("search key", new CacheEntry<>(idlst, "search key"));
-        idCache.put(cachedObject.getId(), new CacheEntry<>(cachedObject, cachedObject.getId()));
-        assert (results.get("search key") != null);
-        assert (idCache.get(cachedObject.getId()).getResult().equals(cachedObject));
-        assert (results.get("search key").getCreated() != 0);
-
+        Map<String, Integer> sizes = cache.getSizes();
+        for (String k : sizes.keySet()) {
+            log.info("Key " + k + " size: " + sizes.get(k));
+            assert (sizes.get(k) > 0);
+        }
+//        cache.setCacheManager(def);
     }
 }

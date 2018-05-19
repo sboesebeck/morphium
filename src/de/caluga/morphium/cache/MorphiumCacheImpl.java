@@ -7,6 +7,7 @@ import de.caluga.morphium.query.Query;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import javax.cache.CacheManager;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -176,17 +177,6 @@ public class MorphiumCacheImpl implements MorphiumCache {
 
     @SuppressWarnings("unchecked")
     @Override
-    public Map<Class<?>, Map<Object, Object>> getIdCache() {
-        return idCache; //(Map<Class<?>, Map<Object, Object>>) (((ConcurrentHashMap) idCache).clone());
-    }
-
-    @Override
-    public void setIdCache(Map<Class<?>, Map<Object, Object>> c) {
-        idCache = c;
-    }
-
-    @SuppressWarnings("unchecked")
-    @Override
     public <T> T getFromIDCache(Class<? extends T> type, Object id) {
         if (idCache.get(type) != null) {
             return (T) idCache.get(type).get(id);
@@ -244,6 +234,12 @@ public class MorphiumCacheImpl implements MorphiumCache {
         setCache(new ConcurrentHashMap<>());
     }
 
+    @Override
+    public void removeEntryFromIdCache(Class cls, Object id) {
+        if (idCache.get(cls) != null) {
+            idCache.get(cls).remove(id);
+        }
+    }
     @SuppressWarnings("unchecked")
     @Override
     public void removeEntryFromCache(Class cls, Object id) {
@@ -294,5 +290,15 @@ public class MorphiumCacheImpl implements MorphiumCache {
         }
         return ret;
 
+    }
+
+    @Override
+    public void setCacheManager(CacheManager cacheManager) {
+
+    }
+
+    @Override
+    public CacheManager getCacheManager() {
+        return null;
     }
 }
