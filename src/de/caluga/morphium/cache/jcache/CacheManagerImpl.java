@@ -1,6 +1,5 @@
 package de.caluga.morphium.cache.jcache;
 
-import de.caluga.morphium.AnnotationAndReflectionHelper;
 import de.caluga.morphium.MorphiumConfig;
 
 import javax.cache.Cache;
@@ -12,8 +11,6 @@ import java.util.Collection;
 import java.util.Map;
 import java.util.Properties;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ScheduledThreadPoolExecutor;
-import java.util.concurrent.TimeUnit;
 
 /**
  * User: Stephan Bösebeck
@@ -28,33 +25,15 @@ public class CacheManagerImpl implements CacheManager {
     private URI uri;
     private ClassLoader classLoader;
     private Properties properties;
-    private ScheduledThreadPoolExecutor housekeeping = new ScheduledThreadPoolExecutor(1);
 
     private Map<String, Cache> caches = new ConcurrentHashMap<>();
-    private HouseKeepingHelper hkHelper = new HouseKeepingHelper();
 
     public CacheManagerImpl(Properties settings) {
 
         cfg = MorphiumConfig.fromProperties(settings);
-        hkHelper.setGlobalValidCacheTime(cfg.getGlobalCacheValidTime());
-        hkHelper.setAnnotationHelper(new AnnotationAndReflectionHelper(false));
-
-        housekeeping.scheduleWithFixedDelay(new Runnable() {
-            @Override
-            public void run() {
 
 
-            for (String k : caches.keySet()) {
-                try {
-                    hkHelper.housekeep((CacheImpl) caches.get(k), Class.forName(uri.toString()));
-                } catch (ClassNotFoundException e) {
-                    //TODO: Implement Handling
-                    throw new RuntimeException(e);
-                }
-            }
 
-            }
-        }, 1000, 5000, TimeUnit.MILLISECONDS);
     }
 
     public void setCachingProvider(CachingProvider cachingProvider) {
@@ -107,6 +86,7 @@ public class CacheManagerImpl implements CacheManager {
         CacheImpl cache = new CacheImpl();
         cache.setCacheManager(this);
         caches.put(cacheName, cache);
+        cache.setName(cacheName);
         return (Cache<K, V>) cache;
 
     }
@@ -128,7 +108,7 @@ public class CacheManagerImpl implements CacheManager {
 
     @Override
     public Iterable<String> getCacheNames() {
-        return null;
+        return caches.keySet();
     }
 
     @Override
@@ -159,27 +139,9 @@ public class CacheManagerImpl implements CacheManager {
 
     @Override
     public <T> T unwrap(Class<T> clazz) {
-        return null;
+        return clazz.cast(this);
     }
 
-
-    public void setValidCacheTime(int time) {
-        try {
-            hkHelper.setValidCacheTime(getTypeClass(), time);
-        } catch (ClassNotFoundException e) {
-            //TODO: Implement Handling
-            throw new RuntimeException(e);
-        }
-    }
-
-    public void setDefaultCacheTime(Class type) {
-        try {
-            hkHelper.setDefaultValidCacheTime(getTypeClass());
-        } catch (ClassNotFoundException e) {
-            //TODO: Implement Handling
-            throw new RuntimeException(e);
-        }
-    }
 
     private Class<?> getTypeClass() throws ClassNotFoundException {
         return Class.forName(getURI().toString());

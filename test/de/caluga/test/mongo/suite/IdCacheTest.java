@@ -33,8 +33,6 @@ public class IdCacheTest extends MongoTest {
         List<CachedObject> lst = q.asList();
         String k = morphium.getCache().getCacheKey(q);
         assert (lst.size() == 29) : "Size matters! " + lst.size();
-        assert (!morphium.getCache().getIdCache().isEmpty());
-        assert (!morphium.getCache().getIdCache().get(CachedObject.class).isEmpty());
         Thread.sleep(1000);
         MorphiumId id = lst.get(0).getId();
         CachedObject c = morphium.findById(CachedObject.class, id);
