@@ -150,7 +150,12 @@ public class MorphiumCacheJCacheImpl implements MorphiumCache, CacheEntryExpired
                         .setExpiryPolicyFactory(EternalExpiryPolicy.factoryOf())
                         .setStoreByValue(false)
                         .setStatisticsEnabled(false);
-        cache = getCacheManager().createCache(ID_CACHE_NAME + "|" + type.getName(), config);
+        try {
+            cache = getCacheManager().createCache(ID_CACHE_NAME + "|" + type.getName(), config);
+        } catch (Exception e) {
+            //maybe already there
+            cache = getCacheManager().getCache(ID_CACHE_NAME + "|" + type.getName());
+        }
         idCaches.put(type, cache);
         return cache;
     }
@@ -167,7 +172,12 @@ public class MorphiumCacheJCacheImpl implements MorphiumCache, CacheEntryExpired
                         .setStoreByValue(false)
                         .setExpiryPolicyFactory(EternalExpiryPolicy.factoryOf())
                         .setStatisticsEnabled(false);
-        cache = getCacheManager().createCache(RESULT_CACHE_NAME + "|" + type.getName(), config);
+        try {
+            cache = getCacheManager().createCache(RESULT_CACHE_NAME + "|" + type.getName(), config);
+        } catch (Exception e) {
+            //maybe already there
+            cache = getCacheManager().getCache(RESULT_CACHE_NAME + "|" + type.getName());
+        }
         resultCaches.put(type, cache);
         return cache;
     }
