@@ -100,11 +100,11 @@ public class CacheFunctionalityTest extends MongoTest {
         for (int i = 0; i < amount; i++) {
             assert (morphium.createQueryFor(SpecCacedOjbect.class).f("counter").eq(i).get() != null);
         }
-        assert (morphium.getCache().getSizes().get(SpecCacedOjbect.class.getName() + ":idCache") > 0);
+        assert (morphium.getCache().getSizes().get("idCache|" + SpecCacedOjbect.class.getName()) > 0);
         Thread.sleep(hcTime + 100);
-        assert (morphium.getCache().getSizes().get(SpecCacedOjbect.class.getName() + ":idCache") > 0);
+        assert (morphium.getCache().getSizes().get("idCache|" + SpecCacedOjbect.class.getName()) > 0);
         Thread.sleep(gcTime + 1000);
-        assert (morphium.getCache().getSizes().get(SpecCacedOjbect.class.getName() + ":idCache") == 0);
+        assert (morphium.getCache().getSizes().get("idCache|" + SpecCacedOjbect.class.getName()) == 0);
 
     }
 

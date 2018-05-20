@@ -231,7 +231,7 @@ public class MassCacheTest extends MongoTest {
             printStats();
             statistics = morphium.getStatistics();
             assert (statistics.get("CACHE_ENTRIES") != 0);
-            assert (statistics.get("X-Entries for: de.caluga.test.mongo.suite.data.CachedObject") != null && statistics.get("X-Entries for: de.caluga.test.mongo.suite.data.CachedObject") > 0);
+            assert (statistics.get("X-Entries for: resultCache|de.caluga.test.mongo.suite.data.CachedObject") != null && statistics.get("X-Entries for: resultCache|de.caluga.test.mongo.suite.data.CachedObject") > 0);
             assert (statistics.get("CHITS") != 0);
         } finally {
             morphium.getConfig().enableReadCache();
