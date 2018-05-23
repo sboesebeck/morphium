@@ -166,7 +166,7 @@
         <dependency>
             <groupId>org.mongodb</groupId>
             <artifactId>mongodb-driver</artifactId>
-            <version>3.6.3</version>
+            <version>3.7.0</version>
             <scope>provided</scope>
         </dependency>
         <dependency>
