@@ -275,7 +275,7 @@ public class Messaging extends Thread implements ShutdownListener {
         } catch (InterruptedException e) {
 
         }
-        obj=morphium.reread(obj);
+        obj=morphium.reread(obj,getCollectionName());
         if (obj!=null && obj.getLockedBy()!=null && obj.getLockedBy().equals(id)) {
             List<Msg> lst = new ArrayList<>();
             lst.add(obj);
