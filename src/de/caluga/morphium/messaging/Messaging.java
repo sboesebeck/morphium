@@ -53,6 +53,8 @@ public class Messaging extends Thread implements ShutdownListener {
     private boolean useOplogMonitor = false;
     private OplogMonitor oplogMonitor;
 
+    private Map<MorphiumId, Msg> waitingForAnswers = new ConcurrentHashMap<>();
+
 
     /**
      * attaches to the default queue named "msg"
@@ -564,5 +566,35 @@ public class Messaging extends Thread implements ShutdownListener {
         } catch (Exception e) {
             //swallow
         }
+    }
+
+
+    //TODO: proof of concept implementation, need to clearify some things
+    //   on timeout: return null or throw Exception?
+    //   Thread.yield() - better object.wait or another semaphore implementation
+    //   what to do if more answers are being sent?
+    public Msg sendAndAwaitFirstAnswer(Msg theMEssage, long timeoutInMs) {
+        addMessageListener(new MessageListener() {
+            @Override
+            public Msg onMessage(Messaging msg, Msg m) {
+                if (m.getInAnswerTo() != null && m.getInAnswerTo().equals(theMEssage.getMsgId())) {
+                    //got the message
+                    waitingForAnswers.put(theMEssage.getMsgId(), m);
+                    removeMessageListener(this);
+                }
+                return null;
+            }
+        });
+
+        storeMessage(theMEssage);
+        long start = System.currentTimeMillis();
+        while (waitingForAnswers.get(theMEssage.getMsgId()) == null) {
+            if (System.currentTimeMillis() - start > timeoutInMs) {
+                log.error("Did not receive Answer in timee");
+                throw new RuntimeException("Did not receive answer in time!");
+            }
+            Thread.yield();
+        }
+        return waitingForAnswers.remove(theMEssage.getMsgId());
     }
 }
