@@ -591,17 +591,7 @@ public class Messaging extends Thread implements ShutdownListener {
     //   Thread.yield() - better object.wait or another semaphore implementation
     //   what to do if more answers are being sent?
     public Msg sendAndAwaitFirstAnswer(Msg theMEssage, long timeoutInMs) {
-        addMessageListener(new MessageListener() {
-            @Override
-            public Msg onMessage(Messaging msg, Msg m) {
-                if (m.getInAnswerTo() != null && m.getInAnswerTo().equals(theMEssage.getMsgId())) {
-                    //got the message
-                    waitingForAnswers.put(theMEssage.getMsgId(), m);
-                    removeMessageListener(this);
-                }
-                return null;
-            }
-        });
+        addMessageListener(getAnswerListener(theMEssage));
 
         storeMessage(theMEssage);
         long start = System.currentTimeMillis();
@@ -613,5 +603,40 @@ public class Messaging extends Thread implements ShutdownListener {
             Thread.yield();
         }
         return waitingForAnswers.remove(theMEssage.getMsgId());
+    }
+
+    public List<Msg> sendAndAwaitAnswers(Msg theMessage, int numberOfAnswers, long timeout) {
+        List<Msg> answers = new ArrayList<>();
+        addMessageListener(getAnswerListener(theMessage));
+
+        storeMessage(theMessage);
+        long start = System.currentTimeMillis();
+        while (true) {
+            if (waitingForAnswers.get(theMessage.getMsgId()) != null) {
+                answers.add(waitingForAnswers.remove(theMessage.getMsgId()));
+            }
+            if (numberOfAnswers >= 0 && answers.size() >= numberOfAnswers) {
+                break;
+            }
+            if (System.currentTimeMillis() - start > timeout) {
+                break;
+            }
+            Thread.yield();
+        }
+        return answers;
+    }
+
+    private MessageListener getAnswerListener(Msg theMessage) {
+        return new MessageListener() {
+            @Override
+            public Msg onMessage(Messaging msg, Msg m) {
+                if (m.getInAnswerTo() != null && m.getInAnswerTo().equals(theMessage.getMsgId())) {
+                    //got the message
+                    waitingForAnswers.put(theMessage.getMsgId(), m);
+                    removeMessageListener(this);
+                }
+                return null;
+            }
+        };
     }
 }
