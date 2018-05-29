@@ -356,27 +356,6 @@ public class Msg {
         messaging.queueMessage(m);
     }
 
-    public Msg getCopy() {
-        Msg ret = new Msg();
-        ret.setAdditional(additional);
-        ret.setInAnswerTo(inAnswerTo);
-        ret.setLocked(locked);
-        ret.setLockedBy(lockedBy);
-        ret.setName(name);
-        ret.setProcessedBy(processedBy);
-        ret.setSender(sender);
-        ret.setRecipient(recipient);
-        ret.setTimestamp(timestamp);
-        ret.setTtl(ttl);
-        ret.setValue(value);
-        ret.setMsg(msg);
-        //        ret.setMsgId();
-        ret.setMapValue(mapValue);
-        ret.setTo(to);
-
-        return ret;  //To change body of created methods use File | Settings | File Templates.
-    }
-
     public enum Fields {
         processedBy,
         lockedBy,
