@@ -965,4 +965,33 @@ public class MessagingTest extends MongoTest {
 
 
     }
+
+
+    @Test
+    public void sendAndWaitforAnswerTest() throws Exception {
+        morphium.dropCollection(Msg.class);
+        Messaging sender = new Messaging(morphium, 100, false);
+        sender.start();
+
+        gotMessage1 = false;
+        gotMessage2 = false;
+        gotMessage3 = false;
+        gotMessage4 = false;
+
+        Messaging m1 = new Messaging(morphium, 100, false);
+        m1.addMessageListener((msg, m) -> {
+            gotMessage1 = true;
+            return new Msg(m.getName(), "got message", "value", 5000);
+        });
+
+        m1.start();
+
+        Msg answer = sender.sendAndAwaitFirstAnswer(new Msg("test", "Sender", "sent", 5000), 5000);
+        assert (answer != null);
+        assert (answer.getName().equals("test"));
+        assert (answer.getInAnswerTo() != null);
+        assert (answer.getRecipient() != null);
+        assert (answer.getMsg().equals("got message"));
+    }
+
 }
