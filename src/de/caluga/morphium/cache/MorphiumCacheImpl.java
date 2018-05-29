@@ -86,10 +86,10 @@ public class MorphiumCacheImpl implements MorphiumCache {
         co.setKey(k);
         co.setType(type);
         for (CacheListener cl : cacheListeners) {
-//            co = cl.wouldAddToCache(co);
-//            if (co == null) {
-//                return;
-//            }
+            co = cl.wouldAddToCache(k, co, getFromCache(type, k) != null);
+            if (co == null) {
+                return;
+            }
         }
         if (!k.endsWith("idlist") && !k.contains("project:")) {
             //copy from idCache
