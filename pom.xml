@@ -101,7 +101,12 @@
                 </configuration>
             </plugin>
         </plugins>
+        <testResources>
+            <testResource>
+                <directory>${project.basedir}/testresources</directory>
+            </testResource>
 
+        </testResources>
     </build>
 
     <dependencies>
@@ -149,19 +154,19 @@
         <dependency>
             <groupId>org.mongodb</groupId>
             <artifactId>bson</artifactId>
-            <version>3.6.3</version>
+            <version>3.7.0</version>
             <scope>provided</scope>
         </dependency>
         <dependency>
             <groupId>org.mongodb</groupId>
             <artifactId>mongodb-driver-core</artifactId>
-            <version>3.6.3</version>
+            <version>3.7.0</version>
             <scope>provided</scope>
         </dependency>
         <dependency>
             <groupId>org.mongodb</groupId>
             <artifactId>mongodb-driver</artifactId>
-            <version>3.6.3</version>
+            <version>3.7.0</version>
             <scope>provided</scope>
         </dependency>
         <dependency>
@@ -180,11 +185,23 @@
             <version>1.0.0.GA</version>
             <scope>provided</scope>
         </dependency>
+        <dependency>
+            <groupId>org.ehcache</groupId>
+            <artifactId>jcache</artifactId>
+            <version>RELEASE</version>
+            <scope>test</scope>
+        </dependency>
 
         <dependency>
             <groupId>org.hibernate</groupId>
             <artifactId>hibernate-validator</artifactId>
             <version>4.2.0.Final</version>
+            <scope>provided</scope>
+        </dependency>
+        <dependency>
+            <groupId>javax.cache</groupId>
+            <artifactId>cache-api</artifactId>
+            <version>RELEASE</version>
             <scope>provided</scope>
         </dependency>
 
