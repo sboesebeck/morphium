@@ -284,7 +284,7 @@ public class Messaging extends Thread implements ShutdownListener {
         } catch (InterruptedException e) {
 
         }
-        obj=morphium.reread(obj);
+        obj=morphium.reread(obj,getCollectionName());
         if (obj!=null && obj.getLockedBy()!=null && obj.getLockedBy().equals(id)) {
             List<Msg> lst = new ArrayList<>();
             lst.add(obj);
@@ -535,6 +535,7 @@ public class Messaging extends Thread implements ShutdownListener {
 
                 @Override
                 public void onOperationError(AsyncOperationType type, Query q, long duration, String error, Throwable t, Object entity, Object... param) {
+                    log.error("Error storing msg", t);
                 }
             };
         }
