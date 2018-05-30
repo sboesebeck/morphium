@@ -526,6 +526,7 @@ public class Messaging extends Thread implements ShutdownListener {
 
                 @Override
                 public void onOperationError(AsyncOperationType type, Query q, long duration, String error, Throwable t, Object entity, Object... param) {
+                    log.error("Error storing msg", t);
                 }
             };
         }
