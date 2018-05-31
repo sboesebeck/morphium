@@ -539,7 +539,7 @@ public class Messaging extends Thread implements ShutdownListener {
                 }
             };
         }
-        m.setDeleteAt(new Date(System.currentTimeMillis() + m.getTtl()));
+        //m.setDeleteAt(new Date(System.currentTimeMillis() + m.getTtl()));
         m.setSender(id);
         m.addProcessedId(id);
 
@@ -563,6 +563,35 @@ public class Messaging extends Thread implements ShutdownListener {
         } else {
             morphium.storeNoCache(m, getCollectionName(), cb);
         }
+    }
+
+    public void sendMessageToSelf(Msg m) {
+        sendMessageToSelf(m, false);
+    }
+
+    public void queueMessagetoSelf(Msg m) {
+        sendMessageToSelf(m, true);
+    }
+
+    private void sendMessageToSelf(Msg m, boolean async) {
+        AsyncOperationCallback cb = null;
+        if (async) {
+            //noinspection unused,unused
+            cb = new AsyncOperationCallback() {
+                @Override
+                public void onOperationSucceeded(AsyncOperationType type, Query q, long duration, List result, Object entity, Object... param) {
+                }
+
+                @Override
+                public void onOperationError(AsyncOperationType type, Query q, long duration, String error, Throwable t, Object entity, Object... param) {
+                    log.error("Error storing msg", t);
+                }
+            };
+        }
+        m.setSender("self");
+        m.setRecipient(id);
+        m.setSenderHost(hostname);
+        morphium.storeNoCache(m);
     }
 
     public boolean isAutoAnswer() {
