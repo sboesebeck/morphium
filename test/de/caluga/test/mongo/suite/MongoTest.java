@@ -389,7 +389,7 @@ public class MongoTest {
             while (count < 10) {
                 count++;
                 Map<String, Double> stats = morphium.getStatistics();
-                Double ent = stats.get("X-Entries for: de.caluga.test.mongo.suite.data.CachedObject");
+                Double ent = stats.get("X-Entries for: resultCache|de.caluga.test.mongo.suite.data.CachedObject");
                 if (ent == null || ent == 0) {
                     break;
                 }

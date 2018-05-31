@@ -7,6 +7,7 @@ package de.caluga.morphium.cache.jcache;
 import de.caluga.morphium.AnnotationAndReflectionHelper;
 import de.caluga.morphium.annotations.caching.Cache;
 import de.caluga.morphium.annotations.caching.Cache.ClearStrategy;
+import de.caluga.morphium.cache.CacheListener;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -17,7 +18,6 @@ import java.util.concurrent.ConcurrentHashMap;
 public class HouseKeepingHelper {
 
     private Map<Class<?>, Integer> validTimeForClass = new ConcurrentHashMap<>();
-    ;
     private int gcTimeout = 5000;
     private Logger log = LoggerFactory.getLogger(HouseKeepingHelper.class);
     private AnnotationAndReflectionHelper annotationHelper;
@@ -47,7 +47,7 @@ public class HouseKeepingHelper {
     }
 
 
-    public void housekeep(javax.cache.Cache cache) {
+    public void housekeep(javax.cache.Cache cache, List<CacheListener> cacheListeners) {
         try {
             Class clz = Class.forName(cache.getName().substring(cache.getName().indexOf("|") + 1));
             List<Object> toDelete = new ArrayList<>();
@@ -146,12 +146,19 @@ public class HouseKeepingHelper {
                         break;
                 }
 
-                //                morphium.getCache().setCache(cache);
-                //                morphium.getCache().setIdCache(idCacheClone);
-                for (Object k : toDelete) {
-                    cache.remove(k);
-                }
 
+            }
+            //                morphium.getCache().setCache(cache);
+            //                morphium.getCache().setIdCache(idCacheClone);
+            for (Object k : toDelete) {
+                for (CacheListener cl : cacheListeners) {
+                    try {
+                        cl.wouldRemoveEntryFromCache(k, (CacheEntry) cache.get(k), true);
+                    } catch (Exception e) {
+
+                    }
+                }
+                cache.remove(k);
             }
 
 

@@ -61,7 +61,7 @@ public class JCacheTest extends MongoTest {
             o.setCounter(i);
             morphium.store(o);
         }
-        Thread.sleep(3000);
+        Thread.sleep(5000);
 
         morphium.createQueryFor(CachedObject.class).f("counter").eq(12).get();
         morphium.createQueryFor(CachedObject.class).f("counter").eq(12).get();

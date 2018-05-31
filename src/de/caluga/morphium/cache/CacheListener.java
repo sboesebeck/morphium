@@ -1,5 +1,7 @@
 package de.caluga.morphium.cache;
 
+import de.caluga.morphium.cache.jcache.CacheEntry;
+
 /**
  * Created with IntelliJ IDEA.
  * User: stephan
@@ -13,12 +15,12 @@ public interface CacheListener {
      *
      * @param toCache - datastructure containing cache key and result
      * @param <T>     - the type
-     * @return null, if not to cache
+     * @return false, if not to cache
      */
-    <T> CacheObject<T> wouldAddToCache(Object k, CacheObject<T> toCache, boolean updated);
+    <T> CacheEntry<T> wouldAddToCache(Object k, CacheEntry<T> toCache, boolean updated);
 
     <T> boolean wouldClearCache(Class<T> affectedEntityType);
 
-    <T> boolean wouldRemoveEntryFromCache(Object key, CacheObject<T> toRemove, boolean expired);
+    <T> boolean wouldRemoveEntryFromCache(Object key, CacheEntry<T> toRemove, boolean expired);
 
 }

@@ -107,7 +107,6 @@ public class CacheImpl<K, CE> implements Cache<K, CacheEntry<CE>> {
             log.info("aborting cache operation");
             return false;
         }
-        ;
         theCache.remove(key);
         return true;
     }
@@ -208,7 +207,22 @@ public class CacheImpl<K, CE> implements Cache<K, CacheEntry<CE>> {
 
     @Override
     public <C extends Configuration<K, CacheEntry<CE>>> C getConfiguration(Class<C> clazz) {
-        return null;
+        return (C) new Configuration() {
+            @Override
+            public Class getKeyType() {
+                return Object.class;
+            }
+
+            @Override
+            public Class getValueType() {
+                return CacheEntry.class;
+            }
+
+            @Override
+            public boolean isStoreByValue() {
+                return false;
+            }
+        };
     }
 
     @Override
