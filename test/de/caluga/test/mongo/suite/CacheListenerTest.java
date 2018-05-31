@@ -1,7 +1,7 @@
 package de.caluga.test.mongo.suite;
 
 import de.caluga.morphium.cache.CacheListener;
-import de.caluga.morphium.cache.CacheObject;
+import de.caluga.morphium.cache.jcache.CacheEntry;
 import de.caluga.test.mongo.suite.data.CachedObject;
 import org.junit.Test;
 
@@ -25,7 +25,7 @@ public class CacheListenerTest extends MongoTest {
         cl = new CacheListener() {
 
             @Override
-            public <T> CacheObject<T> wouldAddToCache(Object k, CacheObject<T> toCache, boolean updated) {
+            public <T> CacheEntry<T> wouldAddToCache(Object k, CacheEntry<T> toCache, boolean updated) {
                 wouldAdd = true;
                 return toCache;
             }
@@ -38,7 +38,7 @@ public class CacheListenerTest extends MongoTest {
             }
 
             @Override
-            public <T> boolean wouldRemoveEntryFromCache(Object key, CacheObject<T> toRemove, boolean expired) {
+            public <T> boolean wouldRemoveEntryFromCache(Object key, CacheEntry<T> toRemove, boolean expired) {
                 wouldRemove = true;
                 return true;
             }
@@ -55,6 +55,7 @@ public class CacheListenerTest extends MongoTest {
                 morphium.createQueryFor(CachedObject.class).f("counter").lte(i).asList();
             }
             waitForWrites();
+            Thread.sleep(1000);
             assert (wouldAdd);
 
             super.createCachedObjects(10);

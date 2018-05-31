@@ -50,7 +50,7 @@ public class CacheSyncTest extends MongoTest {
     }
 
     @Test
-    public void removeFromCacheTest() {
+    public void removeFromCacheTest() throws Exception {
         for (int i = 0; i < 100; i++) {
             CachedObject o = new CachedObject();
             o.setCounter(i);
@@ -63,6 +63,7 @@ public class CacheSyncTest extends MongoTest {
             c = c.f("counter").eq(i);
             c.asList();
         }
+        Thread.sleep(100);
         assert (morphium.getStatistics().get(StatisticKeys.CACHE_ENTRIES.name()) != null) : "Cache entries not set?";
         assert (morphium.getStatistics().get(StatisticKeys.CACHE_ENTRIES.name()) > 0) : "Cache entries not set? " + morphium.getStatistics().get(StatisticKeys.CACHE_ENTRIES.name());
         Query<CachedObject> c = morphium.createQueryFor(CachedObject.class);

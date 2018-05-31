@@ -3,6 +3,7 @@ package de.caluga.morphium.cache;
 import de.caluga.morphium.AnnotationAndReflectionHelper;
 import de.caluga.morphium.Utils;
 import de.caluga.morphium.annotations.caching.Cache;
+import de.caluga.morphium.cache.jcache.CacheEntry;
 import de.caluga.morphium.query.Query;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -22,7 +23,7 @@ public class MorphiumCacheImpl implements MorphiumCache {
     private final List<CacheListener> cacheListeners;
     private final Logger logger = LoggerFactory.getLogger(MorphiumCacheImpl.class);
     private final CacheHousekeeper cacheHousekeeper;
-    private Map<Class<?>, Map<String, CacheObject>> cache;
+    private Map<Class<?>, Map<String, CacheEntry>> cache;
     private Map<Class<?>, Map<Object, Object>> idCache;
     private AnnotationAndReflectionHelper annotationHelper = new AnnotationAndReflectionHelper(false); //only used to get id's and annotations, camalcase conversion never happens
 
@@ -82,7 +83,7 @@ public class MorphiumCacheImpl implements MorphiumCache {
         if (k == null) {
             return;
         }
-        CacheObject<T> co = new CacheObject(ret);
+        CacheEntry<T> co = new CacheEntry(ret, k);
         co.setKey(k);
         co.setType(type);
         for (CacheListener cl : cacheListeners) {
@@ -101,9 +102,9 @@ public class MorphiumCacheImpl implements MorphiumCache {
             //            setIdCache(idCacheClone);
         }
 
-        CacheObject<T> e = new CacheObject(ret);
+        CacheEntry<T> e = new CacheEntry(ret, k);
         e.setLru(System.currentTimeMillis());
-        //Map<Class<?>, Map<String, CacheObject>> cl =  (Map<Class<?>, Map<String, CacheObject>>) (((HashMap) cache).clone());
+        //Map<Class<?>, Map<String, CacheEntry>> cl =  (Map<Class<?>, Map<String, CacheEntry>>) (((HashMap) cache).clone());
         cache.putIfAbsent(type, new ConcurrentHashMap<>());
         cache.get(type).put(k, e);
 
@@ -131,7 +132,7 @@ public class MorphiumCacheImpl implements MorphiumCache {
         //        } else {
         //            return false;
         //        }
-        Map<Class<?>, Map<String, CacheObject>> snapshotCache = cache;
+        Map<Class<?>, Map<String, CacheEntry>> snapshotCache = cache;
 
         try {
             return snapshotCache.get(type) != null && snapshotCache.get(type).get(k) != null && snapshotCache.get(type).get(k).getResult() != null;
@@ -152,14 +153,14 @@ public class MorphiumCacheImpl implements MorphiumCache {
     @Override
     @SuppressWarnings("unchecked")
     public <T> List<T> getFromCache(Class<? extends T> type, String k) {
-        Map<Class<?>, Map<String, CacheObject>> snapshotCache = cache;
+        Map<Class<?>, Map<String, CacheEntry>> snapshotCache = cache;
         if (snapshotCache.get(type) == null || snapshotCache.get(type).get(k) == null) {
             return null;
         }
         try {
-            final CacheObject CacheObject = snapshotCache.get(type).get(k);
-            CacheObject.setLru(System.currentTimeMillis());
-            return (List<T>) CacheObject.getResult();
+            final CacheEntry CacheEntry = snapshotCache.get(type).get(k);
+            CacheEntry.setLru(System.currentTimeMillis());
+            return (List<T>) CacheEntry.getResult();
         } catch (Exception e) {
             //can happen, when cache is cleared in thw wron moment
         }
@@ -167,11 +168,11 @@ public class MorphiumCacheImpl implements MorphiumCache {
     }
 
     @SuppressWarnings("unchecked")
-    public Map<Class<?>, Map<String, CacheObject>> getCache() {
-        return cache; //(Map<Class<?>, Map<String, CacheObject>>) (((ConcurrentHashMap) cache).clone());
+    public Map<Class<?>, Map<String, CacheEntry>> getCache() {
+        return cache; //(Map<Class<?>, Map<String, CacheEntry>>) (((ConcurrentHashMap) cache).clone());
     }
 
-    public void setCache(Map<Class<?>, Map<String, CacheObject>> cache) {
+    public void setCache(Map<Class<?>, Map<String, CacheEntry>> cache) {
         this.cache = cache;
     }
 
@@ -243,7 +244,7 @@ public class MorphiumCacheImpl implements MorphiumCache {
     @SuppressWarnings("unchecked")
     @Override
     public void removeEntryFromCache(Class cls, Object id) {
-        //        Map<Class<?>, Map<String, CacheObject>> c = getCache();
+        //        Map<Class<?>, Map<String, CacheEntry>> c = getCache();
         //        Map<Class<?>, Map<Object, Object>> idc = getIdCache();
         if (idCache.get(cls) != null && idCache.get(cls).get(id) != null) {
             for (CacheListener cl : cacheListeners) {

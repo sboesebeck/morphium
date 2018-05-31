@@ -10,6 +10,7 @@ import de.caluga.morphium.ShutdownListener;
 import de.caluga.morphium.annotations.caching.Cache;
 import de.caluga.morphium.annotations.caching.Cache.ClearStrategy;
 import de.caluga.morphium.annotations.caching.NoCache;
+import de.caluga.morphium.cache.jcache.CacheEntry;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -104,10 +105,10 @@ public class CacheHousekeeper extends Thread implements ShutdownListener {
             }
             try {
                 Map<Class, List<String>> toDelete = new HashMap<>();
-                Map<Class<?>, Map<String, CacheObject>> cache = ((MorphiumCacheImpl) morphiumCache).getCache();
-                for (Map.Entry<Class<?>, Map<String, CacheObject>> es : cache.entrySet()) {
+                Map<Class<?>, Map<String, CacheEntry>> cache = ((MorphiumCacheImpl) morphiumCache).getCache();
+                for (Map.Entry<Class<?>, Map<String, CacheEntry>> es : cache.entrySet()) {
                     Class<?> clz = es.getKey();
-                    Map<String, CacheObject> ch = es.getValue();
+                    Map<String, CacheEntry> ch = es.getValue();
 
 
                     int maxEntries = -1;
@@ -172,9 +173,9 @@ public class CacheHousekeeper extends Thread implements ShutdownListener {
                     }
 
                     int del = 0;
-                    for (Map.Entry<String, CacheObject> est : ch.entrySet()) {
+                    for (Map.Entry<String, CacheEntry> est : ch.entrySet()) {
                         String k = est.getKey();
-                        CacheObject e = est.getValue(); //ch.get(k);
+                        CacheEntry e = est.getValue(); //ch.get(k);
 
                         if (e == null || e.getResult() == null || System.currentTimeMillis() - e.getCreated() > time) {
                             toDelete.putIfAbsent(clz, new ArrayList<>());
