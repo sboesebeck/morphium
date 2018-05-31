@@ -992,6 +992,8 @@ public class MessagingTest extends MongoTest {
         m1.terminate();
         m2.terminate();
         m3.terminate();
+        sender.terminate();
+        sender2.terminate();
     }
     @Test
     public void exclusiveMessageTest() throws Exception {
@@ -1047,13 +1049,49 @@ public class MessagingTest extends MongoTest {
         m1.terminate();
         m2.terminate();
         m3.terminate();
+        sender.terminate();
 
 
     }
 
+    @Test
+    public void selfMessages() throws Exception {
+        morphium.dropCollection(Msg.class);
+        Messaging sender = new Messaging(morphium, 100, false);
+        sender.start();
+        sender.addMessageListener((new MessageListener() {
+            @Override
+            public Msg onMessage(Messaging msg, Msg m) {
+                gotMessage = true;
+                log.info("Got message: " + m.getMsg() + "/" + m.getName());
+                return null;
+            }
+        }));
+        gotMessage = false;
+        gotMessage1 = false;
+        gotMessage2 = false;
+        gotMessage3 = false;
+        gotMessage4 = false;
+
+        Messaging m1 = new Messaging(morphium, 100, false);
+        m1.addMessageListener((msg, m) -> {
+            gotMessage1 = true;
+            return new Msg(m.getName(), "got message", "value", 5000);
+        });
+        m1.start();
+
+        sender.sendMessageToSelf(new Msg("testmsg", "Selfmessage", "value"));
+        Thread.sleep(200);
+        assert (gotMessage == true);
+        assert (gotMessage1 == false);
+
+        m1.terminate();
+        sender.terminate();
+    }
+
 
     @Test
-    public void sendAndWaitforAnswerTest() throws Exception {
+    public void sendAndWaitforAnswerTest() {
         morphium.dropCollection(Msg.class);
         Messaging sender = new Messaging(morphium, 100, false);
         sender.start();
@@ -1077,6 +1115,8 @@ public class MessagingTest extends MongoTest {
         assert (answer.getInAnswerTo() != null);
         assert (answer.getRecipient() != null);
         assert (answer.getMsg().equals("got message"));
+        m1.terminate();
+        sender.terminate();
     }
 
 }
