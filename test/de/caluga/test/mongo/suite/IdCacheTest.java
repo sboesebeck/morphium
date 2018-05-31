@@ -18,6 +18,7 @@ public class IdCacheTest extends MongoTest {
 
     @Test
     public void idTest() throws Exception {
+        morphium.dropCollection(CachedObject.class);
         for (int i = 1; i < 100; i++) {
             CachedObject u = new CachedObject();
             u.setCounter(i);

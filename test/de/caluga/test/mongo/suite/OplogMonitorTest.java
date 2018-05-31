@@ -116,7 +116,7 @@ public class OplogMonitorTest extends MongoTest {
         UncachedObject u = new UncachedObject("test", 123);
         morphium.store(u);
 
-        Thread.sleep(1200);
+        Thread.sleep(2200);
         assert (gotIt);
         gotIt = false;
 

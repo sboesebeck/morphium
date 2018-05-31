@@ -467,7 +467,7 @@ public class BasicFunctionalityTest extends MongoTest {
         Map<String, Double> statistics = morphium.getStatistics();
         Double uc = statistics.get("X-Entries for: de.caluga.test.mongo.suite.data.UncachedObject");
         assert (uc == null || uc == 0) : "Cached Uncached Object?!?!?!";
-        assert (statistics.get("X-Entries for: de.caluga.test.mongo.suite.data.CachedObject") > 0) : "No Cached Object cached?!?!?!";
+        assert (statistics.get("X-Entries for: resultCache|de.caluga.test.mongo.suite.data.CachedObject") > 0) : "No Cached Object cached?!?!?!";
 
     }
 
