@@ -202,7 +202,6 @@
             <groupId>javax.cache</groupId>
             <artifactId>cache-api</artifactId>
             <version>RELEASE</version>
-            <scope>provided</scope>
         </dependency>
 
 	<dependency>
