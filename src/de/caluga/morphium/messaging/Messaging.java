@@ -43,6 +43,8 @@ public class Messaging extends Thread implements ShutdownListener {
 
     private List<MessageListener> listeners;
 
+
+    private Map<String, Long> pauseMessages = new ConcurrentHashMap<>();
     private Map<String, List<MessageListener>> listenerByName;
     private String queueName;
 
@@ -178,6 +180,10 @@ public class Messaging extends Thread implements ShutdownListener {
                         //ignoring my own messages
                         return;
                     }
+                    if (pauseMessages.containsKey(obj.getName())) {
+                        log.info("Not processing message - processing paused for " + obj.getName());
+                        return;
+                    }
                     //do not process messages, that are exclusive, but already processed or not for me / all
                     if (obj.isExclusive() && obj.getLockedBy() == null && (obj.getRecipient() == null || obj.getRecipient().equals(id)) && (obj.getProcessedBy() == null || !obj.getProcessedBy().contains(id))) {
                         // locking
@@ -239,6 +245,36 @@ public class Messaging extends Thread implements ShutdownListener {
                 listenerByName.clear();
             }
         }
+    }
+
+    /**
+     * pause processing for certain messages
+     *
+     * @param name
+     */
+
+    public void pauseProcessingOfMessagesNamed(String name) {
+        pauseMessages.putIfAbsent(name, System.currentTimeMillis());
+    }
+
+    /**
+     * unpause processing
+     *
+     * @param name
+     * @return duration or null
+     */
+    public Long unpauseProcessingOfMessagesNamed(String name) {
+        Long ret = pauseMessages.remove(name);
+        if (ret != null) {
+            ret = System.currentTimeMillis() - ret;
+        }
+        log.info("after pausing, try to get unhandeled messages");
+        try {
+            findAndProcessMessages(new HashMap<>(), true);
+        } catch (Exception e) {
+            log.error("Error processing existing messages in queue", e);
+        }
+        return ret;
     }
 
     private void findAndProcessMessages(Map<String, Object> values, boolean multiple) throws InterruptedException {
@@ -316,6 +352,10 @@ public class Messaging extends Thread implements ShutdownListener {
                 //                            System.out.println("Processing message "+msg.getMsgId()+ " / "+m.getMsgId());
                 if (msg == null) {
                     return; //was deleted
+                }
+                if (pauseMessages.containsKey(msg.getName())) {
+                    log.info("Not processing msg - paused " + msg.getName());
+                    return;
                 }
                 if (msg.getProcessedBy() != null && msg.getProcessedBy().contains(id)) {
                     log.info("Was already processed - multithreadding?");
