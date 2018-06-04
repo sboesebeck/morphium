@@ -1119,4 +1119,45 @@ public class MessagingTest extends MongoTest {
         sender.terminate();
     }
 
+
+    @Test
+    public void pauseUnpauseProcessingTest() throws Exception {
+        morphium.dropCollection(Msg.class);
+        Thread.sleep(1000);
+        Messaging sender = new Messaging(morphium, 100, false);
+        sender.start();
+
+        gotMessage1 = false;
+        gotMessage2 = false;
+        gotMessage3 = false;
+        gotMessage4 = false;
+
+        Messaging m1 = new Messaging(morphium, 100, false);
+        m1.addMessageListener((msg, m) -> {
+            gotMessage1 = true;
+            return new Msg(m.getName(), "got message", "value", 5000);
+        });
+
+        m1.start();
+
+        m1.pauseProcessingOfMessagesNamed("tst1");
+
+        sender.storeMessage(new Msg("test", "a message", "the value"));
+        Thread.sleep(1200);
+        assert (gotMessage1);
+
+        gotMessage1 = false;
+
+        sender.storeMessage(new Msg("tst1", "a message", "the value"));
+        Thread.sleep(200);
+        assert (!gotMessage1);
+
+        long l = m1.unpauseProcessingOfMessagesNamed("tst1");
+        log.info("Processing was paused for ms " + l);
+        Thread.sleep(200);
+
+        assert (gotMessage1);
+
+    }
+
 }
