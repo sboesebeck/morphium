@@ -54,18 +54,10 @@ public class AnnotationAndReflectionHelperTest {
         assertThat(realClassCache.containsKey(newProxy().getClass())).isTrue();
     }
 
-    private UncachedObject newProxy() {
-        Enhancer enhancer = new Enhancer();
-        enhancer.setSuperclass(UncachedObject.class);
-        enhancer.setCallback((FixedValue) () -> "proxy");
-        return (UncachedObject) enhancer.create();
-    }
-
     @Test
     public void returnsTheRealClassOfSuperClass() {
         assertThat(helper.getRealClass(UncachedObject.class)).isEqualTo(UncachedObject.class);
     }
-
 
     @Test
     public void throwsNullPointerExceptionWhenSuperClassIsNull() {
@@ -301,5 +293,12 @@ public class AnnotationAndReflectionHelperTest {
         public int var2;
         public int var3;
         public int something;
+    }
+
+    private UncachedObject newProxy() {
+        Enhancer enhancer = new Enhancer();
+        enhancer.setSuperclass(UncachedObject.class);
+        enhancer.setCallback((FixedValue) () -> "proxy");
+        return (UncachedObject) enhancer.create();
     }
 }

@@ -6,7 +6,6 @@ import de.caluga.morphium.annotations.caching.WriteBuffer;
 import de.caluga.morphium.annotations.lifecycle.Lifecycle;
 import de.caluga.morphium.driver.MorphiumId;
 import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import java.lang.annotation.Annotation;
 import java.lang.reflect.*;
@@ -15,6 +14,8 @@ import java.text.SimpleDateFormat;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.regex.Pattern;
+
+import static org.slf4j.LoggerFactory.getLogger;
 
 /**
  * User: Stephan Bösebeck
@@ -30,33 +31,39 @@ import java.util.regex.Pattern;
 @SuppressWarnings("unchecked")
 public class AnnotationAndReflectionHelper {
     private static final Annotation ANNOTATION_NOT_PRESENT = () -> null;
-    private final Logger log = LoggerFactory.getLogger(AnnotationAndReflectionHelper.class);
+    private final Logger logger = getLogger(AnnotationAndReflectionHelper.class);
     private final Map<Class<?>, Class<?>> realClassCache;
-    private final Map<Class<?>, List<Field>> fieldListCache = new ConcurrentHashMap<>();
+    private final Map<Class<?>, List<Field>> fieldListCache;
     private final Map<Class<?>, Map<Class<? extends Annotation>, Annotation>> annotationCache;
     private final Map<Class<?>, Map<String, String>> fieldNameCache;
-    private Map<String, Field> fieldCache = new ConcurrentHashMap<>();
-    private Map<String, List<String>> fieldAnnotationListCache = new ConcurrentHashMap<>();
+    private Map<String, Field> fieldCache;
+    private Map<String, List<String>> fieldAnnotationListCache;
     private Map<Class<?>, Map<Class<? extends Annotation>, Method>> lifeCycleMethods;
     private Map<Class<?>, Boolean> hasAdditionalData;
-    private boolean ccc = true;
+    private boolean ccc;
 
     public AnnotationAndReflectionHelper(boolean convertCamelCase) {
         this.ccc = convertCamelCase;
         this.realClassCache = new ConcurrentHashMap<>();
-        lifeCycleMethods = new ConcurrentHashMap<>();
-        hasAdditionalData = new ConcurrentHashMap<>();
-        annotationCache = new ConcurrentHashMap<>();
-        fieldNameCache = new ConcurrentHashMap<>();
+        this.fieldListCache = new ConcurrentHashMap<>();
+        this.fieldCache = new ConcurrentHashMap<>();
+        this.fieldAnnotationListCache = new ConcurrentHashMap<>();
+        this.lifeCycleMethods = new ConcurrentHashMap<>();
+        this.hasAdditionalData = new ConcurrentHashMap<>();
+        this.annotationCache = new ConcurrentHashMap<>();
+        this.fieldNameCache = new ConcurrentHashMap<>();
     }
 
     public AnnotationAndReflectionHelper(boolean convertCamelCase, Map<Class<?>, Class<?>> realClassCache) {
         this.ccc = convertCamelCase;
         this.realClassCache = realClassCache;
-        lifeCycleMethods = new ConcurrentHashMap<>();
-        hasAdditionalData = new ConcurrentHashMap<>();
-        annotationCache = new ConcurrentHashMap<>();
-        fieldNameCache = new ConcurrentHashMap<>();
+        this.fieldListCache = new ConcurrentHashMap<>();
+        this.fieldCache = new ConcurrentHashMap<>();
+        this.fieldAnnotationListCache = new ConcurrentHashMap<>();
+        this.lifeCycleMethods = new ConcurrentHashMap<>();
+        this.hasAdditionalData = new ConcurrentHashMap<>();
+        this.annotationCache = new ConcurrentHashMap<>();
+        this.fieldNameCache = new ConcurrentHashMap<>();
     }
 
     public <T extends Annotation> boolean isAnnotationPresentInHierarchy(Class<?> cls, Class<? extends T> anCls) {
@@ -392,7 +399,7 @@ public class AnnotationAndReflectionHelper {
                 return f.get(o);
             }
         } catch (IllegalAccessException e) {
-            log.error("Illegal access to field " + fld + " of type " + o.getClass().getSimpleName());
+            logger.error("Illegal access to field " + fld + " of type " + o.getClass().getSimpleName());
 
         }
         return null;
@@ -411,8 +418,8 @@ public class AnnotationAndReflectionHelper {
                 } catch (Exception e) {
 
                     if (value != null) {
-                        if (log.isDebugEnabled()) {
-                            log.debug("Setting of value (" + value.getClass().getSimpleName() + ") failed for field " + f.getName() + "- trying type-conversion");
+                        if (logger.isDebugEnabled()) {
+                            logger.debug("Setting of value (" + value.getClass().getSimpleName() + ") failed for field " + f.getName() + "- trying type-conversion");
                         }
                         //Doing some type conversions... lots of :-(
                         if (value instanceof Double) {
@@ -566,16 +573,16 @@ public class AnnotationAndReflectionHelper {
                             }
                             f.set(o, arr);
                         } else {
-                            log.error("Could not set value!!!");
+                            logger.error("Could not set value!!!");
                         }
                     }
-                    if (log.isDebugEnabled()) {
-                        log.debug("Type conversion was successful");
+                    if (logger.isDebugEnabled()) {
+                        logger.debug("Type conversion was successful");
                     }
                 }
             }
         } catch (IllegalAccessException e) {
-            log.error("Illegal access to field " + fld + " of toype " + o.getClass().getSimpleName());
+            logger.error("Illegal access to field " + fld + " of toype " + o.getClass().getSimpleName());
         }
     }
 
@@ -594,7 +601,7 @@ public class AnnotationAndReflectionHelper {
             if (o != null) {
                 return f.get(o);
             } else {
-                log.warn("Illegal reference?");
+                logger.warn("Illegal reference?");
             }
 
             return null;
@@ -654,7 +661,7 @@ public class AnnotationAndReflectionHelper {
         Entity entity = getAnnotationFromHierarchy(sc, Entity.class); //(Entity) sc.getAnnotation(Entity.class);
         Embedded embedded = getAnnotationFromHierarchy(sc, Embedded.class);//(Embedded) sc.getAnnotation(Embedded.class);
         if (embedded != null && entity != null) {
-            log.warn("Class " + cls.getName() + " does have both @Entity and @Embedded Annotations - not allowed! Assuming @Entity is right");
+            logger.warn("Class " + cls.getName() + " does have both @Entity and @Embedded Annotations - not allowed! Assuming @Entity is right");
         }
 
         if (embedded == null && entity == null) {
@@ -773,7 +780,7 @@ public class AnnotationAndReflectionHelper {
 
 
     public <T> T getRealObject(T o) {
-        if (o.getClass().getName().contains("$$EnhancerByCGLIB$$")) {
+        if (isProxy(o.getClass())) {
             //not stored or Proxy?
             try {
                 Field f1 = o.getClass().getDeclaredField("CGLIB$CALLBACK_0");
@@ -783,7 +790,7 @@ public class AnnotationAndReflectionHelper {
                 o = (T) m.invoke(delegate);
             } catch (Exception e) {
                 //throw new RuntimeException(e);
-                log.error("Exception: ", e);
+                logger.error("Exception: ", e);
             }
         }
         return o;
@@ -907,7 +914,7 @@ public class AnnotationAndReflectionHelper {
         if (on == null) {
             return;
         }
-        if (on.getClass().getName().contains("$$EnhancerByCGLIB$$")) {
+        if (isProxy(on.getClass())) {
             try {
                 Field f1 = on.getClass().getDeclaredField("CGLIB$CALLBACK_0");
                 f1.setAccessible(true);
@@ -919,7 +926,7 @@ public class AnnotationAndReflectionHelper {
                 }
             } catch (Exception e) {
                 //throw new RuntimeException(e);
-                log.error("Exception: ", e);
+                logger.error("Exception: ", e);
             }
         }
 
