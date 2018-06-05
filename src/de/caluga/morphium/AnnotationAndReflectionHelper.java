@@ -53,21 +53,20 @@ public class AnnotationAndReflectionHelper {
         return getAnnotationFromHierarchy(cls, anCls) != null;
     }
 
-    public <T> Class<? extends T> getRealClass(Class<? extends T> sc) {
-        if (realClassCache.containsKey(sc)) {
-            return (Class<? extends T>) realClassCache.get(sc);
+    public <T> Class<? extends T> getRealClass(final Class<? extends T> superClass) {
+        if (isCached(superClass)) {
+            return (Class<? extends T>) realClassCache.get(superClass);
         }
-        if (sc.getName().contains("$$EnhancerByCGLIB$$")) {
-
+        if (isProxy(superClass)) {
             try {
-                Class ret = Class.forName(sc.getName().substring(0, sc.getName().indexOf("$$")));
-                realClassCache.put(sc, ret);
-                sc = ret;
-            } catch (Exception e) {
-                throw new RuntimeException(e);
+                final Class realClass = realClassOf(superClass);
+                realClassCache.put(superClass, realClass);
+                return realClass;
+            } catch (ClassNotFoundException e) {
+                throw new AnnotationAndReflectionException(e);
             }
         }
-        return sc;
+        return superClass;
     }
 
     public boolean isBufferedWrite(Class<?> cls) {
@@ -982,5 +981,22 @@ public class AnnotationAndReflectionHelper {
         return wb != null && wb.value();
     }
 
+    private <T> boolean isProxy(Class<? extends T> aClass) {
+        return aClass.getName().contains("$$EnhancerByCGLIB$$");
+    }
 
+    private <T> Class<?> realClassOf(Class<? extends T> superClass) throws ClassNotFoundException {
+        return Class.forName(superClass.getName().substring(0, superClass.getName().indexOf("$$")));
+    }
+
+    private <T> boolean isCached(Class<? extends T> superClass) {
+        return realClassCache.containsKey(superClass);
+    }
+
+    private static final class AnnotationAndReflectionException extends RuntimeException {
+
+        public AnnotationAndReflectionException(Exception e) {
+            super(e);
+        }
+    }
 }
