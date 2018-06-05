@@ -8,208 +8,218 @@ import de.caluga.morphium.driver.MorphiumId;
 import de.caluga.test.mongo.suite.data.CachedObject;
 import de.caluga.test.mongo.suite.data.EmbeddedObject;
 import de.caluga.test.mongo.suite.data.UncachedObject;
+import org.junit.Before;
 import org.junit.Test;
 
 import java.lang.reflect.Field;
 import java.util.List;
 import java.util.Objects;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 /**
  * Created by stephan on 26.11.15.
  */
 @SuppressWarnings("AssertWithSideEffects")
 public class AnnotationAndReflectionHelperTest {
-    private AnnotationAndReflectionHelper arHelper = new AnnotationAndReflectionHelper(true);
+
+    private AnnotationAndReflectionHelper helper;
+
+    @Before
+    public void setup() {
+        helper = new AnnotationAndReflectionHelper(true);
+    }
 
     @Test
     public void testIsAnnotationPresentInHierarchy() {
-        assert (arHelper.isAnnotationPresentInHierarchy(UncachedObject.class, Entity.class));
-        assert (arHelper.isAnnotationPresentInHierarchy(CachedObject.class, Cache.class));
+        assertThat(helper.isAnnotationPresentInHierarchy(UncachedObject.class, Entity.class)).isTrue();
+        assertThat(helper.isAnnotationPresentInHierarchy(CachedObject.class, Cache.class)).isTrue();
     }
 
     @Test
     public void testGetRealClass() {
-        assert (arHelper.getRealClass(UncachedObject.class).equals(UncachedObject.class));
+        assertThat(helper.getRealClass(UncachedObject.class)).isEqualTo(UncachedObject.class);
     }
 
     @Test
     public void testIsBufferedWrite() {
-        assert (arHelper.isBufferedWrite(CachedObject.class));
+        assertThat(helper.isBufferedWrite(CachedObject.class)).isTrue();
     }
 
     @Test
     public void testGetAnnotationFromHierarchy() {
-        assert (arHelper.getAnnotationFromHierarchy(UncachedObject.class, Entity.class) != null);
-        assert (arHelper.getAnnotationFromHierarchy(new UncachedObject() {
+        assertThat(helper.getAnnotationFromHierarchy(UncachedObject.class, Entity.class)).isNotNull();
+        assertThat(helper.getAnnotationFromHierarchy(new UncachedObject() {
             private String justASubclass;
-        }.getClass(), Entity.class) != null);
+        }.getClass(), Entity.class)).isNotNull();
 
     }
 
     @Test
     public void testHasAdditionalData() {
-        assert (arHelper.hasAdditionalData(AdditionalDataTest.AddDat.class));
+        assertThat(helper.hasAdditionalData(AdditionalDataTest.AddDat.class)).isTrue();
     }
 
     @Test
     public void testGetFieldName() {
-        String fld = arHelper.getFieldName(UncachedObject.class, "counter");
-        assert (fld != null);
-        assert (fld.equals("counter"));
-        fld = arHelper.getFieldName(UncachedObject.class, "intData");
-        assert (fld != null);
-        assert (fld.equals("int_data"));
+        String fieldName = helper.getFieldName(UncachedObject.class, "counter");
+        assertThat((fieldName)).isNotNull();
+        assertThat(fieldName).isEqualTo("counter");
+        fieldName = helper.getFieldName(UncachedObject.class, "intData");
+        assertThat((fieldName)).isNotNull();
+        assertThat(fieldName).isEqualTo("int_data");
 
     }
 
     @Test
     public void testCreateCamelCase() {
-        assert (arHelper.createCamelCase("hello_world", false).equals("helloWorld"));
-        assert (arHelper.createCamelCase("hello_world", true).equals("HelloWorld"));
+        assertThat(helper.createCamelCase("hello_world", false)).isEqualTo("helloWorld");
+        assertThat(helper.createCamelCase("hello_world", true)).isEqualTo("HelloWorld");
     }
 
     @Test
     public void testConvertCamelCase() {
-        assert (arHelper.convertCamelCase("hello_world").equals("hello_world"));
+        assertThat(helper.convertCamelCase("hello_world")).isEqualTo("hello_world");
     }
 
     @Test
     public void testGetAllFields() throws Exception {
-        List<Field> fld = arHelper.getAllFields(UncachedObject.class);
-        assert (fld.size() == 10) : "wrong " + fld.size();
-        assert (fld.contains(UncachedObject.class.getDeclaredField("counter")));
+        List<Field> fields = helper.getAllFields(UncachedObject.class);
+        assertThat(fields).hasSize(10);
+        assertThat(fields.contains(UncachedObject.class.getDeclaredField("counter"))).isTrue();
     }
 
     @Test
     public void testGetField() {
-        Field fl = arHelper.getField(UncachedObject.class, "counter");
-        assert (fl != null);
-        assert (fl.getName().equals("counter"));
+        Field field = helper.getField(UncachedObject.class, "counter");
+        assertThat((field)).isNotNull();
+        assertThat(field.getName()).isEqualTo("counter");
     }
 
     @Test
     public void testIsEntity() {
-        assert (arHelper.isEntity(UncachedObject.class));
-        assert (arHelper.isEntity(EmbeddedObject.class));
+        assertThat(helper.isEntity(UncachedObject.class)).isTrue();
+        assertThat(helper.isEntity(EmbeddedObject.class)).isTrue();
     }
 
     @Test
     public void testGetValue() {
-        UncachedObject uc = new UncachedObject();
-        uc.setCounter(123);
-        Object c = arHelper.getValue(uc, "counter");
-        assert (c != null);
-        assert (c.equals(123));
+        UncachedObject uncachedObject = new UncachedObject();
+        uncachedObject.setCounter(123);
+        Object value = helper.getValue(uncachedObject, "counter");
+        assertThat((value)).isNotNull();
+        assertThat(value).isEqualTo(123);
     }
 
     @Test
     public void testSetValue() {
-        UncachedObject uc = new UncachedObject();
-        arHelper.setValue(uc, 123, "counter");
-        assert (uc.getCounter() == 123);
+        UncachedObject uncachedObject = new UncachedObject();
+        helper.setValue(uncachedObject, 123, "counter");
+        assertThat(uncachedObject.getCounter()).isEqualTo(123);
     }
 
     @Test
     public void testGetId() {
-        UncachedObject uc = new UncachedObject();
-        uc.setMorphiumId(new MorphiumId());
-        assert (arHelper.getId(uc).equals(uc.getMorphiumId()));
+        UncachedObject uncachedObject = new UncachedObject();
+        uncachedObject.setMorphiumId(new MorphiumId());
+        assertThat(helper.getId(uncachedObject)).isEqualTo(uncachedObject.getMorphiumId());
     }
 
     @Test
     public void testGetIdFieldName() {
-        String idFld = arHelper.getIdFieldName(new UncachedObject());
-        assert (idFld.equals("morphium_id")) : "wrong " + idFld;
+        String fieldName = helper.getIdFieldName(new UncachedObject());
+        assertThat(fieldName).isEqualTo("morphium_id");
     }
 
     @Test
     public void testGetIdField() throws Exception {
-        assert (arHelper.getIdField(new UncachedObject()).equals(UncachedObject.class.getDeclaredField("morphiumId")));
+        assertThat(helper.getIdField(new UncachedObject())).isEqualTo(UncachedObject.class.getDeclaredField("morphiumId"));
     }
 
     @Test
     public void testGetFields() {
-        assert (arHelper.getFields(UncachedObject.class, Id.class).size() == 1);
-        assert (arHelper.getFields(UncachedObject.class, Index.class).size() == 2);
+        assertThat(helper.getFields(UncachedObject.class, Id.class)).hasSize(1);
+        assertThat(helper.getFields(UncachedObject.class, Index.class)).hasSize(2);
     }
 
     @Test
     public void testGetRealObject() {
-        Morphium m = new Morphium();
-        Object pr = m.createPartiallyUpdateableEntity(new UncachedObject());
-        assert (arHelper.getRealObject(pr).getClass().equals(UncachedObject.class));
+        Morphium morphium = new Morphium();
+        Object entity = morphium.createPartiallyUpdateableEntity(new UncachedObject());
+        assertThat(helper.getRealObject(entity).getClass()).isEqualTo(UncachedObject.class);
     }
 
     @Test
     public void testGetTypeOfField() {
-        assert (Objects.equals(arHelper.getTypeOfField(UncachedObject.class, "value"), String.class));
+        assertThat(Objects.equals(helper.getTypeOfField(UncachedObject.class, "value"), String.class)).isTrue();
     }
 
     @Test
     public void testStoresLastChange() {
-        assert (!arHelper.storesLastChange(UncachedObject.class));
-        assert (arHelper.storesLastChange(AutoVariableTest.LCTest.class));
+        assertThat(helper.storesLastChange(UncachedObject.class)).isFalse();
+        assertThat(helper.storesLastChange(AutoVariableTest.LCTest.class)).isTrue();
     }
 
     @Test
     public void testStoresLastAccess() {
-        assert (!arHelper.storesLastAccess(UncachedObject.class));
-        assert (arHelper.storesLastAccess(AutoVariableTest.LATest.class));
+        assertThat(helper.storesLastAccess(UncachedObject.class)).isFalse();
+        assertThat(helper.storesLastAccess(AutoVariableTest.LATest.class)).isTrue();
     }
 
     @Test
     public void testStoresCreation() {
-        assert (!arHelper.storesCreation(UncachedObject.class));
-        assert (arHelper.storesCreation(AutoVariableTest.CTimeTest.class));
+        assertThat(helper.storesCreation(UncachedObject.class)).isFalse();
+        assertThat(helper.storesCreation(AutoVariableTest.CTimeTest.class)).isTrue();
     }
 
     @Test
-    public void testGetAllAnnotationsFromHierachy() {
-        assert (arHelper.getAllAnnotationsFromHierachy(UncachedObject.class).size() == 4) : "wrong: " + arHelper.getAllAnnotationsFromHierachy(UncachedObject.class).size();
+    public void testGetAllAnnotationsFromHierarchy() {
+        assertThat(helper.getAllAnnotationsFromHierachy(UncachedObject.class)).hasSize(4);
     }
 
     @Test
-    public void testIgnorFieldsAnnotation() {
-        assert (!arHelper.getFields(TestClass.class).contains("var1"));
-        assert (arHelper.getFields(TestClass.class).contains("var2"));
+    public void testIgnoreFieldsAnnotation() {
+        assertThat(helper.getFields(TestClass.class).contains("var1")).isFalse();
+        assertThat(helper.getFields(TestClass.class).contains("var2")).isTrue();
     }
 
     @Test
     public void testLimitToFieldsAnnotationList() {
-        assert (!arHelper.getFields(TestClass2.class).contains("var2") && !arHelper.getFields(TestClass2.class).contains("var3"));
-        assert (arHelper.getFields(TestClass2.class).contains("var1"));
+        assertThat(helper.getFields(TestClass2.class).contains("var2")).isFalse();
+        assertThat(helper.getFields(TestClass2.class).contains("var3")).isFalse();
+        assertThat(helper.getFields(TestClass2.class).contains("var1")).isTrue();
     }
 
     @Test
     public void testLimitToFieldsAnnotationType() {
-        assert (arHelper.getFields(TestClass3.class).contains("var1"));
-        assert (arHelper.getFields(TestClass3.class).contains("var2"));
-        assert (arHelper.getFields(TestClass3.class).contains("var3"));
-        assert (!arHelper.getFields(TestClass3.class).contains("not_valid"));
-        assert (!arHelper.getFields(TestClass3.class).contains("notValid"));
+        assertThat(helper.getFields(TestClass3.class).contains("var1")).isTrue();
+        assertThat(helper.getFields(TestClass3.class).contains("var2")).isTrue();
+        assertThat(helper.getFields(TestClass3.class).contains("var3")).isTrue();
+        assertThat(helper.getFields(TestClass3.class).contains("not_valid")).isFalse();
+        assertThat(helper.getFields(TestClass3.class).contains("notValid")).isFalse();
 
     }
 
 
     @Test
     public void testLimitToFieldsContains() {
-        assert (!arHelper.getFields(TestClass4.class).contains("var1"));
-        assert (!arHelper.getFields(TestClass4.class).contains("var2"));
-        assert (!arHelper.getFields(TestClass4.class).contains("var3"));
-        assert (!arHelper.getFields(TestClass4.class).contains("id"));
-        assert (!arHelper.getFields(TestClass4.class).contains("_id"));
-        assert (arHelper.getFields(TestClass4.class).contains("something"));
+        assertThat(helper.getFields(TestClass4.class).contains("var1")).isFalse();
+        assertThat(helper.getFields(TestClass4.class).contains("var2")).isFalse();
+        assertThat(helper.getFields(TestClass4.class).contains("var3")).isFalse();
+        assertThat(helper.getFields(TestClass4.class).contains("id")).isFalse();
+        assertThat(helper.getFields(TestClass4.class).contains("_id")).isFalse();
+        assertThat(helper.getFields(TestClass4.class).contains("something")).isTrue();
 
     }
 
     @Test
     public void testLimitToFieldsRegex() {
-        assert (!arHelper.getFields(TestClass5.class).contains("var1"));
-        assert (!arHelper.getFields(TestClass5.class).contains("var2"));
-        assert (arHelper.getFields(TestClass5.class).contains("var3"));
-        assert (!arHelper.getFields(TestClass5.class).contains("id"));
-        assert (!arHelper.getFields(TestClass5.class).contains("_id"));
-        assert (arHelper.getFields(TestClass5.class).contains("something"));
+        assertThat(helper.getFields(TestClass5.class).contains("var1")).isFalse();
+        assertThat(helper.getFields(TestClass5.class).contains("var2")).isFalse();
+        assertThat(helper.getFields(TestClass5.class).contains("var3")).isTrue();
+        assertThat(helper.getFields(TestClass5.class).contains("id")).isFalse();
+        assertThat(helper.getFields(TestClass5.class).contains("_id")).isFalse();
+        assertThat(helper.getFields(TestClass5.class).contains("something")).isTrue();
 
     }
 
