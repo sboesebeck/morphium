@@ -204,6 +204,7 @@ public class MessagingTest extends MongoTest {
 
     @Test
     public void systemTest() throws Exception {
+        morphium.dropCollection(Msg.class);
         gotMessage1 = false;
         gotMessage2 = false;
         gotMessage3 = false;
@@ -770,7 +771,8 @@ public class MessagingTest extends MongoTest {
 
     @Test
     public void messagingSendReceiveThreaddedTest() throws Exception {
-        morphium.clearCollection(Msg.class);
+        morphium.dropCollection(Msg.class);
+        Thread.sleep(100);
         final Messaging producer = new Messaging(morphium, 100, true,false,10);
         final Messaging consumer = new Messaging(morphium, 10, true,true,10);
         producer.start();
@@ -1090,6 +1092,26 @@ public class MessagingTest extends MongoTest {
     }
 
 
+    @Test(expected = RuntimeException.class)
+    public void sendAndWaitforAnswerTestFailing() {
+        Messaging m1 = new Messaging(morphium, 100, false);
+        log.info("Upcoming Errormessage is expected!");
+        try {
+            m1.addMessageListener((msg, m) -> {
+                gotMessage1 = true;
+                return new Msg(m.getName(), "got message", "value", 5000);
+            });
+
+            m1.start();
+
+            Msg answer = m1.sendAndAwaitFirstAnswer(new Msg("test", "Sender", "sent", 5000), 500);
+        } finally {
+            //cleaning up
+            m1.terminate();
+            morphium.dropCollection(Msg.class);
+        }
+
+    }
     @Test
     public void sendAndWaitforAnswerTest() {
         morphium.dropCollection(Msg.class);
