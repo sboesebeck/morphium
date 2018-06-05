@@ -8,14 +8,19 @@ import de.caluga.morphium.driver.MorphiumId;
 import de.caluga.test.mongo.suite.data.CachedObject;
 import de.caluga.test.mongo.suite.data.EmbeddedObject;
 import de.caluga.test.mongo.suite.data.UncachedObject;
+import net.sf.cglib.proxy.Enhancer;
+import net.sf.cglib.proxy.FixedValue;
 import org.junit.Before;
 import org.junit.Test;
 
 import java.lang.reflect.Field;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
 
 /**
  * Created by stephan on 26.11.15.
@@ -37,8 +42,34 @@ public class AnnotationAndReflectionHelperTest {
     }
 
     @Test
-    public void testGetRealClass() {
+    public void returnsTheRealClassFromCache() {
+        // Given
+        Map<Class<?>, Class<?>> realClassCache = new HashMap<>();
+        helper = new AnnotationAndReflectionHelper(true, realClassCache);
+        helper.getRealClass(newProxy().getClass());
+        // When
+        helper.getRealClass(newProxy().getClass());
+        // Then
+        assertThat(realClassCache).hasSize(1);
+        assertThat(realClassCache.containsKey(newProxy().getClass())).isTrue();
+    }
+
+    private UncachedObject newProxy() {
+        Enhancer enhancer = new Enhancer();
+        enhancer.setSuperclass(UncachedObject.class);
+        enhancer.setCallback((FixedValue) () -> "proxy");
+        return (UncachedObject) enhancer.create();
+    }
+
+    @Test
+    public void returnsTheRealClassOfSuperClass() {
         assertThat(helper.getRealClass(UncachedObject.class)).isEqualTo(UncachedObject.class);
+    }
+
+
+    @Test
+    public void throwsNullPointerExceptionWhenSuperClassIsNull() {
+        assertThatExceptionOfType(NullPointerException.class).isThrownBy(() -> helper.getRealClass(null));
     }
 
     @Test

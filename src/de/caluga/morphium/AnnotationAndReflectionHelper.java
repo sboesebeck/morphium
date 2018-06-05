@@ -21,7 +21,7 @@ import java.util.regex.Pattern;
  * Date: 07.03.13
  * Time: 11:10
  * <p/>
- * This class will capsulate all calls to the reflection API. Espeically getting all the annotations from
+ * This class will encapsulate all calls to the reflection API. Specially getting all the annotations from
  * entities is done here. For performance increase (and because the structure of the code usually does not
  * change during runtime) those results are being cached.
  * <p>
@@ -29,9 +29,9 @@ import java.util.regex.Pattern;
  */
 @SuppressWarnings("unchecked")
 public class AnnotationAndReflectionHelper {
-    private final Annotation annotationNotPresent = () -> null;
+    private static final Annotation ANNOTATION_NOT_PRESENT = () -> null;
     private final Logger log = LoggerFactory.getLogger(AnnotationAndReflectionHelper.class);
-    private final Map<Class<?>, Class<?>> realClassCache = new ConcurrentHashMap<>();
+    private final Map<Class<?>, Class<?>> realClassCache;
     private final Map<Class<?>, List<Field>> fieldListCache = new ConcurrentHashMap<>();
     private final Map<Class<?>, Map<Class<? extends Annotation>, Annotation>> annotationCache;
     private final Map<Class<?>, Map<String, String>> fieldNameCache;
@@ -43,6 +43,16 @@ public class AnnotationAndReflectionHelper {
 
     public AnnotationAndReflectionHelper(boolean convertCamelCase) {
         this.ccc = convertCamelCase;
+        this.realClassCache = new ConcurrentHashMap<>();
+        lifeCycleMethods = new ConcurrentHashMap<>();
+        hasAdditionalData = new ConcurrentHashMap<>();
+        annotationCache = new ConcurrentHashMap<>();
+        fieldNameCache = new ConcurrentHashMap<>();
+    }
+
+    public AnnotationAndReflectionHelper(boolean convertCamelCase, Map<Class<?>, Class<?>> realClassCache) {
+        this.ccc = convertCamelCase;
+        this.realClassCache = realClassCache;
         lifeCycleMethods = new ConcurrentHashMap<>();
         hasAdditionalData = new ConcurrentHashMap<>();
         annotationCache = new ConcurrentHashMap<>();
@@ -58,13 +68,9 @@ public class AnnotationAndReflectionHelper {
             return (Class<? extends T>) realClassCache.get(superClass);
         }
         if (isProxy(superClass)) {
-            try {
-                final Class realClass = realClassOf(superClass);
-                realClassCache.put(superClass, realClass);
-                return realClass;
-            } catch (ClassNotFoundException e) {
-                throw new AnnotationAndReflectionException(e);
-            }
+            final Class realClass = realClassOf(superClass);
+            realClassCache.put(superClass, realClass);
+            return realClass;
         }
         return superClass;
     }
@@ -85,7 +91,7 @@ public class AnnotationAndReflectionHelper {
     public <T extends Annotation> T getAnnotationFromHierarchy(Class<?> cls, Class<? extends T> anCls) {
         cls = getRealClass(cls);
         if (annotationCache.get(cls) != null && annotationCache.get(cls).get(anCls) != null) {
-            if (annotationCache.get(cls).get(anCls).equals(annotationNotPresent)) {
+            if (annotationCache.get(cls).get(anCls).equals(ANNOTATION_NOT_PRESENT)) {
                 return null;
             }
             return (T) annotationCache.get(cls).get(anCls);
@@ -126,7 +132,7 @@ public class AnnotationAndReflectionHelper {
         }
         if (ret == null) {
             //annotation not present in hierarchy, store marker
-            annotationCache.get(cls).put(anCls, annotationNotPresent);
+            annotationCache.get(cls).put(anCls, ANNOTATION_NOT_PRESENT);
         } else {
             //found it, keep it in cache
             annotationCache.get(cls).put(anCls, ret);
@@ -985,8 +991,12 @@ public class AnnotationAndReflectionHelper {
         return aClass.getName().contains("$$EnhancerByCGLIB$$");
     }
 
-    private <T> Class<?> realClassOf(Class<? extends T> superClass) throws ClassNotFoundException {
-        return Class.forName(superClass.getName().substring(0, superClass.getName().indexOf("$$")));
+    private <T> Class<?> realClassOf(Class<? extends T> superClass) {
+        try {
+            return Class.forName(superClass.getName().substring(0, superClass.getName().indexOf("$$")));
+        } catch (ClassNotFoundException e) {
+            throw new AnnotationAndReflectionException(e);
+        }
     }
 
     private <T> boolean isCached(Class<? extends T> superClass) {
@@ -995,7 +1005,7 @@ public class AnnotationAndReflectionHelper {
 
     private static final class AnnotationAndReflectionException extends RuntimeException {
 
-        public AnnotationAndReflectionException(Exception e) {
+        AnnotationAndReflectionException(Exception e) {
             super(e);
         }
     }
