@@ -25,10 +25,10 @@
     </licenses>
 
     <scm>
-	<url>https://github.com/sboesebeck/morphium</url>
-	<connection>scm:git:git://github.com/sboesebeck/morphium.git</connection>
-	<developerConnection>scm:git:git@github.com:sboesebeck/morphium.git</developerConnection>
-   </scm>
+        <url>https://github.com/sboesebeck/morphium</url>
+        <connection>scm:git:git://github.com/sboesebeck/morphium.git</connection>
+        <developerConnection>scm:git:git@github.com:sboesebeck/morphium.git</developerConnection>
+    </scm>
 
     <developers>
         <developer>
@@ -114,6 +114,12 @@
             <groupId>junit</groupId>
             <artifactId>junit</artifactId>
             <version>4.11</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.assertj</groupId>
+            <artifactId>assertj-core</artifactId>
+            <version>3.10.0</version>
             <scope>test</scope>
         </dependency>
         <dependency>
@@ -204,11 +210,11 @@
             <version>RELEASE</version>
         </dependency>
 
-	<dependency>
-	    <groupId>org.apache.commons</groupId>
-	    <artifactId>commons-lang3</artifactId>
-	    <version>3.0</version>
-	</dependency>
+        <dependency>
+            <groupId>org.apache.commons</groupId>
+            <artifactId>commons-lang3</artifactId>
+            <version>3.0</version>
+        </dependency>
 
     </dependencies>
 
