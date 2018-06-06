@@ -162,13 +162,13 @@ public class Messaging extends Thread implements ShutdownListener {
 
 
         if (useOplogMonitor) {
-            log.info("Before running the oplogmonitor - check of already existing messages");
+            log.debug("Before running the oplogmonitor - check of already existing messages");
             try {
                 findAndProcessMessages(new HashMap<>(), true);
             } catch (Exception e) {
                 log.error("Error processing existing messages in queue", e);
             }
-            log.info("init Messaging  using oplogmonitor");
+            log.debug("init Messaging  using oplogmonitor");
             oplogMonitor = new OplogMonitor(morphium, getCollectionName(),false);
             oplogMonitor.addListener(data -> {
 //                    log.debug("incoming message via oplogmonitor");
@@ -187,7 +187,7 @@ public class Messaging extends Thread implements ShutdownListener {
                     //do not process messages, that are exclusive, but already processed or not for me / all
                     if (obj.isExclusive() && obj.getLockedBy() == null && (obj.getRecipient() == null || obj.getRecipient().equals(id)) && (obj.getProcessedBy() == null || !obj.getProcessedBy().contains(id))) {
                         // locking
-                        log.info("trying to lock exclusive message");
+                        log.debug("trying to lock exclusive message");
                         lockAndProcess(obj);
 
                     } else if (!obj.isExclusive() || (obj.getRecipient() != null && obj.getRecipient().equals(id))) {
@@ -268,7 +268,7 @@ public class Messaging extends Thread implements ShutdownListener {
         if (ret != null) {
             ret = System.currentTimeMillis() - ret;
         }
-        log.info("after pausing, try to get unhandeled messages");
+        log.debug("after pausing, try to get unhandeled messages");
         try {
             findAndProcessMessages(new HashMap<>(), true);
         } catch (Exception e) {
@@ -358,7 +358,7 @@ public class Messaging extends Thread implements ShutdownListener {
                     return;
                 }
                 if (msg.getProcessedBy() != null && msg.getProcessedBy().contains(id)) {
-                    log.info("Was already processed - multithreadding?");
+                    log.debug("Was already processed - multithreadding?");
                     return;
                 }
                 if (!msg.getLockedBy().equals(id) && !msg.getLockedBy().equals("ALL")) {
@@ -367,7 +367,7 @@ public class Messaging extends Thread implements ShutdownListener {
                 }
                 if (msg.getTtl() < System.currentTimeMillis() - msg.getTimestamp()) {
                     //Delete outdated msg!
-                    log.info("Found outdated message - deleting it!");
+                    log.debug("Found outdated message - deleting it!");
                     morphium.delete(msg, getCollectionName());
                     return;
                 }
