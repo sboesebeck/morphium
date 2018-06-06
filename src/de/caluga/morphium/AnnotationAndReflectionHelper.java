@@ -13,8 +13,13 @@ import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Consumer;
 import java.util.regex.Pattern;
 
+import static java.lang.String.format;
+import static java.util.Collections.emptyMap;
+import static java.util.Optional.ofNullable;
+import static java.util.stream.Stream.of;
 import static org.slf4j.LoggerFactory.getLogger;
 
 /**
@@ -30,6 +35,7 @@ import static org.slf4j.LoggerFactory.getLogger;
  */
 @SuppressWarnings("unchecked")
 public class AnnotationAndReflectionHelper {
+
     private static final Annotation ANNOTATION_NOT_PRESENT = () -> null;
     private final Logger logger = getLogger(AnnotationAndReflectionHelper.class);
     private final Map<Class<?>, Class<?>> realClassCache;
@@ -66,8 +72,70 @@ public class AnnotationAndReflectionHelper {
         this.fieldNameCache = new ConcurrentHashMap<>();
     }
 
-    public <T extends Annotation> boolean isAnnotationPresentInHierarchy(Class<?> cls, Class<? extends T> anCls) {
-        return getAnnotationFromHierarchy(cls, anCls) != null;
+    public <T extends Annotation> boolean isAnnotationPresentInHierarchy(final Class<?> aClass, final Class<? extends T> annotationClass) {
+        return getAnnotationFromHierarchy(aClass, annotationClass) != null;
+    }
+
+    /**
+     * returns annotations, even if in class hierarchy or
+     * lazyloading proxy
+     *
+     * @param superClass class
+     * @return the Annotation
+     */
+    public <T extends Annotation> T getAnnotationFromHierarchy(final Class<?> superClass, final Class<? extends T> annotationClass) {
+
+        final Class<?> aClass = getRealClass(superClass);
+
+        if (isCached(aClass, annotationClass)) {
+            return (T) annotationCache.get(aClass).get(annotationClass);
+        }
+
+        final Optional<T> annotation = of(aClass.getAnnotation(annotationClass), annotationOfClassHierarchy(aClass, annotationClass))
+                .filter(Objects::nonNull).findFirst();
+
+        annotation.ifPresent(cacheAnnotation(aClass, annotationClass));
+
+        return annotation.orElse(null);
+    }
+
+    private <T extends Annotation> T annotationOfClassHierarchy(Class<?> aClass, Class<? extends T> annotationClass) {
+        T annotation = null;
+        Class<?> tmpClass = aClass;
+        while (!tmpClass.equals(Object.class)) {
+            if (tmpClass.isAnnotationPresent(annotationClass)) {
+                annotation = tmpClass.getAnnotation(annotationClass); //found it on the "downmost" inheritence level
+                break;
+            }
+            tmpClass = tmpClass.getSuperclass();
+            if (tmpClass == null) {
+                break;
+            }
+        }
+
+        if (annotation == null) {
+            //check interfaces if nothing was found yet
+            Queue<Class<?>> interfaces = new LinkedList<>();
+            Collections.addAll(interfaces, aClass.getInterfaces());
+            while (!interfaces.isEmpty()) {
+                Class<?> anInterface = interfaces.poll();
+                if (anInterface != null) {
+                    if (anInterface.isAnnotationPresent(annotationClass)) {
+                        annotation = anInterface.getAnnotation(annotationClass);
+                        break; //no need to look further, found annotation
+                    }
+                    interfaces.addAll(Arrays.asList(anInterface.getInterfaces()));
+                }
+            }
+        }
+        return annotation;
+    }
+
+    private <T extends Annotation> boolean isCached(Class<?> aClass, Class<? extends T> annotationClass) {
+        return !ofNullable(annotationCache.putIfAbsent(aClass, new HashMap<>()))
+                .orElse(emptyMap())
+                .getOrDefault(annotationClass, ANNOTATION_NOT_PRESENT)
+                .equals(ANNOTATION_NOT_PRESENT);
     }
 
     public <T> Class<? extends T> getRealClass(final Class<? extends T> superClass) {
@@ -82,82 +150,21 @@ public class AnnotationAndReflectionHelper {
         return superClass;
     }
 
-    public boolean isBufferedWrite(Class<?> cls) {
-        WriteBuffer wb = getAnnotationFromHierarchy(cls, WriteBuffer.class);
+    public boolean isBufferedWrite(Class<?> aClass) {
+        WriteBuffer wb = getAnnotationFromHierarchy(aClass, WriteBuffer.class);
         return wb != null && wb.value();
     }
 
 
-    /**
-     * returns annotations, even if in class hierarchy or
-     * lazyloading proxy
-     *
-     * @param cls class
-     * @return the Annotation
-     */
-    public <T extends Annotation> T getAnnotationFromHierarchy(Class<?> cls, Class<? extends T> anCls) {
-        cls = getRealClass(cls);
-        if (annotationCache.get(cls) != null && annotationCache.get(cls).get(anCls) != null) {
-            if (annotationCache.get(cls).get(anCls).equals(ANNOTATION_NOT_PRESENT)) {
-                return null;
-            }
-            return (T) annotationCache.get(cls).get(anCls);
-        }
-        T ret;
-        annotationCache.putIfAbsent(cls, new HashMap<>());
-
-        ret = cls.getAnnotation(anCls);
-        if (ret == null) {
-
-            //class hierarchy?
-            Class<?> z = cls;
-            while (!z.equals(Object.class)) {
-                if (z.isAnnotationPresent(anCls)) {
-                    ret = z.getAnnotation(anCls); //found it on the "downmost" inheritence level
-                    break;
-                }
-                z = z.getSuperclass();
-                if (z == null) {
-                    break;
-                }
-            }
-
-            if (ret == null) {
-                //check interfaces if nothing was found yet
-                Queue<Class<?>> interfaces = new LinkedList<>();
-                Collections.addAll(interfaces, cls.getInterfaces());
-                while (!interfaces.isEmpty()) {
-                    Class<?> iface = interfaces.poll();
-                    if (iface != null) {
-                        if (iface.isAnnotationPresent(anCls)) {
-                            ret = iface.getAnnotation(anCls);
-                            break; //no need to look further, found annotation
-                        }
-                        interfaces.addAll(Arrays.asList(iface.getInterfaces()));
-                    }
-                }
-            }
-
-        }
-        if (ret == null) {
-            //annotation not present in hierarchy, store marker
-            annotationCache.get(cls).put(anCls, ANNOTATION_NOT_PRESENT);
-        } else {
-            //found it, keep it in cache
-            annotationCache.get(cls).put(anCls, ret);
-        }
-        return ret;
-    }
-
-    public boolean hasAdditionalData(Class clz) {
-        if (hasAdditionalData.get(clz) == null) {
-            List<String> lst = getFields(clz, AdditionalData.class);
-            Map m = hasAdditionalData; // (HashMap) ((HashMap) hasAdditionalData).clone();
-            m.put(clz, (lst != null && !lst.isEmpty()));
+    public boolean hasAdditionalData(Class aClass) {
+        if (hasAdditionalData.get(aClass) == null) {
+            Collection<String> fields = getFields(aClass, AdditionalData.class);
+            Map m = hasAdditionalData;
+            m.put(aClass, (fields != null && !fields.isEmpty()));
             hasAdditionalData = m;
         }
 
-        return hasAdditionalData.get(clz);
+        return hasAdditionalData.get(aClass);
     }
 
     @SuppressWarnings("StatementWithEmptyBody")
@@ -186,7 +193,7 @@ public class AnnotationAndReflectionHelper {
                 return field;
             }
             if (f == null) {
-                throw new RuntimeException("Field not found " + field + " in cls: " + clz.getName());
+                throw new AnnotationAndReflectionException("Field not found " + field + " in cls: " + clz.getName());
             }
             if (f.isAnnotationPresent(Property.class)) {
                 Property p = f.getAnnotation(Property.class);
@@ -207,14 +214,14 @@ public class AnnotationAndReflectionHelper {
 
 
             ret = f.getName();
-            Entity ent = getAnnotationFromHierarchy(cls, Entity.class); //(Entity) cls.getAnnotation(Entity.class);
-            Embedded emb = getAnnotationFromHierarchy(cls, Embedded.class);//(Embedded) cls.getAnnotation(Embedded.class);
+            Entity ent = getAnnotationFromHierarchy(cls, Entity.class);
+            Embedded emb = getAnnotationFromHierarchy(cls, Embedded.class);
             if ((ccc && ent != null && ent.translateCamelCase())
                     || (ccc && emb != null && emb.translateCamelCase())) {
                 ret = convertCamelCase(ret);
             }
         }
-        Map<Class<?>, Map<String, String>> m = fieldNameCache; // (HashMap) ((HashMap) fieldNameCache).clone();
+        Map<Class<?>, Map<String, String>> m = fieldNameCache;
         if (!m.containsKey(cls)) {
             m.put(cls, new HashMap<>());
         }
@@ -233,7 +240,7 @@ public class AnnotationAndReflectionHelper {
      */
     public String createCamelCase(String n, boolean capitalize) {
         n = n.toLowerCase();
-        String f[] = n.split("_");
+        String[] f = n.split("_");
         StringBuilder sb = new StringBuilder(f[0].substring(0, 1).toLowerCase());
         //String ret =
         sb.append(f[0].substring(1));
@@ -295,7 +302,6 @@ public class AnnotationAndReflectionHelper {
         //we need to run through it in the right order
         //in order to allow Inheritance to "shadow" fields
         for (Class c : hierachy) {
-            //            Class c = hierachy.get(i);
             Collections.addAll(ret, c.getDeclaredFields());
         }
         fieldListCache.put(clz, ret);
@@ -317,7 +323,7 @@ public class AnnotationAndReflectionHelper {
         if (val != null) {
             return val;
         }
-        Map<String, Field> fc = fieldCache; //(HashMap) ((HashMap) fieldCache).clone();
+        Map<String, Field> fc = fieldCache;
         Class cls = getRealClass(clz);
         List<Field> flds = getAllFields(cls);
         Field ret = null;
@@ -412,159 +418,159 @@ public class AnnotationAndReflectionHelper {
             return;
         }
         try {
-            Field f = getField(getRealClass(o.getClass()), fld);
-            if (!Modifier.isStatic(f.getModifiers())) {
+            Field field = getField(getRealClass(o.getClass()), fld);
+            if (!Modifier.isStatic(field.getModifiers())) {
                 o = getRealObject(o);
                 try {
-                    f.set(o, value);
+                    field.set(o, value);
                 } catch (Exception e) {
 
                     if (value != null) {
                         if (logger.isDebugEnabled()) {
-                            logger.debug("Setting of value (" + value.getClass().getSimpleName() + ") failed for field " + f.getName() + "- trying type-conversion");
+                            logger.debug("Setting of value (" + value.getClass().getSimpleName() + ") failed for field " + field.getName() + "- trying type-conversion");
                         }
                         //Doing some type conversions... lots of :-(
                         if (value instanceof Double) {
                             //maybe some kind of Default???
                             Double d = (Double) value;
-                            if (f.getType().equals(Integer.class) || f.getType().equals(int.class)) {
-                                f.set(o, d.intValue());
-                            } else if (f.getType().equals(Long.class) || f.getType().equals(long.class)) {
-                                f.set(o, d.longValue());
-                            } else if (f.getType().equals(Date.class)) {
+                            if (field.getType().equals(Integer.class) || field.getType().equals(int.class)) {
+                                field.set(o, d.intValue());
+                            } else if (field.getType().equals(Long.class) || field.getType().equals(long.class)) {
+                                field.set(o, d.longValue());
+                            } else if (field.getType().equals(Date.class)) {
                                 //Fucking date / timestamp mixup
-                                f.set(o, new Date(d.longValue()));
-                            } else if (f.getType().equals(Float.class) || f.getType().equals(float.class)) {
-                                f.set(o, d.floatValue());
-                            } else if (f.getType().equals(Boolean.class) || f.getType().equals(boolean.class)) {
-                                f.set(o, d == 1.0);
-                            } else if (f.getType().equals(String.class)) {
-                                f.set(o, d.toString());
+                                field.set(o, new Date(d.longValue()));
+                            } else if (field.getType().equals(Float.class) || field.getType().equals(float.class)) {
+                                field.set(o, d.floatValue());
+                            } else if (field.getType().equals(Boolean.class) || field.getType().equals(boolean.class)) {
+                                field.set(o, d == 1.0);
+                            } else if (field.getType().equals(String.class)) {
+                                field.set(o, d.toString());
                             } else {
-                                throw new RuntimeException("could not set field " + fld + ": Field has type " + f.getType().toString() + " got type " + value.getClass().toString());
+                                throw AnnotationAndReflectionException.wrongFieldType(fld, field.getType().toString(), value.getClass().toString());
                             }
                         } else if (value instanceof Float) {
                             //maybe some kind of Default???
                             Float d = (Float) value;
-                            if (f.getType().equals(Integer.class) || f.getType().equals(int.class)) {
-                                f.set(o, d.intValue());
-                            } else if (f.getType().equals(Long.class) || f.getType().equals(long.class)) {
-                                f.set(o, d.longValue());
-                            } else if (f.getType().equals(Date.class)) {
+                            if (field.getType().equals(Integer.class) || field.getType().equals(int.class)) {
+                                field.set(o, d.intValue());
+                            } else if (field.getType().equals(Long.class) || field.getType().equals(long.class)) {
+                                field.set(o, d.longValue());
+                            } else if (field.getType().equals(Date.class)) {
                                 //Fucking date / timestamp mixup
-                                f.set(o, new Date(d.longValue()));
-                            } else if (f.getType().equals(Float.class) || f.getType().equals(float.class)) {
-                                f.set(o, d);
-                            } else if (f.getType().equals(Boolean.class) || f.getType().equals(boolean.class)) {
-                                f.set(o, d == 1.0f);
-                            } else if (f.getType().equals(String.class)) {
-                                f.set(o, d.toString());
+                                field.set(o, new Date(d.longValue()));
+                            } else if (field.getType().equals(Float.class) || field.getType().equals(float.class)) {
+                                field.set(o, d);
+                            } else if (field.getType().equals(Boolean.class) || field.getType().equals(boolean.class)) {
+                                field.set(o, d == 1.0f);
+                            } else if (field.getType().equals(String.class)) {
+                                field.set(o, d.toString());
                             } else {
-                                throw new RuntimeException("could not set field " + fld + ": Field has type " + f.getType().toString() + " got type " + value.getClass().toString());
+                                throw AnnotationAndReflectionException.wrongFieldType(fld, field.getType().toString(), value.getClass().toString());
                             }
                         } else if (value instanceof Date) {
                             //Date/String mess-up?
                             Date d = (Date) value;
-                            if (f.getType().equals(Long.class) || f.getType().equals(long.class)) {
-                                f.set(o, d.getTime());
-                            } else if (f.getType().equals(GregorianCalendar.class)) {
+                            if (field.getType().equals(Long.class) || field.getType().equals(long.class)) {
+                                field.set(o, d.getTime());
+                            } else if (field.getType().equals(GregorianCalendar.class)) {
                                 GregorianCalendar cal = new GregorianCalendar();
                                 cal.setTimeInMillis(d.getTime());
-                                f.set(o, cal);
-                            } else if (f.getType().equals(String.class)) {
+                                field.set(o, cal);
+                            } else if (field.getType().equals(String.class)) {
                                 SimpleDateFormat df = new SimpleDateFormat("yyyyMMdd");
-                                f.set(o, df.format(d));
+                                field.set(o, df.format(d));
                             }
                         } else if (value instanceof String) {
                             //String->Number conversion necessary????
                             try {
                                 String s = (String) value;
-                                if (f.getType().equals(Long.class) || f.getType().equals(long.class)) {
-                                    f.set(o, Long.parseLong(s));
-                                } else if (f.getType().equals(Integer.class) || f.getType().equals(int.class)) {
-                                    f.set(o, Integer.parseInt(s));
-                                } else if (f.getType().equals(Double.class) || f.getType().equals(double.class)) {
-                                    f.set(o, Double.parseDouble(s));
-                                } else if (f.getType().equals(Date.class)) {
+                                if (field.getType().equals(Long.class) || field.getType().equals(long.class)) {
+                                    field.set(o, Long.parseLong(s));
+                                } else if (field.getType().equals(Integer.class) || field.getType().equals(int.class)) {
+                                    field.set(o, Integer.parseInt(s));
+                                } else if (field.getType().equals(Double.class) || field.getType().equals(double.class)) {
+                                    field.set(o, Double.parseDouble(s));
+                                } else if (field.getType().equals(Date.class)) {
                                     //Fucking date / timestamp mixup
                                     if (s.length() == 8) {
                                         //probably time-string 20120812
                                         SimpleDateFormat df = new SimpleDateFormat("yyyyMMdd");
-                                        f.set(o, df.parse(s));
-                                    } else if (s.indexOf("-") > 0) {
+                                        field.set(o, df.parse(s));
+                                    } else if (s.indexOf('-') > 0) {
                                         //maybe a date-String?
                                         SimpleDateFormat df = new SimpleDateFormat("yyyy-MM-dd");
-                                        f.set(o, df.parse(s));
-                                    } else if (s.indexOf(".") > 0) {
+                                        field.set(o, df.parse(s));
+                                    } else if (s.indexOf('.') > 0) {
                                         //maybe a date-String?
                                         SimpleDateFormat df = new SimpleDateFormat("dd.MM.yyyy");
-                                        f.set(o, df.parse(s));
+                                        field.set(o, df.parse(s));
                                     } else {
-                                        f.set(o, new Date(Long.parseLong(s)));
+                                        field.set(o, new Date(Long.parseLong(s)));
                                     }
-                                } else if (f.getType().equals(Boolean.class) || f.getType().equals(boolean.class)) {
-                                    f.set(o, s.equalsIgnoreCase("true"));
-                                } else if (f.getType().equals(Float.class) || f.getType().equals(float.class)) {
-                                    f.set(o, Float.parseFloat(s));
-                                } else if (f.getType().equals(MorphiumId.class)) {
-                                    f.set(o, new MorphiumId(s));
+                                } else if (field.getType().equals(Boolean.class) || field.getType().equals(boolean.class)) {
+                                    field.set(o, s.equalsIgnoreCase("true"));
+                                } else if (field.getType().equals(Float.class) || field.getType().equals(float.class)) {
+                                    field.set(o, Float.parseFloat(s));
+                                } else if (field.getType().equals(MorphiumId.class)) {
+                                    field.set(o, new MorphiumId(s));
                                 } else {
-                                    throw new RuntimeException("could not set field " + fld + ": Field has type " + f.getType().toString() + " got type " + value.getClass().toString());
+                                    throw AnnotationAndReflectionException.wrongFieldType(fld, field.getType().toString(), value.getClass().toString());
                                 }
-                            } catch (ParseException e1) {
-                                throw new RuntimeException(e1);
+                            } catch (ParseException pe) {
+                                throw AnnotationAndReflectionException.of(pe);
                             }
                         } else if (value instanceof Integer) {
                             Integer i = (Integer) value;
-                            if (f.getType().equals(Long.class) || f.getType().equals(long.class)) {
-                                f.set(o, i.longValue());
-                            } else if (f.getType().equals(Double.class) || f.getType().equals(double.class)) {
-                                f.set(o, i.doubleValue());
-                            } else if (f.getType().equals(Date.class)) {
+                            if (field.getType().equals(Long.class) || field.getType().equals(long.class)) {
+                                field.set(o, i.longValue());
+                            } else if (field.getType().equals(Double.class) || field.getType().equals(double.class)) {
+                                field.set(o, i.doubleValue());
+                            } else if (field.getType().equals(Date.class)) {
                                 //Fucking date / timestamp mixup
-                                f.set(o, new Date(i.longValue()));
-                            } else if (f.getType().equals(String.class)) {
-                                f.set(o, i.toString());
-                            } else if (f.getType().equals(Float.class) || f.getType().equals(float.class)) {
-                                f.set(o, i.floatValue());
-                            } else if (f.getType().equals(Boolean.class) || f.getType().equals(boolean.class)) {
-                                f.set(o, i == 1);
+                                field.set(o, new Date(i.longValue()));
+                            } else if (field.getType().equals(String.class)) {
+                                field.set(o, i.toString());
+                            } else if (field.getType().equals(Float.class) || field.getType().equals(float.class)) {
+                                field.set(o, i.floatValue());
+                            } else if (field.getType().equals(Boolean.class) || field.getType().equals(boolean.class)) {
+                                field.set(o, i == 1);
                             } else {
-                                throw new RuntimeException("could not set field " + fld + ": Field has type " + f.getType().toString() + " got type " + value.getClass().toString());
+                                throw AnnotationAndReflectionException.wrongFieldType(fld, field.getType().toString(), value.getClass().toString());
                             }
                         } else if (value instanceof Long) {
                             Long l = (Long) value;
-                            if (f.getType().equals(Integer.class) || f.getType().equals(int.class)) {
-                                f.set(o, l.intValue());
-                            } else if (f.getType().equals(Double.class) || f.getType().equals(double.class)) {
-                                f.set(o, l.doubleValue());
-                            } else if (f.getType().equals(Date.class)) {
+                            if (field.getType().equals(Integer.class) || field.getType().equals(int.class)) {
+                                field.set(o, l.intValue());
+                            } else if (field.getType().equals(Double.class) || field.getType().equals(double.class)) {
+                                field.set(o, l.doubleValue());
+                            } else if (field.getType().equals(Date.class)) {
                                 //Fucking date / timestamp mixup
-                                f.set(o, new Date(l));
-                            } else if (f.getType().equals(Float.class) || f.getType().equals(float.class)) {
-                                f.set(o, l.floatValue());
-                            } else if (f.getType().equals(Boolean.class) || f.getType().equals(boolean.class)) {
-                                f.set(o, l == 1L);
-                            } else if (f.getType().equals(String.class)) {
-                                f.set(o, l.toString());
+                                field.set(o, new Date(l));
+                            } else if (field.getType().equals(Float.class) || field.getType().equals(float.class)) {
+                                field.set(o, l.floatValue());
+                            } else if (field.getType().equals(Boolean.class) || field.getType().equals(boolean.class)) {
+                                field.set(o, l == 1L);
+                            } else if (field.getType().equals(String.class)) {
+                                field.set(o, l.toString());
                             } else {
-                                throw new RuntimeException("could not set field " + fld + ": Field has type " + f.getType().toString() + " got type " + value.getClass().toString());
+                                throw AnnotationAndReflectionException.wrongFieldType(fld, field.getType().toString(), value.getClass().toString());
                             }
                         } else if (value instanceof Boolean) {
                             Boolean b = (Boolean) value;
-                            if (f.getType().equals(Integer.class) || f.getType().equals(int.class)) {
-                                f.set(o, b ? 1 : 0);
-                            } else if (f.getType().equals(Double.class) || f.getType().equals(double.class)) {
-                                f.set(o, b ? 1.0 : 0.0);
-                            } else if (f.getType().equals(Float.class) || f.getType().equals(float.class)) {
-                                f.set(o, b ? 1.0f : 0.0f);
-                            } else if (f.getType().equals(String.class)) {
-                                f.set(o, b ? "true" : "false");
+                            if (field.getType().equals(Integer.class) || field.getType().equals(int.class)) {
+                                field.set(o, b ? 1 : 0);
+                            } else if (field.getType().equals(Double.class) || field.getType().equals(double.class)) {
+                                field.set(o, b ? 1.0 : 0.0);
+                            } else if (field.getType().equals(Float.class) || field.getType().equals(float.class)) {
+                                field.set(o, b ? 1.0f : 0.0f);
+                            } else if (field.getType().equals(String.class)) {
+                                field.set(o, b ? "true" : "false");
                             } else {
-                                throw new RuntimeException("could not set field " + fld + ": Field has type " + f.getType().toString() + " got type " + value.getClass().toString());
+                                throw AnnotationAndReflectionException.wrongFieldType(fld, field.getType().toString(), value.getClass().toString());
                             }
-                        } else if (f.getType().isArray() && value instanceof List) {
-                            Object arr = Array.newInstance(f.getType(), ((List) value).size());
+                        } else if (field.getType().isArray() && value instanceof List) {
+                            Object arr = Array.newInstance(field.getType(), ((List) value).size());
                             int idx = 0;
                             for (Object io : ((List) value)) {
                                 try {
@@ -573,7 +579,7 @@ public class AnnotationAndReflectionHelper {
                                     Array.set(arr, idx, ((Integer) io).byteValue());
                                 }
                             }
-                            f.set(o, arr);
+                            field.set(o, arr);
                         } else {
                             logger.error("Could not set value!!!");
                         }
@@ -608,7 +614,7 @@ public class AnnotationAndReflectionHelper {
 
             return null;
         } catch (IllegalAccessException e) {
-            throw new RuntimeException(e);
+            throw AnnotationAndReflectionException.of(e);
         }
     }
 
@@ -656,12 +662,12 @@ public class AnnotationAndReflectionHelper {
         if (strings != null) {
             return strings;
         }
-        Map<String, List<String>> fa = fieldAnnotationListCache; // (HashMap) ((HashMap) fieldAnnotationListCache).clone();
+        Map<String, List<String>> fa = fieldAnnotationListCache;
         List<String> ret = new ArrayList<>();
         Class sc = cls;
         sc = getRealClass(sc);
-        Entity entity = getAnnotationFromHierarchy(sc, Entity.class); //(Entity) sc.getAnnotation(Entity.class);
-        Embedded embedded = getAnnotationFromHierarchy(sc, Embedded.class);//(Embedded) sc.getAnnotation(Embedded.class);
+        Entity entity = getAnnotationFromHierarchy(sc, Entity.class);
+        Embedded embedded = getAnnotationFromHierarchy(sc, Embedded.class);
         if (embedded != null && entity != null) {
             logger.warn("Class " + cls.getName() + " does have both @Entity and @Embedded Annotations - not allowed! Assuming @Entity is right");
         }
@@ -728,10 +734,6 @@ public class AnnotationAndReflectionHelper {
                 ret.add(f.getAnnotation(Property.class).fieldName());
                 continue;
             }
-            //            if (f.isAnnotationPresent(Id.class)) {
-            //                ret.add(f.getName());
-            //                continue;
-            //            }
             if (f.isAnnotationPresent(Transient.class)) {
                 continue;
             }
@@ -764,15 +766,14 @@ public class AnnotationAndReflectionHelper {
                 }
             }
 
-            if (!ignore && !fieldsToLimitTo.isEmpty()) {
-                if (!fieldsToLimitTo.contains(conv) && !fieldsToLimitTo.contains(f.getName())) {
-                    ignore = true;
-                }
+            if (!ignore && !fieldsToLimitTo.isEmpty() && !fieldsToLimitTo.contains(conv) && !fieldsToLimitTo.contains(f.getName())) {
+                ignore = true;
             }
 
 
-            if (!ignore)
+            if (!ignore) {
                 ret.add(conv);
+            }
         }
 
         fa.put(stringBuilder.toString(), ret);
@@ -791,7 +792,6 @@ public class AnnotationAndReflectionHelper {
                 Method m = delegate.getClass().getMethod("__getDeref");
                 o = (T) m.invoke(delegate);
             } catch (Exception e) {
-                //throw new RuntimeException(e);
                 logger.error("Exception: ", e);
             }
         }
@@ -927,7 +927,6 @@ public class AnnotationAndReflectionHelper {
                     return;
                 }
             } catch (Exception e) {
-                //throw new RuntimeException(e);
                 logger.error("Exception: ", e);
             }
         }
@@ -940,7 +939,7 @@ public class AnnotationAndReflectionHelper {
         //hashtabel - but for performance reasons, it's ok...
         Class<?> cls = on.getClass();
         //No Lifecycle annotation - no method calling
-        if (!isAnnotationPresentInHierarchy(cls, Lifecycle.class)) {//cls.isAnnotationPresent(Lifecycle.class)) {
+        if (!isAnnotationPresentInHierarchy(cls, Lifecycle.class)) {
             return;
         }
         List<String> flds = getFields(on.getClass());
@@ -951,7 +950,7 @@ public class AnnotationAndReflectionHelper {
                 try {
                     callLifecycleMethod(type, field.get(on), calledOn);
                 } catch (IllegalAccessException e) {
-                    e.printStackTrace();
+                    logger.error("Exception: ", e);
                 }
             }
         }
@@ -961,12 +960,12 @@ public class AnnotationAndReflectionHelper {
                 try {
                     lifeCycleMethods.get(cls).get(type).invoke(on);
                 } catch (IllegalAccessException e) {
-                    throw new RuntimeException(e);
+                    throw AnnotationAndReflectionException.of(e);
                 } catch (InvocationTargetException e) {
                     if (e.getCause().getClass().equals(MorphiumAccessVetoException.class)) {
                         throw (RuntimeException) e.getCause();
                     }
-                    throw new RuntimeException(e);
+                    throw AnnotationAndReflectionException.of(e);
                 }
             }
             return;
@@ -979,13 +978,13 @@ public class AnnotationAndReflectionHelper {
                 methods.put(a.annotationType(), m);
             }
         }
-        Map<Class<?>, Map<Class<? extends Annotation>, Method>> lc = lifeCycleMethods;  //(HashMap) ((HashMap) lifeCycleMethods).clone();
+        Map<Class<?>, Map<Class<? extends Annotation>, Method>> lc = lifeCycleMethods;
         lc.put(cls, methods);
         if (methods.get(type) != null) {
             try {
                 methods.get(type).invoke(on);
             } catch (IllegalAccessException | InvocationTargetException e) {
-                throw new RuntimeException(e);
+                throw AnnotationAndReflectionException.of(e);
             }
         }
         lifeCycleMethods = lc;
@@ -1004,7 +1003,7 @@ public class AnnotationAndReflectionHelper {
         try {
             return Class.forName(superClass.getName().substring(0, superClass.getName().indexOf("$$")));
         } catch (ClassNotFoundException e) {
-            throw new AnnotationAndReflectionException(e);
+            throw AnnotationAndReflectionException.of(e);
         }
     }
 
@@ -1012,10 +1011,28 @@ public class AnnotationAndReflectionHelper {
         return realClassCache.containsKey(superClass);
     }
 
+    private <T extends Annotation> Consumer<T> cacheAnnotation(Class<?> aClass, Class<? extends T> annotationClass) {
+        return annotation -> annotationCache.get(aClass).put(annotationClass, annotation);
+    }
+
     private static final class AnnotationAndReflectionException extends RuntimeException {
 
-        AnnotationAndReflectionException(Exception e) {
+
+        private AnnotationAndReflectionException(Exception e) {
             super(e);
+        }
+
+        private AnnotationAndReflectionException(String message) {
+            super(message);
+        }
+
+        private static AnnotationAndReflectionException of(Exception e) {
+            return new AnnotationAndReflectionException(e);
+        }
+
+        private static AnnotationAndReflectionException wrongFieldType(String fieldName, String expectedFieldType, String actualFieldType) {
+            final String message = format("could not set field %s: Field has type %s got type %s", fieldName, expectedFieldType, actualFieldType);
+            return new AnnotationAndReflectionException(message);
         }
     }
 }
