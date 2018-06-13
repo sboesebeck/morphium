@@ -1180,6 +1180,72 @@ public class MessagingTest extends MongoTest {
 
         assert (gotMessage1);
 
+        m1.terminate();
+        sender.terminate();
+
+    }
+
+
+    @Test
+    public void getPendingMessagesOnStartup() throws Exception {
+        morphium.dropCollection(Msg.class);
+        Thread.sleep(1000);
+        Messaging sender = new Messaging(morphium, 100, false);
+        sender.start();
+
+        gotMessage1 = false;
+        gotMessage2 = false;
+        gotMessage3 = false;
+        gotMessage4 = false;
+
+        Messaging m3 = new Messaging(morphium, 100, false);
+        m3.addMessageListener((msg, m) -> {
+            gotMessage3 = true;
+            return null;
+        });
+
+        m3.start();
+
+        Thread.sleep(1500);
+
+
+        sender.storeMessage(new Msg("test", "testmsg", "testvalue", 120000, false));
+
+        Thread.sleep(1000);
+        assert (gotMessage3);
+        Thread.sleep(2000);
+
+
+        Messaging m1 = new Messaging(morphium, 100, false);
+        m1.addMessageListener((msg, m) -> {
+            gotMessage1 = true;
+            return null;
+        });
+
+        m1.start();
+
+        Thread.sleep(1500);
+        assert (gotMessage1);
+
+
+        Messaging m2 = new Messaging(morphium, 100, false);
+        m2.addMessageListener((msg, m) -> {
+            gotMessage2 = true;
+            return null;
+        });
+
+        m2.start();
+
+        Thread.sleep(1500);
+        assert (gotMessage2);
+
+
+        m1.terminate();
+        m2.terminate();
+        m3.terminate();
+        sender.terminate();
+
+
     }
 
 }
