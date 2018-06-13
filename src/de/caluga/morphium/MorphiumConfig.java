@@ -138,11 +138,19 @@ public class MorphiumConfig {
     private int cursorBatchSize = 1000;
     private boolean oplogMonitorEnabled = false;
 
-    public MorphiumConfig(Properties prop) {
-        this(null, prop);
+    public MorphiumConfig(final Properties prop) {
+        this(null,prop);
+    }
+    public MorphiumConfig(String prefix,final Properties prop) {
+        this(prefix, new MorphiumConfigResolver() {
+            @Override
+            public Object resolveSetting(String name) {
+                return prop.get(name);
+            }
+        });
     }
 
-    public MorphiumConfig(String prefix, Properties prop) {
+    public MorphiumConfig(String prefix, MorphiumConfigResolver resolver) {
         AnnotationAndReflectionHelper an = new AnnotationAndReflectionHelper(true); //settings always convert camel case
         List<Field> flds = an.getAllFields(MorphiumConfig.class);
         if (prefix != null) {
@@ -151,27 +159,35 @@ public class MorphiumConfig {
             prefix = "";
         }
         for (Field f : flds) {
+            String fName = prefix + f.getName();
+            if (resolver.resolveSetting(fName)==null) continue;
+
             if (f.isAnnotationPresent(Transient.class)) {
+                try {
+                    parseClassSettings(fName,resolver.resolveSetting(fName),this );
+                } catch (InstantiationException | IllegalAccessException | NoSuchFieldException | ClassNotFoundException e) {
+                    throw new RuntimeException(e);
+                }
                 continue;
             }
             f.setAccessible(true);
-            String fName = prefix + f.getName();
-            if (prop.getProperty(fName) != null) {
+
+            if (resolver.resolveSetting(fName) != null) {
                 try {
                     if (f.getType().equals(int.class) || f.getType().equals(Integer.class)) {
-                        f.set(this, Integer.parseInt((String) prop.get(fName)));
+                        f.set(this, Integer.parseInt((String) resolver.resolveSetting(fName)));
                     } else if (f.getType().equals(String.class)) {
-                        f.set(this, prop.get(fName));
+                        f.set(this, resolver.resolveSetting(fName));
                     } else if (List.class.isAssignableFrom(f.getType())) {
-                        String lst = (String) prop.get(fName);
+                        String lst = (String) resolver.resolveSetting(fName);
                         List<String> l = new ArrayList<>();
                         lst = lst.replaceAll("[\\[\\]]", "");
                         Collections.addAll(l, lst.split(","));
                         f.set(this, l);
                     } else if (f.getType().equals(boolean.class) || f.getType().equals(Boolean.class)) {
-                        f.set(this, prop.get(fName).equals("true"));
+                        f.set(this, resolver.resolveSetting(fName).equals("true"));
                     } else if (f.getType().equals(long.class) || f.getType().equals(Long.class)) {
-                        f.set(this, Long.parseLong((String) prop.get(fName)));
+                        f.set(this, Long.parseLong((String) resolver.resolveSetting(fName)));
                     }
                 } catch (IllegalAccessException e) {
                     throw new RuntimeException(e);
@@ -179,7 +195,7 @@ public class MorphiumConfig {
             }
         }
         if (hostSeed == null || hostSeed.isEmpty()) {
-            String lst = (String) prop.get(prefix + "hosts");
+            String lst = (String) resolver.resolveSetting(prefix + "hosts");
             if (lst != null) {
                 lst = lst.replaceAll("[\\[\\]]", "");
                 for (String s : lst.split(",")) {
@@ -189,18 +205,6 @@ public class MorphiumConfig {
         }
 
 
-        //Store log settings!
-        for (Object k : prop.keySet()) {
-            String key = (String) k;
-            if (key.startsWith(prefix + "log.")) {
-                System.setProperty("morphium." + key.substring(prefix.length()), prop.get(k).toString());
-            }
-        }
-        try {
-            parseClassSettings(this, prop);
-        } catch (InstantiationException | IllegalAccessException | NoSuchFieldException | ClassNotFoundException e) {
-            throw new RuntimeException(e);
-        }
     }
 
     public MorphiumConfig() {
@@ -215,11 +219,24 @@ public class MorphiumConfig {
 
     }
 
+    public static List<String> getPropertyNames(String prefix) {
+        List<String> flds = new AnnotationAndReflectionHelper(true).getFields(MorphiumConfig.class);
+
+        List<String> ret = new ArrayList<>();
+        for (String f : flds) {
+            ret.add(prefix + "." + f);
+        }
+
+        return ret;
+    }
+
+
     public static MorphiumConfig createFromJson(String json) throws ParseException, NoSuchFieldException, ClassNotFoundException, IllegalAccessException, InstantiationException {
         MorphiumConfig cfg = new ObjectMapperImpl().unmarshall(MorphiumConfig.class, json);
-        parseClassSettings(cfg, cfg.restoreData);
+
         for (Object ko : cfg.restoreData.keySet()) {
             String k = (String) ko;
+            parseClassSettings(k,cfg.restoreData.get(k), cfg);
             String value = cfg.restoreData.get(k);
             if (k.equals("hosts") || k.equals("hostSeed")) {
                 value = value.replaceAll("\\[", "").replaceAll("]", "");
@@ -233,29 +250,26 @@ public class MorphiumConfig {
         return cfg;
     }
 
-    private static void parseClassSettings(MorphiumConfig cfg, Map settings) throws ClassNotFoundException, NoSuchFieldException, IllegalAccessException, InstantiationException {
-        for (Object ko : settings.keySet()) {
-            String k = (String) ko;
-            String value = (String) settings.get(k);
-            if (!k.endsWith("ClassName")) {
-                continue;
-            }
-            if (k.contains(".")) {
-                k = k.substring(0, k.indexOf(".") + 1);
-            }
-            String n[] = k.split("_");
-            if (n.length != 3) {
-                continue;
-            }
-            Class cls = Class.forName(value);
-            Field f = MorphiumConfig.class.getDeclaredField(n[0]);
-            f.setAccessible(true);
-            if (n[1].equals("C")) {
-                f.set(cfg, cls);
-            } else if (n[1].equals("I")) {
-                f.set(cfg, cls.newInstance());
-            }
+    private static void parseClassSettings(String k, Object value, MorphiumConfig cfg) throws ClassNotFoundException, NoSuchFieldException, IllegalAccessException, InstantiationException {
+        if (!k.endsWith("ClassName")) {
+            return ;
         }
+        if (k.contains(".")) {
+            k = k.substring(0, k.indexOf(".") + 1);
+        }
+        String n[] = k.split("_");
+        if (n.length != 3) {
+            return ;
+        }
+        Class cls = Class.forName((String)value);
+        Field f = MorphiumConfig.class.getDeclaredField(n[0]);
+        f.setAccessible(true);
+        if (n[1].equals("C")) {
+            f.set(cfg, cls);
+        } else if (n[1].equals("I")) {
+            f.set(cfg, cls.newInstance());
+        }
+
 
         cfg.getAggregatorFactory().setAggregatorClass(cfg.getAggregatorClass());
         cfg.getQueryFact().setQueryImpl(cfg.getQueryClass());
@@ -644,12 +658,13 @@ public class MorphiumConfig {
         return hostSeed;
     }
 
-    public void setHostSeed(String... hostPorts){
+    public void setHostSeed(String... hostPorts) {
         hostSeed.clear();
-        for (String h:hostPorts){
+        for (String h : hostPorts) {
             addHostToSeed(h);
         }
     }
+
     public void setHostSeed(String hostPorts) {
         hostSeed.clear();
         String h[] = hostPorts.split(",");
@@ -676,8 +691,8 @@ public class MorphiumConfig {
 
     public void addHostToSeed(String host, int port) {
         host = host.replaceAll(" ", "") + ":" + port;
-        if (hostSeed==null){
-            hostSeed=new ArrayList<>();
+        if (hostSeed == null) {
+            hostSeed = new ArrayList<>();
         }
         hostSeed.add(host);
     }
