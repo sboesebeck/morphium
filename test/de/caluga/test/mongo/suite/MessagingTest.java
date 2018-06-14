@@ -1171,14 +1171,24 @@ public class MessagingTest extends MongoTest {
         gotMessage1 = false;
 
         sender.storeMessage(new Msg("tst1", "a message", "the value"));
-        Thread.sleep(200);
+        Thread.sleep(1200);
         assert (!gotMessage1);
 
         long l = m1.unpauseProcessingOfMessagesNamed("tst1");
         log.info("Processing was paused for ms " + l);
+        m1.findAndProcessPendingMessages("tst1");
         Thread.sleep(200);
 
         assert (gotMessage1);
+        gotMessage1 = false;
+        Thread.sleep(200);
+        assert (!gotMessage1);
+
+        gotMessage1 = false;
+        sender.storeMessage(new Msg("tst1", "a message", "the value"));
+        Thread.sleep(1200);
+        assert (gotMessage1);
+
 
         m1.terminate();
         sender.terminate();

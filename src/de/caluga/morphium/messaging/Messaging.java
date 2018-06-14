@@ -164,7 +164,7 @@ public class Messaging extends Thread implements ShutdownListener {
         if (useOplogMonitor) {
             log.debug("Before running the oplogmonitor - check of already existing messages");
             try {
-                findAndProcessMessages(new HashMap<>(), true);
+                findAndProcessMessages(true);
             } catch (Exception e) {
                 log.error("Error processing existing messages in queue", e);
             }
@@ -220,11 +220,10 @@ public class Messaging extends Thread implements ShutdownListener {
             });
             oplogMonitor.start();
         } else {
-            Map<String, Object> values = new HashMap<>();
+
             while (running) {
-                values.clear();
                 try {
-                    findAndProcessMessages(values, processMultiple);
+                    findAndProcessMessages(processMultiple);
                 } catch (Throwable e) {
                     log.error("Unhandled exception " + e.getMessage(), e);
                 } finally {
@@ -268,16 +267,42 @@ public class Messaging extends Thread implements ShutdownListener {
         if (ret != null) {
             ret = System.currentTimeMillis() - ret;
         }
-        log.debug("after pausing, try to get unhandeled messages");
-        try {
-            findAndProcessMessages(new HashMap<>(), true);
-        } catch (Exception e) {
-            log.error("Error processing existing messages in queue", e);
-        }
+
         return ret;
     }
 
-    private void findAndProcessMessages(Map<String, Object> values, boolean multiple) throws InterruptedException {
+    public void findAndProcessPendingMessages(String name) throws InterruptedException {
+        Map<String, Object> values = new HashMap<>();
+        Query<Msg> q = morphium.createQueryFor(Msg.class);
+        q.setCollectionName(getCollectionName());
+        //                //removing all outdated stuff
+        //                q = q.where("this.ttl<" + System.currentTimeMillis() + "-this.timestamp");
+        //                if (log.isDebugEnabled() && q.countAll() > 0) {
+        //                    log.debug("Deleting outdate messages: " + q.countAll());
+        //                }
+        //                morphium.remove(q);
+        //                q = q.q();
+        //locking messages...
+        q.or(q.q().f(Msg.Fields.sender).ne(id).f(Msg.Fields.lockedBy).eq(null).f(Msg.Fields.processedBy).ne(id).f(Msg.Fields.recipient).eq(null).f(Msg.Fields.name).eq(name),
+                q.q().f(Msg.Fields.sender).ne(id).f(Msg.Fields.lockedBy).eq(null).f(Msg.Fields.processedBy).ne(id).f(Msg.Fields.recipient).eq(id).f(Msg.Fields.name).eq(name));
+        values.put("locked_by", id);
+        values.put("locked", System.currentTimeMillis());
+        morphium.set(q, values, false, true);
+        q = q.q();
+        q.or(q.q().f(Msg.Fields.lockedBy).eq(id),
+                q.q().f(Msg.Fields.lockedBy).eq("ALL").f(Msg.Fields.processedBy).ne(id).f(Msg.Fields.recipient).eq(id),
+                q.q().f(Msg.Fields.lockedBy).eq("ALL").f(Msg.Fields.processedBy).ne(id).f(Msg.Fields.recipient).eq(null));
+        q.sort(Msg.Fields.timestamp);
+
+        //                List<Msg> messages = q.asList();
+        MorphiumIterator<Msg> messages = q.asIterable(windowSize);
+        messages.setMultithreaddedAccess(multithreadded);
+
+        processMessages(messages);
+    }
+
+    private void findAndProcessMessages(boolean multiple) throws InterruptedException {
+        Map<String, Object> values = new HashMap<>();
         Query<Msg> q = morphium.createQueryFor(Msg.class);
         q.setCollectionName(getCollectionName());
         //                //removing all outdated stuff
@@ -334,7 +359,7 @@ public class Messaging extends Thread implements ShutdownListener {
 
     private void processMessages(Iterable<Msg> messages) throws InterruptedException {
         final List<Msg> toStore = new ArrayList<>();
-        final List<Runnable> toExec = new ArrayList<>();
+//        final List<Runnable> toExec = new ArrayList<>();
         final List<Msg> toRemove = new ArrayList<>();
         //                int count=0;
         for (final Msg m : messages) {
@@ -415,10 +440,7 @@ public class Messaging extends Thread implements ShutdownListener {
                 //                            }
                 //updating it to be processed by others...
                 if (msg.getLockedBy().equals("ALL")) {
-                    toExec.add(() -> {
-                        updateProcessedByAndReleaseLock(msg);
-                    });
-
+                    updateProcessedByAndReleaseLock(msg);
                 } else {
                     //Exclusive message
 
@@ -443,7 +465,7 @@ public class Messaging extends Thread implements ShutdownListener {
         }
         morphium.storeList(toStore, getCollectionName());
         morphium.delete(toRemove, getCollectionName());
-        toExec.forEach(this::queueOrRun);
+//        toExec.forEach(this::queueOrRun);
         while (morphium.getWriteBufferCount() > 0) {
             Thread.sleep(100);
         }
