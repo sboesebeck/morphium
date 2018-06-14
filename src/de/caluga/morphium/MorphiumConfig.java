@@ -160,11 +160,12 @@ public class MorphiumConfig {
         }
         for (Field f : flds) {
             String fName = prefix + f.getName();
-            if (resolver.resolveSetting(fName)==null) continue;
+            Object setting = resolver.resolveSetting(fName);
+            if (setting ==null) continue;
 
             if (f.isAnnotationPresent(Transient.class)) {
                 try {
-                    parseClassSettings(fName,resolver.resolveSetting(fName),this );
+                    parseClassSettings(fName, setting,this );
                 } catch (InstantiationException | IllegalAccessException | NoSuchFieldException | ClassNotFoundException e) {
                     throw new RuntimeException(e);
                 }
@@ -172,22 +173,22 @@ public class MorphiumConfig {
             }
             f.setAccessible(true);
 
-            if (resolver.resolveSetting(fName) != null) {
+            if (setting != null) {
                 try {
                     if (f.getType().equals(int.class) || f.getType().equals(Integer.class)) {
-                        f.set(this, Integer.parseInt((String) resolver.resolveSetting(fName)));
+                        f.set(this, Integer.parseInt((String) setting));
                     } else if (f.getType().equals(String.class)) {
-                        f.set(this, resolver.resolveSetting(fName));
+                        f.set(this, setting);
                     } else if (List.class.isAssignableFrom(f.getType())) {
-                        String lst = (String) resolver.resolveSetting(fName);
+                        String lst = (String) setting;
                         List<String> l = new ArrayList<>();
                         lst = lst.replaceAll("[\\[\\]]", "");
                         Collections.addAll(l, lst.split(","));
                         f.set(this, l);
                     } else if (f.getType().equals(boolean.class) || f.getType().equals(Boolean.class)) {
-                        f.set(this, resolver.resolveSetting(fName).equals("true"));
+                        f.set(this, setting.equals("true"));
                     } else if (f.getType().equals(long.class) || f.getType().equals(Long.class)) {
-                        f.set(this, Long.parseLong((String) resolver.resolveSetting(fName)));
+                        f.set(this, Long.parseLong((String) setting));
                     }
                 } catch (IllegalAccessException e) {
                     throw new RuntimeException(e);
