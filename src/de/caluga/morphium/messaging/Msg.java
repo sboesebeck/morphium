@@ -360,6 +360,7 @@ public class Msg {
         processedBy,
         lockedBy,
         msgId,
+        name,
         @SuppressWarnings("unused") locked,
         @SuppressWarnings("unused") type,
         @SuppressWarnings("unused") inAnswerTo,

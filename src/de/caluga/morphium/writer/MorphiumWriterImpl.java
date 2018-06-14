@@ -964,7 +964,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
             while (retry) {
                 try {
                     tries++;
-                    executor.submit(r);
+                    executor.execute(r);
                     retry = false;
                 } catch (OutOfMemoryError ignored) {
                     logger.error(tries + " - Got OutOfMemory Erro, retrying...", ignored);
@@ -1665,7 +1665,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                 Class<?> cls = query.getType();
                 morphium.firePreUpdateEvent(morphium.getARHelper().getRealClass(cls), push ? MorphiumStorageListener.UpdateTypes.PUSH : MorphiumStorageListener.UpdateTypes.PULL);
 
-                String coll = morphium.getMapper().getCollectionName(cls);
+                String coll = query.getCollectionName();
 
                 Map<String, Object> qobj = query.toQueryObject();
                 if (upsert) {
@@ -1804,7 +1804,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                 List<?> value = v;
                 String field = f;
                 Class<?> cls = query.getType();
-                String coll = morphium.getMapper().getCollectionName(cls);
+                String coll = query.getCollectionName();
                 morphium.firePreUpdateEvent(morphium.getARHelper().getRealClass(cls), push ? MorphiumStorageListener.UpdateTypes.PUSH : MorphiumStorageListener.UpdateTypes.PULL);
                 long start = System.currentTimeMillis();
                 value = value.stream().map(o -> marshallIfNecessary(o)).collect(Collectors.toList());
