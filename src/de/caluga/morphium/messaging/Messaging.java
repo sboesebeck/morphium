@@ -358,7 +358,7 @@ public class Messaging extends Thread implements ShutdownListener {
     }
 
     private void processMessages(Iterable<Msg> messages) throws InterruptedException {
-        final List<Msg> toStore = new ArrayList<>();
+//        final List<Msg> toStore = new ArrayList<>();
 //        final List<Runnable> toExec = new ArrayList<>();
         final List<Msg> toRemove = new ArrayList<>();
         //                int count=0;
@@ -463,7 +463,7 @@ public class Messaging extends Thread implements ShutdownListener {
                 Thread.yield();
             }
         }
-        morphium.storeList(toStore, getCollectionName());
+//        morphium.storeList(toStore, getCollectionName());
         morphium.delete(toRemove, getCollectionName());
 //        toExec.forEach(this::queueOrRun);
         while (morphium.getWriteBufferCount() > 0) {
