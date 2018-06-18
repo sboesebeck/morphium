@@ -1176,7 +1176,7 @@ public class MessagingTest extends MongoTest {
 
         long l = m1.unpauseProcessingOfMessagesNamed("tst1");
         log.info("Processing was paused for ms " + l);
-        m1.findAndProcessPendingMessages("tst1");
+        //m1.findAndProcessPendingMessages("tst1");
         Thread.sleep(200);
 
         assert (gotMessage1);
@@ -1256,6 +1256,84 @@ public class MessagingTest extends MongoTest {
         sender.terminate();
 
 
+    }
+
+
+    @Test
+    public void testPausingUnpausingInListener() throws Exception {
+        morphium.dropCollection(Msg.class);
+        Thread.sleep(1000);
+        Messaging sender = new Messaging(morphium, 100, false);
+        sender.start();
+
+        log.info("Sender ID: "+sender.getSenderId());
+
+        gotMessage1=false;
+        gotMessage2=false;
+
+        Messaging m1=new Messaging(morphium,100,false,true,10);
+        m1.addListenerForMessageNamed("test",new MessageListener() {
+            @Override
+            public Msg onMessage(Messaging msg, Msg m) {
+                msg.pauseProcessingOfMessagesNamed("test");
+                try {
+                    log.info("Incoming message "+m.getMsg()+" my id: "+msg.getSenderId());
+                    Thread.sleep(1000);
+                    if (m.getMsg().equals("test1")) {
+                        gotMessage1=true;
+                    }
+                    if (m.getMsg().equals("test2")){
+                        gotMessage2=true;
+                    }
+                } catch (InterruptedException e) {
+                }
+                msg.unpauseProcessingOfMessagesNamed("test");
+                return null;
+            }
+        });
+        m1.start();
+        log.info("receiver id: "+m1.getSenderId());
+
+        log.info("Testing with non-exclusive messages");
+        Msg m = new Msg("test", "test1", "test", 3000000);
+        m.setExclusive(false);
+        sender.storeMessage(m);
+
+        m = new Msg("test", "test2", "test", 3000000);
+        m.setExclusive(false);
+        sender.storeMessage(m);
+
+        Thread.sleep(200);
+        assert(!gotMessage1);
+        assert(!gotMessage2);
+
+        Thread.sleep(2200);
+        assert(gotMessage1);
+        assert(gotMessage2);
+
+        log.info("... done!");
+        log.info("Testing with exclusive messages...");
+
+
+        gotMessage1=gotMessage2=false;
+
+        m = new Msg("test", "test1", "test", 3000000);
+        m.setExclusive(true);
+        sender.storeMessage(m);
+
+        m = new Msg("test", "test2", "test", 3000000);
+        m.setExclusive(true);
+        sender.storeMessage(m);
+        Thread.sleep(200);
+        assert(!gotMessage1);
+        assert(!gotMessage2);
+
+        Thread.sleep(2000);
+        assert(gotMessage1);
+        assert(gotMessage2);
+
+        sender.terminate();
+        m1.terminate();
     }
 
 }
