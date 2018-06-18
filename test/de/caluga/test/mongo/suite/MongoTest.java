@@ -378,7 +378,7 @@ public class MongoTest {
             morphium.dropCollection(CachedObject.class, cb);
             morphium.dropCollection(ComplexObject.class, cb);
             morphium.dropCollection(EnumEntity.class, cb);
-            morphium.dropCollection(Msg.class, cb);
+            //morphium.dropCollection(Msg.class, cb);
             morphium.dropCollection(Person.class, cb);
             //            morphium.ensureIndex(UncachedObject.class, "counter", "value");
             //            morphium.ensureIndex(CachedObject.class, "counter", "value");
@@ -411,7 +411,7 @@ public class MongoTest {
         log.info("Cleaning up...");
         morphium.dropCollection(UncachedObject.class);
         morphium.dropCollection(CachedObject.class);
-        morphium.dropCollection(Msg.class);
+//        morphium.dropCollection(Msg.class);
         waitForWrites();
         log.info("done...");
     }

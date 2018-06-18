@@ -27,7 +27,8 @@ import java.util.*;
 @WriteSafety(level = SafetyLevel.NORMAL)
 @DefaultReadPreference(ReadPreferenceLevel.PRIMARY)
 @Lifecycle
-@Index({"sender,locked_by,processed_by,recipient,-timestamp", "locked_by,processed_by,recipient,timestamp"})
+@Index({"sender,locked_by,processed_by,recipient,priority,timestamp", "locked_by,processed_by,recipient,priority,timestamp",
+        "sender,locked_by,processed_by,recipient,name,priority,timestamp"})
 public class Msg {
     @Index
     private List<String> processedBy;
@@ -55,6 +56,8 @@ public class Msg {
     private long timestamp;
     @Index(options = "expireAfterSeconds:0")
     private Date deleteAt;
+
+    private int priority=1000;
 //    @Transient
 //    private Boolean exclusive = false;
 
@@ -80,6 +83,14 @@ public class Msg {
         this.ttl = ttl;
         setExclusive(exclusive);
 
+    }
+
+    public int getPriority() {
+        return priority;
+    }
+
+    public void setPriority(int priority) {
+        this.priority = priority;
     }
 
     @SuppressWarnings("unused")
@@ -356,20 +367,6 @@ public class Msg {
         messaging.queueMessage(m);
     }
 
-    public enum Fields {
-        processedBy,
-        lockedBy,
-        msgId,
-        name,
-        @SuppressWarnings("unused") locked,
-        @SuppressWarnings("unused") type,
-        @SuppressWarnings("unused") inAnswerTo,
-        @SuppressWarnings("unused") msg,
-        @SuppressWarnings("unused") additional,
-        @SuppressWarnings("unused") value,
-        timestamp,
-        sender,
-        @SuppressWarnings("unused") ttl,
-        recipient
-    }
+
+    public enum Fields {msgId, lockedBy, locked, ttl, sender, senderHost, recipient, to, inAnswerTo, name, msg, additional, mapValue, value, timestamp, deleteAt, priority, processedBy}
 }
