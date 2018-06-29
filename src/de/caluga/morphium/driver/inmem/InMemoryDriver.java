@@ -4,6 +4,7 @@ import de.caluga.morphium.Morphium;
 import de.caluga.morphium.driver.*;
 import de.caluga.morphium.driver.bulk.*;
 import de.caluga.morphium.driver.mongodb.Maximums;
+import org.bson.types.ObjectId;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -420,6 +421,9 @@ public class InMemoryDriver implements MorphiumDriver {
                     } else {
                         //value comparison - should only be one here
                         assert (query.size() == 1);
+                        if (toCheck.get(key) instanceof MorphiumId || toCheck.get(key) instanceof ObjectId) {
+                            return toCheck.get(key).toString().equals(query.get(key).toString());
+                        }
                         return toCheck.get(key).equals(query.get(key));
                     }
             }
@@ -587,10 +591,10 @@ public class InMemoryDriver implements MorphiumDriver {
     @Override
     public void insert(String db, String collection, List<Map<String, Object>> objs, WriteConcern wc) throws MorphiumDriverException {
         for (Map<String, Object> o : objs) {
-            o.putIfAbsent("_id", new MorphiumId());
-            if (!findByFieldValue(db, collection, "_id", o.get("_id")).isEmpty()) {
-                throw new MorphiumDriverException("Duplicate _id!", null);
+            if (o.get("_id") != null && !findByFieldValue(db, collection, "_id", o.get("_id")).isEmpty()) {
+                throw new MorphiumDriverException("Duplicate _id! " + o.get("_id"), null);
             }
+            o.putIfAbsent("_id", new MorphiumId());
         }
         getCollection(db, collection).addAll(objs);
     }
@@ -753,7 +757,7 @@ public class InMemoryDriver implements MorphiumDriver {
 
     @Override
     public boolean exists(String db, String collection) {
-        return getDB(db).containsKey(collection);
+        return getDB(db) != null && getDB(db).containsKey(collection);
     }
 
     @Override
