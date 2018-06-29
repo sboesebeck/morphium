@@ -87,6 +87,7 @@ public class BasicFunctionalityTest extends MongoTest {
     @Test
     public void listCollections() {
         UncachedObject u = new UncachedObject("test", 1);
+        morphium.store(u);
 
         List<String> cols = morphium.listCollections();
         assert (cols != null);
