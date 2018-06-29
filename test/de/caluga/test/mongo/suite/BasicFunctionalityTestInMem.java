@@ -40,6 +40,7 @@ public class BasicFunctionalityTestInMem {
         MorphiumConfig cfg = new MorphiumConfig();
         cfg.addHostToSeed("inMem");
         cfg.setDriverClass(InMemoryDriver.class.getName());
+        cfg.setReplicasetMonitoring(false);
         morphium = new Morphium(cfg);
     }
 

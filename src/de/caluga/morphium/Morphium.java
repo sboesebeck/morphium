@@ -1826,16 +1826,22 @@ public class Morphium {
     }
 
     public <T> T findById(Class<? extends T> type, Object id, String collection) {
-        T ret = getCache().getFromIDCache(type, id);
-        if (ret != null) {
-            if (annotationHelper.isAnnotationPresentInHierarchy(type, Cache.class)) {
-                if (annotationHelper.getAnnotationFromHierarchy(type, Cache.class).readCache()) {
-                    inc(StatisticKeys.CHITS);
-                }
+        inc(StatisticKeys.READS);
+        Cache c = getARHelper().getAnnotationFromHierarchy(type, Cache.class); //type.getAnnotation(Cache.class);
+        boolean useCache = c != null && c.readCache() && isReadCacheEnabledForThread();
+
+        if (useCache) {
+            if (getCache().getFromIDCache(type, id) != null) {
+                inc(StatisticKeys.CHITS);
+                return getCache().getFromIDCache(type, id);
             }
-            inc(StatisticKeys.READS);
-            return ret;
+            inc(StatisticKeys.CMISS);
+        } else {
+            inc(StatisticKeys.NO_CACHED_READS);
+
         }
+
+
         @SuppressWarnings("unchecked") List<String> ls = annotationHelper.getFields(type, Id.class);
         if (ls.isEmpty()) {
             throw new RuntimeException("Cannot find by ID on non-Entity");
