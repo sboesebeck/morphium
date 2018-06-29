@@ -241,6 +241,9 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                         if (lst == null || lst.isEmpty()) {
                             return;
                         }
+                        if (collectionName == null) {
+                            collectionName = morphium.getMapper().getCollectionName(lst.get(0).getClass());
+                        }
                         ArrayList<Map<String, Object>> dbLst = new ArrayList<>();
                         //        DBCollection collection = morphium.getDbName().getCollection(collectionName);
                         WriteConcern wc = morphium.getWriteConcernForClass(lst.get(0).getClass());
@@ -271,9 +274,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                         morphium.fireProfilingWriteEvent(lst.get(0).getClass(), lst, dur, true, WriteAccessType.BULK_UPDATE);
 
                         start = System.currentTimeMillis();
-                        if (collectionName == null) {
-                            collectionName = morphium.getMapper().getCollectionName(lst.get(0).getClass());
-                        }
+
                         morphium.getDriver().insert(morphium.getConfig().getDatabase(), collectionName, dbLst, wc);
                         dur = System.currentTimeMillis() - start;
                         List<Class> cleared = new ArrayList<>();
