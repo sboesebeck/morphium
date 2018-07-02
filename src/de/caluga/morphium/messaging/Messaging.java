@@ -481,11 +481,11 @@ public class Messaging extends Thread implements ShutdownListener {
         }
 
         //wait for all threads to finish
-        if (multithreadded) {
-            while (threadPool != null && threadPool.getActiveCount() > 0) {
-                Thread.yield();
-            }
-        }
+//        if (multithreadded) {
+//            while (threadPool != null && threadPool.getActiveCount() > 0) {
+//                Thread.yield();
+//            }
+//        }
 //        morphium.storeList(toStore, getCollectionName());
         morphium.delete(toRemove, getCollectionName());
 //        toExec.forEach(this::queueOrRun);
