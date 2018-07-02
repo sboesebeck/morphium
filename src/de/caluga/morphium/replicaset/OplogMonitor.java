@@ -133,13 +133,7 @@ public class OplogMonitor implements Runnable, ShutdownListener {
                     return running;
                 });
             } catch (MorphiumDriverException e) {
-                e.printStackTrace();
-                try {
-                    Thread.sleep(200);
-                } catch (InterruptedException e1) {
-                    //swallowing
-
-                }
+                log.warn("Error in oplogmonitor - restarting", e);
             }
         }
     }
