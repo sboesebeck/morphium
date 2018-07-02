@@ -148,7 +148,7 @@ public class MessagingTest extends MongoTest {
         final int[] count = {0};
         Messaging consumer = new Messaging(morphium, 500, false, true, 1000);
         consumer.addMessageListener((msg, m) -> {
-            log.info("Got message!");
+            //log.info("Got message!");
             count[0]++;
             return null;
         });
@@ -168,7 +168,8 @@ public class MessagingTest extends MongoTest {
     public void messagingTest() throws Exception {
         error = false;
 
-        morphium.clearCollection(Msg.class);
+        morphium.dropCollection(Msg.class);
+        Thread.sleep(500);
 
         final Messaging messaging = new Messaging(morphium, 500, true);
         messaging.start();
@@ -1084,7 +1085,7 @@ public class MessagingTest extends MongoTest {
         m1.start();
 
         sender.sendMessageToSelf(new Msg("testmsg", "Selfmessage", "value"));
-        Thread.sleep(200);
+        Thread.sleep(500);
         assert (gotMessage == true);
         assert (gotMessage1 == false);
 
@@ -1308,7 +1309,7 @@ public class MessagingTest extends MongoTest {
         assert(!gotMessage1);
         assert(!gotMessage2);
 
-        Thread.sleep(2200);
+        Thread.sleep(5200);
         assert(gotMessage1);
         assert(gotMessage2);
 
@@ -1329,12 +1330,82 @@ public class MessagingTest extends MongoTest {
         assert(!gotMessage1);
         assert(!gotMessage2);
 
-        Thread.sleep(2000);
+        Thread.sleep(5000);
         assert(gotMessage1);
         assert(gotMessage2);
 
         sender.terminate();
         m1.terminate();
+    }
+
+
+    @Test
+    public void waitingForMessagesIfNonMultithreadded() throws Exception {
+        morphium.dropCollection(Msg.class);
+        Thread.sleep(1000);
+        Messaging sender = new Messaging(morphium, 100, false, false, 10);
+        sender.start();
+
+        list.clear();
+        Messaging receiver = new Messaging(morphium, 100, false, false, 10);
+        receiver.addMessageListener((msg, m) -> {
+            list.add(m);
+            try {
+                Thread.sleep(2000);
+            } catch (InterruptedException e) {
+
+            }
+
+            return null;
+        });
+        receiver.start();
+        Thread.sleep(500);
+        sender.storeMessage(new Msg("test", "test", "test"));
+        sender.storeMessage(new Msg("test", "test", "test"));
+
+        Thread.sleep(500);
+        assert (list.size() == 1) : "Size wrong: " + list.size();
+        Thread.sleep(2200);
+        assert (list.size() == 2);
+
+        sender.terminate();
+        receiver.terminate();
+
+    }
+
+    @Test
+    public void waitingForMessagesIfMultithreadded() throws Exception {
+        morphium.dropCollection(Msg.class);
+        morphium.getConfig().setThreadPoolMessagingCoreSize(5);
+        log.info("Max threadpool:" + morphium.getConfig().getThreadPoolMessagingCoreSize());
+        Thread.sleep(1000);
+        Messaging sender = new Messaging(morphium, 100, false, true, 10);
+        sender.start();
+
+        list.clear();
+        Messaging receiver = new Messaging(morphium, 100, false, true, 10);
+        receiver.addMessageListener((msg, m) -> {
+            log.info("Incoming message...");
+            list.add(m);
+            try {
+                Thread.sleep(2000);
+            } catch (InterruptedException e) {
+
+            }
+
+            return null;
+        });
+        receiver.start();
+        Thread.sleep(500);
+        sender.storeMessage(new Msg("test", "test", "test"));
+        sender.storeMessage(new Msg("test", "test", "test"));
+        Thread.sleep(500);
+
+        assert (list.size() == 2) : "Size wrong: " + list.size();
+
+        sender.terminate();
+        receiver.terminate();
+
     }
 
 
