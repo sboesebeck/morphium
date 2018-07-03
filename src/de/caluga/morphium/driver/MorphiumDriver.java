@@ -263,4 +263,15 @@ public interface MorphiumDriver {
      * @return
      */
     List<String> listCollections(String db, String pattern) throws MorphiumDriverException;
+
+
+    void startTransaction();
+
+    void commitTransaction();
+
+    MorphiumTransactionContext getTransactionContext();
+
+    void setTransactionContext(MorphiumTransactionContext ctx);
+
+    void abortTransaction();
 }
