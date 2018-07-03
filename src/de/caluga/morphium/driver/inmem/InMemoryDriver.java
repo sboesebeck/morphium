@@ -965,6 +965,31 @@ public class InMemoryDriver implements MorphiumDriver {
         throw new FunctionNotSupportedException("no map reduce in memory");
     }
 
+    @Override
+    public void startTransaction() {
+
+    }
+
+    @Override
+    public void commitTransaction() {
+
+    }
+
+    @Override
+    public MorphiumTransactionContext getTransactionContext() {
+        return null;
+    }
+
+    @Override
+    public void abortTransaction() {
+
+    }
+
+    @Override
+    public void setTransactionContext(MorphiumTransactionContext ctx) {
+
+    }
+
     private class InMemoryCursor {
         private int skip;
         private int limit;

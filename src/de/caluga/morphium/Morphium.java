@@ -2752,4 +2752,24 @@ public class Morphium {
     public void removeDerrferencingListener(DereferencingListener lst) {
         this.lazyDereferencingListeners.remove(lst);
     }
+
+    public void startTransaction() {
+        getDriver().startTransaction();
+    }
+
+    public MorphiumTransactionContext getTransaction() {
+        return getDriver().getTransactionContext();
+    }
+
+    public void setTransaction(MorphiumTransactionContext ctx) {
+        getDriver().setTransactionContext(ctx);
+    }
+
+    public void commitTransaction() {
+        getDriver().commitTransaction();
+    }
+
+    public void abortTransaction() {
+        getDriver().abortTransaction();
+    }
 }

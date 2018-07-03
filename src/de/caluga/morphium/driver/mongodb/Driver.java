@@ -4,10 +4,8 @@ package de.caluga.morphium.driver.mongodb;/**
 
 
 import com.mongodb.*;
-import com.mongodb.client.FindIterable;
-import com.mongodb.client.MapReduceIterable;
-import com.mongodb.client.MongoCollection;
-import com.mongodb.client.MongoDatabase;
+import com.mongodb.MongoClient;
+import com.mongodb.client.*;
 import com.mongodb.client.model.InsertManyOptions;
 import com.mongodb.client.model.UpdateOptions;
 import com.mongodb.client.result.DeleteResult;
@@ -60,6 +58,9 @@ public class Driver implements MorphiumDriver {
     private Maximums maximums;
 
     private boolean replicaset;
+
+
+    private ThreadLocal<MongoTransactionContext> currentTransaction = new ThreadLocal<>();
 
     @Override
     public boolean isReplicaset() {
@@ -507,32 +508,38 @@ public class Driver implements MorphiumDriver {
         //noinspection ConstantConditions
         return (MorphiumCursor) DriverHelper.doCall(() -> {
 
-            DB database = mongo.getDB(db);
+            MongoDatabase database = mongo.getDatabase(db);
             //                MongoDatabase database = mongo.getDatabase(db);
-            DBCollection coll = getColl(database, collection, readPreference, null);
-            DBCursor ret = coll.find(new BasicDBObject(query), projection != null ? new BasicDBObject(projection) : null);
+//            DBCollection coll = getColl(database, collection, readPreference, null);
+            MongoCollection<Document> c = getCollection(database, collection, readPreference, null);
+            FindIterable<Document> it = currentTransaction.get() == null ? c.find(new BasicDBObject(query)) : c.find(currentTransaction.get().getSession(), new BasicDBObject(query));
+            if (projection != null) {
+                it.projection(new BasicDBObject(projection));
+            }
+            if (sort != null) {
+                it.sort(new BasicDBObject(sort));
+            }
+            if (skip != 0) {
+                it.skip(skip);
+            }
+            if (limit != 0) {
+                it.limit(limit);
+            }
+            if (batchSize != 0) {
+                it.batchSize(batchSize);
+            } else {
+                it.batchSize(defaultBatchSize);
+            }
+            MongoCursor<Document> ret = it.iterator();
+//            DBCursor ret = coll.find(new BasicDBObject(query), projection != null ? new BasicDBObject(projection) : null);
 
             handleMetaData(findMetaData, ret);
 
-            if (sort != null) {
-                ret = ret.sort(new BasicDBObject(sort));
-            }
-            if (skip != 0) {
-                ret = ret.skip(skip);
-            }
-            if (limit != 0) {
-                ret = ret.limit(limit);
-            }
-            if (batchSize != 0) {
-                ret.batchSize(batchSize);
-            } else {
-                ret.batchSize(defaultBatchSize);
-            }
             List<Map<String, Object>> values = new ArrayList<>();
 
             while (ret.hasNext()) {
-                DBObject d = ret.next();
-                Map<String, Object> obj = convertBSON((BasicDBObject) d);
+                Document d = ret.next();
+                Map<String, Object> obj = convertBSON(d);
                 values.add(obj);
                 int cnt = values.size();
                 if ((cnt >= batchSize && batchSize != 0) || (cnt >= 1000 && batchSize == 0)) {
@@ -542,14 +549,16 @@ public class Driver implements MorphiumDriver {
 
             Map<String, Object> r = new HashMap<>();
 
-            MorphiumCursor<DBCursor> crs = new MorphiumCursor<>();
+            MorphiumCursor<MongoCursor<Document>> crs = new MorphiumCursor<>();
 
             if ((values.size() < batchSize && batchSize != 0) || (values.size() < 1000 && batchSize == 0)) {
                 ret.close();
             } else {
                 crs.setInternalCursorObject(ret);
             }
-            crs.setCursorId(ret.getCursorId());
+            if (ret.getServerCursor() != null) {
+                crs.setCursorId(ret.getServerCursor().getId());
+            }
             crs.setBatch(values);
             r.put("result", crs);
 
@@ -566,7 +575,7 @@ public class Driver implements MorphiumDriver {
             MongoDatabase database = mongo.getDatabase(db);
             //                MongoDatabase database = mongo.getDatabase(db);
             MongoCollection<Document> coll = getCollection(database, collection, readPreference, null);
-            FindIterable<Document> ret = coll.find(new BasicDBObject(query));
+            FindIterable<Document> ret = currentTransaction.get() == null ? coll.find(new BasicDBObject(query)) : coll.find(currentTransaction.get().getSession(), new BasicDBObject(query));
             if (projection != null) {
                 ret.projection(new BasicDBObject(projection));
             }
@@ -605,13 +614,14 @@ public class Driver implements MorphiumDriver {
         }, retriesOnNetworkError, sleepBetweenErrorRetries);
     }
 
-    private void handleMetaData(Map<String, Object> findMetaData, DBCursor ret) {
+    private void handleMetaData(Map<String, Object> findMetaData, MongoCursor<Document> ret) {
         if (findMetaData != null) {
             if (ret.getServerAddress() != null) {
                 findMetaData.put("server", ret.getServerAddress().getHost() + ":" + ret.getServerAddress().getPort());
             }
-            findMetaData.put("cursorId", ret.getCursorId());
-            findMetaData.put("collection", ret.getCollection().getName());
+            if (ret.getServerCursor() != null) {
+                findMetaData.put("cursorId", ret.getServerCursor().getId());
+            }
         }
     }
 
@@ -668,32 +678,34 @@ public class Driver implements MorphiumDriver {
         return (List<Map<String, Object>>) DriverHelper.doCall(new MorphiumDriverOperation() {
             @Override
             public Map<String, Object> execute() {
+                MongoDatabase database = mongo.getDatabase(db);
+                MongoCollection<Document> coll = getCollection(database, collection, readPreference, null);
 
-                DB database = mongo.getDB(db);
-                //                MongoDatabase database = mongo.getDatabase(db);
-                DBCollection coll = getColl(database, collection, readPreference, null);
-
-                DBCursor ret = coll.find(new BasicDBObject(query), projection != null ? new BasicDBObject(projection) : null);
-                handleMetaData(findMetaData, ret);
-
+                FindIterable<Document> it = currentTransaction.get() == null ? coll.find(new BasicDBObject(query)) : coll.find(currentTransaction.get().session, new BasicDBObject(query));
+                if (projection != null) {
+                    it.projection(new BasicDBObject(projection));
+                }
                 if (sort != null) {
-                    ret = ret.sort(new BasicDBObject(sort));
+                    it.sort(new BasicDBObject(sort));
                 }
                 if (skip != 0) {
-                    ret = ret.skip(skip);
+                    it.skip(skip);
                 }
                 if (limit != 0) {
-                    ret = ret.limit(limit);
+                    it.limit(limit);
                 }
                 if (batchSize != 0) {
-                    ret.batchSize(batchSize);
+                    it.batchSize(batchSize);
                 } else {
-                    ret.batchSize(defaultBatchSize);
+                    it.batchSize(defaultBatchSize);
                 }
+                MongoCursor<Document> ret = it.iterator();
+                handleMetaData(findMetaData, ret);
+
                 List<Map<String, Object>> values = new ArrayList<>();
-                while(ret.hasNext()){
-                    DBObject d=ret.next();
-                    Map<String, Object> obj = convertBSON((BasicDBObject) d);
+                while (ret.hasNext()) {
+                    Document d = ret.next();
+                    Map<String, Object> obj = convertBSON(d);
                     values.add(obj);
                 }
                 Map<String, Object> r = new HashMap<String, Object>();
@@ -1013,13 +1025,21 @@ public class Driver implements MorphiumDriver {
             MongoCollection c = mongo.getDatabase(db).getCollection(collection);
             if (lst.size() == 1) {
                 //noinspection unchecked
-                c.insertOne(lst.get(0));
+                if (currentTransaction.get() == null) {
+                    c.insertOne(lst.get(0));
+                } else {
+                    c.insertOne(currentTransaction.get().getSession(), lst.get(0));
+                }
             } else {
                 InsertManyOptions imo = new InsertManyOptions();
                 imo.ordered(false);
 
                 //noinspection unchecked
-                c.insertMany(lst, imo);
+                if (currentTransaction.get() == null) {
+                    c.insertMany(lst, imo);
+                } else {
+                    c.insertMany(currentTransaction.get().getSession(), lst, imo);
+                }
             }
 
             for (int i = 0; i < lst.size(); i++) {
@@ -1043,9 +1063,18 @@ public class Driver implements MorphiumDriver {
             opts.upsert(upsert);
             UpdateResult res;
             if (multiple) {
-                res = mongo.getDatabase(db).getCollection(collection).updateMany(new BasicDBObject(query), new BasicDBObject(op), opts);
+                if (currentTransaction.get() == null) {
+                    res = mongo.getDatabase(db).getCollection(collection).updateMany(new BasicDBObject(query), new BasicDBObject(op), opts);
+                } else {
+                    res = mongo.getDatabase(db).getCollection(collection).updateMany(currentTransaction.get().getSession(), new BasicDBObject(query), new BasicDBObject(op), opts);
+                }
             } else {
-                res = mongo.getDatabase(db).getCollection(collection).updateOne(new BasicDBObject(query), new BasicDBObject(op), opts);
+                if (currentTransaction.get() == null) {
+                    res = mongo.getDatabase(db).getCollection(collection).updateOne(new BasicDBObject(query), new BasicDBObject(op), opts);
+                } else {
+                    res = mongo.getDatabase(db).getCollection(collection).updateOne(currentTransaction.get().getSession(), new BasicDBObject(query), new BasicDBObject(op), opts);
+
+                }
             }
 
             Map<String, Object> ret = new HashMap<>();
@@ -1065,9 +1094,18 @@ public class Driver implements MorphiumDriver {
             MongoCollection<Document> coll = database.getCollection(collection);
             DeleteResult res;
             if (multiple) {
-                res = coll.deleteMany(new BasicDBObject(query));
+                if (currentTransaction.get() == null) {
+                    res = coll.deleteMany(new BasicDBObject(query));
+                } else {
+                    res = coll.deleteMany(currentTransaction.get().getSession(), new BasicDBObject(query));
+
+                }
             } else {
-                res = coll.deleteOne(new BasicDBObject(query));
+                if (currentTransaction.get() == null) {
+                    res = coll.deleteOne(new BasicDBObject(query));
+                } else {
+                    res = coll.deleteOne(currentTransaction.get().getSession(), new BasicDBObject(query));
+                }
             }
             Map<String, Object> r = new HashMap<>();
             r.put("deleted", res.getDeletedCount());
@@ -1082,22 +1120,29 @@ public class Driver implements MorphiumDriver {
         DriverHelper.doCall(() -> {
             MongoDatabase database = mongo.getDatabase(db);
             MongoCollection<Document> coll = database.getCollection(collection);
-
-            coll.drop();
+            if (currentTransaction.get() == null) {
+                coll.drop();
+            } else {
+                coll.drop(currentTransaction.get().getSession());
+            }
             return null;
         }, retriesOnNetworkError, sleepBetweenErrorRetries);
     }
 
     @Override
     public void drop(String db, de.caluga.morphium.driver.WriteConcern wc) throws
-                                                                           MorphiumDriverException {
+            MorphiumDriverException {
         DriverHelper.doCall(() -> {
             MongoDatabase database = mongo.getDatabase(db);
             if (wc != null) {
                 com.mongodb.WriteConcern writeConcern = new com.mongodb.WriteConcern(wc.getW(), wc.getWtimeout(), wc.isFsync(), wc.isJ());
                 database = database.withWriteConcern(writeConcern);
             }
-            database.drop();
+            if (currentTransaction.get() == null) {
+                database.drop();
+            } else {
+                database.drop(currentTransaction.get().getSession());
+            }
             return null;
         }, retriesOnNetworkError, sleepBetweenErrorRetries);
     }
@@ -1118,8 +1163,16 @@ public class Driver implements MorphiumDriver {
         DriverHelper.replaceMorphiumIdByObjectId(filter);
         final List<Object> ret = new ArrayList<>();
         DriverHelper.doCall(() -> {
-            List it = getColl(mongo.getDB(db), collection, getDefaultReadPreference(), null).distinct(field, new BasicDBObject(filter));
-            ret.addAll(it);
+            DistinctIterable<Document> it = null;
+            if (currentTransaction.get() == null) {
+                it = getCollection(mongo.getDatabase(db), collection, getDefaultReadPreference(), null).distinct(field, new BasicDBObject(filter), Document.class);
+            } else {
+                it = getCollection(mongo.getDatabase(db), collection, getDefaultReadPreference(), null).distinct(currentTransaction.get().getSession(), field, new BasicDBObject(filter), Document.class);
+            }
+//            List it = getColl(mongo.getDB(db), collection, getDefaultReadPreference(), null).distinct(field, new BasicDBObject(filter));
+            for (Document d : it) {
+                ret.add(d);
+            }
             return null;
         }, retriesOnNetworkError, sleepBetweenErrorRetries);
 
@@ -1164,8 +1217,14 @@ public class Driver implements MorphiumDriver {
     public List<String> getCollectionNames(String db) throws MorphiumDriverException {
         final List<String> ret = new ArrayList<>();
         DriverHelper.doCall(() -> {
-            for (String c : mongo.getDatabase(db).listCollectionNames()) {
-                ret.add(c);
+            if (currentTransaction.get() == null) {
+                for (String c : mongo.getDatabase(db).listCollectionNames()) {
+                    ret.add(c);
+                }
+            } else {
+                for (String c : mongo.getDatabase(db).listCollectionNames(currentTransaction.get().getSession())) {
+                    ret.add(c);
+                }
             }
             return null;
         }, retriesOnNetworkError, sleepBetweenErrorRetries);
@@ -1209,31 +1268,31 @@ public class Driver implements MorphiumDriver {
 
     @Override
     public List<Map<String, Object>> aggregate(String db, String collection, List<Map<String, Object>> pipeline,
-                                               boolean explain, boolean allowDiskUse, ReadPreference readPreference) throws MorphiumDriverException {
+                                               boolean explain, boolean allowDiskUse, ReadPreference readPreference) {
         DriverHelper.replaceMorphiumIdByObjectId(pipeline);
         //noinspection unchecked
         List list = new ArrayList<>(pipeline.stream().map(BasicDBObject::new).collect(Collectors.toList()));
 
-        AggregationOptions opts = AggregationOptions.builder().allowDiskUse(allowDiskUse).build();
-
 
         if (explain) {
-            @SuppressWarnings("unchecked") CommandResult ret = getColl(mongo.getDB(db), collection, getDefaultReadPreference(), null).explainAggregate(list, opts);
+            @SuppressWarnings("unchecked") CommandResult ret = getColl(mongo.getDB(db), collection, getDefaultReadPreference(), null).explainAggregate(list, null);
             List<Map<String, Object>> o = new ArrayList<>();
             o.add(new HashMap<>(ret));
             return o;
         } else {
-            @SuppressWarnings("unchecked") Cursor ret = getColl(mongo.getDB(db), collection, getDefaultReadPreference(), null).aggregate(list, opts);
+            MongoCollection<Document> c = getCollection(mongo.getDatabase(db), collection, getDefaultReadPreference(), null);
+            AggregateIterable<Document> it = null;
+            if (currentTransaction.get() == null) {
+                it = c.aggregate(list, Document.class);
+            } else {
+                it = c.aggregate(currentTransaction.get().getSession(), list, Document.class);
+            }
+//            @SuppressWarnings("unchecked") Cursor ret = getColl(mongo.getDB(db), collection, getDefaultReadPreference(), null).aggregate(list, opts);
             List<Map<String, Object>> result = new ArrayList<>();
 
-            while (ret.hasNext()) {
-                DBObject doc = ret.next();
-                if (doc instanceof Map) {
-                    //noinspection unchecked
-                    result.add(convertBSON(new HashMap<>((Map) doc)));
-                } else {
-                    throw new MorphiumDriverException("Something went terribly wrong!", null);
-                }
+            for (Document doc : it) {
+                //noinspection unchecked
+                result.add(convertBSON(new HashMap<>((Map) doc)));
             }
             return result;
 
@@ -1328,6 +1387,7 @@ public class Driver implements MorphiumDriver {
     public void createIndex(String db, String collection, Map<String, Object> index, Map<String, Object> options) throws MorphiumDriverException {
         DriverHelper.doCall(() -> {
             BasicDBObject options1 = options == null ? new BasicDBObject() : new BasicDBObject(options);
+            //use IndexOptions and new API
             mongo.getDB(db).getCollection(collection).createIndex(new BasicDBObject(index), options1);
             return null;
         }, retriesOnNetworkError, sleepBetweenErrorRetries);
@@ -1347,7 +1407,12 @@ public class Driver implements MorphiumDriver {
 
     @Override
     public List<Map<String, Object>> mapReduce(String db, String collection, String mapping, String reducing, Map<String, Object> query, Map<String, Object> sorting) {
-        MapReduceIterable<Document> res = mongo.getDatabase(db).getCollection(collection).mapReduce(mapping, reducing);
+        MapReduceIterable<Document> res = null;
+        if (currentTransaction.get() == null) {
+            res = mongo.getDatabase(db).getCollection(collection).mapReduce(mapping, reducing);
+        } else {
+            res = mongo.getDatabase(db).getCollection(collection).mapReduce(currentTransaction.get().getSession(), mapping, reducing);
+        }
         if (query != null) {
             BasicDBObject v = new BasicDBObject(query);
             res.filter(v);
@@ -1368,5 +1433,54 @@ public class Driver implements MorphiumDriver {
         }
 
         return ret;
+    }
+
+
+    @Override
+    public void startTransaction() {
+        if (currentTransaction.get() != null) {
+            throw new IllegalArgumentException("Transaction in progress");
+        }
+
+        ClientSessionOptions.Builder b = ClientSessionOptions.builder();
+        b.causallyConsistent(true);
+        b.defaultTransactionOptions(TransactionOptions.builder().readConcern(ReadConcern.DEFAULT).readPreference(com.mongodb.ReadPreference.primaryPreferred()).build());
+
+        ClientSession ses = mongo.startSession(b.build());
+        ses.startTransaction();
+        MongoTransactionContext ctx = new MongoTransactionContext();
+        ctx.setSession(ses);
+        currentTransaction.set(ctx);
+    }
+
+    @Override
+    public void commitTransaction() {
+        if (currentTransaction.get() == null) {
+            throw new IllegalArgumentException("No transaction in progress");
+        }
+        currentTransaction.get().getSession().abortTransaction();
+        currentTransaction.set(null);
+    }
+
+    @Override
+    public MorphiumTransactionContext getTransactionContext() {
+        return currentTransaction.get();
+    }
+
+    @Override
+    public void abortTransaction() {
+        if (currentTransaction.get() == null) {
+            throw new IllegalArgumentException("No transaction in progress");
+        }
+        currentTransaction.get().getSession().abortTransaction();
+        currentTransaction.set(null);
+    }
+
+    @Override
+    public void setTransactionContext(MorphiumTransactionContext ctx) {
+        if (currentTransaction.get() != null) {
+            throw new IllegalArgumentException("Transaction in progress!");
+        }
+        currentTransaction.set((MongoTransactionContext) ctx);
     }
 }
