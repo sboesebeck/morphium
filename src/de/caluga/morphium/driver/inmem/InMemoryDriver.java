@@ -400,7 +400,7 @@ public class InMemoryDriver implements MorphiumDriver {
                                 boolean contains = false;
                                 if (toCheck.get(key) instanceof List) {
                                     for (Object o : (List) toCheck.get(key)) {
-                                        if (o.equals(q.get(k))) {
+                                        if (o != null && q.get(k) != null && o.equals(q.get(k))) {
                                             contains = true;
                                             break;
                                         }
