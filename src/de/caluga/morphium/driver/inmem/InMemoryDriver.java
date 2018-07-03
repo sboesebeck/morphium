@@ -397,6 +397,18 @@ public class InMemoryDriver implements MorphiumDriver {
                                 return n.intValue() % div == rem;
                             case "$ne":
                                 //noinspection unchecked
+                                boolean contains = false;
+                                if (toCheck.get(key) instanceof List) {
+                                    for (Object o : (List) toCheck.get(key)) {
+                                        if (o.equals(q.get(k))) {
+                                            contains = true;
+                                            break;
+                                        }
+                                    }
+                                    return !contains;
+                                }
+                                if (toCheck.get(key) == null && q.get(k) != null) return true;
+                                if (toCheck.get(key) == null && q.get(k) == null) return false;
                                 return ((Comparable) toCheck.get(key)).compareTo(q.get(k)) != 0;
                             case "$exists":
 
@@ -424,6 +436,8 @@ public class InMemoryDriver implements MorphiumDriver {
                         if (toCheck.get(key) instanceof MorphiumId || toCheck.get(key) instanceof ObjectId) {
                             return toCheck.get(key).toString().equals(query.get(key).toString());
                         }
+                        if (toCheck.get(key) == null && query.get(key) != null) return false;
+                        if (toCheck.get(key) == null && query.get(key) == null) return true;
                         return toCheck.get(key).equals(query.get(key));
                     }
             }
@@ -628,8 +642,15 @@ public class InMemoryDriver implements MorphiumDriver {
     @Override
     public Map<String, Object> update(String db, String collection, Map<String, Object> query, Map<String, Object> op, boolean multiple, boolean upsert, WriteConcern wc) throws MorphiumDriverException {
         List<Map<String, Object>> lst = find(db, collection, query, null, null, 0, multiple ? 0 : 1, true);
+        boolean insert = false;
+        if (lst == null) lst = new ArrayList<>();
         if (upsert && (lst == null || lst.isEmpty())) {
-            throw new RuntimeException("Upsert not implemented yet!");
+            lst.add(new HashMap<>());
+            for (String k : query.keySet()) {
+                if (k.startsWith("$")) continue;
+                lst.get(0).put(k, query.get(k));
+            }
+            insert = true;
         }
         for (Map<String, Object> obj : lst) {
             for (String operand : op.keySet()) {
@@ -649,13 +670,45 @@ public class InMemoryDriver implements MorphiumDriver {
                         for (Map.Entry<String, Object> entry : cmd.entrySet()) {
                             Object value = obj.get(entry.getKey());
                             if (value instanceof Integer) {
-                                value = (Integer) value + ((Integer) entry.getValue());
+                                if (entry.getValue() instanceof Integer) {
+                                    value = (Integer) value + ((Integer) entry.getValue());
+                                } else if (entry.getValue() instanceof Float) {
+                                    value = (Integer) value + ((Float) entry.getValue());
+                                } else if (entry.getValue() instanceof Double) {
+                                    value = (Integer) value + ((Double) entry.getValue());
+                                } else if (entry.getValue() instanceof Long) {
+                                    value = (Integer) value + ((Long) entry.getValue());
+                                }
                             } else if (value instanceof Double) {
-                                value = (Double) value + ((Double) entry.getValue());
+                                if (entry.getValue() instanceof Integer) {
+                                    value = (Double) value + ((Integer) entry.getValue());
+                                } else if (entry.getValue() instanceof Float) {
+                                    value = (Double) value + ((Float) entry.getValue());
+                                } else if (entry.getValue() instanceof Double) {
+                                    value = (Double) value + ((Double) entry.getValue());
+                                } else if (entry.getValue() instanceof Long) {
+                                    value = (Double) value + ((Long) entry.getValue());
+                                }
                             } else if (value instanceof Float) {
-                                value = (Float) value + ((Float) entry.getValue());
+                                if (entry.getValue() instanceof Integer) {
+                                    value = (Float) value + ((Integer) entry.getValue());
+                                } else if (entry.getValue() instanceof Float) {
+                                    value = (Float) value + ((Float) entry.getValue());
+                                } else if (entry.getValue() instanceof Double) {
+                                    value = (Float) value + ((Double) entry.getValue());
+                                } else if (entry.getValue() instanceof Long) {
+                                    value = (Float) value + ((Long) entry.getValue());
+                                }
                             } else if (value instanceof Long) {
-                                value = (Long) value + ((Long) entry.getValue());
+                                if (entry.getValue() instanceof Integer) {
+                                    value = (Long) value + ((Integer) entry.getValue());
+                                } else if (entry.getValue() instanceof Float) {
+                                    value = (Long) value + ((Float) entry.getValue());
+                                } else if (entry.getValue() instanceof Double) {
+                                    value = (Long) value + ((Double) entry.getValue());
+                                } else if (entry.getValue() instanceof Long) {
+                                    value = (Long) value + ((Long) entry.getValue());
+                                }
 
                             }
                             obj.put(entry.getKey(), value);
@@ -700,10 +753,24 @@ public class InMemoryDriver implements MorphiumDriver {
                             }
                         }
                         break;
+                    case "$push":
+                        for (Map.Entry<String, Object> entry : cmd.entrySet()) {
+                            List v = (List) obj.get(entry.getKey());
+                            if (v == null) {
+                                v = new ArrayList();
+                                obj.put(entry.getKey(), v);
+                            }
+                            v.add(entry.getValue());
+                        }
+                        break;
                     default:
                         throw new RuntimeException("unknown operand " + operand);
                 }
             }
+        }
+        if (insert) {
+            store(db, collection, lst, wc);
+
         }
         return new HashMap<>();
     }
