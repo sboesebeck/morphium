@@ -5,14 +5,12 @@
 package de.caluga.test.mongo.suite;
 
 import de.caluga.morphium.AnnotationAndReflectionHelper;
-import de.caluga.morphium.Morphium;
-import de.caluga.morphium.MorphiumConfig;
 import de.caluga.morphium.StatisticKeys;
 import de.caluga.morphium.annotations.Embedded;
 import de.caluga.morphium.annotations.Entity;
 import de.caluga.morphium.annotations.Id;
 import de.caluga.morphium.driver.MorphiumId;
-import de.caluga.morphium.driver.inmem.InMemoryDriver;
+import de.caluga.morphium.query.MorphiumIterator;
 import de.caluga.morphium.query.Query;
 import de.caluga.test.mongo.suite.data.CachedObject;
 import de.caluga.test.mongo.suite.data.EmbeddedObject;
@@ -31,18 +29,13 @@ import java.util.Map;
  * @author stephan
  */
 @SuppressWarnings("AssertWithSideEffects")
-public class BasicFunctionalityTestInMem {
+public class InMemBasicFunctionalityTest extends InMemTest {
     public static final int NO_OBJECTS = 100;
-    private static final Logger log = LoggerFactory.getLogger(BasicFunctionalityTestInMem.class);
-    private Morphium morphium;
+    private static final Logger log = LoggerFactory.getLogger(InMemBasicFunctionalityTest.class);
+    private int runningThreads;
 
-    public BasicFunctionalityTestInMem() {
-        MorphiumConfig cfg = new MorphiumConfig();
-        cfg.addHostToSeed("inMem");
-        cfg.setDatabase("test");
-        cfg.setDriverClass(InMemoryDriver.class.getName());
-        cfg.setReplicasetMonitoring(false);
-        morphium = new Morphium(cfg);
+    public InMemBasicFunctionalityTest() {
+
     }
 
     @Test
@@ -725,39 +718,116 @@ public class BasicFunctionalityTestInMem {
     }
 
 
-    public boolean waitForAsyncOperationToStart(int maxWaits) {
-        int cnt = 0;
-        while (morphium.getWriteBufferCount() == 0) {
-            Thread.yield();
-            if (cnt++ > maxWaits) {
-                return false;
+    private void createTestUc() {
+        Query<UncachedObject> qu = morphium.createQueryFor(UncachedObject.class);
+        qu.setCollectionName("test_uc");
+        if (qu.countAll() != 25000) {
+            morphium.dropCollection(UncachedObject.class, "test_uc", null);
+            log.info("Creating uncached objects");
+
+            List<UncachedObject> lst = new ArrayList<>();
+            for (int i = 0; i < 25000; i++) {
+                UncachedObject o = new UncachedObject();
+                o.setCounter(i + 1);
+                o.setValue("V" + i);
+                lst.add(o);
             }
+            morphium.storeList(lst, "test_uc");
+            log.info("creation finished");
+        } else {
+            log.info("Testdata already filled...");
         }
-        return true;
     }
 
-    public void waitForWrites() {
-        waitForWrites(morphium);
+
+    @Test
+    public void parallelIteratorAccessTest() throws Exception {
+        createTestUc();
+        runningThreads = 0;
+
+
+        for (int i = 0; i < 3; i++) {
+            new Thread() {
+                @Override
+                public void run() {
+                    int myNum = runningThreads++;
+                    log.info("Starting thread..." + myNum);
+                    Query<UncachedObject> qu = morphium.createQueryFor(UncachedObject.class).sort("counter");
+                    qu.setCollectionName("test_uc");
+                    //                    MorphiumIterator<UncachedObject> it = qu.asIterable(5000, 15);
+                    MorphiumIterator<UncachedObject>[] toTest = new MorphiumIterator[]{qu.asIterable(), qu.asIterable(1000, 1), qu.asIterable(1000)};
+                    for (MorphiumIterator<UncachedObject> it : toTest) {
+                        for (UncachedObject uc : it) {
+                            assert (it.getCursor() == uc.getCounter());
+                            if (it.getCursor() % 2500 == 0) {
+                                log.info("Thread " + myNum + " read " + it.getCursor() + "/" + it.getCount());
+                                Thread.yield();
+                            }
+                        }
+                    }
+                    runningThreads--;
+                    log.info("Thread finished");
+                }
+            }.start();
+            Thread.sleep(250);
+        }
+        Thread.sleep(1000);
+        while (runningThreads > 0) {
+            Thread.sleep(100);
+        }
     }
 
-    public void waitForWrites(Morphium morphium) {
-        int count = 0;
-        while (morphium.getWriteBufferCount() > 0) {
-            count++;
-            if (count % 100 == 0) {
-                log.info("still " + morphium.getWriteBufferCount() + " writers active (" + morphium.getBufferedWriterBufferCount() + " + " + morphium.getWriterBufferCount() + ")");
-            }
-            try {
-                Thread.sleep(100);
-            } catch (InterruptedException ex) {
+
+    @Test
+    public void basicIteratorTest() throws Exception {
+        createUncachedObjects(1000);
+        Query<UncachedObject> qu = morphium.createQueryFor(UncachedObject.class);
+        long start = System.currentTimeMillis();
+        MorphiumIterator<UncachedObject> it = qu.asIterable(2);
+        assert (it.hasNext());
+        UncachedObject u = it.next();
+        assert (u.getCounter() == 1);
+        log.info("Got one: " + u.getCounter() + "  / " + u.getValue());
+        log.info("Current Buffersize: " + it.getCurrentBufferSize());
+        assert (it.getCurrentBufferSize() == 2);
+
+        u = it.next();
+        assert (u.getCounter() == 2);
+        u = it.next();
+        assert (u.getCounter() == 3);
+        assert (it.getCount() == 1000);
+        assert (it.getCursor() == 3);
+
+        u = it.next();
+        assert (u.getCounter() == 4);
+        u = it.next();
+        assert (u.getCounter() == 5);
+
+        while (it.hasNext()) {
+            u = it.next();
+            log.info("Object: " + u.getCounter());
+        }
+
+        assert (u.getCounter() == 1000);
+        log.info("Took " + (System.currentTimeMillis() - start) + " ms");
+
+        for (UncachedObject uc : qu.asIterable(100)) {
+            if (uc.getCounter() % 100 == 0) {
+                log.info("Got msg " + uc.getCounter());
             }
         }
-        //waiting for it to be persisted
-        try {
-            Thread.sleep(500);
-        } catch (InterruptedException e) {
+        morphium.dropCollection(UncachedObject.class);
+        u = new UncachedObject();
+        u.setValue("Hello");
+        u.setCounter(1900);
+        morphium.store(u);
+        Thread.sleep(1500);
+        for (UncachedObject uc : morphium.createQueryFor(UncachedObject.class).asIterable(100)) {
+            log.info("Got another " + uc.getCounter());
         }
+
     }
+
 
     @Entity
     public static class ListOfIdsContainer {
