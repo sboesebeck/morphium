@@ -1120,11 +1120,7 @@ public class Driver implements MorphiumDriver {
         DriverHelper.doCall(() -> {
             MongoDatabase database = mongo.getDatabase(db);
             MongoCollection<Document> coll = database.getCollection(collection);
-            if (currentTransaction.get() == null) {
                 coll.drop();
-            } else {
-                coll.drop(currentTransaction.get().getSession());
-            }
             return null;
         }, retriesOnNetworkError, sleepBetweenErrorRetries);
     }
@@ -1138,11 +1134,7 @@ public class Driver implements MorphiumDriver {
                 com.mongodb.WriteConcern writeConcern = new com.mongodb.WriteConcern(wc.getW(), wc.getWtimeout(), wc.isFsync(), wc.isJ());
                 database = database.withWriteConcern(writeConcern);
             }
-            if (currentTransaction.get() == null) {
                 database.drop();
-            } else {
-                database.drop(currentTransaction.get().getSession());
-            }
             return null;
         }, retriesOnNetworkError, sleepBetweenErrorRetries);
     }
