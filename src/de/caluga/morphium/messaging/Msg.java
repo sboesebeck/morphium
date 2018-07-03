@@ -27,8 +27,8 @@ import java.util.*;
 @WriteSafety(level = SafetyLevel.NORMAL)
 @DefaultReadPreference(ReadPreferenceLevel.PRIMARY)
 @Lifecycle
-@Index({"sender,locked_by,processed_by,recipient,received_by,priority,timestamp", "locked_by,processed_by,recipient,received_by,priority,timestamp",
-        "sender,locked_by,processed_by,recipient,received_by,name,priority,timestamp"})
+@Index({"sender,locked_by,processed_by,recipient,priority,timestamp", "locked_by,processed_by,recipient,priority,timestamp",
+        "sender,locked_by,processed_by,recipient,name,priority,timestamp"})
 public class Msg {
     @Index
     private List<String> processedBy;
