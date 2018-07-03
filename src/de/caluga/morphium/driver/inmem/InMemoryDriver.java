@@ -24,7 +24,7 @@ public class InMemoryDriver implements MorphiumDriver {
     private final Logger log = LoggerFactory.getLogger(InMemoryDriver.class);
     // DBName => Collection => List of documents
     private final Map<String, Map<String, List<Map<String, Object>>>> database = new ConcurrentHashMap<>();
-
+    private ThreadLocal<InMemTransactionContext> currentTransaction = new ThreadLocal<>();
     @Override
     public List<String> listDatabases() {
         List<String> lst = new ArrayList<>();
@@ -967,27 +967,33 @@ public class InMemoryDriver implements MorphiumDriver {
 
     @Override
     public void startTransaction() {
-
+        if (currentTransaction.get() != null) throw new IllegalArgumentException("transaction in progress");
+        InMemTransactionContext ctx = new InMemTransactionContext();
+        //ctx.setDatabase(database.); copy database / clone elements?
+        currentTransaction.set(ctx);
     }
 
     @Override
     public void commitTransaction() {
-
+        if (currentTransaction.get() == null) throw new IllegalArgumentException("No transaction in progress");
+        InMemTransactionContext ctx = currentTransaction.get();
+        database.putAll(ctx.getDatabase());
+        currentTransaction.set(null);
     }
 
     @Override
     public MorphiumTransactionContext getTransactionContext() {
-        return null;
+        return currentTransaction.get();
     }
 
     @Override
     public void abortTransaction() {
-
+        currentTransaction.set(null);
     }
 
     @Override
     public void setTransactionContext(MorphiumTransactionContext ctx) {
-
+        currentTransaction.set((InMemTransactionContext) ctx);
     }
 
     private class InMemoryCursor {
