@@ -969,8 +969,40 @@ public class InMemoryDriver implements MorphiumDriver {
     public void startTransaction() {
         if (currentTransaction.get() != null) throw new IllegalArgumentException("transaction in progress");
         InMemTransactionContext ctx = new InMemTransactionContext();
+        Map<String, Map<String, List<Map<String, Object>>>> db = new ConcurrentHashMap<>();
+
         //ctx.setDatabase(database.); copy database / clone elements?
         currentTransaction.set(ctx);
+    }
+
+    private Map<Object, Object> cloneMap(Map<Object, Object> original) {
+        //original.entrySet().stream().collect(Collectors.toMap(Map.Entry::getKey,Map.Entry::getValue));
+        Map<Object, Object> ret = new ConcurrentHashMap<>();
+        for (Map.Entry e : original.entrySet()) {
+            Object v = e.getValue();
+            if (e.getValue() instanceof Map) {
+                v = cloneMap((Map) v);
+            } else if (e.getValue() instanceof List) {
+                v = cloneList((List) v);
+            } else {
+                v = v.clone();
+            }
+            ret.put(e.getKey(), v);
+        }
+        return ret;
+    }
+
+    private List<Object> cloneList(List<Object> lst) {
+        List<Object> ret = new ArrayList<>();
+        for (Object o : lst) {
+            if (o instanceof List) {
+                ret.add(cloneList((List) lst));
+            } else if (o instanceof Map) {
+                ret.add(cloneMap((Map) o));
+            } else {
+                ret.add(((Cloneable) o).clone());
+            }
+        }
     }
 
     @Override
