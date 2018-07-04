@@ -57,7 +57,9 @@ public class DeleteTest extends MongoTest {
         morphium.delete(u);
         waitForWrites();
 
-        while (morphium.getStatistics().get("X-Entries for: resultCache|de.caluga.test.mongo.suite.data.CachedObject").intValue() != 0) {
+        String k = "X-Entries for: resultCache|de.caluga.test.mongo.suite.data.CachedObject";
+
+        while (morphium.getStatistics().get(k).intValue() != 0) {
             log.info("Waiting for cache to be cleared");
             Thread.sleep(250);
         }

@@ -243,7 +243,7 @@ public class BasicFunctionalityTest extends MongoTest {
             assert (o.getCounter() < 10 && o.getCounter() > 5) : "Counter is wrong: " + o.getCounter();
         }
 
-        assert (morphium.getStatistics().get("X-Entries for: de.caluga.test.mongo.suite.data.UncachedObject") == null) : "Cached Uncached Object?!?!?!";
+        assert (morphium.getStatistics().get("X-Entries for: idCache|de.caluga.test.mongo.suite.data.UncachedObject") == null) : "Cached Uncached Object?!?!?!";
 
 
     }
@@ -345,7 +345,7 @@ public class BasicFunctionalityTest extends MongoTest {
             morphium.store(uc);
         }
 
-        assert (morphium.getStatistics().get("X-Entries for: de.caluga.test.mongo.suite.data.UncachedObject") == null) : "Cached Uncached Object?!?!?!";
+        assert (morphium.getStatistics().get("X-Entries for: resultCache|de.caluga.test.mongo.suite.data.UncachedObject") == null) : "Cached Uncached Object?!?!?!";
 
     }
 
@@ -369,7 +369,7 @@ public class BasicFunctionalityTest extends MongoTest {
         log.info("Searching for objects");
 
         checkUncached();
-        assert (morphium.getStatistics().get("X-Entries for: de.caluga.test.mongo.suite.data.UncachedObject") == null) : "Cached Uncached Object?!?!?!";
+        assert (morphium.getStatistics().get("X-Entries for: resultCache|de.caluga.test.mongo.suite.data.UncachedObject") == null) : "Cached Uncached Object?!?!?!";
 
     }
 
@@ -399,7 +399,7 @@ public class BasicFunctionalityTest extends MongoTest {
         log.info("Storing a list  took " + dur + " ms");
         Thread.sleep(1000);
         checkUncached();
-        assert (morphium.getStatistics().get("X-Entries for: de.caluga.test.mongo.suite.data.UncachedObject") == null) : "Cached Uncached Object?!?!?!";
+        assert (morphium.getStatistics().get("X-Entries for: resultCache|de.caluga.test.mongo.suite.data.UncachedObject") == null) : "Cached Uncached Object?!?!?!";
 
     }
 
@@ -463,10 +463,10 @@ public class BasicFunctionalityTest extends MongoTest {
         waitForWrites();
         dur = System.currentTimeMillis() - start;
         log.info("Storing took " + dur + " ms overall");
-        Thread.sleep(500);
+        Thread.sleep(1500);
         randomCheck();
         Map<String, Double> statistics = morphium.getStatistics();
-        Double uc = statistics.get("X-Entries for: de.caluga.test.mongo.suite.data.UncachedObject");
+        Double uc = statistics.get("X-Entries resultCache|for: de.caluga.test.mongo.suite.data.UncachedObject");
         assert (uc == null || uc == 0) : "Cached Uncached Object?!?!?!";
         assert (statistics.get("X-Entries for: resultCache|de.caluga.test.mongo.suite.data.CachedObject") > 0) : "No Cached Object cached?!?!?!";
 
