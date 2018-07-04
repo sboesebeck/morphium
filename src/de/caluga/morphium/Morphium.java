@@ -11,7 +11,7 @@ import de.caluga.morphium.annotations.lifecycle.*;
 import de.caluga.morphium.async.AsyncOperationCallback;
 import de.caluga.morphium.bulk.MorphiumBulkContext;
 import de.caluga.morphium.cache.MorphiumCache;
-import de.caluga.morphium.cache.MorphiumCacheJCacheImpl;
+import de.caluga.morphium.cache.MorphiumCacheImpl;
 import de.caluga.morphium.driver.*;
 import de.caluga.morphium.query.MongoField;
 import de.caluga.morphium.query.MongoFieldImpl;
@@ -242,7 +242,8 @@ public class Morphium {
         config.getAsyncWriter().setPauseBetweenTries(config.getRetryWaitTimeAsyncWriter());
 
         if (config.getCache() == null) {
-            config.setCache(new MorphiumCacheJCacheImpl());
+            //Defaulting to standard Cache impl
+            config.setCache(new MorphiumCacheImpl());
         }
         config.getCache().setAnnotationAndReflectionHelper(getARHelper());
         config.getCache().setGlobalCacheTimeout(config.getGlobalCacheValidTime());
