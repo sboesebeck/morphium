@@ -38,6 +38,34 @@ public class DistinctGroupTest extends MongoTest {
         }
     }
 
+
+    @Test
+    public void distinctTestWithTransaction() throws Exception {
+        morphium.dropCollection(UncachedObject.class);
+        List<UncachedObject> lst = new ArrayList<>();
+        for (int i = 0; i < 100; i++) {
+            UncachedObject uc = new UncachedObject();
+            uc.setCounter(i % 3);
+            uc.setValue("dv " + (i % 2));
+            lst.add(uc);
+        }
+        morphium.storeList(lst);
+        morphium.startTransaction();
+        createCachedObjects(2);
+        Thread.sleep(500);
+        List values = morphium.distinct("counter", UncachedObject.class);
+        assert (values.size() == 3) : "Size wrong: " + values.size();
+        for (Object o : values) {
+            log.info("counter: " + o.toString());
+        }
+        values = morphium.distinct("value", UncachedObject.class);
+        assert (values.size() == 2) : "Size wrong: " + values.size();
+        for (Object o : values) {
+            log.info("Value: " + o.toString());
+        }
+        morphium.commitTransaction();
+    }
+
     @Test
     public void groupTest() {
         createUncachedObjects(100);
