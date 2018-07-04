@@ -149,7 +149,7 @@ public class MorphiumDriverIterator<T> implements MorphiumIterator<T> {
                 //noinspection unchecked
                 currentBatch = query.getMorphium().getDriver().initIteration(query.getMorphium().getConfig().getDatabase(), query.getCollectionName(), query.toQueryObject(), query.getSort(), query.getFieldListForQuery(), query.getSkip(), query.getLimit(), getWindowSize(), query.getMorphium().getReadPreferenceForClass(query.getType()), null);
             } catch (MorphiumDriverException e) {
-                log.error("error during fetching first batch");
+                log.error("error during fetching first batch", e);
             }
             return doHasNext();
         }

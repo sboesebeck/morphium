@@ -1104,7 +1104,7 @@ public class ObjectMapperImpl implements ObjectMapper {
                     }
                     try {
                         Class ecls = Class.forName(cn);
-                        Object um = unmarshall(ecls, (HashMap<String, Object>) val);
+                        Object um = unmarshall(ecls, (Map<String, Object>) val);
                         if (um != null) {
                             toFillIn.add(um);
                         }

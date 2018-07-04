@@ -556,9 +556,9 @@ public class Driver implements MorphiumDriver {
             } else {
                 crs.setInternalCursorObject(ret);
             }
-            if (ret.getServerCursor() != null) {
-                crs.setCursorId(ret.getServerCursor().getId());
-            }
+//            if (ret.hasNext() && ret.getServerCursor() != null) {
+////                crs.setCursorId(ret.getServerCursor().getId());
+////            }
             crs.setBatch(values);
             r.put("result", crs);
 
@@ -679,9 +679,10 @@ public class Driver implements MorphiumDriver {
             @Override
             public Map<String, Object> execute() {
                 MongoDatabase database = mongo.getDatabase(db);
-                MongoCollection<Document> coll = getCollection(database, collection, readPreference, null);
+                MongoCollection<Document> coll = getCollection(database, collection, currentTransaction.get() == null ? readPreference : ReadPreference.primary(), null);
 
                 FindIterable<Document> it = currentTransaction.get() == null ? coll.find(new BasicDBObject(query)) : coll.find(currentTransaction.get().session, new BasicDBObject(query));
+
                 if (projection != null) {
                     it.projection(new BasicDBObject(projection));
                 }
@@ -1155,13 +1156,16 @@ public class Driver implements MorphiumDriver {
         DriverHelper.replaceMorphiumIdByObjectId(filter);
         final List<Object> ret = new ArrayList<>();
         DriverHelper.doCall(() -> {
-            DistinctIterable<Document> it = null;
+            DistinctIterable<?> it = null;
             if (currentTransaction.get() == null) {
                 List<Object> lst = getColl(mongo.getDB(db), collection, getDefaultReadPreference(), null).distinct(field, new BasicDBObject(filter));
                 for (Object o : lst) ret.add(o);
             } else {
-                it = getCollection(mongo.getDatabase(db), collection, getDefaultReadPreference(), null).distinct(currentTransaction.get().getSession(), field, new BasicDBObject(filter), Document.class);
-                for (Document d : it) {
+                List<Map<String, Object>> r = find(db, collection, filter, null, new BasicDBObject(field, 1), 0, 1, 1, defaultReadPreference, null);
+                if (r == null || r.size() == 0) return null;
+
+                it = getCollection(mongo.getDatabase(db), collection, getDefaultReadPreference(), null).distinct(currentTransaction.get().getSession(), field, new BasicDBObject(filter), r.get(0).get(field).getClass());
+                for (Object d : it) {
                     ret.add(d);
                 }
             }
@@ -1436,7 +1440,7 @@ public class Driver implements MorphiumDriver {
 
         ClientSessionOptions.Builder b = ClientSessionOptions.builder();
         b.causallyConsistent(true);
-        b.defaultTransactionOptions(TransactionOptions.builder().readConcern(ReadConcern.DEFAULT).readPreference(com.mongodb.ReadPreference.primaryPreferred()).build());
+        b.defaultTransactionOptions(TransactionOptions.builder().readConcern(ReadConcern.DEFAULT).readPreference(com.mongodb.ReadPreference.primary()).build());
 
         ClientSession ses = mongo.startSession(b.build());
         ses.startTransaction();
