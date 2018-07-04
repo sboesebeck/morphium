@@ -48,6 +48,7 @@ public class JCacheTest extends MongoTest {
             log.info("    duration: " + dur + "\n\n");
         }
         cache.setCacheManager(def);
+        morphium.getConfig().setCache(cache);
 
     }
 

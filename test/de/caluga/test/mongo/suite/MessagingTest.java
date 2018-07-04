@@ -1085,7 +1085,7 @@ public class MessagingTest extends MongoTest {
         m1.start();
 
         sender.sendMessageToSelf(new Msg("testmsg", "Selfmessage", "value"));
-        Thread.sleep(500);
+        Thread.sleep(1500);
         assert (gotMessage == true);
         assert (gotMessage1 == false);
 
@@ -1399,7 +1399,7 @@ public class MessagingTest extends MongoTest {
         Thread.sleep(100);
         sender.storeMessage(new Msg("test", "test", "test"));
         sender.storeMessage(new Msg("test", "test", "test"));
-        Thread.sleep(500);
+        Thread.sleep(1000);
 
         assert (list.size() == 2) : "Size wrong: " + list.size();
 
