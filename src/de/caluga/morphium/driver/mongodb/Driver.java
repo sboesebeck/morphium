@@ -1157,13 +1157,13 @@ public class Driver implements MorphiumDriver {
         DriverHelper.doCall(() -> {
             DistinctIterable<Document> it = null;
             if (currentTransaction.get() == null) {
-                it = getCollection(mongo.getDatabase(db), collection, getDefaultReadPreference(), null).distinct(field, new BasicDBObject(filter), Document.class);
+                List<Object> lst = getColl(mongo.getDB(db), collection, getDefaultReadPreference(), null).distinct(field, new BasicDBObject(filter));
+                for (Object o : lst) ret.add(o);
             } else {
                 it = getCollection(mongo.getDatabase(db), collection, getDefaultReadPreference(), null).distinct(currentTransaction.get().getSession(), field, new BasicDBObject(filter), Document.class);
-            }
-//            List it = getColl(mongo.getDB(db), collection, getDefaultReadPreference(), null).distinct(field, new BasicDBObject(filter));
-            for (Document d : it) {
-                ret.add(d);
+                for (Document d : it) {
+                    ret.add(d);
+                }
             }
             return null;
         }, retriesOnNetworkError, sleepBetweenErrorRetries);
