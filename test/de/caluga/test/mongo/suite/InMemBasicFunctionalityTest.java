@@ -338,7 +338,7 @@ public class InMemBasicFunctionalityTest extends InMemTest {
             morphium.store(uc);
         }
 
-        assert (morphium.getStatistics().get("X-Entries for: de.caluga.test.mongo.suite.data.UncachedObject") == null) : "Cached Uncached Object?!?!?!";
+        assert (morphium.getStatistics().get("X-Entries for: resultCache|de.caluga.test.mongo.suite.data.UncachedObject") == null) : "Cached Uncached Object?!?!?!";
 
     }
 
@@ -362,7 +362,7 @@ public class InMemBasicFunctionalityTest extends InMemTest {
         log.info("Searching for objects");
 
         checkUncached();
-        assert (morphium.getStatistics().get("X-Entries for: de.caluga.test.mongo.suite.data.UncachedObject") == null) : "Cached Uncached Object?!?!?!";
+        assert (morphium.getStatistics().get("X-Entries for: resultCache|de.caluga.test.mongo.suite.data.UncachedObject") == null) : "Cached Uncached Object?!?!?!";
 
     }
 
@@ -392,7 +392,7 @@ public class InMemBasicFunctionalityTest extends InMemTest {
         log.info("Storing a list  took " + dur + " ms");
         Thread.sleep(1000);
         checkUncached();
-        assert (morphium.getStatistics().get("X-Entries for: de.caluga.test.mongo.suite.data.UncachedObject") == null) : "Cached Uncached Object?!?!?!";
+        assert (morphium.getStatistics().get("X-Entries for: resultCache|de.caluga.test.mongo.suite.data.UncachedObject") == null) : "Cached Uncached Object?!?!?!";
 
     }
 
@@ -459,9 +459,8 @@ public class InMemBasicFunctionalityTest extends InMemTest {
         Thread.sleep(500);
         randomCheck();
         Map<String, Double> statistics = morphium.getStatistics();
-        Double uc = statistics.get("X-Entries for: de.caluga.test.mongo.suite.data.UncachedObject");
-        assert (uc == null || uc == 0) : "Cached Uncached Object?!?!?!";
-        assert (statistics.get("X-Entries for: resultCache|de.caluga.test.mongo.suite.data.CachedObject") > 0) : "No Cached Object cached?!?!?!";
+        Double uc = statistics.get("X-Entries for: resultCache|de.caluga.test.mongo.suite.data.CachedObject");
+        assert (uc > 0) : "No Cached Object cached?!?!?!";
 
     }
 

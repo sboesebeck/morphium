@@ -15,6 +15,7 @@ import de.caluga.morphium.driver.*;
 import de.caluga.morphium.driver.ReadPreference;
 import de.caluga.morphium.driver.bulk.BulkRequestContext;
 import org.bson.*;
+import org.bson.types.Binary;
 import org.bson.types.ObjectId;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -630,25 +631,20 @@ public class Driver implements MorphiumDriver {
         //noinspection ConstantConditions
         return (MorphiumCursor) DriverHelper.doCall(() -> {
             List<Map<String, Object>> values = new ArrayList<>();
-            @SuppressWarnings("unchecked") DBCursor ret = ((MorphiumCursor<DBCursor>) crs).getInternalCursorObject();
+            @SuppressWarnings("unchecked") MongoCursor<Document> ret = ((MorphiumCursor<MongoCursor<Document>>) crs).getInternalCursorObject();
             if (ret == null) {
                 return new HashMap<>(); //finished
             }
-            int batchSize = ret.getBatchSize();
             while (ret.hasNext()) {
-                DBObject d = ret.next();
-                Map<String, Object> obj = convertBSON((BasicDBObject) d);
+                Document d = ret.next();
+                Map<String, Object> obj = convertBSON(d);
                 values.add(obj);
-                int cnt = values.size();
-                if (cnt >= batchSize && batchSize != 0 || cnt >= 1000 && batchSize == 0) {
-                    break;
-                }
             }
             Map<String, Object> r = new HashMap<>();
 
-            MorphiumCursor<DBCursor> crs1 = new MorphiumCursor<>();
-            crs1.setCursorId(ret.getCursorId());
-            if ((values.size() < batchSize && batchSize != 0) || (values.size() < 1000 && batchSize == 0)) {
+            MorphiumCursor<MongoCursor<Document>> crs1 = new MorphiumCursor<>();
+//            crs1.setCursorId(ret.getCursorId());
+            if (values.size() < 1000) {
                 ret.close();
             } else {
                 crs1.setInternalCursorObject(ret);
@@ -663,7 +659,7 @@ public class Driver implements MorphiumDriver {
     public void closeIteration(MorphiumCursor crs) throws MorphiumDriverException {
         DriverHelper.doCall(() -> {
             if (crs != null) {
-                @SuppressWarnings("unchecked") DBCursor ret = ((MorphiumCursor<DBCursor>) crs).getInternalCursorObject();
+                MongoCursor ret = ((MorphiumCursor<MongoCursor>) crs).getInternalCursorObject();
                 ret.close();
             }
             return null;
@@ -747,6 +743,9 @@ public class Driver implements MorphiumDriver {
                     || value instanceof Document
                     || value instanceof BSONObject) {
                 value = convertBSON((Map) value);
+            } else if (value instanceof Binary) {
+                Binary b = (Binary) value;
+                value = b.getData();
             } else if (value instanceof BsonString) {
                 value = value.toString();
             } else if (value instanceof List) {
