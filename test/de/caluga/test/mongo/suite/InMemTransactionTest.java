@@ -10,7 +10,7 @@ import org.junit.Test;
  * <p>
  * TODO: Add documentation here
  */
-public class TransactionTest extends MongoTest {
+public class InMemTransactionTest extends InMemTest {
 
     @Test
     public void transactionTest() throws Exception {
@@ -19,7 +19,8 @@ public class TransactionTest extends MongoTest {
         morphium.startTransaction();
         UncachedObject u = new UncachedObject("test", 101);
         morphium.store(u);
-        assert (morphium.createQueryFor(UncachedObject.class).countAll() == 11);
+        long l = morphium.createQueryFor(UncachedObject.class).countAll();
+        assert (l == 11) : "Count wrong: " + l;
         morphium.abortTransaction();
         Thread.sleep(1000);
         assert (morphium.createQueryFor(UncachedObject.class).countAll() == 10);
