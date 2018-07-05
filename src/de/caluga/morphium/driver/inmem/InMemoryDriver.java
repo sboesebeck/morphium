@@ -432,6 +432,14 @@ public class InMemoryDriver implements MorphiumDriver {
                                 } else {
                                     return !exists;
                                 }
+                            case "$nin":
+                                boolean found = false;
+                                for (Object v : (List) q.get(k)) {
+                                    if (toCheck.get(key).equals(v)) {
+                                        found = true;
+                                    }
+                                }
+                                return !found;
                             case "$in":
                                 for (Object v : (List) q.get(k)) {
                                     if (toCheck.get(key).equals(v)) {

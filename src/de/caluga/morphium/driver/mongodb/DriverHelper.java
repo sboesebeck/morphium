@@ -104,7 +104,7 @@ public class DriverHelper {
                                     || o.getClass().isArray()) {
                                 replaceMorphiumIdByObjectId(o);
                             } else if (o instanceof MorphiumId) {
-                                o = new ObjectId(e.getValue().toString());
+                                o = new ObjectId(o.toString());
                             }
                             v.add(o);
                         }
