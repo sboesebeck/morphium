@@ -32,8 +32,6 @@ import java.util.*;
 public class Msg {
     @Index
     private List<String> processedBy;
-    @Index
-    private List<String> receivedBy;
     @Id
     private MorphiumId msgId;
     @Index
@@ -85,14 +83,6 @@ public class Msg {
         this.ttl = ttl;
         setExclusive(exclusive);
 
-    }
-
-    public List<String> getReceivedBy() {
-        return receivedBy;
-    }
-
-    public void setReceivedBy(List<String> receivedBy) {
-        this.receivedBy = receivedBy;
     }
 
     public int getPriority() {
@@ -378,5 +368,5 @@ public class Msg {
     }
 
 
-    public enum Fields {receivedBy, msgId, lockedBy, locked, ttl, sender, senderHost, recipient, to, inAnswerTo, name, msg, additional, mapValue, value, timestamp, deleteAt, priority, processedBy}
+    public enum Fields {msgId, lockedBy, locked, ttl, sender, senderHost, recipient, to, inAnswerTo, name, msg, additional, mapValue, value, timestamp, deleteAt, priority, processedBy}
 }
