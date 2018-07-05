@@ -39,6 +39,23 @@ public class InMemBasicFunctionalityTest extends InMemTest {
     }
 
     @Test
+    public void whereTest() {
+        createUncachedObjects(NO_OBJECTS);
+        Query<UncachedObject> q = morphium.createQueryFor(UncachedObject.class);
+        q.where("this.counter<10").f("counter").gt(5);
+        log.info(q.toQueryObject().toString());
+
+        List<UncachedObject> lst = q.asList();
+        for (UncachedObject o : lst) {
+            assert (o.getCounter() < 10 && o.getCounter() > 5) : "Counter is wrong: " + o.getCounter();
+        }
+
+        assert (morphium.getStatistics().get("X-Entries for: idCache|de.caluga.test.mongo.suite.data.UncachedObject") == null) : "Cached Uncached Object?!?!?!";
+
+
+    }
+
+    @Test
     public void subObjectQueryTest() {
         Query<ComplexObject> q = morphium.createQueryFor(ComplexObject.class);
 
