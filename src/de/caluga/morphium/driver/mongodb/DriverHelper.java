@@ -11,10 +11,7 @@ import org.bson.types.ObjectId;
 import org.slf4j.LoggerFactory;
 
 import java.lang.reflect.Array;
-import java.util.Collection;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 /**
  * helper class
@@ -97,6 +94,7 @@ public class DriverHelper {
                     } else if (e.getValue() instanceof MorphiumReference) {
                         toSet.put((String) e.getKey(), new ObjectId(((MorphiumReference) e.getValue()).getId().toString()));
                     } else if (e.getValue() instanceof Collection) {
+                        Collection v = new LinkedList();
                         for (Object o : (Collection) e.getValue()) {
                             if (o == null) {
                                 continue;
@@ -105,8 +103,12 @@ public class DriverHelper {
                                     || o instanceof List
                                     || o.getClass().isArray()) {
                                 replaceMorphiumIdByObjectId(o);
+                            } else if (o instanceof MorphiumId) {
+                                o = new ObjectId(e.getValue().toString());
                             }
+                            v.add(o);
                         }
+                        toSet.put((String) e.getKey(), v);
                     } else {
                         replaceMorphiumIdByObjectId(e.getValue());
                     }

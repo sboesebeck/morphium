@@ -2,7 +2,6 @@ package de.caluga.test.mongo.suite;
 
 import de.caluga.morphium.Morphium;
 import de.caluga.morphium.MorphiumConfig;
-import de.caluga.morphium.driver.MorphiumDriverException;
 import de.caluga.morphium.driver.inmem.InMemoryDriver;
 import de.caluga.morphium.query.Query;
 import de.caluga.test.mongo.suite.data.UncachedObject;
@@ -29,13 +28,11 @@ public class InMemTest {
     }
 
     @org.junit.After
-    public void tearDown() {
+    public void tearDown() throws InterruptedException {
         log.info("Cleaning up...");
-        try {
-            morphium.getDriver().drop("test", null);
-        } catch (MorphiumDriverException e) {
-            e.printStackTrace();
-        }
+        morphium.close();
+        //Thread.sleep(1000);
+        setUpClass();
         log.info("done...");
     }
 

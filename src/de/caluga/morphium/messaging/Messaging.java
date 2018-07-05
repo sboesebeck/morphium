@@ -118,7 +118,7 @@ public class Messaging extends Thread implements ShutdownListener {
 
             @Override
             public Thread newThread(Runnable r) {
-                Thread ret = new Thread(r, "decouple_thr_ " + num);
+                Thread ret = new Thread(r, "decouple_thr_" + num);
                 num.set(num.get() + 1);
                 ret.setDaemon(true);
                 return ret;
@@ -301,21 +301,19 @@ public class Messaging extends Thread implements ShutdownListener {
         Runnable r = new Runnable() {
             public void run() {
                 try {
-                    sleep(100);
                     findAndProcessPendingMessages(name, true);
                 } catch (InterruptedException e) {
-                    //swallow
                 }
                 pauseMessages.remove(name);
             }
         };
 
-        decouplePool.execute(r);
-
         Long ret = pauseMessages.get(name);
+
         if (ret != null) {
             ret = System.currentTimeMillis() - ret;
         }
+        decouplePool.execute(r);
         return ret;
     }
 
@@ -334,6 +332,7 @@ public class Messaging extends Thread implements ShutdownListener {
         if (name != null) or1.f(Msg.Fields.name).eq(name);
         Query<Msg> or2 = q.q().f(Msg.Fields.sender).ne(id).f(Msg.Fields.lockedBy).eq(null).f(Msg.Fields.processedBy).ne(id).f(Msg.Fields.recipient).eq(id);
         if (name != null) or2.f(Msg.Fields.name).eq(name);
+        q.f("_id").nin(processing);
         q.or(or1, or2);
         q.sort(Msg.Fields.priority, Msg.Fields.timestamp);
         values.put("locked_by", id);
@@ -436,7 +435,6 @@ public class Messaging extends Thread implements ShutdownListener {
                     processing.remove(m.getMsgId());
                     return;
                 }
-
                 try {
                     for (MessageListener l : listeners) {
                         Msg answer = l.onMessage(Messaging.this, msg);
@@ -606,6 +604,9 @@ public class Messaging extends Thread implements ShutdownListener {
         if (oplogMonitor != null) oplogMonitor.stop();
         if (isAlive()) {
             interrupt();
+        }
+        if (isAlive()) {
+            stop();
         }
     }
 

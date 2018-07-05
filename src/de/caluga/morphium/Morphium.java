@@ -16,7 +16,6 @@ import de.caluga.morphium.driver.*;
 import de.caluga.morphium.query.MongoField;
 import de.caluga.morphium.query.MongoFieldImpl;
 import de.caluga.morphium.query.Query;
-import de.caluga.morphium.replicaset.OplogMonitor;
 import de.caluga.morphium.replicaset.RSMonitor;
 import de.caluga.morphium.replicaset.ReplicaSetNode;
 import de.caluga.morphium.replicaset.ReplicaSetStatus;
@@ -77,8 +76,6 @@ public class Morphium {
     private RSMonitor rsMonitor;
     private ThreadPoolExecutor asyncOperationsThreadPool;
     private MorphiumDriver morphiumDriver;
-    private Thread oplogMonitorThread;
-    private OplogMonitor oplogMonitor;
 
     public Morphium() {
         profilingListeners = new CopyOnWriteArrayList<>();

@@ -1367,21 +1367,25 @@ public class MessagingTest extends MongoTest {
 
         gotMessage1 = false;
         gotMessage2 = false;
-
+        boolean[] fail = {false};
         Messaging m1 = new Messaging(morphium, 100, false, true, 10);
         m1.addListenerForMessageNamed("test", (msg, m) -> {
             msg.pauseProcessingOfMessagesNamed("test");
+
             try {
                 assert (m.isExclusive());
 //                assert (m.getReceivedBy().contains(msg.getSenderId()));
                 log.info("Incoming message " + m.getMsgId() + "/" + m.getMsg() + " from " + m.getSender() + " my id: " + msg.getSenderId());
                 Thread.sleep(1000);
                 if (m.getMsg().equals("test1")) {
+                    if (gotMessage1) fail[0] = true;
                     assert (!gotMessage1);
                     gotMessage1 = true;
                 }
                 if (m.getMsg().equals("test2")) {
+                    if (gotMessage1) fail[0] = true;
                     assert (!gotMessage2);
+
                     gotMessage2 = true;
                 }
             } catch (InterruptedException e) {
@@ -1397,10 +1401,11 @@ public class MessagingTest extends MongoTest {
 
 
         gotMessage1 = gotMessage2 = false;
-
+        assert (!fail[0]);
         Msg m = new Msg("test", "test1", "test", 3000000);
         m.setExclusive(true);
         sender.storeMessage(m);
+        assert (!fail[0]);
 
         m = new Msg("test", "test2", "test", 3000000);
         m.setExclusive(true);
@@ -1408,10 +1413,12 @@ public class MessagingTest extends MongoTest {
         Thread.sleep(200);
         assert (!gotMessage1);
         assert (!gotMessage2);
+        assert (!fail[0]);
 
         Thread.sleep(5500);
         assert (gotMessage1);
         assert (gotMessage2);
+        assert (!fail[0]);
 
         sender.terminate();
         m1.terminate();
