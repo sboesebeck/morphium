@@ -173,6 +173,7 @@ public class Messaging extends Thread implements ShutdownListener {
 
     @Override
     public void run() {
+        setName("Msg " + id);
         if (log.isDebugEnabled()) {
             log.debug("Messaging " + id + " started");
         }
@@ -182,6 +183,12 @@ public class Messaging extends Thread implements ShutdownListener {
             log.debug("Before running the oplogmonitor - check of already existing messages");
             try {
                 findAndProcessMessages(true);
+                if (multithreadded) {
+                    //wait for preprocessing to finish
+                    while (threadPool.getActiveCount() > 0) {
+                        Thread.yield();
+                    }
+                }
             } catch (Exception e) {
                 log.error("Error processing existing messages in queue", e);
             }
@@ -209,8 +216,14 @@ public class Messaging extends Thread implements ShutdownListener {
 
                     } else if (!obj.isExclusive() || (obj.getRecipient() != null && obj.getRecipient().equals(id))) {
                         //I need process this new message... it is either for all or for me directly
+                        obj = morphium.reread(obj);
+                        if (obj.getReceivedBy() != null && obj.getReceivedBy().contains(id)) {
+                            //already got this message - is still being processed it seems
+                            return;
+                        }
                         List<Msg> lst = new ArrayList<>();
                         lst.add(obj);
+
                         try {
                             processMessages(lst, false);
                         } catch (Exception e) {
@@ -302,58 +315,39 @@ public class Messaging extends Thread implements ShutdownListener {
     }
 
     public void findAndProcessPendingMessages(String name, boolean forceListeners) throws InterruptedException {
+        MorphiumIterator<Msg> messages = findMessages(name, true);
+        processMessages(messages, forceListeners);
+    }
+
+    private MorphiumIterator<Msg> findMessages(String name, boolean multiple) {
         Map<String, Object> values = new HashMap<>();
         Query<Msg> q = morphium.createQueryFor(Msg.class);
         q.setCollectionName(getCollectionName());
 
         //locking messages...
-        q.or(q.q().f(Msg.Fields.sender).ne(id).f(Msg.Fields.lockedBy).eq(null).f(Msg.Fields.processedBy).ne(id).f(Msg.Fields.recipient).eq(null).f(Msg.Fields.name).eq(name),
-                q.q().f(Msg.Fields.sender).ne(id).f(Msg.Fields.lockedBy).eq(null).f(Msg.Fields.processedBy).ne(id).f(Msg.Fields.recipient).eq(id).f(Msg.Fields.name).eq(name));
+        Query<Msg> or1 = q.q().f(Msg.Fields.sender).ne(id).f(Msg.Fields.lockedBy).eq(null).f(Msg.Fields.processedBy).ne(id).f(Msg.Fields.recipient).eq(null).f(Msg.Fields.receivedBy).ne(id);
+        if (name != null) or1.f(Msg.Fields.name).eq(name);
+        Query<Msg> or2 = q.q().f(Msg.Fields.sender).ne(id).f(Msg.Fields.lockedBy).eq(null).f(Msg.Fields.processedBy).ne(id).f(Msg.Fields.recipient).eq(id).f(Msg.Fields.receivedBy).ne(id);
+        if (name != null) or2.f(Msg.Fields.name).eq(name);
+        q.or(or1, or2);
         q.sort(Msg.Fields.priority, Msg.Fields.timestamp);
         values.put("locked_by", id);
         values.put("locked", System.currentTimeMillis());
         morphium.set(q, values, false, true);
         q = q.q();
-        q.or(q.q().f(Msg.Fields.lockedBy).eq(id),
-                q.q().f(Msg.Fields.lockedBy).eq("ALL").f(Msg.Fields.processedBy).ne(id).f(Msg.Fields.recipient).eq(id),
-                q.q().f(Msg.Fields.lockedBy).eq("ALL").f(Msg.Fields.processedBy).ne(id).f(Msg.Fields.recipient).eq(null));
-        q.sort(Msg.Fields.priority, Msg.Fields.timestamp);
-
-        //                List<Msg> messages = q.asList();
-        MorphiumIterator<Msg> messages = q.asIterable(windowSize);
-        messages.setMultithreaddedAccess(multithreadded);
-
-        processMessages(messages, forceListeners);
-    }
-
-    private void findAndProcessMessages(boolean multiple) throws InterruptedException {
-        Map<String, Object> values = new HashMap<>();
-        Query<Msg> q = morphium.createQueryFor(Msg.class);
-        q.setCollectionName(getCollectionName());
-        //                //removing all outdated stuff
-        //                q = q.where("this.ttl<" + System.currentTimeMillis() + "-this.timestamp");
-        //                if (log.isDebugEnabled() && q.countAll() > 0) {
-        //                    log.debug("Deleting outdate messages: " + q.countAll());
-        //                }
-        //                morphium.remove(q);
-        //                q = q.q();
-        //locking messages...
-        q.or(q.q().f(Msg.Fields.sender).ne(id).f(Msg.Fields.lockedBy).eq(null).f(Msg.Fields.processedBy).ne(id).f(Msg.Fields.recipient).eq(null).f(Msg.Fields.receivedBy).ne(id),
-                q.q().f(Msg.Fields.sender).ne(id).f(Msg.Fields.lockedBy).eq(null).f(Msg.Fields.processedBy).ne(id).f(Msg.Fields.recipient).eq(id)).f(Msg.Fields.receivedBy).ne(id);
-        q.sort(Msg.Fields.priority.name(), Msg.Fields.timestamp.name());
-        values.put("locked_by", id);
-        values.put("locked", System.currentTimeMillis());
-        morphium.set(q, values, false, multiple);
-        q = q.q();
-        q.or(q.q().f(Msg.Fields.lockedBy).eq(id),
+        q.or(q.q().f(Msg.Fields.lockedBy).eq(id).f(Msg.Fields.receivedBy).ne(id),
                 q.q().f(Msg.Fields.lockedBy).eq("ALL").f(Msg.Fields.processedBy).ne(id).f(Msg.Fields.recipient).eq(id).f(Msg.Fields.receivedBy).ne(id),
                 q.q().f(Msg.Fields.lockedBy).eq("ALL").f(Msg.Fields.processedBy).ne(id).f(Msg.Fields.recipient).eq(null).f(Msg.Fields.receivedBy).ne(id));
         q.sort(Msg.Fields.priority, Msg.Fields.timestamp);
 
         //                List<Msg> messages = q.asList();
-        MorphiumIterator<Msg> messages = q.asIterable(windowSize);
-        messages.setMultithreaddedAccess(multithreadded);
+        MorphiumIterator<Msg> it = q.asIterable(windowSize);
+        it.setMultithreaddedAccess(multithreadded);
+        return it;
+    }
 
+    private void findAndProcessMessages(boolean multiple) throws InterruptedException {
+        MorphiumIterator<Msg> messages = findMessages(null, multiple);
         processMessages(messages, false);
     }
 
@@ -361,6 +355,7 @@ public class Messaging extends Thread implements ShutdownListener {
         Query<Msg> q = morphium.createQueryFor(Msg.class);
         q.setCollectionName(getCollectionName());
         q.f("_id").eq(obj.getMsgId());
+        q.f(Msg.Fields.processedBy).ne(id);
         Map<String, Object> values = new HashMap<>();
         values.put("locked_by", id);
         values.put("locked", System.currentTimeMillis());
@@ -408,6 +403,9 @@ public class Messaging extends Thread implements ShutdownListener {
                 }
                 if (!forceIfPaused && pauseMessages.containsKey(msg.getName())) {
                     log.info("Not processing msg - paused " + msg.getName());
+                    Query<? extends Msg> qu = morphium.createQueryFor(m.getClass()).f("_id").eq(m.getMsgId());
+                    qu.setCollectionName(getCollectionName());
+                    morphium.pull(q, Msg.Fields.receivedBy, id);
                     return;
                 }
 
@@ -510,8 +508,7 @@ public class Messaging extends Thread implements ShutdownListener {
             //releasing lock
             morphium.set(idq, Msg.Fields.lockedBy, null);
         }
-
-        morphium.push(idq, Msg.Fields.processedBy, id);
+//        morphium.push(idq, Msg.Fields.processedBy, id);
     }
 
     private void queueOrRun(Runnable r) {
@@ -593,6 +590,9 @@ public class Messaging extends Thread implements ShutdownListener {
     public void terminate() {
         running = false;
         if (oplogMonitor != null) oplogMonitor.stop();
+        if (isAlive()) {
+            interrupt();
+        }
     }
 
     public void addMessageListener(MessageListener l) {

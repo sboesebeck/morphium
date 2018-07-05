@@ -9,6 +9,10 @@ import org.bson.types.ObjectId;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import javax.script.ScriptContext;
+import javax.script.ScriptEngine;
+import javax.script.ScriptEngineManager;
+import javax.script.ScriptException;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -344,7 +348,16 @@ public class InMemoryDriver implements MorphiumDriver {
             return true;
         }
         if (query.containsKey("$where")) {
-            throw new RuntimeException("$where not implemented yet");
+            ScriptEngine engine = new ScriptEngineManager().getEngineByName("nashorn");
+            //engine.eval("print('Hello World!');");
+            engine.getContext().setAttribute("obj", toCheck, ScriptContext.ENGINE_SCOPE);
+            engine.getContext().setAttribute("this", toCheck, ScriptContext.ENGINE_SCOPE);
+            try {
+                Object result = engine.eval((String) query.get("$where"));
+                if (result == null || result.equals(Boolean.FALSE)) return false;
+            } catch (ScriptException e) {
+
+            }
         }
         //noinspection LoopStatementThatDoesntLoop
         for (String key : query.keySet()) {
