@@ -49,7 +49,7 @@ public class Messaging extends Thread implements ShutdownListener {
     private String queueName;
 
     private ThreadPoolExecutor threadPool;
-    private ThreadPoolExecutor decouplePool;
+    private ScheduledThreadPoolExecutor decouplePool;
 
     private boolean multithreadded = false;
     private int windowSize = 1000;
@@ -109,9 +109,7 @@ public class Messaging extends Thread implements ShutdownListener {
             });
         }
 
-        decouplePool = new ThreadPoolExecutor(1, 2,
-                1000, TimeUnit.MILLISECONDS,
-                new LinkedBlockingQueue<>());
+        decouplePool = new ScheduledThreadPoolExecutor(1);
         //noinspection unused,unused
         decouplePool.setThreadFactory(new ThreadFactory() {
             private AtomicInteger num = new AtomicInteger(1);
@@ -298,22 +296,21 @@ public class Messaging extends Thread implements ShutdownListener {
      * @return duration or null
      */
     public Long unpauseProcessingOfMessagesNamed(String name) {
-        Runnable r = new Runnable() {
-            public void run() {
-                try {
-                    findAndProcessPendingMessages(name, true);
-                } catch (InterruptedException e) {
-                }
-                pauseMessages.remove(name);
-            }
-        };
 
-        Long ret = pauseMessages.get(name);
+        try {
+            findAndProcessPendingMessages(name, true);
+        } catch (InterruptedException e) {
+            //TODO: Implement Handling
+            throw new RuntimeException(e);
+        }
+
+        Long ret = pauseMessages.remove(name);
 
         if (ret != null) {
             ret = System.currentTimeMillis() - ret;
         }
-        decouplePool.execute(r);
+        //decouplePool.execute(r);
+
         return ret;
     }
 
@@ -382,7 +379,7 @@ public class Messaging extends Thread implements ShutdownListener {
         }
     }
 
-    private void processMessages(Iterable<Msg> messages, boolean forceIfPaused) throws InterruptedException {
+    private void processMessages(Iterable<Msg> messages, boolean forceIfPaused) {
 //        final List<Msg> toStore = new ArrayList<>();
 //        final List<Runnable> toExec = new ArrayList<>();
         if (listeners.isEmpty() && listenerByName.isEmpty()) return;
@@ -397,6 +394,7 @@ public class Messaging extends Thread implements ShutdownListener {
 //            morphium.push(q, Msg.Fields.receivedBy, id);
             if (processing.contains(m.getMsgId())) continue;
             processing.add(m.getMsgId());
+            log.info("Adding msg " + m.getMsgId());
             Runnable r = () -> {
                 if (m.getProcessedBy() != null && m.getProcessedBy().contains(id)) {
                     //log.error("Was already processed?");
@@ -489,7 +487,23 @@ public class Messaging extends Thread implements ShutdownListener {
                     //                                msg.setLocked(0);
                     //                                toStore.add(msg);
                 }
-                processing.remove(m.getMsgId());
+                Runnable rb = () -> {
+                    processing.remove(m.getMsgId());
+                    log.debug("Removed from processing " + m.getMsgId());
+                };
+                while (true) {
+                    try {
+                        if (!decouplePool.isTerminated() && !decouplePool.isTerminating() && !decouplePool.isShutdown()) {
+                            decouplePool.schedule(rb, m.getTtl(), TimeUnit.MILLISECONDS); //avoid re-executing message
+                        }
+                        break;
+                    } catch (RejectedExecutionException ex) {
+                        try {
+                            Thread.sleep(pause);
+                        } catch (InterruptedException e) {
+                        }
+                    }
+                }
             };
 
 
@@ -507,7 +521,7 @@ public class Messaging extends Thread implements ShutdownListener {
         morphium.delete(toRemove, getCollectionName());
 //        toExec.forEach(this::queueOrRun);
         while (morphium.getWriteBufferCount() > 0) {
-            Thread.sleep(100);
+            Thread.yield();
         }
     }
 
@@ -601,6 +615,14 @@ public class Messaging extends Thread implements ShutdownListener {
 
     public void terminate() {
         running = false;
+        if (decouplePool != null) {
+            int sz = decouplePool.shutdownNow().size();
+            log.debug("Shutting down with " + sz + " runnables still scheduled");
+        }
+        if (threadPool != null) {
+            int sz = threadPool.shutdownNow().size();
+            log.debug("Shutting down with " + sz + " runnables still pending in pool");
+        }
         if (oplogMonitor != null) oplogMonitor.stop();
         if (isAlive()) {
             interrupt();

@@ -1150,7 +1150,7 @@ public class MessagingTest extends MongoTest {
 
         m1.start();
 
-        Msg answer = sender.sendAndAwaitFirstAnswer(new Msg("test", "Sender", "sent", 5000), 5000);
+        Msg answer = sender.sendAndAwaitFirstAnswer(new Msg("test", "Sender", "sent", 15000), 15000);
         assert (answer != null);
         assert (answer.getName().equals("test"));
         assert (answer.getInAnswerTo() != null);
@@ -1279,7 +1279,16 @@ public class MessagingTest extends MongoTest {
 
 
     @Test
-    public void testPausingUnpausingInListener() throws Exception {
+    public void testPausingUnpausingInListenerMultithreadded() throws Exception {
+        testPausingUnpausingInListener(true);
+    }
+
+    @Test
+    public void testPausingUnpausingInListenerSinglethreadded() throws Exception {
+        testPausingUnpausingInListener(false);
+    }
+
+    private void testPausingUnpausingInListener(boolean multithreadded) throws Exception {
         morphium.dropCollection(Msg.class);
         Thread.sleep(1000);
         Messaging sender = new Messaging(morphium, 100, false);
@@ -1290,7 +1299,7 @@ public class MessagingTest extends MongoTest {
         gotMessage1=false;
         gotMessage2=false;
 
-        Messaging m1=new Messaging(morphium,100,false,true,10);
+        Messaging m1 = new Messaging(morphium, 100, false, multithreadded, 10);
         m1.addListenerForMessageNamed("test",new MessageListener() {
             @Override
             public Msg onMessage(Messaging msg, Msg m) {
@@ -1357,7 +1366,18 @@ public class MessagingTest extends MongoTest {
     }
 
     @Test
-    public void testPausingUnpausingInListenerExclusive() throws Exception {
+    public void testPausingUnpausingInListenerExclusiveMultithreadded() throws Exception {
+        testPausingUnpausingInListenerExclusive(true);
+    }
+
+
+    @Test
+    public void testPausingUnpausingInListenerExclusiveSinglethreadded() throws Exception {
+        testPausingUnpausingInListenerExclusive(false);
+    }
+
+
+    private void testPausingUnpausingInListenerExclusive(boolean multithreadded) throws Exception {
         morphium.dropCollection(Msg.class);
         Thread.sleep(1000);
         Messaging sender = new Messaging(morphium, 100, false);
@@ -1368,7 +1388,7 @@ public class MessagingTest extends MongoTest {
         gotMessage1 = false;
         gotMessage2 = false;
         boolean[] fail = {false};
-        Messaging m1 = new Messaging(morphium, 100, false, true, 10);
+        Messaging m1 = new Messaging(morphium, 100, false, multithreadded, 10);
         m1.addListenerForMessageNamed("test", (msg, m) -> {
             msg.pauseProcessingOfMessagesNamed("test");
 
@@ -1383,7 +1403,7 @@ public class MessagingTest extends MongoTest {
                     gotMessage1 = true;
                 }
                 if (m.getMsg().equals("test2")) {
-                    if (gotMessage1) fail[0] = true;
+                    if (gotMessage2) fail[0] = true;
                     assert (!gotMessage2);
 
                     gotMessage2 = true;
