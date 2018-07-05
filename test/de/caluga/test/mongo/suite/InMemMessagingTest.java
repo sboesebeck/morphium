@@ -1421,68 +1421,77 @@ public class InMemMessagingTest extends InMemTest {
 
     @Test
     public void priorityTest() throws Exception {
-        morphium.dropCollection(Msg.class);
-        Thread.sleep(1000);
-        Messaging sender = new Messaging(morphium, 100, false);
-        sender.start();
+        Messaging sender = null;
+        Messaging receiver = null;
+        try {
+            morphium.dropCollection(Msg.class);
+            Thread.sleep(1000);
+            sender = new Messaging(morphium, 100, false);
+            sender.start();
 
-        list.clear();
+            list.clear();
 
-        Messaging receiver = new Messaging(morphium, 100, false);
-        receiver.addMessageListener((msg, m) -> {
-            list.add(m);
-            return null;
-        });
+            receiver = new Messaging(morphium, 100, false);
+            receiver.addMessageListener((msg, m) -> {
+                assert (!list.contains(m));
+                list.add(m);
+                return null;
+            });
 
-        for (int i = 0; i < 10; i++) {
-            Msg m = new Msg("test", "test", "test");
-            m.setPriority((int) (1000.0 * Math.random()));
-            log.info("Stored prio: " + m.getPriority());
-            sender.storeMessage(m);
+            for (int i = 0; i < 10; i++) {
+                Msg m = new Msg("test", "test", "test");
+                m.setPriority((int) (1000.0 * Math.random()));
+                log.info("Stored prio: " + m.getPriority());
+                sender.storeMessage(m);
+            }
+
+
+            receiver.start();
+
+            while (list.size() < 10) {
+                Thread.yield();
+            }
+
+            int lastValue = -888888;
+
+            for (Msg m : list) {
+                log.info("prio: " + m.getPriority());
+                assert (m.getPriority() >= lastValue);
+                lastValue = m.getPriority();
+            }
+
+
+            list.clear();
+            receiver.pauseProcessingOfMessagesNamed("test");
+            Thread.sleep(100);
+            for (int i = 0; i < 10; i++) {
+                Msg m = new Msg("test", "test", "test");
+                m.setPriority((int) (10000.0 * Math.random()));
+                log.info("Stored prio: " + m.getPriority());
+                sender.storeMessage(m);
+            }
+
+            Thread.sleep(100);
+            receiver.unpauseProcessingOfMessagesNamed("test");
+            while (list.size() < 10) {
+                Thread.yield();
+            }
+
+            lastValue = -888888;
+
+            for (Msg m : list) {
+                log.info("prio: " + m.getPriority());
+                assert (m.getPriority() >= lastValue);
+                lastValue = m.getPriority();
+            }
+        } finally {
+
+            sender.terminate();
+            receiver.terminate();
+
         }
 
 
-        receiver.start();
-
-        while (list.size() < 10) {
-            Thread.yield();
-        }
-
-        int lastValue = -888888;
-
-        for (Msg m : list) {
-            log.info("prio: " + m.getPriority());
-            assert (m.getPriority() >= lastValue);
-            lastValue = m.getPriority();
-        }
-
-
-        receiver.pauseProcessingOfMessagesNamed("test");
-        list.clear();
-        for (int i = 0; i < 10; i++) {
-            Msg m = new Msg("test", "test", "test");
-            m.setPriority((int) (10000.0 * Math.random()));
-            log.info("Stored prio: " + m.getPriority());
-            sender.storeMessage(m);
-        }
-
-        Thread.sleep(100);
-        receiver.unpauseProcessingOfMessagesNamed("test");
-        while (list.size() < 10) {
-            Thread.yield();
-        }
-
-        lastValue = -888888;
-
-        for (Msg m : list) {
-            log.info("prio: " + m.getPriority());
-            assert (m.getPriority() >= lastValue);
-            lastValue = m.getPriority();
-        }
-
-
-        sender.terminate();
-        receiver.terminate();
     }
 
 }
