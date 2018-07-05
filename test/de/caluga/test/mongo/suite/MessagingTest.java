@@ -1373,7 +1373,7 @@ public class MessagingTest extends MongoTest {
             msg.pauseProcessingOfMessagesNamed("test");
             try {
                 assert (m.isExclusive());
-                assert (m.getReceivedBy().contains(msg.getSenderId()));
+//                assert (m.getReceivedBy().contains(msg.getSenderId()));
                 log.info("Incoming message " + m.getMsgId() + "/" + m.getMsg() + " from " + m.getSender() + " my id: " + msg.getSenderId());
                 Thread.sleep(1000);
                 if (m.getMsg().equals("test1")) {
