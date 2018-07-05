@@ -286,6 +286,8 @@ public class MorphiumCacheImpl implements MorphiumCache {
         Map<String, Integer> ret = new HashMap<>();
 
         for (Class type : cache.keySet()) {
+            idCache.putIfAbsent(type, new ConcurrentHashMap<>());
+            cache.putIfAbsent(type, new ConcurrentHashMap<>());
             ret.put("resultCache|" + type.getName(), cache.get(type).size());
             ret.put("idCache|" + type.getName(), idCache.get(type).size());
         }
