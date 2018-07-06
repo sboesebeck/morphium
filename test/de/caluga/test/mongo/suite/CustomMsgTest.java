@@ -18,6 +18,7 @@ public class CustomMsgTest extends MongoTest {
 
     @Test
     public void testCustomMsgSending() throws Exception {
+        morphium.dropCollection(Msg.class);
         Messaging m1 = new Messaging(morphium, 100, false);
         Messaging m2 = new Messaging(morphium, 100, false);
         m2.addMessageListener((MessageListener<CustomMsg>) (msg, m) -> {

@@ -470,6 +470,7 @@ public class InMemoryDriver implements MorphiumDriver {
     @Override
     public MorphiumCursor initIteration(String db, String collection, Map<String, Object> query, Map<String, Integer> sort, Map<String, Object> projection, int skip, int limit, int batchSize, ReadPreference readPreference, Map<String, Object> findMetaData) throws MorphiumDriverException {
         MorphiumCursor crs = new MorphiumCursor();
+        crs.setBatchSize(batchSize);
         crs.setCursorId(System.currentTimeMillis());
         InMemoryCursor inCrs = new InMemoryCursor();
         inCrs.skip = skip;
