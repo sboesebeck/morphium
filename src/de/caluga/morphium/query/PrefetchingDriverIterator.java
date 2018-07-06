@@ -255,20 +255,21 @@ public class PrefetchingDriverIterator<T> implements MorphiumIterator<T> {
     @Override
     public T next() {
         checkAndUpdateLastAccess();
+
         if (cursor == null && !startedAlready) {
             if (!hasNext()) {
                 return null;
             }
+        }
+        if (prefetchBuffer.isEmpty()) {
+            log.error("Prefetchbuffer is empty!");
+            return null;
         }
         if (cursorPos != 0 && cursorPos % getWindowSize() == 0) {
             prefetchBuffer.remove(0);
         }
         while (prefetchBuffer.isEmpty() && cursor != null) {
             Thread.yield();
-        }
-        if (prefetchBuffer.isEmpty()) {
-            log.error("Prefetchbuffer is empty!");
-            return null;
         }
         return prefetchBuffer.get(0).get(cursorPos++ % getWindowSize());
     }
