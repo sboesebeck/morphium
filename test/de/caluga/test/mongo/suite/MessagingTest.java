@@ -814,10 +814,10 @@ public class MessagingTest extends MongoTest {
             Thread.sleep(1000);
             log.info("Still processing: "+processed[0]);
         }
-        assert(processed[0]==amount):"Did process "+processed[0];
-
         producer.terminate();
         consumer.terminate();
+        assert(processed[0]==amount):"Did process "+processed[0];
+
         Thread.sleep(1000);
 
     }
