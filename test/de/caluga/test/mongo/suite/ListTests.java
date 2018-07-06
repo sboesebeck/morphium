@@ -249,6 +249,8 @@ public class ListTests extends MongoTest {
     @Entity(collectionName = "UCTest")
     public static class Uc extends UncachedObject {
     }
+
+
     @Entity
     public static class MyListContainer {
         @Id
@@ -257,4 +259,6 @@ public class ListTests extends MongoTest {
         public String name;
         public int number;
     }
+
+
 }

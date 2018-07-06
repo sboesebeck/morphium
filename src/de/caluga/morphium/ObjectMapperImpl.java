@@ -1145,14 +1145,18 @@ public class ObjectMapperImpl implements ObjectMapper {
                 if (listType != null) {
                     //have a list of something
                     Class cls;
-                    if (listType.getActualTypeArguments()[0] instanceof ParameterizedType) {
-                        cls = (Class) ((ParameterizedType) listType.getActualTypeArguments()[0]).getRawType();
+                    if (ref != null) {
+                        if (listType.getActualTypeArguments()[0] instanceof ParameterizedType) {
+                            cls = (Class) ((ParameterizedType) listType.getActualTypeArguments()[0]).getRawType();
+                        } else {
+                            cls = (Class) listType.getActualTypeArguments()[0];
+                        }
+                        Query q = morphium.createQueryFor(cls);
+                        q = q.f(annotationHelper.getFields(cls, Id.class).get(0)).eq(val);
+                        toFillIn.add(q.get());
                     } else {
-                        cls = (Class) listType.getActualTypeArguments()[0];
+                        toFillIn.add(val);
                     }
-                    Query q = morphium.createQueryFor(cls);
-                    q = q.f(annotationHelper.getFields(cls, Id.class).get(0)).eq(val);
-                    toFillIn.add(q.get());
                 } else {
                     log.warn("Cannot de-reference to unknown collection - trying to add Object only");
                     toFillIn.add(val);
