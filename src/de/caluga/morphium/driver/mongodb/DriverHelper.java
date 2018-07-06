@@ -96,15 +96,14 @@ public class DriverHelper {
                     } else if (e.getValue() instanceof Collection) {
                         Collection v = new LinkedList();
                         for (Object o : (Collection) e.getValue()) {
-                            if (o == null) {
-                                continue;
-                            }
-                            if (o instanceof Map
-                                    || o instanceof List
-                                    || o.getClass().isArray()) {
-                                replaceMorphiumIdByObjectId(o);
-                            } else if (o instanceof MorphiumId) {
-                                o = new ObjectId(o.toString());
+                            if (o != null) {
+                                if (o instanceof Map
+                                        || o instanceof List
+                                        || o.getClass().isArray()) {
+                                    replaceMorphiumIdByObjectId(o);
+                                } else if (o instanceof MorphiumId) {
+                                    o = new ObjectId(o.toString());
+                                }
                             }
                             v.add(o);
                         }
