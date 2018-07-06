@@ -394,7 +394,7 @@ public class Messaging extends Thread implements ShutdownListener {
 //            morphium.push(q, Msg.Fields.receivedBy, id);
             if (processing.contains(m.getMsgId())) continue;
             processing.add(m.getMsgId());
-            log.info("Adding msg " + m.getMsgId());
+//            log.info("Adding msg " + m.getMsgId());
             Runnable r = () -> {
                 if (m.getProcessedBy() != null && m.getProcessedBy().contains(id)) {
                     //log.error("Was already processed?");
@@ -489,7 +489,7 @@ public class Messaging extends Thread implements ShutdownListener {
                 }
                 Runnable rb = () -> {
                     processing.remove(m.getMsgId());
-                    log.debug("Removed from processing " + m.getMsgId());
+//                    log.debug("Removed from processing " + m.getMsgId());
                 };
                 while (true) {
                     try {
