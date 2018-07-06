@@ -766,6 +766,8 @@ public class Driver implements MorphiumDriver {
                     {
                         //noinspection unchecked
                         v.add(convertBSON((Map) o));
+                    } else if (o instanceof ObjectId) {
+                        v.add(new MorphiumId(((ObjectId) o).toString()));
                     } else
                     //noinspection unchecked
                     {
