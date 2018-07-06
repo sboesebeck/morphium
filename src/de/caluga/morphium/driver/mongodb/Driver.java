@@ -551,6 +551,7 @@ public class Driver implements MorphiumDriver {
             Map<String, Object> r = new HashMap<>();
 
             MorphiumCursor<MongoCursor<Document>> crs = new MorphiumCursor<>();
+            crs.setBatchSize(batchSize);
 
             if ((values.size() < batchSize && batchSize != 0) || (values.size() < 1000 && batchSize == 0)) {
                 ret.close();
@@ -631,7 +632,9 @@ public class Driver implements MorphiumDriver {
         //noinspection ConstantConditions
         return (MorphiumCursor) DriverHelper.doCall(() -> {
             List<Map<String, Object>> values = new ArrayList<>();
-            @SuppressWarnings("unchecked") MongoCursor<Document> ret = ((MorphiumCursor<MongoCursor<Document>>) crs).getInternalCursorObject();
+            MorphiumCursor<MongoCursor<Document>> crs2 = crs;
+            int batchSize = crs.getBatchSize();
+            @SuppressWarnings("unchecked") MongoCursor<Document> ret = crs2.getInternalCursorObject();
             if (ret == null) {
                 return new HashMap<>(); //finished
             }
@@ -639,12 +642,17 @@ public class Driver implements MorphiumDriver {
                 Document d = ret.next();
                 Map<String, Object> obj = convertBSON(d);
                 values.add(obj);
+                int cnt = values.size();
+                if (cnt >= batchSize && batchSize != 0 || cnt >= 1000 && batchSize == 0) {
+                    break;
+                }
             }
             Map<String, Object> r = new HashMap<>();
 
             MorphiumCursor<MongoCursor<Document>> crs1 = new MorphiumCursor<>();
+            crs1.setBatchSize(batchSize);
 //            crs1.setCursorId(ret.getCursorId());
-            if (values.size() < 1000) {
+            if ((values.size() < batchSize && batchSize != 0) || (values.size() < 1000 && batchSize == 0)) {
                 ret.close();
             } else {
                 crs1.setInternalCursorObject(ret);

@@ -10,8 +10,17 @@ import java.util.Map;
  **/
 public class MorphiumCursor<T> {
     private long cursorId;
+    private int batchSize;
     private List<Map<String, Object>> batch;
     private T internalCursorObject;
+
+    public int getBatchSize() {
+        return batchSize;
+    }
+
+    public void setBatchSize(int batchSize) {
+        this.batchSize = batchSize;
+    }
 
     public long getCursorId() {
         return cursorId;
