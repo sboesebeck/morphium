@@ -101,7 +101,8 @@ public class ListTests extends MongoTest {
     }
 
     @Test
-    public void nullValueListTest() {
+    public void nullValueListTest() throws Exception {
+        morphium.dropCollection(ListContainer.class);
         ListContainer lst = new ListContainer();
         int count = 2;
 
@@ -134,7 +135,6 @@ public class ListTests extends MongoTest {
         lst.addString(null);
 
         morphium.store(lst);
-
         Query q = morphium.createQueryFor(ListContainer.class).f("id").eq(lst.getId());
         q.setReadPreferenceLevel(ReadPreferenceLevel.PRIMARY);
         ListContainer lst2 = (ListContainer) q.get();
