@@ -18,6 +18,7 @@ import de.caluga.morphium.driver.MorphiumId;
 @WriteBuffer(timeout = 500, size = 100, strategy = WriteBuffer.STRATEGY.JUST_WARN)
 @WriteSafety(level = SafetyLevel.WAIT_FOR_ALL_SLAVES, timeout = 3000, waitForJournalCommit = true)
 public class CachedObject {
+
     @Index
     private String value;
     @Index
@@ -25,6 +26,14 @@ public class CachedObject {
 
     @Id
     private MorphiumId id;
+
+    public CachedObject() {
+    }
+
+    public CachedObject(String value, int counter) {
+        this.value = value;
+        this.counter = counter;
+    }
 
     public int getCounter() {
         return counter;
@@ -56,4 +65,5 @@ public class CachedObject {
     }
 
 
+    public enum Fields {counter, id, value}
 }

@@ -6,7 +6,6 @@ import de.caluga.morphium.MorphiumConfig;
 import de.caluga.morphium.async.AsyncOperationCallback;
 import de.caluga.morphium.async.AsyncOperationType;
 import de.caluga.morphium.driver.ReadPreference;
-import de.caluga.morphium.messaging.Msg;
 import de.caluga.morphium.query.Query;
 import de.caluga.test.mongo.suite.data.CachedObject;
 import de.caluga.test.mongo.suite.data.Person;
@@ -434,7 +433,7 @@ public class MongoTest {
         }
         //waiting for it to be persisted
         try {
-            Thread.sleep(500);
+            Thread.sleep(1500);
         } catch (InterruptedException e) {
         }
     }
