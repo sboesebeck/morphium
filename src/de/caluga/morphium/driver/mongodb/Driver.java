@@ -7,6 +7,7 @@ import com.mongodb.*;
 import com.mongodb.MongoClient;
 import com.mongodb.client.*;
 import com.mongodb.client.model.InsertManyOptions;
+import com.mongodb.client.model.InsertOneOptions;
 import com.mongodb.client.model.UpdateOptions;
 import com.mongodb.client.result.DeleteResult;
 import com.mongodb.client.result.UpdateResult;
@@ -968,7 +969,8 @@ public class Driver implements MorphiumDriver {
                 notnew.add(o);
             }
         }
-        insert(db, collection, isnew, wc);
+        if (!isnew.isEmpty())
+            insert(db, collection, isnew, wc);
         //        for (Map<String,Object> o:isnew){
         //            Object id=o.get("_id");
         //            if (id instanceof ObjectId) o.put("_id",new MorphiumId(((ObjectId)id).toHexString()));
@@ -1033,15 +1035,16 @@ public class Driver implements MorphiumDriver {
             MongoCollection c = mongo.getDatabase(db).getCollection(collection);
             if (lst.size() == 1) {
                 //noinspection unchecked
+                InsertOneOptions op = new InsertOneOptions().bypassDocumentValidation(true);
                 if (currentTransaction.get() == null) {
-                    c.insertOne(lst.get(0));
+                    c.insertOne(lst.get(0), op);
                 } else {
-                    c.insertOne(currentTransaction.get().getSession(), lst.get(0));
+                    c.insertOne(currentTransaction.get().getSession(), lst.get(0), op);
                 }
             } else {
                 InsertManyOptions imo = new InsertManyOptions();
                 imo.ordered(false);
-
+                imo.bypassDocumentValidation(true);
                 //noinspection unchecked
                 if (currentTransaction.get() == null) {
                     c.insertMany(lst, imo);
