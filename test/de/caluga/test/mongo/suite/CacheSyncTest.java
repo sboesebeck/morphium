@@ -16,6 +16,8 @@ import de.caluga.morphium.query.Query;
 import de.caluga.test.mongo.suite.data.CachedObject;
 import org.junit.Test;
 
+import java.util.regex.Pattern;
+
 /**
  * User: Stephan Bösebeck
  * Date: 12.06.12
@@ -294,6 +296,111 @@ public class CacheSyncTest extends MongoTest {
         assert (preSendClear);
         assert (postSendClear);
 
+    }
+
+    @Test
+    public void simpleSyncTest() throws Exception {
+        morphium.dropCollection(Msg.class);
+        createCachedObjects(1000);
+
+        Morphium m1 = morphium;
+        MorphiumConfig cfg2 = new MorphiumConfig();
+        cfg2.setHostSeed(m1.getConfig().getHostSeed());
+        cfg2.setDatabase(m1.getConfig().getDatabase());
+
+        Morphium m2 = new Morphium(cfg2);
+        Messaging msg1 = new Messaging(m1, 200, true);
+        Messaging msg2 = new Messaging(m2, 200, true);
+
+        msg1.start();
+        msg2.start();
+
+        CacheSynchronizer cs1 = new CacheSynchronizer(msg1, m1);
+        CacheSynchronizer cs2 = new CacheSynchronizer(msg2, m2);
+        waitForWrites();
+
+        //fill caches
+        log.info("Filling caches...");
+        fillCache(m1, m2);
+
+        for (Morphium m : new Morphium[]{m1, m2}) {
+            printstats(m);
+        }
+        assert (m1.getStatistics().get("X-Entries for: resultCache|de.caluga.test.mongo.suite.data.CachedObject") > 90);
+        assert (m2.getStatistics().get("X-Entries for: resultCache|de.caluga.test.mongo.suite.data.CachedObject") > 90);
+
+        log.info("Storing to m1 - waiting for m2's cache to be cleared...");
+        m1.store(new CachedObject("value", 100000));
+        waitForWrites();
+        checkForClearedCache(m1, m2);
+
+        log.info("Filling cache again...");
+        fillCache(m1, m2);
+        log.info("other way round");
+        m2.store(new CachedObject("value", 100200));
+        waitForWrites();
+        checkForClearedCache(m1, m2);
+
+
+        log.info("Filling cache again...");
+        fillCache(m1, m2);
+        log.info("doing a delete");
+        Query<CachedObject> q = m1.createQueryFor(CachedObject.class).f(CachedObject.Fields.counter).lt(10);
+        m1.delete(q);
+        waitForWrites();
+        checkForClearedCache(m1, m2);
+
+        log.info("Filling cache again...");
+        fillCache(m1, m2);
+        log.info("doing an update");
+        q = m1.createQueryFor(CachedObject.class).f(CachedObject.Fields.counter).lt(15);
+        m1.set(q, CachedObject.Fields.value, 9999);
+        waitForWrites();
+        checkForClearedCache(m1, m2);
+
+
+        cs1.detach();
+        cs2.detach();
+        msg1.terminate();
+        msg2.terminate();
+        m2.close();
+    }
+
+    private void checkForClearedCache(Morphium m1, Morphium m2) throws InterruptedException {
+        printstats(m1, "X-Entries for:.*");
+        assert (m1.getStatistics().get("X-Entries for: resultCache|de.caluga.test.mongo.suite.data.CachedObject") == 0);
+        Thread.sleep(1000);
+        printstats(m1, "X-Entries for:.*");
+        assert (m2.getStatistics().get("X-Entries for: resultCache|de.caluga.test.mongo.suite.data.CachedObject") == 0);
+    }
+
+    private void fillCache(Morphium m1, Morphium m2) {
+        for (int j = 0; j < 3; j++) {
+            for (int i = 0; i < 100; i++) {
+                m1.createQueryFor(CachedObject.class).f("counter").lte(i + 10).asList(); //fill cache
+                m2.createQueryFor(CachedObject.class).f("counter").lte(i + 10).asList(); //fill cache
+            }
+        }
+    }
+
+    private void printstats(Morphium m) {
+        printstats(m, null);
+    }
+
+    private void printstats(Morphium m, String pattern) {
+
+        Pattern p = null;
+
+        if (pattern != null) {
+            p = Pattern.compile(pattern, Pattern.CASE_INSENSITIVE);
+        }
+        log.info("Starting output....");
+        for (String k : m.getStatistics().keySet()) {
+            if (p == null || p.matcher(k).matches()) {
+                log.info(" - stats: " + k + ":" + m.getStatistics().get(k));
+            }
+        }
+        log.info("Finished...");
     }
 
     @Test
