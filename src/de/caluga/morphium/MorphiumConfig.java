@@ -288,8 +288,9 @@ public class MorphiumConfig {
         return replicaset;
     }
 
-    public void setReplicasetMonitoring(boolean replicaset) {
+    public MorphiumConfig setReplicasetMonitoring(boolean replicaset) {
         this.replicaset = replicaset;
+        return this;
     }
 
     public String getDriverClass() {
@@ -299,16 +300,18 @@ public class MorphiumConfig {
         return driverClass;
     }
 
-    public void setDriverClass(String driverClass) {
+    public MorphiumConfig setDriverClass(String driverClass) {
         this.driverClass = driverClass;
+        return this;
     }
 
     public boolean isAutoIndexAndCappedCreationOnWrite() {
         return autoIndexAndCappedCreationOnWrite;
     }
 
-    public void setAutoIndexAndCappedCreationOnWrite(boolean autoIndexAndCappedCreationOnWrite) {
+    public MorphiumConfig setAutoIndexAndCappedCreationOnWrite(boolean autoIndexAndCappedCreationOnWrite) {
         this.autoIndexAndCappedCreationOnWrite = autoIndexAndCappedCreationOnWrite;
+        return this;
     }
 
     public boolean isCheckForNew() {
@@ -322,44 +325,49 @@ public class MorphiumConfig {
      *
      * @param checkForNew
      */
-    public void setCheckForNew(boolean checkForNew) {
+    public MorphiumConfig setCheckForNew(boolean checkForNew) {
         this.checkForNew = checkForNew;
+        return this;
     }
 
     public int getRetriesOnNetworkError() {
         return retriesOnNetworkError;
     }
 
-    public void setRetriesOnNetworkError(int retriesOnNetworkError) {
+    public MorphiumConfig setRetriesOnNetworkError(int retriesOnNetworkError) {
         if (retriesOnNetworkError == 0) {
             LoggerFactory.getLogger(MorphiumConfig.class).warn("Cannot set retries on network error to 0 - minimum is 1");
             retriesOnNetworkError = 1;
         }
         this.retriesOnNetworkError = retriesOnNetworkError;
+        return this;
     }
 
     public int getSleepBetweenNetworkErrorRetries() {
         return sleepBetweenNetworkErrorRetries;
     }
 
-    public void setSleepBetweenNetworkErrorRetries(int sleepBetweenNetworkErrorRetries) {
+    public MorphiumConfig setSleepBetweenNetworkErrorRetries(int sleepBetweenNetworkErrorRetries) {
         this.sleepBetweenNetworkErrorRetries = sleepBetweenNetworkErrorRetries;
+        return this;
     }
 
     public int getReplicaSetMonitoringTimeout() {
         return replicaSetMonitoringTimeout;
     }
 
-    public void setReplicaSetMonitoringTimeout(int replicaSetMonitoringTimeout) {
+    public MorphiumConfig setReplicaSetMonitoringTimeout(int replicaSetMonitoringTimeout) {
         this.replicaSetMonitoringTimeout = replicaSetMonitoringTimeout;
+        return this;
     }
 
     public int getWriteBufferTimeGranularity() {
         return writeBufferTimeGranularity;
     }
 
-    public void setWriteBufferTimeGranularity(int writeBufferTimeGranularity) {
+    public MorphiumConfig setWriteBufferTimeGranularity(int writeBufferTimeGranularity) {
         this.writeBufferTimeGranularity = writeBufferTimeGranularity;
+        return this;
     }
 
     public MorphiumCache getCache() {
@@ -370,56 +378,63 @@ public class MorphiumConfig {
         return cache;
     }
 
-    public void setCache(MorphiumCache cache) {
+    public MorphiumConfig setCache(MorphiumCache cache) {
         this.cache = cache;
+        return this;
     }
 
     public boolean isOplogMonitorEnabled() {
         return this.oplogMonitorEnabled;
     }
 
-    public void setOplogMonitorEnabled(boolean op) {
+    public MorphiumConfig setOplogMonitorEnabled(boolean op) {
         this.oplogMonitorEnabled = op;
+        return this;
     }
 
     public int getWriteBufferTime() {
         return writeBufferTime;
     }
 
-    public void setWriteBufferTime(int writeBufferTime) {
+    public MorphiumConfig setWriteBufferTime(int writeBufferTime) {
         this.writeBufferTime = writeBufferTime;
+        return this;
     }
 
     public Class<? extends ObjectMapper> getOmClass() {
         return omClass;
     }
 
-    public void setOmClass(Class<? extends ObjectMapper> omClass) {
+    public MorphiumConfig setOmClass(Class<? extends ObjectMapper> omClass) {
         this.omClass = omClass;
+        return this;
     }
 
     public int getWriteTimeout() {
         return writeTimeout;
     }
 
-    public void setWriteTimeout(int writeTimeout) {
+    public MorphiumConfig setWriteTimeout(int writeTimeout) {
         this.writeTimeout = writeTimeout;
+        return this;
     }
 
     public int getGlobalW() {
         return globalW;
     }
 
-    public void setGlobalW(int globalW) {
+    public MorphiumConfig setGlobalW(int globalW) {
         this.globalW = globalW;
+        return this;
     }
 
     public boolean isGlobalJ() {
         return globalJ;
     }
 
-    public void setGlobalJ(boolean globalJ) {
+    public MorphiumConfig setGlobalJ(boolean globalJ) {
         this.globalJ = globalJ;
+        return this;
     }
 
     public Class<? extends Query> getQueryClass() {
@@ -429,8 +444,9 @@ public class MorphiumConfig {
         return queryClass;
     }
 
-    public void setQueryClass(Class<Query> queryClass) {
+    public MorphiumConfig setQueryClass(Class<Query> queryClass) {
         this.queryClass = queryClass;
+        return this;
     }
 
     public QueryFactory getQueryFact() {
@@ -440,8 +456,9 @@ public class MorphiumConfig {
         return queryFact;
     }
 
-    public void setQueryFact(QueryFactory queryFact) {
+    public MorphiumConfig setQueryFact(QueryFactory queryFact) {
         this.queryFact = queryFact;
+        return this;
     }
 
     public AggregatorFactory getAggregatorFactory() {
@@ -451,8 +468,9 @@ public class MorphiumConfig {
         return aggregatorFactory;
     }
 
-    public void setAggregatorFactory(AggregatorFactory aggregatorFactory) {
+    public MorphiumConfig setAggregatorFactory(AggregatorFactory aggregatorFactory) {
         this.aggregatorFactory = aggregatorFactory;
+        return this;
     }
 
     public Class<? extends Aggregator> getAggregatorClass() {
@@ -462,32 +480,37 @@ public class MorphiumConfig {
         return aggregatorClass;
     }
 
-    public void setAggregatorClass(Class<? extends Aggregator> aggregatorClass) {
+    public MorphiumConfig setAggregatorClass(Class<? extends Aggregator> aggregatorClass) {
         this.aggregatorClass = aggregatorClass;
+        return this;
     }
 
     public boolean isGlobalFsync() {
         return globalFsync;
     }
 
-    public void setGlobalFsync(boolean globalFsync) {
+    public MorphiumConfig setGlobalFsync(boolean globalFsync) {
         this.globalFsync = globalFsync;
+        return this;
     }
 
     public boolean isSafeMode() {
         return safeMode;
     }
 
-    public void setSafeMode(boolean safeMode) {
+    public MorphiumConfig setSafeMode(boolean safeMode) {
         this.safeMode = safeMode;
+
+        return this;
     }
 
     public int getBlockingThreadsMultiplier() {
         return blockingThreadsMultiplier;
     }
 
-    public void setBlockingThreadsMultiplier(int blockingThreadsMultiplier) {
+    public MorphiumConfig setBlockingThreadsMultiplier(int blockingThreadsMultiplier) {
         this.blockingThreadsMultiplier = blockingThreadsMultiplier;
+        return this;
     }
 
     public MorphiumWriter getBufferedWriter() {
@@ -498,8 +521,9 @@ public class MorphiumConfig {
 
     }
 
-    public void setBufferedWriter(MorphiumWriter bufferedWriter) {
+    public MorphiumConfig setBufferedWriter(MorphiumWriter bufferedWriter) {
         this.bufferedWriter = bufferedWriter;
+        return this;
     }
 
     public MorphiumWriter getWriter() {
@@ -509,95 +533,106 @@ public class MorphiumConfig {
         return writer;
     }
 
-    public void setWriter(MorphiumWriter writer) {
+    public MorphiumConfig setWriter(MorphiumWriter writer) {
         this.writer = writer;
+        return this;
     }
 
     public int getConnectionTimeout() {
         return connectionTimeout;
     }
 
-    public void setConnectionTimeout(int connectionTimeout) {
+    public MorphiumConfig setConnectionTimeout(int connectionTimeout) {
         this.connectionTimeout = connectionTimeout;
+        return this;
     }
 
     public int getSocketTimeout() {
         return socketTimeout;
     }
 
-    public void setSocketTimeout(int socketTimeout) {
+    public MorphiumConfig setSocketTimeout(int socketTimeout) {
         this.socketTimeout = socketTimeout;
+        return this;
     }
 
     public Class<? extends MongoField> getFieldImplClass() {
         return fieldImplClass;
     }
 
-    public void setFieldImplClass(Class<? extends MongoField> fieldImplClass) {
+    public MorphiumConfig setFieldImplClass(Class<? extends MongoField> fieldImplClass) {
         this.fieldImplClass = fieldImplClass;
+        return this;
     }
 
     public int getMaxWaitTime() {
         return maxWaitTime;
     }
 
-    public void setMaxWaitTime(int maxWaitTime) {
+    public MorphiumConfig setMaxWaitTime(int maxWaitTime) {
         this.maxWaitTime = maxWaitTime;
+        return this;
     }
 
     public boolean isAutoreconnect() {
         return autoreconnect;
     }
 
-    public void setAutoreconnect(boolean autoreconnect) {
+    public MorphiumConfig setAutoreconnect(boolean autoreconnect) {
         this.autoreconnect = autoreconnect;
+        return this;
     }
 
     public int getMaxAutoReconnectTime() {
         return maxAutoReconnectTime;
     }
 
-    public void setMaxAutoReconnectTime(int maxAutoReconnectTime) {
+    public MorphiumConfig setMaxAutoReconnectTime(int maxAutoReconnectTime) {
         this.maxAutoReconnectTime = maxAutoReconnectTime;
+        return this;
     }
 
     public boolean isSocketKeepAlive() {
         return socketKeepAlive;
     }
 
-    public void setSocketKeepAlive(boolean socketKeepAlive) {
+    public MorphiumConfig setSocketKeepAlive(boolean socketKeepAlive) {
         this.socketKeepAlive = socketKeepAlive;
+        return this;
     }
 
     public String getMongoLogin() {
         return mongoLogin;
     }
 
-    public void setMongoLogin(String mongoLogin) {
+    public MorphiumConfig setMongoLogin(String mongoLogin) {
         this.mongoLogin = mongoLogin;
+        return this;
     }
 
     public String getMongoPassword() {
         return mongoPassword;
     }
 
-    public void setMongoPassword(String mongoPassword) {
+    public MorphiumConfig setMongoPassword(String mongoPassword) {
         this.mongoPassword = mongoPassword;
+        return this;
     }
 
     public ReadPreference getDefaultReadPreference() {
         return defaultReadPreference;
     }
 
-    public void setDefaultReadPreference(ReadPreference defaultReadPreference) {
+    public MorphiumConfig setDefaultReadPreference(ReadPreference defaultReadPreference) {
         this.defaultReadPreference = defaultReadPreference;
+        return this;
     }
 
     public String getDefaultReadPreferenceType() {
         return defaultReadPreferenceType;
     }
 
-    public void setDefaultReadPreferenceType(String stringDefaultReadPreference) {
+    public MorphiumConfig setDefaultReadPreferenceType(String stringDefaultReadPreference) {
         this.defaultReadPreferenceType = stringDefaultReadPreference;
 
         ReadPreferenceType readPreferenceType;
@@ -612,30 +647,35 @@ public class MorphiumConfig {
         ReadPreference defaultReadPreference = new ReadPreference();
         defaultReadPreference.setType(readPreferenceType);
         this.defaultReadPreference = defaultReadPreference;
+
+        return this;
     }
 
     public String getMongoAdminUser() {
         return mongoAdminUser;
     }
 
-    public void setMongoAdminUser(String mongoAdminUser) {
+    public MorphiumConfig setMongoAdminUser(String mongoAdminUser) {
         this.mongoAdminUser = mongoAdminUser;
+        return this;
     }
 
     public String getMongoAdminPwd() {
         return mongoAdminPwd;
     }
 
-    public void setMongoAdminPwd(String mongoAdminPwd) {
+    public MorphiumConfig setMongoAdminPwd(String mongoAdminPwd) {
         this.mongoAdminPwd = mongoAdminPwd;
+        return this;
     }
 
     public int getWriteCacheTimeout() {
         return writeCacheTimeout;
     }
 
-    public void setWriteCacheTimeout(int writeCacheTimeout) {
+    public MorphiumConfig setWriteCacheTimeout(int writeCacheTimeout) {
         this.writeCacheTimeout = writeCacheTimeout;
+        return this;
     }
 
     /**
@@ -643,38 +683,43 @@ public class MorphiumConfig {
      *
      * @param str list of hosts, with or without port
      */
-    public void setHostSeed(List<String> str) {
+    public MorphiumConfig setHostSeed(List<String> str) {
         hostSeed = str;
+        return this;
     }
 
-    public void setHostSeed(List<String> str, List<Integer> ports) {
+    public MorphiumConfig setHostSeed(List<String> str, List<Integer> ports) {
         hostSeed.clear();
         for (int i = 0; i < str.size(); i++) {
             String host = str.get(i).replaceAll(" ", "") + ":" + ports.get(i);
             hostSeed.add(host);
         }
+        return this;
     }
+
 
     public List<String> getHostSeed() {
         return hostSeed;
     }
 
-    public void setHostSeed(String... hostPorts) {
+    public MorphiumConfig setHostSeed(String... hostPorts) {
         hostSeed.clear();
         for (String h : hostPorts) {
             addHostToSeed(h);
         }
+        return this;
     }
 
-    public void setHostSeed(String hostPorts) {
+    public MorphiumConfig setHostSeed(String hostPorts) {
         hostSeed.clear();
         String h[] = hostPorts.split(",");
         for (String host : h) {
             addHostToSeed(host);
         }
+        return this;
     }
 
-    public void setHostSeed(String hosts, String ports) {
+    public MorphiumConfig setHostSeed(String hosts, String ports) {
         hostSeed.clear();
         hosts = hosts.replaceAll(" ", "");
         ports = ports.replaceAll(" ", "");
@@ -687,15 +732,17 @@ public class MorphiumConfig {
                 addHostToSeed(h[i], Integer.parseInt(p[i]));
             }
         }
+        return this;
 
     }
 
-    public void addHostToSeed(String host, int port) {
+    public MorphiumConfig addHostToSeed(String host, int port) {
         host = host.replaceAll(" ", "") + ":" + port;
         if (hostSeed == null) {
             hostSeed = new ArrayList<>();
         }
         hostSeed.add(host);
+        return this;
     }
 
     public void addHostToSeed(String host) {
@@ -712,8 +759,9 @@ public class MorphiumConfig {
         return maxConnections;
     }
 
-    public void setMaxConnections(int maxConnections) {
+    public MorphiumConfig setMaxConnections(int maxConnections) {
         this.maxConnections = maxConnections;
+        return this;
     }
 
     /**
@@ -725,32 +773,37 @@ public class MorphiumConfig {
         return globalCacheValidTime;
     }
 
-    public void setGlobalCacheValidTime(int globalCacheValidTime) {
+    public MorphiumConfig setGlobalCacheValidTime(int globalCacheValidTime) {
         this.globalCacheValidTime = globalCacheValidTime;
+
+        return this;
     }
 
     public String getDatabase() {
         return database;
     }
 
-    public void setDatabase(String database) {
+    public MorphiumConfig setDatabase(String database) {
         this.database = database;
+        return this;
     }
 
     public int getHousekeepingTimeout() {
         return housekeepingTimeout;
     }
 
-    public void setHousekeepingTimeout(int housekeepingTimeout) {
+    public MorphiumConfig setHousekeepingTimeout(int housekeepingTimeout) {
         this.housekeepingTimeout = housekeepingTimeout;
+        return this;
     }
 
     public long getValidTime() {
         return globalCacheValidTime;
     }
 
-    public void setValidTime(int tm) {
+    public MorphiumConfig setValidTime(int tm) {
         globalCacheValidTime = tm;
+        return this;
     }
 
     /**
@@ -826,56 +879,63 @@ public class MorphiumConfig {
         return asyncWriter;
     }
 
-    public void setAsyncWriter(MorphiumWriter asyncWriter) {
+    public MorphiumConfig setAsyncWriter(MorphiumWriter asyncWriter) {
         this.asyncWriter = asyncWriter;
+        return this;
     }
 
     public int getMaximumRetriesBufferedWriter() {
         return maximumRetriesBufferedWriter;
     }
 
-    public void setMaximumRetriesBufferedWriter(int maximumRetriesBufferedWriter) {
+    public MorphiumConfig setMaximumRetriesBufferedWriter(int maximumRetriesBufferedWriter) {
         this.maximumRetriesBufferedWriter = maximumRetriesBufferedWriter;
+        return this;
     }
 
     public int getMaximumRetriesWriter() {
         return maximumRetriesWriter;
     }
 
-    public void setMaximumRetriesWriter(int maximumRetriesWriter) {
+    public MorphiumConfig setMaximumRetriesWriter(int maximumRetriesWriter) {
         this.maximumRetriesWriter = maximumRetriesWriter;
+        return this;
     }
 
     public int getMaximumRetriesAsyncWriter() {
         return maximumRetriesAsyncWriter;
     }
 
-    public void setMaximumRetriesAsyncWriter(int maximumRetriesAsyncWriter) {
+    public MorphiumConfig setMaximumRetriesAsyncWriter(int maximumRetriesAsyncWriter) {
         this.maximumRetriesAsyncWriter = maximumRetriesAsyncWriter;
+        return this;
     }
 
     public int getRetryWaitTimeBufferedWriter() {
         return retryWaitTimeBufferedWriter;
     }
 
-    public void setRetryWaitTimeBufferedWriter(int retryWaitTimeBufferedWriter) {
+    public MorphiumConfig setRetryWaitTimeBufferedWriter(int retryWaitTimeBufferedWriter) {
         this.retryWaitTimeBufferedWriter = retryWaitTimeBufferedWriter;
+        return this;
     }
 
     public int getRetryWaitTimeWriter() {
         return retryWaitTimeWriter;
     }
 
-    public void setRetryWaitTimeWriter(int retryWaitTimeWriter) {
+    public MorphiumConfig setRetryWaitTimeWriter(int retryWaitTimeWriter) {
         this.retryWaitTimeWriter = retryWaitTimeWriter;
+        return this;
     }
 
     public int getRetryWaitTimeAsyncWriter() {
         return retryWaitTimeAsyncWriter;
     }
 
-    public void setRetryWaitTimeAsyncWriter(int retryWaitTimeAsyncWriter) {
+    public MorphiumConfig setRetryWaitTimeAsyncWriter(int retryWaitTimeAsyncWriter) {
         this.retryWaitTimeAsyncWriter = retryWaitTimeAsyncWriter;
+        return this;
     }
 
     /**
@@ -940,8 +1000,9 @@ public class MorphiumConfig {
         return readCacheEnabled;
     }
 
-    public void setReadCacheEnabled(boolean readCacheEnabled) {
+    public MorphiumConfig setReadCacheEnabled(boolean readCacheEnabled) {
         this.readCacheEnabled = readCacheEnabled;
+        return this;
     }
 
     public void disableReadCache() {
@@ -956,8 +1017,9 @@ public class MorphiumConfig {
         return asyncWritesEnabled;
     }
 
-    public void setAsyncWritesEnabled(boolean asyncWritesEnabled) {
+    public MorphiumConfig setAsyncWritesEnabled(boolean asyncWritesEnabled) {
         this.asyncWritesEnabled = asyncWritesEnabled;
+        return this;
     }
 
     public void disableAsyncWrites() {
@@ -972,8 +1034,9 @@ public class MorphiumConfig {
         return bufferedWritesEnabled;
     }
 
-    public void setBufferedWritesEnabled(boolean bufferedWritesEnabled) {
+    public MorphiumConfig setBufferedWritesEnabled(boolean bufferedWritesEnabled) {
         this.bufferedWritesEnabled = bufferedWritesEnabled;
+        return this;
     }
 
     public void disableBufferedWrites() {
@@ -988,8 +1051,9 @@ public class MorphiumConfig {
         return autoValues;
     }
 
-    public void setAutoValuesEnabled(boolean enabled) {
+    public MorphiumConfig setAutoValuesEnabled(boolean enabled) {
         autoValues = enabled;
+        return this;
     }
 
     public void enableAutoValues() {
@@ -1004,160 +1068,180 @@ public class MorphiumConfig {
         return acceptableLatencyDifference;
     }
 
-    public void setAcceptableLatencyDifference(int acceptableLatencyDifference) {
+    public MorphiumConfig setAcceptableLatencyDifference(int acceptableLatencyDifference) {
         this.acceptableLatencyDifference = acceptableLatencyDifference;
+        return this;
     }
 
     public boolean isCamelCaseConversionEnabled() {
         return camelCaseConversionEnabled;
     }
 
-    public void setCamelCaseConversionEnabled(boolean camelCaseConversionEnabled) {
+    public MorphiumConfig setCamelCaseConversionEnabled(boolean camelCaseConversionEnabled) {
         this.camelCaseConversionEnabled = camelCaseConversionEnabled;
+        return this;
     }
 
     public int getThreadPoolMessagingCoreSize() {
         return threadPoolMessagingCoreSize;
     }
 
-    public void setThreadPoolMessagingCoreSize(int threadPoolMessagingCoreSize) {
+    public MorphiumConfig setThreadPoolMessagingCoreSize(int threadPoolMessagingCoreSize) {
         this.threadPoolMessagingCoreSize = threadPoolMessagingCoreSize;
+        return this;
     }
 
     public int getThreadPoolMessagingMaxSize() {
         return threadPoolMessagingMaxSize;
     }
 
-    public void setThreadPoolMessagingMaxSize(int threadPoolMessagingMaxSize) {
+    public MorphiumConfig setThreadPoolMessagingMaxSize(int threadPoolMessagingMaxSize) {
         this.threadPoolMessagingMaxSize = threadPoolMessagingMaxSize;
+        return this;
     }
 
     public long getThreadPoolMessagingKeepAliveTime() {
         return threadPoolMessagingKeepAliveTime;
     }
 
-    public void setThreadPoolMessagingKeepAliveTime(long threadPoolMessagingKeepAliveTime) {
+    public MorphiumConfig setThreadPoolMessagingKeepAliveTime(long threadPoolMessagingKeepAliveTime) {
         this.threadPoolMessagingKeepAliveTime = threadPoolMessagingKeepAliveTime;
+        return this;
     }
 
     public int getThreadPoolAsyncOpCoreSize() {
         return threadPoolAsyncOpCoreSize;
     }
 
-    public void setThreadPoolAsyncOpCoreSize(int threadPoolAsyncOpCoreSize) {
+    public MorphiumConfig setThreadPoolAsyncOpCoreSize(int threadPoolAsyncOpCoreSize) {
         this.threadPoolAsyncOpCoreSize = threadPoolAsyncOpCoreSize;
+        return this;
     }
 
     public int getThreadPoolAsyncOpMaxSize() {
         return threadPoolAsyncOpMaxSize;
     }
 
-    public void setThreadPoolAsyncOpMaxSize(int threadPoolAsyncOpMaxSize) {
+    public MorphiumConfig setThreadPoolAsyncOpMaxSize(int threadPoolAsyncOpMaxSize) {
         this.threadPoolAsyncOpMaxSize = threadPoolAsyncOpMaxSize;
+        return this;
     }
 
     public long getThreadPoolAsyncOpKeepAliveTime() {
         return threadPoolAsyncOpKeepAliveTime;
     }
 
-    public void setThreadPoolAsyncOpKeepAliveTime(long threadPoolAsyncOpKeepAliveTime) {
+    public MorphiumConfig setThreadPoolAsyncOpKeepAliveTime(long threadPoolAsyncOpKeepAliveTime) {
         this.threadPoolAsyncOpKeepAliveTime = threadPoolAsyncOpKeepAliveTime;
+        return this;
     }
 
     public boolean isObjectSerializationEnabled() {
         return objectSerializationEnabled;
     }
 
-    public void setObjectSerializationEnabled(boolean objectSerializationEnabled) {
+    public MorphiumConfig setObjectSerializationEnabled(boolean objectSerializationEnabled) {
         this.objectSerializationEnabled = objectSerializationEnabled;
+        return this;
     }
 
     public boolean isCursorFinalizerEnabled() {
         return cursorFinalizerEnabled;
     }
 
-    public void setCursorFinalizerEnabled(boolean cursorFinalizerEnabled) {
+    public MorphiumConfig setCursorFinalizerEnabled(boolean cursorFinalizerEnabled) {
         this.cursorFinalizerEnabled = cursorFinalizerEnabled;
+        return this;
     }
 
     public boolean isAlwaysUseMBeans() {
         return alwaysUseMBeans;
     }
 
-    public void setAlwaysUseMBeans(boolean alwaysUseMBeans) {
+    public MorphiumConfig setAlwaysUseMBeans(boolean alwaysUseMBeans) {
         this.alwaysUseMBeans = alwaysUseMBeans;
+        return this;
     }
 
     public int getHeartbeatConnectTimeout() {
         return heartbeatConnectTimeout;
     }
 
-    public void setHeartbeatConnectTimeout(int heartbeatConnectTimeout) {
+    public MorphiumConfig setHeartbeatConnectTimeout(int heartbeatConnectTimeout) {
         this.heartbeatConnectTimeout = heartbeatConnectTimeout;
+        return this;
     }
 
     public int getHeartbeatFrequency() {
         return heartbeatFrequency;
     }
 
-    public void setHeartbeatFrequency(int heartbeatFrequency) {
+    public MorphiumConfig setHeartbeatFrequency(int heartbeatFrequency) {
         this.heartbeatFrequency = heartbeatFrequency;
+        return this;
     }
 
     public int getHeartbeatSocketTimeout() {
         return heartbeatSocketTimeout;
     }
 
-    public void setHeartbeatSocketTimeout(int heartbeatSocketTimeout) {
+    public MorphiumConfig setHeartbeatSocketTimeout(int heartbeatSocketTimeout) {
         this.heartbeatSocketTimeout = heartbeatSocketTimeout;
+        return this;
     }
 
     public int getMinConnectionsPerHost() {
         return minConnectionsPerHost;
     }
 
-    public void setMinConnectionsPerHost(int minConnectionsPerHost) {
+    public MorphiumConfig setMinConnectionsPerHost(int minConnectionsPerHost) {
         this.minConnectionsPerHost = minConnectionsPerHost;
+        return this;
     }
 
     public int getMinHearbeatFrequency() {
         return minHearbeatFrequency;
     }
 
-    public void setMinHearbeatFrequency(int minHearbeatFrequency) {
+    public MorphiumConfig setMinHearbeatFrequency(int minHearbeatFrequency) {
         this.minHearbeatFrequency = minHearbeatFrequency;
+        return this;
     }
 
     public int getLocalThreashold() {
         return localThreashold;
     }
 
-    public void setLocalThreashold(int localThreashold) {
+    public MorphiumConfig setLocalThreashold(int localThreashold) {
         this.localThreashold = localThreashold;
+        return this;
     }
 
     public int getMaxConnectionIdleTime() {
         return maxConnectionIdleTime;
     }
 
-    public void setMaxConnectionIdleTime(int maxConnectionIdleTime) {
+    public MorphiumConfig setMaxConnectionIdleTime(int maxConnectionIdleTime) {
         this.maxConnectionIdleTime = maxConnectionIdleTime;
+        return this;
     }
 
     public int getMaxConnectionLifeTime() {
         return maxConnectionLifeTime;
     }
 
-    public void setMaxConnectionLifeTime(int maxConnectionLifeTime) {
+    public MorphiumConfig setMaxConnectionLifeTime(int maxConnectionLifeTime) {
         this.maxConnectionLifeTime = maxConnectionLifeTime;
+        return this;
     }
 
     public String getRequiredReplicaSetName() {
         return requiredReplicaSetName;
     }
 
-    public void setRequiredReplicaSetName(String requiredReplicaSetName) {
+    public MorphiumConfig setRequiredReplicaSetName(String requiredReplicaSetName) {
         this.requiredReplicaSetName = requiredReplicaSetName;
+        return this;
     }
 
 
@@ -1192,8 +1276,9 @@ public class MorphiumConfig {
         return cursorBatchSize;
     }
 
-    public void setCursorBatchSize(int cursorBatchSize) {
+    public MorphiumConfig setCursorBatchSize(int cursorBatchSize) {
         this.cursorBatchSize = cursorBatchSize;
+        return this;
     }
 
 
