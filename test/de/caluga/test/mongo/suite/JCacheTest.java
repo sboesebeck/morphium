@@ -4,13 +4,12 @@ import de.caluga.morphium.cache.MorphiumCache;
 import de.caluga.morphium.cache.MorphiumCacheJCacheImpl;
 import de.caluga.morphium.cache.jcache.CacheManagerImpl;
 import de.caluga.test.mongo.suite.data.CachedObject;
+import org.ehcache.jcache.JCacheCachingProvider;
 import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import javax.cache.CacheManager;
-import javax.cache.Caching;
-import javax.cache.spi.CachingProvider;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -34,8 +33,8 @@ public class JCacheTest extends MongoTest {
 
         List<CacheManager> lst = new ArrayList<>();
 
-        //JCacheCachingProvider provider=new JCacheCachingProvider();
-        CachingProvider provider = Caching.getCachingProvider();
+        JCacheCachingProvider provider = new JCacheCachingProvider();
+//        CachingProvider provider = Caching.getCachingProvider();
         lst.add(provider.getCacheManager());
         lst.add(new CacheManagerImpl(morphium.getConfig().asProperties()));
 
