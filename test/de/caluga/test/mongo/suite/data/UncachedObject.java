@@ -8,6 +8,8 @@ import de.caluga.morphium.annotations.*;
 import de.caluga.morphium.annotations.caching.NoCache;
 import de.caluga.morphium.driver.MorphiumId;
 
+import java.util.Arrays;
+
 /**
  * @author stephan
  */
@@ -125,8 +127,20 @@ public class UncachedObject {
         this.morphiumId = morphiumId;
     }
 
+    @Override
     public String toString() {
-        return "Counter: " + counter + " Value: " + value + " MongoId: " + morphiumId;
+        return "UncachedObject{" +
+                "value='" + value + '\'' +
+                ", counter=" + counter +
+                ", dval=" + dval +
+                ", binaryData=" + Arrays.toString(binaryData) +
+                ", intData=" + Arrays.toString(intData) +
+                ", longData=" + Arrays.toString(longData) +
+                ", floatData=" + Arrays.toString(floatData) +
+                ", doubleData=" + Arrays.toString(doubleData) +
+                ", boolData=" + Arrays.toString(boolData) +
+                ", morphiumId=" + morphiumId +
+                '}';
     }
 
     @Override

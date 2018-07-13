@@ -44,6 +44,8 @@ public interface ObjectMapper {
 
     void setMorphium(Morphium m);
 
+    void setAnnotationHelper(AnnotationAndReflectionHelper an);
+
     Morphium getMorphium();
 
 

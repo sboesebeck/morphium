@@ -70,6 +70,11 @@ public class ObjectMapperImpl implements ObjectMapper {
     }
 
     @Override
+    public void setAnnotationHelper(AnnotationAndReflectionHelper an) {
+        annotationHelper = an;
+    }
+
+    @Override
     public Morphium getMorphium() {
         return morphium;
     }
@@ -209,7 +214,7 @@ public class ObjectMapperImpl implements ObjectMapper {
 
         //recursively map object to mongo-Object...
         if (!annotationHelper.isEntity(o)) {
-            if (morphium.getConfig().isObjectSerializationEnabled()) {
+            if (morphium == null || morphium.getConfig().isObjectSerializationEnabled()) {
                 if (o instanceof Serializable) {
                     try {
                         BinarySerializedObject obj = new BinarySerializedObject();
@@ -229,7 +234,7 @@ public class ObjectMapperImpl implements ObjectMapper {
                         throw new IllegalArgumentException("Binary serialization failed! " + o.getClass().getName(), e);
                     }
                 } else {
-                    throw new IllegalArgumentException("Cannot write object to db that is neither entity, embedded nor serializable!");
+                    throw new IllegalArgumentException("Cannot write object to db that is neither entity, embedded nor serializable! ObjectType: " + o.getClass().getName());
                 }
             }
             throw new IllegalArgumentException("Object is no entity: " + o.getClass().getSimpleName());
