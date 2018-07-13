@@ -79,6 +79,61 @@ public class DriverHelper {
         }
     }
 
+    public static void replaceBsonValues(Object in) {
+        if (in == null) {
+            return;
+        }
+
+        if (in instanceof Map) {
+            @SuppressWarnings("unchecked") Map<String, Object> m = (Map) in;
+            Map<String, Object> toSet = new HashMap<>();
+            try {
+                for (Map.Entry e : m.entrySet()) {
+                    if (e.getValue() instanceof ObjectId) {
+                        toSet.put((String) e.getKey(), new MorphiumId(e.getValue().toString()));
+                    } else if (e.getValue() instanceof Collection) {
+                        Collection v = new LinkedList();
+                        for (Object o : (Collection) e.getValue()) {
+                            if (o != null) {
+                                if (o instanceof Map
+                                        || o instanceof List
+                                        || o.getClass().isArray()) {
+                                    replaceBsonValues(o);
+                                } else if (o instanceof MorphiumId) {
+                                    o = new ObjectId(o.toString());
+                                }
+                            }
+                            v.add(o);
+                        }
+                        toSet.put((String) e.getKey(), v);
+                    } else {
+                        Object value = e.getValue();
+                        replaceBsonValues(value);
+                        toSet.put(String.valueOf(e.getKey()), value);
+                    }
+                }
+                for (Map.Entry<String, Object> e : toSet.entrySet()) {
+                    //noinspection unchecked
+                    ((Map) in).put(e.getKey(), e.getValue());
+                }
+
+            } catch (Exception e) {
+                LoggerFactory.getLogger(DriverHelper.class).error("Error replacing mongoid", e);
+                //                throw new RuntimeException(e);
+            }
+        } else if (in instanceof Collection) {
+            Collection c = (Collection) in;
+            //noinspection unchecked
+            c.forEach(DriverHelper::replaceBsonValues);
+        } else if (in.getClass().isArray()) {
+
+            for (int i = 0; i < Array.getLength(in); i++) {
+                replaceBsonValues(Array.get(in, i));
+            }
+        }
+
+    }
+
     public static void replaceMorphiumIdByObjectId(Object in) {
         if (in == null) {
             return;
@@ -90,7 +145,6 @@ public class DriverHelper {
                 for (Map.Entry e : m.entrySet()) {
                     if (e.getValue() instanceof MorphiumId) {
                         toSet.put((String) e.getKey(), new ObjectId(e.getValue().toString()));
-
                     } else if (e.getValue() instanceof MorphiumReference) {
                         toSet.put((String) e.getKey(), new ObjectId(((MorphiumReference) e.getValue()).getId().toString()));
                     } else if (e.getValue() instanceof Collection) {
@@ -109,7 +163,9 @@ public class DriverHelper {
                         }
                         toSet.put((String) e.getKey(), v);
                     } else {
-                        replaceMorphiumIdByObjectId(e.getValue());
+                        Object value = e.getValue();
+                        replaceMorphiumIdByObjectId(value);
+                        toSet.put(String.valueOf(e.getKey()), value);
                     }
                 }
                 for (Map.Entry<String, Object> e : toSet.entrySet()) {

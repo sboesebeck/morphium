@@ -506,6 +506,16 @@ public class InMemoryDriver implements MorphiumDriver {
     }
 
     @Override
+    public void watch(String db, int timeout, boolean fullDocumentOnUpdate, DriverTailableIterationCallback cb) throws MorphiumDriverException {
+        throw new RuntimeException("not implemented yet, sorry");
+    }
+
+    @Override
+    public void watch(String db, String collection, int timeout, boolean fullDocumentOnUpdate, DriverTailableIterationCallback cb) throws MorphiumDriverException {
+        throw new RuntimeException("not implemented yet, sorry");
+    }
+
+    @Override
     public MorphiumCursor nextIteration(MorphiumCursor crs) throws MorphiumDriverException {
         MorphiumCursor next = new MorphiumCursor();
         next.setCursorId(crs.getCursorId());
@@ -998,7 +1008,6 @@ public class InMemoryDriver implements MorphiumDriver {
     public void startTransaction() {
         if (currentTransaction.get() != null) throw new IllegalArgumentException("transaction in progress");
         InMemTransactionContext ctx = new InMemTransactionContext();
-        Map<String, Map<String, List<Map<String, Object>>>> db = new ConcurrentHashMap<>();
         Cloner cloner = new Cloner();
         ctx.setDatabase(cloner.deepClone(database));
         currentTransaction.set(ctx);
