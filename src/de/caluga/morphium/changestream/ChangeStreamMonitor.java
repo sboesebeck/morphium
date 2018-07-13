@@ -1,6 +1,7 @@
 package de.caluga.morphium.changestream;
 
 import de.caluga.morphium.*;
+import de.caluga.morphium.driver.DriverTailableIterationCallback;
 import de.caluga.morphium.driver.MorphiumDriverException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -16,28 +17,30 @@ public class ChangeStreamMonitor implements Runnable, ShutdownListener {
     private final Collection<ChangeStreamListener> listeners;
     private final Morphium morphium;
     private final Logger log = LoggerFactory.getLogger(ChangeStreamMonitor.class);
-    private final String nameSpace;
+    private final String collectionName;
     private final boolean fullDocument;
     private boolean running = true;
     private long timestamp;
     private Thread changeStreamThread;
     private ObjectMapper mapper;
+    private boolean dbOnly = false;
 
 
     public ChangeStreamMonitor(Morphium m) {
         this(m, null, false);
+        dbOnly = true;
     }
 
     public ChangeStreamMonitor(Morphium m, Class<?> entity) {
-        this(m, m.getConfig().getDatabase() + "." + m.getMapper().getCollectionName(entity), false);
+        this(m, m.getMapper().getCollectionName(entity), false);
     }
 
-    public ChangeStreamMonitor(Morphium m, String nameSpace, boolean fullDocument) {
+    public ChangeStreamMonitor(Morphium m, String collectionName, boolean fullDocument) {
         morphium = m;
         listeners = new ConcurrentLinkedDeque<>();
         timestamp = System.currentTimeMillis() / 1000;
         morphium.addShutdownListener(this);
-        this.nameSpace = nameSpace;
+        this.collectionName = collectionName;
         this.fullDocument = fullDocument;
 
         mapper = new ObjectMapperImpl();
@@ -92,8 +95,8 @@ public class ChangeStreamMonitor implements Runnable, ShutdownListener {
         morphium.removeShutdownListener(this);
     }
 
-    public String getNameSpace() {
-        return nameSpace;
+    public String getcollectionName() {
+        return collectionName;
     }
 
     @Override
@@ -101,7 +104,7 @@ public class ChangeStreamMonitor implements Runnable, ShutdownListener {
 
         while (running) {
             try {
-                morphium.getDriver().watch("local", nameSpace, morphium.getConfig().getMaxWaitTime(), fullDocument, (data, dur) -> {
+                DriverTailableIterationCallback callback = (data, dur) -> {
                     if (!running) {
                         return false;
                     }
@@ -118,7 +121,12 @@ public class ChangeStreamMonitor implements Runnable, ShutdownListener {
                         }
                     }
                     return running;
-                });
+                };
+                if (dbOnly) {
+                    morphium.getDriver().watch(morphium.getConfig().getDatabase(), morphium.getConfig().getMaxWaitTime(), fullDocument, callback);
+                } else {
+                    morphium.getDriver().watch(morphium.getConfig().getDatabase(), collectionName, morphium.getConfig().getMaxWaitTime(), fullDocument, callback);
+                }
             } catch (MorphiumDriverException e) {
                 log.warn("Error in oplogmonitor - restarting", e);
             }
