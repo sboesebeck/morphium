@@ -2,8 +2,11 @@ package de.caluga.test.mongo.suite;
 
 import de.caluga.morphium.Utils;
 import de.caluga.morphium.changestream.ChangeStreamEvent;
+import de.caluga.morphium.changestream.ChangeStreamMonitor;
 import de.caluga.test.mongo.suite.data.UncachedObject;
 import org.junit.Test;
+
+import java.util.concurrent.atomic.AtomicInteger;
 
 public class ChangeStreamTest extends MongoTest {
     long start;
@@ -132,5 +135,27 @@ public class ChangeStreamTest extends MongoTest {
             UncachedObject obj = evt.getEntityFromData(UncachedObject.class, morphium);
             assert (obj != null);
         }
+    }
+
+    @Test
+    public void changeStreamMonitorTest() throws Exception {
+        morphium.dropCollection(UncachedObject.class);
+        ChangeStreamMonitor m = new ChangeStreamMonitor(morphium, UncachedObject.class);
+        m.start();
+        final AtomicInteger cnt = new AtomicInteger(0);
+
+        m.addListener(evt -> {
+            printevent(evt);
+            cnt.set(cnt.get() + 1);
+            return true;
+        });
+        Thread.sleep(1000);
+        for (int i = 0; i < 100; i++) {
+            morphium.store(new UncachedObject("value " + i, i));
+        }
+        Thread.sleep(1000);
+        m.stop();
+        assert (cnt.get() >= 100 && cnt.get() <= 101) : "count is wrong: " + cnt.get();
+
     }
 }
