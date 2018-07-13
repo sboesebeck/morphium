@@ -12,6 +12,8 @@ import de.caluga.morphium.async.AsyncOperationCallback;
 import de.caluga.morphium.bulk.MorphiumBulkContext;
 import de.caluga.morphium.cache.MorphiumCache;
 import de.caluga.morphium.cache.MorphiumCacheImpl;
+import de.caluga.morphium.changestream.ChangeStreamEvent;
+import de.caluga.morphium.changestream.ChangeStreamListener;
 import de.caluga.morphium.driver.*;
 import de.caluga.morphium.query.MongoField;
 import de.caluga.morphium.query.MongoFieldImpl;
@@ -2769,5 +2771,74 @@ public class Morphium {
 
     public void abortTransaction() {
         getDriver().abortTransaction();
+    }
+
+    public <T> void watchAsync(String collectionName, boolean updateFull, ChangeStreamListener lst) {
+        asyncOperationsThreadPool.execute(() -> {
+            watch(collectionName, updateFull, lst);
+        });
+    }
+
+    public <T> void watchAsync(Class<T> entity, boolean updateFull, ChangeStreamListener lst) {
+        asyncOperationsThreadPool.execute(() -> {
+            watch(entity, updateFull, lst);
+        });
+    }
+
+    public <T> void watch(Class<T> entity, boolean updateFull, ChangeStreamListener lst) {
+        watch(getMapper().getCollectionName(entity), updateFull, lst);
+    }
+
+    public <T> void watch(String collectionName, boolean updateFull, ChangeStreamListener lst) {
+        watch(collectionName, config.getMaxWaitTime(), updateFull, lst);
+    }
+
+    public <T> void watch(String collectionName, int maxWaitTime, boolean updateFull, ChangeStreamListener lst) {
+        try {
+            getDriver().watch(config.getDatabase(), collectionName, maxWaitTime, updateFull, (doc, ts) -> processEvent(lst, doc));
+        } catch (MorphiumDriverException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    private boolean processEvent(ChangeStreamListener lst, Map<String, Object> doc) {
+        ObjectMapper mapper = new ObjectMapperImpl();
+        AnnotationAndReflectionHelper hlp = new AnnotationAndReflectionHelper(false);
+        mapper.setAnnotationHelper(hlp);
+
+        Map<String, Object> obj = (Map<String, Object>) doc.get("fullDocument");
+        doc.put("fullDocument", null);
+        ChangeStreamEvent evt = mapper.unmarshall(ChangeStreamEvent.class, doc);
+
+        evt.setFullDocument(obj);
+        return lst.incomingData(evt);
+    }
+
+
+    public <T> void watchDbAsync(String dbName, boolean updateFull, ChangeStreamListener lst) {
+        asyncOperationsThreadPool.execute(() -> {
+            watchDb(dbName, updateFull, lst);
+        });
+    }
+
+
+    public <T> void watchDbAsync(boolean updateFull, ChangeStreamListener lst) {
+        watchDbAsync(config.getDatabase(), updateFull, lst);
+    }
+
+    public <T> void watchDb(boolean updateFull, ChangeStreamListener lst) {
+        watchDb(getConfig().getDatabase(), updateFull, lst);
+    }
+
+    public <T> void watchDb(String dbName, boolean updateFull, ChangeStreamListener lst) {
+        watchDb(dbName, getConfig().getMaxWaitTime(), updateFull, lst);
+    }
+
+    public <T> void watchDb(String dbName, int maxWaitTime, boolean updateFull, ChangeStreamListener lst) {
+        try {
+            getDriver().watch(dbName, maxWaitTime, updateFull, (doc, ts) -> processEvent(lst, doc));
+        } catch (MorphiumDriverException e) {
+            throw new RuntimeException(e);
+        }
     }
 }
