@@ -6,6 +6,7 @@ import de.caluga.morphium.query.Query;
 import javax.cache.CacheManager;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * User: Stephan Bösebeck
@@ -30,6 +31,8 @@ public interface MorphiumCache {
     void removeEntryFromCache(Class cls, Object id);
 
     <T> T getFromIDCache(Class<? extends T> type, Object id);
+
+    Set<Class<?>> getCachedTypes();
 
     String getCacheKey(Query q);
 

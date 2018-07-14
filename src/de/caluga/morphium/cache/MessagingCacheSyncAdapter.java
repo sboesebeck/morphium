@@ -9,7 +9,7 @@ import de.caluga.morphium.messaging.Msg;
  * <p/>
  */
 @SuppressWarnings("UnusedDeclaration")
-public class CacheSyncAdapter implements CacheSyncListener {
+public class MessagingCacheSyncAdapter implements MessagingCacheSyncListener {
     @Override
     public void preClear(Class cls, Msg m) {
     }

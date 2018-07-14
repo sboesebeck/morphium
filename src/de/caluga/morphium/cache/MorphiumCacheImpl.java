@@ -231,6 +231,11 @@ public class MorphiumCacheImpl implements MorphiumCache {
     }
 
     @Override
+    public Set<Class<?>> getCachedTypes() {
+        return idCache.keySet();
+    }
+
+    @Override
     public void resetCache() {
         setCache(new ConcurrentHashMap<>());
     }

@@ -35,8 +35,8 @@ public class MorphiumCacheJCacheImpl implements MorphiumCache, CacheEntryExpired
     private CacheManager cacheManager;
     private MorphiumConfig cfg;
 
-    private Map<Class, Cache> idCaches = new HashMap<>();
-    private Map<Class, Cache> resultCaches = new HashMap<>();
+    private Map<Class<?>, Cache> idCaches = new HashMap<>();
+    private Map<Class<?>, Cache> resultCaches = new HashMap<>();
 
     private AnnotationAndReflectionHelper anHelper = new AnnotationAndReflectionHelper(false);
 
@@ -146,6 +146,11 @@ public class MorphiumCacheJCacheImpl implements MorphiumCache, CacheEntryExpired
         } else {
             return null;
         }
+    }
+
+    @Override
+    public Set<Class<?>> getCachedTypes() {
+        return idCaches.keySet();
     }
 
     private <T> Cache<Object, CacheEntry<T>> getIdCache(Class<? extends T> type) {
