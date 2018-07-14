@@ -15,7 +15,7 @@ public class ChangeStreamEvent {
     private String operationType;
     private Map<String, Object> fullDocument;
     private Map<String, String> ns;
-    private MorphiumId documentKey;
+    private Object documentKey;
     private Map<String, Object> updateDescription;
     private long clusterTime;
     private long txnNumber;
@@ -72,11 +72,11 @@ public class ChangeStreamEvent {
         this.ns = ns;
     }
 
-    public MorphiumId getDocumentKey() {
+    public Object getDocumentKey() {
         return documentKey;
     }
 
-    public void setDocumentKey(MorphiumId documentKey) {
+    public void setDocumentKey(Object documentKey) {
         this.documentKey = documentKey;
     }
 
