@@ -10,10 +10,11 @@ import de.caluga.morphium.messaging.MessageListener;
 import de.caluga.morphium.messaging.Messaging;
 import de.caluga.morphium.messaging.Msg;
 import de.caluga.morphium.query.Query;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 /**
@@ -34,14 +35,10 @@ import java.util.stream.Collectors;
  * </ul>
  */
 @SuppressWarnings("UnusedDeclaration")
-public class CacheSynchronizer implements MessageListener, MorphiumStorageListener<Object> {
+public class MessagingCacheSynchronizer extends AbstractCacheSynchronizer<MessagingCacheSyncListener> implements MessageListener, MorphiumStorageListener<Object> {
     public static final String CACHE_SYNC_TYPE = "cacheSyncType";
     public static final String CACHE_SYNC_RECORD = "cacheSyncRecord";
-    private static final Logger log = LoggerFactory.getLogger(CacheSynchronizer.class);
     private Messaging messaging;
-    private Morphium morphium;
-    private List<CacheSyncListener> listeners = Collections.synchronizedList(new ArrayList<>());
-    private Hashtable<Class<?>, Vector<CacheSyncListener>> listenerForType = new Hashtable<>();
     private boolean attached;
     private AnnotationAndReflectionHelper annotationHelper;
 
@@ -52,9 +49,9 @@ public class CacheSynchronizer implements MessageListener, MorphiumStorageListen
      * @param msg      - primary messaging, will attach to and send messages over
      * @param morphium - the underlying morphium instance
      */
-    public CacheSynchronizer(Messaging msg, Morphium morphium) {
+    public MessagingCacheSynchronizer(Messaging msg, Morphium morphium) {
+        super(morphium);
         messaging = msg;
-        this.morphium = morphium;
         annotationHelper = morphium.getARHelper();
         morphium.addListener(this);
 
@@ -64,82 +61,6 @@ public class CacheSynchronizer implements MessageListener, MorphiumStorageListen
 
     }
 
-    public void addSyncListener(CacheSyncListener cl) {
-        listeners.add(cl);
-    }
-
-    public void removeSyncListener(CacheSyncListener cl) {
-        listeners.remove(cl);
-    }
-
-    public void addSyncListener(Class type, CacheSyncListener cl) {
-        listenerForType.putIfAbsent(type, new Vector<>());
-        listenerForType.get(type).add(cl);
-    }
-
-    public void removeSyncListener(Class type, CacheSyncListener cl) {
-        if (listenerForType.get(type) == null) {
-            return;
-        }
-        listenerForType.get(type).remove(cl);
-    }
-
-
-    public void firePostSendEvent(Class type, Msg m) {
-        for (CacheSyncListener cl : listeners) {
-            cl.postSendClearMsg(type, m);
-        }
-        if (type == null) {
-            return;
-        }
-        if (listenerForType.get(type) != null) {
-            for (CacheSyncListener cl : listenerForType.get(type)) {
-                cl.postSendClearMsg(type, m);
-            }
-        }
-    }
-
-    public void firePreSendEvent(Class type, Msg m) throws CacheSyncVetoException {
-        for (CacheSyncListener cl : listeners) {
-            cl.preSendClearMsg(type, m);
-        }
-        if (type == null) {
-            return;
-        }
-        if (listenerForType.get(type) != null) {
-            for (CacheSyncListener cl : listenerForType.get(type)) {
-                cl.preSendClearMsg(type, m);
-            }
-        }
-    }
-
-    private void firePreClearEvent(Class type, Msg m) throws CacheSyncVetoException {
-        for (CacheSyncListener cl : listeners) {
-            cl.preClear(type, m);
-        }
-        if (type == null) {
-            return;
-        }
-        if (listenerForType.get(type) != null) {
-            for (CacheSyncListener cl : listenerForType.get(type)) {
-                cl.preClear(type, m);
-            }
-        }
-    }
-
-    public void firePostClearEvent(Class type, Msg m) {
-        for (CacheSyncListener cl : listeners) {
-            cl.postClear(type, m);
-        }
-        if (type == null) {
-            return;
-        }
-        if (listenerForType.get(type) != null) {
-            for (CacheSyncListener cl : listenerForType.get(type)) {
-                cl.postClear(type, m);
-            }
-        }
-    }
 
     public void sendClearMessage(String reason, Map<Object, Boolean> isNew) {
         //        long start = System.currentTimeMillis();
@@ -312,6 +233,36 @@ public class CacheSynchronizer implements MessageListener, MorphiumStorageListen
         sendClearMessage("remove", map);
     }
 
+
+    public void firePostSendEvent(Class type, Msg m) {
+        for (MessagingCacheSyncListener cl : listeners) {
+            cl.postSendClearMsg(type, m);
+        }
+        if (type == null) {
+            return;
+        }
+        if (listenerForType.get(type) != null) {
+            for (MessagingCacheSyncListener cl : listenerForType.get(type)) {
+                cl.postSendClearMsg(type, m);
+            }
+        }
+    }
+
+    public void firePreSendEvent(Class type, Msg m) throws CacheSyncVetoException {
+        for (MessagingCacheSyncListener cl : listeners) {
+            cl.preSendClearMsg(type, m);
+        }
+        if (type == null) {
+            return;
+        }
+        if (listenerForType.get(type) != null) {
+            for (MessagingCacheSyncListener cl : listenerForType.get(type)) {
+                cl.preSendClearMsg(type, m);
+            }
+        }
+    }
+
+
     @Override
     public void preRemove(Morphium m, Query<Object> q) throws MorphiumAccessVetoException {
     }
@@ -357,9 +308,9 @@ public class CacheSynchronizer implements MessageListener, MorphiumStorageListen
                 if (m.getValue().equals("ALL")) {
 
                     try {
-                        firePreClearEvent(null, m);
+                        firePreClearEvent(null);
                         morphium.getCache().resetCache();
-                        firePostClearEvent(null, m);
+                        firePostClearEvent(null);
                         answer.setMsg("cache completely cleared");
                         log.info("Cache completely cleared");
                     } catch (CacheSyncVetoException e) {
@@ -374,10 +325,10 @@ public class CacheSynchronizer implements MessageListener, MorphiumStorageListen
                         if (c.readCache()) {
                             try {
                                 //Really clearing cache, even if clear on write is set to false! => manual clearing?
-                                firePreClearEvent(cls, m);
+                                firePreClearEvent(cls);
                                 morphium.clearCachefor(cls);
                                 answer.setMsg("cache cleared for type: " + m.getValue());
-                                firePostClearEvent(cls, m);
+                                firePostClearEvent(cls);
                             } catch (CacheSyncVetoException e) {
                                 log.error("Could not clear cache! Got Veto", e);
                             }
@@ -399,7 +350,7 @@ public class CacheSynchronizer implements MessageListener, MorphiumStorageListen
                     if (c != null) {
                         if (c.readCache()) {
                             try {
-                                firePreClearEvent(cls, m);
+                                firePreClearEvent(cls);
 //                                Map<Class<?>, Map<Object, Object>> idCache = morphium.getCache().getIdCache();
                                 for (Object id : m.getAdditional()) {
                                     Object toUpdate = morphium.getCache().getFromIDCache(cls, id);//idCache.get(cls).get(id);
@@ -414,7 +365,7 @@ public class CacheSynchronizer implements MessageListener, MorphiumStorageListen
                                         }
                                 }
                                 answer.setMsg("cache cleared for type: " + m.getValue());
-                                firePostClearEvent(cls, m);
+                                firePostClearEvent(cls);
                             } catch (CacheSyncVetoException e) {
                                 log.error("Not clearing id cache: Veto", e);
                             }
@@ -430,9 +381,9 @@ public class CacheSynchronizer implements MessageListener, MorphiumStorageListen
         } catch (ClassNotFoundException e) {
             log.warn("Could not process message for class " + m.getValue() + " - not found!");
             answer.setMsg("class not found: " + m.getValue());
-        } catch (Throwable t) {
-            log.error("Could not process message: ", t);
-            answer.setMsg("Error processing message: " + t.getMessage());
+        } catch (Throwable MessagingCacheSyncListener) {
+            log.error("Could not process message: ", MessagingCacheSyncListener);
+            answer.setMsg("Error processing message: " + MessagingCacheSyncListener.getMessage());
         }
         if (!commitMessage) {
             return null;

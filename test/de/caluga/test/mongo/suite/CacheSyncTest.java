@@ -7,8 +7,8 @@ import de.caluga.morphium.annotations.SafetyLevel;
 import de.caluga.morphium.annotations.WriteSafety;
 import de.caluga.morphium.annotations.caching.Cache;
 import de.caluga.morphium.annotations.caching.WriteBuffer;
-import de.caluga.morphium.cache.CacheSyncListener;
-import de.caluga.morphium.cache.CacheSynchronizer;
+import de.caluga.morphium.cache.MessagingCacheSyncListener;
+import de.caluga.morphium.cache.MessagingCacheSynchronizer;
 import de.caluga.morphium.driver.MorphiumId;
 import de.caluga.morphium.messaging.Messaging;
 import de.caluga.morphium.messaging.Msg;
@@ -36,7 +36,7 @@ public class CacheSyncTest extends MongoTest {
         morphium.dropCollection(Msg.class);
         Messaging msg = new Messaging(morphium, 100, true);
         msg.start();
-        CacheSynchronizer cs = new CacheSynchronizer(msg, morphium);
+        MessagingCacheSynchronizer cs = new MessagingCacheSynchronizer(msg, morphium);
 
         Query<Msg> q = morphium.createQueryFor(Msg.class);
         long cnt = q.countAll();
@@ -85,8 +85,8 @@ public class CacheSyncTest extends MongoTest {
         msg1.start();
         Messaging msg2 = new Messaging(morphium, 100, true);
         msg2.start();
-        CacheSynchronizer cs1 = new CacheSynchronizer(msg1, morphium);
-        CacheSynchronizer cs2 = new CacheSynchronizer(msg2, morphium);
+        MessagingCacheSynchronizer cs1 = new MessagingCacheSynchronizer(msg1, morphium);
+        MessagingCacheSynchronizer cs2 = new MessagingCacheSynchronizer(msg2, morphium);
 
 
         for (int i = 0; i < 100; i++) {
@@ -155,7 +155,7 @@ public class CacheSyncTest extends MongoTest {
         Messaging msg1 = new Messaging(morphium, 100, true);
         msg1.start();
 
-        CacheSynchronizer cs1 = new CacheSynchronizer(msg1, morphium);
+        MessagingCacheSynchronizer cs1 = new MessagingCacheSynchronizer(msg1, morphium);
         start = System.currentTimeMillis();
         for (int i = 0; i < 100; i++) {
             o = new IdCachedObject();
@@ -221,8 +221,8 @@ public class CacheSyncTest extends MongoTest {
         msg2.start();
 
 
-        final CacheSynchronizer cs1 = new CacheSynchronizer(msg1, morphium);
-        cs1.addSyncListener(new CacheSyncListener() {
+        final MessagingCacheSynchronizer cs1 = new MessagingCacheSynchronizer(msg1, morphium);
+        cs1.addSyncListener(new MessagingCacheSyncListener() {
             @Override
             public void preClear(Class cls, Msg m) {
             }
@@ -244,8 +244,8 @@ public class CacheSyncTest extends MongoTest {
             }
         });
 
-        final CacheSynchronizer cs2 = new CacheSynchronizer(msg2, morphium);
-        cs2.addSyncListener(new CacheSyncListener() {
+        final MessagingCacheSynchronizer cs2 = new MessagingCacheSynchronizer(msg2, morphium);
+        cs2.addSyncListener(new MessagingCacheSyncListener() {
             @Override
             public void preClear(Class cls, Msg m) {
                 log.info("in preClear");
@@ -315,8 +315,8 @@ public class CacheSyncTest extends MongoTest {
         msg1.start();
         msg2.start();
 
-        CacheSynchronizer cs1 = new CacheSynchronizer(msg1, m1);
-        CacheSynchronizer cs2 = new CacheSynchronizer(msg2, m2);
+        MessagingCacheSynchronizer cs1 = new MessagingCacheSynchronizer(msg1, m1);
+        MessagingCacheSynchronizer cs2 = new MessagingCacheSynchronizer(msg2, m2);
         waitForWrites();
 
         //fill caches
@@ -420,8 +420,8 @@ public class CacheSyncTest extends MongoTest {
         msg1.start();
         msg2.start();
 
-        CacheSynchronizer cs1 = new CacheSynchronizer(msg1, m1);
-        CacheSynchronizer cs2 = new CacheSynchronizer(msg2, m2);
+        MessagingCacheSynchronizer cs1 = new MessagingCacheSynchronizer(msg1, m1);
+        MessagingCacheSynchronizer cs2 = new MessagingCacheSynchronizer(msg2, m2);
         waitForWrites();
 
         //fill caches
@@ -435,7 +435,7 @@ public class CacheSyncTest extends MongoTest {
 
 
         CachedObject o = m1.createQueryFor(CachedObject.class).f("counter").eq(155).get();
-        cs2.addSyncListener(CachedObject.class, new CacheSyncListener() {
+        cs2.addSyncListener(CachedObject.class, new MessagingCacheSyncListener() {
             @Override
             public void preClear(Class cls, Msg m) {
                 log.info("Should clear cache");
