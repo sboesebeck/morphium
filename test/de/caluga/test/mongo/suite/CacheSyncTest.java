@@ -533,6 +533,7 @@ public class CacheSyncTest extends MongoTest {
         waitForWrites();
         assert (morphium.getStatistics().get("X-Entries for: resultCache|de.caluga.test.mongo.suite.data.CachedObject") <= 1);
         sync.terminate();
+        Thread.sleep(1000);
     }
 
 
