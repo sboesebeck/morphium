@@ -1,7 +1,7 @@
 morphium
 ========
 
-*ATTENTION:* _please refer to the latest version [here](https://caluga.de/v/2014/9/5/morphium_doku_v3_0) - this version might be outdated!_
+*ATTENTION:* _please refer also to [here](https://caluga.de/v/2014/9/5/morphium_doku_v3_0)_
 
 Morphium - Java Object Mapper and Caching Layer for MongoDB
 
@@ -593,7 +593,7 @@ This means, all write access to this type will be stored for 5 seconds or 1000 e
 `JUST_WARN`: increase buffer and warn about it
 
 
-#Authentication 
+# Authentication 
 
 In Mongo until V 2.4 authentication and user privileges were not really existent. With 2.4, roles are introduces which might make it a bit more complicated to get things working.
 
@@ -735,7 +735,12 @@ As all these synchronizations are done by sending messages via the Morphium own 
 Keep that in Mind!
 
 # Change since 1.3.07
-Since 1.3.07 you need to add a autoSync=true to your cache annotation, in order to have things synced. It tuned out, that automatic syncing is not always the best solution. So, you can still manually sync your caches.
+Since 1.3.07 you need to add a autoSync=true to your cache annotation, in order to have things synced. It turned out, that automatic syncing is not always the best solution. So, you can still manually sync your caches. **This was removed in Morphium V3.x**
+
+# Change since 4.0.0
+We added a lot of new features in Morphium V4.0.0. And we built a couple of great thing based on the new `ChangeStream` feature of mongodb. This is bringing kind of push-notification to morphium. We use that for example for messaging and it brings a lot of advantages there
+
+But also for Cache Synchronization this is great. Witch V4.0.0 we added a `WatchingCacheSynchronizer` and some listeners for it. This will automatically clear or update your caches (depending on your cache annontation settings), whenever a change to the collection will happen. This is way faster than using messaging, more direct. But Only works if you are in a replicaset environment!
 
 # Manually Syncing the Caches
 The sync in Morphium can be controlled totally manually (since 1.3.07), just send your own Clear-Cache Message using the corresponding method in CacheSynchronizer.
@@ -766,8 +771,20 @@ Possible strategies are:
 
 That's it - rest is 100% transparent - just call ```morphium.store(entity);``` - the rest is done automatically
 
+# Morphium and Jcache Implementation
+The morphium cache implementation follows the Jcache API and can be used in other places as well, if you wish. But the better way to make use of it is to have morphium use an existing JCAche-Provider in your application. For Example if you use EHCache in your system, you might want morphium to use that as well.
+This is done by changing the cache implementation in `MorphiumConfig`:
+
+```
+MorphiumConfig config=new MorphiumConfig();
+...
+setCache(new MorphiumCacheJCacheImpl());
+```
+With this code, Morphium will use the Jcache implementation that is available in your system. If you have several cache managers, you might consider setting the "correct" one in MorphiumCacheJCacheImpl directly.
+
 # Read Cache
 Read caches are defined on type level with the annotation @Cache. There you can specify, how your cache should operate:
+
 ```java
 @Cache(clearOnWrite = true, maxEntries = 20000, strategy = Cache.ClearStrategy.LRU, syncCache = Cache.SyncCacheStrategy.CLEAR_TYPE_CACHE, timeout = 5000)
 @Entity
@@ -776,10 +793,12 @@ public class MyCachedEntity {
 }
 ```
 
-here a cache is defined, which has a maximum of 20000 entries. Those Entries have a lifetime of 5 seconds (timeout=5000). Which means, no element will stay longer than 5sec in cache. The strategy defines, what should happen, when you read additional object, and the cache is full:
+here a cache is defined, which has a maximum of 20000 entries. Those Entries have a lifetime of 5 seconds (`timeout=5000`). Which means, no element will stay longer than 5sec in cache. The strategy defines, what should happen, when you read additional object, and the cache is full:
+
 * Cache.ClearStartegy.LRU: remove least recently used elements from cache
-* Cache.ClearStrategy.FIFO:first in first out - depending time added to cache
+* Cache.ClearStrategy.FIFO: first in first out - depending time added to cache
 * Cahce.ClearStrategy.RANDOM: just remove some random entries
+
 With ```clearOnWrite=true``` set, the local cache will be erased any time you write an entity of this typte to database. This prevents dirty reads. If set to false, you might end up with stale data (for as long as the timeout value) but produce less stress on mongo and be probably a bit faster.
 
 CacheSynchronization is something important in clustered or replicated environments. In this case, the Write event is propagated to all cluster members. See [Cache Syncrhonization](https://github.com/sboesebeck/morphium/wiki/Cache-Synchronization) for more details.
