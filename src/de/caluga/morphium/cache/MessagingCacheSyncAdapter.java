@@ -11,11 +11,11 @@ import de.caluga.morphium.messaging.Msg;
 @SuppressWarnings("UnusedDeclaration")
 public class MessagingCacheSyncAdapter implements MessagingCacheSyncListener {
     @Override
-    public void preClear(Class cls, Msg m) {
+    public void preClear(Class cls) {
     }
 
     @Override
-    public void postClear(Class cls, Msg m) {
+    public void postClear(Class cls) {
     }
 
     @Override
