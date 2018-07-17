@@ -8,7 +8,7 @@ import java.util.Map;
 public class CustomMappedObjectMapper implements TypeMapper<CustomMappedObject> {
 
     @Override
-    public Map<String, Object> marshall(CustomMappedObject o) {
+    public Object marshall(CustomMappedObject o) {
         Map<String, Object> map = new HashMap<>();
         map.put("marker", true);
         map.put("name", o.getName());
@@ -18,7 +18,7 @@ public class CustomMappedObjectMapper implements TypeMapper<CustomMappedObject> 
     }
 
     @Override
-    public CustomMappedObject unmarshall(Map<String, Object> d) {
+    public CustomMappedObject unmarshall(Object d) {
         if (d instanceof Map) {
             Map<String, Object> map = (Map<String, Object>) d;
 
@@ -32,7 +32,9 @@ public class CustomMappedObjectMapper implements TypeMapper<CustomMappedObject> 
     }
 
     @Override
-    public boolean matches(Map<String, Object> value) {
+    public boolean matches(Object v) {
+        if (!(v instanceof Map)) return false;
+        Map value = (Map) v;
         return value != null && value.get("marker") != null && value.get("marker").equals(Boolean.TRUE);
     }
 

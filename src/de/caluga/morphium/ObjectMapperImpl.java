@@ -206,8 +206,11 @@ public class ObjectMapperImpl implements ObjectMapper {
 
         Class c = annotationHelper.getRealClass(o.getClass());
         if (hasCustomMapper(c)) {
-            Map<String, Object> ret = customMapper.get(c).marshall(o);
-            return ret;
+            Object ret = customMapper.get(c).marshall(o);
+            if (!(ret instanceof Map)) {
+                return Utils.getMap("value", ret);
+            }
+            return (Map<String, Object>) ret;
         }
 
         //recursively map object to mongo-Object...
