@@ -47,7 +47,7 @@ public class CustomMapperTest extends MongoTest {
         assert (readContainingObject.getCustomMappedObjectList() != null) : "List of custom mapped object null?";
         assert (readContainingObject.getCustomMappedObjectMap() != null) : "Map with custom mapped object null?";
 
-        assert (readContainingObject.getCustomMappedObjectList().size() == count) : "List of custom mapped objects has wrong size?";
+        assert (readContainingObject.getCustomMappedObjectList().size() == count) : "List of custom mapped objects has wrong size? size is " + readContainingObject.getCustomMappedObjectList().size();
         assert (readContainingObject.getCustomMappedObjectMap().size() == count) : "Map with custom mapped objects as value has wrong size?";
 
         assert (readContainingObject.getCustomMappedObject().equals(containingObject.getCustomMappedObject())) : "Single custom mapped objects differ?";

@@ -273,6 +273,8 @@ public class Morphium {
             rsMonitor.start();
             rsMonitor.getReplicaSetStatus(false);
         }
+
+
         logger.info("Initialization successful...");
     }
 
