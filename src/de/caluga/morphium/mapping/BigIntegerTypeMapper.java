@@ -13,7 +13,7 @@ import java.util.Map;
  **/
 public class BigIntegerTypeMapper implements TypeMapper<BigInteger> {
     @Override
-    public Map<String, Object> marshall(BigInteger o) {
+    public Object marshall(BigInteger o) {
         //        DBObject ret=new BasicDBObject();
         Map<String, Object> obj = new HashMap<>();
         obj.put("type", "biginteger");
@@ -22,15 +22,22 @@ public class BigIntegerTypeMapper implements TypeMapper<BigInteger> {
     }
 
     @Override
-    public BigInteger unmarshall(Map<String, Object> d) {
+    public BigInteger unmarshall(Object d) {
         if (d == null) {
             return null;
         }
-        return new BigInteger(d.get("value").toString(), 16);
+        if (d instanceof Map) {
+            return new BigInteger(((Map) d).get("value").toString(), 16);
+        }
+        return new BigInteger(d.toString(), 16);
     }
 
     @Override
-    public boolean matches(Map<String, Object> value) {
-        return value != null && value.containsKey("type") && value.get("type").equals("biginteger") && value.get("value") instanceof String;
+    public boolean matches(Object v) {
+        if (v instanceof Map) {
+            Map value = (Map) v;
+            return value != null && value.containsKey("type") && value.get("type").equals("biginteger") && value.get("value") instanceof String;
+        }
+        return false;
     }
 }

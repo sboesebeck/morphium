@@ -653,6 +653,10 @@ public class AnnotationAndReflectionHelper {
      * @return List of Strings, each a field name (as described in @Property or determined by name)
      */
     public List<String> getFields(Class cls, Class<? extends Annotation>... annotations) {
+        return getFields(cls, false, annotations);
+    }
+
+    public List<String> getFields(Class cls, boolean ignoreEntity, Class<? extends Annotation>... annotations) {
         StringBuilder stringBuilder = new StringBuilder(cls.toString());
         for (Class<? extends Annotation> a : annotations) {
             stringBuilder.append("/");
@@ -668,15 +672,18 @@ public class AnnotationAndReflectionHelper {
         sc = getRealClass(sc);
         Entity entity = getAnnotationFromHierarchy(sc, Entity.class);
         Embedded embedded = getAnnotationFromHierarchy(sc, Embedded.class);
-        if (embedded != null && entity != null) {
+        if (embedded != null && entity != null && !ignoreEntity) {
             logger.warn("Class " + cls.getName() + " does have both @Entity and @Embedded Annotations - not allowed! Assuming @Entity is right");
         }
 
-        if (embedded == null && entity == null) {
+        if (embedded == null && entity == null && !ignoreEntity) {
             throw new IllegalArgumentException("This class " + cls.getName() + " does not have @Entity or @Embedded set, not even in hierachy - illegal!");
         }
 
-        boolean tcc = entity == null ? embedded.translateCamelCase() : entity.translateCamelCase();
+        boolean tcc = true;
+        if (embedded != null)
+            embedded.translateCamelCase();
+        if (entity != null) entity.translateCamelCase();
 
         IgnoreFields ignoreFields = getAnnotationFromHierarchy(sc, IgnoreFields.class);
         LimitToFields limitToFields = getAnnotationFromHierarchy(sc, LimitToFields.class);
