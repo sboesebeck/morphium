@@ -1511,4 +1511,4 @@ This chapter is opsolete, Morphium now uses logback for logging.
  [1]: https://caluga.de/file/591a20f6722c740f15a3effe
  [2]: http://www.mongodb.org
  [3]: http://api.mongodb.org/java/current/com/mongodb/WriteConcern.html
- [4]: https://caluga.de/v/2014/9/5/morphium_doku_v3_0
+ [4]: https://caluga.de/page/MorphiumDocu
