@@ -3,7 +3,7 @@ package de.caluga.morphium;
 import de.caluga.morphium.annotations.*;
 import de.caluga.morphium.driver.MorphiumId;
 import de.caluga.morphium.mapping.BigIntegerTypeMapper;
-import de.caluga.morphium.query.Query;
+import de.caluga.morphium.mapping.MorphiumIdMapper;
 import org.json.simple.parser.ContainerFactory;
 import org.json.simple.parser.JSONParser;
 import org.json.simple.parser.ParseException;
@@ -54,6 +54,7 @@ public class ObjectMapperImpl implements ObjectMapper {
         mongoTypes.add(Byte.class);
         customMapper = new Hashtable<>();
         customMapper.put(BigInteger.class, new BigIntegerTypeMapper());
+        customMapper.put(MorphiumId.class, new MorphiumIdMapper());
         containerFactory = new ContainerFactory() {
             @Override
             public Map createObjectContainer() {
@@ -205,11 +206,8 @@ public class ObjectMapperImpl implements ObjectMapper {
 
         Class c = annotationHelper.getRealClass(o.getClass());
         if (hasCustomMapper(c)) {
-            Object ret = customMapper.get(c).marshall(o);
-            if (!(ret instanceof Map)) {
-                return Utils.getMap("value", ret);
-            }
-            return (Map<String, Object>) ret;
+            Map<String, Object> ret = customMapper.get(c).marshall(o);
+            return ret;
         }
 
         //recursively map object to mongo-Object...
@@ -377,7 +375,7 @@ public class ObjectMapperImpl implements ObjectMapper {
                     } else {
                         valueClass = value.getClass();
                     }
-                    if (hasCustomMapper(valueClass)) {
+                    if (hasCustomMapper(valueClass) && !fName.equals("_id")) {
                         v = customMapper.get(valueClass).marshall(value);
                     } else if (annotationHelper.isAnnotationPresentInHierarchy(valueClass, Entity.class)) {
                         if (value != null) {
@@ -565,7 +563,7 @@ public class ObjectMapperImpl implements ObjectMapper {
         Class cls = theClass;
         try {
             if (hasCustomMapper(cls)) {
-                return (T) customMapper.get(cls).unmarshall(o.get("value"));
+                return (T) customMapper.get(cls).unmarshall(o);
             }
             if (morphium != null && morphium.getConfig().isObjectSerializationEnabled() && !annotationHelper.isAnnotationPresentInHierarchy(cls, Entity.class) && !(annotationHelper.isAnnotationPresentInHierarchy(cls, Embedded.class))) {
                 cls = BinarySerializedObject.class;
@@ -800,17 +798,16 @@ public class ObjectMapperImpl implements ObjectMapper {
                     if (valueFromDb instanceof Map) {
                         value = unmarshall(fld.getType(), (HashMap<String, Object>) valueFromDb);
                     } else {
-                        value = customMapper.get(fld.getType()).unmarshall(valueFromDb);
+                        value = customMapper.get(fld.getType()).unmarshall((HashMap<String, Object>) valueFromDb);
                     }
                 } else if (Map.class.isAssignableFrom(fld.getType())) {
                     Map<String, Object> map = (Map<String, Object>) valueFromDb;
                     Map toFill = new HashMap();
                     if (map != null) {
-                        fillMap((ParameterizedType) fld.getGenericType(), map, toFill, ret, false);
+                        fillMap((ParameterizedType) fld.getGenericType(), map, toFill, ret);
                     }
                     value = toFill;
                 } else if (Collection.class.isAssignableFrom(fld.getType()) || fld.getType().isArray()) {
-
                     List lst = new ArrayList();
                     if (valueFromDb.getClass().isArray()) {
                         //a real array!
@@ -1100,6 +1097,15 @@ public class ObjectMapperImpl implements ObjectMapper {
         }
         for (Object val : fromDB) {
             if (val instanceof Map) {
+                boolean cont = false;
+                for (TypeMapper t : customMapper.values()) {
+                    if (t.matches((Map<String, Object>) val)) {
+                        toFillIn.add(t.unmarshall((Map<String, Object>) val));
+                        cont = true;
+                        break;
+                    }
+                }
+                if (cont) continue;
                 //Override type if className is specified - needed for polymoprh lists etc.
                 if (((Map<String, Object>) val).containsKey("class_name") || ((Map<String, Object>) val).containsKey("className")) {
                     //Entity to map!
@@ -1124,7 +1130,7 @@ public class ObjectMapperImpl implements ObjectMapper {
                     if (Map.class.isAssignableFrom(cls)) {
                         // that is an actual map!
                         HashMap mp = new HashMap();
-                        fillMap((ParameterizedType) listType.getActualTypeArguments()[0], (Map<String, Object>) val, mp, containerEntity, false);
+                        fillMap((ParameterizedType) listType.getActualTypeArguments()[0], (Map<String, Object>) val, mp, containerEntity);
                         toFillIn.add(mp);
                         continue;
                     } else {
@@ -1138,7 +1144,7 @@ public class ObjectMapperImpl implements ObjectMapper {
                 } else {
                     HashMap mp = new HashMap();
                     if (listType != null) {
-                        fillMap((ParameterizedType) listType.getActualTypeArguments()[0], (Map<String, Object>) val, mp, containerEntity, false);
+                        fillMap((ParameterizedType) listType.getActualTypeArguments()[0], (Map<String, Object>) val, mp, containerEntity);
                         toFillIn.add(mp);
                     } else {
                         log.warn("Cannot de-reference to unknown collection type - trying object instead");
@@ -1146,27 +1152,6 @@ public class ObjectMapperImpl implements ObjectMapper {
                     }
                     continue;
                 }
-            } else if (val instanceof MorphiumId) {
-                if (listType != null) {
-                    //have a list of something
-                    Class cls;
-                    if (ref != null) {
-                        if (listType.getActualTypeArguments()[0] instanceof ParameterizedType) {
-                            cls = (Class) ((ParameterizedType) listType.getActualTypeArguments()[0]).getRawType();
-                        } else {
-                            cls = (Class) listType.getActualTypeArguments()[0];
-                        }
-                        Query q = morphium.createQueryFor(cls);
-                        q = q.f(annotationHelper.getFields(cls, Id.class).get(0)).eq(val);
-                        toFillIn.add(q.get());
-                    } else {
-                        toFillIn.add(val);
-                    }
-                } else {
-                    log.warn("Cannot de-reference to unknown collection - trying to add Object only");
-                    toFillIn.add(val);
-                }
-                continue;
             } else if (val instanceof List) {
                 //list in list
                 if (listType != null) {
@@ -1222,7 +1207,7 @@ public class ObjectMapperImpl implements ObjectMapper {
     }
 
     @SuppressWarnings({"unchecked", "ConstantConditions"})
-    private void fillMap(ParameterizedType mapType, Map<String, Object> fromDB, Map toFillIn, Object containerEntity, boolean dereference) {
+    private void fillMap(ParameterizedType mapType, Map<String, Object> fromDB, Map toFillIn, Object containerEntity) {
         for (Entry<String, Object> entry : fromDB.entrySet()) {
             String key = entry.getKey();
             Object val = entry.getValue();
@@ -1233,7 +1218,7 @@ public class ObjectMapperImpl implements ObjectMapper {
                     if (Map.class.isAssignableFrom(cls)) {
                         // this is an actual map
                         HashMap mp = new HashMap();
-                        fillMap((ParameterizedType) mapType.getActualTypeArguments()[1], (Map<String, Object>) val, mp, containerEntity, dereference);
+                        fillMap((ParameterizedType) mapType.getActualTypeArguments()[1], (Map<String, Object>) val, mp, containerEntity);
                         toFillIn.put(key, mp);
                         continue;
                     } else {
@@ -1246,31 +1231,11 @@ public class ObjectMapperImpl implements ObjectMapper {
                     }
                 } else {
                     HashMap mp = new HashMap();
-                    fillMap((ParameterizedType) mapType.getActualTypeArguments()[1], (Map<String, Object>) val, mp, containerEntity, dereference);
+                    fillMap((ParameterizedType) mapType.getActualTypeArguments()[1], (Map<String, Object>) val, mp, containerEntity);
                     toFillIn.put(key, mp);
                     continue;
                 }
 
-            } else if (val instanceof MorphiumId && !dereference) {
-                toFillIn.put(key, val);
-                continue;
-            } else if (val instanceof MorphiumId && dereference) {
-                if (mapType != null) {
-                    //have a list of something
-                    Class cls;
-                    if (mapType.getActualTypeArguments()[1] instanceof ParameterizedType) {
-                        cls = (Class) ((ParameterizedType) mapType.getActualTypeArguments()[1]).getRawType();
-                    } else {
-                        cls = (Class) mapType.getActualTypeArguments()[1];
-                    }
-                    Query q = morphium.createQueryFor(cls);
-                    q = q.f(annotationHelper.getFields(cls, Id.class).get(0)).eq(val);
-                    toFillIn.put(key, q.get());
-                } else {
-                    log.warn("Cannot de-reference to unknown collection - trying to add Object only");
-                    toFillIn.put(key, val);
-                }
-                continue;
             } else if (val instanceof List) {
                 //list in list
                 ArrayList lt = new ArrayList();
