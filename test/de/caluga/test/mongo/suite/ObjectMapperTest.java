@@ -1,9 +1,6 @@
 package de.caluga.test.mongo.suite;
 
-import de.caluga.morphium.AnnotationAndReflectionHelper;
-import de.caluga.morphium.ObjectMapper;
-import de.caluga.morphium.ObjectMapperImpl;
-import de.caluga.morphium.Utils;
+import de.caluga.morphium.*;
 import de.caluga.morphium.annotations.Entity;
 import de.caluga.morphium.annotations.Id;
 import de.caluga.morphium.driver.MorphiumId;
@@ -11,13 +8,11 @@ import de.caluga.test.mongo.suite.data.CachedObject;
 import de.caluga.test.mongo.suite.data.EmbeddedObject;
 import de.caluga.test.mongo.suite.data.MapListObject;
 import de.caluga.test.mongo.suite.data.UncachedObject;
+import org.bson.types.ObjectId;
 import org.junit.Test;
 
 import java.math.BigInteger;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 /**
  * User: Stpehan Bösebeck
@@ -29,6 +24,7 @@ public class ObjectMapperTest extends MongoTest {
 
     @Test
     public void customTypeMapperTest() {
+        morphium.dropCollection(BIObject.class);
         ObjectMapper om = morphium.getMapper();
         BigInteger tst = new BigInteger("affedeadbeefaffedeadbeef42", 16);
         Map<String, Object> d = om.marshall(tst);
@@ -548,6 +544,78 @@ public class ObjectMapperTest extends MongoTest {
         }
     }
 
+
+    @Test
+    public void objectMapperNGTest() {
+        ObjectMapperImplNG map = new ObjectMapperImplNG();
+        map.setMorphium(morphium);
+        map.setAnnotationHelper(morphium.getARHelper());
+
+        UncachedObject uc = new UncachedObject("value", 123);
+        uc.setMorphiumId(new MorphiumId());
+        uc.setLongData(new long[]{1l, 2l});
+        Map<String, Object> obj = map.marshall(uc);
+
+        assert (obj.get("value") != null);
+        assert (obj.get("value") instanceof String);
+        assert (obj.get("counter") instanceof Integer);
+        assert (obj.get("long_data") instanceof ArrayList);
+
+        MappedObject mo = new MappedObject();
+        mo.id = "test";
+        mo.uc = uc;
+        mo.aMap = new HashMap<>();
+        mo.aMap.put("Test", "value1");
+        mo.aMap.put("test2", "value2");
+        obj = map.marshall(mo);
+        assert (obj.get("uc") != null);
+        assert (((Map) obj.get("uc")).get("_id") instanceof ObjectId);
+
+        BIObject bo = new BIObject();
+        bo.id = new MorphiumId();
+        bo.value = "biVal";
+        bo.biValue = new BigInteger("123afd33", 16);
+
+        obj = map.marshall(bo);
+        assert (obj.get("_id") instanceof ObjectId);
+        assert (obj.get("bi_value") instanceof Map);
+
+
+    }
+
+    @Test
+    public void enumTest() {
+        EnumTest e = new EnumTest();
+        e.anEnum = TestEnum.v1;
+        e.aMap = new HashMap<>();
+        e.aMap.put("test1", TestEnum.v2);
+        e.aMap.put("test3", TestEnum.v3);
+
+        e.lst = new ArrayList<>();
+        e.lst.add(TestEnum.v4);
+        e.lst.add(TestEnum.v3);
+        e.lst.add(TestEnum.v1);
+
+
+        Map<String, Object> obj = morphium.getMapper().marshall(e);
+        assert (obj.get("an_enum") != null);
+
+        ObjectMapperImplNG map = new ObjectMapperImplNG();
+        map.setMorphium(morphium);
+        map.setAnnotationHelper(morphium.getARHelper());
+        Map<String, Object> obj2 = map.marshall(e);
+        assert (obj2.get("an_enum") != null);
+
+        EnumTest e2 = map.unmarshall(EnumTest.class, obj2);
+        assert (e2 != null);
+        assert (e2.equals(e));
+    }
+
+
+    public enum TestEnum {
+        v1, v2, v3, v4,
+    }
+
     @Entity
     public static class MappedObject {
         @Id
@@ -557,6 +625,31 @@ public class ObjectMapperTest extends MongoTest {
 
     }
 
+    @Entity
+    public static class EnumTest {
+        @Id
+        public String id;
+        public TestEnum anEnum;
+        public Map<String, TestEnum> aMap;
+        public List<TestEnum> lst;
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (!(o instanceof EnumTest)) return false;
+            EnumTest enumTest = (EnumTest) o;
+            return Objects.equals(id, enumTest.id) &&
+                    anEnum == enumTest.anEnum &&
+                    Objects.equals(aMap, enumTest.aMap) &&
+                    Objects.equals(lst, enumTest.lst);
+        }
+
+        @Override
+        public int hashCode() {
+
+            return Objects.hash(id, anEnum, aMap, lst);
+        }
+    }
 
     @Entity
     public static class BIObject {
