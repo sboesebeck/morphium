@@ -35,6 +35,17 @@ In addition to that, the mapping is aware of object hierarchy and would even tak
 
 Usually *Morphium* replaces camel case by underscore-separated strings. So an Object of type `MyEntity` would be stored in the collection `my_entity`. This behaviour can be configured as liked, you could even store all Objects in one collection. (see [Polymorphism])
 
+
+### Changes in Version 4.0 ###
+Morphium 4.0 brings a lot of improvements and changes in push-notifications from mongo using the oplog or the new `watch` functionality of MongoDB. This improves messaging and cache synchronization a lot (see below).
+
+In addition to that, we re-integrated the InMemoryDriver to be able to do Mock-Testing with morphium.
+
+#### Motivation #### 
+With morphium being used in several projects now, we got word about features most being used and missed. As a lot of users use the _cluster aware caching_ of morphium this was one important part of this update. As some of our users also rely on messaging, this was another focus of this update.
+
+and of course, the new transaction feature of mongodb made us think about a new Version...
+
 ### Changes in Version 3.0 ###
 
 
