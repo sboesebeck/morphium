@@ -724,6 +724,34 @@ public class BasicFunctionalityTest extends MongoTest {
 
     }
 
+    @Test
+    public void marshallListOfIdsTest() {
+        ListOfIdsContainer c = new ListOfIdsContainer();
+        c.others = new ArrayList<>();
+        c.others.add(new MorphiumId());
+        c.others.add(new MorphiumId());
+        c.others.add(new MorphiumId());
+        c.others.add(new MorphiumId());
+        c.simpleId = new MorphiumId();
+
+        c.idMap = new HashMap<>();
+        c.idMap.put("1", new MorphiumId());
+
+        Map<String, Object> marshall = morphium.getMapper().marshall(c);
+        assert (marshall.get("simple_id") instanceof String);
+        assert (((Map) marshall.get("id_map")).get("1") instanceof String);
+        for (Object i : (List) marshall.get("others")) {
+            assert (i instanceof String);
+        }
+
+        ///
+
+        c = morphium.getMapper().unmarshall(ListOfIdsContainer.class, marshall);
+        assert (c.idMap != null && c.idMap.get("1") != null && c.idMap.get("1") instanceof MorphiumId);
+        assert (c.others.size() == 4 && c.others.get(0) instanceof MorphiumId);
+        assert (c.simpleId != null);
+    }
+
 
     @Entity
     public static class ListOfIdsContainer {
