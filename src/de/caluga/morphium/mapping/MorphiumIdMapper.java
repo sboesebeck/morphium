@@ -13,6 +13,7 @@ public class MorphiumIdMapper implements TypeMapper<MorphiumId> {
 
     @Override
     public MorphiumId unmarshall(Object d) {
+        if (d == null) return null;
         return new MorphiumId(((ObjectId) d).toByteArray());
     }
 
