@@ -163,11 +163,19 @@ public class ObjectMapperImplNG implements ObjectMapper {
             Map target = new HashMap();
             for (Map.Entry entry : (Set<Map.Entry>) m.entrySet()) {
                 Object v = entry.getValue();
+                if (v == null) {
+                    target.put(marshallIfNecessary(entry.getKey()), null);
+                    continue;
+                }
                 if (v.getClass().isEnum()) {
                     Map map = createEnumMapMarshalling((Enum) v, v.getClass());
                     target.put(marshallIfNecessary(entry.getKey()), map);
                 } else {
-                    target.put(marshallIfNecessary(entry.getKey()), marshallIfNecessary(v));
+                    Object value = marshallIfNecessary(v);
+                    if (anhelper.isAnnotationPresentInHierarchy(valueType, Entity.class) || anhelper.isAnnotationPresentInHierarchy(valueType, Embedded.class)) {
+                        ((Map) value).put("class_name", valueType.getName());
+                    }
+                    target.put(marshallIfNecessary(entry.getKey()), value);
                 }
             }
             return target;
@@ -191,7 +199,11 @@ public class ObjectMapperImplNG implements ObjectMapper {
             Map m = createEnumMapMarshalling((Enum) v, type);
             return m;
         } else {
-            return marshallIfNecessary(v);
+            Object ret = marshallIfNecessary(v);
+            if (anhelper.isAnnotationPresentInHierarchy(type, Entity.class) || anhelper.isAnnotationPresentInHierarchy(type, Embedded.class)) {
+                ((Map) ret).put("class_name", type.getName());
+            }
+            return ret;
         }
 
     }
@@ -283,7 +295,6 @@ public class ObjectMapperImplNG implements ObjectMapper {
                     }
                     continue;
                 }
-
                 dbo.put(key, marshallIfNecessary(value));
             }
         } catch (IllegalAccessException e1) {
@@ -369,6 +380,12 @@ public class ObjectMapperImplNG implements ObjectMapper {
                     }
                     continue;
                 }
+                if (o.get(fName) == null) {
+                    if (!fieldType.isPrimitive()) {
+                        fld.set(result, null);
+                    }
+                    continue;
+                }
                 if (List.class.isAssignableFrom(fieldType)) {
                     List lst = (List) o.get(fName);
                     List resList = new ArrayList();
@@ -413,7 +430,66 @@ public class ObjectMapperImplNG implements ObjectMapper {
                     }
                     fld.set(result, resMap);
                 } else {
-                    fld.set(result, unmarshallIfPossible(fieldType, o.get(fName)));
+                    Object value = unmarshallIfPossible(fieldType, o.get(fName));
+                    if (value != null && !fieldType.isAssignableFrom(value.getClass())) {
+                        if (value instanceof String) {
+                            log.info("Got String but have number");
+                            if (fieldType.equals(Integer.class) || fieldType.equals(int.class)) {
+                                value = Integer.valueOf((String) value);
+                            } else if (fieldType.equals(Double.class) || fieldType.equals(Double.class)) {
+                                value = Double.valueOf((String) value);
+                            } else if (fieldType.equals(Long.class) || fieldType.equals(long.class)) {
+                                value = Long.valueOf((String) value);
+                            } else if (fieldType.equals(Float.class) || fieldType.equals(float.class)) {
+                                value = Float.valueOf((String) value);
+                            }
+                        } else if (value instanceof Long) {
+                            if (fieldType.equals(Integer.class) || fieldType.equals(int.class)) {
+                                value = ((Long) value).intValue();
+                            } else if (fieldType.equals(Double.class) || fieldType.equals(Double.class)) {
+                                value = ((Long) value).doubleValue();
+                            } else if (fieldType.equals(Float.class) || fieldType.equals(float.class)) {
+                                value = ((Long) value).floatValue();
+                            } else {
+                                log.warn("Try string conversion to Long");
+                                value = Long.valueOf(value.toString());
+                            }
+                        } else if (value instanceof Integer) {
+                            if (fieldType.equals(Long.class) || fieldType.equals(long.class)) {
+                                value = ((Integer) value).longValue();
+                            } else if (fieldType.equals(Double.class) || fieldType.equals(double.class)) {
+                                value = ((Integer) value).doubleValue();
+                            } else if (fieldType.equals(Float.class) || fieldType.equals(float.class)) {
+                                value = ((Integer) value).floatValue();
+                            } else {
+                                log.warn("Try string conversion to Integer");
+                                value = Integer.valueOf(value.toString());
+                            }
+                        } else if (value instanceof Float) {
+                            if (fieldType.equals(Long.class) || fieldType.equals(long.class)) {
+                                value = ((Float) value).longValue();
+                            } else if (fieldType.equals(Integer.class) || fieldType.equals(int.class)) {
+                                value = ((Float) value).intValue();
+                            } else if (fieldType.equals(Double.class) || fieldType.equals(double.class)) {
+                                value = ((Float) value).doubleValue();
+                            } else {
+                                log.warn("Try string conversion to Float");
+                                value = Float.valueOf(value.toString());
+                            }
+                        } else if (value instanceof Double) {
+                            if (fieldType.equals(Long.class) || fieldType.equals(long.class)) {
+                                value = ((Double) value).longValue();
+                            } else if (fieldType.equals(Integer.class) || fieldType.equals(int.class)) {
+                                value = ((Double) value).intValue();
+                            } else if (fieldType.equals(Float.class) || fieldType.equals(float.class)) {
+                                value = ((Double) value).floatValue();
+                            } else {
+                                log.warn("Try string conversion to Double");
+                                value = Double.valueOf(value.toString());
+                            }
+                        }
+                    }
+                    fld.set(result, value);
                 }
             } catch (IllegalAccessException e) {
                 //TODO: Implement Handling
@@ -449,7 +525,7 @@ public class ObjectMapperImplNG implements ObjectMapper {
             //only this could be a more complex object
             return unmarshall(fieldType, (Map) o);
         }
-        if (fieldType.isPrimitive() && o == null) {
+        if (fieldType != null && fieldType.isPrimitive() && o == null) {
             return 0;
         }
         //conversion
