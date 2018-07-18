@@ -1,9 +1,6 @@
 package de.caluga.test.mongo.suite;
 
-import de.caluga.morphium.AnnotationAndReflectionHelper;
-import de.caluga.morphium.ObjectMapper;
-import de.caluga.morphium.ObjectMapperImplNG;
-import de.caluga.morphium.Utils;
+import de.caluga.morphium.*;
 import de.caluga.morphium.annotations.Entity;
 import de.caluga.morphium.annotations.Id;
 import de.caluga.morphium.driver.MorphiumId;
@@ -336,22 +333,29 @@ public class ObjectMapperTest extends MongoTest {
         o.setValue("The meaning of life");
         o.setMorphiumId(new MorphiumId());
         Map<String, Object> marshall = null;
-        ObjectMapper om = morphium.getMapper();
-        long start = System.currentTimeMillis();
-        for (int i = 0; i < 25000; i++) {
-            marshall = om.marshall(o);
-        }
-        long dur = System.currentTimeMillis() - start;
+        ObjectMapper ob = morphium.getMapper();
+        ObjectMapper o2 = new ObjectMapperImpl();
+        o2.setMorphium(morphium);
+        o2.setAnnotationHelper(morphium.getARHelper());
 
-        log.info("Mapping of UncachedObject 25000 times took " + dur + "ms");
-        assert (dur < 5000);
-        start = System.currentTimeMillis();
-        for (int i = 0; i < 25000; i++) {
-            UncachedObject uc = om.unmarshall(UncachedObject.class, marshall);
+        for (ObjectMapper om : new ObjectMapper[]{o2, ob}) {
+            log.info("--------------  using " + om.getClass().getName());
+            long start = System.currentTimeMillis();
+            for (int i = 0; i < 25000; i++) {
+                marshall = om.marshall(o);
+            }
+            long dur = System.currentTimeMillis() - start;
+
+            log.info("Mapping of UncachedObject 25000 times took " + dur + "ms");
+            assert (dur < 5000);
+            start = System.currentTimeMillis();
+            for (int i = 0; i < 25000; i++) {
+                UncachedObject uc = om.unmarshall(UncachedObject.class, marshall);
+            }
+            dur = System.currentTimeMillis() - start;
+            log.info("De-Marshalling of UncachedObject 25000 times took " + dur + "ms");
+            assert (dur < 5000);
         }
-        dur = System.currentTimeMillis() - start;
-        log.info("De-Marshalling of UncachedObject 25000 times took " + dur + "ms");
-        assert (dur < 5000);
 
     }
 
@@ -400,28 +404,37 @@ public class ObjectMapperTest extends MongoTest {
         //        o.setRef();
         o.setTrans("Trans");
         Map<String, Object> marshall = null;
-        ObjectMapper om = morphium.getMapper();
-        long start = System.currentTimeMillis();
-        for (int i = 0; i < 25000; i++) {
-            marshall = om.marshall(o);
-        }
-        long dur = System.currentTimeMillis() - start;
+        ObjectMapper om1 = new ObjectMapperImpl();
+        om1.setMorphium(morphium);
+        om1.setAnnotationHelper(morphium.getARHelper());
+        ObjectMapper om2 = new ObjectMapperImplNG();
+        om2.setMorphium(morphium);
+        om2.setAnnotationHelper(morphium.getARHelper());
+        for (ObjectMapper om : new ObjectMapper[]{om1, om2}) {
+            log.info("Runing with " + om.getClass().getName());
+            long start = System.currentTimeMillis();
+            for (int i = 0; i < 25000; i++) {
+                marshall = om.marshall(o);
+            }
+            long dur = System.currentTimeMillis() - start;
 
-        log.info("Mapping of ComplexObject 25000 times took " + dur + "ms");
-        assert (dur < 1000);
-        start = System.currentTimeMillis();
-        for (int i = 0; i < 25000; i++) {
-            ComplexObject co = om.unmarshall(ComplexObject.class, marshall);
+            log.info("Mapping of ComplexObject 25000 times took " + dur + "ms");
+            assert (dur < 1000);
+            start = System.currentTimeMillis();
+            for (int i = 0; i < 25000; i++) {
+                ComplexObject co = om.unmarshall(ComplexObject.class, marshall);
+            }
+            dur = System.currentTimeMillis() - start;
+            log.info("De-Marshalling of ComplexObject 25000 times took " + dur + "ms");
+            assert (dur < 1500);
         }
-        dur = System.currentTimeMillis() - start;
-        log.info("De-Marshalling of ComplexObject 25000 times took " + dur + "ms");
-        assert (dur < 1500);
 
     }
 
 
     @Test
     public void objectMapperSpeedTestComplexObjectNoCachedRef() {
+        morphium.dropCollection(ComplexObject.class);
         ComplexObject o = new ComplexObject();
         EmbeddedObject em = new EmbeddedObject();
         em.setName("Embedded1");
@@ -442,26 +455,36 @@ public class ObjectMapperTest extends MongoTest {
         morphium.store(uc);
         o.setRef(uc);
         Map<String, Object> marshall = null;
-        ObjectMapper om = morphium.getMapper();
-        long start = System.currentTimeMillis();
-        for (int i = 0; i < 25000; i++) {
-            marshall = om.marshall(o);
-        }
-        long dur = System.currentTimeMillis() - start;
-        if (dur > 2000) {
-            log.warn("Mapping of ComplexObject 25000 with uncached references times took " + dur + "ms");
-        } else {
-            log.info("Mapping of ComplexObject 25000 with uncached references times took " + dur + "ms");
 
+        ObjectMapper om1 = new ObjectMapperImpl();
+        om1.setMorphium(morphium);
+        om1.setAnnotationHelper(morphium.getARHelper());
+        ObjectMapper om2 = new ObjectMapperImplNG();
+        om2.setMorphium(morphium);
+        om2.setAnnotationHelper(morphium.getARHelper());
+        for (ObjectMapper om : new ObjectMapper[]{om1, om2}) {
+            log.info("-------------  Running with Mapper " + om.getClass().getName());
+            long start = System.currentTimeMillis();
+            for (int i = 0; i < 25000; i++) {
+                marshall = om.marshall(o);
+            }
+            long dur = System.currentTimeMillis() - start;
+            if (dur > 2000) {
+                log.warn("Mapping of ComplexObject 25000 with uncached references times took " + dur + "ms");
+            } else {
+                log.info("Mapping of ComplexObject 25000 with uncached references times took " + dur + "ms");
+
+            }
+            assert (dur < 5000);
+            start = System.currentTimeMillis();
+            for (int i = 0; i < 25000; i++) {
+                ComplexObject co = om.unmarshall(ComplexObject.class, marshall);
+            }
+            dur = System.currentTimeMillis() - start;
+            log.info("De-Marshalling of ComplexObject with uncached references 25000 times took " + dur + "ms");
+            assert (dur < 14000);
         }
-        assert (dur < 5000);
-        start = System.currentTimeMillis();
-        for (int i = 0; i < 25000; i++) {
-            ComplexObject co = om.unmarshall(ComplexObject.class, marshall);
-        }
-        dur = System.currentTimeMillis() - start;
-        log.info("De-Marshalling of ComplexObject with uncached references 25000 times took " + dur + "ms");
-        assert (dur < 14000);
+
 
     }
 
@@ -489,25 +512,33 @@ public class ObjectMapperTest extends MongoTest {
         waitForWrites();
         o.setcRef(cc);
         Map<String, Object> marshall = null;
-        ObjectMapper om = morphium.getMapper();
-        long start = System.currentTimeMillis();
-        for (int i = 0; i < 25000; i++) {
-            marshall = om.marshall(o);
+        ObjectMapper om1 = new ObjectMapperImpl();
+        om1.setMorphium(morphium);
+        om1.setAnnotationHelper(morphium.getARHelper());
+        ObjectMapper om2 = new ObjectMapperImplNG();
+        om2.setMorphium(morphium);
+        om2.setAnnotationHelper(morphium.getARHelper());
+        for (ObjectMapper om : new ObjectMapper[]{om1, om2}) {
+            log.info("-------- running test with " + om.getClass().getName());
+            long start = System.currentTimeMillis();
+            for (int i = 0; i < 25000; i++) {
+                marshall = om.marshall(o);
+            }
+            long dur = System.currentTimeMillis() - start;
+            if (dur > 2000) {
+                log.warn("Mapping of ComplexObject 25000 with uncached references times took " + dur + "ms");
+            } else {
+                log.info("Mapping of ComplexObject 25000 with uncached references times took " + dur + "ms");
+            }
+            assert (dur < 5000);
+            start = System.currentTimeMillis();
+            for (int i = 0; i < 25000; i++) {
+                ComplexObject co = om.unmarshall(ComplexObject.class, marshall);
+            }
+            dur = System.currentTimeMillis() - start;
+            log.info("De-Marshalling of ComplexObject with cached references 25000 times took " + dur + "ms");
+            assert (dur < 7500); //Mongo 2.6 is slower :(
         }
-        long dur = System.currentTimeMillis() - start;
-        if (dur > 2000) {
-            log.warn("Mapping of ComplexObject 25000 with uncached references times took " + dur + "ms");
-        } else {
-            log.info("Mapping of ComplexObject 25000 with uncached references times took " + dur + "ms");
-        }
-        assert (dur < 5000);
-        start = System.currentTimeMillis();
-        for (int i = 0; i < 25000; i++) {
-            ComplexObject co = om.unmarshall(ComplexObject.class, marshall);
-        }
-        dur = System.currentTimeMillis() - start;
-        log.info("De-Marshalling of ComplexObject with cached references 25000 times took " + dur + "ms");
-        assert (dur < 7500); //Mongo 2.6 is slower :(
 
     }
 
