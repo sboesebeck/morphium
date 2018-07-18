@@ -4,6 +4,7 @@ import de.caluga.morphium.*;
 import de.caluga.morphium.annotations.Entity;
 import de.caluga.morphium.annotations.Id;
 import de.caluga.morphium.driver.MorphiumId;
+import de.caluga.morphium.replicaset.ReplicaSetConf;
 import de.caluga.test.mongo.suite.data.CachedObject;
 import de.caluga.test.mongo.suite.data.EmbeddedObject;
 import de.caluga.test.mongo.suite.data.MapListObject;
@@ -339,7 +340,7 @@ public class ObjectMapperTest extends MongoTest {
         o2.setAnnotationHelper(morphium.getARHelper());
 
         for (ObjectMapper om : new ObjectMapper[]{o2, ob}) {
-            log.info("--------------  using " + om.getClass().getName());
+            log.info("--------------  Running with " + om.getClass().getName());
             long start = System.currentTimeMillis();
             for (int i = 0; i < 25000; i++) {
                 marshall = om.marshall(o);
@@ -366,25 +367,52 @@ public class ObjectMapperTest extends MongoTest {
         o.setValue("The meaning of life");
         o.setId(new MorphiumId());
         Map<String, Object> marshall = null;
-        ObjectMapper om = morphium.getMapper();
-        long start = System.currentTimeMillis();
-        for (int i = 0; i < 25000; i++) {
-            marshall = om.marshall(o);
-        }
-        long dur = System.currentTimeMillis() - start;
+        ObjectMapper om1 = new ObjectMapperImpl();
+        om1.setMorphium(morphium);
+        om1.setAnnotationHelper(morphium.getARHelper());
+        ObjectMapper om2 = new ObjectMapperImplNG();
+        om2.setMorphium(morphium);
+        om2.setAnnotationHelper(morphium.getARHelper());
+        for (ObjectMapper om : new ObjectMapper[]{om1, om2}) {
+            log.info("----------------------- Runing with " + om.getClass().getName());
+            long start = System.currentTimeMillis();
+            for (int i = 0; i < 25000; i++) {
+                marshall = om.marshall(o);
+            }
+            long dur = System.currentTimeMillis() - start;
 
-        log.info("Mapping of CachedObject 25000 times took " + dur + "ms");
-        assert (dur < 1000);
-        start = System.currentTimeMillis();
-        for (int i = 0; i < 25000; i++) {
-            CachedObject c = om.unmarshall(CachedObject.class, marshall);
+            log.info("Mapping of CachedObject 25000 times took " + dur + "ms");
+            assert (dur < 1000);
+            start = System.currentTimeMillis();
+            for (int i = 0; i < 25000; i++) {
+                CachedObject c = om.unmarshall(CachedObject.class, marshall);
+            }
+            dur = System.currentTimeMillis() - start;
+            log.info("De-Marshalling of CachedObject 25000 times took " + dur + "ms");
+            assert (dur < 1400);
         }
-        dur = System.currentTimeMillis() - start;
-        log.info("De-Marshalling of CachedObject 25000 times took " + dur + "ms");
-        assert (dur < 1400);
 
     }
 
+    @Test
+    public void rsStatusTest() throws Exception {
+        String json = "{ \"settings\" : { \"heartbeatTimeoutSecs\" : 10, \"catchUpTimeoutMillis\" : -1, \"catchUpTakeoverDelayMillis\" : 30000, \"getLastErrorModes\" : {  } , \"getLastErrorDefaults\" : { \"wtimeout\" : 0, \"w\" : 1 } , \"electionTimeoutMillis\" : 10000, \"chainingAllowed\" : true, \"replicaSetId\" : \"5adba61c986af770bb25454e\", \"heartbeatIntervalMillis\" : 2000 } , \"members\" :  [ { \"hidden\" : false, \"buildIndexes\" : true, \"arbiterOnly\" : false, \"host\" : \"localhost:27017\", \"slaveDelay\" : 0, \"votes\" : 1, \"_id\" : 0, \"priority\" : 10.0, \"tags\" : {  }  } , { \"hidden\" : false, \"buildIndexes\" : true, \"arbiterOnly\" : false, \"host\" : \"localhost:27018\", \"slaveDelay\" : 0, \"votes\" : 1, \"_id\" : 1, \"priority\" : 5.0, \"tags\" : {  }  } , { \"hidden\" : false, \"buildIndexes\" : true, \"arbiterOnly\" : true, \"host\" : \"localhost:27019\", \"slaveDelay\" : 0, \"votes\" : 1, \"_id\" : 2, \"priority\" : 0.0, \"tags\" : {  }  } ], \"protocolVersion\" : 1, \"_id\" : \"tst\", \"version\" : 1 } ";
+        ReplicaSetConf c = morphium.getMapper().unmarshall(ReplicaSetConf.class, json);
+        assert (c != null);
+        assert (c.getMembers().size() == 3);
+    }
+
+    @Test
+    public void embeddedListTest() {
+        ComplexObject co = new ComplexObject();
+        co.setEmbeddedObjectList(new ArrayList<>());
+        co.getEmbeddedObjectList().add(new EmbeddedObject("name", "test", System.currentTimeMillis()));
+        co.getEmbeddedObjectList().add(new EmbeddedObject("name2", "test2", System.currentTimeMillis()));
+        Map<String, Object> obj = morphium.getMapper().marshall(co);
+        assert (obj.get("embedded_object_list") != null);
+        assert (((List) obj.get("embedded_object_list")).size() == 2);
+
+    }
 
     @Test
     public void objectMapperSpeedTestComplexObjectNoRef() {
@@ -486,6 +514,17 @@ public class ObjectMapperTest extends MongoTest {
         }
 
 
+    }
+
+    @Test
+    public void binaryDataTest() {
+        UncachedObject o = new UncachedObject();
+        o.setBinaryData(new byte[]{1, 2, 3, 4, 5, 5});
+
+        Map<String, Object> obj = morphium.getMapper().marshall(o);
+        assert (obj.get("binary_data") != null);
+        assert (obj.get("binary_data").getClass().isArray());
+        assert (obj.get("binary_data").getClass().getComponentType().equals(byte.class));
     }
 
 

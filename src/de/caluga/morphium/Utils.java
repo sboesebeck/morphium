@@ -3,6 +3,7 @@ package de.caluga.morphium;/**
  */
 
 import de.caluga.morphium.driver.MorphiumId;
+import org.bson.types.ObjectId;
 
 import java.io.UnsupportedEncodingException;
 import java.lang.reflect.Field;
@@ -33,7 +34,7 @@ public class Utils {
             }
             b.append("]");
             return b.toString();
-        } else if ((o instanceof String) || (o instanceof MorphiumId) || (o.getClass().isEnum())) {
+        } else if ((o instanceof String) || (o instanceof MorphiumId) || (o instanceof ObjectId) || (o.getClass().isEnum())) {
             return "\"" + o.toString() + "\"";
         } else if (!(o instanceof Map)) {
             return o.toString();
