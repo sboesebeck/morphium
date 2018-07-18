@@ -633,8 +633,15 @@ public class ObjectMapperImplNG implements ObjectMapper {
                     Map map = (Map) o.get(fName);
                     Map resMap = new HashMap();
                     for (Map.Entry en : (Set<Map.Entry>) map.entrySet()) {
-
-                        resMap.put(unmarshallIfPossible(null, en.getKey()), unmarshallIfPossible(null, en.getValue()));
+                        if (en.getValue() instanceof List) {
+                            List sublist = new ArrayList();
+                            for (Object el : (List) en.getValue()) {
+                                sublist.add(unmarshallIfPossible(null, el));
+                            }
+                            resMap.put(unmarshallIfPossible(null, en.getKey()), sublist);
+                        } else {
+                            resMap.put(unmarshallIfPossible(null, en.getKey()), unmarshallIfPossible(null, en.getValue()));
+                        }
 
                     }
                     fld.set(result, resMap);
