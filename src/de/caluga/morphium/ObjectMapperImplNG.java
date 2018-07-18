@@ -439,7 +439,11 @@ public class ObjectMapperImplNG implements ObjectMapper {
             }
         }
         if (Map.class.isAssignableFrom(cls)) {
-            return (T) o;
+            Map ret = new LinkedHashMap();
+            for (Map.Entry entry : (Set<Map.Entry>) ((Map) o).entrySet()) {
+                ret.put(entry.getKey(), unmarshallIfPossible(null, entry.getValue()));
+            }
+            return (T) ret;
         }
 
         T result = null;
@@ -633,16 +637,7 @@ public class ObjectMapperImplNG implements ObjectMapper {
                     Map map = (Map) o.get(fName);
                     Map resMap = new HashMap();
                     for (Map.Entry en : (Set<Map.Entry>) map.entrySet()) {
-                        if (en.getValue() instanceof List) {
-                            List sublist = new ArrayList();
-                            for (Object el : (List) en.getValue()) {
-                                sublist.add(unmarshallIfPossible(null, el));
-                            }
-                            resMap.put(unmarshallIfPossible(null, en.getKey()), sublist);
-                        } else {
-                            resMap.put(unmarshallIfPossible(null, en.getKey()), unmarshallIfPossible(null, en.getValue()));
-                        }
-
+                        resMap.put(unmarshallIfPossible(null, en.getKey()), unmarshallIfPossible(null, en.getValue()));
                     }
                     fld.set(result, resMap);
                 } else {
@@ -796,6 +791,13 @@ public class ObjectMapperImplNG implements ObjectMapper {
         if (o instanceof Map) {
             //only this could be a more complex object
             return unmarshall(fieldType, (Map) o);
+        }
+        if (o instanceof List) {
+            List ret = new ArrayList();
+            for (Object el : (List) o) {
+                ret.add(unmarshallIfPossible(null, el));
+            }
+            return ret;
         }
         if (fieldType != null && fieldType.isPrimitive() && o == null) {
             return 0;
