@@ -14,6 +14,7 @@ import de.caluga.morphium.query.Query;
 import de.caluga.test.mongo.suite.data.CachedObject;
 import de.caluga.test.mongo.suite.data.EmbeddedObject;
 import de.caluga.test.mongo.suite.data.UncachedObject;
+import org.bson.types.ObjectId;
 import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -738,10 +739,10 @@ public class BasicFunctionalityTest extends MongoTest {
         c.idMap.put("1", new MorphiumId());
 
         Map<String, Object> marshall = morphium.getMapper().marshall(c);
-        assert (marshall.get("simple_id") instanceof String);
-        assert (((Map) marshall.get("id_map")).get("1") instanceof String);
+        assert (marshall.get("simple_id") instanceof ObjectId);
+        assert (((Map) marshall.get("id_map")).get("1") instanceof ObjectId);
         for (Object i : (List) marshall.get("others")) {
-            assert (i instanceof String);
+            assert (i instanceof ObjectId);
         }
 
         ///

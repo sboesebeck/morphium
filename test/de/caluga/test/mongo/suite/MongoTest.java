@@ -3,7 +3,6 @@ package de.caluga.test.mongo.suite;
 import ch.qos.logback.classic.LoggerContext;
 import de.caluga.morphium.Morphium;
 import de.caluga.morphium.MorphiumConfig;
-import de.caluga.morphium.ObjectMapperImplNG;
 import de.caluga.morphium.async.AsyncOperationCallback;
 import de.caluga.morphium.async.AsyncOperationType;
 import de.caluga.morphium.driver.ReadPreference;
@@ -202,7 +201,7 @@ public class MongoTest {
             //            cfg.setDriverClass(InMemoryDriver.class.getName());
             if (cfg.isReplicaset())
                 cfg.setReplicasetMonitoring(true);
-            cfg.setOmClass(ObjectMapperImplNG.class);
+            //cfg.setOmClass(ObjectMapperImplNG.class);
 
             morphium = new Morphium(cfg);
 //
