@@ -1,6 +1,9 @@
 package de.caluga.test.mongo.suite;
 
-import de.caluga.morphium.*;
+import de.caluga.morphium.AnnotationAndReflectionHelper;
+import de.caluga.morphium.ObjectMapper;
+import de.caluga.morphium.ObjectMapperImplNG;
+import de.caluga.morphium.Utils;
 import de.caluga.morphium.annotations.Entity;
 import de.caluga.morphium.annotations.Id;
 import de.caluga.morphium.driver.MorphiumId;
@@ -112,7 +115,7 @@ public class ObjectMapperTest extends MongoTest {
 
     @Test
     public void testGetCollectionName() {
-        ObjectMapperImpl om = (ObjectMapperImpl) morphium.getMapper();
+        ObjectMapper om = morphium.getMapper();
         assert (om.getCollectionName(CachedObject.class).equals("cached_object")) : "Cached object test failed";
         assert (om.getCollectionName(UncachedObject.class).equals("uncached_object")) : "Uncached object test failed";
 
@@ -126,7 +129,7 @@ public class ObjectMapperTest extends MongoTest {
             new Thread() {
                 @Override
                 public void run() {
-                    ObjectMapperImpl om = (ObjectMapperImpl) morphium.getMapper();
+                    ObjectMapper om = morphium.getMapper();
                     assert (om.getCollectionName(CachedObject.class).equals("cached_object")) : "Cached object test failed";
                     yield();
                     assert (om.getCollectionName(UncachedObject.class).equals("uncached_object")) : "Uncached object test failed";
@@ -139,7 +142,7 @@ public class ObjectMapperTest extends MongoTest {
 
     @Test
     public void testMarshall() {
-        ObjectMapperImpl om = (ObjectMapperImpl) morphium.getMapper();
+        ObjectMapper om = morphium.getMapper();
         UncachedObject o = new UncachedObject();
         o.setCounter(12345);
         o.setValue("This \" is $ test");
@@ -152,7 +155,7 @@ public class ObjectMapperTest extends MongoTest {
 
     @Test
     public void testUnmarshall() {
-        ObjectMapperImpl om = (ObjectMapperImpl) morphium.getMapper();
+        ObjectMapper om = morphium.getMapper();
         Map<String, Object> dbo = new HashMap<>();
         dbo.put("counter", 12345);
         dbo.put("value", "A test");
@@ -161,7 +164,7 @@ public class ObjectMapperTest extends MongoTest {
 
     @Test
     public void testGetId() {
-        ObjectMapperImpl om = (ObjectMapperImpl) morphium.getMapper();
+        ObjectMapper om = morphium.getMapper();
         AnnotationAndReflectionHelper an = new AnnotationAndReflectionHelper(true);
         UncachedObject o = new UncachedObject();
         o.setCounter(12345);
@@ -203,7 +206,7 @@ public class ObjectMapperTest extends MongoTest {
 
     @Test
     public void complexObjectTest() {
-        ObjectMapperImpl om = (ObjectMapperImpl) morphium.getMapper();
+        ObjectMapper om = morphium.getMapper();
         UncachedObject o = new UncachedObject();
         o.setCounter(12345);
         o.setValue("Embedded value");
@@ -247,7 +250,7 @@ public class ObjectMapperTest extends MongoTest {
 
     @Test
     public void nullValueTests() {
-        ObjectMapperImpl om = (ObjectMapperImpl) morphium.getMapper();
+        ObjectMapper om = morphium.getMapper();
 
         ComplexObject o = new ComplexObject();
         o.setTrans("TRANSIENT");
@@ -272,7 +275,7 @@ public class ObjectMapperTest extends MongoTest {
         o.setListValue(lst);
         o.setName("Simple List");
 
-        ObjectMapperImpl om = (ObjectMapperImpl) morphium.getMapper();
+        ObjectMapper om = morphium.getMapper();
         Map<String, Object> marshall = om.marshall(o);
         String m = marshall.toString();
 
@@ -305,7 +308,7 @@ public class ObjectMapperTest extends MongoTest {
         o.setMapValue(map);
         o.setName("A map-value");
 
-        ObjectMapperImpl om = (ObjectMapperImpl) morphium.getMapper();
+        ObjectMapper om = morphium.getMapper();
         Map<String, Object> marshall = om.marshall(o);
         String m = Utils.toJsonString(marshall);
         System.out.println("Marshalled object: " + m);
@@ -333,7 +336,7 @@ public class ObjectMapperTest extends MongoTest {
         o.setValue("The meaning of life");
         o.setMorphiumId(new MorphiumId());
         Map<String, Object> marshall = null;
-        ObjectMapperImpl om = (ObjectMapperImpl) morphium.getMapper();
+        ObjectMapper om = morphium.getMapper();
         long start = System.currentTimeMillis();
         for (int i = 0; i < 25000; i++) {
             marshall = om.marshall(o);
@@ -359,7 +362,7 @@ public class ObjectMapperTest extends MongoTest {
         o.setValue("The meaning of life");
         o.setId(new MorphiumId());
         Map<String, Object> marshall = null;
-        ObjectMapperImpl om = (ObjectMapperImpl) morphium.getMapper();
+        ObjectMapper om = morphium.getMapper();
         long start = System.currentTimeMillis();
         for (int i = 0; i < 25000; i++) {
             marshall = om.marshall(o);
@@ -397,7 +400,7 @@ public class ObjectMapperTest extends MongoTest {
         //        o.setRef();
         o.setTrans("Trans");
         Map<String, Object> marshall = null;
-        ObjectMapperImpl om = (ObjectMapperImpl) morphium.getMapper();
+        ObjectMapper om = morphium.getMapper();
         long start = System.currentTimeMillis();
         for (int i = 0; i < 25000; i++) {
             marshall = om.marshall(o);
@@ -439,7 +442,7 @@ public class ObjectMapperTest extends MongoTest {
         morphium.store(uc);
         o.setRef(uc);
         Map<String, Object> marshall = null;
-        ObjectMapperImpl om = (ObjectMapperImpl) morphium.getMapper();
+        ObjectMapper om = morphium.getMapper();
         long start = System.currentTimeMillis();
         for (int i = 0; i < 25000; i++) {
             marshall = om.marshall(o);
@@ -486,7 +489,7 @@ public class ObjectMapperTest extends MongoTest {
         waitForWrites();
         o.setcRef(cc);
         Map<String, Object> marshall = null;
-        ObjectMapperImpl om = (ObjectMapperImpl) morphium.getMapper();
+        ObjectMapper om = morphium.getMapper();
         long start = System.currentTimeMillis();
         for (int i = 0; i < 25000; i++) {
             marshall = om.marshall(o);
