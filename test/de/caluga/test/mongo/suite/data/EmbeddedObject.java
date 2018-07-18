@@ -38,6 +38,15 @@ public class EmbeddedObject {
         this.testValueLong = test;
     }
 
+    public EmbeddedObject() {
+    }
+
+    public EmbeddedObject(String name, String value, long testValueLong) {
+        this.name = name;
+        this.value = value;
+        this.testValueLong = testValueLong;
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) {

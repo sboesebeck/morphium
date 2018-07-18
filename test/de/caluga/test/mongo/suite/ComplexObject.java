@@ -7,6 +7,8 @@ import de.caluga.test.mongo.suite.data.CachedObject;
 import de.caluga.test.mongo.suite.data.EmbeddedObject;
 import de.caluga.test.mongo.suite.data.UncachedObject;
 
+import java.util.List;
+
 /**
  * User: Stpehan Bösebeck
  * Date: 26.03.12
@@ -43,6 +45,8 @@ public class ComplexObject {
 
     private UncachedObject entityEmbeded;
 
+    private List<EmbeddedObject> embeddedObjectList;
+
     private String einText;
 
     @Transient
@@ -50,6 +54,14 @@ public class ComplexObject {
 
     @UseIfnull
     private Integer nullValue;
+
+    public List<EmbeddedObject> getEmbeddedObjectList() {
+        return embeddedObjectList;
+    }
+
+    public void setEmbeddedObjectList(List<EmbeddedObject> embeddedObjectList) {
+        this.embeddedObjectList = embeddedObjectList;
+    }
 
     public CachedObject getcRef() {
         return cRef;
