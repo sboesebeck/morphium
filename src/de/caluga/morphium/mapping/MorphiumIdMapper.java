@@ -1,10 +1,12 @@
 package de.caluga.morphium.mapping;
 
-import de.caluga.morphium.ObjectMapperImpl;
 import de.caluga.morphium.TypeMapper;
 import de.caluga.morphium.driver.MorphiumId;
 import org.bson.types.ObjectId;
+import sun.misc.BASE64Decoder;
 
+import java.io.ByteArrayInputStream;
+import java.io.ObjectInputStream;
 import java.util.Map;
 
 public class MorphiumIdMapper implements TypeMapper<MorphiumId> {
@@ -19,7 +21,9 @@ public class MorphiumIdMapper implements TypeMapper<MorphiumId> {
         if (d == null) return null;
         if (d instanceof Map) {
             try {
-                return (MorphiumId) new ObjectMapperImpl().unmarshall(MorphiumId.class, (Map) d);
+                BASE64Decoder dec = new BASE64Decoder();
+                ObjectInputStream in = new ObjectInputStream(new ByteArrayInputStream(dec.decodeBuffer((String) ((Map) d).get("b64_data"))));
+                return (MorphiumId) in.readObject();
             } catch (Exception e) {
                 throw new RuntimeException(e);
             }
