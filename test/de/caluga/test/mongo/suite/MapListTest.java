@@ -334,6 +334,7 @@ public class MapListTest extends MongoTest {
         morphium.store(o);
 
         CMapListObject ml = morphium.findById(CMapListObject.class, o.getId());
+        //Map->List->Map->EmbObj
         assert (ml.getMap6a().get("list1").get(0).get("map1-v2").getTest().equals("test2"));
     }
 

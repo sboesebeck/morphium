@@ -1,9 +1,13 @@
 package de.caluga.test.mongo.suite;
 
-import de.caluga.morphium.*;
+import de.caluga.morphium.AnnotationAndReflectionHelper;
+import de.caluga.morphium.ObjectMapper;
+import de.caluga.morphium.ObjectMapperImpl;
+import de.caluga.morphium.Utils;
 import de.caluga.morphium.annotations.Entity;
 import de.caluga.morphium.annotations.Id;
 import de.caluga.morphium.driver.MorphiumId;
+import de.caluga.morphium.objectmapper.ObjectMapperImplNG;
 import de.caluga.morphium.replicaset.ReplicaSetConf;
 import de.caluga.test.mongo.suite.data.CachedObject;
 import de.caluga.test.mongo.suite.data.EmbeddedObject;
@@ -409,8 +413,8 @@ public class ObjectMapperTest extends MongoTest {
         co.getEmbeddedObjectList().add(new EmbeddedObject("name", "test", System.currentTimeMillis()));
         co.getEmbeddedObjectList().add(new EmbeddedObject("name2", "test2", System.currentTimeMillis()));
         Map<String, Object> obj = morphium.getMapper().marshall(co);
-        assert (obj.get("embedded_object_list") != null);
-        assert (((List) obj.get("embedded_object_list")).size() == 2);
+        assert (obj.get("embeddedObjectList") != null);
+        assert (((List) obj.get("embeddedObjectList")).size() == 2);
 
     }
 
