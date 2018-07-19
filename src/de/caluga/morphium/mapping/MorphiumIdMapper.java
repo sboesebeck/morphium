@@ -22,7 +22,7 @@ public class MorphiumIdMapper implements TypeMapper<MorphiumId> {
         if (d instanceof Map) {
             try {
                 BASE64Decoder dec = new BASE64Decoder();
-                ObjectInputStream in = new ObjectInputStream(new ByteArrayInputStream(dec.decodeBuffer((String) ((Map) d).get("b64_data"))));
+                ObjectInputStream in = new ObjectInputStream(new ByteArrayInputStream(dec.decodeBuffer((String) ((Map) d).get("_b64data"))));
                 return (MorphiumId) in.readObject();
             } catch (Exception e) {
                 throw new RuntimeException(e);
