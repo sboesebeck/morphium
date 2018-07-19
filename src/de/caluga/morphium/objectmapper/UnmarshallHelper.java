@@ -202,7 +202,7 @@ public class UnmarshallHelper {
                     //
                 } else if (List.class.isAssignableFrom(fieldType) || fieldType.isArray()) {
                     List lst = (List) o.get(fName);
-                    List resList = getUnmarshalledList(result, fld, fName, r, lst);
+                    List resList = getUnmarshalledList(result, (ParameterizedType) fld.getGenericType(), fName, r, lst);
                     if (fieldType.isArray()) {
                         fld.set(result, resList.toArray((Object[]) Array.newInstance(fieldType.getComponentType(), 0)));
                     } else {
@@ -337,33 +337,9 @@ public class UnmarshallHelper {
     }
 
 
-    private <T> List getUnmarshalledList(T result, Field fld, String fName, Reference r, List lst) {
+    private <T> List getUnmarshalledList(T result, ParameterizedType type, String fName, Reference r, List lst) {
         List resList = new ArrayList();
 
-        ParameterizedType type;
-        if (fld.getGenericType() instanceof ParameterizedType) {
-            type = (ParameterizedType) fld.getGenericType();
-        } else
-        // a real array! time to create a custom parameterized type!
-        {
-            type = new ParameterizedType() {
-
-                @Override
-                public Type getRawType() {
-                    return Array.class;
-                }
-
-                @Override
-                public Type getOwnerType() {
-                    return null;
-                }
-
-                @Override
-                public Type[] getActualTypeArguments() {
-                    return new Type[]{fld.getType().getComponentType()};
-                }
-            };
-        }
         for (Object listElement : lst) {
             if (listElement == null) {
                 resList.add(null);
@@ -371,28 +347,62 @@ public class UnmarshallHelper {
             }
             Class elementType = null;
             if (listElement instanceof List) {
+//                ParameterizedType type;
+//                if (fld.getGenericType() instanceof ParameterizedType) {
+//                    type = (ParameterizedType) fld.getGenericType();
+//                } else
+//                // a real array! time to create a custom parameterized type!
+//                {
+//                    type = new ParameterizedType() {
+//
+//                        @Override
+//                        public Type getRawType() {
+//                            return Array.class;
+//                        }
+//
+//                        @Override
+//                        public Type getOwnerType() {
+//                            return null;
+//                        }
+//
+//                        @Override
+//                        public Type[] getActualTypeArguments() {
+//                            return new Type[]{fld.getType().getComponentType()};
+//                        }
+//                    };
+//                }
                 //sub-list
-                Type elt = null;
+                ParameterizedType elt = null;
                 if (type.getActualTypeArguments()[0] instanceof ParameterizedType) {
                     ParameterizedType p = (ParameterizedType) type.getActualTypeArguments()[0];
-                    elt = p.getActualTypeArguments()[0];
+                    elt = (ParameterizedType) p.getActualTypeArguments()[0];
                 }
 
-                List inner = getUnmarshalledList(result, fld, fName, r, (List) listElement);
+                List inner = getUnmarshalledList(result, elt, fName, r, (List) listElement);
 
                 resList.add(inner);
                 continue;
             }
             if (listElement instanceof Map) {
+                if (((Map) listElement).get("class_name") != null) {
+                    try {
+                        resList.add(unmarshall(Class.forName((String) ((Map) listElement).get("class_name")), (Map<String, Object>) listElement));
+                        continue;
+                    } catch (ClassNotFoundException e) {
+                        //TODO: Implement Handling
+                        throw new RuntimeException(e);
+                    }
+                }
+                if (type == null) {
+                    resList.add(unmarshallIfPossible(null, listElement));
+                    continue;
+                }
                 if (type.getActualTypeArguments()[0] instanceof WildcardType) {
                     WildcardType wt = (WildcardType) type.getActualTypeArguments()[0];
                     elementType = (Class) wt.getUpperBounds()[0];
-//                        } else if (type.getActualTypeArguments()[0] instanceof ParameterizedType){
-//                            ParameterizedType p=(ParameterizedType)type.getActualTypeArguments()[0];
-//                                elementType=(Class)p.getActualTypeArguments()[0];
 
                 } else if (type.getActualTypeArguments()[0] instanceof ParameterizedType) {
-                    elementType = (Class) ((ParameterizedType) type.getActualTypeArguments()[0]).getActualTypeArguments()[0];
+                    elementType = (Class) ((ParameterizedType) type.getActualTypeArguments()[0]).getActualTypeArguments()[1];
                 } else {
                     elementType = (Class) type.getActualTypeArguments()[0];
                 }

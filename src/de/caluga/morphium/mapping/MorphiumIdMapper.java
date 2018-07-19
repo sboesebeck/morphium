@@ -13,7 +13,7 @@ public class MorphiumIdMapper implements TypeMapper<MorphiumId> {
 
     @Override
     public Object marshall(MorphiumId o) {
-        return new ObjectId(o.toString());
+        return o.toString();
     }
 
     @Override
