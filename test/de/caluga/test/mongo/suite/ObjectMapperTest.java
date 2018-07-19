@@ -624,40 +624,99 @@ public class ObjectMapperTest extends MongoTest {
 
     @Test
     public void objectMapperNGTest() {
-        ObjectMapperImplNG map = new ObjectMapperImplNG();
-        map.setMorphium(morphium);
-        map.setAnnotationHelper(morphium.getARHelper());
-
-        UncachedObject uc = new UncachedObject("value", 123);
-        uc.setMorphiumId(new MorphiumId());
-        uc.setLongData(new long[]{1l, 2l});
-        Map<String, Object> obj = map.marshall(uc);
-
-        assert (obj.get("value") != null);
-        assert (obj.get("value") instanceof String);
-        assert (obj.get("counter") instanceof Integer);
-        assert (obj.get("long_data") instanceof ArrayList);
-
-        MappedObject mo = new MappedObject();
-        mo.id = "test";
-        mo.uc = uc;
-        mo.aMap = new HashMap<>();
-        mo.aMap.put("Test", "value1");
-        mo.aMap.put("test2", "value2");
-        obj = map.marshall(mo);
-        assert (obj.get("uc") != null);
-        assert (((Map) obj.get("uc")).get("_id") instanceof ObjectId);
-
-        BIObject bo = new BIObject();
-        bo.id = new MorphiumId();
-        bo.value = "biVal";
-        bo.biValue = new BigInteger("123afd33", 16);
-
-        obj = map.marshall(bo);
-        assert (obj.get("_id") instanceof ObjectId);
-        assert (obj.get("bi_value") instanceof Map);
+        ObjectMapperImplNG mapperImplNG = new ObjectMapperImplNG();
+        mapperImplNG.setMorphium(morphium);
+        mapperImplNG.setAnnotationHelper(morphium.getARHelper());
 
 
+        for (ObjectMapper map : new ObjectMapper[]{morphium.getMapper(), mapperImplNG}) {
+            log.info("--------------------- Running test with " + map.getClass().getName());
+            UncachedObject uc = new UncachedObject("value", 123);
+            uc.setMorphiumId(new MorphiumId());
+            uc.setLongData(new long[]{1l, 2l});
+            Map<String, Object> obj = map.marshall(uc);
+
+            assert (obj.get("value") != null);
+            assert (obj.get("value") instanceof String);
+            assert (obj.get("counter") instanceof Integer);
+            assert (obj.get("long_data") instanceof ArrayList);
+
+            MappedObject mo = new MappedObject();
+            mo.id = "test";
+            mo.uc = uc;
+            mo.aMap = new HashMap<>();
+            mo.aMap.put("Test", "value1");
+            mo.aMap.put("test2", "value2");
+            obj = map.marshall(mo);
+            assert (obj.get("uc") != null);
+            assert (((Map) obj.get("uc")).get("_id") == null);
+
+            BIObject bo = new BIObject();
+            bo.id = new MorphiumId();
+            bo.value = "biVal";
+            bo.biValue = new BigInteger("123afd33", 16);
+
+            obj = map.marshall(bo);
+            assert (obj.get("_id") instanceof ObjectId || obj.get("_id") instanceof String || obj.get("_id") instanceof MorphiumId);
+            assert (obj.get("bi_value") instanceof Map);
+
+
+            ListOfListOfListOfString lst = new ListOfListOfListOfString();
+            lst.list = new ArrayList<>();
+            lst.list.add(new ArrayList<>());
+            lst.list.add(new ArrayList<>());
+            lst.list.get(0).add(new ArrayList<>());
+            lst.list.get(0).get(0).add("TEst1");
+
+            obj = map.marshall(lst);
+            assert (obj.get("list") instanceof List);
+            assert (((List) obj.get("list")).get(0) instanceof List);
+            assert (((List) ((List) obj.get("list")).get(0)).get(0) instanceof List);
+            assert (((List) ((List) ((List) obj.get("list")).get(0)).get(0)).get(0) instanceof String);
+
+            ListOfListOfListOfString lst2 = map.unmarshall(ListOfListOfListOfString.class, obj);
+            assert (lst2.list.size() == 2);
+            assert (lst2.list.get(0).size() == 1);
+            assert (lst2.list.get(0).get(0).size() == 1);
+            assert (lst2.list.get(0).get(0).get(0).equals("TEst1"));
+
+            ListOfListOfListOfUncached lst3 = new ListOfListOfListOfUncached();
+            lst3.list = new ArrayList<>();
+            lst3.list.add(new ArrayList<>());
+            lst3.list.add(new ArrayList<>());
+            lst3.list.get(0).add(new ArrayList<>());
+            lst3.list.get(0).get(0).add(new UncachedObject("test", 123));
+
+            obj = map.marshall(lst3);
+            assert (obj.get("list") instanceof List);
+            assert (((List) obj.get("list")).get(0) instanceof List);
+            assert (((List) ((List) obj.get("list")).get(0)).get(0) instanceof List);
+            assert (((List) ((List) ((List) obj.get("list")).get(0)).get(0)).get(0) instanceof Map);
+
+            ListOfListOfListOfUncached lst4 = map.unmarshall(ListOfListOfListOfUncached.class, obj);
+            assert (lst4.list.size() == 2);
+            assert (lst4.list.get(0).size() == 1);
+            assert (lst4.list.get(0).get(0).size() == 1);
+            assert (lst4.list.get(0).get(0).get(0).getValue().equals("test"));
+
+            ListOfMapOfListOfString lst5 = new ListOfMapOfListOfString();
+            lst5.list = new ArrayList<>();
+            lst5.list.add(new HashMap<>());
+            lst5.list.add(new HashMap<>());
+            lst5.list.get(0).put("tst1", new ArrayList<>());
+            lst5.list.get(0).get("tst1").add("test");
+            obj = map.marshall(lst5);
+            assert (obj.get("list") instanceof List);
+            assert (((List) obj.get("list")).get(0) instanceof Map);
+            assert (((Map) ((List) obj.get("list")).get(0)).get("tst1") instanceof List);
+            assert (((List) ((Map) ((List) obj.get("list")).get(0)).get("tst1")).get(0) instanceof String);
+
+            ListOfMapOfListOfString lst6 = map.unmarshall(ListOfMapOfListOfString.class, obj);
+            assert (lst6.list.size() == 2);
+            assert (lst6.list.get(0) != null);
+            assert (lst6.list.get(0).get("tst1") != null);
+
+        }
     }
 
     @Test
@@ -693,6 +752,30 @@ public class ObjectMapperTest extends MongoTest {
         v1, v2, v3, v4,
     }
 
+    @Entity
+    public static class ListOfListOfListOfString {
+        @Id
+        public String id;
+
+        public List<List<List<String>>> list;
+    }
+
+
+    @Entity
+    public static class ListOfListOfListOfUncached {
+        @Id
+        public String id;
+
+        public List<List<List<UncachedObject>>> list;
+    }
+
+    @Entity
+    public static class ListOfMapOfListOfString {
+        @Id
+        public MorphiumId id;
+
+        public List<Map<String, List<String>>> list;
+    }
     @Entity
     public static class MappedObject {
         @Id

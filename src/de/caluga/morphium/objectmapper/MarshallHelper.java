@@ -89,15 +89,15 @@ public class MarshallHelper {
                 throw new IllegalArgumentException("cannot handle objectIds: type of field is " + valueType.getName());
             }
         } else if (valueType.isArray()) {
-            if (!o.getClass().getComponentType().equals(byte.class)) {
+            if (o.getClass().getComponentType().equals(byte.class)) {
+                return o;
+            } else {
                 List lst = new ArrayList<>();
                 for (int i = 0; i < Array.getLength(o); i++) {
                     Object v = Array.get(o, i);
                     lst.add(handleListElementMarshalling(v));
                 }
                 return lst;
-            } else {
-                return o;
             }
         } else if (o instanceof Map) {
             Map m = (Map) o;
@@ -105,18 +105,18 @@ public class MarshallHelper {
             for (Map.Entry entry : (Set<Map.Entry>) m.entrySet()) {
                 Object v = entry.getValue();
                 if (v == null) {
-                    target.put(marshallIfNecessary(entry.getKey()), null);
+                    target.put(entry.getKey(), null);
                     continue;
                 }
                 if (v.getClass().isEnum()) {
                     Map map = createEnumMapMarshalling((Enum) v, v.getClass());
-                    target.put(marshallIfNecessary(entry.getKey()), map);
+                    target.put(entry.getKey(), map);
                 } else {
                     Object value = marshallIfNecessary(v);
                     if (anhelper.isEntity(v)) {
                         ((Map) value).put("class_name", v.getClass().getName());
                     }
-                    target.put(marshallIfNecessary(entry.getKey()), value);
+                    target.put(entry.getKey(), value);
                 }
             }
             return target;
@@ -296,6 +296,10 @@ public class MarshallHelper {
                     }
                 }
                 dbo.put(key, marshallIfNecessary(value));
+                if (dbo.get(key) instanceof Map) {
+                    //remove ID if embedded
+                    ((Map) dbo.get(key)).remove("_id");
+                }
             }
         } catch (IllegalAccessException e1) {
             //TODO: Implement Handling

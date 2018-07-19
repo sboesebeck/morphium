@@ -5,6 +5,7 @@ import de.caluga.morphium.Morphium;
 import de.caluga.morphium.MorphiumConfig;
 import de.caluga.morphium.async.AsyncOperationCallback;
 import de.caluga.morphium.async.AsyncOperationType;
+import de.caluga.morphium.driver.MorphiumDriverException;
 import de.caluga.morphium.driver.ReadPreference;
 import de.caluga.morphium.query.Query;
 import de.caluga.test.mongo.suite.data.CachedObject;
@@ -408,10 +409,12 @@ public class MongoTest {
     @org.junit.After
     public void tearDown() {
         log.info("Cleaning up...");
-        morphium.dropCollection(UncachedObject.class);
-        morphium.dropCollection(CachedObject.class);
-//        morphium.dropCollection(Msg.class);
-        waitForWrites();
+        for (Class toDel : new Class[]{UncachedObject.class, CachedObject.class, ComplexObject.class, ListContainer.class}) {
+            try {
+                morphium.getDriver().drop(morphium.getMapper().getCollectionName(toDel), morphium.getWriteConcernForClass(toDel));
+            } catch (MorphiumDriverException e) {
+            }
+        }
         log.info("done...");
     }
 
