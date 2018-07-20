@@ -12,19 +12,15 @@ public class LazyDeReferencingProxy<T> implements MethodInterceptor, Serializabl
     private static final long serialVersionUID = 3777709000906217075L;
     private static final Logger log = LoggerFactory.getLogger(LazyDeReferencingProxy.class);
     private final transient Morphium morphium;
-    private final String fieldname;
-    private final Object container;
     private final String collectionName;
     private final Class<? extends T> cls;
     private final Object id;
     private T deReferenced;
 
-    public LazyDeReferencingProxy(Morphium m, Class<? extends T> type, Object id, Object container, String fieldname, String collectionName) {
+    public LazyDeReferencingProxy(Morphium m, Class<? extends T> type, Object id, String collectionName) {
         cls = type;
         this.id = id;
         morphium = m;
-        this.container = container;
-        this.fieldname = fieldname;
         this.collectionName = collectionName;
     }
 
@@ -75,9 +71,7 @@ public class LazyDeReferencingProxy<T> implements MethodInterceptor, Serializabl
                 log.debug("DeReferencing due to first access");
             }
             try {
-                morphium.fireWouldDereference(container, fieldname, id, cls, true);
                 deReferenced = morphium.findById(cls, id, collectionName);
-                morphium.fireDidDereference(container, fieldname, deReferenced, true);
             } catch (MorphiumAccessVetoException e) {
                 log.info("did not dereference due to VetoException from listener", e);
             }

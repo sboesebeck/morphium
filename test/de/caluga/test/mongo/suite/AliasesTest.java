@@ -1,6 +1,7 @@
 package de.caluga.test.mongo.suite;
 
 import de.caluga.morphium.query.Query;
+import de.caluga.test.mongo.suite.data.ComplexObject;
 import org.junit.Test;
 
 import java.util.Date;

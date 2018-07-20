@@ -9,10 +9,7 @@ import de.caluga.morphium.annotations.Id;
 import de.caluga.morphium.driver.MorphiumId;
 import de.caluga.morphium.objectmapper.ObjectMapperImplNG;
 import de.caluga.morphium.replicaset.ReplicaSetConf;
-import de.caluga.test.mongo.suite.data.CachedObject;
-import de.caluga.test.mongo.suite.data.EmbeddedObject;
-import de.caluga.test.mongo.suite.data.MapListObject;
-import de.caluga.test.mongo.suite.data.UncachedObject;
+import de.caluga.test.mongo.suite.data.*;
 import org.bson.types.ObjectId;
 import org.junit.Test;
 
@@ -415,6 +412,9 @@ public class ObjectMapperTest extends MongoTest {
         Map<String, Object> obj = morphium.getMapper().marshall(co);
         assert (obj.get("embeddedObjectList") != null);
         assert (((List) obj.get("embeddedObjectList")).size() == 2);
+        ComplexObject co2 = morphium.getMapper().unmarshall(ComplexObject.class, obj);
+        assert (co2.getEmbeddedObjectList().size() == 2);
+        assert (co2.getEmbeddedObjectList().get(0).getName() != null);
 
     }
 
@@ -621,6 +621,58 @@ public class ObjectMapperTest extends MongoTest {
         }
     }
 
+    @Test
+    public void objectMapperWildcardListTest() {
+        ObjectMapperImplNG mapperImplNG = new ObjectMapperImplNG();
+        mapperImplNG.setMorphium(morphium);
+        mapperImplNG.setAnnotationHelper(morphium.getARHelper());
+
+
+        for (ObjectMapper map : new ObjectMapper[]{morphium.getMapper(), mapperImplNG}) {
+            log.info("--------------------- Running test with " + map.getClass().getName());
+            ListWildcardContainer wc = new ListWildcardContainer();
+            wc.setName("A name");
+            wc.setEmbeddedObjectList(new ArrayList<>());
+            ((List<EmbeddedObject>) wc.getEmbeddedObjectList()).add(new EmbeddedObject("test", "value", 12344));
+            ((List<EmbeddedObject>) wc.getEmbeddedObjectList()).add(new EmbeddedObject("test", "value", 12344));
+            Map<String, Object> obj = map.marshall(wc);
+            assert (obj != null);
+        }
+    }
+
+
+    @Test
+    public void testListOfEmbedded() {
+        ObjectMapperImplNG mapperImplNG = new ObjectMapperImplNG();
+        mapperImplNG.setMorphium(morphium);
+        mapperImplNG.setAnnotationHelper(morphium.getARHelper());
+
+
+        for (ObjectMapper map : new ObjectMapper[]{morphium.getMapper(), mapperImplNG}) {
+            log.info("--------------------- Running test with " + map.getClass().getName());
+            ListOfEmbedded lst = new ListOfEmbedded();
+            lst.list = new ArrayList<>();
+            lst.list.add(new EmbeddedObject("nam", "val", System.currentTimeMillis()));
+            lst.list.add(new EmbeddedObject("nam", "val", System.currentTimeMillis()));
+            lst.list.add(new EmbeddedObject("nam", "val", System.currentTimeMillis()));
+            lst.list.add(new EmbeddedObject("nam", "val", System.currentTimeMillis()));
+
+            Map<String, Object> obj = map.marshall(lst);
+            assert (obj.get("list") != null);
+            assert (obj.get("list") instanceof List);
+            assert (((List) obj.get("list")).get(0) instanceof Map);
+
+            ListOfEmbedded lst2 = map.unmarshall(ListOfEmbedded.class, obj);
+            assert (lst2.list != null);
+            assert (lst2.list.size() == 4);
+            assert (lst2.list.get(0).getName().equals("nam"));
+
+            ((Map) ((List) obj.get("list")).get(0)).remove("class_name");
+
+            lst2 = map.unmarshall(ListOfEmbedded.class, obj);
+            assert (lst2.list.get(0) instanceof EmbeddedObject);
+        }
+    }
 
     @Test
     public void objectMapperNGTest() {
@@ -750,6 +802,13 @@ public class ObjectMapperTest extends MongoTest {
 
     public enum TestEnum {
         v1, v2, v3, v4,
+    }
+
+    @Entity
+    public static class ListOfEmbedded {
+        @Id
+        public MorphiumId id;
+        public List<EmbeddedObject> list;
     }
 
     @Entity

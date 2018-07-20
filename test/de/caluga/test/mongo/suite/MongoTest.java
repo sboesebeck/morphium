@@ -9,6 +9,7 @@ import de.caluga.morphium.driver.MorphiumDriverException;
 import de.caluga.morphium.driver.ReadPreference;
 import de.caluga.morphium.query.Query;
 import de.caluga.test.mongo.suite.data.CachedObject;
+import de.caluga.test.mongo.suite.data.ComplexObject;
 import de.caluga.test.mongo.suite.data.Person;
 import de.caluga.test.mongo.suite.data.UncachedObject;
 import org.slf4j.Logger;

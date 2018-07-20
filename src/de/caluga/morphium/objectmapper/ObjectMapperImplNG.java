@@ -1,9 +1,7 @@
 package de.caluga.morphium.objectmapper;
 
 import de.caluga.morphium.*;
-import de.caluga.morphium.driver.MorphiumId;
 import de.caluga.morphium.mapping.BigIntegerTypeMapper;
-import de.caluga.morphium.mapping.MorphiumIdMapper;
 import org.json.simple.parser.ContainerFactory;
 import org.json.simple.parser.JSONParser;
 import org.json.simple.parser.ParseException;
@@ -57,7 +55,7 @@ public class ObjectMapperImplNG implements ObjectMapper {
         };
         customTypeMapper = new ConcurrentHashMap<>();
         customTypeMapper.put(BigInteger.class, new BigIntegerTypeMapper());
-        customTypeMapper.put(MorphiumId.class, new MorphiumIdMapper());
+        anhelper = new AnnotationAndReflectionHelper(true); //default
     }
 
     public MarshallHelper getMarshaller() {
