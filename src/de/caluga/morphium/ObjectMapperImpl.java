@@ -3,7 +3,6 @@ package de.caluga.morphium;
 import de.caluga.morphium.annotations.*;
 import de.caluga.morphium.driver.MorphiumId;
 import de.caluga.morphium.mapping.BigIntegerTypeMapper;
-import de.caluga.morphium.mapping.MorphiumIdMapper;
 import org.json.simple.parser.ContainerFactory;
 import org.json.simple.parser.JSONParser;
 import org.json.simple.parser.ParseException;
@@ -54,7 +53,6 @@ public class ObjectMapperImpl implements ObjectMapper {
         mongoTypes.add(Byte.class);
         customMapper = new Hashtable<>();
         customMapper.put(BigInteger.class, new BigIntegerTypeMapper());
-        customMapper.put(MorphiumId.class, new MorphiumIdMapper());
         containerFactory = new ContainerFactory() {
             @Override
             public Map createObjectContainer() {
@@ -714,12 +712,10 @@ public class ObjectMapperImpl implements ObjectMapper {
 //                                    } else if (id instanceof ObjectId && annotationHelper.getField(fld.getType(), lst.get(0)).getType().equals(MorphiumId.class)) {
 //                                        id = new MorphiumId(((ObjectId) id).toByteArray());
                                     }
-                                    value = morphium.createLazyLoadedEntity(fld.getType(), id, ret, f, collectionName);
+                                    value = morphium.createLazyLoadedEntity(fld.getType(), id, collectionName);
                                 } else {
                                     try {
-                                        morphium.fireWouldDereference(ret, f, id, type, false);
                                         value = morphium.findById(type, id, collectionName);
-                                        morphium.fireDidDereference(ret, f, value, false);
                                     } catch (MorphiumAccessVetoException ex) {
                                         log.info("not dereferencing due to veto from listener", ex);
                                     }
@@ -749,14 +745,12 @@ public class ObjectMapperImpl implements ObjectMapper {
                                     if (id instanceof String && annotationHelper.getField(fld.getType(), lst.get(0)).getType().equals(MorphiumId.class)) {
                                         id = new MorphiumId(id.toString());
                                     }
-                                    value = morphium.createLazyLoadedEntity(fld.getType(), id, ret, f, collection);
+                                    value = morphium.createLazyLoadedEntity(fld.getType(), id, collection);
                                 } else {
                                     //                                Query q = morphium.createQueryFor(fld.getSearchType());
                                     //                                q.f("_id").eq(id);
                                     try {
-                                        morphium.fireWouldDereference(ret, f, id, fld.getType(), false);
                                         value = morphium.findById(fld.getType(), id, collection);
-                                        morphium.fireDidDereference(ret, f, value, false);
                                     } catch (MorphiumAccessVetoException e) {
                                         log.info("not dereferencing due to veto from listener", e);
                                     }
@@ -1090,7 +1084,7 @@ public class ObjectMapperImpl implements ObjectMapper {
                     if (r.getId() instanceof String && morphium.getARHelper().getIdField(type).getType().equals(MorphiumId.class)) {
                         r.setId(new MorphiumId(r.getId().toString()));
                     }
-                    toFillIn.add(morphium.createLazyLoadedEntity(type, r.getId(), containerEntity, forField.getName(), r.getCollectionName()));
+                    toFillIn.add(morphium.createLazyLoadedEntity(type, r.getId(), r.getCollectionName()));
                 } else {
                     toFillIn.add(morphium.findById(type, r.getId(), r.getCollectionName()));
                 }

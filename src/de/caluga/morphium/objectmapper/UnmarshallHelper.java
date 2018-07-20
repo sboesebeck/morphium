@@ -1,15 +1,16 @@
 package de.caluga.morphium.objectmapper;
 
 import de.caluga.morphium.*;
-import de.caluga.morphium.annotations.Embedded;
-import de.caluga.morphium.annotations.Entity;
-import de.caluga.morphium.annotations.Reference;
+import de.caluga.morphium.annotations.*;
 import de.caluga.morphium.driver.MorphiumId;
 import org.bson.types.ObjectId;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import sun.misc.BASE64Decoder;
 import sun.reflect.ReflectionFactory;
 
+import java.io.ByteArrayInputStream;
+import java.io.ObjectInputStream;
 import java.lang.reflect.*;
 import java.util.*;
 
@@ -49,7 +50,18 @@ public class UnmarshallHelper {
 
     public <T> T unmarshall(Class<? extends T> theClass, Map<String, Object> o) {
         if (o == null) return null;
+        if (o.get("_b64data") != null) {
+            //binarySerializedObject
 
+            ObjectInputStream in = null;
+            try {
+                in = new ObjectInputStream(new ByteArrayInputStream(new BASE64Decoder().decodeBuffer((String) ((Map) o).get("_b64data"))));
+                return (T) in.readObject();
+            } catch (Exception e) {
+                throw new RuntimeException("De-serialization failed", e);
+            }
+
+        }
         /////////////////////////////////////////
         ///getting type
         //
@@ -70,7 +82,7 @@ public class UnmarshallHelper {
         }
 
         if (cls == null) {
-            log.warn("Could not find type for map, assuming it is just a map");
+//            log.warn("Could not find type for map, assuming it is just a map");
             Map ret = new LinkedHashMap();
             for (Map.Entry entry : o.entrySet()) {
                 ret.put(entry.getKey(), unmarshallIfPossible(null, entry.getValue()));
@@ -125,7 +137,9 @@ public class UnmarshallHelper {
         List<Field> fields = anhelper.getAllFields(cls);
         for (Field fld : fields) {
             try {
-
+                if (fld.isAnnotationPresent(WriteOnly.class)) {
+                    continue; ///not read in write-only fields
+                }
                 fld.setAccessible(true);
                 Class fieldType = fld.getType();
                 String fName = anhelper.getFieldName(cls, fld.getName());
@@ -202,7 +216,7 @@ public class UnmarshallHelper {
                     //
                 } else if (List.class.isAssignableFrom(fieldType) || fieldType.isArray()) {
                     List lst = (List) o.get(fName);
-                    List resList = getUnmarshalledList(result, (ParameterizedType) fld.getGenericType(), fName, r, lst);
+                    List resList = getUnmarshalledList(result, fld.getGenericType(), fName, r, lst);
                     if (fieldType.isArray()) {
                         fld.set(result, resList.toArray((Object[]) Array.newInstance(fieldType.getComponentType(), 0)));
                     } else {
@@ -232,7 +246,7 @@ public class UnmarshallHelper {
                             Map ref = (Map) o.get(fName);
                             //MorphiumReference mr=unmarshall(MorphiumReference.class,ref);
                             if (r.lazyLoading()) {
-                                value = morphium.createLazyLoadedEntity(fld.getType(), ref.get("id"), result, fName, ref.get("collection_name").toString());
+                                value = morphium.createLazyLoadedEntity(fld.getType(), ref.get("id"), ref.get("collection_name").toString());
                             } else {
                                 value = morphium.findById(fld.getType(), ref.get("id"), ref.get("collection_name").toString());
                             }
@@ -333,11 +347,14 @@ public class UnmarshallHelper {
                 //swallow
             }
         }
+        if (anhelper.isAnnotationPresentInHierarchy(cls, PartialUpdate.class) || cls.isInstance(PartiallyUpdateable.class)) {
+            return morphium.createPartiallyUpdateableEntity(result);
+        }
         return result;
     }
 
 
-    private <T> List getUnmarshalledList(T result, ParameterizedType type, String fName, Reference r, List lst) {
+    private <T> List getUnmarshalledList(T result, Type type, String fName, Reference r, List lst) {
         List resList = new ArrayList();
 
         for (Object listElement : lst) {
@@ -346,105 +363,128 @@ public class UnmarshallHelper {
                 continue;
             }
             Class elementType = null;
-            if (listElement instanceof List) {
-//                ParameterizedType type;
-//                if (fld.getGenericType() instanceof ParameterizedType) {
-//                    type = (ParameterizedType) fld.getGenericType();
-//                } else
-//                // a real array! time to create a custom parameterized type!
-//                {
-//                    type = new ParameterizedType() {
-//
-//                        @Override
-//                        public Type getRawType() {
-//                            return Array.class;
-//                        }
-//
-//                        @Override
-//                        public Type getOwnerType() {
-//                            return null;
-//                        }
-//
-//                        @Override
-//                        public Type[] getActualTypeArguments() {
-//                            return new Type[]{fld.getType().getComponentType()};
-//                        }
-//                    };
-//                }
-                //sub-list
-                ParameterizedType elt = null;
-                if (type.getActualTypeArguments()[0] instanceof ParameterizedType) {
-                    ParameterizedType p = (ParameterizedType) type.getActualTypeArguments()[0];
-                    elt = (ParameterizedType) p.getActualTypeArguments()[0];
-                }
 
-                List inner = getUnmarshalledList(result, elt, fName, r, (List) listElement);
+            Type typeOfListElement = null;
+            if (type != null && type instanceof ParameterizedType) {
+                typeOfListElement = ((ParameterizedType) type).getActualTypeArguments()[0];
+            }
+
+            if (listElement instanceof List) {
+                ///////////////////
+                ///// List in a list
+                ////
+
+//                Type elt = null;
+//                if (typeOfListElement instanceof ParameterizedType) {
+//                    ParameterizedType p = (ParameterizedType) typeOfListElement;
+//                    elt = (ParameterizedType) p.getActualTypeArguments()[0];
+//                } else {
+//
+//                }
+
+                List inner = getUnmarshalledList(result, typeOfListElement, fName, r, (List) listElement);
 
                 resList.add(inner);
                 continue;
             }
             if (listElement instanceof Map) {
+                ////////////
+                //// map in a list
+                ///
+                ////// Entity in this list
                 if (((Map) listElement).get("class_name") != null) {
                     try {
-                        resList.add(unmarshall(Class.forName((String) ((Map) listElement).get("class_name")), (Map<String, Object>) listElement));
-                        continue;
+                        elementType = Class.forName((String) ((Map) listElement).get("class_name"));
+                        if (anhelper.isEntity(elementType) && r != null) {
+                            //MorphiumReference ref = unmarshall(MorphiumReference.class, (Map<String, Object>) o.get(fName));
+                            Map<String, Object> map = (Map<String, Object>) listElement;
+                            if (r.lazyLoading()) {
+                                resList.add(morphium.createLazyLoadedEntity(elementType, map.get("id"), (String) map.get("collection_name")));
+                            } else {
+                                Object deref = morphium.findById(elementType, map.get("id"), (String) map.get("collection_name"));
+                                resList.add(deref);
+                            }
+                        } else {
+                            resList.add(unmarshall(elementType, (Map<String, Object>) listElement));
+
+                        }
                     } catch (ClassNotFoundException e) {
                         //TODO: Implement Handling
                         throw new RuntimeException(e);
                     }
-                }
-                if (type == null) {
-                    resList.add(unmarshallIfPossible(null, listElement));
                     continue;
                 }
-                if (type.getActualTypeArguments()[0] instanceof WildcardType) {
-                    WildcardType wt = (WildcardType) type.getActualTypeArguments()[0];
-                    elementType = (Class) wt.getUpperBounds()[0];
 
-                } else if (type.getActualTypeArguments()[0] instanceof ParameterizedType) {
-                    elementType = (Class) ((ParameterizedType) type.getActualTypeArguments()[0]).getActualTypeArguments()[1];
-                } else {
-                    elementType = (Class) type.getActualTypeArguments()[0];
+                if (((Map) listElement).get("_b64data") != null) {
+                    //binarySerializedObject
+
+                    ObjectInputStream in = null;
+                    try {
+                        in = new ObjectInputStream(new ByteArrayInputStream(new BASE64Decoder().decodeBuffer((String) ((Map) listElement).get("_b64data"))));
+                        resList.add(in.readObject());
+                        continue;
+                    } catch (Exception e) {
+                        throw new RuntimeException("De-serialization failed", e);
+                    }
+
                 }
-//                log.info("We have a map in a list");
-                if (type.getActualTypeArguments()[0] instanceof Class) {
+
+                //Type of key should be String - ALWAYS
+                //Type of value is
+                Type typeOfValue = null;
+
+                if (typeOfListElement instanceof ParameterizedType) {
+                    typeOfValue = ((ParameterizedType) typeOfListElement).getActualTypeArguments()[1];
+                } else {
+                    //should be class
+                    if (anhelper.isEntity((Class) typeOfListElement)) {
+                        if (r != null) {
+                            String collectionName = r.targetCollection();
+                            if (collectionName.equals(".")) {
+                                collectionName = morphium.getMapper().getCollectionName((Class) typeOfListElement);
+                            }
+                            if (r.lazyLoading()) {
+                                resList.add(morphium.createLazyLoadedEntity((Class) typeOfListElement, ((Map) listElement).get("id"), collectionName));
+                            } else if (!r.lazyLoading()) {
+                                resList.add(morphium.findById((Class) typeOfListElement, ((Map) listElement).get("id"), collectionName));
+                            }
+                        } else {
+                            resList.add(unmarshall((Class) typeOfListElement, (Map) listElement));
+                        }
+                        continue;
+                    }
+
+                }
+
+                if (typeOfValue instanceof Class) {
                     if (r != null) {
                         String collectionName = r.targetCollection();
                         if (collectionName.equals(".")) {
                             collectionName = morphium.getMapper().getCollectionName(elementType);
                         }
                         if (r.lazyLoading()) {
-                            resList.add(morphium.createLazyLoadedEntity(elementType, ((Map) listElement).get("id"), null, fName, collectionName));
+                            resList.add(morphium.createLazyLoadedEntity(elementType, ((Map) listElement).get("id"), collectionName));
                         } else if (!r.lazyLoading()) {
                             resList.add(morphium.findById(elementType, ((Map) listElement).get("id"), collectionName));
                         }
                     } else {
-                        resList.add(unmarshallIfPossible(elementType, listElement));
+                        resList.add(unmarshallIfPossible((Class) typeOfValue, listElement));
                     }
                     continue;
                 } else {
                     //recursing
+                    Map m = new LinkedHashMap();
 
-                    resList.add(unmarshallIfPossible(elementType, listElement));
+                    for (Map.Entry e : (Set<Map.Entry>) ((Map) listElement).entrySet()) {
+                        m.put(e.getKey(), unmarshallIfPossible(elementType, listElement));
+                    }
+                    resList.add(m);
                     continue;
                 }
             }
 
 
-            if (anhelper.isEntity(elementType) && r != null) {
-                //MorphiumReference ref = unmarshall(MorphiumReference.class, (Map<String, Object>) o.get(fName));
-                Map<String, Object> map = (Map<String, Object>) listElement;
-                if (r.lazyLoading()) {
-                    resList.add(morphium.createLazyLoadedEntity(elementType, map.get("id"), result, fName, (String) map.get("collection_name")));
-                } else {
-                    morphium.fireWouldDereference(result, fName, map.get("id"), elementType, false);
-                    Object deref = morphium.findById(elementType, map.get("id"), (String) map.get("collection_name"));
-                    resList.add(deref);
-                    morphium.fireDidDereference(result, fName, deref, false);
-                }
-            } else {
                 resList.add(unmarshallIfPossible(elementType, listElement));
-            }
 
 
         }
@@ -453,12 +493,24 @@ public class UnmarshallHelper {
 
     private Object unmarshallIfPossible(Class fieldType, Object o) {
         if (o == null) return null;
-        for (TypeMapper m : customTypeMapper.values()) {
-            if (m.matches(o)) {
-                return m.unmarshall(o);
-            }
-        }
+//        for (TypeMapper m : customTypeMapper.values()) {
+//            if (m.matches(o)) {
+//                return m.unmarshall(o);
+//            }
+//        }
+
         if (o instanceof Map) {
+            if (((Map) o).get("_b64data") != null) {
+                //binarySerializedObject
+                ObjectInputStream in = null;
+                try {
+                    in = new ObjectInputStream(new ByteArrayInputStream(new BASE64Decoder().decodeBuffer((String) ((Map) o).get("_b64data"))));
+                    return in.readObject();
+                } catch (Exception e) {
+                    throw new RuntimeException("De-serialization failed", e);
+                }
+
+            }
             String cname = (String) ((Map) o).get("class_name");
             if (cname != null) {
                 try {
