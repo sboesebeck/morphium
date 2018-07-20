@@ -69,7 +69,6 @@ public class Morphium {
     private final ThreadLocal<Boolean> disableAsyncWrites = new ThreadLocal<>();
     private final List<ProfilingListener> profilingListeners;
     private final List<ShutdownListener> shutDownListeners = new CopyOnWriteArrayList<>();
-    private final List<DereferencingListener> lazyDereferencingListeners = new CopyOnWriteArrayList<>();
     private MorphiumConfig config;
     private Map<StatisticKeys, StatisticValue> stats = new ConcurrentHashMap<>();
     private List<MorphiumStorageListener> listeners = new CopyOnWriteArrayList<>();
@@ -2617,8 +2616,8 @@ public class Morphium {
     }
 
     @SuppressWarnings("unchecked")
-    public <T> T createLazyLoadedEntity(Class<? extends T> cls, Object id, Object container, String fieldName, String collectionName) {
-        return (T) Enhancer.create(cls, new Class[]{Serializable.class}, new LazyDeReferencingProxy(this, cls, id, container, fieldName, collectionName));
+    public <T> T createLazyLoadedEntity(Class<? extends T> cls, Object id, String collectionName) {
+        return (T) Enhancer.create(cls, new Class[]{Serializable.class}, new LazyDeReferencingProxy(this, cls, id, collectionName));
     }
 
     @SuppressWarnings("unchecked")
@@ -2731,28 +2730,6 @@ public class Morphium {
 
     public int getActiveThreads() {
         return asyncOperationsThreadPool.getActiveCount();
-    }
-
-    public <T, E, I> void fireWouldDereference(E container, String fieldname, I id, Class<? extends T> cls, boolean lazy) {
-        for (DereferencingListener l : this.lazyDereferencingListeners) {
-            //noinspection unchecked
-            l.wouldDereference(container, fieldname, id, cls, lazy);
-        }
-    }
-
-    public <T> void fireDidDereference(Object container, String fieldname, T deReferenced, boolean lazy) {
-        for (DereferencingListener l : this.lazyDereferencingListeners) {
-            //noinspection unchecked
-            l.didDereference(container, fieldname, deReferenced, lazy);
-        }
-    }
-
-    public void addDereferencingListener(DereferencingListener lst) {
-        this.lazyDereferencingListeners.add(lst);
-    }
-
-    public void removeDerrferencingListener(DereferencingListener lst) {
-        this.lazyDereferencingListeners.remove(lst);
     }
 
     public void startTransaction() {

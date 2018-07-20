@@ -108,15 +108,15 @@ public class RSMonitor {
                         //                    DBObject stat = rpl.next(); //should only be one, i think
                         //                    rpl.close();
                         ReplicaSetConf cfg = morphium.getMapper().unmarshall(ReplicaSetConf.class, stat);
-                        List<Object> mem = cfg.getMemberList();
-                        List<ConfNode> cmembers = new ArrayList<>();
-
-                        for (Object o : mem) {
-                            //                        DBObject dbo = (DBObject) o;
-                            ConfNode cn = (ConfNode) o;// objectMapper.unmarshall(ConfNode.class, dbo);
-                            cmembers.add(cn);
-                        }
-                        cfg.setMembers(cmembers);
+//                        List<Object> mem = cfg.getMemberList();
+//                        List<ConfNode> cmembers = new ArrayList<>();
+//
+//                        for (Object o : mem) {
+//                            //                        DBObject dbo = (DBObject) o;
+//                            ConfNode cn = (ConfNode) o;// objectMapper.unmarshall(ConfNode.class, dbo);
+//                            cmembers.add(cn);
+//                        }
+//                        cfg.setMembers(cmembers);
                         status.setConfig(cfg);
                     }
                 }

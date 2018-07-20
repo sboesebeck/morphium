@@ -57,6 +57,12 @@ public class MarshallHelper {
         if (valueType.isPrimitive()) {
             return o;
         }
+        if (o instanceof MorphiumId) {
+            return o;
+        }
+        if (o instanceof ObjectId) {
+            return new MorphiumId(((ObjectId) o).toByteArray());
+        }
 
         //"primitive" values
         if (mongoTypes.contains(valueType)) {
@@ -123,7 +129,7 @@ public class MarshallHelper {
         }
 
 
-        return marshall(o, true, ignoreReadOnly);
+        return marshall(o, ignoreEntity, ignoreReadOnly);
 
     }
 
@@ -154,18 +160,7 @@ public class MarshallHelper {
             if (morphium == null || morphium.getConfig().isObjectSerializationEnabled()) {
                 if (o instanceof Serializable) {
                     try {
-                        BinarySerializedObject obj = new BinarySerializedObject();
-                        obj.setOriginalClassName(o.getClass().getName());
-                        ByteArrayOutputStream out = new ByteArrayOutputStream();
-                        ObjectOutputStream oout = new ObjectOutputStream(out);
-                        oout.writeObject(o);
-                        oout.flush();
-
-                        BASE64Encoder enc = new BASE64Encoder();
-
-                        String str = enc.encode(out.toByteArray());
-                        obj.setB64Data(str);
-                        return marshall(obj, false, false);
+                        return handleBinarySerialization(o);
 
                     } catch (IOException e) {
                         throw new IllegalArgumentException("Binary serialization failed! " + o.getClass().getName(), e);
@@ -217,6 +212,7 @@ public class MarshallHelper {
                 String key = anhelper.getFieldName(cls, fld.getName());
                 if (fld.isAnnotationPresent(Id.class)) {
                     key = "_id";
+                    //dbo.put("_id",fld.get(o));
                 }
                 //read only fields should probably not be mapped
                 //main purpose of this mapper is to prepare a map to be stored to mongo
@@ -295,7 +291,11 @@ public class MarshallHelper {
                         continue;
                     }
                 }
-                dbo.put(key, marshallIfNecessary(value));
+                if (value instanceof MorphiumId) {
+                    dbo.put(key, value);
+                } else {
+                    dbo.put(key, marshallIfNecessary(value));
+                }
                 if (dbo.get(key) instanceof Map) {
                     //remove ID if embedded
                     ((Map) dbo.get(key)).remove("_id");
@@ -307,6 +307,21 @@ public class MarshallHelper {
         }
 
         return dbo;
+    }
+
+    private Map<String, Object> handleBinarySerialization(Object o) throws IOException {
+        BinarySerializedObject obj = new BinarySerializedObject();
+        obj.setOriginalClassName(o.getClass().getName());
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        ObjectOutputStream oout = new ObjectOutputStream(out);
+        oout.writeObject(o);
+        oout.flush();
+
+        BASE64Encoder enc = new BASE64Encoder();
+
+        String str = enc.encode(out.toByteArray());
+        obj.setB64Data(str);
+        return marshall(obj, false, false);
     }
 
     public Map<String, Object> marshall(Object o) {
