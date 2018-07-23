@@ -2,7 +2,6 @@ package de.caluga.morphium;
 
 import de.caluga.morphium.annotations.*;
 import de.caluga.morphium.driver.MorphiumId;
-import de.caluga.morphium.mapping.BigIntegerTypeMapper;
 import org.json.simple.parser.ContainerFactory;
 import org.json.simple.parser.JSONParser;
 import org.json.simple.parser.ParseException;
@@ -14,7 +13,6 @@ import sun.reflect.ReflectionFactory;
 
 import java.io.*;
 import java.lang.reflect.*;
-import java.math.BigInteger;
 import java.util.*;
 import java.util.Map.Entry;
 import java.util.stream.Collectors;
@@ -31,7 +29,6 @@ public class ObjectMapperImpl implements ObjectMapper {
     private final ReflectionFactory reflection = ReflectionFactory.getReflectionFactory();
     private final Map<Class<?>, NameProvider> nameProviders;
     private final JSONParser jsonParser = new JSONParser();
-    private final Map<Class, TypeMapper> customMapper;
     private final List<Class<?>> mongoTypes;
     private final ContainerFactory containerFactory;
     private AnnotationAndReflectionHelper annotationHelper = new AnnotationAndReflectionHelper(true);
@@ -51,8 +48,6 @@ public class ObjectMapperImpl implements ObjectMapper {
         mongoTypes.add(Date.class);
         mongoTypes.add(Boolean.class);
         mongoTypes.add(Byte.class);
-        customMapper = new Hashtable<>();
-        customMapper.put(BigInteger.class, new BigIntegerTypeMapper());
         containerFactory = new ContainerFactory() {
             @Override
             public Map createObjectContainer() {
@@ -184,32 +179,12 @@ public class ObjectMapperImpl implements ObjectMapper {
         return o;
     }
 
-    @Override
-    public void registerCustomTypeMapper(Class c, TypeMapper m) {
-        customMapper.put(c, m);
-    }
-
-    @Override
-    public void deregisterTypeMapper(Class c) {
-        customMapper.remove(c);
-    }
-
-    private boolean hasCustomMapper(Class c) {
-        return customMapper.get(c) != null;
-    }
 
     @SuppressWarnings("unchecked")
     @Override
     public Map<String, Object> marshall(Object o) {
 
         Class c = annotationHelper.getRealClass(o.getClass());
-        if (hasCustomMapper(c)) {
-            Object ret = customMapper.get(c).marshall(o);
-            if (!(ret instanceof Map)) {
-                return Utils.getMap("value", ret);
-            }
-            return (Map<String, Object>) ret;
-        }
 
         //recursively map object to mongo-Object...
         if (!annotationHelper.isEntity(o)) {
@@ -376,9 +351,7 @@ public class ObjectMapperImpl implements ObjectMapper {
                     } else {
                         valueClass = value.getClass();
                     }
-                    if (hasCustomMapper(valueClass) && !fName.equals("_id")) {
-                        v = customMapper.get(valueClass).marshall(value);
-                    } else if (annotationHelper.isAnnotationPresentInHierarchy(valueClass, Entity.class)) {
+                    if (annotationHelper.isAnnotationPresentInHierarchy(valueClass, Entity.class)) {
                         if (value != null) {
                             Map<String, Object> obj = marshall(value);
                             obj.remove("_id");  //Do not store ID embedded!
@@ -563,9 +536,6 @@ public class ObjectMapperImpl implements ObjectMapper {
         }
         Class cls = theClass;
         try {
-            if (hasCustomMapper(cls)) {
-                return (T) customMapper.get(cls).unmarshall(o);
-            }
             if (morphium != null && morphium.getConfig().isObjectSerializationEnabled() && !annotationHelper.isAnnotationPresentInHierarchy(cls, Entity.class) && !(annotationHelper.isAnnotationPresentInHierarchy(cls, Embedded.class))) {
                 cls = BinarySerializedObject.class;
             }
@@ -791,12 +761,7 @@ public class ObjectMapperImpl implements ObjectMapper {
                     //                    List lst = new ArrayList<Object>();
                     //                    lst.add(value);
                     //                    morphium.firePostLoad(lst);
-                } else if (hasCustomMapper(fld.getType())) {
-                    if (valueFromDb instanceof Map) {
-                        value = unmarshall(fld.getType(), (HashMap<String, Object>) valueFromDb);
-                    } else {
-                        value = customMapper.get(fld.getType()).unmarshall((HashMap<String, Object>) valueFromDb);
-                    }
+
                 } else if (Map.class.isAssignableFrom(fld.getType())) {
                     Map<String, Object> map = (Map<String, Object>) valueFromDb;
                     Map toFill = new HashMap();
@@ -1095,13 +1060,7 @@ public class ObjectMapperImpl implements ObjectMapper {
         for (Object val : fromDB) {
             if (val instanceof Map) {
                 boolean cont = false;
-                for (TypeMapper t : customMapper.values()) {
-                    if (t.matches((Map<String, Object>) val)) {
-                        toFillIn.add(t.unmarshall((Map<String, Object>) val));
-                        cont = true;
-                        break;
-                    }
-                }
+
                 if (cont) continue;
                 //Override type if className is specified - needed for polymoprh lists etc.
                 if (((Map<String, Object>) val).containsKey("class_name") || ((Map<String, Object>) val).containsKey("className")) {
@@ -1133,7 +1092,7 @@ public class ObjectMapperImpl implements ObjectMapper {
                     } else {
                         Entity entity = annotationHelper.getAnnotationFromHierarchy(cls, Entity.class); //(Entity) sc.getAnnotation(Entity.class);
                         Embedded embedded = annotationHelper.getAnnotationFromHierarchy(cls, Embedded.class);//(Embedded) sc.getAnnotation(Embedded.class);
-                        if (entity != null || embedded != null || hasCustomMapper(cls)) {
+                        if (entity != null || embedded != null) {
                             toFillIn.add(unmarshall(cls, (Map<String, Object>) val));
                             continue;
                         }
@@ -1221,7 +1180,7 @@ public class ObjectMapperImpl implements ObjectMapper {
                     } else {
                         Entity entity = annotationHelper.getAnnotationFromHierarchy(cls, Entity.class); //(Entity) sc.getAnnotation(Entity.class);
                         Embedded embedded = annotationHelper.getAnnotationFromHierarchy(cls, Embedded.class);//(Embedded) sc.getAnnotation(Embedded.class);
-                        if (entity != null || embedded != null || hasCustomMapper(cls)) {
+                        if (entity != null || embedded != null) {
                             toFillIn.put(key, unmarshall(cls, (Map<String, Object>) val));
                             continue;
                         }
