@@ -234,7 +234,7 @@ public class MorphiumConfig {
 
 
     public static MorphiumConfig createFromJson(String json) throws ParseException, NoSuchFieldException, ClassNotFoundException, IllegalAccessException, InstantiationException {
-        MorphiumConfig cfg = new ObjectMapperImpl().unmarshall(MorphiumConfig.class, json);
+        MorphiumConfig cfg = new ObjectMapperImpl().deserialize(MorphiumConfig.class, json);
 
         for (Object ko : cfg.restoreData.keySet()) {
             String k = (String) ko;
@@ -816,7 +816,7 @@ public class MorphiumConfig {
     public String toString() {
         updateAdditionals();
         try {
-            return Utils.toJsonString(getOmClass().newInstance().marshall(this));
+            return Utils.toJsonString(getOmClass().newInstance().serialize(this));
         } catch (Exception e) {
             throw new RuntimeException(e);
         }

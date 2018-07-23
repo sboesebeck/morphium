@@ -3,14 +3,11 @@ package de.caluga.test.mongo.suite;
 import ch.qos.logback.classic.LoggerContext;
 import de.caluga.morphium.Morphium;
 import de.caluga.morphium.MorphiumConfig;
-import de.caluga.morphium.async.AsyncOperationCallback;
-import de.caluga.morphium.async.AsyncOperationType;
 import de.caluga.morphium.driver.MorphiumDriverException;
 import de.caluga.morphium.driver.ReadPreference;
 import de.caluga.morphium.query.Query;
 import de.caluga.test.mongo.suite.data.CachedObject;
 import de.caluga.test.mongo.suite.data.ComplexObject;
-import de.caluga.test.mongo.suite.data.Person;
 import de.caluga.test.mongo.suite.data.UncachedObject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -21,7 +18,6 @@ import java.io.FileWriter;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 import java.util.Properties;
 import java.util.logging.Handler;
 import java.util.logging.Level;
@@ -363,43 +359,13 @@ public class MongoTest {
     public void setUp() {
 
         try {
-            log.info("Preparing collections...");
-            AsyncOperationCallback cb = new AsyncOperationCallback() {
-                @Override
-                public void onOperationSucceeded(AsyncOperationType type, Query q, long duration, List result, Object entity, Object... param) {
-
-                }
-
-                @Override
-                public void onOperationError(AsyncOperationType type, Query q, long duration, String error, Throwable t, Object entity, Object... param) {
-                    log.error("Error: " + error, t);
-                }
-            };
-            morphium.dropCollection(UncachedObject.class, cb);
-            morphium.dropCollection(CachedObject.class, cb);
-            morphium.dropCollection(ComplexObject.class, cb);
-            morphium.dropCollection(EnumEntity.class, cb);
-            //morphium.dropCollection(Msg.class, cb);
-            morphium.dropCollection(Person.class, cb);
-            //            morphium.ensureIndex(UncachedObject.class, "counter", "value");
-            //            morphium.ensureIndex(CachedObject.class, "counter", "value");
-            waitForAsyncOperationToStart(1000);
-            waitForWrites();
-            //            Thread.sleep(1000);
-            int count = 0;
-            while (count < 10) {
-                count++;
-                Map<String, Double> stats = morphium.getStatistics();
-                Double ent = stats.get("X-Entries for: resultCache|de.caluga.test.mongo.suite.data.CachedObject");
-                if (ent == null || ent == 0) {
-                    break;
-                }
-                Thread.sleep(2000);
+            log.info("resetting DB...");
+            List<String> lst = morphium.getDriver().getCollectionNames(morphium.getConfig().getDatabase());
+            for (String col : lst) {
+                log.info("Dropping " + col);
+                morphium.getDriver().drop(morphium.getConfig().getDatabase(), col, morphium.getWriteConcernForClass(UncachedObject.class));
             }
 
-            assert (count < 10) : "Cache not cleared? count is " + count;
-
-            log.info("Preparation finished");
         } catch (Exception e) {
             log.error("Error during preparation!");
             e.printStackTrace();

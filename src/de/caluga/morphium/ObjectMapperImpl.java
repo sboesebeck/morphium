@@ -151,7 +151,7 @@ public class ObjectMapperImpl implements ObjectMapper {
             return null;
         }
         if (annotationHelper.isEntity(o)) {
-            return marshall(o);
+            return serialize(o);
         }
         if (o.getClass().isPrimitive()) {
             return o;
@@ -182,7 +182,7 @@ public class ObjectMapperImpl implements ObjectMapper {
 
     @SuppressWarnings("unchecked")
     @Override
-    public Map<String, Object> marshall(Object o) {
+    public Map<String, Object> serialize(Object o) {
 
         Class c = annotationHelper.getRealClass(o.getClass());
 
@@ -202,7 +202,7 @@ public class ObjectMapperImpl implements ObjectMapper {
 
                         String str = enc.encode(out.toByteArray());
                         obj.setB64Data(str);
-                        return marshall(obj);
+                        return serialize(obj);
 
                     } catch (IOException e) {
                         throw new IllegalArgumentException("Binary serialization failed! " + o.getClass().getName(), e);
@@ -296,7 +296,7 @@ public class ObjectMapperImpl implements ObjectMapper {
                                     }
                                     MorphiumReference ref = new MorphiumReference(annotationHelper.getRealClass(rec.getClass()).getName(), id);
 
-                                    lst.add(marshall(ref));
+                                    lst.add(serialize(ref));
                                 } else {
                                     lst.add(null);
                                 }
@@ -315,7 +315,7 @@ public class ObjectMapperImpl implements ObjectMapper {
                                     throw new RuntimeException("cannot set dbRef - morphium is not set");
                                 }
                                 MorphiumReference ref = new MorphiumReference(annotationHelper.getRealClass(rec.getClass()).getName(), id);
-                                map.put(key, marshall(ref));
+                                map.put(key, serialize(ref));
                             });
                             v = map;
                         } else {
@@ -353,13 +353,13 @@ public class ObjectMapperImpl implements ObjectMapper {
                     }
                     if (annotationHelper.isAnnotationPresentInHierarchy(valueClass, Entity.class)) {
                         if (value != null) {
-                            Map<String, Object> obj = marshall(value);
+                            Map<String, Object> obj = serialize(value);
                             obj.remove("_id");  //Do not store ID embedded!
                             v = obj;
                         }
                     } else if (annotationHelper.isAnnotationPresentInHierarchy(valueClass, Embedded.class)) {
                         if (value != null) {
-                            v = marshall(value);
+                            v = serialize(value);
                         }
                     } else {
                         v = value;
@@ -433,7 +433,7 @@ public class ObjectMapperImpl implements ObjectMapper {
             if (lo != null) {
                 if (annotationHelper.isAnnotationPresentInHierarchy(lo.getClass(), Entity.class) ||
                         annotationHelper.isAnnotationPresentInHierarchy(lo.getClass(), Embedded.class)) {
-                    Map<String, Object> marshall = marshall(lo);
+                    Map<String, Object> marshall = serialize(lo);
                     marshall.put("class_name", lo.getClass().getName());
                     lst.add(marshall);
                 } else if (lo instanceof List) {
@@ -464,7 +464,7 @@ public class ObjectMapperImpl implements ObjectMapper {
                         }
                     }
                 } else {
-                    lst.add(marshall(lo));
+                    lst.add(serialize(lo));
                 }
             } else {
                 lst.add(null);
@@ -489,7 +489,7 @@ public class ObjectMapperImpl implements ObjectMapper {
             Object mval = es.getValue(); // ((Map) v).get(k);
             if (mval != null) {
                 if (annotationHelper.isAnnotationPresentInHierarchy(mval.getClass(), Entity.class) || annotationHelper.isAnnotationPresentInHierarchy(mval.getClass(), Embedded.class)) {
-                    Map<String, Object> obj = marshall(mval);
+                    Map<String, Object> obj = serialize(mval);
                     obj.put("class_name", mval.getClass().getName());
                     mval = obj;
                 } else if (mval instanceof Map) {
@@ -511,7 +511,7 @@ public class ObjectMapperImpl implements ObjectMapper {
 //                } else if (mval instanceof MorphiumId) {
 //                    mval = new ObjectId(((MorphiumId) mval).getBytes());
                 } else if (!mval.getClass().isPrimitive() && !mongoTypes.contains(mval.getClass())) {
-                    mval = marshall(mval);
+                    mval = serialize(mval);
                 }
             }
             dbMap.put((String) k, mval);
@@ -520,17 +520,17 @@ public class ObjectMapperImpl implements ObjectMapper {
     }
 
     @Override
-    public <T> T unmarshall(Class<? extends T> cls, String jsonString) throws ParseException {
+    public <T> T deserialize(Class<? extends T> cls, String jsonString) throws ParseException {
 
         HashMap<String, Object> obj = (HashMap<String, Object>) jsonParser.parse(jsonString, containerFactory);
-        return unmarshall(cls, obj);
+        return deserialize(cls, obj);
 
 
     }
 
     @SuppressWarnings("unchecked")
     @Override
-    public <T> T unmarshall(Class<? extends T> theClass, Map<String, Object> o) {
+    public <T> T deserialize(Class<? extends T> theClass, Map<String, Object> o) {
         if (o == null) {
             return null;
         }
@@ -598,7 +598,7 @@ public class ObjectMapperImpl implements ObjectMapper {
                 if (fld.isAnnotationPresent(AdditionalData.class)) {
                     //this field should store all data that is not put to fields
                     if (!Map.class.isAssignableFrom(fld.getType())) {
-                        log.error("Could not unmarshall additional data into fld of type " + fld.getType().toString());
+                        log.error("Could not deserialize additional data into fld of type " + fld.getType().toString());
                         continue;
                     }
                     Set<String> keys = o.keySet();
@@ -614,7 +614,7 @@ public class ObjectMapperImpl implements ObjectMapper {
 
                         if (o.get(k) instanceof Map) {
                             if (((Map<String, Object>) o.get(k)).get("class_name") != null) {
-                                data.put(k, unmarshall(Class.forName((String) ((Map<String, Object>) o.get(k)).get("class_name")), (Map<String, Object>) o.get(k)));
+                                data.put(k, deserialize(Class.forName((String) ((Map<String, Object>) o.get(k)).get("class_name")), (Map<String, Object>) o.get(k)));
                             } else {
                                 data.put(k, createMap((Map<String, Object>) o.get(k)));
                             }
@@ -652,7 +652,7 @@ public class ObjectMapperImpl implements ObjectMapper {
                                     r = null;
                                 } else {
                                     Map<String, Object> ref = (Map<String, Object>) e.getValue();
-                                    r = unmarshall(MorphiumReference.class, ref);
+                                    r = deserialize(MorphiumReference.class, ref);
                                     id = r.getId();
                                 }
                                 String collectionName = null;
@@ -699,7 +699,7 @@ public class ObjectMapperImpl implements ObjectMapper {
                                 id = valueFromDb;
                             } else {
                                 Map<String, Object> ref = (Map<String, Object>) valueFromDb;
-                                r = unmarshall(MorphiumReference.class, ref);
+                                r = deserialize(MorphiumReference.class, ref);
                                 id = r.getId();
                             }
                             String collection = getCollectionName(fld.getType());
@@ -757,7 +757,7 @@ public class ObjectMapperImpl implements ObjectMapper {
                     }
                 } else if (annotationHelper.isAnnotationPresentInHierarchy(fld.getType(), Entity.class) || annotationHelper.isAnnotationPresentInHierarchy(fld.getType(), Embedded.class)) {
                     //entity! embedded
-                    value = unmarshall(fld.getType(), (HashMap<String, Object>) valueFromDb);
+                    value = deserialize(fld.getType(), (HashMap<String, Object>) valueFromDb);
                     //                    List lst = new ArrayList<Object>();
                     //                    lst.add(value);
                     //                    morphium.firePostLoad(lst);
@@ -989,7 +989,7 @@ public class ObjectMapperImpl implements ObjectMapper {
                 }
                 try {
                     Class ecls = Class.forName(cn);
-                    Object obj = unmarshall(ecls, mapVal);
+                    Object obj = deserialize(ecls, mapVal);
                     if (obj != null) {
                         return obj;
                     }
@@ -1035,7 +1035,7 @@ public class ObjectMapperImpl implements ObjectMapper {
                     continue;
                 }
 
-                MorphiumReference r = unmarshall(MorphiumReference.class, obj);
+                MorphiumReference r = deserialize(MorphiumReference.class, obj);
                 Class type;
                 try {
                     type = Class.forName(r.getClassName());
@@ -1071,7 +1071,7 @@ public class ObjectMapperImpl implements ObjectMapper {
                     }
                     try {
                         Class ecls = Class.forName(cn);
-                        Object um = unmarshall(ecls, (Map<String, Object>) val);
+                        Object um = deserialize(ecls, (Map<String, Object>) val);
                         if (um != null) {
                             toFillIn.add(um);
                         }
@@ -1093,7 +1093,7 @@ public class ObjectMapperImpl implements ObjectMapper {
                         Entity entity = annotationHelper.getAnnotationFromHierarchy(cls, Entity.class); //(Entity) sc.getAnnotation(Entity.class);
                         Embedded embedded = annotationHelper.getAnnotationFromHierarchy(cls, Embedded.class);//(Embedded) sc.getAnnotation(Embedded.class);
                         if (entity != null || embedded != null) {
-                            toFillIn.add(unmarshall(cls, (Map<String, Object>) val));
+                            toFillIn.add(deserialize(cls, (Map<String, Object>) val));
                             continue;
                         }
                     }
@@ -1181,7 +1181,7 @@ public class ObjectMapperImpl implements ObjectMapper {
                         Entity entity = annotationHelper.getAnnotationFromHierarchy(cls, Entity.class); //(Entity) sc.getAnnotation(Entity.class);
                         Embedded embedded = annotationHelper.getAnnotationFromHierarchy(cls, Embedded.class);//(Embedded) sc.getAnnotation(Embedded.class);
                         if (entity != null || embedded != null) {
-                            toFillIn.put(key, unmarshall(cls, (Map<String, Object>) val));
+                            toFillIn.put(key, deserialize(cls, (Map<String, Object>) val));
                             continue;
                         }
                     }

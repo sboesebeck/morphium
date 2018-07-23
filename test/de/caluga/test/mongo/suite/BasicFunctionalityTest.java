@@ -738,7 +738,7 @@ public class BasicFunctionalityTest extends MongoTest {
         c.idMap = new HashMap<>();
         c.idMap.put("1", new MorphiumId());
 
-        Map<String, Object> marshall = morphium.getMapper().marshall(c);
+        Map<String, Object> marshall = morphium.getMapper().serialize(c);
         assert (marshall.get("simple_id") instanceof MorphiumId);
         assert (((Map) marshall.get("id_map")).get("1") instanceof MorphiumId);
         for (Object i : (List) marshall.get("others")) {
@@ -747,7 +747,7 @@ public class BasicFunctionalityTest extends MongoTest {
 
         ///
 
-        c = morphium.getMapper().unmarshall(ListOfIdsContainer.class, marshall);
+        c = morphium.getMapper().deserialize(ListOfIdsContainer.class, marshall);
         assert (c.idMap != null && c.idMap.get("1") != null && c.idMap.get("1") instanceof MorphiumId);
         assert (c.others.size() == 4 && c.others.get(0) instanceof MorphiumId);
         assert (c.simpleId != null);
