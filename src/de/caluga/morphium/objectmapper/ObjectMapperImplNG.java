@@ -1,5 +1,6 @@
 package de.caluga.morphium.objectmapper;
 
+import com.fasterxml.jackson.databind.JsonSerializer;
 import de.caluga.morphium.AnnotationAndReflectionHelper;
 import de.caluga.morphium.Morphium;
 import de.caluga.morphium.NameProvider;
@@ -31,13 +32,9 @@ public class ObjectMapperImplNG implements ObjectMapper {
     private final ContainerFactory containerFactory;
     private final JSONParser jsonParser = new JSONParser();
 
-
-    private boolean ignoreReadOnly = false;
-    private boolean ignoreEntity = false;
-
     private Logger log = LoggerFactory.getLogger(ObjectMapperImplNG.class);
-    private MarshallHelper marshaller;
-    private UnmarshallHelper unmarshaller;
+    private MorphiumSerializer marshaller;
+    private MorphiumDeserializer unmarshaller;
 
     public ObjectMapperImplNG() {
         nameProviderByClass = new ConcurrentHashMap<>();
@@ -57,17 +54,17 @@ public class ObjectMapperImplNG implements ObjectMapper {
         anhelper = new AnnotationAndReflectionHelper(true); //default
     }
 
-    public MarshallHelper getMarshaller() {
+    public MorphiumSerializer getSerializer() {
         if (marshaller == null) {
-            marshaller = new MarshallHelper(anhelper, nameProviderByClass, morphium, this);
+            marshaller = new MorphiumSerializer(anhelper, nameProviderByClass, morphium, this);
         }
         return marshaller;
     }
 
 
-    public UnmarshallHelper getUnmarshaller() {
+    public MorphiumDeserializer getDeserializer() {
         if (unmarshaller == null) {
-            unmarshaller = new UnmarshallHelper(anhelper, nameProviderByClass, morphium, this);
+            unmarshaller = new MorphiumDeserializer(anhelper, nameProviderByClass, morphium, this);
         }
         return unmarshaller;
     }
@@ -75,31 +72,31 @@ public class ObjectMapperImplNG implements ObjectMapper {
 
 
     @Override
-    public Map<String, Object> marshall(Object o) {
-        return getMarshaller().marshall(o);
+    public Map<String, Object> serialize(Object o) {
+        return getSerializer().serialize(o);
     }
 
     @Override
     public String getCollectionName(Class cls) {
-        return getMarshaller().getCollectionName(cls);
+        return getSerializer().getCollectionName(cls);
     }
 
     @Override
     public Object marshallIfNecessary(Object o) {
-        return getMarshaller().marshallIfNecessary(o);
+        throw new RuntimeException();
     }
 
 
     @Override
-    public <T> T unmarshall(Class<? extends T> theClass, Map<String, Object> o) {
-        return getUnmarshaller().unmarshall(theClass, o);
+    public <T> T deserialize(Class<? extends T> theClass, Map<String, Object> o) {
+        return getDeserializer().unmarshall(theClass, o);
     }
 
     @Override
-    public <T> T unmarshall(Class<? extends T> cls, String json) throws ParseException {
+    public <T> T deserialize(Class<? extends T> cls, String json) throws ParseException {
 
         HashMap<String, Object> obj = (HashMap<String, Object>) jsonParser.parse(json, containerFactory);
-        return getUnmarshaller().unmarshall(cls, obj);
+        return getDeserializer().unmarshall(cls, obj);
 
     }
 
@@ -121,6 +118,14 @@ public class ObjectMapperImplNG implements ObjectMapper {
         } else {
             anhelper = new AnnotationAndReflectionHelper(true);
         }
+    }
+
+    public <T> void registerCustomTypeMapper(Class<T> cls, JsonSerializer<T> serializer) {
+        getSerializer().registerTypeMapper(cls, serializer);
+    }
+
+    public <T> void deregisterCustomTypeMapperFor(Class<T> cls) {
+        getSerializer().deregisterTypeMapperFor(cls);
     }
 
     @Override

@@ -110,7 +110,7 @@ public class ChangeStreamMonitor implements Runnable, ShutdownListener {
                     }
                     Map<String, Object> obj = (Map<String, Object>) data.get("fullDocument");
                     data.put("fullDocument", null);
-                    ChangeStreamEvent evt = mapper.unmarshall(ChangeStreamEvent.class, data);
+                    ChangeStreamEvent evt = mapper.deserialize(ChangeStreamEvent.class, data);
 
                     evt.setFullDocument(obj);
                     for (ChangeStreamListener lst : listeners) {

@@ -197,7 +197,7 @@ public class PrefetchingDriverIterator<T> implements MorphiumIterator<T> {
             return ret;
         }
         for (Map<String, Object> obj : batch) {
-            T unmarshall = query.getMorphium().getMapper().unmarshall(query.getType(), obj);
+            T unmarshall = query.getMorphium().getMapper().deserialize(query.getType(), obj);
 
             ret.add(unmarshall);
         }

@@ -29,9 +29,9 @@ public class ObjectMapperTest extends MongoTest {
         morphium.dropCollection(BIObject.class);
         ObjectMapper om = morphium.getMapper();
         BigInteger tst = new BigInteger("affedeadbeefaffedeadbeef42", 16);
-        Map<String, Object> d = om.marshall(tst);
+        Map<String, Object> d = om.serialize(tst);
 
-        BigInteger bi = om.unmarshall(BigInteger.class, d);
+        BigInteger bi = om.deserialize(BigInteger.class, d);
         assert (bi != null);
         assert (tst.equals(bi));
 
@@ -50,7 +50,7 @@ public class ObjectMapperTest extends MongoTest {
     public void simpleParseFromStringTest() throws Exception {
         String json = "{ \"value\":\"test\",\"counter\":123}";
         ObjectMapper om = morphium.getMapper();
-        UncachedObject uc = om.unmarshall(UncachedObject.class, json);
+        UncachedObject uc = om.deserialize(UncachedObject.class, json);
         assert (uc.getCounter() == 123);
     }
 
@@ -61,8 +61,8 @@ public class ObjectMapperTest extends MongoTest {
         o.setValue("A test");
         o.setLongData(new long[]{1, 23, 4L, 5L});
         o.setCounter(1234);
-        Map<String, Object> dbo = om.marshall(o);
-        UncachedObject uc = om.unmarshall(UncachedObject.class, dbo);
+        Map<String, Object> dbo = om.serialize(o);
+        UncachedObject uc = om.deserialize(UncachedObject.class, dbo);
         assert (uc.getCounter() == 1234);
         assert (uc.getLongData()[0] == 1);
     }
@@ -77,8 +77,8 @@ public class ObjectMapperTest extends MongoTest {
         o.addString("string2");
         o.addString("string3");
         o.addString("string4");
-        Map<String, Object> dbo = om.marshall(o);
-        ListContainer uc = om.unmarshall(ListContainer.class, dbo);
+        Map<String, Object> dbo = om.serialize(o);
+        ListContainer uc = om.deserialize(ListContainer.class, dbo);
         assert (uc.getStringList().size() == 4);
         assert (uc.getStringList().get(0).equals("string1"));
         assert (uc.getLongList().size() == 1);
@@ -145,7 +145,7 @@ public class ObjectMapperTest extends MongoTest {
         UncachedObject o = new UncachedObject();
         o.setCounter(12345);
         o.setValue("This \" is $ test");
-        Map<String, Object> dbo = om.marshall(o);
+        Map<String, Object> dbo = om.serialize(o);
 
         String s = Utils.toJsonString(dbo);
         System.out.println("Marshalling was: " + s);
@@ -158,7 +158,7 @@ public class ObjectMapperTest extends MongoTest {
         Map<String, Object> dbo = new HashMap<>();
         dbo.put("counter", 12345);
         dbo.put("value", "A test");
-        om.unmarshall(UncachedObject.class, dbo);
+        om.deserialize(UncachedObject.class, dbo);
     }
 
     @Test
@@ -232,13 +232,13 @@ public class ObjectMapperTest extends MongoTest {
         co.setRef(o);
         co.setId(new MorphiumId());
         String st = Utils.toJsonString(co);
-        System.out.println("Referenced object: " + Utils.toJsonString(om.marshall(o)));
-        Map<String, Object> marshall = om.marshall(co);
+        System.out.println("Referenced object: " + Utils.toJsonString(om.serialize(o)));
+        Map<String, Object> marshall = om.serialize(co);
         System.out.println("Complex object: " + Utils.toJsonString(marshall));
 
 
         //Unmarshalling stuff
-        co = om.unmarshall(ComplexObject.class, marshall);
+        co = om.deserialize(ComplexObject.class, marshall);
         assert (co.getEntityEmbeded().getMorphiumId() == null) : "Embeded entity got a mongoID?!?!?!";
         co.getEntityEmbeded().setMorphiumId(embedId);  //need to set ID manually, as it won't be stored!
         String st2 = Utils.toJsonString(co);
@@ -255,11 +255,11 @@ public class ObjectMapperTest extends MongoTest {
         o.setTrans("TRANSIENT");
         Map<String, Object> obj = null;
         try {
-            obj = om.marshall(o);
+            obj = om.serialize(o);
         } catch (IllegalArgumentException e) {
         }
         o.setEinText("Ein Text");
-        obj = om.marshall(o);
+        obj = om.serialize(o);
         assert (!obj.containsKey("trans")) : "Transient field used?!?!?";
     }
 
@@ -275,12 +275,12 @@ public class ObjectMapperTest extends MongoTest {
         o.setName("Simple List");
 
         ObjectMapper om = morphium.getMapper();
-        Map<String, Object> marshall = om.marshall(o);
+        Map<String, Object> marshall = om.serialize(o);
         String m = marshall.toString();
 
         assert (m.equals("{list_value=[A Value, 27.0, {dval=0.0, counter=0, class_name=de.caluga.test.mongo.suite.data.UncachedObject}], name=Simple List}")) : "Marshall not ok: " + m;
 
-        MapListObject mo = om.unmarshall(MapListObject.class, marshall);
+        MapListObject mo = om.deserialize(MapListObject.class, marshall);
         System.out.println("Mo: " + mo.getName());
         System.out.println("lst: " + mo.getListValue());
         assert (mo.getName().equals(o.getName())) : "Names not equal?!?!?";
@@ -308,12 +308,12 @@ public class ObjectMapperTest extends MongoTest {
         o.setName("A map-value");
 
         ObjectMapper om = morphium.getMapper();
-        Map<String, Object> marshall = om.marshall(o);
+        Map<String, Object> marshall = om.serialize(o);
         String m = Utils.toJsonString(marshall);
         System.out.println("Marshalled object: " + m);
         assert (m.equals("{ \"map_value\" : { \"Entity\" : { \"dval\" : 0.0, \"counter\" : 0, \"class_name\" : \"de.caluga.test.mongo.suite.data.UncachedObject\" } , \"a primitive value\" : 42, \"null\" :  null, \"double\" : 42.0, \"a_string\" : \"This is a string\" } , \"name\" : \"A map-value\" } ")) : "Value not marshalled coorectly";
 
-        MapListObject mo = om.unmarshall(MapListObject.class, marshall);
+        MapListObject mo = om.deserialize(MapListObject.class, marshall);
         assert (mo.getName().equals("A map-value")) : "Name error";
         assert (mo.getMapValue() != null) : "map value is null????";
         for (String k : mo.getMapValue().keySet()) {
@@ -344,7 +344,7 @@ public class ObjectMapperTest extends MongoTest {
             log.info("--------------  Running with " + om.getClass().getName());
             long start = System.currentTimeMillis();
             for (int i = 0; i < 25000; i++) {
-                marshall = om.marshall(o);
+                marshall = om.serialize(o);
             }
             long dur = System.currentTimeMillis() - start;
 
@@ -352,7 +352,7 @@ public class ObjectMapperTest extends MongoTest {
             assert (dur < 5000);
             start = System.currentTimeMillis();
             for (int i = 0; i < 25000; i++) {
-                UncachedObject uc = om.unmarshall(UncachedObject.class, marshall);
+                UncachedObject uc = om.deserialize(UncachedObject.class, marshall);
             }
             dur = System.currentTimeMillis() - start;
             log.info("De-Marshalling of UncachedObject 25000 times took " + dur + "ms");
@@ -378,7 +378,7 @@ public class ObjectMapperTest extends MongoTest {
             log.info("----------------------- Runing with " + om.getClass().getName());
             long start = System.currentTimeMillis();
             for (int i = 0; i < 25000; i++) {
-                marshall = om.marshall(o);
+                marshall = om.serialize(o);
             }
             long dur = System.currentTimeMillis() - start;
 
@@ -386,7 +386,7 @@ public class ObjectMapperTest extends MongoTest {
             assert (dur < 1000);
             start = System.currentTimeMillis();
             for (int i = 0; i < 25000; i++) {
-                CachedObject c = om.unmarshall(CachedObject.class, marshall);
+                CachedObject c = om.deserialize(CachedObject.class, marshall);
             }
             dur = System.currentTimeMillis() - start;
             log.info("De-Marshalling of CachedObject 25000 times took " + dur + "ms");
@@ -398,7 +398,7 @@ public class ObjectMapperTest extends MongoTest {
     @Test
     public void rsStatusTest() throws Exception {
         String json = "{ \"settings\" : { \"heartbeatTimeoutSecs\" : 10, \"catchUpTimeoutMillis\" : -1, \"catchUpTakeoverDelayMillis\" : 30000, \"getLastErrorModes\" : {  } , \"getLastErrorDefaults\" : { \"wtimeout\" : 0, \"w\" : 1 } , \"electionTimeoutMillis\" : 10000, \"chainingAllowed\" : true, \"replicaSetId\" : \"5adba61c986af770bb25454e\", \"heartbeatIntervalMillis\" : 2000 } , \"members\" :  [ { \"hidden\" : false, \"buildIndexes\" : true, \"arbiterOnly\" : false, \"host\" : \"localhost:27017\", \"slaveDelay\" : 0, \"votes\" : 1, \"_id\" : 0, \"priority\" : 10.0, \"tags\" : {  }  } , { \"hidden\" : false, \"buildIndexes\" : true, \"arbiterOnly\" : false, \"host\" : \"localhost:27018\", \"slaveDelay\" : 0, \"votes\" : 1, \"_id\" : 1, \"priority\" : 5.0, \"tags\" : {  }  } , { \"hidden\" : false, \"buildIndexes\" : true, \"arbiterOnly\" : true, \"host\" : \"localhost:27019\", \"slaveDelay\" : 0, \"votes\" : 1, \"_id\" : 2, \"priority\" : 0.0, \"tags\" : {  }  } ], \"protocolVersion\" : 1, \"_id\" : \"tst\", \"version\" : 1 } ";
-        ReplicaSetConf c = morphium.getMapper().unmarshall(ReplicaSetConf.class, json);
+        ReplicaSetConf c = morphium.getMapper().deserialize(ReplicaSetConf.class, json);
         assert (c != null);
         assert (c.getMembers().size() == 3);
     }
@@ -409,10 +409,10 @@ public class ObjectMapperTest extends MongoTest {
         co.setEmbeddedObjectList(new ArrayList<>());
         co.getEmbeddedObjectList().add(new EmbeddedObject("name", "test", System.currentTimeMillis()));
         co.getEmbeddedObjectList().add(new EmbeddedObject("name2", "test2", System.currentTimeMillis()));
-        Map<String, Object> obj = morphium.getMapper().marshall(co);
+        Map<String, Object> obj = morphium.getMapper().serialize(co);
         assert (obj.get("embeddedObjectList") != null);
         assert (((List) obj.get("embeddedObjectList")).size() == 2);
-        ComplexObject co2 = morphium.getMapper().unmarshall(ComplexObject.class, obj);
+        ComplexObject co2 = morphium.getMapper().deserialize(ComplexObject.class, obj);
         assert (co2.getEmbeddedObjectList().size() == 2);
         assert (co2.getEmbeddedObjectList().get(0).getName() != null);
 
@@ -446,7 +446,7 @@ public class ObjectMapperTest extends MongoTest {
             log.info("Runing with " + om.getClass().getName());
             long start = System.currentTimeMillis();
             for (int i = 0; i < 25000; i++) {
-                marshall = om.marshall(o);
+                marshall = om.serialize(o);
             }
             long dur = System.currentTimeMillis() - start;
 
@@ -454,7 +454,7 @@ public class ObjectMapperTest extends MongoTest {
             assert (dur < 1000);
             start = System.currentTimeMillis();
             for (int i = 0; i < 25000; i++) {
-                ComplexObject co = om.unmarshall(ComplexObject.class, marshall);
+                ComplexObject co = om.deserialize(ComplexObject.class, marshall);
             }
             dur = System.currentTimeMillis() - start;
             log.info("De-Marshalling of ComplexObject 25000 times took " + dur + "ms");
@@ -498,7 +498,7 @@ public class ObjectMapperTest extends MongoTest {
             log.info("-------------  Running with Mapper " + om.getClass().getName());
             long start = System.currentTimeMillis();
             for (int i = 0; i < 25000; i++) {
-                marshall = om.marshall(o);
+                marshall = om.serialize(o);
             }
             long dur = System.currentTimeMillis() - start;
             if (dur > 2000) {
@@ -510,7 +510,7 @@ public class ObjectMapperTest extends MongoTest {
             assert (dur < 5000);
             start = System.currentTimeMillis();
             for (int i = 0; i < 25000; i++) {
-                ComplexObject co = om.unmarshall(ComplexObject.class, marshall);
+                ComplexObject co = om.deserialize(ComplexObject.class, marshall);
             }
             dur = System.currentTimeMillis() - start;
             log.info("De-Marshalling of ComplexObject with uncached references 25000 times took " + dur + "ms");
@@ -525,7 +525,7 @@ public class ObjectMapperTest extends MongoTest {
         UncachedObject o = new UncachedObject();
         o.setBinaryData(new byte[]{1, 2, 3, 4, 5, 5});
 
-        Map<String, Object> obj = morphium.getMapper().marshall(o);
+        Map<String, Object> obj = morphium.getMapper().serialize(o);
         assert (obj.get("binary_data") != null);
         assert (obj.get("binary_data").getClass().isArray());
         assert (obj.get("binary_data").getClass().getComponentType().equals(byte.class));
@@ -565,7 +565,7 @@ public class ObjectMapperTest extends MongoTest {
             log.info("-------- running test with " + om.getClass().getName());
             long start = System.currentTimeMillis();
             for (int i = 0; i < 25000; i++) {
-                marshall = om.marshall(o);
+                marshall = om.serialize(o);
             }
             long dur = System.currentTimeMillis() - start;
             if (dur > 2000) {
@@ -576,7 +576,7 @@ public class ObjectMapperTest extends MongoTest {
             assert (dur < 5000);
             start = System.currentTimeMillis();
             for (int i = 0; i < 25000; i++) {
-                ComplexObject co = om.unmarshall(ComplexObject.class, marshall);
+                ComplexObject co = om.deserialize(ComplexObject.class, marshall);
             }
             dur = System.currentTimeMillis() - start;
             log.info("De-Marshalling of ComplexObject with cached references 25000 times took " + dur + "ms");
@@ -589,10 +589,10 @@ public class ObjectMapperTest extends MongoTest {
     @Test
     public void noDefaultConstructorTest() throws Exception {
         NoDefaultConstructorUncachedObject o = new NoDefaultConstructorUncachedObject("test", 15);
-        String serialized = Utils.toJsonString(morphium.getMapper().marshall(o));
+        String serialized = Utils.toJsonString(morphium.getMapper().serialize(o));
         log.info("Serialized... " + serialized);
 
-        o = morphium.getMapper().unmarshall(NoDefaultConstructorUncachedObject.class, serialized);
+        o = morphium.getMapper().deserialize(NoDefaultConstructorUncachedObject.class, serialized);
         assert (o != null);
         assert (o.getCounter() == 15);
         assert (o.getValue().equals("test"));
@@ -608,8 +608,8 @@ public class ObjectMapperTest extends MongoTest {
         o.aMap.put("test", "test");
         o.uc = new NoDefaultConstructorUncachedObject("v", 123);
 
-        Map<String, Object> dbo = m.marshall(o);
-        o = m.unmarshall(MappedObject.class, Utils.toJsonString(dbo));
+        Map<String, Object> dbo = m.serialize(o);
+        o = m.deserialize(MappedObject.class, Utils.toJsonString(dbo));
 
         assert (o.aMap.get("test") != null);
     }
@@ -635,7 +635,7 @@ public class ObjectMapperTest extends MongoTest {
             wc.setEmbeddedObjectList(new ArrayList<>());
             ((List<EmbeddedObject>) wc.getEmbeddedObjectList()).add(new EmbeddedObject("test", "value", 12344));
             ((List<EmbeddedObject>) wc.getEmbeddedObjectList()).add(new EmbeddedObject("test", "value", 12344));
-            Map<String, Object> obj = map.marshall(wc);
+            Map<String, Object> obj = map.serialize(wc);
             assert (obj != null);
         }
     }
@@ -657,19 +657,19 @@ public class ObjectMapperTest extends MongoTest {
             lst.list.add(new EmbeddedObject("nam", "val", System.currentTimeMillis()));
             lst.list.add(new EmbeddedObject("nam", "val", System.currentTimeMillis()));
 
-            Map<String, Object> obj = map.marshall(lst);
+            Map<String, Object> obj = map.serialize(lst);
             assert (obj.get("list") != null);
             assert (obj.get("list") instanceof List);
             assert (((List) obj.get("list")).get(0) instanceof Map);
 
-            ListOfEmbedded lst2 = map.unmarshall(ListOfEmbedded.class, obj);
+            ListOfEmbedded lst2 = map.deserialize(ListOfEmbedded.class, obj);
             assert (lst2.list != null);
             assert (lst2.list.size() == 4);
             assert (lst2.list.get(0).getName().equals("nam"));
 
             ((Map) ((List) obj.get("list")).get(0)).remove("class_name");
 
-            lst2 = map.unmarshall(ListOfEmbedded.class, obj);
+            lst2 = map.deserialize(ListOfEmbedded.class, obj);
             assert (lst2.list.get(0) instanceof EmbeddedObject);
         }
     }
@@ -686,7 +686,7 @@ public class ObjectMapperTest extends MongoTest {
             UncachedObject uc = new UncachedObject("value", 123);
             uc.setMorphiumId(new MorphiumId());
             uc.setLongData(new long[]{1l, 2l});
-            Map<String, Object> obj = map.marshall(uc);
+            Map<String, Object> obj = map.serialize(uc);
 
             assert (obj.get("value") != null);
             assert (obj.get("value") instanceof String);
@@ -699,7 +699,7 @@ public class ObjectMapperTest extends MongoTest {
             mo.aMap = new HashMap<>();
             mo.aMap.put("Test", "value1");
             mo.aMap.put("test2", "value2");
-            obj = map.marshall(mo);
+            obj = map.serialize(mo);
             assert (obj.get("uc") != null);
             assert (((Map) obj.get("uc")).get("_id") == null);
 
@@ -708,7 +708,7 @@ public class ObjectMapperTest extends MongoTest {
             bo.value = "biVal";
             bo.biValue = new BigInteger("123afd33", 16);
 
-            obj = map.marshall(bo);
+            obj = map.serialize(bo);
             assert (obj.get("_id") instanceof ObjectId || obj.get("_id") instanceof String || obj.get("_id") instanceof MorphiumId);
             assert (obj.get("bi_value") instanceof Map);
 
@@ -720,13 +720,13 @@ public class ObjectMapperTest extends MongoTest {
             lst.list.get(0).add(new ArrayList<>());
             lst.list.get(0).get(0).add("TEst1");
 
-            obj = map.marshall(lst);
+            obj = map.serialize(lst);
             assert (obj.get("list") instanceof List);
             assert (((List) obj.get("list")).get(0) instanceof List);
             assert (((List) ((List) obj.get("list")).get(0)).get(0) instanceof List);
             assert (((List) ((List) ((List) obj.get("list")).get(0)).get(0)).get(0) instanceof String);
 
-            ListOfListOfListOfString lst2 = map.unmarshall(ListOfListOfListOfString.class, obj);
+            ListOfListOfListOfString lst2 = map.deserialize(ListOfListOfListOfString.class, obj);
             assert (lst2.list.size() == 2);
             assert (lst2.list.get(0).size() == 1);
             assert (lst2.list.get(0).get(0).size() == 1);
@@ -739,13 +739,13 @@ public class ObjectMapperTest extends MongoTest {
             lst3.list.get(0).add(new ArrayList<>());
             lst3.list.get(0).get(0).add(new UncachedObject("test", 123));
 
-            obj = map.marshall(lst3);
+            obj = map.serialize(lst3);
             assert (obj.get("list") instanceof List);
             assert (((List) obj.get("list")).get(0) instanceof List);
             assert (((List) ((List) obj.get("list")).get(0)).get(0) instanceof List);
             assert (((List) ((List) ((List) obj.get("list")).get(0)).get(0)).get(0) instanceof Map);
 
-            ListOfListOfListOfUncached lst4 = map.unmarshall(ListOfListOfListOfUncached.class, obj);
+            ListOfListOfListOfUncached lst4 = map.deserialize(ListOfListOfListOfUncached.class, obj);
             assert (lst4.list.size() == 2);
             assert (lst4.list.get(0).size() == 1);
             assert (lst4.list.get(0).get(0).size() == 1);
@@ -757,13 +757,13 @@ public class ObjectMapperTest extends MongoTest {
             lst5.list.add(new HashMap<>());
             lst5.list.get(0).put("tst1", new ArrayList<>());
             lst5.list.get(0).get("tst1").add("test");
-            obj = map.marshall(lst5);
+            obj = map.serialize(lst5);
             assert (obj.get("list") instanceof List);
             assert (((List) obj.get("list")).get(0) instanceof Map);
             assert (((Map) ((List) obj.get("list")).get(0)).get("tst1") instanceof List);
             assert (((List) ((Map) ((List) obj.get("list")).get(0)).get("tst1")).get(0) instanceof String);
 
-            ListOfMapOfListOfString lst6 = map.unmarshall(ListOfMapOfListOfString.class, obj);
+            ListOfMapOfListOfString lst6 = map.deserialize(ListOfMapOfListOfString.class, obj);
             assert (lst6.list.size() == 2);
             assert (lst6.list.get(0) != null);
             assert (lst6.list.get(0).get("tst1") != null);
@@ -785,16 +785,16 @@ public class ObjectMapperTest extends MongoTest {
         e.lst.add(TestEnum.v1);
 
 
-        Map<String, Object> obj = morphium.getMapper().marshall(e);
+        Map<String, Object> obj = morphium.getMapper().serialize(e);
         assert (obj.get("an_enum") != null);
 
         ObjectMapperImplNG map = new ObjectMapperImplNG();
         map.setMorphium(morphium);
         map.setAnnotationHelper(morphium.getARHelper());
-        Map<String, Object> obj2 = map.marshall(e);
+        Map<String, Object> obj2 = map.serialize(e);
         assert (obj2.get("an_enum") != null);
 
-        EnumTest e2 = map.unmarshall(EnumTest.class, obj2);
+        EnumTest e2 = map.deserialize(EnumTest.class, obj2);
         assert (e2 != null);
         assert (e2.equals(e));
     }

@@ -22,10 +22,10 @@ public class NonEntitySerialization extends MongoTest {
         ne.setInteger(42);
         ne.setValue("Thank you for the fish");
 
-        Map<String, Object> obj = morphium.getMapper().marshall(ne);
+        Map<String, Object> obj = morphium.getMapper().serialize(ne);
         log.info(obj.toString());
 
-        NonEntity ne2 = morphium.getMapper().unmarshall(NonEntity.class, obj);
+        NonEntity ne2 = morphium.getMapper().deserialize(NonEntity.class, obj);
         assert (ne2.getInteger() == 42);
         log.info("Successful read:" + ne2.toString());
     }
@@ -41,9 +41,9 @@ public class NonEntitySerialization extends MongoTest {
         nc.getList().add(ne);
         nc.getList().add("Some string");
 
-        Map<String, Object> obj = morphium.getMapper().marshall(nc);
+        Map<String, Object> obj = morphium.getMapper().serialize(nc);
 
-        NonEntityContainer nc2 = morphium.getMapper().unmarshall(NonEntityContainer.class, obj);
+        NonEntityContainer nc2 = morphium.getMapper().deserialize(NonEntityContainer.class, obj);
         assert (nc2.getList().get(0) != null);
         NonEntity ne2 = (NonEntity) nc2.getList().get(0);
         assert (ne2.getInteger() == 42);
@@ -75,9 +75,9 @@ public class NonEntitySerialization extends MongoTest {
         nc.getMap().put("String", "The question is...");
 
 
-        Map<String, Object> obj = morphium.getMapper().marshall(nc);
+        Map<String, Object> obj = morphium.getMapper().serialize(nc);
 
-        NonEntityContainer nc2 = morphium.getMapper().unmarshall(NonEntityContainer.class, obj);
+        NonEntityContainer nc2 = morphium.getMapper().deserialize(NonEntityContainer.class, obj);
         assert (nc2.getMap().get("Serialized") != null);
         NonEntity ne2 = (NonEntity) nc2.getMap().get("Serialized");
         assert (ne2.getInteger() == 42);

@@ -226,7 +226,7 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
             throw new RuntimeException(e);
         }
         for (Map<String, Object> in : obj) {
-            T unmarshall = morphium.getMapper().unmarshall(type, in);
+            T unmarshall = morphium.getMapper().deserialize(type, in);
             if (unmarshall != null) {
                 ret.add(unmarshall);
             }
@@ -675,7 +675,7 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
 
 
             for (Map<String, Object> o : query) {
-                T unmarshall = morphium.getMapper().unmarshall(type, o);
+                T unmarshall = morphium.getMapper().deserialize(type, o);
                 if (unmarshall != null) {
                     ret.add(unmarshall);
                     updateLastAccess(unmarshall);
@@ -793,10 +793,10 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
 
             //Storing access timestamps
             //            List<T> l=new ArrayList<T>();
-            //            l.add(unmarshall);
-            //            morphium.getWriterForClass(unmarshall.getClass()).store(l,null);
+            //            l.add(deserialize);
+            //            morphium.getWriterForClass(deserialize.getClass()).store(l,null);
 
-            //            morphium.store(unmarshall);
+            //            morphium.store(deserialize);
         }
     }
 
@@ -899,7 +899,7 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
         morphium.fireProfilingReadEvent(this, dur, ReadAccessType.GET);
 
         if (ret != null) {
-            T unmarshall = morphium.getMapper().unmarshall(type, ret);
+            T unmarshall = morphium.getMapper().deserialize(type, ret);
             if (unmarshall != null) {
                 morphium.firePostLoadEvent(unmarshall);
                 updateLastAccess(unmarshall);
@@ -1129,7 +1129,7 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
         List<T> ret = new ArrayList<>();
         for (Object o : lst) {
             @SuppressWarnings("unchecked") Map<String, Object> obj = (Map<String, Object>) o;
-            T unmarshall = morphium.getMapper().unmarshall(getType(), obj);
+            T unmarshall = morphium.getMapper().deserialize(getType(), obj);
             if (unmarshall != null) {
                 ret.add(unmarshall);
             }
@@ -1219,7 +1219,7 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
     public void tail(int batchSize, int maxWait, AsyncOperationCallback<T> cb) {
         try {
             morphium.getDriver().tailableIteration(getDB(), getCollectionName(), toQueryObject(), getSort(), fieldList, getSkip(), getLimit(), batchSize, getRP(), maxWait, (data, dur) -> {
-                        T entity = morphium.getMapper().unmarshall(getType(), data);
+                T entity = morphium.getMapper().deserialize(getType(), data);
                         try {
                             cb.onOperationSucceeded(AsyncOperationType.READ, QueryImpl.this, dur, null, entity);
                         } catch (MorphiumAccessVetoException ex) {
