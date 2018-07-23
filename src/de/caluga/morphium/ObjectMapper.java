@@ -17,8 +17,6 @@ public interface ObjectMapper {
 
     Object marshallIfNecessary(Object o);
 
-    void registerCustomTypeMapper(Class c, TypeMapper m);
-
     Map<String, Object> marshall(Object o);
 
     <T> T unmarshall(Class<? extends T> cls, Map<String, Object> o);
@@ -49,5 +47,4 @@ public interface ObjectMapper {
     Morphium getMorphium();
 
 
-    void deregisterTypeMapper(Class c);
 }

@@ -3,9 +3,6 @@ package de.caluga.test.mongo.suite.data;
 import de.caluga.morphium.annotations.*;
 import de.caluga.morphium.annotations.caching.NoCache;
 import de.caluga.morphium.driver.MorphiumId;
-import de.caluga.test.mongo.suite.data.CachedObject;
-import de.caluga.test.mongo.suite.data.EmbeddedObject;
-import de.caluga.test.mongo.suite.data.UncachedObject;
 
 import java.util.List;
 
@@ -88,6 +85,7 @@ public class ComplexObject {
     }
 
     public long getChanged() {
+        if (changed == null) return 0;
         return changed;
     }
 
@@ -96,6 +94,7 @@ public class ComplexObject {
     }
 
     public long getLastAccess() {
+        if (lastAccess == null) return 0;
         return lastAccess;
     }
 
