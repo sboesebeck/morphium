@@ -199,7 +199,7 @@ public class Messaging extends Thread implements ShutdownListener {
                 if (data.get("op").equals("i")) {
                     //insert => new Message
 //                        log.debug("New message incoming");
-                    Msg obj = morphium.getMapper().unmarshall(Msg.class, (Map<String, Object>) data.get("o"));
+                    Msg obj = morphium.getMapper().deserialize(Msg.class, (Map<String, Object>) data.get("o"));
                     if (obj.getSender().equals(id) || (obj.getProcessedBy() != null && obj.getProcessedBy().contains(id)) || (obj.getRecipient() != null && !obj.getRecipient().equals(id))) {
                         //ignoring my own messages
                         return;
@@ -314,7 +314,7 @@ public class Messaging extends Thread implements ShutdownListener {
         return ret;
     }
 
-    public void findAndProcessPendingMessages(String name, boolean forceListeners) throws InterruptedException {
+    public void findAndProcessPendingMessages(String name, boolean forceListeners) {
         MorphiumIterator<Msg> messages = findMessages(name, true);
         processMessages(messages, forceListeners);
     }
@@ -347,7 +347,7 @@ public class Messaging extends Thread implements ShutdownListener {
         return it;
     }
 
-    private void findAndProcessMessages(boolean multiple) throws InterruptedException {
+    private void findAndProcessMessages(boolean multiple) {
         MorphiumIterator<Msg> messages = findMessages(null, multiple);
         processMessages(messages, false);
     }

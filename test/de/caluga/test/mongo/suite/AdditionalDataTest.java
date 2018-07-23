@@ -68,7 +68,7 @@ public class AdditionalDataTest extends MongoTest {
         additional.put("addit", d2);
         d.setAdditionals(additional);
 
-        String str = morphium.getMapper().marshall(d).toString();
+        String str = morphium.getMapper().serialize(d).toString();
         morphium.store(d);
 
         log.info(str);

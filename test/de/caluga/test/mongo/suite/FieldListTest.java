@@ -73,7 +73,7 @@ public class FieldListTest extends MongoTest {
         assert (ro.readOnlyValue == null);
 
         //forcing store of a value
-        Map<String, Object> marshall = morphium.getMapper().marshall(ro);
+        Map<String, Object> marshall = morphium.getMapper().serialize(ro);
         marshall.put("read_only_value", "stored in db");
         List<Map<String, Object>> lst = new ArrayList<>();
         lst.add(marshall);

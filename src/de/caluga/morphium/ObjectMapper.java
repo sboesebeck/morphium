@@ -17,11 +17,11 @@ public interface ObjectMapper {
 
     Object marshallIfNecessary(Object o);
 
-    Map<String, Object> marshall(Object o);
+    Map<String, Object> serialize(Object o);
 
-    <T> T unmarshall(Class<? extends T> cls, Map<String, Object> o);
+    <T> T deserialize(Class<? extends T> cls, Map<String, Object> o);
 
-    <T> T unmarshall(Class<? extends T> cls, String json) throws ParseException;
+    <T> T deserialize(Class<? extends T> cls, String json) throws ParseException;
 
     /**
      * get current name provider for class

@@ -1290,7 +1290,7 @@ public class Morphium {
             List<Map<String, Object>> found = morphiumDriver.find(config.getDatabase(), collection, srch, null, null, 0, 1, 1, null, findMetaData);
             if (found != null && !found.isEmpty()) {
                 Map<String, Object> dbo = found.get(0);
-                Object fromDb = objectMapper.unmarshall(o.getClass(), dbo);
+                Object fromDb = objectMapper.deserialize(o.getClass(), dbo);
                 if (fromDb == null) {
                     throw new RuntimeException("could not reread from db");
                 }
@@ -2530,7 +2530,7 @@ public class Morphium {
         List<T> ret = new ArrayList<>();
 
         for (Map<String, Object> o : result) {
-            ret.add(getMapper().unmarshall(type, o));
+            ret.add(getMapper().deserialize(type, o));
         }
         return ret;
 
@@ -2565,7 +2565,7 @@ public class Morphium {
             List<Map<String, Object>> ret = getDriver().aggregate(config.getDatabase(), a.getCollectionName(), agList, a.isExplain(), a.isUseDisk(), getReadPreferenceForClass(a.getSearchType()));
             List<R> result = new ArrayList<>();
             for (Map<String, Object> dbObj : ret) {
-                result.add(getMapper().unmarshall(a.getResultType(), dbObj));
+                result.add(getMapper().deserialize(a.getResultType(), dbObj));
             }
             return result;
         } catch (MorphiumDriverException e) {
@@ -2585,7 +2585,7 @@ public class Morphium {
         //        List<R> ret = new ArrayList<>();
         //        if (resp != null) {
         //            for (Map<String, Object> o : resp.results()) {
-        //                R obj = getMapper().unmarshall(a.getResultType(), o);
+        //                R obj = getMapper().deserialize(a.getResultType(), o);
         //                if (obj == null) continue;
         //                ret.add(obj);
         //            }
@@ -2780,7 +2780,7 @@ public class Morphium {
 
         Map<String, Object> obj = (Map<String, Object>) doc.get("fullDocument");
         doc.put("fullDocument", null);
-        ChangeStreamEvent evt = mapper.unmarshall(ChangeStreamEvent.class, doc);
+        ChangeStreamEvent evt = mapper.deserialize(ChangeStreamEvent.class, doc);
 
         evt.setFullDocument(obj);
         return lst.incomingData(evt);
