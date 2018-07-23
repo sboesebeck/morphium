@@ -1,14 +1,15 @@
 package de.caluga.morphium.objectmapper;
 
-import de.caluga.morphium.*;
-import de.caluga.morphium.mapping.BigIntegerTypeMapper;
+import de.caluga.morphium.AnnotationAndReflectionHelper;
+import de.caluga.morphium.Morphium;
+import de.caluga.morphium.NameProvider;
+import de.caluga.morphium.ObjectMapper;
 import org.json.simple.parser.ContainerFactory;
 import org.json.simple.parser.JSONParser;
 import org.json.simple.parser.ParseException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -35,7 +36,6 @@ public class ObjectMapperImplNG implements ObjectMapper {
     private boolean ignoreEntity = false;
 
     private Logger log = LoggerFactory.getLogger(ObjectMapperImplNG.class);
-    private Map<Class, TypeMapper> customTypeMapper;
     private MarshallHelper marshaller;
     private UnmarshallHelper unmarshaller;
 
@@ -53,14 +53,13 @@ public class ObjectMapperImplNG implements ObjectMapper {
                 return new ArrayList();
             }
         };
-        customTypeMapper = new ConcurrentHashMap<>();
-        customTypeMapper.put(BigInteger.class, new BigIntegerTypeMapper());
+
         anhelper = new AnnotationAndReflectionHelper(true); //default
     }
 
     public MarshallHelper getMarshaller() {
         if (marshaller == null) {
-            marshaller = new MarshallHelper(anhelper, customTypeMapper, nameProviderByClass, morphium, this);
+            marshaller = new MarshallHelper(anhelper, nameProviderByClass, morphium, this);
         }
         return marshaller;
     }
@@ -68,7 +67,7 @@ public class ObjectMapperImplNG implements ObjectMapper {
 
     public UnmarshallHelper getUnmarshaller() {
         if (unmarshaller == null) {
-            unmarshaller = new UnmarshallHelper(anhelper, customTypeMapper, nameProviderByClass, morphium, this);
+            unmarshaller = new UnmarshallHelper(anhelper, nameProviderByClass, morphium, this);
         }
         return unmarshaller;
     }
@@ -76,13 +75,8 @@ public class ObjectMapperImplNG implements ObjectMapper {
 
 
     @Override
-    public void registerCustomTypeMapper(Class c, TypeMapper m) {
-        customTypeMapper.put(c, m);
-    }
-
-    @Override
     public Map<String, Object> marshall(Object o) {
-        return getMarshaller().marshall(o, ignoreEntity, ignoreReadOnly);
+        return getMarshaller().marshall(o);
     }
 
     @Override
@@ -139,8 +133,4 @@ public class ObjectMapperImplNG implements ObjectMapper {
         return morphium;
     }
 
-    @Override
-    public void deregisterTypeMapper(Class c) {
-        customTypeMapper.remove(c);
-    }
 }

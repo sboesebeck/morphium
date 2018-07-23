@@ -19,7 +19,6 @@ public class UnmarshallHelper {
     private final List<Object> mongoTypes;
     private final AnnotationAndReflectionHelper anhelper;
     private final Map<Class<?>, NameProvider> nameProviderByClass;
-    private final Map<Class, TypeMapper> customTypeMapper;
     private final Morphium morphium;
     private final ObjectMapper objectMapper;
 
@@ -28,7 +27,7 @@ public class UnmarshallHelper {
     private boolean ignoreReadOnly = false;
     private boolean ignoreEntity = false;
 
-    public UnmarshallHelper(AnnotationAndReflectionHelper anhelper, Map<Class, TypeMapper> customTypeMapper, Map<Class<?>, NameProvider> nameProviderByClass, Morphium morphium, ObjectMapper objectMapper) {
+    public UnmarshallHelper(AnnotationAndReflectionHelper anhelper, Map<Class<?>, NameProvider> nameProviderByClass, Morphium morphium, ObjectMapper objectMapper) {
         mongoTypes = Collections.synchronizedList(new ArrayList<>());
 
         mongoTypes.add(String.class);
@@ -41,7 +40,6 @@ public class UnmarshallHelper {
         mongoTypes.add(Boolean.class);
         mongoTypes.add(Byte.class);
         this.anhelper = anhelper;
-        this.customTypeMapper = customTypeMapper;
         this.nameProviderByClass = nameProviderByClass;
         this.morphium = morphium;
 
@@ -88,9 +86,6 @@ public class UnmarshallHelper {
                 ret.put(entry.getKey(), unmarshallIfPossible(null, entry.getValue()));
             }
             return (T) ret;
-        }
-        if (customTypeMapper.get(cls) != null) {
-            return (T) customTypeMapper.get(cls).unmarshall(o);
         }
         if (cls.isEnum()) {
             T[] en = (T[]) cls.getEnumConstants();
@@ -143,15 +138,7 @@ public class UnmarshallHelper {
                 fld.setAccessible(true);
                 Class fieldType = fld.getType();
                 String fName = anhelper.getFieldName(cls, fld.getName());
-                if (customTypeMapper.get(fieldType) != null) {
-                    try {
-                        fld.set(result, customTypeMapper.get(fieldType).unmarshall(o.get(fName)));
-                    } catch (IllegalAccessException e) {
-                        //TODO: Implement Handling
-                        throw new RuntimeException(e);
-                    }
-                    continue;
-                }
+
                 if (o.get(fName) == null) {
 //                    if (!fieldType.isPrimitive()) {
 //                        fld.set(result, null);
