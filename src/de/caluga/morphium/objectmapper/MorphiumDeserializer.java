@@ -138,6 +138,18 @@ public class MorphiumDeserializer {
                         log.error("Could not find field " + l + " in type " + type.getName());
                         continue;
                     }
+                    if (List.class.isAssignableFrom(f.getType())) {
+                        List lst = jackson.readValue(jsonParser, List.class);
+                        List res = new ArrayList();
+                        for (Map elem : (List<Map>) lst) {
+                            if (elem.get("class_name") != null) {
+                                Class cls = Class.forName((String) elem.get("class_name"));
+                                res.add(jackson.convertValue(elem, cls));
+                            }
+                        }
+                        f.set(ret, res);
+                        continue;
+                    }
                     Reference r = f.getAnnotation(Reference.class);
                     if (r != null) {
                         MorphiumReference ref = jackson.readValue(jsonParser, MorphiumReference.class);
