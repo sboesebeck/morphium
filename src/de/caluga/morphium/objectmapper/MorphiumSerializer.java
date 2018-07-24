@@ -51,6 +51,19 @@ public class MorphiumSerializer {
             }
         });
 
+        module.addSerializer(List.class, new JsonSerializer<List>() {
+            @Override
+            public void serialize(List list, JsonGenerator jsonGenerator, SerializerProvider serializerProvider) throws IOException {
+                jsonGenerator.writeStartArray();
+                for (Object o : list) {
+                    Map m = jackson.convertValue(o, Map.class);
+                    m.put("class_name", o.getClass().getName());
+                    jsonGenerator.writeObject(m);
+                }
+                jsonGenerator.writeEndArray();
+            }
+        });
+
 //        ScanResult res = new FastClasspathScanner("").scan();
 //
 //        for (String n:res.getNamesOfClassesWithAnnotation(Entity.class)){
