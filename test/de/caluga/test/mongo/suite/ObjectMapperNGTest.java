@@ -9,6 +9,8 @@ import de.caluga.test.mongo.suite.data.EmbeddedObject;
 import de.caluga.test.mongo.suite.data.UncachedObject;
 import org.junit.Test;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 
 public class ObjectMapperNGTest extends MongoTest {
@@ -52,6 +54,20 @@ public class ObjectMapperNGTest extends MongoTest {
         assert (((Map) obj.get("embed")).get("name").equals("embb"));
 
         ComplexObject co2 = map.deserialize(ComplexObject.class, obj);
+        assert (co2 != null);
+
+        co = new ComplexObject();
+        co.setId(new MorphiumId());
+        co.setEinText("The text");
+        co.setEmbed(new EmbeddedObject("embb", "val", System.currentTimeMillis()));
+        co.setcRef(new CachedObject("valuec", 1));
+        co.setRef(new UncachedObject("value uc", 2));
+        co.setEmbeddedObjectList(new ArrayList<>());
+        co.getEmbeddedObjectList().add(new EmbeddedObject("test", "valu3e", System.currentTimeMillis()));
+        obj = map.serialize(co);
+        assert (obj.get("embeddedObjectList") instanceof List);
+
+        co2 = map.deserialize(ComplexObject.class, obj);
         assert (co2 != null);
     }
 
