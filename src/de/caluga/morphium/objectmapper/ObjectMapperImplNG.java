@@ -3,8 +3,8 @@ package de.caluga.morphium.objectmapper;
 import com.fasterxml.jackson.databind.JsonSerializer;
 import de.caluga.morphium.AnnotationAndReflectionHelper;
 import de.caluga.morphium.Morphium;
+import de.caluga.morphium.MorphiumObjectMapper;
 import de.caluga.morphium.NameProvider;
-import de.caluga.morphium.ObjectMapper;
 import org.json.simple.parser.ContainerFactory;
 import org.json.simple.parser.JSONParser;
 import org.json.simple.parser.ParseException;
@@ -24,7 +24,7 @@ import java.util.concurrent.ConcurrentHashMap;
  * <p>
  * TODO: Add documentation here
  */
-public class ObjectMapperImplNG implements ObjectMapper {
+public class ObjectMapperImplNG implements MorphiumObjectMapper {
     private Morphium morphium;
     private AnnotationAndReflectionHelper anhelper;
     private Map<Class<?>, NameProvider> nameProviderByClass;

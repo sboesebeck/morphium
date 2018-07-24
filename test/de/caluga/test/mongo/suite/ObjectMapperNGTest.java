@@ -35,11 +35,13 @@ public class ObjectMapperNGTest extends MongoTest {
 
     @Test
     public void complexTest() {
+        morphium.getConfig().setReplicasetMonitoring(false);
         ObjectMapperImplNG map = new ObjectMapperImplNG();
         map.setMorphium(morphium);
         map.setAnnotationHelper(new AnnotationAndReflectionHelper(true));
 
         ComplexObject co = new ComplexObject();
+        co.setId(new MorphiumId());
         co.setEinText("The text");
         co.setEmbed(new EmbeddedObject("embb", "val", System.currentTimeMillis()));
         co.setcRef(new CachedObject("valuec", 1));
@@ -48,6 +50,10 @@ public class ObjectMapperNGTest extends MongoTest {
         assert (obj != null);
         assert (obj.get("embed") instanceof Map);
         assert (((Map) obj.get("embed")).get("name").equals("embb"));
+
+        ComplexObject co2 = map.deserialize(ComplexObject.class, obj);
+        assert (co2 != null);
     }
+
 
 }

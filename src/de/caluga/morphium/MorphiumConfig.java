@@ -103,7 +103,7 @@ public class MorphiumConfig {
     //    private Class<? extends Object> userClass, roleClass, aclClass;
     private String mongoAdminUser, mongoAdminPwd; //THE superuser!
     @Transient
-    private Class<? extends ObjectMapper> omClass = ObjectMapperImplNG.class;
+    private Class<? extends MorphiumObjectMapper> omClass = ObjectMapperImplNG.class;
     @Transient
     private Class<? extends MongoField> fieldImplClass = MongoFieldImpl.class;
     @Transient
@@ -402,11 +402,11 @@ public class MorphiumConfig {
         return this;
     }
 
-    public Class<? extends ObjectMapper> getOmClass() {
+    public Class<? extends MorphiumObjectMapper> getOmClass() {
         return omClass;
     }
 
-    public MorphiumConfig setOmClass(Class<? extends ObjectMapper> omClass) {
+    public MorphiumConfig setOmClass(Class<? extends MorphiumObjectMapper> omClass) {
         this.omClass = omClass;
         return this;
     }

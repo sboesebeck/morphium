@@ -1332,7 +1332,7 @@ package de.caluga.test.mongo.suite;
 import de.caluga.morphium.Morphium;
 import de.caluga.morphium.MorphiumSingleton;
 import de.caluga.morphium.NameProvider;
-import de.caluga.morphium.ObjectMapper;
+import de.caluga.morphium.MorphiumObjectMapper;
 import de.caluga.morphium.annotations.Entity;
 import de.caluga.morphium.annotations.Id;
 import de.caluga.morphium.annotations.caching.NoCache;

@@ -29,14 +29,12 @@ public class MorphiumSerializer {
     private final AnnotationAndReflectionHelper anhelper;
     private final Map<Class<?>, NameProvider> nameProviderByClass;
     private final Morphium morphium;
-    private final ObjectMapper objectMapper;
+    private final MorphiumObjectMapper objectMapper;
     private final Logger log = LoggerFactory.getLogger(MorphiumSerializer.class);
-    private boolean ignoreReadOnly = false;
-    private boolean ignoreEntity = false;
     private final com.fasterxml.jackson.databind.ObjectMapper jackson;
     private final SimpleModule module;
 
-    public MorphiumSerializer(AnnotationAndReflectionHelper ar, Map<Class<?>, NameProvider> np, Morphium m, ObjectMapper om) {
+    public MorphiumSerializer(AnnotationAndReflectionHelper ar, Map<Class<?>, NameProvider> np, Morphium m, MorphiumObjectMapper om) {
         mongoTypes = Collections.synchronizedList(new ArrayList<>());
         anhelper = ar;
         nameProviderByClass = np;
@@ -75,7 +73,11 @@ public class MorphiumSerializer {
 
 
     public Map<String, Object> serialize(Object o) {
-
+        try {
+            jackson.writeValue(System.out, o);
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
         Map m = jackson.convertValue(o, Map.class);
 
         return m;
@@ -146,6 +148,7 @@ public class MorphiumSerializer {
                         Object id = anhelper.getId(value);
                         if (id == null && r.automaticStore()) {
                             morphium.storeNoCache(value);
+                            id = anhelper.getId(value);
                         }
                         MorphiumReference ref = new MorphiumReference(value.getClass().getName(), id);
                         ref.setCollectionName(getCollectionName(value.getClass()));

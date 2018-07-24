@@ -10,12 +10,14 @@ import de.caluga.morphium.annotations.Embedded;
 @Embedded
 public class MorphiumReference {
     private String referencedClassName;
-    private Object id;
+    private Object refid;
     private String collectionName;
 
+    public MorphiumReference() {
+    }
     public MorphiumReference(String name, Object id) {
         this.referencedClassName = name;
-        this.id = id;
+        this.refid = id;
     }
 
     public String getClassName() {
@@ -28,11 +30,11 @@ public class MorphiumReference {
     }
 
     public Object getId() {
-        return id;
+        return refid;
     }
 
     public void setId(Object id) {
-        this.id = id;
+        this.refid = id;
     }
 
     public String getCollectionName() {

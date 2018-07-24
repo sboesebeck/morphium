@@ -1,7 +1,7 @@
 package de.caluga.test.mongo.suite;
 
 import de.caluga.morphium.AnnotationAndReflectionHelper;
-import de.caluga.morphium.ObjectMapper;
+import de.caluga.morphium.MorphiumObjectMapper;
 import de.caluga.morphium.ObjectMapperImpl;
 import de.caluga.morphium.Utils;
 import de.caluga.morphium.annotations.Entity;
@@ -27,7 +27,7 @@ public class ObjectMapperTest extends MongoTest {
     @Test
     public void customTypeMapperTest() {
         morphium.dropCollection(BIObject.class);
-        ObjectMapper om = morphium.getMapper();
+        MorphiumObjectMapper om = morphium.getMapper();
         BigInteger tst = new BigInteger("affedeadbeefaffedeadbeef42", 16);
         Map<String, Object> d = om.serialize(tst);
 
@@ -49,14 +49,14 @@ public class ObjectMapperTest extends MongoTest {
     @Test
     public void simpleParseFromStringTest() throws Exception {
         String json = "{ \"value\":\"test\",\"counter\":123}";
-        ObjectMapper om = morphium.getMapper();
+        MorphiumObjectMapper om = morphium.getMapper();
         UncachedObject uc = om.deserialize(UncachedObject.class, json);
         assert (uc.getCounter() == 123);
     }
 
     @Test
     public void objectToStringParseTest() {
-        ObjectMapper om = morphium.getMapper();
+        MorphiumObjectMapper om = morphium.getMapper();
         UncachedObject o = new UncachedObject();
         o.setValue("A test");
         o.setLongData(new long[]{1, 23, 4L, 5L});
@@ -70,7 +70,7 @@ public class ObjectMapperTest extends MongoTest {
 
     @Test
     public void listContainerStringParseTest() {
-        ObjectMapper om = morphium.getMapper();
+        MorphiumObjectMapper om = morphium.getMapper();
         ListContainer o = new ListContainer();
         o.addLong(1234);
         o.addString("string1");
@@ -114,7 +114,7 @@ public class ObjectMapperTest extends MongoTest {
 
     @Test
     public void testGetCollectionName() {
-        ObjectMapper om = morphium.getMapper();
+        MorphiumObjectMapper om = morphium.getMapper();
         assert (om.getCollectionName(CachedObject.class).equals("cached_object")) : "Cached object test failed";
         assert (om.getCollectionName(UncachedObject.class).equals("uncached_object")) : "Uncached object test failed";
 
@@ -128,7 +128,7 @@ public class ObjectMapperTest extends MongoTest {
             new Thread() {
                 @Override
                 public void run() {
-                    ObjectMapper om = morphium.getMapper();
+                    MorphiumObjectMapper om = morphium.getMapper();
                     assert (om.getCollectionName(CachedObject.class).equals("cached_object")) : "Cached object test failed";
                     yield();
                     assert (om.getCollectionName(UncachedObject.class).equals("uncached_object")) : "Uncached object test failed";
@@ -141,7 +141,7 @@ public class ObjectMapperTest extends MongoTest {
 
     @Test
     public void testMarshall() {
-        ObjectMapper om = morphium.getMapper();
+        MorphiumObjectMapper om = morphium.getMapper();
         UncachedObject o = new UncachedObject();
         o.setCounter(12345);
         o.setValue("This \" is $ test");
@@ -154,7 +154,7 @@ public class ObjectMapperTest extends MongoTest {
 
     @Test
     public void testUnmarshall() {
-        ObjectMapper om = morphium.getMapper();
+        MorphiumObjectMapper om = morphium.getMapper();
         Map<String, Object> dbo = new HashMap<>();
         dbo.put("counter", 12345);
         dbo.put("value", "A test");
@@ -163,7 +163,7 @@ public class ObjectMapperTest extends MongoTest {
 
     @Test
     public void testGetId() {
-        ObjectMapper om = morphium.getMapper();
+        MorphiumObjectMapper om = morphium.getMapper();
         AnnotationAndReflectionHelper an = new AnnotationAndReflectionHelper(true);
         UncachedObject o = new UncachedObject();
         o.setCounter(12345);
@@ -205,7 +205,7 @@ public class ObjectMapperTest extends MongoTest {
 
     @Test
     public void complexObjectTest() {
-        ObjectMapper om = morphium.getMapper();
+        MorphiumObjectMapper om = morphium.getMapper();
         UncachedObject o = new UncachedObject();
         o.setCounter(12345);
         o.setValue("Embedded value");
@@ -249,7 +249,7 @@ public class ObjectMapperTest extends MongoTest {
 
     @Test
     public void nullValueTests() {
-        ObjectMapper om = morphium.getMapper();
+        MorphiumObjectMapper om = morphium.getMapper();
 
         ComplexObject o = new ComplexObject();
         o.setTrans("TRANSIENT");
@@ -274,7 +274,7 @@ public class ObjectMapperTest extends MongoTest {
         o.setListValue(lst);
         o.setName("Simple List");
 
-        ObjectMapper om = morphium.getMapper();
+        MorphiumObjectMapper om = morphium.getMapper();
         Map<String, Object> marshall = om.serialize(o);
         String m = marshall.toString();
 
@@ -307,7 +307,7 @@ public class ObjectMapperTest extends MongoTest {
         o.setMapValue(map);
         o.setName("A map-value");
 
-        ObjectMapper om = morphium.getMapper();
+        MorphiumObjectMapper om = morphium.getMapper();
         Map<String, Object> marshall = om.serialize(o);
         String m = Utils.toJsonString(marshall);
         System.out.println("Marshalled object: " + m);
@@ -335,12 +335,12 @@ public class ObjectMapperTest extends MongoTest {
         o.setValue("The meaning of life");
         o.setMorphiumId(new MorphiumId());
         Map<String, Object> marshall = null;
-        ObjectMapper ob = morphium.getMapper();
-        ObjectMapper o2 = new ObjectMapperImpl();
+        MorphiumObjectMapper ob = morphium.getMapper();
+        MorphiumObjectMapper o2 = new ObjectMapperImpl();
         o2.setMorphium(morphium);
         o2.setAnnotationHelper(morphium.getARHelper());
 
-        for (ObjectMapper om : new ObjectMapper[]{o2, ob}) {
+        for (MorphiumObjectMapper om : new MorphiumObjectMapper[]{o2, ob}) {
             log.info("--------------  Running with " + om.getClass().getName());
             long start = System.currentTimeMillis();
             for (int i = 0; i < 25000; i++) {
@@ -368,13 +368,13 @@ public class ObjectMapperTest extends MongoTest {
         o.setValue("The meaning of life");
         o.setId(new MorphiumId());
         Map<String, Object> marshall = null;
-        ObjectMapper om1 = new ObjectMapperImpl();
+        MorphiumObjectMapper om1 = new ObjectMapperImpl();
         om1.setMorphium(morphium);
         om1.setAnnotationHelper(morphium.getARHelper());
-        ObjectMapper om2 = new ObjectMapperImplNG();
+        MorphiumObjectMapper om2 = new ObjectMapperImplNG();
         om2.setMorphium(morphium);
         om2.setAnnotationHelper(morphium.getARHelper());
-        for (ObjectMapper om : new ObjectMapper[]{om1, om2}) {
+        for (MorphiumObjectMapper om : new MorphiumObjectMapper[]{om1, om2}) {
             log.info("----------------------- Runing with " + om.getClass().getName());
             long start = System.currentTimeMillis();
             for (int i = 0; i < 25000; i++) {
@@ -436,13 +436,13 @@ public class ObjectMapperTest extends MongoTest {
         //        o.setRef();
         o.setTrans("Trans");
         Map<String, Object> marshall = null;
-        ObjectMapper om1 = new ObjectMapperImpl();
+        MorphiumObjectMapper om1 = new ObjectMapperImpl();
         om1.setMorphium(morphium);
         om1.setAnnotationHelper(morphium.getARHelper());
-        ObjectMapper om2 = new ObjectMapperImplNG();
+        MorphiumObjectMapper om2 = new ObjectMapperImplNG();
         om2.setMorphium(morphium);
         om2.setAnnotationHelper(morphium.getARHelper());
-        for (ObjectMapper om : new ObjectMapper[]{om1, om2}) {
+        for (MorphiumObjectMapper om : new MorphiumObjectMapper[]{om1, om2}) {
             log.info("Runing with " + om.getClass().getName());
             long start = System.currentTimeMillis();
             for (int i = 0; i < 25000; i++) {
@@ -488,13 +488,13 @@ public class ObjectMapperTest extends MongoTest {
         o.setRef(uc);
         Map<String, Object> marshall = null;
 
-        ObjectMapper om1 = new ObjectMapperImpl();
+        MorphiumObjectMapper om1 = new ObjectMapperImpl();
         om1.setMorphium(morphium);
         om1.setAnnotationHelper(morphium.getARHelper());
-        ObjectMapper om2 = new ObjectMapperImplNG();
+        MorphiumObjectMapper om2 = new ObjectMapperImplNG();
         om2.setMorphium(morphium);
         om2.setAnnotationHelper(morphium.getARHelper());
-        for (ObjectMapper om : new ObjectMapper[]{om1, om2}) {
+        for (MorphiumObjectMapper om : new MorphiumObjectMapper[]{om1, om2}) {
             log.info("-------------  Running with Mapper " + om.getClass().getName());
             long start = System.currentTimeMillis();
             for (int i = 0; i < 25000; i++) {
@@ -555,13 +555,13 @@ public class ObjectMapperTest extends MongoTest {
         waitForWrites();
         o.setcRef(cc);
         Map<String, Object> marshall = null;
-        ObjectMapper om1 = new ObjectMapperImpl();
+        MorphiumObjectMapper om1 = new ObjectMapperImpl();
         om1.setMorphium(morphium);
         om1.setAnnotationHelper(morphium.getARHelper());
-        ObjectMapper om2 = new ObjectMapperImplNG();
+        MorphiumObjectMapper om2 = new ObjectMapperImplNG();
         om2.setMorphium(morphium);
         om2.setAnnotationHelper(morphium.getARHelper());
-        for (ObjectMapper om : new ObjectMapper[]{om1, om2}) {
+        for (MorphiumObjectMapper om : new MorphiumObjectMapper[]{om1, om2}) {
             log.info("-------- running test with " + om.getClass().getName());
             long start = System.currentTimeMillis();
             for (int i = 0; i < 25000; i++) {
@@ -600,7 +600,7 @@ public class ObjectMapperTest extends MongoTest {
 
     @Test
     public void mapTest() throws Exception {
-        ObjectMapper m = morphium.getMapper();
+        MorphiumObjectMapper m = morphium.getMapper();
 
 
         MappedObject o = new MappedObject();
@@ -628,7 +628,7 @@ public class ObjectMapperTest extends MongoTest {
         mapperImplNG.setAnnotationHelper(morphium.getARHelper());
 
 
-        for (ObjectMapper map : new ObjectMapper[]{morphium.getMapper(), mapperImplNG}) {
+        for (MorphiumObjectMapper map : new MorphiumObjectMapper[]{morphium.getMapper(), mapperImplNG}) {
             log.info("--------------------- Running test with " + map.getClass().getName());
             ListWildcardContainer wc = new ListWildcardContainer();
             wc.setName("A name");
@@ -648,7 +648,7 @@ public class ObjectMapperTest extends MongoTest {
         mapperImplNG.setAnnotationHelper(morphium.getARHelper());
 
 
-        for (ObjectMapper map : new ObjectMapper[]{morphium.getMapper(), mapperImplNG}) {
+        for (MorphiumObjectMapper map : new MorphiumObjectMapper[]{morphium.getMapper(), mapperImplNG}) {
             log.info("--------------------- Running test with " + map.getClass().getName());
             ListOfEmbedded lst = new ListOfEmbedded();
             lst.list = new ArrayList<>();
@@ -681,7 +681,7 @@ public class ObjectMapperTest extends MongoTest {
         mapperImplNG.setAnnotationHelper(morphium.getARHelper());
 
 
-        for (ObjectMapper map : new ObjectMapper[]{morphium.getMapper(), mapperImplNG}) {
+        for (MorphiumObjectMapper map : new MorphiumObjectMapper[]{morphium.getMapper(), mapperImplNG}) {
             log.info("--------------------- Running test with " + map.getClass().getName());
             UncachedObject uc = new UncachedObject("value", 123);
             uc.setMorphiumId(new MorphiumId());

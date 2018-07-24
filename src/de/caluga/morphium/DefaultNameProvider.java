@@ -15,7 +15,7 @@ public final class DefaultNameProvider implements NameProvider {
     private final Hashtable<Class<?>, String> collectionNameCache = new Hashtable<>();
 
     @Override
-    public String getCollectionName(Class<?> type, ObjectMapper om, boolean translateCamelCase, boolean useFQN, String specifiedName, Morphium morphium) {
+    public String getCollectionName(Class<?> type, MorphiumObjectMapper om, boolean translateCamelCase, boolean useFQN, String specifiedName, Morphium morphium) {
         String name = specifiedName;
         if (name == null) {
             name = collectionNameCache.get(type);
