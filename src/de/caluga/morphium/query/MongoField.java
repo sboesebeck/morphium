@@ -1,7 +1,7 @@
 package de.caluga.morphium.query;
 
 import de.caluga.morphium.MongoType;
-import de.caluga.morphium.ObjectMapper;
+import de.caluga.morphium.MorphiumObjectMapper;
 
 import java.util.Collection;
 import java.util.List;
@@ -110,9 +110,9 @@ public interface MongoField<T> {
 
     void setQuery(Query<T> q);
 
-    ObjectMapper getMapper();
+    MorphiumObjectMapper getMapper();
 
-    void setMapper(ObjectMapper mapper);
+    void setMapper(MorphiumObjectMapper mapper);
 
     String getFieldString();
 

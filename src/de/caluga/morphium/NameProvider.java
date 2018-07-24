@@ -9,5 +9,5 @@ package de.caluga.morphium;
  */
 public interface NameProvider {
     @SuppressWarnings("UnusedParameters")
-    String getCollectionName(Class<?> type, ObjectMapper om, boolean translateCamelCase, boolean useFQN, String specifiedName, Morphium morphium);
+    String getCollectionName(Class<?> type, MorphiumObjectMapper om, boolean translateCamelCase, boolean useFQN, String specifiedName, Morphium morphium);
 }
