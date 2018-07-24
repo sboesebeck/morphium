@@ -22,7 +22,7 @@ public class ChangeStreamMonitor implements Runnable, ShutdownListener {
     private boolean running = true;
     private long timestamp;
     private Thread changeStreamThread;
-    private ObjectMapper mapper;
+    private MorphiumObjectMapper mapper;
     private boolean dbOnly = false;
 
 

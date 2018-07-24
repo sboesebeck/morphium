@@ -779,7 +779,7 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
                             f.set(unmarshall, currentTime);
 
                         }
-                        ObjectMapper mapper = morphium.getMapper();
+                        MorphiumObjectMapper mapper = morphium.getMapper();
                         Object id = getARHelper().getId(unmarshall);
                         //Cannot use store, as this would trigger an update of last changed...
                         morphium.getDriver().update(getDB(), getCollectionName(), Utils.getMap("_id", id), Utils.getMap("$set", Utils.getMap(ctf, currentTime)), false, false, null);

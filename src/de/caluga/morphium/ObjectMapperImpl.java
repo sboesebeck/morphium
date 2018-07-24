@@ -24,7 +24,7 @@ import java.util.stream.Collectors;
  * <p>
  */
 @SuppressWarnings({"ConstantConditions", "MismatchedQueryAndUpdateOfCollection", "unchecked", "MismatchedReadAndWriteOfArray", "RedundantCast"})
-public class ObjectMapperImpl implements ObjectMapper {
+public class ObjectMapperImpl implements MorphiumObjectMapper {
     private static final Logger log = LoggerFactory.getLogger(ObjectMapperImpl.class);
     private final ReflectionFactory reflection = ReflectionFactory.getReflectionFactory();
     private final Map<Class<?>, NameProvider> nameProviders;

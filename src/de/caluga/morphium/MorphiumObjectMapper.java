@@ -11,7 +11,7 @@ import java.util.Map;
  * <p/>
  * Maps objects to Mongo
  */
-public interface ObjectMapper {
+public interface MorphiumObjectMapper {
 
     String getCollectionName(Class cls);
 
@@ -40,11 +40,11 @@ public interface ObjectMapper {
      */
     void setNameProviderForClass(Class<?> cls, NameProvider np);
 
-    void setMorphium(Morphium m);
-
     void setAnnotationHelper(AnnotationAndReflectionHelper an);
 
     Morphium getMorphium();
+
+    void setMorphium(Morphium m);
 
 
 }

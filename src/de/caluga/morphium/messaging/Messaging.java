@@ -296,13 +296,7 @@ public class Messaging extends Thread implements ShutdownListener {
      * @return duration or null
      */
     public Long unpauseProcessingOfMessagesNamed(String name) {
-
-        try {
-            findAndProcessPendingMessages(name, true);
-        } catch (InterruptedException e) {
-            //TODO: Implement Handling
-            throw new RuntimeException(e);
-        }
+        findAndProcessPendingMessages(name, true);
 
         Long ret = pauseMessages.remove(name);
 

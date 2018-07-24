@@ -73,7 +73,7 @@ public class Morphium {
     private Map<StatisticKeys, StatisticValue> stats = new ConcurrentHashMap<>();
     private List<MorphiumStorageListener> listeners = new CopyOnWriteArrayList<>();
     private AnnotationAndReflectionHelper annotationHelper;
-    private ObjectMapper objectMapper;
+    private MorphiumObjectMapper objectMapper;
     private RSMonitor rsMonitor;
     private ThreadPoolExecutor asyncOperationsThreadPool;
     private MorphiumDriver morphiumDriver;
@@ -1244,7 +1244,7 @@ public class Morphium {
     }
 
 
-    public ObjectMapper getMapper() {
+    public MorphiumObjectMapper getMapper() {
         return objectMapper;
     }
 
@@ -2774,7 +2774,7 @@ public class Morphium {
     }
 
     private boolean processEvent(ChangeStreamListener lst, Map<String, Object> doc) {
-        ObjectMapper mapper = new ObjectMapperImpl();
+        MorphiumObjectMapper mapper = new ObjectMapperImpl();
         AnnotationAndReflectionHelper hlp = new AnnotationAndReflectionHelper(false);
         mapper.setAnnotationHelper(hlp);
 
