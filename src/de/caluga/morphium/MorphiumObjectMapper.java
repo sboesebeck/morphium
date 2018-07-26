@@ -2,6 +2,7 @@ package de.caluga.morphium;
 
 import org.json.simple.parser.ParseException;
 
+import java.io.IOException;
 import java.util.Map;
 
 /**
@@ -21,7 +22,7 @@ public interface MorphiumObjectMapper {
 
     <T> T deserialize(Class<? extends T> cls, Map<String, Object> o);
 
-    <T> T deserialize(Class<? extends T> cls, String json) throws ParseException;
+    <T> T deserialize(Class<? extends T> cls, String json) throws ParseException, IOException;
 
     /**
      * get current name provider for class

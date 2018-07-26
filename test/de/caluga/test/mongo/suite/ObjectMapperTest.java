@@ -399,6 +399,7 @@ public class ObjectMapperTest extends MongoTest {
 
     @Test
     public void rsStatusTest() throws Exception {
+        morphium.getConfig().setReplicasetMonitoring(false);
         String json = "{ \"settings\" : { \"heartbeatTimeoutSecs\" : 10, \"catchUpTimeoutMillis\" : -1, \"catchUpTakeoverDelayMillis\" : 30000, \"getLastErrorModes\" : {  } , \"getLastErrorDefaults\" : { \"wtimeout\" : 0, \"w\" : 1 } , \"electionTimeoutMillis\" : 10000, \"chainingAllowed\" : true, \"replicaSetId\" : \"5adba61c986af770bb25454e\", \"heartbeatIntervalMillis\" : 2000 } , \"members\" :  [ { \"hidden\" : false, \"buildIndexes\" : true, \"arbiterOnly\" : false, \"host\" : \"localhost:27017\", \"slaveDelay\" : 0, \"votes\" : 1, \"_id\" : 0, \"priority\" : 10.0, \"tags\" : {  }  } , { \"hidden\" : false, \"buildIndexes\" : true, \"arbiterOnly\" : false, \"host\" : \"localhost:27018\", \"slaveDelay\" : 0, \"votes\" : 1, \"_id\" : 1, \"priority\" : 5.0, \"tags\" : {  }  } , { \"hidden\" : false, \"buildIndexes\" : true, \"arbiterOnly\" : true, \"host\" : \"localhost:27019\", \"slaveDelay\" : 0, \"votes\" : 1, \"_id\" : 2, \"priority\" : 0.0, \"tags\" : {  }  } ], \"protocolVersion\" : 1, \"_id\" : \"tst\", \"version\" : 1 } ";
         ReplicaSetConf c = morphium.getMapper().deserialize(ReplicaSetConf.class, json);
         assert (c != null);
@@ -504,9 +505,9 @@ public class ObjectMapperTest extends MongoTest {
             }
             long dur = System.currentTimeMillis() - start;
             if (dur > 2000) {
-                log.warn("Mapping of ComplexObject 25000 with uncached references times took " + dur + "ms");
+                log.warn("Mapping of ComplexObject 25000 times with uncached references took " + dur + "ms");
             } else {
-                log.info("Mapping of ComplexObject 25000 with uncached references times took " + dur + "ms");
+                log.info("Mapping of ComplexObject 25000 times with uncached references took " + dur + "ms");
 
             }
             assert (dur < 5000);
