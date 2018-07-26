@@ -8,16 +8,15 @@ import com.fasterxml.jackson.databind.SerializerProvider;
 import com.fasterxml.jackson.databind.module.SimpleModule;
 import com.fasterxml.jackson.databind.ser.BeanSerializerModifier;
 import de.caluga.morphium.*;
-import de.caluga.morphium.annotations.Embedded;
-import de.caluga.morphium.annotations.Entity;
-import de.caluga.morphium.annotations.Reference;
-import de.caluga.morphium.annotations.UseIfnull;
+import de.caluga.morphium.annotations.*;
 import de.caluga.morphium.driver.MorphiumId;
+import de.caluga.morphium.mapping.BigIntegerTypeMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.lang.reflect.Field;
+import java.math.BigInteger;
 import java.util.*;
 
 public class MorphiumSerializer {
@@ -58,7 +57,13 @@ public class MorphiumSerializer {
             }
         });
 
+        module.addSerializer(BigInteger.class, new JsonSerializer<BigInteger>() {
 
+            @Override
+            public void serialize(BigInteger bigInteger, JsonGenerator jsonGenerator, SerializerProvider serializerProvider) throws IOException {
+                jsonGenerator.writeObject(new BigIntegerTypeMapper().marshall(bigInteger));
+            }
+        });
         module.addSerializer(List.class, new JsonSerializer<List>() {
             @Override
             public void serialize(List list, JsonGenerator jsonGenerator, SerializerProvider serializerProvider) throws IOException {
@@ -94,12 +99,12 @@ public class MorphiumSerializer {
         module.setSerializerModifier(new BeanSerializerModifier() {
             @Override
             public JsonSerializer<?> modifySerializer(SerializationConfig config, BeanDescription beanDesc, JsonSerializer<?> serializer) {
-                if (anhelper.isAnnotationPresentInHierarchy(beanDesc.getBeanClass(), Entity.class) || anhelper.isAnnotationPresentInHierarchy(beanDesc.getBeanClass(), Embedded.class)) {
-                    return new EntitySerializer((JsonSerializer<Object>) serializer, anhelper);
-                }
 //                if (Map.class.isAssignableFrom(beanDesc.getBeanClass())){
 //                    return new CustomMapSerializer((JsonSerializer<Map>)serializer,anhelper);
 //                }
+                if (anhelper.isAnnotationPresentInHierarchy(beanDesc.getBeanClass(), Entity.class) || anhelper.isAnnotationPresentInHierarchy(beanDesc.getBeanClass(), Embedded.class)) {
+                    return new EntitySerializer((JsonSerializer<Object>) serializer, anhelper);
+                }
                 if (beanDesc.getBeanClass().isEnum()) {
                     return new CustomEnumSerializer();
                 }
@@ -174,7 +179,7 @@ public class MorphiumSerializer {
             jsonGenerator.writeObject(obj);
         }
     }
-//
+
 //
 //    public class CustomMapSerializer extends JsonSerializer<Map> {
 //        private final AnnotationAndReflectionHelper an;
@@ -216,6 +221,8 @@ public class MorphiumSerializer {
                 try {
                     fld.setAccessible(true);
                     Object value = fld.get(o);
+                    Transient tr = fld.getAnnotation(Transient.class);
+                    if (tr != null) continue;
                     Reference r = fld.getAnnotation(Reference.class);
                     if (r != null && value != null) {
                         //create reference
@@ -229,15 +236,39 @@ public class MorphiumSerializer {
                         value = ref;
                     }
 
+                    if (value instanceof Map) {
+                        Map ret = new HashMap();
+
+                        for (Map.Entry e : ((Set<Map.Entry>) ((Map) value).entrySet())) {
+                            if (e.getValue() instanceof Map) {
+                                ret.put(e.getKey(), jackson.convertValue(e.getValue(), Map.class));
+                            } else if (anhelper.isEntity(e.getValue())) {
+                                ret.put(e.getKey(), jackson.convertValue(e.getValue(), Map.class));
+                                ((Map) ret.get(e.getKey())).put("class_name", e.getValue().getClass().getName());
+                                ((Map) ret.get(e.getKey())).remove("_id");
+
+                            } else {
+
+                                ret.put(e.getKey(), e.getValue());
+                            }
+                        }
+                        value = ret;
+                    }
+
+
                     UseIfnull un = fld.getAnnotation(UseIfnull.class);
                     if (value == null && un != null || value != null) {
                         String fldName = an.getFieldName(o.getClass(), fld.getName());
+                        if (anhelper.isEntity(value)) {
+                            Map ret = jackson.convertValue(value, Map.class);
+                            ret.remove("_id");
+                            value = ret;
+                        }
                         jsonGenerator.writeObjectField(fldName, value);
                         continue;
                     }
 
-                } catch (IllegalAccessException e) {
-
+                } catch (Exception e) {
                     e.printStackTrace();
                 }
             }
