@@ -2,7 +2,6 @@ package de.caluga.morphium.objectmapper;
 
 import com.fasterxml.jackson.annotation.JsonAutoDetect;
 import com.fasterxml.jackson.core.JsonParser;
-import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.JsonToken;
 import com.fasterxml.jackson.databind.*;
 import com.fasterxml.jackson.databind.deser.BeanDeserializerModifier;
@@ -22,6 +21,8 @@ import sun.reflect.ReflectionFactory;
 import java.io.IOException;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
+import java.lang.reflect.ParameterizedType;
+import java.lang.reflect.Type;
 import java.math.BigInteger;
 import java.util.*;
 
@@ -85,7 +86,7 @@ public class MorphiumDeserializer {
                         Field fld = anhelper.getField(beanDesc.getBeanClass(), d.getName());
                         PropertyName pn = new PropertyName(anhelper.getFieldName(beanDesc.getBeanClass(), fld.getName()));
                         BeanPropertyDefinition def = new POJOPropertyBuilder(config, null, false, pn);
-                        ((POJOPropertyBuilder) def).addField(d.getField(), pn, true, true, false);
+                        ((POJOPropertyBuilder) def).addField(d.getField(), pn, false, true, false);
                         lst.add(def);
                     }
                     return lst;
@@ -105,15 +106,42 @@ public class MorphiumDeserializer {
                 if (beanDesc.getBeanClass().equals(BigInteger.class)) {
                     return new JsonDeserializer<Object>() {
                         @Override
-                        public Object deserialize(JsonParser jsonParser, DeserializationContext deserializationContext) throws IOException, JsonProcessingException {
+                        public Object deserialize(JsonParser jsonParser, DeserializationContext deserializationContext) throws IOException {
                             return new BigIntegerTypeMapper().unmarshall(jsonParser.readValueAs(Object.class));
+                        }
+                    };
+                }
+
+                if (List.class.isAssignableFrom(beanDesc.getBeanClass())) {
+                    return new JsonDeserializer<List>() {
+                        @Override
+                        public List deserialize(JsonParser jsonParser, DeserializationContext deserializationContext) throws IOException {
+                            List toAdd = new ArrayList();
+                            List in = jsonParser.readValueAs(List.class);
+                            for (Object e : in) {
+                                if (e instanceof Map) {
+                                    if (((Map) e).get("class_name") != null) {
+                                        try {
+                                            toAdd.add(jackson.convertValue(e, Class.forName((String) ((Map) e).get("class_name"))));
+                                        } catch (ClassNotFoundException e1) {
+                                            //TODO: Implement Handling
+                                            throw new RuntimeException(e1);
+                                        }
+                                        continue;
+                                    }
+                                }
+                                toAdd.add(e);
+                            }
+
+
+                            return toAdd;
                         }
                     };
                 }
                 if (beanDesc.getBeanClass().isEnum()) {
                     return new JsonDeserializer<Enum>() {
                         @Override
-                        public Enum deserialize(JsonParser jsonParser, DeserializationContext deserializationContext) throws IOException, JsonProcessingException {
+                        public Enum deserialize(JsonParser jsonParser, DeserializationContext deserializationContext) throws IOException {
                             Map<String, String> m = (Map<String, String>) jsonParser.readValueAs(Map.class);
                             Class<Enum> target = null;
                             try {
@@ -147,8 +175,7 @@ public class MorphiumDeserializer {
         }
 
         @Override
-        public Object deserialize(JsonParser jsonParser, DeserializationContext deserializationContext) throws IOException, JsonProcessingException {
-            String l = null;
+        public Object deserialize(JsonParser jsonParser, DeserializationContext deserializationContext) {
             try {
                 Object ret = null;
                 try {
@@ -164,40 +191,85 @@ public class MorphiumDeserializer {
                         log.error("Exception during instanciation of type " + type.getName(), e);
                     }
                 }
-                while ((l = jsonParser.nextFieldName()) != null) {
-                    JsonToken t = jsonParser.nextValue();
-//                    log.info("Field " + l);
-//                    log.info("value " + jsonParser.getValueAsString());
-
-                    Field f = anhelper.getField(type, l);
-
-                    if (f == null) {
-                        //log.error("Could not find field " + l + " in type " + type.getName());
+                JsonToken tok = null;
+                String currentName = "";
+                while (true) {
+                    tok = jsonParser.nextToken();
+                    if (tok == null) return ret;
+                    if (tok.equals(JsonToken.FIELD_NAME)) {
+                        currentName = jsonParser.getCurrentName();
                         continue;
                     }
-                    f.setAccessible(true);
-                    if (List.class.isAssignableFrom(f.getType())) {
-                        List lst = jackson.readValue(jsonParser, List.class);
-                        List res = new ArrayList();
+                    Field f = anhelper.getField(type, currentName);
 
-                        for (Object el : lst) {
-                            if (el instanceof Map) {
-                                Map elem = (Map) el;
-                                if (elem.get("class_name") != null) {
-                                    Class cls = Class.forName((String) elem.get("class_name"));
-                                    if (cls.isEnum()) {
-                                        res.add(Enum.valueOf(cls, (String) elem.get("name")));
+                    if (tok.equals(JsonToken.START_ARRAY)) {
+                        ////////////////////
+                        ////// list or array
+                        //////
+                        List v = new ArrayList();
+                        List o = jackson.readValue(jsonParser, List.class);
+                        Class listElementType = null;
+                        Type type = null;
+                        if (f != null) {
+                            type = f.getGenericType();
+                            if (type != null) {
+                                if (type instanceof ParameterizedType) {
+                                    if (((ParameterizedType) type).getActualTypeArguments()[0] instanceof ParameterizedType) {
+                                        //list of lists?
+                                        //ParameterizedType t2= (ParameterizedType) ((ParameterizedType)type).getActualTypeArguments()[0];
+                                        listElementType = List.class;
+
                                     } else {
-                                        res.add(jackson.convertValue(elem, cls));
+                                        listElementType = (Class) ((ParameterizedType) type).getActualTypeArguments()[0];
                                     }
                                 }
-                            } else {
-                                res.add(el);
                             }
                         }
-                        f.set(ret, res);
+                        for (Object el : o) {
+                            if (el instanceof Map) {
+                                if (((Map) el).get("class_name") != null) {
+                                    v.add(jackson.convertValue(el, Class.forName((String) ((Map) el).get("class_name"))));
+                                } else {
+                                    v.add(el);
+                                }
+                            } else if (listElementType != null) {
+                                v.add(jackson.convertValue(el, listElementType));
+                            } else {
+                                v.add(el);
+                            }
+
+                        }
+                        if (f != null) {
+                            f.set(ret, v);
+                        }
+                        continue;
+
+                    }
+                    if (tok.equals(JsonToken.START_OBJECT)) {
+                        ////////////////////
+                        //object value
+                        if (f != null) {
+                            Object v = jackson.readValue(jsonParser, f.getType());
+                            f.set(ret, v);
+                        } else {
+                            //just read the value and ignore it
+                            jackson.readValue(jsonParser, Object.class);
+                        }
+
                         continue;
                     }
+
+
+                    if (tok.equals(JsonToken.END_OBJECT)) {
+                        log.info("End of object!");
+                        return ret;
+                    }
+
+                    if (f == null) {
+                        jackson.readValue(jsonParser, Object.class);
+                        continue;
+                    }
+
                     if (f.getType().isEnum()) {
                         Map m = jsonParser.readValueAs(Map.class);
                         f.set(ret, (Enum.valueOf((Class<Enum>) Class.forName((String) m.get("class_name")), (String) m.get("name"))));
@@ -240,7 +312,6 @@ public class MorphiumDeserializer {
                     f.set(ret, jackson.readValue(jsonParser, f.getType()));
 
                 }
-                return ret;
             } catch (Exception e) {
                 throw new RuntimeException(e);
             }
