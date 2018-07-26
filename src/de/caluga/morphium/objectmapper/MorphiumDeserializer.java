@@ -14,6 +14,7 @@ import de.caluga.morphium.annotations.Embedded;
 import de.caluga.morphium.annotations.Entity;
 import de.caluga.morphium.annotations.Reference;
 import de.caluga.morphium.driver.MorphiumId;
+import de.caluga.morphium.mapping.BigIntegerTypeMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import sun.reflect.ReflectionFactory;
@@ -21,6 +22,7 @@ import sun.reflect.ReflectionFactory;
 import java.io.IOException;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
+import java.math.BigInteger;
 import java.util.*;
 
 public class MorphiumDeserializer {
@@ -99,6 +101,14 @@ public class MorphiumDeserializer {
                 if (anhelper.isAnnotationPresentInHierarchy(beanDesc.getBeanClass(), Entity.class) || anhelper.isAnnotationPresentInHierarchy(beanDesc.getBeanClass(), Embedded.class)) {
 
                     return new EntityDeserializer(beanDesc.getBeanClass(), anhelper);
+                }
+                if (beanDesc.getBeanClass().equals(BigInteger.class)) {
+                    return new JsonDeserializer<Object>() {
+                        @Override
+                        public Object deserialize(JsonParser jsonParser, DeserializationContext deserializationContext) throws IOException, JsonProcessingException {
+                            return new BigIntegerTypeMapper().unmarshall(jsonParser.readValueAs(Object.class));
+                        }
+                    };
                 }
                 if (beanDesc.getBeanClass().isEnum()) {
                     return new JsonDeserializer<Enum>() {
