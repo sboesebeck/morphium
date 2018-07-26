@@ -78,6 +78,10 @@ public class MorphiumSerializer {
                             jsonGenerator.writeObject(o);
                             continue;
                         }
+                        if (o instanceof List) {
+                            serialize((List) o, jsonGenerator, serializerProvider);
+                            continue;
+                        }
                         m = jackson.convertValue(o, Map.class);
 
                     }
@@ -257,7 +261,7 @@ public class MorphiumSerializer {
 
 
                     UseIfnull un = fld.getAnnotation(UseIfnull.class);
-                    if (value == null && un != null || value != null) {
+                    if (value != null || un != null) {
                         String fldName = an.getFieldName(o.getClass(), fld.getName());
                         if (anhelper.isEntity(value)) {
                             Map ret = jackson.convertValue(value, Map.class);

@@ -1,16 +1,17 @@
 package de.caluga.morphium.objectmapper;
 
 import com.fasterxml.jackson.databind.JsonSerializer;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import de.caluga.morphium.AnnotationAndReflectionHelper;
 import de.caluga.morphium.Morphium;
 import de.caluga.morphium.MorphiumObjectMapper;
 import de.caluga.morphium.NameProvider;
 import org.json.simple.parser.ContainerFactory;
 import org.json.simple.parser.JSONParser;
-import org.json.simple.parser.ParseException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -93,10 +94,10 @@ public class ObjectMapperImplNG implements MorphiumObjectMapper {
     }
 
     @Override
-    public <T> T deserialize(Class<? extends T> cls, String json) throws ParseException {
+    public <T> T deserialize(Class<? extends T> cls, String json) throws IOException {
 
-        HashMap<String, Object> obj = (HashMap<String, Object>) jsonParser.parse(json, containerFactory);
-        return getDeserializer().unmarshall(cls, obj);
+        Map obj = new ObjectMapper().readValue(json, Map.class); //(HashMap<String, Object>) jsonParser.parse(json, containerFactory);
+        return (T) getDeserializer().unmarshall(cls, obj);
 
     }
 
