@@ -408,4 +408,15 @@ public class MongoTest {
         }
     }
 
+    public boolean stringWordCompare(String m1, String m2) {
+        if (m1 == null && m2 == null) return true;
+        if (m1 == null || m2 == null) return false;
+        if (m1.length() != m2.length()) return false;
+        String wrd[] = m1.split("[ \\{\\},\\.\\(\\)\\[\\]]");
+        for (String w : wrd) {
+            if (!m2.contains(w)) return false;
+        }
+        return true;
+    }
+
 }
