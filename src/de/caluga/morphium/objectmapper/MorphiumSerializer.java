@@ -18,10 +18,7 @@ import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.lang.reflect.Field;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 public class MorphiumSerializer {
 
@@ -43,6 +40,16 @@ public class MorphiumSerializer {
         objectMapper = om;
         module = new SimpleModule();
 
+        mongoTypes.add(String.class);
+        mongoTypes.add(Character.class);
+        mongoTypes.add(Integer.class);
+        mongoTypes.add(Long.class);
+        mongoTypes.add(Float.class);
+        mongoTypes.add(Double.class);
+        mongoTypes.add(Date.class);
+        mongoTypes.add(Boolean.class);
+        mongoTypes.add(Byte.class);
+
 
         module.addSerializer(MorphiumId.class, new JsonSerializer<MorphiumId>() {
             @Override
@@ -51,18 +58,31 @@ public class MorphiumSerializer {
             }
         });
 
+
         module.addSerializer(List.class, new JsonSerializer<List>() {
             @Override
             public void serialize(List list, JsonGenerator jsonGenerator, SerializerProvider serializerProvider) throws IOException {
                 jsonGenerator.writeStartArray();
                 for (Object o : list) {
-                    Map m = jackson.convertValue(o, Map.class);
+                    Map m = null;
+                    if (o instanceof Enum) {
+                        m = new HashMap();
+                        m.put("name", ((Enum) o).name());
+                    } else {
+                        if (mongoTypes.contains(o.getClass())) {
+                            jsonGenerator.writeObject(o);
+                            continue;
+                        }
+                        m = jackson.convertValue(o, Map.class);
+
+                    }
                     m.put("class_name", o.getClass().getName());
                     jsonGenerator.writeObject(m);
                 }
                 jsonGenerator.writeEndArray();
             }
         });
+
 
 //        ScanResult res = new FastClasspathScanner("").scan();
 //
@@ -77,6 +97,12 @@ public class MorphiumSerializer {
                 if (anhelper.isAnnotationPresentInHierarchy(beanDesc.getBeanClass(), Entity.class) || anhelper.isAnnotationPresentInHierarchy(beanDesc.getBeanClass(), Embedded.class)) {
                     return new EntitySerializer((JsonSerializer<Object>) serializer, anhelper);
                 }
+//                if (Map.class.isAssignableFrom(beanDesc.getBeanClass())){
+//                    return new CustomMapSerializer((JsonSerializer<Map>)serializer,anhelper);
+//                }
+                if (beanDesc.getBeanClass().isEnum()) {
+                    return new CustomEnumSerializer();
+                }
                 return serializer;
             }
         });
@@ -86,11 +112,12 @@ public class MorphiumSerializer {
 
 
     public Map<String, Object> serialize(Object o) {
-        try {
-            jackson.writeValue(System.out, o);
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
+//        try {
+//            jackson.writeValue(System.out, o);
+//        } catch (IOException e) {
+//            e.printStackTrace();
+//        }
+
         Map m = jackson.convertValue(o, Map.class);
 
         return m;
@@ -137,6 +164,40 @@ public class MorphiumSerializer {
     }
 
 
+    public class CustomEnumSerializer extends JsonSerializer<Enum> {
+
+        @Override
+        public void serialize(Enum anEnum, JsonGenerator jsonGenerator, SerializerProvider serializerProvider) throws IOException {
+            Map obj = new HashMap();
+            obj.put("name", anEnum.name());
+            obj.put("class_name", anEnum.getClass().getName());
+            jsonGenerator.writeObject(obj);
+        }
+    }
+//
+//
+//    public class CustomMapSerializer extends JsonSerializer<Map> {
+//        private final AnnotationAndReflectionHelper an;
+//        private JsonSerializer<Map> def;
+//
+//        public CustomMapSerializer(JsonSerializer<Map> def, AnnotationAndReflectionHelper an) {
+//            this.def = def;
+//            this.an = an;
+//        }
+//
+//        @Override
+//        public void serialize(Map map, JsonGenerator jsonGenerator, SerializerProvider serializerProvider) throws IOException {
+//            for (Map.Entry entry:(Set<Map.Entry>)map.entrySet()){
+//                if (entry.getValue().getClass().isEnum()){
+//                    Map ser=new HashMap();
+//                    ser.put("class_name",entry.getValue().getClass().getName());
+//                    ser.put("name",((Enum)entry.getValue()).name());
+//                    map.put(entry.getKey(),ser);
+//                }
+//            }
+//            def.serialize(map,jsonGenerator,serializerProvider);
+//        }
+//    }
 
     public class EntitySerializer extends JsonSerializer<Object> {
         private final AnnotationAndReflectionHelper an;

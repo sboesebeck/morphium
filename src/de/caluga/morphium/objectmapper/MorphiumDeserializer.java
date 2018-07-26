@@ -19,11 +19,9 @@ import org.slf4j.LoggerFactory;
 import sun.reflect.ReflectionFactory;
 
 import java.io.IOException;
+import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 public class MorphiumDeserializer {
 
@@ -102,6 +100,22 @@ public class MorphiumDeserializer {
 
                     return new EntityDeserializer(beanDesc.getBeanClass(), anhelper);
                 }
+                if (beanDesc.getBeanClass().isEnum()) {
+                    return new JsonDeserializer<Enum>() {
+                        @Override
+                        public Enum deserialize(JsonParser jsonParser, DeserializationContext deserializationContext) throws IOException, JsonProcessingException {
+                            Map<String, String> m = (Map<String, String>) jsonParser.readValueAs(Map.class);
+                            Class<Enum> target = null;
+                            try {
+                                target = (Class<Enum>) Class.forName(m.get("class_name"));
+                            } catch (ClassNotFoundException e) {
+                                throw new RuntimeException(e);
+                            }
+
+                            return Enum.valueOf(target, m.get("name"));
+                        }
+                    };
+                }
                 return def;
             }
         });
@@ -126,30 +140,83 @@ public class MorphiumDeserializer {
         public Object deserialize(JsonParser jsonParser, DeserializationContext deserializationContext) throws IOException, JsonProcessingException {
             String l = null;
             try {
-                Object ret = type.newInstance();
+                Object ret = null;
+                try {
+                    ret = type.newInstance();
+                } catch (Exception ignored) {
+                }
+                if (ret == null) {
+                    final Constructor<Object> constructor;
+                    try {
+                        constructor = (Constructor<Object>) reflection.newConstructorForSerialization(type, Object.class.getDeclaredConstructor());
+                        ret = constructor.newInstance();
+                    } catch (Exception e) {
+                        log.error("Exception during instanciation of type " + type.getName(), e);
+                    }
+                }
                 while ((l = jsonParser.nextFieldName()) != null) {
                     JsonToken t = jsonParser.nextValue();
-                    log.info("Field " + l);
-                    log.info("value " + jsonParser.getValueAsString());
+//                    log.info("Field " + l);
+//                    log.info("value " + jsonParser.getValueAsString());
 
                     Field f = anhelper.getField(type, l);
 
                     if (f == null) {
-                        log.error("Could not find field " + l + " in type " + type.getName());
+                        //log.error("Could not find field " + l + " in type " + type.getName());
                         continue;
                     }
+                    f.setAccessible(true);
                     if (List.class.isAssignableFrom(f.getType())) {
                         List lst = jackson.readValue(jsonParser, List.class);
                         List res = new ArrayList();
-                        for (Map elem : (List<Map>) lst) {
-                            if (elem.get("class_name") != null) {
-                                Class cls = Class.forName((String) elem.get("class_name"));
-                                res.add(jackson.convertValue(elem, cls));
+
+                        for (Object el : lst) {
+                            if (el instanceof Map) {
+                                Map elem = (Map) el;
+                                if (elem.get("class_name") != null) {
+                                    Class cls = Class.forName((String) elem.get("class_name"));
+                                    if (cls.isEnum()) {
+                                        res.add(Enum.valueOf(cls, (String) elem.get("name")));
+                                    } else {
+                                        res.add(jackson.convertValue(elem, cls));
+                                    }
+                                }
+                            } else {
+                                res.add(el);
                             }
                         }
                         f.set(ret, res);
                         continue;
                     }
+                    if (f.getType().isEnum()) {
+                        Map m = jsonParser.readValueAs(Map.class);
+                        f.set(ret, (Enum.valueOf((Class<Enum>) Class.forName((String) m.get("class_name")), (String) m.get("name"))));
+                        continue;
+                    }
+                    if (Map.class.isAssignableFrom(f.getType())) {
+                        Map m = jsonParser.readValueAs(Map.class);
+                        Map res = new HashMap();
+                        for (Map.Entry en : ((Map<Object, Object>) m).entrySet()) {
+                            if (en.getValue() instanceof Map) {
+                                String clsName = (String) ((Map) en.getValue()).get("class_name");
+                                if (clsName != null) {
+                                    Class<?> toValueType = Class.forName(clsName);
+                                    if (toValueType.isEnum()) {
+                                        res.put(en.getKey(), Enum.valueOf((Class<Enum>) toValueType, (String) ((Map) en.getValue()).get("name")));
+                                    } else {
+                                        res.put(en.getKey(), jackson.convertValue(en.getValue(), toValueType));
+                                    }
+                                    continue;
+                                }
+                            }
+                            res.put(en.getKey(), en.getValue());
+                        }
+                        f.set(ret, res);
+                        continue;
+                    }
+
+
+                    //todo: list of references!
                     Reference r = f.getAnnotation(Reference.class);
                     if (r != null) {
                         MorphiumReference ref = jackson.readValue(jsonParser, MorphiumReference.class);
@@ -160,7 +227,6 @@ public class MorphiumDeserializer {
                         }
                         continue;
                     }
-                    f.setAccessible(true);
                     f.set(ret, jackson.readValue(jsonParser, f.getType()));
 
                 }
