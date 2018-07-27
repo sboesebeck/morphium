@@ -1,8 +1,6 @@
 package de.caluga.test.mongo.suite;
 
-import de.caluga.morphium.Utils;
 import de.caluga.morphium.annotations.ReadOnly;
-import de.caluga.morphium.annotations.WriteOnly;
 import de.caluga.morphium.query.Query;
 import de.caluga.test.mongo.suite.data.UncachedObject;
 import org.junit.Test;
@@ -31,26 +29,6 @@ public class FieldListTest extends MongoTest {
         q = q.f(UncachedObject.Fields.counter).eq(30);
         UncachedObject uc = q.get();
         assert (uc.getValue() == null) : "Value is " + uc.getValue();
-    }
-
-    @Test
-    public void testWriteOnly() throws Exception {
-        morphium.dropCollection(WriteOnlyObject.class);
-        WriteOnlyObject wo = new WriteOnlyObject();
-        wo.setCounter(101);
-        wo.setValue("a value");
-        wo.writeOnlyValue = "write only";
-
-        morphium.store(wo);
-        morphium.reread(wo);
-        assert (wo.writeOnlyValue == null) : "read from db: " + wo.writeOnlyValue;
-
-
-        List<Map<String, Object>> lst = morphium.getDriver().find(morphium.getConfig().getDatabase(), "write_only_object",
-                Utils.getMap("_id", wo.getMorphiumId()), null, null, 0, 1000, 1000, null, null);
-        Map<String, Object> obj = lst.get(0);
-        assert (obj.get("write_only_value").equals("write only"));
-
     }
 
     @Test
@@ -88,11 +66,6 @@ public class FieldListTest extends MongoTest {
 
     }
 
-
-    public static class WriteOnlyObject extends UncachedObject {
-        @WriteOnly
-        private String writeOnlyValue;
-    }
 
     public static class ReadOnlyObject extends UncachedObject {
         @ReadOnly

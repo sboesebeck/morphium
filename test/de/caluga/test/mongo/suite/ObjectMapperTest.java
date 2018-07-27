@@ -240,9 +240,10 @@ public class ObjectMapperTest extends MongoTest {
         //Unmarshalling stuff
         co = om.deserialize(ComplexObject.class, marshall);
         assert (co.getEntityEmbeded().getMorphiumId() == null) : "Embeded entity got a mongoID?!?!?!";
+        assert (co.getRef() != null);
         co.getEntityEmbeded().setMorphiumId(embedId);  //need to set ID manually, as it won't be stored!
         String st2 = Utils.toJsonString(co);
-        assert (st.equals(st2)) : "Strings not equal?\n" + st + "\n" + st2;
+        assert (stringWordCompare(st, st2)) : "Strings not equal?\n" + st + "\n" + st2;
         assert (co.getEmbed() != null) : "Embedded value not found!";
 
     }
@@ -679,13 +680,7 @@ public class ObjectMapperTest extends MongoTest {
 
     @Test
     public void objectMapperNGTest() {
-        ObjectMapperImplNG mapperImplNG = new ObjectMapperImplNG();
-        mapperImplNG.setMorphium(morphium);
-        mapperImplNG.setAnnotationHelper(morphium.getARHelper());
-
-
-        for (MorphiumObjectMapper map : new MorphiumObjectMapper[]{morphium.getMapper(), mapperImplNG}) {
-            log.info("--------------------- Running test with " + map.getClass().getName());
+        MorphiumObjectMapper map = morphium.getMapper();
             UncachedObject uc = new UncachedObject("value", 123);
             uc.setMorphiumId(new MorphiumId());
             uc.setLongData(new long[]{1l, 2l});
@@ -716,62 +711,75 @@ public class ObjectMapperTest extends MongoTest {
             assert (obj.get("bi_value") instanceof Map);
 
 
-            ListOfListOfListOfString lst = new ListOfListOfListOfString();
-            lst.list = new ArrayList<>();
-            lst.list.add(new ArrayList<>());
-            lst.list.add(new ArrayList<>());
-            lst.list.get(0).add(new ArrayList<>());
-            lst.list.get(0).get(0).add("TEst1");
+    }
 
-            obj = map.serialize(lst);
-            assert (obj.get("list") instanceof List);
-            assert (((List) obj.get("list")).get(0) instanceof List);
-            assert (((List) ((List) obj.get("list")).get(0)).get(0) instanceof List);
-            assert (((List) ((List) ((List) obj.get("list")).get(0)).get(0)).get(0) instanceof String);
+    @Test
+    public void objectMapperListOfListOfUncachedTest() {
+        MorphiumObjectMapper map = morphium.getMapper();
+        ListOfListOfListOfUncached lst3 = new ListOfListOfListOfUncached();
+        lst3.list = new ArrayList<>();
+        lst3.list.add(new ArrayList<>());
+        lst3.list.add(new ArrayList<>());
+        lst3.list.get(0).add(new ArrayList<>());
+        lst3.list.get(0).get(0).add(new UncachedObject("test", 123));
 
-            ListOfListOfListOfString lst2 = map.deserialize(ListOfListOfListOfString.class, obj);
-            assert (lst2.list.size() == 2);
-            assert (lst2.list.get(0).size() == 1);
-            assert (lst2.list.get(0).get(0).size() == 1);
-            assert (lst2.list.get(0).get(0).get(0).equals("TEst1"));
+        Map<String, Object> obj = map.serialize(lst3);
+        assert (obj.get("list") instanceof List);
+        assert (((List) obj.get("list")).get(0) instanceof List);
+        assert (((List) ((List) obj.get("list")).get(0)).get(0) instanceof List);
+        assert (((List) ((List) ((List) obj.get("list")).get(0)).get(0)).get(0) instanceof Map);
 
-            ListOfListOfListOfUncached lst3 = new ListOfListOfListOfUncached();
-            lst3.list = new ArrayList<>();
-            lst3.list.add(new ArrayList<>());
-            lst3.list.add(new ArrayList<>());
-            lst3.list.get(0).add(new ArrayList<>());
-            lst3.list.get(0).get(0).add(new UncachedObject("test", 123));
+        ListOfListOfListOfUncached lst4 = map.deserialize(ListOfListOfListOfUncached.class, obj);
+        assert (lst4.list.size() == 2);
+        assert (lst4.list.get(0).size() == 1);
+        assert (lst4.list.get(0).get(0).size() == 1);
+        assert (lst4.list.get(0).get(0).get(0).getValue().equals("test"));
+    }
 
-            obj = map.serialize(lst3);
-            assert (obj.get("list") instanceof List);
-            assert (((List) obj.get("list")).get(0) instanceof List);
-            assert (((List) ((List) obj.get("list")).get(0)).get(0) instanceof List);
-            assert (((List) ((List) ((List) obj.get("list")).get(0)).get(0)).get(0) instanceof Map);
 
-            ListOfListOfListOfUncached lst4 = map.deserialize(ListOfListOfListOfUncached.class, obj);
-            assert (lst4.list.size() == 2);
-            assert (lst4.list.get(0).size() == 1);
-            assert (lst4.list.get(0).get(0).size() == 1);
-            assert (lst4.list.get(0).get(0).get(0).getValue().equals("test"));
+    @Test
+    public void objectMapperListOfMapOfListOfStringTest() {
+        MorphiumObjectMapper map = morphium.getMapper();
+        ListOfMapOfListOfString lst5 = new ListOfMapOfListOfString();
+        lst5.list = new ArrayList<>();
+        lst5.list.add(new HashMap<>());
+        lst5.list.add(new HashMap<>());
+        lst5.list.get(0).put("tst1", new ArrayList<>());
+        lst5.list.get(0).get("tst1").add("test");
+        Map<String, Object> obj = map.serialize(lst5);
+        assert (obj.get("list") instanceof List);
+        assert (((List) obj.get("list")).get(0) instanceof Map);
+        assert (((Map) ((List) obj.get("list")).get(0)).get("tst1") instanceof List);
+        assert (((List) ((Map) ((List) obj.get("list")).get(0)).get("tst1")).get(0) instanceof String);
 
-            ListOfMapOfListOfString lst5 = new ListOfMapOfListOfString();
-            lst5.list = new ArrayList<>();
-            lst5.list.add(new HashMap<>());
-            lst5.list.add(new HashMap<>());
-            lst5.list.get(0).put("tst1", new ArrayList<>());
-            lst5.list.get(0).get("tst1").add("test");
-            obj = map.serialize(lst5);
-            assert (obj.get("list") instanceof List);
-            assert (((List) obj.get("list")).get(0) instanceof Map);
-            assert (((Map) ((List) obj.get("list")).get(0)).get("tst1") instanceof List);
-            assert (((List) ((Map) ((List) obj.get("list")).get(0)).get("tst1")).get(0) instanceof String);
+        ListOfMapOfListOfString lst6 = map.deserialize(ListOfMapOfListOfString.class, obj);
+        assert (lst6.list.size() == 2);
+        assert (lst6.list.get(0) != null);
+        assert (lst6.list.get(0).get("tst1") != null);
+    }
 
-            ListOfMapOfListOfString lst6 = map.deserialize(ListOfMapOfListOfString.class, obj);
-            assert (lst6.list.size() == 2);
-            assert (lst6.list.get(0) != null);
-            assert (lst6.list.get(0).get("tst1") != null);
+    @Test
+    public void objectMapperListOfListOfStringTest() {
+        MorphiumObjectMapper map = morphium.getMapper();
+        ListOfListOfListOfString lst = new ListOfListOfListOfString();
+        lst.list = new ArrayList<>();
+        lst.list.add(new ArrayList<>());
+        lst.list.add(new ArrayList<>());
+        lst.list.get(0).add(new ArrayList<>());
+        lst.list.get(0).get(0).add("TEst1");
 
-        }
+        Map<String, Object> obj = map.serialize(lst);
+        assert (obj.get("list") instanceof List);
+        assert (((List) obj.get("list")).get(0) instanceof List);
+        assert (((List) ((List) obj.get("list")).get(0)).get(0) instanceof List);
+        assert (((List) ((List) ((List) obj.get("list")).get(0)).get(0)).get(0) instanceof String);
+
+        ListOfListOfListOfString lst2 = map.deserialize(ListOfListOfListOfString.class, obj);
+        assert (lst2.list.size() == 2);
+        assert (lst2.list.get(0).size() == 1);
+        assert (lst2.list.get(0).get(0).size() == 1);
+        assert (lst2.list.get(0).get(0).get(0).equals("TEst1"));
+
     }
 
     @Test
@@ -798,6 +806,7 @@ public class ObjectMapperTest extends MongoTest {
         assert (obj2.get("an_enum") != null);
 
         EnumTest e2 = map.deserialize(EnumTest.class, obj2);
+
         assert (e2 != null);
         assert (e2.equals(e));
     }

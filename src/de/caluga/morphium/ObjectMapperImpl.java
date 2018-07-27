@@ -592,9 +592,6 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
                     continue;
                 }
 
-                if (fld.isAnnotationPresent(WriteOnly.class)) {
-                    continue;//do not read from DB
-                }
                 if (fld.isAnnotationPresent(AdditionalData.class)) {
                     //this field should store all data that is not put to fields
                     if (!Map.class.isAssignableFrom(fld.getType())) {
@@ -948,9 +945,7 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
                     }
                 }
             }
-            if (annotationHelper.isAnnotationPresentInHierarchy(cls, PartialUpdate.class) || cls.isInstance(PartiallyUpdateable.class)) {
-                return (T) morphium.createPartiallyUpdateableEntity(ret);
-            }
+
             if (ret instanceof BinarySerializedObject) {
                 BinarySerializedObject bso = (BinarySerializedObject) ret;
                 BASE64Decoder dec = new BASE64Decoder();
