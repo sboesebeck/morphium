@@ -149,7 +149,9 @@ public class ObjectMapperTest extends MongoTest {
 
         String s = Utils.toJsonString(dbo);
         System.out.println("Marshalling was: " + s);
-        assert (stringWordCompare(s, "{ \"dval\" : 0.0, \"counter\" : 12345, \"value\" : \"This \" is $ test\" } ")) : "String creation failed?" + s;
+        assert (stringWordCompare(s, "{ \"dval\" : 0.0, \"counter\" : 12345, \"value\" : \"This \\\" is $ test\" } ")) : "String creation failed?" + s;
+        o = om.deserialize(UncachedObject.class, dbo);
+        log.info("Text is: " + o.getValue());
     }
 
     @Test
@@ -242,6 +244,8 @@ public class ObjectMapperTest extends MongoTest {
         assert (co.getEntityEmbeded().getMorphiumId() == null) : "Embeded entity got a mongoID?!?!?!";
         assert (co.getRef() != null);
         co.getEntityEmbeded().setMorphiumId(embedId);  //need to set ID manually, as it won't be stored!
+        co.getRef().setMorphiumId(o.getMorphiumId());
+        //co.getcRef().setId(new MorphiumId());
         String st2 = Utils.toJsonString(co);
         assert (stringWordCompare(st, st2)) : "Strings not equal?\n" + st + "\n" + st2;
         assert (co.getEmbed() != null) : "Embedded value not found!";
@@ -647,68 +651,63 @@ public class ObjectMapperTest extends MongoTest {
 
     @Test
     public void testListOfEmbedded() {
-        ObjectMapperImplNG mapperImplNG = new ObjectMapperImplNG();
-        mapperImplNG.setMorphium(morphium);
-        mapperImplNG.setAnnotationHelper(morphium.getARHelper());
+        MorphiumObjectMapper map = morphium.getMapper();
+        log.info("--------------------- Running test with " + map.getClass().getName());
+        ListOfEmbedded lst = new ListOfEmbedded();
+        lst.list = new ArrayList<>();
+        lst.list.add(new EmbeddedObject("nam", "val", System.currentTimeMillis()));
+        lst.list.add(new EmbeddedObject("nam", "val", System.currentTimeMillis()));
+        lst.list.add(new EmbeddedObject("nam", "val", System.currentTimeMillis()));
+        lst.list.add(new EmbeddedObject("nam", "val", System.currentTimeMillis()));
 
+        Map<String, Object> obj = map.serialize(lst);
+        assert (obj.get("list") != null);
+        assert (obj.get("list") instanceof List);
+        assert (((List) obj.get("list")).get(0) instanceof Map);
 
-        for (MorphiumObjectMapper map : new MorphiumObjectMapper[]{morphium.getMapper(), mapperImplNG}) {
-            log.info("--------------------- Running test with " + map.getClass().getName());
-            ListOfEmbedded lst = new ListOfEmbedded();
-            lst.list = new ArrayList<>();
-            lst.list.add(new EmbeddedObject("nam", "val", System.currentTimeMillis()));
-            lst.list.add(new EmbeddedObject("nam", "val", System.currentTimeMillis()));
-            lst.list.add(new EmbeddedObject("nam", "val", System.currentTimeMillis()));
-            lst.list.add(new EmbeddedObject("nam", "val", System.currentTimeMillis()));
+        ListOfEmbedded lst2 = map.deserialize(ListOfEmbedded.class, obj);
+        assert (lst2.list != null);
+        assert (lst2.list.size() == 4);
+        assert (lst2.list.get(0).getName().equals("nam"));
 
-            Map<String, Object> obj = map.serialize(lst);
-            assert (obj.get("list") != null);
-            assert (obj.get("list") instanceof List);
-            assert (((List) obj.get("list")).get(0) instanceof Map);
+        ((Map) ((List) obj.get("list")).get(0)).remove("class_name");
 
-            ListOfEmbedded lst2 = map.deserialize(ListOfEmbedded.class, obj);
-            assert (lst2.list != null);
-            assert (lst2.list.size() == 4);
-            assert (lst2.list.get(0).getName().equals("nam"));
+        lst2 = map.deserialize(ListOfEmbedded.class, obj);
+        assert (lst2.list.get(0) instanceof EmbeddedObject);
 
-            ((Map) ((List) obj.get("list")).get(0)).remove("class_name");
-
-            lst2 = map.deserialize(ListOfEmbedded.class, obj);
-            assert (lst2.list.get(0) instanceof EmbeddedObject);
-        }
     }
 
     @Test
     public void objectMapperNGTest() {
         MorphiumObjectMapper map = morphium.getMapper();
-            UncachedObject uc = new UncachedObject("value", 123);
-            uc.setMorphiumId(new MorphiumId());
-            uc.setLongData(new long[]{1l, 2l});
-            Map<String, Object> obj = map.serialize(uc);
+        UncachedObject uc = new UncachedObject("value", 123);
+        uc.setMorphiumId(new MorphiumId());
+        uc.setLongData(new long[]{1l, 2l});
+        Map<String, Object> obj = map.serialize(uc);
 
-            assert (obj.get("value") != null);
-            assert (obj.get("value") instanceof String);
-            assert (obj.get("counter") instanceof Integer);
-            assert (obj.get("long_data") instanceof ArrayList);
+        assert (obj.get("value") != null);
+        assert (obj.get("value") instanceof String);
+        assert (obj.get("counter") instanceof Integer);
+        assert (obj.get("long_data") instanceof ArrayList);
 
-            MappedObject mo = new MappedObject();
-            mo.id = "test";
-            mo.uc = uc;
-            mo.aMap = new HashMap<>();
-            mo.aMap.put("Test", "value1");
-            mo.aMap.put("test2", "value2");
-            obj = map.serialize(mo);
-            assert (obj.get("uc") != null);
-            assert (((Map) obj.get("uc")).get("_id") == null);
+        MappedObject mo = new MappedObject();
+        mo.id = "test";
+        mo.uc = uc;
+        mo.aMap = new HashMap<>();
+        mo.aMap.put("Test", "value1");
+        mo.aMap.put("test2", "value2");
+        obj = map.serialize(mo);
+        assert (obj.get("uc") != null);
+        assert (((Map) obj.get("uc")).get("_id") == null);
 
-            BIObject bo = new BIObject();
-            bo.id = new MorphiumId();
-            bo.value = "biVal";
-            bo.biValue = new BigInteger("123afd33", 16);
+        BIObject bo = new BIObject();
+        bo.id = new MorphiumId();
+        bo.value = "biVal";
+        bo.biValue = new BigInteger("123afd33", 16);
 
-            obj = map.serialize(bo);
-            assert (obj.get("_id") instanceof ObjectId || obj.get("_id") instanceof String || obj.get("_id") instanceof MorphiumId);
-            assert (obj.get("bi_value") instanceof Map);
+        obj = map.serialize(bo);
+        assert (obj.get("_id") instanceof ObjectId || obj.get("_id") instanceof String || obj.get("_id") instanceof MorphiumId);
+        assert (obj.get("bi_value") instanceof Map);
 
 
     }
@@ -847,6 +846,7 @@ public class ObjectMapperTest extends MongoTest {
 
         public List<Map<String, List<String>>> list;
     }
+
     @Entity
     public static class MappedObject {
         @Id

@@ -53,7 +53,7 @@ public class MorphiumSerializer {
         module.addSerializer(MorphiumId.class, new JsonSerializer<MorphiumId>() {
             @Override
             public void serialize(MorphiumId morphiumId, JsonGenerator jsonGenerator, SerializerProvider serializerProvider) throws IOException {
-                jsonGenerator.writeString("ObjectId(" + morphiumId.toString() + ")");
+                jsonGenerator.writeObject(morphiumId.toString());
             }
         });
 
@@ -80,6 +80,9 @@ public class MorphiumSerializer {
                         }
                         if (o instanceof List) {
                             serialize((List) o, jsonGenerator, serializerProvider);
+                            continue;
+                        } else if (o instanceof MorphiumId) {
+                            jsonGenerator.writeString("ObjectId(" + o.toString() + ")");
                             continue;
                         }
                         m = jackson.convertValue(o, Map.class);
@@ -126,6 +129,7 @@ public class MorphiumSerializer {
 //        } catch (IOException e) {
 //            e.printStackTrace();
 //        }
+
 
         Map m = jackson.convertValue(o, Map.class);
 

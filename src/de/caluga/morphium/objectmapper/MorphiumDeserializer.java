@@ -19,10 +19,7 @@ import org.slf4j.LoggerFactory;
 import sun.reflect.ReflectionFactory;
 
 import java.io.IOException;
-import java.lang.reflect.Constructor;
-import java.lang.reflect.Field;
-import java.lang.reflect.ParameterizedType;
-import java.lang.reflect.Type;
+import java.lang.reflect.*;
 import java.math.BigInteger;
 import java.util.*;
 
@@ -36,8 +33,6 @@ public class MorphiumDeserializer {
     private final Logger log = LoggerFactory.getLogger(MorphiumSerializer.class);
     private final SimpleModule module;
     private final com.fasterxml.jackson.databind.ObjectMapper jackson;
-    private boolean ignoreReadOnly = false;
-    private boolean ignoreEntity = false;
 
     public MorphiumDeserializer(AnnotationAndReflectionHelper anhelper, Map<Class<?>, NameProvider> nameProviderByClass, Morphium morphium, MorphiumObjectMapper objectMapper) {
 
@@ -59,9 +54,10 @@ public class MorphiumDeserializer {
             @Override
             public MorphiumId deserialize(JsonParser jsonParser, DeserializationContext deserializationContext) {
                 try {
-                    String id = jsonParser.getValueAsString().substring(9);
-                    id = id.substring(0, id.length() - 1);
-                    return new MorphiumId(id);
+
+                    String valueAsString = jsonParser.getValueAsString();
+                    if (valueAsString == null) return null;
+                    return new MorphiumId(valueAsString);
                 } catch (IOException e) {
                     throw new RuntimeException(e);
                 }
@@ -206,47 +202,8 @@ public class MorphiumDeserializer {
                         ////////////////////
                         ////// list or array
                         //////
-                        List v = new ArrayList();
                         List o = jackson.readValue(jsonParser, List.class);
-                        Class listElementType = null;
-                        Type type = null;
-                        if (f != null) {
-                            type = f.getGenericType();
-                            if (type != null) {
-                                if (type instanceof ParameterizedType) {
-                                    if (((ParameterizedType) type).getActualTypeArguments()[0] instanceof ParameterizedType) {
-                                        //list of lists?
-                                        //ParameterizedType t2= (ParameterizedType) ((ParameterizedType)type).getActualTypeArguments()[0];
-                                        listElementType = List.class;
-
-                                    } else {
-                                        listElementType = (Class) ((ParameterizedType) type).getActualTypeArguments()[0];
-                                    }
-                                }
-                            }
-                        }
-                        for (Object el : o) {
-                            if (el instanceof Map) {
-                                if (((Map) el).get("class_name") != null) {
-                                    Class<?> cls = Class.forName((String) ((Map) el).get("class_name"));
-                                    if (cls.isEnum()) {
-                                        v.add(Enum.valueOf((Class) cls, (String) ((Map) el).get("name")));
-                                    } else {
-                                        v.add(jackson.convertValue(el, cls));
-                                    }
-                                } else {
-                                    v.add(el);
-                                }
-                            } else if (listElementType != null) {
-                                v.add(jackson.convertValue(el, listElementType));
-                            } else {
-                                v.add(el);
-                            }
-
-                        }
-                        if (f != null) {
-                            f.set(ret, v);
-                        }
+                        f.set(ret, handleList(f.getGenericType(), o));
                         continue;
 
                     }
@@ -261,51 +218,7 @@ public class MorphiumDeserializer {
                         if (f != null) {
                             if (Map.class.isAssignableFrom(f.getType())) {
                                 Map m = (Map) jackson.readValue(jsonParser, f.getType());
-                                Map v = new LinkedHashMap();
-                                for (Map.Entry e : (Set<Map.Entry>) m.entrySet()) {
-                                    if (e.getValue() instanceof Map) {
-                                        //Object? Enum? in a Map... Map<Something,MAP>
-                                        Object toPut = null;
-
-                                        Map ev = (Map) e.getValue();
-                                        Class cls = Map.class;
-                                        if (ev.get("class_name") != null) {
-                                            cls = Class.forName((String) ev.get("class_name"));
-                                            if (cls.isEnum()) {
-                                                toPut = Enum.valueOf(cls, (String) ev.get("name"));
-                                            } else {
-                                                toPut = jackson.convertValue(ev, cls);
-                                            }
-                                        } else {
-                                            toPut = jackson.convertValue(ev, cls);
-                                        }
-                                        v.put(e.getKey(), toPut);
-                                        continue;
-                                    } else if (e.getValue() instanceof List) {
-                                        ///Map<Something,List>
-                                        List retLst = new ArrayList();
-                                        for (Object el : (List) e.getValue()) {
-                                            Object toAdd = null;
-                                            if (el instanceof Map) {
-                                                if (((Map) el).get("class_name") != null) {
-                                                    Class cls = Class.forName((String) ((Map) el).get("class_name"));
-                                                    if (cls.isEnum()) {
-                                                        toAdd = Enum.valueOf(cls, (String) ((Map) el).get("name"));
-                                                    } else {
-                                                        toAdd = jackson.convertValue(el, cls);
-                                                    }
-                                                } else {
-                                                    toAdd = jackson.convertValue(el, Map.class);
-                                                }
-                                            } else {
-                                                toAdd = jackson.convertValue(el, Map.class);
-                                            }
-                                            retLst.add(toAdd);
-                                        }
-                                    } else {
-                                        v.put(e.getKey(), e.getValue());
-                                    }
-                                }
+                                Map v = handleMap(m);
                                 f.set(ret, v);
                             } else {
                                 Object v = jackson.readValue(jsonParser, f.getType());
@@ -330,6 +243,7 @@ public class MorphiumDeserializer {
                         continue;
                     }
 
+                    ///reading in values!
                     if (f.getType().isEnum()) {
                         Map m = jsonParser.readValueAs(Map.class);
                         f.set(ret, (Enum.valueOf((Class<Enum>) Class.forName((String) m.get("class_name")), (String) m.get("name"))));
@@ -377,5 +291,182 @@ public class MorphiumDeserializer {
             }
 
         }
+    }
+
+    private Map handleMap(Map m) throws ClassNotFoundException {
+        Map v = new LinkedHashMap();
+        for (Map.Entry e : (Set<Map.Entry>) m.entrySet()) {
+            if (e.getValue() instanceof Map) {
+                //Object? Enum? in a Map... Map<Something,MAP>
+                Object toPut = null;
+
+                Map ev = (Map) e.getValue();
+                Class cls = Map.class;
+                if (ev.get("class_name") != null) {
+                    cls = Class.forName((String) ev.get("class_name"));
+                    if (cls.isEnum()) {
+                        toPut = Enum.valueOf(cls, (String) ev.get("name"));
+                    } else {
+                        toPut = jackson.convertValue(ev, cls);
+                    }
+                } else {
+                    toPut = jackson.convertValue(ev, cls);
+                }
+                v.put(e.getKey(), toPut);
+                continue;
+            } else if (e.getValue() instanceof List) {
+                ///Map<Something,List>
+                Object retLst = null;
+                try {
+                    retLst = handleList(List.class, (List) e.getValue());
+                } catch (IllegalAccessException e1) {
+                    throw new RuntimeException(e1);
+                }
+                v.put(e.getKey(), retLst);
+//                for (Object el : (List) e.getValue()) {
+//                    Object toAdd = null;
+//                    if (el instanceof Map) {
+//                        if (((Map) el).get("class_name") != null) {
+//                            Class cls = Class.forName((String) ((Map) el).get("class_name"));
+//                            if (cls.isEnum()) {
+//                                toAdd = Enum.valueOf(cls, (String) ((Map) el).get("name"));
+//                            } else {
+//                                toAdd = jackson.convertValue(el, cls);
+//                            }
+//                        } else {
+//                            toAdd = jackson.convertValue(el, Map.class);
+//                        }
+//                    } else {
+//                        toAdd = jackson.convertValue(el, Map.class);
+//                    }
+//                    retLst.add(toAdd);
+//                }
+            } else {
+                v.put(e.getKey(), e.getValue());
+            }
+        }
+        return v;
+    }
+
+    private Object handleList(Type type, List listIn) throws ClassNotFoundException {
+        Class listElementType = null;
+        List listOut = new ArrayList();
+        if (type != null) {
+            if (type instanceof ParameterizedType) {
+                if (((ParameterizedType) type).getActualTypeArguments()[0] instanceof ParameterizedType) {
+                    //list of lists?
+                    //ParameterizedType t2= (ParameterizedType) ((ParameterizedType)type).getActualTypeArguments()[0];
+                    listElementType = List.class;
+
+                } else {
+                    listElementType = (Class) ((ParameterizedType) type).getActualTypeArguments()[0];
+                }
+            }
+        }
+        for (Object el : listIn) {
+            if (el instanceof Map) {
+                if (((Map) el).get("class_name") != null) {
+                    Class<?> cls = Class.forName((String) ((Map) el).get("class_name"));
+                    if (cls.isEnum()) {
+                        listOut.add(Enum.valueOf((Class) cls, (String) ((Map) el).get("name")));
+                    } else {
+                        listOut.add(jackson.convertValue(el, cls));
+                    }
+                } else {
+                    if (listElementType != null) {
+                        listOut.add(jackson.convertValue(el, listElementType));
+                    } else {
+                        listOut.add(handleMap((Map) el));
+                    }
+                }
+            } else if (el instanceof List) {
+                if (type instanceof ParameterizedType) {
+                    listOut.add(handleList(((ParameterizedType) type).getActualTypeArguments()[0], (List) el));
+                } else {
+                    listOut.add(handleList(null, (List) el));
+                }
+            } else if (listElementType != null) {
+                listOut.add(jackson.convertValue(el, listElementType));
+            } else {
+                listOut.add(el);
+            }
+
+        }
+        if (type != null && type instanceof Class && ((Class) type).isArray()) {
+            Object arr = Array.newInstance(((Class) type).getComponentType(), listOut.size());
+            for (int i = 0; i < listOut.size(); i++) {
+                if (((Class) type).getComponentType().isPrimitive()) {
+                    if (((Class) type).getComponentType().equals(int.class)) {
+                        if (listOut.get(i) instanceof Double) {
+                            Array.set(arr, i, ((Double) listOut.get(i)).intValue());
+                        } else if (listOut.get(i) instanceof Integer) {
+                            Array.set(arr, i, listOut.get(i));
+                        } else if (listOut.get(i) instanceof Long) {
+                            Array.set(arr, i, ((Long) listOut.get(i)).intValue());
+                        } else {
+                            //noinspection RedundantCast
+                            Array.set(arr, i, listOut.get(i));
+                        }
+
+                    } else if (((Class) type).getComponentType().equals(long.class)) {
+                        if (listOut.get(i) instanceof Double) {
+                            Array.set(arr, i, ((Double) listOut.get(i)).longValue());
+                        } else if (listOut.get(i) instanceof Integer) {
+                            Array.set(arr, i, ((Integer) listOut.get(i)).longValue());
+                        } else if (listOut.get(i) instanceof Long) {
+                            Array.set(arr, i, listOut.get(i));
+                        } else {
+                            Array.set(arr, i, listOut.get(i));
+                        }
+
+                    } else if (((Class) type).getComponentType().equals(float.class)) {
+                        //Driver sends doubles instead of floats
+                        if (listOut.get(i) instanceof Double) {
+                            Array.set(arr, i, ((Double) listOut.get(i)).floatValue());
+                        } else if (listOut.get(i) instanceof Integer) {
+                            Array.set(arr, i, ((Integer) listOut.get(i)).floatValue());
+                        } else if (listOut.get(i) instanceof Long) {
+                            Array.set(arr, i, ((Long) listOut.get(i)).floatValue());
+                        } else {
+                            Array.set(arr, i, listOut.get(i));
+                        }
+
+                    } else if (((Class) type).getComponentType().equals(double.class)) {
+                        if (listOut.get(i) instanceof Float) {
+                            Array.set(arr, i, ((Float) listOut.get(i)).doubleValue());
+                        } else if (listOut.get(i) instanceof Integer) {
+                            Array.set(arr, i, ((Integer) listOut.get(i)).doubleValue());
+                        } else if (listOut.get(i) instanceof Long) {
+                            Array.set(arr, i, ((Long) listOut.get(i)).doubleValue());
+                        } else {
+                            Array.set(arr, i, listOut.get(i));
+                        }
+
+                    } else if (((Class) type).getComponentType().equals(byte.class)) {
+                        if (listOut.get(i) instanceof Integer) {
+                            Array.set(arr, i, ((Integer) listOut.get(i)).byteValue());
+                        } else if (listOut.get(i) instanceof Long) {
+                            Array.set(arr, i, ((Long) listOut.get(i)).byteValue());
+                        } else {
+                            Array.set(arr, i, listOut.get(i));
+                        }
+                    } else if (((Class) type).getComponentType().equals(boolean.class)) {
+                        if (listOut.get(i) instanceof String) {
+                            Array.set(arr, i, listOut.get(i).toString().equalsIgnoreCase("true"));
+                        } else if (listOut.get(i) instanceof Integer) {
+                            Array.set(arr, i, (Integer) listOut.get(i) == 1);
+                        } else {
+                            Array.set(arr, i, listOut.get(i));
+                        }
+
+                    }
+                } else {
+                    Array.set(arr, i, listOut.get(i));
+                }
+            }
+            return arr;
+        }
+
+        return listOut;
     }
 }
