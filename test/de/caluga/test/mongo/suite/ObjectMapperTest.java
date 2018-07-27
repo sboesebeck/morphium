@@ -45,6 +45,16 @@ public class ObjectMapperTest extends MongoTest {
         assert (bio2.biValue.equals(tst));
     }
 
+    @Test
+    public void idTest() {
+        UncachedObject o = new UncachedObject("test", 1234);
+        o.setMorphiumId(new MorphiumId());
+        Map<String, Object> m = morphium.getMapper().serialize(o);
+        assert (m.get("_id") instanceof MorphiumId);
+        UncachedObject uc = morphium.getMapper().deserialize(UncachedObject.class, m);
+        assert (uc.getMorphiumId() != null);
+    }
+
 
     @Test
     public void simpleParseFromStringTest() throws Exception {
