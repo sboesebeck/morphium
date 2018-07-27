@@ -109,7 +109,6 @@ public class UncachedObject {
         this.counter = counter;
     }
 
-    @PartialUpdate("value")
     public String getValue() {
         return value;
     }
