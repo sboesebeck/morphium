@@ -6,8 +6,8 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import de.caluga.morphium.objectmapper.ObjectMapperImplNG;
 
-import java.io.UnsupportedEncodingException;
 import java.lang.reflect.Field;
+import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -28,7 +28,7 @@ public class Utils {
         Map m = obj.serialize(o);
         ObjectMapper map = new ObjectMapper();
         try {
-            return map.writeValueAsString(o);
+            return map.writeValueAsString(m);
         } catch (JsonProcessingException e) {
             return "";
         }
@@ -82,30 +82,26 @@ public class Utils {
                 sb.append(" ");
             }
 
-            try {
-                int l = 16;
-                if (mainIdx + 16 > b.length) {
-                    l = b.length - mainIdx;
-                }
-
-                byte sr[] = new byte[l];
-                int n = 0;
-                for (int j = mainIdx; j < mainIdx + l; j++) {
-                    if (b[j] < 128 && b[j] > 63) {
-                        sr[n] = b[j];
-                    } else if (b[j] == 0) {
-                        sr[n] = '-';
-                    } else {
-                        sr[n] = '.';
-                    }
-                    n++;
-                }
-                String str = new String(sr, 0, l, "UTF-8");
-                sb.append("    ");
-                sb.append(str);
-            } catch (UnsupportedEncodingException e) {
-                //ignore it
+            int l = 16;
+            if (mainIdx + 16 > b.length) {
+                l = b.length - mainIdx;
             }
+
+            byte sr[] = new byte[l];
+            int n = 0;
+            for (int j = mainIdx; j < mainIdx + l; j++) {
+                if (b[j] < 128 && b[j] > 63) {
+                    sr[n] = b[j];
+                } else if (b[j] == 0) {
+                    sr[n] = '-';
+                } else {
+                    sr[n] = '.';
+                }
+                n++;
+            }
+            String str = new String(sr, 0, l, StandardCharsets.UTF_8);
+            sb.append("    ");
+            sb.append(str);
             sb.append("\n");
             mainIdx += 16;
         }
