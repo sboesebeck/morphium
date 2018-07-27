@@ -54,21 +54,15 @@ public class MorphiumDeserializer {
             @Override
             public MorphiumId deserialize(JsonParser jsonParser, DeserializationContext deserializationContext) {
                 try {
-
+                    String n = jsonParser.nextFieldName();
+                    n = jsonParser.nextFieldName();
                     String valueAsString = jsonParser.getValueAsString();
+//                    jsonParser.nextToken();
                     if (valueAsString == null) return null;
                     return new MorphiumId(valueAsString);
                 } catch (IOException e) {
                     throw new RuntimeException(e);
                 }
-            }
-
-            @Override
-            public Collection<Object> getKnownPropertyNames() {
-                Collection<Object> col = new ArrayList<>();
-                col.add("_id");
-                return col;
-
             }
 
         });
@@ -157,7 +151,44 @@ public class MorphiumDeserializer {
     }
 
     public <T> T unmarshall(Class<? extends T> theClass, Map<String, Object> o) {
+        o = replaceMorphiumIds(o);
         return jackson.convertValue(o, theClass);
+    }
+
+    private Map<String, Object> replaceMorphiumIds(Map<String, Object> m) {
+        Map ret = new HashMap();
+        for (Map.Entry e : m.entrySet()) {
+            if (e.getValue() instanceof Map) {
+                ret.put(e.getKey(), replaceMorphiumIds((Map<String, Object>) e.getValue()));
+            } else if (e.getValue() instanceof List) {
+                ret.put(e.getKey(), replaceMorphiumIds((List) e.getValue()));
+            } else if (e.getValue() instanceof MorphiumId) {
+                Map o = new LinkedHashMap();
+                o.put("morphium id", e.getValue().toString());
+                ret.put(e.getKey(), o);
+            } else {
+                ret.put(e.getKey(), e.getValue());
+            }
+        }
+        return ret;
+    }
+
+    private Object replaceMorphiumIds(List value) {
+        List ret = new ArrayList();
+        for (Object o : value) {
+            if (o instanceof MorphiumId) {
+                Map m = new HashMap();
+                m.put("morphium id", o.toString());
+                ret.add(m);
+            } else if (o instanceof Map) {
+                ret.add(replaceMorphiumIds((Map) o));
+            } else if (o instanceof List) {
+                ret.add(replaceMorphiumIds((List) o));
+            } else {
+                ret.add(o);
+            }
+        }
+        return ret;
     }
 
     private class EntityDeserializer extends JsonDeserializer<Object> {

@@ -53,12 +53,16 @@ public class MorphiumSerializer {
         module.addSerializer(MorphiumId.class, new JsonSerializer<MorphiumId>() {
             @Override
             public void serialize(MorphiumId morphiumId, JsonGenerator jsonGenerator, SerializerProvider serializerProvider) throws IOException {
+//                jsonGenerator.writeObjectId(morphiumId.toString());
+                jsonGenerator.writeStartObject();
+                jsonGenerator.writeFieldName("morphium id");
                 jsonGenerator.writeObject(morphiumId.toString());
+                jsonGenerator.writeEndObject();
+//                jsonGenerator.writeObject(morphiumId.toString());
             }
         });
 
         module.addSerializer(BigInteger.class, new JsonSerializer<BigInteger>() {
-
             @Override
             public void serialize(BigInteger bigInteger, JsonGenerator jsonGenerator, SerializerProvider serializerProvider) throws IOException {
                 jsonGenerator.writeObject(new BigIntegerTypeMapper().marshall(bigInteger));
@@ -81,9 +85,11 @@ public class MorphiumSerializer {
                         if (o instanceof List) {
                             serialize((List) o, jsonGenerator, serializerProvider);
                             continue;
-                        } else if (o instanceof MorphiumId) {
-                            jsonGenerator.writeString("ObjectId(" + o.toString() + ")");
-                            continue;
+//                        } else if (o instanceof MorphiumId) {
+//                            jsonGenerator.write(o.toString());
+//                            continue;
+//                            jsonGenerator.writeString("ObjectId(" + o.toString() + ")");
+//                            continue;
                         }
                         m = jackson.convertValue(o, Map.class);
 
@@ -132,8 +138,37 @@ public class MorphiumSerializer {
 
 
         Map m = jackson.convertValue(o, Map.class);
-
+        m = (Map) replaceMorphiumId(m);
         return m;
+    }
+
+    private Object replaceMorphiumId(Map m) {
+        Map toSet = new LinkedHashMap();
+        for (Map.Entry e : (Set<Map.Entry>) m.entrySet()) {
+            if (e.getKey().equals("morphium id")) {
+                //identifier!
+                return new MorphiumId(e.getValue().toString());
+            } else if (e.getValue() instanceof Map) {
+                toSet.put(e.getKey(), replaceMorphiumId((Map) e.getValue()));
+            } else if (e.getValue() instanceof List) {
+                toSet.put(e.getKey(), replaceMorphiumId((List) e.getValue()));
+            } else {
+                toSet.put(e.getKey(), e.getValue());
+            }
+        }
+        return toSet;
+    }
+
+    private List replaceMorphiumId(List value) {
+        List ret = new ArrayList();
+        for (Object o : value) {
+            if (o instanceof Map && ((Map) o).containsKey("morphium id")) {
+                ret.add(new MorphiumId((String) ((Map) o).get("morphium id")));
+            } else {
+                ret.add(o);
+            }
+        }
+        return ret;
     }
 
 
