@@ -317,11 +317,7 @@ public class MorphiumDeserializer {
             } else if (e.getValue() instanceof List) {
                 ///Map<Something,List>
                 Object retLst = null;
-                try {
                     retLst = handleList(List.class, (List) e.getValue());
-                } catch (IllegalAccessException e1) {
-                    throw new RuntimeException(e1);
-                }
                 v.put(e.getKey(), retLst);
 //                for (Object el : (List) e.getValue()) {
 //                    Object toAdd = null;
