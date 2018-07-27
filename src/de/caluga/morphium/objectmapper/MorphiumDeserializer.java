@@ -253,14 +253,64 @@ public class MorphiumDeserializer {
                     if (tok.equals(JsonToken.START_OBJECT)) {
                         ////////////////////
                         //object value
-                        if (f.getType().isEnum()) {
+                        if (f != null && f.getType().isEnum()) {
                             Map v = jsonParser.readValueAs(Map.class);
                             f.set(ret, Enum.valueOf((Class) f.getType(), (String) v.get("name")));
                             continue;
                         }
                         if (f != null) {
-                            Object v = jackson.readValue(jsonParser, f.getType());
-                            f.set(ret, v);
+                            if (Map.class.isAssignableFrom(f.getType())) {
+                                Map m = (Map) jackson.readValue(jsonParser, f.getType());
+                                Map v = new LinkedHashMap();
+                                for (Map.Entry e : (Set<Map.Entry>) m.entrySet()) {
+                                    if (e.getValue() instanceof Map) {
+                                        //Object? Enum? in a Map... Map<Something,MAP>
+                                        Object toPut = null;
+
+                                        Map ev = (Map) e.getValue();
+                                        Class cls = Map.class;
+                                        if (ev.get("class_name") != null) {
+                                            cls = Class.forName((String) ev.get("class_name"));
+                                            if (cls.isEnum()) {
+                                                toPut = Enum.valueOf(cls, (String) ev.get("name"));
+                                            } else {
+                                                toPut = jackson.convertValue(ev, cls);
+                                            }
+                                        } else {
+                                            toPut = jackson.convertValue(ev, cls);
+                                        }
+                                        v.put(e.getKey(), toPut);
+                                        continue;
+                                    } else if (e.getValue() instanceof List) {
+                                        ///Map<Something,List>
+                                        List retLst = new ArrayList();
+                                        for (Object el : (List) e.getValue()) {
+                                            Object toAdd = null;
+                                            if (el instanceof Map) {
+                                                if (((Map) el).get("class_name") != null) {
+                                                    Class cls = Class.forName((String) ((Map) el).get("class_name"));
+                                                    if (cls.isEnum()) {
+                                                        toAdd = Enum.valueOf(cls, (String) ((Map) el).get("name"));
+                                                    } else {
+                                                        toAdd = jackson.convertValue(el, cls);
+                                                    }
+                                                } else {
+                                                    toAdd = jackson.convertValue(el, Map.class);
+                                                }
+                                            } else {
+                                                toAdd = jackson.convertValue(el, Map.class);
+                                            }
+                                            retLst.add(toAdd);
+                                        }
+                                    } else {
+                                        v.put(e.getKey(), e.getValue());
+                                    }
+                                }
+                                f.set(ret, v);
+                            } else {
+                                Object v = jackson.readValue(jsonParser, f.getType());
+                                f.set(ret, v);
+                            }
                         } else {
                             //just read the value and ignore it
                             jackson.readValue(jsonParser, Object.class);
