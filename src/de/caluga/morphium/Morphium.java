@@ -1458,10 +1458,6 @@ public class Morphium {
             //noinspection unchecked
             obj = ((LazyDeReferencingProxy<T>) obj).__getDeref();
         }
-        if (obj instanceof PartiallyUpdateableProxy) {
-            //noinspection unchecked
-            obj = ((PartiallyUpdateableProxy<T>) obj).__getDeref();
-        }
         List<Field> flds = getARHelper().getAllFields(obj.getClass());
         for (Field fld : flds) {
             fld.setAccessible(true);
@@ -1474,12 +1470,6 @@ public class Morphium {
                 } catch (IllegalAccessException e) {
                     logger.error("dereferencing of field " + fld.getName() + " failed", e);
                 }
-            }
-            try {
-                if (fld.get(obj) != null && getARHelper().isAnnotationPresentInHierarchy(fld.getType(), Entity.class) && fld.get(obj) instanceof PartiallyUpdateableProxy) {
-                    fld.set(obj, ((PartiallyUpdateableProxy) fld.get(obj)).__getDeref());
-                }
-            } catch (IllegalAccessException ignored) {
             }
         }
         return obj;
@@ -2593,20 +2583,6 @@ public class Morphium {
         //        return ret;
     }
 
-    /**
-     * create a proxy object, implementing the ParitallyUpdateable Interface
-     * these objects will be updated in mongo by only changing altered fields
-     * <b>Attention:</b> the field name if determined by the setter name for now. That means, it does not honor the @Property-Annotation!!!
-     * To make sure, you take the correct field - use the UpdatingField-Annotation for the setters!
-     *
-     * @param o   - entity
-     * @param <T> - type
-     * @return Type
-     */
-    @SuppressWarnings("unchecked")
-    public <T> T createPartiallyUpdateableEntity(T o) {
-        return (T) Enhancer.create(o.getClass(), new Class[]{PartiallyUpdateable.class, Serializable.class}, new PartiallyUpdateableProxy(this, o));
-    }
 
     @SuppressWarnings("unchecked")
     public <T> T createLazyLoadedEntity(Class<? extends T> cls, Object id, String collectionName) {

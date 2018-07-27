@@ -107,15 +107,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                             continue;
                         }
                         morphium.inc(StatisticKeys.WRITES);
-                        if (morphium.getARHelper().isAnnotationPresentInHierarchy(type, PartialUpdate.class)) {
-                            //not part of list, acutally...
-                            if ((o instanceof PartiallyUpdateable)) {
-                                //todo: use batch write
-                                morphium.updateUsingFields(o, ((PartiallyUpdateable) o).getAlteredFields().toArray(new String[((PartiallyUpdateable) o).getAlteredFields().size()]));
-                                ((PartiallyUpdateable) o).clearAlteredFields();
-                                continue;
-                            }
-                        }
+
                         o = morphium.getARHelper().getRealObject(o);
                         if (o == null) {
                             logger.warn("Illegal Reference? - cannot store Lazy-Loaded / Partial Update Proxy without delegate!");
@@ -423,14 +415,6 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                     }
                     morphium.inc(StatisticKeys.WRITES);
                     Object id = morphium.getARHelper().getId(o);
-                    if (morphium.getARHelper().isAnnotationPresentInHierarchy(type, PartialUpdate.class)) {
-                        if ((o instanceof PartiallyUpdateable)) {
-                            updateUsingFields(o, collection, callback, ((PartiallyUpdateable) o).getAlteredFields().toArray(new String[((PartiallyUpdateable) o).getAlteredFields().size()]));
-                            ((PartiallyUpdateable) o).clearAlteredFields();
-
-                            return;
-                        }
-                    }
                     o = morphium.getARHelper().getRealObject(o);
                     if (o == null) {
                         logger.warn("Illegal Reference? - cannot store Lazy-Loaded / Partial Update Proxy without delegate!");
@@ -660,15 +644,6 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                             continue;
                         }
                         morphium.inc(StatisticKeys.WRITES);
-                        if (morphium.getARHelper().isAnnotationPresentInHierarchy(type, PartialUpdate.class)) {
-                            //not part of list, acutally...
-                            if ((o instanceof PartiallyUpdateable)) {
-                                //todo: use batch write
-                                morphium.updateUsingFields(o, ((PartiallyUpdateable) o).getAlteredFields().toArray(new String[((PartiallyUpdateable) o).getAlteredFields().size()]));
-                                ((PartiallyUpdateable) o).clearAlteredFields();
-                                continue;
-                            }
-                        }
                         o = morphium.getARHelper().getRealObject(o);
                         if (o == null) {
                             logger.warn("Illegal Reference? - cannot store Lazy-Loaded / Partial Update Proxy without delegate!");

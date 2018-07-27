@@ -228,7 +228,12 @@ public class MorphiumDeserializer {
                         for (Object el : o) {
                             if (el instanceof Map) {
                                 if (((Map) el).get("class_name") != null) {
-                                    v.add(jackson.convertValue(el, Class.forName((String) ((Map) el).get("class_name"))));
+                                    Class<?> cls = Class.forName((String) ((Map) el).get("class_name"));
+                                    if (cls.isEnum()) {
+                                        v.add(Enum.valueOf((Class) cls, (String) ((Map) el).get("name")));
+                                    } else {
+                                        v.add(jackson.convertValue(el, cls));
+                                    }
                                 } else {
                                     v.add(el);
                                 }
@@ -248,6 +253,11 @@ public class MorphiumDeserializer {
                     if (tok.equals(JsonToken.START_OBJECT)) {
                         ////////////////////
                         //object value
+                        if (f.getType().isEnum()) {
+                            Map v = jsonParser.readValueAs(Map.class);
+                            f.set(ret, Enum.valueOf((Class) f.getType(), (String) v.get("name")));
+                            continue;
+                        }
                         if (f != null) {
                             Object v = jackson.readValue(jsonParser, f.getType());
                             f.set(ret, v);
@@ -261,11 +271,11 @@ public class MorphiumDeserializer {
 
 
                     if (tok.equals(JsonToken.END_OBJECT)) {
-                        log.info("End of object!");
                         return ret;
                     }
 
                     if (f == null) {
+                        //ignore value
                         jackson.readValue(jsonParser, Object.class);
                         continue;
                     }
