@@ -263,6 +263,23 @@ public class ObjectMapperTest extends MongoTest {
     }
 
     @Test
+    public void serializeDeserializeTest() throws Exception {
+        UncachedObject uc = new UncachedObject("value", 1234);
+        uc.setMorphiumId(new MorphiumId());
+        uc.setDval(123);
+
+        Map<String, Object> map = morphium.getMapper().serialize(uc);
+        assert (map.get("_id") != null);
+        assert (map.get("value").equals("value"));
+        assert (map.get("counter").equals(1234));
+
+        morphium.store(uc);
+
+        List<Map<String, Object>> res = morphium.getDriver().find(morphium.getConfig().getDatabase(), "uncached_object", Utils.getMap("_id", uc.getMorphiumId()), null, null, 0, 0, 10000, null, null);
+        assert (res.size() == 1);
+    }
+
+    @Test
     public void nullValueTests() {
         MorphiumObjectMapper om = morphium.getMapper();
 

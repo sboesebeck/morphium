@@ -151,11 +151,21 @@ public class MorphiumDeserializer {
     }
 
     public <T> T unmarshall(Class<? extends T> theClass, Map<String, Object> o) {
-        o = replaceMorphiumIds(o);
-        return jackson.convertValue(o, theClass);
+        Object ret = replaceMorphiumIds(o);
+        return jackson.convertValue(ret, theClass);
     }
 
-    private Map<String, Object> replaceMorphiumIds(Map<String, Object> m) {
+    private Object replaceMorphiumIds(Object o) {
+        if (o instanceof Map) {
+            return replaceMorphiumIds((Map) o);
+        }
+        return o;
+    }
+
+    private Object replaceMorphiumIds(Map<String, Object> m) {
+        if (m.get("morphium id") != null) {
+            return new MorphiumId((String) m.get("morphium id"));
+        }
         Map ret = new HashMap();
         for (Map.Entry e : m.entrySet()) {
             if (e.getValue() instanceof Map) {
@@ -247,6 +257,19 @@ public class MorphiumDeserializer {
                             continue;
                         }
                         if (f != null) {
+                            //todo: list of references!
+                            Reference r = f.getAnnotation(Reference.class);
+                            if (r != null) {
+                                MorphiumReference ref = jackson.readValue(jsonParser, MorphiumReference.class);
+                                if (r.lazyLoading()) {
+                                    f.set(ret, morphium.createLazyLoadedEntity(f.getType(), ref.getId(), ref.getCollectionName()));
+                                } else {
+                                    Object id = replaceMorphiumIds(ref.getId());
+                                    Object refObj = morphium.findById(f.getType(), id);
+                                    f.set(ret, morphium.findById(f.getType(), id));
+                                }
+                                continue;
+                            }
                             if (Map.class.isAssignableFrom(f.getType())) {
                                 Map m = (Map) jackson.readValue(jsonParser, f.getType());
                                 Map v = handleMap(m);
@@ -275,45 +298,35 @@ public class MorphiumDeserializer {
                     }
 
                     ///reading in values!
-                    if (f.getType().isEnum()) {
-                        Map m = jsonParser.readValueAs(Map.class);
-                        f.set(ret, (Enum.valueOf((Class<Enum>) Class.forName((String) m.get("class_name")), (String) m.get("name"))));
-                        continue;
-                    }
-                    if (Map.class.isAssignableFrom(f.getType())) {
-                        Map m = jsonParser.readValueAs(Map.class);
-                        Map res = new HashMap();
-                        for (Map.Entry en : ((Map<Object, Object>) m).entrySet()) {
-                            if (en.getValue() instanceof Map) {
-                                String clsName = (String) ((Map) en.getValue()).get("class_name");
-                                if (clsName != null) {
-                                    Class<?> toValueType = Class.forName(clsName);
-                                    if (toValueType.isEnum()) {
-                                        res.put(en.getKey(), Enum.valueOf((Class<Enum>) toValueType, (String) ((Map) en.getValue()).get("name")));
-                                    } else {
-                                        res.put(en.getKey(), jackson.convertValue(en.getValue(), toValueType));
-                                    }
-                                    continue;
-                                }
-                            }
-                            res.put(en.getKey(), en.getValue());
-                        }
-                        f.set(ret, res);
-                        continue;
-                    }
+//                    if (f.getType().isEnum()) {
+//                        Map m = jsonParser.readValueAs(Map.class);
+//                        f.set(ret, (Enum.valueOf((Class<Enum>) Class.forName((String) m.get("class_name")), (String) m.get("name"))));
+//                        continue;
+//                    }
+//                    if (Map.class.isAssignableFrom(f.getType())) {
+//                        Map m = jsonParser.readValueAs(Map.class);
+//                        Map res = new HashMap();
+//                        for (Map.Entry en : ((Map<Object, Object>) m).entrySet()) {
+//                            if (en.getValue() instanceof Map) {
+//                                String clsName = (String) ((Map) en.getValue()).get("class_name");
+//                                if (clsName != null) {
+//                                    Class<?> toValueType = Class.forName(clsName);
+//                                    if (toValueType.isEnum()) {
+//                                        res.put(en.getKey(), Enum.valueOf((Class<Enum>) toValueType, (String) ((Map) en.getValue()).get("name")));
+//                                    } else {
+//                                        res.put(en.getKey(), jackson.convertValue(en.getValue(), toValueType));
+//                                    }
+//                                    continue;
+//                                }
+//                            }
+//                            res.put(en.getKey(), en.getValue());
+//                        }
+//                        f.set(ret, res);
+//                        continue;
+//                    }
+//
 
 
-                    //todo: list of references!
-                    Reference r = f.getAnnotation(Reference.class);
-                    if (r != null) {
-                        MorphiumReference ref = jackson.readValue(jsonParser, MorphiumReference.class);
-                        if (r.lazyLoading()) {
-                            f.set(ret, morphium.createLazyLoadedEntity(f.getType(), ref.getId(), ref.getCollectionName()));
-                        } else {
-                            f.set(ret, morphium.findById(f.getType(), ref.getId()));
-                        }
-                        continue;
-                    }
                     f.set(ret, jackson.readValue(jsonParser, f.getType()));
 
                 }
