@@ -57,7 +57,7 @@ public class MorphiumDeserializer {
                     String n = jsonParser.nextFieldName();
                     n = jsonParser.nextFieldName();
                     String valueAsString = jsonParser.getValueAsString();
-//                    jsonParser.nextToken();
+                    jsonParser.nextToken();
                     if (valueAsString == null) return null;
                     return new MorphiumId(valueAsString);
                 } catch (IOException e) {
@@ -266,7 +266,7 @@ public class MorphiumDeserializer {
                                 } else {
                                     Object id = replaceMorphiumIds(ref.getId());
                                     Object refObj = morphium.findById(f.getType(), id);
-                                    f.set(ret, morphium.findById(f.getType(), id));
+                                    f.set(ret, refObj);
                                 }
                                 continue;
                             }
