@@ -2,16 +2,11 @@ package de.caluga.morphium;/**
  * Created by stephan on 25.11.15.
  */
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import de.caluga.morphium.objectmapper.ObjectMapperImplNG;
+import de.caluga.morphium.driver.MorphiumId;
 
 import java.lang.reflect.Field;
 import java.nio.charset.StandardCharsets;
-import java.util.HashMap;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 /**
  * Utility class
@@ -23,15 +18,58 @@ public class Utils {
 
     @SuppressWarnings({"unchecked", "UnusedDeclaration"})
     public static String toJsonString(Object o) {
-        MorphiumObjectMapper obj = new ObjectMapperImplNG();
-        obj.setAnnotationHelper(new AnnotationAndReflectionHelper(true));
-        Map m = obj.serialize(o);
-        ObjectMapper map = new ObjectMapper();
-        try {
-            return map.writeValueAsString(m);
-        } catch (JsonProcessingException e) {
-            return "";
+
+        StringBuilder b = new StringBuilder();
+        boolean comma = false;
+        if (o instanceof Collection) {
+            b.append(" [ ");
+
+            for (Object obj : ((Collection) o)) {
+                if (comma) {
+                    b.append(", ");
+                }
+                comma = true;
+                b.append(toJsonString(obj));
+            }
+            b.append("]");
+            return b.toString();
+        } else if ((o instanceof String) || (o instanceof MorphiumId) || (o.getClass().isEnum())) {
+            return "\"" + o.toString() + "\"";
+        } else if (!(o instanceof Map)) {
+            return o.toString();
         }
+        Map<String, Object> db = (Map<String, Object>) o;
+
+        b.append("{ ");
+        comma = false;
+        for (Map.Entry<String, Object> e : db.entrySet()) {
+            if (comma) {
+                b.append(", ");
+            }
+
+            comma = true;
+            b.append("\"");
+            b.append(e.getKey());
+            b.append("\"");
+
+            b.append(" : ");
+            if (e.getValue() == null) {
+                b.append(" null");
+            } else if (e.getValue() instanceof String) {
+                b.append("\"");
+                b.append(e.getValue());
+                b.append("\"");
+            } else if (e.getValue().getClass().isEnum()) {
+                b.append("\"");
+                b.append(e.getValue().toString());
+                b.append("\"");
+            } else {
+                b.append(toJsonString(e.getValue()));
+            }
+
+        }
+        b.append(" } ");
+        return b.toString();
     }
 
     public static <K, V> Map<K, V> getMap(K key, V value) {
