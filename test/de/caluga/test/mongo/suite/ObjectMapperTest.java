@@ -159,7 +159,7 @@ public class ObjectMapperTest extends MongoTest {
 
         String s = Utils.toJsonString(dbo);
         System.out.println("Marshalling was: " + s);
-        assert (stringWordCompare(s, "{ \"dval\" : 0.0, \"counter\" : 12345, \"value\" : \"This \\\" is $ test\" } ")) : "String creation failed?" + s;
+        assert (stringWordCompare(s, "{ \"dval\" : 0.0, \"counter\" : 12345, \"value\" : \"This \" is $ test\" } ")) : "String creation failed?" + s;
         o = om.deserialize(UncachedObject.class, dbo);
         log.info("Text is: " + o.getValue());
     }
