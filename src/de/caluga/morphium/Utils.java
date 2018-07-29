@@ -18,7 +18,7 @@ public class Utils {
 
     @SuppressWarnings({"unchecked", "UnusedDeclaration"})
     public static String toJsonString(Object o) {
-
+        if (o == null) return "null";
         StringBuilder b = new StringBuilder();
         boolean comma = false;
         if (o instanceof Collection) {

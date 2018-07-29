@@ -275,8 +275,12 @@ public class MorphiumDeserializer {
                                 Map v = handleMap(m);
                                 f.set(ret, v);
                             } else {
-                                Object v = jackson.readValue(jsonParser, f.getType());
-                                f.set(ret, v);
+                                if (f.getType().equals(String.class)) {
+                                    f.set(ret, jackson.readValue(jsonParser, Object.class).toString());
+                                } else {
+                                    Object v = jackson.readValue(jsonParser, f.getType());
+                                    f.set(ret, v);
+                                }
                             }
                         } else {
                             //just read the value and ignore it
@@ -353,34 +357,19 @@ public class MorphiumDeserializer {
                     } else {
                         toPut = jackson.convertValue(ev, cls);
                     }
+                } else if (ev.get("morphium id") != null) {
+                    toPut = new MorphiumId((String) ev.get("morphium id"));
                 } else {
-                    toPut = jackson.convertValue(ev, cls);
+                    toPut = handleMap(ev);
                 }
                 v.put(e.getKey(), toPut);
                 continue;
+
             } else if (e.getValue() instanceof List) {
                 ///Map<Something,List>
                 Object retLst = null;
                     retLst = handleList(List.class, (List) e.getValue());
                 v.put(e.getKey(), retLst);
-//                for (Object el : (List) e.getValue()) {
-//                    Object toAdd = null;
-//                    if (el instanceof Map) {
-//                        if (((Map) el).get("class_name") != null) {
-//                            Class cls = Class.forName((String) ((Map) el).get("class_name"));
-//                            if (cls.isEnum()) {
-//                                toAdd = Enum.valueOf(cls, (String) ((Map) el).get("name"));
-//                            } else {
-//                                toAdd = jackson.convertValue(el, cls);
-//                            }
-//                        } else {
-//                            toAdd = jackson.convertValue(el, Map.class);
-//                        }
-//                    } else {
-//                        toAdd = jackson.convertValue(el, Map.class);
-//                    }
-//                    retLst.add(toAdd);
-//                }
             } else {
                 v.put(e.getKey(), e.getValue());
             }
@@ -394,9 +383,9 @@ public class MorphiumDeserializer {
         if (type != null) {
             if (type instanceof ParameterizedType) {
                 if (((ParameterizedType) type).getActualTypeArguments()[0] instanceof ParameterizedType) {
-                    //list of lists?
+                    //list of lists? list of maps?
                     //ParameterizedType t2= (ParameterizedType) ((ParameterizedType)type).getActualTypeArguments()[0];
-                    listElementType = List.class;
+                    listElementType = null;
 
                 } else {
                     listElementType = (Class) ((ParameterizedType) type).getActualTypeArguments()[0];
@@ -405,7 +394,9 @@ public class MorphiumDeserializer {
         }
         for (Object el : listIn) {
             if (el instanceof Map) {
-                if (((Map) el).get("class_name") != null) {
+                if (((Map) el).get("morphium id") != null) {
+                    listOut.add(new MorphiumId((String) ((Map) el).get("morphium id")));
+                } else if (((Map) el).get("class_name") != null) {
                     Class<?> cls = Class.forName((String) ((Map) el).get("class_name"));
                     if (cls.isEnum()) {
                         listOut.add(Enum.valueOf((Class) cls, (String) ((Map) el).get("name")));
