@@ -318,7 +318,7 @@ public class MorphiumSerializer {
                     }
 
                     if (value instanceof Map) {
-                        Map ret = new HashMap();
+                        Map ret = new LinkedHashMap();
 
                         for (Map.Entry e : ((Set<Map.Entry>) ((Map) value).entrySet())) {
                             if (e.getValue() instanceof Map) {
