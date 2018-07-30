@@ -145,7 +145,6 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
     }
 
 
-    @Override
     public Object marshallIfNecessary(Object o) {
         if (o == null) {
             return null;

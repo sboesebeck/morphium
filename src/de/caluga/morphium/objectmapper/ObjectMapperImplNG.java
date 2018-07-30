@@ -83,21 +83,15 @@ public class ObjectMapperImplNG implements MorphiumObjectMapper {
     }
 
     @Override
-    public Object marshallIfNecessary(Object o) {
-        throw new RuntimeException();
-    }
-
-
-    @Override
     public <T> T deserialize(Class<? extends T> theClass, Map<String, Object> o) {
-        return getDeserializer().unmarshall(theClass, o);
+        return getDeserializer().deserialize(theClass, o);
     }
 
     @Override
     public <T> T deserialize(Class<? extends T> cls, String json) throws IOException {
 
         Map obj = new ObjectMapper().readValue(json, Map.class); //(HashMap<String, Object>) jsonParser.parse(json, containerFactory);
-        return (T) getDeserializer().unmarshall(cls, obj);
+        return (T) getDeserializer().deserialize(cls, obj);
 
     }
 

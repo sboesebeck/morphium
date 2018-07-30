@@ -152,7 +152,7 @@ public class MorphiumDeserializer {
         jackson.registerModule(module);
     }
 
-    public <T> T unmarshall(Class<? extends T> theClass, Map<String, Object> o) {
+    public <T> T deserialize(Class<? extends T> theClass, Map<String, Object> o) {
         if (o.containsKey("in_answer_to")) {
             log.info("got answer");
         }
