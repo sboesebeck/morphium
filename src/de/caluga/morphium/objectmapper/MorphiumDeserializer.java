@@ -50,22 +50,21 @@ public class MorphiumDeserializer {
                 .withSetterVisibility(JsonAutoDetect.Visibility.NONE)
                 .withCreatorVisibility(JsonAutoDetect.Visibility.NONE));
 
-        module.addDeserializer(MorphiumId.class, new JsonDeserializer<MorphiumId>() {
-            @Override
-            public MorphiumId deserialize(JsonParser jsonParser, DeserializationContext deserializationContext) {
-                try {
-                    String n = jsonParser.nextFieldName();
-                    n = jsonParser.nextFieldName();
-                    String valueAsString = jsonParser.getValueAsString();
-                    jsonParser.nextToken();
-                    if (valueAsString == null) return null;
-                    return new MorphiumId(valueAsString);
-                } catch (IOException e) {
-                    throw new RuntimeException(e);
-                }
-            }
-
-        });
+//        module.addDeserializer(MorphiumId.class, new JsonDeserializer<MorphiumId>() {
+//            @Override
+//            public MorphiumId deserialize(JsonParser jsonParser, DeserializationContext deserializationContext) {
+//                try {
+//                    String n = jsonParser.nextFieldName();
+//                    String valueAsString = jsonParser.getValueAsString();
+//                    jsonParser.nextToken();
+//                    if (valueAsString == null) return null;
+//                    return new MorphiumId(valueAsString);
+//                } catch (IOException e) {
+//                    throw new RuntimeException(e);
+//                }
+//            }
+//
+//        });
         module.setDeserializerModifier(new BeanDeserializerModifier() {
             @Override
             public List<BeanPropertyDefinition> updateProperties(DeserializationConfig config, BeanDescription beanDesc, List<BeanPropertyDefinition> propDefs) {
@@ -74,6 +73,9 @@ public class MorphiumDeserializer {
                     List<BeanPropertyDefinition> lst = new ArrayList<>();
                     for (BeanPropertyDefinition d : propDefs) {
                         Field fld = anhelper.getField(beanDesc.getBeanClass(), d.getName());
+                        if (fld == null) {
+                            return lst;
+                        }
                         PropertyName pn = new PropertyName(anhelper.getFieldName(beanDesc.getBeanClass(), fld.getName()));
                         BeanPropertyDefinition def = new POJOPropertyBuilder(config, null, false, pn);
                         ((POJOPropertyBuilder) def).addField(d.getField(), pn, false, true, false);
@@ -151,6 +153,9 @@ public class MorphiumDeserializer {
     }
 
     public <T> T unmarshall(Class<? extends T> theClass, Map<String, Object> o) {
+        if (o.containsKey("in_answer_to")) {
+            log.info("got answer");
+        }
         Object ret = replaceMorphiumIds(o);
         return jackson.convertValue(ret, theClass);
     }
@@ -163,19 +168,16 @@ public class MorphiumDeserializer {
     }
 
     private Object replaceMorphiumIds(Map<String, Object> m) {
-        if (m.get("morphium id") != null) {
-            return new MorphiumId((String) m.get("morphium id"));
-        }
         Map ret = new HashMap();
         for (Map.Entry e : m.entrySet()) {
             if (e.getValue() instanceof Map) {
                 ret.put(e.getKey(), replaceMorphiumIds((Map<String, Object>) e.getValue()));
+            } else if (e.getValue() instanceof MorphiumId) {
+                Map mid = new HashMap();
+                mid.put("morphium id", e.getValue().toString());
+                ret.put(e.getKey(), mid);
             } else if (e.getValue() instanceof List) {
                 ret.put(e.getKey(), replaceMorphiumIds((List) e.getValue()));
-            } else if (e.getValue() instanceof MorphiumId) {
-                Map o = new LinkedHashMap();
-                o.put("morphium id", e.getValue().toString());
-                ret.put(e.getKey(), o);
             } else {
                 ret.put(e.getKey(), e.getValue());
             }
@@ -277,9 +279,16 @@ public class MorphiumDeserializer {
                             } else {
                                 if (f.getType().equals(String.class)) {
                                     f.set(ret, jackson.readValue(jsonParser, Object.class).toString());
+                                } else if (f.getType().equals(MorphiumId.class)) {
+                                    Map v = jackson.readValue(jsonParser, Map.class);
+                                    f.set(ret, new MorphiumId(v.get("morphium id").toString()));
                                 } else {
-                                    Object v = jackson.readValue(jsonParser, f.getType());
-                                    f.set(ret, v);
+                                    Map v = jackson.readValue(jsonParser, Map.class);
+                                    if (v.containsKey("morphium id")) {
+                                        f.set(ret, new MorphiumId(v.get("morphium id").toString()));
+                                    } else {
+                                        f.set(ret, jackson.convertValue(v, f.getType()));
+                                    }
                                 }
                             }
                         } else {
