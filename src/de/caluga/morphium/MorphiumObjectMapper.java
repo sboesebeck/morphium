@@ -16,8 +16,6 @@ public interface MorphiumObjectMapper {
 
     String getCollectionName(Class cls);
 
-    Object marshallIfNecessary(Object o);
-
     Map<String, Object> serialize(Object o);
 
     <T> T deserialize(Class<? extends T> cls, Map<String, Object> o);

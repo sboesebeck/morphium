@@ -383,7 +383,7 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
                 //noinspection unchecked
                 for (String f : morphium.getARHelper().getFields(o.getClass())) {
                     try {
-                        cmd.put(morphium.getARHelper().getFieldName(o.getClass(), f), morphium.getMapper().marshallIfNecessary(morphium.getARHelper().getField(o.getClass(), f).get(o)));
+                        cmd.put(morphium.getARHelper().getFieldName(o.getClass(), f), morphium.getMapper().serialize(morphium.getARHelper().getField(o.getClass(), f).get(o)));
                     } catch (IllegalAccessException e) {
                         e.printStackTrace();
                     }
