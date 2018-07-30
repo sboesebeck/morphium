@@ -576,22 +576,7 @@ public class Driver implements MorphiumDriver {
 
     @Override
     public void watch(String db, int maxWaitTime, boolean fullDocumentOnUpdate, DriverTailableIterationCallback cb) throws MorphiumDriverException {
-        DriverHelper.doCall(() -> {
-            ChangeStreamIterable<Document> it = mongo.getDatabase(db).watch();
-            it.maxAwaitTime(maxWaitTime, TimeUnit.MILLISECONDS);
-            it.fullDocument(fullDocumentOnUpdate ? FullDocument.UPDATE_LOOKUP : FullDocument.DEFAULT);
-            //it.startAtOperationTime(new BsonTimestamp(System.currentTimeMillis()));
-            MongoCursor<ChangeStreamDocument<Document>> iterator = it.iterator();
-            long start = System.currentTimeMillis();
-            ObjectMapperImpl imp = new ObjectMapperImpl();
-            imp.setAnnotationHelper(new AnnotationAndReflectionHelper(false));
-
-
-            while (iterator.hasNext()) {
-                if (processChangeStreamEvent(cb, iterator, start)) break;
-            }
-            return null;
-        }, retriesOnNetworkError, sleepBetweenErrorRetries);
+        watch(db, null, maxWaitTime, fullDocumentOnUpdate, cb);
     }
 
     private boolean processChangeStreamEvent(DriverTailableIterationCallback cb, MongoCursor<ChangeStreamDocument<Document>> iterator, long start) {
@@ -619,27 +604,33 @@ public class Driver implements MorphiumDriver {
 
         DriverHelper.replaceBsonValues(obj);
         boolean con = cb.incomingData(obj, System.currentTimeMillis() - start);
-        if (!con) {
-            return true;
-        }
-        return false;
+        return con;
     }
 
     @Override
     public void watch(String db, String collection, int maxWaitTime, boolean fullDocumentOnUpdate, DriverTailableIterationCallback cb) throws MorphiumDriverException {
         DriverHelper.doCall(() -> {
-            ChangeStreamIterable<Document> it = mongo.getDatabase(db).getCollection(collection).watch();
-            it.maxAwaitTime(maxWaitTime, TimeUnit.MILLISECONDS);
-            it.fullDocument(fullDocumentOnUpdate ? FullDocument.UPDATE_LOOKUP : FullDocument.DEFAULT);
-            //it.startAtOperationTime(new BsonTimestamp(System.currentTimeMillis()));
-            MongoCursor<ChangeStreamDocument<Document>> iterator = it.iterator();
-            long start = System.currentTimeMillis();
-            ObjectMapperImpl imp = new ObjectMapperImpl();
-            imp.setAnnotationHelper(new AnnotationAndReflectionHelper(false));
+            boolean run = true;
+            while (run) {
+                ChangeStreamIterable<Document> it = null;
+                if (collection != null) {
+                    it = mongo.getDatabase(db).getCollection(collection).watch();
+                } else {
+                    it = mongo.getDatabase(db).watch();
+                }
+                it.maxAwaitTime(maxWaitTime, TimeUnit.MILLISECONDS);
+                it.fullDocument(fullDocumentOnUpdate ? FullDocument.UPDATE_LOOKUP : FullDocument.DEFAULT);
+                //it.startAtOperationTime(new BsonTimestamp(System.currentTimeMillis()));
+                MongoCursor<ChangeStreamDocument<Document>> iterator = it.iterator();
+                long start = System.currentTimeMillis();
+                ObjectMapperImpl imp = new ObjectMapperImpl();
+                imp.setAnnotationHelper(new AnnotationAndReflectionHelper(false));
 
 
-            while (iterator.hasNext()) {
-                if (processChangeStreamEvent(cb, iterator, start)) break;
+                while (iterator.hasNext() && run) {
+                    run = processChangeStreamEvent(cb, iterator, start);
+                    if (!run) break;
+                }
             }
             return null;
         }, retriesOnNetworkError, sleepBetweenErrorRetries);

@@ -365,7 +365,7 @@ public class MongoTest {
                 log.info("Dropping " + col);
                 morphium.getDriver().drop(morphium.getConfig().getDatabase(), col, morphium.getWriteConcernForClass(UncachedObject.class));
             }
-
+            Thread.sleep(500);
         } catch (Exception e) {
             log.error("Error during preparation!");
             e.printStackTrace();
