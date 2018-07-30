@@ -618,6 +618,7 @@ public class Messaging extends Thread implements ShutdownListener {
             log.debug("Shutting down with " + sz + " runnables still pending in pool");
         }
         if (oplogMonitor != null) oplogMonitor.stop();
+        sendMessageToSelf(new Msg("info", "going down", "now"));
         if (isAlive()) {
             interrupt();
         }
