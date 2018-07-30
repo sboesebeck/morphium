@@ -3,7 +3,7 @@ morphium
 
 *ATTENTION:* _please refer also to the version [here](https://caluga.de/v/2014/9/5/morphium_doku_v3_0)_
 
-Morphium - Java Object Mapper and Caching Layer for MongoDB
+Morphium - Java Messaging (and POJO Mapper) based on MongoDB
 
 Morphium is a POJO Object mapper for Accessing Mongodb. Some of the main Features of Morphium:
 - actively developed
