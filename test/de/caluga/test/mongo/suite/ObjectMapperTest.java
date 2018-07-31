@@ -722,6 +722,7 @@ public class ObjectMapperTest extends MongoTest {
         assert (so2.listOfSetOfStrings.size() == 2);
         assert (so2.listOfSetOfStrings.get(0).size() == 2);
 
+        assert (so.mapOfSetOfStrings.get("t1") instanceof Set);
     }
 
     @Test
