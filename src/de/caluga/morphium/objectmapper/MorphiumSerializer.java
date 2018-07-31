@@ -77,42 +77,41 @@ public class MorphiumSerializer {
                     if (o instanceof Enum) {
                         m = new HashMap();
                         m.put("name", ((Enum) o).name());
-                    } else {
-                        if (mongoTypes.contains(o.getClass())) {
-                            jsonGenerator.writeObject(o);
-                            continue;
-                        }
-                        if (o instanceof Collection) {
-                            serialize((Collection) o, jsonGenerator, serializerProvider);
-                            continue;
+                    } else if (mongoTypes.contains(o.getClass())) {
+                        jsonGenerator.writeObject(o);
+                        continue;
+                    }
+                    if (o instanceof Collection) {
+                        serialize((Collection) o, jsonGenerator, serializerProvider);
+                        continue;
 //                        } else if (o instanceof MorphiumId) {
 //                            jsonGenerator.write(o.toString());
 //                            continue;
 //                            jsonGenerator.writeString("ObjectId(" + o.toString() + ")");
 //                            continue;
-                        } else if (o instanceof Map) {
-                            //m = new LinkedHashMap();
-                            jsonGenerator.writeStartObject();
-                            for (Map.Entry e : (Set<Map.Entry>) ((Map) o).entrySet()) {
-                                if (mongoTypes.contains(e.getValue().getClass())) {
-                                    jsonGenerator.writeObjectField((String) e.getKey(), e.getValue());
-                                } else if (e.getValue() instanceof Collection) {
-                                    jsonGenerator.writeFieldName((String) e.getKey());
-                                    serialize((Collection) e.getValue(), jsonGenerator, serializerProvider);
-                                } else {
-                                    Map value = jackson.convertValue(e.getValue(), Map.class);
-                                    value.put("class_name", e.getValue().getClass().getName());
-                                    jsonGenerator.writeObjectField((String) e.getKey(), value);
-                                }
+                    } else if (o instanceof Map) {
+                        //m = new LinkedHashMap();
+                        jsonGenerator.writeStartObject();
+                        for (Map.Entry e : (Set<Map.Entry>) ((Map) o).entrySet()) {
+                            if (mongoTypes.contains(e.getValue().getClass())) {
+                                jsonGenerator.writeObjectField((String) e.getKey(), e.getValue());
+                            } else if (e.getValue() instanceof Collection) {
+                                jsonGenerator.writeFieldName((String) e.getKey());
+                                serialize((Collection) e.getValue(), jsonGenerator, serializerProvider);
+                            } else {
+                                Map value = jackson.convertValue(e.getValue(), Map.class);
+                                value.put("class_name", e.getValue().getClass().getName());
+                                jsonGenerator.writeObjectField((String) e.getKey(), value);
                             }
-                            //jsonGenerator.writeObject(m);
-                            jsonGenerator.writeEndObject();
-                            continue;
-                        } else {
-                            m = jackson.convertValue(o, Map.class);
                         }
-
+                        //jsonGenerator.writeObject(m);
+                        jsonGenerator.writeEndObject();
+                        continue;
+                    } else {
+                        m = jackson.convertValue(o, Map.class);
                     }
+
+
                     m.put("class_name", o.getClass().getName());
                     jsonGenerator.writeObject(m);
                 }

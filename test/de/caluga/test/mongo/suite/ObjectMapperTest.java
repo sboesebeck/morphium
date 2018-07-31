@@ -695,6 +695,21 @@ public class ObjectMapperTest extends MongoTest {
         so.setOfStrings.add("test3");
         so.setOfUC = new HashSet<>();
         so.setOfUC.add(new UncachedObject("value", 1234));
+        so.listOfSetOfStrings = new ArrayList<>();
+        so.listOfSetOfStrings.add(new HashSet<>());
+        so.listOfSetOfStrings.get(0).add("Test1");
+        so.listOfSetOfStrings.get(0).add("Test2");
+        so.listOfSetOfStrings.add(new HashSet<>());
+        so.listOfSetOfStrings.get(1).add("Test3");
+        so.listOfSetOfStrings.get(1).add("Test4");
+
+        so.mapOfSetOfStrings = new HashMap<>();
+        so.mapOfSetOfStrings.put("t1", new HashSet<>());
+        so.mapOfSetOfStrings.get("t1").add("test1");
+        so.mapOfSetOfStrings.get("t1").add("test11");
+        so.mapOfSetOfStrings.put("t2", new HashSet<>());
+        so.mapOfSetOfStrings.get("t2").add("test2");
+        so.mapOfSetOfStrings.get("t2").add("test21");
 
         Map<String, Object> m = morphium.getMapper().serialize(so);
         assert (m.get("set_of_strings") != null);
@@ -704,7 +719,8 @@ public class ObjectMapperTest extends MongoTest {
 
         SetObject so2 = morphium.getMapper().deserialize(SetObject.class, m);
         assert (so2 != null);
-
+        assert (so2.listOfSetOfStrings.size() == 2);
+        assert (so2.listOfSetOfStrings.get(0).size() == 2);
 
     }
 
@@ -929,6 +945,8 @@ public class ObjectMapperTest extends MongoTest {
         public MorphiumId id;
         public Set<String> setOfStrings;
         public Set<UncachedObject> setOfUC;
+        public List<Set<String>> listOfSetOfStrings;
+        public Map<String, Set<String>> mapOfSetOfStrings;
     }
 
     @Entity
