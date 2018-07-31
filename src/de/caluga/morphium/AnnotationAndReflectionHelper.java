@@ -267,13 +267,13 @@ public class AnnotationAndReflectionHelper {
             return n;
         }
         StringBuilder b = new StringBuilder();
-        for (int i = 0; i < n.length() - 1; i++) {
+        for (int i = 0; i < n.length(); i++) {
             if (Character.isUpperCase(n.charAt(i)) && i > 0) {
                 b.append("_");
             }
             b.append(n.substring(i, i + 1).toLowerCase());
         }
-        b.append(n.substring(n.length() - 1));
+        //b.append(n.substring(n.length() - 1));
         return b.toString();
     }
 
