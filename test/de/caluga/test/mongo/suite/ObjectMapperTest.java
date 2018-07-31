@@ -685,6 +685,36 @@ public class ObjectMapperTest extends MongoTest {
         }
     }
 
+    @Test
+    public void setTest() {
+        SetObject so = new SetObject();
+        so.id = new MorphiumId();
+        so.setOfStrings = new HashSet<>();
+        so.setOfStrings.add("test");
+        so.setOfStrings.add("test2");
+        so.setOfStrings.add("test3");
+        so.setOfUC = new HashSet<>();
+        so.setOfUC.add(new UncachedObject("value", 1234));
+
+        Map<String, Object> m = morphium.getMapper().serialize(so);
+        assert (m.get("set_of_strings") != null);
+        assert (m.get("set_of_strings") instanceof List);
+        assert (((List) m.get("set_of_strings")).size() == 3);
+        assert (((List) m.get("set_of_u_c")).size() == 1);
+
+        SetObject so2 = morphium.getMapper().deserialize(SetObject.class, m);
+        assert (so2 != null);
+
+
+    }
+
+    @Test
+    public void convertCamelCaseTest() {
+        String n = morphium.getARHelper().convertCamelCase("thisIsATestTT");
+        assert (n.equals("this_is_a_test_t_t"));
+
+    }
+
 
     @Test
     public void testListOfEmbedded() {
@@ -891,6 +921,14 @@ public class ObjectMapperTest extends MongoTest {
         public UncachedObject uc;
         public Map<String, String> aMap;
 
+    }
+
+    @Entity
+    public static class SetObject {
+        @Id
+        public MorphiumId id;
+        public Set<String> setOfStrings;
+        public Set<UncachedObject> setOfUC;
     }
 
     @Entity

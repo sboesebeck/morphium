@@ -104,11 +104,16 @@ public class MorphiumDeserializer {
                     };
                 }
 
-                if (List.class.isAssignableFrom(beanDesc.getBeanClass())) {
-                    return new JsonDeserializer<List>() {
+                if (Collection.class.isAssignableFrom(beanDesc.getBeanClass())) {
+                    return new JsonDeserializer<Collection>() {
                         @Override
-                        public List deserialize(JsonParser jsonParser, DeserializationContext deserializationContext) throws IOException {
-                            List toAdd = new ArrayList();
+                        public Collection deserialize(JsonParser jsonParser, DeserializationContext deserializationContext) throws IOException {
+                            Collection toAdd = null;
+                            try {
+                                toAdd = (Collection) beanDesc.getBeanClass().newInstance();
+                            } catch (Exception e) {
+                                throw new RuntimeException(e);
+                            }
                             List in = jsonParser.readValueAs(List.class);
                             for (Object e : in) {
                                 if (e instanceof Map) {
@@ -374,10 +379,10 @@ public class MorphiumDeserializer {
                 v.put(e.getKey(), toPut);
                 continue;
 
-            } else if (e.getValue() instanceof List) {
+            } else if (e.getValue() instanceof Collection) {
                 ///Map<Something,List>
                 Object retLst = null;
-                    retLst = handleList(List.class, (List) e.getValue());
+                retLst = handleList(List.class, (Collection) e.getValue());
                 v.put(e.getKey(), retLst);
             } else {
                 v.put(e.getKey(), e.getValue());
@@ -386,9 +391,43 @@ public class MorphiumDeserializer {
         return v;
     }
 
-    private Object handleList(Type type, List listIn) throws ClassNotFoundException {
+    private Object handleList(Type type, Collection listIn) throws ClassNotFoundException {
         Class listElementType = null;
-        List listOut = new ArrayList();
+        Collection listOut;
+        try {
+            if (type instanceof Class) {
+                if (((Class) type).isInterface()) {
+                    if (List.class.isAssignableFrom((Class<?>) type)) {
+                        listOut = new ArrayList();
+                    } else if (Set.class.isAssignableFrom((Class<?>) type)) {
+                        listOut = new LinkedHashSet();
+                    } else {
+                        listOut = new ArrayList();
+                    }
+                } else if (((Class) type).isArray()) {
+                    listOut = new ArrayList();
+                } else {
+                    listOut = (Collection) ((Class) type).newInstance();
+                }
+            } else if (type instanceof ParameterizedType) {
+                Class cls = ((Class) ((ParameterizedType) type).getRawType());
+                if (cls.isInterface()) {
+                    if (cls.equals(Set.class)) {
+                        listOut = new LinkedHashSet();
+                    } else if (cls.equals(List.class)) {
+                        listOut = new ArrayList();
+                    } else {
+                        listOut = new ArrayList(); //todo: Check
+                    }
+                } else {
+                    listOut = (Collection) cls.newInstance();
+                }
+            } else {
+                listOut = new ArrayList();
+            }
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
         if (type != null) {
             if (type instanceof ParameterizedType) {
                 if (((ParameterizedType) type).getActualTypeArguments()[0] instanceof ParameterizedType) {
@@ -434,75 +473,79 @@ public class MorphiumDeserializer {
         }
         if (type != null && type instanceof Class && ((Class) type).isArray()) {
             Object arr = Array.newInstance(((Class) type).getComponentType(), listOut.size());
-            for (int i = 0; i < listOut.size(); i++) {
+            int i = 0;
+            Iterator it = listOut.iterator();
+            while (it.hasNext()) {
+                Object listOutObj = it.next();
                 if (((Class) type).getComponentType().isPrimitive()) {
                     if (((Class) type).getComponentType().equals(int.class)) {
-                        if (listOut.get(i) instanceof Double) {
-                            Array.set(arr, i, ((Double) listOut.get(i)).intValue());
-                        } else if (listOut.get(i) instanceof Integer) {
-                            Array.set(arr, i, listOut.get(i));
-                        } else if (listOut.get(i) instanceof Long) {
-                            Array.set(arr, i, ((Long) listOut.get(i)).intValue());
+                        if (listOutObj instanceof Double) {
+                            Array.set(arr, i, ((Double) listOutObj).intValue());
+                        } else if (listOutObj instanceof Integer) {
+                            Array.set(arr, i, listOutObj);
+                        } else if (listOutObj instanceof Long) {
+                            Array.set(arr, i, ((Long) listOutObj).intValue());
                         } else {
                             //noinspection RedundantCast
-                            Array.set(arr, i, listOut.get(i));
+                            Array.set(arr, i, listOutObj);
                         }
 
                     } else if (((Class) type).getComponentType().equals(long.class)) {
-                        if (listOut.get(i) instanceof Double) {
-                            Array.set(arr, i, ((Double) listOut.get(i)).longValue());
-                        } else if (listOut.get(i) instanceof Integer) {
-                            Array.set(arr, i, ((Integer) listOut.get(i)).longValue());
-                        } else if (listOut.get(i) instanceof Long) {
-                            Array.set(arr, i, listOut.get(i));
+                        if (listOutObj instanceof Double) {
+                            Array.set(arr, i, ((Double) listOutObj).longValue());
+                        } else if (listOutObj instanceof Integer) {
+                            Array.set(arr, i, ((Integer) listOutObj).longValue());
+                        } else if (listOutObj instanceof Long) {
+                            Array.set(arr, i, listOutObj);
                         } else {
-                            Array.set(arr, i, listOut.get(i));
+                            Array.set(arr, i, listOutObj);
                         }
 
                     } else if (((Class) type).getComponentType().equals(float.class)) {
                         //Driver sends doubles instead of floats
-                        if (listOut.get(i) instanceof Double) {
-                            Array.set(arr, i, ((Double) listOut.get(i)).floatValue());
-                        } else if (listOut.get(i) instanceof Integer) {
-                            Array.set(arr, i, ((Integer) listOut.get(i)).floatValue());
-                        } else if (listOut.get(i) instanceof Long) {
-                            Array.set(arr, i, ((Long) listOut.get(i)).floatValue());
+                        if (listOutObj instanceof Double) {
+                            Array.set(arr, i, ((Double) listOutObj).floatValue());
+                        } else if (listOutObj instanceof Integer) {
+                            Array.set(arr, i, ((Integer) listOutObj).floatValue());
+                        } else if (listOutObj instanceof Long) {
+                            Array.set(arr, i, ((Long) listOutObj).floatValue());
                         } else {
-                            Array.set(arr, i, listOut.get(i));
+                            Array.set(arr, i, listOutObj);
                         }
 
                     } else if (((Class) type).getComponentType().equals(double.class)) {
-                        if (listOut.get(i) instanceof Float) {
-                            Array.set(arr, i, ((Float) listOut.get(i)).doubleValue());
-                        } else if (listOut.get(i) instanceof Integer) {
-                            Array.set(arr, i, ((Integer) listOut.get(i)).doubleValue());
-                        } else if (listOut.get(i) instanceof Long) {
-                            Array.set(arr, i, ((Long) listOut.get(i)).doubleValue());
+                        if (listOutObj instanceof Float) {
+                            Array.set(arr, i, ((Float) listOutObj).doubleValue());
+                        } else if (listOutObj instanceof Integer) {
+                            Array.set(arr, i, ((Integer) listOutObj).doubleValue());
+                        } else if (listOutObj instanceof Long) {
+                            Array.set(arr, i, ((Long) listOutObj).doubleValue());
                         } else {
-                            Array.set(arr, i, listOut.get(i));
+                            Array.set(arr, i, listOutObj);
                         }
 
                     } else if (((Class) type).getComponentType().equals(byte.class)) {
-                        if (listOut.get(i) instanceof Integer) {
-                            Array.set(arr, i, ((Integer) listOut.get(i)).byteValue());
-                        } else if (listOut.get(i) instanceof Long) {
-                            Array.set(arr, i, ((Long) listOut.get(i)).byteValue());
+                        if (listOutObj instanceof Integer) {
+                            Array.set(arr, i, ((Integer) listOutObj).byteValue());
+                        } else if (listOutObj instanceof Long) {
+                            Array.set(arr, i, ((Long) listOutObj).byteValue());
                         } else {
-                            Array.set(arr, i, listOut.get(i));
+                            Array.set(arr, i, listOutObj);
                         }
                     } else if (((Class) type).getComponentType().equals(boolean.class)) {
-                        if (listOut.get(i) instanceof String) {
-                            Array.set(arr, i, listOut.get(i).toString().equalsIgnoreCase("true"));
-                        } else if (listOut.get(i) instanceof Integer) {
-                            Array.set(arr, i, (Integer) listOut.get(i) == 1);
+                        if (listOutObj instanceof String) {
+                            Array.set(arr, i, listOutObj.toString().equalsIgnoreCase("true"));
+                        } else if (listOutObj instanceof Integer) {
+                            Array.set(arr, i, (Integer) listOutObj == 1);
                         } else {
-                            Array.set(arr, i, listOut.get(i));
+                            Array.set(arr, i, listOutObj);
                         }
 
                     }
                 } else {
-                    Array.set(arr, i, listOut.get(i));
+                    Array.set(arr, i, listOutObj);
                 }
+                i++;
             }
             return arr;
         }
