@@ -68,9 +68,9 @@ public class MorphiumSerializer {
                 jsonGenerator.writeObject(new BigIntegerTypeMapper().marshall(bigInteger));
             }
         });
-        module.addSerializer(List.class, new JsonSerializer<List>() {
+        module.addSerializer(Collection.class, new JsonSerializer<Collection>() {
             @Override
-            public void serialize(List list, JsonGenerator jsonGenerator, SerializerProvider serializerProvider) throws IOException {
+            public void serialize(Collection list, JsonGenerator jsonGenerator, SerializerProvider serializerProvider) throws IOException {
                 jsonGenerator.writeStartArray();
                 for (Object o : list) {
                     Map m = null;
@@ -82,8 +82,8 @@ public class MorphiumSerializer {
                             jsonGenerator.writeObject(o);
                             continue;
                         }
-                        if (o instanceof List) {
-                            serialize((List) o, jsonGenerator, serializerProvider);
+                        if (o instanceof Collection) {
+                            serialize((Collection) o, jsonGenerator, serializerProvider);
                             continue;
 //                        } else if (o instanceof MorphiumId) {
 //                            jsonGenerator.write(o.toString());
@@ -91,17 +91,22 @@ public class MorphiumSerializer {
 //                            jsonGenerator.writeString("ObjectId(" + o.toString() + ")");
 //                            continue;
                         } else if (o instanceof Map) {
-                            m = new LinkedHashMap();
+                            //m = new LinkedHashMap();
+                            jsonGenerator.writeStartObject();
                             for (Map.Entry e : (Set<Map.Entry>) ((Map) o).entrySet()) {
                                 if (mongoTypes.contains(e.getValue().getClass())) {
-                                    m.put(e.getKey(), e.getValue());
+                                    jsonGenerator.writeObjectField((String) e.getKey(), e.getValue());
+                                } else if (e.getValue() instanceof Collection) {
+                                    jsonGenerator.writeFieldName((String) e.getKey());
+                                    serialize((Collection) e.getValue(), jsonGenerator, serializerProvider);
                                 } else {
                                     Map value = jackson.convertValue(e.getValue(), Map.class);
                                     value.put("class_name", e.getValue().getClass().getName());
-                                    m.put(e.getKey(), value);
+                                    jsonGenerator.writeObjectField((String) e.getKey(), value);
                                 }
                             }
-                            jsonGenerator.writeObject(m);
+                            //jsonGenerator.writeObject(m);
+                            jsonGenerator.writeEndObject();
                             continue;
                         } else {
                             m = jackson.convertValue(o, Map.class);
@@ -188,8 +193,8 @@ public class MorphiumSerializer {
                 return new MorphiumId(e.getValue().toString());
             } else if (e.getValue() instanceof Map) {
                 toSet.put(e.getKey(), replaceMorphiumId((Map) e.getValue()));
-            } else if (e.getValue() instanceof List) {
-                toSet.put(e.getKey(), replaceMorphiumId((List) e.getValue()));
+            } else if (e.getValue() instanceof Collection) {
+                toSet.put(e.getKey(), replaceMorphiumId((Collection) e.getValue()));
             } else {
                 toSet.put(e.getKey(), e.getValue());
             }
@@ -197,8 +202,8 @@ public class MorphiumSerializer {
         return toSet;
     }
 
-    private List replaceMorphiumId(List value) {
-        List ret = new ArrayList();
+    private Collection replaceMorphiumId(Collection value) {
+        Collection ret = new ArrayList();
         for (Object o : value) {
             if (o instanceof Map && ((Map) o).containsKey("morphium id")) {
                 ret.add(new MorphiumId((String) ((Map) o).get("morphium id")));
