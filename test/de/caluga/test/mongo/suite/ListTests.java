@@ -101,7 +101,7 @@ public class ListTests extends MongoTest {
     }
 
     @Test
-    public void nullValueListTest() throws Exception {
+    public void nullValueListTest() {
         morphium.dropCollection(ListContainer.class);
         ListContainer lst = new ListContainer();
         int count = 2;
@@ -189,8 +189,8 @@ public class ListTests extends MongoTest {
         try {
             ListWildcardContainer testObejectToLoadFromDB = (ListWildcardContainer) q.get();
         } catch (Exception e) {
-            fail("error while restoring object from db | " + e.getMessage());
             log.error(e.getMessage(), e);
+            fail("error while restoring object from db | " + e.getMessage());
         }
     }
 

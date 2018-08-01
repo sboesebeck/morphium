@@ -107,15 +107,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                             continue;
                         }
                         morphium.inc(StatisticKeys.WRITES);
-                        if (morphium.getARHelper().isAnnotationPresentInHierarchy(type, PartialUpdate.class)) {
-                            //not part of list, acutally...
-                            if ((o instanceof PartiallyUpdateable)) {
-                                //todo: use batch write
-                                morphium.updateUsingFields(o, ((PartiallyUpdateable) o).getAlteredFields().toArray(new String[((PartiallyUpdateable) o).getAlteredFields().size()]));
-                                ((PartiallyUpdateable) o).clearAlteredFields();
-                                continue;
-                            }
-                        }
+
                         o = morphium.getARHelper().getRealObject(o);
                         if (o == null) {
                             logger.warn("Illegal Reference? - cannot store Lazy-Loaded / Partial Update Proxy without delegate!");
@@ -151,7 +143,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                             HashMap<Integer, Object> mapMarshalledNewObjects = new HashMap<>();
                             for (Object record : es.getValue()) {
                                 setIdIfNull(record);
-                                Map<String, Object> marshall = morphium.getMapper().marshall(record);
+                                Map<String, Object> marshall = morphium.getMapper().serialize(record);
                                 dbLst.add(marshall);
                                 mapMarshalledNewObjects.put(dbLst.size() - 1, record);
                             }
@@ -258,7 +250,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                             } catch (IllegalAccessException e) {
                                 throw new RuntimeException(e);
                             }
-                            dbLst.add(morphium.getMapper().marshall(o));
+                            dbLst.add(morphium.getMapper().serialize(o));
                         }
                         if (morphium.getConfig().isAutoIndexAndCappedCreationOnWrite() && !morphium.getDriver().exists(morphium.getConfig().getDatabase(), collectionName)) {
                             logger.warn("collection does not exist while storing list -  taking first element of list to ensure indices");
@@ -338,7 +330,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
 
                     setIdIfNull(o);
 
-                    Map<String, Object> marshall = morphium.getMapper().marshall(o);
+                    Map<String, Object> marshall = morphium.getMapper().serialize(o);
 
                     String coll = collection;
                     if (coll == null) {
@@ -423,14 +415,6 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                     }
                     morphium.inc(StatisticKeys.WRITES);
                     Object id = morphium.getARHelper().getId(o);
-                    if (morphium.getARHelper().isAnnotationPresentInHierarchy(type, PartialUpdate.class)) {
-                        if ((o instanceof PartiallyUpdateable)) {
-                            updateUsingFields(o, collection, callback, ((PartiallyUpdateable) o).getAlteredFields().toArray(new String[((PartiallyUpdateable) o).getAlteredFields().size()]));
-                            ((PartiallyUpdateable) o).clearAlteredFields();
-
-                            return;
-                        }
-                    }
                     o = morphium.getARHelper().getRealObject(o);
                     if (o == null) {
                         logger.warn("Illegal Reference? - cannot store Lazy-Loaded / Partial Update Proxy without delegate!");
@@ -442,7 +426,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                     }
                     morphium.firePreStore(o, isNew);
                     setIdIfNull(o);
-                    Map<String, Object> marshall = morphium.getMapper().marshall(o);
+                    Map<String, Object> marshall = morphium.getMapper().serialize(o);
 
                     String coll = collection;
                     if (coll == null) {
@@ -467,7 +451,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                     //                        if (isNew) {
                     //                            n = "NEW ";
                     //                        }
-                    //                        logger.debug(n + "stored " + type.getSimpleName() + " after " + dur + " ms length:" + marshall.toString().length());
+                    //                        logger.debug(n + "stored " + type.getSimpleName() + " after " + dur + " ms length:" + serialize.toString().length());
                     //                    }
                     if (isNew) {
                         List<String> flds = morphium.getARHelper().getFields(o.getClass(), Id.class);
@@ -595,7 +579,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                             } catch (IllegalAccessException e) {
                                 throw new RuntimeException(e);
                             }
-                            Map<String, Object> marshall = morphium.getMapper().marshall(record);
+                            Map<String, Object> marshall = morphium.getMapper().serialize(record);
                             dbLst.add(marshall);
                         }
                         morphium.firePreStore(isNew);
@@ -660,15 +644,6 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                             continue;
                         }
                         morphium.inc(StatisticKeys.WRITES);
-                        if (morphium.getARHelper().isAnnotationPresentInHierarchy(type, PartialUpdate.class)) {
-                            //not part of list, acutally...
-                            if ((o instanceof PartiallyUpdateable)) {
-                                //todo: use batch write
-                                morphium.updateUsingFields(o, ((PartiallyUpdateable) o).getAlteredFields().toArray(new String[((PartiallyUpdateable) o).getAlteredFields().size()]));
-                                ((PartiallyUpdateable) o).clearAlteredFields();
-                                continue;
-                            }
-                        }
                         o = morphium.getARHelper().getRealObject(o);
                         if (o == null) {
                             logger.warn("Illegal Reference? - cannot store Lazy-Loaded / Partial Update Proxy without delegate!");
@@ -712,7 +687,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                             HashMap<Integer, Object> mapMarshalledNewObjects = new HashMap<>();
                             for (Object record : es.getValue()) {
                                 setIdIfNull(record);
-                                Map<String, Object> marshall = morphium.getMapper().marshall(record);
+                                Map<String, Object> marshall = morphium.getMapper().serialize(record);
                                 dbLst.add(marshall);
                                 mapMarshalledNewObjects.put(dbLst.size() - 1, record);
                             }
@@ -1025,7 +1000,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                                 //need to store reference
                                 value = morphium.getARHelper().getId(ent);
                             } else {
-                                value = morphium.getMapper().marshall(value);
+                                value = morphium.getMapper().serialize(value);
                             }
                         }
                         update.put(f, value);
@@ -1702,8 +1677,8 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
         if (value != null) {
             if (morphium.getARHelper().isAnnotationPresentInHierarchy(value.getClass(), Entity.class)
                     || morphium.getARHelper().isAnnotationPresentInHierarchy(value.getClass(), Embedded.class)) {
-                //need to marshall...
-                Map<String, Object> marshall = morphium.getMapper().marshall(value);
+                //need to serialize...
+                Map<String, Object> marshall = morphium.getMapper().serialize(value);
                 marshall.put("class_name", morphium.getARHelper().getRealClass(value.getClass()).getName());
                 value = marshall;
             } else if (List.class.isAssignableFrom(value.getClass())) {
@@ -1712,7 +1687,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                     if (morphium.getARHelper().isAnnotationPresentInHierarchy(o.getClass(), Embedded.class) ||
                             morphium.getARHelper().isAnnotationPresentInHierarchy(o.getClass(), Entity.class)
                             ) {
-                        Map<String, Object> marshall = morphium.getMapper().marshall(o);
+                        Map<String, Object> marshall = morphium.getMapper().serialize(o);
                         marshall.put("class_name", morphium.getARHelper().getRealClass(o.getClass()).getName());
 
                         lst.add(marshall);
@@ -1730,7 +1705,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                     if (morphium.getARHelper().isAnnotationPresentInHierarchy(en.getValue().getClass(), Entity.class) ||
                             morphium.getARHelper().isAnnotationPresentInHierarchy(en.getValue().getClass(), Embedded.class)
                             ) {
-                        Map<String, Object> marshall = morphium.getMapper().marshall(en.getValue());
+                        Map<String, Object> marshall = morphium.getMapper().serialize(en.getValue());
                         marshall.put("class_name", morphium.getARHelper().getRealClass(en.getValue().getClass()).getName());
                         ((Map) value).put(en.getKey(), marshall);
                     }

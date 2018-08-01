@@ -377,7 +377,7 @@ public class MessagingTest extends MongoTest {
             log.info("Receiver got message");
             if (m.getInAnswerTo()==null){
                 log.error("Message is not an answer! ERROR!");
-                throw new RuntimeException("Error");
+                throw new RuntimeException("Message is not an answer");
             }
             return null;
         });
@@ -1133,7 +1133,7 @@ public class MessagingTest extends MongoTest {
     }
     @Test
     public void sendAndWaitforAnswerTest() {
-        morphium.dropCollection(Msg.class);
+//        morphium.dropCollection(Msg.class);
         Messaging sender = new Messaging(morphium, 100, false);
         sender.start();
 

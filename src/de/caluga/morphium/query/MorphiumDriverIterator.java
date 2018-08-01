@@ -161,7 +161,7 @@ public class MorphiumDriverIterator<T> implements MorphiumIterator<T> {
         if (currentBatch == null && !hasNext()) {
             return null;
         }
-        T unmarshall = query.getMorphium().getMapper().unmarshall(query.getType(), currentBatch.getBatch().get(cursor));
+        T unmarshall = query.getMorphium().getMapper().deserialize(query.getType(), currentBatch.getBatch().get(cursor));
         query.getMorphium().firePostLoadEvent(unmarshall);
         try {
             if (currentBatch == null && cursorExternal == 0) {

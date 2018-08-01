@@ -22,7 +22,7 @@ public class ChangeStreamMonitor implements Runnable, ShutdownListener {
     private boolean running = true;
     private long timestamp;
     private Thread changeStreamThread;
-    private ObjectMapper mapper;
+    private MorphiumObjectMapper mapper;
     private boolean dbOnly = false;
 
 
@@ -110,7 +110,7 @@ public class ChangeStreamMonitor implements Runnable, ShutdownListener {
                     }
                     Map<String, Object> obj = (Map<String, Object>) data.get("fullDocument");
                     data.put("fullDocument", null);
-                    ChangeStreamEvent evt = mapper.unmarshall(ChangeStreamEvent.class, data);
+                    ChangeStreamEvent evt = mapper.deserialize(ChangeStreamEvent.class, data);
 
                     evt.setFullDocument(obj);
                     for (ChangeStreamListener lst : listeners) {
