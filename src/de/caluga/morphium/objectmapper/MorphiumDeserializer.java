@@ -16,9 +16,12 @@ import de.caluga.morphium.driver.MorphiumId;
 import de.caluga.morphium.mapping.BigIntegerTypeMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import sun.misc.BASE64Decoder;
 import sun.reflect.ReflectionFactory;
 
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
+import java.io.ObjectInputStream;
 import java.lang.reflect.*;
 import java.math.BigInteger;
 import java.util.*;
@@ -119,7 +122,15 @@ public class MorphiumDeserializer {
                                 if (e instanceof Map) {
                                     if (((Map) e).get("class_name") != null) {
                                         try {
-                                            toAdd.add(jackson.convertValue(e, Class.forName((String) ((Map) e).get("class_name"))));
+                                            Class<?> clsName = Class.forName((String) ((Map) e).get("class_name"));
+                                            if (clsName.equals(BinarySerializedObject.class)) {
+                                                BinarySerializedObject bso = (BinarySerializedObject) jackson.convertValue(e, clsName);
+                                                BASE64Decoder dec = new BASE64Decoder();
+                                                ObjectInputStream oin = new ObjectInputStream(new ByteArrayInputStream(dec.decodeBuffer(bso.getB64Data())));
+                                                toAdd.add(oin.readObject());
+                                            } else {
+                                                toAdd.add(jackson.convertValue(e, clsName));
+                                            }
                                         } catch (ClassNotFoundException e1) {
                                             //TODO: Implement Handling
                                             throw new RuntimeException(e1);
@@ -236,6 +247,15 @@ public class MorphiumDeserializer {
                         toPut = Enum.valueOf(cls, (String) ev.get("name"));
                     } else {
                         toPut = jackson.convertValue(ev, cls);
+                        if (toPut instanceof BinarySerializedObject) {
+                            BASE64Decoder dec = new BASE64Decoder();
+                            try {
+                                ObjectInputStream in = new ObjectInputStream(new ByteArrayInputStream(dec.decodeBuffer(((BinarySerializedObject) toPut).getB64Data())));
+                                toPut = in.readObject();
+                            } catch (IOException e1) {
+                                log.error("Could not deserialize", e);
+                            }
+                        }
                     }
                 } else if (ev.get("morphium id") != null) {
                     toPut = new MorphiumId((String) ev.get("morphium id"));
@@ -315,6 +335,16 @@ public class MorphiumDeserializer {
                     Class<?> cls = Class.forName((String) ((Map) el).get("class_name"));
                     if (cls.isEnum()) {
                         listOut.add(Enum.valueOf((Class) cls, (String) ((Map) el).get("name")));
+                    } else if (cls.equals(BinarySerializedObject.class)) {
+                        Object toPut = jackson.convertValue(el, cls);
+                        BASE64Decoder dec = new BASE64Decoder();
+                        try {
+                            ObjectInputStream in = new ObjectInputStream(new ByteArrayInputStream(dec.decodeBuffer(((BinarySerializedObject) toPut).getB64Data())));
+                            toPut = in.readObject();
+                        } catch (IOException e1) {
+                            log.error("Could not deserialize", e1);
+                        }
+
                     } else {
                         listOut.add(jackson.convertValue(el, cls));
                     }
