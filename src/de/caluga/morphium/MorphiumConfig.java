@@ -12,6 +12,7 @@ import de.caluga.morphium.cache.MorphiumCache;
 import de.caluga.morphium.driver.ReadPreference;
 import de.caluga.morphium.driver.ReadPreferenceType;
 import de.caluga.morphium.driver.mongodb.Driver;
+import de.caluga.morphium.objectmapper.ObjectMapperImplNG;
 import de.caluga.morphium.query.*;
 import de.caluga.morphium.writer.AsyncWriterImpl;
 import de.caluga.morphium.writer.BufferedMorphiumWriterImpl;
@@ -102,7 +103,7 @@ public class MorphiumConfig {
     //    private Class<? extends Object> userClass, roleClass, aclClass;
     private String mongoAdminUser, mongoAdminPwd; //THE superuser!
     @Transient
-    private Class<? extends ObjectMapper> omClass = ObjectMapperImpl.class;
+    private Class<? extends MorphiumObjectMapper> omClass = ObjectMapperImplNG.class;
     @Transient
     private Class<? extends MongoField> fieldImplClass = MongoFieldImpl.class;
     @Transient
@@ -233,7 +234,7 @@ public class MorphiumConfig {
 
 
     public static MorphiumConfig createFromJson(String json) throws ParseException, NoSuchFieldException, ClassNotFoundException, IllegalAccessException, InstantiationException {
-        MorphiumConfig cfg = new ObjectMapperImpl().unmarshall(MorphiumConfig.class, json);
+        MorphiumConfig cfg = new ObjectMapperImpl().deserialize(MorphiumConfig.class, json);
 
         for (Object ko : cfg.restoreData.keySet()) {
             String k = (String) ko;
@@ -401,11 +402,11 @@ public class MorphiumConfig {
         return this;
     }
 
-    public Class<? extends ObjectMapper> getOmClass() {
+    public Class<? extends MorphiumObjectMapper> getOmClass() {
         return omClass;
     }
 
-    public MorphiumConfig setOmClass(Class<? extends ObjectMapper> omClass) {
+    public MorphiumConfig setOmClass(Class<? extends MorphiumObjectMapper> omClass) {
         this.omClass = omClass;
         return this;
     }
@@ -815,7 +816,7 @@ public class MorphiumConfig {
     public String toString() {
         updateAdditionals();
         try {
-            return Utils.toJsonString(getOmClass().newInstance().marshall(this));
+            return Utils.toJsonString(getOmClass().newInstance().serialize(this));
         } catch (Exception e) {
             throw new RuntimeException(e);
         }

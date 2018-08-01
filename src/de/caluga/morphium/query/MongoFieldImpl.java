@@ -2,7 +2,7 @@ package de.caluga.morphium.query;
 
 import de.caluga.morphium.FilterExpression;
 import de.caluga.morphium.MongoType;
-import de.caluga.morphium.ObjectMapper;
+import de.caluga.morphium.MorphiumObjectMapper;
 import de.caluga.morphium.annotations.Entity;
 import de.caluga.morphium.annotations.Reference;
 import de.caluga.morphium.driver.MorphiumId;
@@ -23,7 +23,7 @@ import java.util.regex.Pattern;
 @SuppressWarnings("UnusedDeclaration")
 public class MongoFieldImpl<T> implements MongoField<T> {
     private Query<T> query;
-    private ObjectMapper mapper;
+    private MorphiumObjectMapper mapper;
     private String fldStr;
 
     private FilterExpression fe;
@@ -32,7 +32,7 @@ public class MongoFieldImpl<T> implements MongoField<T> {
     public MongoFieldImpl() {
     }
 
-    public MongoFieldImpl(Query<T> q, ObjectMapper map) {
+    public MongoFieldImpl(Query<T> q, MorphiumObjectMapper map) {
         query = q;
         mapper = map;
     }
@@ -50,12 +50,12 @@ public class MongoFieldImpl<T> implements MongoField<T> {
     }
 
     @Override
-    public ObjectMapper getMapper() {
+    public MorphiumObjectMapper getMapper() {
         return mapper;
     }
 
     @Override
-    public void setMapper(ObjectMapper mapper) {
+    public void setMapper(MorphiumObjectMapper mapper) {
         this.mapper = mapper;
     }
 

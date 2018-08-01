@@ -113,6 +113,6 @@ public class ChangeStreamEvent {
     }
 
     public <T> T getEntityFromData(Class<T> cls, Morphium m) {
-        return m.getMapper().unmarshall(cls, getFullDocument());
+        return m.getMapper().deserialize(cls, getFullDocument());
     }
 }

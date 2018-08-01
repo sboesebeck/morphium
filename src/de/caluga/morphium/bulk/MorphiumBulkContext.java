@@ -180,7 +180,7 @@ public class MorphiumBulkContext<T> {
         Map<Object, Boolean> isNew = new HashMap<>();
         List<Map<String, Object>> ins = new ArrayList<>();
         for (Object o : toInsert) {
-            Map<String, Object> marshall = ctx.getMorphium().getMapper().marshall(o);
+            Map<String, Object> marshall = ctx.getMorphium().getMapper().serialize(o);
             ins.add(marshall);
             isNew.put(o, marshall.get("_id") == null);
         }

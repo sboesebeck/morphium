@@ -4,10 +4,10 @@ import de.caluga.morphium.Morphium;
 import de.caluga.morphium.ShutdownListener;
 import de.caluga.morphium.async.AsyncOperationCallback;
 import de.caluga.morphium.async.AsyncOperationType;
+import de.caluga.morphium.changestream.ChangeStreamMonitor;
 import de.caluga.morphium.driver.MorphiumId;
 import de.caluga.morphium.query.MorphiumIterator;
 import de.caluga.morphium.query.Query;
-import de.caluga.morphium.replicaset.OplogMonitor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -53,8 +53,8 @@ public class Messaging extends Thread implements ShutdownListener {
 
     private boolean multithreadded = false;
     private int windowSize = 1000;
-    private boolean useOplogMonitor = false;
-    private OplogMonitor oplogMonitor;
+    private boolean useChangeStream = false;
+    private ChangeStreamMonitor changeStreamMonitor;
 
     private Map<MorphiumId, Msg> waitingForAnswers = new ConcurrentHashMap<>();
 
@@ -84,11 +84,11 @@ public class Messaging extends Thread implements ShutdownListener {
         this(m, queueName, pause, processMultiple, multithreadded, windowSize, m.isReplicaSet());
     }
 
-    public Messaging(Morphium m, String queueName, int pause, boolean processMultiple, boolean multithreadded, int windowSize, boolean useOplogMonitor) {
+    public Messaging(Morphium m, String queueName, int pause, boolean processMultiple, boolean multithreadded, int windowSize, boolean useChangeStream) {
         this.multithreadded = multithreadded;
         this.windowSize = windowSize;
         morphium = m;
-        this.useOplogMonitor = useOplogMonitor;
+        this.useChangeStream = useChangeStream;
 
 
         if (multithreadded) {
@@ -179,7 +179,7 @@ public class Messaging extends Thread implements ShutdownListener {
         }
 
 
-        if (useOplogMonitor) {
+        if (useChangeStream) {
             log.debug("Before running the oplogmonitor - check of already existing messages");
             try {
                 findAndProcessMessages(true);
@@ -193,20 +193,21 @@ public class Messaging extends Thread implements ShutdownListener {
                 log.error("Error processing existing messages in queue", e);
             }
             log.debug("init Messaging  using oplogmonitor");
-            oplogMonitor = new OplogMonitor(morphium, getCollectionName(), false);
-            oplogMonitor.addListener(data -> {
+            //changeStreamMonitor = new OplogMonitor(morphium, getCollectionName(), false);
+            changeStreamMonitor = new ChangeStreamMonitor(morphium, getCollectionName(), true);
+            changeStreamMonitor.addListener(evt -> {
 //                    log.debug("incoming message via oplogmonitor");
-                if (data.get("op").equals("i")) {
+                if (evt.getOperationType().equals("insert")) {
                     //insert => new Message
 //                        log.debug("New message incoming");
-                    Msg obj = morphium.getMapper().unmarshall(Msg.class, (Map<String, Object>) data.get("o"));
+                    Msg obj = morphium.getMapper().deserialize(Msg.class, (Map<String, Object>) evt.getFullDocument());
                     if (obj.getSender().equals(id) || (obj.getProcessedBy() != null && obj.getProcessedBy().contains(id)) || (obj.getRecipient() != null && !obj.getRecipient().equals(id))) {
                         //ignoring my own messages
-                        return;
+                        return running;
                     }
                     if (pauseMessages.containsKey(obj.getName())) {
                         log.info("Not processing message - processing paused for " + obj.getName());
-                        return;
+                        return running;
                     }
                     //do not process messages, that are exclusive, but already processed or not for me / all
                     if (obj.isExclusive() && obj.getLockedBy() == null && (obj.getRecipient() == null || obj.getRecipient().equals(id)) && (obj.getProcessedBy() == null || !obj.getProcessedBy().contains(id))) {
@@ -217,7 +218,7 @@ public class Messaging extends Thread implements ShutdownListener {
                     } else if (!obj.isExclusive() || (obj.getRecipient() != null && obj.getRecipient().equals(id))) {
                         //I need process this new message... it is either for all or for me directly
                         if (processing.contains(obj.getMsgId())) {
-                            return;
+                            return running;
                         }
 //                        obj = morphium.reread(obj);
 //                        if (obj.getReceivedBy() != null && obj.getReceivedBy().contains(id)) {
@@ -236,12 +237,12 @@ public class Messaging extends Thread implements ShutdownListener {
                         log.debug("Message is not for me");
                     }
 
-                } else if (data.get("op").equals("u")) {
+                } else if (evt.getOperationType().equals("update")) {
                     //dealing with updates... i could have "lost" a lock
 //                        if (((Map<String,Object>)data.get("o")).get("$set")!=null){
 //                            //there is a set-update
 //                        }
-                    Msg obj = morphium.findById(Msg.class, new MorphiumId(((Map<String, Object>) data.get("o2")).get("_id").toString()));
+                    Msg obj = morphium.findById(Msg.class, new MorphiumId(((Map<String, Object>) evt.getFullDocument()).get("_id").toString()));
                     if (obj != null && obj.isExclusive() && obj.getLockedBy() == null && (obj.getRecipient() == null || obj.getRecipient().equals(id))) {
                         log.debug("Update of msg - trying to lock");
                         // locking
@@ -250,8 +251,9 @@ public class Messaging extends Thread implements ShutdownListener {
                     //if msg was not exclusive, we should have processed it on insert
 
                 }
+                return running;
             });
-            oplogMonitor.start();
+            changeStreamMonitor.start();
         } else {
 
             while (running) {
@@ -296,13 +298,7 @@ public class Messaging extends Thread implements ShutdownListener {
      * @return duration or null
      */
     public Long unpauseProcessingOfMessagesNamed(String name) {
-
-        try {
-            findAndProcessPendingMessages(name, true);
-        } catch (InterruptedException e) {
-            //TODO: Implement Handling
-            throw new RuntimeException(e);
-        }
+        findAndProcessPendingMessages(name, true);
 
         Long ret = pauseMessages.remove(name);
 
@@ -314,7 +310,7 @@ public class Messaging extends Thread implements ShutdownListener {
         return ret;
     }
 
-    public void findAndProcessPendingMessages(String name, boolean forceListeners) throws InterruptedException {
+    public void findAndProcessPendingMessages(String name, boolean forceListeners) {
         MorphiumIterator<Msg> messages = findMessages(name, true);
         processMessages(messages, forceListeners);
     }
@@ -347,7 +343,7 @@ public class Messaging extends Thread implements ShutdownListener {
         return it;
     }
 
-    private void findAndProcessMessages(boolean multiple) throws InterruptedException {
+    private void findAndProcessMessages(boolean multiple) {
         MorphiumIterator<Msg> messages = findMessages(null, multiple);
         processMessages(messages, false);
     }
@@ -601,15 +597,15 @@ public class Messaging extends Thread implements ShutdownListener {
     }
 
     public boolean isRunning() {
-        if (useOplogMonitor) {
-            return oplogMonitor != null && oplogMonitor.isRunning();
+        if (useChangeStream) {
+            return changeStreamMonitor != null && changeStreamMonitor.isRunning();
         }
         return running;
     }
 
     @Deprecated
     public void setRunning(boolean running) {
-        if (!running && (oplogMonitor != null)) oplogMonitor.stop();
+        if (!running && (changeStreamMonitor != null)) changeStreamMonitor.stop();
         this.running = running;
     }
 
@@ -623,7 +619,8 @@ public class Messaging extends Thread implements ShutdownListener {
             int sz = threadPool.shutdownNow().size();
             log.debug("Shutting down with " + sz + " runnables still pending in pool");
         }
-        if (oplogMonitor != null) oplogMonitor.stop();
+        if (changeStreamMonitor != null) changeStreamMonitor.stop();
+        sendMessageToSelf(new Msg("info", "going down", "now"));
         if (isAlive()) {
             interrupt();
         }
@@ -739,7 +736,7 @@ public class Messaging extends Thread implements ShutdownListener {
                 threadPool.shutdownNow();
                 threadPool = null;
             }
-            if (oplogMonitor != null) oplogMonitor.stop();
+            if (changeStreamMonitor != null) changeStreamMonitor.stop();
         } catch (Exception e) {
             //swallow
         }

@@ -1,8 +1,8 @@
 package de.caluga.test.mongo.suite;
 
 import de.caluga.morphium.Morphium;
+import de.caluga.morphium.MorphiumObjectMapper;
 import de.caluga.morphium.NameProvider;
-import de.caluga.morphium.ObjectMapper;
 import de.caluga.morphium.annotations.Entity;
 import de.caluga.morphium.annotations.Id;
 import de.caluga.morphium.annotations.caching.NoCache;
@@ -43,7 +43,7 @@ public class PolymorphismTest extends MongoTest {
     public static class PolyNameProvider implements NameProvider {
 
         @Override
-        public String getCollectionName(Class<?> type, ObjectMapper om, boolean translateCamelCase, boolean useFQN, String specifiedName, Morphium morphium) {
+        public String getCollectionName(Class<?> type, MorphiumObjectMapper om, boolean translateCamelCase, boolean useFQN, String specifiedName, Morphium morphium) {
             return "poly";
         }
     }
