@@ -282,7 +282,7 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
             } catch (IllegalAccessException e) {
                 e.printStackTrace();
             }
-            objToInsert.add(morphium.getMapper().marshall(o));
+            objToInsert.add(morphium.getMapper().serialize(o));
             InsertBulkRequest ins = ctx.addInsertBulkRequest(objToInsert);
 
             //                morphium.clearCacheforClassIfNecessary(o.getClass());
@@ -340,7 +340,7 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
                 } catch (IllegalAccessException e) {
                     throw new RuntimeException(e);
                 }
-                marshalled.add(morphium.getMapper().marshall(o));
+                marshalled.add(morphium.getMapper().serialize(o));
             }
             morphium.firePreStore(map);
 
@@ -370,7 +370,7 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
                 } catch (IllegalAccessException e) {
                     throw new RuntimeException(e);
                 }
-                objToInsert.add(morphium.getMapper().marshall(o));
+                objToInsert.add(morphium.getMapper().serialize(o));
                 InsertBulkRequest ins = ctx.addInsertBulkRequest(objToInsert);
             } else {
 
@@ -383,7 +383,7 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
                 //noinspection unchecked
                 for (String f : morphium.getARHelper().getFields(o.getClass())) {
                     try {
-                        cmd.put(morphium.getARHelper().getFieldName(o.getClass(), f), morphium.getMapper().marshallIfNecessary(morphium.getARHelper().getField(o.getClass(), f).get(o)));
+                        cmd.put(morphium.getARHelper().getFieldName(o.getClass(), f), morphium.getMapper().serialize(morphium.getARHelper().getField(o.getClass(), f).get(o)));
                     } catch (IllegalAccessException e) {
                         e.printStackTrace();
                     }
@@ -432,7 +432,7 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
                     } catch (IllegalAccessException e) {
                         throw new RuntimeException(e);
                     }
-                    toInsert.add(morphium.getMapper().marshall(entry.getKey()));
+                    toInsert.add(morphium.getMapper().serialize(entry.getKey()));
                 } else {
                     //noinspection unchecked
                     store((T) entry.getKey(), morphium.getMapper().getCollectionName(entry.getKey().getClass()), finalC);

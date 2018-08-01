@@ -1,8 +1,6 @@
 package de.caluga.test.mongo.suite;
 
-import de.caluga.morphium.DereferencingListener;
 import de.caluga.morphium.Morphium;
-import de.caluga.morphium.MorphiumAccessVetoException;
 import de.caluga.morphium.annotations.*;
 import de.caluga.morphium.annotations.caching.NoCache;
 import de.caluga.morphium.annotations.lifecycle.Lifecycle;
@@ -150,90 +148,6 @@ public class ReferenceTest extends MongoTest {
 
     }
 
-
-    @Test
-    public void referenceListenerTest() {
-        DereferencingListener deRef = new DereferencingListener() {
-            @Override
-            public void wouldDereference(Object entityIncludingReference, String fieldInEntity, Object id, Class typeReferenced, boolean lazy) throws MorphiumAccessVetoException {
-                wouldDeref = true;
-            }
-
-            @Override
-            public Object didDereference(Object entitiyIncludingReference, String fieldInEntity, Object referencedObject, boolean lazy) {
-                didDeref = true;
-                assert (referencedObject != null);
-                return referencedObject;
-            }
-        };
-
-        morphium.addDereferencingListener(deRef);
-
-
-        //Creating a testObject;
-        morphium.dropCollection(ReferenceContainer.class);
-        UncachedObject uc1 = new UncachedObject();
-
-        uc1.setCounter(1);
-        uc1.setValue("Uncached 1");
-        morphium.store(uc1);
-
-        UncachedObject uc2 = new UncachedObject();
-        uc2.setCounter(1);
-        uc2.setValue("Uncached 2");
-        morphium.store(uc2);
-
-
-        CachedObject co = new CachedObject();
-        co.setCounter(3);
-        co.setValue("Cached 3");
-        morphium.storeNoCache(co);
-        //Making sure it's stored yet
-
-        ReferenceContainer rc = new ReferenceContainer();
-        rc.setCo(co);
-        rc.setLazyUc(uc2);
-        rc.setUc(uc1);
-
-        List<UncachedObject> lst = new ArrayList<>();
-        UncachedObject toSearchFor = null;
-        for (int i = 0; i < 10; i++) {
-            //creating uncached Objects
-            UncachedObject uc = new UncachedObject();
-            uc.setValue("list value " + i);
-            uc.setCounter(i);
-            if (i == 4) {
-                lst.add(uc);
-            }
-        }
-        morphium.storeList(lst);
-        rc.setLst(lst);
-
-        UncachedObject toSearchFor2 = null;
-        lst = new ArrayList<>();
-        for (int i = 0; i < 10; i++) {
-            //creating uncached Objects
-            UncachedObject uc = new UncachedObject();
-            uc.setValue("list value " + i);
-            uc.setCounter(i);
-            lst.add(uc);
-            if (i == 4) {
-            }
-        }
-
-        rc.setLzyLst(lst);
-
-
-        morphium.store(rc); //stored
-
-        ReferenceContainer rcRead = morphium.createQueryFor(ReferenceContainer.class).get();
-
-        //noinspection ConstantConditions
-        assert (wouldDeref = true);
-        //noinspection ConstantConditions
-        assert (didDeref = true);
-        morphium.removeDerrferencingListener(deRef);
-    }
 
     @Test
     public void testSimpleDoublyLinkedStructure() {
