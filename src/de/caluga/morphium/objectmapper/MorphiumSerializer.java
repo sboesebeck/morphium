@@ -10,13 +10,12 @@ import com.fasterxml.jackson.databind.ser.BeanSerializerModifier;
 import de.caluga.morphium.*;
 import de.caluga.morphium.annotations.*;
 import de.caluga.morphium.driver.MorphiumId;
-import de.caluga.morphium.mapping.BigIntegerTypeMapper;
+import de.caluga.morphium.mapping.MorphiumTypeMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.lang.reflect.Field;
-import java.math.BigInteger;
 import java.util.*;
 
 public class MorphiumSerializer {
@@ -29,12 +28,14 @@ public class MorphiumSerializer {
     private final Logger log = LoggerFactory.getLogger(MorphiumSerializer.class);
     private final com.fasterxml.jackson.databind.ObjectMapper jackson;
     private final SimpleModule module;
+    private final Map<Class, MorphiumTypeMapper> typeMapper;
 
-    public MorphiumSerializer(AnnotationAndReflectionHelper ar, Map<Class<?>, NameProvider> np, Morphium m, MorphiumObjectMapper om) {
+    public MorphiumSerializer(AnnotationAndReflectionHelper ar, Map<Class<?>, NameProvider> np, Morphium m, MorphiumObjectMapper om, Map<Class, MorphiumTypeMapper> typeMapper) {
         mongoTypes = Collections.synchronizedList(new ArrayList<>());
         anhelper = ar;
         nameProviderByClass = np;
         morphium = m;
+        this.typeMapper = typeMapper;
 
         objectMapper = om;
         module = new SimpleModule();
@@ -62,12 +63,6 @@ public class MorphiumSerializer {
             }
         });
 
-        module.addSerializer(BigInteger.class, new JsonSerializer<BigInteger>() {
-            @Override
-            public void serialize(BigInteger bigInteger, JsonGenerator jsonGenerator, SerializerProvider serializerProvider) throws IOException {
-                jsonGenerator.writeObject(new BigIntegerTypeMapper().marshall(bigInteger));
-            }
-        });
         module.addSerializer(Collection.class, new JsonSerializer<Collection>() {
             @Override
             public void serialize(Collection list, JsonGenerator jsonGenerator, SerializerProvider serializerProvider) throws IOException {
@@ -138,6 +133,14 @@ public class MorphiumSerializer {
                 }
                 if (beanDesc.getBeanClass().isEnum()) {
                     return new CustomEnumSerializer();
+                }
+                if (typeMapper.containsKey(beanDesc.getBeanClass())) {
+                    return new JsonSerializer<Object>() {
+                        @Override
+                        public void serialize(Object value, JsonGenerator gen, SerializerProvider serializers) throws IOException {
+                            gen.writeObject(typeMapper.get(value.getClass()).marshall(value));
+                        }
+                    };
                 }
                 if (Map.class.isAssignableFrom(beanDesc.getBeanClass())) {
                     return new JsonSerializer<Map>() {
@@ -214,13 +217,6 @@ public class MorphiumSerializer {
     }
 
 
-    public <T> void registerTypeMapper(Class<T> cls, JsonSerializer<T> s) {
-        module.addSerializer(cls, s);
-    }
-
-    public <T> void deregisterTypeMapperFor(Class<T> cls) {
-        module.addSerializer(cls, null);
-    }
 
     private NameProvider getNameProviderForClass(Class<?> cls, Entity p) throws IllegalAccessException, InstantiationException {
         if (p == null) {
