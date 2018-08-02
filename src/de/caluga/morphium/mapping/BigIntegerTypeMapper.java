@@ -10,7 +10,8 @@ import java.util.Map;
 /**
  * custom type mapper for BigIntegers
  **/
-public class BigIntegerTypeMapper implements MorphiumTypeMapper {
+@SuppressWarnings("unused")
+public class BigIntegerTypeMapper implements MorphiumTypeMapper<BigInteger> {
     @Override
     public Object marshall(BigInteger o) {
         //        DBObject ret=new BasicDBObject();
