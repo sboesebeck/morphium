@@ -8,19 +8,21 @@ import com.fasterxml.jackson.databind.deser.BeanDeserializerModifier;
 import com.fasterxml.jackson.databind.introspect.BeanPropertyDefinition;
 import com.fasterxml.jackson.databind.introspect.POJOPropertyBuilder;
 import com.fasterxml.jackson.databind.module.SimpleModule;
-import de.caluga.morphium.*;
+import de.caluga.morphium.AnnotationAndReflectionHelper;
+import de.caluga.morphium.Morphium;
+import de.caluga.morphium.MorphiumReference;
+import de.caluga.morphium.NameProvider;
 import de.caluga.morphium.annotations.Embedded;
 import de.caluga.morphium.annotations.Entity;
 import de.caluga.morphium.annotations.Reference;
 import de.caluga.morphium.driver.MorphiumId;
-import de.caluga.morphium.mapping.BigIntegerTypeMapper;
+import de.caluga.morphium.mapping.MorphiumTypeMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import sun.reflect.ReflectionFactory;
 
 import java.io.IOException;
 import java.lang.reflect.*;
-import java.math.BigInteger;
 import java.util.*;
 
 public class MorphiumDeserializer {
@@ -33,13 +35,14 @@ public class MorphiumDeserializer {
     private final Logger log = LoggerFactory.getLogger(MorphiumSerializer.class);
     private final SimpleModule module;
     private final com.fasterxml.jackson.databind.ObjectMapper jackson;
+    private final Map<Class, MorphiumTypeMapper> typeMapper;
 
-    public MorphiumDeserializer(AnnotationAndReflectionHelper anhelper, Map<Class<?>, NameProvider> nameProviderByClass, Morphium morphium, MorphiumObjectMapper objectMapper) {
+    public MorphiumDeserializer(AnnotationAndReflectionHelper anhelper, Map<Class<?>, NameProvider> nameProviderByClass, Morphium morphium, Map<Class, MorphiumTypeMapper> typeMapper) {
 
         this.anhelper = anhelper;
         this.nameProviderByClass = nameProviderByClass;
         this.morphium = morphium;
-
+        this.typeMapper = typeMapper;
         module = new SimpleModule();
         jackson = new com.fasterxml.jackson.databind.ObjectMapper();
         jackson.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
@@ -95,11 +98,11 @@ public class MorphiumDeserializer {
 
                     return new EntityDeserializer(beanDesc.getBeanClass(), anhelper);
                 }
-                if (beanDesc.getBeanClass().equals(BigInteger.class)) {
+                if (typeMapper.containsKey(beanDesc.getBeanClass())) {
                     return new JsonDeserializer<Object>() {
                         @Override
                         public Object deserialize(JsonParser jsonParser, DeserializationContext deserializationContext) throws IOException {
-                            return new BigIntegerTypeMapper().unmarshall(jsonParser.readValueAs(Object.class));
+                            return typeMapper.get(beanDesc.getBeanClass()).unmarshall(jsonParser.readValueAs(Object.class));
                         }
                     };
                 }
