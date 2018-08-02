@@ -217,7 +217,6 @@ public class MorphiumSerializer {
     }
 
 
-
     private NameProvider getNameProviderForClass(Class<?> cls, Entity p) throws IllegalAccessException, InstantiationException {
         if (p == null) {
             throw new IllegalArgumentException("No Entity " + cls.getSimpleName());
@@ -307,14 +306,29 @@ public class MorphiumSerializer {
                     Reference r = fld.getAnnotation(Reference.class);
                     if (r != null && value != null) {
                         //create reference
-                        Object id = anhelper.getId(value);
-                        if (id == null && r.automaticStore()) {
-                            morphium.storeNoCache(value);
-                            id = anhelper.getId(value);
+                        if (value instanceof List) {
+                            List ret = new ArrayList();
+                            //list of references!
+                            for (Object lel : (List) value) {
+                                Object id = anhelper.getId(lel);
+                                if (id == null && r.automaticStore()) {
+                                    morphium.storeNoCache(lel);
+                                    id = anhelper.getId(lel);
+                                }
+                                MorphiumReference ref = new MorphiumReference(lel.getClass().getName(), id);
+                                ret.add(ref);
+                            }
+                            value = ret;
+                        } else {
+                            Object id = anhelper.getId(value);
+                            if (id == null && r.automaticStore()) {
+                                morphium.storeNoCache(value);
+                                id = anhelper.getId(value);
+                            }
+                            MorphiumReference ref = new MorphiumReference(value.getClass().getName(), id);
+                            ref.setCollectionName(getCollectionName(value.getClass()));
+                            value = ref;
                         }
-                        MorphiumReference ref = new MorphiumReference(value.getClass().getName(), id);
-                        ref.setCollectionName(getCollectionName(value.getClass()));
-                        value = ref;
                     }
 
                     if (value instanceof Map) {
@@ -359,7 +373,7 @@ public class MorphiumSerializer {
 
     }
 
-    private Map serializeMap(Map value) throws IOException {
+    private Map serializeMap(Map value) {
         Map ret = new LinkedHashMap();
         for (Map.Entry e : (Set<Map.Entry>) value.entrySet()) {
             if (anhelper.isEntity(e.getValue())) {
