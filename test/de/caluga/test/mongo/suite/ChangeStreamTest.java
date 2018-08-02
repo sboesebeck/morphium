@@ -41,6 +41,7 @@ public class ChangeStreamTest extends MongoTest {
         morphium.dropCollection(UncachedObject.class);
         final boolean run[] = {true};
         final int count[] = {0};
+        final int written[] = {0};
         new Thread() {
             public void run() {
                 while (run[0]) {
@@ -49,22 +50,25 @@ public class ChangeStreamTest extends MongoTest {
                     } catch (InterruptedException e) {
                     }
                     morphium.store(new UncachedObject("value", (int) (1 + (Math.random() * 100.0))));
+                    written[0]++;
                     morphium.set(morphium.createQueryFor(UncachedObject.class).f("counter").lt(50), "value", "newVal");
+                    written[0]++;
                 }
             }
         }.start();
         start = System.currentTimeMillis();
         morphium.watchAsync(UncachedObject.class, true, evt -> {
-            printevent(evt);
             count[0]++;
+            printevent(evt);
             return run[0];
         });
 
 
         log.info("waiting for some time!");
-        Thread.sleep(2500);
+        Thread.sleep(5500);
         run[0] = false;
-        assert (count[0] > 4);
+        assert (count[0] > 0 && count[0] >= written[0] - 2) : "Wrong count: " + count[0] + " written: " + written[0];
+
     }
 
     @Test
@@ -72,23 +76,26 @@ public class ChangeStreamTest extends MongoTest {
         morphium.dropCollection(UncachedObject.class);
         final boolean run[] = {true};
         int count[] = {0};
+        int written[] = {0};
         new Thread(() -> {
             while (run[0]) {
                 try {
                     Thread.sleep(500);
                 } catch (InterruptedException e) {
                 }
+                log.info("Writing...");
                 morphium.store(new UncachedObject("value", 123));
+                written[0]++;
             }
         }).start();
         start = System.currentTimeMillis();
         morphium.watch(UncachedObject.class, true, evt -> {
             printevent(evt);
             count[0]++;
-            return System.currentTimeMillis() - start < 2500;
+            return System.currentTimeMillis() - start < 5500;
         });
 
-        assert (count[0] >= 4 && count[0] <= 6);
+        assert (count[0] >= written[0] - 1 && count[0] <= written[0]);
         log.info("Stopped!");
         run[0] = false;
         Thread.sleep(1000);
@@ -96,7 +103,7 @@ public class ChangeStreamTest extends MongoTest {
     }
 
     @Test
-    public void changeStreamUpdateTest() throws Exception {
+    public void changeStreamUpdateTest() {
         createUncachedObjects(100);
         log.info("Init finished...");
         final boolean run[] = {true};
@@ -112,12 +119,14 @@ public class ChangeStreamTest extends MongoTest {
             while (run[0]) {
                 try {
                     Thread.sleep(500);
-                    assert (System.currentTimeMillis() - start < 5000) : "Error - took too long!";
                 } catch (InterruptedException e) {
                 }
+                assert (System.currentTimeMillis() - start < 25000) : "Error - took too long!";
+                log.info("Updating");
                 morphium.set(morphium.createQueryFor(UncachedObject.class).f("counter").lte(50), "value", "new value", false, true);
             }
         }).start();
+        log.info("Watching...");
         morphium.watch(UncachedObject.class, true, evt -> {
             printevent(evt);
             count[0]++;
@@ -168,6 +177,7 @@ public class ChangeStreamTest extends MongoTest {
         Thread.sleep(5000);
         m.stop();
         assert (cnt.get() >= 100 && cnt.get() <= 101) : "count is wrong: " + cnt.get();
+        morphium.store(new UncachedObject("killing", 0));
 
     }
 }
