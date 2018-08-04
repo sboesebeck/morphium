@@ -5,6 +5,7 @@ import de.caluga.morphium.AnnotationAndReflectionHelper;
 import de.caluga.morphium.Morphium;
 import de.caluga.morphium.MorphiumObjectMapper;
 import de.caluga.morphium.NameProvider;
+import de.caluga.morphium.mapping.BigIntegerTypeMapper;
 import de.caluga.morphium.mapping.MorphiumTypeMapper;
 import org.json.simple.parser.ContainerFactory;
 import org.json.simple.parser.JSONParser;
@@ -12,6 +13,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
+import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -41,6 +43,7 @@ public class ObjectMapperImplNG implements MorphiumObjectMapper {
     public ObjectMapperImplNG() {
         nameProviderByClass = new ConcurrentHashMap<>();
         typeMappers = new ConcurrentHashMap();
+        typeMappers.put(BigInteger.class, new BigIntegerTypeMapper());
 
         containerFactory = new ContainerFactory() {
             @Override
