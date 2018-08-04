@@ -51,7 +51,7 @@ public class MorphiumDeserializer {
                 .withFieldVisibility(JsonAutoDetect.Visibility.ANY)
                 .withGetterVisibility(JsonAutoDetect.Visibility.NONE)
                 .withSetterVisibility(JsonAutoDetect.Visibility.NONE)
-                .withCreatorVisibility(JsonAutoDetect.Visibility.NONE));
+                .withCreatorVisibility(JsonAutoDetect.Visibility.ANY));
 
 //        module.addDeserializer(MorphiumId.class, new JsonDeserializer<MorphiumId>() {
 //            @Override
@@ -304,7 +304,9 @@ public class MorphiumDeserializer {
                     //ParameterizedType t2= (ParameterizedType) ((ParameterizedType)type).getActualTypeArguments()[0];
                     type = ((ParameterizedType) type).getActualTypeArguments()[0];
                     listElementType = null;
-
+                } else if (((ParameterizedType) type).getActualTypeArguments()[0] instanceof WildcardType) {
+                    type = ((WildcardType) (((ParameterizedType) type).getActualTypeArguments()[0])).getUpperBounds()[0];
+                    listElementType = null;
                 } else {
                     listElementType = (Class) ((ParameterizedType) type).getActualTypeArguments()[0];
                 }
@@ -314,6 +316,12 @@ public class MorphiumDeserializer {
             if (el instanceof Map) {
                 if (((Map) el).get("morphium id") != null) {
                     listOut.add(new MorphiumId((String) ((Map) el).get("morphium id")));
+                } else if (((Map) el).get("referenced_class_name") != null && ((Map) el).get("refid") != null) {
+                    //morphium reference - deReferencing
+                    MorphiumReference ref = jackson.convertValue(el, MorphiumReference.class);
+                    //lazy loaded ref?
+                    Object t = morphium.findById(Class.forName(ref.getClassName()), ref.getId(), ref.getCollectionName());
+                    listOut.add(t);
                 } else if (((Map) el).get("class_name") != null) {
                     Class<?> cls = Class.forName((String) ((Map) el).get("class_name"));
                     if (cls.isEnum()) {
@@ -337,6 +345,8 @@ public class MorphiumDeserializer {
             }
 
         }
+
+        // convert to Array
         if (type != null && type instanceof Class && ((Class) type).isArray()) {
             Object arr = Array.newInstance(((Class) type).getComponentType(), listOut.size());
             int i = 0;
@@ -549,7 +559,7 @@ public class MorphiumDeserializer {
 //                                }
 //                            }
 //                            res.put(en.getKey(), en.getValue());
-//                        }
+//                        }to
 //                        f.set(ret, res);
 //                        continue;
 //                    }

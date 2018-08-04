@@ -69,6 +69,10 @@ public class MorphiumSerializer {
                 jsonGenerator.writeStartArray();
                 for (Object o : list) {
                     Map m = null;
+                    if (o == null) {
+                        jsonGenerator.writeNull();
+                        continue;
+                    }
                     if (o instanceof Enum) {
                         m = new HashMap();
                         m.put("name", ((Enum) o).name());
@@ -183,37 +187,8 @@ public class MorphiumSerializer {
 
 
         Map m = jackson.convertValue(o, Map.class);
-        m = (Map) replaceMorphiumId(m);
+        m = (Map) Utils.replaceMorphiumIds(m);
         return m;
-    }
-
-    private Object replaceMorphiumId(Map m) {
-        Map toSet = new LinkedHashMap();
-        for (Map.Entry e : (Set<Map.Entry>) m.entrySet()) {
-            if (e.getKey().equals("morphium id")) {
-                //identifier!
-                return new MorphiumId(e.getValue().toString());
-            } else if (e.getValue() instanceof Map) {
-                toSet.put(e.getKey(), replaceMorphiumId((Map) e.getValue()));
-            } else if (e.getValue() instanceof Collection) {
-                toSet.put(e.getKey(), replaceMorphiumId((Collection) e.getValue()));
-            } else {
-                toSet.put(e.getKey(), e.getValue());
-            }
-        }
-        return toSet;
-    }
-
-    private Collection replaceMorphiumId(Collection value) {
-        Collection ret = new ArrayList();
-        for (Object o : value) {
-            if (o instanceof Map && ((Map) o).containsKey("morphium id")) {
-                ret.add(new MorphiumId((String) ((Map) o).get("morphium id")));
-            } else {
-                ret.add(o);
-            }
-        }
-        return ret;
     }
 
 
@@ -310,6 +285,10 @@ public class MorphiumSerializer {
                             List ret = new ArrayList();
                             //list of references!
                             for (Object lel : (List) value) {
+                                if (lel == null) {
+                                    ret.add(null);
+                                    continue;
+                                }
                                 Object id = anhelper.getId(lel);
                                 if (id == null && r.automaticStore()) {
                                     morphium.storeNoCache(lel);

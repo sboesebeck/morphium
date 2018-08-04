@@ -12,6 +12,7 @@ public class MorphiumReference {
     private String referencedClassName;
     private Object refid;
     private String collectionName;
+    private boolean lazy = false;
 
     public MorphiumReference() {
     }
@@ -31,6 +32,14 @@ public class MorphiumReference {
 
     public Object getId() {
         return refid;
+    }
+
+    public boolean isLazy() {
+        return lazy;
+    }
+
+    public void setLazy(boolean lazy) {
+        this.lazy = lazy;
     }
 
     public void setId(Object id) {
