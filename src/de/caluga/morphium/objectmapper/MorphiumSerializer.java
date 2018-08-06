@@ -1,5 +1,6 @@
 package de.caluga.morphium.objectmapper;
 
+import com.fasterxml.jackson.annotation.JsonAutoDetect;
 import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.databind.BeanDescription;
 import com.fasterxml.jackson.databind.JsonSerializer;
@@ -175,6 +176,12 @@ public class MorphiumSerializer {
         });
         jackson = new com.fasterxml.jackson.databind.ObjectMapper();
         jackson.registerModule(module);
+        jackson.setVisibility(jackson.getSerializationConfig()
+                .getDefaultVisibilityChecker()
+                .withFieldVisibility(JsonAutoDetect.Visibility.ANY)
+                .withGetterVisibility(JsonAutoDetect.Visibility.NONE)
+                .withSetterVisibility(JsonAutoDetect.Visibility.NONE)
+                .withCreatorVisibility(JsonAutoDetect.Visibility.ANY));
     }
 
 
