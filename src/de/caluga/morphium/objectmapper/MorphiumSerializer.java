@@ -192,12 +192,10 @@ public class MorphiumSerializer {
 //            e.printStackTrace();
 //        }
 
-
         Map m = jackson.convertValue(o, Map.class);
         m = (Map) Utils.replaceMorphiumIds(m);
         return m;
     }
-
 
     private NameProvider getNameProviderForClass(Class<?> cls, Entity p) throws IllegalAccessException, InstantiationException {
         if (p == null) {
