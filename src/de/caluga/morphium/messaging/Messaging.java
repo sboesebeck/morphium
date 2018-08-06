@@ -648,11 +648,7 @@ public class Messaging extends Thread implements ShutdownListener {
         if (useChangeStream) {
             try {
                 Thread.sleep(500);
-                if (changeStreamMonitor == null) {
-                    log.debug("Change stream monitor is null!!!!");
-                } else {
-                    log.debug("Changestreamstatus " + changeStreamMonitor.isRunning());
-                }
+                //wait for changestream to kick in ;-)
             } catch (Exception e) {
                 log.error("error:" + e.getMessage());
             }
