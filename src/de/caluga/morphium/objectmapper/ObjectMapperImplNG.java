@@ -1,17 +1,19 @@
 package de.caluga.morphium.objectmapper;
 
-import com.fasterxml.jackson.databind.JsonSerializer;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import de.caluga.morphium.AnnotationAndReflectionHelper;
 import de.caluga.morphium.Morphium;
 import de.caluga.morphium.MorphiumObjectMapper;
 import de.caluga.morphium.NameProvider;
+import de.caluga.morphium.mapping.BigIntegerTypeMapper;
+import de.caluga.morphium.mapping.MorphiumTypeMapper;
 import org.json.simple.parser.ContainerFactory;
 import org.json.simple.parser.JSONParser;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
+import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -36,9 +38,12 @@ public class ObjectMapperImplNG implements MorphiumObjectMapper {
     private Logger log = LoggerFactory.getLogger(ObjectMapperImplNG.class);
     private MorphiumSerializer marshaller;
     private MorphiumDeserializer unmarshaller;
+    private Map<Class, MorphiumTypeMapper> typeMappers;
 
     public ObjectMapperImplNG() {
         nameProviderByClass = new ConcurrentHashMap<>();
+        typeMappers = new ConcurrentHashMap();
+        typeMappers.put(BigInteger.class, new BigIntegerTypeMapper());
 
         containerFactory = new ContainerFactory() {
             @Override
@@ -57,7 +62,7 @@ public class ObjectMapperImplNG implements MorphiumObjectMapper {
 
     public MorphiumSerializer getSerializer() {
         if (marshaller == null) {
-            marshaller = new MorphiumSerializer(anhelper, nameProviderByClass, morphium, this);
+            marshaller = new MorphiumSerializer(anhelper, nameProviderByClass, morphium, this, typeMappers);
         }
         return marshaller;
     }
@@ -65,7 +70,7 @@ public class ObjectMapperImplNG implements MorphiumObjectMapper {
 
     public MorphiumDeserializer getDeserializer() {
         if (unmarshaller == null) {
-            unmarshaller = new MorphiumDeserializer(anhelper, nameProviderByClass, morphium, this);
+            unmarshaller = new MorphiumDeserializer(anhelper, nameProviderByClass, morphium, typeMappers);
         }
         return unmarshaller;
     }
@@ -115,14 +120,19 @@ public class ObjectMapperImplNG implements MorphiumObjectMapper {
         }
     }
 
-    public <T> void registerCustomTypeMapper(Class<T> cls, JsonSerializer<T> serializer) {
-        getSerializer().registerTypeMapper(cls, serializer);
+    public Map<Class, MorphiumTypeMapper> getTypeMappers() {
+        return typeMappers;
     }
 
-    public <T> void deregisterCustomTypeMapperFor(Class<T> cls) {
-        getSerializer().deregisterTypeMapperFor(cls);
+    @Override
+    public <T> void registerCustomMapperFor(Class<T> cls, MorphiumTypeMapper<T> map) {
+        typeMappers.put(cls, map);
     }
 
+    @Override
+    public void deregisterCustomMapperFor(Class cls) {
+        typeMappers.remove(cls);
+    }
     @Override
     public void setAnnotationHelper(AnnotationAndReflectionHelper an) {
         anhelper = an;

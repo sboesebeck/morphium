@@ -10,13 +10,12 @@ import com.fasterxml.jackson.databind.ser.BeanSerializerModifier;
 import de.caluga.morphium.*;
 import de.caluga.morphium.annotations.*;
 import de.caluga.morphium.driver.MorphiumId;
-import de.caluga.morphium.mapping.BigIntegerTypeMapper;
+import de.caluga.morphium.mapping.MorphiumTypeMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.lang.reflect.Field;
-import java.math.BigInteger;
 import java.util.*;
 
 public class MorphiumSerializer {
@@ -29,12 +28,14 @@ public class MorphiumSerializer {
     private final Logger log = LoggerFactory.getLogger(MorphiumSerializer.class);
     private final com.fasterxml.jackson.databind.ObjectMapper jackson;
     private final SimpleModule module;
+    private final Map<Class, MorphiumTypeMapper> typeMapper;
 
-    public MorphiumSerializer(AnnotationAndReflectionHelper ar, Map<Class<?>, NameProvider> np, Morphium m, MorphiumObjectMapper om) {
+    public MorphiumSerializer(AnnotationAndReflectionHelper ar, Map<Class<?>, NameProvider> np, Morphium m, MorphiumObjectMapper om, Map<Class, MorphiumTypeMapper> typeMapper) {
         mongoTypes = Collections.synchronizedList(new ArrayList<>());
         anhelper = ar;
         nameProviderByClass = np;
         morphium = m;
+        this.typeMapper = typeMapper;
 
         objectMapper = om;
         module = new SimpleModule();
@@ -62,18 +63,16 @@ public class MorphiumSerializer {
             }
         });
 
-        module.addSerializer(BigInteger.class, new JsonSerializer<BigInteger>() {
-            @Override
-            public void serialize(BigInteger bigInteger, JsonGenerator jsonGenerator, SerializerProvider serializerProvider) throws IOException {
-                jsonGenerator.writeObject(new BigIntegerTypeMapper().marshall(bigInteger));
-            }
-        });
         module.addSerializer(Collection.class, new JsonSerializer<Collection>() {
             @Override
             public void serialize(Collection list, JsonGenerator jsonGenerator, SerializerProvider serializerProvider) throws IOException {
                 jsonGenerator.writeStartArray();
                 for (Object o : list) {
                     Map m = null;
+                    if (o == null) {
+                        jsonGenerator.writeNull();
+                        continue;
+                    }
                     if (o instanceof Enum) {
                         m = new HashMap();
                         m.put("name", ((Enum) o).name());
@@ -139,6 +138,14 @@ public class MorphiumSerializer {
                 if (beanDesc.getBeanClass().isEnum()) {
                     return new CustomEnumSerializer();
                 }
+                if (typeMapper.containsKey(beanDesc.getBeanClass())) {
+                    return new JsonSerializer<Object>() {
+                        @Override
+                        public void serialize(Object value, JsonGenerator gen, SerializerProvider serializers) throws IOException {
+                            gen.writeObject(typeMapper.get(value.getClass()).marshall(value));
+                        }
+                    };
+                }
                 if (Map.class.isAssignableFrom(beanDesc.getBeanClass())) {
                     return new JsonSerializer<Map>() {
                         @Override
@@ -180,47 +187,10 @@ public class MorphiumSerializer {
 
 
         Map m = jackson.convertValue(o, Map.class);
-        m = (Map) replaceMorphiumId(m);
+        m = (Map) Utils.replaceMorphiumIds(m);
         return m;
     }
 
-    private Object replaceMorphiumId(Map m) {
-        Map toSet = new LinkedHashMap();
-        for (Map.Entry e : (Set<Map.Entry>) m.entrySet()) {
-            if (e.getKey().equals("morphium id")) {
-                //identifier!
-                return new MorphiumId(e.getValue().toString());
-            } else if (e.getValue() instanceof Map) {
-                toSet.put(e.getKey(), replaceMorphiumId((Map) e.getValue()));
-            } else if (e.getValue() instanceof Collection) {
-                toSet.put(e.getKey(), replaceMorphiumId((Collection) e.getValue()));
-            } else {
-                toSet.put(e.getKey(), e.getValue());
-            }
-        }
-        return toSet;
-    }
-
-    private Collection replaceMorphiumId(Collection value) {
-        Collection ret = new ArrayList();
-        for (Object o : value) {
-            if (o instanceof Map && ((Map) o).containsKey("morphium id")) {
-                ret.add(new MorphiumId((String) ((Map) o).get("morphium id")));
-            } else {
-                ret.add(o);
-            }
-        }
-        return ret;
-    }
-
-
-    public <T> void registerTypeMapper(Class<T> cls, JsonSerializer<T> s) {
-        module.addSerializer(cls, s);
-    }
-
-    public <T> void deregisterTypeMapperFor(Class<T> cls) {
-        module.addSerializer(cls, null);
-    }
 
     private NameProvider getNameProviderForClass(Class<?> cls, Entity p) throws IllegalAccessException, InstantiationException {
         if (p == null) {
@@ -311,14 +281,33 @@ public class MorphiumSerializer {
                     Reference r = fld.getAnnotation(Reference.class);
                     if (r != null && value != null) {
                         //create reference
-                        Object id = anhelper.getId(value);
-                        if (id == null && r.automaticStore()) {
-                            morphium.storeNoCache(value);
-                            id = anhelper.getId(value);
+                        if (value instanceof List) {
+                            List ret = new ArrayList();
+                            //list of references!
+                            for (Object lel : (List) value) {
+                                if (lel == null) {
+                                    ret.add(null);
+                                    continue;
+                                }
+                                Object id = anhelper.getId(lel);
+                                if (id == null && r.automaticStore()) {
+                                    morphium.storeNoCache(lel);
+                                    id = anhelper.getId(lel);
+                                }
+                                MorphiumReference ref = new MorphiumReference(lel.getClass().getName(), id);
+                                ret.add(ref);
+                            }
+                            value = ret;
+                        } else {
+                            Object id = anhelper.getId(value);
+                            if (id == null && r.automaticStore()) {
+                                morphium.storeNoCache(value);
+                                id = anhelper.getId(value);
+                            }
+                            MorphiumReference ref = new MorphiumReference(value.getClass().getName(), id);
+                            ref.setCollectionName(getCollectionName(value.getClass()));
+                            value = ref;
                         }
-                        MorphiumReference ref = new MorphiumReference(value.getClass().getName(), id);
-                        ref.setCollectionName(getCollectionName(value.getClass()));
-                        value = ref;
                     }
 
                     if (value instanceof Map) {
@@ -363,7 +352,7 @@ public class MorphiumSerializer {
 
     }
 
-    private Map serializeMap(Map value) throws IOException {
+    private Map serializeMap(Map value) {
         Map ret = new LinkedHashMap();
         for (Map.Entry e : (Set<Map.Entry>) value.entrySet()) {
             if (anhelper.isEntity(e.getValue())) {

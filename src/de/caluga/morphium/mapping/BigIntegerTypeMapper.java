@@ -10,7 +10,9 @@ import java.util.Map;
 /**
  * custom type mapper for BigIntegers
  **/
-public class BigIntegerTypeMapper {
+@SuppressWarnings("unused")
+public class BigIntegerTypeMapper implements MorphiumTypeMapper<BigInteger> {
+    @Override
     public Object marshall(BigInteger o) {
         //        DBObject ret=new BasicDBObject();
         Map<String, Object> obj = new HashMap<>();
@@ -19,6 +21,7 @@ public class BigIntegerTypeMapper {
         return obj;
     }
 
+    @Override
     public BigInteger unmarshall(Object d) {
         if (d == null) {
             return null;
@@ -29,11 +32,4 @@ public class BigIntegerTypeMapper {
         return new BigInteger(d.toString(), 16);
     }
 
-    public boolean matches(Object v) {
-        if (v instanceof Map) {
-            Map value = (Map) v;
-            return value != null && value.containsKey("type") && value.get("type").equals("biginteger") && value.get("value") instanceof String;
-        }
-        return false;
-    }
 }

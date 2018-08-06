@@ -8,19 +8,21 @@ import com.fasterxml.jackson.databind.deser.BeanDeserializerModifier;
 import com.fasterxml.jackson.databind.introspect.BeanPropertyDefinition;
 import com.fasterxml.jackson.databind.introspect.POJOPropertyBuilder;
 import com.fasterxml.jackson.databind.module.SimpleModule;
-import de.caluga.morphium.*;
+import de.caluga.morphium.AnnotationAndReflectionHelper;
+import de.caluga.morphium.Morphium;
+import de.caluga.morphium.MorphiumReference;
+import de.caluga.morphium.NameProvider;
 import de.caluga.morphium.annotations.Embedded;
 import de.caluga.morphium.annotations.Entity;
 import de.caluga.morphium.annotations.Reference;
 import de.caluga.morphium.driver.MorphiumId;
-import de.caluga.morphium.mapping.BigIntegerTypeMapper;
+import de.caluga.morphium.mapping.MorphiumTypeMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import sun.reflect.ReflectionFactory;
 
 import java.io.IOException;
 import java.lang.reflect.*;
-import java.math.BigInteger;
 import java.util.*;
 
 public class MorphiumDeserializer {
@@ -33,13 +35,14 @@ public class MorphiumDeserializer {
     private final Logger log = LoggerFactory.getLogger(MorphiumSerializer.class);
     private final SimpleModule module;
     private final com.fasterxml.jackson.databind.ObjectMapper jackson;
+    private final Map<Class, MorphiumTypeMapper> typeMapper;
 
-    public MorphiumDeserializer(AnnotationAndReflectionHelper anhelper, Map<Class<?>, NameProvider> nameProviderByClass, Morphium morphium, MorphiumObjectMapper objectMapper) {
+    public MorphiumDeserializer(AnnotationAndReflectionHelper anhelper, Map<Class<?>, NameProvider> nameProviderByClass, Morphium morphium, Map<Class, MorphiumTypeMapper> typeMapper) {
 
         this.anhelper = anhelper;
         this.nameProviderByClass = nameProviderByClass;
         this.morphium = morphium;
-
+        this.typeMapper = typeMapper;
         module = new SimpleModule();
         jackson = new com.fasterxml.jackson.databind.ObjectMapper();
         jackson.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
@@ -48,7 +51,7 @@ public class MorphiumDeserializer {
                 .withFieldVisibility(JsonAutoDetect.Visibility.ANY)
                 .withGetterVisibility(JsonAutoDetect.Visibility.NONE)
                 .withSetterVisibility(JsonAutoDetect.Visibility.NONE)
-                .withCreatorVisibility(JsonAutoDetect.Visibility.NONE));
+                .withCreatorVisibility(JsonAutoDetect.Visibility.ANY));
 
 //        module.addDeserializer(MorphiumId.class, new JsonDeserializer<MorphiumId>() {
 //            @Override
@@ -95,11 +98,11 @@ public class MorphiumDeserializer {
 
                     return new EntityDeserializer(beanDesc.getBeanClass(), anhelper);
                 }
-                if (beanDesc.getBeanClass().equals(BigInteger.class)) {
+                if (typeMapper.containsKey(beanDesc.getBeanClass())) {
                     return new JsonDeserializer<Object>() {
                         @Override
                         public Object deserialize(JsonParser jsonParser, DeserializationContext deserializationContext) throws IOException {
-                            return new BigIntegerTypeMapper().unmarshall(jsonParser.readValueAs(Object.class));
+                            return typeMapper.get(beanDesc.getBeanClass()).unmarshall(jsonParser.readValueAs(Object.class));
                         }
                     };
                 }
@@ -301,7 +304,9 @@ public class MorphiumDeserializer {
                     //ParameterizedType t2= (ParameterizedType) ((ParameterizedType)type).getActualTypeArguments()[0];
                     type = ((ParameterizedType) type).getActualTypeArguments()[0];
                     listElementType = null;
-
+                } else if (((ParameterizedType) type).getActualTypeArguments()[0] instanceof WildcardType) {
+                    type = ((WildcardType) (((ParameterizedType) type).getActualTypeArguments()[0])).getUpperBounds()[0];
+                    listElementType = null;
                 } else {
                     listElementType = (Class) ((ParameterizedType) type).getActualTypeArguments()[0];
                 }
@@ -311,6 +316,12 @@ public class MorphiumDeserializer {
             if (el instanceof Map) {
                 if (((Map) el).get("morphium id") != null) {
                     listOut.add(new MorphiumId((String) ((Map) el).get("morphium id")));
+                } else if (((Map) el).get("referenced_class_name") != null && ((Map) el).get("refid") != null) {
+                    //morphium reference - deReferencing
+                    MorphiumReference ref = jackson.convertValue(el, MorphiumReference.class);
+                    //lazy loaded ref?
+                    Object t = morphium.findById(Class.forName(ref.getClassName()), ref.getId(), ref.getCollectionName());
+                    listOut.add(t);
                 } else if (((Map) el).get("class_name") != null) {
                     Class<?> cls = Class.forName((String) ((Map) el).get("class_name"));
                     if (cls.isEnum()) {
@@ -334,6 +345,8 @@ public class MorphiumDeserializer {
             }
 
         }
+
+        // convert to Array
         if (type != null && type instanceof Class && ((Class) type).isArray()) {
             Object arr = Array.newInstance(((Class) type).getComponentType(), listOut.size());
             int i = 0;
@@ -546,7 +559,7 @@ public class MorphiumDeserializer {
 //                                }
 //                            }
 //                            res.put(en.getKey(), en.getValue());
-//                        }
+//                        }to
 //                        f.set(ret, res);
 //                        continue;
 //                    }

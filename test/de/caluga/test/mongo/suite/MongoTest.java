@@ -197,8 +197,6 @@ public class MongoTest {
             //            cfg.setDriverClass(MetaDriver.class.getName());
             //            cfg.setDriverClass(SingleConnectDirectDriver.class.getName());
             //            cfg.setDriverClass(InMemoryDriver.class.getName());
-            if (cfg.isReplicaset())
-                cfg.setReplicasetMonitoring(false);
             //cfg.setOmClass(ObjectMapperImplNG.class);
 
             morphium = new Morphium(cfg);
