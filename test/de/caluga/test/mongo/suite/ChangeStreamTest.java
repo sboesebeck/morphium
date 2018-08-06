@@ -46,7 +46,7 @@ public class ChangeStreamTest extends MongoTest {
             public void run() {
                 while (run[0]) {
                     try {
-                        sleep(500);
+                        sleep(1500);
                     } catch (InterruptedException e) {
                     }
                     morphium.store(new UncachedObject("value", (int) (1 + (Math.random() * 100.0))));
@@ -65,7 +65,7 @@ public class ChangeStreamTest extends MongoTest {
 
 
         log.info("waiting for some time!");
-        Thread.sleep(5500);
+        Thread.sleep(3500);
         run[0] = false;
         assert (count[0] > 0 && count[0] >= written[0] - 2) : "Wrong count: " + count[0] + " written: " + written[0];
 
