@@ -6,6 +6,7 @@ import de.caluga.morphium.MorphiumObjectMapper;
 import de.caluga.morphium.annotations.Entity;
 import de.caluga.morphium.annotations.Reference;
 import de.caluga.morphium.driver.MorphiumId;
+import org.bson.types.ObjectId;
 
 import java.lang.reflect.Field;
 import java.util.*;
@@ -74,25 +75,22 @@ public class MongoFieldImpl<T> implements MongoField<T> {
             if (mapper.getMorphium().getARHelper().isAnnotationPresentInHierarchy(cls, Entity.class) || val instanceof MorphiumId) {
                 if (field.isAnnotationPresent(Reference.class)) {
                     Object id;
-                    String fld = "";
                     if (val instanceof MorphiumId) {
-                        id = val.toString();
-                        fld = ".morphium id";
+                        id = new ObjectId(val.toString());
                     } else {
                         id = mapper.getMorphium().getARHelper().getId(val);
                         if (id instanceof MorphiumId) {
-                            fld = ".morphium id";
-                            id = id.toString();
+                            id = new ObjectId(id.toString());
                         }
                     }
                     val = id;
-                    if (Collection.class.isAssignableFrom(field.getType())) {
+
                         // list of references, this should be part of
                         //
                         // need to compare DBRefs
                         //                        val = new MorphiumReference(val.getClass().getName(), id);
-                        fldStr = fldStr + ".refid" + fld; //references in lists - id field in morphiumreference!!!!
-                    }
+                    fldStr = fldStr + ".refid"; //references in lists - id field in morphiumreference!!!!
+
                 }
 
             }

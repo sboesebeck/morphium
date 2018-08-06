@@ -443,6 +443,13 @@ public class MorphiumDeserializer {
         public Object deserialize(JsonParser jsonParser, DeserializationContext deserializationContext) {
             try {
                 Object ret = null;
+                if (type.isInterface() || Modifier.isAbstract(type.getModifiers())) {
+                    Map m = jsonParser.readValueAs(Map.class);
+                    if (m.get("class_name") != null) {
+                        ret = jackson.convertValue(m, Class.forName(m.get("class_name").toString()));
+                    }
+                    return ret;
+                }
                 try {
                     ret = type.newInstance();
                 } catch (Exception ignored) {
