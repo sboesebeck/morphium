@@ -130,7 +130,7 @@ public class ReferenceTest extends MongoTest {
         Map<String, Object> reference = new HashMap<>();
         reference.put("referenced_class_name", UncachedObject.class.getName());
         reference.put("collection_name", "uncached_object");
-        reference.put("id", referenced.getMorphiumId());
+        reference.put("refid", referenced.getMorphiumId());
 
         Map<String, Object> rc = new HashMap<>();
         rc.put("uc", reference);

@@ -1,9 +1,6 @@
 package de.caluga.test.mongo.suite;
 
-import de.caluga.morphium.AnnotationAndReflectionHelper;
-import de.caluga.morphium.MorphiumObjectMapper;
-import de.caluga.morphium.ObjectMapperImpl;
-import de.caluga.morphium.Utils;
+import de.caluga.morphium.*;
 import de.caluga.morphium.annotations.Entity;
 import de.caluga.morphium.annotations.Id;
 import de.caluga.morphium.driver.MorphiumId;
@@ -893,6 +890,16 @@ public class ObjectMapperTest extends MongoTest {
 
         assert (e2 != null);
         assert (e2.equals(e));
+    }
+
+    @Test
+    public void referenceTest() {
+        MorphiumReference r = new MorphiumReference("test", new MorphiumId());
+        Map<String, Object> o = morphium.getMapper().serialize(r);
+        assert (o.get("refid") != null);
+
+        MorphiumReference r2 = morphium.getMapper().deserialize(MorphiumReference.class, o);
+        assert (r2.getId() != null);
     }
 
     @Test
