@@ -278,13 +278,22 @@ public class MorphiumSerializer {
         @Override
         public void serialize(Object o, JsonGenerator jsonGenerator, SerializerProvider serializerProvider) throws IOException {
             jsonGenerator.writeStartObject();
+            if (o == null) {
+                jsonGenerator.writeNull();
+                jsonGenerator.writeEndObject();
+                return;
+            }
 
+            Entity entity = anhelper.getAnnotationFromHierarchy(o.getClass(), Entity.class);
+            Embedded embedded = anhelper.getAnnotationFromHierarchy(o.getClass(), Embedded.class);
             for (Field fld : an.getAllFields(o.getClass())) {
                 try {
                     fld.setAccessible(true);
                     Object value = fld.get(o);
                     Transient tr = fld.getAnnotation(Transient.class);
                     if (tr != null) continue;
+                    ReadOnly ro = fld.getAnnotation(ReadOnly.class);
+                    if (ro != null) continue; //not serializing it => not storing it
                     Reference r = fld.getAnnotation(Reference.class);
                     if (r != null && value != null) {
                         //create reference
@@ -302,6 +311,7 @@ public class MorphiumSerializer {
                                     id = anhelper.getId(lel);
                                 }
                                 MorphiumReference ref = new MorphiumReference(lel.getClass().getName(), id);
+                                ref.setLazy(r.lazyLoading());
                                 ret.add(ref);
                             }
                             value = ret;
@@ -312,6 +322,7 @@ public class MorphiumSerializer {
                                 id = anhelper.getId(value);
                             }
                             MorphiumReference ref = new MorphiumReference(value.getClass().getName(), id);
+                            ref.setLazy(r.lazyLoading());
                             ref.setCollectionName(getCollectionName(value.getClass()));
                             value = ref;
                         }
@@ -353,6 +364,9 @@ public class MorphiumSerializer {
                 } catch (Exception e) {
                     e.printStackTrace();
                 }
+            }
+            if (entity != null && entity.polymorph() || embedded != null && embedded.polymorph()) {
+                jsonGenerator.writeObjectField("class_name", o.getClass().getName());
             }
             jsonGenerator.writeEndObject();
         }
