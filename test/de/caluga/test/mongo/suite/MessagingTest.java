@@ -16,6 +16,7 @@ import java.util.*;
  * Time: 17:34
  * <p/>
  */
+@SuppressWarnings("Duplicates")
 public class MessagingTest extends MongoTest {
     public boolean gotMessage = false;
 
@@ -907,7 +908,7 @@ public class MessagingTest extends MongoTest {
                 processed[0]++;
             }
             if (processed[0] % 1000 == 0) {
-                log.info("Processed: " + processed[0]);
+                log.info("Consumed " + processed[0]);
             }
             assert (!m.getProcessedBy().contains(msg.getSenderId()));
             //                assert(!msgCountById.containsKey(m.getMsgId().toString()));
@@ -1049,6 +1050,7 @@ public class MessagingTest extends MongoTest {
 
         }
     }
+
     @Test
     public void exclusiveMessageTest() throws Exception {
         morphium.dropCollection(Msg.class);
