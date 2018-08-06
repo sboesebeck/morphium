@@ -1,5 +1,6 @@
 package de.caluga.morphium;
 
+import de.caluga.morphium.mapping.MorphiumTypeMapper;
 import org.json.simple.parser.ParseException;
 
 import java.io.IOException;
@@ -38,6 +39,10 @@ public interface MorphiumObjectMapper {
      * @param np  the name Provider to use
      */
     void setNameProviderForClass(Class<?> cls, NameProvider np);
+
+    <T> void registerCustomMapperFor(Class<T> cls, MorphiumTypeMapper<T> map);
+
+    void deregisterCustomMapperFor(Class cls);
 
     void setAnnotationHelper(AnnotationAndReflectionHelper an);
 
