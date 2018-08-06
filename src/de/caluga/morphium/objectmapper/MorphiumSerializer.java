@@ -186,12 +186,6 @@ public class MorphiumSerializer {
 
 
     public Map<String, Object> serialize(Object o) {
-//        try {
-//            jackson.writeValue(System.out, o);
-//        } catch (IOException e) {
-//            e.printStackTrace();
-//        }
-
         Map m = jackson.convertValue(o, Map.class);
         m = (Map) Utils.replaceMorphiumIds(m);
         return m;
