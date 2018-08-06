@@ -430,7 +430,7 @@ public class CacheSyncTest extends MongoTest {
         waitForWrites();
 
         //fill caches
-        log.info("Filling cches...");
+        log.info("Filling caches...");
         for (int i = 0; i < 100; i++) {
             m1.createQueryFor(CachedObject.class).f("counter").lte(i + 10).asList(); //fill cache
             m2.createQueryFor(CachedObject.class).f("counter").lte(i + 10).asList(); //fill cache
