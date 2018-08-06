@@ -68,6 +68,7 @@ public class ChangeStreamMonitor implements Runnable, ShutdownListener {
         changeStreamThread.setDaemon(true);
         changeStreamThread.setName("changeStream");
         changeStreamThread.start();
+        running = true;
     }
 
     public boolean isRunning() {

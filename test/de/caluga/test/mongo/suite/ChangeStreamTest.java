@@ -103,7 +103,9 @@ public class ChangeStreamTest extends MongoTest {
     }
 
     @Test
-    public void changeStreamUpdateTest() {
+    public void changeStreamUpdateTest() throws Exception {
+        morphium.dropCollection(UncachedObject.class);
+        Thread.sleep(500);
         createUncachedObjects(100);
         log.info("Init finished...");
         final boolean run[] = {true};

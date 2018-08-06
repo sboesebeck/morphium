@@ -180,7 +180,7 @@ public class Messaging extends Thread implements ShutdownListener {
 
 
         if (useChangeStream) {
-            log.debug("Before running the oplogmonitor - check of already existing messages");
+            log.debug("Before running the changestream monitor - check of already existing messages");
             try {
                 findAndProcessMessages(true);
                 if (multithreadded) {
@@ -192,7 +192,7 @@ public class Messaging extends Thread implements ShutdownListener {
             } catch (Exception e) {
                 log.error("Error processing existing messages in queue", e);
             }
-            log.debug("init Messaging  using oplogmonitor");
+            log.debug("init Messaging  using changestream monitor");
             //changeStreamMonitor = new OplogMonitor(morphium, getCollectionName(), false);
             changeStreamMonitor = new ChangeStreamMonitor(morphium, getCollectionName(), true);
             changeStreamMonitor.addListener(evt -> {
@@ -639,6 +639,24 @@ public class Messaging extends Thread implements ShutdownListener {
 
     public void queueMessage(final Msg m) {
         storeMsg(m, true);
+    }
+
+
+    @Override
+    public synchronized void start() {
+        super.start();
+        if (useChangeStream) {
+            try {
+                Thread.sleep(500);
+                if (changeStreamMonitor == null) {
+                    log.debug("Change stream monitor is null!!!!");
+                } else {
+                    log.debug("Changestreamstatus " + changeStreamMonitor.isRunning());
+                }
+            } catch (Exception e) {
+                log.error("error:" + e.getMessage());
+            }
+        }
     }
 
     public void storeMessage(Msg m) {
