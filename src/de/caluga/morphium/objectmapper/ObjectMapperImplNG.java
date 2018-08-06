@@ -89,6 +89,14 @@ public class ObjectMapperImplNG implements MorphiumObjectMapper {
 
     @Override
     public <T> T deserialize(Class<? extends T> theClass, Map<String, Object> o) {
+        if (o == null) return null;
+        if (o.containsKey("class_name")) {
+            try {
+                theClass = (Class<? extends T>) Class.forName(o.get("class_name").toString());
+            } catch (ClassNotFoundException e) {
+                throw new RuntimeException("Could not get class", e);
+            }
+        }
         return getDeserializer().deserialize(theClass, o);
     }
 
@@ -96,6 +104,13 @@ public class ObjectMapperImplNG implements MorphiumObjectMapper {
     public <T> T deserialize(Class<? extends T> cls, String json) throws IOException {
 
         Map obj = new ObjectMapper().readValue(json, Map.class); //(HashMap<String, Object>) jsonParser.parse(json, containerFactory);
+        if (obj.containsKey("class_name")) {
+            try {
+                cls = (Class<? extends T>) Class.forName(obj.get("class_name").toString());
+            } catch (ClassNotFoundException e) {
+                throw new RuntimeException("Could not get class", e);
+            }
+        }
         return (T) getDeserializer().deserialize(cls, obj);
 
     }

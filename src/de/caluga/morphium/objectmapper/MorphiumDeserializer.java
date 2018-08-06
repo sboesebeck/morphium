@@ -319,8 +319,12 @@ public class MorphiumDeserializer {
                 } else if (((Map) el).get("referenced_class_name") != null && ((Map) el).get("refid") != null) {
                     //morphium reference - deReferencing
                     MorphiumReference ref = jackson.convertValue(el, MorphiumReference.class);
-                    //lazy loaded ref?
-                    Object t = morphium.findById(Class.forName(ref.getClassName()), ref.getId(), ref.getCollectionName());
+                    Object t;
+                    if (ref.isLazy()) {
+                        t = morphium.createLazyLoadedEntity(Class.forName(ref.getClassName()), ref.getId(), ref.getCollectionName());
+                    } else {
+                        t = morphium.findById(Class.forName(ref.getClassName()), ref.getId(), ref.getCollectionName());
+                    }
                     listOut.add(t);
                 } else if (((Map) el).get("class_name") != null) {
                     Class<?> cls = Class.forName((String) ((Map) el).get("class_name"));
