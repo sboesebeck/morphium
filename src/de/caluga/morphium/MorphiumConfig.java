@@ -239,7 +239,7 @@ public class MorphiumConfig {
         for (Object ko : cfg.restoreData.keySet()) {
             String k = (String) ko;
             parseClassSettings(k,cfg.restoreData.get(k), cfg);
-            String value = cfg.restoreData.get(k);
+            String value = cfg.restoreData.get(k).toString();
             if (k.equals("hosts") || k.equals("hostSeed")) {
                 value = value.replaceAll("\\[", "").replaceAll("]", "");
                 for (String adr : value.split(",")) {
