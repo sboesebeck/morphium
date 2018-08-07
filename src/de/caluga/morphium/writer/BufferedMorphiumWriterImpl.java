@@ -384,13 +384,15 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
                 for (String f : morphium.getARHelper().getFields(o.getClass())) {
                     try {
                         Object serialize = null;
-                        if (o.getClass().getName().startsWith("java.lang")) {
-                            if (!(o instanceof Map) && !(o instanceof Collection)) {
-                                serialize = o;
+                        Field field = morphium.getARHelper().getField(o.getClass(), f);
+
+                        if (field.getType().getName().startsWith("java.lang") || field.getType().isPrimitive() || MorphiumId.class.isAssignableFrom(field.getType())) {
+                            if (!(Map.class.isAssignableFrom(field.getType())) && !(Map.class.isAssignableFrom(field.getType())) && !field.getType().isArray()) {
+                                serialize = field.get(o);
                             }
                         }
                         if (serialize == null) {
-                            serialize = morphium.getMapper().serialize(morphium.getARHelper().getField(o.getClass(), f).get(o));
+                            serialize = morphium.getMapper().serialize(field.get(o));
                         }
                         cmd.put(morphium.getARHelper().getFieldName(o.getClass(), f), serialize);
                     } catch (IllegalAccessException e) {
