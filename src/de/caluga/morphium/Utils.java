@@ -204,6 +204,8 @@ public class Utils {
             if (e.getKey().equals("morphium id")) {
                 //identifier!
                 return new MorphiumId(e.getValue().toString());
+            } else if (e.getKey().equals("date field")) {
+                return new Date((Long) e.getValue());
             } else if (e.getValue() instanceof Map) {
                 toSet.put(e.getKey(), replaceMorphiumIds((Map) e.getValue()));
             } else if (e.getValue() instanceof Collection) {
@@ -220,6 +222,8 @@ public class Utils {
         for (Object o : value) {
             if (o instanceof Map && ((Map) o).containsKey("morphium id")) {
                 ret.add(new MorphiumId((String) ((Map) o).get("morphium id")));
+            } else if (o instanceof Map && ((Map) o).containsKey("date field")) {
+                ret.add(new Date((Long) ((Map) o).get("date field")));
             } else if (o instanceof Map) {
                 ret.add(replaceMorphiumIds((Map) o));
             } else {

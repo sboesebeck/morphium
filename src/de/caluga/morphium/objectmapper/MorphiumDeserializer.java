@@ -499,13 +499,32 @@ public class MorphiumDeserializer {
                             //todo: list of references!
                             Reference r = f.getAnnotation(Reference.class);
                             if (r != null) {
-                                MorphiumReference ref = jackson.readValue(jsonParser, MorphiumReference.class);
-                                if (r.lazyLoading()) {
-                                    f.set(ret, morphium.createLazyLoadedEntity(f.getType(), ref.getId(), ref.getCollectionName()));
+                                if (Map.class.isAssignableFrom(f.getType())) {
+                                    //map of references
+                                    Map toSet = new LinkedHashMap();
+                                    Map in = jackson.readValue(jsonParser, Map.class);
+                                    for (Map.Entry entry : (Set<Map.Entry>) in.entrySet()) {
+                                        MorphiumReference ref = jackson.convertValue(entry.getValue(), MorphiumReference.class);
+                                        Object id = replaceMorphiumIds(ref.getId());
+                                        Class<?> cls = Class.forName(ref.getClassName());
+                                        if (ref.isLazy()) {
+                                            toSet.put(entry.getKey(), morphium.createLazyLoadedEntity(cls, id, ref.getCollectionName()));
+                                        } else {
+                                            Object refObj = morphium.findById(cls, id);
+                                            toSet.put(entry.getKey(), refObj);
+                                        }
+                                    }
+                                    f.set(ret, toSet);
                                 } else {
-                                    Object id = replaceMorphiumIds(ref.getId());
-                                    Object refObj = morphium.findById(f.getType(), id);
-                                    f.set(ret, refObj);
+                                    MorphiumReference ref = jackson.readValue(jsonParser, MorphiumReference.class);
+                                    if (r.lazyLoading()) {
+                                        f.set(ret, morphium.createLazyLoadedEntity(f.getType(), ref.getId(), ref.getCollectionName()));
+                                    } else {
+
+                                        Object id = replaceMorphiumIds(ref.getId());
+                                        Object refObj = morphium.findById(f.getType(), id);
+                                        f.set(ret, refObj);
+                                    }
                                 }
                                 continue;
                             }
