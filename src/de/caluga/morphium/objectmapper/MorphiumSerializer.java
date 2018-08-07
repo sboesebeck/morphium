@@ -307,6 +307,24 @@ public class MorphiumSerializer {
                                 ret.add(ref);
                             }
                             value = ret;
+                        } else if (value instanceof Map) {
+                            Map ret = new LinkedHashMap();
+                            for (Map.Entry en : ((Set<Map.Entry>) ((Map) value).entrySet())) {
+                                if (en.getValue() == null) {
+                                    ret.put(en.getKey(), en.getValue());
+                                } else {
+                                    //needs to be a reference!
+                                    Object id = anhelper.getId(en.getValue());
+                                    if (id == null && r.automaticStore()) {
+                                        morphium.storeNoCache(en.getValue());
+                                        id = anhelper.getId(en.getValue());
+                                    }
+                                    MorphiumReference ref = new MorphiumReference(en.getValue().getClass().getName(), id);
+                                    ref.setLazy(r.lazyLoading());
+                                    ret.put(en.getKey(), en.getValue());
+                                }
+                            }
+                            value = ret;
                         } else {
                             Object id = anhelper.getId(value);
                             if (id == null && r.automaticStore()) {

@@ -220,6 +220,8 @@ public class Utils {
         for (Object o : value) {
             if (o instanceof Map && ((Map) o).containsKey("morphium id")) {
                 ret.add(new MorphiumId((String) ((Map) o).get("morphium id")));
+            } else if (o instanceof Map) {
+                ret.add(replaceMorphiumIds((Map) o));
             } else {
                 ret.add(o);
             }
