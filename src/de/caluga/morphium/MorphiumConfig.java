@@ -18,9 +18,9 @@ import de.caluga.morphium.writer.AsyncWriterImpl;
 import de.caluga.morphium.writer.BufferedMorphiumWriterImpl;
 import de.caluga.morphium.writer.MorphiumWriter;
 import de.caluga.morphium.writer.MorphiumWriterImpl;
-import org.json.simple.parser.ParseException;
 import org.slf4j.LoggerFactory;
 
+import java.io.IOException;
 import java.lang.reflect.Field;
 import java.util.*;
 
@@ -33,7 +33,7 @@ import java.util.*;
 @Embedded
 public class MorphiumConfig {
     @AdditionalData(readOnly = false)
-    private Map<String, String> restoreData;
+    private Map<String, Object> restoreData;
     //    private MongoDbMode mode;
     private int maxConnections, housekeepingTimeout;
     private int globalCacheValidTime = 5000;
@@ -233,8 +233,8 @@ public class MorphiumConfig {
     }
 
 
-    public static MorphiumConfig createFromJson(String json) throws ParseException, NoSuchFieldException, ClassNotFoundException, IllegalAccessException, InstantiationException {
-        MorphiumConfig cfg = new ObjectMapperImpl().deserialize(MorphiumConfig.class, json);
+    public static MorphiumConfig createFromJson(String json) throws NoSuchFieldException, ClassNotFoundException, IllegalAccessException, InstantiationException, IOException {
+        MorphiumConfig cfg = new ObjectMapperImplNG().deserialize(MorphiumConfig.class, json);
 
         for (Object ko : cfg.restoreData.keySet()) {
             String k = (String) ko;
