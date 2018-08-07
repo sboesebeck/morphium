@@ -467,6 +467,7 @@ public class MorphiumDeserializer {
                         log.error("Exception during instanciation of type " + type.getName(), e);
                     }
                 }
+                String adField = anhelper.getAdditionalDataField(type);
                 JsonToken tok = null;
                 String currentName = "";
                 while (true) {
@@ -483,7 +484,11 @@ public class MorphiumDeserializer {
                         ////// list or array
                         //////
                         List o = jackson.readValue(jsonParser, List.class);
-                        f.set(ret, handleList(f.getGenericType(), o));
+                        if (f == null && adField != null) {
+                            anhelper.getField(type, adField).set(ret, o);
+                        } else if (f != null) {
+                            f.set(ret, handleList(f.getGenericType(), o));
+                        }
                         continue;
 
                     }
@@ -549,7 +554,7 @@ public class MorphiumDeserializer {
                             }
                         } else {
                             //just read the value and ignore it
-                            jackson.readValue(jsonParser, Object.class);
+                            readAdditionalValue(jsonParser, ret, adField, currentName);
                         }
 
                         continue;
@@ -561,8 +566,7 @@ public class MorphiumDeserializer {
                     }
 
                     if (f == null) {
-                        //ignore value
-                        jackson.readValue(jsonParser, Object.class);
+                        readAdditionalValue(jsonParser, ret, adField, currentName);
                         continue;
                     }
 
@@ -603,6 +607,19 @@ public class MorphiumDeserializer {
                 throw new RuntimeException(e);
             }
 
+        }
+
+        private void readAdditionalValue(JsonParser jsonParser, Object ret, String adField, String currentName) throws IllegalAccessException, IOException {
+            if (adField != null) {
+                Field field = anhelper.getField(type, adField);
+                if (field.get(ret) == null) {
+                    field.set(ret, new LinkedHashMap<>());
+                }
+                ((Map) field.get(ret)).put(currentName, jackson.readValue(jsonParser, Object.class));
+            } else {
+                //ignore value
+                jackson.readValue(jsonParser, Object.class);
+            }
         }
     }
 }

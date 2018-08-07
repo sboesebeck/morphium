@@ -901,6 +901,14 @@ public class AnnotationAndReflectionHelper {
         return lst.get(0);
     }
 
+    public String getAdditionalDataField(Class<?> cls) {
+        List<String> lst = getFields(cls, AdditionalData.class);
+        if (lst == null || lst.isEmpty()) {
+            return null;
+        }
+        return lst.get(0);
+    }
+
 
     @SuppressWarnings({"unchecked", "unused"})
     public String getCreationTimeField(Class<?> cls) {

@@ -295,6 +295,18 @@ public class MorphiumSerializer {
                     if (tr != null) continue;
                     ReadOnly ro = fld.getAnnotation(ReadOnly.class);
                     if (ro != null) continue; //not serializing it => not storing it
+                    AdditionalData ad = fld.getAnnotation(AdditionalData.class);
+                    if (ad != null) {
+                        //write all fields in Additional map direktly
+                        for (Map.Entry entry : (Set<Map.Entry>) ((Map) value).entrySet()) {
+                            Object v = entry.getValue();
+                            if (!mongoTypes.contains(v.getClass())) {
+                                v = jackson.convertValue(v, Map.class);
+                            }
+                            jsonGenerator.writeObjectField((String) entry.getKey(), v);
+                        }
+                        continue;
+                    }
                     Reference r = fld.getAnnotation(Reference.class);
                     if (r != null && value != null) {
                         //create reference
