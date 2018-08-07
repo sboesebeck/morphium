@@ -64,6 +64,15 @@ public class MorphiumSerializer {
             }
         });
 
+        module.addSerializer(Date.class, new JsonSerializer<Date>() {
+            @Override
+            public void serialize(Date date, JsonGenerator jsonGenerator, SerializerProvider serializerProvider) throws IOException {
+                jsonGenerator.writeStartObject();
+                jsonGenerator.writeObjectField("date field", date.getTime());
+                jsonGenerator.writeEndObject();
+            }
+        });
+
         module.addSerializer(Collection.class, new JsonSerializer<Collection>() {
             @Override
             public void serialize(Collection list, JsonGenerator jsonGenerator, SerializerProvider serializerProvider) throws IOException {
@@ -321,7 +330,7 @@ public class MorphiumSerializer {
                                     }
                                     MorphiumReference ref = new MorphiumReference(en.getValue().getClass().getName(), id);
                                     ref.setLazy(r.lazyLoading());
-                                    ret.put(en.getKey(), en.getValue());
+                                    ret.put(en.getKey(), ref);
                                 }
                             }
                             value = ret;
