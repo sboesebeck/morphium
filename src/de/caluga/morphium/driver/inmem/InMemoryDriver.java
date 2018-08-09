@@ -804,6 +804,8 @@ public class InMemoryDriver implements MorphiumDriver {
                                     for (Object o : (List) ((Map) entry.getValue()).get("$each")) {
                                         v.add(o);
                                     }
+                                } else {
+                                    v.add(entry.getValue());
                                 }
                             } else {
                                 v.add(entry.getValue());
