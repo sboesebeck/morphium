@@ -1,12 +1,10 @@
 package de.caluga.test.mongo.suite;
 
-import de.caluga.morphium.AnnotationAndReflectionHelper;
-import de.caluga.morphium.MorphiumObjectMapper;
-import de.caluga.morphium.ObjectMapperImpl;
-import de.caluga.morphium.Utils;
+import de.caluga.morphium.*;
 import de.caluga.morphium.annotations.Entity;
 import de.caluga.morphium.annotations.Id;
 import de.caluga.morphium.driver.MorphiumId;
+import de.caluga.morphium.mapping.MorphiumTypeMapper;
 import de.caluga.morphium.objectmapper.ObjectMapperImplNG;
 import de.caluga.morphium.replicaset.ReplicaSetConf;
 import de.caluga.test.mongo.suite.data.*;
@@ -894,6 +892,53 @@ public class ObjectMapperTest extends MongoTest {
         assert (e2.equals(e));
     }
 
+    @Test
+    public void referenceTest() {
+        MorphiumReference r = new MorphiumReference("test", new MorphiumId());
+        Map<String, Object> o = morphium.getMapper().serialize(r);
+        assert (o.get("refid") != null);
+
+        MorphiumReference r2 = morphium.getMapper().deserialize(MorphiumReference.class, o);
+        assert (r2.getId() != null);
+    }
+
+    @Test
+    public void customMapperTest() {
+        morphium.getMapper().registerCustomMapperFor(MyClass.class, new MorphiumTypeMapper<MyClass>() {
+            @Override
+            public Object marshall(MyClass o) {
+                Map m = new HashMap();
+                m.put("class", o.getClass().getName());
+                m.put("value", "AMMENDED+" + o.theValue);
+                return m;
+            }
+
+            @Override
+            public MyClass unmarshall(Object d) {
+                Map m = (Map) d;
+                MyClass mc = new MyClass();
+                mc.theValue = (String) m.get("value");
+                mc.theValue = mc.theValue.substring(9);
+
+                return mc;
+            }
+        });
+
+        MyClass mc = new MyClass();
+        mc.theValue = "a little Test";
+        Map<String, Object> map = morphium.getMapper().serialize(mc);
+        assert (map.get("class").equals(mc.getClass().getName()));
+        assert (map.get("value").equals("AMMENDED+" + mc.theValue));
+
+        MyClass mc2 = morphium.getMapper().deserialize(MyClass.class, map);
+        assert (mc2.theValue.equals(mc.theValue));
+
+    }
+
+    public static class MyClass {
+        //does not need to be entity?
+        String theValue;
+    }
 
     public enum TestEnum {
         v1, v2, v3, v4,
