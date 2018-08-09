@@ -9,7 +9,10 @@ import de.caluga.morphium.annotations.caching.NoCache;
 import de.caluga.morphium.driver.MorphiumId;
 import org.junit.Test;
 
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Created with IntelliJ IDEA.
@@ -48,6 +51,51 @@ public class PolymorphismTest extends MongoTest {
         }
     }
 
+    @Test
+    public void subClasstest() throws Exception {
+        PolyContainer pc = new PolyContainer();
+        pc.aSubClass = new SubClass();
+        ((SubClass) pc.aSubClass).setSub("Subclass");
+
+        Map<String, Object> obj = morphium.getMapper().serialize(pc);
+        assert (obj != null);
+
+        pc = morphium.getMapper().deserialize(PolyContainer.class, obj);
+        assert (pc.aSubClass instanceof SubClass);
+
+        pc = new PolyContainer();
+        pc.aLotOfSubClasses = new ArrayList<>();
+        pc.aLotOfSubClasses.add(new SubClass("subclass"));
+        pc.aLotOfSubClasses.add(new OtherSubClass("othersubclass"));
+        pc.aLotOfSubClasses.add(new SubClass("subclass"));
+
+        obj = morphium.getMapper().serialize(pc);
+        assert (obj != null);
+        assert (((List) obj.get("a_lot_of_sub_classes")).size() == 3);
+
+        pc = morphium.getMapper().deserialize(PolyContainer.class, obj);
+        assert (pc != null);
+        assert (pc.aLotOfSubClasses.size() == 3);
+
+        pc = new PolyContainer();
+        pc.aMapOfSubClasses = new HashMap<>();
+        pc.aMapOfSubClasses.put("subClass", new SubClass("subclass"));
+        pc.aMapOfSubClasses.put("other", new OtherSubClass("other"));
+        obj = morphium.getMapper().serialize(pc);
+        assert (obj != null);
+
+        pc = morphium.getMapper().deserialize(PolyContainer.class, obj);
+        assert (pc.aMapOfSubClasses.get("subClass") != null);
+        assert (pc.aMapOfSubClasses.get("other") != null);
+    }
+
+    @Entity
+    public static class PolyContainer {
+        public PolyTest aSubClass;
+        public List<PolyTest> aLotOfSubClasses;
+        public Map<String, PolyTest> aMapOfSubClasses;
+    }
+
     @Entity(polymorph = true, nameProvider = PolyNameProvider.class)
     @NoCache
     public static abstract class PolyTest {
@@ -68,6 +116,13 @@ public class PolymorphismTest extends MongoTest {
     public static class SubClass extends PolyTest {
         private String sub;
 
+        public SubClass() {
+        }
+
+        public SubClass(String sub) {
+            this.sub = sub;
+        }
+
         public String getSub() {
             return sub;
         }
@@ -79,6 +134,13 @@ public class PolymorphismTest extends MongoTest {
 
     public static class OtherSubClass extends PolyTest {
         private String other;
+
+        public OtherSubClass() {
+        }
+
+        public OtherSubClass(String other) {
+            this.other = other;
+        }
 
         public String getOther() {
             return other;

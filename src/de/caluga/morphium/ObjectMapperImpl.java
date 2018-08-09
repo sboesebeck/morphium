@@ -2,6 +2,7 @@ package de.caluga.morphium;
 
 import de.caluga.morphium.annotations.*;
 import de.caluga.morphium.driver.MorphiumId;
+import de.caluga.morphium.mapping.MorphiumTypeMapper;
 import org.json.simple.parser.ContainerFactory;
 import org.json.simple.parser.JSONParser;
 import org.json.simple.parser.ParseException;
@@ -97,6 +98,16 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
      */
     public void setNameProviderForClass(Class<?> cls, NameProvider np) {
         nameProviders.put(cls, np);
+    }
+
+    @Override
+    public <T> void registerCustomMapperFor(Class<T> cls, MorphiumTypeMapper<T> map) {
+
+    }
+
+    @Override
+    public void deregisterCustomMapperFor(Class cls) {
+
     }
 
     public NameProvider getNameProviderForClass(Class<?> cls) {

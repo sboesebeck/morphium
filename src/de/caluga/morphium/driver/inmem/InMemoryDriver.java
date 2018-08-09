@@ -799,7 +799,17 @@ public class InMemoryDriver implements MorphiumDriver {
                                 v = new ArrayList();
                                 obj.put(entry.getKey(), v);
                             }
-                            v.add(entry.getValue());
+                            if (entry.getValue() instanceof Map) {
+                                if (((Map) entry.getValue()).get("$each") != null) {
+                                    for (Object o : (List) ((Map) entry.getValue()).get("$each")) {
+                                        v.add(o);
+                                    }
+                                } else {
+                                    v.add(entry.getValue());
+                                }
+                            } else {
+                                v.add(entry.getValue());
+                            }
                         }
                         break;
                     default:
