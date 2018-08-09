@@ -8,12 +8,15 @@ import com.fasterxml.jackson.databind.deser.BeanDeserializerModifier;
 import com.fasterxml.jackson.databind.introspect.BeanPropertyDefinition;
 import com.fasterxml.jackson.databind.introspect.POJOPropertyBuilder;
 import com.fasterxml.jackson.databind.module.SimpleModule;
-import de.caluga.morphium.*;
+import de.caluga.morphium.AnnotationAndReflectionHelper;
+import de.caluga.morphium.Morphium;
+import de.caluga.morphium.MorphiumReference;
+import de.caluga.morphium.NameProvider;
 import de.caluga.morphium.annotations.Embedded;
 import de.caluga.morphium.annotations.Entity;
 import de.caluga.morphium.annotations.Reference;
 import de.caluga.morphium.driver.MorphiumId;
-import de.caluga.morphium.mapping.BigIntegerTypeMapper;
+import de.caluga.morphium.mapping.MorphiumTypeMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import sun.misc.BASE64Decoder;
@@ -23,7 +26,6 @@ import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.lang.reflect.*;
-import java.math.BigInteger;
 import java.util.*;
 
 public class MorphiumDeserializer {
@@ -36,13 +38,14 @@ public class MorphiumDeserializer {
     private final Logger log = LoggerFactory.getLogger(MorphiumSerializer.class);
     private final SimpleModule module;
     private final com.fasterxml.jackson.databind.ObjectMapper jackson;
+    private final Map<Class, MorphiumTypeMapper> typeMapper;
 
-    public MorphiumDeserializer(AnnotationAndReflectionHelper anhelper, Map<Class<?>, NameProvider> nameProviderByClass, Morphium morphium, MorphiumObjectMapper objectMapper) {
+    public MorphiumDeserializer(AnnotationAndReflectionHelper anhelper, Map<Class<?>, NameProvider> nameProviderByClass, Morphium morphium, Map<Class, MorphiumTypeMapper> typeMapper) {
 
         this.anhelper = anhelper;
         this.nameProviderByClass = nameProviderByClass;
         this.morphium = morphium;
-
+        this.typeMapper = typeMapper;
         module = new SimpleModule();
         jackson = new com.fasterxml.jackson.databind.ObjectMapper();
         jackson.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
@@ -51,7 +54,7 @@ public class MorphiumDeserializer {
                 .withFieldVisibility(JsonAutoDetect.Visibility.ANY)
                 .withGetterVisibility(JsonAutoDetect.Visibility.NONE)
                 .withSetterVisibility(JsonAutoDetect.Visibility.NONE)
-                .withCreatorVisibility(JsonAutoDetect.Visibility.NONE));
+                .withCreatorVisibility(JsonAutoDetect.Visibility.ANY));
 
 //        module.addDeserializer(MorphiumId.class, new JsonDeserializer<MorphiumId>() {
 //            @Override
@@ -98,11 +101,11 @@ public class MorphiumDeserializer {
 
                     return new EntityDeserializer(beanDesc.getBeanClass(), anhelper);
                 }
-                if (beanDesc.getBeanClass().equals(BigInteger.class)) {
+                if (typeMapper.containsKey(beanDesc.getBeanClass())) {
                     return new JsonDeserializer<Object>() {
                         @Override
                         public Object deserialize(JsonParser jsonParser, DeserializationContext deserializationContext) throws IOException {
-                            return new BigIntegerTypeMapper().unmarshall(jsonParser.readValueAs(Object.class));
+                            return typeMapper.get(beanDesc.getBeanClass()).unmarshall(jsonParser.readValueAs(Object.class));
                         }
                     };
                 }
@@ -330,7 +333,9 @@ public class MorphiumDeserializer {
                     //ParameterizedType t2= (ParameterizedType) ((ParameterizedType)type).getActualTypeArguments()[0];
                     type = ((ParameterizedType) type).getActualTypeArguments()[0];
                     listElementType = null;
-
+                } else if (((ParameterizedType) type).getActualTypeArguments()[0] instanceof WildcardType) {
+                    type = ((WildcardType) (((ParameterizedType) type).getActualTypeArguments()[0])).getUpperBounds()[0];
+                    listElementType = null;
                 } else {
                     listElementType = (Class) ((ParameterizedType) type).getActualTypeArguments()[0];
                 }
@@ -340,6 +345,16 @@ public class MorphiumDeserializer {
             if (el instanceof Map) {
                 if (((Map) el).get("morphium id") != null) {
                     listOut.add(new MorphiumId((String) ((Map) el).get("morphium id")));
+                } else if (((Map) el).get("referenced_class_name") != null && ((Map) el).get("refid") != null) {
+                    //morphium reference - deReferencing
+                    MorphiumReference ref = jackson.convertValue(el, MorphiumReference.class);
+                    Object t;
+                    if (ref.isLazy()) {
+                        t = morphium.createLazyLoadedEntity(Class.forName(ref.getClassName()), ref.getId(), ref.getCollectionName());
+                    } else {
+                        t = morphium.findById(Class.forName(ref.getClassName()), ref.getId(), ref.getCollectionName());
+                    }
+                    listOut.add(t);
                 } else if (((Map) el).get("class_name") != null) {
                     Class<?> cls = Class.forName((String) ((Map) el).get("class_name"));
                     if (cls.isEnum()) {
@@ -373,6 +388,8 @@ public class MorphiumDeserializer {
             }
 
         }
+
+        // convert to Array
         if (type != null && type instanceof Class && ((Class) type).isArray()) {
             Object arr = Array.newInstance(((Class) type).getComponentType(), listOut.size());
             int i = 0;
@@ -469,6 +486,13 @@ public class MorphiumDeserializer {
         public Object deserialize(JsonParser jsonParser, DeserializationContext deserializationContext) {
             try {
                 Object ret = null;
+                if (type.isInterface() || Modifier.isAbstract(type.getModifiers())) {
+                    Map m = jsonParser.readValueAs(Map.class);
+                    if (m.get("class_name") != null) {
+                        ret = jackson.convertValue(m, Class.forName(m.get("class_name").toString()));
+                    }
+                    return ret;
+                }
                 try {
                     ret = type.newInstance();
                 } catch (Exception ignored) {
@@ -482,6 +506,7 @@ public class MorphiumDeserializer {
                         log.error("Exception during instanciation of type " + type.getName(), e);
                     }
                 }
+                String adField = anhelper.getAdditionalDataField(type);
                 JsonToken tok = null;
                 String currentName = "";
                 while (true) {
@@ -498,7 +523,11 @@ public class MorphiumDeserializer {
                         ////// list or array
                         //////
                         List o = jackson.readValue(jsonParser, List.class);
-                        f.set(ret, handleList(f.getGenericType(), o));
+                        if (f == null && adField != null) {
+                            anhelper.getField(type, adField).set(ret, o);
+                        } else if (f != null) {
+                            f.set(ret, handleList(f.getGenericType(), o));
+                        }
                         continue;
 
                     }
@@ -514,13 +543,32 @@ public class MorphiumDeserializer {
                             //todo: list of references!
                             Reference r = f.getAnnotation(Reference.class);
                             if (r != null) {
-                                MorphiumReference ref = jackson.readValue(jsonParser, MorphiumReference.class);
-                                if (r.lazyLoading()) {
-                                    f.set(ret, morphium.createLazyLoadedEntity(f.getType(), ref.getId(), ref.getCollectionName()));
+                                if (Map.class.isAssignableFrom(f.getType())) {
+                                    //map of references
+                                    Map toSet = new LinkedHashMap();
+                                    Map in = jackson.readValue(jsonParser, Map.class);
+                                    for (Map.Entry entry : (Set<Map.Entry>) in.entrySet()) {
+                                        MorphiumReference ref = jackson.convertValue(entry.getValue(), MorphiumReference.class);
+                                        Object id = replaceMorphiumIds(ref.getId());
+                                        Class<?> cls = Class.forName(ref.getClassName());
+                                        if (ref.isLazy()) {
+                                            toSet.put(entry.getKey(), morphium.createLazyLoadedEntity(cls, id, ref.getCollectionName()));
+                                        } else {
+                                            Object refObj = morphium.findById(cls, id);
+                                            toSet.put(entry.getKey(), refObj);
+                                        }
+                                    }
+                                    f.set(ret, toSet);
                                 } else {
-                                    Object id = replaceMorphiumIds(ref.getId());
-                                    Object refObj = morphium.findById(f.getType(), id);
-                                    f.set(ret, refObj);
+                                    MorphiumReference ref = jackson.readValue(jsonParser, MorphiumReference.class);
+                                    if (r.lazyLoading()) {
+                                        f.set(ret, morphium.createLazyLoadedEntity(f.getType(), ref.getId(), ref.getCollectionName()));
+                                    } else {
+
+                                        Object id = replaceMorphiumIds(ref.getId());
+                                        Object refObj = morphium.findById(f.getType(), id);
+                                        f.set(ret, refObj);
+                                    }
                                 }
                                 continue;
                             }
@@ -545,7 +593,7 @@ public class MorphiumDeserializer {
                             }
                         } else {
                             //just read the value and ignore it
-                            jackson.readValue(jsonParser, Object.class);
+                            readAdditionalValue(jsonParser, ret, adField, currentName);
                         }
 
                         continue;
@@ -557,8 +605,7 @@ public class MorphiumDeserializer {
                     }
 
                     if (f == null) {
-                        //ignore value
-                        jackson.readValue(jsonParser, Object.class);
+                        readAdditionalValue(jsonParser, ret, adField, currentName);
                         continue;
                     }
 
@@ -585,7 +632,7 @@ public class MorphiumDeserializer {
 //                                }
 //                            }
 //                            res.put(en.getKey(), en.getValue());
-//                        }
+//                        }to
 //                        f.set(ret, res);
 //                        continue;
 //                    }
@@ -599,6 +646,19 @@ public class MorphiumDeserializer {
                 throw new RuntimeException(e);
             }
 
+        }
+
+        private void readAdditionalValue(JsonParser jsonParser, Object ret, String adField, String currentName) throws IllegalAccessException, IOException {
+            if (adField != null) {
+                Field field = anhelper.getField(type, adField);
+                if (field.get(ret) == null) {
+                    field.set(ret, new LinkedHashMap<>());
+                }
+                ((Map) field.get(ret)).put(currentName, jackson.readValue(jsonParser, Object.class));
+            } else {
+                //ignore value
+                jackson.readValue(jsonParser, Object.class);
+            }
         }
     }
 }

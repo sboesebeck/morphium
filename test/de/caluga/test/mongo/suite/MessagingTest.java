@@ -16,6 +16,7 @@ import java.util.*;
  * Time: 17:34
  * <p/>
  */
+@SuppressWarnings("Duplicates")
 public class MessagingTest extends MongoTest {
     public boolean gotMessage = false;
 
@@ -137,6 +138,7 @@ public class MessagingTest extends MongoTest {
 
     }
 
+    @SuppressWarnings("Duplicates")
     @Test
     public void multithreaddingTest() throws Exception {
         Messaging producer = new Messaging(morphium, 500, false);
@@ -352,48 +354,54 @@ public class MessagingTest extends MongoTest {
     @Test
     public void testRejectMessage() throws Exception {
         morphium.clearCollection(Msg.class);
-        final Messaging sender=new Messaging(morphium,100,false);
-        final Messaging rec1=new Messaging(morphium,100,false);
-        final Messaging rec2=new Messaging(morphium,500,false);
+        Messaging sender = null;
+        Messaging rec1 = null;
+        Messaging rec2 = null;
+        try {
+            sender = new Messaging(morphium, 100, false);
+            rec1 = new Messaging(morphium, 100, false);
+            rec2 = new Messaging(morphium, 500, false);
 
-        sender.start();
-        rec1.start();
-        rec2.start();
-        gotMessage1 = false;
-        gotMessage2 = false;
-        gotMessage3 = false;
+            sender.start();
+            rec1.start();
+            rec2.start();
+            gotMessage1 = false;
+            gotMessage2 = false;
+            gotMessage3 = false;
 
-        rec1.addMessageListener((msg, m) -> {
-            gotMessage1=true;
-            throw new MessageRejectedException("rejected",true,false);
-        });
-        rec2.addMessageListener((msg, m) -> {
-            gotMessage2=true;
-            log.info("Processing message "+m.getValue());
-            return null;
-        });
-        sender.addMessageListener((msg,m)->{
-            gotMessage3=true;
-            log.info("Receiver got message");
-            if (m.getInAnswerTo()==null){
-                log.error("Message is not an answer! ERROR!");
-                throw new RuntimeException("Message is not an answer");
-            }
-            return null;
-        });
+            rec1.addMessageListener((msg, m) -> {
+                gotMessage1 = true;
+                throw new MessageRejectedException("rejected", true, false);
+            });
+            rec2.addMessageListener((msg, m) -> {
+                gotMessage2 = true;
+                log.info("Processing message " + m.getValue());
+                return null;
+            });
+            sender.addMessageListener((msg, m) -> {
+                gotMessage3 = true;
+                log.info("Receiver got message");
+                if (m.getInAnswerTo() == null) {
+                    log.error("Message is not an answer! ERROR!");
+                    throw new RuntimeException("Message is not an answer");
+                }
+                return null;
+            });
 
-        sender.storeMessage(new Msg("test","message","value"));
+            sender.storeMessage(new Msg("test", "message", "value"));
 
-        Thread.sleep(1000);
-        assert(gotMessage1);
-        assert(gotMessage2);
-        assert(!gotMessage3);
+            Thread.sleep(1000);
+            assert (gotMessage1);
+            assert (gotMessage2);
+            assert (!gotMessage3);
+        } finally {
+            sender.terminate();
+            rec1.terminate();
+            rec2.terminate();
+            Thread.sleep(2000);
+        }
 
 
-        sender.terminate();
-        rec1.terminate();
-        rec2.terminate();
-        Thread.sleep(2000);
 
 
 
@@ -402,110 +410,117 @@ public class MessagingTest extends MongoTest {
     @Test
     public void directedMessageTest() throws Exception {
         morphium.clearCollection(Msg.class);
-        final Messaging m1 = new Messaging(morphium, 100, true);
-        final Messaging m2 = new Messaging(morphium, 100, true);
-        final Messaging m3 = new Messaging(morphium, 100, true);
+        final Messaging m1;
+        final Messaging m2;
+        final Messaging m3;
+        m1 = new Messaging(morphium, 100, true);
+        m2 = new Messaging(morphium, 100, true);
+        m3 = new Messaging(morphium, 100, true);
+        try {
 
-        m1.start();
-        m2.start();
-        m3.start();
-        gotMessage1 = false;
-        gotMessage2 = false;
-        gotMessage3 = false;
-        gotMessage4 = false;
+            m1.start();
+            m2.start();
+            m3.start();
+            gotMessage1 = false;
+            gotMessage2 = false;
+            gotMessage3 = false;
+            gotMessage4 = false;
 
-        log.info("m1 ID: " + m1.getSenderId());
-        log.info("m2 ID: " + m2.getSenderId());
-        log.info("m3 ID: " + m3.getSenderId());
+            log.info("m1 ID: " + m1.getSenderId());
+            log.info("m2 ID: " + m2.getSenderId());
+            log.info("m3 ID: " + m3.getSenderId());
 
-        m1.addMessageListener((msg, m) -> {
-            gotMessage1 = true;
-            if (m.getTo() != null && !m.getTo().contains(m1.getSenderId())) {
-                log.error("wrongly received message?");
-                error = true;
-            }
-            log.info("DM-M1 got message " + m.toString());
-            //                assert (m.getSender().equals(m2.getSenderId())) : "Sender is not M2?!?!? m2_id: " + m2.getSenderId() + " - message sender: " + m.getSender();
-            return null;
-        });
+            m1.addMessageListener((msg, m) -> {
+                gotMessage1 = true;
+                if (m.getTo() != null && !m.getTo().contains(m1.getSenderId())) {
+                    log.error("wrongly received message?");
+                    error = true;
+                }
+                log.info("DM-M1 got message " + m.toString());
+                //                assert (m.getSender().equals(m2.getSenderId())) : "Sender is not M2?!?!? m2_id: " + m2.getSenderId() + " - message sender: " + m.getSender();
+                return null;
+            });
 
-        m2.addMessageListener((msg, m) -> {
-            gotMessage2 = true;
-            assert (m.getTo() == null || m.getTo().contains(m2.getSenderId())) : "wrongly received message?";
-            log.info("DM-M2 got message " + m.toString());
-            //                assert (m.getSender().equals(m1.getSenderId())) : "Sender is not M1?!?!? m1_id: " + m1.getSenderId() + " - message sender: " + m.getSender();
-            return null;
-        });
+            m2.addMessageListener((msg, m) -> {
+                gotMessage2 = true;
+                assert (m.getTo() == null || m.getTo().contains(m2.getSenderId())) : "wrongly received message?";
+                log.info("DM-M2 got message " + m.toString());
+                //                assert (m.getSender().equals(m1.getSenderId())) : "Sender is not M1?!?!? m1_id: " + m1.getSenderId() + " - message sender: " + m.getSender();
+                return null;
+            });
 
-        m3.addMessageListener((msg, m) -> {
-            gotMessage3 = true;
-            assert (m.getTo() == null || m.getTo().contains(m3.getSenderId())) : "wrongly received message?";
-            log.info("DM-M3 got message " + m.toString());
-            //                assert (m.getSender().equals(m1.getSenderId())) : "Sender is not M1?!?!? m1_id: " + m1.getSenderId() + " - message sender: " + m.getSender();
-            return null;
-        });
+            m3.addMessageListener((msg, m) -> {
+                gotMessage3 = true;
+                assert (m.getTo() == null || m.getTo().contains(m3.getSenderId())) : "wrongly received message?";
+                log.info("DM-M3 got message " + m.toString());
+                //                assert (m.getSender().equals(m1.getSenderId())) : "Sender is not M1?!?!? m1_id: " + m1.getSenderId() + " - message sender: " + m.getSender();
+                return null;
+            });
 
-        //sending message to all
-        log.info("Sending broadcast message");
-        m1.storeMessage(new Msg("testmsg1", "The message from M1", "Value"));
-        Thread.sleep(3000);
-        assert (gotMessage2) : "Message not recieved yet by m2?!?!?";
-        assert (gotMessage3) : "Message not recieved yet by m3?!?!?";
-        assert (!error);
-        gotMessage1 = false;
-        gotMessage2 = false;
-        gotMessage3 = false;
-        error = false;
-        waitForWrites();
-        Thread.sleep(2500);
-        assert (!gotMessage1) : "Message recieved again by m1?!?!?";
-        assert (!gotMessage2) : "Message recieved again by m2?!?!?";
-        assert (!gotMessage3) : "Message recieved again by m3?!?!?";
-        assert (!error);
+            //sending message to all
+            log.info("Sending broadcast message");
+            m1.storeMessage(new Msg("testmsg1", "The message from M1", "Value"));
+            Thread.sleep(3000);
+            assert (gotMessage2) : "Message not recieved yet by m2?!?!?";
+            assert (gotMessage3) : "Message not recieved yet by m3?!?!?";
+            assert (!error);
+            gotMessage1 = false;
+            gotMessage2 = false;
+            gotMessage3 = false;
+            error = false;
+            waitForWrites();
+            Thread.sleep(2500);
+            assert (!gotMessage1) : "Message recieved again by m1?!?!?";
+            assert (!gotMessage2) : "Message recieved again by m2?!?!?";
+            assert (!gotMessage3) : "Message recieved again by m3?!?!?";
+            assert (!error);
 
-        log.info("Sending direct message");
-        Msg m = new Msg("testmsg1", "The message from M1", "Value");
-        m.addRecipient(m2.getSenderId());
-        m1.storeMessage(m);
-        Thread.sleep(1000);
-        assert (gotMessage2) : "Message not received by m2?";
-        assert (!gotMessage1) : "Message recieved by m1?!?!?";
-        assert (!gotMessage3) : "Message  recieved again by m3?!?!?";
-        gotMessage1 = false;
-        gotMessage2 = false;
-        gotMessage3 = false;
-        error = false;
-        Thread.sleep(1000);
-        assert (!gotMessage1) : "Message recieved again by m1?!?!?";
-        assert (!gotMessage2) : "Message not recieved again by m2?!?!?";
-        assert (!gotMessage3) : "Message not recieved again by m3?!?!?";
-        assert (!error);
+            log.info("Sending direct message");
+            Msg m = new Msg("testmsg1", "The message from M1", "Value");
+            m.addRecipient(m2.getSenderId());
+            m1.storeMessage(m);
+            Thread.sleep(1000);
+            assert (gotMessage2) : "Message not received by m2?";
+            assert (!gotMessage1) : "Message recieved by m1?!?!?";
+            assert (!gotMessage3) : "Message  recieved again by m3?!?!?";
+            gotMessage1 = false;
+            gotMessage2 = false;
+            gotMessage3 = false;
+            error = false;
+            Thread.sleep(1000);
+            assert (!gotMessage1) : "Message recieved again by m1?!?!?";
+            assert (!gotMessage2) : "Message not recieved again by m2?!?!?";
+            assert (!gotMessage3) : "Message not recieved again by m3?!?!?";
+            assert (!error);
 
-        log.info("Sending message to 2 recipients");
-        log.info("Sending direct message");
-        m = new Msg("testmsg1", "The message from M1", "Value");
-        m.addRecipient(m2.getSenderId());
-        m.addRecipient(m3.getSenderId());
-        m1.storeMessage(m);
-        Thread.sleep(1000);
-        assert (gotMessage2) : "Message not received by m2?";
-        assert (!gotMessage1) : "Message recieved by m1?!?!?";
-        assert (gotMessage3) : "Message not recieved by m3?!?!?";
-        assert (!error);
-        gotMessage1 = false;
-        gotMessage2 = false;
-        gotMessage3 = false;
+            log.info("Sending message to 2 recipients");
+            log.info("Sending direct message");
+            m = new Msg("testmsg1", "The message from M1", "Value");
+            m.addRecipient(m2.getSenderId());
+            m.addRecipient(m3.getSenderId());
+            m1.storeMessage(m);
+            Thread.sleep(1000);
+            assert (gotMessage2) : "Message not received by m2?";
+            assert (!gotMessage1) : "Message recieved by m1?!?!?";
+            assert (gotMessage3) : "Message not recieved by m3?!?!?";
+            assert (!error);
+            gotMessage1 = false;
+            gotMessage2 = false;
+            gotMessage3 = false;
 
-        Thread.sleep(1000);
-        assert (!gotMessage1) : "Message recieved again by m1?!?!?";
-        assert (!gotMessage2) : "Message not recieved again by m2?!?!?";
-        assert (!gotMessage3) : "Message not recieved again by m3?!?!?";
-        assert (!error);
+            Thread.sleep(1000);
+            assert (!gotMessage1) : "Message recieved again by m1?!?!?";
+            assert (!gotMessage2) : "Message not recieved again by m2?!?!?";
+            assert (!gotMessage3) : "Message not recieved again by m3?!?!?";
+            assert (!error);
+        } finally {
+            m1.terminate();
+            m2.terminate();
+            m3.terminate();
+            Thread.sleep(1000);
 
-        m1.terminate();
-        m2.terminate();
-        m3.terminate();
-        Thread.sleep(1000);
+        }
+
     }
 
     @Test
@@ -516,90 +531,97 @@ public class MessagingTest extends MongoTest {
         error = false;
 
         morphium.clearCollection(Msg.class);
-        final Messaging m1 = new Messaging(morphium, 100, true);
-        final Messaging m2 = new Messaging(morphium, 100, true);
-        final Messaging onlyAnswers = new Messaging(morphium, 100, true);
+        final Messaging m1;
+        final Messaging m2;
+        final Messaging onlyAnswers;
+        m1 = new Messaging(morphium, 100, true);
+        m2 = new Messaging(morphium, 100, true);
+        onlyAnswers = new Messaging(morphium, 100, true);
+        try {
 
-        m1.start();
-        m2.start();
-        onlyAnswers.start();
+            m1.start();
+            m2.start();
+            onlyAnswers.start();
 
-        log.info("m1 ID: " + m1.getSenderId());
-        log.info("m2 ID: " + m2.getSenderId());
-        log.info("onlyAnswers ID: " + onlyAnswers.getSenderId());
+            log.info("m1 ID: " + m1.getSenderId());
+            log.info("m2 ID: " + m2.getSenderId());
+            log.info("onlyAnswers ID: " + onlyAnswers.getSenderId());
 
-        m1.addMessageListener((msg, m) -> {
-            gotMessage1 = true;
-            if (m.getTo() != null && !m.getTo().contains(m1.getSenderId())) {
-                log.error("wrongly received message?");
-                error = true;
-            }
-            if (m.getInAnswerTo() != null) {
-                log.error("M1 got an answer, but did not ask?");
-                error = true;
-            }
-            log.info("M1 got message " + m.toString());
-            Msg answer = m.createAnswerMsg();
-            answer.setValue("This is the answer from m1");
-            answer.addValue("something", new Date());
-            answer.addAdditional("String message from m1");
-            return answer;
-        });
+            m1.addMessageListener((msg, m) -> {
+                gotMessage1 = true;
+                if (m.getTo() != null && !m.getTo().contains(m1.getSenderId())) {
+                    log.error("wrongly received message?");
+                    error = true;
+                }
+                if (m.getInAnswerTo() != null) {
+                    log.error("M1 got an answer, but did not ask?");
+                    error = true;
+                }
+                log.info("M1 got message " + m.toString());
+                Msg answer = m.createAnswerMsg();
+                answer.setValue("This is the answer from m1");
+                answer.addValue("something", new Date());
+                answer.addAdditional("String message from m1");
+                return answer;
+            });
 
-        m2.addMessageListener((msg, m) -> {
-            gotMessage2 = true;
-            if (m.getTo() != null && !m.getTo().contains(m2.getSenderId())) {
-                log.error("wrongly received message?");
-                error = true;
-            }
-            log.info("M2 got message " + m.toString());
-            assert (m.getInAnswerTo() == null) : "M2 got an answer, but did not ask?";
-            Msg answer = m.createAnswerMsg();
-            answer.setValue("This is the answer from m2");
-            answer.addValue("when", System.currentTimeMillis());
-            answer.addAdditional("Additional Value von m2");
-            return answer;
-        });
+            m2.addMessageListener((msg, m) -> {
+                gotMessage2 = true;
+                if (m.getTo() != null && !m.getTo().contains(m2.getSenderId())) {
+                    log.error("wrongly received message?");
+                    error = true;
+                }
+                log.info("M2 got message " + m.toString());
+                assert (m.getInAnswerTo() == null) : "M2 got an answer, but did not ask?";
+                Msg answer = m.createAnswerMsg();
+                answer.setValue("This is the answer from m2");
+                answer.addValue("when", System.currentTimeMillis());
+                answer.addAdditional("Additional Value von m2");
+                return answer;
+            });
 
-        onlyAnswers.addMessageListener((msg, m) -> {
-            gotMessage3 = true;
-            if (m.getTo() != null && !m.getTo().contains(onlyAnswers.getSenderId())) {
-                log.error("wrongly received message?");
-                error = true;
-            }
+            onlyAnswers.addMessageListener((msg, m) -> {
+                gotMessage3 = true;
+                if (m.getTo() != null && !m.getTo().contains(onlyAnswers.getSenderId())) {
+                    log.error("wrongly received message?");
+                    error = true;
+                }
 
-            assert (m.getInAnswerTo() != null) : "was not an answer? " + m.toString();
+                assert (m.getInAnswerTo() != null) : "was not an answer? " + m.toString();
 
-            log.info("M3 got answer " + m.toString());
-            assert (lastMsgId != null) : "Last message == null?";
-            assert (m.getInAnswerTo().equals(lastMsgId)) : "Wrong answer????" + lastMsgId.toString() + " != " + m.getInAnswerTo().toString();
-            //                assert (m.getSender().equals(m1.getSenderId())) : "Sender is not M1?!?!? m1_id: " + m1.getSenderId() + " - message sender: " + m.getSender();
-            return null;
-        });
+                log.info("M3 got answer " + m.toString());
+                assert (lastMsgId != null) : "Last message == null?";
+                assert (m.getInAnswerTo().equals(lastMsgId)) : "Wrong answer????" + lastMsgId.toString() + " != " + m.getInAnswerTo().toString();
+                //                assert (m.getSender().equals(m1.getSenderId())) : "Sender is not M1?!?!? m1_id: " + m1.getSenderId() + " - message sender: " + m.getSender();
+                return null;
+            });
 
-        Msg question = new Msg("QMsg", "This is the message text", "A question param");
-        question.setMsgId(new MorphiumId());
-        lastMsgId = question.getMsgId();
-        onlyAnswers.storeMessage(question);
+            Msg question = new Msg("QMsg", "This is the message text", "A question param");
+            question.setMsgId(new MorphiumId());
+            lastMsgId = question.getMsgId();
+            onlyAnswers.storeMessage(question);
 
-        log.info("Send Message with id: " + question.getMsgId());
-        Thread.sleep(3000);
-        assert (gotMessage3) : "no answer got back?";
-        assert (gotMessage1) : "Question not received by m1";
-        assert (gotMessage2) : "Question not received by m2";
-        assert (!error);
-        gotMessage1 = false;
-        gotMessage2 = false;
-        gotMessage3 = false;
-        Thread.sleep(2000);
-        assert (!error);
+            log.info("Send Message with id: " + question.getMsgId());
+            Thread.sleep(3000);
+            assert (gotMessage3) : "no answer got back?";
+            assert (gotMessage1) : "Question not received by m1";
+            assert (gotMessage2) : "Question not received by m2";
+            assert (!error);
+            gotMessage1 = false;
+            gotMessage2 = false;
+            gotMessage3 = false;
+            Thread.sleep(2000);
+            assert (!error);
 
-        assert (!gotMessage3 && !gotMessage1 && !gotMessage2) : "Message processing repeat?";
+            assert (!gotMessage3 && !gotMessage1 && !gotMessage2) : "Message processing repeat?";
+        } finally {
+            m1.terminate();
+            m2.terminate();
+            onlyAnswers.terminate();
+            Thread.sleep(1000);
 
-        m1.terminate();
-        m2.terminate();
-        onlyAnswers.terminate();
-        Thread.sleep(1000);
+        }
+
     }
 
 
@@ -886,7 +908,7 @@ public class MessagingTest extends MongoTest {
                 processed[0]++;
             }
             if (processed[0] % 1000 == 0) {
-                log.info("Processed: " + processed[0]);
+                log.info("Consumed " + processed[0]);
             }
             assert (!m.getProcessedBy().contains(msg.getSenderId()));
             //                assert(!msgCountById.containsKey(m.getMsgId().toString()));
@@ -932,90 +954,103 @@ public class MessagingTest extends MongoTest {
 
     @Test
     public void exclusiveMessageCustomQueueTest() throws Exception {
-        morphium.dropCollection(Msg.class);
-        morphium.dropCollection(Msg.class,"test",null);
-        morphium.dropCollection(Msg.class,"test2",null);
-        Messaging sender = new Messaging(morphium,"test", 100, false);
-        sender.start();
-        Messaging sender2 = new Messaging(morphium,"test2", 100, false);
-        sender2.start();
+        Messaging sender = null;
+        Messaging sender2 = null;
+        Messaging m1 = null;
+        Messaging m2 = null;
+        Messaging m3 = null;
+        try {
+            morphium.dropCollection(Msg.class);
+            morphium.dropCollection(Msg.class, "test", null);
+            morphium.dropCollection(Msg.class, "test2", null);
+            sender = new Messaging(morphium, "test", 100, false);
+            sender.start();
+            sender2 = new Messaging(morphium, "test2", 100, false);
+            sender2.start();
 
-        gotMessage1 = false;
-        gotMessage2 = false;
-        gotMessage3 = false;
-        gotMessage4 = false;
+            gotMessage1 = false;
+            gotMessage2 = false;
+            gotMessage3 = false;
+            gotMessage4 = false;
 
-        Messaging m1 = new Messaging(morphium, "test",100, false);
-        m1.addMessageListener((msg, m) -> {
-            gotMessage1 = true;
-            return null;
-        });
-        Messaging m2 = new Messaging(morphium, "test",100, false);
-        m2.addMessageListener((msg, m) -> {
-            gotMessage2 = true;
-            return null;
-        });
-        Messaging m3 = new Messaging(morphium, "test2",100, false);
-        m3.addMessageListener((msg, m) -> {
-            gotMessage3 = true;
-            return null;
-        });
-        Messaging m4 = new Messaging(morphium, "test2",100, false);
-        m4.addMessageListener((msg, m) -> {
-            gotMessage4 = true;
-            return null;
-        });
+            m1 = new Messaging(morphium, "test", 100, false);
+            m1.addMessageListener((msg, m) -> {
+                gotMessage1 = true;
+                log.info("Got message m1");
+                return null;
+            });
+            m2 = new Messaging(morphium, "test", 100, false);
+            m2.addMessageListener((msg, m) -> {
+                gotMessage2 = true;
+                log.info("Got message m2");
+                return null;
+            });
+            m3 = new Messaging(morphium, "test2", 100, false);
+            m3.addMessageListener((msg, m) -> {
+                gotMessage3 = true;
+                log.info("Got message m3");
+                return null;
+            });
+            Messaging m4 = new Messaging(morphium, "test2", 100, false);
+            m4.addMessageListener((msg, m) -> {
+                gotMessage4 = true;
+                log.info("Got message m4");
+                return null;
+            });
 
-        m1.start();
-        m2.start();
-        m3.start();
-        m4.start();
+            m1.start();
+            m2.start();
+            m3.start();
+            m4.start();
+            Msg m = new Msg();
+            m.setExclusive(true);
+            m.setName("A message");
 
-        Msg m = new Msg();
-        m.setExclusive(true);
-        m.setName("A message");
+            sender.queueMessage(m);
 
-        sender.queueMessage(m);
-        Thread.sleep(5000);
+            assert (!gotMessage3);
+            assert (!gotMessage4);
+            Thread.sleep(2000);
 
-        assert(!gotMessage3);
-        assert(!gotMessage4);
+            int rec = 0;
+            if (gotMessage1) {
+                rec++;
+            }
+            if (gotMessage2) {
+                rec++;
+            }
+            assert (rec == 1) : "rec is " + rec;
 
-        int rec = 0;
-        if (gotMessage1) {
-            rec++;
+            gotMessage1 = false;
+            gotMessage2 = false;
+
+            m = new Msg();
+            m.setExclusive(true);
+            m.setName("A message");
+            sender2.storeMessage(m);
+            Thread.sleep(500);
+            assert (!gotMessage1);
+            assert (!gotMessage2);
+
+            rec = 0;
+            if (gotMessage3) {
+                rec++;
+            }
+            if (gotMessage4) {
+                rec++;
+            }
+            assert (rec == 1) : "rec is " + rec;
+            assert (m1.getNumberOfMessages() == 0);
+        } finally {
+            m1.terminate();
+            m2.terminate();
+            m3.terminate();
+            sender.terminate();
+            sender2.terminate();
+
         }
-        if (gotMessage2) {
-            rec++;
-        }
-        assert (rec == 1):"rec is "+rec;
-
-        gotMessage1=false;
-        gotMessage2=false;
-
-        m = new Msg();
-        m.setExclusive(true);
-        m.setName("A message");
-        sender2.storeMessage(m);
-        Thread.sleep(500);
-        assert(!gotMessage1);
-        assert(!gotMessage2);
-
-        rec = 0;
-        if (gotMessage3) {
-            rec++;
-        }
-        if (gotMessage4) {
-            rec++;
-        }
-        assert (rec == 1):"rec is "+rec;
-        assert (m1.getNumberOfMessages() == 0);
-        m1.terminate();
-        m2.terminate();
-        m3.terminate();
-        sender.terminate();
-        sender2.terminate();
     }
+
     @Test
     public void exclusiveMessageTest() throws Exception {
         morphium.dropCollection(Msg.class);
@@ -1132,7 +1167,7 @@ public class MessagingTest extends MongoTest {
 
     }
     @Test
-    public void sendAndWaitforAnswerTest() {
+    public void sendAndWaitforAnswerTest() throws Exception {
 //        morphium.dropCollection(Msg.class);
         Messaging sender = new Messaging(morphium, 100, false);
         sender.start();
@@ -1149,6 +1184,7 @@ public class MessagingTest extends MongoTest {
         });
 
         m1.start();
+        Thread.sleep(500);
 
         Msg answer = sender.sendAndAwaitFirstAnswer(new Msg("test", "Sender", "sent", 15000), 15000);
         assert (answer != null);

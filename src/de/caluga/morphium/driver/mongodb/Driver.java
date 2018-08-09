@@ -13,9 +13,7 @@ import com.mongodb.client.model.changestream.ChangeStreamDocument;
 import com.mongodb.client.model.changestream.FullDocument;
 import com.mongodb.client.result.DeleteResult;
 import com.mongodb.client.result.UpdateResult;
-import de.caluga.morphium.AnnotationAndReflectionHelper;
 import de.caluga.morphium.Morphium;
-import de.caluga.morphium.ObjectMapperImpl;
 import de.caluga.morphium.driver.*;
 import de.caluga.morphium.driver.ReadPreference;
 import de.caluga.morphium.driver.bulk.BulkRequestContext;
@@ -623,10 +621,6 @@ public class Driver implements MorphiumDriver {
                 //it.startAtOperationTime(new BsonTimestamp(System.currentTimeMillis()));
                 MongoCursor<ChangeStreamDocument<Document>> iterator = it.iterator();
                 long start = System.currentTimeMillis();
-                ObjectMapperImpl imp = new ObjectMapperImpl();
-                imp.setAnnotationHelper(new AnnotationAndReflectionHelper(false));
-
-
                 while (iterator.hasNext() && run) {
                     run = processChangeStreamEvent(cb, iterator, start);
                     if (!run) break;

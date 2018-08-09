@@ -16,6 +16,7 @@ import java.util.Map;
  * Time: 10:46
  * <p>
  */
+@SuppressWarnings("Duplicates")
 public class UpdateTest extends MongoTest {
     @Test
     public void incMultipleFieldsTest() throws Exception {
@@ -266,7 +267,7 @@ public class UpdateTest extends MongoTest {
         Thread.sleep(2500);
         ListContainer lc2 = lc.get();
         assert (lc2.getEmbeddedObjectList() != null);
-        assert (lc2.getEmbeddedObjectList().size() == 3) : "Size wrong should be 3 is " + lc2.getEmbeddedObjectList().size();
+        assert (lc2.getEmbeddedObjectList().size() == 3) : "Size wrong, should be 3 is " + lc2.getEmbeddedObjectList().size();
         assert (lc2.getEmbeddedObjectList().get(0).getTest() == 1L);
     }
 
