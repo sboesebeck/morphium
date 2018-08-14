@@ -578,31 +578,36 @@ public class Driver implements MorphiumDriver {
     }
 
     private boolean processChangeStreamEvent(DriverTailableIterationCallback cb, MongoCursor<ChangeStreamDocument<Document>> iterator, long start) {
-        ChangeStreamDocument<Document> doc = iterator.next();
-        Map<String, Object> obj = new HashMap<>();
-        obj.put("clusterTime", doc.getClusterTime().getValue());
-        if (doc.getDocumentKey() != null) {
-            obj.put("documentKey", new MorphiumId(((BsonObjectId) doc.getDocumentKey().get("_id")).getValue().toByteArray()));
-        }
-        obj.put("operationType", doc.getOperationType().getValue());
-        if (doc.getFullDocument() != null) {
-            obj.put("fullDocument", new LinkedHashMap<String, Object>(doc.getFullDocument()));
-        }
-        if (doc.getResumeToken() != null) {
-            obj.put("resumeToken", new LinkedHashMap<String, Object>(doc.getResumeToken()));
-        }
-        if (doc.getNamespace() != null) {
-            obj.put("collectionName", doc.getNamespace().getCollectionName());
-            obj.put("dbName", doc.getNamespace().getDatabaseName());
-        }
-        if (doc.getUpdateDescription() != null) {
-            obj.put("removedFields", doc.getUpdateDescription().getRemovedFields());
-            obj.put("updatedFields", new LinkedHashMap<String, Object>(doc.getUpdateDescription().getUpdatedFields()));
-        }
+        try {
+            ChangeStreamDocument<Document> doc = iterator.next();
+            Map<String, Object> obj = new HashMap<>();
+            obj.put("clusterTime", doc.getClusterTime().getValue());
+            if (doc.getDocumentKey() != null) {
+                obj.put("documentKey", new MorphiumId(((BsonObjectId) doc.getDocumentKey().get("_id")).getValue().toByteArray()));
+            }
+            obj.put("operationType", doc.getOperationType().getValue());
+            if (doc.getFullDocument() != null) {
+                obj.put("fullDocument", new LinkedHashMap<String, Object>(doc.getFullDocument()));
+            }
+            if (doc.getResumeToken() != null) {
+                obj.put("resumeToken", new LinkedHashMap<String, Object>(doc.getResumeToken()));
+            }
+            if (doc.getNamespace() != null) {
+                obj.put("collectionName", doc.getNamespace().getCollectionName());
+                obj.put("dbName", doc.getNamespace().getDatabaseName());
+            }
+            if (doc.getUpdateDescription() != null) {
+                obj.put("removedFields", doc.getUpdateDescription().getRemovedFields());
+                obj.put("updatedFields", new LinkedHashMap<String, Object>(doc.getUpdateDescription().getUpdatedFields()));
+            }
 
-        DriverHelper.replaceBsonValues(obj);
-        boolean con = cb.incomingData(obj, System.currentTimeMillis() - start);
-        return con;
+            DriverHelper.replaceBsonValues(obj);
+            boolean con = cb.incomingData(obj, System.currentTimeMillis() - start);
+            return con;
+        } catch (IllegalArgumentException e) {
+            //"Drop is not a valid OperationType" -> Bug in Driver
+            return true;
+        }
     }
 
     @Override
@@ -617,14 +622,16 @@ public class Driver implements MorphiumDriver {
                     it = mongo.getDatabase(db).watch();
                 }
                 it.maxAwaitTime(maxWaitTime, TimeUnit.MILLISECONDS);
+                it.batchSize(defaultBatchSize);
                 it.fullDocument(fullDocumentOnUpdate ? FullDocument.UPDATE_LOOKUP : FullDocument.DEFAULT);
-                //it.startAtOperationTime(new BsonTimestamp(System.currentTimeMillis()));
+//                it.startAtOperationTime(new BsonTimestamp(System.currentTimeMillis()-250));
                 MongoCursor<ChangeStreamDocument<Document>> iterator = it.iterator();
                 long start = System.currentTimeMillis();
                 while (iterator.hasNext() && run) {
                     run = processChangeStreamEvent(cb, iterator, start);
                     if (!run) break;
                 }
+                iterator.close();
             }
             return null;
         }, retriesOnNetworkError, sleepBetweenErrorRetries);
@@ -766,6 +773,8 @@ public class Driver implements MorphiumDriver {
                 } else {
                     it.batchSize(defaultBatchSize);
                 }
+                it.maxAwaitTime(getMaxWaitTime(), TimeUnit.MILLISECONDS);
+                it.maxTime(getMaxWaitTime(), TimeUnit.MILLISECONDS);
                 MongoCursor<Document> ret = it.iterator();
                 handleMetaData(findMetaData, ret);
 
@@ -1514,6 +1523,7 @@ public class Driver implements MorphiumDriver {
         ClientSessionOptions.Builder b = ClientSessionOptions.builder();
         b.causallyConsistent(true);
         b.defaultTransactionOptions(TransactionOptions.builder().readConcern(ReadConcern.DEFAULT).readPreference(com.mongodb.ReadPreference.primary()).build());
+
 
         ClientSession ses = mongo.startSession(b.build());
         ses.startTransaction();

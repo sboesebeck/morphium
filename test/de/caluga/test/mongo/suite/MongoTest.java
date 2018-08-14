@@ -324,7 +324,7 @@ public class MongoTest {
         }
         morphium.storeList(lst);
         Query<UncachedObject> q = morphium.createQueryFor(UncachedObject.class);
-        while (q.countAll() != amount) {
+        while (q.countAll() < amount) {
             log.info("Waiting for data to be stored..." + q.countAll() + "/" + amount);
             try {
                 Thread.sleep(100);

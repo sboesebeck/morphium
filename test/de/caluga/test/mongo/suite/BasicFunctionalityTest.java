@@ -464,7 +464,7 @@ public class BasicFunctionalityTest extends MongoTest {
         waitForWrites();
         dur = System.currentTimeMillis() - start;
         log.info("Storing took " + dur + " ms overall");
-        Thread.sleep(1500);
+        Thread.sleep(3500);
         randomCheck();
         Map<String, Double> statistics = morphium.getStatistics();
         Double uc = statistics.get("X-Entries resultCache|for: de.caluga.test.mongo.suite.data.UncachedObject");
