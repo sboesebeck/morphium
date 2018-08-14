@@ -143,6 +143,7 @@ public class MessagingTest extends MongoTest {
     public void multithreaddingTest() throws Exception {
         Messaging producer = new Messaging(morphium, 500, false);
         producer.start();
+        Thread.sleep(2500);
         for (int i = 0; i < 1000; i++) {
             Msg m = new Msg("test" + i, "tm", "" + i + System.currentTimeMillis(), 10000);
             producer.storeMessage(m);
@@ -421,6 +422,7 @@ public class MessagingTest extends MongoTest {
             m1.start();
             m2.start();
             m3.start();
+            Thread.sleep(2500);
             gotMessage1 = false;
             gotMessage2 = false;
             gotMessage3 = false;
@@ -778,14 +780,14 @@ public class MessagingTest extends MongoTest {
         m.setExclusive(false);
         m1.storeMessage(m);
 
-        Thread.sleep(1200);
+        Thread.sleep(2200);
         assert (!gotMessage1) : "Got message again?";
         assert (gotMessage2) : "m2 did not get msg?";
         assert (gotMessage3) : "m3 did not get msg";
         assert (!error);
         gotMessage2 = false;
         gotMessage3 = false;
-        Thread.sleep(1200);
+        Thread.sleep(2200);
         assert (!gotMessage1) : "Got message again?";
         assert (!gotMessage2) : "m2 did get msg again?";
         assert (!gotMessage3) : "m3 did get msg again?";
@@ -794,7 +796,11 @@ public class MessagingTest extends MongoTest {
         m1.terminate();
         m2.terminate();
         m3.terminate();
+        m = new Msg("test", "end", "a value");
+        m.setExclusive(false);
+        m1.storeMessage(m);
         Thread.sleep(1000);
+
     }
 
     @Test
@@ -853,7 +859,7 @@ public class MessagingTest extends MongoTest {
         final Messaging consumer = new Messaging(morphium, 10, true);
         producer.start();
         consumer.start();
-        Thread.sleep(100);
+        Thread.sleep(2500);
         final int[] processed={0};
         final Vector<String> messageIds = new Vector<>();
         consumer.addMessageListener(new MessageListener() {
@@ -901,6 +907,7 @@ public class MessagingTest extends MongoTest {
         final Messaging consumer = new Messaging(morphium, 10, true, true, 2000);
         consumer.start();
         producer.start();
+        Thread.sleep(2500);
         final int[] processed = {0};
         final Map<String, Long> msgCountById = new Hashtable<>();
         consumer.addMessageListener((msg, m) -> {
@@ -922,7 +929,7 @@ public class MessagingTest extends MongoTest {
             return null;
         });
 
-        int numberOfMessages = 10000;
+        int numberOfMessages = 1000;
         for (int i = 0; i < numberOfMessages; i++) {
             Msg m = new Msg("msg", "m", "v");
             m.setTtl(5 * 60 * 1000);
@@ -1115,6 +1122,7 @@ public class MessagingTest extends MongoTest {
         morphium.dropCollection(Msg.class);
         Messaging sender = new Messaging(morphium, 100, false);
         sender.start();
+        Thread.sleep(2500);
         sender.addMessageListener((new MessageListener() {
             @Override
             public Msg onMessage(Messaging msg, Msg m) {
@@ -1184,7 +1192,7 @@ public class MessagingTest extends MongoTest {
         });
 
         m1.start();
-        Thread.sleep(500);
+        Thread.sleep(2500);
 
         Msg answer = sender.sendAndAwaitFirstAnswer(new Msg("test", "Sender", "sent", 15000), 15000);
         assert (answer != null);
@@ -1203,7 +1211,7 @@ public class MessagingTest extends MongoTest {
         Thread.sleep(1000);
         Messaging sender = new Messaging(morphium, 100, false);
         sender.start();
-
+        Thread.sleep(2500);
         gotMessage1 = false;
         gotMessage2 = false;
         gotMessage3 = false;
@@ -1329,7 +1337,7 @@ public class MessagingTest extends MongoTest {
         Thread.sleep(1000);
         Messaging sender = new Messaging(morphium, 100, false);
         sender.start();
-
+        Thread.sleep(2500);
         log.info("Sender ID: "+sender.getSenderId());
 
         gotMessage1=false;
@@ -1418,7 +1426,7 @@ public class MessagingTest extends MongoTest {
         Thread.sleep(1000);
         Messaging sender = new Messaging(morphium, 100, false);
         sender.start();
-
+        Thread.sleep(2500);
         log.info("Sender ID: " + sender.getSenderId());
 
         gotMessage1 = false;
@@ -1471,7 +1479,7 @@ public class MessagingTest extends MongoTest {
         assert (!gotMessage2);
         assert (!fail[0]);
 
-        Thread.sleep(5500);
+        Thread.sleep(8500);
         assert (gotMessage1);
         assert (gotMessage2);
         assert (!fail[0]);

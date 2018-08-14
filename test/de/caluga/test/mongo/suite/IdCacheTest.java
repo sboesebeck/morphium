@@ -27,7 +27,7 @@ public class IdCacheTest extends MongoTest {
         }
 
         waitForWrites();
-        Thread.sleep(1000);
+        Thread.sleep(3000);
 
         Query<CachedObject> q = morphium.createQueryFor(CachedObject.class);
         q = q.f("counter").lt(30);
