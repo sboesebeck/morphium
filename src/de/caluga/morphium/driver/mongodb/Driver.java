@@ -5,6 +5,7 @@ package de.caluga.morphium.driver.mongodb;/**
 
 import com.mongodb.*;
 import com.mongodb.MongoClient;
+import com.mongodb.WriteConcern;
 import com.mongodb.client.*;
 import com.mongodb.client.model.InsertManyOptions;
 import com.mongodb.client.model.InsertOneOptions;
@@ -1030,7 +1031,7 @@ public class Driver implements MorphiumDriver {
     }
 
     @Override
-    public void store(String db, String collection, List<Map<String, Object>> objs, de.caluga.morphium.driver.WriteConcern wc) throws MorphiumDriverException {
+    public void store(String db, String collection, List<Map<String, Object>> objs, de.caluga.morphium.driver.WriteConcern wc, boolean versioning) throws MorphiumDriverException {
         List<Map<String, Object>> isnew = new ArrayList<>();
         final List<Map<String, Object>> notnew = new ArrayList<>();
         for (Map<String, Object> o : objs) {
@@ -1066,6 +1067,14 @@ public class Driver implements MorphiumDriver {
                 //                    toUpdate.remove("_id");
                 //                    Document update = new Document("$set", toUpdate);
                 Document tDocument = new Document(toUpdate);
+                if (versioning) {
+                    filter.put(MorphiumDriver.VERSION_NAME, tDocument.get(MorphiumDriver.VERSION_NAME));
+                    if (tDocument.get(MorphiumDriver.VERSION_NAME) == null) {
+                        tDocument.put(MorphiumDriver.VERSION_NAME, 1L);
+                    } else {
+                        tDocument.put(MorphiumDriver.VERSION_NAME, ((Long) toUpdate.get(MorphiumDriver.VERSION_NAME)) + 1L);
+                    }
+                }
                 for (String k : tDocument.keySet()) {
                     if (tDocument.get(k) instanceof byte[]) {
                         BsonBinary b = new BsonBinary((byte[]) tDocument.get(k));
@@ -1074,13 +1083,17 @@ public class Driver implements MorphiumDriver {
                 }
                 tDocument.remove("_id"); //not needed
                 //noinspection unchecked
-                c.replaceOne(filter, tDocument, o);
+                UpdateResult res = c.replaceOne(filter, tDocument, o);
+                if (res.getModifiedCount() == 0) {
+                    throw new MorphiumDriverException("concurrent modification on DB! nothing updated");
+                }
 
 
                 id = toUpdate.get("_id");
                 if (id instanceof ObjectId) {
                     toUpdate.put("_id", new MorphiumId(((ObjectId) id).toHexString()));
                 }
+
             }
 
             return null;
@@ -1143,6 +1156,7 @@ public class Driver implements MorphiumDriver {
         DriverHelper.replaceMorphiumIdByObjectId(op);
         return DriverHelper.doCall(() -> {
             UpdateOptions opts = new UpdateOptions();
+            WriteConcern w = new com.mongodb.WriteConcern(wc.getW(), wc.getWtimeout(), wc.isFsync(), wc.isJ());
             opts.upsert(upsert);
             UpdateResult res;
             if (multiple) {

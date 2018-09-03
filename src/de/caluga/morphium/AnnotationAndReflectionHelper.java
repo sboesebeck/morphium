@@ -201,6 +201,9 @@ public class AnnotationAndReflectionHelper {
                     return p.fieldName();
                 }
             }
+            if (f.isAnnotationPresent(Version.class)) {
+                return "version";
+            }
 
             if (f.isAnnotationPresent(Reference.class)) {
                 Reference p = f.getAnnotation(Reference.class);
@@ -334,6 +337,11 @@ public class AnnotationAndReflectionHelper {
                 fc.put(key, f);
                 ret = f;
 
+            }
+            if (ret == null && f.isAnnotationPresent(Version.class) && fld.equals("version")) {
+                f.setAccessible(true);
+                fc.put(key, f);
+                ret = f;
             }
             if (ret == null && f.isAnnotationPresent(Reference.class) && !".".equals(f.getAnnotation(Reference.class).fieldName()) && f.getAnnotation(Reference.class).fieldName().equals(fld)) {
                 f.setAccessible(true);

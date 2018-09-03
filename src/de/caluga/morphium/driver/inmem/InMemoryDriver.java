@@ -54,6 +54,11 @@ public class InMemoryDriver implements MorphiumDriver {
         return ret;
     }
 
+    public void resetData() {
+        database.clear();
+        currentTransaction.remove();
+    }
+
     @Override
     public void setCredentials(String db, String login, char[] pwd) {
 

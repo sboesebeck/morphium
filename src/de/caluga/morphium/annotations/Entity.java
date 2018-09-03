@@ -23,6 +23,17 @@ public @interface Entity {
     boolean translateCamelCase() default true;
 
     /**
+     * if true, use auto versioning. then you also need a field of type long with a version annotation
+     *
+     * @return
+     */
+    boolean autoVersioning() default false;
+
+    // specify type id, if . classname is used - migration problem on type change
+    // either help migrating or force using id
+    String typeId() default ".";
+
+    /**
      * use Full Qualified Name as collection name
      *
      * @return
