@@ -652,7 +652,7 @@ public class InMemoryDriver implements MorphiumDriver {
     }
 
     @Override
-    public void store(String db, String collection, List<Map<String, Object>> objs, WriteConcern wc) {
+    public void store(String db, String collection, List<Map<String, Object>> objs, WriteConcern wc, boolean version) {
         for (Map<String, Object> o : objs) {
             if (o.get("_id") == null) {
                 o.put("_id", new MorphiumId());
@@ -823,7 +823,7 @@ public class InMemoryDriver implements MorphiumDriver {
             }
         }
         if (insert) {
-            store(db, collection, lst, wc);
+            store(db, collection, lst, wc, false);
 
         }
         return new HashMap<>();
