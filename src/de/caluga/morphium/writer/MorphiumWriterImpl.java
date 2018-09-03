@@ -4,6 +4,7 @@ import de.caluga.morphium.*;
 import de.caluga.morphium.annotations.*;
 import de.caluga.morphium.async.AsyncOperationCallback;
 import de.caluga.morphium.async.AsyncOperationType;
+import de.caluga.morphium.driver.MorphiumDriver;
 import de.caluga.morphium.driver.MorphiumDriverException;
 import de.caluga.morphium.driver.MorphiumId;
 import de.caluga.morphium.driver.WriteConcern;
@@ -413,6 +414,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                     if (!morphium.getARHelper().isAnnotationPresentInHierarchy(type, Entity.class)) {
                         throw new RuntimeException("Not an entity: " + type.getSimpleName() + " Storing not possible!");
                     }
+                    Entity en = morphium.getARHelper().getAnnotationFromHierarchy(o.getClass(), Entity.class);
                     morphium.inc(StatisticKeys.WRITES);
                     Object id = morphium.getARHelper().getId(o);
                     o = morphium.getARHelper().getRealObject(o);
@@ -440,7 +442,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                     objs.add(marshall);
                     try {
 
-                        morphium.getDriver().store(morphium.getConfig().getDatabase(), coll, objs, wc);
+                        morphium.getDriver().store(morphium.getConfig().getDatabase(), coll, objs, wc, en.autoVersioning());
                     } catch (Throwable t) {
                         throw new RuntimeException(t);
                     }
@@ -592,7 +594,12 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                         if (collectionName == null) {
                             collectionName = morphium.getMapper().getCollectionName(lst.get(0).getClass());
                         }
-                        morphium.getDriver().store(morphium.getConfig().getDatabase(), collectionName, dbLst, wc);
+                        boolean av = false;
+                        Entity en = morphium.getARHelper().getAnnotationFromHierarchy(lst.get(0).getClass(), Entity.class);
+                        if (en != null) {
+                            av = en.autoVersioning();
+                        }
+                        morphium.getDriver().store(morphium.getConfig().getDatabase(), collectionName, dbLst, wc, av);
                         dur = System.currentTimeMillis() - start;
                         for (Class<?> c : types) {
                             morphium.getCache().clearCacheIfNecessary(c);
@@ -650,7 +657,6 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                             return;
                         }
 
-
                         sorted.putIfAbsent(o.getClass(), new ArrayList<>());
                         sorted.get(o.getClass()).add(o);
                         boolean isn = morphium.getId(o) == null;
@@ -683,7 +689,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                                 morphium.ensureIndicesFor(c, coll, callback);
                             }
 
-
+                            Entity en = morphium.getARHelper().getAnnotationFromHierarchy(c, Entity.class);
                             HashMap<Integer, Object> mapMarshalledNewObjects = new HashMap<>();
                             for (Object record : es.getValue()) {
                                 setIdIfNull(record);
@@ -695,7 +701,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                             long start = System.currentTimeMillis();
                             if (!dbLst.isEmpty()) {
                                 //                                System.out.println(System.currentTimeMillis()+" -  driver call" );
-                                morphium.getDriver().store(morphium.getConfig().getDatabase(), coll, dbLst, wc);
+                                morphium.getDriver().store(morphium.getConfig().getDatabase(), coll, dbLst, wc, en.autoVersioning());
                                 //                                System.out.println(System.currentTimeMillis()+" -  driver finish" );
                                 //                                doStoreList(dbLst, wc, coll);
                                 //                                System.out.println(System.currentTimeMillis()+" -  updating ids" );
@@ -885,6 +891,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                     }
                 }
 
+                Entity en = morphium.getARHelper().getAnnotationFromHierarchy(toSet.getClass(), Entity.class);
 
                 WriteConcern wc = morphium.getWriteConcernForClass(cls);
                 long start = System.currentTimeMillis();
@@ -894,11 +901,19 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                         createCappedColl(cls, collection);
                         morphium.ensureIndicesFor(cls, collection, callback);
                     }
-
-                    morphium.getDriver().update(getDbName(), collection, query, update, multiple, upsert, wc);
+                    if (en != null && en.autoVersioning()) {
+                        List<String> versionFields = morphium.getARHelper().getFields(cls, Version.class);
+                        query.put(MorphiumDriver.VERSION_NAME, morphium.getARHelper().getValue(toSet, versionFields.get(0)));
+                        update.put(MorphiumDriver.VERSION_NAME, ((Long) morphium.getARHelper().getValue(toSet, versionFields.get(0))) + 1L);
+                    }
+                    Map<String, Object> res = morphium.getDriver().update(getDbName(), collection, query, update, multiple, upsert, wc);
+                    if (res.get("modified").equals(0L)) {
+                        throw new IllegalArgumentException("could not modify");
+                    }
                     long dur = System.currentTimeMillis() - start;
                     morphium.fireProfilingWriteEvent(cls, update, dur, false, WriteAccessType.SINGLE_UPDATE);
                     morphium.getCache().clearCacheIfNecessary(cls);
+
                     try {
                         f.set(toSet, value);
                     } catch (IllegalAccessException e) {
@@ -995,6 +1010,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                 for (String f : fields) {
                     try {
                         Object value = morphium.getARHelper().getValue(ent, f);
+                        Entity en = morphium.getARHelper().getAnnotationFromHierarchy(value.getClass(), Entity.class);
                         if (morphium.getARHelper().isAnnotationPresentInHierarchy(value.getClass(), Entity.class)) {
                             if (morphium.getARHelper().getField(ent.getClass(), f).getAnnotation(Reference.class) != null) {
                                 //need to store reference
@@ -1002,6 +1018,9 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                             } else {
                                 value = morphium.getMapper().serialize(value);
                             }
+                        }
+                        if (en != null && en.translateCamelCase() || en != null && morphium.getConfig().isCamelCaseConversionEnabled()) {
+                            f = morphium.getARHelper().convertCamelCase(f);
                         }
                         update.put(f, value);
 
@@ -1043,6 +1062,13 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                     if (morphium.getConfig().isAutoIndexAndCappedCreationOnWrite() && !morphium.getDriver().exists(getDbName(), collectionName)) {
                         createCappedColl(ent.getClass(), collectionName);
                         morphium.ensureIndicesFor((Class<T>) ent.getClass(), collectionName, callback);
+                    }
+                    Entity en = morphium.getARHelper().getAnnotationFromHierarchy(ent.getClass(), Entity.class);
+                    if (en != null && en.autoVersioning()) {
+                        List<String> fl = morphium.getARHelper().getFields(ent.getClass(), Version.class);
+
+                        find.put(MorphiumDriver.VERSION_NAME, morphium.getARHelper().getValue(ent, fl.get(0)));
+                        update.put(MorphiumDriver.VERSION_NAME, ((Long) morphium.getARHelper().getValue(ent, fl.get(0))) + 1);
                     }
                     morphium.getDriver().update(getDbName(), collectionName, find, update, false, false, wc);
 
@@ -1250,10 +1276,20 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                         createCappedColl(cls, coll);
                         morphium.ensureIndicesFor(cls, coll, callback);
                     }
-                    morphium.getDriver().update(getDbName(), coll, query, update, false, false, wc);
-
+                    Entity en = morphium.getARHelper().getAnnotationFromHierarchy(cls, Entity.class);
+                    Long currentVersion = morphium.getARHelper().getLongValue(toInc, MorphiumDriver.VERSION_NAME);
+                    if (en != null && en.autoVersioning()) {
+                        query.put(MorphiumDriver.VERSION_NAME, currentVersion);
+                        ((Map) update.get("$inc")).put(MorphiumDriver.VERSION_NAME, currentVersion + 1L);
+                    }
+                    Map<String, Object> res = morphium.getDriver().update(getDbName(), coll, query, update, false, false, wc);
+                    if (res.get("modified").equals(0L)) {
+                        throw new IllegalArgumentException("Versioning error? Could not update");
+                    }
                     morphium.getCache().clearCacheIfNecessary(cls);
-
+                    if (en != null && en.autoVersioning()) {
+                        morphium.getARHelper().setValue(toInc, currentVersion + 1L, morphium.getARHelper().getFields(cls, Version.class).get(0));
+                    }
                     if (f.getType().equals(Integer.class) || f.getType().equals(int.class)) {
                         try {
                             f.set(toInc, ((Integer) f.get(toInc)) + amount.intValue());
