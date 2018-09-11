@@ -146,6 +146,9 @@ public class MongoTest {
 
                 cfg.setGlobalCacheValidTime(1000);
                 cfg.setHousekeepingTimeout(500);
+                cfg.setThreadPoolMessagingCoreSize(5);
+                cfg.setThreadPoolMessagingMaxSize(150);
+                cfg.setThreadPoolMessagingKeepAliveTime(10000);
 
                 cfg.setGlobalFsync(false);
                 cfg.setGlobalJ(false);
@@ -357,6 +360,8 @@ public class MongoTest {
     public void setUp() {
 
         try {
+            log.info("Re-connecting to mongo");
+            morphium.reset();
             log.info("resetting DB...");
             List<String> lst = morphium.getDriver().getCollectionNames(morphium.getConfig().getDatabase());
             for (String col : lst) {

@@ -124,9 +124,39 @@ public class Morphium {
         }
         config = cfg;
         annotationHelper = new AnnotationAndReflectionHelper(cfg.isCamelCaseConversionEnabled());
+
+        BlockingQueue<Runnable> queue = new LinkedBlockingQueue<Runnable>() {
+            private static final long serialVersionUID = -6903933921423432194L;
+
+            @Override
+            public boolean offer(Runnable e) {
+                int poolSize = asyncOperationsThreadPool.getPoolSize();
+                int maximumPoolSize = asyncOperationsThreadPool.getMaximumPoolSize();
+                if (poolSize >= maximumPoolSize || poolSize > asyncOperationsThreadPool.getActiveCount()) {
+                    return super.offer(e);
+                } else {
+                    return false;
+                }
+            }
+        };
         asyncOperationsThreadPool = new ThreadPoolExecutor(getConfig().getThreadPoolAsyncOpCoreSize(), getConfig().getThreadPoolAsyncOpMaxSize(),
                 getConfig().getThreadPoolAsyncOpKeepAliveTime(), TimeUnit.MILLISECONDS,
-                new SynchronousQueue<>());
+                queue);
+        asyncOperationsThreadPool.setRejectedExecutionHandler(new RejectedExecutionHandler() {
+            @Override
+            public void rejectedExecution(Runnable r, ThreadPoolExecutor executor) {
+                try {
+                    /*
+                     * This does the actual put into the queue. Once the max threads
+                     * have been reached, the tasks will then queue up.
+                     */
+                    executor.getQueue().put(r);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    return;
+                }
+            }
+        });
         asyncOperationsThreadPool.setThreadFactory(new ThreadFactory() {
             private final AtomicInteger num = new AtomicInteger(1);
 
@@ -2448,7 +2478,9 @@ public class Morphium {
     }
 
     public void close() {
-        asyncOperationsThreadPool.shutdownNow();
+        if (asyncOperationsThreadPool != null) {
+            asyncOperationsThreadPool.shutdownNow();
+        }
         asyncOperationsThreadPool = null;
         for (ShutdownListener l : shutDownListeners) {
             l.onShutdown(this);
@@ -2491,6 +2523,7 @@ public class Morphium {
         config.setWriter(null);
         config = null;
         morphiumDriver = null;
+//        config.getCache().resetCache();
         //        MorphiumSingleton.reset();
     }
 
@@ -2788,5 +2821,12 @@ public class Morphium {
         } catch (MorphiumDriverException e) {
             throw new RuntimeException(e);
         }
+    }
+
+    public void reset() {
+        MorphiumConfig cfg = getConfig();
+        close();
+        setConfig(cfg);
+        initializeAndConnect();
     }
 }

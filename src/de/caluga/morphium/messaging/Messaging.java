@@ -92,9 +92,47 @@ public class Messaging extends Thread implements ShutdownListener {
 
 
         if (multithreadded) {
+            BlockingQueue<Runnable> queue = new LinkedBlockingQueue<Runnable>() {
+                @Override
+                public boolean offer(Runnable e) {
+                    /*
+                     * Offer it to the queue if there is 0 items already queued, else
+                     * return false so the TPE will add another thread. If we return false
+                     * and max threads have been reached then the RejectedExecutionHandler
+                     * will be called which will do the put into the queue.
+                     */
+//                    if (size() == 0) {
+//                        return super.offer(e);
+//                    } else {
+//                        return false;
+//                    }
+                    int poolSize = threadPool.getPoolSize();
+                    int maximumPoolSize = threadPool.getMaximumPoolSize();
+                    if (poolSize >= maximumPoolSize || poolSize > threadPool.getActiveCount()) {
+                        return super.offer(e);
+                    } else {
+                        return false;
+                    }
+                }
+            };
             threadPool = new ThreadPoolExecutor(morphium.getConfig().getThreadPoolMessagingCoreSize(), morphium.getConfig().getThreadPoolMessagingMaxSize(),
                     morphium.getConfig().getThreadPoolMessagingKeepAliveTime(), TimeUnit.MILLISECONDS,
-                    new LinkedBlockingQueue<>());
+                    queue);
+            threadPool.setRejectedExecutionHandler(new RejectedExecutionHandler() {
+                @Override
+                public void rejectedExecution(Runnable r, ThreadPoolExecutor executor) {
+                    try {
+                        /*
+                         * This does the actual put into the queue. Once the max threads
+                         * have been reached, the tasks will then queue up.
+                         */
+                        executor.getQueue().put(r);
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                        return;
+                    }
+                }
+            });
             //noinspection unused,unused
             threadPool.setThreadFactory(new ThreadFactory() {
                 private AtomicInteger num = new AtomicInteger(1);
@@ -193,10 +231,10 @@ public class Messaging extends Thread implements ShutdownListener {
                 log.error("Error processing existing messages in queue", e);
             }
             log.debug("init Messaging  using changestream monitor");
-            //changeStreamMonitor = new OplogMonitor(morphium, getCollectionName(), false);
+            //changeStreamMonitor = new changeStream(morphium, getCollectionName(), false);
             changeStreamMonitor = new ChangeStreamMonitor(morphium, getCollectionName(), true);
             changeStreamMonitor.addListener(evt -> {
-//                    log.debug("incoming message via oplogmonitor");
+//                    log.debug("incoming message via changeStream");
                 if (evt.getOperationType().equals("insert")) {
                     //insert => new Message
 //                        log.debug("New message incoming");
@@ -746,6 +784,7 @@ public class Messaging extends Thread implements ShutdownListener {
     @Override
     public void onShutdown(Morphium m) {
         try {
+            running = false;
             if (threadPool != null) {
                 threadPool.shutdownNow();
                 threadPool = null;
