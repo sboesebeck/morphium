@@ -1031,7 +1031,7 @@ public class Driver implements MorphiumDriver {
     }
 
     @Override
-    public void store(String db, String collection, List<Map<String, Object>> objs, de.caluga.morphium.driver.WriteConcern wc, boolean versioning) throws MorphiumDriverException {
+    public Map<String,Object> store(String db, String collection, List<Map<String, Object>> objs, de.caluga.morphium.driver.WriteConcern wc) throws MorphiumDriverException {
         List<Map<String, Object>> isnew = new ArrayList<>();
         final List<Map<String, Object>> notnew = new ArrayList<>();
         for (Map<String, Object> o : objs) {
@@ -1048,11 +1048,13 @@ public class Driver implements MorphiumDriver {
         //            Object id=o.get("_id");
         //            if (id instanceof ObjectId) o.put("_id",new MorphiumId(((ObjectId)id).toHexString()));
         //        }
-        DriverHelper.doCall(() -> {
+       Map m= DriverHelper.doCall(() -> {
             DriverHelper.replaceMorphiumIdByObjectId(notnew);
             MongoCollection c = mongo.getDatabase(db).getCollection(collection);
-
+            Map<String,Object> ret=new HashMap<>();
             //                mongo.getDB(db).getCollection(collection).save()
+            int total=notnew.size();
+            int updated=0;
             for (Map<String, Object> toUpdate : notnew) {
 
                 UpdateOptions o = new UpdateOptions();
@@ -1064,17 +1066,14 @@ public class Driver implements MorphiumDriver {
                     id = new ObjectId(id.toString());
                 }
                 filter.put("_id", id);
+                //Hack to detect versioning
+                if (toUpdate.get(MorphiumDriver.VERSION_NAME)!=null){
+                    filter.put(MorphiumDriver.VERSION_NAME,toUpdate.get(MorphiumDriver.VERSION_NAME));
+                }
                 //                    toUpdate.remove("_id");
                 //                    Document update = new Document("$set", toUpdate);
                 Document tDocument = new Document(toUpdate);
-                if (versioning) {
-                    filter.put(MorphiumDriver.VERSION_NAME, tDocument.get(MorphiumDriver.VERSION_NAME));
-                    if (tDocument.get(MorphiumDriver.VERSION_NAME) == null) {
-                        tDocument.put(MorphiumDriver.VERSION_NAME, 1L);
-                    } else {
-                        tDocument.put(MorphiumDriver.VERSION_NAME, ((Long) toUpdate.get(MorphiumDriver.VERSION_NAME)) + 1L);
-                    }
-                }
+
                 for (String k : tDocument.keySet()) {
                     if (tDocument.get(k) instanceof byte[]) {
                         BsonBinary b = new BsonBinary((byte[]) tDocument.get(k));
@@ -1084,20 +1083,19 @@ public class Driver implements MorphiumDriver {
                 tDocument.remove("_id"); //not needed
                 //noinspection unchecked
                 UpdateResult res = c.replaceOne(filter, tDocument, o);
-                if (res.getModifiedCount() == 0) {
-                    throw new MorphiumDriverException("concurrent modification on DB! nothing updated");
-                }
-
-
+                updated+=res.getModifiedCount();
                 id = toUpdate.get("_id");
                 if (id instanceof ObjectId) {
                     toUpdate.put("_id", new MorphiumId(((ObjectId) id).toHexString()));
                 }
 
             }
-
-            return null;
+            ret.put("modified",updated);
+            ret.put("total",total);
+            return ret;
         }, retriesOnNetworkError, sleepBetweenErrorRetries);
+       m.put("inserted",isnew.size());
+       return m;
     }
 
     @Override

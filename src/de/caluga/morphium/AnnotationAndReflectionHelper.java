@@ -4,6 +4,7 @@ import de.caluga.morphium.annotations.*;
 import de.caluga.morphium.annotations.caching.AsyncWrites;
 import de.caluga.morphium.annotations.caching.WriteBuffer;
 import de.caluga.morphium.annotations.lifecycle.Lifecycle;
+import de.caluga.morphium.driver.MorphiumDriver;
 import de.caluga.morphium.driver.MorphiumId;
 import org.slf4j.Logger;
 
@@ -202,7 +203,7 @@ public class AnnotationAndReflectionHelper {
                 }
             }
             if (f.isAnnotationPresent(Version.class)) {
-                return "version";
+                return MorphiumDriver.VERSION_NAME;
             }
 
             if (f.isAnnotationPresent(Reference.class)) {
@@ -338,7 +339,7 @@ public class AnnotationAndReflectionHelper {
                 ret = f;
 
             }
-            if (ret == null && f.isAnnotationPresent(Version.class) && fld.equals("version")) {
+            if (ret == null && f.isAnnotationPresent(Version.class) && fld.equals(MorphiumDriver.VERSION_NAME)) {
                 f.setAccessible(true);
                 fc.put(key, f);
                 ret = f;

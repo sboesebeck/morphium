@@ -204,7 +204,7 @@ public interface MorphiumDriver {
      * @param wc
      * @throws MorphiumDriverException
      */
-    void store(String db, String collection, List<Map<String, Object>> objs, WriteConcern wc, boolean versioning) throws MorphiumDriverException;
+    Map<String,Object> store(String db, String collection, List<Map<String, Object>> objs, WriteConcern wc) throws MorphiumDriverException;
 
 
     Map<String, Object> update(String db, String collection, Map<String, Object> query, Map<String, Object> op, boolean multiple, boolean upsert, WriteConcern wc) throws MorphiumDriverException;

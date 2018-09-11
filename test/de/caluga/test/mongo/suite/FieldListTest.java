@@ -55,7 +55,7 @@ public class FieldListTest extends MongoTest {
         marshall.put("read_only_value", "stored in db");
         List<Map<String, Object>> lst = new ArrayList<>();
         lst.add(marshall);
-        morphium.getDriver().store(morphium.getConfig().getDatabase(), "read_only_object", lst, null, false);
+        morphium.getDriver().store(morphium.getConfig().getDatabase(), "read_only_object", lst, null);
 
         morphium.reread(ro);
         assert (ro.readOnlyValue.equals("stored in db"));
