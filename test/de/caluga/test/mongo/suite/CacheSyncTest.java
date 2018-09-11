@@ -527,7 +527,7 @@ public class CacheSyncTest extends MongoTest {
         obj.put("counter", 123);
         obj.put(CachedObject.Fields.value.name(), "test");
         writings.add(obj);
-        morphium.getDriver().store(morphium.getConfig().getDatabase(), morphium.getMapper().getCollectionName(CachedObject.class), writings, morphium.getWriteConcernForClass(CachedObject.class), false);
+        morphium.getDriver().store(morphium.getConfig().getDatabase(), morphium.getMapper().getCollectionName(CachedObject.class), writings, morphium.getWriteConcernForClass(CachedObject.class));
         //stored some object avoiding cache handling in morphium
         //now cache should be empty
         waitForWriteToStart(1000);

@@ -330,6 +330,10 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                     morphium.firePreStore(o, true);
 
                     setIdIfNull(o);
+                    Entity en=morphium.getARHelper().getAnnotationFromHierarchy(type,Entity.class);
+                    if (en.autoVersioning()){
+                        morphium.getARHelper().setValue(o,1,morphium.getARHelper().getFields(type,Version.class).get(0));
+                    }
 
                     Map<String, Object> marshall = morphium.getMapper().serialize(o);
 
@@ -339,12 +343,10 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                     }
                     createIndexAndCaps(type, coll, callback);
 
-
                     WriteConcern wc = morphium.getWriteConcernForClass(type);
                     List<Map<String, Object>> objs = new ArrayList<>();
                     objs.add(marshall);
                     try {
-
                         morphium.getDriver().insert(morphium.getConfig().getDatabase(), coll, objs, wc);
                     } catch (Throwable t) {
                         throw new RuntimeException(t);
@@ -428,6 +430,13 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                     }
                     morphium.firePreStore(o, isNew);
                     setIdIfNull(o);
+
+                    if (en.autoVersioning()){
+                        String fld = morphium.getARHelper().getFields(type, Version.class).get(0);
+                        Long v=morphium.getARHelper().getLongValue(o, fld);
+                        v=v+1;
+                        morphium.getARHelper().setValue(o,v,fld);
+                    }
                     Map<String, Object> marshall = morphium.getMapper().serialize(o);
 
                     String coll = collection;
@@ -436,15 +445,25 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                     }
                     createIndexAndCaps(type, coll, callback);
 
-
                     WriteConcern wc = morphium.getWriteConcernForClass(type);
                     List<Map<String, Object>> objs = new ArrayList<>();
                     objs.add(marshall);
+                    Map<String, Object> ret=null;
                     try {
-
-                        morphium.getDriver().store(morphium.getConfig().getDatabase(), coll, objs, wc, en.autoVersioning());
+                        ret = morphium.getDriver().store(morphium.getConfig().getDatabase(), coll, objs, wc);
+                    } catch (MorphiumDriverException mde){
+                        if (mde.getMessage().contains("duplicate key") && mde.getMessage().contains("_id") && en.autoVersioning()){
+                            throw new IllegalArgumentException("Versioning / upsert failure - concurrent modification!");
+                        } else {
+                            throw mde;
+                        }
                     } catch (Throwable t) {
                         throw new RuntimeException(t);
+                    }
+                    if (en.autoVersioning()){
+                        if (((Integer)ret.get("total"))<((Integer)ret.get("modified"))){
+                            throw new IllegalArgumentException("versioning failure");
+                        }
                     }
                     long dur = System.currentTimeMillis() - start;
                     morphium.fireProfilingWriteEvent(o.getClass(), marshall, dur, true, WriteAccessType.SINGLE_INSERT);
@@ -599,7 +618,9 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                         if (en != null) {
                             av = en.autoVersioning();
                         }
-                        morphium.getDriver().store(morphium.getConfig().getDatabase(), collectionName, dbLst, wc, av);
+                        //TODO: implement versioning
+
+                        morphium.getDriver().store(morphium.getConfig().getDatabase(), collectionName, dbLst, wc);
                         dur = System.currentTimeMillis() - start;
                         for (Class<?> c : types) {
                             morphium.getCache().clearCacheIfNecessary(c);
@@ -701,7 +722,13 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                             long start = System.currentTimeMillis();
                             if (!dbLst.isEmpty()) {
                                 //                                System.out.println(System.currentTimeMillis()+" -  driver call" );
-                                morphium.getDriver().store(morphium.getConfig().getDatabase(), coll, dbLst, wc, en.autoVersioning());
+
+                                Map<String, Object> ret = morphium.getDriver().store(morphium.getConfig().getDatabase(), coll, dbLst, wc);
+                                if (en.autoVersioning()){
+                                    if (((Integer)ret.get("total"))<((Integer)ret.get("modified"))){
+                                        throw new IllegalArgumentException("versioning failure");
+                                    }
+                                }
                                 //                                System.out.println(System.currentTimeMillis()+" -  driver finish" );
                                 //                                doStoreList(dbLst, wc, coll);
                                 //                                System.out.println(System.currentTimeMillis()+" -  updating ids" );
@@ -1481,7 +1508,10 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                         throw new RuntimeException(e);
                     }
                 }
-
+                Entity en=morphium.getARHelper().getAnnotationFromHierarchy(cls,Entity.class);
+                if (en.autoVersioning()){
+                    update.put("$inc",Utils.getMap(MorphiumDriver.VERSION_NAME,1));
+                }
 
                 List<String> latChangeFlds = morphium.getARHelper().getFields(cls, LastChange.class);
                 if (latChangeFlds != null && !latChangeFlds.isEmpty()) {
@@ -1762,6 +1792,10 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
         }
         if (upsert) {
             doUpsert(upsert, cls, coll, qobj, update);
+        }
+        Entity en=morphium.getARHelper().getAnnotationFromHierarchy(cls,Entity.class);
+        if (en.autoVersioning()){
+            update.put("$inc",Utils.getMap(MorphiumDriver.VERSION_NAME,1));
         }
 
         WriteConcern wc = morphium.getWriteConcernForClass(cls);
