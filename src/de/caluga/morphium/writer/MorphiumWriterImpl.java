@@ -16,10 +16,7 @@ import org.slf4j.LoggerFactory;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.util.*;
-import java.util.concurrent.SynchronousQueue;
-import java.util.concurrent.ThreadFactory;
-import java.util.concurrent.ThreadPoolExecutor;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
@@ -56,9 +53,43 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
     public void setMorphium(Morphium m) {
         morphium = m;
         if (m != null) {
+            BlockingQueue<Runnable> queue = new LinkedBlockingQueue<Runnable>() {
+                @Override
+                public boolean offer(Runnable e) {
+                    /*
+                     * Offer it to the queue if there is 0 items already queued, else
+                     * return false so the TPE will add another thread. If we return false
+                     * and max threads have been reached then the RejectedExecutionHandler
+                     * will be called which will do the put into the queue.
+                     */
+                    int poolSize = executor.getPoolSize();
+                    int maximumPoolSize = executor.getMaximumPoolSize();
+                    if (poolSize >= maximumPoolSize || poolSize > executor.getActiveCount()) {
+                        return super.offer(e);
+                    } else {
+                        return false;
+                    }
+                }
+            };
             executor = new ThreadPoolExecutor(m.getConfig().getMaxConnections() / 2, (int) (m.getConfig().getMaxConnections() * m.getConfig().getBlockingThreadsMultiplier() * 0.9),
                     60L, TimeUnit.SECONDS,
-                    new SynchronousQueue<>());
+                    queue);
+
+            executor.setRejectedExecutionHandler(new RejectedExecutionHandler() {
+                @Override
+                public void rejectedExecution(Runnable r, ThreadPoolExecutor executor) {
+                    try {
+                        /*
+                         * This does the actual put into the queue. Once the max threads
+                         * have been reached, the tasks will then queue up.
+                         */
+                        executor.getQueue().put(r);
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                        return;
+                    }
+                }
+            });
             //            executor.setRejectedExecutionHandler(new RejectedExecutionHandler() {
             //                @Override
             //                public void rejectedExecution(Runnable r, ThreadPoolExecutor executor) {

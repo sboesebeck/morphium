@@ -78,7 +78,7 @@ public class ChangeStreamMonitor implements Runnable, ShutdownListener {
     public void stop() {
         running = false;
         long start = System.currentTimeMillis();
-        while (changeStreamThread.isAlive()) {
+        while (changeStreamThread != null && changeStreamThread.isAlive()) {
             try {
                 Thread.sleep(100);
             } catch (InterruptedException e) {
@@ -88,7 +88,7 @@ public class ChangeStreamMonitor implements Runnable, ShutdownListener {
                 break;
             }
         }
-        if (changeStreamThread.isAlive()) {
+        if (changeStreamThread != null && changeStreamThread.isAlive()) {
             changeStreamThread.interrupt();
         }
         changeStreamThread = null;
