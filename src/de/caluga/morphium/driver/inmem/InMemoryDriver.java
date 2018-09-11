@@ -652,20 +652,30 @@ public class InMemoryDriver implements MorphiumDriver {
     }
 
     @Override
-    public void store(String db, String collection, List<Map<String, Object>> objs, WriteConcern wc, boolean version) {
+    public Map<String,Object> store(String db, String collection, List<Map<String, Object>> objs, WriteConcern wc) {
+        Map<String,Object> ret=new HashMap<>();
+        int upd=0;
+        int total=objs.size();
         for (Map<String, Object> o : objs) {
+
             if (o.get("_id") == null) {
                 o.put("_id", new MorphiumId());
                 getCollection(db, collection).add(o);
                 continue;
             }
             List<Map<String, Object>> srch = findByFieldValue(db, collection, "_id", o.get("_id"));
+
             if (!srch.isEmpty()) {
                 getCollection(db, collection).remove(srch.get(0));
+                upd++;
             }
             getCollection(db, collection).add(o);
         }
+        ret.put("matched",upd);
+        ret.put("updated",upd);
+        return ret;
     }
+
 
     private Map<String, List<Map<String, Object>>> getDB(String db) {
         if (currentTransaction.get() == null) {
@@ -823,7 +833,7 @@ public class InMemoryDriver implements MorphiumDriver {
             }
         }
         if (insert) {
-            store(db, collection, lst, wc, false);
+            store(db, collection, lst, wc);
 
         }
         return new HashMap<>();
