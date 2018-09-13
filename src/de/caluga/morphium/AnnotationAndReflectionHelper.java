@@ -603,6 +603,34 @@ public class AnnotationAndReflectionHelper {
         }
     }
 
+    public Field getVersionField(Object o) {
+        Class<?> cls;
+        if (o instanceof Class) {
+            cls = getRealClass((Class<?>) o);
+        } else {
+            cls = getRealClass(o.getClass());
+        }
+
+        List<String> flds = getFields(cls, Version.class);
+        if (flds == null || flds.isEmpty()) {
+            throw new IllegalArgumentException("Object has no version field defined: " + o.getClass().getSimpleName());
+        }
+        return getField(cls, flds.get(0));
+    }
+
+    public Long getVersion(Object o) {
+        if (o == null) {
+            throw new IllegalArgumentException("Object cannot be null");
+        }
+
+        List<String> flds = getFields(o.getClass(), Version.class);
+        if (flds == null || flds.isEmpty()) throw new IllegalArgumentException("No version field defined");
+        try {
+            return (Long) (getField(o.getClass(), flds.get(0))).get(o);
+        } catch (IllegalAccessException e) {
+            throw new RuntimeException(e);
+        }
+    }
 
     public Object getId(Object o) {
         if (o == null) {
