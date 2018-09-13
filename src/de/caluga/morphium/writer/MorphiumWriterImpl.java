@@ -4,6 +4,7 @@ import de.caluga.morphium.*;
 import de.caluga.morphium.annotations.*;
 import de.caluga.morphium.async.AsyncOperationCallback;
 import de.caluga.morphium.async.AsyncOperationType;
+import de.caluga.morphium.bulk.MorphiumBulkContext;
 import de.caluga.morphium.driver.MorphiumDriver;
 import de.caluga.morphium.driver.MorphiumDriverException;
 import de.caluga.morphium.driver.MorphiumId;
@@ -602,6 +603,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                         long start = System.currentTimeMillis();
                         //                        int cnt = 0;
                         List<Class<?>> types = new ArrayList<>();
+                        MorphiumBulkContext ctx = morphium.createBulkRequestContext(collectionName, false);
                         for (Object record : lst) {
 
                             Object id = morphium.getARHelper().getId(record);
@@ -631,8 +633,49 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                             } catch (IllegalAccessException e) {
                                 throw new RuntimeException(e);
                             }
+
+                            boolean av = false;
                             Map<String, Object> marshall = morphium.getMapper().serialize(record);
-                            dbLst.add(marshall);
+                            Entity en = morphium.getARHelper().getAnnotationFromHierarchy(record.getClass(), Entity.class);
+                            if (en != null) {
+                                av = en.autoVersioning();
+                            }
+                            if (av) {
+                                Long version = morphium.getARHelper().getVersion(record);
+                                marshall.put(MorphiumDriver.VERSION_NAME, version + 1);
+                                ctx.addSetRequest(morphium.createQueryFor(record.getClass()).f("_id").eq(morphium.getARHelper().getId(record)).f(MorphiumDriver.VERSION_NAME).eq(version), marshall, false, false);
+                            } else {
+
+                                dbLst.add(marshall);
+                            }
+                        }
+
+                        if (ctx.getNumberOfRequests() > 0) {
+                            Map result = ctx.runBulk();
+                            /**
+                             * res.put("num_del", delCount);
+                             *         res.put("num_matched", matchedCount);
+                             *         res.put("num_insert", insertCount);
+                             *         res.put("num_modified", modifiedCount);
+                             *         res.put("num_upserts", upsertCount);
+                             */
+                            if (!result.get("num_modified").equals((long) ctx.getNumberOfRequests())) {
+                                throw new RuntimeException("modification failed - concurrent modification?");
+                            }
+                            for (Object record : lst) {
+                                boolean av = false;
+                                Entity en = morphium.getARHelper().getAnnotationFromHierarchy(record.getClass(), Entity.class);
+                                if (en != null) {
+                                    av = en.autoVersioning();
+                                }
+                                if (av) {
+                                    try {
+                                        morphium.getARHelper().getVersionField(record).set(record, morphium.getARHelper().getVersion(record) + 1);
+                                    } catch (IllegalAccessException e) {
+                                        throw new RuntimeException(e);
+                                    }
+                                }
+                            }
                         }
                         morphium.firePreStore(isNew);
 
@@ -644,12 +687,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                         if (collectionName == null) {
                             collectionName = morphium.getMapper().getCollectionName(lst.get(0).getClass());
                         }
-                        boolean av = false;
-                        Entity en = morphium.getARHelper().getAnnotationFromHierarchy(lst.get(0).getClass(), Entity.class);
-                        if (en != null) {
-                            av = en.autoVersioning();
-                        }
-                        //TODO: implement versioning
+
 
                         morphium.getDriver().store(morphium.getConfig().getDatabase(), collectionName, dbLst, wc);
                         dur = System.currentTimeMillis() - start;
