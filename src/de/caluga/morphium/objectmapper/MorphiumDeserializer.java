@@ -122,7 +122,7 @@ public class MorphiumDeserializer {
                                 if (e instanceof Map) {
                                     if (((Map) e).get("class_name") != null) {
                                         try {
-                                            Class<?> clsName = Class.forName((String) ((Map) e).get("class_name"));
+                                            Class<?> clsName = anhelper.getClassForTypeId((String) ((Map) e).get("class_name"));
 
                                             toAdd.add(jackson.convertValue(e, clsName));
                                         } catch (ClassNotFoundException e1) {
@@ -162,7 +162,7 @@ public class MorphiumDeserializer {
                             Map<String, String> m = (Map<String, String>) jsonParser.readValueAs(Map.class);
                             Class<Enum> target = null;
                             try {
-                                target = (Class<Enum>) Class.forName(m.get("class_name"));
+                                target = (Class<Enum>) anhelper.getClassForTypeId(m.get("class_name"));
                             } catch (ClassNotFoundException e) {
                                 throw new RuntimeException(e);
                             }
@@ -251,7 +251,7 @@ public class MorphiumDeserializer {
                 Map ev = (Map) e.getValue();
                 Class cls = Map.class;
                 if (ev.get("class_name") != null) {
-                    cls = Class.forName((String) ev.get("class_name"));
+                    cls = anhelper.getClassForTypeId((String) ev.get("class_name"));
                     if (cls.isEnum()) {
                         toPut = Enum.valueOf(cls, (String) ev.get("name"));
                     } else {
@@ -347,13 +347,13 @@ public class MorphiumDeserializer {
                     MorphiumReference ref = jackson.convertValue(el, MorphiumReference.class);
                     Object t;
                     if (ref.isLazy()) {
-                        t = morphium.createLazyLoadedEntity(Class.forName(ref.getClassName()), ref.getId(), ref.getCollectionName());
+                        t = morphium.createLazyLoadedEntity(anhelper.getClassForTypeId(ref.getClassName()), ref.getId(), ref.getCollectionName());
                     } else {
-                        t = morphium.findById(Class.forName(ref.getClassName()), ref.getId(), ref.getCollectionName());
+                        t = morphium.findById(anhelper.getClassForTypeId(ref.getClassName()), ref.getId(), ref.getCollectionName());
                     }
                     listOut.add(t);
                 } else if (((Map) el).get("class_name") != null) {
-                    Class<?> cls = Class.forName((String) ((Map) el).get("class_name"));
+                    Class<?> cls = anhelper.getClassForTypeId((String) ((Map) el).get("class_name"));
                     if (cls.isEnum()) {
                         listOut.add(Enum.valueOf((Class) cls, (String) ((Map) el).get("name")));
                     } else {
@@ -486,7 +486,7 @@ public class MorphiumDeserializer {
                 if (type.isInterface() || Modifier.isAbstract(type.getModifiers())) {
                     Map m = jsonParser.readValueAs(Map.class);
                     if (m.get("class_name") != null) {
-                        ret = jackson.convertValue(m, Class.forName(m.get("class_name").toString()));
+                        ret = jackson.convertValue(m, anhelper.getClassForTypeId(m.get("class_name").toString()));
                     }
                     return ret;
                 }

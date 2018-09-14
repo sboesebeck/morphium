@@ -8,7 +8,7 @@ import de.caluga.morphium.annotations.Embedded;
  * Time: 16:54
  * <p/>
  */
-@Embedded
+@Embedded(typeId = "embedded")
 public class EmbeddedObject {
     private String name;
     private String value;

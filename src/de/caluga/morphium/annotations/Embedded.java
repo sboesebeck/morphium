@@ -18,6 +18,8 @@ import static java.lang.annotation.ElementType.TYPE;
 public @interface Embedded {
     boolean translateCamelCase() default true;
 
+    String typeId() default ".";
+
     /**
      * several different objects of same type stored in field
      * if set, className is  stored in object

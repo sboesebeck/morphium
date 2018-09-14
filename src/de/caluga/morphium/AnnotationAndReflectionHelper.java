@@ -6,6 +6,7 @@ import de.caluga.morphium.annotations.caching.WriteBuffer;
 import de.caluga.morphium.annotations.lifecycle.Lifecycle;
 import de.caluga.morphium.driver.MorphiumDriver;
 import de.caluga.morphium.driver.MorphiumId;
+import io.github.classgraph.*;
 import org.slf4j.Logger;
 
 import java.lang.annotation.Annotation;
@@ -43,6 +44,7 @@ public class AnnotationAndReflectionHelper {
     private final Map<Class<?>, List<Field>> fieldListCache;
     private final Map<Class<?>, Map<Class<? extends Annotation>, Annotation>> annotationCache;
     private final Map<Class<?>, Map<String, String>> fieldNameCache;
+    private final ConcurrentHashMap<String, String> classNameByType;
     private Map<String, Field> fieldCache;
     private Map<String, List<String>> fieldAnnotationListCache;
     private Map<Class<?>, Map<Class<? extends Annotation>, Method>> lifeCycleMethods;
@@ -50,15 +52,7 @@ public class AnnotationAndReflectionHelper {
     private boolean ccc;
 
     public AnnotationAndReflectionHelper(boolean convertCamelCase) {
-        this.ccc = convertCamelCase;
-        this.realClassCache = new ConcurrentHashMap<>();
-        this.fieldListCache = new ConcurrentHashMap<>();
-        this.fieldCache = new ConcurrentHashMap<>();
-        this.fieldAnnotationListCache = new ConcurrentHashMap<>();
-        this.lifeCycleMethods = new ConcurrentHashMap<>();
-        this.hasAdditionalData = new ConcurrentHashMap<>();
-        this.annotationCache = new ConcurrentHashMap<>();
-        this.fieldNameCache = new ConcurrentHashMap<>();
+        this(convertCamelCase, new HashMap<>());
     }
 
     public AnnotationAndReflectionHelper(boolean convertCamelCase, Map<Class<?>, Class<?>> realClassCache) {
@@ -71,6 +65,69 @@ public class AnnotationAndReflectionHelper {
         this.hasAdditionalData = new ConcurrentHashMap<>();
         this.annotationCache = new ConcurrentHashMap<>();
         this.fieldNameCache = new ConcurrentHashMap<>();
+        this.classNameByType = new ConcurrentHashMap<String, String>();
+        init();
+    }
+
+    private void init() {
+
+        //initializing type IDs
+        try (ScanResult scanResult =
+                     new ClassGraph()
+                             //                     .verbose()             // Enable verbose logging
+                             .enableAnnotationInfo()
+//                             .enableAllInfo()       // Scan classes, methods, fields, annotations
+                             .scan()) {
+            ClassInfoList entities =
+                    scanResult.getClassesWithAnnotation(Entity.class.getName());
+            entities.addAll(scanResult.getClassesWithAnnotation(Embedded.class.getName()));
+            logger.info("Found " + entities + " entities in classpath");
+            for (String cn : entities.getNames()) {
+                ClassInfo ci = scanResult.getClassInfo(cn);
+                AnnotationInfoList an = ci.getAnnotationInfo();
+                for (AnnotationInfo ai : an) {
+                    String name = ai.getName();
+                    if (name.equals(Entity.class.getName()) || name.equals(Embedded.class.getName())) {
+                        for (AnnotationParameterValue param : ai.getParameterValues()) {
+
+                            //logger.info("Class " + cn + "   Param " + param.getName() + " = " + param.getValue());
+                            if (param.getName().equals("typeId")) {
+                                classNameByType.put(param.getValue().toString(), cn);
+                            }
+                            classNameByType.put(cn, cn);
+
+                        }
+
+                    }
+                }
+            }
+
+        }
+    }
+
+    public String getTypeIdForClassName(String n) throws ClassNotFoundException {
+        return getTypeIdForClass(Class.forName(n));
+    }
+
+    public String getTypeIdForClass(Class cls) {
+        Entity e = (Entity) cls.getAnnotation(Entity.class);
+        Embedded em = (Embedded) cls.getAnnotation(Embedded.class);
+        if (e != null && !e.typeId().equals(".")) {
+            return e.typeId();
+        } else if (em != null && !em.typeId().equals(".")) {
+            return em.typeId();
+        }
+        return cls.getName();
+    }
+
+
+    public Class getClassForTypeId(String typeId) throws ClassNotFoundException {
+
+        if (classNameByType.containsKey(typeId)) {
+            return Class.forName(classNameByType.get(typeId));
+        }
+        return Class.forName(typeId);
+
     }
 
     public <T extends Annotation> boolean isAnnotationPresentInHierarchy(final Class<?> aClass, final Class<? extends T> annotationClass) {
