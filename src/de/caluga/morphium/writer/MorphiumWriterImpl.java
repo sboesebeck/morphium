@@ -485,7 +485,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                         ret = morphium.getDriver().store(morphium.getConfig().getDatabase(), coll, objs, wc);
                     } catch (MorphiumDriverException mde){
                         if (mde.getMessage().contains("duplicate key") && mde.getMessage().contains("_id") && en.autoVersioning()){
-                            throw new IllegalArgumentException("Versioning / upsert failure - concurrent modification!");
+                            throw new ConcurrentModificationException("Versioning / upsert failure - concurrent modification!");
                         } else {
                             throw mde;
                         }
@@ -494,7 +494,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                     }
                     if (en.autoVersioning()){
                         if (((Integer)ret.get("total"))<((Integer)ret.get("modified"))){
-                            throw new IllegalArgumentException("versioning failure");
+                            throw new ConcurrentModificationException("versioning failure");
                         }
                     }
                     long dur = System.currentTimeMillis() - start;
@@ -795,7 +795,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                                 Map<String, Object> ret = morphium.getDriver().store(morphium.getConfig().getDatabase(), coll, dbLst, wc);
                                 if (en.autoVersioning()){
                                     if (((Integer)ret.get("total"))<((Integer)ret.get("modified"))){
-                                        throw new IllegalArgumentException("versioning failure");
+                                        throw new ConcurrentModificationException("versioning failure");
                                     }
                                 }
                                 //                                System.out.println(System.currentTimeMillis()+" -  driver finish" );
@@ -1003,8 +1003,8 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                         update.put(MorphiumDriver.VERSION_NAME, ((Long) morphium.getARHelper().getValue(toSet, versionFields.get(0))) + 1L);
                     }
                     Map<String, Object> res = morphium.getDriver().update(getDbName(), collection, query, update, multiple, upsert, wc);
-                    if (res.get("modified").equals(0L)) {
-                        throw new IllegalArgumentException("could not modify");
+                    if (res.get("modified").equals(0L) && en != null && en.autoVersioning()) {
+                        throw new ConcurrentModificationException("could not modify");
                     }
                     long dur = System.currentTimeMillis() - start;
                     morphium.fireProfilingWriteEvent(cls, update, dur, false, WriteAccessType.SINGLE_UPDATE);
@@ -1380,7 +1380,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                     }
                     Map<String, Object> res = morphium.getDriver().update(getDbName(), coll, query, update, false, false, wc);
                     if (res.get("modified").equals(0L)) {
-                        throw new IllegalArgumentException("Versioning error? Could not update");
+                        throw new ConcurrentModificationException("Versioning error? Could not update");
                     }
                     morphium.getCache().clearCacheIfNecessary(cls);
                     if (en != null && en.autoVersioning()) {
