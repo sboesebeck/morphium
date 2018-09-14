@@ -1082,11 +1082,21 @@ public class Driver implements MorphiumDriver {
                 }
                 tDocument.remove("_id"); //not needed
                 //noinspection unchecked
-                UpdateResult res = c.replaceOne(filter, tDocument, o);
-                updated+=res.getModifiedCount();
-                id = toUpdate.get("_id");
-                if (id instanceof ObjectId) {
-                    toUpdate.put("_id", new MorphiumId(((ObjectId) id).toHexString()));
+                try {
+                    UpdateResult res = c.replaceOne(filter, tDocument, o);
+                    updated += res.getModifiedCount();
+                    id = toUpdate.get("_id");
+                    if (id instanceof ObjectId) {
+                        toUpdate.put("_id", new MorphiumId(((ObjectId) id).toHexString()));
+                    }
+                } catch (Exception e) {
+                    //log.error("",e);
+                    if (e instanceof MongoWriteException && e.getMessage().contains("E11000 duplicate key error")) {
+                        throw new ConcurrentModificationException("Version mismach - write failed", e);
+                    } else {
+                        throw new RuntimeException(e);
+                    }
+
                 }
 
             }
