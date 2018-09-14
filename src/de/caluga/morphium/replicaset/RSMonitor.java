@@ -95,7 +95,7 @@ public class RSMonitor {
         if (morphium.isReplicaSet()) {
             try {
                 Map<String, Object> res = morphium.getDriver().getReplsetStatus();
-                de.caluga.morphium.replicaset.ReplicaSetStatus status = morphium.getMapper().unmarshall(de.caluga.morphium.replicaset.ReplicaSetStatus.class, res);
+                de.caluga.morphium.replicaset.ReplicaSetStatus status = morphium.getMapper().deserialize(de.caluga.morphium.replicaset.ReplicaSetStatus.class, res);
 
                 if (full) {
                     Map<String, Object> findMetaData = new HashMap<>();
@@ -107,16 +107,16 @@ public class RSMonitor {
                         //                    DBCursor rpl = morphium.getDriver().getDB("local").getCollection("system.replset").find();
                         //                    DBObject stat = rpl.next(); //should only be one, i think
                         //                    rpl.close();
-                        ReplicaSetConf cfg = morphium.getMapper().unmarshall(ReplicaSetConf.class, stat);
-                        List<Object> mem = cfg.getMemberList();
-                        List<ConfNode> cmembers = new ArrayList<>();
-
-                        for (Object o : mem) {
-                            //                        DBObject dbo = (DBObject) o;
-                            ConfNode cn = (ConfNode) o;// objectMapper.unmarshall(ConfNode.class, dbo);
-                            cmembers.add(cn);
-                        }
-                        cfg.setMembers(cmembers);
+                        ReplicaSetConf cfg = morphium.getMapper().deserialize(ReplicaSetConf.class, stat);
+//                        List<Object> mem = cfg.getMemberList();
+//                        List<ConfNode> cmembers = new ArrayList<>();
+//
+//                        for (Object o : mem) {
+//                            //                        DBObject dbo = (DBObject) o;
+//                            ConfNode cn = (ConfNode) o;// objectMapper.deserialize(ConfNode.class, dbo);
+//                            cmembers.add(cn);
+//                        }
+//                        cfg.setMembers(cmembers);
                         status.setConfig(cfg);
                     }
                 }
@@ -126,7 +126,7 @@ public class RSMonitor {
                 if (lst != null) {
                     for (Object l : lst) {
                         //                    DBObject o = (DBObject) l;
-                        ReplicaSetNode n = (ReplicaSetNode) l;//objectMapper.unmarshall(ReplicaSetNode.class, o);
+                        ReplicaSetNode n = (ReplicaSetNode) l;//objectMapper.deserialize(ReplicaSetNode.class, o);
                         members.add(n);
                     }
                 }

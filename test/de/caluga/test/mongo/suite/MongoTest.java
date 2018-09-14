@@ -3,12 +3,11 @@ package de.caluga.test.mongo.suite;
 import ch.qos.logback.classic.LoggerContext;
 import de.caluga.morphium.Morphium;
 import de.caluga.morphium.MorphiumConfig;
-import de.caluga.morphium.async.AsyncOperationCallback;
-import de.caluga.morphium.async.AsyncOperationType;
+import de.caluga.morphium.driver.MorphiumDriverException;
 import de.caluga.morphium.driver.ReadPreference;
 import de.caluga.morphium.query.Query;
 import de.caluga.test.mongo.suite.data.CachedObject;
-import de.caluga.test.mongo.suite.data.Person;
+import de.caluga.test.mongo.suite.data.ComplexObject;
 import de.caluga.test.mongo.suite.data.UncachedObject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -19,7 +18,6 @@ import java.io.FileWriter;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 import java.util.Properties;
 import java.util.logging.Handler;
 import java.util.logging.Level;
@@ -148,6 +146,9 @@ public class MongoTest {
 
                 cfg.setGlobalCacheValidTime(1000);
                 cfg.setHousekeepingTimeout(500);
+                cfg.setThreadPoolMessagingCoreSize(5);
+                cfg.setThreadPoolMessagingMaxSize(150);
+                cfg.setThreadPoolMessagingKeepAliveTime(10000);
 
                 cfg.setGlobalFsync(false);
                 cfg.setGlobalJ(false);
@@ -199,9 +200,7 @@ public class MongoTest {
             //            cfg.setDriverClass(MetaDriver.class.getName());
             //            cfg.setDriverClass(SingleConnectDirectDriver.class.getName());
             //            cfg.setDriverClass(InMemoryDriver.class.getName());
-            if (cfg.isReplicaset())
-                cfg.setReplicasetMonitoring(true);
-
+            //cfg.setOmClass(ObjectMapperImplNG.class);
 
             morphium = new Morphium(cfg);
 //
@@ -328,8 +327,8 @@ public class MongoTest {
         }
         morphium.storeList(lst);
         Query<UncachedObject> q = morphium.createQueryFor(UncachedObject.class);
-        while (q.countAll() != amount) {
-            log.info("Waiting for data to be stored..." + q.countAll());
+        while (q.countAll() < amount) {
+            log.info("Waiting for data to be stored..." + q.countAll() + "/" + amount);
             try {
                 Thread.sleep(100);
             } catch (InterruptedException e) {
@@ -361,43 +360,15 @@ public class MongoTest {
     public void setUp() {
 
         try {
-            log.info("Preparing collections...");
-            AsyncOperationCallback cb = new AsyncOperationCallback() {
-                @Override
-                public void onOperationSucceeded(AsyncOperationType type, Query q, long duration, List result, Object entity, Object... param) {
-
-                }
-
-                @Override
-                public void onOperationError(AsyncOperationType type, Query q, long duration, String error, Throwable t, Object entity, Object... param) {
-                    log.error("Error: " + error, t);
-                }
-            };
-            morphium.dropCollection(UncachedObject.class, cb);
-            morphium.dropCollection(CachedObject.class, cb);
-            morphium.dropCollection(ComplexObject.class, cb);
-            morphium.dropCollection(EnumEntity.class, cb);
-            //morphium.dropCollection(Msg.class, cb);
-            morphium.dropCollection(Person.class, cb);
-            //            morphium.ensureIndex(UncachedObject.class, "counter", "value");
-            //            morphium.ensureIndex(CachedObject.class, "counter", "value");
-            waitForAsyncOperationToStart(1000);
-            waitForWrites();
-            //            Thread.sleep(1000);
-            int count = 0;
-            while (count < 10) {
-                count++;
-                Map<String, Double> stats = morphium.getStatistics();
-                Double ent = stats.get("X-Entries for: resultCache|de.caluga.test.mongo.suite.data.CachedObject");
-                if (ent == null || ent == 0) {
-                    break;
-                }
-                Thread.sleep(2000);
+            log.info("Re-connecting to mongo");
+            morphium.reset();
+            log.info("resetting DB...");
+            List<String> lst = morphium.getDriver().getCollectionNames(morphium.getConfig().getDatabase());
+            for (String col : lst) {
+                log.info("Dropping " + col);
+                morphium.getDriver().drop(morphium.getConfig().getDatabase(), col, morphium.getWriteConcernForClass(UncachedObject.class));
             }
-
-            assert (count < 10) : "Cache not cleared? count is " + count;
-
-            log.info("Preparation finished");
+            Thread.sleep(500);
         } catch (Exception e) {
             log.error("Error during preparation!");
             e.printStackTrace();
@@ -408,10 +379,12 @@ public class MongoTest {
     @org.junit.After
     public void tearDown() {
         log.info("Cleaning up...");
-        morphium.dropCollection(UncachedObject.class);
-        morphium.dropCollection(CachedObject.class);
-//        morphium.dropCollection(Msg.class);
-        waitForWrites();
+        for (Class toDel : new Class[]{UncachedObject.class, CachedObject.class, ComplexObject.class, ListContainer.class}) {
+            try {
+                morphium.getDriver().drop(morphium.getMapper().getCollectionName(toDel), morphium.getWriteConcernForClass(toDel));
+            } catch (MorphiumDriverException e) {
+            }
+        }
         log.info("done...");
     }
 
@@ -436,6 +409,19 @@ public class MongoTest {
             Thread.sleep(1500);
         } catch (InterruptedException e) {
         }
+    }
+
+    public boolean stringWordCompare(String m1, String m2) {
+        if (m1 == null && m2 == null) return true;
+        if (m1 == null || m2 == null) return false;
+        m1 = m1.replaceAll(" ", "");
+        m2 = m2.replaceAll(" ", "");
+        if (m1.length() != m2.length()) return false;
+        String wrd[] = m1.split("[ \\{\\},\\.\\(\\)\\[\\]]");
+        for (String w : wrd) {
+            if (!m2.contains(w)) return false;
+        }
+        return true;
     }
 
 }

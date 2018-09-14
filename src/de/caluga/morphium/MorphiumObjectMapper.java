@@ -1,7 +1,9 @@
 package de.caluga.morphium;
 
+import de.caluga.morphium.mapping.MorphiumTypeMapper;
 import org.json.simple.parser.ParseException;
 
+import java.io.IOException;
 import java.util.Map;
 
 /**
@@ -11,19 +13,15 @@ import java.util.Map;
  * <p/>
  * Maps objects to Mongo
  */
-public interface ObjectMapper {
+public interface MorphiumObjectMapper {
 
     String getCollectionName(Class cls);
 
-    Object marshallIfNecessary(Object o);
+    Map<String, Object> serialize(Object o);
 
-    void registerCustomTypeMapper(Class c, TypeMapper m);
+    <T> T deserialize(Class<? extends T> cls, Map<String, Object> o);
 
-    Map<String, Object> marshall(Object o);
-
-    <T> T unmarshall(Class<? extends T> cls, Map<String, Object> o);
-
-    <T> T unmarshall(Class<? extends T> cls, String json) throws ParseException;
+    <T> T deserialize(Class<? extends T> cls, String json) throws ParseException, IOException;
 
     /**
      * get current name provider for class
@@ -42,12 +40,15 @@ public interface ObjectMapper {
      */
     void setNameProviderForClass(Class<?> cls, NameProvider np);
 
-    void setMorphium(Morphium m);
+    <T> void registerCustomMapperFor(Class<T> cls, MorphiumTypeMapper<T> map);
+
+    void deregisterCustomMapperFor(Class cls);
 
     void setAnnotationHelper(AnnotationAndReflectionHelper an);
 
     Morphium getMorphium();
 
+    void setMorphium(Morphium m);
 
-    void deregisterTypeMapper(Class c);
+
 }

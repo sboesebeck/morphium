@@ -4,8 +4,8 @@ package de.caluga.morphium;/**
 
 import de.caluga.morphium.driver.MorphiumId;
 
-import java.io.UnsupportedEncodingException;
 import java.lang.reflect.Field;
+import java.nio.charset.StandardCharsets;
 import java.util.*;
 
 /**
@@ -120,30 +120,26 @@ public class Utils {
                 sb.append(" ");
             }
 
-            try {
-                int l = 16;
-                if (mainIdx + 16 > b.length) {
-                    l = b.length - mainIdx;
-                }
-
-                byte sr[] = new byte[l];
-                int n = 0;
-                for (int j = mainIdx; j < mainIdx + l; j++) {
-                    if (b[j] < 128 && b[j] > 63) {
-                        sr[n] = b[j];
-                    } else if (b[j] == 0) {
-                        sr[n] = '-';
-                    } else {
-                        sr[n] = '.';
-                    }
-                    n++;
-                }
-                String str = new String(sr, 0, l, "UTF-8");
-                sb.append("    ");
-                sb.append(str);
-            } catch (UnsupportedEncodingException e) {
-                //ignore it
+            int l = 16;
+            if (mainIdx + 16 > b.length) {
+                l = b.length - mainIdx;
             }
+
+            byte sr[] = new byte[l];
+            int n = 0;
+            for (int j = mainIdx; j < mainIdx + l; j++) {
+                if (b[j] < 128 && b[j] > 63) {
+                    sr[n] = b[j];
+                } else if (b[j] == 0) {
+                    sr[n] = '-';
+                } else {
+                    sr[n] = '.';
+                }
+                n++;
+            }
+            String str = new String(sr, 0, l, StandardCharsets.UTF_8);
+            sb.append("    ");
+            sb.append(str);
             sb.append("\n");
             mainIdx += 16;
         }
@@ -200,4 +196,41 @@ public class Utils {
         }
         return b.toString();
     }
+
+
+    public static Object replaceMorphiumIds(Map m) {
+        Map toSet = new LinkedHashMap();
+        for (Map.Entry e : (Set<Map.Entry>) m.entrySet()) {
+            if (e.getKey().equals("morphium id")) {
+                //identifier!
+                return new MorphiumId(e.getValue().toString());
+            } else if (e.getKey().equals("date field")) {
+                return new Date((Long) e.getValue());
+            } else if (e.getValue() instanceof Map) {
+                toSet.put(e.getKey(), replaceMorphiumIds((Map) e.getValue()));
+            } else if (e.getValue() instanceof Collection) {
+                toSet.put(e.getKey(), replaceMorphiumIds((Collection) e.getValue()));
+            } else {
+                toSet.put(e.getKey(), e.getValue());
+            }
+        }
+        return toSet;
+    }
+
+    public static Collection replaceMorphiumIds(Collection value) {
+        Collection ret = new ArrayList();
+        for (Object o : value) {
+            if (o instanceof Map && ((Map) o).containsKey("morphium id")) {
+                ret.add(new MorphiumId((String) ((Map) o).get("morphium id")));
+            } else if (o instanceof Map && ((Map) o).containsKey("date field")) {
+                ret.add(new Date((Long) ((Map) o).get("date field")));
+            } else if (o instanceof Map) {
+                ret.add(replaceMorphiumIds((Map) o));
+            } else {
+                ret.add(o);
+            }
+        }
+        return ret;
+    }
+
 }

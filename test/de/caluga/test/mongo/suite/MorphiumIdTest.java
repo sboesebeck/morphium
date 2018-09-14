@@ -31,22 +31,27 @@ public class MorphiumIdTest {
     @Test
     public void testCollision() throws Exception {
         final List<MorphiumId> ids = new Vector<>();
-        for (int i = 0; i < 1000; i++) {
+        for (int i = 0; i < 300; i++) {
             MorphiumId id = new MorphiumId();
             assert (!ids.contains(id));
             ids.add(id);
         }
 
-        ids.clear();
         List<Thread> thr = new Vector<>();
-        for (int i = 0; i < 200; i++) {
+        for (int i = 0; i < 100; i++) {
             Thread t = new Thread() {
                 @Override
                 public void run() {
-                    for (int j = 0; j < 250; j++) {
+                    for (int j = 0; j < 50; j++) {
                         MorphiumId id = new MorphiumId();
+                        MorphiumId id2 = new MorphiumId();
+                        MorphiumId id3 = new MorphiumId();
                         assert (!ids.contains(id));
                         ids.add(id);
+                        assert (!ids.contains(id2));
+                        ids.add(id2);
+                        assert (!ids.contains(id3));
+                        ids.add(id3);
                     }
                     thr.remove(this);
                 }

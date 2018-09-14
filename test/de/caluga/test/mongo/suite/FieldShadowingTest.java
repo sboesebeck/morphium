@@ -11,17 +11,17 @@ public class FieldShadowingTest extends MongoTest {
     public void shadowFieldTest() throws Exception {
         Shadowed it = new Shadowed();
         it.value = "A test";
-        String marshall = Utils.toJsonString(morphium.getMapper().marshall(it));
+        String marshall = Utils.toJsonString(morphium.getMapper().serialize(it));
         log.info(marshall);
         assert (marshall.contains("A test"));
 
-        assert (morphium.getMapper().unmarshall(Shadowed.class, marshall).value != null);
-        assert (morphium.getMapper().unmarshall(Shadowed.class, marshall).value.equals("A test"));
+        assert (morphium.getMapper().deserialize(Shadowed.class, marshall).value != null);
+        assert (morphium.getMapper().deserialize(Shadowed.class, marshall).value.equals("A test"));
 
         ReShadowed rs = new ReShadowed();
         rs.value = "A 2nd test";
-        marshall = Utils.toJsonString(morphium.getMapper().marshall(rs));
-        assert (marshall.contains("A 2nd test"));
+        marshall = Utils.toJsonString(morphium.getMapper().serialize(rs));
+        assert (!marshall.contains("A 2nd test"));
 
     }
 

@@ -5,6 +5,7 @@ package de.caluga.morphium.driver.mongodb;/**
 
 import com.mongodb.*;
 import com.mongodb.MongoClient;
+import com.mongodb.WriteConcern;
 import com.mongodb.client.*;
 import com.mongodb.client.model.InsertManyOptions;
 import com.mongodb.client.model.InsertOneOptions;
@@ -13,9 +14,7 @@ import com.mongodb.client.model.changestream.ChangeStreamDocument;
 import com.mongodb.client.model.changestream.FullDocument;
 import com.mongodb.client.result.DeleteResult;
 import com.mongodb.client.result.UpdateResult;
-import de.caluga.morphium.AnnotationAndReflectionHelper;
 import de.caluga.morphium.Morphium;
-import de.caluga.morphium.ObjectMapperImpl;
 import de.caluga.morphium.driver.*;
 import de.caluga.morphium.driver.ReadPreference;
 import de.caluga.morphium.driver.bulk.BulkRequestContext;
@@ -576,70 +575,64 @@ public class Driver implements MorphiumDriver {
 
     @Override
     public void watch(String db, int maxWaitTime, boolean fullDocumentOnUpdate, DriverTailableIterationCallback cb) throws MorphiumDriverException {
-        DriverHelper.doCall(() -> {
-            ChangeStreamIterable<Document> it = mongo.getDatabase(db).watch();
-            it.maxAwaitTime(maxWaitTime, TimeUnit.MILLISECONDS);
-            it.fullDocument(fullDocumentOnUpdate ? FullDocument.UPDATE_LOOKUP : FullDocument.DEFAULT);
-            //it.startAtOperationTime(new BsonTimestamp(System.currentTimeMillis()));
-            MongoCursor<ChangeStreamDocument<Document>> iterator = it.iterator();
-            long start = System.currentTimeMillis();
-            ObjectMapperImpl imp = new ObjectMapperImpl();
-            imp.setAnnotationHelper(new AnnotationAndReflectionHelper(false));
-
-
-            while (iterator.hasNext()) {
-                if (processChangeStreamEvent(cb, iterator, start)) break;
-            }
-            return null;
-        }, retriesOnNetworkError, sleepBetweenErrorRetries);
+        watch(db, null, maxWaitTime, fullDocumentOnUpdate, cb);
     }
 
     private boolean processChangeStreamEvent(DriverTailableIterationCallback cb, MongoCursor<ChangeStreamDocument<Document>> iterator, long start) {
-        ChangeStreamDocument<Document> doc = iterator.next();
-        Map<String, Object> obj = new HashMap<>();
-        obj.put("clusterTime", doc.getClusterTime().getValue());
-        if (doc.getDocumentKey() != null) {
-            obj.put("documentKey", new MorphiumId(((BsonObjectId) doc.getDocumentKey().get("_id")).getValue().toByteArray()));
-        }
-        obj.put("operationType", doc.getOperationType().getValue());
-        if (doc.getFullDocument() != null) {
-            obj.put("fullDocument", new LinkedHashMap<String, Object>(doc.getFullDocument()));
-        }
-        if (doc.getResumeToken() != null) {
-            obj.put("resumeToken", new LinkedHashMap<String, Object>(doc.getResumeToken()));
-        }
-        if (doc.getNamespace() != null) {
-            obj.put("collectionName", doc.getNamespace().getCollectionName());
-            obj.put("dbName", doc.getNamespace().getDatabaseName());
-        }
-        if (doc.getUpdateDescription() != null) {
-            obj.put("removedFields", doc.getUpdateDescription().getRemovedFields());
-            obj.put("updatedFields", new LinkedHashMap<String, Object>(doc.getUpdateDescription().getUpdatedFields()));
-        }
+        try {
+            ChangeStreamDocument<Document> doc = iterator.next();
+            Map<String, Object> obj = new HashMap<>();
+            obj.put("clusterTime", doc.getClusterTime().getValue());
+            if (doc.getDocumentKey() != null) {
+                obj.put("documentKey", new MorphiumId(((BsonObjectId) doc.getDocumentKey().get("_id")).getValue().toByteArray()));
+            }
+            obj.put("operationType", doc.getOperationType().getValue());
+            if (doc.getFullDocument() != null) {
+                obj.put("fullDocument", new LinkedHashMap<String, Object>(doc.getFullDocument()));
+            }
+            if (doc.getResumeToken() != null) {
+                obj.put("resumeToken", new LinkedHashMap<String, Object>(doc.getResumeToken()));
+            }
+            if (doc.getNamespace() != null) {
+                obj.put("collectionName", doc.getNamespace().getCollectionName());
+                obj.put("dbName", doc.getNamespace().getDatabaseName());
+            }
+            if (doc.getUpdateDescription() != null) {
+                obj.put("removedFields", doc.getUpdateDescription().getRemovedFields());
+                obj.put("updatedFields", new LinkedHashMap<String, Object>(doc.getUpdateDescription().getUpdatedFields()));
+            }
 
-        DriverHelper.replaceBsonValues(obj);
-        boolean con = cb.incomingData(obj, System.currentTimeMillis() - start);
-        if (!con) {
+            DriverHelper.replaceBsonValues(obj);
+            boolean con = cb.incomingData(obj, System.currentTimeMillis() - start);
+            return con;
+        } catch (IllegalArgumentException e) {
+            //"Drop is not a valid OperationType" -> Bug in Driver
             return true;
         }
-        return false;
     }
 
     @Override
     public void watch(String db, String collection, int maxWaitTime, boolean fullDocumentOnUpdate, DriverTailableIterationCallback cb) throws MorphiumDriverException {
         DriverHelper.doCall(() -> {
-            ChangeStreamIterable<Document> it = mongo.getDatabase(db).getCollection(collection).watch();
-            it.maxAwaitTime(maxWaitTime, TimeUnit.MILLISECONDS);
-            it.fullDocument(fullDocumentOnUpdate ? FullDocument.UPDATE_LOOKUP : FullDocument.DEFAULT);
-            //it.startAtOperationTime(new BsonTimestamp(System.currentTimeMillis()));
-            MongoCursor<ChangeStreamDocument<Document>> iterator = it.iterator();
-            long start = System.currentTimeMillis();
-            ObjectMapperImpl imp = new ObjectMapperImpl();
-            imp.setAnnotationHelper(new AnnotationAndReflectionHelper(false));
-
-
-            while (iterator.hasNext()) {
-                if (processChangeStreamEvent(cb, iterator, start)) break;
+            boolean run = true;
+            while (run) {
+                ChangeStreamIterable<Document> it = null;
+                if (collection != null) {
+                    it = mongo.getDatabase(db).getCollection(collection).watch();
+                } else {
+                    it = mongo.getDatabase(db).watch();
+                }
+                it.maxAwaitTime(maxWaitTime, TimeUnit.MILLISECONDS);
+                it.batchSize(defaultBatchSize);
+                it.fullDocument(fullDocumentOnUpdate ? FullDocument.UPDATE_LOOKUP : FullDocument.DEFAULT);
+//                it.startAtOperationTime(new BsonTimestamp(System.currentTimeMillis()-250));
+                MongoCursor<ChangeStreamDocument<Document>> iterator = it.iterator();
+                long start = System.currentTimeMillis();
+                while (iterator.hasNext() && run) {
+                    run = processChangeStreamEvent(cb, iterator, start);
+                    if (!run) break;
+                }
+                iterator.close();
             }
             return null;
         }, retriesOnNetworkError, sleepBetweenErrorRetries);
@@ -781,6 +774,8 @@ public class Driver implements MorphiumDriver {
                 } else {
                     it.batchSize(defaultBatchSize);
                 }
+                it.maxAwaitTime(getMaxWaitTime(), TimeUnit.MILLISECONDS);
+                it.maxTime(getMaxWaitTime(), TimeUnit.MILLISECONDS);
                 MongoCursor<Document> ret = it.iterator();
                 handleMetaData(findMetaData, ret);
 
@@ -1036,7 +1031,7 @@ public class Driver implements MorphiumDriver {
     }
 
     @Override
-    public void store(String db, String collection, List<Map<String, Object>> objs, de.caluga.morphium.driver.WriteConcern wc) throws MorphiumDriverException {
+    public Map<String,Object> store(String db, String collection, List<Map<String, Object>> objs, de.caluga.morphium.driver.WriteConcern wc) throws MorphiumDriverException {
         List<Map<String, Object>> isnew = new ArrayList<>();
         final List<Map<String, Object>> notnew = new ArrayList<>();
         for (Map<String, Object> o : objs) {
@@ -1053,11 +1048,13 @@ public class Driver implements MorphiumDriver {
         //            Object id=o.get("_id");
         //            if (id instanceof ObjectId) o.put("_id",new MorphiumId(((ObjectId)id).toHexString()));
         //        }
-        DriverHelper.doCall(() -> {
+       Map m= DriverHelper.doCall(() -> {
             DriverHelper.replaceMorphiumIdByObjectId(notnew);
             MongoCollection c = mongo.getDatabase(db).getCollection(collection);
-
+            Map<String,Object> ret=new HashMap<>();
             //                mongo.getDB(db).getCollection(collection).save()
+            int total=notnew.size();
+            int updated=0;
             for (Map<String, Object> toUpdate : notnew) {
 
                 UpdateOptions o = new UpdateOptions();
@@ -1069,9 +1066,14 @@ public class Driver implements MorphiumDriver {
                     id = new ObjectId(id.toString());
                 }
                 filter.put("_id", id);
+                //Hack to detect versioning
+                if (toUpdate.get(MorphiumDriver.VERSION_NAME)!=null){
+                    filter.put(MorphiumDriver.VERSION_NAME,toUpdate.get(MorphiumDriver.VERSION_NAME));
+                }
                 //                    toUpdate.remove("_id");
                 //                    Document update = new Document("$set", toUpdate);
                 Document tDocument = new Document(toUpdate);
+
                 for (String k : tDocument.keySet()) {
                     if (tDocument.get(k) instanceof byte[]) {
                         BsonBinary b = new BsonBinary((byte[]) tDocument.get(k));
@@ -1080,17 +1082,20 @@ public class Driver implements MorphiumDriver {
                 }
                 tDocument.remove("_id"); //not needed
                 //noinspection unchecked
-                c.replaceOne(filter, tDocument, o);
-
-
+                UpdateResult res = c.replaceOne(filter, tDocument, o);
+                updated+=res.getModifiedCount();
                 id = toUpdate.get("_id");
                 if (id instanceof ObjectId) {
                     toUpdate.put("_id", new MorphiumId(((ObjectId) id).toHexString()));
                 }
-            }
 
-            return null;
+            }
+            ret.put("modified",updated);
+            ret.put("total",total);
+            return ret;
         }, retriesOnNetworkError, sleepBetweenErrorRetries);
+       m.put("inserted",isnew.size());
+       return m;
     }
 
     @Override
@@ -1149,6 +1154,7 @@ public class Driver implements MorphiumDriver {
         DriverHelper.replaceMorphiumIdByObjectId(op);
         return DriverHelper.doCall(() -> {
             UpdateOptions opts = new UpdateOptions();
+            WriteConcern w = new com.mongodb.WriteConcern(wc.getW(), wc.getWtimeout(), wc.isFsync(), wc.isJ());
             opts.upsert(upsert);
             UpdateResult res;
             if (multiple) {
@@ -1529,6 +1535,7 @@ public class Driver implements MorphiumDriver {
         ClientSessionOptions.Builder b = ClientSessionOptions.builder();
         b.causallyConsistent(true);
         b.defaultTransactionOptions(TransactionOptions.builder().readConcern(ReadConcern.DEFAULT).readPreference(com.mongodb.ReadPreference.primary()).build());
+
 
         ClientSession ses = mongo.startSession(b.build());
         ses.startTransaction();
