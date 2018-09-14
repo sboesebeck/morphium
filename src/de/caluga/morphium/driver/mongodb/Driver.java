@@ -1164,28 +1164,33 @@ public class Driver implements MorphiumDriver {
         DriverHelper.replaceMorphiumIdByObjectId(op);
         return DriverHelper.doCall(() -> {
             UpdateOptions opts = new UpdateOptions();
-            WriteConcern w = new com.mongodb.WriteConcern(wc.getW(), wc.getWtimeout(), wc.isFsync(), wc.isJ());
+            WriteConcern w = new com.mongodb.WriteConcern(wc != null ? wc.getW() : getDefaultW(),
+                    wc != null ? wc.getWtimeout() : getDefaultWriteTimeout(),
+                    wc != null ? wc.isFsync() : true,
+                    wc != null ? wc.isJ() : false);
+
             opts.upsert(upsert);
             UpdateResult res;
             if (multiple) {
                 if (currentTransaction.get() == null) {
-                    res = mongo.getDatabase(db).getCollection(collection).updateMany(new BasicDBObject(query), new BasicDBObject(op), opts);
+                    res = mongo.getDatabase(db).getCollection(collection).withWriteConcern(w).updateMany(new BasicDBObject(query), new BasicDBObject(op), opts);
                 } else {
-                    res = mongo.getDatabase(db).getCollection(collection).updateMany(currentTransaction.get().getSession(), new BasicDBObject(query), new BasicDBObject(op), opts);
+                    res = mongo.getDatabase(db).getCollection(collection).withWriteConcern(w).updateMany(currentTransaction.get().getSession(), new BasicDBObject(query), new BasicDBObject(op), opts);
                 }
             } else {
                 if (currentTransaction.get() == null) {
-                    res = mongo.getDatabase(db).getCollection(collection).updateOne(new BasicDBObject(query), new BasicDBObject(op), opts);
+                    res = mongo.getDatabase(db).getCollection(collection).withWriteConcern(w).updateOne(new BasicDBObject(query), new BasicDBObject(op), opts);
                 } else {
-                    res = mongo.getDatabase(db).getCollection(collection).updateOne(currentTransaction.get().getSession(), new BasicDBObject(query), new BasicDBObject(op), opts);
+                    res = mongo.getDatabase(db).getCollection(collection).withWriteConcern(w).updateOne(currentTransaction.get().getSession(), new BasicDBObject(query), new BasicDBObject(op), opts);
 
                 }
             }
-
             Map<String, Object> ret = new HashMap<>();
-            ret.put("matched", res.getMatchedCount());
-            ret.put("modified", res.getModifiedCount());
-            ret.put("acc", res.wasAcknowledged());
+            if (w.isAcknowledged()) {
+                ret.put("matched", res.getMatchedCount());
+                ret.put("modified", res.getModifiedCount());
+                ret.put("acc", res.wasAcknowledged());
+            }
             return ret;
         }, retriesOnNetworkError, sleepBetweenErrorRetries);
 

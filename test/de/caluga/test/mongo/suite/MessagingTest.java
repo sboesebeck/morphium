@@ -371,6 +371,7 @@ public class MessagingTest extends MongoTest {
             sender.start();
             rec1.start();
             rec2.start();
+            Thread.sleep(2000);
             gotMessage1 = false;
             gotMessage2 = false;
             gotMessage3 = false;
