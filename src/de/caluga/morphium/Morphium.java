@@ -69,12 +69,11 @@ public class Morphium {
     private final ThreadLocal<Boolean> disableAsyncWrites = new ThreadLocal<>();
     private final List<ProfilingListener> profilingListeners;
     private final List<ShutdownListener> shutDownListeners = new CopyOnWriteArrayList<>();
-    private final List<DereferencingListener> lazyDereferencingListeners = new CopyOnWriteArrayList<>();
     private MorphiumConfig config;
     private Map<StatisticKeys, StatisticValue> stats = new ConcurrentHashMap<>();
     private List<MorphiumStorageListener> listeners = new CopyOnWriteArrayList<>();
     private AnnotationAndReflectionHelper annotationHelper;
-    private ObjectMapper objectMapper;
+    private MorphiumObjectMapper objectMapper;
     private RSMonitor rsMonitor;
     private ThreadPoolExecutor asyncOperationsThreadPool;
     private MorphiumDriver morphiumDriver;
@@ -125,9 +124,39 @@ public class Morphium {
         }
         config = cfg;
         annotationHelper = new AnnotationAndReflectionHelper(cfg.isCamelCaseConversionEnabled());
+
+        BlockingQueue<Runnable> queue = new LinkedBlockingQueue<Runnable>() {
+            private static final long serialVersionUID = -6903933921423432194L;
+
+            @Override
+            public boolean offer(Runnable e) {
+                int poolSize = asyncOperationsThreadPool.getPoolSize();
+                int maximumPoolSize = asyncOperationsThreadPool.getMaximumPoolSize();
+                if (poolSize >= maximumPoolSize || poolSize > asyncOperationsThreadPool.getActiveCount()) {
+                    return super.offer(e);
+                } else {
+                    return false;
+                }
+            }
+        };
         asyncOperationsThreadPool = new ThreadPoolExecutor(getConfig().getThreadPoolAsyncOpCoreSize(), getConfig().getThreadPoolAsyncOpMaxSize(),
                 getConfig().getThreadPoolAsyncOpKeepAliveTime(), TimeUnit.MILLISECONDS,
-                new SynchronousQueue<>());
+                queue);
+        asyncOperationsThreadPool.setRejectedExecutionHandler(new RejectedExecutionHandler() {
+            @Override
+            public void rejectedExecution(Runnable r, ThreadPoolExecutor executor) {
+                try {
+                    /*
+                     * This does the actual put into the queue. Once the max threads
+                     * have been reached, the tasks will then queue up.
+                     */
+                    executor.getQueue().put(r);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    return;
+                }
+            }
+        });
         asyncOperationsThreadPool.setThreadFactory(new ThreadFactory() {
             private final AtomicInteger num = new AtomicInteger(1);
 
@@ -147,13 +176,6 @@ public class Morphium {
         return asyncOperationsThreadPool;
     }
 
-    public void registerTypeMapper(Class c, TypeMapper m) {
-        getMapper().registerCustomTypeMapper(c, m);
-    }
-
-    public void deregisterTypeMapper(Class c) {
-        getMapper().deregisterTypeMapper(c);
-    }
 
     private void initializeAndConnect() {
         if (config == null) {
@@ -273,6 +295,8 @@ public class Morphium {
             rsMonitor.start();
             rsMonitor.getReplicaSetStatus(false);
         }
+
+
         logger.info("Initialization successful...");
     }
 
@@ -1250,7 +1274,7 @@ public class Morphium {
     }
 
 
-    public ObjectMapper getMapper() {
+    public MorphiumObjectMapper getMapper() {
         return objectMapper;
     }
 
@@ -1296,7 +1320,7 @@ public class Morphium {
             List<Map<String, Object>> found = morphiumDriver.find(config.getDatabase(), collection, srch, null, null, 0, 1, 1, null, findMetaData);
             if (found != null && !found.isEmpty()) {
                 Map<String, Object> dbo = found.get(0);
-                Object fromDb = objectMapper.unmarshall(o.getClass(), dbo);
+                Object fromDb = objectMapper.deserialize(o.getClass(), dbo);
                 if (fromDb == null) {
                     throw new RuntimeException("could not reread from db");
                 }
@@ -1464,10 +1488,6 @@ public class Morphium {
             //noinspection unchecked
             obj = ((LazyDeReferencingProxy<T>) obj).__getDeref();
         }
-        if (obj instanceof PartiallyUpdateableProxy) {
-            //noinspection unchecked
-            obj = ((PartiallyUpdateableProxy<T>) obj).__getDeref();
-        }
         List<Field> flds = getARHelper().getAllFields(obj.getClass());
         for (Field fld : flds) {
             fld.setAccessible(true);
@@ -1480,12 +1500,6 @@ public class Morphium {
                 } catch (IllegalAccessException e) {
                     logger.error("dereferencing of field " + fld.getName() + " failed", e);
                 }
-            }
-            try {
-                if (fld.get(obj) != null && getARHelper().isAnnotationPresentInHierarchy(fld.getType(), Entity.class) && fld.get(obj) instanceof PartiallyUpdateableProxy) {
-                    fld.set(obj, ((PartiallyUpdateableProxy) fld.get(obj)).__getDeref());
-                }
-            } catch (IllegalAccessException ignored) {
             }
         }
         return obj;
@@ -2464,7 +2478,9 @@ public class Morphium {
     }
 
     public void close() {
-        asyncOperationsThreadPool.shutdownNow();
+        if (asyncOperationsThreadPool != null) {
+            asyncOperationsThreadPool.shutdownNow();
+        }
         asyncOperationsThreadPool = null;
         for (ShutdownListener l : shutDownListeners) {
             l.onShutdown(this);
@@ -2507,6 +2523,7 @@ public class Morphium {
         config.setWriter(null);
         config = null;
         morphiumDriver = null;
+//        config.getCache().resetCache();
         //        MorphiumSingleton.reset();
     }
 
@@ -2536,7 +2553,7 @@ public class Morphium {
         List<T> ret = new ArrayList<>();
 
         for (Map<String, Object> o : result) {
-            ret.add(getMapper().unmarshall(type, o));
+            ret.add(getMapper().deserialize(type, o));
         }
         return ret;
 
@@ -2571,7 +2588,7 @@ public class Morphium {
             List<Map<String, Object>> ret = getDriver().aggregate(config.getDatabase(), a.getCollectionName(), agList, a.isExplain(), a.isUseDisk(), getReadPreferenceForClass(a.getSearchType()));
             List<R> result = new ArrayList<>();
             for (Map<String, Object> dbObj : ret) {
-                result.add(getMapper().unmarshall(a.getResultType(), dbObj));
+                result.add(getMapper().deserialize(a.getResultType(), dbObj));
             }
             return result;
         } catch (MorphiumDriverException e) {
@@ -2591,7 +2608,7 @@ public class Morphium {
         //        List<R> ret = new ArrayList<>();
         //        if (resp != null) {
         //            for (Map<String, Object> o : resp.results()) {
-        //                R obj = getMapper().unmarshall(a.getResultType(), o);
+        //                R obj = getMapper().deserialize(a.getResultType(), o);
         //                if (obj == null) continue;
         //                ret.add(obj);
         //            }
@@ -2599,24 +2616,10 @@ public class Morphium {
         //        return ret;
     }
 
-    /**
-     * create a proxy object, implementing the ParitallyUpdateable Interface
-     * these objects will be updated in mongo by only changing altered fields
-     * <b>Attention:</b> the field name if determined by the setter name for now. That means, it does not honor the @Property-Annotation!!!
-     * To make sure, you take the correct field - use the UpdatingField-Annotation for the setters!
-     *
-     * @param o   - entity
-     * @param <T> - type
-     * @return Type
-     */
-    @SuppressWarnings("unchecked")
-    public <T> T createPartiallyUpdateableEntity(T o) {
-        return (T) Enhancer.create(o.getClass(), new Class[]{PartiallyUpdateable.class, Serializable.class}, new PartiallyUpdateableProxy(this, o));
-    }
 
     @SuppressWarnings("unchecked")
-    public <T> T createLazyLoadedEntity(Class<? extends T> cls, Object id, Object container, String fieldName, String collectionName) {
-        return (T) Enhancer.create(cls, new Class[]{Serializable.class}, new LazyDeReferencingProxy(this, cls, id, container, fieldName, collectionName));
+    public <T> T createLazyLoadedEntity(Class<? extends T> cls, Object id, String collectionName) {
+        return (T) Enhancer.create(cls, new Class[]{Serializable.class}, new LazyDeReferencingProxy(this, cls, id, collectionName));
     }
 
     @SuppressWarnings("unchecked")
@@ -2731,28 +2734,6 @@ public class Morphium {
         return asyncOperationsThreadPool.getActiveCount();
     }
 
-    public <T, E, I> void fireWouldDereference(E container, String fieldname, I id, Class<? extends T> cls, boolean lazy) {
-        for (DereferencingListener l : this.lazyDereferencingListeners) {
-            //noinspection unchecked
-            l.wouldDereference(container, fieldname, id, cls, lazy);
-        }
-    }
-
-    public <T> void fireDidDereference(Object container, String fieldname, T deReferenced, boolean lazy) {
-        for (DereferencingListener l : this.lazyDereferencingListeners) {
-            //noinspection unchecked
-            l.didDereference(container, fieldname, deReferenced, lazy);
-        }
-    }
-
-    public void addDereferencingListener(DereferencingListener lst) {
-        this.lazyDereferencingListeners.add(lst);
-    }
-
-    public void removeDerrferencingListener(DereferencingListener lst) {
-        this.lazyDereferencingListeners.remove(lst);
-    }
-
     public void startTransaction() {
         getDriver().startTransaction();
     }
@@ -2802,13 +2783,13 @@ public class Morphium {
     }
 
     private boolean processEvent(ChangeStreamListener lst, Map<String, Object> doc) {
-        ObjectMapper mapper = new ObjectMapperImpl();
+        MorphiumObjectMapper mapper = new ObjectMapperImpl();
         AnnotationAndReflectionHelper hlp = new AnnotationAndReflectionHelper(false);
         mapper.setAnnotationHelper(hlp);
 
         Map<String, Object> obj = (Map<String, Object>) doc.get("fullDocument");
         doc.put("fullDocument", null);
-        ChangeStreamEvent evt = mapper.unmarshall(ChangeStreamEvent.class, doc);
+        ChangeStreamEvent evt = mapper.deserialize(ChangeStreamEvent.class, doc);
 
         evt.setFullDocument(obj);
         return lst.incomingData(evt);
@@ -2840,5 +2821,12 @@ public class Morphium {
         } catch (MorphiumDriverException e) {
             throw new RuntimeException(e);
         }
+    }
+
+    public void reset() {
+        MorphiumConfig cfg = getConfig();
+        close();
+        setConfig(cfg);
+        initializeAndConnect();
     }
 }

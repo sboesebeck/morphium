@@ -7,6 +7,7 @@ import de.caluga.morphium.annotations.caching.NoCache;
 import de.caluga.morphium.annotations.caching.WriteBuffer;
 import de.caluga.morphium.query.Query;
 import de.caluga.morphium.writer.BufferedMorphiumWriterImpl;
+import de.caluga.test.mongo.suite.data.ComplexObject;
 import de.caluga.test.mongo.suite.data.EmbeddedObject;
 import de.caluga.test.mongo.suite.data.UncachedObject;
 import org.junit.Test;

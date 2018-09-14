@@ -6,10 +6,12 @@ import java.lang.annotation.Target;
 
 import static java.lang.annotation.ElementType.FIELD;
 
+
 /**
- * mark a property as write only. It will not be read from mongo, when unmarshalling, but will be stored, if set
+ * used to mark a field for versioning
+ * see Entity-Annotation
  */
 @Target({FIELD})
 @Retention(RetentionPolicy.RUNTIME)
-public @interface WriteOnly {
+public @interface Version {
 }

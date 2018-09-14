@@ -4,6 +4,7 @@ import de.caluga.morphium.annotations.*;
 import de.caluga.morphium.annotations.caching.AsyncWrites;
 import de.caluga.morphium.annotations.caching.WriteBuffer;
 import de.caluga.morphium.annotations.lifecycle.Lifecycle;
+import de.caluga.morphium.driver.MorphiumDriver;
 import de.caluga.morphium.driver.MorphiumId;
 import org.slf4j.Logger;
 
@@ -201,6 +202,9 @@ public class AnnotationAndReflectionHelper {
                     return p.fieldName();
                 }
             }
+            if (f.isAnnotationPresent(Version.class)) {
+                return MorphiumDriver.VERSION_NAME;
+            }
 
             if (f.isAnnotationPresent(Reference.class)) {
                 Reference p = f.getAnnotation(Reference.class);
@@ -267,13 +271,13 @@ public class AnnotationAndReflectionHelper {
             return n;
         }
         StringBuilder b = new StringBuilder();
-        for (int i = 0; i < n.length() - 1; i++) {
+        for (int i = 0; i < n.length(); i++) {
             if (Character.isUpperCase(n.charAt(i)) && i > 0) {
                 b.append("_");
             }
             b.append(n.substring(i, i + 1).toLowerCase());
         }
-        b.append(n.substring(n.length() - 1));
+        //b.append(n.substring(n.length() - 1));
         return b.toString();
     }
 
@@ -334,6 +338,11 @@ public class AnnotationAndReflectionHelper {
                 fc.put(key, f);
                 ret = f;
 
+            }
+            if (ret == null && f.isAnnotationPresent(Version.class) && fld.equals(MorphiumDriver.VERSION_NAME)) {
+                f.setAccessible(true);
+                fc.put(key, f);
+                ret = f;
             }
             if (ret == null && f.isAnnotationPresent(Reference.class) && !".".equals(f.getAnnotation(Reference.class).fieldName()) && f.getAnnotation(Reference.class).fieldName().equals(fld)) {
                 f.setAccessible(true);
@@ -594,6 +603,34 @@ public class AnnotationAndReflectionHelper {
         }
     }
 
+    public Field getVersionField(Object o) {
+        Class<?> cls;
+        if (o instanceof Class) {
+            cls = getRealClass((Class<?>) o);
+        } else {
+            cls = getRealClass(o.getClass());
+        }
+
+        List<String> flds = getFields(cls, Version.class);
+        if (flds == null || flds.isEmpty()) {
+            throw new IllegalArgumentException("Object has no version field defined: " + o.getClass().getSimpleName());
+        }
+        return getField(cls, flds.get(0));
+    }
+
+    public Long getVersion(Object o) {
+        if (o == null) {
+            throw new IllegalArgumentException("Object cannot be null");
+        }
+
+        List<String> flds = getFields(o.getClass(), Version.class);
+        if (flds == null || flds.isEmpty()) throw new IllegalArgumentException("No version field defined");
+        try {
+            return (Long) (getField(o.getClass(), flds.get(0))).get(o);
+        } catch (IllegalAccessException e) {
+            throw new RuntimeException(e);
+        }
+    }
 
     public Object getId(Object o) {
         if (o == null) {
@@ -653,6 +690,10 @@ public class AnnotationAndReflectionHelper {
      * @return List of Strings, each a field name (as described in @Property or determined by name)
      */
     public List<String> getFields(Class cls, Class<? extends Annotation>... annotations) {
+        return getFields(cls, false, annotations);
+    }
+
+    public List<String> getFields(Class cls, boolean ignoreEntity, Class<? extends Annotation>... annotations) {
         StringBuilder stringBuilder = new StringBuilder(cls.toString());
         for (Class<? extends Annotation> a : annotations) {
             stringBuilder.append("/");
@@ -668,15 +709,18 @@ public class AnnotationAndReflectionHelper {
         sc = getRealClass(sc);
         Entity entity = getAnnotationFromHierarchy(sc, Entity.class);
         Embedded embedded = getAnnotationFromHierarchy(sc, Embedded.class);
-        if (embedded != null && entity != null) {
+        if (embedded != null && entity != null && !ignoreEntity) {
             logger.warn("Class " + cls.getName() + " does have both @Entity and @Embedded Annotations - not allowed! Assuming @Entity is right");
         }
 
-        if (embedded == null && entity == null) {
+        if (embedded == null && entity == null && !ignoreEntity) {
             throw new IllegalArgumentException("This class " + cls.getName() + " does not have @Entity or @Embedded set, not even in hierachy - illegal!");
         }
 
-        boolean tcc = entity == null ? embedded.translateCamelCase() : entity.translateCamelCase();
+        boolean tcc = true;
+        if (embedded != null)
+            embedded.translateCamelCase();
+        if (entity != null) entity.translateCamelCase();
 
         IgnoreFields ignoreFields = getAnnotationFromHierarchy(sc, IgnoreFields.class);
         LimitToFields limitToFields = getAnnotationFromHierarchy(sc, LimitToFields.class);
@@ -888,6 +932,14 @@ public class AnnotationAndReflectionHelper {
             return null;
         }
         List<String> lst = getFields(cls, LastAccess.class);
+        if (lst == null || lst.isEmpty()) {
+            return null;
+        }
+        return lst.get(0);
+    }
+
+    public String getAdditionalDataField(Class<?> cls) {
+        List<String> lst = getFields(cls, AdditionalData.class);
         if (lst == null || lst.isEmpty()) {
             return null;
         }

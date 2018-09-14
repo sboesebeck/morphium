@@ -21,6 +21,10 @@ public class WatchingCacheSynchronizer extends AbstractCacheSynchronizer<Watchin
         monitor.start();
     }
 
+    public void start() {
+        //well not really necessary
+    }
+
     public void terminate() {
         running = false;
         monitor.stop();

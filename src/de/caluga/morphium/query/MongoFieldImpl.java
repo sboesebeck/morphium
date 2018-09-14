@@ -2,10 +2,11 @@ package de.caluga.morphium.query;
 
 import de.caluga.morphium.FilterExpression;
 import de.caluga.morphium.MongoType;
-import de.caluga.morphium.ObjectMapper;
+import de.caluga.morphium.MorphiumObjectMapper;
 import de.caluga.morphium.annotations.Entity;
 import de.caluga.morphium.annotations.Reference;
 import de.caluga.morphium.driver.MorphiumId;
+import org.bson.types.ObjectId;
 
 import java.lang.reflect.Field;
 import java.util.*;
@@ -23,7 +24,7 @@ import java.util.regex.Pattern;
 @SuppressWarnings("UnusedDeclaration")
 public class MongoFieldImpl<T> implements MongoField<T> {
     private Query<T> query;
-    private ObjectMapper mapper;
+    private MorphiumObjectMapper mapper;
     private String fldStr;
 
     private FilterExpression fe;
@@ -32,7 +33,7 @@ public class MongoFieldImpl<T> implements MongoField<T> {
     public MongoFieldImpl() {
     }
 
-    public MongoFieldImpl(Query<T> q, ObjectMapper map) {
+    public MongoFieldImpl(Query<T> q, MorphiumObjectMapper map) {
         query = q;
         mapper = map;
     }
@@ -50,12 +51,12 @@ public class MongoFieldImpl<T> implements MongoField<T> {
     }
 
     @Override
-    public ObjectMapper getMapper() {
+    public MorphiumObjectMapper getMapper() {
         return mapper;
     }
 
     @Override
-    public void setMapper(ObjectMapper mapper) {
+    public void setMapper(MorphiumObjectMapper mapper) {
         this.mapper = mapper;
     }
 
@@ -75,18 +76,21 @@ public class MongoFieldImpl<T> implements MongoField<T> {
                 if (field.isAnnotationPresent(Reference.class)) {
                     Object id;
                     if (val instanceof MorphiumId) {
-                        id = val;
+                        id = new ObjectId(val.toString());
                     } else {
                         id = mapper.getMorphium().getARHelper().getId(val);
+                        if (id instanceof MorphiumId) {
+                            id = new ObjectId(id.toString());
+                        }
                     }
                     val = id;
-                    if (Collection.class.isAssignableFrom(field.getType())) {
+
                         // list of references, this should be part of
                         //
                         // need to compare DBRefs
                         //                        val = new MorphiumReference(val.getClass().getName(), id);
-                        fldStr = fldStr + ".id"; //references in lists - id field in morphiumreference!!!!
-                    }
+                    fldStr = fldStr + ".refid"; //references in lists - id field in morphiumreference!!!!
+
                 }
 
             }
@@ -98,6 +102,8 @@ public class MongoFieldImpl<T> implements MongoField<T> {
                         val = new MorphiumId((String) val);
                     } catch (Exception ignored) {
                     }
+                } else if (field.getType().isEnum()) {
+                    fldStr = fldStr + ".name";
                 }
             }
         }

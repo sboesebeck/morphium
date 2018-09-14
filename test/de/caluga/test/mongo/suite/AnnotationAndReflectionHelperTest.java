@@ -1,7 +1,6 @@
 package de.caluga.test.mongo.suite;
 
 import de.caluga.morphium.AnnotationAndReflectionHelper;
-import de.caluga.morphium.Morphium;
 import de.caluga.morphium.annotations.*;
 import de.caluga.morphium.annotations.caching.Cache;
 import de.caluga.morphium.driver.MorphiumId;
@@ -163,13 +162,6 @@ public class AnnotationAndReflectionHelperTest {
     public void testGetFields() {
         assertThat(helper.getFields(UncachedObject.class, Id.class)).hasSize(1);
         assertThat(helper.getFields(UncachedObject.class, Index.class)).hasSize(2);
-    }
-
-    @Test
-    public void testGetRealObject() {
-        Morphium morphium = new Morphium();
-        Object entity = morphium.createPartiallyUpdateableEntity(new UncachedObject());
-        assertThat(helper.getRealObject(entity).getClass()).isEqualTo(UncachedObject.class);
     }
 
     @Test

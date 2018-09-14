@@ -28,7 +28,7 @@ public class CustomMsgTest extends MongoTest {
         });
         m1.start();
         m2.start();
-
+        Thread.sleep(2500);
         CustomMsg cm = new CustomMsg();
         cm.setCustomBuiltValue("test a avalue");
         cm.setName("test");
