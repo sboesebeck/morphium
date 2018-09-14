@@ -44,7 +44,7 @@ public class AnnotationAndReflectionHelper {
     private final Map<Class<?>, List<Field>> fieldListCache;
     private final Map<Class<?>, Map<Class<? extends Annotation>, Annotation>> annotationCache;
     private final Map<Class<?>, Map<String, String>> fieldNameCache;
-    private final ConcurrentHashMap<String, String> classNameByType;
+    private static ConcurrentHashMap<String, String> classNameByType;
     private Map<String, Field> fieldCache;
     private Map<String, List<String>> fieldAnnotationListCache;
     private Map<Class<?>, Map<Class<? extends Annotation>, Method>> lifeCycleMethods;
@@ -65,8 +65,10 @@ public class AnnotationAndReflectionHelper {
         this.hasAdditionalData = new ConcurrentHashMap<>();
         this.annotationCache = new ConcurrentHashMap<>();
         this.fieldNameCache = new ConcurrentHashMap<>();
-        this.classNameByType = new ConcurrentHashMap<String, String>();
-        init();
+        if (classNameByType == null) {
+            this.classNameByType = new ConcurrentHashMap<String, String>();
+            init();
+        }
     }
 
     private void init() {
@@ -81,7 +83,7 @@ public class AnnotationAndReflectionHelper {
             ClassInfoList entities =
                     scanResult.getClassesWithAnnotation(Entity.class.getName());
             entities.addAll(scanResult.getClassesWithAnnotation(Embedded.class.getName()));
-            logger.info("Found " + entities + " entities in classpath");
+            logger.info("Found " + entities.size() + " entities in classpath");
             for (String cn : entities.getNames()) {
                 ClassInfo ci = scanResult.getClassInfo(cn);
                 AnnotationInfoList an = ci.getAnnotationInfo();
@@ -468,6 +470,7 @@ public class AnnotationAndReflectionHelper {
         }
         try {
             Field f = getField(o.getClass(), fld);
+            if (f == null) return null;
             if (!Modifier.isStatic(f.getModifiers())) {
                 o = getRealObject(o);
                 return f.get(o);

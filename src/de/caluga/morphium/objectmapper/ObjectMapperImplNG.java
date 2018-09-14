@@ -92,7 +92,7 @@ public class ObjectMapperImplNG implements MorphiumObjectMapper {
         if (o == null) return null;
         if (o.containsKey("class_name")) {
             try {
-                theClass = (Class<? extends T>) Class.forName(o.get("class_name").toString());
+                theClass = anhelper.getClassForTypeId(o.get("class_name").toString());
             } catch (ClassNotFoundException e) {
                 throw new RuntimeException("Could not get class", e);
             }
@@ -106,7 +106,7 @@ public class ObjectMapperImplNG implements MorphiumObjectMapper {
         Map obj = new ObjectMapper().readValue(json, Map.class); //(HashMap<String, Object>) jsonParser.parse(json, containerFactory);
         if (obj.containsKey("class_name")) {
             try {
-                cls = (Class<? extends T>) Class.forName(obj.get("class_name").toString());
+                cls = anhelper.getClassForTypeId(obj.get("class_name").toString());
             } catch (ClassNotFoundException e) {
                 throw new RuntimeException("Could not get class", e);
             }

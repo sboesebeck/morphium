@@ -33,6 +33,7 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
     private final List<Class<?>> mongoTypes;
     private final ContainerFactory containerFactory;
     private AnnotationAndReflectionHelper annotationHelper = new AnnotationAndReflectionHelper(true);
+    ;
     private Morphium morphium;
 
     public ObjectMapperImpl() {

@@ -1003,7 +1003,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                         update.put(MorphiumDriver.VERSION_NAME, ((Long) morphium.getARHelper().getValue(toSet, versionFields.get(0))) + 1L);
                     }
                     Map<String, Object> res = morphium.getDriver().update(getDbName(), collection, query, update, multiple, upsert, wc);
-                    if (res.get("modified").equals(0L) && en != null && en.autoVersioning()) {
+                    if (en != null && en.autoVersioning() && res.get("modified").equals(0L)) {
                         throw new ConcurrentModificationException("could not modify");
                     }
                     long dur = System.currentTimeMillis() - start;
@@ -1379,7 +1379,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                         ((Map) update.get("$inc")).put(MorphiumDriver.VERSION_NAME, currentVersion + 1L);
                     }
                     Map<String, Object> res = morphium.getDriver().update(getDbName(), coll, query, update, false, false, wc);
-                    if (res.get("modified").equals(0L)) {
+                    if (en != null && en.autoVersioning() && res.get("modified").equals(0L)) {
                         throw new ConcurrentModificationException("Versioning error? Could not update");
                     }
                     morphium.getCache().clearCacheIfNecessary(cls);
