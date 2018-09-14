@@ -235,6 +235,7 @@ public class Messaging extends Thread implements ShutdownListener {
             changeStreamMonitor = new ChangeStreamMonitor(morphium, getCollectionName(), true);
             changeStreamMonitor.addListener(evt -> {
 //                    log.debug("incoming message via changeStream");
+                if (evt == null || evt.getOperationType() == null) return running;
                 if (evt.getOperationType().equals("insert")) {
                     //insert => new Message
 //                        log.debug("New message incoming");

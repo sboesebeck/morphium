@@ -7,7 +7,7 @@ import de.caluga.morphium.driver.MorphiumId;
 
 import java.util.Map;
 
-@Entity
+@Entity(translateCamelCase = false)
 public class ChangeStreamEvent {
 
     @Id
