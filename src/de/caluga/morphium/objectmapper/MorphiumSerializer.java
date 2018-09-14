@@ -109,7 +109,7 @@ public class MorphiumSerializer {
                                 serialize((Collection) e.getValue(), jsonGenerator, serializerProvider);
                             } else {
                                 Map value = jackson.convertValue(e.getValue(), Map.class);
-                                value.put("class_name", e.getValue().getClass().getName());
+                                value.put("class_name", anhelper.getTypeIdForClass(e.getValue().getClass()));
                                 jsonGenerator.writeObjectField((String) e.getKey(), value);
                             }
                         }
@@ -121,7 +121,7 @@ public class MorphiumSerializer {
                     }
 
 
-                    m.put("class_name", o.getClass().getName());
+                    m.put("class_name", anhelper.getTypeIdForClass(o.getClass()));
                     jsonGenerator.writeObject(m);
                 }
                 jsonGenerator.writeEndArray();
@@ -164,7 +164,7 @@ public class MorphiumSerializer {
                             for (Map.Entry e : (Set<Map.Entry>) value.entrySet()) {
                                 if (anhelper.isEntity(e.getValue())) {
                                     Map value1 = jackson.convertValue(e.getValue(), Map.class);
-                                    value1.put("class_name", e.getValue().getClass().getName());
+                                    value1.put("class_name", anhelper.getTypeIdForClass(e.getValue().getClass()));
                                     ret.put(e.getKey(), value1);
                                 } else if (e.getValue() instanceof Map) {
                                     //map in a map
@@ -231,16 +231,28 @@ public class MorphiumSerializer {
         }
     }
 
+    private Map serializeMap(Map value) {
+        Map ret = new LinkedHashMap();
+        for (Map.Entry e : (Set<Map.Entry>) value.entrySet()) {
+            if (anhelper.isEntity(e.getValue())) {
+                Map value1 = jackson.convertValue(e.getValue(), Map.class);
 
-    public class CustomEnumSerializer extends JsonSerializer<Enum> {
+                value1.put("class_name", anhelper.getTypeIdForClass(e.getValue().getClass()));
+                ret.put(e.getKey(), value1);
+            } else if (e.getValue() instanceof Map) {
+                //map in a map
 
-        @Override
-        public void serialize(Enum anEnum, JsonGenerator jsonGenerator, SerializerProvider serializerProvider) throws IOException {
-            Map obj = new HashMap();
-            obj.put("name", anEnum.name());
-            obj.put("class_name", anEnum.getClass().getName());
-            jsonGenerator.writeObject(obj);
+                ret.put(e.getKey(), serializeMap((Map) e.getValue()));
+
+            } else {
+                if (mongoTypes.contains(e.getValue().getClass())) {
+                    ret.put(e.getKey(), e.getValue());
+                } else {
+                    ret.put(e.getKey(), jackson.convertValue(e.getValue(), Map.class));
+                }
+            }
         }
+        return ret;
     }
 
 //
@@ -266,6 +278,17 @@ public class MorphiumSerializer {
 //            def.serialize(map,jsonGenerator,serializerProvider);
 //        }
 //    }
+
+    public class CustomEnumSerializer extends JsonSerializer<Enum> {
+
+        @Override
+        public void serialize(Enum anEnum, JsonGenerator jsonGenerator, SerializerProvider serializerProvider) throws IOException {
+            Map obj = new HashMap();
+            obj.put("name", anEnum.name());
+            obj.put("class_name", anhelper.getTypeIdForClass(anEnum.getClass()));
+            jsonGenerator.writeObject(obj);
+        }
+    }
 
     public class EntitySerializer extends JsonSerializer<Object> {
         private final AnnotationAndReflectionHelper an;
@@ -323,7 +346,7 @@ public class MorphiumSerializer {
                                     morphium.storeNoCache(lel);
                                     id = anhelper.getId(lel);
                                 }
-                                MorphiumReference ref = new MorphiumReference(lel.getClass().getName(), id);
+                                MorphiumReference ref = new MorphiumReference(anhelper.getTypeIdForClass(lel.getClass()), id);
                                 ref.setLazy(r.lazyLoading());
                                 ret.add(ref);
                             }
@@ -368,7 +391,7 @@ public class MorphiumSerializer {
                                 ret.put(e.getKey(), serializeMap((Map) e.getValue()));
                             } else if (anhelper.isEntity(e.getValue())) {
                                 ret.put(e.getKey(), jackson.convertValue(e.getValue(), Map.class));
-                                ((Map) ret.get(e.getKey())).put("class_name", e.getValue().getClass().getName());
+                                ((Map) ret.get(e.getKey())).put("class_name", anhelper.getTypeIdForClass(e.getValue().getClass()));
                                 ((Map) ret.get(e.getKey())).remove("_id");
 
                             } else {
@@ -397,33 +420,16 @@ public class MorphiumSerializer {
                 }
             }
             if (entity != null && entity.polymorph() || embedded != null && embedded.polymorph()) {
-                jsonGenerator.writeObjectField("class_name", o.getClass().getName());
+                String n = o.getClass().getName();
+                if (entity != null && !entity.typeId().equals(".")) {
+                    n = entity.typeId();
+                } else if (embedded != null && !embedded.typeId().equals(".")) {
+                    n = embedded.typeId();
+                }
+                jsonGenerator.writeObjectField("class_name", anhelper.getTypeIdForClass(o.getClass()));
             }
             jsonGenerator.writeEndObject();
         }
 
-    }
-
-    private Map serializeMap(Map value) {
-        Map ret = new LinkedHashMap();
-        for (Map.Entry e : (Set<Map.Entry>) value.entrySet()) {
-            if (anhelper.isEntity(e.getValue())) {
-                Map value1 = jackson.convertValue(e.getValue(), Map.class);
-                value1.put("class_name", e.getValue().getClass().getName());
-                ret.put(e.getKey(), value1);
-            } else if (e.getValue() instanceof Map) {
-                //map in a map
-
-                ret.put(e.getKey(), serializeMap((Map) e.getValue()));
-
-            } else {
-                if (mongoTypes.contains(e.getValue().getClass())) {
-                    ret.put(e.getKey(), e.getValue());
-                } else {
-                    ret.put(e.getKey(), jackson.convertValue(e.getValue(), Map.class));
-                }
-            }
-        }
-        return ret;
     }
 }

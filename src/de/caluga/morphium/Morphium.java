@@ -78,6 +78,8 @@ public class Morphium {
     private ThreadPoolExecutor asyncOperationsThreadPool;
     private MorphiumDriver morphiumDriver;
 
+    private Map<String, String> classNameByType = new ConcurrentHashMap<>();
+
     public Morphium() {
         profilingListeners = new CopyOnWriteArrayList<>();
 
