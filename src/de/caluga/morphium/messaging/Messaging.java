@@ -4,10 +4,10 @@ import de.caluga.morphium.Morphium;
 import de.caluga.morphium.ShutdownListener;
 import de.caluga.morphium.async.AsyncOperationCallback;
 import de.caluga.morphium.async.AsyncOperationType;
+import de.caluga.morphium.changestream.ChangeStreamMonitor;
 import de.caluga.morphium.driver.MorphiumId;
 import de.caluga.morphium.query.MorphiumIterator;
 import de.caluga.morphium.query.Query;
-import de.caluga.morphium.replicaset.OplogMonitor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -53,8 +53,8 @@ public class Messaging extends Thread implements ShutdownListener {
 
     private boolean multithreadded = false;
     private int windowSize = 1000;
-    private boolean useOplogMonitor = false;
-    private OplogMonitor oplogMonitor;
+    private boolean useChangeStream = false;
+    private ChangeStreamMonitor changeStreamMonitor;
 
     private Map<MorphiumId, Msg> waitingForAnswers = new ConcurrentHashMap<>();
 
@@ -84,17 +84,55 @@ public class Messaging extends Thread implements ShutdownListener {
         this(m, queueName, pause, processMultiple, multithreadded, windowSize, m.isReplicaSet());
     }
 
-    public Messaging(Morphium m, String queueName, int pause, boolean processMultiple, boolean multithreadded, int windowSize, boolean useOplogMonitor) {
+    public Messaging(Morphium m, String queueName, int pause, boolean processMultiple, boolean multithreadded, int windowSize, boolean useChangeStream) {
         this.multithreadded = multithreadded;
         this.windowSize = windowSize;
         morphium = m;
-        this.useOplogMonitor = useOplogMonitor;
+        this.useChangeStream = useChangeStream;
 
 
         if (multithreadded) {
+            BlockingQueue<Runnable> queue = new LinkedBlockingQueue<Runnable>() {
+                @Override
+                public boolean offer(Runnable e) {
+                    /*
+                     * Offer it to the queue if there is 0 items already queued, else
+                     * return false so the TPE will add another thread. If we return false
+                     * and max threads have been reached then the RejectedExecutionHandler
+                     * will be called which will do the put into the queue.
+                     */
+//                    if (size() == 0) {
+//                        return super.offer(e);
+//                    } else {
+//                        return false;
+//                    }
+                    int poolSize = threadPool.getPoolSize();
+                    int maximumPoolSize = threadPool.getMaximumPoolSize();
+                    if (poolSize >= maximumPoolSize || poolSize > threadPool.getActiveCount()) {
+                        return super.offer(e);
+                    } else {
+                        return false;
+                    }
+                }
+            };
             threadPool = new ThreadPoolExecutor(morphium.getConfig().getThreadPoolMessagingCoreSize(), morphium.getConfig().getThreadPoolMessagingMaxSize(),
                     morphium.getConfig().getThreadPoolMessagingKeepAliveTime(), TimeUnit.MILLISECONDS,
-                    new LinkedBlockingQueue<>());
+                    queue);
+            threadPool.setRejectedExecutionHandler(new RejectedExecutionHandler() {
+                @Override
+                public void rejectedExecution(Runnable r, ThreadPoolExecutor executor) {
+                    try {
+                        /*
+                         * This does the actual put into the queue. Once the max threads
+                         * have been reached, the tasks will then queue up.
+                         */
+                        executor.getQueue().put(r);
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                        return;
+                    }
+                }
+            });
             //noinspection unused,unused
             threadPool.setThreadFactory(new ThreadFactory() {
                 private AtomicInteger num = new AtomicInteger(1);
@@ -179,8 +217,8 @@ public class Messaging extends Thread implements ShutdownListener {
         }
 
 
-        if (useOplogMonitor) {
-            log.debug("Before running the oplogmonitor - check of already existing messages");
+        if (useChangeStream) {
+            log.debug("Before running the changestream monitor - check of already existing messages");
             try {
                 findAndProcessMessages(true);
                 if (multithreadded) {
@@ -192,21 +230,22 @@ public class Messaging extends Thread implements ShutdownListener {
             } catch (Exception e) {
                 log.error("Error processing existing messages in queue", e);
             }
-            log.debug("init Messaging  using oplogmonitor");
-            oplogMonitor = new OplogMonitor(morphium, getCollectionName(), false);
-            oplogMonitor.addListener(data -> {
-//                    log.debug("incoming message via oplogmonitor");
-                if (data.get("op").equals("i")) {
+            log.debug("init Messaging  using changestream monitor");
+            //changeStreamMonitor = new changeStream(morphium, getCollectionName(), false);
+            changeStreamMonitor = new ChangeStreamMonitor(morphium, getCollectionName(), true);
+            changeStreamMonitor.addListener(evt -> {
+//                    log.debug("incoming message via changeStream");
+                if (evt.getOperationType().equals("insert")) {
                     //insert => new Message
 //                        log.debug("New message incoming");
-                    Msg obj = morphium.getMapper().unmarshall(Msg.class, (Map<String, Object>) data.get("o"));
+                    Msg obj = morphium.getMapper().deserialize(Msg.class, (Map<String, Object>) evt.getFullDocument());
                     if (obj.getSender().equals(id) || (obj.getProcessedBy() != null && obj.getProcessedBy().contains(id)) || (obj.getRecipient() != null && !obj.getRecipient().equals(id))) {
                         //ignoring my own messages
-                        return;
+                        return running;
                     }
                     if (pauseMessages.containsKey(obj.getName())) {
                         log.info("Not processing message - processing paused for " + obj.getName());
-                        return;
+                        return running;
                     }
                     //do not process messages, that are exclusive, but already processed or not for me / all
                     if (obj.isExclusive() && obj.getLockedBy() == null && (obj.getRecipient() == null || obj.getRecipient().equals(id)) && (obj.getProcessedBy() == null || !obj.getProcessedBy().contains(id))) {
@@ -217,7 +256,7 @@ public class Messaging extends Thread implements ShutdownListener {
                     } else if (!obj.isExclusive() || (obj.getRecipient() != null && obj.getRecipient().equals(id))) {
                         //I need process this new message... it is either for all or for me directly
                         if (processing.contains(obj.getMsgId())) {
-                            return;
+                            return running;
                         }
 //                        obj = morphium.reread(obj);
 //                        if (obj.getReceivedBy() != null && obj.getReceivedBy().contains(id)) {
@@ -236,12 +275,12 @@ public class Messaging extends Thread implements ShutdownListener {
                         log.debug("Message is not for me");
                     }
 
-                } else if (data.get("op").equals("u")) {
+                } else if (evt.getOperationType().equals("update")) {
                     //dealing with updates... i could have "lost" a lock
 //                        if (((Map<String,Object>)data.get("o")).get("$set")!=null){
 //                            //there is a set-update
 //                        }
-                    Msg obj = morphium.findById(Msg.class, new MorphiumId(((Map<String, Object>) data.get("o2")).get("_id").toString()));
+                    Msg obj = morphium.findById(Msg.class, new MorphiumId(((Map<String, Object>) evt.getFullDocument()).get("_id").toString()));
                     if (obj != null && obj.isExclusive() && obj.getLockedBy() == null && (obj.getRecipient() == null || obj.getRecipient().equals(id))) {
                         log.debug("Update of msg - trying to lock");
                         // locking
@@ -250,8 +289,9 @@ public class Messaging extends Thread implements ShutdownListener {
                     //if msg was not exclusive, we should have processed it on insert
 
                 }
+                return running;
             });
-            oplogMonitor.start();
+            changeStreamMonitor.start();
         } else {
 
             while (running) {
@@ -296,13 +336,7 @@ public class Messaging extends Thread implements ShutdownListener {
      * @return duration or null
      */
     public Long unpauseProcessingOfMessagesNamed(String name) {
-
-        try {
-            findAndProcessPendingMessages(name, true);
-        } catch (InterruptedException e) {
-            //TODO: Implement Handling
-            throw new RuntimeException(e);
-        }
+        findAndProcessPendingMessages(name, true);
 
         Long ret = pauseMessages.remove(name);
 
@@ -314,7 +348,7 @@ public class Messaging extends Thread implements ShutdownListener {
         return ret;
     }
 
-    public void findAndProcessPendingMessages(String name, boolean forceListeners) throws InterruptedException {
+    public void findAndProcessPendingMessages(String name, boolean forceListeners) {
         MorphiumIterator<Msg> messages = findMessages(name, true);
         processMessages(messages, forceListeners);
     }
@@ -347,7 +381,7 @@ public class Messaging extends Thread implements ShutdownListener {
         return it;
     }
 
-    private void findAndProcessMessages(boolean multiple) throws InterruptedException {
+    private void findAndProcessMessages(boolean multiple) {
         MorphiumIterator<Msg> messages = findMessages(null, multiple);
         processMessages(messages, false);
     }
@@ -601,15 +635,15 @@ public class Messaging extends Thread implements ShutdownListener {
     }
 
     public boolean isRunning() {
-        if (useOplogMonitor) {
-            return oplogMonitor != null && oplogMonitor.isRunning();
+        if (useChangeStream) {
+            return changeStreamMonitor != null && changeStreamMonitor.isRunning();
         }
         return running;
     }
 
     @Deprecated
     public void setRunning(boolean running) {
-        if (!running && (oplogMonitor != null)) oplogMonitor.stop();
+        if (!running && (changeStreamMonitor != null)) changeStreamMonitor.stop();
         this.running = running;
     }
 
@@ -623,7 +657,8 @@ public class Messaging extends Thread implements ShutdownListener {
             int sz = threadPool.shutdownNow().size();
             log.debug("Shutting down with " + sz + " runnables still pending in pool");
         }
-        if (oplogMonitor != null) oplogMonitor.stop();
+        if (changeStreamMonitor != null) changeStreamMonitor.stop();
+        sendMessageToSelf(new Msg("info", "going down", "now"));
         if (isAlive()) {
             interrupt();
         }
@@ -642,6 +677,20 @@ public class Messaging extends Thread implements ShutdownListener {
 
     public void queueMessage(final Msg m) {
         storeMsg(m, true);
+    }
+
+
+    @Override
+    public synchronized void start() {
+        super.start();
+        if (useChangeStream) {
+            try {
+                Thread.sleep(500);
+                //wait for changestream to kick in ;-)
+            } catch (Exception e) {
+                log.error("error:" + e.getMessage());
+            }
+        }
     }
 
     public void storeMessage(Msg m) {
@@ -735,11 +784,12 @@ public class Messaging extends Thread implements ShutdownListener {
     @Override
     public void onShutdown(Morphium m) {
         try {
+            running = false;
             if (threadPool != null) {
                 threadPool.shutdownNow();
                 threadPool = null;
             }
-            if (oplogMonitor != null) oplogMonitor.stop();
+            if (changeStreamMonitor != null) changeStreamMonitor.stop();
         } catch (Exception e) {
             //swallow
         }

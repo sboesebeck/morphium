@@ -16,6 +16,7 @@ import java.util.Map;
  * Time: 10:46
  * <p>
  */
+@SuppressWarnings("Duplicates")
 public class InMemUpdateTest extends InMemTest {
     @Test
     public void incMultipleFieldsTest() throws Exception {

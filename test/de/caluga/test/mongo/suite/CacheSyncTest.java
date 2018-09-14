@@ -9,6 +9,7 @@ import de.caluga.morphium.annotations.caching.Cache;
 import de.caluga.morphium.annotations.caching.WriteBuffer;
 import de.caluga.morphium.cache.MessagingCacheSyncListener;
 import de.caluga.morphium.cache.MessagingCacheSynchronizer;
+import de.caluga.morphium.cache.WatchingCacheSynchronizer;
 import de.caluga.morphium.driver.MorphiumId;
 import de.caluga.morphium.messaging.Messaging;
 import de.caluga.morphium.messaging.Msg;
@@ -16,6 +17,10 @@ import de.caluga.morphium.query.Query;
 import de.caluga.test.mongo.suite.data.CachedObject;
 import org.junit.Test;
 
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.regex.Pattern;
 
 /**
@@ -53,6 +58,7 @@ public class CacheSyncTest extends MongoTest {
 
     @Test
     public void removeFromCacheTest() throws Exception {
+
         for (int i = 0; i < 100; i++) {
             CachedObject o = new CachedObject();
             o.setCounter(i);
@@ -65,9 +71,9 @@ public class CacheSyncTest extends MongoTest {
             c = c.f("counter").eq(i);
             c.asList();
         }
-        Thread.sleep(100);
         assert (morphium.getStatistics().get(StatisticKeys.CACHE_ENTRIES.name()) != null) : "Cache entries not set?";
         assert (morphium.getStatistics().get(StatisticKeys.CACHE_ENTRIES.name()) > 0) : "Cache entries not set? " + morphium.getStatistics().get(StatisticKeys.CACHE_ENTRIES.name());
+        Thread.sleep(2500);
         Query<CachedObject> c = morphium.createQueryFor(CachedObject.class);
         c = c.f("counter").eq(10);
         MorphiumId id = c.get().getId();
@@ -224,11 +230,11 @@ public class CacheSyncTest extends MongoTest {
         final MessagingCacheSynchronizer cs1 = new MessagingCacheSynchronizer(msg1, morphium);
         cs1.addSyncListener(new MessagingCacheSyncListener() {
             @Override
-            public void preClear(Class cls, Msg m) {
+            public void preClear(Class cls) {
             }
 
             @Override
-            public void postClear(Class cls, Msg m) {
+            public void postClear(Class cls) {
             }
 
             @Override
@@ -247,13 +253,13 @@ public class CacheSyncTest extends MongoTest {
         final MessagingCacheSynchronizer cs2 = new MessagingCacheSynchronizer(msg2, morphium);
         cs2.addSyncListener(new MessagingCacheSyncListener() {
             @Override
-            public void preClear(Class cls, Msg m) {
+            public void preClear(Class cls) {
                 log.info("in preClear");
                 preClear = true;
             }
 
             @Override
-            public void postClear(Class cls, Msg m) {
+            public void postClear(Class cls) {
                 log.info("In postClear");
                 postclear = true;
             }
@@ -425,7 +431,7 @@ public class CacheSyncTest extends MongoTest {
         waitForWrites();
 
         //fill caches
-        log.info("Filling cches...");
+        log.info("Filling caches...");
         for (int i = 0; i < 100; i++) {
             m1.createQueryFor(CachedObject.class).f("counter").lte(i + 10).asList(); //fill cache
             m2.createQueryFor(CachedObject.class).f("counter").lte(i + 10).asList(); //fill cache
@@ -437,13 +443,13 @@ public class CacheSyncTest extends MongoTest {
         CachedObject o = m1.createQueryFor(CachedObject.class).f("counter").eq(155).get();
         cs2.addSyncListener(CachedObject.class, new MessagingCacheSyncListener() {
             @Override
-            public void preClear(Class cls, Msg m) {
+            public void preClear(Class cls) {
                 log.info("Should clear cache");
                 preClear = true;
             }
 
             @Override
-            public void postClear(Class cls, Msg m) {
+            public void postClear(Class cls) {
                 log.info("did clear cache");
                 postclear = true;
             }
@@ -498,6 +504,41 @@ public class CacheSyncTest extends MongoTest {
         m2.close();
 
     }
+
+    @Test
+    public void testWatchingCacheSynchronizer() throws Exception {
+        morphium.dropCollection(CachedObject.class);
+
+        WatchingCacheSynchronizer sync = new WatchingCacheSynchronizer(morphium);
+        sync.start();
+
+        createCachedObjects(100);
+        waitForWriteToStart(1000);
+        waitForWrites();
+
+        //filling cache
+        for (int i = 0; i < 10; i++) {
+            morphium.createQueryFor(CachedObject.class).f("counter").lte(i * 10).asList();
+        }
+
+        assert (morphium.getStatistics().get("X-Entries for: resultCache|de.caluga.test.mongo.suite.data.CachedObject") >= 10);
+        List<Map<String, Object>> writings = new ArrayList<>();
+        Map<String, Object> obj = new HashMap<>();
+        obj.put("counter", 123);
+        obj.put(CachedObject.Fields.value.name(), "test");
+        writings.add(obj);
+        morphium.getDriver().store(morphium.getConfig().getDatabase(), morphium.getMapper().getCollectionName(CachedObject.class), writings, morphium.getWriteConcernForClass(CachedObject.class));
+        //stored some object avoiding cache handling in morphium
+        //now cache should be empty
+        waitForWriteToStart(1000);
+        waitForWrites();
+        assert (morphium.getStatistics().get("X-Entries for: resultCache|de.caluga.test.mongo.suite.data.CachedObject") <= 1);
+        sync.terminate();
+        Thread.sleep(1000);
+    }
+
+
+
 
     @Cache(syncCache = Cache.SyncCacheStrategy.UPDATE_ENTRY)
     @WriteBuffer(timeout = 1000)

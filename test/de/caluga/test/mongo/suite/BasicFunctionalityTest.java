@@ -12,6 +12,7 @@ import de.caluga.morphium.annotations.Id;
 import de.caluga.morphium.driver.MorphiumId;
 import de.caluga.morphium.query.Query;
 import de.caluga.test.mongo.suite.data.CachedObject;
+import de.caluga.test.mongo.suite.data.ComplexObject;
 import de.caluga.test.mongo.suite.data.EmbeddedObject;
 import de.caluga.test.mongo.suite.data.UncachedObject;
 import org.junit.Test;
@@ -463,7 +464,7 @@ public class BasicFunctionalityTest extends MongoTest {
         waitForWrites();
         dur = System.currentTimeMillis() - start;
         log.info("Storing took " + dur + " ms overall");
-        Thread.sleep(1500);
+        Thread.sleep(3500);
         randomCheck();
         Map<String, Double> statistics = morphium.getStatistics();
         Double uc = statistics.get("X-Entries resultCache|for: de.caluga.test.mongo.suite.data.UncachedObject");
@@ -722,6 +723,34 @@ public class BasicFunctionalityTest extends MongoTest {
         }
         assert (ex);
 
+    }
+
+    @Test
+    public void marshallListOfIdsTest() {
+        ListOfIdsContainer c = new ListOfIdsContainer();
+        c.others = new ArrayList<>();
+        c.others.add(new MorphiumId());
+        c.others.add(new MorphiumId());
+        c.others.add(new MorphiumId());
+        c.others.add(new MorphiumId());
+        c.simpleId = new MorphiumId();
+
+        c.idMap = new HashMap<>();
+        c.idMap.put("1", new MorphiumId());
+
+        Map<String, Object> marshall = morphium.getMapper().serialize(c);
+        assert (marshall.get("simple_id") instanceof MorphiumId);
+        assert (((Map) marshall.get("id_map")).get("1") instanceof MorphiumId);
+        for (Object i : (List) marshall.get("others")) {
+            assert (i instanceof MorphiumId);
+        }
+
+        ///
+
+        c = morphium.getMapper().deserialize(ListOfIdsContainer.class, marshall);
+        assert (c.idMap != null && c.idMap.get("1") != null && c.idMap.get("1") instanceof MorphiumId);
+        assert (c.others.size() == 4 && c.others.get(0) instanceof MorphiumId);
+        assert (c.simpleId != null);
     }
 
 

@@ -10,12 +10,15 @@ import de.caluga.morphium.annotations.Embedded;
 @Embedded
 public class MorphiumReference {
     private String referencedClassName;
-    private Object id;
+    private Object refid;
     private String collectionName;
+    private boolean lazy = false;
 
+    public MorphiumReference() {
+    }
     public MorphiumReference(String name, Object id) {
         this.referencedClassName = name;
-        this.id = id;
+        this.refid = id;
     }
 
     public String getClassName() {
@@ -28,11 +31,19 @@ public class MorphiumReference {
     }
 
     public Object getId() {
-        return id;
+        return refid;
+    }
+
+    public boolean isLazy() {
+        return lazy;
+    }
+
+    public void setLazy(boolean lazy) {
+        this.lazy = lazy;
     }
 
     public void setId(Object id) {
-        this.id = id;
+        this.refid = id;
     }
 
     public String getCollectionName() {

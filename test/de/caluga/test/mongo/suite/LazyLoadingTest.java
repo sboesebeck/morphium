@@ -1,8 +1,6 @@
 package de.caluga.test.mongo.suite;
 
-import de.caluga.morphium.DereferencingListener;
 import de.caluga.morphium.Morphium;
-import de.caluga.morphium.MorphiumAccessVetoException;
 import de.caluga.morphium.StatisticKeys;
 import de.caluga.morphium.annotations.Entity;
 import de.caluga.morphium.annotations.Id;
@@ -10,6 +8,7 @@ import de.caluga.morphium.annotations.Reference;
 import de.caluga.morphium.driver.MorphiumId;
 import de.caluga.morphium.query.Query;
 import de.caluga.test.mongo.suite.data.CachedObject;
+import de.caluga.test.mongo.suite.data.ComplexObject;
 import de.caluga.test.mongo.suite.data.LazyLoadingObject;
 import de.caluga.test.mongo.suite.data.UncachedObject;
 import org.junit.Test;
@@ -236,81 +235,6 @@ public class LazyLoadingTest extends MongoTest {
         log.info("Reading single lazy took " + dur + " ms");
     }
 
-
-    @Test
-    public void deReferenceListenerTest() throws Exception {
-        Query<LazyLoadingObject> q = morphium.createQueryFor(LazyLoadingObject.class);
-        //clean
-        morphium.delete(q);
-
-        log.info("Creating...");
-        LazyLoadingObject lz = new LazyLoadingObject();
-        UncachedObject o = new UncachedObject();
-        o.setCounter(11);
-        o.setValue("A uncached value");
-        morphium.store(o);
-
-        CachedObject co = new CachedObject();
-        co.setCounter(112);
-        co.setValue("A cached Value");
-        morphium.store(co);
-
-        waitForWrites();
-
-        lz.setName("Lazy");
-        lz.setLazyCached(co);
-        lz.setLazyUncached(o);
-        log.info("Storing...");
-
-        List<UncachedObject> lst = new ArrayList<>();
-        lst.add(o);
-        lz.setLazyLst(lst);
-        morphium.store(lz);
-        log.info("Stored object");
-
-        Thread.sleep(200);
-        DereferencingListener<Object, LazyLoadingObject, MorphiumId> refListener = new DereferencingListener<Object, LazyLoadingObject, MorphiumId>() {
-            @Override
-            public void wouldDereference(LazyLoadingObject entiyIncludingReference, String fieldInEntity, MorphiumId id, Class<Object> typeReferenced, boolean lazy) throws MorphiumAccessVetoException {
-                log.info("Would dereference...");
-                wouldDeref = true;
-                assert (lazy);
-                assert (!typeReferenced.equals(Object.class));
-                assert (entiyIncludingReference.getName().equals("Lazy"));
-            }
-
-            @Override
-            public Object didDereference(LazyLoadingObject entitiyIncludingReference, String fieldInEntity, Object referencedObject, boolean lazy) {
-                didDeref = true;
-                assert (lazy);
-                assert (referencedObject != null);
-                return referencedObject;
-            }
-        };
-        morphium.addDereferencingListener(refListener);
-        lz = q.get();
-        lz.getLazyCached().getCounter();
-        assert (wouldDeref);
-        assert (didDeref);
-
-
-        wouldDeref = false;
-        didDeref = false;
-        lz.getLazyUncached().getCounter();
-
-        assert (wouldDeref);
-        assert (didDeref);
-
-        wouldDeref = false;
-        didDeref = false;
-
-        lz.getLazyLst().get(0).getCounter();
-        assert (wouldDeref);
-        assert (didDeref);
-        morphium.removeDerrferencingListener(refListener);
-
-
-    }
 
     @Test
     public void testLazyRef() throws Exception {

@@ -12,14 +12,15 @@ import de.caluga.morphium.cache.MorphiumCache;
 import de.caluga.morphium.driver.ReadPreference;
 import de.caluga.morphium.driver.ReadPreferenceType;
 import de.caluga.morphium.driver.mongodb.Driver;
+import de.caluga.morphium.objectmapper.ObjectMapperImplNG;
 import de.caluga.morphium.query.*;
 import de.caluga.morphium.writer.AsyncWriterImpl;
 import de.caluga.morphium.writer.BufferedMorphiumWriterImpl;
 import de.caluga.morphium.writer.MorphiumWriter;
 import de.caluga.morphium.writer.MorphiumWriterImpl;
-import org.json.simple.parser.ParseException;
 import org.slf4j.LoggerFactory;
 
+import java.io.IOException;
 import java.lang.reflect.Field;
 import java.util.*;
 
@@ -32,7 +33,7 @@ import java.util.*;
 @Embedded
 public class MorphiumConfig {
     @AdditionalData(readOnly = false)
-    private Map<String, String> restoreData;
+    private Map<String, Object> restoreData;
     //    private MongoDbMode mode;
     private int maxConnections, housekeepingTimeout;
     private int globalCacheValidTime = 5000;
@@ -102,7 +103,7 @@ public class MorphiumConfig {
     //    private Class<? extends Object> userClass, roleClass, aclClass;
     private String mongoAdminUser, mongoAdminPwd; //THE superuser!
     @Transient
-    private Class<? extends ObjectMapper> omClass = ObjectMapperImpl.class;
+    private Class<? extends MorphiumObjectMapper> omClass = ObjectMapperImplNG.class;
     @Transient
     private Class<? extends MongoField> fieldImplClass = MongoFieldImpl.class;
     @Transient
@@ -232,13 +233,13 @@ public class MorphiumConfig {
     }
 
 
-    public static MorphiumConfig createFromJson(String json) throws ParseException, NoSuchFieldException, ClassNotFoundException, IllegalAccessException, InstantiationException {
-        MorphiumConfig cfg = new ObjectMapperImpl().unmarshall(MorphiumConfig.class, json);
+    public static MorphiumConfig createFromJson(String json) throws NoSuchFieldException, ClassNotFoundException, IllegalAccessException, InstantiationException, IOException {
+        MorphiumConfig cfg = new ObjectMapperImplNG().deserialize(MorphiumConfig.class, json);
 
         for (Object ko : cfg.restoreData.keySet()) {
             String k = (String) ko;
             parseClassSettings(k,cfg.restoreData.get(k), cfg);
-            String value = cfg.restoreData.get(k);
+            String value = cfg.restoreData.get(k).toString();
             if (k.equals("hosts") || k.equals("hostSeed")) {
                 value = value.replaceAll("\\[", "").replaceAll("]", "");
                 for (String adr : value.split(",")) {
@@ -401,11 +402,11 @@ public class MorphiumConfig {
         return this;
     }
 
-    public Class<? extends ObjectMapper> getOmClass() {
+    public Class<? extends MorphiumObjectMapper> getOmClass() {
         return omClass;
     }
 
-    public MorphiumConfig setOmClass(Class<? extends ObjectMapper> omClass) {
+    public MorphiumConfig setOmClass(Class<? extends MorphiumObjectMapper> omClass) {
         this.omClass = omClass;
         return this;
     }
@@ -815,7 +816,7 @@ public class MorphiumConfig {
     public String toString() {
         updateAdditionals();
         try {
-            return Utils.toJsonString(getOmClass().newInstance().marshall(this));
+            return Utils.toJsonString(getOmClass().newInstance().serialize(this));
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
