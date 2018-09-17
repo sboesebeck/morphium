@@ -43,4 +43,19 @@ public class VersioningTest extends MongoTest {
         lst.get(0).setTheVersionNumber(1234);
         morphium.storeList(lst);
     }
+
+    @Test
+    public void updateVersionTest() throws Exception {
+        for (int i = 0; i < 100; i++) morphium.store(new VersionedEntity("value" + i, i));
+
+        Thread.sleep(100);
+
+        morphium.set(morphium.createQueryFor(VersionedEntity.class).f("value").eq("value10"), "counter", 1234);
+        Thread.sleep(100);
+
+        VersionedEntity ve = morphium.createQueryFor(VersionedEntity.class).f("value").eq("value10").get();
+        assert (ve.getTheVersionNumber() == 2);
+        ve = morphium.createQueryFor(VersionedEntity.class).f("value").eq("value11").get();
+        assert (ve.getTheVersionNumber() == 1);
+    }
 }
