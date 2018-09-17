@@ -746,7 +746,7 @@ public class MorphiumConfig {
         return this;
     }
 
-    public void addHostToSeed(String host) {
+    public MorphiumConfig addHostToSeed(String host) {
         host = host.replaceAll(" ", "");
         if (host.contains(":")) {
             String[] h = host.split(":");
@@ -754,6 +754,7 @@ public class MorphiumConfig {
         } else {
             addHostToSeed(host, 27017);
         }
+        return this;
     }
 
     public int getMaxConnections() {
@@ -1006,12 +1007,14 @@ public class MorphiumConfig {
         return this;
     }
 
-    public void disableReadCache() {
+    public MorphiumConfig disableReadCache() {
         this.readCacheEnabled = false;
+        return this;
     }
 
-    public void enableReadCache() {
+    public MorphiumConfig enableReadCache() {
         this.readCacheEnabled = true;
+        return this;
     }
 
     public boolean isAsyncWritesEnabled() {
@@ -1023,12 +1026,14 @@ public class MorphiumConfig {
         return this;
     }
 
-    public void disableAsyncWrites() {
+    public MorphiumConfig disableAsyncWrites() {
         asyncWritesEnabled = false;
+        return this;
     }
 
-    public void enableAsyncWrites() {
+    public MorphiumConfig enableAsyncWrites() {
         asyncWritesEnabled = true;
+        return this;
     }
 
     public boolean isBufferedWritesEnabled() {
@@ -1040,12 +1045,14 @@ public class MorphiumConfig {
         return this;
     }
 
-    public void disableBufferedWrites() {
+    public MorphiumConfig disableBufferedWrites() {
         bufferedWritesEnabled = false;
+        return this;
     }
 
-    public void enableBufferedWrites() {
+    public MorphiumConfig enableBufferedWrites() {
         bufferedWritesEnabled = true;
+        return this;
     }
 
     public boolean isAutoValuesEnabled() {
@@ -1057,12 +1064,14 @@ public class MorphiumConfig {
         return this;
     }
 
-    public void enableAutoValues() {
+    public MorphiumConfig enableAutoValues() {
         autoValues = true;
+        return this;
     }
 
-    public void disableAutoValues() {
+    public MorphiumConfig disableAutoValues() {
         autoValues = false;
+        return this;
     }
 
     public int getAcceptableLatencyDifference() {
@@ -1250,13 +1259,14 @@ public class MorphiumConfig {
         return defaultTags;
     }
 
-    public void addDefaultTag(String name, String value) {
+    public MorphiumConfig addDefaultTag(String name, String value) {
         if (defaultTags != null) {
             defaultTags += ",";
         } else {
             defaultTags = "";
         }
         defaultTags += name + ":" + value;
+        return this;
     }
 
 

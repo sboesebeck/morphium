@@ -60,7 +60,6 @@ public class Messaging extends Thread implements ShutdownListener {
 
     private List<MorphiumId> processing = new Vector<>();
 
-
     /**
      * attaches to the default queue named "msg"
      *
@@ -70,6 +69,10 @@ public class Messaging extends Thread implements ShutdownListener {
      */
     public Messaging(Morphium m, int pause, boolean processMultiple) {
         this(m, null, pause, processMultiple);
+    }
+
+    public Messaging(Morphium m) {
+        this(m, null, 500, false, false, 100);
     }
 
     public Messaging(Morphium m, int pause, boolean processMultiple, boolean multithreadded, int windowSize) {
