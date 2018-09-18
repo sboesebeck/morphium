@@ -245,7 +245,9 @@ public class MorphiumSerializer {
                 ret.put(e.getKey(), serializeMap((Map) e.getValue()));
 
             } else {
-                if (mongoTypes.contains(e.getValue().getClass())) {
+                if (e.getValue() == null) {
+                    ret.put(e.getKey(), null);
+                } else if (mongoTypes.contains(e.getValue().getClass())) {
                     ret.put(e.getKey(), e.getValue());
                 } else {
                     ret.put(e.getKey(), jackson.convertValue(e.getValue(), Map.class));
