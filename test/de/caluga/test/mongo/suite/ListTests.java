@@ -3,6 +3,7 @@ package de.caluga.test.mongo.suite;
 import de.caluga.morphium.annotations.Entity;
 import de.caluga.morphium.annotations.Id;
 import de.caluga.morphium.annotations.ReadPreferenceLevel;
+import de.caluga.morphium.annotations.caching.WriteBuffer;
 import de.caluga.morphium.driver.MorphiumId;
 import de.caluga.morphium.query.Query;
 import de.caluga.test.mongo.suite.data.EmbeddedObject;
@@ -13,7 +14,6 @@ import org.junit.Test;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 
 import static org.junit.Assert.fail;
 
@@ -259,12 +259,18 @@ public class ListTests extends MongoTest {
         ilst.number = 1;
 
         morphium.store(ilst);
+        Thread.sleep(1000);
         assert (ilst.id != null);
-        Map m = morphium.getMapper().serialize(ilst);
-        assert (m != null);
+
         MyIdListContainer ilst2 = morphium.createQueryFor(MyIdListContainer.class).get();
         assert (ilst2.idList.size() == ilst.idList.size());
         assert (ilst2.idList.get(0).equals(ilst.idList.get(0)));
+
+        ilst2.idList.add(new MorphiumId());
+        morphium.store(ilst2);
+        assert (ilst2.idList.get(0) instanceof MorphiumId);
+        assert (ilst2.idList.get(0).equals(ilst.idList.get(0)));
+
 
     }
 
@@ -284,6 +290,7 @@ public class ListTests extends MongoTest {
 
 
     @Entity
+    @WriteBuffer(value = true, size = 10, timeout = 100)
     public static class MyIdListContainer {
         @Id
         public MorphiumId id;
