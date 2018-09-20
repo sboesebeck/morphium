@@ -419,6 +419,9 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
         for (Object el : o) {
             if (el instanceof Collection) {
                 lst.add(handleList((Collection) el));
+            } else if (el instanceof MorphiumId) {
+                Map m = Utils.getMap("morphium id", el.toString());
+                lst.add(m);
             } else {
                 lst.add(morphium.getMapper().serialize(el));
             }
