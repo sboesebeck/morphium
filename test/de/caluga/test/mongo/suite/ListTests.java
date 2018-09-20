@@ -13,6 +13,7 @@ import org.junit.Test;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 import static org.junit.Assert.fail;
 
@@ -246,6 +247,27 @@ public class ListTests extends MongoTest {
 
     }
 
+    @Test
+    public void idListTest() throws Exception {
+        MyIdListContainer ilst = new MyIdListContainer();
+        ilst.idList = new ArrayList<>();
+        ilst.idList.add(new MorphiumId());
+        ilst.idList.add(new MorphiumId());
+        ilst.idList.add(new MorphiumId());
+        ilst.idList.add(new MorphiumId());
+        ilst.name = "A test";
+        ilst.number = 1;
+
+        morphium.store(ilst);
+        assert (ilst.id != null);
+        Map m = morphium.getMapper().serialize(ilst);
+        assert (m != null);
+        MyIdListContainer ilst2 = morphium.createQueryFor(MyIdListContainer.class).get();
+        assert (ilst2.idList.size() == ilst.idList.size());
+        assert (ilst2.idList.get(0).equals(ilst.idList.get(0)));
+
+    }
+
     @Entity(collectionName = "UCTest")
     public static class Uc extends UncachedObject {
     }
@@ -256,6 +278,16 @@ public class ListTests extends MongoTest {
         @Id
         public MorphiumId id;
         public List<Object> objectList;
+        public String name;
+        public int number;
+    }
+
+
+    @Entity
+    public static class MyIdListContainer {
+        @Id
+        public MorphiumId id;
+        public List<MorphiumId> idList;
         public String name;
         public int number;
     }
