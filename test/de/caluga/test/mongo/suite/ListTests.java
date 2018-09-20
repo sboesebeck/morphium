@@ -266,7 +266,9 @@ public class ListTests extends MongoTest {
         assert (ilst2.idList.size() == ilst.idList.size());
         assert (ilst2.idList.get(0).equals(ilst.idList.get(0)));
 
+
         ilst2.idList.add(new MorphiumId());
+        ilst2.number = 234;
         morphium.store(ilst2);
         assert (ilst2.idList.get(0) instanceof MorphiumId);
         assert (ilst2.idList.get(0).equals(ilst.idList.get(0)));
