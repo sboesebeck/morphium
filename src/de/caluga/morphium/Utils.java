@@ -199,9 +199,12 @@ public class Utils {
 
 
     public static Object replaceMorphiumIds(Map m) {
+        if (m == null) return null;
         Map toSet = new LinkedHashMap();
         for (Map.Entry e : (Set<Map.Entry>) m.entrySet()) {
-            if (e.getKey().equals("morphium id")) {
+            if (e.getValue() == null) {
+                toSet.put(e.getKey(), null);
+            } else if (e.getKey().equals("morphium id")) {
                 //identifier!
                 return new MorphiumId(e.getValue().toString());
             } else if (e.getKey().equals("date field")) {
@@ -218,9 +221,12 @@ public class Utils {
     }
 
     public static Collection replaceMorphiumIds(Collection value) {
+        if (value == null) return null;
         Collection ret = new ArrayList();
         for (Object o : value) {
-            if (o instanceof Map && ((Map) o).containsKey("morphium id")) {
+            if (o == null) {
+                ret.add(null);
+            } else if (o instanceof Map && ((Map) o).containsKey("morphium id")) {
                 ret.add(new MorphiumId((String) ((Map) o).get("morphium id")));
             } else if (o instanceof Map && ((Map) o).containsKey("date field")) {
                 ret.add(new Date((Long) ((Map) o).get("date field")));
