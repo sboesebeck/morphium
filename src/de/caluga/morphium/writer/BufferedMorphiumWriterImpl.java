@@ -2,9 +2,11 @@ package de.caluga.morphium.writer;
 
 import de.caluga.morphium.*;
 import de.caluga.morphium.annotations.Capped;
+import de.caluga.morphium.annotations.Version;
 import de.caluga.morphium.annotations.caching.WriteBuffer;
 import de.caluga.morphium.async.AsyncOperationCallback;
 import de.caluga.morphium.async.AsyncOperationType;
+import de.caluga.morphium.driver.MorphiumDriver;
 import de.caluga.morphium.driver.MorphiumDriverException;
 import de.caluga.morphium.driver.MorphiumId;
 import de.caluga.morphium.driver.bulk.BulkRequestContext;
@@ -380,6 +382,10 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
                 up.setQuery((morphium.createQueryFor(o.getClass()).f(morphium.getARHelper().getIdFieldName(o)).eq(morphium.getARHelper().getId(o))).toQueryObject());
                 Map<String, Object> cmd = new HashMap<>();
                 up.setCmd(Utils.getMap("$set", cmd));
+                if (morphium.getARHelper().isAnnotationPresentInHierarchy(o.getClass(), Version.class)) {
+                    up.getQuery().put(MorphiumDriver.VERSION_NAME, morphium.getARHelper().getVersion(o));
+                    cmd.put(MorphiumDriver.VERSION_NAME, morphium.getARHelper().getVersion(o) + 1);
+                }
                 //noinspection unchecked
                 for (String f : morphium.getARHelper().getFields(o.getClass())) {
                     try {
@@ -390,6 +396,8 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
                             if (!(Map.class.isAssignableFrom(field.getType())) && !(Map.class.isAssignableFrom(field.getType())) && !field.getType().isArray()) {
                                 serialize = field.get(o);
                             }
+                        } else if (field.get(o) instanceof Collection) {
+                            serialize = handleList((Collection) field.get(o));
                         }
                         if (serialize == null) {
                             serialize = morphium.getMapper().serialize(field.get(o));
@@ -404,6 +412,21 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
             //                morphium.clearCacheforClassIfNecessary(o.getClass());
             morphium.firePostStore(o, isNew);
         }, c, AsyncOperationType.WRITE);
+    }
+
+    private List handleList(Collection o) {
+        List lst = new ArrayList();
+        for (Object el : o) {
+            if (el instanceof Collection) {
+                lst.add(handleList((Collection) el));
+            } else if (el instanceof MorphiumId) {
+                Map m = Utils.getMap("morphium id", el.toString());
+                lst.add(m);
+            } else {
+                lst.add(morphium.getMapper().serialize(el));
+            }
+        }
+        return lst;
     }
 
     @Override
