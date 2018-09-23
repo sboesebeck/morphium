@@ -3,6 +3,7 @@ package de.caluga.test.mongo.suite;
 import de.caluga.morphium.annotations.Entity;
 import de.caluga.morphium.annotations.Id;
 import de.caluga.morphium.annotations.ReadPreferenceLevel;
+import de.caluga.morphium.annotations.caching.WriteBuffer;
 import de.caluga.morphium.driver.MorphiumId;
 import de.caluga.morphium.query.Query;
 import de.caluga.test.mongo.suite.data.*;
@@ -243,6 +244,35 @@ public class ListTests extends MongoTest {
 
     }
 
+    @Test
+    public void idListTest() throws Exception {
+        MyIdListContainer ilst = new MyIdListContainer();
+        ilst.idList = new ArrayList<>();
+        ilst.idList.add(new MorphiumId());
+        ilst.idList.add(new MorphiumId());
+        ilst.idList.add(new MorphiumId());
+        ilst.idList.add(new MorphiumId());
+        ilst.name = "A test";
+        ilst.number = 1;
+
+        morphium.store(ilst);
+        Thread.sleep(1000);
+        assert (ilst.id != null);
+
+        MyIdListContainer ilst2 = morphium.createQueryFor(MyIdListContainer.class).get();
+        assert (ilst2.idList.size() == ilst.idList.size());
+        assert (ilst2.idList.get(0).equals(ilst.idList.get(0)));
+
+
+        ilst2.idList.add(new MorphiumId());
+        ilst2.number = 234;
+        morphium.store(ilst2);
+        assert (ilst2.idList.get(0) instanceof MorphiumId);
+        assert (ilst2.idList.get(0).equals(ilst.idList.get(0)));
+
+
+    }
+
     @Entity(collectionName = "UCTest")
     public static class Uc extends UncachedObject {
     }
@@ -253,6 +283,17 @@ public class ListTests extends MongoTest {
         @Id
         public MorphiumId id;
         public List<Object> objectList;
+        public String name;
+        public int number;
+    }
+
+
+    @Entity
+    @WriteBuffer(value = true, size = 10, timeout = 100)
+    public static class MyIdListContainer {
+        @Id
+        public MorphiumId id;
+        public List<MorphiumId> idList;
         public String name;
         public int number;
     }
