@@ -6,10 +6,7 @@ import de.caluga.morphium.annotations.ReadPreferenceLevel;
 import de.caluga.morphium.annotations.caching.WriteBuffer;
 import de.caluga.morphium.driver.MorphiumId;
 import de.caluga.morphium.query.Query;
-import de.caluga.test.mongo.suite.data.EmbeddedObject;
-import de.caluga.test.mongo.suite.data.ExtendedEmbeddedObject;
-import de.caluga.test.mongo.suite.data.ListWildcardContainer;
-import de.caluga.test.mongo.suite.data.UncachedObject;
+import de.caluga.test.mongo.suite.data.*;
 import org.junit.Test;
 
 import java.util.ArrayList;
