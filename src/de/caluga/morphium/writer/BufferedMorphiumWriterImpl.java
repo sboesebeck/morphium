@@ -239,8 +239,11 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
                     case WRITE_OLD:
 
                         opLog.get(type).sort((o1, o2) -> Long.valueOf(o1.getTimestamp()).compareTo(o2.getTimestamp()));
-                        opLog.get(type).get(0).getToRun().queue(ctx);
-                        opLog.get(type).remove(0);
+                        //could have been written in the meantime
+                        if (!opLog.get(type).isEmpty()) {
+                            opLog.get(type).get(0).getToRun().queue(ctx);
+                            opLog.get(type).remove(0);
+                        }
                         opLog.get(type).add(wb);
                         break;
                     case DEL_OLD:
