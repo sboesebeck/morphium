@@ -29,6 +29,8 @@ public class DriverHelper {
                     LoggerFactory.getLogger(DriverHelper.class).warn("recovered from error");
                 }
                 return ret;
+            } catch (IllegalStateException e){
+
             } catch (Exception e) {
                 handleNetworkError(maxRetry, i, sleep, e);
             }
