@@ -130,6 +130,7 @@ public class MorphiumConfig {
     private int localThreashold = 0;
     private int maxConnectionIdleTime = 10000;
     private int maxConnectionLifeTime = 60000;
+    private int messagingPendingMessagesTimestampOffset=100;
 
 
     private List<String> hostSeed = new ArrayList<>();
@@ -1292,5 +1293,11 @@ public class MorphiumConfig {
         return this;
     }
 
+    public int getMessagingPendingMessagesTimestampOffset() {
+        return messagingPendingMessagesTimestampOffset;
+    }
 
+    public void setMessagingPendingMessagesTimestampOffset(int messagingPendingMessagesTimestampOffset) {
+        this.messagingPendingMessagesTimestampOffset = messagingPendingMessagesTimestampOffset;
+    }
 }
