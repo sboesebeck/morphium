@@ -632,7 +632,8 @@ public class Driver implements MorphiumDriver {
                     run = processChangeStreamEvent(cb, iterator, start);
                     if (!run) break;
                 }
-                iterator.close();
+                    iterator.close();
+
             }
             return null;
         }, retriesOnNetworkError, sleepBetweenErrorRetries);

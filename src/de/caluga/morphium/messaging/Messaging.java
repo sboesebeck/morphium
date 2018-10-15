@@ -271,7 +271,7 @@ public class Messaging extends Thread implements ShutdownListener {
                         lst.add(obj);
 
                         try {
-                            processMessages(lst, false);
+                            processMessages(lst);
                         } catch (Exception e) {
                             log.error("Error during message processing ", e);
                         }
@@ -340,24 +340,32 @@ public class Messaging extends Thread implements ShutdownListener {
      * @return duration or null
      */
     public Long unpauseProcessingOfMessagesNamed(String name) {
-        findAndProcessPendingMessages(name, true);
 
-        Long ret = pauseMessages.remove(name);
-
+        Long since = pauseMessages.remove(name); //this also enables processing!
+        Long ret=new Long(since);
         if (ret != null) {
             ret = System.currentTimeMillis() - ret;
         }
+        findAndProcessPendingMessages(name,since,System.currentTimeMillis());
         //decouplePool.execute(r);
 
         return ret;
     }
 
-    public void findAndProcessPendingMessages(String name, boolean forceListeners) {
-        MorphiumIterator<Msg> messages = findMessages(name, true);
-        processMessages(messages, forceListeners);
+    private void findAndProcessPendingMessages(String name,long since,long to) {
+        while (true) {
+            MorphiumIterator<Msg> messages = findMessages(name, processMultiple, since,to);
+            if (!messages.hasNext()) {
+                break;
+            }
+            processMessages(messages);
+        }
     }
 
     private MorphiumIterator<Msg> findMessages(String name, boolean multiple) {
+        return findMessages(name,multiple,0,System.currentTimeMillis());
+    }
+    private MorphiumIterator<Msg> findMessages(String name, boolean multiple,long since,long to) {
         Map<String, Object> values = new HashMap<>();
         Query<Msg> q = morphium.createQueryFor(Msg.class);
         q.setCollectionName(getCollectionName());
@@ -368,11 +376,13 @@ public class Messaging extends Thread implements ShutdownListener {
         Query<Msg> or2 = q.q().f(Msg.Fields.sender).ne(id).f(Msg.Fields.lockedBy).eq(null).f(Msg.Fields.processedBy).ne(id).f(Msg.Fields.recipient).eq(id);
         if (name != null) or2.f(Msg.Fields.name).eq(name);
         q.f("_id").nin(processing);
+        q.f(Msg.Fields.timestamp).gte(since-morphium.getConfig().getMessagingPendingMessagesTimestampOffset());
+        q.f(Msg.Fields.timestamp).lte(to+morphium.getConfig().getMessagingPendingMessagesTimestampOffset());
         q.or(or1, or2);
         q.sort(Msg.Fields.priority, Msg.Fields.timestamp);
         values.put("locked_by", id);
         values.put("locked", System.currentTimeMillis());
-        morphium.set(q, values, false, true);
+        morphium.set(q, values, false, multiple);
         q = q.q();
         q.or(q.q().f(Msg.Fields.lockedBy).eq(id),
                 q.q().f(Msg.Fields.lockedBy).eq("ALL").f(Msg.Fields.processedBy).ne(id).f(Msg.Fields.recipient).eq(id),
@@ -387,7 +397,7 @@ public class Messaging extends Thread implements ShutdownListener {
 
     private void findAndProcessMessages(boolean multiple) {
         MorphiumIterator<Msg> messages = findMessages(null, multiple);
-        processMessages(messages, false);
+        processMessages(messages);
     }
 
     private void lockAndProcess(Msg obj) {
@@ -410,14 +420,14 @@ public class Messaging extends Thread implements ShutdownListener {
             List<Msg> lst = new ArrayList<>();
             lst.add(obj);
             try {
-                processMessages(lst, false);
+                processMessages(lst);
             } catch (Exception e) {
                 log.error("Error during message processing ", e);
             }
         }
     }
 
-    private void processMessages(Iterable<Msg> messages, boolean forceIfPaused) {
+    private void processMessages(Iterable<Msg> messages) {
 //        final List<Msg> toStore = new ArrayList<>();
 //        final List<Runnable> toExec = new ArrayList<>();
         if (listeners.isEmpty() && listenerByName.isEmpty()) return;
@@ -444,7 +454,7 @@ public class Messaging extends Thread implements ShutdownListener {
                     processing.remove(m.getMsgId());
                     return; //was deleted
                 }
-                if (!forceIfPaused && pauseMessages.containsKey(msg.getName())) {
+                if ( pauseMessages.containsKey(msg.getName())) {
                     log.info("Not processing msg - paused " + msg.getName());
 //                    Query<? extends Msg> qu = morphium.createQueryFor(m.getClass()).f("_id").eq(m.getMsgId());
 //                    qu.setCollectionName(getCollectionName());
