@@ -1,5 +1,8 @@
 package de.caluga.test.mongo.suite;
 
+import de.caluga.morphium.Utils;
+import de.caluga.morphium.annotations.Entity;
+import de.caluga.morphium.annotations.Id;
 import de.caluga.morphium.driver.MorphiumId;
 import de.caluga.morphium.query.MorphiumDriverIterator;
 import de.caluga.morphium.query.MorphiumIterator;
@@ -22,6 +25,63 @@ public class IteratorTest extends MongoTest {
     private List<MorphiumId> data = Collections.synchronizedList(new ArrayList<>());
 
     private int runningThreads = 0;
+
+    @Test
+    public void iteratorSortTest() throws Exception {
+        for (int i = 0; i < 100; i++) {
+            morphium.store(new SimpleEntity(((int) (Math.random() * 5.0)), (long) (Math.random() * 100000.0)));
+        }
+        Thread.sleep(1000);
+
+        Query<SimpleEntity> q = morphium.createQueryFor(SimpleEntity.class);
+
+        q.or(q.q().f("v2").lt(100), q.q().f("v2").gt(200));
+        List<Integer> lst = new ArrayList<>();
+        lst.add(100);
+        lst.add(1001);
+        q.f("v2").nin(lst);
+        Map<String, Integer> map = Utils.getMap("v1", 1);
+        map.put("v2", 1);
+        q.sort(map);
+
+
+        long lastv2 = -1;
+        int lastv1 = 0;
+        MorphiumIterator<SimpleEntity> it = q.asIterable(1000);
+        it.setMultithreaddedAccess(true);
+        boolean error = false;
+        for (SimpleEntity u : it) {
+            log.info(u.v1 + " ---- " + u.v2);
+            if (lastv1 > u.v1) {
+                error = true;
+            }
+
+            if (lastv1 != u.v1) {
+                lastv2 = -1;
+            }
+            if (lastv2 > u.v2) {
+                error = true;
+            }
+            lastv2 = u.v2;
+            lastv1 = u.v1;
+        }
+        assert (!error);
+    }
+
+    @Entity
+    public static class SimpleEntity {
+        @Id
+        public MorphiumId id;
+        public int v1;
+        public long v2;
+        public String v1str;
+
+        public SimpleEntity(int v1, long v2) {
+            this.v1 = v1;
+            this.v2 = v2;
+            v1str = "" + v1;
+        }
+    }
 
 
     @Test

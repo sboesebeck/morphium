@@ -518,10 +518,10 @@ public class Driver implements MorphiumDriver {
 //            DBCollection coll = getColl(database, collection, readPreference, null);
             MongoCollection<Document> c = getCollection(database, collection, readPreference, null);
             FindIterable<Document> it = currentTransaction.get() == null ? c.find(new BasicDBObject(query)) : c.find(currentTransaction.get().getSession(), new BasicDBObject(query));
-            if (projection != null) {
+            if (projection != null && !projection.isEmpty()) {
                 it.projection(new BasicDBObject(projection));
             }
-            if (sort != null) {
+            if (sort != null && !sort.isEmpty()) {
                 it.sort(new BasicDBObject(sort));
             }
             if (skip != 0) {
@@ -537,7 +537,6 @@ public class Driver implements MorphiumDriver {
             }
             MongoCursor<Document> ret = it.iterator();
 //            DBCursor ret = coll.find(new BasicDBObject(query), projection != null ? new BasicDBObject(projection) : null);
-
             handleMetaData(findMetaData, ret);
 
             List<Map<String, Object>> values = new ArrayList<>();
@@ -567,7 +566,6 @@ public class Driver implements MorphiumDriver {
 ////            }
             crs.setBatch(values);
             r.put("result", crs);
-
             return r;
         }, retriesOnNetworkError, sleepBetweenErrorRetries).get("result");
     }
