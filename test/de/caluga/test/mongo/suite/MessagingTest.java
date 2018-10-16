@@ -1574,8 +1574,6 @@ public class MessagingTest extends MongoTest {
 
     @Test
     public void priorityTest() throws Exception {
-        morphium.dropCollection(Msg.class);
-        Thread.sleep(1000);
         Messaging sender = new Messaging(morphium, 100, false);
         sender.start();
 
@@ -1619,7 +1617,7 @@ public class MessagingTest extends MongoTest {
             sender.storeMessage(m);
         }
 
-        Thread.sleep(100);
+        Thread.sleep(1000);
         receiver.unpauseProcessingOfMessagesNamed("test");
         while (list.size() < 10) {
             Thread.yield();
@@ -1636,6 +1634,61 @@ public class MessagingTest extends MongoTest {
 
         sender.terminate();
         receiver.terminate();
+    }
+
+
+    @Test
+    public void unpausingTest() throws Exception {
+        list.clear();
+        final AtomicInteger cnt=new AtomicInteger(0);
+        Messaging sender = new Messaging(morphium, 100, false);
+        sender.start();
+
+        Messaging receiver=new Messaging(morphium,100,false,true,10);
+        receiver.start();
+
+        receiver.addListenerForMessageNamed("pause", (msg, m) -> {
+            log.info("Processing pause  message");
+            msg.pauseProcessingOfMessagesNamed("pause");
+            Thread.sleep(2000);
+            cnt.incrementAndGet();
+            msg.unpauseProcessingOfMessagesNamed("pause");
+
+            return null;
+        });
+
+        receiver.addListenerForMessageNamed("now", (msg, m) -> {
+            msg.pauseProcessingOfMessagesNamed("now");
+            list.add(m);
+            msg.unpauseProcessingOfMessagesNamed("now");
+            return null;
+        });
+
+        sender.storeMessage(new Msg("now","now","now"));
+        Thread.sleep(100);
+        assert(list.size()==1);
+
+        sender.storeMessage(new Msg("pause","pause","pause"));
+        sender.storeMessage(new Msg("now","now","now"));
+        Thread.sleep(100);
+        assert(list.size()==2);
+
+        sender.storeMessage(new Msg("pause","pause","pause"));
+        sender.storeMessage(new Msg("pause","pause","pause"));
+        sender.storeMessage(new Msg("pause","pause","pause"));
+        assert(cnt.get()==0);
+        Thread.sleep(2000);
+        assert(cnt.get()==1);
+        //1st message processed
+        Thread.sleep(2000);
+        //Message after unpausing:
+        assert(cnt.get()==2):"Count wrong: "+cnt.get();
+        sender.storeMessage(new Msg("now","now","now"));
+        Thread.sleep(100);
+        assert(list.size()==3);
+        Thread.sleep(2000);
+        //Message after unpausing:
+        assert(cnt.get()==3):"Count wrong: "+cnt.get();
     }
 
 }
