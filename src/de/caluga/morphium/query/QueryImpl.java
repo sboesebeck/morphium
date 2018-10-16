@@ -173,7 +173,7 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
 
     @Override
     public List<T> complexQuery(Map<String, Object> query, String sort, int skip, int limit) {
-        Map<String, Integer> srt = new HashMap<>();
+        Map<String, Integer> srt = new LinkedHashMap<>();
         if (sort != null) {
             String[] tok = sort.split(",");
             for (String t : tok) {
@@ -558,7 +558,7 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
 
     @Override
     public Map<String, Object> toQueryObject() {
-        Map<String, Object> o = new HashMap<>();
+        Map<String, Object> o = new LinkedHashMap<>();
         List<Map<String, Object>> lst = new ArrayList<>();
         boolean onlyAnd = orQueries.isEmpty() && norQueries.isEmpty() && where == null;
         if (where != null) {
@@ -993,7 +993,7 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
                 ret.norQueries.addAll(norQueries);
             }
             if (sort != null) {
-                ret.sort = new HashMap<>();
+                ret.sort = new LinkedHashMap<>();
                 ret.sort.putAll(sort);
             }
             if (orQueries != null) {
@@ -1147,7 +1147,7 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
 
     @Override
     public Query<T> setProjection(String... fl) {
-        fieldList = new HashMap<>();
+        fieldList = new LinkedHashMap<>();
         for (String f : fl) {
             addProjection(f);
         }
@@ -1169,7 +1169,7 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
     @Override
     public Query<T> addProjection(String f) {
         if (fieldList == null) {
-            fieldList = new HashMap<>();
+            fieldList = new LinkedHashMap<>();
         }
         int v = 1;
 
@@ -1185,7 +1185,7 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
     @Override
     public Query<T> addProjection(String f, String projectOperator) {
         if (fieldList == null) {
-            fieldList = new HashMap<>();
+            fieldList = new LinkedHashMap<>();
         }
         String n = getARHelper().getFieldName(type, f);
         fieldList.put(n, projectOperator);
@@ -1195,7 +1195,7 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
     @Override
     public Query<T> hideFieldInProjection(String f) {
         if (fieldList == null) {
-            fieldList = new HashMap<>();
+            fieldList = new LinkedHashMap<>();
 
         }
         //        if (fieldList.size()==0){
