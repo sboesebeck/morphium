@@ -1599,7 +1599,8 @@ public class MessagingTest extends MongoTest {
 
         for (int i = 0; i < 5; i++) {
             Msg m = new Msg("pause", "pause", "pause");
-            m.setPriority((int) (Math.random() * 1000.0));
+            m.setPriority((int) (Math.random() * 100.0));
+            m.setExclusive(true);
             sender.storeMessage(m);
             if (i % 2 == 0) {
                 sender.storeMessage(new Msg("now", "now", "now"));
