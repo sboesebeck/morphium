@@ -385,9 +385,13 @@ public class Messaging extends Thread implements ShutdownListener {
         q.f("_id").nin(processing);
         q.or(or1, or2);
         q.sort(Msg.Fields.priority, Msg.Fields.timestamp);
+        if (!multiple) {
+            q.limit(1);
+        }
+
         values.put("locked_by", id);
         values.put("locked", System.currentTimeMillis());
-        morphium.set(q, values, false, multiple);
+        morphium.set(q.q().f("_id").in(q.idList()), values, false, multiple);
         q = q.q();
         if (name != null) {
             q.f(Msg.Fields.name).eq(name);
