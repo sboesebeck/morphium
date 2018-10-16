@@ -220,7 +220,7 @@ public class Messaging extends Thread implements ShutdownListener {
         if (useChangeStream) {
             log.debug("Before running the changestream monitor - check of already existing messages");
             try {
-                findAndProcessMessages(true);
+                findAndProcessPendingMessages(null);
                 if (multithreadded) {
                     //wait for preprocessing to finish
                     while (threadPool.getActiveCount() > 0) {
