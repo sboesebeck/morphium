@@ -121,19 +121,16 @@ public class Messaging extends Thread implements ShutdownListener {
             threadPool = new ThreadPoolExecutor(morphium.getConfig().getThreadPoolMessagingCoreSize(), morphium.getConfig().getThreadPoolMessagingMaxSize(),
                     morphium.getConfig().getThreadPoolMessagingKeepAliveTime(), TimeUnit.MILLISECONDS,
                     queue);
-            threadPool.setRejectedExecutionHandler(new RejectedExecutionHandler() {
-                @Override
-                public void rejectedExecution(Runnable r, ThreadPoolExecutor executor) {
-                    try {
-                        /*
-                         * This does the actual put into the queue. Once the max threads
-                         * have been reached, the tasks will then queue up.
-                         */
-                        executor.getQueue().put(r);
-                    } catch (InterruptedException e) {
-                        Thread.currentThread().interrupt();
-                        return;
-                    }
+            threadPool.setRejectedExecutionHandler((r, executor) -> {
+                try {
+                    /*
+                     * This does the actual put into the queue. Once the max threads
+                     * have been reached, the tasks will then queue up.
+                     */
+                    executor.getQueue().put(r);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    return;
                 }
             });
             //noinspection unused,unused
@@ -248,7 +245,7 @@ public class Messaging extends Thread implements ShutdownListener {
                         return running;
                     }
                     if (pauseMessages.containsKey(obj.getName())) {
-                        log.info("Not processing message - processing paused for " + obj.getName());
+                        log.debug("Not processing message - processing paused for " + obj.getName());
                         return running;
                     }
                     //do not process messages, that are exclusive, but already processed or not for me / all
@@ -285,7 +282,7 @@ public class Messaging extends Thread implements ShutdownListener {
 //                            //there is a set-update
 //                        }
                     Msg obj = morphium.findById(Msg.class, new MorphiumId(((Map<String, Object>) evt.getFullDocument()).get("_id").toString()));
-                    if (obj != null && obj.isExclusive() && obj.getLockedBy() == null && (obj.getRecipient() == null || obj.getRecipient().equals(id))) {
+                    if (obj != null && obj.isExclusive() && obj.getLockedBy() == null && !pauseMessages.containsKey(obj.getName()) && (obj.getRecipient() == null || obj.getRecipient().equals(id))) {
                         log.debug("Update of msg - trying to lock");
                         // locking
                         lockAndProcess(obj);
@@ -340,7 +337,8 @@ public class Messaging extends Thread implements ShutdownListener {
      * @return duration or null
      */
     public Long unpauseProcessingOfMessagesNamed(String name) {
-        findAndProcessPendingMessages(name);
+        MorphiumIterator<Msg> messages = findMessages(name, processMultiple);
+        processMessages(messages);
         Long ret = pauseMessages.remove(name);
         if (ret != null) {
             ret = System.currentTimeMillis() - ret;
@@ -351,8 +349,18 @@ public class Messaging extends Thread implements ShutdownListener {
     }
 
     public void findAndProcessPendingMessages(String name) {
-            MorphiumIterator<Msg> messages = findMessages(name, processMultiple);
-            processMessages(messages);
+        Runnable r = () -> {
+            while (true) {
+                MorphiumIterator<Msg> messages = findMessages(name, processMultiple);
+                if (!messages.hasNext()) break;
+                processMessages(messages);
+                try {
+                    Thread.sleep(pause);
+                } catch (InterruptedException e) {
+                }
+            }
+        };
+        queueOrRun(r);
 
     }
 
@@ -397,7 +405,6 @@ public class Messaging extends Thread implements ShutdownListener {
         if (!multiple) {
             q.limit(1);
         }
-        log.info("processing messages: "+q.countAll());
         //                List<Msg> messages = q.asList();
         MorphiumIterator<Msg> it = q.asIterable(windowSize);
         it.setMultithreaddedAccess(multithreadded);

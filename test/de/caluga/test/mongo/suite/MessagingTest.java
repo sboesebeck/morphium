@@ -1573,14 +1573,68 @@ public class MessagingTest extends MongoTest {
 
 
     @Test
+    public void priorityPausedMessagingTest() throws Exception {
+        Messaging sender = new Messaging(morphium, 100, false);
+        sender.start();
+        final AtomicInteger count = new AtomicInteger();
+
+        list.clear();
+        Messaging receiver = new Messaging(morphium, 100, false, true, 100);
+        receiver.start();
+
+        receiver.addListenerForMessageNamed("pause", (msg, m) -> {
+            msg.pauseProcessingOfMessagesNamed(m.getName());
+            log.info("Incoming paused message: prio " + m.getPriority() + "  timestamp: " + m.getTimestamp());
+            Thread.sleep(500);
+            list.add(m);
+            msg.unpauseProcessingOfMessagesNamed(m.getName());
+            return null;
+        });
+
+        receiver.addListenerForMessageNamed("now", (msg, m) -> {
+            log.info("incoming now-msg");
+            count.incrementAndGet();
+            return null;
+        });
+
+        for (int i = 0; i < 5; i++) {
+            Msg m = new Msg("pause", "pause", "pause");
+            m.setPriority((int) (Math.random() * 1000.0));
+            sender.storeMessage(m);
+            if (i % 2 == 0) {
+                sender.storeMessage(new Msg("now", "now", "now"));
+            }
+        }
+        Thread.sleep(200);
+        assert (count.get() == 3) : "Count wrong " + count.get();
+        assert (list.size() < 5);
+        Thread.sleep(2500);
+        assert (list.size() == 5);
+
+        list.remove(0); //prio of first is random
+
+        int lastPrio = -1;
+
+        for (Msg m : list) {
+            assert (m.getPriority() >= lastPrio);
+            lastPrio = m.getPriority();
+        }
+
+    }
+
+
+    @Test
     public void priorityTest() throws Exception {
         Messaging sender = new Messaging(morphium, 100, false);
         sender.start();
 
         list.clear();
+        //if running multithreadded, the execution order might differ a bit because of the concurrent
+        //execution - hence if set to multithreadded, the test will fail!
+        Messaging receiver = new Messaging(morphium, 100, false, false, 100);
 
-        Messaging receiver = new Messaging(morphium, 100, false);
         receiver.addMessageListener((msg, m) -> {
+            log.info("Incoming message: prio " + m.getPriority() + "  timestamp: " + m.getTimestamp());
             list.add(m);
             return null;
         });
@@ -1592,7 +1646,7 @@ public class MessagingTest extends MongoTest {
             sender.storeMessage(m);
         }
 
-
+        Thread.sleep(1000);
         receiver.start();
 
         while (list.size() < 10) {
@@ -1619,6 +1673,7 @@ public class MessagingTest extends MongoTest {
 
         Thread.sleep(1000);
         receiver.unpauseProcessingOfMessagesNamed("test");
+        receiver.findAndProcessPendingMessages("test");
         while (list.size() < 10) {
             Thread.yield();
         }
