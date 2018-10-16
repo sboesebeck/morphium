@@ -963,7 +963,7 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
 
         List<Map<String, Object>> query;
         try {
-            query = morphium.getDriver().find(getDB(), getCollectionName(), toQueryObject(), null, Utils.getMap("_id", 1), skip, limit, 1, getRP(), findMetadata);
+            query = morphium.getDriver().find(getDB(), getCollectionName(), toQueryObject(), sort, Utils.getMap("_id", 1), skip, limit, 1, getRP(), findMetadata);
         } catch (MorphiumDriverException e) {
             //TODO: Implement Handling
             throw new RuntimeException(e);
