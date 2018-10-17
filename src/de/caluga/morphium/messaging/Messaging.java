@@ -402,6 +402,14 @@ public class Messaging extends Thread implements ShutdownListener {
             }
         }
         q.f("_id").nin(processing);
+        if (name != null) {
+            q.f(Msg.Fields.name).eq(name);
+        } else {
+            //not searching for paused messages
+            if (!pauseMessages.isEmpty()) {
+                q.f(Msg.Fields.name).nin(pauseMessages.keySet());
+            }
+        }
         q.or(q.q().f(Msg.Fields.lockedBy).eq(id),
                 q.q().f(Msg.Fields.lockedBy).eq("ALL").f(Msg.Fields.processedBy).ne(id).f(Msg.Fields.recipient).eq(id),
                 q.q().f(Msg.Fields.lockedBy).eq("ALL").f(Msg.Fields.processedBy).ne(id).f(Msg.Fields.recipient).eq(null));
