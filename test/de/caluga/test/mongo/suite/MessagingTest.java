@@ -1579,7 +1579,7 @@ public class MessagingTest extends MongoTest {
         final AtomicInteger count = new AtomicInteger();
 
         list.clear();
-        Messaging receiver = new Messaging(morphium, 100, false, true, 100);
+        Messaging receiver = new Messaging(morphium, 10, false, true, 100);
         receiver.start();
 
         receiver.addListenerForMessageNamed("pause", (msg, m) -> {
@@ -1632,7 +1632,7 @@ public class MessagingTest extends MongoTest {
         list.clear();
         //if running multithreadded, the execution order might differ a bit because of the concurrent
         //execution - hence if set to multithreadded, the test will fail!
-        Messaging receiver = new Messaging(morphium, 100, false, false, 100);
+        Messaging receiver = new Messaging(morphium, 10, false, false, 100);
 
         receiver.addMessageListener((msg, m) -> {
             log.info("Incoming message: prio " + m.getPriority() + "  timestamp: " + m.getTimestamp());
@@ -1700,7 +1700,7 @@ public class MessagingTest extends MongoTest {
         Messaging sender = new Messaging(morphium, 100, false);
         sender.start();
 
-        Messaging receiver=new Messaging(morphium,100,false,true,10);
+        Messaging receiver=new Messaging(morphium,10,false,true,10);
         receiver.start();
 
         receiver.addListenerForMessageNamed("pause", (msg, m) -> {
