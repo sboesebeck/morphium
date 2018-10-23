@@ -151,6 +151,7 @@ public class ChangeStreamTest extends MongoTest {
         assert (count[0] == 50);
         log.info("Quitting");
         run[0] = false;
+        Thread.sleep(500);
 
     }
 

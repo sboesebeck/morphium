@@ -708,7 +708,7 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
                             }
 
                             //can't be null
-                            if (size > 0 && opLog.get(clz).size() >= size) {
+                            if (size > 0 && opLog.get(clz) != null && opLog.get(clz).size() >= size) {
                                 //size reached!
                                 runIt(clz);
                                 continue;
@@ -745,7 +745,7 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
                 //                            opLog.put(clz, new Vector<WriteBufferEntry>());
 
                 flushQueueToMongo(localQueue);
-                if (!localQueue.isEmpty()) {
+                if (localQueue != null && !localQueue.isEmpty()) {
                     if (opLog.get(clz) == null) {
                         synchronized (opLog) {
                             opLog.putIfAbsent(clz, Collections.synchronizedList(new ArrayList<>()));

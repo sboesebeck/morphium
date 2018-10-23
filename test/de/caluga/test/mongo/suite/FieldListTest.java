@@ -2,6 +2,7 @@ package de.caluga.test.mongo.suite;
 
 import de.caluga.morphium.annotations.ReadOnly;
 import de.caluga.morphium.query.Query;
+import de.caluga.test.mongo.suite.data.TestEntityNameProvider;
 import de.caluga.test.mongo.suite.data.UncachedObject;
 import org.junit.Test;
 
@@ -55,8 +56,8 @@ public class FieldListTest extends MongoTest {
         marshall.put("read_only_value", "stored in db");
         List<Map<String, Object>> lst = new ArrayList<>();
         lst.add(marshall);
-        morphium.getDriver().store(morphium.getConfig().getDatabase(), "read_only_object", lst, null);
-
+        morphium.getDriver().store(morphium.getConfig().getDatabase(), "read_only_object_" + TestEntityNameProvider.number.get(), lst, null);
+        Thread.sleep(100);
         morphium.reread(ro);
         assert (ro.readOnlyValue.equals("stored in db"));
 

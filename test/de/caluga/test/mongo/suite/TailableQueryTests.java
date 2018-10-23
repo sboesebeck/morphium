@@ -23,6 +23,7 @@ public class TailableQueryTests extends MongoTest {
         CappedCollectionTest.CappedCol o = new CappedCollectionTest.CappedCol("Test1", 1);
         m.store(o);
         m.store(new CappedCollectionTest.CappedCol("Test 2", 2));
+        Thread.sleep(100);
         found = false;
         new Thread() {
             public void run() {
