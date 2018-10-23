@@ -820,11 +820,14 @@ public class Messaging extends Thread implements ShutdownListener {
         try {
             running = false;
             if (threadPool != null) {
+                threadPool.shutdown();
+                Thread.sleep(200);
                 threadPool.shutdownNow();
                 threadPool = null;
             }
             if (changeStreamMonitor != null) changeStreamMonitor.stop();
         } catch (Exception e) {
+            e.printStackTrace();
             //swallow
         }
     }

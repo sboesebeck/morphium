@@ -14,7 +14,7 @@ import java.util.Arrays;
  * @author stephan
  */
 @NoCache
-@Entity(typeId = "uc")
+@Entity(typeId = "uc", nameProvider = TestEntityNameProvider.class)
 @WriteSafety(waitForSync = true, timeout = -1, level = SafetyLevel.WAIT_FOR_ALL_SLAVES)
 @DefaultReadPreference(ReadPreferenceLevel.NEAREST)
 public class UncachedObject {

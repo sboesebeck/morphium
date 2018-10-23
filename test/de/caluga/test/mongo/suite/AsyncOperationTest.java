@@ -11,6 +11,7 @@ import de.caluga.morphium.async.AsyncOperationCallback;
 import de.caluga.morphium.async.AsyncOperationType;
 import de.caluga.morphium.driver.MorphiumId;
 import de.caluga.morphium.query.Query;
+import de.caluga.test.mongo.suite.data.TestEntityNameProvider;
 import de.caluga.test.mongo.suite.data.UncachedObject;
 import org.junit.Test;
 
@@ -151,7 +152,7 @@ public class AsyncOperationTest extends MongoTest {
         morphium.dropCollection(AsyncObject.class);
         morphium.ensureIndicesFor(AsyncObject.class);
         Thread.sleep(2000);
-        assert (morphium.getDriver().exists("morphium_test", "async_object"));
+        assert (morphium.getDriver().exists("morphium_test", "async_object_" + TestEntityNameProvider.number.get()));
 
         for (int i = 0; i < 500; i++) {
             if (i % 10 == 0) {
