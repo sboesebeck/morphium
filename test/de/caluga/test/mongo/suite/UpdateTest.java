@@ -29,6 +29,7 @@ public class UpdateTest extends MongoTest {
             o.setCounter2((double) i / 2.0);
             morphium.store(o);
         }
+        Thread.sleep(150);
         Query<UncachedMultipleCounter> q = morphium.createQueryFor(UncachedMultipleCounter.class);
         q = q.f("value").eq("Uncached " + 5);
 
@@ -46,14 +47,14 @@ public class UpdateTest extends MongoTest {
     }
 
     @Test
-    public void incTest() {
+    public void incTest() throws Exception {
         for (int i = 1; i <= 50; i++) {
             UncachedObject o = new UncachedObject();
             o.setCounter(i);
             o.setValue("Uncached " + i);
             morphium.store(o);
         }
-
+        Thread.sleep(150);
         Query<UncachedObject> q = morphium.createQueryFor(UncachedObject.class);
         q = q.f("value").eq("Uncached " + 5);
         UncachedObject uc = q.get();
@@ -91,7 +92,7 @@ public class UpdateTest extends MongoTest {
             o.setValue("Uncached " + i);
             morphium.store(o);
         }
-
+        Thread.sleep(150);
         Query<UncachedObject> q = morphium.createQueryFor(UncachedObject.class);
         q = q.f("value").eq("Uncached " + 5);
         UncachedObject uc = q.get();
@@ -155,7 +156,7 @@ public class UpdateTest extends MongoTest {
     }
 
     @Test
-    public void pushTest() {
+    public void pushTest() throws Exception {
         morphium.dropCollection(ListContainer.class);
         for (int i = 1; i <= 50; i++) {
             ListContainer lc = new ListContainer();
@@ -164,7 +165,7 @@ public class UpdateTest extends MongoTest {
             lc.setName("LC" + i);
             morphium.store(lc);
         }
-
+        Thread.sleep(150);
         Query<ListContainer> lc = morphium.createQueryFor(ListContainer.class);
         lc = lc.f("name").eq("LC15");
         morphium.push(lc, "long_list", 12345L);
@@ -174,7 +175,7 @@ public class UpdateTest extends MongoTest {
     }
 
     @Test
-    public void pushEntityTest() {
+    public void pushEntityTest() throws Exception {
         morphium.dropCollection(ListContainer.class);
 
         for (int i = 1; i <= 50; i++) {
@@ -184,6 +185,7 @@ public class UpdateTest extends MongoTest {
             lc.setName("LC" + i);
             morphium.store(lc);
         }
+        Thread.sleep(150);
         Query<ListContainer> lc = morphium.createQueryFor(ListContainer.class);
         lc = lc.f("name").eq("LC15");
         EmbeddedObject em = new EmbeddedObject();
@@ -242,7 +244,7 @@ public class UpdateTest extends MongoTest {
             lc.setName("LC" + i);
             morphium.store(lc);
         }
-
+        Thread.sleep(150);
         List<EmbeddedObject> obj = new ArrayList<>();
 
         Query<ListContainer> lc = morphium.createQueryFor(ListContainer.class);

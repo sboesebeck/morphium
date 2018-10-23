@@ -24,7 +24,7 @@ import static org.junit.Assert.fail;
 public class ListTests extends MongoTest {
 
     @Test
-    public void listStoringTest() {
+    public void listStoringTest() throws Exception {
         morphium.dropCollection(Uc.class);
         List<UncachedObject> lst = new ArrayList<>();
         for (int i = 0; i < 100; i++) {
@@ -34,6 +34,7 @@ public class ListTests extends MongoTest {
             lst.add(u);
         }
         morphium.storeList(lst);
+        Thread.sleep(200);
         long count = morphium.createQueryFor(UncachedObject.class, "UCTest").countAll();
         assert (count == 100) : "Count wrong " + count;
     }
@@ -68,7 +69,7 @@ public class ListTests extends MongoTest {
         }
 
         morphium.store(lst);
-
+        Thread.sleep(100);
         Query<ListContainer> q = morphium.createQueryFor(ListContainer.class).f("id").eq(lst.getId());
         q.setReadPreferenceLevel(ReadPreferenceLevel.PRIMARY);
         ListContainer lst2 = q.get();
@@ -144,7 +145,7 @@ public class ListTests extends MongoTest {
 
 
     @Test
-    public void singleEntryListTest() {
+    public void singleEntryListTest() throws Exception {
         morphium.dropCollection(UncachedObject.class);
         List<UncachedObject> lst = new ArrayList<>();
         lst.add(new UncachedObject());
@@ -153,19 +154,20 @@ public class ListTests extends MongoTest {
         lst.get(0).setCounter(1);
 
         morphium.storeList(lst);
+        Thread.sleep(100);
 
         assert (lst.get(0).getMorphiumId() != null);
 
         lst.get(0).setCounter(999);
 
         morphium.storeList(lst);
-
+        Thread.sleep(100);
         assert (morphium.createQueryFor(UncachedObject.class).asList().get(0).getCounter() == 999);
 
     }
 
     @Test
-    public void testWildcardList() {
+    public void testWildcardList() throws Exception {
         morphium.dropCollection(ListWildcardContainer.class);
 
         ListWildcardContainer testObjectToStore = new ListWildcardContainer();
@@ -181,7 +183,7 @@ public class ListTests extends MongoTest {
         embeddedObjectList.add(extendedEmbeddedObject);
 
         morphium.store(testObjectToStore);
-
+        Thread.sleep(100);
         Query q = morphium.createQueryFor(ListWildcardContainer.class).f("id").eq(testObjectToStore.getId());
 
         try {

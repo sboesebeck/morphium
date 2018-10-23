@@ -3,12 +3,10 @@ package de.caluga.test.mongo.suite;
 import ch.qos.logback.classic.LoggerContext;
 import de.caluga.morphium.Morphium;
 import de.caluga.morphium.MorphiumConfig;
-import de.caluga.morphium.driver.MorphiumDriverException;
 import de.caluga.morphium.driver.ReadPreference;
 import de.caluga.morphium.query.Query;
 import de.caluga.test.mongo.suite.data.CachedObject;
-import de.caluga.test.mongo.suite.data.ComplexObject;
-import de.caluga.test.mongo.suite.data.ListContainer;
+import de.caluga.test.mongo.suite.data.TestEntityNameProvider;
 import de.caluga.test.mongo.suite.data.UncachedObject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -361,7 +359,10 @@ public class MongoTest {
     public void setUp() {
 
         try {
-            log.info("Re-connecting to mongo");
+            log.info("---------------------------------------- Re-connecting to mongo");
+            int num = TestEntityNameProvider.number.incrementAndGet();
+            log.info("------ > Number: " + num);
+            morphium.getCache().resetCache();
             morphium.reset();
             log.info("resetting DB...");
             List<String> lst = morphium.getDriver().getCollectionNames(morphium.getConfig().getDatabase());
@@ -369,7 +370,7 @@ public class MongoTest {
                 log.info("Dropping " + col);
                 morphium.getDriver().drop(morphium.getConfig().getDatabase(), col, morphium.getWriteConcernForClass(UncachedObject.class));
             }
-            Thread.sleep(500);
+            Thread.sleep(200);
         } catch (Exception e) {
             log.error("Error during preparation!");
             e.printStackTrace();
@@ -379,14 +380,7 @@ public class MongoTest {
 
     @org.junit.After
     public void tearDown() {
-        log.info("Cleaning up...");
-        for (Class toDel : new Class[]{UncachedObject.class, CachedObject.class, ComplexObject.class, ListContainer.class}) {
-            try {
-                morphium.getDriver().drop(morphium.getMapper().getCollectionName(toDel), morphium.getWriteConcernForClass(toDel));
-            } catch (MorphiumDriverException e) {
-            }
-        }
-        log.info("done...");
+        morphium.store(new UncachedObject());
     }
 
     public void waitForWrites() {

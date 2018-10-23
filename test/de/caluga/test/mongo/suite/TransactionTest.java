@@ -16,9 +16,11 @@ public class TransactionTest extends MongoTest {
     public void transactionTest() throws Exception {
         morphium.dropCollection(UncachedObject.class);
         createUncachedObjects(10);
+        Thread.sleep(200);
         morphium.startTransaction();
         UncachedObject u = new UncachedObject("test", 101);
         morphium.store(u);
+        Thread.sleep(200);
         assert (morphium.createQueryFor(UncachedObject.class).countAll() == 11);
         morphium.abortTransaction();
         Thread.sleep(1000);

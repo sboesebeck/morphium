@@ -1281,6 +1281,7 @@ public class Morphium {
     }
 
     public AnnotationAndReflectionHelper getARHelper() {
+        if (annotationHelper == null) return new AnnotationAndReflectionHelper(true);
         return annotationHelper;
     }
 
