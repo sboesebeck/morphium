@@ -16,15 +16,18 @@ public class TransactionTest extends MongoTest {
     public void transactionTest() throws Exception {
         morphium.dropCollection(UncachedObject.class);
         createUncachedObjects(10);
-        Thread.sleep(200);
+        Thread.sleep(500);
         morphium.startTransaction();
+        log.info("Count now: " + morphium.createQueryFor(UncachedObject.class).countAll());
         UncachedObject u = new UncachedObject("test", 101);
         morphium.store(u);
-        Thread.sleep(200);
-        assert (morphium.createQueryFor(UncachedObject.class).countAll() == 11);
+        Thread.sleep(500);
+        long cnt = morphium.createQueryFor(UncachedObject.class).countAll();
+        assert (cnt == 11) : "Count wrong: " + cnt;
         morphium.abortTransaction();
         Thread.sleep(1000);
-        assert (morphium.createQueryFor(UncachedObject.class).countAll() == 10);
+        cnt = morphium.createQueryFor(UncachedObject.class).countAll();
+        assert (cnt == 10) : "Count wrong: " + cnt;
 
     }
 

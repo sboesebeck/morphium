@@ -1,6 +1,5 @@
 package de.caluga.test.mongo.suite;
 
-import de.caluga.morphium.DefaultNameProvider;
 import de.caluga.morphium.Morphium;
 import de.caluga.morphium.MorphiumObjectMapper;
 import de.caluga.morphium.NameProvider;
@@ -9,6 +8,7 @@ import de.caluga.morphium.annotations.Id;
 import de.caluga.morphium.annotations.SafetyLevel;
 import de.caluga.morphium.annotations.WriteSafety;
 import de.caluga.morphium.driver.MorphiumId;
+import de.caluga.test.mongo.suite.data.TestEntityNameProvider;
 import de.caluga.test.mongo.suite.data.UncachedObject;
 import org.junit.Test;
 
@@ -52,7 +52,7 @@ public class NameProviderTest extends MongoTest {
         morphium.getMapper().setNameProviderForClass(UncachedObject.class, new MyNp());
         String col = morphium.getMapper().getCollectionName(UncachedObject.class);
         assert (col.equals("UncachedObject_Test")) : "Error - name is wrong: " + col;
-        morphium.getMapper().setNameProviderForClass(UncachedObject.class, new DefaultNameProvider());
+        morphium.getMapper().setNameProviderForClass(UncachedObject.class, new TestEntityNameProvider());
     }
 
     public static class MyNp implements NameProvider {
