@@ -10,6 +10,8 @@ trap 'quit' ABRT QUIT INT
 cd $(dirname $0)
 
 mvn -Dsurefire.skipAfterFailureCount=1 -Dsurefire.rerunFailingTestsCount=1 test >test.log 2>&1 &
+
+end=""
 while true; do 
 	clear
 	date
@@ -39,5 +41,15 @@ while true; do
 	echo
 	echo "-------------   Log output:"
 	tail -n 10 test.log
-	sleep 5 
+
+	end="Run $run Tests, $fail tests failed, $err tests had errors"
+	jobs > /dev/null
+	l=$(ls -l test.log)
+	sleep 15
+	if [ $(jobs | wc -l) -eq 0 ]; then
+		echo "Bg job finished... exiting"	
+		break
+	fi
 done
+
+#curl -X POST -H "Content-type: application/json" --data "{'text':'Morphium integration test just ran: $end'}" https://hooks.slack.com/services/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
