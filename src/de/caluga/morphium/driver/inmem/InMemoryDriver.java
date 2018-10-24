@@ -579,10 +579,22 @@ public class InMemoryDriver implements MorphiumDriver {
 
     @SuppressWarnings({"RedundantThrows", "UnusedParameters"})
     private List<Map<String, Object>> find(String db, String collection, Map<String, Object> query, Map<String, Integer> sort, Map<String, Object> projection, int skip, int limit, boolean internal) throws MorphiumDriverException {
-        List<Map<String, Object>> data = getCollection(db, collection);
+        List<Map<String, Object>> data = new ArrayList<>(getCollection(db, collection));
         List<Map<String, Object>> ret = new ArrayList<>();
         int count = 0;
 
+        if (sort != null) {
+            data.sort((o1, o2) -> {
+                for (String f : sort.keySet()) {
+                    if (o1.get(f).equals(o2.get(f))) {
+                        continue;
+                    }
+                    //noinspection unchecked
+                    return ((Comparable) o1.get(f)).compareTo(o2.get(f)) * sort.get(f);
+                }
+                return 0;
+            });
+        }
         //noinspection ForLoopReplaceableByForEach
         for (int i = 0; i < data.size(); i++) {
             Map<String, Object> o = data.get(i);
@@ -598,19 +610,6 @@ public class InMemoryDriver implements MorphiumDriver {
             }
 
             //todo add projection
-        }
-
-        if (sort != null) {
-            ret.sort((o1, o2) -> {
-                for (String f : sort.keySet()) {
-                    if (o1.get(f).equals(o2.get(f))) {
-                        continue;
-                    }
-                    //noinspection unchecked
-                    return ((Comparable) o1.get(f)).compareTo(o2.get(f)) * sort.get(f);
-                }
-                return 0;
-            });
         }
 
         return ret;
