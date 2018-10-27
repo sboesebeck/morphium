@@ -52,4 +52,4 @@ while true; do
 	fi
 done
 
-#curl -X POST -H "Content-type: application/json" --data "{'text':'Morphium integration test just ran: $end'}" https://hooks.slack.com/services/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
+curl -X POST -H "Content-type: application/json" --data "{'text':'Morphium integration test just ran: $end'}" https://hooks.slack.com/services/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
