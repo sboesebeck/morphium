@@ -42,7 +42,6 @@ while true; do
 	echo "-------------   Log output:"
 	tail -n 10 test.log
 
-	end="Run $run Tests, $fail tests failed, $err tests had errors"
 	jobs > /dev/null
 	l=$(ls -l test.log)
 	sleep 15
@@ -51,5 +50,9 @@ while true; do
 		break
 	fi
 done
+let run=run/2
+let fail=fail/2
+let err=err/2
 
+end="Run $run Tests, $fail tests failed, $err tests had errors"
 curl -X POST -H "Content-type: application/json" --data "{'text':'Morphium integration test just ran: $end'}" https://hooks.slack.com/services/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
