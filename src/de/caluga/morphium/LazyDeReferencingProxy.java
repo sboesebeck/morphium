@@ -59,6 +59,7 @@ public class LazyDeReferencingProxy<T> implements MethodInterceptor, Serializabl
             return deReferenced;
         }
         if (deReferenced != null) {
+            method.setAccessible(true);
             return method.invoke(deReferenced, objects);
         }
         return methodProxy.invokeSuper(o, objects);
