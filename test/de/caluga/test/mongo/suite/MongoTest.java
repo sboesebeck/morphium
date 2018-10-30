@@ -3,12 +3,15 @@ package de.caluga.test.mongo.suite;
 import ch.qos.logback.classic.LoggerContext;
 import de.caluga.morphium.Morphium;
 import de.caluga.morphium.MorphiumConfig;
-import de.caluga.morphium.driver.MorphiumDriverException;
+import de.caluga.morphium.ShutdownListener;
+import de.caluga.morphium.changestream.ChangeStreamMonitor;
 import de.caluga.morphium.driver.ReadPreference;
+import de.caluga.morphium.messaging.Messaging;
 import de.caluga.morphium.query.Query;
+import de.caluga.morphium.replicaset.OplogMonitor;
+import de.caluga.morphium.writer.BufferedMorphiumWriterImpl;
 import de.caluga.test.mongo.suite.data.CachedObject;
-import de.caluga.test.mongo.suite.data.ComplexObject;
-import de.caluga.test.mongo.suite.data.ListContainer;
+import de.caluga.test.mongo.suite.data.TestEntityNameProvider;
 import de.caluga.test.mongo.suite.data.UncachedObject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -17,7 +20,9 @@ import java.io.File;
 import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
+import java.lang.reflect.Field;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 import java.util.Properties;
 import java.util.logging.Handler;
@@ -361,7 +366,48 @@ public class MongoTest {
     public void setUp() {
 
         try {
-            log.info("Re-connecting to mongo");
+            Field f = morphium.getClass().getDeclaredField("shutDownListeners");
+            f.setAccessible(true);
+            List<ShutdownListener> listeners = (List<ShutdownListener>) f.get(morphium);
+            for (ShutdownListener l : listeners) {
+                if (l instanceof Messaging) {
+                    ((Messaging) l).terminate();
+                    log.info("Terminating still running messaging..." + ((Messaging) l).getSenderId());
+                    while (((Messaging) l).isRunning()) {
+                        log.info("Waiting for messaging to finish");
+                        Thread.sleep(100);
+                    }
+                } else if (l instanceof OplogMonitor) {
+                    ((OplogMonitor) l).stop();
+                    while (((OplogMonitor) l).isRunning()) {
+                        log.info("Waiting for oplogmonitor to finish");
+                        Thread.sleep(100);
+                    }
+                    f = l.getClass().getDeclaredField("listeners");
+                    f.setAccessible(true);
+                    ((Collection) f.get(l)).clear();
+                } else if (l instanceof ChangeStreamMonitor) {
+                    log.info("Changestream Monitor still running");
+                    ((ChangeStreamMonitor) l).stop();
+                    while (((ChangeStreamMonitor) l).isRunning()) {
+                        log.info("Waiting for changestreamMonitor to finish");
+                        Thread.sleep(100);
+                    }
+                    f = l.getClass().getDeclaredField("listeners");
+                    f.setAccessible(true);
+                    ((Collection) f.get(l)).clear();
+                } else if (l instanceof BufferedMorphiumWriterImpl) {
+                    ((BufferedMorphiumWriterImpl) l).close();
+                }
+            }
+        } catch (Exception e) {
+            log.error("Could not shutdown properly!");
+        }
+        try {
+            log.info("---------------------------------------- Re-connecting to mongo");
+            int num = TestEntityNameProvider.number.incrementAndGet();
+            log.info("------ > Number: " + num);
+            morphium.getCache().resetCache();
             morphium.reset();
             log.info("resetting DB...");
             List<String> lst = morphium.getDriver().getCollectionNames(morphium.getConfig().getDatabase());
@@ -369,7 +415,7 @@ public class MongoTest {
                 log.info("Dropping " + col);
                 morphium.getDriver().drop(morphium.getConfig().getDatabase(), col, morphium.getWriteConcernForClass(UncachedObject.class));
             }
-            Thread.sleep(500);
+            Thread.sleep(200);
         } catch (Exception e) {
             log.error("Error during preparation!");
             e.printStackTrace();
@@ -379,14 +425,7 @@ public class MongoTest {
 
     @org.junit.After
     public void tearDown() {
-        log.info("Cleaning up...");
-        for (Class toDel : new Class[]{UncachedObject.class, CachedObject.class, ComplexObject.class, ListContainer.class}) {
-            try {
-                morphium.getDriver().drop(morphium.getMapper().getCollectionName(toDel), morphium.getWriteConcernForClass(toDel));
-            } catch (MorphiumDriverException e) {
-            }
-        }
-        log.info("done...");
+        morphium.store(new UncachedObject());
     }
 
     public void waitForWrites() {

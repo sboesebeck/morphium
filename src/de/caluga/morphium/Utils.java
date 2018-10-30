@@ -79,7 +79,7 @@ public class Utils {
     }
 
     public static Map<String, Integer> getIntMap(String key, Integer value) {
-        HashMap<String, Integer> ret = new HashMap<>();
+        HashMap<String, Integer> ret = new LinkedHashMap<>();
         ret.put(key, value);
         return ret;
     }

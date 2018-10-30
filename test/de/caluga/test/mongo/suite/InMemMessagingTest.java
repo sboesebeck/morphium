@@ -1426,7 +1426,7 @@ public class InMemMessagingTest extends InMemTest {
         try {
             morphium.dropCollection(Msg.class);
             Thread.sleep(1000);
-            sender = new Messaging(morphium, 100, false);
+            sender = new Messaging(morphium, 1000, false);
             sender.start();
 
             list.clear();

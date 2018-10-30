@@ -45,7 +45,7 @@ public class ProfilingTester extends MongoTest {
         uc.setValue("Test");
         uc.setCounter(111);
         morphium.store(uc);
-
+        Thread.sleep(100);
         assert (writeAccess);
         assert (writeTime > -1);
         for (int i = 0; i < 100; i++) {
