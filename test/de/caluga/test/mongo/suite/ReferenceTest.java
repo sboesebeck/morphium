@@ -7,6 +7,7 @@ import de.caluga.morphium.annotations.lifecycle.Lifecycle;
 import de.caluga.morphium.driver.MorphiumId;
 import de.caluga.morphium.query.Query;
 import de.caluga.test.mongo.suite.data.CachedObject;
+import de.caluga.test.mongo.suite.data.TestEntityNameProvider;
 import de.caluga.test.mongo.suite.data.UncachedObject;
 import org.junit.Test;
 
@@ -129,7 +130,7 @@ public class ReferenceTest extends MongoTest {
         UncachedObject referenced = morphium.createQueryFor(UncachedObject.class).get();
         Map<String, Object> reference = new HashMap<>();
         reference.put("referenced_class_name", UncachedObject.class.getName());
-        reference.put("collection_name", "uncached_object");
+        reference.put("collection_name", "uncached_object_" + TestEntityNameProvider.number.get());
         reference.put("refid", referenced.getMorphiumId());
 
         Map<String, Object> rc = new HashMap<>();
@@ -183,7 +184,7 @@ public class ReferenceTest extends MongoTest {
 
 
     @Test
-    public void mapReferenceTest() {
+    public void mapReferenceTest() throws Exception {
         morphium.clearCollection(ReferenceContainer.class);
         ReferenceContainer c = new ReferenceContainer();
         Map<String, UncachedObject> m = new HashMap<>();
@@ -195,6 +196,7 @@ public class ReferenceTest extends MongoTest {
         }
         c.map = m;
         morphium.store(c);
+        Thread.sleep(150);
 
         ReferenceContainer cont = morphium.createQueryFor(ReferenceContainer.class).get();
 

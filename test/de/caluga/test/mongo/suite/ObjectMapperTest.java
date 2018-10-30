@@ -123,8 +123,8 @@ public class ObjectMapperTest extends MongoTest {
     @Test
     public void testGetCollectionName() {
         MorphiumObjectMapper om = morphium.getMapper();
-        assert (om.getCollectionName(CachedObject.class).equals("cached_object")) : "Cached object test failed";
-        assert (om.getCollectionName(UncachedObject.class).equals("uncached_object")) : "Uncached object test failed";
+        assert (om.getCollectionName(CachedObject.class).equals("cached_object_" + TestEntityNameProvider.number.get())) : "Cached object test failed";
+        assert (om.getCollectionName(UncachedObject.class).equals("uncached_object_" + TestEntityNameProvider.number.get())) : "Uncached object test failed";
 
     }
 
@@ -139,7 +139,7 @@ public class ObjectMapperTest extends MongoTest {
                     MorphiumObjectMapper om = morphium.getMapper();
                     assert (om.getCollectionName(CachedObject.class).equals("cached_object")) : "Cached object test failed";
                     yield();
-                    assert (om.getCollectionName(UncachedObject.class).equals("uncached_object")) : "Uncached object test failed";
+                    assert (om.getCollectionName(UncachedObject.class).equals("uncached_object_" + TestEntityNameProvider.number.get())) : "Uncached object test failed";
                     yield();
                     assert (om.getCollectionName(ComplexObject.class).equals("ComplexObject")) : "complex object test failed";
                 }
@@ -283,7 +283,7 @@ public class ObjectMapperTest extends MongoTest {
 
         morphium.store(uc);
 
-        List<Map<String, Object>> res = morphium.getDriver().find(morphium.getConfig().getDatabase(), "uncached_object", Utils.getMap("_id", uc.getMorphiumId()), null, null, 0, 0, 10000, null, null);
+        List<Map<String, Object>> res = morphium.getDriver().find(morphium.getConfig().getDatabase(), "uncached_object_" + TestEntityNameProvider.number.get(), Utils.getMap("_id", uc.getMorphiumId()), null, null, 0, 0, 10000, null, null);
         assert (res.size() == 1);
     }
 

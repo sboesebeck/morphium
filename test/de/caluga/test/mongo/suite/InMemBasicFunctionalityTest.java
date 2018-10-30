@@ -107,18 +107,43 @@ public class InMemBasicFunctionalityTest extends InMemTest {
         for (int i = 1; i <= NO_OBJECTS; i++) {
             UncachedObject o = new UncachedObject();
             o.setCounter(i);
-            o.setValue("Uncached " + i % 2);
+            o.setValue("Uncached " + (i % 2));
             morphium.store(o);
+            log.info("Stored c: " + o.getCounter() + " v: " + o.getValue());
         }
         Thread.sleep(600);
         Query<UncachedObject> q = morphium.createQueryFor(UncachedObject.class);
-        q = q.f("counter").gt(0).sort("-counter", "value");
+        q = q.f("counter").gt(0).sort("value", "-counter");
         List<UncachedObject> lst = q.asList();
-        assert (!lst.get(0).getValue().equals(lst.get(1).getValue()));
+//        lst.sort(((o1, o2) -> {
+//            if (o1.getCounter()==o2.getCounter()){
+//                return o1.getValue().compareTo(o2.getValue());
+//            }
+//            return o1.getCounter()<o2.getCounter()?1:-1;
+//
+//        }));
+        int last = 9999;
+        String lastV = "";
+        for (UncachedObject uc : lst) {
+            log.info("Counter " + uc.getCounter() + " Value: " + uc.getValue());
+            if (!lastV.equals(uc.getValue())) {
+                assert (lastV.compareTo(uc.getValue()) <= 0 || lastV.equals(""));
+                lastV = uc.getValue();
+                last = 99999;
+            }
+            assert (last > uc.getCounter());
+            last = uc.getCounter();
+        }
 
-        q = q.q().f("counter").gt(0).sort("value", "-counter");
+        q = q.q().f("counter").gt(0).sort("counter", "-value");
         List<UncachedObject> lst2 = q.asList();
-        assert (lst2.get(0).getValue().equals(lst2.get(1).getValue()));
+        last = 0;
+
+        for (UncachedObject uc : lst2) {
+            log.info("Counter " + uc.getCounter());
+            assert (last <= uc.getCounter());
+            last = uc.getCounter();
+        }
         log.info("Sorted");
 
         q = morphium.createQueryFor(UncachedObject.class);

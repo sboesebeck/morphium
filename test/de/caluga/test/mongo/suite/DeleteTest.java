@@ -15,14 +15,15 @@ import java.util.List;
 public class DeleteTest extends MongoTest {
 
     @Test
-    public void uncachedDeleteSingle() {
+    public void uncachedDeleteSingle() throws Exception {
         createUncachedObjects(10);
         long c = morphium.createQueryFor(UncachedObject.class).countAll();
         assert (c == 10);
         UncachedObject u = morphium.createQueryFor(UncachedObject.class).get();
         morphium.delete(u);
+        Thread.sleep(100);
         c = morphium.createQueryFor(UncachedObject.class).countAll();
-        assert (c == 9);
+        assert (c == 9) : "Count is " + c;
         List<UncachedObject> lst = morphium.createQueryFor(UncachedObject.class).asList();
         for (UncachedObject uc : lst) {
             assert (!uc.getMorphiumId().equals(u.getMorphiumId()));

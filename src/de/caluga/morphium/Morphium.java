@@ -1281,6 +1281,7 @@ public class Morphium {
     }
 
     public AnnotationAndReflectionHelper getARHelper() {
+        if (annotationHelper == null) return new AnnotationAndReflectionHelper(true);
         return annotationHelper;
     }
 
@@ -1671,7 +1672,10 @@ public class Morphium {
                 timeout = maxReplLag * 3000;
             }
         }
-
+	if (timeout<0) {
+		logger.error("Timeout cannot be <0!!!!");
+		timeout=0;
+	}
         return WriteConcern.getWc(w, fsync, j, (int) timeout);
     }
 

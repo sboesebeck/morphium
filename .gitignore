@@ -1,5 +1,5 @@
 *.class
-
+test.log
 target/
 .idea/
 *.iml

@@ -275,10 +275,10 @@ public class MessagingTest extends MongoTest {
         error = false;
 
 
-        final Messaging m1 = new Messaging(morphium, 100, true);
-        final Messaging m2 = new Messaging(morphium, 100, true);
-        final Messaging m3 = new Messaging(morphium, 100, true);
-        final Messaging m4 = new Messaging(morphium, 100, true);
+        final Messaging m1 = new Messaging(morphium, 10, true);
+        final Messaging m2 = new Messaging(morphium, 10, true);
+        final Messaging m3 = new Messaging(morphium, 10, true);
+        final Messaging m4 = new Messaging(morphium, 10, true);
 
         m1.start();
         m2.start();
@@ -310,7 +310,7 @@ public class MessagingTest extends MongoTest {
         });
 
         m1.storeMessage(new Msg("testmsg1", "The message from M1", "Value"));
-        Thread.sleep(5000);
+        Thread.sleep(500);
         assert (gotMessage2) : "Message not recieved yet by m2?!?!?";
         assert (gotMessage3) : "Message not recieved yet by m3?!?!?";
         assert (gotMessage4) : "Message not recieved yet by m4?!?!?";
@@ -320,7 +320,7 @@ public class MessagingTest extends MongoTest {
         gotMessage4 = false;
 
         m2.storeMessage(new Msg("testmsg2", "The message from M2", "Value"));
-        Thread.sleep(5000);
+        Thread.sleep(500);
         assert (gotMessage1) : "Message not recieved yet by m1?!?!?";
         assert (gotMessage3) : "Message not recieved yet by m3?!?!?";
         assert (gotMessage4) : "Message not recieved yet by m4?!?!?";
@@ -332,7 +332,7 @@ public class MessagingTest extends MongoTest {
         gotMessage4 = false;
 
         m1.storeMessage(new Msg("testmsg_excl","This is the message","value",30000,true));
-        Thread.sleep(5000);
+        Thread.sleep(500);
         int cnt=0;
         if (gotMessage1)cnt++;
         if (gotMessage2)cnt++;
@@ -635,99 +635,104 @@ public class MessagingTest extends MongoTest {
 
     @Test
     public void massiveMessagingTest() throws Exception {
-        int numberOfWorkers = 10;
-        int numberOfMessages = 100;
-        long ttl = 15000; //15 sec
+        List<Messaging> systems;
+        systems = new ArrayList<>();
+        try {
+            int numberOfWorkers = 10;
+            int numberOfMessages = 100;
+            long ttl = 15000; //15 sec
 
-        final boolean failed[] = {false};
-        morphium.clearCollection(Msg.class);
-        List<Messaging> systems = new ArrayList<>();
+            final boolean failed[] = {false};
+            morphium.clearCollection(Msg.class);
 
-        final Map<MorphiumId, Integer> processedMessages = new Hashtable<>();
-        procCounter.set(0);
-        for (int i = 0; i < numberOfWorkers; i++) {
-            //creating messaging instances
-            Messaging m = new Messaging(morphium, 100, true);
-            m.start();
-            systems.add(m);
-            MessageListener l = new MessageListener() {
-                Messaging msg;
-                List<String> ids = Collections.synchronizedList(new ArrayList<>());
+            final Map<MorphiumId, Integer> processedMessages = new Hashtable<>();
+            procCounter.set(0);
+            for (int i = 0; i < numberOfWorkers; i++) {
+                //creating messaging instances
+                Messaging m = new Messaging(morphium, 100, true);
+                m.start();
+                systems.add(m);
+                MessageListener l = new MessageListener() {
+                    Messaging msg;
+                    List<String> ids = Collections.synchronizedList(new ArrayList<>());
 
-                @Override
-                public Msg onMessage(Messaging msg, Msg m) {
-                    if (ids.contains(msg.getSenderId() + "/" + m.getMsgId())) failed[0] = true;
-                    assert (!ids.contains(msg.getSenderId() + "/" + m.getMsgId())) : "Re-getting message?!?!? " + m.getMsgId() + " MyId: " + msg.getSenderId();
-                    ids.add(msg.getSenderId() + "/" + m.getMsgId());
-                    assert (m.getTo() == null || m.getTo().contains(msg.getSenderId())) : "got message not for me?";
-                    assert (!m.getSender().equals(msg.getSenderId())) : "Got message from myself?";
-                    synchronized (processedMessages) {
-                        Integer pr = processedMessages.get(m.getMsgId());
-                        if (pr == null) {
-                            pr = 0;
+                    @Override
+                    public Msg onMessage(Messaging msg, Msg m) {
+                        if (ids.contains(msg.getSenderId() + "/" + m.getMsgId())) failed[0] = true;
+                        assert (!ids.contains(msg.getSenderId() + "/" + m.getMsgId())) : "Re-getting message?!?!? " + m.getMsgId() + " MyId: " + msg.getSenderId();
+                        ids.add(msg.getSenderId() + "/" + m.getMsgId());
+                        assert (m.getTo() == null || m.getTo().contains(msg.getSenderId())) : "got message not for me?";
+                        assert (!m.getSender().equals(msg.getSenderId())) : "Got message from myself?";
+                        synchronized (processedMessages) {
+                            Integer pr = processedMessages.get(m.getMsgId());
+                            if (pr == null) {
+                                pr = 0;
+                            }
+                            processedMessages.put(m.getMsgId(), pr + 1);
+                            procCounter.incrementAndGet();
                         }
-                        processedMessages.put(m.getMsgId(), pr + 1);
-                        procCounter.incrementAndGet();
+                        return null;
                     }
-                    return null;
+
+                };
+                m.addMessageListener(l);
+            }
+
+            long start = System.currentTimeMillis();
+            for (int i = 0; i < numberOfMessages; i++) {
+                int m = (int) (Math.random() * systems.size());
+                Msg msg = new Msg("test" + i, "The message for msg " + i, "a value", ttl);
+                msg.addAdditional("Additional Value " + i);
+                msg.setExclusive(false);
+                systems.get(m).storeMessage(msg);
+            }
+
+            long dur = System.currentTimeMillis() - start;
+            log.info("Queueing " + numberOfMessages + " messages took " + dur + " ms - now waiting for writes..");
+            waitForWrites();
+            log.info("...all messages persisted!");
+            int last = 0;
+            assert (!failed[0]);
+            Thread.sleep(1000);
+            //See if whole number of messages processed is correct
+            //keep in mind: a message is never recieved by the sender, hence numberOfWorkers-1
+            while (true) {
+                if (procCounter.get() == numberOfMessages * (numberOfWorkers - 1)) {
+                    break;
                 }
+                if (last == procCounter.get()) {
+                    log.info("No change in procCounter?! somethings wrong...");
+                    break;
 
-            };
-            m.addMessageListener(l);
-        }
-
-        long start = System.currentTimeMillis();
-        for (int i = 0; i < numberOfMessages; i++) {
-            int m = (int) (Math.random() * systems.size());
-            Msg msg = new Msg("test" + i, "The message for msg " + i, "a value", ttl);
-            msg.addAdditional("Additional Value " + i);
-            msg.setExclusive(false);
-            systems.get(m).storeMessage(msg);
-        }
-
-        long dur = System.currentTimeMillis() - start;
-        log.info("Queueing " + numberOfMessages + " messages took " + dur + " ms - now waiting for writes..");
-        waitForWrites();
-        log.info("...all messages persisted!");
-        int last = 0;
-        assert (!failed[0]);
-        Thread.sleep(1000);
-        //See if whole number of messages processed is correct
-        //keep in mind: a message is never recieved by the sender, hence numberOfWorkers-1
-        while (true) {
-            if (procCounter.get() == numberOfMessages * (numberOfWorkers - 1)) {
-                break;
+                }
+                last = procCounter.get();
+                log.info("Waiting for messages to be processed - procCounter: " + procCounter.get());
+                Thread.sleep(2000);
             }
-            if (last == procCounter.get()) {
-                log.info("No change in procCounter?! somethings wrong...");
-                break;
+            assert (!failed[0]);
+            Thread.sleep(1000);
+            log.info("done");
+            assert (!failed[0]);
 
+            assert (processedMessages.size() == numberOfMessages) : "sent " + numberOfMessages + " messages, but only " + processedMessages.size() + " were recieved?";
+            for (MorphiumId id : processedMessages.keySet()) {
+                assert (processedMessages.get(id) == numberOfWorkers - 1) : "Message " + id + " was not recieved by all " + (numberOfWorkers - 1) + " other workers? only by " + processedMessages.get(id);
             }
-            last = procCounter.get();
-            log.info("Waiting for messages to be processed - procCounter: " + procCounter.get());
-            Thread.sleep(2000);
-        }
-        assert (!failed[0]);
-        Thread.sleep(1000);
-        log.info("done");
-        assert (!failed[0]);
+            assert (procCounter.get() == numberOfMessages * (numberOfWorkers - 1)) : "Still processing messages?!?!?";
 
-        assert (processedMessages.size() == numberOfMessages) : "sent " + numberOfMessages + " messages, but only " + processedMessages.size() + " were recieved?";
-        for (MorphiumId id : processedMessages.keySet()) {
-            assert (processedMessages.get(id) == numberOfWorkers - 1) : "Message " + id + " was not recieved by all " + (numberOfWorkers - 1) + " other workers? only by " + processedMessages.get(id);
-        }
-        assert (procCounter.get() == numberOfMessages * (numberOfWorkers - 1)) : "Still processing messages?!?!?";
+            //Waiting for all messages to be outdated and deleted
+        } finally {
+            //Stopping all
+            for (Messaging m : systems) {
+                m.terminate();
+            }
+            Thread.sleep(1000);
+            for (Messaging m : systems) {
+                assert (!m.isAlive()) : "Thread still running?";
+            }
 
-        //Waiting for all messages to be outdated and deleted
+        }
 
-        //Stopping all
-        for (Messaging m : systems) {
-            m.terminate();
-        }
-        Thread.sleep(1000);
-        for (Messaging m : systems) {
-            assert (!m.isAlive()) : "Thread still running?";
-        }
 
 
     }
@@ -1349,7 +1354,7 @@ public class MessagingTest extends MongoTest {
         gotMessage1=false;
         gotMessage2=false;
 
-        Messaging m1 = new Messaging(morphium, 100, false, multithreadded, 10);
+        Messaging m1 = new Messaging(morphium, 10, false, multithreadded, 10);
         m1.addListenerForMessageNamed("test",new MessageListener() {
             @Override
             public Msg onMessage(Messaging msg, Msg m) {
@@ -1585,7 +1590,7 @@ public class MessagingTest extends MongoTest {
         receiver.addListenerForMessageNamed("pause", (msg, m) -> {
             msg.pauseProcessingOfMessagesNamed(m.getName());
             log.info("Incoming paused message: prio " + m.getPriority() + "  timestamp: " + m.getTimestamp());
-            Thread.sleep(500);
+            Thread.sleep(250);
             list.add(m);
             msg.unpauseProcessingOfMessagesNamed(m.getName());
             return null;
@@ -1597,26 +1602,29 @@ public class MessagingTest extends MongoTest {
             return null;
         });
 
-        for (int i = 0; i < 5; i++) {
+        for (int i = 0; i < 20; i++) {
             Msg m = new Msg("pause", "pause", "pause");
             m.setPriority((int) (Math.random() * 100.0));
             m.setExclusive(true);
             sender.storeMessage(m);
+            //Throtteling for first message to wait for pausing
+            if (i == 0) Thread.sleep(25);
             if (i % 2 == 0) {
                 sender.storeMessage(new Msg("now", "now", "now"));
             }
         }
         Thread.sleep(200);
-        assert (count.get() == 3) : "Count wrong " + count.get();
+        assert (count.get() == 10) : "Count wrong " + count.get();
         assert (list.size() < 5);
-        Thread.sleep(2500);
-        assert (list.size() == 5);
+        Thread.sleep(5200);
+        assert (list.size() == 20);
 
-        list.remove(0); //prio of first is random
+        list.remove(0); //prio of first two is random
 
         int lastPrio = -1;
 
         for (Msg m : list) {
+            log.info("Msg: " + m.getPriority());
             assert (m.getPriority() >= lastPrio);
             lastPrio = m.getPriority();
         }
