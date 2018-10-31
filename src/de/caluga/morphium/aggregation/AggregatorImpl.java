@@ -94,6 +94,13 @@ public class AggregatorImpl<T, R> implements Aggregator<T, R> {
     }
 
     @Override
+    public Aggregator<T, R> addFields(Map<String, Object> m) {
+        Map<String, Object> o = Utils.getMap("$addFields", m);
+        params.add(o);
+        return this;
+    }
+
+    @Override
     public Aggregator<T, R> match(Query<T> q) {
         Map<String, Object> o = Utils.getMap("$match", q.toQueryObject());
         collectionName = q.getCollectionName();
