@@ -40,6 +40,8 @@ public interface Aggregator<T, R> {
 
     Aggregator<T, R> project(Map<String, Object> m);  //field -> other field, field -> 0,1
 
+    Aggregator<T, R> addFields(Map<String, Object> m);  //field -> other field, field -> 0,1
+
     Aggregator<T, R> project(String... m);    //field:1
 
     Aggregator<T, R> match(Query<T> q);
