@@ -1142,7 +1142,7 @@ public class InMemMessagingTest extends InMemTest {
 
         m1.start();
 
-        Msg answer = sender.sendAndAwaitFirstAnswer(new Msg("test", "Sender", "sent", 5000), 5000);
+        Msg answer = sender.sendAndAwaitFirstAnswer(new Msg("test", "Sender", "sent", 1555000), 1555000);
         assert (answer != null);
         assert (answer.getName().equals("test"));
         assert (answer.getInAnswerTo() != null);
@@ -1282,7 +1282,7 @@ public class InMemMessagingTest extends InMemTest {
         gotMessage1 = false;
         gotMessage2 = false;
 
-        Messaging m1 = new Messaging(morphium, 100, false, true, 10);
+        Messaging m1 = new Messaging(morphium, 100, true, true, 10);
         m1.addListenerForMessageNamed("test", new MessageListener() {
             @Override
             public Msg onMessage(Messaging msg, Msg m) {
@@ -1389,29 +1389,36 @@ public class InMemMessagingTest extends InMemTest {
         log.info("Max threadpool:" + morphium.getConfig().getThreadPoolMessagingCoreSize());
         Thread.sleep(1000);
         Messaging sender = new Messaging(morphium, 100, false, true, 10);
-        sender.start();
+        //sender.start();
 
         list.clear();
-        Messaging receiver = new Messaging(morphium, 100, false, true, 10);
+        Messaging receiver = new Messaging(morphium, 100, true, true, 10);
         receiver.addMessageListener((msg, m) -> {
 
             log.info("Incoming message..." + m.getMsgId().toString() + " processed by: " + m.getProcessedBy().size() + "/" + m.getProcessedBy().get(0));
             list.add(m);
             try {
-                Thread.sleep(2000);
+                Thread.sleep(12000);
             } catch (InterruptedException e) {
 
             }
-
+            log.info("Processing finshed");
             return null;
         });
         receiver.start();
         Thread.sleep(100);
+        log.info("Store 1");
         sender.storeMessage(new Msg("test", "test", "test"));
+        log.info("Store 2");
         sender.storeMessage(new Msg("test", "test", "test"));
-        Thread.sleep(500);
 
-        assert (list.size() == 2) : "Size wrong: " + list.size();
+        long start = System.currentTimeMillis();
+        while (list.size() < 2) {
+            Thread.sleep(1000);
+            if (System.currentTimeMillis() - start > 5555000) {
+                assert (list.size() == 2);
+            }
+        }
 
         sender.terminate();
         receiver.terminate();

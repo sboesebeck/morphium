@@ -104,7 +104,7 @@ public class MongoFieldImpl<T> implements MongoField<T> {
                         val = new MorphiumId((String) val);
                     } catch (Exception ignored) {
                     }
-                } else if (field.getType().isEnum()) {
+                } else if (field.getType().isEnum() && mapper instanceof ObjectMapperImplNG) {
                     fldStr = fldStr + ".name";
                 }
             }

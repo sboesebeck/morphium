@@ -37,7 +37,7 @@ public class InMemoryDriver implements MorphiumDriver {
 
     @Override
     public List<String> listDatabases() {
-        List<String> lst = new ArrayList<>();
+        List<String> lst = new Vector<>();
         lst.addAll(database.keySet());
         return lst;
     }
@@ -46,7 +46,7 @@ public class InMemoryDriver implements MorphiumDriver {
     public List<String> listCollections(String db, String pattern) {
 
         Set<String> collections = database.get(db).keySet();
-        List<String> ret = new ArrayList<>();
+        List<String> ret = new Vector<>();
         if (pattern == null) {
             ret.addAll(collections);
         } else {
@@ -517,14 +517,14 @@ public class InMemoryDriver implements MorphiumDriver {
 
     @Override
     public void watch(String db, int timeout, boolean fullDocumentOnUpdate, DriverTailableIterationCallback cb) throws MorphiumDriverException {
-        watchersByDb.putIfAbsent(db, new ArrayList<>());
+        watchersByDb.putIfAbsent(db, new Vector<>());
         watchersByDb.get(db).add(cb);
     }
 
     @Override
     public void watch(String db, String collection, int timeout, boolean fullDocumentOnUpdate, DriverTailableIterationCallback cb) throws MorphiumDriverException {
         String key = db + "." + collection;
-        watchersByDb.putIfAbsent(key, new ArrayList<>());
+        watchersByDb.putIfAbsent(key, new Vector<>());
         watchersByDb.get(key).add(cb);
     }
 
@@ -579,8 +579,8 @@ public class InMemoryDriver implements MorphiumDriver {
 
     @SuppressWarnings({"RedundantThrows", "UnusedParameters"})
     private List<Map<String, Object>> find(String db, String collection, Map<String, Object> query, Map<String, Integer> sort, Map<String, Object> projection, int skip, int limit, boolean internal) throws MorphiumDriverException {
-        List<Map<String, Object>> data = new ArrayList<>(getCollection(db, collection));
-        List<Map<String, Object>> ret = new ArrayList<>();
+        List<Map<String, Object>> data = new Vector<>(getCollection(db, collection));
+        List<Map<String, Object>> ret = new Vector<>();
         int count = 0;
 
         if (sort != null) {
@@ -632,7 +632,7 @@ public class InMemoryDriver implements MorphiumDriver {
     }
 
     public List<Map<String, Object>> findByFieldValue(String db, String coll, String field, Object value) {
-        List<Map<String, Object>> ret = new ArrayList<>();
+        List<Map<String, Object>> ret = new Vector<>();
 
         List<Map<String, Object>> data = getCollection(db, coll);
         for (Map<String, Object> obj : data) {
@@ -710,7 +710,7 @@ public class InMemoryDriver implements MorphiumDriver {
     public Map<String, Object> update(String db, String collection, Map<String, Object> query, Map<String, Object> op, boolean multiple, boolean upsert, WriteConcern wc) throws MorphiumDriverException {
         List<Map<String, Object>> lst = find(db, collection, query, null, null, 0, multiple ? 0 : 1, true);
         boolean insert = false;
-        if (lst == null) lst = new ArrayList<>();
+        if (lst == null) lst = new Vector<>();
         if (upsert && (lst == null || lst.isEmpty())) {
             lst.add(new HashMap<>());
             for (String k : query.keySet()) {
@@ -824,7 +824,7 @@ public class InMemoryDriver implements MorphiumDriver {
                         for (Map.Entry<String, Object> entry : cmd.entrySet()) {
                             List v = (List) obj.get(entry.getKey());
                             if (v == null) {
-                                v = new ArrayList();
+                                v = new Vector();
                                 obj.put(entry.getKey(), v);
                             }
                             if (entry.getValue() instanceof Map) {
@@ -968,7 +968,7 @@ public class InMemoryDriver implements MorphiumDriver {
                 }
             }
         }
-        List<Object> distinctValuesList = new ArrayList<>();
+        List<Object> distinctValuesList = new Vector<>();
         distinctValuesList.addAll(distinctValues);
 
         return distinctValuesList;
@@ -981,7 +981,7 @@ public class InMemoryDriver implements MorphiumDriver {
 
     @Override
     public List<Map<String, Object>> getIndexes(String db, String collection) {
-        return new ArrayList<>();
+        return new Vector<>();
     }
 
     @Override
@@ -1042,7 +1042,7 @@ public class InMemoryDriver implements MorphiumDriver {
     @Override
     public BulkRequestContext createBulkContext(Morphium m, String db, String collection, boolean ordered, WriteConcern wc) {
         return new BulkRequestContext(m) {
-            private final List<BulkRequest> requests = new ArrayList<>();
+            private final List<BulkRequest> requests = new Vector<>();
 
             @Override
             public Map<String, Object> execute() {
