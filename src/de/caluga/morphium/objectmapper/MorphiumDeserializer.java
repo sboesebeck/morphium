@@ -14,6 +14,7 @@ import de.caluga.morphium.annotations.Entity;
 import de.caluga.morphium.annotations.Reference;
 import de.caluga.morphium.driver.MorphiumId;
 import de.caluga.morphium.mapping.MorphiumTypeMapper;
+import org.bson.types.ObjectId;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import sun.misc.BASE64Decoder;
@@ -188,6 +189,8 @@ public class MorphiumDeserializer {
     private Object replaceMorphiumIds(Object o) {
         if (o instanceof Map) {
             return replaceMorphiumIds((Map) o);
+        } else if (o instanceof ObjectId) {
+            return new MorphiumId(((ObjectId) o).toHexString());
         }
         return o;
     }
@@ -201,6 +204,8 @@ public class MorphiumDeserializer {
                 Map mid = new HashMap();
                 mid.put("morphium id", e.getValue().toString());
                 ret.put(e.getKey(), mid);
+            } else if (e.getValue() instanceof ObjectId) {
+                ret.put(e.getKey(), new MorphiumId(((ObjectId) e.getValue()).toByteArray()));
             } else if (e.getValue() instanceof List) {
                 ret.put(e.getKey(), replaceMorphiumIds((List) e.getValue()));
             } else {
@@ -577,8 +582,8 @@ public class MorphiumDeserializer {
                                 if (f.getType().equals(String.class)) {
                                     f.set(ret, jackson.readValue(jsonParser, Object.class).toString());
                                 } else if (f.getType().equals(MorphiumId.class)) {
-                                    Map v = jackson.readValue(jsonParser, Map.class);
-                                    f.set(ret, new MorphiumId(v.get("morphium id").toString()));
+                                    ObjectId v = jackson.readValue(jsonParser, ObjectId.class);
+                                    f.set(ret, new MorphiumId(v.toHexString())/*new MorphiumId(v.get("morphium id").toString())*/);
                                 } else {
                                     Map v = jackson.readValue(jsonParser, Map.class);
                                     if (v.containsKey("morphium id")) {

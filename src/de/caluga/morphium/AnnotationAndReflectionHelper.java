@@ -779,8 +779,8 @@ public class AnnotationAndReflectionHelper {
 
         boolean tcc = true;
         if (embedded != null)
-            embedded.translateCamelCase();
-        if (entity != null) entity.translateCamelCase();
+            tcc = embedded.translateCamelCase();
+        if (entity != null) tcc = entity.translateCamelCase();
 
         IgnoreFields ignoreFields = getAnnotationFromHierarchy(sc, IgnoreFields.class);
         LimitToFields limitToFields = getAnnotationFromHierarchy(sc, LimitToFields.class);

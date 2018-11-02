@@ -2,6 +2,8 @@
 function quit {
 	echo "Shutting down"
 	kill -9 $(ps aux | grep -v grep | grep surefire | cut -c15-24)
+	end="Aborted during testrun, but ran $run Tests, $fail tests failed, $err tests had errors"
+	curl -X POST -H "Content-type: application/json" --data "{'text':'Morphium integration test just ran: $end'}" https://hooks.slack.com/services/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
 	exit 1
 }
 
