@@ -409,6 +409,7 @@ public class MongoTest {
             log.info("------ > Number: " + num);
             morphium.getCache().resetCache();
             morphium.reset();
+
             log.info("resetting DB...");
             List<String> lst = morphium.getDriver().getCollectionNames(morphium.getConfig().getDatabase());
             for (String col : lst) {
