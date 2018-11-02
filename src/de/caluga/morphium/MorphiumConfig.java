@@ -103,7 +103,7 @@ public class MorphiumConfig {
     //    private Class<? extends Object> userClass, roleClass, aclClass;
     private String mongoAdminUser, mongoAdminPwd; //THE superuser!
     @Transient
-    private Class<? extends MorphiumObjectMapper> omClass = ObjectMapperImplNG.class;
+    private Class<? extends MorphiumObjectMapper> omClass = ObjectMapperImpl.class;
     @Transient
     private Class<? extends MongoField> fieldImplClass = MongoFieldImpl.class;
     @Transient
