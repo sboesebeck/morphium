@@ -57,6 +57,7 @@ public class Messaging extends Thread implements ShutdownListener {
     private ChangeStreamMonitor changeStreamMonitor;
 
     private Map<MorphiumId, Msg> waitingForAnswers = new ConcurrentHashMap<>();
+    private Map<MorphiumId, Msg> waitingForMessages = new ConcurrentHashMap<>();
 
     private List<MorphiumId> processing = new Vector<>();
 
@@ -371,7 +372,7 @@ public class Messaging extends Thread implements ShutdownListener {
 
         //locking messages...
         Query<Msg> or1 = q.q().f(Msg.Fields.sender).ne(id).f(Msg.Fields.lockedBy).eq(null).f(Msg.Fields.processedBy).ne(id).f(Msg.Fields.recipient).eq(null);
-        Query<Msg> or2 = q.q().f(Msg.Fields.sender).ne(id).f(Msg.Fields.lockedBy).eq(null).f(Msg.Fields.processedBy).ne(id).f(Msg.Fields.recipient).eq(id);
+        Query<Msg> or2 = q.q().f(Msg.Fields.sender).ne(id).f(Msg.Fields.processedBy).ne(id).f(Msg.Fields.recipient).eq(id);
         if (name != null) {
             or1.f(Msg.Fields.name).eq(name);
             or2.f(Msg.Fields.name).eq(name);
@@ -382,7 +383,9 @@ public class Messaging extends Thread implements ShutdownListener {
                 or2.f(Msg.Fields.name).nin(pauseMessages.keySet());
             }
         }
-        q.f("_id").nin(processing);
+        if (!processing.isEmpty()) {
+            q.f("_id").nin(processing);
+        }
         q.or(or1, or2);
         q.sort(Msg.Fields.priority, Msg.Fields.timestamp);
         if (!multiple) {
@@ -458,13 +461,22 @@ public class Messaging extends Thread implements ShutdownListener {
     private void processMessages(Iterable<Msg> messages) {
 //        final List<Msg> toStore = new ArrayList<>();
 //        final List<Runnable> toExec = new ArrayList<>();
-        if (listeners.isEmpty() && listenerByName.isEmpty()) return;
         final List<Msg> toRemove = new ArrayList<>();
         for (final Msg m : messages) {
-
             if (m == null) {
                 continue; //message was erased
             }
+            final Msg msg = morphium.reread(m, getCollectionName()); //make sure it's current version in DB
+            if (msg == null) continue;
+
+            if (msg.getInAnswerTo() != null && waitingForMessages.get(msg.getInAnswerTo()) != null) {
+                //this message we were waiting for
+                waitingForAnswers.put((MorphiumId) msg.getInAnswerTo(), msg);
+                processing.remove(m.getMsgId());
+                morphium.delete(msg, getCollectionName());
+                return;
+            }
+            if (listeners.isEmpty() && listenerByName.isEmpty()) return;
 //            Query<? extends Msg> q = morphium.createQueryFor(m.getClass()).f("_id").eq(m.getMsgId());
 //            q.setCollectionName(getCollectionName());
 //            morphium.push(q, Msg.Fields.receivedBy, id);
@@ -477,7 +489,7 @@ public class Messaging extends Thread implements ShutdownListener {
                     //throw new RuntimeException("was already processed - error on mongo query result!");
                     return;
                 }
-                final Msg msg = morphium.reread(m, getCollectionName()); //make sure it's current version in DB
+
                 if (msg == null) {
                     processing.remove(m.getMsgId());
                     return; //was deleted
@@ -501,6 +513,7 @@ public class Messaging extends Thread implements ShutdownListener {
                     processing.remove(m.getMsgId());
                     return;
                 }
+
                 try {
                     for (MessageListener l : listeners) {
                         Msg answer = l.onMessage(Messaging.this, msg);
@@ -834,30 +847,26 @@ public class Messaging extends Thread implements ShutdownListener {
         }
     }
 
-
-    //TODO: proof of concept implementation, need to clearify some things
-    //   on timeout: return null or throw Exception?
-    //   Thread.yield() - better object.wait or another semaphore implementation
-    //   what to do if more answers are being sent?
     public Msg sendAndAwaitFirstAnswer(Msg theMEssage, long timeoutInMs) {
-        addMessageListener(getAnswerListener(theMEssage));
-
+        //addMessageListener(getAnswerListener(theMEssage));
+        theMEssage.setMsgId(new MorphiumId());
+        waitingForMessages.put(theMEssage.getMsgId(), theMEssage);
         storeMessage(theMEssage);
         long start = System.currentTimeMillis();
         while (!waitingForAnswers.containsKey(theMEssage.getMsgId())) {
             if (System.currentTimeMillis() - start > timeoutInMs) {
-                log.error("Did not receive Answer in timee");
+                log.error("Did not receive Answer in time");
+                waitingForMessages.remove(theMEssage.getMsgId());
                 throw new RuntimeException("Did not receive answer in time!");
             }
             Thread.yield();
         }
+
         return waitingForAnswers.remove(theMEssage.getMsgId());
     }
 
     public List<Msg> sendAndAwaitAnswers(Msg theMessage, int numberOfAnswers, long timeout) {
         List<Msg> answers = new ArrayList<>();
-        addMessageListener(getAnswerListener(theMessage));
-
         storeMessage(theMessage);
         long start = System.currentTimeMillis();
         while (true) {
@@ -875,17 +884,4 @@ public class Messaging extends Thread implements ShutdownListener {
         return answers;
     }
 
-    private MessageListener getAnswerListener(Msg theMessage) {
-        return new MessageListener() {
-            @Override
-            public Msg onMessage(Messaging msg, Msg m) {
-                if (m.getInAnswerTo() != null && m.getInAnswerTo().equals(theMessage.getMsgId())) {
-                    //got the message
-                    waitingForAnswers.put(theMessage.getMsgId(), m);
-                    removeMessageListener(this);
-                }
-                return null;
-            }
-        };
-    }
 }

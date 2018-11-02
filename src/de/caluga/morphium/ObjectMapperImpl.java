@@ -30,7 +30,7 @@ import java.util.stream.Collectors;
  */
 @SuppressWarnings({"ConstantConditions", "MismatchedQueryAndUpdateOfCollection", "unchecked", "MismatchedReadAndWriteOfArray", "RedundantCast"})
 public class ObjectMapperImpl implements MorphiumObjectMapper {
-    private static final Logger log = LoggerFactory.getLogger(ObjectMapperImpl.class);
+    private final Logger log = LoggerFactory.getLogger(ObjectMapperImpl.class);
     private final ReflectionFactory reflection = ReflectionFactory.getReflectionFactory();
     private final Map<Class<?>, NameProvider> nameProviders;
     private final JSONParser jsonParser = new JSONParser();
@@ -125,7 +125,7 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
             return getNameProviderForClass(cls, e);
         } catch (Exception ex) {
             log.error("Error getting nameProvider", ex);
-            throw new IllegalArgumentException("could not get name provicer", ex);
+            throw new IllegalArgumentException("could not get name provider", ex);
         }
     }
 
@@ -961,13 +961,18 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
                 } else {
                     if (fld.getType().isEnum()) {
                         value = Enum.valueOf((Class<? extends Enum>) fld.getType(), (String) valueFromDb);
-                    } else if (fld.getType().equals(MorphiumId.class)) {
-                        if (valueFromDb instanceof ObjectId) {
-                            value = new MorphiumId(((ObjectId) valueFromDb).toHexString());
-                        } else if (valueFromDb instanceof String) {
-                            value = new MorphiumId((String) valueFromDb);
+                    } else if (valueFromDb instanceof ObjectId) {
+                        if (fld.getType().equals(MorphiumId.class)) {
+                            if (valueFromDb instanceof ObjectId) {
+                                value = new MorphiumId(((ObjectId) valueFromDb).toHexString());
+                            } else if (valueFromDb instanceof String) {
+                                value = new MorphiumId((String) valueFromDb);
+                            } else {
+                                log.error("Could not deserialize Value from DB of type " + valueFromDb.getClass().getName() + " and set it to morphiumId");
+                            }
                         } else {
-                            log.error("Could not deserialize Value from DB of type " + valueFromDb.getClass().getName() + " and set it to morphiumId");
+                            //assuming object
+                            value = new MorphiumId(((ObjectId) valueFromDb).toByteArray());
                         }
                     } else {
                         value = valueFromDb;
@@ -1162,13 +1167,13 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
                 //list in list
                 if (listType != null) {
                     ArrayList lt = new ArrayList();
-                    Class lstt= null;
+                    Class lstt = null;
                     try {
                         lstt = annotationHelper.getClassForTypeId(listType.getActualTypeArguments()[0].getTypeName());
                     } catch (ClassNotFoundException e) {
                         //could not find it, assuming list type
                     }
-                    if (lstt==null || lstt.isAssignableFrom(List.class)) {
+                    if (lstt == null || lstt.isAssignableFrom(List.class)) {
                         fillList(forField, ref, (ParameterizedType) listType.getActualTypeArguments()[0], (List<Map<String, Object>>) val, lt, containerEntity);
                         toFillIn.add(lt);
                     } else {
