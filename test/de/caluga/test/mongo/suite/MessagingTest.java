@@ -1446,7 +1446,7 @@ public class MessagingTest extends MongoTest {
             gotMessage1 = false;
             gotMessage2 = false;
             boolean[] fail = {false};
-            m1 = new Messaging(morphium, 100, false, multithreadded, 10);
+            m1 = new Messaging(morphium, 100, true, multithreadded, 10);
             m1.addListenerForMessageNamed("test", (msg, m) -> {
                 msg.pauseProcessingOfMessagesNamed("test");
 
