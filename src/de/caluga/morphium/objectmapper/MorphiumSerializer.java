@@ -31,12 +31,12 @@ public class MorphiumSerializer {
     private final SimpleModule module;
     private final Map<Class, MorphiumTypeMapper> typeMapper;
 
-    public MorphiumSerializer(AnnotationAndReflectionHelper ar, Map<Class<?>, NameProvider> np, Morphium m, MorphiumObjectMapper om, Map<Class, MorphiumTypeMapper> typeMapper) {
+    public MorphiumSerializer(AnnotationAndReflectionHelper ar, Map<Class<?>, NameProvider> np, Morphium m, MorphiumObjectMapper om, Map<Class, MorphiumTypeMapper> tm) {
         mongoTypes = Collections.synchronizedList(new ArrayList<>());
         anhelper = ar;
         nameProviderByClass = np;
         morphium = m;
-        this.typeMapper = typeMapper;
+        this.typeMapper = tm;
 
         objectMapper = om;
         module = new SimpleModule();
@@ -142,12 +142,6 @@ public class MorphiumSerializer {
 //                if (Map.class.isAssignableFrom(beanDesc.getBeanClass())){
 //                    return new CustomMapSerializer((JsonSerializer<Map>)serializer,anhelper);
 //                }
-                if (anhelper.isAnnotationPresentInHierarchy(beanDesc.getBeanClass(), Entity.class) || anhelper.isAnnotationPresentInHierarchy(beanDesc.getBeanClass(), Embedded.class)) {
-                    return new EntitySerializer((JsonSerializer<Object>) serializer, anhelper);
-                }
-                if (beanDesc.getBeanClass().isEnum()) {
-                    return new CustomEnumSerializer();
-                }
                 if (typeMapper.containsKey(beanDesc.getBeanClass())) {
                     return new JsonSerializer<Object>() {
                         @Override
@@ -155,6 +149,12 @@ public class MorphiumSerializer {
                             gen.writeObject(typeMapper.get(value.getClass()).marshall(value));
                         }
                     };
+                }
+                if (anhelper.isAnnotationPresentInHierarchy(beanDesc.getBeanClass(), Entity.class) || anhelper.isAnnotationPresentInHierarchy(beanDesc.getBeanClass(), Embedded.class)) {
+                    return new EntitySerializer((JsonSerializer<Object>) serializer, anhelper);
+                }
+                if (beanDesc.getBeanClass().isEnum()) {
+                    return new CustomEnumSerializer();
                 }
                 if (Map.class.isAssignableFrom(beanDesc.getBeanClass())) {
                     return new JsonSerializer<Map>() {

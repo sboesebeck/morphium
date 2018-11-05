@@ -91,6 +91,8 @@ public class PolymorphismTest extends MongoTest {
 
     @Entity
     public static class PolyContainer {
+        @Id
+        public MorphiumId id;
         public PolyTest aSubClass;
         public List<PolyTest> aLotOfSubClasses;
         public Map<String, PolyTest> aMapOfSubClasses;
