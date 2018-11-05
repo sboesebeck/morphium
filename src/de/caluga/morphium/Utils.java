@@ -3,6 +3,7 @@ package de.caluga.morphium;/**
  */
 
 import de.caluga.morphium.driver.MorphiumId;
+import org.bson.types.ObjectId;
 
 import java.lang.reflect.Field;
 import java.nio.charset.StandardCharsets;
@@ -206,7 +207,7 @@ public class Utils {
                 toSet.put(e.getKey(), null);
             } else if (e.getKey().equals("morphium id")) {
                 //identifier!
-                return new MorphiumId(e.getValue().toString());
+                return new ObjectId(e.getValue().toString());
             } else if (e.getKey().equals("date field")) {
                 return new Date((Long) e.getValue());
             } else if (e.getValue() instanceof Map) {
@@ -227,7 +228,7 @@ public class Utils {
             if (o == null) {
                 ret.add(null);
             } else if (o instanceof Map && ((Map) o).containsKey("morphium id")) {
-                ret.add(new MorphiumId((String) ((Map) o).get("morphium id")));
+                ret.add(new ObjectId((String) ((Map) o).get("morphium id")));
             } else if (o instanceof Map && ((Map) o).containsKey("date field")) {
                 ret.add(new Date((Long) ((Map) o).get("date field")));
             } else if (o instanceof Map) {

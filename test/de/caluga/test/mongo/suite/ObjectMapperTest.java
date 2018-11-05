@@ -1,6 +1,7 @@
 package de.caluga.test.mongo.suite;
 
 import de.caluga.morphium.*;
+import de.caluga.morphium.annotations.Embedded;
 import de.caluga.morphium.annotations.Entity;
 import de.caluga.morphium.annotations.Id;
 import de.caluga.morphium.driver.MorphiumId;
@@ -48,7 +49,7 @@ public class ObjectMapperTest extends MongoTest {
         UncachedObject o = new UncachedObject("test", 1234);
         o.setMorphiumId(new MorphiumId());
         Map<String, Object> m = morphium.getMapper().serialize(o);
-        assert (m.get("_id") instanceof MorphiumId);
+        assert (m.get("_id") instanceof ObjectId);
         UncachedObject uc = morphium.getMapper().deserialize(UncachedObject.class, m);
         assert (uc.getMorphiumId() != null);
     }
@@ -935,6 +936,7 @@ public class ObjectMapperTest extends MongoTest {
 
     }
 
+    @Embedded
     public static class MyClass {
         //does not need to be entity?
         String theValue;
