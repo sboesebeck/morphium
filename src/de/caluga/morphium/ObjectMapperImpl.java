@@ -2,7 +2,9 @@ package de.caluga.morphium;
 
 import de.caluga.morphium.annotations.*;
 import de.caluga.morphium.driver.MorphiumId;
+import de.caluga.morphium.mapping.BigIntegerTypeMapper;
 import de.caluga.morphium.mapping.MorphiumTypeMapper;
+import org.bson.types.ObjectId;
 import org.json.simple.parser.ContainerFactory;
 import org.json.simple.parser.JSONParser;
 import org.json.simple.parser.ParseException;
@@ -14,8 +16,10 @@ import sun.reflect.ReflectionFactory;
 
 import java.io.*;
 import java.lang.reflect.*;
+import java.math.BigInteger;
 import java.util.*;
 import java.util.Map.Entry;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
 /**
@@ -26,19 +30,19 @@ import java.util.stream.Collectors;
  */
 @SuppressWarnings({"ConstantConditions", "MismatchedQueryAndUpdateOfCollection", "unchecked", "MismatchedReadAndWriteOfArray", "RedundantCast"})
 public class ObjectMapperImpl implements MorphiumObjectMapper {
-    private static final Logger log = LoggerFactory.getLogger(ObjectMapperImpl.class);
+    private final Logger log = LoggerFactory.getLogger(ObjectMapperImpl.class);
     private final ReflectionFactory reflection = ReflectionFactory.getReflectionFactory();
     private final Map<Class<?>, NameProvider> nameProviders;
     private final JSONParser jsonParser = new JSONParser();
     private final List<Class<?>> mongoTypes;
     private final ContainerFactory containerFactory;
     private AnnotationAndReflectionHelper annotationHelper = new AnnotationAndReflectionHelper(true);
-    ;
+    private final Map<Class, MorphiumTypeMapper> customMappers = new ConcurrentHashMap<>();
     private Morphium morphium;
 
     public ObjectMapperImpl() {
 
-        nameProviders = new Hashtable<>();
+        nameProviders = new ConcurrentHashMap<>();
         mongoTypes = Collections.synchronizedList(new ArrayList<>());
 
         mongoTypes.add(String.class);
@@ -62,6 +66,7 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
             }
         };
 
+        customMappers.put(BigInteger.class, new BigIntegerTypeMapper());
 
     }
 
@@ -103,12 +108,12 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
 
     @Override
     public <T> void registerCustomMapperFor(Class<T> cls, MorphiumTypeMapper<T> map) {
-
+        customMappers.put(cls, map);
     }
 
     @Override
     public void deregisterCustomMapperFor(Class cls) {
-
+        customMappers.remove(cls);
     }
 
     public NameProvider getNameProviderForClass(Class<?> cls) {
@@ -120,7 +125,7 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
             return getNameProviderForClass(cls, e);
         } catch (Exception ex) {
             log.error("Error getting nameProvider", ex);
-            throw new IllegalArgumentException("could not get name provicer", ex);
+            throw new IllegalArgumentException("could not get name provider", ex);
         }
     }
 
@@ -161,7 +166,7 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
         if (o == null) {
             return null;
         }
-        if (annotationHelper.isEntity(o)) {
+        if (annotationHelper.isEntity(o) || customMappers.containsKey(o.getClass())) {
             return serialize(o);
         }
         if (o.getClass().isPrimitive()) {
@@ -196,7 +201,14 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
     public Map<String, Object> serialize(Object o) {
 
         Class c = annotationHelper.getRealClass(o.getClass());
-
+        if (customMappers.containsKey(c)) {
+            Object ret = customMappers.get(c).marshall(o);
+            if (ret instanceof Map) {
+                return (Map<String, Object>) ret;
+            } else {
+                return Utils.getMap("value", ret);
+            }
+        }
         //recursively map object to mongo-Object...
         if (!annotationHelper.isEntity(o)) {
             if (morphium == null || morphium.getConfig().isObjectSerializationEnabled()) {
@@ -240,13 +252,15 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
         }
         Entity e = annotationHelper.getAnnotationFromHierarchy(o.getClass(), Entity.class); //o.getClass().getAnnotation(Entity.class);
         Embedded emb = annotationHelper.getAnnotationFromHierarchy(o.getClass(), Embedded.class); //o.getClass().getAnnotation(Embedded.class);
-
+        String cn = cls.getName();
+        if (e != null && !e.typeId().equals(".")) cn = e.typeId();
+        if (emb != null && !emb.typeId().equals(".")) cn = emb.typeId();
         if (e != null && e.polymorph()) {
-            dbo.put("class_name", cls.getName());
-        }
 
+            dbo.put("class_name", cn);
+        }
         if (emb != null && emb.polymorph()) {
-            dbo.put("class_name", cls.getName());
+            dbo.put("class_name", cn);
         }
 
         for (String f : flds) {
@@ -396,8 +410,10 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
                                 v = createDBList(lst);
                             } else if (v.getClass().equals(GregorianCalendar.class)) {
                                 v = ((GregorianCalendar) v).getTime();
-//                            } else if (v.getClass().equals(MorphiumId.class)) {
-//                                v = new ObjectId(((MorphiumId) v).getBytes());
+                            } else if (v.getClass().equals(MorphiumId.class)) {
+                                v = new ObjectId(((MorphiumId) v).getBytes());
+                            } else if (customMappers.containsKey(v.getClass())) {
+                                v = customMappers.get(v.getClass()).marshall(v);
                             } else if (v.getClass().isEnum()) {
                                 v = ((Enum) v).name();
                             }
@@ -445,17 +461,18 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
                 if (annotationHelper.isAnnotationPresentInHierarchy(lo.getClass(), Entity.class) ||
                         annotationHelper.isAnnotationPresentInHierarchy(lo.getClass(), Embedded.class)) {
                     Map<String, Object> marshall = serialize(lo);
-                    marshall.put("class_name", lo.getClass().getName());
+                    String cn = getTypeId(lo);
+                    marshall.put("class_name", cn);
                     lst.add(marshall);
                 } else if (lo instanceof List) {
                     lst.add(createDBList((List) lo));
                 } else if (lo instanceof Map) {
                     lst.add(createDBMap(((Map) lo)));
-//                } else if (lo instanceof MorphiumId) {
-//                    lst.add(new ObjectId(((MorphiumId) lo).getBytes()));
+                } else if (lo instanceof MorphiumId) {
+                    lst.add(new ObjectId(((MorphiumId) lo).getBytes()));
                 } else if (lo.getClass().isEnum()) {
                     Map<String, Object> obj = new HashMap<>();
-                    obj.put("class_name", lo.getClass().getName());
+                    obj.put("class_name", getTypeId(lo));
                     obj.put("name", ((Enum) lo).name());
                     lst.add(obj);
                     //throw new IllegalArgumentException("List of enums not supported yet");
@@ -484,6 +501,18 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
         return lst;
     }
 
+    private String getTypeId(Object lo) {
+        String cn = lo.getClass().getName();
+        Entity e = annotationHelper.getAnnotationFromHierarchy(lo.getClass(), Entity.class);
+        Embedded emb = annotationHelper.getAnnotationFromHierarchy(log.getClass(), Embedded.class);
+        if (e != null && !e.typeId().equals(".")) {
+            cn = e.typeId();
+        } else if (emb != null && !emb.typeId().equals(".")) {
+            cn = emb.typeId();
+        }
+        return cn;
+    }
+
     @SuppressWarnings("unchecked")
     private Map<String, Object> createDBMap(Map v) {
         Map<String, Object> dbMap = new HashMap<>();
@@ -501,7 +530,7 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
             if (mval != null) {
                 if (annotationHelper.isAnnotationPresentInHierarchy(mval.getClass(), Entity.class) || annotationHelper.isAnnotationPresentInHierarchy(mval.getClass(), Embedded.class)) {
                     Map<String, Object> obj = serialize(mval);
-                    obj.put("class_name", mval.getClass().getName());
+                    obj.put("class_name", getTypeId(mval));
                     mval = obj;
                 } else if (mval instanceof Map) {
                     mval = createDBMap((Map) mval);
@@ -517,10 +546,10 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
                     }
                 } else if (mval.getClass().isEnum()) {
                     Map<String, Object> obj = new HashMap<>();
-                    obj.put("class_name", mval.getClass().getName());
+                    obj.put("class_name", getTypeId(mval));
                     obj.put("name", ((Enum) mval).name());
-//                } else if (mval instanceof MorphiumId) {
-//                    mval = new ObjectId(((MorphiumId) mval).getBytes());
+                } else if (mval instanceof MorphiumId) {
+                    mval = new ObjectId(((MorphiumId) mval).getBytes());
                 } else if (!mval.getClass().isPrimitive() && !mongoTypes.contains(mval.getClass())) {
                     mval = serialize(mval);
                 }
@@ -546,6 +575,9 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
             return null;
         }
         Class cls = theClass;
+        if (customMappers.containsKey(cls)) {
+            return (T) customMappers.get(cls).unmarshall(o);
+        }
         try {
             if (morphium != null && morphium.getConfig().isObjectSerializationEnabled() && !annotationHelper.isAnnotationPresentInHierarchy(cls, Entity.class) && !(annotationHelper.isAnnotationPresentInHierarchy(cls, Embedded.class))) {
                 cls = BinarySerializedObject.class;
@@ -559,7 +591,7 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
                     if (cN == null) {
                         cN = (String) o.get("className");
                     }
-                    cls = Class.forName(cN);
+                    cls = annotationHelper.getClassForTypeId(cN);
                 } catch (ClassNotFoundException e) {
                     throw new RuntimeException(e);
                 }
@@ -602,7 +634,10 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
                     //skip static fields
                     continue;
                 }
-
+                if (customMappers.containsKey(fld.getType())) {
+                    fld.set(ret, customMappers.get(fld.getType()).unmarshall(valueFromDb));
+                    continue;
+                }
                 if (fld.isAnnotationPresent(AdditionalData.class)) {
                     //this field should store all data that is not put to fields
                     if (!Map.class.isAssignableFrom(fld.getType())) {
@@ -622,7 +657,7 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
 
                         if (o.get(k) instanceof Map) {
                             if (((Map<String, Object>) o.get(k)).get("class_name") != null) {
-                                data.put(k, deserialize(Class.forName((String) ((Map<String, Object>) o.get(k)).get("class_name")), (Map<String, Object>) o.get(k)));
+                                data.put(k, deserialize(annotationHelper.getClassForTypeId((String) ((Map<String, Object>) o.get(k)).get("class_name")), (Map<String, Object>) o.get(k)));
                             } else {
                                 data.put(k, createMap((Map<String, Object>) o.get(k)));
                             }
@@ -669,9 +704,9 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
                                     if (r.getCollectionName() != null) {
                                         collectionName = r.getCollectionName();
                                     } else {
-                                        collectionName = getCollectionName(Class.forName(r.getClassName()));
+                                        collectionName = getCollectionName(annotationHelper.getClassForTypeId(r.getClassName()));
                                     }
-                                    type = Class.forName(r.getClassName());
+                                    type = annotationHelper.getClassForTypeId(r.getClassName());
                                 } else {
                                     if (annotationHelper.isAnnotationPresentInHierarchy(fld.getType(), Entity.class)) {
                                         collectionName = getCollectionName(fld.getType());
@@ -687,8 +722,8 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
                                     }
                                     if (id instanceof String && annotationHelper.getField(fld.getType(), lst.get(0)).getType().equals(MorphiumId.class)) {
                                         id = new MorphiumId(id.toString());
-//                                    } else if (id instanceof ObjectId && annotationHelper.getField(fld.getType(), lst.get(0)).getType().equals(MorphiumId.class)) {
-//                                        id = new MorphiumId(((ObjectId) id).toByteArray());
+                                    } else if (id instanceof ObjectId && annotationHelper.getField(fld.getType(), lst.get(0)).getType().equals(MorphiumId.class)) {
+                                        id = new MorphiumId(((ObjectId) id).toByteArray());
                                     }
                                     value = morphium.createLazyLoadedEntity(fld.getType(), id, collectionName);
                                 } else {
@@ -926,6 +961,19 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
                 } else {
                     if (fld.getType().isEnum()) {
                         value = Enum.valueOf((Class<? extends Enum>) fld.getType(), (String) valueFromDb);
+                    } else if (valueFromDb instanceof ObjectId) {
+                        if (fld.getType().equals(MorphiumId.class)) {
+                            if (valueFromDb instanceof ObjectId) {
+                                value = new MorphiumId(((ObjectId) valueFromDb).toHexString());
+                            } else if (valueFromDb instanceof String) {
+                                value = new MorphiumId((String) valueFromDb);
+                            } else {
+                                log.error("Could not deserialize Value from DB of type " + valueFromDb.getClass().getName() + " and set it to morphiumId");
+                            }
+                        } else {
+                            //assuming object
+                            value = new MorphiumId(((ObjectId) valueFromDb).toByteArray());
+                        }
                     } else {
                         value = valueFromDb;
                     }
@@ -945,8 +993,8 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
                     } else if (field.getType().equals(String.class) && o.get("_id").getClass().equals(MorphiumId.class)) {
                         log.warn("ID type missmatch - field is string but got objectId from mongo - converting");
                         field.set(ret, o.get("_id").toString());
-//                    } else if (field.getType().equals(MorphiumId.class) && o.get("_id").getClass().equals(ObjectId.class)) {
-//                        field.set(ret, new MorphiumId(((ObjectId) o.get("_id")).toByteArray()));
+                    } else if (field.getType().equals(MorphiumId.class) && o.get("_id").getClass().equals(ObjectId.class)) {
+                        field.set(ret, new MorphiumId(((ObjectId) o.get("_id")).toByteArray()));
                     } else if (field.getType().equals(MorphiumId.class) && o.get("_id").getClass().equals(String.class)) {
                         //                        log.warn("ID type missmatch - field is objectId but got string from db - trying conversion");
                         field.set(ret, new MorphiumId((String) o.get("_id")));
@@ -994,7 +1042,7 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
                     cn = (String) mapVal.get("className");
                 }
                 try {
-                    Class ecls = Class.forName(cn);
+                    Class ecls = annotationHelper.getClassForTypeId(cn);
                     Object obj = deserialize(ecls, mapVal);
                     if (obj != null) {
                         return obj;
@@ -1019,8 +1067,8 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
                 //maybe a normal map --> recurse
                 return createMap(mapVal);
             }
-//        } else if (val instanceof ObjectId) {
-//            val = new MorphiumId(((ObjectId) val).toByteArray());
+        } else if (val instanceof ObjectId) {
+            val = new MorphiumId(((ObjectId) val).toByteArray());
         } else if (val instanceof List) {
             List<Map<String, Object>> lst = (List<Map<String, Object>>) val;
             return createList(lst);
@@ -1044,7 +1092,7 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
                 MorphiumReference r = deserialize(MorphiumReference.class, obj);
                 Class type;
                 try {
-                    type = Class.forName(r.getClassName());
+                    type = annotationHelper.getClassForTypeId(r.getClassName());
                 } catch (ClassNotFoundException e) {
                     throw new RuntimeException(e);
                 }
@@ -1076,7 +1124,8 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
                         cn = (String) ((Map<String, Object>) val).get("className");
                     }
                     try {
-                        Class ecls = Class.forName(cn);
+
+                        Class ecls = annotationHelper.getClassForTypeId(cn);
                         Object um = deserialize(ecls, (Map<String, Object>) val);
                         if (um != null) {
                             toFillIn.add(um);
@@ -1118,13 +1167,13 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
                 //list in list
                 if (listType != null) {
                     ArrayList lt = new ArrayList();
-                    Class lstt= null;
+                    Class lstt = null;
                     try {
-                        lstt = Class.forName(listType.getActualTypeArguments()[0].getTypeName());
+                        lstt = annotationHelper.getClassForTypeId(listType.getActualTypeArguments()[0].getTypeName());
                     } catch (ClassNotFoundException e) {
                         //could not find it, assuming list type
                     }
-                    if (lstt==null || lstt.isAssignableFrom(List.class)) {
+                    if (lstt == null || lstt.isAssignableFrom(List.class)) {
                         fillList(forField, ref, (ParameterizedType) listType.getActualTypeArguments()[0], (List<Map<String, Object>>) val, lt, containerEntity);
                         toFillIn.add(lt);
                     } else {
@@ -1154,7 +1203,7 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
                 return (Class) parameterType.getRawType();
             } else {
                 try {
-                    return Class.forName(parameterType.getTypeName());
+                    return annotationHelper.getClassForTypeId(parameterType.getTypeName());
                 } catch (ClassNotFoundException e) {
                     log.error("Could not determin class for type " + parameterType.getRawType().getTypeName());
                     return Object.class;
