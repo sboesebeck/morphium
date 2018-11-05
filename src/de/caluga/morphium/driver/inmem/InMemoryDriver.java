@@ -519,6 +519,14 @@ public class InMemoryDriver implements MorphiumDriver {
     public void watch(String db, int timeout, boolean fullDocumentOnUpdate, DriverTailableIterationCallback cb) throws MorphiumDriverException {
         watchersByDb.putIfAbsent(db, new Vector<>());
         watchersByDb.get(db).add(cb);
+
+        //simulate blocking
+        while (isConnected()) {
+            try {
+                Thread.sleep(1000);
+            } catch (InterruptedException e) {
+            }
+        }
     }
 
     @Override
@@ -526,6 +534,14 @@ public class InMemoryDriver implements MorphiumDriver {
         String key = db + "." + collection;
         watchersByDb.putIfAbsent(key, new Vector<>());
         watchersByDb.get(key).add(cb);
+        //simulate blocking
+        while (isConnected()) {
+            try {
+                Thread.sleep(1000);
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+        }
     }
 
     @Override
@@ -894,26 +910,28 @@ public class InMemoryDriver implements MorphiumDriver {
     private void notifyWatchers(String db, String collection, String op, Map doc) {
         List<DriverTailableIterationCallback> w = null;
         if (watchersByDb.containsKey(db)) {
-            w = watchersByDb.get(db);
+            w = new ArrayList<>(watchersByDb.get(db));
         } else if (collection != null && watchersByDb.containsKey(db + "." + collection)) {
-            w = watchersByDb.get(db + "." + collection);
+            w = new ArrayList<>(watchersByDb.get(db + "." + collection));
         }
         if (w == null) {
             return;
         }
-        Map<String, Object> data = new HashMap<>();
-        data.put("fullDocument", doc);
-        data.put("operationType", op);
-        Map m = Utils.getMap("db", db);
-        m.put("coll", collection);
-        data.put("ns", m);
+
         long tx = txn.incrementAndGet();
-        data.put("txnNumber", tx);
-        data.put("clusterTime", System.currentTimeMillis());
-        if (doc != null) {
-            data.put("documentKey", Utils.getMap("_id", doc.get("_id")));
-        }
         for (DriverTailableIterationCallback cb : w) {
+            Map<String, Object> data = new HashMap<>();
+            data.put("fullDocument", doc);
+            data.put("operationType", op);
+            Map m = Utils.getMap("db", db);
+            m.put("coll", collection);
+            data.put("ns", m);
+            data.put("txnNumber", tx);
+            data.put("clusterTime", System.currentTimeMillis());
+            if (doc != null) {
+                data.put("documentKey", Utils.getMap("_id", doc.get("_id")));
+            }
+
             try {
                 cb.incomingData(data, System.currentTimeMillis());
             } catch (Exception e) {
