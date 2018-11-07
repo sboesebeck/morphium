@@ -1,9 +1,11 @@
 package de.caluga.test.mongo.suite;
 
+import de.caluga.morphium.query.MorphiumIterator;
 import de.caluga.test.mongo.suite.data.TestEnum;
 import org.junit.Test;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 /**
@@ -58,6 +60,29 @@ public class EnumTest extends MongoTest {
             assert (ent2.getTstLst().get(i).equals(ent.getTstLst().get(i))) : "Enums differ?!?!? " + ent.getTstLst().get(i).name() + "!=" + ent2.getTstLst().get(i).name();
         }
 
+    }
+
+    @Test
+    public void enumIteratorTest() {
+
+        morphium.clearCollection(EnumEntity.class);
+        for (int i = 0; i < 100; i++) {
+            EnumEntity ent = new EnumEntity();
+            ent.setTst(TestEnum.TEST1);
+            ent.setValue("ein Test " + i);
+            List<TestEnum> lst = new ArrayList();
+            lst.add(TestEnum.NOCH_EIN_TEST);
+            lst.add(TestEnum.TEST2);
+            lst.add(TestEnum.NOCH_EIN_TEST);
+            ent.setTstLst(lst);
+            morphium.store(ent);
+        }
+
+        MorphiumIterator<EnumEntity> it = morphium.createQueryFor(EnumEntity.class).f("tst").in(Arrays.asList(new TestEnum[]{TestEnum.TEST1})).asIterable();
+
+        for (EnumEntity e : it) {
+            log.info("Got enum: " + e.getTst());
+        }
     }
 
 

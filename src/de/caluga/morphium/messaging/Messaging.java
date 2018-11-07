@@ -513,44 +513,51 @@ public class Messaging extends Thread implements ShutdownListener {
                     processing.remove(m.getMsgId());
                     return;
                 }
-
-                try {
-                    for (MessageListener l : listeners) {
+                boolean wasProcessed = false;
+                boolean wasRejected = false;
+                List<MessageRejectedException> rejections = new ArrayList<>();
+                List<MessageListener> lst = new ArrayList<>();
+                lst.addAll(listeners);
+                if (listenerByName.get(msg.getName()) != null) {
+                    lst.addAll(listenerByName.get(msg.getName()));
+                }
+                for (MessageListener l : lst) {
+                    try {
                         Msg answer = l.onMessage(Messaging.this, msg);
+                        wasProcessed = true;
                         if (autoAnswer && answer == null) {
                             answer = new Msg(msg.getName(), "received", "");
                         }
                         if (answer != null) {
                             msg.sendAnswer(Messaging.this, answer);
                         }
+                    } catch (MessageRejectedException mre) {
+                        log.warn("Message was rejected by listener", mre);
+                        wasRejected = true;
+                        rejections.add(mre);
+                    } catch (Exception e) {
+                        log.error("listener Processing failed", e);
                     }
+                }
 
-                    if (listenerByName.get(msg.getName()) != null) {
-                        for (MessageListener l : listenerByName.get(msg.getName())) {
-                            Msg answer = l.onMessage(Messaging.this, msg);
-                            if (autoAnswer && answer == null) {
-                                answer = new Msg(msg.getName(), "received", "");
-                            }
-                            if (answer != null) {
-                                msg.sendAnswer(Messaging.this, answer);
-                            }
+
+                if (wasRejected) {
+                    for (MessageRejectedException mre : rejections) {
+                        if (mre.isSendAnswer()) {
+                            Msg answer = new Msg(msg.getName(), "message rejected by listener", mre.getMessage());
+                            msg.sendAnswer(Messaging.this, answer);
+
+                        }
+                        if (mre.isContinueProcessing()) {
+                            updateProcessedByAndReleaseLock(msg);
+                            processing.remove(m.getMsgId());
+                            log.info("Message will be re-processed by others");
                         }
                     }
-                } catch (MessageRejectedException mre) {
-                    log.error("Message rejected by listener: " + mre.getMessage());
-                    if (mre.isSendAnswer()) {
-                        Msg answer = new Msg(msg.getName(), "message rejected by listener", mre.getMessage());
-                        msg.sendAnswer(Messaging.this, answer);
-
-                    }
-                    if (mre.isContinueProcessing()) {
-                        updateProcessedByAndReleaseLock(msg);
-                        processing.remove(m.getMsgId());
-                        return;
-                    }
-                } catch (Throwable t) {
+                }
+                if (!wasProcessed) {
                     //                        msg.addAdditional("Processing of message failed by "+getSenderId()+": "+t.getMessage());
-                    log.error("Processing failed", t);
+                    log.error("message was not processed");
                 }
 
                 //                            if (msg.getType().equals(MsgType.SINGLE)) {

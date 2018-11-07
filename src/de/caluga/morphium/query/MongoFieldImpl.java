@@ -210,7 +210,14 @@ public class MongoFieldImpl<T> implements MongoField<T> {
 
     @Override
     public Query<T> in(Collection<?> vals) {
-        List<Object> lst = new ArrayList<>(vals);
+        List<Object> lst = new ArrayList<>();
+        for (Object v : vals) {
+            if (v.getClass().isEnum()) {
+                lst.add(((Enum) v).name());
+            } else {
+                lst.add(v);
+            }
+        }
         add("$in", lst);
         return query;
     }

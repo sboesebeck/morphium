@@ -284,6 +284,134 @@ public interface Query<T> extends Cloneable {
 
     T getById(Object id);
 
+    void set(String field, Object value, boolean upsert, boolean multiple, AsyncOperationCallback<T> cb);
+
+    void set(Enum field, Object value, boolean upsert, boolean multiple, AsyncOperationCallback<T> cb);
+
+    void set(Map<String, Object> map, boolean upsert, boolean multiple, AsyncOperationCallback<T> cb);
+
+    void set(String field, Object value, AsyncOperationCallback<T> cb);
+
+    void set(Enum field, Object value, AsyncOperationCallback<T> cb);
+
+    void set(Map<String, Object> map, AsyncOperationCallback<T> cb);
+
+    void set(String field, Object value, boolean upsert, boolean multiple);
+
+    void set(Enum field, Object value, boolean upsert, boolean multiple);
+
+    void set(Map<String, Object> map, boolean upsert, boolean multiple);
+
+    void set(String field, Object value);
+
+    void set(Enum field, Object value);
+
+    void set(Map<String, Object> map);
+
+    void push(String field, Object value);
+
+    void push(Enum field, Object value);
+
+    void push(String field, Object value, boolean upsert, boolean multiple, AsyncOperationCallback<T> cb);
+
+    void push(Enum field, Object value, boolean upsert, boolean multiple, AsyncOperationCallback<T> cb);
+
+    void pushAll(String field, List value);
+
+    void pushAll(Enum field, List value);
+
+    void pushAll(String field, List value, boolean upsert, boolean multiple, AsyncOperationCallback<T> cb);
+
+    void pushAll(Enum field, List value, boolean upsert, boolean multiple, AsyncOperationCallback<T> cb);
+
+    void pullAll(String field, List value);
+
+    void pullAll(Enum field, List value);
+
+    void pullAll(String field, List value, boolean upsert, boolean multiple, AsyncOperationCallback<T> cb);
+
+    void pullAll(Enum field, List value, boolean upsert, boolean multiple, AsyncOperationCallback<T> cb);
+
+    void pull(String field, Object value);
+
+    void pull(Enum field, Object value);
+
+    void pull(String field, Object value, boolean upsert, boolean multiple, AsyncOperationCallback<T> cb);
+
+    void pull(Enum field, Object value, boolean upsert, boolean multiple, AsyncOperationCallback<T> cb);
+
+    void inc(String field, Integer value, boolean upsert, boolean multiple, AsyncOperationCallback<T> cb);
+
+    void inc(String field, Integer value, boolean upsert, boolean multiple);
+
+    void inc(Enum field, Integer value, boolean upsert, boolean multiple);
+
+    void inc(String field, Integer value);
+
+    void inc(Enum field, Integer value);
+
+    void inc(String field, Double value, boolean upsert, boolean multiple, AsyncOperationCallback<T> cb);
+
+    void inc(String field, Double value, boolean upsert, boolean multiple);
+
+    void inc(Enum field, Double value, boolean upsert, boolean multiple);
+
+    void inc(String field, Double value);
+
+    void inc(Enum field, Double value);
+
+    void inc(String field, Long value, boolean upsert, boolean multiple, AsyncOperationCallback<T> cb);
+
+    void inc(String field, Long value, boolean upsert, boolean multiple);
+
+    void inc(Enum field, Long value, boolean upsert, boolean multiple);
+
+    void inc(String field, Long value);
+
+    void inc(Enum field, Long value);
+
+    void inc(String field, Number value, boolean upsert, boolean multiple, AsyncOperationCallback<T> cb);
+
+    void inc(String field, Number value, boolean upsert, boolean multiple);
+
+    void inc(Enum field, Number value, boolean upsert, boolean multiple);
+
+    void inc(String field, Number value);
+
+    void inc(Enum field, Number value);
+
+    void dec(String field, Integer value, boolean upsert, boolean multiple);
+
+    void dec(Enum field, Integer value, boolean upsert, boolean multiple);
+
+    void dec(String field, Integer value);
+
+    void dec(Enum field, Integer value);
+
+    void dec(String field, Double value, boolean upsert, boolean multiple);
+
+    void dec(Enum field, Double value, boolean upsert, boolean multiple);
+
+    void dec(String field, Double value);
+
+    void dec(Enum field, Double value);
+
+    void dec(String field, Long value, boolean upsert, boolean multiple);
+
+    void dec(Enum field, Long value, boolean upsert, boolean multiple);
+
+    void dec(String field, Long value);
+
+    void dec(Enum field, Long value);
+
+    void dec(String field, Number value, boolean upsert, boolean multiple);
+
+    void dec(Enum field, Number value, boolean upsert, boolean multiple);
+
+    void dec(String field, Number value);
+
+    void dec(Enum field, Number value);
+
     int getNumberOfPendingRequests();
 
     String getCollectionName();
