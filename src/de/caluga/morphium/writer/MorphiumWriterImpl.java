@@ -1810,6 +1810,9 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
 
     private Object marshallIfNecessary(Object value) {
         if (value != null) {
+            if (value.getClass().isEnum()) {
+                return ((Enum) value).name();
+            }
             if (morphium.getARHelper().isAnnotationPresentInHierarchy(value.getClass(), Entity.class)
                     || morphium.getARHelper().isAnnotationPresentInHierarchy(value.getClass(), Embedded.class)) {
                 //need to serialize...
