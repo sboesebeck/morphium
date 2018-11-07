@@ -810,7 +810,7 @@ public class Morphium {
      */
     @SuppressWarnings("unused")
     public <T> void set(Query<T> query, Enum field, Object val, boolean upsert, boolean multiple) {
-        set(query, field.name(), val, upsert, multiple, (AsyncOperationCallback<Query<T>>) null);
+        set(query, field.name(), val, upsert, multiple, (AsyncOperationCallback<T>) null);
     }
 
     @SuppressWarnings("unused")
