@@ -70,6 +70,15 @@ public class MongoFieldImpl<T> implements MongoField<T> {
     @Override
     public Query<T> eq(Object val) {
         // checking for Ids in references...
+        val = checkValue(val);
+
+        fe.setValue(val);
+        fe.setField(mapper.getMorphium().getARHelper().getFieldName(query.getType(), fldStr));
+        query.addChild(fe);
+        return query;  // To change body of implemented methods use File | Settings | File Templates.
+    }
+
+    private Object checkValue(Object val) {
         if (val != null) {
             Class<?> cls = val.getClass();
             Field field = mapper.getMorphium().getARHelper().getField(query.getType(), fldStr);
@@ -78,6 +87,8 @@ public class MongoFieldImpl<T> implements MongoField<T> {
                     Object id;
                     if (val instanceof MorphiumId) {
                         id = new ObjectId(val.toString());
+                    } else if (val.getClass().isEnum()) {
+                        id = ((Enum) val).name();
                     } else {
                         id = mapper.getMorphium().getARHelper().getId(val);
                         if (id instanceof MorphiumId) {
@@ -86,10 +97,10 @@ public class MongoFieldImpl<T> implements MongoField<T> {
                     }
                     val = id;
 
-                        // list of references, this should be part of
-                        //
-                        // need to compare DBRefs
-                        //                        val = new MorphiumReference(val.getClass().getName(), id);
+                    // list of references, this should be part of
+                    //
+                    // need to compare DBRefs
+                    //                        val = new MorphiumReference(val.getClass().getName(), id);
                     if (mapper instanceof ObjectMapperImplNG || Map.class.isAssignableFrom(field.getType()) || Collection.class.isAssignableFrom(field.getType()) || List.class.isAssignableFrom(field.getType())) {
                         fldStr = fldStr + ".refid"; //references in lists - id field in morphiumreference!!!!
                     }
@@ -106,14 +117,12 @@ public class MongoFieldImpl<T> implements MongoField<T> {
                     }
                 } else if (field.getType().isEnum() && mapper instanceof ObjectMapperImplNG) {
                     fldStr = fldStr + ".name";
+                } else if (val.getClass().isEnum()) {
+                    val = ((Enum) val).name();
                 }
             }
         }
-
-        fe.setValue(val);
-        fe.setField(mapper.getMorphium().getARHelper().getFieldName(query.getType(), fldStr));
-        query.addChild(fe);
-        return query;  // To change body of implemented methods use File | Settings | File Templates.
+        return val;
     }
 
     private void add(String op, Object value) {
@@ -134,6 +143,7 @@ public class MongoFieldImpl<T> implements MongoField<T> {
 
     @Override
     public Query<T> ne(Object val) {
+        val = checkValue(val);
         add("$ne", val);
         return query;
     }
@@ -146,24 +156,28 @@ public class MongoFieldImpl<T> implements MongoField<T> {
 
     @Override
     public Query<T> lt(Object val) {
+        val = checkValue(val);
         add("$lt", val);
         return query;
     }
 
     @Override
     public Query<T> lte(Object val) {
+        val = checkValue(val);
         add("$lte", val);
         return query;
     }
 
     @Override
     public Query<T> gt(Object val) {
+        val = checkValue(val);
         add("$gt", val);
         return query;
     }
 
     @Override
     public Query<T> gte(Object val) {
+        val = checkValue(val);
         add("$gte", val);
         return query;
     }
@@ -212,11 +226,7 @@ public class MongoFieldImpl<T> implements MongoField<T> {
     public Query<T> in(Collection<?> vals) {
         List<Object> lst = new ArrayList<>();
         for (Object v : vals) {
-            if (v.getClass().isEnum()) {
-                lst.add(((Enum) v).name());
-            } else {
-                lst.add(v);
-            }
+            lst.add(checkValue(v));
         }
         add("$in", lst);
         return query;
@@ -224,7 +234,10 @@ public class MongoFieldImpl<T> implements MongoField<T> {
 
     @Override
     public Query<T> nin(Collection<?> vals) {
-        List<Object> lst = new ArrayList<>(vals);
+        List<Object> lst = new ArrayList<>();
+        for (Object v : vals) {
+            lst.add(checkValue(v));
+        }
         add("$nin", lst);
         return query;
     }
