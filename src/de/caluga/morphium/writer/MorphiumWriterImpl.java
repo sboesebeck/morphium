@@ -1011,6 +1011,9 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                     morphium.getCache().clearCacheIfNecessary(cls);
 
                     try {
+                        if (f.getType().isEnum()){
+                            value= (Object) Enum.valueOf((Class)f.getType(),value.toString());
+                        }
                         f.set(toSet, value);
                     } catch (IllegalAccessException e) {
                         throw new RuntimeException(e);
