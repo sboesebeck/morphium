@@ -1020,6 +1020,337 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
     }
 
     @Override
+    public void set(String field, Object value, boolean upsert, boolean multiple, AsyncOperationCallback<T> cb) {
+        morphium.set(this, field, value, upsert, multiple, cb);
+    }
+
+    @Override
+    public void set(Enum field, Object value, boolean upsert, boolean multiple, AsyncOperationCallback<T> cb) {
+        morphium.set(this, field, value, upsert, multiple, cb);
+    }
+
+    @Override
+    public void set(Map<String, Object> map, boolean upsert, boolean multiple, AsyncOperationCallback<T> cb) {
+        morphium.set(this, map, upsert, multiple, cb);
+    }
+
+    @Override
+    public void set(String field, Object value, AsyncOperationCallback<T> cb) {
+        morphium.set(this, field, value, cb);
+    }
+
+    @Override
+    public void set(Enum field, Object value, AsyncOperationCallback<T> cb) {
+        morphium.set(this, field, value, cb);
+    }
+
+    @Override
+    public void set(Map<String, Object> map, AsyncOperationCallback<T> cb) {
+        morphium.set(this, map, false, false, cb);
+    }
+
+    @Override
+    public void set(String field, Object value, boolean upsert, boolean multiple) {
+        morphium.set(this, field, value, upsert, multiple);
+    }
+
+    @Override
+    public void set(Enum field, Object value, boolean upsert, boolean multiple) {
+        morphium.set(this, field, value, upsert, multiple);
+    }
+
+    @Override
+    public void set(Map<String, Object> map, boolean upsert, boolean multiple) {
+        morphium.set(this, map, upsert, multiple);
+    }
+
+    @Override
+    public void set(String field, Object value) {
+        morphium.set(this, field, value);
+    }
+
+    @Override
+    public void set(Enum field, Object value) {
+        morphium.set(this, field, value);
+    }
+
+    @Override
+    public void set(Map<String, Object> map) {
+        morphium.set(this, map, false, false);
+    }
+
+
+    @Override
+    public void push(String field, Object value) {
+        morphium.push(this, field, value);
+    }
+
+    @Override
+    public void push(Enum field, Object value) {
+        morphium.push(this, field, value);
+    }
+
+    @Override
+    public void push(String field, Object value, boolean upsert, boolean multiple, AsyncOperationCallback<T> cb) {
+        morphium.push(this, field, value, upsert, multiple, cb);
+    }
+
+    @Override
+    public void push(Enum field, Object value, boolean upsert, boolean multiple, AsyncOperationCallback<T> cb) {
+        morphium.push(this, field.name(), value, upsert, multiple, cb);
+    }
+
+    @Override
+    public void pushAll(String field, List value) {
+        morphium.pushAll(this, field, value, false, false);
+    }
+
+    @Override
+    public void pushAll(Enum field, List value) {
+        morphium.pushAll(this, field.name(), value, false, false);
+    }
+
+    @Override
+    public void pushAll(String field, List value, boolean upsert, boolean multiple, AsyncOperationCallback<T> cb) {
+        morphium.pushAll(this, field, value, upsert, multiple, cb);
+    }
+
+    @Override
+    public void pushAll(Enum field, List value, boolean upsert, boolean multiple, AsyncOperationCallback<T> cb) {
+        morphium.pushAll(this, field.name(), value, upsert, multiple, cb);
+    }
+
+    @Override
+    public void pullAll(String field, List value) {
+        morphium.pullAll(this, field, value, false, false);
+    }
+
+    @Override
+    public void pullAll(Enum field, List value) {
+        morphium.pullAll(this, field.name(), value, false, false);
+    }
+
+    @Override
+    public void pullAll(String field, List value, boolean upsert, boolean multiple, AsyncOperationCallback<T> cb) {
+        morphium.pullAll(this, field, value, upsert, multiple, cb);
+    }
+
+    @Override
+    public void pullAll(Enum field, List value, boolean upsert, boolean multiple, AsyncOperationCallback<T> cb) {
+        morphium.pullAll(this, field.name(), value, upsert, multiple, cb);
+    }
+
+    @Override
+    public void pull(String field, Object value) {
+        morphium.pull(this, field, value);
+    }
+
+    @Override
+    public void pull(Enum field, Object value) {
+        morphium.pull(this, field, value);
+    }
+
+    @Override
+    public void pull(String field, Object value, boolean upsert, boolean multiple, AsyncOperationCallback<T> cb) {
+        morphium.pull(this, field, value, upsert, multiple, cb);
+    }
+
+    @Override
+    public void pull(Enum field, Object value, boolean upsert, boolean multiple, AsyncOperationCallback<T> cb) {
+        morphium.pull(this, field.name(), value, upsert, multiple, cb);
+    }
+
+    @Override
+    public void inc(String field, Integer value, boolean upsert, boolean multiple, AsyncOperationCallback<T> cb) {
+        morphium.inc(this, field, value, upsert, multiple, cb);
+    }
+
+    @Override
+    public void inc(String field, Integer value, boolean upsert, boolean multiple) {
+        morphium.inc(this, field, value, upsert, multiple);
+    }
+
+    @Override
+    public void inc(Enum field, Integer value, boolean upsert, boolean multiple) {
+        morphium.inc(this, field, value, upsert, multiple);
+    }
+
+    @Override
+    public void inc(String field, Integer value) {
+        morphium.inc(this, field, value);
+    }
+
+    @Override
+    public void inc(Enum field, Integer value) {
+        morphium.inc(this, field, value);
+    }
+
+
+    @Override
+    public void inc(String field, Double value, boolean upsert, boolean multiple, AsyncOperationCallback<T> cb) {
+        morphium.inc(this, field, value, upsert, multiple, cb);
+    }
+
+    @Override
+    public void inc(String field, Double value, boolean upsert, boolean multiple) {
+        morphium.inc(this, field, value, upsert, multiple);
+    }
+
+    @Override
+    public void inc(Enum field, Double value, boolean upsert, boolean multiple) {
+        morphium.inc(this, field, value, upsert, multiple);
+    }
+
+    @Override
+    public void inc(String field, Double value) {
+        morphium.inc(this, field, value);
+    }
+
+    @Override
+    public void inc(Enum field, Double value) {
+        morphium.inc(this, field, value);
+    }
+
+
+    @Override
+    public void inc(String field, Long value, boolean upsert, boolean multiple, AsyncOperationCallback<T> cb) {
+        morphium.inc(this, field, value, upsert, multiple, cb);
+    }
+
+    @Override
+    public void inc(String field, Long value, boolean upsert, boolean multiple) {
+        morphium.inc(this, field, value, upsert, multiple);
+    }
+
+    @Override
+    public void inc(Enum field, Long value, boolean upsert, boolean multiple) {
+        morphium.inc(this, field, value, upsert, multiple);
+    }
+
+    @Override
+    public void inc(String field, Long value) {
+        morphium.inc(this, field, value);
+    }
+
+    @Override
+    public void inc(Enum field, Long value) {
+        morphium.inc(this, field, value);
+    }
+
+
+    @Override
+    public void inc(String field, Number value, boolean upsert, boolean multiple, AsyncOperationCallback<T> cb) {
+        morphium.inc(this, field, value, upsert, multiple, cb);
+    }
+
+    @Override
+    public void inc(String field, Number value, boolean upsert, boolean multiple) {
+        morphium.inc(this, field, value, upsert, multiple);
+    }
+
+    @Override
+    public void inc(Enum field, Number value, boolean upsert, boolean multiple) {
+        morphium.inc(this, field, value, upsert, multiple);
+    }
+
+    @Override
+    public void inc(String field, Number value) {
+        morphium.inc(this, field, value);
+    }
+
+    @Override
+    public void inc(Enum field, Number value) {
+        morphium.inc(this, field, value);
+    }
+
+
+    @Override
+    public void dec(String field, Integer value, boolean upsert, boolean multiple) {
+        morphium.dec(this, field, value, upsert, multiple);
+    }
+
+    @Override
+    public void dec(Enum field, Integer value, boolean upsert, boolean multiple) {
+        morphium.dec(this, field, value, upsert, multiple);
+    }
+
+    @Override
+    public void dec(String field, Integer value) {
+        morphium.dec(this, field, value);
+    }
+
+    @Override
+    public void dec(Enum field, Integer value) {
+        morphium.dec(this, field, value);
+    }
+
+
+    @Override
+    public void dec(String field, Double value, boolean upsert, boolean multiple) {
+        morphium.dec(this, field, value, upsert, multiple);
+    }
+
+    @Override
+    public void dec(Enum field, Double value, boolean upsert, boolean multiple) {
+        morphium.dec(this, field, value, upsert, multiple);
+    }
+
+    @Override
+    public void dec(String field, Double value) {
+        morphium.dec(this, field, value);
+    }
+
+    @Override
+    public void dec(Enum field, Double value) {
+        morphium.dec(this, field, value);
+    }
+
+
+    @Override
+    public void dec(String field, Long value, boolean upsert, boolean multiple) {
+        morphium.dec(this, field, value, upsert, multiple);
+    }
+
+    @Override
+    public void dec(Enum field, Long value, boolean upsert, boolean multiple) {
+        morphium.dec(this, field, value, upsert, multiple);
+    }
+
+    @Override
+    public void dec(String field, Long value) {
+        morphium.dec(this, field, value);
+    }
+
+    @Override
+    public void dec(Enum field, Long value) {
+        morphium.dec(this, field, value);
+    }
+
+
+    @Override
+    public void dec(String field, Number value, boolean upsert, boolean multiple) {
+        morphium.dec(this, field, value, upsert, multiple);
+    }
+
+    @Override
+    public void dec(Enum field, Number value, boolean upsert, boolean multiple) {
+        morphium.dec(this, field, value, upsert, multiple);
+    }
+
+    @Override
+    public void dec(String field, Number value) {
+        morphium.dec(this, field, value);
+    }
+
+    @Override
+    public void dec(Enum field, Number value) {
+        morphium.dec(this, field, value);
+    }
+ 
+
+
+
+    @Override
     public int getNumberOfPendingRequests() {
         return getExecutor().getActiveCount();
     }
