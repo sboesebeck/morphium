@@ -566,7 +566,7 @@ public class Messaging extends Thread implements ShutdownListener {
                 //                            }
                 //updating it to be processed by others...
                 if ((msg.getLockedBy() != null && msg.getLockedBy().equals("ALL")) || (msg.getRecipient()!=null && msg.getRecipient().equals(id) && msg.getInAnswerTo() != null)) {
-                    updateProcessedByAndReleaseLock(msg);<
+                    updateProcessedByAndReleaseLock(msg);
                 } else {
                     //Exclusive message
                     toRemove.add(msg);
