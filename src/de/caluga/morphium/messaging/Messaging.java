@@ -236,62 +236,66 @@ public class Messaging extends Thread implements ShutdownListener {
             changeStreamMonitor = new ChangeStreamMonitor(morphium, getCollectionName(), true);
             changeStreamMonitor.addListener(evt -> {
 //                    log.debug("incoming message via changeStream");
-                if (evt == null || evt.getOperationType() == null) return running;
-                if (evt.getOperationType().equals("insert")) {
-                    //insert => new Message
-//                        log.debug("New message incoming");
-                    Msg obj = morphium.getMapper().deserialize(Msg.class, (Map<String, Object>) evt.getFullDocument());
-                    if (obj.getSender().equals(id) || (obj.getProcessedBy() != null && obj.getProcessedBy().contains(id)) || (obj.getRecipient() != null && !obj.getRecipient().equals(id))) {
-                        //ignoring my own messages
-                        return running;
-                    }
-                    if (pauseMessages.containsKey(obj.getName())) {
-                        log.debug("Not processing message - processing paused for " + obj.getName());
-                        return running;
-                    }
-                    //do not process messages, that are exclusive, but already processed or not for me / all
-                    if (obj.isExclusive() && obj.getLockedBy() == null && (obj.getRecipient() == null || obj.getRecipient().equals(id)) && (obj.getProcessedBy() == null || !obj.getProcessedBy().contains(id))) {
-                        // locking
-                        log.debug("trying to lock exclusive message");
-                        lockAndProcess(obj);
-
-                    } else if (!obj.isExclusive() || (obj.getRecipient() != null && obj.getRecipient().equals(id))) {
-                        //I need process this new message... it is either for all or for me directly
-                        if (processing.contains(obj.getMsgId())) {
+                try {
+                    if (evt == null || evt.getOperationType() == null) return running;
+                    if (evt.getOperationType().equals("insert")) {
+                        //insert => new Message
+                        //                        log.debug("New message incoming");
+                        Msg obj = morphium.getMapper().deserialize(Msg.class, (Map<String, Object>) evt.getFullDocument());
+                        if (obj.getSender().equals(id) || (obj.getProcessedBy() != null && obj.getProcessedBy().contains(id)) || (obj.getRecipient() != null && !obj.getRecipient().equals(id))) {
+                            //ignoring my own messages
                             return running;
                         }
-//                        obj = morphium.reread(obj);
-//                        if (obj.getReceivedBy() != null && obj.getReceivedBy().contains(id)) {
-//                            //already got this message - is still being processed it seems
-//                            return;
-//                        }
-                        List<Msg> lst = new ArrayList<>();
-                        lst.add(obj);
-
-                        try {
-                            processMessages(lst);
-                        } catch (Exception e) {
-                            log.error("Error during message processing ", e);
+                        if (pauseMessages.containsKey(obj.getName())) {
+                            log.debug("Not processing message - processing paused for " + obj.getName());
+                            return running;
                         }
-                    } else {
-                        log.debug("Message is not for me");
-                    }
-
-                } else if (evt.getOperationType().equals("update")) {
-                    //dealing with updates... i could have "lost" a lock
-//                        if (((Map<String,Object>)data.get("o")).get("$set")!=null){
-//                            //there is a set-update
-//                        }
-                    if (evt.getFullDocument() != null && ((Map<String, Object>) evt.getFullDocument()).get("_id") != null) {
-                        Msg obj = morphium.findById(Msg.class, new MorphiumId(((Map<String, Object>) evt.getFullDocument()).get("_id").toString()),getCollectionName());
-                        if (obj != null && obj.isExclusive() && obj.getLockedBy() == null && !pauseMessages.containsKey(obj.getName()) && (obj.getRecipient() == null || obj.getRecipient().equals(id))) {
-                            log.debug("Update of msg - trying to lock");
+                        //do not process messages, that are exclusive, but already processed or not for me / all
+                        if (obj.isExclusive() && obj.getLockedBy() == null && (obj.getRecipient() == null || obj.getRecipient().equals(id)) && (obj.getProcessedBy() == null || !obj.getProcessedBy().contains(id))) {
                             // locking
+                            log.debug("trying to lock exclusive message");
                             lockAndProcess(obj);
-                        }
-                    }
-                    //if msg was not exclusive, we should have processed it on insert
 
+                        } else if (!obj.isExclusive() || (obj.getRecipient() != null && obj.getRecipient().equals(id))) {
+                            //I need process this new message... it is either for all or for me directly
+                            if (processing.contains(obj.getMsgId())) {
+                                return running;
+                            }
+                            //                        obj = morphium.reread(obj);
+                            //                        if (obj.getReceivedBy() != null && obj.getReceivedBy().contains(id)) {
+                            //                            //already got this message - is still being processed it seems
+                            //                            return;
+                            //                        }
+                            List<Msg> lst = new ArrayList<>();
+                            lst.add(obj);
+
+                            try {
+                                processMessages(lst);
+                            } catch (Exception e) {
+                                log.error("Error during message processing ", e);
+                            }
+                        } else {
+                            log.debug("Message is not for me");
+                        }
+
+                    } else if (evt.getOperationType().equals("update")) {
+                        //dealing with updates... i could have "lost" a lock
+                        //                        if (((Map<String,Object>)data.get("o")).get("$set")!=null){
+                        //                            //there is a set-update
+                        //                        }
+                        if (evt.getFullDocument() != null && ((Map<String, Object>) evt.getFullDocument()).get("_id") != null) {
+                            Msg obj = morphium.findById(Msg.class, new MorphiumId(((Map<String, Object>) evt.getFullDocument()).get("_id").toString()), getCollectionName());
+                            if (obj != null && obj.isExclusive() && obj.getLockedBy() == null && !pauseMessages.containsKey(obj.getName()) && (obj.getRecipient() == null || obj.getRecipient().equals(id))) {
+                                log.debug("Update of msg - trying to lock");
+                                // locking
+                                lockAndProcess(obj);
+                            }
+                        }
+                        //if msg was not exclusive, we should have processed it on insert
+
+                    }
+                } catch (Exception e) {
+                    log.error("Error during event processing in changestream", e);
                 }
                 return running;
             });
@@ -375,18 +379,20 @@ public class Messaging extends Thread implements ShutdownListener {
         //locking messages...
         Query<Msg> or1 = q.q().f(Msg.Fields.sender).ne(id).f(Msg.Fields.lockedBy).eq(null).f(Msg.Fields.processedBy).ne(id).f(Msg.Fields.recipient).eq(null);
         Query<Msg> or2 = q.q().f(Msg.Fields.sender).ne(id).f(Msg.Fields.processedBy).ne(id).f(Msg.Fields.recipient).eq(id);
+        Set<String> pausedMessagesKeys = pauseMessages.keySet();
         if (name != null) {
             or1.f(Msg.Fields.name).eq(name);
             or2.f(Msg.Fields.name).eq(name);
         } else {
             //not searching for paused messages
             if (!pauseMessages.isEmpty()) {
-                or1.f(Msg.Fields.name).nin(pauseMessages.keySet());
-                or2.f(Msg.Fields.name).nin(pauseMessages.keySet());
+                or1.f(Msg.Fields.name).nin(pausedMessagesKeys);
+                or2.f(Msg.Fields.name).nin(pausedMessagesKeys);
             }
         }
+        ArrayList<MorphiumId> processingIds = new ArrayList<>(processing);
         if (!processing.isEmpty()) {
-            q.f("_id").nin(new ArrayList<>(processing));
+            q.f("_id").nin(processingIds);
         }
         q.or(or1, or2);
         q.sort(Msg.Fields.priority, Msg.Fields.timestamp);
@@ -403,16 +409,16 @@ public class Messaging extends Thread implements ShutdownListener {
         } else {
             //not searching for paused messages
             if (!pauseMessages.isEmpty()) {
-                q.f(Msg.Fields.name).nin(pauseMessages.keySet());
+                q.f(Msg.Fields.name).nin(pausedMessagesKeys);
             }
         }
-        q.f("_id").nin(processing);
+        q.f("_id").nin(processingIds);
         if (name != null) {
             q.f(Msg.Fields.name).eq(name);
         } else {
             //not searching for paused messages
             if (!pauseMessages.isEmpty()) {
-                q.f(Msg.Fields.name).nin(pauseMessages.keySet());
+                q.f(Msg.Fields.name).nin(pausedMessagesKeys);
             }
         }
         q.or(q.q().f(Msg.Fields.lockedBy).eq(id),
