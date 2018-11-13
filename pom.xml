@@ -4,7 +4,7 @@
 
     <groupId>de.caluga</groupId>
     <artifactId>morphium</artifactId>
-    <version>4.0.1</version>
+    <version>4.0.2</version>
     <packaging>jar</packaging>
     <parent>
         <groupId>org.sonatype.oss</groupId>
@@ -160,19 +160,19 @@
         <dependency>
             <groupId>org.mongodb</groupId>
             <artifactId>bson</artifactId>
-            <version>3.8.2</version>
+            <version>3.9.0</version>
             <scope>provided</scope>
         </dependency>
         <dependency>
             <groupId>org.mongodb</groupId>
             <artifactId>mongodb-driver-core</artifactId>
-            <version>3.8.2</version>
+            <version>3.9.0</version>
             <scope>provided</scope>
         </dependency>
         <dependency>
             <groupId>org.mongodb</groupId>
             <artifactId>mongodb-driver</artifactId>
-            <version>3.8.2</version>
+            <version>3.9.0</version>
             <scope>provided</scope>
         </dependency>
         <dependency>
