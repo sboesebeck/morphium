@@ -283,7 +283,7 @@ public class Messaging extends Thread implements ShutdownListener {
 //                            //there is a set-update
 //                        }
                     if (evt.getFullDocument() != null && ((Map<String, Object>) evt.getFullDocument()).get("_id") != null) {
-                        Msg obj = morphium.findById(Msg.class, new MorphiumId(((Map<String, Object>) evt.getFullDocument()).get("_id").toString()));
+                        Msg obj = morphium.findById(Msg.class, new MorphiumId(((Map<String, Object>) evt.getFullDocument()).get("_id").toString()),getCollectionName());
                         if (obj != null && obj.isExclusive() && obj.getLockedBy() == null && !pauseMessages.containsKey(obj.getName()) && (obj.getRecipient() == null || obj.getRecipient().equals(id))) {
                             log.debug("Update of msg - trying to lock");
                             // locking
@@ -570,7 +570,7 @@ public class Messaging extends Thread implements ShutdownListener {
                     updateProcessedByAndReleaseLock(msg);
                 } else {
                     //Exclusive message
-                    morphium.delete(msg);
+                    morphium.delete(msg,getCollectionName());
                     //                                msg.addProcessedId(id);
                     //                                msg.setLockedBy(null);
                     //                                msg.setLocked(0);
@@ -677,16 +677,18 @@ public class Messaging extends Thread implements ShutdownListener {
         return id;
     }
 
-    public void setSenderId(String id) {
+    public Messaging setSenderId(String id) {
         this.id = id;
+        return this;
     }
 
     public int getPause() {
         return pause;
     }
 
-    public void setPause(int pause) {
+    public Messaging setPause(int pause) {
         this.pause = pause;
+        return this;
     }
 
     public boolean isRunning() {
@@ -825,15 +827,16 @@ public class Messaging extends Thread implements ShutdownListener {
         m.setSender("self");
         m.setRecipient(id);
         m.setSenderHost(hostname);
-        morphium.storeNoCache(m);
+        morphium.storeNoCache(m,getCollectionName());
     }
 
     public boolean isAutoAnswer() {
         return autoAnswer;
     }
 
-    public void setAutoAnswer(boolean autoAnswer) {
+    public Messaging setAutoAnswer(boolean autoAnswer) {
         this.autoAnswer = autoAnswer;
+        return this;
     }
 
     @Override
@@ -892,4 +895,49 @@ public class Messaging extends Thread implements ShutdownListener {
         return answers;
     }
 
+
+    public boolean isProcessMultiple() {
+        return processMultiple;
+    }
+
+    public Messaging setProcessMultiple(boolean processMultiple) {
+        this.processMultiple = processMultiple;
+        return this;
+    }
+
+    public String getQueueName() {
+        return queueName;
+    }
+
+    public Messaging setQueueName(String queueName) {
+        this.queueName = queueName;
+        return this;
+    }
+
+    public boolean isMultithreadded() {
+        return multithreadded;
+    }
+
+    public Messaging setMultithreadded(boolean multithreadded) {
+        this.multithreadded = multithreadded;
+        return this;
+    }
+
+    public int getWindowSize() {
+        return windowSize;
+    }
+
+    public Messaging setWindowSize(int windowSize) {
+        this.windowSize = windowSize;
+        return this;
+    }
+
+    public boolean isUseChangeStream() {
+        return useChangeStream;
+    }
+
+    public Messaging setUseChangeStream(boolean useChangeStream) {
+        this.useChangeStream = useChangeStream;
+        return this;
+    }
 }
