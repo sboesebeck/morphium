@@ -21,7 +21,7 @@ public class TransactionTest extends MongoTest {
         log.info("Count now: " + morphium.createQueryFor(UncachedObject.class).countAll());
         UncachedObject u = new UncachedObject("test", 101);
         morphium.store(u);
-        Thread.sleep(500);
+        Thread.sleep(1500);
         long cnt = morphium.createQueryFor(UncachedObject.class).countAll();
         assert (cnt == 11) : "Count wrong: " + cnt;
         morphium.abortTransaction();

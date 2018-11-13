@@ -33,6 +33,8 @@ public class MessagingTest extends MongoTest {
     public AtomicInteger procCounter = new AtomicInteger(0);
 
     private List<Msg> list = new ArrayList<>();
+
+    private AtomicInteger queueCount=new AtomicInteger(1000);
     @Test
     public void testMsgQueName() throws Exception {
         morphium.dropCollection(Msg.class);
