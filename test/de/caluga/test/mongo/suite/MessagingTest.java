@@ -1755,4 +1755,40 @@ public class MessagingTest extends MongoTest {
         assert(cnt.get()==3):"Count wrong: "+cnt.get();
     }
 
+
+    @Test
+    public void deleteExclusiveMessageTest() throws Exception {
+        Messaging sender = new Messaging(morphium, 100, false);
+        sender.start();
+
+        Messaging receiver = new Messaging(morphium, 10, false, true, 10);
+        receiver.start();
+        Messaging receiver2 = new Messaging(morphium, 10, false, true, 10);
+        receiver2.start();
+
+        receiver.addMessageListener((msg, m) -> {
+            log.info("R1: Incoming message");
+            return null;
+        });
+
+        receiver2.addMessageListener((msg, m) -> {
+            log.info("R2: Incoming message");
+            return null;
+        });
+
+
+        for (int i = 0; i < 100; i++) {
+            Msg m = new Msg("test", "test", "value", 3000000, true);
+            sender.storeMessage(m);
+        }
+
+        Thread.sleep(5000);
+        assert (morphium.createQueryFor(Msg.class).f(Msg.Fields.name).eq("test").countAll() == 0);
+//
+
+        receiver.terminate();
+        sender.terminate();
+
+    }
+
 }
