@@ -6,7 +6,9 @@ import de.caluga.morphium.driver.MorphiumDriverException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.ArrayList;
 import java.util.Collection;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentLinkedDeque;
 
@@ -114,12 +116,18 @@ public class ChangeStreamMonitor implements Runnable, ShutdownListener {
                     ChangeStreamEvent evt = mapper.deserialize(ChangeStreamEvent.class, data);
 
                     evt.setFullDocument(obj);
+                    List<ChangeStreamListener> toRemove = new ArrayList<>();
                     for (ChangeStreamListener lst : listeners) {
                         try {
-                            lst.incomingData(evt);
+                            if (!lst.incomingData(evt)) {
+                                toRemove.add(lst);
+                            }
                         } catch (Exception e) {
                             log.error("listener threw exception", e);
                         }
+                    }
+                    for (ChangeStreamListener r : toRemove) {
+                        listeners.remove(r);
                     }
                     return running;
                 };
