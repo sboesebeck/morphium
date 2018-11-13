@@ -282,11 +282,13 @@ public class Messaging extends Thread implements ShutdownListener {
 //                        if (((Map<String,Object>)data.get("o")).get("$set")!=null){
 //                            //there is a set-update
 //                        }
-                    Msg obj = morphium.findById(Msg.class, new MorphiumId(((Map<String, Object>) evt.getFullDocument()).get("_id").toString()));
-                    if (obj != null && obj.isExclusive() && obj.getLockedBy() == null && !pauseMessages.containsKey(obj.getName()) && (obj.getRecipient() == null || obj.getRecipient().equals(id))) {
-                        log.debug("Update of msg - trying to lock");
-                        // locking
-                        lockAndProcess(obj);
+                    if (evt.getFullDocument() != null && ((Map<String, Object>) evt.getFullDocument()).get("_id") != null) {
+                        Msg obj = morphium.findById(Msg.class, new MorphiumId(((Map<String, Object>) evt.getFullDocument()).get("_id").toString()));
+                        if (obj != null && obj.isExclusive() && obj.getLockedBy() == null && !pauseMessages.containsKey(obj.getName()) && (obj.getRecipient() == null || obj.getRecipient().equals(id))) {
+                            log.debug("Update of msg - trying to lock");
+                            // locking
+                            lockAndProcess(obj);
+                        }
                     }
                     //if msg was not exclusive, we should have processed it on insert
 
@@ -384,7 +386,7 @@ public class Messaging extends Thread implements ShutdownListener {
             }
         }
         if (!processing.isEmpty()) {
-            q.f("_id").nin(processing);
+            q.f("_id").nin(new ArrayList<>(processing));
         }
         q.or(or1, or2);
         q.sort(Msg.Fields.priority, Msg.Fields.timestamp);
@@ -461,7 +463,6 @@ public class Messaging extends Thread implements ShutdownListener {
     private void processMessages(Iterable<Msg> messages) {
 //        final List<Msg> toStore = new ArrayList<>();
 //        final List<Runnable> toExec = new ArrayList<>();
-        final List<Msg> toRemove = new ArrayList<>();
         for (final Msg m : messages) {
             if (m == null) {
                 continue; //message was erased
@@ -569,7 +570,7 @@ public class Messaging extends Thread implements ShutdownListener {
                     updateProcessedByAndReleaseLock(msg);
                 } else {
                     //Exclusive message
-                    toRemove.add(msg);
+                    morphium.delete(msg);
                     //                                msg.addProcessedId(id);
                     //                                msg.setLockedBy(null);
                     //                                msg.setLocked(0);
@@ -606,7 +607,7 @@ public class Messaging extends Thread implements ShutdownListener {
 //            }
 //        }
 //        morphium.storeList(toStore, getCollectionName());
-        morphium.delete(toRemove, getCollectionName());
+//        morphium.delete(toRemove, getCollectionName());
 //        toExec.forEach(this::queueOrRun);
         while (morphium.getWriteBufferCount() > 0) {
             Thread.yield();
