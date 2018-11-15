@@ -1672,10 +1672,9 @@ public class Morphium {
                 timeout = maxReplLag * 3000;
             }
         }
-	if (timeout<0) {
-		logger.error("Timeout cannot be <0!!!!");
-		timeout=0;
-	}
+        if (!isReplicaSet() && timeout < 0) {
+            timeout = 0;
+        }
         return WriteConcern.getWc(w, fsync, j, (int) timeout);
     }
 

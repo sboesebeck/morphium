@@ -137,16 +137,25 @@ public class ChangeStreamTest extends MongoTest {
                     Thread.sleep(500);
                 } catch (InterruptedException e) {
                 }
-                assert (System.currentTimeMillis() - start < 25000) : "Error - took too long!";
+                if (System.currentTimeMillis() - start > 26000) {
+                    log.error("Error - took too long!");
+                    run[0] = false;
+                }
+                log.info("Setting to value " + i);
                 morphium.set(morphium.createQueryFor(UncachedObject.class).f("counter").lte(50), "value", "new value " + i, false, true);
             }
+            log.info("Writing thread finished...");
         }).start();
         log.info("Watching...");
         morphium.watch(UncachedObject.class, true, evt -> {
             printevent(evt);
             count[0]++;
             log.info("count: " + count[0]);
-            return count[0] < 50;
+            if (count[0] == 50) {
+                run[0] = false;
+                return false;
+            }
+            return true;
         });
         assert (count[0] == 50);
         log.info("Quitting");
