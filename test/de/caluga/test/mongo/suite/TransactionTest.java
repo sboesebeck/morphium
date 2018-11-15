@@ -18,25 +18,32 @@ public class TransactionTest extends MongoTest {
         for (int i = 0; i < 10; i++) {
             try {
                 morphium.createQueryFor(UncachedObject.class).delete();
-                Thread.sleep(500);
+                Thread.sleep(100);
                 TestEntityNameProvider.number.incrementAndGet();
                 log.info("Entityname number: " + TestEntityNameProvider.number.get());
                 createUncachedObjects(10);
-                Thread.sleep(500);
+                Thread.sleep(100);
                 morphium.startTransaction();
-                Thread.sleep(500);
+                Thread.sleep(100);
                 log.info("Count after transaction start: " + morphium.createQueryFor(UncachedObject.class).countAll());
                 UncachedObject u = new UncachedObject("test", 101);
                 morphium.store(u);
-                Thread.sleep(500);
+                Thread.sleep(100);
                 long cnt = morphium.createQueryFor(UncachedObject.class).countAll();
                 if (cnt != 11) {
                     morphium.abortTransaction();
                     assert (cnt == 11) : "Count during transaction: " + cnt;
                 }
+
+                morphium.inc(u, "counter", 1);
+                Thread.sleep(100);
+                u = morphium.reread(u);
+                assert (u.getCounter() == 102);
                 morphium.abortTransaction();
-                Thread.sleep(1000);
+                Thread.sleep(100);
                 cnt = morphium.createQueryFor(UncachedObject.class).countAll();
+                u = morphium.reread(u);
+                assert (u.getCounter() == 101);
                 assert (cnt == 10) : "Count after rollback: " + cnt;
             } catch (Exception e) {
                 morphium.abortTransaction();
