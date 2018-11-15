@@ -462,6 +462,10 @@ public class Driver implements MorphiumDriver {
     @Override
     public void close() throws MorphiumDriverException {
         try {
+            if (currentTransaction.get() != null) {
+                log.warn("Closing while transaction in progress - aborting!");
+                abortTransaction();
+            }
             mongo.close();
         } catch (Exception e) {
             throw new MorphiumDriverException("error closing", e);
@@ -502,7 +506,13 @@ public class Driver implements MorphiumDriver {
     public Map<String, Object> runCommand(String db, Map<String, Object> cmd) throws MorphiumDriverException {
         DriverHelper.replaceMorphiumIdByObjectId(cmd);
         return DriverHelper.doCall(() -> {
-            Document ret = mongo.getDatabase(db).runCommand(new BasicDBObject(cmd));
+            Document ret;
+            if (currentTransaction.get() != null) {
+                ret = mongo.getDatabase(db).runCommand(currentTransaction.get().getSession(), new BasicDBObject(cmd));
+            } else {
+                ret = mongo.getDatabase(db).runCommand(new BasicDBObject(cmd));
+
+            }
             return convertBSON(ret);
         }, retriesOnNetworkError, sleepBetweenErrorRetries);
     }
@@ -1086,7 +1096,13 @@ public class Driver implements MorphiumDriver {
                 tDocument.remove("_id"); //not needed
                 //noinspection unchecked
                 try {
-                    UpdateResult res = c.replaceOne(filter, tDocument, o);
+
+                    UpdateResult res;
+                    if (currentTransaction.get() == null) {
+                        res = c.replaceOne(filter, tDocument, o);
+                    } else {
+                        res = c.replaceOne(currentTransaction.get().getSession(), filter, tDocument, o);
+                    }
                     updated += res.getModifiedCount();
                     id = toUpdate.get("_id");
                     if (id instanceof ObjectId) {
@@ -1233,7 +1249,11 @@ public class Driver implements MorphiumDriver {
         DriverHelper.doCall(() -> {
             MongoDatabase database = mongo.getDatabase(db);
             MongoCollection<Document> coll = database.getCollection(collection);
-            coll.drop();
+            if (currentTransaction.get() != null) {
+                coll.drop(currentTransaction.get().getSession());
+            } else {
+                coll.drop();
+            }
             return null;
         }, retriesOnNetworkError, sleepBetweenErrorRetries);
     }
@@ -1247,7 +1267,11 @@ public class Driver implements MorphiumDriver {
                 com.mongodb.WriteConcern writeConcern = new com.mongodb.WriteConcern(wc.getW(), wc.getWtimeout(), wc.isFsync(), wc.isJ());
                 database = database.withWriteConcern(writeConcern);
             }
-            database.drop();
+            if (currentTransaction.get() != null) {
+                database.drop(currentTransaction.get().getSession());
+            } else {
+                database.drop();
+            }
             return null;
         }, retriesOnNetworkError, sleepBetweenErrorRetries);
     }
@@ -1292,7 +1316,12 @@ public class Driver implements MorphiumDriver {
         Map<String, Object> found = DriverHelper.doCall(() -> {
             final Map<String, Object> ret = new HashMap<>();
 
-            Document result = mongo.getDatabase(db).runCommand(new Document("listCollections", 1));
+            Document result;
+            if (currentTransaction.get() != null) {
+                result = mongo.getDatabase(db).runCommand(currentTransaction.get().getSession(), new Document("listCollections", 1));
+            } else {
+                result = mongo.getDatabase(db).runCommand(new Document("listCollections", 1));
+            }
             @SuppressWarnings("unchecked") ArrayList<Document> batch = (ArrayList<Document>) (((Map) result.get("cursor")).get("firstBatch"));
             for (Document d : batch) {
                 if (d.get("name").equals(collection)) {
@@ -1311,7 +1340,14 @@ public class Driver implements MorphiumDriver {
         //noinspection unchecked,ConstantConditions
         return (List<Map<String, Object>>) DriverHelper.doCall(() -> {
             List<Map<String, Object>> values = new ArrayList<>();
-            for (Document d : mongo.getDatabase(db).getCollection(collection).listIndexes()) {
+
+            ListIndexesIterable<Document> indexes;
+            if (currentTransaction.get() != null) {
+                indexes = mongo.getDatabase(db).getCollection(collection).listIndexes(currentTransaction.get().getSession());
+            } else {
+                indexes = mongo.getDatabase(db).getCollection(collection).listIndexes();
+            }
+            for (Document d : indexes) {
                 values.add(new HashMap<>(d));
             }
             HashMap<String, Object> ret = new HashMap<>();
