@@ -628,11 +628,11 @@ public class Driver implements MorphiumDriver {
                 long start = System.currentTimeMillis();
                 while (iterator.hasNext() && run) {
                     run = processChangeStreamEvent(cb, iterator, start);
-                    if (!run) break;
                 }
-                    iterator.close();
+                iterator.close();
 
             }
+
             return null;
         }, retriesOnNetworkError, sleepBetweenErrorRetries);
     }
@@ -1025,12 +1025,16 @@ public class Driver implements MorphiumDriver {
         DriverHelper.replaceMorphiumIdByObjectId(query);
         MongoDatabase database = mongo.getDatabase(db);
         MongoCollection<Document> coll = getCollection(database, collection, rp, null);
-        return coll.count(new BasicDBObject(query));
+        if (currentTransaction.get() != null) {
+            return coll.count(currentTransaction.get().getSession(), new BasicDBObject(query));
+        } else {
+            return coll.count(new BasicDBObject(query));
+        }
 
     }
 
     @Override
-    public Map<String,Object> store(String db, String collection, List<Map<String, Object>> objs, de.caluga.morphium.driver.WriteConcern wc) throws MorphiumDriverException {
+    public Map<String, Object> store(String db, String collection, List<Map<String, Object>> objs, de.caluga.morphium.driver.WriteConcern wc) throws MorphiumDriverException {
         List<Map<String, Object>> isnew = new ArrayList<>();
         final List<Map<String, Object>> notnew = new ArrayList<>();
         for (Map<String, Object> o : objs) {
@@ -1047,13 +1051,13 @@ public class Driver implements MorphiumDriver {
         //            Object id=o.get("_id");
         //            if (id instanceof ObjectId) o.put("_id",new MorphiumId(((ObjectId)id).toHexString()));
         //        }
-       Map m= DriverHelper.doCall(() -> {
+        Map m = DriverHelper.doCall(() -> {
             DriverHelper.replaceMorphiumIdByObjectId(notnew);
             MongoCollection c = mongo.getDatabase(db).getCollection(collection);
-            Map<String,Object> ret=new HashMap<>();
+            Map<String, Object> ret = new HashMap<>();
             //                mongo.getDB(db).getCollection(collection).save()
-            int total=notnew.size();
-            int updated=0;
+            int total = notnew.size();
+            int updated = 0;
             for (Map<String, Object> toUpdate : notnew) {
 
                 UpdateOptions o = new UpdateOptions();
@@ -1066,8 +1070,8 @@ public class Driver implements MorphiumDriver {
                 }
                 filter.put("_id", id);
                 //Hack to detect versioning
-                if (toUpdate.get(MorphiumDriver.VERSION_NAME)!=null){
-                    filter.put(MorphiumDriver.VERSION_NAME,toUpdate.get(MorphiumDriver.VERSION_NAME));
+                if (toUpdate.get(MorphiumDriver.VERSION_NAME) != null) {
+                    filter.put(MorphiumDriver.VERSION_NAME, toUpdate.get(MorphiumDriver.VERSION_NAME));
                 }
                 //                    toUpdate.remove("_id");
                 //                    Document update = new Document("$set", toUpdate);
@@ -1099,12 +1103,12 @@ public class Driver implements MorphiumDriver {
                 }
 
             }
-            ret.put("modified",updated);
-            ret.put("total",total);
+            ret.put("modified", updated);
+            ret.put("total", total);
             return ret;
         }, retriesOnNetworkError, sleepBetweenErrorRetries);
-       m.put("inserted",isnew.size());
-       return m;
+        m.put("inserted", isnew.size());
+        return m;
     }
 
     @Override
@@ -1547,12 +1551,13 @@ public class Driver implements MorphiumDriver {
         }
 
         ClientSessionOptions.Builder b = ClientSessionOptions.builder();
-        b.causallyConsistent(true);
+        b.causallyConsistent(false);
         b.defaultTransactionOptions(TransactionOptions.builder().readConcern(ReadConcern.DEFAULT).readPreference(com.mongodb.ReadPreference.primary()).build());
 
 
         ClientSession ses = mongo.startSession(b.build());
         ses.startTransaction();
+
         MongoTransactionContext ctx = new MongoTransactionContext();
         ctx.setSession(ses);
         currentTransaction.set(ctx);

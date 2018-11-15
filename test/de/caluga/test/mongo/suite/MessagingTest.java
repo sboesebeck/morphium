@@ -1731,12 +1731,12 @@ public class MessagingTest extends MongoTest {
         });
 
         sender.storeMessage(new Msg("now","now","now"));
-        Thread.sleep(100);
+        Thread.sleep(500);
         assert(list.size()==1);
 
         sender.storeMessage(new Msg("pause","pause","pause"));
         sender.storeMessage(new Msg("now","now","now"));
-        Thread.sleep(100);
+        Thread.sleep(500);
         assert(list.size()==2);
 
         sender.storeMessage(new Msg("pause","pause","pause"));
