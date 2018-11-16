@@ -22,7 +22,6 @@ public class ChangeStreamMonitor implements Runnable, ShutdownListener {
     private final String collectionName;
     private final boolean fullDocument;
     private boolean running = true;
-    private long timestamp;
     private Thread changeStreamThread;
     private MorphiumObjectMapper mapper;
     private boolean dbOnly = false;
@@ -40,7 +39,7 @@ public class ChangeStreamMonitor implements Runnable, ShutdownListener {
     public ChangeStreamMonitor(Morphium m, String collectionName, boolean fullDocument) {
         morphium = m;
         listeners = new ConcurrentLinkedDeque<>();
-        timestamp = System.currentTimeMillis() / 1000;
+        long timestamp = System.currentTimeMillis() / 1000;
         morphium.addShutdownListener(this);
         this.collectionName = collectionName;
         this.fullDocument = fullDocument;

@@ -1095,6 +1095,7 @@ public class InMemMessagingTest extends InMemTest {
         sender.sendMessageToSelf(new Msg("testmsg", "Selfmessage", "value"));
         Thread.sleep(500);
         assert (gotMessage == true);
+        //noinspection PointlessBooleanExpression
         assert (gotMessage1 == false);
 
         m1.terminate();
@@ -1415,9 +1416,7 @@ public class InMemMessagingTest extends InMemTest {
         long start = System.currentTimeMillis();
         while (list.size() < 2) {
             Thread.sleep(1000);
-            if (System.currentTimeMillis() - start > 5555000) {
-                assert (list.size() == 2);
-            }
+            assert System.currentTimeMillis() - start <= 5555000 || (list.size() == 2);
         }
 
         sender.terminate();

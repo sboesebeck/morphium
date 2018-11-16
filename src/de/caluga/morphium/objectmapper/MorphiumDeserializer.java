@@ -29,22 +29,19 @@ import java.util.*;
 public class MorphiumDeserializer {
 
     private final AnnotationAndReflectionHelper anhelper;
-    private final Map<Class<?>, NameProvider> nameProviderByClass;
     private final Morphium morphium;
 
     private final ReflectionFactory reflection = ReflectionFactory.getReflectionFactory();
     private final Logger log = LoggerFactory.getLogger(MorphiumSerializer.class);
-    private final SimpleModule module;
     private final com.fasterxml.jackson.databind.ObjectMapper jackson;
-    private final Map<Class, MorphiumTypeMapper> typeMapper;
 
     public MorphiumDeserializer(AnnotationAndReflectionHelper anhelper, Map<Class<?>, NameProvider> nameProviderByClass, Morphium morphium, Map<Class, MorphiumTypeMapper> typeMapper) {
 
         this.anhelper = anhelper;
-        this.nameProviderByClass = nameProviderByClass;
+        Map<Class<?>, NameProvider> nameProviderByClass1 = nameProviderByClass;
         this.morphium = morphium;
-        this.typeMapper = typeMapper;
-        module = new SimpleModule();
+        Map<Class, MorphiumTypeMapper> typeMapper1 = typeMapper;
+        SimpleModule module = new SimpleModule();
         jackson = new com.fasterxml.jackson.databind.ObjectMapper();
         jackson.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
         jackson.setVisibility(jackson.getSerializationConfig()
@@ -291,6 +288,7 @@ public class MorphiumDeserializer {
         return v;
     }
 
+    @SuppressWarnings("unchecked")
     private Object handleList(Type type, Collection listIn) throws ClassNotFoundException {
         Class listElementType = null;
         Collection listOut;

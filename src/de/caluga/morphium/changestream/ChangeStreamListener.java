@@ -7,5 +7,5 @@ public interface ChangeStreamListener {
      * @param evt
      * @return
      */
-    public boolean incomingData(ChangeStreamEvent evt);
+    boolean incomingData(ChangeStreamEvent evt);
 }
