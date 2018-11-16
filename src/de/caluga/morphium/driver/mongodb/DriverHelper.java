@@ -22,16 +22,22 @@ public class DriverHelper {
 
 
     public static Map<String, Object> doCall(MorphiumDriverOperation r, int maxRetry, int sleep) throws MorphiumDriverException {
+        Exception lastException = null;
         for (int i = 0; i < maxRetry; i++) {
             try {
                 Map<String, Object> ret = r.execute();
                 if (i > 0) {
-                    LoggerFactory.getLogger(DriverHelper.class).warn("recovered from error");
+                    if (lastException == null) {
+                        LoggerFactory.getLogger(DriverHelper.class).warn("recovered from error without exception");
+                    } else {
+                        LoggerFactory.getLogger(DriverHelper.class).warn("recovered from error: " + lastException.getMessage());
+                    }
                 }
                 return ret;
             } catch (IllegalStateException e1){
                 //should be open...
             } catch (Exception e) {
+                lastException = e;
                 handleNetworkError(maxRetry, i, sleep, e);
             }
         }

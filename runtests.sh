@@ -55,9 +55,9 @@ while true; do
 		break
 	fi
 done
-let run=run/2
-let fail=fail/2
-let err=err/2
+run=$(grep -a 'Tests run: ' test.log |cut -f2 -d: | cut -f1 -d, | tail -n 1)
+fail=$(grep -a 'Tests run: ' test.log |cut -f3 -d: | cut -f1 -d,  | tail -n 1)
+err=$(grep -a 'Tests run: ' test.log |cut -f4 -d: | cut -f1 -d,  | tail -n 1)
 
 dur=$(date +%s)
 let dur=dur-start
