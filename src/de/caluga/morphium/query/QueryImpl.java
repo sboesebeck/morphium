@@ -970,7 +970,7 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
         }
 
         //noinspection unchecked
-        List<R> ret = new ArrayList<>(query.stream().map(o -> (R) o.get("_id")).collect(Collectors.toList()));
+        List<R> ret = query.stream().map(o -> (R) o.get("_id")).collect(Collectors.toList());
         srv = (String) findMetadata.get("server");
         long dur = System.currentTimeMillis() - start;
         morphium.fireProfilingReadEvent(this, dur, ReadAccessType.ID_LIST);

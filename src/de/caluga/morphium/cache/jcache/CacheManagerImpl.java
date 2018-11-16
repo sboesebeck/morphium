@@ -20,7 +20,6 @@ import java.util.concurrent.ConcurrentHashMap;
  * TODO: Add documentation here
  */
 public class CacheManagerImpl implements CacheManager {
-    private final MorphiumConfig cfg;
     private CachingProvider cachingProvider;
     private URI uri;
     private ClassLoader classLoader;
@@ -30,7 +29,7 @@ public class CacheManagerImpl implements CacheManager {
 
     public CacheManagerImpl(Properties settings) {
 
-        cfg = MorphiumConfig.fromProperties(settings);
+        MorphiumConfig cfg = MorphiumConfig.fromProperties(settings);
 
 
 

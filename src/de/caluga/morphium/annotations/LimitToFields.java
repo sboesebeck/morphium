@@ -24,5 +24,5 @@ import static java.lang.annotation.ElementType.TYPE;
 public @interface LimitToFields {
     String[] value() default {};
 
-    Class<? extends Object> type() default Object.class;
+    Class<?> type() default Object.class;
 }

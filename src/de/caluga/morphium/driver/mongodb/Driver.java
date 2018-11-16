@@ -611,8 +611,7 @@ public class Driver implements MorphiumDriver {
             }
 
             DriverHelper.replaceBsonValues(obj);
-            boolean con = cb.incomingData(obj, System.currentTimeMillis() - start);
-            return con;
+            return cb.incomingData(obj, System.currentTimeMillis() - start);
         } catch (IllegalArgumentException e) {
             //"Drop is not a valid OperationType" -> Bug in Driver
             return true;
@@ -711,9 +710,8 @@ public class Driver implements MorphiumDriver {
         //noinspection ConstantConditions
         return (MorphiumCursor) DriverHelper.doCall(() -> {
             List<Map<String, Object>> values = new ArrayList<>();
-            MorphiumCursor<MongoCursor<Document>> crs2 = crs;
             int batchSize = crs.getBatchSize();
-            @SuppressWarnings("unchecked") MongoCursor<Document> ret = crs2.getInternalCursorObject();
+            @SuppressWarnings("unchecked") MongoCursor<Document> ret = ((MorphiumCursor<MongoCursor<Document>>) crs).getInternalCursorObject();
             if (ret == null) {
                 return new HashMap<>(); //finished
             }
@@ -1415,7 +1413,7 @@ public class Driver implements MorphiumDriver {
                                                boolean explain, boolean allowDiskUse, ReadPreference readPreference) {
         DriverHelper.replaceMorphiumIdByObjectId(pipeline);
         //noinspection unchecked
-        List list = new ArrayList<>(pipeline.stream().map(BasicDBObject::new).collect(Collectors.toList()));
+        List list = pipeline.stream().map(BasicDBObject::new).collect(Collectors.toList());
 
 
         if (explain) {

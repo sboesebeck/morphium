@@ -22,6 +22,7 @@ import java.util.concurrent.ConcurrentHashMap;
  * <p>
  * simple copy before update implemenation of a in-Memory Cache
  */
+@SuppressWarnings("unchecked")
 public class CacheImpl<K, CE> implements Cache<K, CacheEntry<CE>> {
     private Map<K, CacheEntry<CE>> theCache = new ConcurrentHashMap<>();
     private Map<CacheEntryEventFilter<? super K, ? super CacheEntry<CE>>, CacheEntryListener<K, CacheEntry<CE>>> listeners = new ConcurrentHashMap<>();
@@ -264,6 +265,7 @@ public class CacheImpl<K, CE> implements Cache<K, CacheEntry<CE>> {
         return clazz.cast(this);
     }
 
+    @SuppressWarnings("unchecked")
     @Override
     public void registerCacheEntryListener(CacheEntryListenerConfiguration<K, CacheEntry<CE>> cacheEntryListenerConfiguration) {
         CacheEntryEventFilter<? super K, ? super CacheEntry<CE>> ef = cacheEntryListenerConfiguration.getCacheEntryEventFilterFactory().create();
@@ -290,7 +292,7 @@ public class CacheImpl<K, CE> implements Cache<K, CacheEntry<CE>> {
             @Override
             public Entry<K, CacheEntry<CE>> next() {
                 final Map.Entry<K, CacheEntry<CE>> entry = it.next();
-                Entry<K, CacheEntry<CE>> ret = new Entry<K, CacheEntry<CE>>() {
+                return new Entry<K, CacheEntry<CE>>() {
                     @Override
                     public K getKey() {
                         return entry.getKey();
@@ -306,7 +308,6 @@ public class CacheImpl<K, CE> implements Cache<K, CacheEntry<CE>> {
                         return clazz.cast(this);
                     }
                 };
-                return ret;
             }
         };
     }

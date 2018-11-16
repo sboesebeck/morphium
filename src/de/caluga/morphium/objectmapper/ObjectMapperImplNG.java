@@ -32,7 +32,6 @@ public class ObjectMapperImplNG implements MorphiumObjectMapper {
     private AnnotationAndReflectionHelper anhelper;
     private Map<Class<?>, NameProvider> nameProviderByClass;
 
-    private final ContainerFactory containerFactory;
     private final JSONParser jsonParser = new JSONParser();
 
     private Logger log = LoggerFactory.getLogger(ObjectMapperImplNG.class);
@@ -45,7 +44,7 @@ public class ObjectMapperImplNG implements MorphiumObjectMapper {
         typeMappers = new ConcurrentHashMap();
         typeMappers.put(BigInteger.class, new BigIntegerTypeMapper());
 
-        containerFactory = new ContainerFactory() {
+        ContainerFactory containerFactory = new ContainerFactory() {
             @Override
             public Map createObjectContainer() {
                 return new HashMap<>();

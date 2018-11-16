@@ -286,7 +286,7 @@ public class MessagingTest extends MongoTest {
         m1.start();
         m2.start();
         m3.start();
-        Thread.sleep(100);
+        Thread.sleep(200);
 
         m1.addMessageListener((msg, m) -> {
             gotMessage1 = true;
@@ -554,6 +554,7 @@ public class MessagingTest extends MongoTest {
             m1.start();
             m2.start();
             onlyAnswers.start();
+            Thread.sleep(100);
 
             log.info("m1 ID: " + m1.getSenderId());
             log.info("m2 ID: " + m2.getSenderId());
@@ -681,6 +682,7 @@ public class MessagingTest extends MongoTest {
                 };
                 m.addMessageListener(l);
             }
+            Thread.sleep(100);
 
             long start = System.currentTimeMillis();
             for (int i = 0; i < numberOfMessages; i++) {
@@ -1118,6 +1120,8 @@ public class MessagingTest extends MongoTest {
         m1.start();
         m2.start();
         m3.start();
+        Thread.sleep(100);
+
 
         Msg m = new Msg();
         m.setExclusive(true);
@@ -1177,6 +1181,7 @@ public class MessagingTest extends MongoTest {
         sender.sendMessageToSelf(new Msg("testmsg", "Selfmessage", "value"));
         Thread.sleep(1500);
         assert (gotMessage == true);
+        //noinspection PointlessBooleanExpression
         assert (gotMessage1 == false);
 
         m1.terminate();
@@ -1605,6 +1610,7 @@ public class MessagingTest extends MongoTest {
         list.clear();
         Messaging receiver = new Messaging(morphium, 10, false, true, 100);
         receiver.start();
+        Thread.sleep(100);
 
         receiver.addListenerForMessageNamed("pause", (msg, m) -> {
             msg.pauseProcessingOfMessagesNamed(m.getName());
@@ -1786,6 +1792,8 @@ public class MessagingTest extends MongoTest {
         Messaging receiver2 = new Messaging(morphium, 10, false, true, 10);
         receiver2.start();
 
+
+        Thread.sleep(100);
         receiver.addMessageListener((msg, m) -> {
             log.info("R1: Incoming message");
             return null;
