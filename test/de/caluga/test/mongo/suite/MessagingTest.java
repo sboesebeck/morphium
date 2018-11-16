@@ -228,7 +228,7 @@ public class MessagingTest extends MongoTest {
         final Messaging m2 = new Messaging(morphium, 500, true);
         m1.start();
         m2.start();
-
+        Thread.sleep(100);
         m1.addMessageListener((msg, m) -> {
             gotMessage1 = true;
             log.info("M1 got message " + m.toString());
@@ -282,10 +282,11 @@ public class MessagingTest extends MongoTest {
         final Messaging m3 = new Messaging(morphium, 10, true);
         final Messaging m4 = new Messaging(morphium, 10, true);
 
+        m4.start();
         m1.start();
         m2.start();
         m3.start();
-        m4.start();
+        Thread.sleep(100);
 
         m1.addMessageListener((msg, m) -> {
             gotMessage1 = true;
@@ -407,7 +408,8 @@ public class MessagingTest extends MongoTest {
             sender.terminate();
             rec1.terminate();
             rec2.terminate();
-            Thread.sleep(2000);
+            sender.storeMessage(new Msg("quitting", "quit", "quit", 10, false));
+            Thread.sleep(1000);
         }
 
 
@@ -743,17 +745,20 @@ public class MessagingTest extends MongoTest {
     public void broadcastTest() throws Exception {
         morphium.clearCollection(Msg.class);
         final Messaging m1 = new Messaging(morphium, 1000, true);
-        final Messaging m2 = new Messaging(morphium, 1000, true);
-        final Messaging m3 = new Messaging(morphium, 1000, true);
+        final Messaging m2 = new Messaging(morphium, 10, true);
+        final Messaging m3 = new Messaging(morphium, 10, true);
+        final Messaging m4 = new Messaging(morphium, 10, true);
         gotMessage1 = false;
         gotMessage2 = false;
         gotMessage3 = false;
         gotMessage4 = false;
         error = false;
 
+        m4.start();
         m1.start();
-        m2.start();
         m3.start();
+        m2.start();
+        Thread.sleep(300);
 
         log.info("m1 ID: " + m1.getSenderId());
         log.info("m2 ID: " + m2.getSenderId());
@@ -788,22 +793,34 @@ public class MessagingTest extends MongoTest {
             log.info("M3 got message " + m.toString());
             return null;
         });
+        m4.addMessageListener((msg, m) -> {
+            gotMessage4 = true;
+            if (m.getTo() != null && !m.getTo().contains(m3.getSenderId())) {
+                log.error("wrongly received message m4?");
+                error = true;
+            }
+            log.info("M4 got message " + m.toString());
+            return null;
+        });
 
         Msg m = new Msg("test", "A message", "a value");
         m.setExclusive(false);
         m1.storeMessage(m);
 
-        Thread.sleep(2200);
+        Thread.sleep(500);
         assert (!gotMessage1) : "Got message again?";
+        assert (gotMessage4) : "m4 did not get msg?";
         assert (gotMessage2) : "m2 did not get msg?";
         assert (gotMessage3) : "m3 did not get msg";
         assert (!error);
         gotMessage2 = false;
         gotMessage3 = false;
-        Thread.sleep(2200);
+        gotMessage4 = false;
+        Thread.sleep(500);
         assert (!gotMessage1) : "Got message again?";
         assert (!gotMessage2) : "m2 did get msg again?";
         assert (!gotMessage3) : "m3 did get msg again?";
+        assert (!gotMessage4) : "m4 did get msg again?";
         assert (!error);
 
         m1.terminate();
@@ -1713,6 +1730,7 @@ public class MessagingTest extends MongoTest {
         Messaging receiver=new Messaging(morphium,10,false,true,10);
         receiver.start();
 
+        Thread.sleep(1000);
         receiver.addListenerForMessageNamed("pause", (msg, m) -> {
             log.info("Processing pause  message");
             msg.pauseProcessingOfMessagesNamed("pause");
