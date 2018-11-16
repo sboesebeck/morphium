@@ -33,7 +33,6 @@ public class MorphiumCacheJCacheImpl implements MorphiumCache, CacheEntryExpired
     public final static String ID_CACHE_NAME = "idCache";
 
     private CacheManager cacheManager;
-    private MorphiumConfig cfg;
 
     private Map<Class<?>, Cache> idCaches = new HashMap<>();
     private Map<Class<?>, Cache> resultCaches = new HashMap<>();
@@ -50,7 +49,7 @@ public class MorphiumCacheJCacheImpl implements MorphiumCache, CacheEntryExpired
     private boolean cacheListenerRegistered = false;
 
     public MorphiumCacheJCacheImpl() {
-        cfg = new MorphiumConfig();
+        MorphiumConfig cfg = new MorphiumConfig();
 
         hkHelper.setGlobalValidCacheTime(cfg.getGlobalCacheValidTime());
         hkHelper.setAnnotationHelper(new AnnotationAndReflectionHelper(false));
@@ -96,7 +95,6 @@ public class MorphiumCacheJCacheImpl implements MorphiumCache, CacheEntryExpired
             if (v == null) {
                 log.warn("Not adding null entry to cache - veto by listener");
             }
-            return;
         }
         for (T obj : ret) {
             Object id = anHelper.getId(obj);

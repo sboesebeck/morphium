@@ -28,7 +28,6 @@ public class MorphiumSerializer {
     private final MorphiumObjectMapper objectMapper;
     private final Logger log = LoggerFactory.getLogger(MorphiumSerializer.class);
     private final com.fasterxml.jackson.databind.ObjectMapper jackson;
-    private final SimpleModule module;
     private final Map<Class, MorphiumTypeMapper> typeMapper;
 
     public MorphiumSerializer(AnnotationAndReflectionHelper ar, Map<Class<?>, NameProvider> np, Morphium m, MorphiumObjectMapper om, Map<Class, MorphiumTypeMapper> tm) {
@@ -39,7 +38,7 @@ public class MorphiumSerializer {
         this.typeMapper = tm;
 
         objectMapper = om;
-        module = new SimpleModule();
+        SimpleModule module = new SimpleModule();
 
         mongoTypes.add(String.class);
         mongoTypes.add(Character.class);

@@ -15,9 +15,7 @@ import java.util.Map;
 @SuppressWarnings("AssertWithSideEffects")
 public class CustomMapperTest extends MongoTest {
 
-    private final int count = 2;
-
-//    @Test
+    //    @Test
 //    public void customMappedObjectTest() {
 //        morphium.registerTypeMapper(CustomMappedObject.class, new CustomMappedObjectMapper());
 //        morphium.dropCollection(ObjectWithCustomMappedObject.class);
@@ -66,6 +64,7 @@ public class CustomMapperTest extends MongoTest {
         singleCustomMappedObject.setValue("single");
         singleCustomMappedObject.setIntValue(-1);
 
+        int count = 2;
         for (int i = 0; i < count; i++) {
             CustomMappedObject customMappedObject = new CustomMappedObject();
             customMappedObject.setName("customMappedObject#" + i);

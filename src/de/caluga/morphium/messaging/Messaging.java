@@ -742,19 +742,19 @@ public class Messaging extends Thread implements ShutdownListener {
         storeMsg(m, true);
     }
 
-//
-//    @Override
-//    public synchronized void start() {
-//        super.start();
-//        if (useChangeStream) {
-//            try {
-//                Thread.sleep(100);
-//                //wait for changestream to kick in ;-)
-//            } catch (Exception e) {
-//                log.error("error:" + e.getMessage());
-//            }
-//        }
-//    }
+
+    @Override
+    public synchronized void start() {
+        super.start();
+        if (useChangeStream) {
+            try {
+                Thread.sleep(250);
+                //wait for changestream to kick in ;-)
+            } catch (Exception e) {
+                log.error("error:" + e.getMessage());
+            }
+        }
+    }
 
     public void storeMessage(Msg m) {
         storeMsg(m, false);

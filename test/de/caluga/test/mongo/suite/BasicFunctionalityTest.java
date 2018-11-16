@@ -29,7 +29,7 @@ import java.util.Map;
 /**
  * @author stephan
  */
-@SuppressWarnings("AssertWithSideEffects")
+@SuppressWarnings({"AssertWithSideEffects", "Duplicates"})
 public class BasicFunctionalityTest extends MongoTest {
     public static final int NO_OBJECTS = 100;
     private static final Logger log = LoggerFactory.getLogger(BasicFunctionalityTest.class);
@@ -750,6 +750,7 @@ public class BasicFunctionalityTest extends MongoTest {
 
         c = morphium.getMapper().deserialize(ListOfIdsContainer.class, marshall);
         assert (c.idMap != null && c.idMap.get("1") != null && c.idMap.get("1") instanceof MorphiumId);
+        //noinspection ConstantConditions
         assert (c.others.size() == 4 && c.others.get(0) instanceof MorphiumId);
         assert (c.simpleId != null);
     }
