@@ -72,7 +72,7 @@ public class HouseKeepingHelper {
                 strategy = cacheSettings.strategy();
                 validTimeForClass.putIfAbsent(clz, time);
             }
-            Iterator<javax.cache.Cache.Entry<String, CacheEntry>> it = cache.iterator();
+            @SuppressWarnings("unchecked") Iterator<javax.cache.Cache.Entry<String, CacheEntry>> it = cache.iterator();
             int size = 0;
             while (it.hasNext()) {
                 size++;
@@ -81,7 +81,7 @@ public class HouseKeepingHelper {
 
 
                 if (ch == null || ch.getResult() == null || System.currentTimeMillis() - ch.getCreated() > time) {
-                    toDelete.add(ch.getKey());
+                    toDelete.add(Objects.requireNonNull(ch).getKey());
                     del++;
                 } else {
                     lruTime.putIfAbsent(ch.getLru(), new ArrayList<>());
@@ -153,11 +153,13 @@ public class HouseKeepingHelper {
             for (Object k : toDelete) {
                 for (CacheListener cl : cacheListeners) {
                     try {
+                        //noinspection unchecked,unchecked
                         cl.wouldRemoveEntryFromCache(k, (CacheEntry) cache.get(k), true);
                     } catch (Exception e) {
-
+                        //ignore errors...
                     }
                 }
+                //noinspection unchecked
                 cache.remove(k);
             }
 

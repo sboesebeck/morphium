@@ -17,6 +17,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 /**
  * Morphium representation of an ID. similar to BSON ID
  **/
+@SuppressWarnings("SameParameterValue")
 @JsonSerialize(as = MorphiumId.class)
 public class MorphiumId implements Comparable<MorphiumId>, Serializable {
 

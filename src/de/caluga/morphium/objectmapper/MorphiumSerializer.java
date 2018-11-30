@@ -77,13 +77,14 @@ public class MorphiumSerializer {
             public void serialize(Collection list, JsonGenerator jsonGenerator, SerializerProvider serializerProvider) throws IOException {
                 jsonGenerator.writeStartArray();
                 for (Object o : list) {
-                    Map m = null;
+                    Map m;
                     if (o == null) {
                         jsonGenerator.writeNull();
                         continue;
                     }
                     if (o instanceof Enum) {
                         m = new HashMap();
+                        //noinspection unchecked
                         m.put("name", ((Enum) o).name());
                     } else if (mongoTypes.contains(o.getClass())) {
                         jsonGenerator.writeObject(o);
@@ -100,6 +101,7 @@ public class MorphiumSerializer {
                     } else if (o instanceof Map) {
                         //m = new LinkedHashMap();
                         jsonGenerator.writeStartObject();
+                        //noinspection unchecked
                         for (Map.Entry e : (Set<Map.Entry>) ((Map) o).entrySet()) {
                             if (mongoTypes.contains(e.getValue().getClass())) {
                                 jsonGenerator.writeObjectField((String) e.getKey(), e.getValue());
@@ -108,6 +110,7 @@ public class MorphiumSerializer {
                                 serialize((Collection) e.getValue(), jsonGenerator, serializerProvider);
                             } else {
                                 Map value = jackson.convertValue(e.getValue(), Map.class);
+                                //noinspection unchecked
                                 value.put("class_name", anhelper.getTypeIdForClass(e.getValue().getClass()));
                                 jsonGenerator.writeObjectField((String) e.getKey(), value);
                             }
@@ -120,6 +123,7 @@ public class MorphiumSerializer {
                     }
 
 
+                    //noinspection unchecked
                     m.put("class_name", anhelper.getTypeIdForClass(o.getClass()));
                     jsonGenerator.writeObject(m);
                 }
@@ -145,11 +149,13 @@ public class MorphiumSerializer {
                     return new JsonSerializer<Object>() {
                         @Override
                         public void serialize(Object value, JsonGenerator gen, SerializerProvider serializers) throws IOException {
+                            //noinspection unchecked
                             gen.writeObject(typeMapper.get(value.getClass()).marshall(value));
                         }
                     };
                 }
                 if (anhelper.isAnnotationPresentInHierarchy(beanDesc.getBeanClass(), Entity.class) || anhelper.isAnnotationPresentInHierarchy(beanDesc.getBeanClass(), Embedded.class)) {
+                    //noinspection unchecked
                     return new EntitySerializer((JsonSerializer<Object>) serializer, anhelper);
                 }
                 if (beanDesc.getBeanClass().isEnum()) {
@@ -160,10 +166,13 @@ public class MorphiumSerializer {
                         @Override
                         public void serialize(Map value, JsonGenerator gen, SerializerProvider serializers) throws IOException {
                             Map ret = new LinkedHashMap();
+                            //noinspection unchecked
                             for (Map.Entry e : (Set<Map.Entry>) value.entrySet()) {
                                 if (anhelper.isEntity(e.getValue())) {
                                     Map value1 = jackson.convertValue(e.getValue(), Map.class);
+                                    //noinspection unchecked
                                     value1.put("class_name", anhelper.getTypeIdForClass(e.getValue().getClass()));
+                                    //noinspection unchecked
                                     ret.put(e.getKey(), value1);
                                 } else if (e.getValue() instanceof Map) {
                                     //map in a map
@@ -171,6 +180,7 @@ public class MorphiumSerializer {
                                     serialize((Map) e.getValue(), gen, serializers);
 
                                 } else {
+                                    //noinspection unchecked
                                     ret.put(e.getKey(), jackson.convertValue(e.getValue(), Map.class));
                                 }
                             }
@@ -196,6 +206,7 @@ public class MorphiumSerializer {
     public Map<String, Object> serialize(Object o) {
         Map m = jackson.convertValue(o, Map.class);
         m = (Map) Utils.replaceMorphiumIds(m);
+        //noinspection unchecked
         return m;
     }
 
@@ -232,23 +243,30 @@ public class MorphiumSerializer {
 
     private Map serializeMap(Map value) {
         Map ret = new LinkedHashMap();
+        //noinspection unchecked
         for (Map.Entry e : (Set<Map.Entry>) value.entrySet()) {
             if (anhelper.isEntity(e.getValue())) {
                 Map value1 = jackson.convertValue(e.getValue(), Map.class);
 
+                //noinspection unchecked
                 value1.put("class_name", anhelper.getTypeIdForClass(e.getValue().getClass()));
+                //noinspection unchecked
                 ret.put(e.getKey(), value1);
             } else if (e.getValue() instanceof Map) {
                 //map in a map
 
+                //noinspection unchecked
                 ret.put(e.getKey(), serializeMap((Map) e.getValue()));
 
             } else {
                 if (e.getValue() == null) {
+                    //noinspection unchecked
                     ret.put(e.getKey(), null);
                 } else if (mongoTypes.contains(e.getValue().getClass())) {
+                    //noinspection unchecked
                     ret.put(e.getKey(), e.getValue());
                 } else {
+                    //noinspection unchecked
                     ret.put(e.getKey(), jackson.convertValue(e.getValue(), Map.class));
                 }
             }
@@ -285,7 +303,9 @@ public class MorphiumSerializer {
         @Override
         public void serialize(Enum anEnum, JsonGenerator jsonGenerator, SerializerProvider serializerProvider) throws IOException {
             Map obj = new HashMap();
+            //noinspection unchecked
             obj.put("name", anEnum.name());
+            //noinspection unchecked
             obj.put("class_name", anhelper.getTypeIdForClass(anEnum.getClass()));
             jsonGenerator.writeObject(obj);
         }
@@ -293,7 +313,7 @@ public class MorphiumSerializer {
 
     public class EntitySerializer extends JsonSerializer<Object> {
         private final AnnotationAndReflectionHelper an;
-        private JsonSerializer<Object> def;
+        private final JsonSerializer<Object> def;
 
         public EntitySerializer(JsonSerializer<Object> def, AnnotationAndReflectionHelper an) {
             this.def = def;
@@ -322,6 +342,7 @@ public class MorphiumSerializer {
                     AdditionalData ad = fld.getAnnotation(AdditionalData.class);
                     if (ad != null) {
                         //write all fields in Additional map direktly
+                        //noinspection unchecked
                         for (Map.Entry entry : (Set<Map.Entry>) ((Map) value).entrySet()) {
                             Object v = entry.getValue();
                             if (!mongoTypes.contains(v.getClass())) {
@@ -339,6 +360,7 @@ public class MorphiumSerializer {
                             //list of references!
                             for (Object lel : (List) value) {
                                 if (lel == null) {
+                                    //noinspection unchecked
                                     ret.add(null);
                                     continue;
                                 }
@@ -349,14 +371,17 @@ public class MorphiumSerializer {
                                 }
                                 MorphiumReference ref = new MorphiumReference(anhelper.getTypeIdForClass(lel.getClass()), id);
                                 ref.setLazy(r.lazyLoading());
+                                //noinspection unchecked
                                 ret.add(ref);
                             }
                             value = ret;
                         } else if (value instanceof Map) {
                             Map ret = new LinkedHashMap();
+                            //noinspection unchecked
                             for (Map.Entry en : ((Set<Map.Entry>) ((Map) value).entrySet())) {
                                 if (en.getValue() == null) {
-                                    ret.put(en.getKey(), en.getValue());
+                                    //noinspection unchecked
+                                    ret.put(en.getKey(), null);
                                 } else {
                                     //needs to be a reference!
                                     Object id = anhelper.getId(en.getValue());
@@ -366,6 +391,7 @@ public class MorphiumSerializer {
                                     }
                                     MorphiumReference ref = new MorphiumReference(en.getValue().getClass().getName(), id);
                                     ref.setLazy(r.lazyLoading());
+                                    //noinspection unchecked
                                     ret.put(en.getKey(), ref);
                                 }
                             }
@@ -386,17 +412,22 @@ public class MorphiumSerializer {
                     if (value instanceof Map) {
                         Map ret = new LinkedHashMap();
 
+                        //noinspection unchecked
                         for (Map.Entry e : ((Set<Map.Entry>) ((Map) value).entrySet())) {
                             if (e.getValue() instanceof Map) {
 
+                                //noinspection unchecked
                                 ret.put(e.getKey(), serializeMap((Map) e.getValue()));
                             } else if (anhelper.isEntity(e.getValue())) {
+                                //noinspection unchecked
                                 ret.put(e.getKey(), jackson.convertValue(e.getValue(), Map.class));
+                                //noinspection unchecked
                                 ((Map) ret.get(e.getKey())).put("class_name", anhelper.getTypeIdForClass(e.getValue().getClass()));
                                 ((Map) ret.get(e.getKey())).remove("_id");
 
                             } else {
 
+                                //noinspection unchecked
                                 ret.put(e.getKey(), e.getValue());
                             }
                         }
@@ -413,7 +444,6 @@ public class MorphiumSerializer {
                             value = ret;
                         }
                         jsonGenerator.writeObjectField(fldName, value);
-                        continue;
                     }
 
                 } catch (Exception e) {

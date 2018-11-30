@@ -15,7 +15,7 @@ import java.util.Map;
  * All drivers need to implement this interface. you can add your own drivers to morphium. These are actually not
  * limited to be mongodb drivers. There is also an InMemory implementation.
  **/
-@SuppressWarnings("BooleanMethodIsAlwaysInverted")
+@SuppressWarnings({"BooleanMethodIsAlwaysInverted", "RedundantThrows"})
 public interface MorphiumDriver {
     String VERSION_NAME = "morphium version";
     List<String> listDatabases() throws MorphiumDriverException;
@@ -230,6 +230,7 @@ public interface MorphiumDriver {
 
     Map<String, Object> group(String db, String coll, Map<String, Object> query, Map<String, Object> initial, String jsReduce, String jsFinalize, ReadPreference rp, String... keys) throws MorphiumDriverException;
 
+    @SuppressWarnings("RedundantThrows")
     List<Map<String, Object>> aggregate(String db, String collection, List<Map<String, Object>> pipeline, boolean explain, boolean allowDiskUse, ReadPreference readPreference) throws MorphiumDriverException;
 
     @SuppressWarnings("unused")

@@ -118,6 +118,7 @@ public class MongoFieldImpl<T> implements MongoField<T> {
                 } else if (field.getType().isEnum() && mapper instanceof ObjectMapperImplNG) {
                     fldStr = fldStr + ".name";
                 } else if (val.getClass().isEnum()) {
+                    //noinspection ConstantConditions
                     val = ((Enum) val).name();
                 }
             }

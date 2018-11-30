@@ -23,7 +23,7 @@ public class ChangeStreamMonitor implements Runnable, ShutdownListener {
     private final boolean fullDocument;
     private boolean running = true;
     private Thread changeStreamThread;
-    private MorphiumObjectMapper mapper;
+    private final MorphiumObjectMapper mapper;
     private boolean dbOnly = false;
 
 
@@ -110,7 +110,7 @@ public class ChangeStreamMonitor implements Runnable, ShutdownListener {
                     if (!running) {
                         return false;
                     }
-                    Map<String, Object> obj = (Map<String, Object>) data.get("fullDocument");
+                    @SuppressWarnings("unchecked") Map<String, Object> obj = (Map<String, Object>) data.get("fullDocument");
                     data.put("fullDocument", null);
                     ChangeStreamEvent evt = mapper.deserialize(ChangeStreamEvent.class, data);
 
