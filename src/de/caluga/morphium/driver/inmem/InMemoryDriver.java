@@ -630,7 +630,7 @@ public class InMemoryDriver implements MorphiumDriver {
             //todo add projection
         }
 
-        return ret;
+        return new ArrayList<>(ret);
     }
 
     @Override
@@ -662,7 +662,7 @@ public class InMemoryDriver implements MorphiumDriver {
                 ret.add(new HashMap<>(obj));
             }
         }
-        return ret;
+        return new ArrayList<>(ret);
     }
 
     @Override
@@ -993,7 +993,7 @@ public class InMemoryDriver implements MorphiumDriver {
             }
         }
 
-        return new Vector<>(distinctValues);
+        return new ArrayList<>(distinctValues);
     }
 
     @Override
