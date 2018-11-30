@@ -238,7 +238,7 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
                         break;
                     case WRITE_OLD:
 
-                        opLog.get(type).sort((o1, o2) -> Long.valueOf(o1.getTimestamp()).compareTo(o2.getTimestamp()));
+                        opLog.get(type).sort(Comparator.comparingLong(WriteBufferEntry::getTimestamp));
                         //could have been written in the meantime
                         if (!opLog.get(type).isEmpty()) {
                             WriteBufferEntry e = opLog.get(type).remove(0);
@@ -249,7 +249,7 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
                         break;
                     case DEL_OLD:
 
-                        opLog.get(type).sort((o1, o2) -> Long.valueOf(o1.getTimestamp()).compareTo(o2.getTimestamp()));
+                        opLog.get(type).sort(Comparator.comparingLong(WriteBufferEntry::getTimestamp));
                         if (logger.isDebugEnabled()) {
                             logger.debug("Deleting oldest entry");
                         }
@@ -422,11 +422,14 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
         List lst = new ArrayList();
         for (Object el : o) {
             if (el instanceof Collection) {
+                //noinspection unchecked
                 lst.add(handleList((Collection) el));
             } else if (el instanceof MorphiumId) {
                 Map m = Utils.getMap("morphium id", el.toString());
+                //noinspection unchecked
                 lst.add(m);
             } else {
+                //noinspection unchecked
                 lst.add(morphium.getMapper().serialize(el));
             }
         }
@@ -955,7 +958,7 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
 
     @Override
     public <T> void unset(final Query<T> query, AsyncOperationCallback<T> c, final boolean multiple, final Enum... fields) {
-        String flds[] = new String[fields.length];
+        String[] flds = new String[fields.length];
         int i = 0;
         for (Enum e : fields) {
             flds[i++] = e.name();
@@ -1010,9 +1013,8 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
 
     @Override
     public void flush() {
-        List<Class<?>> localBuffer = new ArrayList<>();
         //        synchronized (opLog) {
-        localBuffer.addAll(opLog.keySet());
+        List<Class<?>> localBuffer = new ArrayList<>(opLog.keySet());
         for (Class<?> clz : localBuffer) {
             if (opLog.get(clz) == null || opLog.get(clz).isEmpty()) {
                 continue;

@@ -1122,11 +1122,13 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
 
     @Override
     public void pullAll(String field, List value) {
+        //noinspection unchecked
         morphium.pullAll(this, field, value, false, false);
     }
 
     @Override
     public void pullAll(Enum field, List value) {
+        //noinspection unchecked
         morphium.pullAll(this, field.name(), value, false, false);
     }
 

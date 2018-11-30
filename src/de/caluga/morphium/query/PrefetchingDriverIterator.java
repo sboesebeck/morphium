@@ -103,6 +103,7 @@ public class PrefetchingDriverIterator<T> implements MorphiumIterator<T> {
     @Override
     public void back(int jump) {
         if (jump < cursorPos % getWindowSize()) {
+            //noinspection NonAtomicOperationOnVolatileField
             cursorPos -= jump;
         } else {
             throw new IllegalArgumentException("Cannot jump back past window boundaries");
@@ -182,7 +183,7 @@ public class PrefetchingDriverIterator<T> implements MorphiumIterator<T> {
         while (prefetchBuffer.size() <= 1 && cursor != null) {
             Thread.yield(); //for end of data detection
         }
-        if (prefetchBuffer.isEmpty() && cursor == null) {
+        if (prefetchBuffer.isEmpty()) {
             return false;
         }
         //end of results
@@ -271,6 +272,7 @@ public class PrefetchingDriverIterator<T> implements MorphiumIterator<T> {
         while (prefetchBuffer.isEmpty() && cursor != null) {
             Thread.yield();
         }
+        //noinspection NonAtomicOperationOnVolatileField
         return prefetchBuffer.get(0).get(cursorPos++ % getWindowSize());
     }
 

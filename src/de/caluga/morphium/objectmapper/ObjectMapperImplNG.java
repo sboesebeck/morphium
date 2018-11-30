@@ -30,17 +30,18 @@ import java.util.concurrent.ConcurrentHashMap;
 public class ObjectMapperImplNG implements MorphiumObjectMapper {
     private Morphium morphium;
     private AnnotationAndReflectionHelper anhelper;
-    private Map<Class<?>, NameProvider> nameProviderByClass;
+    private final Map<Class<?>, NameProvider> nameProviderByClass;
 
     private final JSONParser jsonParser = new JSONParser();
 
     private Logger log = LoggerFactory.getLogger(ObjectMapperImplNG.class);
     private MorphiumSerializer marshaller;
     private MorphiumDeserializer unmarshaller;
-    private Map<Class, MorphiumTypeMapper> typeMappers;
+    private final Map<Class, MorphiumTypeMapper> typeMappers;
 
     public ObjectMapperImplNG() {
         nameProviderByClass = new ConcurrentHashMap<>();
+        //noinspection unchecked
         typeMappers = new ConcurrentHashMap();
         typeMappers.put(BigInteger.class, new BigIntegerTypeMapper());
 
@@ -91,6 +92,7 @@ public class ObjectMapperImplNG implements MorphiumObjectMapper {
         if (o == null) return null;
         if (o.containsKey("class_name")) {
             try {
+                //noinspection unchecked
                 theClass = anhelper.getClassForTypeId(o.get("class_name").toString());
             } catch (ClassNotFoundException e) {
                 throw new RuntimeException("Could not get class", e);
@@ -105,11 +107,13 @@ public class ObjectMapperImplNG implements MorphiumObjectMapper {
         Map obj = new ObjectMapper().readValue(json, Map.class); //(HashMap<String, Object>) jsonParser.parse(json, containerFactory);
         if (obj.containsKey("class_name")) {
             try {
+                //noinspection unchecked
                 cls = anhelper.getClassForTypeId(obj.get("class_name").toString());
             } catch (ClassNotFoundException e) {
                 throw new RuntimeException("Could not get class", e);
             }
         }
+        //noinspection unchecked,unchecked
         return (T) getDeserializer().deserialize(cls, obj);
 
     }

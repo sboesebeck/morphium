@@ -76,19 +76,15 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                     60L, TimeUnit.SECONDS,
                     queue);
 
-            executor.setRejectedExecutionHandler(new RejectedExecutionHandler() {
-                @Override
-                public void rejectedExecution(Runnable r, ThreadPoolExecutor executor) {
-                    try {
-                        /*
-                         * This does the actual put into the queue. Once the max threads
-                         * have been reached, the tasks will then queue up.
-                         */
-                        executor.getQueue().put(r);
-                    } catch (InterruptedException e) {
-                        Thread.currentThread().interrupt();
-                        return;
-                    }
+            executor.setRejectedExecutionHandler((r, executor) -> {
+                try {
+                    /*
+                     * This does the actual put into the queue. Once the max threads
+                     * have been reached, the tasks will then queue up.
+                     */
+                    executor.getQueue().put(r);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
                 }
             });
             //            executor.setRejectedExecutionHandler(new RejectedExecutionHandler() {
@@ -480,7 +476,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                     WriteConcern wc = morphium.getWriteConcernForClass(type);
                     List<Map<String, Object>> objs = new ArrayList<>();
                     objs.add(marshall);
-                    Map<String, Object> ret=null;
+                    Map<String, Object> ret;
                     try {
                         ret = morphium.getDriver().store(morphium.getConfig().getDatabase(), coll, objs, wc);
                     } catch (MorphiumDriverException mde){
@@ -1012,7 +1008,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
 
                     try {
                         if (f.getType().isEnum()){
-                            value= (Object) Enum.valueOf((Class)f.getType(),value.toString());
+                            value = Enum.valueOf((Class) f.getType(), value.toString());
                         }
                         f.set(toSet, v);
                     } catch (IllegalAccessException e) {
@@ -1044,6 +1040,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
         }
     }
 
+    @SuppressWarnings("CatchMayIgnoreException")
     public <T> void submitAndBlockIfNecessary(AsyncOperationCallback<T> callback, WriterTask<T> r) {
         if (callback == null) {
             r.run();
@@ -1068,7 +1065,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                     try {
                         Thread.sleep(pause);
                     } catch (InterruptedException ignored) {
-
+                        //swallow
                     }
 
                 }
@@ -1936,7 +1933,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                     }
 
                     field = morphium.getARHelper().getFieldName(cls, field);
-                    Map<String, Object> update = null;
+                    Map<String, Object> update;
                     if (push) {
                         Map<String, Object> set = Utils.getMap(field, Utils.getMap("$each", value));
                         update = Utils.getMap("$push", set);

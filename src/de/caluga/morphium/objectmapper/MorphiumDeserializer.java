@@ -38,9 +38,7 @@ public class MorphiumDeserializer {
     public MorphiumDeserializer(AnnotationAndReflectionHelper anhelper, Map<Class<?>, NameProvider> nameProviderByClass, Morphium morphium, Map<Class, MorphiumTypeMapper> typeMapper) {
 
         this.anhelper = anhelper;
-        Map<Class<?>, NameProvider> nameProviderByClass1 = nameProviderByClass;
         this.morphium = morphium;
-        Map<Class, MorphiumTypeMapper> typeMapper1 = typeMapper;
         SimpleModule module = new SimpleModule();
         jackson = new com.fasterxml.jackson.databind.ObjectMapper();
         jackson.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
@@ -67,6 +65,7 @@ public class MorphiumDeserializer {
 //
 //        });
         module.setDeserializerModifier(new BeanDeserializerModifier() {
+            @SuppressWarnings("CastCanBeRemovedNarrowingVariableType")
             @Override
             public List<BeanPropertyDefinition> updateProperties(DeserializationConfig config, BeanDescription beanDesc, List<BeanPropertyDefinition> propDefs) {
 
@@ -109,7 +108,7 @@ public class MorphiumDeserializer {
                     return new JsonDeserializer<Collection>() {
                         @Override
                         public Collection deserialize(JsonParser jsonParser, DeserializationContext deserializationContext) throws IOException {
-                            Collection toAdd = null;
+                            Collection toAdd;
                             try {
                                 toAdd = (Collection) beanDesc.getBeanClass().newInstance();
                             } catch (Exception e) {
@@ -122,6 +121,7 @@ public class MorphiumDeserializer {
                                         try {
                                             Class<?> clsName = anhelper.getClassForTypeId((String) ((Map) e).get("class_name"));
 
+                                            //noinspection unchecked
                                             toAdd.add(jackson.convertValue(e, clsName));
                                         } catch (ClassNotFoundException e1) {
                                             //TODO: Implement Handling
@@ -135,6 +135,7 @@ public class MorphiumDeserializer {
                                             try {
                                                 ObjectInputStream oin = new ObjectInputStream(new ByteArrayInputStream(dec.decodeBuffer(((BinarySerializedObject) toPut).getB64Data())));
                                                 toPut = oin.readObject();
+                                                //noinspection unchecked
                                                 toAdd.add(toPut);
                                             } catch (IOException e1) {
                                                 log.error("Could not deserialize", e);
@@ -145,6 +146,7 @@ public class MorphiumDeserializer {
                                         continue;
                                     }
                                 }
+                                //noinspection unchecked
                                 toAdd.add(e);
                             }
 
@@ -157,14 +159,16 @@ public class MorphiumDeserializer {
                     return new JsonDeserializer<Enum>() {
                         @Override
                         public Enum deserialize(JsonParser jsonParser, DeserializationContext deserializationContext) throws IOException {
-                            Map<String, String> m = (Map<String, String>) jsonParser.readValueAs(Map.class);
-                            Class<Enum> target = null;
+                            @SuppressWarnings("unchecked") Map<String, String> m = (Map<String, String>) jsonParser.readValueAs(Map.class);
+                            Class<Enum> target;
                             try {
+                                //noinspection unchecked
                                 target = (Class<Enum>) anhelper.getClassForTypeId(m.get("class_name"));
                             } catch (ClassNotFoundException e) {
                                 throw new RuntimeException(e);
                             }
 
+                            //noinspection unchecked
                             return Enum.valueOf(target, m.get("name"));
                         }
                     };
@@ -185,6 +189,7 @@ public class MorphiumDeserializer {
 
     private Object replaceMorphiumIds(Object o) {
         if (o instanceof Map) {
+            //noinspection unchecked
             return replaceMorphiumIds((Map) o);
         } else if (o instanceof ObjectId) {
             return new MorphiumId(((ObjectId) o).toHexString());
@@ -196,16 +201,22 @@ public class MorphiumDeserializer {
         Map ret = new HashMap();
         for (Map.Entry e : m.entrySet()) {
             if (e.getValue() instanceof Map) {
+                //noinspection unchecked,unchecked
                 ret.put(e.getKey(), replaceMorphiumIds((Map<String, Object>) e.getValue()));
             } else if (e.getValue() instanceof MorphiumId) {
                 Map mid = new HashMap();
+                //noinspection unchecked
                 mid.put("morphium id", e.getValue().toString());
+                //noinspection unchecked
                 ret.put(e.getKey(), mid);
             } else if (e.getValue() instanceof ObjectId) {
+                //noinspection unchecked
                 ret.put(e.getKey(), new MorphiumId(((ObjectId) e.getValue()).toByteArray()));
             } else if (e.getValue() instanceof List) {
+                //noinspection unchecked
                 ret.put(e.getKey(), replaceMorphiumIds((List) e.getValue()));
             } else {
+                //noinspection unchecked
                 ret.put(e.getKey(), e.getValue());
             }
         }
@@ -217,13 +228,18 @@ public class MorphiumDeserializer {
         for (Object o : value) {
             if (o instanceof MorphiumId) {
                 Map m = new HashMap();
+                //noinspection unchecked
                 m.put("morphium id", o.toString());
+                //noinspection unchecked
                 ret.add(m);
             } else if (o instanceof Map) {
+                //noinspection unchecked,unchecked
                 ret.add(replaceMorphiumIds((Map) o));
             } else if (o instanceof List) {
+                //noinspection unchecked
                 ret.add(replaceMorphiumIds((List) o));
             } else {
+                //noinspection unchecked
                 ret.add(o);
             }
         }
@@ -238,25 +254,27 @@ public class MorphiumDeserializer {
                 if (((ParameterizedType) type).getActualTypeArguments()[1] instanceof ParameterizedType) {
                     //map of Maps
                     //ParameterizedType t2= (ParameterizedType) ((ParameterizedType)type).getActualTypeArguments()[0];
-                    valueType = null;
                     type = ((ParameterizedType) type).getActualTypeArguments()[1];
                 } else {
                     valueType = (Class) ((ParameterizedType) type).getActualTypeArguments()[1];
                 }
             }
         }
+        //noinspection unchecked
         for (Map.Entry e : (Set<Map.Entry>) m.entrySet()) {
             if (e.getValue() instanceof Map) {
                 //Object? Enum? in a Map... Map<Something,MAP>
-                Object toPut = null;
+                Object toPut;
 
                 Map ev = (Map) e.getValue();
-                Class cls = Map.class;
+                Class cls;
                 if (ev.get("class_name") != null) {
                     cls = anhelper.getClassForTypeId((String) ev.get("class_name"));
                     if (cls.isEnum()) {
+                        //noinspection unchecked
                         toPut = Enum.valueOf(cls, (String) ev.get("name"));
                     } else {
+                        //noinspection unchecked
                         toPut = jackson.convertValue(ev, cls);
                     }
                 } else if (ev.get("original_class_name") != null) {
@@ -273,22 +291,24 @@ public class MorphiumDeserializer {
                 } else {
                     toPut = handleMap(type, ev);
                 }
+                //noinspection unchecked
                 v.put(e.getKey(), toPut);
-                continue;
 
             } else if (e.getValue() instanceof Collection) {
                 ///Map<Something,List>
-                Object retLst = null;
+                Object retLst;
                 retLst = handleList(type, (Collection) e.getValue());
+                //noinspection unchecked
                 v.put(e.getKey(), retLst);
             } else {
+                //noinspection unchecked
                 v.put(e.getKey(), e.getValue());
             }
         }
         return v;
     }
 
-    @SuppressWarnings("unchecked")
+    @SuppressWarnings({"unchecked", "ConditionCoveredByFurtherCondition"})
     private Object handleList(Type type, Collection listIn) throws ClassNotFoundException {
         Class listElementType = null;
         Collection listOut;
@@ -393,9 +413,7 @@ public class MorphiumDeserializer {
         if (type != null && type instanceof Class && ((Class) type).isArray()) {
             Object arr = Array.newInstance(((Class) type).getComponentType(), listOut.size());
             int i = 0;
-            Iterator it = listOut.iterator();
-            while (it.hasNext()) {
-                Object listOutObj = it.next();
+            for (Object listOutObj : listOut) {
                 if (((Class) type).getComponentType().isPrimitive()) {
                     if (((Class) type).getComponentType().equals(int.class)) {
                         if (listOutObj instanceof Double) {
@@ -474,8 +492,8 @@ public class MorphiumDeserializer {
 
     private class EntityDeserializer extends JsonDeserializer<Object> {
         private final AnnotationAndReflectionHelper anhelper;
-        private Logger log = LoggerFactory.getLogger(EntityDeserializer.class);
-        private Class type;
+        private final Logger log = LoggerFactory.getLogger(EntityDeserializer.class);
+        private final Class type;
 
         public EntityDeserializer(Class cls, AnnotationAndReflectionHelper an) {
             type = cls;
@@ -489,6 +507,7 @@ public class MorphiumDeserializer {
                 if (type.isInterface() || Modifier.isAbstract(type.getModifiers())) {
                     Map m = jsonParser.readValueAs(Map.class);
                     if (m.get("class_name") != null) {
+                        //noinspection unchecked
                         ret = jackson.convertValue(m, anhelper.getClassForTypeId(m.get("class_name").toString()));
                     }
                     return ret;
@@ -500,6 +519,7 @@ public class MorphiumDeserializer {
                 if (ret == null) {
                     final Constructor<Object> constructor;
                     try {
+                        //noinspection unchecked
                         constructor = (Constructor<Object>) reflection.newConstructorForSerialization(type, Object.class.getDeclaredConstructor());
                         ret = constructor.newInstance();
                     } catch (Exception e) {
@@ -507,7 +527,7 @@ public class MorphiumDeserializer {
                     }
                 }
                 String adField = anhelper.getAdditionalDataField(type);
-                JsonToken tok = null;
+                JsonToken tok;
                 String currentName = "";
                 while (true) {
                     tok = jsonParser.nextToken();
@@ -536,6 +556,7 @@ public class MorphiumDeserializer {
                         //object value
                         if (f != null && f.getType().isEnum()) {
                             Map v = jsonParser.readValueAs(Map.class);
+                            //noinspection unchecked
                             f.set(ret, Enum.valueOf((Class) f.getType(), (String) v.get("name")));
                             continue;
                         }
@@ -547,14 +568,17 @@ public class MorphiumDeserializer {
                                     //map of references
                                     Map toSet = new LinkedHashMap();
                                     Map in = jackson.readValue(jsonParser, Map.class);
+                                    //noinspection unchecked
                                     for (Map.Entry entry : (Set<Map.Entry>) in.entrySet()) {
                                         MorphiumReference ref = jackson.convertValue(entry.getValue(), MorphiumReference.class);
                                         Object id = replaceMorphiumIds(ref.getId());
                                         Class<?> cls = Class.forName(ref.getClassName());
                                         if (ref.isLazy()) {
+                                            //noinspection unchecked
                                             toSet.put(entry.getKey(), morphium.createLazyLoadedEntity(cls, id, ref.getCollectionName()));
                                         } else {
                                             Object refObj = morphium.findById(cls, id);
+                                            //noinspection unchecked
                                             toSet.put(entry.getKey(), refObj);
                                         }
                                     }
@@ -654,6 +678,7 @@ public class MorphiumDeserializer {
                 if (field.get(ret) == null) {
                     field.set(ret, new LinkedHashMap<>());
                 }
+                //noinspection unchecked
                 ((Map) field.get(ret)).put(currentName, jackson.readValue(jsonParser, Object.class));
             } else {
                 //ignore value
