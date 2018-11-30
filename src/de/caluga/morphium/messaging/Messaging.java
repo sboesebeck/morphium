@@ -35,11 +35,11 @@ public class Messaging extends Thread implements ShutdownListener {
 
     private Morphium morphium;
     private boolean running;
-    private int pause = 5000;
+    private int pause;
     private String id;
     private boolean autoAnswer = false;
     private String hostname;
-    private boolean processMultiple = false;
+    private boolean processMultiple;
 
     private List<MessageListener> listeners;
 
@@ -51,9 +51,9 @@ public class Messaging extends Thread implements ShutdownListener {
     private ThreadPoolExecutor threadPool;
     private ScheduledThreadPoolExecutor decouplePool;
 
-    private boolean multithreadded = false;
-    private int windowSize = 1000;
-    private boolean useChangeStream = false;
+    private boolean multithreadded;
+    private int windowSize;
+    private boolean useChangeStream;
     private ChangeStreamMonitor changeStreamMonitor;
 
     private Map<MorphiumId, Msg> waitingForAnswers = new ConcurrentHashMap<>();
@@ -131,7 +131,6 @@ public class Messaging extends Thread implements ShutdownListener {
                     executor.getQueue().put(r);
                 } catch (InterruptedException e) {
                     Thread.currentThread().interrupt();
-                    return;
                 }
             });
             //noinspection unused,unused
@@ -241,7 +240,7 @@ public class Messaging extends Thread implements ShutdownListener {
                     if (evt.getOperationType().equals("insert")) {
                         //insert => new Message
                         //                        log.debug("New message incoming");
-                        Msg obj = morphium.getMapper().deserialize(Msg.class, (Map<String, Object>) evt.getFullDocument());
+                        Msg obj = morphium.getMapper().deserialize(Msg.class, evt.getFullDocument());
                         if (obj.getSender().equals(id) || (obj.getProcessedBy() != null && obj.getProcessedBy().contains(id)) || (obj.getRecipient() != null && !obj.getRecipient().equals(id))) {
                             //ignoring my own messages
                             return running;
@@ -283,8 +282,8 @@ public class Messaging extends Thread implements ShutdownListener {
                         //                        if (((Map<String,Object>)data.get("o")).get("$set")!=null){
                         //                            //there is a set-update
                         //                        }
-                        if (evt.getFullDocument() != null && ((Map<String, Object>) evt.getFullDocument()).get("_id") != null) {
-                            Msg obj = morphium.findById(Msg.class, new MorphiumId(((Map<String, Object>) evt.getFullDocument()).get("_id").toString()), getCollectionName());
+                        if (evt.getFullDocument() != null && evt.getFullDocument().get("_id") != null) {
+                            Msg obj = morphium.findById(Msg.class, new MorphiumId(evt.getFullDocument().get("_id").toString()), getCollectionName());
                             if (obj != null && obj.isExclusive() && obj.getLockedBy() == null && !pauseMessages.containsKey(obj.getName()) && (obj.getRecipient() == null || obj.getRecipient().equals(id))) {
                                 log.debug("Update of msg - trying to lock");
                                 // locking
@@ -364,6 +363,7 @@ public class Messaging extends Thread implements ShutdownListener {
                 try {
                     Thread.sleep(pause);
                 } catch (InterruptedException e) {
+                    //Swallow
                 }
             }
         };
@@ -452,7 +452,7 @@ public class Messaging extends Thread implements ShutdownListener {
             //wait for the locking to be saved
             Thread.sleep(10);
         } catch (InterruptedException e) {
-
+            //swallow
         }
         obj = morphium.reread(obj, getCollectionName());
         if (obj != null && obj.getLockedBy() != null && obj.getLockedBy().equals(id)) {
@@ -523,8 +523,7 @@ public class Messaging extends Thread implements ShutdownListener {
                 boolean wasProcessed = false;
                 boolean wasRejected = false;
                 List<MessageRejectedException> rejections = new ArrayList<>();
-                List<MessageListener> lst = new ArrayList<>();
-                lst.addAll(listeners);
+                List<MessageListener> lst = new ArrayList<>(listeners);
                 if (listenerByName.get(msg.getName()) != null) {
                     lst.addAll(listenerByName.get(msg.getName()));
                 }
@@ -596,6 +595,7 @@ public class Messaging extends Thread implements ShutdownListener {
                         try {
                             Thread.sleep(pause);
                         } catch (InterruptedException e) {
+                            //Swallow
                         }
                     }
                 }
@@ -726,6 +726,7 @@ public class Messaging extends Thread implements ShutdownListener {
             interrupt();
         }
         if (isAlive()) {
+            //noinspection deprecation
             stop();
         }
     }
@@ -819,16 +820,6 @@ public class Messaging extends Thread implements ShutdownListener {
         AsyncOperationCallback cb = null;
         if (async) {
             //noinspection unused,unused
-            cb = new AsyncOperationCallback() {
-                @Override
-                public void onOperationSucceeded(AsyncOperationType type, Query q, long duration, List result, Object entity, Object... param) {
-                }
-
-                @Override
-                public void onOperationError(AsyncOperationType type, Query q, long duration, String error, Throwable t, Object entity, Object... param) {
-                    log.error("Error storing msg", t);
-                }
-            };
         }
         m.setSender("self");
         m.setRecipient(id);

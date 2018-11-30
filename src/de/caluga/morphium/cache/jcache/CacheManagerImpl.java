@@ -25,7 +25,7 @@ public class CacheManagerImpl implements CacheManager {
     private ClassLoader classLoader;
     private Properties properties;
 
-    private Map<String, Cache> caches = new ConcurrentHashMap<>();
+    private final Map<String, Cache> caches = new ConcurrentHashMap<>();
 
     public CacheManagerImpl(Properties settings) {
 
@@ -86,6 +86,7 @@ public class CacheManagerImpl implements CacheManager {
         cache.setCacheManager(this);
         caches.put(cacheName, cache);
         cache.setName(cacheName);
+        //noinspection unchecked
         return (Cache<K, V>) cache;
 
     }
@@ -97,11 +98,13 @@ public class CacheManagerImpl implements CacheManager {
             createCache(cacheName, null);
         }
 
+        //noinspection unchecked
         return caches.get(cacheName);
     }
 
     @Override
     public <K, V> Cache<K, V> getCache(String cacheName) {
+        //noinspection unchecked,unchecked
         return getCache(cacheName, (Class<K>) Object.class, (Class<V>) Object.class);
     }
 

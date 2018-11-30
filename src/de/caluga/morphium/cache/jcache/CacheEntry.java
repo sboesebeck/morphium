@@ -18,6 +18,7 @@ public class CacheEntry<T> {
     public CacheEntry(T result, Object key) {
         this.result = result;
         this.key = key;
+        //noinspection unchecked
         type = (Class<? extends T>) result.getClass();
         created = System.currentTimeMillis();
     }

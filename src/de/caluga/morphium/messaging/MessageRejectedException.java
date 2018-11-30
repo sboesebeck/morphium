@@ -8,8 +8,8 @@ package de.caluga.morphium.messaging;
  * TODO: Add documentation here
  */
 public class MessageRejectedException extends RuntimeException {
-    private boolean continueProcessing = false;
-    private boolean sendAnswer = false;
+    private boolean continueProcessing;
+    private boolean sendAnswer;
 
     public MessageRejectedException(String reason){
         this(reason,false,false);

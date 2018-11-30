@@ -24,11 +24,11 @@ import java.util.concurrent.ConcurrentHashMap;
  */
 @SuppressWarnings("unchecked")
 public class CacheImpl<K, CE> implements Cache<K, CacheEntry<CE>> {
-    private Map<K, CacheEntry<CE>> theCache = new ConcurrentHashMap<>();
-    private Map<CacheEntryEventFilter<? super K, ? super CacheEntry<CE>>, CacheEntryListener<K, CacheEntry<CE>>> listeners = new ConcurrentHashMap<>();
+    private final Map<K, CacheEntry<CE>> theCache = new ConcurrentHashMap<>();
+    private final Map<CacheEntryEventFilter<? super K, ? super CacheEntry<CE>>, CacheEntryListener<K, CacheEntry<CE>>> listeners = new ConcurrentHashMap<>();
     private CacheManager cacheManager;
     private String name = "";
-    private Logger log = LoggerFactory.getLogger(CacheImpl.class);
+    private final Logger log = LoggerFactory.getLogger(CacheImpl.class);
 
     public void setCacheManager(CacheManager cm) {
         cacheManager = cm;
@@ -282,7 +282,7 @@ public class CacheImpl<K, CE> implements Cache<K, CacheEntry<CE>> {
     public Iterator<Entry<K, CacheEntry<CE>>> iterator() {
 
         return new Iterator<Entry<K, CacheEntry<CE>>>() {
-            Iterator<Map.Entry<K, CacheEntry<CE>>> it = theCache.entrySet().iterator();
+            final Iterator<Map.Entry<K, CacheEntry<CE>>> it = theCache.entrySet().iterator();
 
             @Override
             public boolean hasNext() {
@@ -322,9 +322,9 @@ public class CacheImpl<K, CE> implements Cache<K, CacheEntry<CE>> {
 
 
     public class CEvent extends CacheEntryEvent<K, CacheEntry<CE>> {
-        private CacheEntry<CE> value;
-        private CacheEntry<CE> oldValue;
-        private K key;
+        private final CacheEntry<CE> value;
+        private final CacheEntry<CE> oldValue;
+        private final K key;
 
         public CEvent(Cache source, EventType t, K k, CacheEntry<CE> v, CacheEntry<CE> ov) {
             super(source, t);

@@ -111,6 +111,7 @@ public class DriverHelper {
                                     o = new ObjectId(o.toString());
                                 }
                             }
+                            //noinspection unchecked
                             v.add(o);
                         }
                         toSet.put((String) e.getKey(), v);
@@ -167,6 +168,7 @@ public class DriverHelper {
                                     o = new ObjectId(o.toString());
                                 }
                             }
+                            //noinspection unchecked
                             v.add(o);
                         }
                         toSet.put((String) e.getKey(), v);
