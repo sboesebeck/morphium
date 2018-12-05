@@ -919,7 +919,7 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
             morphium.firePreUpdateEvent(query.getType(), MorphiumStorageListener.UpdateTypes.UNSET);
             UpdateBulkRequest wr = ctx.addUpdateBulkRequest();
             wr.setQuery(query.toQueryObject());
-            wr.setMultiple(false);
+            wr.setMultiple(multiple);
             wr.setUpsert(false);
             String fld = morphium.getARHelper().getFieldName(query.getType(), field);
             wr.setCmd(Utils.getMap("$unset", Utils.getMap(fld, "")));
@@ -940,7 +940,7 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
             morphium.firePreUpdateEvent(query.getType(), MorphiumStorageListener.UpdateTypes.UNSET);
             UpdateBulkRequest wr = ctx.addUpdateBulkRequest();
             wr.setQuery(query.toQueryObject());
-            wr.setMultiple(false);
+            wr.setMultiple(multiple);
             wr.setUpsert(false);
             Map<String, Object> unset = new HashMap<>();
             wr.setCmd(Utils.getMap("$unset", unset));
