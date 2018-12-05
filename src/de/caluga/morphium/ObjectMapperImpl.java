@@ -199,7 +199,7 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
     @SuppressWarnings("unchecked")
     @Override
     public Map<String, Object> serialize(Object o) {
-
+        if (o==null) return new HashMap<>();
         Class c = annotationHelper.getRealClass(o.getClass());
         if (customMappers.containsKey(c)) {
             Object ret = customMappers.get(c).marshall(o);
