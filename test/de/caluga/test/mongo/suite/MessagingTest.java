@@ -1738,8 +1738,8 @@ public class MessagingTest extends MongoTest {
 
         Thread.sleep(1000);
         receiver.addListenerForMessageNamed("pause", (msg, m) -> {
-            log.info("Processing pause  message");
             msg.pauseProcessingOfMessagesNamed("pause");
+            log.info("Processing pause  message");
             Thread.sleep(2000);
             cnt.incrementAndGet();
             msg.unpauseProcessingOfMessagesNamed("pause");
@@ -1750,6 +1750,7 @@ public class MessagingTest extends MongoTest {
         receiver.addListenerForMessageNamed("now", (msg, m) -> {
             msg.pauseProcessingOfMessagesNamed("now");
             list.add(m);
+            //log.info("Incoming msg..."+m.getMsgId());
             msg.unpauseProcessingOfMessagesNamed("now");
             return null;
         });
@@ -1766,7 +1767,7 @@ public class MessagingTest extends MongoTest {
         sender.storeMessage(new Msg("pause","pause","pause"));
         sender.storeMessage(new Msg("pause","pause","pause"));
         sender.storeMessage(new Msg("pause","pause","pause"));
-        assert(cnt.get()==0);
+        assert(cnt.get()==0):"Count wrong "+cnt.get();
         Thread.sleep(2000);
         assert(cnt.get()==1);
         //1st message processed
@@ -1808,10 +1809,29 @@ public class MessagingTest extends MongoTest {
         for (int i = 0; i < 100; i++) {
             Msg m = new Msg("test", "test", "value", 3000000, true);
             sender.storeMessage(m);
+            if (i==50){
+                receiver2.pauseProcessingOfMessagesNamed("test");
+            } else if (i==60){
+                receiver.pauseProcessingOfMessagesNamed("test");
+            } else if (i==80){
+                receiver.unpauseProcessingOfMessagesNamed("test");
+                receiver.findAndProcessPendingMessages("test");
+                receiver2.unpauseProcessingOfMessagesNamed("test");
+                receiver2.findAndProcessPendingMessages("test");
+            }
+
         }
 
-        Thread.sleep(5000);
-        assert (morphium.createQueryFor(Msg.class).f(Msg.Fields.name).eq("test").countAll() == 0);
+        long start=System.currentTimeMillis();
+        Query<Msg> q = morphium.createQueryFor(Msg.class).f(Msg.Fields.name).eq("test");
+        while (q.countAll()>0) {
+            log.info("Count is still: "+q.countAll());
+            Thread.sleep(500);
+            if (System.currentTimeMillis()-start > 10000){
+                break;
+            }
+        }
+        assert (q.countAll() == 0):"Count is wrong";
 //
 
         receiver.terminate();
