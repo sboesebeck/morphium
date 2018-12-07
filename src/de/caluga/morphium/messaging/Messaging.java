@@ -855,27 +855,27 @@ public class Messaging extends Thread implements ShutdownListener {
         }
     }
 
-    public Msg sendAndAwaitFirstAnswer(Msg theMEssage, long timeoutInMs) {
-        //addMessageListener(getAnswerListener(theMEssage));
-        theMEssage.setMsgId(new MorphiumId());
-        waitingForMessages.put(theMEssage.getMsgId(), theMEssage);
-        storeMessage(theMEssage);
+    public Msg sendAndAwaitFirstAnswer(Msg theMessage, long timeoutInMs) {
+        theMessage.setMsgId(new MorphiumId());
+        waitingForMessages.put(theMessage.getMsgId(), theMessage);
+        storeMessage(theMessage);
         long start = System.currentTimeMillis();
-        while (!waitingForAnswers.containsKey(theMEssage.getMsgId())) {
+        while (!waitingForAnswers.containsKey(theMessage.getMsgId())) {
             if (System.currentTimeMillis() - start > timeoutInMs) {
                 log.error("Did not receive Answer in time");
-                waitingForMessages.remove(theMEssage.getMsgId());
+                waitingForMessages.remove(theMessage.getMsgId());
                 throw new RuntimeException("Did not receive answer in time!");
             }
             Thread.yield();
         }
-
-        return waitingForAnswers.remove(theMEssage.getMsgId());
+        waitingForMessages.remove(theMessage.getMsgId());
+        return waitingForAnswers.remove(theMessage.getMsgId());
     }
 
     public List<Msg> sendAndAwaitAnswers(Msg theMessage, int numberOfAnswers, long timeout) {
         List<Msg> answers = new ArrayList<>();
         storeMessage(theMessage);
+        waitingForMessages.put(theMessage.getMsgId(), theMessage);
         long start = System.currentTimeMillis();
         while (true) {
             if (waitingForAnswers.get(theMessage.getMsgId()) != null) {
@@ -889,6 +889,7 @@ public class Messaging extends Thread implements ShutdownListener {
             }
             Thread.yield();
         }
+        waitingForMessages.remove(theMessage.getMsgId());
         return answers;
     }
 
