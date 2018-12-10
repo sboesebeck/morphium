@@ -225,10 +225,10 @@ public class Morphium {
             }
 
             if (config.getMongoLogin() != null && config.getMongoPassword() != null) {
-                morphiumDriver.setCredentials(config.getMongoLogin(), config.getDatabase(), config.getMongoPassword().toCharArray());
+                morphiumDriver.setCredentials(config.getDatabase(),config.getMongoLogin(), config.getMongoPassword().toCharArray());
             }
             if (config.getMongoAdminUser() != null && config.getMongoAdminPwd() != null) {
-                morphiumDriver.setCredentials(config.getMongoAdminUser(), "admin", config.getMongoAdminPwd().toCharArray());
+                morphiumDriver.setCredentials("admin",config.getMongoAdminUser(), config.getMongoAdminPwd().toCharArray());
             }
             String[] seed = new String[config.getHostSeed().size()];
             for (int i = 0; i < seed.length; i++) {
