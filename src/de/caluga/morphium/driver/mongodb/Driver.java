@@ -389,7 +389,7 @@ public class Driver implements MorphiumDriver {
 
             List<MongoCredential> lst = new ArrayList<>();
             for (Map.Entry<String, String[]> e : credentials.entrySet()) {
-                MongoCredential cred = MongoCredential.createCredential(e.getKey(), e.getValue()[0], e.getValue()[1].toCharArray());
+                MongoCredential cred = MongoCredential.createCredential(e.getValue()[0],e.getKey(), e.getValue()[1].toCharArray());
                 lst.add(cred);
             }
 
