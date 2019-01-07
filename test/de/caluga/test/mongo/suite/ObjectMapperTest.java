@@ -215,7 +215,7 @@ public class ObjectMapperTest extends MongoTest {
 
 
     @Test
-    public void complexObjectTest() {
+    public void complexObjectTest() throws InterruptedException {
         MorphiumObjectMapper om = morphium.getMapper();
         UncachedObject o = new UncachedObject();
         o.setCounter(12345);
@@ -239,6 +239,7 @@ public class ObjectMapperTest extends MongoTest {
         o.setValue("Referenced value");
         //        o.setMongoId(new MongoId(new Date()));
         morphium.store(o);
+        Thread.sleep(500);
 
         co.setRef(o);
         co.setId(new MorphiumId());
