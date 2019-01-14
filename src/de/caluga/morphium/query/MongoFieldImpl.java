@@ -6,7 +6,6 @@ import de.caluga.morphium.MorphiumObjectMapper;
 import de.caluga.morphium.annotations.Entity;
 import de.caluga.morphium.annotations.Reference;
 import de.caluga.morphium.driver.MorphiumId;
-import de.caluga.morphium.objectmapper.ObjectMapperImplNG;
 import org.bson.types.ObjectId;
 
 import java.lang.reflect.Field;
@@ -101,7 +100,7 @@ public class MongoFieldImpl<T> implements MongoField<T> {
                     //
                     // need to compare DBRefs
                     //                        val = new MorphiumReference(val.getClass().getName(), id);
-                    if (mapper instanceof ObjectMapperImplNG || Map.class.isAssignableFrom(field.getType()) || Collection.class.isAssignableFrom(field.getType()) || List.class.isAssignableFrom(field.getType())) {
+                    if (Map.class.isAssignableFrom(field.getType()) || Collection.class.isAssignableFrom(field.getType()) || List.class.isAssignableFrom(field.getType())) {
                         fldStr = fldStr + ".refid"; //references in lists - id field in morphiumreference!!!!
                     }
                 }
@@ -115,8 +114,6 @@ public class MongoFieldImpl<T> implements MongoField<T> {
                         val = new MorphiumId((String) val);
                     } catch (Exception ignored) {
                     }
-                } else if (field.getType().isEnum() && mapper instanceof ObjectMapperImplNG) {
-                    fldStr = fldStr + ".name";
                 } else if (val.getClass().isEnum()) {
                     //noinspection ConstantConditions
                     val = ((Enum) val).name();
