@@ -7,6 +7,7 @@ import de.caluga.morphium.annotations.SafetyLevel;
 import de.caluga.morphium.annotations.WriteSafety;
 import de.caluga.morphium.annotations.caching.Cache;
 import de.caluga.morphium.annotations.caching.WriteBuffer;
+import de.caluga.morphium.cache.CacheSyncVetoException;
 import de.caluga.morphium.cache.MessagingCacheSyncListener;
 import de.caluga.morphium.cache.MessagingCacheSynchronizer;
 import de.caluga.morphium.cache.WatchingCacheSynchronizer;
@@ -302,6 +303,79 @@ public class CacheSyncTest extends MongoTest {
         assert (preSendClear);
         assert (postSendClear);
 
+    }
+
+    @Test
+    public void cacheSyncVetoTestMessaging() throws Exception {
+        morphium.dropCollection(Msg.class);
+        createCachedObjects(1000);
+
+        Morphium m1 = morphium;
+        MorphiumConfig cfg2 = new MorphiumConfig();
+        cfg2.setHostSeed(m1.getConfig().getHostSeed());
+        cfg2.setDatabase(m1.getConfig().getDatabase());
+
+        Morphium m2 = new Morphium(cfg2);
+        Messaging msg1 = new Messaging(m1, 200, true);
+        Messaging msg2 = new Messaging(m2, 200, true);
+
+        msg1.start();
+        msg2.start();
+
+        MessagingCacheSynchronizer cs1 = new MessagingCacheSynchronizer(msg1, m1);
+        MessagingCacheSynchronizer cs2 = new MessagingCacheSynchronizer(msg2, m2);
+        waitForWrites();
+        cs1.addSyncListener(new MessagingCacheSyncListener() {
+            @Override
+            public void preSendClearMsg(Class cls, Msg m) throws CacheSyncVetoException {
+                throw new CacheSyncVetoException("not sending");
+            }
+
+            @Override
+            public void postSendClearMsg(Class cls, Msg m) {
+
+            }
+
+            @Override
+            public void preClear(Class cls) throws CacheSyncVetoException {
+                throw new CacheSyncVetoException("not clearing");
+            }
+
+            @Override
+            public void postClear(Class cls) {
+
+            }
+        });
+
+        //fill caches
+        log.info("Filling caches...");
+        fillCache(m1, m2);
+
+        for (Morphium m : new Morphium[]{m1, m2}) {
+            printstats(m);
+        }
+        assert (m1.getStatistics().get("X-Entries for: resultCache|de.caluga.test.mongo.suite.data.CachedObject") > 90);
+        assert (m2.getStatistics().get("X-Entries for: resultCache|de.caluga.test.mongo.suite.data.CachedObject") > 90);
+
+        log.info("Storing to m1 - should trigger veto, no clear on m2");
+        m1.store(new CachedObject("value", 100000));
+        waitForWrites();
+        assert (m2.getStatistics().get("X-Entries for: resultCache|de.caluga.test.mongo.suite.data.CachedObject") != 0);
+        assert (m1.getStatistics().get("X-Entries for: resultCache|de.caluga.test.mongo.suite.data.CachedObject") == 0);
+
+
+        fillCache(m1, m2);
+        log.info("Storing to m2 - should trigger veto, no clear on m1");
+        m2.store(new CachedObject("value2", 102828));
+        waitForWrites();
+        assert (m2.getStatistics().get("X-Entries for: resultCache|de.caluga.test.mongo.suite.data.CachedObject") == 0);
+        assert (m1.getStatistics().get("X-Entries for: resultCache|de.caluga.test.mongo.suite.data.CachedObject") != 0);
+
+        cs1.detach();
+        cs2.detach();
+        msg1.terminate();
+        msg2.terminate();
+        m2.close();
     }
 
     @Test
