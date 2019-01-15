@@ -20,6 +20,8 @@ import static java.lang.annotation.ElementType.TYPE;
 public @interface Entity {
     String collectionName() default ".";
 
+    String passphrase() default ".";
+
     boolean translateCamelCase() default true;
 
     /**

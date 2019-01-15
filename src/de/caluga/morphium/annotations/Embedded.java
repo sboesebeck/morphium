@@ -19,6 +19,7 @@ public @interface Embedded {
     boolean translateCamelCase() default true;
 
     String typeId() default ".";
+    String passphrase() default ".";
 
     /**
      * several different objects of same type stored in field

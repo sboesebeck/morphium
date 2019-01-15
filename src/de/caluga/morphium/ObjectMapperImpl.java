@@ -4,6 +4,9 @@ import de.caluga.morphium.annotations.*;
 import de.caluga.morphium.driver.MorphiumId;
 import de.caluga.morphium.mapping.BigIntegerTypeMapper;
 import de.caluga.morphium.mapping.MorphiumTypeMapper;
+import de.caluga.morphium.security.Encryption;
+import de.caluga.morphium.security.EncryptionHelper;
+import de.caluga.morphium.security.Hash;
 import org.bson.types.ObjectId;
 import org.json.simple.parser.ContainerFactory;
 import org.json.simple.parser.JSONParser;
@@ -278,6 +281,7 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
                 if (fld.isAnnotationPresent(ReadOnly.class)) {
                     continue; //do not write value
                 }
+
                 AdditionalData ad = fld.getAnnotation(AdditionalData.class);
                 if (ad != null) {
                     if (!ad.readOnly()) {
@@ -299,7 +303,15 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
                 if (fld.isAnnotationPresent(Id.class)) {
                     fName = "_id";
                 }
+
+
+                Property p=fld.getAnnotation(Property.class);
+                boolean encryptedOrHash = p != null && (!p.encryption().equals(Encryption.NONE) || !p.hash().equals(Hash.NONE));
+
                 if (fld.isAnnotationPresent(Reference.class)) {
+                    if (encryptedOrHash){
+                        log.error("Cannot encrypt references! Reference is being stored unencrypted!");
+                    }
                     Reference r = fld.getAnnotation(Reference.class);
                     //reference handling...
                     //field should point to a certain type - store ObjectID only
@@ -377,12 +389,18 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
                         valueClass = value.getClass();
                     }
                     if (annotationHelper.isAnnotationPresentInHierarchy(valueClass, Entity.class)) {
+                        if (encryptedOrHash){
+                            log.error("Cannot encrypt nested entities");
+                        }
                         if (value != null) {
                             Map<String, Object> obj = serialize(value);
                             obj.remove("_id");  //Do not store ID embedded!
                             v = obj;
                         }
                     } else if (annotationHelper.isAnnotationPresentInHierarchy(valueClass, Embedded.class)) {
+                        if (encryptedOrHash){
+                            log.error("Cannot encrypte embedded object");
+                        }
                         if (value != null) {
                             v = serialize(value);
                         }
@@ -424,6 +442,27 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
                     if (!fld.isAnnotationPresent(UseIfnull.class)) {
                         //Do not put null-Values into dbo => not storing null-Values to db
                         continue;
+                    }
+                }
+                if (encryptedOrHash) {
+                    if (v.getClass().isArray()) {
+                        log.warn("Encryption of arrays not implemented yet");
+                    } else if (Map.class.isAssignableFrom(v.getClass())) {
+                        log.warn("Encryption of sub-documents not implemented yet");
+                    } else {
+                        //"simple" value
+                        try {
+                            byte[] b=EncryptionHelper.encrypt(p.encryption(),p.passphraseProvider().newInstance().getPassphraseFor(o.getClass(),fName),v.toString());
+                            if (p.bas64Encrypted()){
+
+                                BASE64Encoder enc = new BASE64Encoder();
+                                v = enc.encode(b);
+                            } else {
+                                v=b;
+                            }
+                        } catch (InstantiationException e1) {
+                            throw new RuntimeException(e1);
+                        }
                     }
                 }
                 dbo.put(fName, v);
@@ -976,6 +1015,17 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
                         }
                     } else {
                         value = valueFromDb;
+                    }
+                }
+                Property p=fld.getAnnotation(Property.class);
+                if (p!=null){
+                    if (!p.encryption().equals(Encryption.NONE)){
+                        value=EncryptionHelper.decrypt(p.encryption(),p.passphraseProvider().newInstance().getPassphraseFor(ret.getClass(),fld.getName()), (byte[]) valueFromDb);
+                        if (fld.getType().equals(String.class)){
+                            value=new String((byte[])value);
+                        } else {
+                            log.error("not implemented yet");
+                        }
                     }
                 }
                 annotationHelper.setValue(ret, value, f);
