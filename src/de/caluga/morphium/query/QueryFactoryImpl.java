@@ -2,6 +2,7 @@ package de.caluga.morphium.query;
 
 import de.caluga.morphium.Morphium;
 
+import java.lang.reflect.InvocationTargetException;
 import java.util.concurrent.ThreadPoolExecutor;
 
 /**
@@ -46,12 +47,12 @@ public class QueryFactoryImpl implements QueryFactory {
     @Override
     public <T> Query<T> createQuery(Morphium m, Class<? extends T> type) {
         try {
-            @SuppressWarnings("unchecked") Query<T> q = queryImpl.newInstance();
+            @SuppressWarnings("unchecked") Query<T> q = queryImpl.getDeclaredConstructor().newInstance();
             q.setMorphium(m);
             q.setType(type);
             q.setExecutor(m.getAsyncOperationsThreadPool());
             return q;
-        } catch (InstantiationException | IllegalAccessException e) {
+        } catch (InstantiationException | IllegalAccessException | NoSuchMethodException | InvocationTargetException e) {
             throw new RuntimeException(e);
         }
 

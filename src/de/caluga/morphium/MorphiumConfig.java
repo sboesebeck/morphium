@@ -21,6 +21,7 @@ import org.json.simple.parser.ParseException;
 import org.slf4j.LoggerFactory;
 
 import java.lang.reflect.Field;
+import java.lang.reflect.InvocationTargetException;
 import java.util.*;
 
 /**
@@ -160,7 +161,7 @@ public class MorphiumConfig {
             if (f.isAnnotationPresent(Transient.class)) {
                 try {
                     parseClassSettings(fName, setting,this );
-                } catch (InstantiationException | IllegalAccessException | NoSuchFieldException | ClassNotFoundException e) {
+                } catch (InstantiationException | IllegalAccessException | NoSuchFieldException | ClassNotFoundException | NoSuchMethodException | InvocationTargetException e) {
                     throw new RuntimeException(e);
                 }
                 continue;
@@ -224,7 +225,7 @@ public class MorphiumConfig {
     }
 
 
-    public static MorphiumConfig createFromJson(String json) throws NoSuchFieldException, ClassNotFoundException, IllegalAccessException, InstantiationException, ParseException {
+    public static MorphiumConfig createFromJson(String json) throws NoSuchFieldException, ClassNotFoundException, IllegalAccessException, InstantiationException, ParseException, NoSuchMethodException, InvocationTargetException {
         MorphiumConfig cfg = new ObjectMapperImpl().deserialize(MorphiumConfig.class, json);
 
         for (Object ko : cfg.restoreData.keySet()) {
@@ -243,7 +244,7 @@ public class MorphiumConfig {
         return cfg;
     }
 
-    private static void parseClassSettings(String k, Object value, MorphiumConfig cfg) throws ClassNotFoundException, NoSuchFieldException, IllegalAccessException, InstantiationException {
+    private static void parseClassSettings(String k, Object value, MorphiumConfig cfg) throws ClassNotFoundException, NoSuchFieldException, IllegalAccessException, InstantiationException, NoSuchMethodException, InvocationTargetException {
         if (!k.endsWith("ClassName")) {
             return ;
         }
@@ -260,7 +261,7 @@ public class MorphiumConfig {
         if (n[1].equals("C")) {
             f.set(cfg, cls);
         } else if (n[1].equals("I")) {
-            f.set(cfg, cls.newInstance());
+            f.set(cfg, cls.getDeclaredConstructor().newInstance());
         }
 
 
@@ -808,7 +809,7 @@ public class MorphiumConfig {
     public String toString() {
         updateAdditionals();
         try {
-            return Utils.toJsonString(getOmClass().newInstance().serialize(this));
+            return Utils.toJsonString(getOmClass().getDeclaredConstructor().newInstance().serialize(this));
         } catch (Exception e) {
             throw new RuntimeException(e);
         }

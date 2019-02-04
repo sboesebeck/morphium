@@ -44,6 +44,7 @@ public class JavaxValidationStorageListener extends MorphiumStorageAdapter<Objec
             return;
         }
         Set<ConstraintViolation<Object>> violations = validator.validate(r);
+        violations=new HashSet<>(violations);
         List<String> flds = annotationHelper.getFields(r.getClass());
         for (String f : flds) {
             Field field = annotationHelper.getField(r.getClass(), f);
@@ -68,7 +69,7 @@ public class JavaxValidationStorageListener extends MorphiumStorageAdapter<Objec
                         for (Object o : lst) {
                             map.put(o, isNew);
                         }
-                        validatePrestor(m, violations, map);
+                        validatePrestore(m, violations, map);
 
                     }
 
@@ -85,7 +86,7 @@ public class JavaxValidationStorageListener extends MorphiumStorageAdapter<Objec
                         for (Object val : map.values()) {
                             lst.put(val, isNew);
                         }
-                        validatePrestor(m, violations, lst);
+                        validatePrestore(m, violations, lst);
                     }
 
                 } catch (IllegalAccessException e) {
@@ -99,14 +100,16 @@ public class JavaxValidationStorageListener extends MorphiumStorageAdapter<Objec
         }
     }
 
-    private void validatePrestor(Morphium m, Set<ConstraintViolation<Object>> violations, Map<Object, Boolean> map) {
+    private void validatePrestore(Morphium m, Set<ConstraintViolation<Object>> violations, Map<Object, Boolean> map) {
         try {
             preStore(m, map);
         } catch (ConstraintViolationException e) {
             Set<ConstraintViolation<?>> constraintViolations = e.getConstraintViolations();
             //ADDall not possible due to generics mess
             //noinspection Convert2streamapi
-            for (ConstraintViolation v : constraintViolations) violations.add(v);
+            for (ConstraintViolation v : constraintViolations) {
+                violations.add(v);
+            }
         }
     }
 

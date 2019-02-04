@@ -129,13 +129,13 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
         }
     }
 
-    private NameProvider getNameProviderForClass(Class<?> cls, Entity p) throws IllegalAccessException, InstantiationException {
+    private NameProvider getNameProviderForClass(Class<?> cls, Entity p) throws IllegalAccessException, InstantiationException, NoSuchMethodException, InvocationTargetException {
         if (p == null) {
             throw new IllegalArgumentException("No Entity " + cls.getSimpleName());
         }
 
         if (nameProviders.get(cls) == null) {
-            NameProvider np = p.nameProvider().newInstance();
+            NameProvider np = p.nameProvider().getDeclaredConstructor().newInstance();
             setNameProviderForClass(cls, np);
         }
         return nameProviders.get(cls);
@@ -155,7 +155,7 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
         } catch (InstantiationException e) {
             log.error("Could not instanciate NameProvider: " + p.nameProvider().getName(), e);
             throw new RuntimeException("Could not Instaciate NameProvider", e);
-        } catch (IllegalAccessException e) {
+        } catch (IllegalAccessException|NoSuchMethodException|InvocationTargetException e) {
             log.error("Illegal Access during instanciation of NameProvider: " + p.nameProvider().getName(), e);
             throw new RuntimeException("Illegal Access during instanciation", e);
         }

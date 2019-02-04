@@ -32,6 +32,7 @@ import org.slf4j.LoggerFactory;
 import java.io.Serializable;
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Field;
+import java.lang.reflect.InvocationTargetException;
 import java.text.SimpleDateFormat;
 import java.util.*;
 import java.util.concurrent.*;
@@ -198,7 +199,7 @@ public class Morphium {
 
 
             try {
-                morphiumDriver = (MorphiumDriver) Class.forName(config.getDriverClass()).newInstance();
+                morphiumDriver = (MorphiumDriver) Class.forName(config.getDriverClass()).getDeclaredConstructor().newInstance();
             } catch (Exception e) {
                 throw new RuntimeException(e);
             }
@@ -281,7 +282,7 @@ public class Morphium {
             addListener(new JavaxValidationStorageListener());
         }
         try {
-            objectMapper = config.getOmClass().newInstance();
+            objectMapper = config.getOmClass().getDeclaredConstructor().newInstance();
             objectMapper.setMorphium(this);
         } catch (Exception e) {
             throw new RuntimeException(e);
@@ -2627,8 +2628,8 @@ public class Morphium {
             return new MongoFieldImpl<>();
         }
         try {
-            return (MongoField<T>) config.getFieldImplClass().newInstance();
-        } catch (InstantiationException | IllegalAccessException e) {
+            return (MongoField<T>) config.getFieldImplClass().getDeclaredConstructor().newInstance();
+        } catch (InstantiationException | IllegalAccessException | NoSuchMethodException | InvocationTargetException e) {
             throw new RuntimeException(e);
         }
     }
