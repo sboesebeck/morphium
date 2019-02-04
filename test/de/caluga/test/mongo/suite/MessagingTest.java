@@ -699,7 +699,7 @@ public class MessagingTest extends MongoTest {
             int numberOfMessages = 100;
             long ttl = 15000; //15 sec
 
-            final boolean failed[] = {false};
+            final boolean[] failed = {false};
             morphium.clearCollection(Msg.class);
 
             final Map<MorphiumId, Integer> processedMessages = new Hashtable<>();
@@ -897,23 +897,20 @@ public class MessagingTest extends MongoTest {
         consumer.start();
         Vector<String> processedIds = new Vector<>();
         procCounter.set(0);
-        consumer.addMessageListener(new MessageListener() {
-            @Override
-            public Msg onMessage(Messaging msg, Msg m) {
-                procCounter.incrementAndGet();
-                if (processedIds.contains(m.getMsgId().toString())) {
-                    log.error("Received msg twice: " + procCounter.get() + "/" + m.getMsgId());
-                    return null;
-                }
-                processedIds.add(m.getMsgId().toString());
-                //simulate processing
-                try {
-                    Thread.sleep((long) (100 * Math.random()));
-                } catch (InterruptedException e) {
-
-                }
+        consumer.addMessageListener((msg, m) -> {
+            procCounter.incrementAndGet();
+            if (processedIds.contains(m.getMsgId().toString())) {
+                log.error("Received msg twice: " + procCounter.get() + "/" + m.getMsgId());
                 return null;
             }
+            processedIds.add(m.getMsgId().toString());
+            //simulate processing
+            try {
+                Thread.sleep((long) (100 * Math.random()));
+            } catch (InterruptedException e) {
+
+            }
+            return null;
         });
         Thread.sleep(2500);
         int amount=1000;
@@ -946,23 +943,20 @@ public class MessagingTest extends MongoTest {
         Thread.sleep(2500);
         final int[] processed={0};
         final Vector<String> messageIds = new Vector<>();
-        consumer.addMessageListener(new MessageListener() {
-            @Override
-            public Msg onMessage(Messaging msg, Msg m) {
-                processed[0]++;
-                if (processed[0] % 50 == 1) {
-                    log.info(processed[0] + "... Got Message " + m.getName() + " / " + m.getMsg() + " / " + m.getValue());
-                }
-                assert (!messageIds.contains(m.getMsgId().toString())) : "Duplicate message: " + processed[0];
-                messageIds.add(m.getMsgId().toString());
-                //simulate processing
-                try {
-                    Thread.sleep((long) (10*Math.random()));
-                } catch (InterruptedException e) {
-
-                }
-                return null;
+        consumer.addMessageListener((msg, m) -> {
+            processed[0]++;
+            if (processed[0] % 50 == 1) {
+                log.info(processed[0] + "... Got Message " + m.getName() + " / " + m.getMsg() + " / " + m.getValue());
             }
+            assert (!messageIds.contains(m.getMsgId().toString())) : "Duplicate message: " + processed[0];
+            messageIds.add(m.getMsgId().toString());
+            //simulate processing
+            try {
+                Thread.sleep((long) (10 * Math.random()));
+            } catch (InterruptedException e) {
+
+            }
+            return null;
         });
 
         int amount=1000;
@@ -1209,13 +1203,10 @@ public class MessagingTest extends MongoTest {
         Messaging sender = new Messaging(morphium, 100, false);
         sender.start();
         Thread.sleep(2500);
-        sender.addMessageListener((new MessageListener() {
-            @Override
-            public Msg onMessage(Messaging msg, Msg m) {
-                gotMessage = true;
-                log.info("Got message: " + m.getMsg() + "/" + m.getName());
-                return null;
-            }
+        sender.addMessageListener(((msg, m) -> {
+            gotMessage = true;
+            log.info("Got message: " + m.getMsg() + "/" + m.getName());
+            return null;
         }));
         gotMessage = false;
         gotMessage1 = false;
@@ -1431,24 +1422,21 @@ public class MessagingTest extends MongoTest {
         gotMessage2=false;
 
         Messaging m1 = new Messaging(morphium, 10, false, multithreadded, 10);
-        m1.addListenerForMessageNamed("test",new MessageListener() {
-            @Override
-            public Msg onMessage(Messaging msg, Msg m) {
-                msg.pauseProcessingOfMessagesNamed("test");
-                try {
-                    log.info("Incoming message " + m.getMsgId() + "/" + m.getMsg() + " from " + m.getSender() + " my id: " + msg.getSenderId());
-                    Thread.sleep(1000);
-                    if (m.getMsg().equals("test1")) {
-                        gotMessage1=true;
-                    }
-                    if (m.getMsg().equals("test2")){
-                        gotMessage2=true;
-                    }
-                } catch (InterruptedException e) {
+        m1.addListenerForMessageNamed("test", (msg, m) -> {
+            msg.pauseProcessingOfMessagesNamed("test");
+            try {
+                log.info("Incoming message " + m.getMsgId() + "/" + m.getMsg() + " from " + m.getSender() + " my id: " + msg.getSenderId());
+                Thread.sleep(1000);
+                if (m.getMsg().equals("test1")) {
+                    gotMessage1 = true;
                 }
-                msg.unpauseProcessingOfMessagesNamed("test");
-                return null;
+                if (m.getMsg().equals("test2")) {
+                    gotMessage2 = true;
+                }
+            } catch (InterruptedException e) {
             }
+            msg.unpauseProcessingOfMessagesNamed("test");
+            return null;
         });
         m1.start();
         log.info("receiver id: "+m1.getSenderId());

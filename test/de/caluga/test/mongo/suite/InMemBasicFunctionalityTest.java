@@ -789,28 +789,25 @@ public class InMemBasicFunctionalityTest extends InMemTest {
 
 
         for (int i = 0; i < 3; i++) {
-            new Thread() {
-                @Override
-                public void run() {
-                    int myNum = runningThreads++;
-                    log.info("Starting thread..." + myNum);
-                    Query<UncachedObject> qu = morphium.createQueryFor(UncachedObject.class).sort("counter");
-                    qu.setCollectionName("test_uc");
-                    //                    MorphiumIterator<UncachedObject> it = qu.asIterable(5000, 15);
-                    MorphiumIterator<UncachedObject>[] toTest = new MorphiumIterator[]{qu.asIterable(), qu.asIterable(1000, 1), qu.asIterable(1000)};
-                    for (MorphiumIterator<UncachedObject> it : toTest) {
-                        for (UncachedObject uc : it) {
-                            assert (it.getCursor() == uc.getCounter());
-                            if (it.getCursor() % 2500 == 0) {
-                                log.info("Thread " + myNum + " read " + it.getCursor() + "/" + it.getCount());
-                                Thread.yield();
-                            }
+            new Thread(() -> {
+                int myNum = runningThreads++;
+                log.info("Starting thread..." + myNum);
+                Query<UncachedObject> qu = morphium.createQueryFor(UncachedObject.class).sort("counter");
+                qu.setCollectionName("test_uc");
+                //                    MorphiumIterator<UncachedObject> it = qu.asIterable(5000, 15);
+                MorphiumIterator<UncachedObject>[] toTest = new MorphiumIterator[]{qu.asIterable(), qu.asIterable(1000, 1), qu.asIterable(1000)};
+                for (MorphiumIterator<UncachedObject> it : toTest) {
+                    for (UncachedObject uc : it) {
+                        assert (it.getCursor() == uc.getCounter());
+                        if (it.getCursor() % 2500 == 0) {
+                            log.info("Thread " + myNum + " read " + it.getCursor() + "/" + it.getCount());
+                            Thread.yield();
                         }
                     }
-                    runningThreads--;
-                    log.info("Thread finished");
                 }
-            }.start();
+                runningThreads--;
+                log.info("Thread finished");
+            }).start();
             Thread.sleep(250);
         }
         Thread.sleep(1000);
