@@ -365,7 +365,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
 
                     Map<String, Object> marshall = morphium.getMapper().serialize(o);
 
-                    String coll = collection;
+                    var coll = collection;
                     if (coll == null) {
                         coll = morphium.getMapper().getCollectionName(type);
                     }
@@ -379,7 +379,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                     } catch (Throwable t) {
                         throw new RuntimeException(t);
                     }
-                    long dur = System.currentTimeMillis() - start;
+                    var dur = System.currentTimeMillis() - start;
                     morphium.fireProfilingWriteEvent(o.getClass(), marshall, dur, true, WriteAccessType.SINGLE_INSERT);
 
 
@@ -1170,13 +1170,13 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                     morphium.getCache().clearCacheIfNecessary(morphium.getARHelper().getRealClass(ent.getClass()));
                     morphium.firePostStore(ent, false);
                     if (callback != null) {
-                        callback.onOperationSucceeded(AsyncOperationType.UPDATE, null, System.currentTimeMillis() - start, null, ent, fields);
+                        callback.onOperationSucceeded(AsyncOperationType.UPDATE, null, System.currentTimeMillis() - start, null, ent, (Object)fields);
                     }
                 } catch (Exception e) {
                     if (callback == null) {
                         throw new RuntimeException(e);
                     }
-                    callback.onOperationError(AsyncOperationType.UPDATE, null, System.currentTimeMillis() - start, e.getMessage(), e, ent, fields);
+                    callback.onOperationError(AsyncOperationType.UPDATE, null, System.currentTimeMillis() - start, e.getMessage(), e, ent, (Object)fields);
                 }
             }
         };

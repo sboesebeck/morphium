@@ -708,7 +708,7 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
     @Override
     public MorphiumIterator<T> asIterable(int windowSize, Class<? extends MorphiumIterator<T>> it) {
         try {
-            MorphiumIterator<T> ret = it.newInstance();
+            MorphiumIterator<T> ret = it.getDeclaredConstructor().newInstance();
             return asIterable(windowSize, ret);
         } catch (Exception e) {
             throw new RuntimeException(e);
