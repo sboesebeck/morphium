@@ -790,7 +790,7 @@ public class Messaging extends Thread implements ShutdownListener {
         if (m.getTo() != null && !m.getTo().isEmpty()) {
             for (String recipient : m.getTo()) {
                 try {
-                    Msg msg = m.getClass().newInstance();
+                    Msg msg = m.getClass().getDeclaredConstructor().newInstance();
                     List<Field> flds = morphium.getARHelper().getAllFields(m.getClass());
                     for (Field f : flds) {
                         f.setAccessible(true);

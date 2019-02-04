@@ -1,5 +1,9 @@
 package de.caluga.morphium.aggregation;
 
+import com.sun.jdi.InvocationException;
+
+import java.lang.reflect.InvocationTargetException;
+
 /**
  * User: Stephan Bösebeck
  * Date: 31.08.12
@@ -31,11 +35,11 @@ public class AggregatorFactoryImpl implements AggregatorFactory {
     @Override
     public <T, R> Aggregator<T, R> createAggregator(Class<? extends T> type, Class<? extends R> resultType) {
         try {
-            Aggregator<T, R> a = (Aggregator<T, R>) aggregatorClass.newInstance();
+            Aggregator<T, R> a = (Aggregator<T, R>) aggregatorClass.getDeclaredConstructor().newInstance();
             a.setSearchType(type);
             a.setResultType(resultType);
             return a;
-        } catch (InstantiationException | IllegalAccessException e) {
+        } catch (InstantiationException | IllegalAccessException | NoSuchMethodException | InvocationTargetException e) {
             throw new RuntimeException(e);
         }
 
