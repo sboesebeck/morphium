@@ -133,17 +133,14 @@ public class ObjectMapperTest extends MongoTest {
     public void massiveParallelGetCollectionNameTest() {
 
         for (int i = 0; i < 100; i++) {
-            new Thread() {
-                @Override
-                public void run() {
-                    MorphiumObjectMapper om = morphium.getMapper();
-                    assert (om.getCollectionName(CachedObject.class).equals("cached_object")) : "Cached object test failed";
-                    yield();
-                    assert (om.getCollectionName(UncachedObject.class).equals("uncached_object_" + TestEntityNameProvider.number.get())) : "Uncached object test failed";
-                    yield();
-                    assert (om.getCollectionName(ComplexObject.class).equals("ComplexObject")) : "complex object test failed";
-                }
-            }.start();
+            new Thread(() -> {
+                MorphiumObjectMapper om = morphium.getMapper();
+                assert (om.getCollectionName(CachedObject.class).equals("cached_object")) : "Cached object test failed";
+                Thread.yield();
+                assert (om.getCollectionName(UncachedObject.class).equals("uncached_object_" + TestEntityNameProvider.number.get())) : "Uncached object test failed";
+                Thread.yield();
+                assert (om.getCollectionName(ComplexObject.class).equals("ComplexObject")) : "complex object test failed";
+            }).start();
         }
     }
 

@@ -169,12 +169,12 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
 
                             createIndexAndCaps(c, coll, callback);
 
-                            HashMap<Integer, Object> mapMarshalledNewObjects = new HashMap<>();
+                            //HashMap<Integer, Object> mapMarshalledNewObjects = new HashMap<>();
                             for (Object record : es.getValue()) {
                                 setIdIfNull(record);
                                 Map<String, Object> marshall = morphium.getMapper().serialize(record);
                                 dbLst.add(marshall);
-                                mapMarshalledNewObjects.put(dbLst.size() - 1, record);
+                                //mapMarshalledNewObjects.put(dbLst.size() - 1, record);
                             }
 
                             long start = System.currentTimeMillis();
@@ -776,12 +776,12 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                             }
 
                             Entity en = morphium.getARHelper().getAnnotationFromHierarchy(c, Entity.class);
-                            HashMap<Integer, Object> mapMarshalledNewObjects = new HashMap<>();
+                            //HashMap<Integer, Object> mapMarshalledNewObjects = new HashMap<>();
                             for (Object record : es.getValue()) {
                                 setIdIfNull(record);
                                 Map<String, Object> marshall = morphium.getMapper().serialize(record);
                                 dbLst.add(marshall);
-                                mapMarshalledNewObjects.put(dbLst.size() - 1, record);
+                                //mapMarshalledNewObjects.put(dbLst.size() - 1, record);
                             }
 
                             long start = System.currentTimeMillis();
@@ -1007,9 +1007,6 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                     morphium.getCache().clearCacheIfNecessary(cls);
 
                     try {
-                        if (f.getType().isEnum()){
-                            value = Enum.valueOf((Class) f.getType(), value.toString());
-                        }
                         f.set(toSet, v);
                     } catch (IllegalAccessException e) {
                         throw new RuntimeException(e);

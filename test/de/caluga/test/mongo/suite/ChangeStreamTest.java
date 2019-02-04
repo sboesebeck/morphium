@@ -19,7 +19,7 @@ public class ChangeStreamTest extends MongoTest {
         morphium.dropCollection(ComplexObject.class);
         morphium.dropCollection(UncachedObject.class);
         count = 0;
-        final boolean run[] = {true};
+        final boolean[] run = {true};
         morphium.watchDbAsync(true, evt -> {
             printevent(evt);
             count++;
@@ -43,27 +43,25 @@ public class ChangeStreamTest extends MongoTest {
     @Test
     public void changeStreamBackgroundTest() throws Exception {
         morphium.dropCollection(UncachedObject.class);
-        final boolean run[] = {true};
+        final boolean[] run = {true};
         try {
-            final int count[] = {0};
-            final int written[] = {0};
-            new Thread() {
-                public void run() {
-                    while (run[0]) {
-                        try {
-                            sleep(2500);
-                        } catch (InterruptedException e) {
-                        }
-                        morphium.store(new UncachedObject("value", (int) (1 + (Math.random() * 100.0))));
-                        log.info("Written");
-                        written[0]++;
-                        morphium.set(morphium.createQueryFor(UncachedObject.class).f("counter").lt(50), "value", "newVal");
-                        log.info("updated");
-                        written[0]++;
+            final int[] count = {0};
+            final int[] written = {0};
+            new Thread(() -> {
+                while (run[0]) {
+                    try {
+                        Thread.sleep(2500);
+                    } catch (InterruptedException e) {
                     }
-                    log.info("Thread finished");
+                    morphium.store(new UncachedObject("value", (int) (1 + (Math.random() * 100.0))));
+                    log.info("Written");
+                    written[0]++;
+                    morphium.set(morphium.createQueryFor(UncachedObject.class).f("counter").lt(50), "value", "newVal");
+                    log.info("updated");
+                    written[0]++;
                 }
-            }.start();
+                log.info("Thread finished");
+            }).start();
             start = System.currentTimeMillis();
             morphium.watchAsync(UncachedObject.class, true, evt -> {
                 count[0]++;
@@ -87,9 +85,9 @@ public class ChangeStreamTest extends MongoTest {
     @Test
     public void changeStreamInsertTest() throws Exception {
         morphium.dropCollection(UncachedObject.class);
-        final boolean run[] = {true};
-        int count[] = {0};
-        int written[] = {0};
+        final boolean[] run = {true};
+        int[] count = {0};
+        int[] written = {0};
         new Thread(() -> {
             while (run[0]) {
                 try {
@@ -121,8 +119,8 @@ public class ChangeStreamTest extends MongoTest {
         Thread.sleep(1500);
         createUncachedObjects(100);
         log.info("Init finished...");
-        final boolean run[] = {true};
-        final int count[] = {0};
+        final boolean[] run = {true};
+        final int[] count = {0};
         start = System.currentTimeMillis();
 
         long start = System.currentTimeMillis();

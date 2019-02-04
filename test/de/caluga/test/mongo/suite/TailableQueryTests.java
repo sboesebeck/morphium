@@ -25,22 +25,20 @@ public class TailableQueryTests extends MongoTest {
         m.store(new CappedCollectionTest.CappedCol("Test 2", 2));
         Thread.sleep(100);
         found = false;
-        new Thread() {
-            public void run() {
-                Query<CappedCollectionTest.CappedCol> q = m.createQueryFor(CappedCollectionTest.CappedCol.class);
-                q.tail(10, 0, new AsyncCallbackAdapter<CappedCollectionTest.CappedCol>() {
-                    @Override
-                    public void onOperationSucceeded(AsyncOperationType type, Query<CappedCollectionTest.CappedCol> q, long duration, List<CappedCollectionTest.CappedCol> result, CappedCollectionTest.CappedCol entity, Object... param) {
-                        log.info("Got incoming!!! " + entity.getValue() + " " + entity.getCounter());
-                        found = true;
-                        if (entity.getValue().equals("Test 3 - quit")) {
-                            throw new MorphiumAccessVetoException("Quitting");
-                        }
+        new Thread(() -> {
+            Query<CappedCollectionTest.CappedCol> q = m.createQueryFor(CappedCollectionTest.CappedCol.class);
+            q.tail(10, 0, new AsyncCallbackAdapter<CappedCollectionTest.CappedCol>() {
+                @Override
+                public void onOperationSucceeded(AsyncOperationType type, Query<CappedCollectionTest.CappedCol> q, long duration, List<CappedCollectionTest.CappedCol> result, CappedCollectionTest.CappedCol entity, Object... param) {
+                    log.info("Got incoming!!! " + entity.getValue() + " " + entity.getCounter());
+                    found = true;
+                    if (entity.getValue().equals("Test 3 - quit")) {
+                        throw new MorphiumAccessVetoException("Quitting");
                     }
-                });
-                assert (found);
-            }
-        }.start();
+                }
+            });
+            assert (found);
+        }).start();
 
         Thread.sleep(1500);
         assert (found);

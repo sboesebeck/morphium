@@ -7,8 +7,6 @@ import de.caluga.test.mongo.suite.data.CachedObject;
 import de.caluga.test.mongo.suite.data.UncachedObject;
 import org.junit.Test;
 
-import java.util.Map;
-
 /**
  * Created by stephan on 15.11.16.
  */
@@ -21,12 +19,9 @@ public class OplogMonitorTest extends MongoTest {
             log.warn("Cannot test oplog on non-replicaset installation");
             return;
         }
-        OplogListener lst = new OplogListener() {
-            @Override
-            public void incomingData(Map<String, Object> data) {
-                log.info(Utils.toJsonString(data));
-                gotIt = true;
-            }
+        OplogListener lst = data -> {
+            log.info(Utils.toJsonString(data));
+            gotIt = true;
         };
         OplogMonitor olm = new OplogMonitor(morphium);
         olm.addListener(lst);
@@ -62,12 +57,9 @@ public class OplogMonitorTest extends MongoTest {
             log.warn("Cannot test oplog on non-replicaset installation");
             return;
         }
-        OplogListener lst = new OplogListener() {
-            @Override
-            public void incomingData(Map<String, Object> data) {
-                gotIt = true;
-                log.info("Got data:" + Utils.toJsonString(data));
-            }
+        OplogListener lst = data -> {
+            gotIt = true;
+            log.info("Got data:" + Utils.toJsonString(data));
         };
         OplogMonitor olm = new OplogMonitor(morphium, UncachedObject.class);
         olm.addListener(lst);

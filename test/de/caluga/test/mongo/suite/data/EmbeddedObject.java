@@ -2,6 +2,8 @@ package de.caluga.test.mongo.suite.data;
 
 import de.caluga.morphium.annotations.Embedded;
 
+import java.util.Objects;
+
 /**
  * User: Stephan Bösebeck
  * Date: 28.05.12
@@ -58,7 +60,7 @@ public class EmbeddedObject {
 
         EmbeddedObject that = (EmbeddedObject) o;
 
-        return testValueLong == that.testValueLong && !(name != null ? !name.equals(that.name) : that.name != null) && !(value != null ? !value.equals(that.value) : that.value != null);
+        return testValueLong == that.testValueLong && !(!Objects.equals(name, that.name)) && !(!Objects.equals(value, that.value));
 
     }
 

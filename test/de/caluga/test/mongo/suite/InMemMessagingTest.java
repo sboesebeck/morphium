@@ -42,17 +42,17 @@ public class InMemMessagingTest extends InMemTest {
 
     @Test
     public void getAnswersTest() throws Exception {
-        Messaging m1=new Messaging(morphium, 10, false,true,10);
-        Messaging m2=new Messaging(morphium, 10, false,true,10);
+        Messaging m1 = new Messaging(morphium, 10, false, true, 10);
+        Messaging m2 = new Messaging(morphium, 10, false, true, 10);
 
         m1.start();
         m2.start();
 
-        m2.addListenerForMessageNamed("question",(msg,m)->{
-            Msg answer=m.createAnswerMsg();
+        m2.addListenerForMessageNamed("question", (msg, m) -> {
+            Msg answer = m.createAnswerMsg();
             msg.storeMessage(answer);
             Thread.sleep(1000);
-            answer=m.createAnswerMsg();
+            answer = m.createAnswerMsg();
             return answer;
         });
 
@@ -63,26 +63,26 @@ public class InMemMessagingTest extends InMemTest {
 
         Msg question = new Msg("question", "question", "a value");
         question.setPriority(5);
-        List<Msg> answers=m1.sendAndAwaitAnswers(question,2,5000);
-        assert(answers!=null&&!answers.isEmpty());
-        assert(answers.size()==2);
-        for (Msg m:answers){
-            assert(m.getInAnswerTo()!=null);
-            assert(m.getInAnswerTo().equals(question.getMsgId()));
+        List<Msg> answers = m1.sendAndAwaitAnswers(question, 2, 5000);
+        assert (answers != null && !answers.isEmpty());
+        assert (answers.size() == 2);
+        for (Msg m : answers) {
+            assert (m.getInAnswerTo() != null);
+            assert (m.getInAnswerTo().equals(question.getMsgId()));
         }
     }
 
 
     @Test
     public void answerWithoutListener() throws Exception {
-        Messaging m1=new Messaging(morphium, 100, false,true,10);
-        Messaging m2=new Messaging(morphium, 100, false,true,10);
+        Messaging m1 = new Messaging(morphium, 100, false, true, 10);
+        Messaging m2 = new Messaging(morphium, 100, false, true, 10);
         try {
             m1.start();
             m2.start();
 
-            m2.addListenerForMessageNamed("question",(msg,m)->{
-                Msg answer=m.createAnswerMsg();
+            m2.addListenerForMessageNamed("question", (msg, m) -> {
+                Msg answer = m.createAnswerMsg();
                 return answer;
             });
 
@@ -90,8 +90,8 @@ public class InMemMessagingTest extends InMemTest {
             stuck.setPriority(0);
             m1.storeMessage(stuck);
 
-            Msg answer=m1.sendAndAwaitFirstAnswer(new Msg("question","question","a value"),5000);
-            assert(answer!=null);
+            Msg answer = m1.sendAndAwaitFirstAnswer(new Msg("question", "question", "a value"), 5000);
+            assert (answer != null);
         } finally {
             m1.terminate();
             m2.terminate();
@@ -847,19 +847,16 @@ public class InMemMessagingTest extends InMemTest {
         producer.start();
         consumer.start();
         final int[] processed = {0};
-        consumer.addMessageListener(new MessageListener() {
-            @Override
-            public Msg onMessage(Messaging msg, Msg m) {
-                processed[0]++;
+        consumer.addMessageListener((msg, m) -> {
+            processed[0]++;
 //                log.info("Got message...");
-                //simulate processing
-                try {
-                    Thread.sleep((long) (100 * Math.random()));
-                } catch (InterruptedException e) {
+            //simulate processing
+            try {
+                Thread.sleep((long) (100 * Math.random()));
+            } catch (InterruptedException e) {
 
-                }
-                return null;
             }
+            return null;
         });
 
         int amount = 100;
@@ -889,19 +886,16 @@ public class InMemMessagingTest extends InMemTest {
         producer.start();
         consumer.start();
         final int[] processed = {0};
-        consumer.addMessageListener(new MessageListener() {
-            @Override
-            public Msg onMessage(Messaging msg, Msg m) {
+        consumer.addMessageListener((msg, m) -> {
 //                log.info("Got Message "+m.getName()+" / "+m.getMsg()+" / "+m.getValue());
-                processed[0]++;
-                //simulate processing
-                try {
-                    Thread.sleep((long) (10 * Math.random()));
-                } catch (InterruptedException e) {
+            processed[0]++;
+            //simulate processing
+            try {
+                Thread.sleep((long) (10 * Math.random()));
+            } catch (InterruptedException e) {
 
-                }
-                return null;
             }
+            return null;
         });
 
         int amount = 1000;
@@ -1131,13 +1125,10 @@ public class InMemMessagingTest extends InMemTest {
         morphium.dropCollection(Msg.class);
         Messaging sender = new Messaging(morphium, 100, false);
         sender.start();
-        sender.addMessageListener((new MessageListener() {
-            @Override
-            public Msg onMessage(Messaging msg, Msg m) {
-                gotMessage = true;
-                log.info("Got message: " + m.getMsg() + "/" + m.getName());
-                return null;
-            }
+        sender.addMessageListener(((msg, m) -> {
+            gotMessage = true;
+            log.info("Got message: " + m.getMsg() + "/" + m.getName());
+            return null;
         }));
         gotMessage = false;
         gotMessage1 = false;
@@ -1344,24 +1335,21 @@ public class InMemMessagingTest extends InMemTest {
         gotMessage2 = false;
 
         Messaging m1 = new Messaging(morphium, 100, true, true, 10);
-        m1.addListenerForMessageNamed("test", new MessageListener() {
-            @Override
-            public Msg onMessage(Messaging msg, Msg m) {
-                msg.pauseProcessingOfMessagesNamed("test");
-                try {
-                    log.info("Incoming message " + m.getMsg() + " my id: " + msg.getSenderId());
-                    Thread.sleep(1000);
-                    if (m.getMsg().equals("test1")) {
-                        gotMessage1 = true;
-                    }
-                    if (m.getMsg().equals("test2")) {
-                        gotMessage2 = true;
-                    }
-                } catch (InterruptedException e) {
+        m1.addListenerForMessageNamed("test", (msg, m) -> {
+            msg.pauseProcessingOfMessagesNamed("test");
+            try {
+                log.info("Incoming message " + m.getMsg() + " my id: " + msg.getSenderId());
+                Thread.sleep(1000);
+                if (m.getMsg().equals("test1")) {
+                    gotMessage1 = true;
                 }
-                msg.unpauseProcessingOfMessagesNamed("test");
-                return null;
+                if (m.getMsg().equals("test2")) {
+                    gotMessage2 = true;
+                }
+            } catch (InterruptedException e) {
             }
+            msg.unpauseProcessingOfMessagesNamed("test");
+            return null;
         });
         m1.start();
         log.info("receiver id: " + m1.getSenderId());
@@ -1489,21 +1477,21 @@ public class InMemMessagingTest extends InMemTest {
     public void priorityTest() throws Exception {
         Messaging sender = null;
         Messaging receiver = null;
+
+        morphium.dropCollection(Msg.class);
+        Thread.sleep(1000);
+        sender = new Messaging(morphium, 1000, false);
+        sender.start();
+
+        list.clear();
+
+        receiver = new Messaging(morphium, 100, false);
+        receiver.addMessageListener((msg, m) -> {
+            assert (!list.contains(m));
+            list.add(m);
+            return null;
+        });
         try {
-            morphium.dropCollection(Msg.class);
-            Thread.sleep(1000);
-            sender = new Messaging(morphium, 1000, false);
-            sender.start();
-
-            list.clear();
-
-            receiver = new Messaging(morphium, 100, false);
-            receiver.addMessageListener((msg, m) -> {
-                assert (!list.contains(m));
-                list.add(m);
-                return null;
-            });
-
             for (int i = 0; i < 10; i++) {
                 Msg m = new Msg("test", "test", "test");
                 m.setPriority((int) (1000.0 * Math.random()));

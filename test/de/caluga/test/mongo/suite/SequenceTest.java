@@ -89,20 +89,17 @@ public class SequenceTest extends MongoTest {
         Vector<Thread> thr = new Vector<>();
         final Vector<Long> data = new Vector<>();
         for (int i = 0; i < 10; i++) {
-            Thread t = new Thread() {
-                @Override
-                public void run() {
-                    for (int i = 0; i < 25; i++) {
-                        long nv = sg1.getNextValue();
-                        assert (!data.contains(nv)) : "Value already stored? Value: " + nv;
-                        data.add(nv);
-                        try {
-                            sleep(10);
-                        } catch (InterruptedException e) {
-                        }
+            Thread t = new Thread(() -> {
+                for (int i1 = 0; i1 < 25; i1++) {
+                    long nv = sg1.getNextValue();
+                    assert (!data.contains(nv)) : "Value already stored? Value: " + nv;
+                    data.add(nv);
+                    try {
+                        Thread.sleep(10);
+                    } catch (InterruptedException e) {
                     }
                 }
-            };
+            });
             t.start();
             thr.add(t);
         }
@@ -131,21 +128,18 @@ public class SequenceTest extends MongoTest {
 
         Vector<Thread> thr = new Vector<>();
         for (final SequenceGenerator g : gens) {
-            Thread t = new Thread() {
-                @Override
-                public void run() {
-                    double max = Math.random() * 10;
-                    for (int i = 0; i < max; i++) {
-                        long cv = g.getCurrentValue();
-                        long nv = g.getNextValue();
-                        assert (nv == cv + g.getInc());
-                        try {
-                            sleep(10);
-                        } catch (InterruptedException e) {
-                        }
+            Thread t = new Thread(() -> {
+                double max = Math.random() * 10;
+                for (int i = 0; i < max; i++) {
+                    long cv = g.getCurrentValue();
+                    long nv = g.getNextValue();
+                    assert (nv == cv + g.getInc());
+                    try {
+                        Thread.sleep(10);
+                    } catch (InterruptedException e) {
                     }
                 }
-            };
+            });
             thr.add(t);
             log.info("started thread for seqence " + g.getName());
             t.start();

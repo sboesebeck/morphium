@@ -44,54 +44,45 @@ public class FailoverTests extends MongoTest {
             wt.start();
         }
         Thread.sleep(1000); //let him write something
-        new Thread() {
-            @Override
-            public void run() {
-                JOptionPane.showMessageDialog(null, "Stop");
-                read = false;
-            }
-        }.start();
+        new Thread(() -> {
+            JOptionPane.showMessageDialog(null, "Stop");
+            read = false;
+        }).start();
 
         //create more readers
 
         for (int i = 0; i < readers; i++) {
-            new Thread() {
-                @Override
-                public void run() {
-                    while (read) {
-                        try {
-                            Query<UncachedObject> q = morphium.createQueryFor(UncachedObject.class);
-                            long cnt = q.asList().size();
-                            //                            log.info("reading..." + cnt);
-                            assert (cnt > 0);
-                            Thread.sleep((long) (1000 * Math.random() + 100));
-                        } catch (Exception e) {
-                            log.error("Error during read", e);
-                            readError++;
-                        }
+            new Thread(() -> {
+                while (read) {
+                    try {
+                        Query<UncachedObject> q = morphium.createQueryFor(UncachedObject.class);
+                        long cnt = q.asList().size();
+                        //                            log.info("reading..." + cnt);
+                        assert (cnt > 0);
+                        Thread.sleep((long) (1000 * Math.random() + 100));
+                    } catch (Exception e) {
+                        log.error("Error during read", e);
+                        readError++;
                     }
                 }
-            }.start();
+            }).start();
         }
 
-        new Thread() {
-            @Override
-            public void run() {
-                while (read) {
-                    Query<UncachedObject> q = morphium.createQueryFor(UncachedObject.class);
-                    //        q.f("counter").lt(10000);
-                    long cnt = q.countAll();
-                    log.info("Last count       : " + cnt);
-                    log.info("Number of writes : " + writes);
-                    log.info("Write errors     : " + writeError);
-                    log.info("Read errors      : " + readError);
-                    try {
-                        Thread.sleep(3000);
-                    } catch (InterruptedException e) {
-                    }
+        new Thread(() -> {
+            while (read) {
+                Query<UncachedObject> q = morphium.createQueryFor(UncachedObject.class);
+                //        q.f("counter").lt(10000);
+                long cnt = q.countAll();
+                log.info("Last count       : " + cnt);
+                log.info("Number of writes : " + writes);
+                log.info("Write errors     : " + writeError);
+                log.info("Read errors      : " + readError);
+                try {
+                    Thread.sleep(3000);
+                } catch (InterruptedException e) {
                 }
             }
-        }.start();
+        }).start();
 
         while (read) {
             Thread.sleep(1000);

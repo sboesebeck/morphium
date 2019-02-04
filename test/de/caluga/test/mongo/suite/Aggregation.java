@@ -117,11 +117,7 @@ public class Aggregation extends MongoTest {
             } else {
                 sum.put(v, sum.get(v) + v);
             }
-            if (anz.get(v) == null) {
-                anz.put(v, 1);
-            } else {
-                anz.put(v, anz.get(v) + 1);
-            }
+            anz.merge(v, 1, (a, b) -> a + b);
 
         }
         for (Integer v : sum.keySet()) {

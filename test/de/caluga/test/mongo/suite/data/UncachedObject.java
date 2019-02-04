@@ -9,6 +9,7 @@ import de.caluga.morphium.annotations.caching.NoCache;
 import de.caluga.morphium.driver.MorphiumId;
 
 import java.util.Arrays;
+import java.util.Objects;
 
 /**
  * @author stephan
@@ -153,7 +154,7 @@ public class UncachedObject {
 
         UncachedObject that = (UncachedObject) o;
 
-        return counter == that.counter && !(morphiumId != null ? !morphiumId.equals(that.morphiumId) : that.morphiumId != null) && !(value != null ? !value.equals(that.value) : that.value != null);
+        return counter == that.counter && !(!Objects.equals(morphiumId, that.morphiumId)) && !(!Objects.equals(value, that.value));
 
     }
 
