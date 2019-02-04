@@ -749,6 +749,7 @@ public class BasicFunctionalityTest extends MongoTest {
         ///
 
         c = morphium.getMapper().deserialize(ListOfIdsContainer.class, marshall);
+        //noinspection ConstantConditions
         assert (c.idMap != null && c.idMap.get("1") != null && c.idMap.get("1") instanceof MorphiumId);
         //noinspection ConstantConditions
         assert (c.others.size() == 4 && c.others.get(0) instanceof MorphiumId);

@@ -458,7 +458,7 @@ public class MongoTest {
         m1 = m1.replaceAll(" ", "");
         m2 = m2.replaceAll(" ", "");
         if (m1.length() != m2.length()) return false;
-        String wrd[] = m1.split("[ \\{\\},\\.\\(\\)\\[\\]]");
+        String[] wrd = m1.split("[ \\{\\},\\.\\(\\)\\[\\]]");
         for (String w : wrd) {
             if (!m2.contains(w)) return false;
         }

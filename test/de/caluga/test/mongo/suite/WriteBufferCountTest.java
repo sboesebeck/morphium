@@ -29,6 +29,7 @@ public class WriteBufferCountTest extends MongoTest {
             for (int t = 0; t < 1000; t++) {
                 longText.append("-test-").append(i);
             }
+            uc.setValue(longText.toString());
             lst.add(uc);
         }
 

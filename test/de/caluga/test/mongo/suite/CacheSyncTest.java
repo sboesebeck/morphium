@@ -275,24 +275,21 @@ public class CacheSyncTest extends MongoTest {
         });
 
 
-        new Thread() {
-            @Override
-            public void run() {
-                morphium.store(new CachedObject());
-                waitForWrites();
-                try {
-                    Thread.sleep(2500);
-                } catch (InterruptedException e) {
-                    throw new RuntimeException(e);
-                }
-
-                cs1.detach();
-                cs2.detach();
-                msg1.terminate();
-                msg2.terminate();
-
+        new Thread(() -> {
+            morphium.store(new CachedObject());
+            waitForWrites();
+            try {
+                Thread.sleep(2500);
+            } catch (InterruptedException e) {
+                throw new RuntimeException(e);
             }
-        }.start();
+
+            cs1.detach();
+            cs2.detach();
+            msg1.terminate();
+            msg2.terminate();
+
+        }).start();
 
         while (cs1.isAttached()) {
             log.info("still attached - waiting");
