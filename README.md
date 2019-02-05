@@ -3,7 +3,6 @@ morphium
 
 **Want to contribute? Every help is welcome... just contact us**
 
-
 *ATTENTION:* _please refer also to the version [here](https://caluga.de/v/2014/9/5/morphium_doku_v3_0)_
 
 Morphium - Java Messaging (and POJO Mapper) based on MongoDB
