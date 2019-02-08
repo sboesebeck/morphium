@@ -1324,12 +1324,14 @@ public class Driver implements MorphiumDriver {
         Map<String, Object> found = DriverHelper.doCall(() -> {
             final Map<String, Object> ret = new HashMap<>();
 
-            Document result;
-            if (currentTransaction.get() != null) {
-                result = mongo.getDatabase(db).runCommand(currentTransaction.get().getSession(), new Document("listCollections", 1));
-            } else {
-                result = mongo.getDatabase(db).runCommand(new Document("listCollections", 1));
-            }
+
+//            if (currentTransaction.get() != null) {
+//                result = mongo.getDatabase(db).runCommand(new Document("listCollections", 1));
+//                log.warn("Check for databases in multi-document transaction is not possible!");
+//
+//            } else {
+//            }
+            Document result = mongo.getDatabase(db).runCommand(new Document("listCollections", 1));
             @SuppressWarnings("unchecked") ArrayList<Document> batch = (ArrayList<Document>) (((Map) result.get("cursor")).get("firstBatch"));
             for (Document d : batch) {
                 if (d.get("name").equals(collection)) {
