@@ -128,7 +128,7 @@ public class Morphium {
         config = cfg;
         annotationHelper = new AnnotationAndReflectionHelper(cfg.isCamelCaseConversionEnabled());
 
-        BlockingQueue<Runnable> queue = new LinkedBlockingQueue<Runnable>() {
+        BlockingQueue<Runnable> queue = new LinkedBlockingQueue<>() {
             private static final long serialVersionUID = -6903933921423432194L;
 
             @Override

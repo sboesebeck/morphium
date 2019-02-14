@@ -46,7 +46,7 @@ public class PerformanceTests {
 
     private long testRead(final Map<String, Object> map) {
         long threads = 300;
-        long dur = 0;
+        long dur;
         threadCount = 0;
         List<Thread> thr = new ArrayList<>();
         long start = System.currentTimeMillis();
@@ -208,6 +208,7 @@ public class PerformanceTests {
                     //                        synchronized (lst) {
                     try {
                         if (j * 1000 + k < lst.size()) {
+                            //noinspection ResultOfMethodCallIgnored
                             lst.get(j * 1000 + k);
                         }
                     } catch (Throwable e) {

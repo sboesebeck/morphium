@@ -118,9 +118,11 @@ public class MongodbBulkContext extends BulkRequestContext {
                 }
             }
             count++;
-            if (count >= driver.getMaximums().getMaxWriteBatchSize()) {
-                results.add(commitWrite(lst));
-                lst.clear();
+            if (driver.getMaximums().getMaxWriteBatchSize() != null) {
+                if (count >= driver.getMaximums().getMaxWriteBatchSize()) {
+                    results.add(commitWrite(lst));
+                    lst.clear();
+                }
             }
         }
         if (!lst.isEmpty()) {

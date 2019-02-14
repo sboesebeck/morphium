@@ -29,7 +29,7 @@ import java.util.Map;
 /**
  * @author stephan
  */
-@SuppressWarnings("AssertWithSideEffects")
+@SuppressWarnings({"AssertWithSideEffects", "MismatchedQueryAndUpdateOfCollection"})
 public class InMemBasicFunctionalityTest extends InMemTest {
     public static final int NO_OBJECTS = 100;
     private static final Logger log = LoggerFactory.getLogger(InMemBasicFunctionalityTest.class);

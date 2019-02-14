@@ -11,7 +11,7 @@ public class CacheEntry<T> {
     private T result;
     private Object key;
     private Class<? extends T> type;
-    private long created;
+    private final long created;
     private long lru;
 
 

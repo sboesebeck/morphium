@@ -82,8 +82,7 @@ public class InMemMessagingTest extends InMemTest {
             m2.start();
 
             m2.addListenerForMessageNamed("question", (msg, m) -> {
-                Msg answer = m.createAnswerMsg();
-                return answer;
+                return m.createAnswerMsg();
             });
 
             Msg stuck = new Msg("not asdf", "will it stuck", "uahh", 10000);
@@ -1145,7 +1144,7 @@ public class InMemMessagingTest extends InMemTest {
 
         sender.sendMessageToSelf(new Msg("testmsg", "Selfmessage", "value"));
         Thread.sleep(500);
-        assert (gotMessage == true);
+        assert (gotMessage);
         //noinspection PointlessBooleanExpression
         assert (gotMessage1 == false);
 
@@ -1475,8 +1474,8 @@ public class InMemMessagingTest extends InMemTest {
 
     @Test
     public void priorityTest() throws Exception {
-        Messaging sender = null;
-        Messaging receiver = null;
+        Messaging sender;
+        Messaging receiver;
 
         morphium.dropCollection(Msg.class);
         Thread.sleep(1000);

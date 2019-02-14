@@ -29,7 +29,7 @@ import java.util.Map;
 /**
  * @author stephan
  */
-@SuppressWarnings({"AssertWithSideEffects", "Duplicates"})
+@SuppressWarnings({"AssertWithSideEffects", "Duplicates", "unchecked"})
 public class BasicFunctionalityTest extends MongoTest {
     public static final int NO_OBJECTS = 100;
     private static final Logger log = LoggerFactory.getLogger(BasicFunctionalityTest.class);
