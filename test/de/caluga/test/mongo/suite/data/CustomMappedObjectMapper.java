@@ -17,6 +17,7 @@ public class CustomMappedObjectMapper {
 
     public CustomMappedObject unmarshall(Object d) {
         if (d instanceof Map) {
+            //noinspection unchecked
             Map<String, Object> map = (Map<String, Object>) d;
 
             CustomMappedObject cmo = new CustomMappedObject();

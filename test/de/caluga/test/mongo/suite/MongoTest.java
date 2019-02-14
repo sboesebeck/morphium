@@ -73,8 +73,8 @@ public class MongoTest {
     @org.junit.BeforeClass
     public static synchronized void setUpClass() {
         LoggerContext loggerContext = (LoggerContext) LoggerFactory.getILoggerFactory();
-        Logger rootLogger = loggerContext.getLogger("org.mongodb.driver");
-        ((ch.qos.logback.classic.Logger) rootLogger).setLevel(ch.qos.logback.classic.Level.INFO);
+        ch.qos.logback.classic.Logger rootLogger = loggerContext.getLogger("org.mongodb.driver");
+        rootLogger.setLevel(ch.qos.logback.classic.Level.INFO);
         java.util.logging.Logger l = java.util.logging.Logger.getGlobal();
         l.setLevel(Level.SEVERE);
                 l.addHandler(new Handler() {
@@ -116,7 +116,7 @@ public class MongoTest {
         l = java.util.logging.Logger.getLogger("connection");
         l.setLevel(java.util.logging.Level.OFF);
         if (morphium == null) {
-            MorphiumConfig cfg = null;
+            MorphiumConfig cfg;
             Properties p = getProps();
             if (p.getProperty("database") != null) {
                 cfg = MorphiumConfig.fromProperties(p);

@@ -677,10 +677,7 @@ public class MessagingTest extends MongoTest {
         m1.start();
         m2.start();
 
-        m2.addListenerForMessageNamed("question",(msg,m)->{
-            Msg answer=m.createAnswerMsg();
-            return answer;
-        });
+        m2.addListenerForMessageNamed("question", (msg, m) -> m.createAnswerMsg());
 
         m1.storeMessage(new Msg("not asdf","will it stuck","uahh",10000));
         Thread.sleep(1000);
@@ -1223,7 +1220,7 @@ public class MessagingTest extends MongoTest {
 
         sender.sendMessageToSelf(new Msg("testmsg", "Selfmessage", "value"));
         Thread.sleep(1500);
-        assert (gotMessage == true);
+        assert (gotMessage);
         //noinspection PointlessBooleanExpression
         assert (gotMessage1 == false);
 

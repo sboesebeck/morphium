@@ -14,6 +14,7 @@ import java.util.Map;
  * <p/>
  * TODO: Add documentation here
  */
+@SuppressWarnings("unchecked")
 public class CloneMapTest {
     private Logger log = LoggerFactory.getLogger(CloneMapTest.class);
 

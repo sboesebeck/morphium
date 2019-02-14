@@ -1,7 +1,5 @@
 package de.caluga.morphium.aggregation;
 
-import com.sun.jdi.InvocationException;
-
 import java.lang.reflect.InvocationTargetException;
 
 /**

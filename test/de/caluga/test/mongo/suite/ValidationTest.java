@@ -4,7 +4,6 @@ import de.caluga.morphium.annotations.Entity;
 import de.caluga.morphium.annotations.Id;
 import de.caluga.morphium.driver.MorphiumId;
 import de.caluga.test.mongo.suite.data.ValidationTestObject;
-import junit.framework.Assert;
 import org.junit.Test;
 
 import javax.validation.ConstraintViolationException;
@@ -76,7 +75,7 @@ public class ValidationTest extends MongoTest {
         try {
             morphium.store(o);
         } catch (ConstraintViolationException cfe) {
-            Assert.assertTrue("must be three violations", cfe.getConstraintViolations().size() == 3);
+            assert (cfe.getConstraintViolations().size() == 3) : "must be three violations";
         }
 
     }
@@ -103,7 +102,7 @@ public class ValidationTest extends MongoTest {
         o.setTheInt(4);
         o.setEmail("fish@water.com");
 
-        List friends = new ArrayList();
+        List<String> friends = new ArrayList<>();
         friends.add("Angie");
         friends.add("Julian");
         friends.add("Xaver");

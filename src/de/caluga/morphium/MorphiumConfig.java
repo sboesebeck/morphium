@@ -261,6 +261,7 @@ public class MorphiumConfig {
         if (n[1].equals("C")) {
             f.set(cfg, cls);
         } else if (n[1].equals("I")) {
+            //noinspection unchecked
             f.set(cfg, cls.getDeclaredConstructor().newInstance());
         }
 

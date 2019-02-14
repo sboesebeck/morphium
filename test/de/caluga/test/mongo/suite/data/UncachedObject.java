@@ -154,7 +154,7 @@ public class UncachedObject {
 
         UncachedObject that = (UncachedObject) o;
 
-        return counter == that.counter && !(!Objects.equals(morphiumId, that.morphiumId)) && !(!Objects.equals(value, that.value));
+        return counter == that.counter && Objects.equals(morphiumId, that.morphiumId) && Objects.equals(value, that.value);
 
     }
 

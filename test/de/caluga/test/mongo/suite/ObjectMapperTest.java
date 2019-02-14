@@ -291,7 +291,7 @@ public class ObjectMapperTest extends MongoTest {
 
         ComplexObject o = new ComplexObject();
         o.setTrans("TRANSIENT");
-        Map<String, Object> obj = null;
+        Map<String, Object> obj;
         try {
             obj = om.serialize(o);
         } catch (IllegalArgumentException e) {
@@ -555,7 +555,7 @@ public class ObjectMapperTest extends MongoTest {
         MorphiumObjectMapper map = morphium.getMapper();
         UncachedObject uc = new UncachedObject("value", 123);
         uc.setMorphiumId(new MorphiumId());
-        uc.setLongData(new long[]{1l, 2l});
+        uc.setLongData(new long[]{1L, 2L});
         Map<String, Object> obj = map.serialize(uc);
 
         assert (obj.get("value") != null);
@@ -695,7 +695,7 @@ public class ObjectMapperTest extends MongoTest {
 
     @Test
     public void customMapperTest() {
-        morphium.getMapper().registerCustomMapperFor(MyClass.class, new MorphiumTypeMapper<MyClass>() {
+        morphium.getMapper().registerCustomMapperFor(MyClass.class, new MorphiumTypeMapper<>() {
             @Override
             public Object marshall(MyClass o) {
                 Map m = new HashMap();

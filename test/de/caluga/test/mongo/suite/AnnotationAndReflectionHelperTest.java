@@ -24,7 +24,7 @@ import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
 /**
  * Created by stephan on 26.11.15.
  */
-@SuppressWarnings("AssertWithSideEffects")
+@SuppressWarnings({"AssertWithSideEffects", "unchecked"})
 public class AnnotationAndReflectionHelperTest {
 
     private AnnotationAndReflectionHelper helper;
