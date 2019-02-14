@@ -14,6 +14,7 @@ import java.util.List;
  * Time: 12:44
  * <p/>
  */
+@SuppressWarnings("unchecked")
 public class EnumTest extends MongoTest {
 
     @Test
@@ -78,7 +79,7 @@ public class EnumTest extends MongoTest {
             morphium.store(ent);
         }
 
-        MorphiumIterator<EnumEntity> it = morphium.createQueryFor(EnumEntity.class).f("tst").in(Arrays.asList(new TestEnum[]{TestEnum.TEST1})).asIterable();
+        MorphiumIterator<EnumEntity> it = morphium.createQueryFor(EnumEntity.class).f("tst").in(Arrays.asList(TestEnum.TEST1)).asIterable();
 
         for (EnumEntity e : it) {
             log.info("Got enum: " + e.getTst());

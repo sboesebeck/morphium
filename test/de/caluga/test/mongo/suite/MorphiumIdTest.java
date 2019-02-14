@@ -19,7 +19,7 @@ public class MorphiumIdTest {
     @Test
     public void threaddedCreationTest() {
         for (int i = 0; i < 1000; i++) {
-            new Thread(() -> new MorphiumId()).start();
+            new Thread(MorphiumId::new).start();
         }
     }
 

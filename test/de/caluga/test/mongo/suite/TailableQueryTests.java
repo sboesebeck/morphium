@@ -27,7 +27,7 @@ public class TailableQueryTests extends MongoTest {
         found = false;
         new Thread(() -> {
             Query<CappedCollectionTest.CappedCol> q = m.createQueryFor(CappedCollectionTest.CappedCol.class);
-            q.tail(10, 0, new AsyncCallbackAdapter<CappedCollectionTest.CappedCol>() {
+            q.tail(10, 0, new AsyncCallbackAdapter<>() {
                 @Override
                 public void onOperationSucceeded(AsyncOperationType type, Query<CappedCollectionTest.CappedCol> q, long duration, List<CappedCollectionTest.CappedCol> result, CappedCollectionTest.CappedCol entity, Object... param) {
                     log.info("Got incoming!!! " + entity.getValue() + " " + entity.getCounter());

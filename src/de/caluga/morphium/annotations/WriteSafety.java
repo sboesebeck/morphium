@@ -27,7 +27,7 @@ import static java.lang.annotation.ElementType.TYPE;
 @Target({TYPE})
 @Retention(RetentionPolicy.RUNTIME)
 public @interface WriteSafety {
-    @Deprecated boolean waitForSync() default false;
+    @SuppressWarnings("DeprecatedIsStillUsed") @Deprecated boolean waitForSync() default false;
 
     int timeout() default 0;
 

@@ -17,7 +17,7 @@ import java.util.Map;
  * Time: 08:12
  * To change this template use File | Settings | File Templates.
  */
-@SuppressWarnings("AssertWithSideEffects")
+@SuppressWarnings({"AssertWithSideEffects", "unchecked"})
 public class BulkOperationTest extends MongoTest {
     private boolean preRemove, postRemove;
     private boolean preUpdate, postUpdate;
@@ -165,7 +165,7 @@ public class BulkOperationTest extends MongoTest {
     public void callbackTest() throws Exception {
         morphium.dropCollection(UncachedObject.class);
 
-        MorphiumStorageListener<UncachedObject> listener = new MorphiumStorageAdapter<UncachedObject>() {
+        MorphiumStorageListener<UncachedObject> listener = new MorphiumStorageAdapter<>() {
             @Override
             public void preRemove(Morphium m, Query<UncachedObject> q) {
                 preRemove = true;

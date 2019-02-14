@@ -131,7 +131,7 @@ public class NetworkRetryTest extends MongoTest {
         for (int i = 0; i < 1000; i++) {
             List<UncachedObject> lst = new ArrayList<>();
             for (int cnt = 0; cnt < 10000; cnt += 1000) {
-                UncachedObject o = null;
+                UncachedObject o;
                 o = new UncachedObject();
                 o.setCounter(i + cnt + 1);
                 o.setValue("A test");

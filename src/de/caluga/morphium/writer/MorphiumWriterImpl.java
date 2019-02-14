@@ -54,7 +54,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
     public void setMorphium(Morphium m) {
         morphium = m;
         if (m != null) {
-            BlockingQueue<Runnable> queue = new LinkedBlockingQueue<Runnable>() {
+            BlockingQueue<Runnable> queue = new LinkedBlockingQueue<>() {
                 @Override
                 public boolean offer(Runnable e) {
                     /*
@@ -937,7 +937,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
 
     @Override
     public <T> void set(final T toSet, final String collection, final String field, final Object v, final boolean upsert, final boolean multiple, AsyncOperationCallback<T> callback) {
-        WriterTask<T> r = new WriterTask<T>() {
+        WriterTask<T> r = new WriterTask<>() {
             private AsyncOperationCallback<T> callback;
 
             @Override

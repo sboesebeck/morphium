@@ -96,7 +96,7 @@ public class Messaging extends Thread implements ShutdownListener {
 
 
         if (multithreadded) {
-            BlockingQueue<Runnable> queue = new LinkedBlockingQueue<Runnable>() {
+            BlockingQueue<Runnable> queue = new LinkedBlockingQueue<>() {
                 @Override
                 public boolean offer(Runnable e) {
                     /*
@@ -476,6 +476,7 @@ public class Messaging extends Thread implements ShutdownListener {
             final Msg msg = morphium.reread(m, getCollectionName()); //make sure it's current version in DB
             if (msg == null) continue;
 
+            //noinspection SuspiciousMethodCalls
             if (msg.getInAnswerTo() != null && waitingForMessages.get(msg.getInAnswerTo()) != null) {
                 //this message we were waiting for
                 waitingForAnswers.put((MorphiumId) msg.getInAnswerTo(), msg);
@@ -818,6 +819,7 @@ public class Messaging extends Thread implements ShutdownListener {
 
     private void sendMessageToSelf(Msg m, boolean async) {
         AsyncOperationCallback cb = null;
+        //noinspection StatementWithEmptyBody
         if (async) {
             //noinspection unused,unused
         }

@@ -60,7 +60,7 @@ public class EmbeddedObject {
 
         EmbeddedObject that = (EmbeddedObject) o;
 
-        return testValueLong == that.testValueLong && !(!Objects.equals(name, that.name)) && !(!Objects.equals(value, that.value));
+        return testValueLong == that.testValueLong && Objects.equals(name, that.name) && Objects.equals(value, that.value);
 
     }
 
