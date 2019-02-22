@@ -8,10 +8,8 @@ import de.caluga.morphium.messaging.MessageRejectedException;
 import de.caluga.morphium.messaging.Messaging;
 import de.caluga.morphium.messaging.Msg;
 import de.caluga.morphium.query.Query;
-import org.json.simple.parser.ParseException;
 import org.junit.Test;
 
-import java.lang.reflect.InvocationTargetException;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -687,7 +685,7 @@ public class MessagingTest extends MongoTest {
             return answer;
         });
 
-        for (int i = 0; i < 1000; i++) {
+        for (int i = 0; i < 100; i++) {
             log.info("Sending msg " + i);
             Msg question = new Msg("question", "question" + i, "a value " + i);
             question.setPriority(5);
