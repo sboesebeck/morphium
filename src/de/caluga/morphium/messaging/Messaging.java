@@ -528,6 +528,10 @@ public class Messaging extends Thread implements ShutdownListener {
                 if (listenerByName.get(msg.getName()) != null) {
                     lst.addAll(listenerByName.get(msg.getName()));
                 }
+                if (lst.isEmpty()) {
+                    log.debug("Message did not have a listener registered");
+                    wasProcessed = true;
+                }
                 for (MessageListener l : lst) {
                     try {
                         Msg answer = l.onMessage(Messaging.this, msg);
