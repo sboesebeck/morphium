@@ -566,7 +566,7 @@ public class Messaging extends Thread implements ShutdownListener {
                         }
                     }
                 }
-                if (!wasProcessed) {
+                if (!wasProcessed && !lst.isEmpty()) {
                     //                        msg.addAdditional("Processing of message failed by "+getSenderId()+": "+t.getMessage());
                     log.error("message was not processed");
                 }
@@ -861,7 +861,7 @@ public class Messaging extends Thread implements ShutdownListener {
         }
     }
 
-    public Msg sendAndAwaitFirstAnswer(Msg theMessage, long timeoutInMs) {
+    public <T extends Msg> T sendAndAwaitFirstAnswer(T theMessage, long timeoutInMs) {
         theMessage.setMsgId(new MorphiumId());
         waitingForMessages.put(theMessage.getMsgId(), theMessage);
         storeMessage(theMessage);
@@ -875,10 +875,10 @@ public class Messaging extends Thread implements ShutdownListener {
             Thread.yield();
         }
         waitingForMessages.remove(theMessage.getMsgId());
-        return waitingForAnswers.remove(theMessage.getMsgId());
+        return (T) waitingForAnswers.remove(theMessage.getMsgId());
     }
 
-    public List<Msg> sendAndAwaitAnswers(Msg theMessage, int numberOfAnswers, long timeout) {
+    public <T extends Msg> List<T> sendAndAwaitAnswers(T theMessage, int numberOfAnswers, long timeout) {
         List<Msg> answers = new ArrayList<>();
         storeMessage(theMessage);
         waitingForMessages.put(theMessage.getMsgId(), theMessage);
@@ -896,7 +896,7 @@ public class Messaging extends Thread implements ShutdownListener {
             Thread.yield();
         }
         waitingForMessages.remove(theMessage.getMsgId());
-        return answers;
+        return (List<T>) answers;
     }
 
 
