@@ -1007,7 +1007,7 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
 
             if (ret instanceof BinarySerializedObject) {
                 BinarySerializedObject bso = (BinarySerializedObject) ret;
-                Decoder dec = Base64.getDecoder();
+                Decoder dec = Base64.getMimeDecoder();
                 ObjectInputStream in = new ObjectInputStream(new ByteArrayInputStream(dec.decode(bso.getB64Data())));
                 return (T) in.readObject();
             }
