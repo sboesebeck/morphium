@@ -221,7 +221,7 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
                         oout.writeObject(o);
                         oout.flush();
 
-                        Encoder enc = Base64.getEncoder();
+                        Encoder enc = Base64.getMimeEncoder();
 
                         String str = new String(enc.encode(out.toByteArray()));
                         obj.setB64Data(str);
@@ -1055,7 +1055,7 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
                 if (d == null) {
                     d = (String) mapVal.get("b64Data");
                 }
-                Decoder dec = Base64.getDecoder();
+                Decoder dec = Base64.getMimeDecoder();
                 ObjectInputStream in;
                 try {
                     in = new ObjectInputStream(new ByteArrayInputStream(dec.decode(d)));
