@@ -458,6 +458,7 @@ public class Messaging extends Thread implements ShutdownListener {
         if (obj != null && obj.getLockedBy() != null && obj.getLockedBy().equals(id)) {
             List<Msg> lst = new ArrayList<>();
             lst.add(obj);
+            log.debug("locked messages: "+lst.size());
             try {
                 processMessages(lst);
             } catch (Exception e) {
@@ -477,13 +478,18 @@ public class Messaging extends Thread implements ShutdownListener {
             if (msg == null) continue;
 
             if (msg.getInAnswerTo() != null && waitingForMessages.get(msg.getInAnswerTo()) != null) {
+                log.debug("Got a message, we are waiting for...");
                 //this message we were waiting for
                 waitingForAnswers.put((MorphiumId) msg.getInAnswerTo(), msg);
                 processing.remove(m.getMsgId());
                 morphium.delete(msg, getCollectionName());
                 return;
             }
-            if (listeners.isEmpty() && listenerByName.isEmpty()) return;
+            if (listeners.isEmpty() && listenerByName.isEmpty()) {
+                updateProcessedByAndReleaseLock(msg);
+                log.debug("no listener registered... not processing message");
+                return;
+            }
 //            Query<? extends Msg> q = morphium.createQueryFor(m.getClass()).f("_id").eq(m.getMsgId());
 //            q.setCollectionName(getCollectionName());
 //            morphium.push(q, Msg.Fields.receivedBy, id);
