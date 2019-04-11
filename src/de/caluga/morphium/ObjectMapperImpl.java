@@ -10,14 +10,14 @@ import org.json.simple.parser.JSONParser;
 import org.json.simple.parser.ParseException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import sun.misc.BASE64Decoder;
-import sun.misc.BASE64Encoder;
 import sun.reflect.ReflectionFactory;
 
 import java.io.*;
 import java.lang.reflect.*;
 import java.math.BigInteger;
 import java.util.*;
+import java.util.Base64.Decoder;
+import java.util.Base64.Encoder;
 import java.util.Map.Entry;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
@@ -199,7 +199,7 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
     @SuppressWarnings("unchecked")
     @Override
     public Map<String, Object> serialize(Object o) {
-
+        if (o==null) return new HashMap<>();
         Class c = annotationHelper.getRealClass(o.getClass());
         if (customMappers.containsKey(c)) {
             Object ret = customMappers.get(c).marshall(o);
@@ -221,9 +221,9 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
                         oout.writeObject(o);
                         oout.flush();
 
-                        BASE64Encoder enc = new BASE64Encoder();
+                        Encoder enc = Base64.getMimeEncoder();
 
-                        String str = enc.encode(out.toByteArray());
+                        String str = new String(enc.encode(out.toByteArray()));
                         obj.setB64Data(str);
                         return serialize(obj);
 
@@ -1007,8 +1007,8 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
 
             if (ret instanceof BinarySerializedObject) {
                 BinarySerializedObject bso = (BinarySerializedObject) ret;
-                BASE64Decoder dec = new BASE64Decoder();
-                ObjectInputStream in = new ObjectInputStream(new ByteArrayInputStream(dec.decodeBuffer(bso.getB64Data())));
+                Decoder dec = Base64.getMimeDecoder();
+                ObjectInputStream in = new ObjectInputStream(new ByteArrayInputStream(dec.decode(bso.getB64Data())));
                 return (T) in.readObject();
             }
             return (T) ret;
@@ -1055,10 +1055,10 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
                 if (d == null) {
                     d = (String) mapVal.get("b64Data");
                 }
-                BASE64Decoder dec = new BASE64Decoder();
+                Decoder dec = Base64.getMimeDecoder();
                 ObjectInputStream in;
                 try {
-                    in = new ObjectInputStream(new ByteArrayInputStream(dec.decodeBuffer(d)));
+                    in = new ObjectInputStream(new ByteArrayInputStream(dec.decode(d)));
                     return in.readObject();
                 } catch (IOException | ClassNotFoundException e) {
                     throw new RuntimeException(e);

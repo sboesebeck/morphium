@@ -67,7 +67,7 @@ public class AnnotationAndReflectionHelper {
         this.annotationCache = new ConcurrentHashMap<>();
         this.fieldNameCache = new ConcurrentHashMap<>();
         if (classNameByType == null) {
-            this.classNameByType = new ConcurrentHashMap<String, String>();
+            classNameByType = new ConcurrentHashMap<>();
             init();
         }
     }

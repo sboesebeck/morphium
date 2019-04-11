@@ -6,7 +6,6 @@ import de.caluga.morphium.annotations.Entity;
 import de.caluga.morphium.annotations.Id;
 import de.caluga.morphium.driver.MorphiumId;
 import de.caluga.morphium.mapping.MorphiumTypeMapper;
-import de.caluga.morphium.objectmapper.ObjectMapperImplNG;
 import de.caluga.morphium.replicaset.ReplicaSetConf;
 import de.caluga.test.mongo.suite.data.*;
 import org.bson.types.ObjectId;
@@ -215,7 +214,7 @@ public class ObjectMapperTest extends MongoTest {
 
 
     @Test
-    public void complexObjectTest() {
+    public void complexObjectTest() throws InterruptedException {
         MorphiumObjectMapper om = morphium.getMapper();
         UncachedObject o = new UncachedObject();
         o.setCounter(12345);
@@ -239,6 +238,7 @@ public class ObjectMapperTest extends MongoTest {
         o.setValue("Referenced value");
         //        o.setMongoId(new MongoId(new Date()));
         morphium.store(o);
+        Thread.sleep(500);
 
         co.setRef(o);
         co.setId(new MorphiumId());
@@ -405,40 +405,6 @@ public class ObjectMapperTest extends MongoTest {
     }
 
     @Test
-    public void objectMapperSpeedTestCachedObject() {
-        CachedObject o = new CachedObject();
-        o.setCounter(42);
-        o.setValue("The meaning of life");
-        o.setId(new MorphiumId());
-        Map<String, Object> marshall = null;
-        MorphiumObjectMapper om1 = new ObjectMapperImpl();
-        om1.setMorphium(morphium);
-        om1.setAnnotationHelper(morphium.getARHelper());
-        MorphiumObjectMapper om2 = new ObjectMapperImplNG();
-        om2.setMorphium(morphium);
-        om2.setAnnotationHelper(morphium.getARHelper());
-        for (MorphiumObjectMapper om : new MorphiumObjectMapper[]{om1, om2}) {
-            log.info("----------------------- Runing with " + om.getClass().getName());
-            long start = System.currentTimeMillis();
-            for (int i = 0; i < 25000; i++) {
-                marshall = om.serialize(o);
-            }
-            long dur = System.currentTimeMillis() - start;
-
-            log.info("Mapping of CachedObject 25000 times took " + dur + "ms");
-            assert (dur < 1000);
-            start = System.currentTimeMillis();
-            for (int i = 0; i < 25000; i++) {
-                CachedObject c = om.deserialize(CachedObject.class, marshall);
-            }
-            dur = System.currentTimeMillis() - start;
-            log.info("De-Marshalling of CachedObject 25000 times took " + dur + "ms");
-            assert (dur < 1400);
-        }
-
-    }
-
-    @Test
     public void rsStatusTest() throws Exception {
         morphium.getConfig().setReplicasetMonitoring(false);
         String json = "{ \"settings\" : { \"heartbeatTimeoutSecs\" : 10, \"catchUpTimeoutMillis\" : -1, \"catchUpTakeoverDelayMillis\" : 30000, \"getLastErrorModes\" : {  } , \"getLastErrorDefaults\" : { \"wtimeout\" : 0, \"w\" : 1 } , \"electionTimeoutMillis\" : 10000, \"chainingAllowed\" : true, \"replicaSetId\" : \"5adba61c986af770bb25454e\", \"heartbeatIntervalMillis\" : 2000 } , \"members\" :  [ { \"hidden\" : false, \"buildIndexes\" : true, \"arbiterOnly\" : false, \"host\" : \"localhost:27017\", \"slaveDelay\" : 0, \"votes\" : 1, \"_id\" : 0, \"priority\" : 10.0, \"tags\" : {  }  } , { \"hidden\" : false, \"buildIndexes\" : true, \"arbiterOnly\" : false, \"host\" : \"localhost:27018\", \"slaveDelay\" : 0, \"votes\" : 1, \"_id\" : 1, \"priority\" : 5.0, \"tags\" : {  }  } , { \"hidden\" : false, \"buildIndexes\" : true, \"arbiterOnly\" : true, \"host\" : \"localhost:27019\", \"slaveDelay\" : 0, \"votes\" : 1, \"_id\" : 2, \"priority\" : 0.0, \"tags\" : {  }  } ], \"protocolVersion\" : 1, \"_id\" : \"tst\", \"version\" : 1 } ";
@@ -462,107 +428,6 @@ public class ObjectMapperTest extends MongoTest {
 
     }
 
-    @Test
-    public void objectMapperSpeedTestComplexObjectNoRef() {
-        ComplexObject o = new ComplexObject();
-        EmbeddedObject em = new EmbeddedObject();
-        em.setName("Embedded1");
-        em.setValue("test");
-        em.setTest(424242);
-        o.setId(new MorphiumId());
-        o.setEmbed(em);
-        o.setChanged(System.currentTimeMillis());
-        o.setCreated(System.currentTimeMillis());
-        //        o.setcRef();
-        o.setEinText("Text");
-        o.setEntityEmbeded(new UncachedObject());
-        o.setNullValue(23);
-        //        o.setRef();
-        o.setTrans("Trans");
-        Map<String, Object> marshall = null;
-        MorphiumObjectMapper om1 = new ObjectMapperImpl();
-        om1.setMorphium(morphium);
-        om1.setAnnotationHelper(morphium.getARHelper());
-        MorphiumObjectMapper om2 = new ObjectMapperImplNG();
-        om2.setMorphium(morphium);
-        om2.setAnnotationHelper(morphium.getARHelper());
-        for (MorphiumObjectMapper om : new MorphiumObjectMapper[]{om1, om2}) {
-            log.info("Runing with " + om.getClass().getName());
-            long start = System.currentTimeMillis();
-            for (int i = 0; i < 25000; i++) {
-                marshall = om.serialize(o);
-            }
-            long dur = System.currentTimeMillis() - start;
-
-            log.info("Mapping of ComplexObject 25000 times took " + dur + "ms");
-            assert (dur < 1000);
-            start = System.currentTimeMillis();
-            for (int i = 0; i < 25000; i++) {
-                ComplexObject co = om.deserialize(ComplexObject.class, marshall);
-            }
-            dur = System.currentTimeMillis() - start;
-            log.info("De-Marshalling of ComplexObject 25000 times took " + dur + "ms");
-            assert (dur < 1500);
-        }
-
-    }
-
-
-    @Test
-    public void objectMapperSpeedTestComplexObjectNoCachedRef() {
-        morphium.dropCollection(ComplexObject.class);
-        ComplexObject o = new ComplexObject();
-        EmbeddedObject em = new EmbeddedObject();
-        em.setName("Embedded1");
-        em.setValue("test");
-        em.setTest(424242);
-        o.setId(new MorphiumId());
-        o.setEmbed(em);
-        o.setChanged(System.currentTimeMillis());
-        o.setCreated(System.currentTimeMillis());
-        //        o.setcRef();
-        o.setEinText("Text");
-        //        o.setEntityEmbeded(new UncachedObject());
-        o.setNullValue(23);
-        o.setTrans("Trans");
-        UncachedObject uc = new UncachedObject();
-        uc.setCounter(42);
-        uc.setValue("test");
-        morphium.store(uc);
-        o.setRef(uc);
-        Map<String, Object> marshall = null;
-
-        MorphiumObjectMapper om1 = new ObjectMapperImpl();
-        om1.setMorphium(morphium);
-        om1.setAnnotationHelper(morphium.getARHelper());
-        MorphiumObjectMapper om2 = new ObjectMapperImplNG();
-        om2.setMorphium(morphium);
-        om2.setAnnotationHelper(morphium.getARHelper());
-        for (MorphiumObjectMapper om : new MorphiumObjectMapper[]{om1, om2}) {
-            log.info("-------------  Running with Mapper " + om.getClass().getName());
-            long start = System.currentTimeMillis();
-            for (int i = 0; i < 25000; i++) {
-                marshall = om.serialize(o);
-            }
-            long dur = System.currentTimeMillis() - start;
-            if (dur > 2000) {
-                log.warn("Mapping of ComplexObject 25000 times with uncached references took " + dur + "ms");
-            } else {
-                log.info("Mapping of ComplexObject 25000 times with uncached references took " + dur + "ms");
-
-            }
-            assert (dur < 5000);
-            start = System.currentTimeMillis();
-            for (int i = 0; i < 25000; i++) {
-                ComplexObject co = om.deserialize(ComplexObject.class, marshall);
-            }
-            dur = System.currentTimeMillis() - start;
-            log.info("De-Marshalling of ComplexObject with uncached references 25000 times took " + dur + "ms");
-            assert (dur < 14000);
-        }
-
-
-    }
 
     @Test
     public void binaryDataTest() {
@@ -575,59 +440,6 @@ public class ObjectMapperTest extends MongoTest {
         assert (obj.get("binary_data").getClass().getComponentType().equals(byte.class));
     }
 
-
-    @Test
-    public void objectMapperSpeedTestComplexObjectCachedRef() {
-        ComplexObject o = new ComplexObject();
-        EmbeddedObject em = new EmbeddedObject();
-        em.setName("Embedded1");
-        em.setValue("test");
-        em.setTest(424242);
-        o.setId(new MorphiumId());
-        o.setEmbed(em);
-        o.setChanged(System.currentTimeMillis());
-        o.setCreated(System.currentTimeMillis());
-        //        o.setcRef();
-        o.setEinText("Text");
-        //        o.setEntityEmbeded(new UncachedObject());
-        o.setNullValue(23);
-        o.setTrans("Trans");
-        CachedObject cc = new CachedObject();
-        cc.setCounter(42);
-        cc.setValue("test");
-        morphium.store(cc);
-        waitForWrites();
-        o.setcRef(cc);
-        Map<String, Object> marshall = null;
-        MorphiumObjectMapper om1 = new ObjectMapperImpl();
-        om1.setMorphium(morphium);
-        om1.setAnnotationHelper(morphium.getARHelper());
-        MorphiumObjectMapper om2 = new ObjectMapperImplNG();
-        om2.setMorphium(morphium);
-        om2.setAnnotationHelper(morphium.getARHelper());
-        for (MorphiumObjectMapper om : new MorphiumObjectMapper[]{om1, om2}) {
-            log.info("-------- running test with " + om.getClass().getName());
-            long start = System.currentTimeMillis();
-            for (int i = 0; i < 25000; i++) {
-                marshall = om.serialize(o);
-            }
-            long dur = System.currentTimeMillis() - start;
-            if (dur > 2000) {
-                log.warn("Mapping of ComplexObject 25000 with uncached references times took " + dur + "ms");
-            } else {
-                log.info("Mapping of ComplexObject 25000 with uncached references times took " + dur + "ms");
-            }
-            assert (dur < 5000);
-            start = System.currentTimeMillis();
-            for (int i = 0; i < 25000; i++) {
-                ComplexObject co = om.deserialize(ComplexObject.class, marshall);
-            }
-            dur = System.currentTimeMillis() - start;
-            log.info("De-Marshalling of ComplexObject with cached references 25000 times took " + dur + "ms");
-            assert (dur < 7500); //Mongo 2.6 is slower :(
-        }
-
-    }
 
 
     @Test
@@ -662,25 +474,6 @@ public class ObjectMapperTest extends MongoTest {
         public NoDefaultConstructorUncachedObject(String v, int c) {
             setCounter(c);
             setValue(v);
-        }
-    }
-
-    @Test
-    public void objectMapperWildcardListTest() {
-        ObjectMapperImplNG mapperImplNG = new ObjectMapperImplNG();
-        mapperImplNG.setMorphium(morphium);
-        mapperImplNG.setAnnotationHelper(morphium.getARHelper());
-
-
-        for (MorphiumObjectMapper map : new MorphiumObjectMapper[]{morphium.getMapper(), mapperImplNG}) {
-            log.info("--------------------- Running test with " + map.getClass().getName());
-            ListWildcardContainer wc = new ListWildcardContainer();
-            wc.setName("A name");
-            wc.setEmbeddedObjectList(new ArrayList<>());
-            ((List<EmbeddedObject>) wc.getEmbeddedObjectList()).add(new EmbeddedObject("test", "value", 12344));
-            ((List<EmbeddedObject>) wc.getEmbeddedObjectList()).add(new EmbeddedObject("test", "value", 12344));
-            Map<String, Object> obj = map.serialize(wc);
-            assert (obj != null);
         }
     }
 
@@ -881,7 +674,7 @@ public class ObjectMapperTest extends MongoTest {
         Map<String, Object> obj = morphium.getMapper().serialize(e);
         assert (obj.get("an_enum") != null);
 
-        ObjectMapperImplNG map = new ObjectMapperImplNG();
+        MorphiumObjectMapper map = new ObjectMapperImpl();
         map.setMorphium(morphium);
         map.setAnnotationHelper(morphium.getARHelper());
         Map<String, Object> obj2 = map.serialize(e);

@@ -39,6 +39,66 @@ public class InMemMessagingTest extends InMemTest {
 
     }
 
+
+    @Test
+    public void getAnswersTest() throws Exception {
+        Messaging m1=new Messaging(morphium, 10, false,true,10);
+        Messaging m2=new Messaging(morphium, 10, false,true,10);
+
+        m1.start();
+        m2.start();
+
+        m2.addListenerForMessageNamed("question",(msg,m)->{
+            Msg answer=m.createAnswerMsg();
+            msg.storeMessage(answer);
+            Thread.sleep(1000);
+            answer=m.createAnswerMsg();
+            return answer;
+        });
+
+        Msg m3 = new Msg("not asdf", "will it stuck", "uahh", 10000);
+        m3.setPriority(1);
+        m1.storeMessage(m3);
+        Thread.sleep(1000);
+
+        Msg question = new Msg("question", "question", "a value");
+        question.setPriority(5);
+        List<Msg> answers=m1.sendAndAwaitAnswers(question,2,5000);
+        assert(answers!=null&&!answers.isEmpty());
+        assert(answers.size()==2);
+        for (Msg m:answers){
+            assert(m.getInAnswerTo()!=null);
+            assert(m.getInAnswerTo().equals(question.getMsgId()));
+        }
+    }
+
+
+    @Test
+    public void answerWithoutListener() throws Exception {
+        Messaging m1=new Messaging(morphium, 100, false,true,10);
+        Messaging m2=new Messaging(morphium, 100, false,true,10);
+        try {
+            m1.start();
+            m2.start();
+
+            m2.addListenerForMessageNamed("question",(msg,m)->{
+                Msg answer=m.createAnswerMsg();
+                return answer;
+            });
+
+            Msg stuck = new Msg("not asdf", "will it stuck", "uahh", 10000);
+            stuck.setPriority(0);
+            m1.storeMessage(stuck);
+
+            Msg answer=m1.sendAndAwaitFirstAnswer(new Msg("question","question","a value"),5000);
+            assert(answer!=null);
+        } finally {
+            m1.terminate();
+            m2.terminate();
+        }
+    }
+
+
     @Test
     public void testMsgQueName() throws Exception {
         morphium.dropCollection(Msg.class);
@@ -1095,6 +1155,7 @@ public class InMemMessagingTest extends InMemTest {
         sender.sendMessageToSelf(new Msg("testmsg", "Selfmessage", "value"));
         Thread.sleep(500);
         assert (gotMessage == true);
+        //noinspection PointlessBooleanExpression
         assert (gotMessage1 == false);
 
         m1.terminate();
@@ -1415,9 +1476,7 @@ public class InMemMessagingTest extends InMemTest {
         long start = System.currentTimeMillis();
         while (list.size() < 2) {
             Thread.sleep(1000);
-            if (System.currentTimeMillis() - start > 5555000) {
-                assert (list.size() == 2);
-            }
+            assert System.currentTimeMillis() - start <= 5555000 || (list.size() == 2);
         }
 
         sender.terminate();

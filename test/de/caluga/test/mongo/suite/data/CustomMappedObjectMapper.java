@@ -31,6 +31,7 @@ public class CustomMappedObjectMapper {
     public boolean matches(Object v) {
         if (!(v instanceof Map)) return false;
         Map value = (Map) v;
+        //noinspection ConstantConditions
         return value != null && value.get("marker") != null && value.get("marker").equals(Boolean.TRUE);
     }
 

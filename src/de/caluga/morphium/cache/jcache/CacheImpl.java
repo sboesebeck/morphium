@@ -22,12 +22,13 @@ import java.util.concurrent.ConcurrentHashMap;
  * <p>
  * simple copy before update implemenation of a in-Memory Cache
  */
+@SuppressWarnings("unchecked")
 public class CacheImpl<K, CE> implements Cache<K, CacheEntry<CE>> {
-    private Map<K, CacheEntry<CE>> theCache = new ConcurrentHashMap<>();
-    private Map<CacheEntryEventFilter<? super K, ? super CacheEntry<CE>>, CacheEntryListener<K, CacheEntry<CE>>> listeners = new ConcurrentHashMap<>();
+    private final Map<K, CacheEntry<CE>> theCache = new ConcurrentHashMap<>();
+    private final Map<CacheEntryEventFilter<? super K, ? super CacheEntry<CE>>, CacheEntryListener<K, CacheEntry<CE>>> listeners = new ConcurrentHashMap<>();
     private CacheManager cacheManager;
     private String name = "";
-    private Logger log = LoggerFactory.getLogger(CacheImpl.class);
+    private final Logger log = LoggerFactory.getLogger(CacheImpl.class);
 
     public void setCacheManager(CacheManager cm) {
         cacheManager = cm;
@@ -264,6 +265,7 @@ public class CacheImpl<K, CE> implements Cache<K, CacheEntry<CE>> {
         return clazz.cast(this);
     }
 
+    @SuppressWarnings("unchecked")
     @Override
     public void registerCacheEntryListener(CacheEntryListenerConfiguration<K, CacheEntry<CE>> cacheEntryListenerConfiguration) {
         CacheEntryEventFilter<? super K, ? super CacheEntry<CE>> ef = cacheEntryListenerConfiguration.getCacheEntryEventFilterFactory().create();
@@ -280,7 +282,7 @@ public class CacheImpl<K, CE> implements Cache<K, CacheEntry<CE>> {
     public Iterator<Entry<K, CacheEntry<CE>>> iterator() {
 
         return new Iterator<Entry<K, CacheEntry<CE>>>() {
-            Iterator<Map.Entry<K, CacheEntry<CE>>> it = theCache.entrySet().iterator();
+            final Iterator<Map.Entry<K, CacheEntry<CE>>> it = theCache.entrySet().iterator();
 
             @Override
             public boolean hasNext() {
@@ -290,7 +292,7 @@ public class CacheImpl<K, CE> implements Cache<K, CacheEntry<CE>> {
             @Override
             public Entry<K, CacheEntry<CE>> next() {
                 final Map.Entry<K, CacheEntry<CE>> entry = it.next();
-                Entry<K, CacheEntry<CE>> ret = new Entry<K, CacheEntry<CE>>() {
+                return new Entry<K, CacheEntry<CE>>() {
                     @Override
                     public K getKey() {
                         return entry.getKey();
@@ -306,7 +308,6 @@ public class CacheImpl<K, CE> implements Cache<K, CacheEntry<CE>> {
                         return clazz.cast(this);
                     }
                 };
-                return ret;
             }
         };
     }
@@ -321,9 +322,9 @@ public class CacheImpl<K, CE> implements Cache<K, CacheEntry<CE>> {
 
 
     public class CEvent extends CacheEntryEvent<K, CacheEntry<CE>> {
-        private CacheEntry<CE> value;
-        private CacheEntry<CE> oldValue;
-        private K key;
+        private final CacheEntry<CE> value;
+        private final CacheEntry<CE> oldValue;
+        private final K key;
 
         public CEvent(Cache source, EventType t, K k, CacheEntry<CE> v, CacheEntry<CE> ov) {
             super(source, t);

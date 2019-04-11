@@ -18,7 +18,7 @@ import java.util.concurrent.ConcurrentHashMap;
  * TODO: Add documentation here
  */
 public class CachingProviderImpl implements CachingProvider {
-    private Map<URI, CacheManagerImpl> managers = new ConcurrentHashMap<>();
+    private final Map<URI, CacheManagerImpl> managers = new ConcurrentHashMap<>();
 
     public Collection<CacheManagerImpl> getCacheManagers() {
         return managers.values();
