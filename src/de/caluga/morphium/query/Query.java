@@ -265,6 +265,7 @@ public interface Query<T> extends Cloneable {
 
     Map<String, Integer> getSort();
 
+    @SuppressWarnings("RedundantThrows")
     Query<T> clone() throws CloneNotSupportedException;
 
     ReadPreferenceLevel getReadPreferenceLevel();

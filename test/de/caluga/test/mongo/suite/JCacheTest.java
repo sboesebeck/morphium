@@ -5,6 +5,7 @@ import de.caluga.morphium.cache.MorphiumCacheJCacheImpl;
 import de.caluga.morphium.cache.jcache.CacheManagerImpl;
 import de.caluga.test.mongo.suite.data.CachedObject;
 import org.ehcache.jcache.JCacheCachingProvider;
+import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -23,7 +24,7 @@ import java.util.Map;
 public class JCacheTest extends MongoTest {
     private Logger log = LoggerFactory.getLogger(JCacheTest.class);
 
-    //@Test not really testing, not used
+    @Test
     public void getProviderTest() throws Exception {
         MorphiumCache cache = morphium.getCache();
         morphium.getConfig().setCache(new MorphiumCacheJCacheImpl());

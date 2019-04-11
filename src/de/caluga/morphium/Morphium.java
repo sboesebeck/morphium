@@ -144,19 +144,15 @@ public class Morphium {
         asyncOperationsThreadPool = new ThreadPoolExecutor(getConfig().getThreadPoolAsyncOpCoreSize(), getConfig().getThreadPoolAsyncOpMaxSize(),
                 getConfig().getThreadPoolAsyncOpKeepAliveTime(), TimeUnit.MILLISECONDS,
                 queue);
-        asyncOperationsThreadPool.setRejectedExecutionHandler(new RejectedExecutionHandler() {
-            @Override
-            public void rejectedExecution(Runnable r, ThreadPoolExecutor executor) {
-                try {
-                    /*
-                     * This does the actual put into the queue. Once the max threads
-                     * have been reached, the tasks will then queue up.
-                     */
-                    executor.getQueue().put(r);
-                } catch (InterruptedException e) {
-                    Thread.currentThread().interrupt();
-                    return;
-                }
+        asyncOperationsThreadPool.setRejectedExecutionHandler((r, executor) -> {
+            try {
+                /*
+                 * This does the actual put into the queue. Once the max threads
+                 * have been reached, the tasks will then queue up.
+                 */
+                executor.getQueue().put(r);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
             }
         });
         asyncOperationsThreadPool.setThreadFactory(new ThreadFactory() {
@@ -229,10 +225,10 @@ public class Morphium {
             }
 
             if (config.getMongoLogin() != null && config.getMongoPassword() != null) {
-                morphiumDriver.setCredentials(config.getMongoLogin(), config.getDatabase(), config.getMongoPassword().toCharArray());
+                morphiumDriver.setCredentials(config.getDatabase(),config.getMongoLogin(), config.getMongoPassword().toCharArray());
             }
             if (config.getMongoAdminUser() != null && config.getMongoAdminPwd() != null) {
-                morphiumDriver.setCredentials(config.getMongoAdminUser(), "admin", config.getMongoAdminPwd().toCharArray());
+                morphiumDriver.setCredentials("admin",config.getMongoAdminUser(), config.getMongoAdminPwd().toCharArray());
             }
             String[] seed = new String[config.getHostSeed().size()];
             for (int i = 0; i < seed.length; i++) {
@@ -353,15 +349,13 @@ public class Morphium {
     }
 
     public void addListener(MorphiumStorageListener lst) {
-        List<MorphiumStorageListener> newList = new ArrayList<>();
-        newList.addAll(listeners);
+        List<MorphiumStorageListener> newList = new ArrayList<>(listeners);
         newList.add(lst);
         listeners = newList;
     }
 
     public void removeListener(MorphiumStorageListener lst) {
-        List<MorphiumStorageListener> newList = new ArrayList<>();
-        newList.addAll(listeners);
+        List<MorphiumStorageListener> newList = new ArrayList<>(listeners);
         newList.remove(lst);
         listeners = newList;
     }
@@ -389,9 +383,9 @@ public class Morphium {
     @SuppressWarnings({"unchecked", "UnusedDeclaration"})
     public <T> List<T> findByTemplate(T template, String... fields) {
         Class cls = template.getClass();
-        List<String> flds = new ArrayList<>();
+        List<String> flds;
         if (fields.length > 0) {
-            flds.addAll(Arrays.asList(fields));
+            flds = new ArrayList<>(Arrays.asList(fields));
         } else {
             flds = annotationHelper.getFields(cls);
         }
@@ -1672,10 +1666,9 @@ public class Morphium {
                 timeout = maxReplLag * 3000;
             }
         }
-	if (timeout<0) {
-		logger.error("Timeout cannot be <0!!!!");
-		timeout=0;
-	}
+        if (!isReplicaSet() && timeout < 0) {
+            timeout = 0;
+        }
         return WriteConcern.getWc(w, fsync, j, (int) timeout);
     }
 
@@ -1898,7 +1891,7 @@ public class Morphium {
             aNew = reread == null;
         }
         if (getARHelper().isAnnotationPresentInHierarchy(type, CreationTime.class) && aNew) {
-            boolean checkForNew = ct.checkForNew() || getConfig().isCheckForNew();
+            boolean checkForNew = Objects.requireNonNull(ct).checkForNew() || getConfig().isCheckForNew();
             @SuppressWarnings("unchecked") List<String> lst = getARHelper().getFields(type, CreationTime.class);
             for (String fld : lst) {
                 Field field = getARHelper().getField(o.getClass(), fld);
@@ -2149,7 +2142,7 @@ public class Morphium {
             Map<String, Object> m = new LinkedHashMap<>();
             for (String idx : f.split(",")) {
                 if (idx.contains(":")) {
-                    String i[] = idx.split(":");
+                    String[] i = idx.split(":");
                     String value = i[1].replaceAll(" ", "");
                     String key = i[0].replaceAll(" ", "");
                     if (value.matches("^['\"].*['\"]$") || value.equals("2d")) {
@@ -2761,15 +2754,11 @@ public class Morphium {
     }
 
     public <T> void watchAsync(String collectionName, boolean updateFull, ChangeStreamListener lst) {
-        asyncOperationsThreadPool.execute(() -> {
-            watch(collectionName, updateFull, lst);
-        });
+        asyncOperationsThreadPool.execute(() -> watch(collectionName, updateFull, lst));
     }
 
     public <T> void watchAsync(Class<T> entity, boolean updateFull, ChangeStreamListener lst) {
-        asyncOperationsThreadPool.execute(() -> {
-            watch(entity, updateFull, lst);
-        });
+        asyncOperationsThreadPool.execute(() -> watch(entity, updateFull, lst));
     }
 
     public <T> void watch(Class<T> entity, boolean updateFull, ChangeStreamListener lst) {
@@ -2793,7 +2782,7 @@ public class Morphium {
         AnnotationAndReflectionHelper hlp = new AnnotationAndReflectionHelper(false);
         mapper.setAnnotationHelper(hlp);
 
-        Map<String, Object> obj = (Map<String, Object>) doc.get("fullDocument");
+        @SuppressWarnings("unchecked") Map<String, Object> obj = (Map<String, Object>) doc.get("fullDocument");
         doc.put("fullDocument", null);
         ChangeStreamEvent evt = mapper.deserialize(ChangeStreamEvent.class, doc);
 
@@ -2803,9 +2792,7 @@ public class Morphium {
 
 
     public <T> void watchDbAsync(String dbName, boolean updateFull, ChangeStreamListener lst) {
-        asyncOperationsThreadPool.execute(() -> {
-            watchDb(dbName, updateFull, lst);
-        });
+        asyncOperationsThreadPool.execute(() -> watchDb(dbName, updateFull, lst));
     }
 
 

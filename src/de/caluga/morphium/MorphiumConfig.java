@@ -12,15 +12,14 @@ import de.caluga.morphium.cache.MorphiumCache;
 import de.caluga.morphium.driver.ReadPreference;
 import de.caluga.morphium.driver.ReadPreferenceType;
 import de.caluga.morphium.driver.mongodb.Driver;
-import de.caluga.morphium.objectmapper.ObjectMapperImplNG;
 import de.caluga.morphium.query.*;
 import de.caluga.morphium.writer.AsyncWriterImpl;
 import de.caluga.morphium.writer.BufferedMorphiumWriterImpl;
 import de.caluga.morphium.writer.MorphiumWriter;
 import de.caluga.morphium.writer.MorphiumWriterImpl;
+import org.json.simple.parser.ParseException;
 import org.slf4j.LoggerFactory;
 
-import java.io.IOException;
 import java.lang.reflect.Field;
 import java.util.*;
 
@@ -142,12 +141,7 @@ public class MorphiumConfig {
         this(null,prop);
     }
     public MorphiumConfig(String prefix,final Properties prop) {
-        this(prefix, new MorphiumConfigResolver() {
-            @Override
-            public Object resolveSetting(String name) {
-                return prop.get(name);
-            }
-        });
+        this(prefix, prop::get);
     }
 
     public MorphiumConfig(String prefix, MorphiumConfigResolver resolver) {
@@ -173,26 +167,24 @@ public class MorphiumConfig {
             }
             f.setAccessible(true);
 
-            if (setting != null) {
-                try {
-                    if (f.getType().equals(int.class) || f.getType().equals(Integer.class)) {
-                        f.set(this, Integer.parseInt((String) setting));
-                    } else if (f.getType().equals(String.class)) {
-                        f.set(this, setting);
-                    } else if (List.class.isAssignableFrom(f.getType())) {
-                        String lst = (String) setting;
-                        List<String> l = new ArrayList<>();
-                        lst = lst.replaceAll("[\\[\\]]", "");
-                        Collections.addAll(l, lst.split(","));
-                        f.set(this, l);
-                    } else if (f.getType().equals(boolean.class) || f.getType().equals(Boolean.class)) {
-                        f.set(this, setting.equals("true"));
-                    } else if (f.getType().equals(long.class) || f.getType().equals(Long.class)) {
-                        f.set(this, Long.parseLong((String) setting));
-                    }
-                } catch (IllegalAccessException e) {
-                    throw new RuntimeException(e);
+            try {
+                if (f.getType().equals(int.class) || f.getType().equals(Integer.class)) {
+                    f.set(this, Integer.parseInt((String) setting));
+                } else if (f.getType().equals(String.class)) {
+                    f.set(this, setting);
+                } else if (List.class.isAssignableFrom(f.getType())) {
+                    String lst = (String) setting;
+                    List<String> l = new ArrayList<>();
+                    lst = lst.replaceAll("[\\[\\]]", "");
+                    Collections.addAll(l, lst.split(","));
+                    f.set(this, l);
+                } else if (f.getType().equals(boolean.class) || f.getType().equals(Boolean.class)) {
+                    f.set(this, setting.equals("true"));
+                } else if (f.getType().equals(long.class) || f.getType().equals(Long.class)) {
+                    f.set(this, Long.parseLong((String) setting));
                 }
+            } catch (IllegalAccessException e) {
+                throw new RuntimeException(e);
             }
         }
         if (hostSeed == null || hostSeed.isEmpty()) {
@@ -221,7 +213,7 @@ public class MorphiumConfig {
     }
 
     public static List<String> getPropertyNames(String prefix) {
-        List<String> flds = new AnnotationAndReflectionHelper(true).getFields(MorphiumConfig.class);
+        @SuppressWarnings("unchecked") List<String> flds = new AnnotationAndReflectionHelper(true).getFields(MorphiumConfig.class);
 
         List<String> ret = new ArrayList<>();
         for (String f : flds) {
@@ -232,8 +224,8 @@ public class MorphiumConfig {
     }
 
 
-    public static MorphiumConfig createFromJson(String json) throws NoSuchFieldException, ClassNotFoundException, IllegalAccessException, InstantiationException, IOException {
-        MorphiumConfig cfg = new ObjectMapperImplNG().deserialize(MorphiumConfig.class, json);
+    public static MorphiumConfig createFromJson(String json) throws NoSuchFieldException, ClassNotFoundException, IllegalAccessException, InstantiationException, ParseException {
+        MorphiumConfig cfg = new ObjectMapperImpl().deserialize(MorphiumConfig.class, json);
 
         for (Object ko : cfg.restoreData.keySet()) {
             String k = (String) ko;
@@ -242,7 +234,7 @@ public class MorphiumConfig {
             if (k.equals("hosts") || k.equals("hostSeed")) {
                 value = value.replaceAll("\\[", "").replaceAll("]", "");
                 for (String adr : value.split(",")) {
-                    String a[] = adr.split(":");
+                    String[] a = adr.split(":");
                     cfg.addHostToSeed(a[0].trim(), Integer.parseInt(a[1].trim()));
                 }
 
@@ -258,7 +250,7 @@ public class MorphiumConfig {
         if (k.contains(".")) {
             k = k.substring(0, k.indexOf(".") + 1);
         }
-        String n[] = k.split("_");
+        String[] n = k.split("_");
         if (n.length != 3) {
             return ;
         }
@@ -712,7 +704,7 @@ public class MorphiumConfig {
 
     public MorphiumConfig setHostSeed(String hostPorts) {
         hostSeed.clear();
-        String h[] = hostPorts.split(",");
+        String[] h = hostPorts.split(",");
         for (String host : h) {
             addHostToSeed(host);
         }
@@ -723,8 +715,8 @@ public class MorphiumConfig {
         hostSeed.clear();
         hosts = hosts.replaceAll(" ", "");
         ports = ports.replaceAll(" ", "");
-        String h[] = hosts.split(",");
-        String p[] = ports.split(",");
+        String[] h = hosts.split(",");
+        String[] p = ports.split(",");
         for (int i = 0; i < h.length; i++) {
             if (p.length < i) {
                 addHostToSeed(h[i], 27017);

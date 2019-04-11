@@ -6,7 +6,9 @@ import de.caluga.morphium.driver.MorphiumDriverException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.ArrayList;
 import java.util.Collection;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentLinkedDeque;
 
@@ -20,9 +22,8 @@ public class ChangeStreamMonitor implements Runnable, ShutdownListener {
     private final String collectionName;
     private final boolean fullDocument;
     private boolean running = true;
-    private long timestamp;
     private Thread changeStreamThread;
-    private MorphiumObjectMapper mapper;
+    private final MorphiumObjectMapper mapper;
     private boolean dbOnly = false;
 
 
@@ -38,7 +39,7 @@ public class ChangeStreamMonitor implements Runnable, ShutdownListener {
     public ChangeStreamMonitor(Morphium m, String collectionName, boolean fullDocument) {
         morphium = m;
         listeners = new ConcurrentLinkedDeque<>();
-        timestamp = System.currentTimeMillis() / 1000;
+        long timestamp = System.currentTimeMillis() / 1000;
         morphium.addShutdownListener(this);
         this.collectionName = collectionName;
         this.fullDocument = fullDocument;
@@ -109,17 +110,23 @@ public class ChangeStreamMonitor implements Runnable, ShutdownListener {
                     if (!running) {
                         return false;
                     }
-                    Map<String, Object> obj = (Map<String, Object>) data.get("fullDocument");
+                    @SuppressWarnings("unchecked") Map<String, Object> obj = (Map<String, Object>) data.get("fullDocument");
                     data.put("fullDocument", null);
                     ChangeStreamEvent evt = mapper.deserialize(ChangeStreamEvent.class, data);
 
                     evt.setFullDocument(obj);
+                    List<ChangeStreamListener> toRemove = new ArrayList<>();
                     for (ChangeStreamListener lst : listeners) {
                         try {
-                            lst.incomingData(evt);
+                            if (!lst.incomingData(evt)) {
+                                toRemove.add(lst);
+                            }
                         } catch (Exception e) {
                             log.error("listener threw exception", e);
                         }
+                    }
+                    for (ChangeStreamListener r : toRemove) {
+                        listeners.remove(r);
                     }
                     return running;
                 };

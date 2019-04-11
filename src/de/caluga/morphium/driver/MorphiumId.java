@@ -2,7 +2,6 @@ package de.caluga.morphium.driver;/**
  * Created by stephan on 27.10.15.
  */
 
-import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import org.slf4j.LoggerFactory;
 
 import java.io.Serializable;
@@ -17,7 +16,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 /**
  * Morphium representation of an ID. similar to BSON ID
  **/
-@JsonSerialize(as = MorphiumId.class)
+@SuppressWarnings("SameParameterValue")
 public class MorphiumId implements Comparable<MorphiumId>, Serializable {
 
     private static final int THE_MACHINE_ID;

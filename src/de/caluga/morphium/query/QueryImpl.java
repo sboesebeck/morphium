@@ -970,7 +970,7 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
         }
 
         //noinspection unchecked
-        List<R> ret = new ArrayList<>(query.stream().map(o -> (R) o.get("_id")).collect(Collectors.toList()));
+        List<R> ret = query.stream().map(o -> (R) o.get("_id")).collect(Collectors.toList());
         srv = (String) findMetadata.get("server");
         long dur = System.currentTimeMillis() - start;
         morphium.fireProfilingReadEvent(this, dur, ReadAccessType.ID_LIST);
@@ -1122,11 +1122,13 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
 
     @Override
     public void pullAll(String field, List value) {
+        //noinspection unchecked
         morphium.pullAll(this, field, value, false, false);
     }
 
     @Override
     public void pullAll(Enum field, List value) {
+        //noinspection unchecked
         morphium.pullAll(this, field.name(), value, false, false);
     }
 

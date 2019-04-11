@@ -80,6 +80,7 @@ public class Aggregation extends MongoTest {
     @Test
     public void testAddToSet() {
         morphium.clearCollection(UncachedObject.class);
+        //noinspection Duplicates
         for (int i = 0; i < 100; i++) {
             UncachedObject u = new UncachedObject();
             u.setCounter(i % 3);

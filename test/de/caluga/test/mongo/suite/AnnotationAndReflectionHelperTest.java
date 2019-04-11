@@ -222,6 +222,7 @@ public class AnnotationAndReflectionHelperTest {
         assertThat(helper.getFields(TestClass4.class).contains("var2")).isFalse();
         assertThat(helper.getFields(TestClass4.class).contains("var3")).isFalse();
         assertThat(helper.getFields(TestClass4.class).contains("id")).isFalse();
+        //noinspection unchecked
         assertThat(helper.getFields(TestClass4.class).contains("_id")).isFalse();
         assertThat(helper.getFields(TestClass4.class).contains("something")).isTrue();
 
