@@ -20,17 +20,16 @@ import java.util.concurrent.ConcurrentHashMap;
  * TODO: Add documentation here
  */
 public class CacheManagerImpl implements CacheManager {
-    private final MorphiumConfig cfg;
     private CachingProvider cachingProvider;
     private URI uri;
     private ClassLoader classLoader;
     private Properties properties;
 
-    private Map<String, Cache> caches = new ConcurrentHashMap<>();
+    private final Map<String, Cache> caches = new ConcurrentHashMap<>();
 
     public CacheManagerImpl(Properties settings) {
 
-        cfg = MorphiumConfig.fromProperties(settings);
+        MorphiumConfig cfg = MorphiumConfig.fromProperties(settings);
 
 
 
@@ -87,6 +86,7 @@ public class CacheManagerImpl implements CacheManager {
         cache.setCacheManager(this);
         caches.put(cacheName, cache);
         cache.setName(cacheName);
+        //noinspection unchecked
         return (Cache<K, V>) cache;
 
     }
@@ -98,11 +98,13 @@ public class CacheManagerImpl implements CacheManager {
             createCache(cacheName, null);
         }
 
+        //noinspection unchecked
         return caches.get(cacheName);
     }
 
     @Override
     public <K, V> Cache<K, V> getCache(String cacheName) {
+        //noinspection unchecked,unchecked
         return getCache(cacheName, (Class<K>) Object.class, (Class<V>) Object.class);
     }
 

@@ -24,7 +24,7 @@ public class MorphiumCacheImpl implements MorphiumCache {
     private final Logger logger = LoggerFactory.getLogger(MorphiumCacheImpl.class);
     private final CacheHousekeeper cacheHousekeeper;
     private Map<Class<?>, Map<String, CacheEntry>> cache;
-    private Map<Class<?>, Map<Object, Object>> idCache;
+    private final Map<Class<?>, Map<Object, Object>> idCache;
     private AnnotationAndReflectionHelper annotationHelper = new AnnotationAndReflectionHelper(false); //only used to get id's and annotations, camalcase conversion never happens
 
 
@@ -253,10 +253,11 @@ public class MorphiumCacheImpl implements MorphiumCache {
         //        Map<Class<?>, Map<Object, Object>> idc = getIdCache();
         if (idCache.get(cls) != null && idCache.get(cls).get(id) != null) {
             for (CacheListener cl : cacheListeners) {
-//                if (!cl.wouldRemoveEntryFromCache(cls, id, idCache.get(cls).get(id))) {
-//                    logger.info("Not removing from cache due to veto from CacheListener " + cl.getClass().getName());
-//                    return;
-//                }
+                CacheEntry e = new CacheEntry(idCache.get(cls).get(id), id);
+                if (!cl.wouldRemoveEntryFromCache(id, e, false)) {
+                    logger.info("Not removing from cache due to veto from CacheListener " + cl.getClass().getName());
+                    return;
+                }
             }
         }
         idCache.get(cls).remove(id);

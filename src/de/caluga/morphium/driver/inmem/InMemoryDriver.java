@@ -31,15 +31,13 @@ public class InMemoryDriver implements MorphiumDriver {
     private final Logger log = LoggerFactory.getLogger(InMemoryDriver.class);
     // DBName => Collection => List of documents
     private final Map<String, Map<String, List<Map<String, Object>>>> database = new ConcurrentHashMap<>();
-    private ThreadLocal<InMemTransactionContext> currentTransaction = new ThreadLocal<>();
+    private final ThreadLocal<InMemTransactionContext> currentTransaction = new ThreadLocal<>();
     private final AtomicLong txn = new AtomicLong();
-    private Map<String, List<DriverTailableIterationCallback>> watchersByDb = new ConcurrentHashMap<>();
+    private final Map<String, List<DriverTailableIterationCallback>> watchersByDb = new ConcurrentHashMap<>();
 
     @Override
     public List<String> listDatabases() {
-        List<String> lst = new Vector<>();
-        lst.addAll(database.keySet());
-        return lst;
+        return new Vector<>(database.keySet());
     }
 
     @Override
@@ -50,7 +48,7 @@ public class InMemoryDriver implements MorphiumDriver {
         if (pattern == null) {
             ret.addAll(collections);
         } else {
-            for (String col : ret) {
+            for (String col : collections) {
                 if (col.matches(pattern)) {
                     ret.add(col);
                 }
@@ -366,7 +364,7 @@ public class InMemoryDriver implements MorphiumDriver {
                 Object result = engine.eval((String) query.get("$where"));
                 if (result == null || result.equals(Boolean.FALSE)) return false;
             } catch (ScriptException e) {
-
+                throw new RuntimeException("Scripting error", e);
             }
         }
         //noinspection LoopStatementThatDoesntLoop
@@ -433,6 +431,7 @@ public class InMemoryDriver implements MorphiumDriver {
                                 }
                                 if (toCheck.get(key) == null && q.get(k) != null) return true;
                                 if (toCheck.get(key) == null && q.get(k) == null) return false;
+                                //noinspection unchecked
                                 return ((Comparable) toCheck.get(key)).compareTo(q.get(k)) != 0;
                             case "$exists":
 
@@ -515,6 +514,7 @@ public class InMemoryDriver implements MorphiumDriver {
         return crs;
     }
 
+    @SuppressWarnings("RedundantThrows")
     @Override
     public void watch(String db, int timeout, boolean fullDocumentOnUpdate, DriverTailableIterationCallback cb) throws MorphiumDriverException {
         watchersByDb.putIfAbsent(db, new Vector<>());
@@ -525,10 +525,12 @@ public class InMemoryDriver implements MorphiumDriver {
             try {
                 Thread.sleep(1000);
             } catch (InterruptedException e) {
+                //swallow
             }
         }
     }
 
+    @SuppressWarnings("RedundantThrows")
     @Override
     public void watch(String db, String collection, int timeout, boolean fullDocumentOnUpdate, DriverTailableIterationCallback cb) throws MorphiumDriverException {
         String key = db + "." + collection;
@@ -628,7 +630,7 @@ public class InMemoryDriver implements MorphiumDriver {
             //todo add projection
         }
 
-        return ret;
+        return new ArrayList<>(ret);
     }
 
     @Override
@@ -660,7 +662,7 @@ public class InMemoryDriver implements MorphiumDriver {
                 ret.add(new HashMap<>(obj));
             }
         }
-        return ret;
+        return new ArrayList<>(ret);
     }
 
     @Override
@@ -712,7 +714,9 @@ public class InMemoryDriver implements MorphiumDriver {
             database.putIfAbsent(db, new ConcurrentHashMap<>());
             return database.get(db);
         } else {
+            //noinspection unchecked
             currentTransaction.get().getDatabase().putIfAbsent(db, new ConcurrentHashMap<>());
+            //noinspection unchecked
             return (Map<String, List<Map<String, Object>>>) currentTransaction.get().getDatabase().get(db);
         }
     }
@@ -727,7 +731,7 @@ public class InMemoryDriver implements MorphiumDriver {
         List<Map<String, Object>> lst = find(db, collection, query, null, null, 0, multiple ? 0 : 1, true);
         boolean insert = false;
         if (lst == null) lst = new Vector<>();
-        if (upsert && (lst == null || lst.isEmpty())) {
+        if (upsert && lst.isEmpty()) {
             lst.add(new HashMap<>());
             for (String k : query.keySet()) {
                 if (k.startsWith("$")) continue;
@@ -845,13 +849,14 @@ public class InMemoryDriver implements MorphiumDriver {
                             }
                             if (entry.getValue() instanceof Map) {
                                 if (((Map) entry.getValue()).get("$each") != null) {
-                                    for (Object o : (List) ((Map) entry.getValue()).get("$each")) {
-                                        v.add(o);
-                                    }
+                                    //noinspection unchecked
+                                    v.addAll((List) ((Map) entry.getValue()).get("$each"));
                                 } else {
+                                    //noinspection unchecked
                                     v.add(entry.getValue());
                                 }
                             } else {
+                                //noinspection unchecked
                                 v.add(entry.getValue());
                             }
                         }
@@ -924,6 +929,7 @@ public class InMemoryDriver implements MorphiumDriver {
             data.put("fullDocument", doc);
             data.put("operationType", op);
             Map m = Utils.getMap("db", db);
+            //noinspection unchecked
             m.put("coll", collection);
             data.put("ns", m);
             data.put("txnNumber", tx);
@@ -986,10 +992,8 @@ public class InMemoryDriver implements MorphiumDriver {
                 }
             }
         }
-        List<Object> distinctValuesList = new Vector<>();
-        distinctValuesList.addAll(distinctValues);
 
-        return distinctValuesList;
+        return new ArrayList<>(distinctValues);
     }
 
     @Override
@@ -1149,6 +1153,7 @@ public class InMemoryDriver implements MorphiumDriver {
     public void commitTransaction() {
         if (currentTransaction.get() == null) throw new IllegalArgumentException("No transaction in progress");
         InMemTransactionContext ctx = currentTransaction.get();
+        //noinspection unchecked
         database.putAll(ctx.getDatabase());
         currentTransaction.set(null);
     }

@@ -13,11 +13,12 @@ import java.util.*;
  * <p>
  * TODO: Add documentation here
  */
+@SuppressWarnings("unused")
 public abstract class AbstractCacheSynchronizer<T extends CacheSyncListener> {
     protected static final Logger log = LoggerFactory.getLogger(MessagingCacheSynchronizer.class);
-    protected Morphium morphium;
-    protected List<T> listeners = Collections.synchronizedList(new ArrayList<>());
-    protected Hashtable<Class<?>, Vector<T>> listenerForType = new Hashtable<>();
+    protected final Morphium morphium;
+    protected final List<T> listeners = Collections.synchronizedList(new ArrayList<>());
+    protected final Hashtable<Class<?>, Vector<T>> listenerForType = new Hashtable<>();
 
 
     public AbstractCacheSynchronizer(Morphium morphium) {

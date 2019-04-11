@@ -44,6 +44,7 @@ public abstract class BulkRequestContext {
         this.batchSize = batchSize;
     }
 
+    @SuppressWarnings("RedundantThrows")
     public abstract Map<String, Object> execute() throws MorphiumDriverException;
 
     public abstract UpdateBulkRequest addUpdateBulkRequest();
