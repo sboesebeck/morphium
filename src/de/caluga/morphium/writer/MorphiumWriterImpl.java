@@ -54,7 +54,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
     public void setMorphium(Morphium m) {
         morphium = m;
         if (m != null) {
-            BlockingQueue<Runnable> queue = new LinkedBlockingQueue<>() {
+            BlockingQueue<Runnable> queue = new LinkedBlockingQueue<Runnable>() {
                 @Override
                 public boolean offer(Runnable e) {
                     /*
@@ -365,7 +365,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
 
                     Map<String, Object> marshall = morphium.getMapper().serialize(o);
 
-                    var coll = collection;
+                    String coll = collection;
                     if (coll == null) {
                         coll = morphium.getMapper().getCollectionName(type);
                     }
@@ -379,7 +379,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                     } catch (Throwable t) {
                         throw new RuntimeException(t);
                     }
-                    var dur = System.currentTimeMillis() - start;
+                    long dur = System.currentTimeMillis() - start;
                     morphium.fireProfilingWriteEvent(o.getClass(), marshall, dur, true, WriteAccessType.SINGLE_INSERT);
 
 
@@ -937,7 +937,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
 
     @Override
     public <T> void set(final T toSet, final String collection, final String field, final Object v, final boolean upsert, final boolean multiple, AsyncOperationCallback<T> callback) {
-        WriterTask<T> r = new WriterTask<>() {
+        WriterTask<T> r = new WriterTask<T>() {
             private AsyncOperationCallback<T> callback;
 
             @Override

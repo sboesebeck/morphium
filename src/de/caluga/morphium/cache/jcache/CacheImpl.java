@@ -281,7 +281,7 @@ public class CacheImpl<K, CE> implements Cache<K, CacheEntry<CE>> {
     @Override
     public Iterator<Entry<K, CacheEntry<CE>>> iterator() {
 
-        return new Iterator<>() {
+        return new Iterator<Entry<K, CacheEntry<CE>>>() {
             final Iterator<Map.Entry<K, CacheEntry<CE>>> it = theCache.entrySet().iterator();
 
             @Override
@@ -292,7 +292,7 @@ public class CacheImpl<K, CE> implements Cache<K, CacheEntry<CE>> {
             @Override
             public Entry<K, CacheEntry<CE>> next() {
                 final Map.Entry<K, CacheEntry<CE>> entry = it.next();
-                return new Entry<>() {
+                return new Entry<K, CacheEntry<CE>>() {
                     @Override
                     public K getKey() {
                         return entry.getKey();

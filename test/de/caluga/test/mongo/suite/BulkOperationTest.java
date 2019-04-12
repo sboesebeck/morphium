@@ -165,7 +165,7 @@ public class BulkOperationTest extends MongoTest {
     public void callbackTest() throws Exception {
         morphium.dropCollection(UncachedObject.class);
 
-        MorphiumStorageListener<UncachedObject> listener = new MorphiumStorageAdapter<>() {
+        MorphiumStorageListener<UncachedObject> listener = new MorphiumStorageAdapter<UncachedObject>() {
             @Override
             public void preRemove(Morphium m, Query<UncachedObject> q) {
                 preRemove = true;
