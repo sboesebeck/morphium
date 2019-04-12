@@ -87,7 +87,7 @@ public class AsyncOperationTest extends MongoTest {
         createUncachedObjects(100);
         Query<UncachedObject> q = morphium.createQueryFor(UncachedObject.class);
         q = q.f("counter").lt(1000);
-        q.asList(new AsyncOperationCallback<>() {
+        q.asList(new AsyncOperationCallback<UncachedObject>() {
             @Override
             public void onOperationSucceeded(AsyncOperationType type, Query<UncachedObject> q, long duration, List<UncachedObject> result, UncachedObject entity, Object... param) {
                 asyncCall = true;
@@ -118,7 +118,7 @@ public class AsyncOperationTest extends MongoTest {
         createUncachedObjects(100);
         Query<UncachedObject> q = morphium.createQueryFor(UncachedObject.class);
         q = q.f("counter").lt(1000);
-        q.countAll(new AsyncOperationCallback<>() {
+        q.countAll(new AsyncOperationCallback<UncachedObject>() {
             @Override
             public void onOperationSucceeded(AsyncOperationType type, Query<UncachedObject> q, long duration, List<UncachedObject> result, UncachedObject entity, Object... param) {
                 asyncCall = true;
@@ -175,7 +175,7 @@ public class AsyncOperationTest extends MongoTest {
         log.info("upcoming Error Message + Exception is expected");
         WrongObject wo = new WrongObject();
         callback = false;
-        morphium.store(wo, new AsyncOperationCallback<>() {
+        morphium.store(wo, new AsyncOperationCallback<WrongObject>() {
             @Override
             public void onOperationSucceeded(AsyncOperationType type, Query<WrongObject> q, long duration, List<WrongObject> result, WrongObject entity, Object... param) {
 

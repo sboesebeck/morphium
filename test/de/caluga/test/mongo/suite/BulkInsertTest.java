@@ -105,7 +105,7 @@ public class BulkInsertTest extends MongoTest {
             UncachedObject uc = new UncachedObject();
             uc.setCounter(i + 1);
             uc.setValue("nix " + i);
-            morphium.store(uc, new AsyncOperationCallback<>() {
+            morphium.store(uc, new AsyncOperationCallback<UncachedObject>() {
                 @Override
                 public void onOperationSucceeded(AsyncOperationType type, Query<UncachedObject> q, long duration, List<UncachedObject> result, UncachedObject entity, Object... param) {
                     asyncCall = true;

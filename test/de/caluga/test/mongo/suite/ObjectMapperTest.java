@@ -695,7 +695,7 @@ public class ObjectMapperTest extends MongoTest {
 
     @Test
     public void customMapperTest() {
-        morphium.getMapper().registerCustomMapperFor(MyClass.class, new MorphiumTypeMapper<>() {
+        morphium.getMapper().registerCustomMapperFor(MyClass.class, new MorphiumTypeMapper<MyClass>() {
             @Override
             public Object marshall(MyClass o) {
                 Map m = new HashMap();

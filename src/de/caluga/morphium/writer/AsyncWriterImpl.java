@@ -18,7 +18,7 @@ public class AsyncWriterImpl extends MorphiumWriterImpl {
     @Override
     public <T> void submitAndBlockIfNecessary(AsyncOperationCallback<T> callback, WriterTask<T> r) {
         if (callback == null) {
-            callback = new AsyncOperationCallback<>() {
+            callback = new AsyncOperationCallback<T>() {
                 @Override
                 public void onOperationSucceeded(AsyncOperationType type, Query<T> q, long duration, List<T> result, T entity, Object... param) {
                 }

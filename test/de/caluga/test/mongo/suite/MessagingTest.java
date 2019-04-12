@@ -638,12 +638,57 @@ public class MessagingTest extends MongoTest {
     }
 
     @Test
-    public void getAnswersTest() throws Exception {
+    public void answers3NodesTest() throws Exception {
         Messaging m1 = new Messaging(morphium, 10, false, true, 10);
+        m1.setSenderId("m1");
         Messaging m2 = new Messaging(morphium, 10, false, true, 10);
+        m2.setSenderId("m2");
+        Messaging mSrv = new Messaging(morphium, 10, false, true, 10);
+        mSrv.setSenderId("Srv");
 
         m1.start();
         m2.start();
+        mSrv.start();
+
+        mSrv.addListenerForMessageNamed("query", (msg, m) -> {
+            log.info("Incoming message - sending result");
+            Msg answer = m.createAnswerMsg();
+            answer.setValue("Result");
+            return answer;
+        });
+        Thread.sleep(1000);
+
+
+        for (int i = 0; i < 10; i++) {
+            Msg m = new Msg("query", "a message", "a query");
+            m.setExclusive(true);
+            log.info("Sending m1...");
+            Msg answer1 = m1.sendAndAwaitFirstAnswer(m, 1000);
+            assert (answer1 != null);
+            m = new Msg("query", "a message", "a query");
+            log.info("... got it. Sending m2");
+            Msg answer2 = m2.sendAndAwaitFirstAnswer(m, 1000);
+            assert (answer2 != null);
+            log.info("... got it.");
+        }
+
+    }
+
+    @Test
+    public void getAnswersTest() throws Exception {
+        Messaging m1 = new Messaging(morphium, 10, false, true, 10);
+        Messaging m2 = new Messaging(morphium, 10, false, true, 10);
+        Messaging mTst = new Messaging(morphium, 10, false, true, 10);
+
+        m1.start();
+        m2.start();
+        mTst.start();
+
+
+        mTst.addListenerForMessageNamed("somethign else", (msg, m) -> {
+            log.info("incoming message??");
+            return null;
+        });
 
         m2.addListenerForMessageNamed("question", (msg, m) -> {
             Msg answer = m.createAnswerMsg();
@@ -660,9 +705,9 @@ public class MessagingTest extends MongoTest {
 
         Msg question = new Msg("question", "question", "a value");
         question.setPriority(5);
-        List<Msg> answers = m1.sendAndAwaitAnswers(question, 2, 1000);
+        List<Msg> answers = m1.sendAndAwaitAnswers(question, 2, 5000);
         assert (answers != null && !answers.isEmpty());
-        assert (answers.size() == 2);
+        assert (answers.size() == 2) : "Got wrong number of answers: " + answers.size();
         for (Msg m : answers) {
             assert (m.getInAnswerTo() != null);
             assert (m.getInAnswerTo().equals(question.getMsgId()));
