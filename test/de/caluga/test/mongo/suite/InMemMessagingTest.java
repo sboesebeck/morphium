@@ -215,7 +215,7 @@ public class InMemMessagingTest extends InMemTest {
             Msg question = new Msg("question", "question" + i, "a value " + i);
             question.setPriority(5);
             long start = System.currentTimeMillis();
-            Msg answer = m1.sendAndAwaitFirstAnswer(question, 150000);
+            Msg answer = m1.sendAndAwaitFirstAnswer(question, 1500);
             long dur = System.currentTimeMillis() - start;
             assert (answer != null && answer.getInAnswerTo() != null);
             assert (answer.getInAnswerTo().equals(question.getMsgId()));
