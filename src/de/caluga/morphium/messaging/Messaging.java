@@ -572,9 +572,11 @@ public class Messaging extends Thread implements ShutdownListener {
                         }
                     }
                 }
-                if (!wasProcessed && !lst.isEmpty()) {
+                if (!wasProcessed && !wasRejected) {
                     //                        msg.addAdditional("Processing of message failed by "+getSenderId()+": "+t.getMessage());
                     log.error("message was not processed");
+                } else if (wasRejected) {
+                    log.debug("Message rejected");
                 }
 
                 //                            if (msg.getType().equals(MsgType.SINGLE)) {
