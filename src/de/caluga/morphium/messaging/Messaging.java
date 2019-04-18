@@ -303,6 +303,9 @@ public class Messaging extends Thread implements ShutdownListener {
 
                         if (evt.getFullDocument() != null && evt.getFullDocument().get("_id") != null) {
                             Msg obj = morphium.findById(Msg.class, new MorphiumId(evt.getFullDocument().get("_id").toString()), getCollectionName());
+                            if (obj == null) {
+                                return running; //was deleted?
+                            }
                             if (obj.getInAnswerTo() != null && waitingForMessages.containsKey(obj.getInAnswerTo())) {
                                 if (obj.isExclusive()) {
                                     lockAndProcess(obj);
