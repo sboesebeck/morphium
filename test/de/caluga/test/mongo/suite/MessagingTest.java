@@ -637,6 +637,90 @@ public class MessagingTest extends MongoTest {
 
     }
 
+
+    @Test
+    public void answerExclusiveMessagesTest() throws Exception {
+        Messaging m1 = new Messaging(morphium, 10, false, true, 10);
+        m1.setSenderId("m1");
+        Messaging m2 = new Messaging(morphium, 10, false, true, 10);
+        m2.setSenderId("m2");
+        Messaging m3 = new Messaging(morphium, 10, false, true, 10);
+        m3.setSenderId("m3");
+        m1.start();
+        m2.start();
+        m3.start();
+
+        m3.addListenerForMessageNamed("test", (msg, m) -> {
+            log.info("INcoming message");
+            return m.createAnswerMsg();
+        });
+
+        Msg m = new Msg("test", "important", "value");
+        m.setExclusive(true);
+        Msg answer = m1.sendAndAwaitFirstAnswer(m, 6000);
+        Thread.sleep(500);
+        assert (answer != null);
+        assert (answer.getProcessedBy().size() == 1);
+        assert (answer.getProcessedBy().contains("m3"));
+    }
+
+
+    @Test
+    public void ignoringMessagesTest() throws Exception {
+        Messaging m1 = new Messaging(morphium, 10, false, true, 10);
+        m1.setSenderId("m1");
+        Messaging m2 = new Messaging(morphium, 10, false, true, 10);
+        m2.setSenderId("m2");
+        m1.start();
+        m2.start();
+
+        Msg m = new Msg("test", "ignore me please", "value");
+        m1.storeMessage(m);
+        Thread.sleep(1000);
+        m = morphium.reread(m);
+        assert (m.getProcessedBy().size() == 1) : "wrong number of proccessed by entries: " + m.getProcessedBy().size();
+    }
+
+    @Test
+    public void severalMessagingsTest() throws Exception {
+        Messaging m1 = new Messaging(morphium, 10, false, true, 10);
+        m1.setSenderId("m1");
+        Messaging m2 = new Messaging(morphium, 10, false, true, 10);
+        m2.setSenderId("m2");
+        Messaging m3 = new Messaging(morphium, 10, false, true, 10);
+        m3.setSenderId("m3");
+        m1.start();
+        m2.start();
+        m3.start();
+
+        m3.addListenerForMessageNamed("test", (msg, m) -> {
+            //log.info("Got message: "+m.getName());
+            log.info("Sending answer for " + m.getMsgId());
+            return new Msg("test", "answer", "value", 600000);
+        });
+
+        procCounter.set(0);
+        for (int i = 0; i < 180; i++) {
+            new Thread() {
+                public void run() {
+                    Msg m = new Msg("test", "nothing", "value");
+                    m.setTtl(60000000);
+                    Msg a = m1.sendAndAwaitFirstAnswer(m, 6000);
+                    assert (a != null);
+                    procCounter.incrementAndGet();
+                }
+            }.start();
+
+        }
+        while (procCounter.get() < 150) {
+            Thread.yield();
+        }
+
+    }
+
+
+
+
     @Test
     public void answers3NodesTest() throws Exception {
         Messaging m1 = new Messaging(morphium, 10, false, true, 10);
