@@ -196,10 +196,9 @@ public class InMemMessagingTest extends InMemTest {
     @Test
     public void waitForAnswerTest() throws Exception {
         MorphiumConfig cfg = MorphiumConfig.createFromJson(morphium.getConfig().toString());
-        Morphium mor = new Morphium(cfg);
 
         Messaging m1 = new Messaging(morphium, 10, false, true, 10);
-        Messaging m2 = new Messaging(mor, 10, false, true, 10);
+        Messaging m2 = new Messaging(morphium, 10, false, true, 10);
         m1.setSenderId("m1");
         m2.setSenderId("m2");
         m1.start();
@@ -209,7 +208,7 @@ public class InMemMessagingTest extends InMemTest {
             Msg answer = m.createAnswerMsg();
             return answer;
         });
-
+        Thread.sleep(1000);
         for (int i = 0; i < 100; i++) {
             log.info("Sending msg " + i);
             Msg question = new Msg("question", "question" + i, "a value " + i);
@@ -221,7 +220,6 @@ public class InMemMessagingTest extends InMemTest {
             assert (answer.getInAnswerTo().equals(question.getMsgId()));
             log.info("... ok - took " + dur + " ms");
         }
-        mor.close();
     }
 
 
