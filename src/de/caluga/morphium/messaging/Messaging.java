@@ -433,7 +433,8 @@ public class Messaging extends Thread implements ShutdownListener {
                 or1.f(Msg.Fields.name).in(listenerByName.keySet());
                 or2.f(Msg.Fields.name).in(listenerByName.keySet());
             } else if (listenerByName.isEmpty() && listeners.isEmpty()) {
-                return q.q().f(Msg.Fields.msgId).eq("123445").asIterable();
+                return q.q().f(Msg.Fields.inAnswerTo).in(waitingForMessages.keySet()).asIterable();
+                // return q.q().f(Msg.Fields.msgId).eq("123445").asIterable();
             }
 
         }
