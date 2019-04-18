@@ -434,7 +434,6 @@ public class InMemoryDriver implements MorphiumDriver {
                                 //noinspection unchecked
                                 return ((Comparable) toCheck.get(key)).compareTo(q.get(k)) != 0;
                             case "$exists":
-
                                 boolean exists = (toCheck.containsKey(key));
                                 if (q.get(k).equals(Boolean.TRUE) || q.get(k).equals("true") || q.get(k).equals(1)) {
                                     return exists;
@@ -443,16 +442,26 @@ public class InMemoryDriver implements MorphiumDriver {
                                 }
                             case "$nin":
                                 boolean found = false;
-                                for (Object v : (List) q.get(k)) {
-                                    if (toCheck.get(key).equals(v)) {
-                                        found = true;
+                                if (toCheck.containsKey(key)) {
+                                    for (Object v : (List) q.get(k)) {
+                                        if (v instanceof MorphiumId) {
+                                            v = new ObjectId(v.toString());
+                                        }
+                                        if (toCheck.get(key).equals(v)) {
+                                            found = true;
+                                        }
                                     }
                                 }
                                 return !found;
                             case "$in":
-                                for (Object v : (List) q.get(k)) {
-                                    if (toCheck.get(key).equals(v)) {
-                                        return true;
+                                if (toCheck.containsKey(key)) {
+                                    for (Object v : (List) q.get(k)) {
+                                        if (v instanceof MorphiumId) {
+                                            v = new ObjectId(v.toString());
+                                        }
+                                        if (toCheck.get(key).equals(v)) {
+                                            return true;
+                                        }
                                     }
                                 }
                                 return false;
@@ -464,12 +473,14 @@ public class InMemoryDriver implements MorphiumDriver {
                     } else {
                         //value comparison - should only be one here
                         assert (query.size() == 1);
+//                        if (toCheck.get(key)!=null) {
                         if (toCheck.get(key) instanceof MorphiumId || toCheck.get(key) instanceof ObjectId) {
                             return toCheck.get(key).toString().equals(query.get(key).toString());
                         }
                         if (toCheck.get(key) == null && query.get(key) != null) return false;
                         if (toCheck.get(key) == null && query.get(key) == null) return true;
                         return toCheck.get(key).equals(query.get(key));
+//                        }
                     }
             }
         }
@@ -680,10 +691,10 @@ public class InMemoryDriver implements MorphiumDriver {
     }
 
     @Override
-    public Map<String,Object> store(String db, String collection, List<Map<String, Object>> objs, WriteConcern wc) {
-        Map<String,Object> ret=new HashMap<>();
-        int upd=0;
-        int total=objs.size();
+    public Map<String, Object> store(String db, String collection, List<Map<String, Object>> objs, WriteConcern wc) {
+        Map<String, Object> ret = new HashMap<>();
+        int upd = 0;
+        int total = objs.size();
         for (Map<String, Object> o : objs) {
 
             if (o.get("_id") == null) {
@@ -702,8 +713,8 @@ public class InMemoryDriver implements MorphiumDriver {
             }
             getCollection(db, collection).add(o);
         }
-        ret.put("matched",upd);
-        ret.put("updated",upd);
+        ret.put("matched", upd);
+        ret.put("updated", upd);
         return ret;
     }
 
@@ -953,7 +964,7 @@ public class InMemoryDriver implements MorphiumDriver {
         List<Map<String, Object>> toDel = find(db, collection, query, null, null, 0, multiple ? 0 : 1, 10000, null, null);
         for (Map<String, Object> o : toDel) {
             getCollection(db, collection).remove(o);
-            notifyWatchers(db,collection,"delete",o);
+            notifyWatchers(db, collection, "delete", o);
         }
         return new HashMap<>();
     }
@@ -966,13 +977,13 @@ public class InMemoryDriver implements MorphiumDriver {
     @Override
     public void drop(String db, String collection, WriteConcern wc) {
         getDB(db).remove(collection);
-        notifyWatchers(db,collection,"drop",null);
+        notifyWatchers(db, collection, "drop", null);
     }
 
     @Override
     public void drop(String db, WriteConcern wc) {
         database.remove(db);
-        notifyWatchers(db,null,"drop",null);
+        notifyWatchers(db, null, "drop", null);
     }
 
     @Override
