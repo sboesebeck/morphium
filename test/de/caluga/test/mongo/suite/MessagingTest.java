@@ -805,7 +805,8 @@ public class MessagingTest extends MongoTest {
 
         Messaging m1 = new Messaging(morphium, 10, false, true, 10);
         Messaging m2 = new Messaging(mor, 10, false, true, 10);
-
+        m1.setSenderId("m1");
+        m2.setSenderId("m2");
         m1.start();
         m2.start();
 
@@ -819,7 +820,7 @@ public class MessagingTest extends MongoTest {
             Msg question = new Msg("question", "question" + i, "a value " + i);
             question.setPriority(5);
             long start = System.currentTimeMillis();
-            Msg answer = m1.sendAndAwaitFirstAnswer(question, 500);
+            Msg answer = m1.sendAndAwaitFirstAnswer(question, 150000);
             long dur = System.currentTimeMillis() - start;
             assert (answer != null && answer.getInAnswerTo() != null);
             assert (answer.getInAnswerTo().equals(question.getMsgId()));
