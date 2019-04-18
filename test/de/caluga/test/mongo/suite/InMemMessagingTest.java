@@ -1,5 +1,7 @@
 package de.caluga.test.mongo.suite;
 
+import de.caluga.morphium.Morphium;
+import de.caluga.morphium.MorphiumConfig;
 import de.caluga.morphium.driver.MorphiumId;
 import de.caluga.morphium.messaging.MessageListener;
 import de.caluga.morphium.messaging.MessageRejectedException;
@@ -71,6 +73,158 @@ public class InMemMessagingTest extends InMemTest {
             assert (m.getInAnswerTo().equals(question.getMsgId()));
         }
     }
+
+
+    @Test
+    public void answerExclusiveMessagesTest() throws Exception {
+        Messaging m1 = new Messaging(morphium, 10, false, true, 10);
+        m1.setSenderId("m1");
+        Messaging m2 = new Messaging(morphium, 10, false, true, 10);
+        m2.setSenderId("m2");
+        Messaging m3 = new Messaging(morphium, 10, false, true, 10);
+        m3.setSenderId("m3");
+        m1.start();
+        m2.start();
+        m3.start();
+
+        m3.addListenerForMessageNamed("test", (msg, m) -> {
+            log.info("INcoming message");
+            return m.createAnswerMsg();
+        });
+
+        Msg m = new Msg("test", "important", "value");
+        m.setExclusive(true);
+        Msg answer = m1.sendAndAwaitFirstAnswer(m, 6000);
+        Thread.sleep(500);
+        assert (answer != null);
+        assert (answer.getProcessedBy().size() == 1);
+        assert (answer.getProcessedBy().contains("m3"));
+    }
+
+
+    @Test
+    public void ignoringMessagesTest() throws Exception {
+        Messaging m1 = new Messaging(morphium, 10, false, true, 10);
+        m1.setSenderId("m1");
+        Messaging m2 = new Messaging(morphium, 10, false, true, 10);
+        m2.setSenderId("m2");
+        m1.start();
+        m2.start();
+
+        Msg m = new Msg("test", "ignore me please", "value");
+        m1.storeMessage(m);
+        Thread.sleep(1000);
+        m = morphium.reread(m);
+        assert (m.getProcessedBy().size() == 1) : "wrong number of proccessed by entries: " + m.getProcessedBy().size();
+    }
+
+    @Test
+    public void severalMessagingsTest() throws Exception {
+        Messaging m1 = new Messaging(morphium, 10, false, true, 10);
+        m1.setSenderId("m1");
+        Messaging m2 = new Messaging(morphium, 10, false, true, 10);
+        m2.setSenderId("m2");
+        Messaging m3 = new Messaging(morphium, 10, false, true, 10);
+        m3.setSenderId("m3");
+        m1.start();
+        m2.start();
+        m3.start();
+
+        m3.addListenerForMessageNamed("test", (msg, m) -> {
+            //log.info("Got message: "+m.getName());
+            log.info("Sending answer for " + m.getMsgId());
+            return new Msg("test", "answer", "value", 600000);
+        });
+
+        procCounter = 0;
+        for (int i = 0; i < 180; i++) {
+            new Thread() {
+                public void run() {
+                    Msg m = new Msg("test", "nothing", "value");
+                    m.setTtl(60000000);
+                    Msg a = m1.sendAndAwaitFirstAnswer(m, 6000);
+                    assert (a != null);
+                    procCounter++;
+                }
+            }.start();
+
+        }
+        while (procCounter < 150) {
+            Thread.yield();
+        }
+
+    }
+
+
+    @Test
+    public void answers3NodesTest() throws Exception {
+        Messaging m1 = new Messaging(morphium, 10, false, true, 10);
+        m1.setSenderId("m1");
+        Messaging m2 = new Messaging(morphium, 10, false, true, 10);
+        m2.setSenderId("m2");
+        Messaging mSrv = new Messaging(morphium, 10, false, true, 10);
+        mSrv.setSenderId("Srv");
+
+        m1.start();
+        m2.start();
+        mSrv.start();
+
+        mSrv.addListenerForMessageNamed("query", (msg, m) -> {
+            log.info("Incoming message - sending result");
+            Msg answer = m.createAnswerMsg();
+            answer.setValue("Result");
+            return answer;
+        });
+        Thread.sleep(1000);
+
+
+        for (int i = 0; i < 10; i++) {
+            Msg m = new Msg("query", "a message", "a query");
+            m.setExclusive(true);
+            log.info("Sending m1...");
+            Msg answer1 = m1.sendAndAwaitFirstAnswer(m, 1000);
+            assert (answer1 != null);
+            m = new Msg("query", "a message", "a query");
+            log.info("... got it. Sending m2");
+            Msg answer2 = m2.sendAndAwaitFirstAnswer(m, 1000);
+            assert (answer2 != null);
+            log.info("... got it.");
+        }
+
+    }
+
+    @Test
+    public void waitForAnswerTest() throws Exception {
+        MorphiumConfig cfg = MorphiumConfig.createFromJson(morphium.getConfig().toString());
+        Morphium mor = new Morphium(cfg);
+
+        Messaging m1 = new Messaging(morphium, 10, false, true, 10);
+        Messaging m2 = new Messaging(mor, 10, false, true, 10);
+        m1.setSenderId("m1");
+        m2.setSenderId("m2");
+        m1.start();
+        m2.start();
+
+        m2.addListenerForMessageNamed("question", (msg, m) -> {
+            Msg answer = m.createAnswerMsg();
+            return answer;
+        });
+
+        for (int i = 0; i < 100; i++) {
+            log.info("Sending msg " + i);
+            Msg question = new Msg("question", "question" + i, "a value " + i);
+            question.setPriority(5);
+            long start = System.currentTimeMillis();
+            Msg answer = m1.sendAndAwaitFirstAnswer(question, 150000);
+            long dur = System.currentTimeMillis() - start;
+            assert (answer != null && answer.getInAnswerTo() != null);
+            assert (answer.getInAnswerTo().equals(question.getMsgId()));
+            log.info("... ok - took " + dur + " ms");
+        }
+        mor.close();
+    }
+
+
 
 
     @Test
@@ -1178,6 +1332,7 @@ public class InMemMessagingTest extends InMemTest {
     public void sendAndWaitforAnswerTest() {
         morphium.dropCollection(Msg.class);
         Messaging sender = new Messaging(morphium, 100, false);
+        sender.setSenderId("sender");
         sender.start();
 
         gotMessage1 = false;
@@ -1190,7 +1345,7 @@ public class InMemMessagingTest extends InMemTest {
             gotMessage1 = true;
             return new Msg(m.getName(), "got message", "value", 5000);
         });
-
+        m1.setSenderId("m1");
         m1.start();
 
         Msg answer = sender.sendAndAwaitFirstAnswer(new Msg("test", "Sender", "sent", 1555000), 1555000);
