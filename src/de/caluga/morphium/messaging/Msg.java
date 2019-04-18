@@ -362,9 +362,11 @@ public class Msg {
 
     public void sendAnswer(Messaging messaging, Msg m) {
         m.setInAnswerTo(this.msgId);
-        m.addRecipient(this.getSender());
+        //m.addRecipient(this.getSender());
+        m.setRecipient(this.getSender());
         m.setDeleteAt(new Date(System.currentTimeMillis() + m.getTtl()));
-        messaging.queueMessage(m);
+        m.setMsgId(new MorphiumId());
+        messaging.storeMessage(m);
     }
 
 
