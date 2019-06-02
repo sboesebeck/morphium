@@ -876,13 +876,15 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
 
         Map<String, Object> findMetaData = new HashMap<>();
         List<Map<String, Object>> srch;
+        int lim = getLimit();
+        limit(1);
         try {
             srch = morphium.getDriver().find(getDB(), getCollectionName(), toQueryObject(), getSort(), fl, getSkip(), getLimit(), 1, getRP(), findMetaData);
         } catch (MorphiumDriverException e) {
             //TODO: Implement Handling
             throw new RuntimeException(e);
         }
-
+        limit(lim);
         if (srch.isEmpty()) {
             List<T> lst = new ArrayList<>(0);
             if (useCache) {

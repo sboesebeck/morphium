@@ -952,6 +952,43 @@ public class MessagingTest extends MongoTest {
     }
 
     @Test
+    public void answerTestDifferentType() throws Exception {
+        Messaging sender = new Messaging(morphium, 100, true);
+        Messaging recipient = new Messaging(morphium, 100, true);
+        sender.start();
+        recipient.start();
+        gotMessage1 = false;
+        recipient.addListenerForMessageNamed("query", new MessageListener() {
+            @Override
+            public Msg onMessage(Messaging msg, Msg m) throws InterruptedException {
+                gotMessage1 = true;
+                Msg answer = m.createAnswerMsg();
+                answer.setName("queryAnswer");
+                answer.setMsg("the answer");
+                //msg.storeMessage(answer);
+                return answer;
+            }
+        });
+        gotMessage2 = false;
+        sender.addListenerForMessageNamed("queryAnswer", new MessageListener() {
+            @Override
+            public Msg onMessage(Messaging msg, Msg m) throws InterruptedException {
+                gotMessage2 = true;
+                assert (m.getInAnswerTo() != null);
+                return null;
+            }
+        });
+
+        sender.storeMessage(new Msg("query", "a query", "avalue"));
+        Thread.sleep(1000);
+        assert (gotMessage1);
+        assert (gotMessage2);
+
+        Msg answer = sender.sendAndAwaitFirstAnswer(new Msg("query", "query", "avalue"), 1000);
+        assert (answer != null);
+    }
+
+    @Test
     public void broadcastTest() throws Exception {
         morphium.clearCollection(Msg.class);
         final Messaging m1 = new Messaging(morphium, 1000, true);
