@@ -602,7 +602,8 @@ public class Messaging extends Thread implements ShutdownListener {
                             if (log.isDebugEnabled())
                                 log.debug("sent answer to " + answer.getInAnswerTo() + " recipient: " + answer.getRecipient() + " id: " + answer.getMsgId());
                             if (answer.getRecipient() == null) {
-                                log.error("Recipeient of answer is null?!?!");
+                                log.warn("Recipient of answer is null?!?!");
+
                             }
                         }
                     } catch (MessageRejectedException mre) {
