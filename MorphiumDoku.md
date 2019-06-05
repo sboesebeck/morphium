@@ -1,6 +1,9 @@
 
 # Morphium 4.0 Documentation
 
+## Contents
+{{TOC}}
+
 ## What is morphium
 Morphium started as a feature rich access layer for mongodb in java. It was built with speed and flexibility in mind. So it supported cluster aware caching out of the box, lazy loading references and such.
 
