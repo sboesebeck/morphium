@@ -15,7 +15,7 @@ public class InMemTest {
     public static Morphium morphium;
 
 
-    private Logger log = LoggerFactory.getLogger(InMemTest.class);
+    public Logger log = LoggerFactory.getLogger(InMemTest.class);
 
     @org.junit.BeforeClass
     public static void setUpClass() {
