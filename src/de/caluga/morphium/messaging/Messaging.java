@@ -492,6 +492,7 @@ public class Messaging extends Thread implements ShutdownListener {
         q.setCollectionName(getCollectionName());
         q.f("_id").eq(obj.getMsgId());
         q.f(Msg.Fields.processedBy).ne(id);
+        q.f(Msg.Fields.lockedBy).eq(null);
         Map<String, Object> values = new HashMap<>();
         values.put("locked_by", id);
         values.put("locked", System.currentTimeMillis());
