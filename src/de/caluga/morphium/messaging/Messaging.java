@@ -492,6 +492,7 @@ public class Messaging extends Thread implements ShutdownListener {
         q.setCollectionName(getCollectionName());
         q.f("_id").eq(obj.getMsgId());
         q.f(Msg.Fields.processedBy).ne(id);
+        q.f(Msg.Fields.lockedBy).eq(null);
         Map<String, Object> values = new HashMap<>();
         values.put("locked_by", id);
         values.put("locked", System.currentTimeMillis());
@@ -602,7 +603,8 @@ public class Messaging extends Thread implements ShutdownListener {
                             if (log.isDebugEnabled())
                                 log.debug("sent answer to " + answer.getInAnswerTo() + " recipient: " + answer.getRecipient() + " id: " + answer.getMsgId());
                             if (answer.getRecipient() == null) {
-                                log.error("Recipeient of answer is null?!?!");
+                                log.warn("Recipient of answer is null?!?!");
+
                             }
                         }
                     } catch (MessageRejectedException mre) {

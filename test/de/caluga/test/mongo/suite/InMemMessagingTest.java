@@ -1,7 +1,5 @@
 package de.caluga.test.mongo.suite;
 
-import de.caluga.morphium.Morphium;
-import de.caluga.morphium.MorphiumConfig;
 import de.caluga.morphium.driver.MorphiumId;
 import de.caluga.morphium.messaging.MessageListener;
 import de.caluga.morphium.messaging.MessageRejectedException;
@@ -195,8 +193,6 @@ public class InMemMessagingTest extends InMemTest {
 
     @Test
     public void waitForAnswerTest() throws Exception {
-        MorphiumConfig cfg = MorphiumConfig.createFromJson(morphium.getConfig().toString());
-
         Messaging m1 = new Messaging(morphium, 10, false, true, 10);
         Messaging m2 = new Messaging(morphium, 10, false, true, 10);
         m1.setSenderId("m1");
