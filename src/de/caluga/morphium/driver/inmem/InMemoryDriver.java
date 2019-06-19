@@ -514,7 +514,7 @@ public class InMemoryDriver implements MorphiumDriver {
             l = limit;
         }
         List<Map<String, Object>> res = find(db, collection, query, sort, projection, skip, l, batchSize, readPreference, findMetaData);
-        crs.setBatch(res);
+        crs.setBatch(new ArrayList<>(res));
 
         if (res.size() < batchSize) {
             //noinspection unchecked
@@ -587,7 +587,7 @@ public class InMemoryDriver implements MorphiumDriver {
             }
         }
         List<Map<String, Object>> res = find(inCrs.getDb(), inCrs.getCollection(), inCrs.getQuery(), inCrs.getSort(), inCrs.getProjection(), inCrs.getSkip(), limit, inCrs.getBatchSize(), inCrs.getReadPreference(), inCrs.getFindMetaData());
-        next.setBatch(res);
+        next.setBatch(new ArrayList<>(res));
         if (res.size() < inCrs.getBatchSize()) {
             //finished!
             //noinspection unchecked
