@@ -678,91 +678,95 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
 
         directWriter = m.getConfig().getWriter();
 
-        housekeeping = new Thread() {
-            @SuppressWarnings("SynchronizeOnNonFinalField")
-            @Override
-            public void run() {
-                setName("BufferedWriter_thread");
-                while (running) {
-                    try {
-                        //processing and clearing write cache...
-                        //                        synchronized (opLog) {
-                        List<Class<?>> localBuffer = new ArrayList<>(opLog.keySet());
+        if (housekeeping == null) {
 
 
-                        for (Class<?> clz : localBuffer) {
-                            if (opLog.get(clz) == null || opLog.get(clz).isEmpty()) {
-                                continue;
-                            }
-                            WriteBuffer w = morphium.getARHelper().getAnnotationFromHierarchy(clz, WriteBuffer.class);
-                            int size = 0;
-                            int timeout = morphium.getConfig().getWriteBufferTime();
-                            //                                WriteBuffer.STRATEGY strategy = WriteBuffer.STRATEGY.JUST_WARN;
+            housekeeping = new Thread() {
+                @SuppressWarnings("SynchronizeOnNonFinalField")
+                @Override
+                public void run() {
+                    setName("BufferedWriter_thread");
+                    while (running) {
+                        try {
+                            //processing and clearing write cache...
+                            //                        synchronized (opLog) {
+                            List<Class<?>> localBuffer = new ArrayList<>(opLog.keySet());
 
-                            if (w != null) {
-                                size = w.size();
-                                timeout = w.timeout();
-                                //                                    strategy = w.strategy();
-                            }
-                            if (lastRun.get(clz) != null && System.currentTimeMillis() - lastRun.get(clz) > timeout) {
-                                //timeout reached....
-                                runIt(clz);
-                                continue;
+
+                            for (Class<?> clz : localBuffer) {
+                                if (opLog.get(clz) == null || opLog.get(clz).isEmpty()) {
+                                    continue;
+                                }
+                                WriteBuffer w = morphium.getARHelper().getAnnotationFromHierarchy(clz, WriteBuffer.class);
+                                int size = 0;
+                                int timeout = morphium.getConfig().getWriteBufferTime();
+                                //                                WriteBuffer.STRATEGY strategy = WriteBuffer.STRATEGY.JUST_WARN;
+
+                                if (w != null) {
+                                    size = w.size();
+                                    timeout = w.timeout();
+                                    //                                    strategy = w.strategy();
+                                }
+                                if (lastRun.get(clz) != null && System.currentTimeMillis() - lastRun.get(clz) > timeout) {
+                                    //timeout reached....
+                                    runIt(clz);
+                                    continue;
+                                }
+
+                                //can't be null
+                                if (size > 0 && opLog.get(clz) != null && opLog.get(clz).size() >= size) {
+                                    //size reached!
+                                    runIt(clz);
+                                    continue;
+                                }
+                                lastRun.putIfAbsent(clz, System.currentTimeMillis());
                             }
 
-                            //can't be null
-                            if (size > 0 && opLog.get(clz) != null && opLog.get(clz).size() >= size) {
-                                //size reached!
-                                runIt(clz);
-                                continue;
-                            }
-                            lastRun.putIfAbsent(clz, System.currentTimeMillis());
+
+                            //                        }
+                        } catch (Exception e) {
+                            logger.info("Got exception during write buffer handling!", e);
                         }
 
-
-                        //                        }
-                    } catch (Exception e) {
-                        logger.info("Got exception during write buffer handling!", e);
+                        try {
+                            if (morphium != null) {
+                                if (morphium.getConfig() == null) {
+                                    running = false;
+                                    break;
+                                }
+                                Thread.sleep(morphium.getConfig().getWriteBufferTimeGranularity());
+                            } else {
+                                logger.warn("Morphium not set - assuming timeout of 1sec");
+                                Thread.sleep(1000);
+                            }
+                        } catch (InterruptedException e) {
+                        }
                     }
 
-                    try {
-                        if (morphium != null) {
-                            if (morphium.getConfig() == null) {
-                                running = false;
-                                break;
+                }
+
+                private void runIt(Class<?> clz) {
+                    lastRun.put(clz, System.currentTimeMillis());
+                    List<WriteBufferEntry> localQueue;
+                    localQueue = opLog.remove(clz);
+                    //                            opLog.put(clz, new Vector<WriteBufferEntry>());
+
+                    flushQueueToMongo(localQueue);
+                    if (localQueue != null && !localQueue.isEmpty()) {
+                        if (opLog.get(clz) == null) {
+                            synchronized (opLog) {
+                                opLog.putIfAbsent(clz, Collections.synchronizedList(new ArrayList<>()));
                             }
-                            Thread.sleep(morphium.getConfig().getWriteBufferTimeGranularity());
-                        } else {
-                            logger.warn("Morphium not set - assuming timeout of 1sec");
-                            Thread.sleep(1000);
                         }
-                    } catch (InterruptedException e) {
+                        opLog.get(clz).addAll(localQueue);
                     }
                 }
-            }
-
-            private void runIt(Class<?> clz) {
-                lastRun.put(clz, System.currentTimeMillis());
-                List<WriteBufferEntry> localQueue;
-                localQueue = opLog.remove(clz);
-                //                            opLog.put(clz, new Vector<WriteBufferEntry>());
-
-                flushQueueToMongo(localQueue);
-                if (localQueue != null && !localQueue.isEmpty()) {
-                    if (opLog.get(clz) == null) {
-                        synchronized (opLog) {
-                            opLog.putIfAbsent(clz, Collections.synchronizedList(new ArrayList<>()));
-                        }
-                    }
-                    opLog.get(clz).addAll(localQueue);
-                }
-            }
 
 
-        };
-        housekeeping.setDaemon(true);
-        housekeeping.start();
-
+            };
+            housekeeping.setDaemon(true);
+            housekeeping.start();
+        }
         m.addShutdownListener(m1 -> close());
 
     }
