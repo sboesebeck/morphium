@@ -1,13 +1,31 @@
 package de.caluga.morphium.messaging.jms;
 
+import de.caluga.morphium.Morphium;
+import de.caluga.morphium.messaging.Messaging;
+
 import javax.jms.*;
 import java.io.Serializable;
 
-public class JMSContext implements javax.jms.JMSContext {
+public class Context implements javax.jms.JMSContext {
+
+    private final int sessionMode;
+    private final Morphium morphium;
+    private final Messaging messaging;
+    private boolean startOnCosumerCreate = true;
+
+    public Context(Morphium morphium, int sessionMode) {
+        this.morphium = morphium;
+        this.sessionMode = sessionMode;
+        this.messaging = new Messaging(morphium, 100, true, true, 10);
+    }
+
+    public Context(Morphium morphium) {
+        this(morphium, JMSContext.CLIENT_ACKNOWLEDGE);
+    }
 
     @Override
     public javax.jms.JMSContext createContext(int sessionMode) {
-        return null;
+        return new Context(morphium, sessionMode);
     }
 
     @Override
@@ -22,7 +40,7 @@ public class JMSContext implements javax.jms.JMSContext {
 
     @Override
     public void setClientID(String clientID) {
-
+        messaging.setSenderId(clientID);
     }
 
     @Override
@@ -42,22 +60,22 @@ public class JMSContext implements javax.jms.JMSContext {
 
     @Override
     public void start() {
-
+        messaging.start();
     }
 
     @Override
     public void stop() {
-
-    }
-
-    @Override
-    public void setAutoStart(boolean autoStart) {
-
+        messaging.terminate();
     }
 
     @Override
     public boolean getAutoStart() {
-        return false;
+        return startOnCosumerCreate;
+    }
+
+    @Override
+    public void setAutoStart(boolean autoStart) {
+        startOnCosumerCreate = autoStart;
     }
 
     @Override
@@ -132,6 +150,7 @@ public class JMSContext implements javax.jms.JMSContext {
 
     @Override
     public JMSConsumer createConsumer(Destination destination) {
+        if (startOnCosumerCreate) start();
         return null;
     }
 

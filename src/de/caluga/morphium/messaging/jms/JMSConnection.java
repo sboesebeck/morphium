@@ -1,8 +1,15 @@
 package de.caluga.morphium.messaging.jms;
 
+import de.caluga.morphium.Morphium;
+
 import javax.jms.*;
 
 public class JMSConnection implements Connection {
+    private Morphium morphium;
+
+    public JMSConnection(Morphium m) {
+        morphium = m;
+    }
 
     @Override
     public Session createSession(boolean transacted, int acknowledgeMode) throws JMSException {

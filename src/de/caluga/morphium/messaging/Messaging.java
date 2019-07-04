@@ -270,7 +270,7 @@ public class Messaging extends Thread implements ShutdownListener {
                         //do not process messages, that are exclusive, but already processed or not for me / all
                         if (obj.isExclusive() && obj.getLockedBy() == null && (obj.getRecipient() == null || obj.getRecipient().equals(id)) && (obj.getProcessedBy() == null || !obj.getProcessedBy().contains(id))) {
                             // locking
-                            log.debug("trying to lock exclusive message");
+                            //log.debug("trying to lock exclusive message");
                             lockAndProcess(obj);
 
                         } else if (!obj.isExclusive() || (obj.getRecipient() != null && obj.getRecipient().equals(id))) {

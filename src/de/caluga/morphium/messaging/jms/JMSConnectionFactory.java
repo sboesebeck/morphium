@@ -1,51 +1,59 @@
 package de.caluga.morphium.messaging.jms;
 
 
+import de.caluga.morphium.Morphium;
+import de.caluga.morphium.MorphiumConfig;
+
 import javax.jms.Connection;
 import javax.jms.ConnectionFactory;
 import javax.jms.JMSContext;
 import javax.jms.JMSException;
-import javax.naming.InitialContext;
-import javax.naming.NamingException;
 
 public class JMSConnectionFactory  implements ConnectionFactory {
 
+    private Morphium morphium;
 
-    static {
-        try {
-            InitialContext ctx=new InitialContext();
-            ctx.rebind("morphiumMessagingConnectionFactory",new JMSConnectionFactory());
-        } catch (NamingException e) {
-            e.printStackTrace();
-        }
+    public JMSConnectionFactory(Morphium morphium) {
+        this.morphium = morphium;
     }
+
     @Override
     public Connection createConnection() throws JMSException {
-        return null;
+        return new JMSConnection(morphium);
     }
 
     @Override
     public Connection createConnection(String userName, String password) throws JMSException {
-        return null;
+        MorphiumConfig cfg = MorphiumConfig.fromProperties(morphium.getConfig().asProperties());
+        cfg.setMongoLogin(userName);
+        cfg.setMongoPassword(password);
+        return new JMSConnection(new Morphium(cfg));
     }
 
     @Override
     public JMSContext createContext() {
-        return null;
+        return new Context(morphium);
     }
 
     @Override
     public JMSContext createContext(String userName, String password) {
-        return null;
+        MorphiumConfig cfg = MorphiumConfig.fromProperties(morphium.getConfig().asProperties());
+        cfg.setMongoLogin(userName);
+        cfg.setMongoPassword(password);
+        return new Context(new Morphium(cfg));
     }
 
     @Override
     public JMSContext createContext(String userName, String password, int sessionMode) {
-        return null;
+        MorphiumConfig cfg = MorphiumConfig.fromProperties(morphium.getConfig().asProperties());
+        cfg.setMongoLogin(userName);
+        cfg.setMongoPassword(password);
+        return new Context(new Morphium(cfg), sessionMode);
     }
 
     @Override
     public JMSContext createContext(int sessionMode) {
-        return null;
+        return new Context(morphium, sessionMode);
+
     }
 }
