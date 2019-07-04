@@ -16,18 +16,19 @@ public class AdvancedInMemMessagingTests extends InMemTest {
     public void testExclusiveMessages() throws Exception {
         counts.clear();
         Messaging m1 = new Messaging(morphium, 10, false, false, 10);
+        m1.setUseChangeStream(true);
         m1.start();
 
         Messaging m2 = new Messaging(morphium, 10, false, false, 10);
-//        m2.setUseChangeStream(false);
+        m2.setUseChangeStream(true);
         m2.start();
 
         Messaging m3 = new Messaging(morphium, 10, false, false, 10);
-//        m3.setUseChangeStream(false);
+        m3.setUseChangeStream(true);
         m3.start();
 
         Messaging m4 = new Messaging(morphium, 10, false, false, 10);
-//        m4.setUseChangeStream(false);
+        m4.setUseChangeStream(false);
         m4.start();
 
         MessageListener<Msg> msgMessageListener = new MessageListener<Msg>() {
@@ -45,7 +46,7 @@ public class AdvancedInMemMessagingTests extends InMemTest {
         m3.addListenerForMessageNamed("test", msgMessageListener);
         m4.addListenerForMessageNamed("test", msgMessageListener);
 
-        for (int i = 0; i < 500; i++) {
+        for (int i = 0; i < 200; i++) {
             Msg m = new Msg("test", "test msg", "value");
             m.setMsgId(new MorphiumId());
             m.setExclusive(true);
@@ -53,7 +54,7 @@ public class AdvancedInMemMessagingTests extends InMemTest {
 
         }
 
-        while (counts.size() < 500) {
+        while (counts.size() < 200) {
             log.info("-----> Messages processed so far: " + counts.size());
             for (MorphiumId id : counts.keySet()) {
                 assert (counts.get(id) <= 1) : "Count for id " + id.toString() + " is " + counts.get(id);

@@ -528,13 +528,18 @@ public class InMemoryDriver implements MorphiumDriver {
     @SuppressWarnings("RedundantThrows")
     @Override
     public void watch(String db, int timeout, boolean fullDocumentOnUpdate, DriverTailableIterationCallback cb) throws MorphiumDriverException {
+        final boolean[] run = {true};
         watchersByDb.putIfAbsent(db, new Vector<>());
-        watchersByDb.get(db).add(cb);
+        watchersByDb.get(db).add((data, dur) -> {
+            boolean ret = cb.incomingData(data, dur);
+            run[0] = ret;
+            return ret;
+        });
 
         //simulate blocking
-        while (isConnected()) {
+        while (run[0]) {
             try {
-                Thread.sleep(1000);
+                Thread.sleep(10);
             } catch (InterruptedException e) {
                 //swallow
             }
@@ -544,15 +549,20 @@ public class InMemoryDriver implements MorphiumDriver {
     @SuppressWarnings("RedundantThrows")
     @Override
     public void watch(String db, String collection, int timeout, boolean fullDocumentOnUpdate, DriverTailableIterationCallback cb) throws MorphiumDriverException {
+        final boolean[] run = {true};
         String key = db + "." + collection;
         watchersByDb.putIfAbsent(key, new Vector<>());
-        watchersByDb.get(key).add(cb);
+        watchersByDb.get(key).add((data, dur) -> {
+            boolean ret = cb.incomingData(data, dur);
+            run[0] = ret;
+            return ret;
+        });
         //simulate blocking
-        while (isConnected()) {
+        while (run[0]) {
             try {
-                Thread.sleep(1000);
+                Thread.sleep(10);
             } catch (InterruptedException e) {
-                e.printStackTrace();
+                //swallow
             }
         }
     }
