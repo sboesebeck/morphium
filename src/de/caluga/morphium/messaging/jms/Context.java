@@ -13,19 +13,20 @@ public class Context implements javax.jms.JMSContext {
     private final Messaging messaging;
     private boolean startOnCosumerCreate = true;
 
-    public Context(Morphium morphium, int sessionMode) {
+    public Context(Morphium morphium, String name, int sessionMode) {
         this.morphium = morphium;
         this.sessionMode = sessionMode;
         this.messaging = new Messaging(morphium, 100, true, true, 10);
+        if (name != null) this.messaging.setQueueName(name);
     }
 
     public Context(Morphium morphium) {
-        this(morphium, JMSContext.CLIENT_ACKNOWLEDGE);
+        this(morphium, null, JMSContext.CLIENT_ACKNOWLEDGE);
     }
 
     @Override
     public javax.jms.JMSContext createContext(int sessionMode) {
-        return new Context(morphium, sessionMode);
+        return new Context(morphium, null, sessionMode);
     }
 
     @Override
@@ -80,7 +81,7 @@ public class Context implements javax.jms.JMSContext {
 
     @Override
     public void close() {
-
+        stop();
     }
 
     @Override

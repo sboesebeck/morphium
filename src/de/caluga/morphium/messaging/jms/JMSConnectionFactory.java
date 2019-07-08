@@ -48,12 +48,12 @@ public class JMSConnectionFactory  implements ConnectionFactory {
         MorphiumConfig cfg = MorphiumConfig.fromProperties(morphium.getConfig().asProperties());
         cfg.setMongoLogin(userName);
         cfg.setMongoPassword(password);
-        return new Context(new Morphium(cfg), sessionMode);
+        return new Context(new Morphium(cfg), "", sessionMode);
     }
 
     @Override
     public JMSContext createContext(int sessionMode) {
-        return new Context(morphium, sessionMode);
+        return new Context(morphium, "", sessionMode);
 
     }
 }
