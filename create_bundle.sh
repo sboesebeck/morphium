@@ -6,4 +6,4 @@ echo "Version $version"
 cd target
 jar -cvf bundle_${version}.jar morphium-${version}.pom morphium-${version}.pom.asc morphium-${version}.jar.asc morphium-${version}.jar morphium-${version}-javadoc.jar morphium-${version}-javadoc.jar.asc morphium-${version}-sources.jar.asc morphium-${version}-sources.jar
 
-curl -X POST -H "Content-type: application/json" --data "{'text':'Creating a deployment bundle for oss.sonatype.org and maven central'}" https://hooks.slack.com/services/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
+curl -X POST -H "Content-type: application/json" --data "{'text':'Creating a deployment bundle for oss.sonatype.org and maven central'}" $(<slackurl.inc)
