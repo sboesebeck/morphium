@@ -11,7 +11,7 @@ function quit {
     let h=dur/3600; let m='(dur-h*3600)/60';let s='(dur-h*3600-m*60)';
     duration=$(printf "Duration: %02d:%02d:%02d" $h $m $s)
     end="Aborted during testrun after $duration on jdk $jv, but ran $run Tests, $fail tests failed, $err tests had errors"
-    curl -X POST -H "Content-type: application/json" --data "{'text':'Morphium $version integration test just ran: $end'}" https://hooks.slack.com/services/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
+    curl -X POST -H "Content-type: application/json" --data "{'text':'Morphium $version integration test just ran: $end'}" $(<slackurl.inc)
     exit 1
 }
 
