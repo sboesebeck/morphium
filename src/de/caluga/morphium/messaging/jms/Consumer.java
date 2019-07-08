@@ -1,11 +1,13 @@
 package de.caluga.morphium.messaging.jms;
 
+import de.caluga.morphium.messaging.Messaging;
+
 import javax.jms.JMSConsumer;
 import javax.jms.JMSRuntimeException;
 import javax.jms.Message;
 import javax.jms.MessageListener;
 
-public class Consumer implements JMSConsumer {
+public class Consumer implements JMSConsumer, de.caluga.morphium.messaging.MessageListener<JMSMessage> {
     @Override
     public String getMessageSelector() {
         return null;
@@ -53,6 +55,11 @@ public class Consumer implements JMSConsumer {
 
     @Override
     public <T> T receiveBodyNoWait(Class<T> c) {
+        return null;
+    }
+
+    @Override
+    public JMSMessage onMessage(Messaging msg, JMSMessage m) throws InterruptedException {
         return null;
     }
 }
