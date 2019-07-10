@@ -8,19 +8,29 @@ import javax.jms.Message;
 import javax.jms.MessageListener;
 
 public class Consumer implements JMSConsumer, de.caluga.morphium.messaging.MessageListener<JMSMessage> {
+
+    private String selector;
+    private Messaging messaging;
+    private MessageListener listener;
+
+    public Consumer(Messaging messaging) {
+        this.messaging = messaging;
+        messaging.addMessageListener(this);
+    }
+
     @Override
     public String getMessageSelector() {
-        return null;
+        return selector;
     }
 
     @Override
     public MessageListener getMessageListener() throws JMSRuntimeException {
-        return null;
+        return listener;
     }
 
     @Override
     public void setMessageListener(MessageListener listener) throws JMSRuntimeException {
-
+        this.listener = listener;
     }
 
     @Override

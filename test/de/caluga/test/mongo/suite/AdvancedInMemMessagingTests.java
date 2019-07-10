@@ -68,4 +68,67 @@ public class AdvancedInMemMessagingTests extends InMemTest {
         m4.terminate();
 
     }
+
+    @Test
+    public void answerWithDifferentNameTest() throws Exception {
+        counts.clear();
+        Messaging producer = new Messaging(morphium, 100, false, true, 10);
+        producer.start();
+        Messaging consumer = new Messaging(morphium, 100, false, true, 10);
+        consumer.start();
+
+        consumer.addListenerForMessageNamed("test", new MessageListener() {
+            @Override
+            public Msg onMessage(Messaging msg, Msg m) throws InterruptedException {
+                log.info("incoming message, replying with answer");
+                Msg answer = m.createAnswerMsg();
+                answer.setName("answer");
+                return answer;
+            }
+        });
+
+        Msg answer = producer.sendAndAwaitFirstAnswer(new Msg("test", "query", "value"), 1000);
+        assert (answer != null);
+        assert (answer.getName().equals("answer"));
+
+
+    }
+
+    @Test
+    public void ownAnsweringHandler() throws Exception {
+        Messaging producer = new Messaging(morphium, 100, false, true, 10);
+        producer.start();
+        Messaging consumer = new Messaging(morphium, 100, false, true, 10);
+        consumer.start();
+
+        consumer.addListenerForMessageNamed("test", new MessageListener() {
+            @Override
+            public Msg onMessage(Messaging msg, Msg m) throws InterruptedException {
+                log.info("incoming message, replying with answer");
+                Msg answer = m.createAnswerMsg();
+                answer.setName("answer");
+                return answer;
+            }
+        });
+
+        MorphiumId msgId = new MorphiumId();
+
+
+        producer.addListenerForMessageNamed("answer", new MessageListener() {
+            @Override
+            public Msg onMessage(Messaging msg, Msg m) throws InterruptedException {
+                log.info("Incoming answer! " + m.getInAnswerTo() + " ---> " + msgId);
+                assert (msgId.equals(m.getInAnswerTo()));
+                counts.put(msgId, 1);
+                return null;
+            }
+        });
+
+        Msg msg = new Msg("test", "query", "value");
+        msg.setMsgId(msgId);
+        producer.storeMessage(msg);
+        Thread.sleep(1000);
+        assert (counts.get(msgId).equals(1));
+
+    }
 }

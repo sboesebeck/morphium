@@ -1,92 +1,169 @@
 package de.caluga.morphium.messaging.jms;
 
-import javax.jms.CompletionListener;
-import javax.jms.Destination;
-import javax.jms.JMSProducer;
-import javax.jms.Message;
+import de.caluga.morphium.messaging.MessageListener;
+import de.caluga.morphium.messaging.Messaging;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import javax.jms.*;
 import java.io.Serializable;
 import java.util.Map;
 import java.util.Set;
+import java.util.Vector;
+import java.util.concurrent.ConcurrentHashMap;
 
 public class Producer implements JMSProducer {
+
+    private Messaging messaging;
+    private Map<String, Object> properties;
+    private long ttl;
+    private int priority;
+    private int deliveryMode;
+    private boolean disableTimestamp;
+    private boolean disableId;
+    private Vector<Object> waitingForAck;
+    private CompletionListener completionListener;
+
+    private Logger log = LoggerFactory.getLogger(Producer.class);
+
+
+    public Producer(Messaging messaging) {
+        this.messaging = messaging;
+        properties = new ConcurrentHashMap<>();
+        waitingForAck = new Vector<>();
+        messaging.addListenerForMessageNamed("ack", (MessageListener<JMSMessage>) (msg, m) -> {
+            if (waitingForAck.contains(m.getInAnswerTo())) {
+                completionListener.onCompletion(m);
+                waitingForAck.remove(m.getInAnswerTo());
+            } else {
+                if (m.getInAnswerTo() == null) {
+                    log.error("Got broadcasted ack-Message?!?!?");
+                } else {
+                    log.error("Got answer for an unknown message " + m.getInAnswerTo());
+                }
+            }
+            return null;
+        });
+    }
+
     @Override
     public JMSProducer send(Destination destination, Message message) {
-        return null;
+
+        return this;
     }
 
     @Override
     public JMSProducer send(Destination destination, String body) {
-        return null;
+        try {
+            JMSTextMessgae txt = new JMSTextMessgae();
+            txt.setText(body);
+            for (String k : properties.keySet()) {
+                txt.setObjectProperty(k, properties.get(k));
+            }
+            txt.setPriority(priority);
+            txt.setTtl(ttl);
+            if (destination instanceof JMSTopic) {
+                txt.setExclusive(true);
+                txt.setName(((JMSTopic) destination).getTopicName());
+            } else if (destination instanceof JMSQueue) {
+                txt.setExclusive(false);
+                txt.setName(((JMSQueue) destination).getQueueName());
+            } else {
+                throw new IllegalArgumentException("Destination has invalid type!");
+            }
+            if (getAsync() != null) {
+                messaging.storeMessage(txt);
+                waitingForAck.add(txt.getMsgId());
+            } else {
+                try {
+                    JMSTextMessgae answer = messaging.sendAndAwaitFirstAnswer(txt, 1000);
+                } catch (Exception e) {
+                    throw new RuntimeException("message " + txt.getMsgId() + " was not acknowledged");
+                }
+                //Message Ignored
+            }
+
+        } catch (JMSException e) {
+            e.printStackTrace();
+            throw new RuntimeException(e);
+        }
+
+        return this;
     }
 
     @Override
     public JMSProducer send(Destination destination, Map<String, Object> body) {
-        return null;
+        return this;
     }
 
     @Override
     public JMSProducer send(Destination destination, byte[] body) {
-        return null;
+        return this;
     }
 
     @Override
     public JMSProducer send(Destination destination, Serializable body) {
-        return null;
+        return this;
     }
 
     @Override
     public JMSProducer setDisableMessageID(boolean value) {
-        return null;
+        disableId = value;
+        return this;
     }
 
     @Override
     public boolean getDisableMessageID() {
-        return false;
+        return disableId;
     }
 
     @Override
     public JMSProducer setDisableMessageTimestamp(boolean value) {
-        return null;
+        disableTimestamp = value;
+        return this;
     }
 
     @Override
     public boolean getDisableMessageTimestamp() {
-        return false;
+        return disableTimestamp;
     }
 
     @Override
     public JMSProducer setDeliveryMode(int deliveryMode) {
-        return null;
+        this.deliveryMode = deliveryMode;
+        return this;
     }
 
     @Override
     public int getDeliveryMode() {
-        return 0;
+        return deliveryMode;
     }
 
     @Override
     public JMSProducer setPriority(int priority) {
-        return null;
+        this.priority = priority;
+        return this;
     }
 
     @Override
     public int getPriority() {
-        return 0;
+        return priority;
     }
 
     @Override
     public JMSProducer setTimeToLive(long timeToLive) {
-        return null;
+        ttl = timeToLive;
+        return this;
     }
 
     @Override
     public long getTimeToLive() {
-        return 0;
+        return ttl;
     }
 
     @Override
     public JMSProducer setDeliveryDelay(long deliveryDelay) {
-        return null;
+        return this;
     }
 
     @Override
@@ -96,66 +173,71 @@ public class Producer implements JMSProducer {
 
     @Override
     public JMSProducer setAsync(CompletionListener completionListener) {
-        return null;
+        this.completionListener = completionListener;
+        return this;
     }
 
     @Override
     public CompletionListener getAsync() {
-        return null;
+        return completionListener;
     }
 
     @Override
     public JMSProducer setProperty(String name, boolean value) {
-        return null;
+
+        properties.put(name, value);
+        return this;
     }
 
     @Override
     public JMSProducer setProperty(String name, byte value) {
-        return null;
+        return this;
     }
 
     @Override
     public JMSProducer setProperty(String name, short value) {
-        return null;
+        return this;
     }
 
     @Override
     public JMSProducer setProperty(String name, int value) {
-        return null;
+        return this;
     }
 
     @Override
     public JMSProducer setProperty(String name, long value) {
-        return null;
+        return this;
     }
 
     @Override
     public JMSProducer setProperty(String name, float value) {
-        return null;
+        return this;
     }
 
     @Override
     public JMSProducer setProperty(String name, double value) {
-        return null;
+        return this;
     }
 
     @Override
     public JMSProducer setProperty(String name, String value) {
-        return null;
+        return this;
     }
 
     @Override
     public JMSProducer setProperty(String name, Object value) {
-        return null;
+        return this;
     }
 
     @Override
     public JMSProducer clearProperties() {
-        return null;
+        properties.clear();
+        return this;
     }
 
     @Override
     public boolean propertyExists(String name) {
+        properties.containsKey(name);
         return false;
     }
 
@@ -211,27 +293,29 @@ public class Producer implements JMSProducer {
 
     @Override
     public JMSProducer setJMSCorrelationIDAsBytes(byte[] correlationID) {
-        return null;
+        messaging.setSenderId(new String(correlationID));
+        return this;
     }
 
     @Override
     public byte[] getJMSCorrelationIDAsBytes() {
-        return new byte[0];
+        return messaging.getSenderId().getBytes();
     }
 
     @Override
     public JMSProducer setJMSCorrelationID(String correlationID) {
-        return null;
+        messaging.setSenderId(correlationID);
+        return this;
     }
 
     @Override
     public String getJMSCorrelationID() {
-        return null;
+        return messaging.getSenderId();
     }
 
     @Override
     public JMSProducer setJMSType(String type) {
-        return null;
+        return this;
     }
 
     @Override
@@ -241,7 +325,7 @@ public class Producer implements JMSProducer {
 
     @Override
     public JMSProducer setJMSReplyTo(Destination replyTo) {
-        return null;
+        return this;
     }
 
     @Override

@@ -13,6 +13,9 @@ import java.util.concurrent.ConcurrentHashMap;
 public class JMSMessage extends Msg implements Message {
     private boolean redelivered = false;
     private Object body;
+    private Destination replyTo;
+    private Destination destination;
+
 
     public JMSMessage() {
         setMapValue(new ConcurrentHashMap<>());
@@ -60,25 +63,22 @@ public class JMSMessage extends Msg implements Message {
 
     @Override
     public Destination getJMSReplyTo() throws JMSException {
-        if (isExclusive() && getRecipient() == null) {
-            return new JMSTopic();
-        }
-        return new JMSQueue();
+        return replyTo;
     }
 
     @Override
     public void setJMSReplyTo(Destination replyTo) throws JMSException {
-
+        this.replyTo = replyTo;
     }
 
     @Override
     public Destination getJMSDestination() throws JMSException {
-        return null;
+        return destination;
     }
 
     @Override
     public void setJMSDestination(Destination destination) throws JMSException {
-
+        this.destination = destination;
     }
 
     @Override
