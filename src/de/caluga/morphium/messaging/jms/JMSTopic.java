@@ -6,6 +6,10 @@ import javax.jms.Topic;
 public class JMSTopic extends JMSDestination implements Topic {
     private String topicName;
 
+    public JMSTopic(String topicName) {
+        this.topicName = topicName;
+    }
+
     @Override
     public String getTopicName() throws JMSException {
         return topicName;

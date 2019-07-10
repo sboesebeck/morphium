@@ -31,7 +31,7 @@ public class Context implements javax.jms.JMSContext {
 
     @Override
     public JMSProducer createProducer() {
-        return null;
+        return new Producer(messaging);
     }
 
     @Override
