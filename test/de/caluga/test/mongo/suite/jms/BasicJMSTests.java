@@ -13,7 +13,7 @@ import javax.jms.Topic;
 public class BasicJMSTests extends MongoTest {
 
     @Test
-    public void basicSendREceiveTest() throws Exception {
+    public void basicSendReceiveTest() throws Exception {
         JMSConnectionFactory factory = new JMSConnectionFactory(morphium);
         JMSContext ctx1 = factory.createContext();
         JMSContext ctx2 = factory.createContext();
