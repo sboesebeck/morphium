@@ -152,7 +152,7 @@ public class Context implements javax.jms.JMSContext {
     @Override
     public JMSConsumer createConsumer(Destination destination) {
         if (startOnCosumerCreate) start();
-        return null;
+        return new Consumer(messaging, destination);
     }
 
     @Override
