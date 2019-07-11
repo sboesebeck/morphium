@@ -16,8 +16,8 @@ public class Producer implements JMSProducer {
 
     private Messaging messaging;
     private Map<String, Object> properties;
-    private long ttl;
-    private int priority;
+    private long ttl = 30000;
+    private int priority = 500;
     private int deliveryMode;
     private boolean disableTimestamp;
     private boolean disableId;
@@ -29,6 +29,7 @@ public class Producer implements JMSProducer {
 
     public Producer(Messaging messaging) {
         this.messaging = messaging;
+        messaging.start();
         properties = new ConcurrentHashMap<>();
         waitingForAck = new Vector<>();
         messaging.addListenerForMessageNamed("ack", (MessageListener<JMSMessage>) (msg, m) -> {
@@ -76,11 +77,11 @@ public class Producer implements JMSProducer {
                 waitingForAck.add(txt.getMsgId());
             } else {
                 try {
-                    JMSTextMessgae answer = messaging.sendAndAwaitFirstAnswer(txt, 1000);
+                    messaging.sendAndAwaitFirstAnswer(txt, 5000);
+                    if (log.isDebugEnabled()) log.debug("Message " + txt.getMsgId() + " acknowledged");
                 } catch (Exception e) {
-                    throw new RuntimeException("message " + txt.getMsgId() + " was not acknowledged");
+                    throw new RuntimeException("message " + txt.getMsgId() + " was not acknowledged", e);
                 }
-                //Message Ignored
             }
 
         } catch (JMSException e) {
