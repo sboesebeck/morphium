@@ -57,7 +57,7 @@ public class Consumer implements JMSConsumer, de.caluga.morphium.messaging.Messa
 
     @Override
     public Message receive(long timeout) {
-        if (messaging != null) {
+        if (getMessageListener() != null) {
             throw new RuntimeException("calling synchronous receive not allowed when async listener is set");
         }
         long start = System.currentTimeMillis();

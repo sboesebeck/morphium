@@ -49,6 +49,37 @@ public class Producer implements JMSProducer {
 
     @Override
     public JMSProducer send(Destination destination, Message message) {
+        if (!(message instanceof JMSMessage)) {
+            throw new IllegalArgumentException("Invalid message type!");
+        }
+        JMSMessage jmsMessage = null;
+        try {
+            jmsMessage = (JMSMessage) message;
+            jmsMessage.setPriority(priority);
+            jmsMessage.setTtl(ttl);
+            if (destination instanceof JMSTopic) {
+                jmsMessage.setExclusive(true);
+                jmsMessage.setName(((JMSTopic) destination).getTopicName());
+            } else if (destination instanceof JMSQueue) {
+                jmsMessage.setExclusive(false);
+                jmsMessage.setName(((JMSQueue) destination).getQueueName());
+            } else {
+                throw new IllegalArgumentException("Destination has invalid type!");
+            }
+        } catch (JMSException e) {
+            throw new RuntimeException(e);
+        }
+        if (getAsync() != null) {
+            messaging.storeMessage(jmsMessage);
+            waitingForAck.add(jmsMessage.getMsgId());
+        } else {
+            try {
+                messaging.sendAndAwaitFirstAnswer(jmsMessage, 5000);
+                if (log.isDebugEnabled()) log.debug("Message " + jmsMessage.getMsgId() + " acknowledged");
+            } catch (Exception e) {
+                throw new RuntimeException("message " + jmsMessage.getMsgId() + " was not acknowledged", e);
+            }
+        }
 
         return this;
     }
@@ -56,33 +87,12 @@ public class Producer implements JMSProducer {
     @Override
     public JMSProducer send(Destination destination, String body) {
         try {
-            JMSTextMessgae txt = new JMSTextMessgae();
+            JMSTextMessage txt = new JMSTextMessage();
             txt.setText(body);
             for (String k : properties.keySet()) {
                 txt.setObjectProperty(k, properties.get(k));
             }
-            txt.setPriority(priority);
-            txt.setTtl(ttl);
-            if (destination instanceof JMSTopic) {
-                txt.setExclusive(true);
-                txt.setName(((JMSTopic) destination).getTopicName());
-            } else if (destination instanceof JMSQueue) {
-                txt.setExclusive(false);
-                txt.setName(((JMSQueue) destination).getQueueName());
-            } else {
-                throw new IllegalArgumentException("Destination has invalid type!");
-            }
-            if (getAsync() != null) {
-                messaging.storeMessage(txt);
-                waitingForAck.add(txt.getMsgId());
-            } else {
-                try {
-                    messaging.sendAndAwaitFirstAnswer(txt, 5000);
-                    if (log.isDebugEnabled()) log.debug("Message " + txt.getMsgId() + " acknowledged");
-                } catch (Exception e) {
-                    throw new RuntimeException("message " + txt.getMsgId() + " was not acknowledged", e);
-                }
-            }
+            send(destination, txt);
 
         } catch (JMSException e) {
             e.printStackTrace();
