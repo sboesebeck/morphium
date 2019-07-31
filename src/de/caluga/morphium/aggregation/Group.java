@@ -128,7 +128,7 @@ public class Group<T, R> {
 
     public Aggregator<T, R> end() {
         if (ended) {
-            log.error("Group.end() already called!");
+            log.info("Group.end() already called!");
             return aggregator;
         }
         Map<String, Object> params = new HashMap<>(id);
