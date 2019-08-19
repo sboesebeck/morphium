@@ -27,7 +27,4 @@ git merge $tag
 git push
 git checkout develop
 
-#mvn -DskipTests package
-#mvn deploy:deploy-file -Dfile=target/morphium-$version.jar -Durl=http://repository.dev.genios.de/repository/genios-snapshot -DpomFile=pom.xml
-
-echo curl -X POST -H 'Content-type: application/json' --data "{'text':'Deployed current $version to integration test server'}" $(<slackurl.inc)
+curl -X POST -H 'Content-type: application/json' --data "{'text':'Deployed current $version to integration test server'}" $(<slackurl.inc)
