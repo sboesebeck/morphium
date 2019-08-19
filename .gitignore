@@ -6,5 +6,4 @@ target/
 dist/
 *.orig
 MorphiumDoku.html
-publish.sh
 slackurl.inc
