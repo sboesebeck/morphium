@@ -314,7 +314,8 @@ public class Morphium {
         try {
             getClass().getClassLoader().loadClass("javax.validation.ValidatorFactory");
 
-        } catch (ClassNotFoundException cnf) {
+        } catch (Exception cnf) {
+            logger.info("Validation disabled!");
             return false;
         }
         return true;
