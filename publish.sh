@@ -17,7 +17,7 @@ fi
 
 mvn clean release:clean release:prepare
 version=$(grep "project.rel.de.caluga\\\\\\:morphium" release.properties | cut -f2 -d=)
-tag=$(grep "scm.tag" release.properties | cut -f2 -d=)
+tag=$(grep "scm.tag=" release.properties | cut -f2 -d=)
 
 echo "Releasing $version - tagging as $tag"
 mvn release:perform -Dgpg.passphrase='$GPG_PASSPHRASE'
