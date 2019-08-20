@@ -277,10 +277,7 @@ public class Morphium {
         //            oplogMonitorThread.start();
         //        }
 
-        if (hasValidationSupport()) {
-            logger.info("Adding javax.validation Support...");
-            addListener(new JavaxValidationStorageListener());
-        }
+        setValidationSupport();
         try {
             objectMapper = config.getOmClass().getDeclaredConstructor().newInstance();
             objectMapper.setMorphium(this);
@@ -310,15 +307,15 @@ public class Morphium {
      */
 
     @SuppressWarnings("UnusedDeclaration")
-    private boolean hasValidationSupport() {
+    private void setValidationSupport() {
         try {
             getClass().getClassLoader().loadClass("javax.validation.ValidatorFactory");
-
+            new JavaxValidationStorageListener();
+            logger.info("Adding javax.validation Support...");
         } catch (Exception cnf) {
             logger.info("Validation disabled!");
-            return false;
+
         }
-        return true;
     }
 
     public List<String> listDatabases() {
