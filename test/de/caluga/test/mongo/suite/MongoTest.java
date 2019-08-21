@@ -407,8 +407,6 @@ public class MongoTest {
             log.info("---------------------------------------- Re-connecting to mongo");
             int num = TestEntityNameProvider.number.incrementAndGet();
             log.info("------ > Number: " + num);
-            morphium.getCache().resetCache();
-            morphium.reset();
 
             log.info("resetting DB...");
             List<String> lst = morphium.getDriver().getCollectionNames(morphium.getConfig().getDatabase());
@@ -416,6 +414,8 @@ public class MongoTest {
                 log.info("Dropping " + col);
                 morphium.getDriver().drop(morphium.getConfig().getDatabase(), col, morphium.getWriteConcernForClass(UncachedObject.class));
             }
+            morphium.getCache().resetCache();
+            morphium.reset();
             Thread.sleep(200);
         } catch (Exception e) {
             log.error("Error during preparation!");
