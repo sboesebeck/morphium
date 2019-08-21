@@ -21,6 +21,7 @@ tag=$(grep "scm.tag=" release.properties | cut -f2 -d=)
 
 echo "Releasing $version - tagging as $tag"
 mvn release:perform -Dgpg.passphrase='$GPG_PASSPHRASE'
+mvn nexus-staging:release -Ddescription="Latest release"
 
 git checkout master
 git merge $tag
