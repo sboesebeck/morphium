@@ -778,7 +778,7 @@ public class Messaging extends Thread implements ShutdownListener {
 
     @Deprecated
     public void setRunning(boolean running) {
-        if (!running && (changeStreamMonitor != null)) changeStreamMonitor.stop();
+        if (!running && (changeStreamMonitor != null)) changeStreamMonitor.terminate();
         this.running = running;
     }
 
@@ -794,10 +794,20 @@ public class Messaging extends Thread implements ShutdownListener {
             if (log.isDebugEnabled())
                 log.debug("Shutting down with " + sz + " runnables still pending in pool");
         }
-        if (changeStreamMonitor != null) changeStreamMonitor.stop();
+        if (changeStreamMonitor != null) changeStreamMonitor.terminate();
         sendMessageToSelf(new Msg("info", "going down", "now"));
         if (isAlive()) {
             interrupt();
+        }
+        int retry = 0;
+        while (isAlive()) {
+            try {
+                sleep(250);
+            } catch (InterruptedException e) {
+                //swallow
+            }
+            retry++;
+            if (retry > 10) throw new RuntimeException("Could not terminate Messaging!");
         }
         if (isAlive()) {
             //noinspection deprecation
@@ -923,7 +933,7 @@ public class Messaging extends Thread implements ShutdownListener {
                 }
                 threadPool = null;
             }
-            if (changeStreamMonitor != null) changeStreamMonitor.stop();
+            if (changeStreamMonitor != null) changeStreamMonitor.terminate();
         } catch (Exception e) {
             e.printStackTrace();
             //swallow
