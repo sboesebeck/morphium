@@ -14,7 +14,7 @@ import java.util.Date;
  * Time: 12:29
  * To change this template use File | Settings | File Templates.
  */
-public class CheckForNewTest extends MongoTest {
+public class CheckForNewTest extends MorphiumTestBase {
 
     @Test
     public void testCheckForNew() {

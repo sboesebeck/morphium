@@ -14,7 +14,7 @@ import java.util.List;
  * Time: 15:09
  * <p/>
  */
-public class ListOfListTests extends MongoTest {
+public class ListOfListTests extends MorphiumTestBase {
     @Test
     public void storeListOfLists() {
         morphium.clearCollection(LoLType.class);

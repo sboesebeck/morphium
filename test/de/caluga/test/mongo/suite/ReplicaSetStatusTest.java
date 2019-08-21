@@ -15,7 +15,7 @@ import org.slf4j.LoggerFactory;
  * Time: 11:39
  * <p/>
  */
-public class ReplicaSetStatusTest extends MongoTest {
+public class ReplicaSetStatusTest extends MorphiumTestBase {
     private static Logger log = LoggerFactory.getLogger(ReplicaSetStatusTest.class);
 
     @Test

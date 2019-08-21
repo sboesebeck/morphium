@@ -5,7 +5,7 @@ package de.caluga.test.mongo.suite.performance;/**
 import de.caluga.morphium.Morphium;
 import de.caluga.morphium.query.PrefetchingMorphiumIterator;
 import de.caluga.morphium.query.Query;
-import de.caluga.test.mongo.suite.MongoTest;
+import de.caluga.test.mongo.suite.MorphiumTestBase;
 import de.caluga.test.mongo.suite.data.UncachedObject;
 import org.openjdk.jmh.annotations.*;
 import org.slf4j.Logger;
@@ -24,7 +24,7 @@ public class IteratorSpeedTest {
     public void setup() {
         try {
             if (morphium == null) {
-                MongoTest.setUpClass();
+                MorphiumTestBase.setUpClass();
             }
             for (int i = 0; i < 10000; i++) {
                 UncachedObject uc = new UncachedObject();

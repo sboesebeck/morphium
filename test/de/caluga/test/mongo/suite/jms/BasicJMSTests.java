@@ -3,14 +3,14 @@ package de.caluga.test.mongo.suite.jms;
 import de.caluga.morphium.messaging.jms.JMSConnectionFactory;
 import de.caluga.morphium.messaging.jms.JMSTextMessage;
 import de.caluga.morphium.messaging.jms.JMSTopic;
-import de.caluga.test.mongo.suite.MongoTest;
+import de.caluga.test.mongo.suite.MorphiumTestBase;
 import org.junit.Test;
 
 import javax.jms.*;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
-public class BasicJMSTests extends MongoTest {
+public class BasicJMSTests extends MorphiumTestBase {
 
     @Test
     public void basicSendReceiveTest() throws Exception {

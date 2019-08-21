@@ -31,7 +31,7 @@ import java.util.regex.Pattern;
  * <p/>
  */
 @SuppressWarnings("AssertWithSideEffects")
-public class CacheSyncTest extends MongoTest {
+public class CacheSyncTest extends MorphiumTestBase {
     private boolean preSendClear = false;
     private boolean postSendClear = false;
     private boolean preClear = false;

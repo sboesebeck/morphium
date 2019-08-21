@@ -2516,6 +2516,7 @@ public class Morphium {
         //                //ignoring
         //            }
         //        }
+        config.getCache().resetCache();
         config.setBufferedWriter(null);
         config.setAsyncWriter(null);
         config.setWriter(null);

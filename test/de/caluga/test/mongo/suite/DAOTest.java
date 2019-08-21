@@ -12,7 +12,7 @@ import java.util.List;
  * Time: 15:17
  * <p/>
  */
-public class DAOTest extends MongoTest {
+public class DAOTest extends MorphiumTestBase {
     @Test
     public void daoTest() throws Exception {
         for (int i = 1; i <= 100; i++) {

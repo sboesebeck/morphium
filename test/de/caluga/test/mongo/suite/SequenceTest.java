@@ -13,7 +13,7 @@ import java.util.Vector;
  * Time: 08:09
  * <p/>
  */
-public class SequenceTest extends MongoTest {
+public class SequenceTest extends MorphiumTestBase {
     @Test
     public void singleSequenceTest() {
         morphium.dropCollection(Sequence.class);

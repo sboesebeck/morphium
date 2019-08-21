@@ -5,11 +5,12 @@ import de.caluga.morphium.changestream.ChangeStreamEvent;
 import de.caluga.morphium.changestream.ChangeStreamMonitor;
 import de.caluga.test.mongo.suite.data.ComplexObject;
 import de.caluga.test.mongo.suite.data.UncachedObject;
+import de.caluga.test.mongo.suite.inmem.MorphiumInMemTestBase;
 import org.junit.Test;
 
 import java.util.concurrent.atomic.AtomicInteger;
 
-public class ChangeStreamInMemTest extends InMemTest {
+public class ChangeStreamInMemTest extends MorphiumInMemTestBase {
     long start;
     long count;
 

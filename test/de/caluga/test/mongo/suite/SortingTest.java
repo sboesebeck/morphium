@@ -15,7 +15,7 @@ import java.util.Map;
  * Time: 23:18
  * <p/>
  */
-public class SortingTest extends MongoTest {
+public class SortingTest extends MorphiumTestBase {
     private void prepare() {
         log.info("Writing 5000 random elements...");
         List<UncachedObject> lst = new ArrayList<>(5000);

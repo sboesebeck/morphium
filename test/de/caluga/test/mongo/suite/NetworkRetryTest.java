@@ -17,7 +17,7 @@ import java.util.Map;
  * <p/>
  * TODO: Add documentation here
  */
-public class NetworkRetryTest extends MongoTest {
+public class NetworkRetryTest extends MorphiumTestBase {
     private boolean doTest = false;
 
     @Test

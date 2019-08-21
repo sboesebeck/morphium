@@ -14,7 +14,7 @@ import java.util.Date;
  * Time: 14:33
  */
 @SuppressWarnings("AssertWithSideEffects")
-public class ExpireIndexTest extends MongoTest {
+public class ExpireIndexTest extends MorphiumTestBase {
     @Test
     public void testExpiry() throws InterruptedException {
         morphium.dropCollection(UCobj.class);

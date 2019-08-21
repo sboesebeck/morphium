@@ -16,7 +16,7 @@ import java.util.List;
  * Test interface polymorphism mechanism in Morphium
  */
 @SuppressWarnings("AssertWithSideEffects")
-public class InterfacePolymorphismTest extends MongoTest {
+public class InterfacePolymorphismTest extends MorphiumTestBase {
     @Test
     public void polymorphTest() throws Exception {
         morphium.dropCollection(IfaceTestType.class);

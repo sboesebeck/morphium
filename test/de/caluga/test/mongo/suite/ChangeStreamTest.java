@@ -9,7 +9,7 @@ import org.junit.Test;
 
 import java.util.concurrent.atomic.AtomicInteger;
 
-public class ChangeStreamTest extends MongoTest {
+public class ChangeStreamTest extends MorphiumTestBase {
     long start;
     long count;
 

@@ -12,7 +12,7 @@ import java.util.List;
  * Time: 08:18
  * <p/>
  */
-public class DeleteTest extends MongoTest {
+public class DeleteTest extends MorphiumTestBase {
 
     @Test
     public void uncachedDeleteSingle() throws Exception {

@@ -5,7 +5,7 @@ import de.caluga.test.mongo.suite.data.UncachedObject;
 import org.junit.Test;
 
 @SuppressWarnings("AssertWithSideEffects")
-public class FieldShadowingTest extends MongoTest {
+public class FieldShadowingTest extends MorphiumTestBase {
 
     @Test
     public void shadowFieldTest() throws Exception {

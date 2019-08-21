@@ -12,7 +12,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
-public class AdvancedMessagingTests extends MongoTest {
+public class AdvancedMessagingTests extends MorphiumTestBase {
     private Map<MorphiumId, Integer> counts = new ConcurrentHashMap<>();
 
     @Test
@@ -125,6 +125,10 @@ public class AdvancedMessagingTests extends MongoTest {
             List<Msg> ans = m1.sendAndAwaitAnswers(query, 3, 250);
             assert (ans.size() == 3) : "Recieved not enough answers to  " + query.getMsgId();
         }
+        m1.terminate();
+        m2.terminate();
+        m3.terminate();
+        m4.terminate();
     }
 
     @Test
@@ -135,7 +139,7 @@ public class AdvancedMessagingTests extends MongoTest {
         Messaging consumer = new Messaging(morphium, 100, false, true, 10);
         consumer.start();
 
-        consumer.addListenerForMessageNamed("test", new MessageListener() {
+        consumer.addListenerForMessageNamed("testDiff", new MessageListener() {
             @Override
             public Msg onMessage(Messaging msg, Msg m) throws InterruptedException {
                 log.info("incoming message, replying with answer");
@@ -145,9 +149,11 @@ public class AdvancedMessagingTests extends MongoTest {
             }
         });
 
-        Msg answer = producer.sendAndAwaitFirstAnswer(new Msg("test", "query", "value"), 1000);
+        Msg answer = producer.sendAndAwaitFirstAnswer(new Msg("testDiff", "query", "value"), 1000);
         assert (answer != null);
-        assert (answer.getName().equals("answer"));
+        assert (answer.getName().equals("answer")) : "Name is wrong: " + answer.getName();
+        producer.terminate();
+        consumer.terminate();
 
     }
 
@@ -158,12 +164,12 @@ public class AdvancedMessagingTests extends MongoTest {
         Messaging consumer = new Messaging(morphium, 100, false, true, 10);
         consumer.start();
 
-        consumer.addListenerForMessageNamed("test", new MessageListener() {
+        consumer.addListenerForMessageNamed("testAnswering", new MessageListener() {
             @Override
             public Msg onMessage(Messaging msg, Msg m) throws InterruptedException {
                 log.info("incoming message, replying with answer");
                 Msg answer = m.createAnswerMsg();
-                answer.setName("answer");
+                answer.setName("answerForTestAnswering");
                 return answer;
             }
         });
@@ -171,7 +177,7 @@ public class AdvancedMessagingTests extends MongoTest {
         MorphiumId msgId = new MorphiumId();
 
 
-        producer.addListenerForMessageNamed("answer", new MessageListener() {
+        producer.addListenerForMessageNamed("answerForTestAnswering", new MessageListener() {
             @Override
             public Msg onMessage(Messaging msg, Msg m) throws InterruptedException {
                 log.info("Incoming answer! " + m.getInAnswerTo() + " ---> " + msgId);
@@ -181,11 +187,13 @@ public class AdvancedMessagingTests extends MongoTest {
             }
         });
 
-        Msg msg = new Msg("test", "query", "value");
+        Msg msg = new Msg("testAnswering", "query", "value");
         msg.setMsgId(msgId);
         producer.storeMessage(msg);
         Thread.sleep(1000);
         assert (counts.get(msgId).equals(1));
+        producer.terminate();
+        consumer.terminate();
 
     }
 }

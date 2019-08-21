@@ -14,7 +14,7 @@ import org.junit.Test;
  * Time: 15:27
  * <p/>
  */
-public class ArrayTest extends MongoTest {
+public class ArrayTest extends MorphiumTestBase {
 
     @Entity
     @NoCache

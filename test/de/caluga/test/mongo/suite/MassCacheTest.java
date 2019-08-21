@@ -20,7 +20,7 @@ import java.util.Map;
 /**
  * @author stephan
  */
-public class MassCacheTest extends MongoTest {
+public class MassCacheTest extends MorphiumTestBase {
 
     public static final int NO_OBJECTS = 100;
     public static final int WRITING_THREADS = 5;

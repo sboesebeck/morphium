@@ -11,7 +11,7 @@ import org.junit.Test;
  * Time: 11:17
  * <p/>
  */
-public class WhereTest extends MongoTest {
+public class WhereTest extends MorphiumTestBase {
 
     @Test
     public void testWhere() {

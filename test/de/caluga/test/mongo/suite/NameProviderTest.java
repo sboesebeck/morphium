@@ -18,7 +18,7 @@ import org.junit.Test;
  * Time: 11:53
  * <p/>
  */
-public class NameProviderTest extends MongoTest {
+public class NameProviderTest extends MorphiumTestBase {
     @Test
     public void testNameProvider() {
         String colName = morphium.getMapper().getCollectionName(LogObject.class);

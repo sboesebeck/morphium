@@ -6,7 +6,7 @@ import org.junit.Test;
 import java.util.ArrayList;
 import java.util.List;
 
-public class VersioningTest extends MongoTest {
+public class VersioningTest extends MorphiumTestBase {
 
 
     @Test(expected = Exception.class)

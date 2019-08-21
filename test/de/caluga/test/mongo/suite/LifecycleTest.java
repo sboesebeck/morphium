@@ -14,7 +14,7 @@ import org.junit.Test;
  * Time: 22:59
  * <p/>
  */
-public class LifecycleTest extends MongoTest {
+public class LifecycleTest extends MorphiumTestBase {
     private static boolean preStore = false;
     private static boolean postStore = false;
     private static boolean preRemove = false;

@@ -13,7 +13,7 @@ import org.junit.Test;
  * To change this template use File | Settings | File Templates.
  */
 @SuppressWarnings("AssertWithSideEffects")
-public class CacheListenerTest extends MongoTest {
+public class CacheListenerTest extends MorphiumTestBase {
     private boolean wouldAdd = false;
     private boolean wouldClear = false;
     private boolean wouldRemove = false;

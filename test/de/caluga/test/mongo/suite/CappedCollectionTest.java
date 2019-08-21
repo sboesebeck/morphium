@@ -12,7 +12,7 @@ import java.util.List;
  * Created by stephan on 08.08.14.
  */
 @SuppressWarnings("AssertWithSideEffects")
-public class CappedCollectionTest extends MongoTest {
+public class CappedCollectionTest extends MorphiumTestBase {
 
     @Test
     public void testCreationOfCappedCollection() throws Exception {

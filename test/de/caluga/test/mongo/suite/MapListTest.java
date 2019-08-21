@@ -20,7 +20,7 @@ import java.util.Map;
  * Time: 16:20
  * <p/>
  */
-public class MapListTest extends MongoTest {
+public class MapListTest extends MorphiumTestBase {
     @Test
     public void mapListTest() {
         morphium.dropCollection(MapListObject.class);

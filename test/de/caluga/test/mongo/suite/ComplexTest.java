@@ -18,7 +18,7 @@ import java.util.Map;
  * <p>
  * testing compley queryies on Morphium
  */
-public class ComplexTest extends MongoTest {
+public class ComplexTest extends MorphiumTestBase {
 
     @Test
     public void testStoreAndRead() {

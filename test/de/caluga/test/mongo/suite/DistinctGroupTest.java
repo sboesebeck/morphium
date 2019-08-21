@@ -14,7 +14,7 @@ import java.util.Map;
  * Time: 08:53
  * <p/>
  */
-public class DistinctGroupTest extends MongoTest {
+public class DistinctGroupTest extends MorphiumTestBase {
     @Test
     public void distinctTest() throws Exception {
         List<UncachedObject> lst = new ArrayList<>();

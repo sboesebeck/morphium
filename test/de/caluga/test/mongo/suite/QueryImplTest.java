@@ -17,7 +17,7 @@ import java.util.Map;
  * Time: 16:18
  * <p/>
  */
-public class QueryImplTest extends MongoTest {
+public class QueryImplTest extends MorphiumTestBase {
 
     @Test
     public void testQuery() {

@@ -15,7 +15,7 @@ import java.util.List;
  * User: martinstolz
  * Date: 29.08.12
  */
-public class ValidationTest extends MongoTest {
+public class ValidationTest extends MorphiumTestBase {
 
     @Test
     public void testAllValid() {

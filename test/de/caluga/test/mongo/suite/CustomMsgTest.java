@@ -12,7 +12,7 @@ import org.junit.Test;
  * <p>
  * TODO: Add documentation here
  */
-public class CustomMsgTest extends MongoTest {
+public class CustomMsgTest extends MorphiumTestBase {
 
     boolean received = false;
 

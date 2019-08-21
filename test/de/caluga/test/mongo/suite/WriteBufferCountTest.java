@@ -18,7 +18,7 @@ import java.util.List;
  * <p/>
  * TODO: Add documentation here
  */
-public class WriteBufferCountTest extends MongoTest {
+public class WriteBufferCountTest extends MorphiumTestBase {
     @Test
     public void testWbCount() {
         List<UncachedObject> lst = new ArrayList<>();

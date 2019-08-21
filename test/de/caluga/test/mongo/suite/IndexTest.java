@@ -17,7 +17,7 @@ import java.util.Map;
  * Time: 11:18
  * <p/>
  */
-public class IndexTest extends MongoTest {
+public class IndexTest extends MorphiumTestBase {
     @Test
     public void createIndexMapFromTest() {
         List<Map<String, Object>> idx = morphium.createIndexMapFrom(new String[]{"-timer , -namne", "bla, fasel, blub"});

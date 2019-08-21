@@ -4,12 +4,13 @@ import de.caluga.morphium.driver.MorphiumId;
 import de.caluga.morphium.messaging.MessageListener;
 import de.caluga.morphium.messaging.Messaging;
 import de.caluga.morphium.messaging.Msg;
+import de.caluga.test.mongo.suite.inmem.MorphiumInMemTestBase;
 import org.junit.Test;
 
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
-public class AdvancedInMemMessagingTests extends InMemTest {
+public class AdvancedInMemMessagingTests extends MorphiumInMemTestBase {
     private Map<MorphiumId, Integer> counts = new ConcurrentHashMap<>();
 
     @Test

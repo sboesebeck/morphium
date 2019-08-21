@@ -1,4 +1,4 @@
-package de.caluga.test.mongo.suite;
+package de.caluga.test.mongo.suite.inmem;
 
 import de.caluga.test.mongo.suite.data.UncachedObject;
 import org.junit.Test;
@@ -10,7 +10,7 @@ import org.junit.Test;
  * <p>
  * TODO: Add documentation here
  */
-public class InMemTransactionTest extends InMemTest {
+public class InMemTransactionTest extends MorphiumInMemTestBase {
 
     @Test
     public void transactionTest() throws Exception {

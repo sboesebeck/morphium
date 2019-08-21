@@ -16,7 +16,7 @@ import java.util.List;
 /**
  * TODO: Add Documentation here
  **/
-public class CacheFunctionalityTest extends MongoTest {
+public class CacheFunctionalityTest extends MorphiumTestBase {
 
     @Test
     public void accessTest() throws Exception {

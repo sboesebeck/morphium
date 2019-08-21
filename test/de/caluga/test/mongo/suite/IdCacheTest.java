@@ -14,7 +14,7 @@ import java.util.List;
  * <p/>
  */
 @SuppressWarnings("AssertWithSideEffects")
-public class IdCacheTest extends MongoTest {
+public class IdCacheTest extends MorphiumTestBase {
 
     @Test
     public void idTest() throws Exception {

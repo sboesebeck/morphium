@@ -14,7 +14,7 @@ import java.util.HashMap;
  * <p/>
  * TODO: Add documentation here
  */
-public class CollectionNameOverrideTest extends MongoTest {
+public class CollectionNameOverrideTest extends MorphiumTestBase {
     @Test
     public void writeCollectionNameOverride() throws Exception {
         morphium.dropCollection(UncachedObject.class, "uncached_collection_test_2", null);

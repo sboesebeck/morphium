@@ -23,7 +23,7 @@ import java.util.Map;
  * <p/>
  */
 @SuppressWarnings("AssertWithSideEffects")
-public class ReferenceTest extends MongoTest {
+public class ReferenceTest extends MorphiumTestBase {
 
     private boolean didDeref = false;
     private boolean wouldDeref = false;

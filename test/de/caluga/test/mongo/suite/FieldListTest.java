@@ -17,7 +17,7 @@ import java.util.Map;
  * Time: 11:43
  * To change this template use File | Settings | File Templates.
  */
-public class FieldListTest extends MongoTest {
+public class FieldListTest extends MorphiumTestBase {
 
     @Test
     public void testFieldList() {

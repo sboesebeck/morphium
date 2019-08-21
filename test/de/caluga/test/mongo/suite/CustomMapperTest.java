@@ -13,7 +13,7 @@ import java.util.Map;
  * <p/>
  */
 @SuppressWarnings("AssertWithSideEffects")
-public class CustomMapperTest extends MongoTest {
+public class CustomMapperTest extends MorphiumTestBase {
 
     //    @Test
 //    public void customMappedObjectTest() {

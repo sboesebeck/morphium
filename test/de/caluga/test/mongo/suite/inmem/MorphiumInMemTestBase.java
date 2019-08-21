@@ -1,38 +1,87 @@
-package de.caluga.test.mongo.suite;
+package de.caluga.test.mongo.suite.inmem;
 
 import de.caluga.morphium.Morphium;
 import de.caluga.morphium.MorphiumConfig;
+import de.caluga.morphium.ShutdownListener;
+import de.caluga.morphium.changestream.ChangeStreamMonitor;
 import de.caluga.morphium.driver.inmem.InMemoryDriver;
+import de.caluga.morphium.messaging.Messaging;
 import de.caluga.morphium.query.Query;
+import de.caluga.morphium.replicaset.OplogMonitor;
+import de.caluga.morphium.writer.BufferedMorphiumWriterImpl;
 import de.caluga.test.mongo.suite.data.UncachedObject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.lang.reflect.Field;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 
-public class InMemTest {
+public class MorphiumInMemTestBase {
     public static Morphium morphium;
 
 
-    public Logger log = LoggerFactory.getLogger(InMemTest.class);
+    public Logger log = LoggerFactory.getLogger(MorphiumInMemTestBase.class);
 
-    @org.junit.BeforeClass
-    public static void setUpClass() {
+    @org.junit.Before
+    public void setup() {
+        log.info("creating in Memory instance");
         MorphiumConfig cfg = new MorphiumConfig();
         cfg.addHostToSeed("inMem");
         cfg.setDatabase("test");
         cfg.setDriverClass(InMemoryDriver.class.getName());
         cfg.setReplicasetMonitoring(false);
         morphium = new Morphium(cfg);
+        log.info("Done!");
     }
 
     @org.junit.After
     public void tearDown() throws InterruptedException {
         log.info("Cleaning up...");
+
+        try {
+            Field f = morphium.getClass().getDeclaredField("shutDownListeners");
+            f.setAccessible(true);
+            List<ShutdownListener> listeners = (List<ShutdownListener>) f.get(morphium);
+            for (ShutdownListener l : listeners) {
+                if (l instanceof Messaging) {
+                    ((Messaging) l).terminate();
+                    log.info("Terminating still running messaging..." + ((Messaging) l).getSenderId());
+                    while (((Messaging) l).isRunning()) {
+                        log.info("Waiting for messaging to finish");
+                        Thread.sleep(100);
+                    }
+                } else if (l instanceof OplogMonitor) {
+                    ((OplogMonitor) l).stop();
+                    while (((OplogMonitor) l).isRunning()) {
+                        log.info("Waiting for oplogmonitor to finish");
+                        Thread.sleep(100);
+                    }
+                    f = l.getClass().getDeclaredField("listeners");
+                    f.setAccessible(true);
+                    ((Collection) f.get(l)).clear();
+                } else if (l instanceof ChangeStreamMonitor) {
+                    log.info("Changestream Monitor still running");
+                    ((ChangeStreamMonitor) l).stop();
+                    while (((ChangeStreamMonitor) l).isRunning()) {
+                        log.info("Waiting for changestreamMonitor to finish");
+                        Thread.sleep(100);
+                    }
+                    f = l.getClass().getDeclaredField("listeners");
+                    f.setAccessible(true);
+                    ((Collection) f.get(l)).clear();
+                } else if (l instanceof BufferedMorphiumWriterImpl) {
+                    ((BufferedMorphiumWriterImpl) l).close();
+                }
+            }
+        } catch (Exception e) {
+            log.error("Could not shutdown properly!", e);
+        }
+
         morphium.close();
+        morphium = null;
         //Thread.sleep(1000);
-        setUpClass();
         log.info("done...");
     }
 

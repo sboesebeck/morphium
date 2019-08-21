@@ -21,7 +21,7 @@ import static org.junit.Assert.fail;
  * <p/>
  */
 @SuppressWarnings("AssertWithSideEffects")
-public class ListTests extends MongoTest {
+public class ListTests extends MorphiumTestBase {
 
     @Test
     public void listStoringTest() throws Exception {

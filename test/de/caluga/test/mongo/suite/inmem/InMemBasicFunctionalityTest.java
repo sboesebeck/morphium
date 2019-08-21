@@ -2,7 +2,7 @@
  * To change this template, choose Tools | Templates
  * and open the template in the editor.
  */
-package de.caluga.test.mongo.suite;
+package de.caluga.test.mongo.suite.inmem;
 
 import de.caluga.morphium.AnnotationAndReflectionHelper;
 import de.caluga.morphium.StatisticKeys;
@@ -30,7 +30,7 @@ import java.util.Map;
  * @author stephan
  */
 @SuppressWarnings({"AssertWithSideEffects", "MismatchedQueryAndUpdateOfCollection"})
-public class InMemBasicFunctionalityTest extends InMemTest {
+public class InMemBasicFunctionalityTest extends MorphiumInMemTestBase {
     public static final int NO_OBJECTS = 100;
     private static final Logger log = LoggerFactory.getLogger(InMemBasicFunctionalityTest.class);
     private int runningThreads;

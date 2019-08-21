@@ -3,7 +3,7 @@ package de.caluga.test.mongo.suite.performance;/**
  */
 
 import de.caluga.morphium.query.Query;
-import de.caluga.test.mongo.suite.MongoTest;
+import de.caluga.test.mongo.suite.MorphiumTestBase;
 import de.caluga.test.mongo.suite.data.UncachedObject;
 import org.junit.Test;
 
@@ -13,7 +13,7 @@ import java.util.List;
 /**
  * TODO: Add Documentation here
  **/
-public class MongoPerformanceTest extends MongoTest {
+public class MongoPerformanceTest extends MorphiumTestBase {
 
     @Test
     public void timeToStore() {

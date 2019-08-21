@@ -15,7 +15,7 @@ import java.util.Date;
  * TODO: Add documentation here
  */
 @SuppressWarnings("AssertWithSideEffects")
-public class NonObjectIdTest extends MongoTest {
+public class NonObjectIdTest extends MorphiumTestBase {
     @Test
     public void nonObjectIdTest() {
 

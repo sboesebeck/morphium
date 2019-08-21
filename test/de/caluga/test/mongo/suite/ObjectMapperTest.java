@@ -20,7 +20,7 @@ import java.util.*;
  * Time: 14:04
  * <p/>
  */
-public class ObjectMapperTest extends MongoTest {
+public class ObjectMapperTest extends MorphiumTestBase {
 
     @Test
     public void customTypeMapperTest() {

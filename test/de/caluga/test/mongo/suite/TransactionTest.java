@@ -11,7 +11,7 @@ import org.junit.Test;
  * <p>
  * TODO: Add documentation here
  */
-public class TransactionTest extends MongoTest {
+public class TransactionTest extends MorphiumTestBase {
 
     @Test
     public void transactionTest() throws Exception {
