@@ -76,7 +76,7 @@ public class ChangeStreamMonitor implements Runnable, ShutdownListener {
         return running;
     }
 
-    public void stop() {
+    public void terminate() {
         running = false;
         long start = System.currentTimeMillis();
         while (changeStreamThread != null && changeStreamThread.isAlive()) {
@@ -143,6 +143,6 @@ public class ChangeStreamMonitor implements Runnable, ShutdownListener {
 
     @Override
     public void onShutdown(Morphium m) {
-        stop();
+        terminate();
     }
 }

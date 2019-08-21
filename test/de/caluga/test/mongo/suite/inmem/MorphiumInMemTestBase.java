@@ -63,7 +63,7 @@ public class MorphiumInMemTestBase {
                     ((Collection) f.get(l)).clear();
                 } else if (l instanceof ChangeStreamMonitor) {
                     log.info("Changestream Monitor still running");
-                    ((ChangeStreamMonitor) l).stop();
+                    ((ChangeStreamMonitor) l).terminate();
                     while (((ChangeStreamMonitor) l).isRunning()) {
                         log.info("Waiting for changestreamMonitor to finish");
                         Thread.sleep(100);

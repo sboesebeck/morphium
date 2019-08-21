@@ -204,7 +204,7 @@ public class ChangeStreamInMemTest extends MorphiumInMemTestBase {
             morphium.store(new UncachedObject("value " + i, i));
         }
         Thread.sleep(5000);
-        m.stop();
+        m.terminate();
         assert (cnt.get() >= 100 && cnt.get() <= 101) : "count is wrong: " + cnt.get();
         morphium.store(new UncachedObject("killing", 0));
 

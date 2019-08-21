@@ -11,6 +11,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.*;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * User: Stephan Bösebeck
@@ -30,7 +31,8 @@ public class InMemMessagingTest extends MorphiumInMemTestBase {
 
     public MorphiumId lastMsgId;
 
-    public int procCounter = 0;
+    public AtomicInteger procCounter = new AtomicInteger(0);
+    public AtomicInteger errCounter = new AtomicInteger(0);
 
     private Logger log = LoggerFactory.getLogger(InMemMessagingTest.class);
     private List<Msg> list = new ArrayList<>();
@@ -134,23 +136,37 @@ public class InMemMessagingTest extends MorphiumInMemTestBase {
             return new Msg("test", "answer", "value", 600000);
         });
 
-        procCounter = 0;
+        procCounter.set(0);
+        errCounter.set(0);
         for (int i = 0; i < 180; i++) {
             new Thread() {
                 public void run() {
                     Msg m = new Msg("test", "nothing", "value");
                     m.setTtl(60000000);
-                    Msg a = m1.sendAndAwaitFirstAnswer(m, 6000);
-                    assert (a != null);
-                    procCounter++;
+                    try {
+                        Msg a = m1.sendAndAwaitFirstAnswer(m, 16000);
+                        assert (a != null);
+                        procCounter.incrementAndGet();
+                    } catch (Exception e) {
+                        log.info("Message could not be recieved...", e);
+                        errCounter.incrementAndGet();
+                        throw (e);
+
+                    }
                 }
             }.start();
 
         }
-        while (procCounter < 150) {
+        while (procCounter.get() + errCounter.get() < 180) {
             Thread.yield();
         }
-
+        log.info("Processed: " + procCounter.get());
+        log.info("Errors: " + errCounter.get());
+        m1.terminate();
+        m2.terminate();
+        m3.terminate();
+        Thread.sleep(250);
+        assert (errCounter.get() == 0);
     }
 
 
@@ -349,7 +365,7 @@ public class InMemMessagingTest extends MorphiumInMemTestBase {
         assert (messagesList.size() == 1) : "should get annother id - did not?!?!?! " + messagesList.size();
 
         log.info("Got msg: " + messagesList.get(0).toString());
-
+        morphium.dropCollection(Msg.class);
     }
 
     @Test
@@ -850,7 +866,7 @@ public class InMemMessagingTest extends MorphiumInMemTestBase {
                             pr = 0;
                         }
                         processedMessages.put(m.getMsgId(), pr + 1);
-                        procCounter++;
+                        procCounter.incrementAndGet();
                     }
                     return null;
                 }
@@ -877,16 +893,16 @@ public class InMemMessagingTest extends MorphiumInMemTestBase {
         //See if whole number of messages processed is correct
         //keep in mind: a message is never recieved by the sender, hence numberOfWorkers-1
         while (true) {
-            if (procCounter == numberOfMessages * (numberOfWorkers - 1)) {
+            if (procCounter.get() == numberOfMessages * (numberOfWorkers - 1)) {
                 break;
             }
-            if (last == procCounter) {
+            if (last == procCounter.get()) {
                 log.info("No change in procCounter?! somethings wrong...");
                 break;
 
             }
-            last = procCounter;
-            log.info("Waiting for messages to be processed - procCounter: " + procCounter);
+            last = procCounter.get();
+            log.info("Waiting for messages to be processed - procCounter: " + procCounter.get());
             Thread.sleep(2000);
         }
         Thread.sleep(1000);
@@ -896,7 +912,7 @@ public class InMemMessagingTest extends MorphiumInMemTestBase {
         for (MorphiumId id : processedMessages.keySet()) {
             assert (processedMessages.get(id) == numberOfWorkers - 1) : "Message " + id + " was not recieved by all " + (numberOfWorkers - 1) + " other workers? only by " + processedMessages.get(id);
         }
-        assert (procCounter == numberOfMessages * (numberOfWorkers - 1)) : "Still processing messages?!?!?";
+        assert (procCounter.get() == numberOfMessages * (numberOfWorkers - 1)) : "Still processing messages?!?!?";
 
         //Waiting for all messages to be outdated and deleted
 

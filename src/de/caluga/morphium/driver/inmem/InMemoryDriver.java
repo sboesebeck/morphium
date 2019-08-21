@@ -421,7 +421,8 @@ public class InMemoryDriver implements MorphiumDriver {
                                 //noinspection unchecked
                                 boolean contains = false;
                                 if (toCheck.get(key) instanceof List) {
-                                    for (Object o : (List) toCheck.get(key)) {
+                                    List chk = new ArrayList((List) toCheck.get(key));
+                                    for (Object o : chk) {
                                         if (o != null && q.get(k) != null && o.equals(q.get(k))) {
                                             contains = true;
                                             break;
@@ -673,7 +674,7 @@ public class InMemoryDriver implements MorphiumDriver {
     public List<Map<String, Object>> findByFieldValue(String db, String coll, String field, Object value) {
         List<Map<String, Object>> ret = new Vector<>();
 
-        List<Map<String, Object>> data = getCollection(db, coll);
+        List<Map<String, Object>> data = new Vector<>(getCollection(db, coll));
         for (Map<String, Object> obj : data) {
             if (obj.get(field) == null && value != null) {
                 continue;

@@ -27,7 +27,7 @@ public class WatchingCacheSynchronizer extends AbstractCacheSynchronizer<Watchin
 
     public void terminate() {
         running = false;
-        monitor.stop();
+        monitor.terminate();
     }
 
     @Override
