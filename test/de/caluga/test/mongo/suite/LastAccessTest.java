@@ -12,7 +12,7 @@ import org.junit.Test;
  * Time: 15:54
  * <p/>
  */
-public class LastAccessTest extends MongoTest {
+public class LastAccessTest extends MorphiumTestBase {
     @Test
     public void createdTest() throws Exception {
         morphium.dropCollection(TstObjLA.class);

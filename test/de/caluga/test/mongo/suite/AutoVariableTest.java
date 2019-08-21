@@ -17,7 +17,7 @@ import java.util.List;
  * Time: 09:15
  * To change this template use File | Settings | File Templates.
  */
-public class AutoVariableTest extends MongoTest {
+public class AutoVariableTest extends MorphiumTestBase {
 
     @Test
     public void testCreationTime() throws Exception {

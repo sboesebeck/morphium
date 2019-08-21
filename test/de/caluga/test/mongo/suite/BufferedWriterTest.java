@@ -23,7 +23,7 @@ import java.util.Vector;
  * <p/>
  * TODO: Add documentation here
  */
-public class BufferedWriterTest extends MongoTest {
+public class BufferedWriterTest extends MorphiumTestBase {
 
 
     @Test

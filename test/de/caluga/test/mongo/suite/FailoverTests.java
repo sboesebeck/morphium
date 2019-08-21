@@ -16,7 +16,7 @@ import javax.swing.*;
  * Time: 09:35
  * <p/>
  */
-public class FailoverTests extends MongoTest {
+public class FailoverTests extends MorphiumTestBase {
     private static Logger log = LoggerFactory.getLogger(FailoverTests.class);
     private static int writeError = 0;
     private static int readError = 0;

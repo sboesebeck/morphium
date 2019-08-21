@@ -1,4 +1,4 @@
-package de.caluga.test.mongo.suite;
+package de.caluga.test.mongo.suite.inmem;
 
 import de.caluga.morphium.query.Query;
 import de.caluga.test.mongo.suite.data.EmbeddedObject;
@@ -18,7 +18,7 @@ import java.util.Map;
  * <p>
  */
 @SuppressWarnings("Duplicates")
-public class InMemUpdateTest extends InMemTest {
+public class InMemUpdateTest extends MorphiumInMemTestBase {
     @Test
     public void incMultipleFieldsTest() throws Exception {
         morphium.dropCollection(UncachedMultipleCounter.class);

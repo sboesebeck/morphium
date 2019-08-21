@@ -3,7 +3,7 @@ package de.caluga.test.mongo.suite.performance;/**
  */
 
 import de.caluga.morphium.Morphium;
-import de.caluga.test.mongo.suite.MongoTest;
+import de.caluga.test.mongo.suite.MorphiumTestBase;
 import de.caluga.test.mongo.suite.data.UncachedObject;
 import org.openjdk.jmh.annotations.*;
 
@@ -21,10 +21,10 @@ public class BasicReadWriteTest {
     @Setup
     public void setup() {
         try {
-            if (MongoTest.morphium == null) {
-                MongoTest.setUpClass();
+            if (MorphiumTestBase.morphium == null) {
+                MorphiumTestBase.setUpClass();
             }
-            morphium = MongoTest.morphium;
+            morphium = MorphiumTestBase.morphium;
         } catch (Exception e) {
             //TODO: Implement Handling
             throw new RuntimeException(e);

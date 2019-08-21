@@ -18,7 +18,7 @@ import java.util.Map;
  * Time: 10:59
  * <p/>
  */
-public class Aggregation extends MongoTest {
+public class Aggregation extends MorphiumTestBase {
     @Test
     public void aggregatorTest() {
         createUncachedObjects(1000);

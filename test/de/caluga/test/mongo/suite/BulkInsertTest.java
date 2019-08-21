@@ -22,7 +22,7 @@ import java.util.List;
  */
 @SuppressWarnings("AssertWithSideEffects")
 @RunWith(Theories.class)
-public class BulkInsertTest extends MongoTest {
+public class BulkInsertTest extends MorphiumTestBase {
     private boolean asyncSuccess = true;
     private boolean asyncCall = false;
 

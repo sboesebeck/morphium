@@ -18,7 +18,7 @@ import java.util.Map;
  * To change this template use File | Settings | File Templates.
  */
 @SuppressWarnings({"AssertWithSideEffects", "unchecked"})
-public class BulkOperationTest extends MongoTest {
+public class BulkOperationTest extends MorphiumTestBase {
     private boolean preRemove, postRemove;
     private boolean preUpdate, postUpdate;
 

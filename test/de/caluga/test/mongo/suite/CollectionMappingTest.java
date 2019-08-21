@@ -11,7 +11,7 @@ import org.junit.Test;
  * Time: 13:05
  * <p/>
  */
-public class CollectionMappingTest extends MongoTest {
+public class CollectionMappingTest extends MorphiumTestBase {
     @Test
     public void collectionMappingTest() {
         String n = morphium.getMapper().getCollectionName(CachedObject.class);

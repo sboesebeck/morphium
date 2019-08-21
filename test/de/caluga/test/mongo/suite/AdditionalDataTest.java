@@ -14,7 +14,7 @@ import java.util.Map;
  * Time: 15:54
  * <p/>
  */
-public class AdditionalDataTest extends MongoTest {
+public class AdditionalDataTest extends MorphiumTestBase {
 
     @Test
     public void additionalData() throws Exception {

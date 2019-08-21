@@ -12,7 +12,7 @@ import java.util.Map;
  * <p/>
  * TODO: Add documentation here
  */
-public class ServerStatusTest extends MongoTest {
+public class ServerStatusTest extends MorphiumTestBase {
 
     @Test
     public void getServerStatus() {

@@ -12,7 +12,7 @@ import org.junit.Test;
  * <p/>
  * TODO: Add documentation here
  */
-public class IDConversionTest extends MongoTest {
+public class IDConversionTest extends MorphiumTestBase {
     @Test
     public void testIdConversion() {
         QueryImpl qu = new QueryImpl();

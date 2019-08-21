@@ -11,7 +11,7 @@ import java.util.List;
  * Time: 16:46
  * <p/>
  */
-public class SkipLimitTest extends MongoTest {
+public class SkipLimitTest extends MorphiumTestBase {
     @Test
     public void skipTest() {
         createUncachedObjects(100);

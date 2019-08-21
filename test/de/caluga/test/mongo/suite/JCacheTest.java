@@ -21,7 +21,7 @@ import java.util.Map;
  * <p>
  * TODO: Add documentation here
  */
-public class JCacheTest extends MongoTest {
+public class JCacheTest extends MorphiumTestBase {
     private Logger log = LoggerFactory.getLogger(JCacheTest.class);
 
     @Test

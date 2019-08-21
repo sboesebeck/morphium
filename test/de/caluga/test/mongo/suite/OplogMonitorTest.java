@@ -10,7 +10,7 @@ import org.junit.Test;
 /**
  * Created by stephan on 15.11.16.
  */
-public class OplogMonitorTest extends MongoTest {
+public class OplogMonitorTest extends MorphiumTestBase {
     private boolean gotIt = false;
 
     @Test

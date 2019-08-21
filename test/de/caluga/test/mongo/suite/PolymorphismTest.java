@@ -22,7 +22,7 @@ import java.util.Map;
  * Test polymorphism mechanism in Morphium
  */
 @SuppressWarnings("AssertWithSideEffects")
-public class PolymorphismTest extends MongoTest {
+public class PolymorphismTest extends MorphiumTestBase {
     @Test
     public void polymorphTest() throws Exception {
         morphium.dropCollection(PolyTest.class);

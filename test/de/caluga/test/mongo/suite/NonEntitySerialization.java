@@ -14,7 +14,7 @@ import java.util.Map;
 /**
  * Created by stephan on 18.11.14.
  */
-public class NonEntitySerialization extends MongoTest {
+public class NonEntitySerialization extends MorphiumTestBase {
 
     @Test
     public void testNonEntity() {

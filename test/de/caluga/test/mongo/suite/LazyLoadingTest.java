@@ -23,7 +23,7 @@ import java.util.List;
  * <p/>
  */
 @SuppressWarnings("AssertWithSideEffects")
-public class LazyLoadingTest extends MongoTest {
+public class LazyLoadingTest extends MorphiumTestBase {
 
     private boolean wouldDeref = false;
     private boolean didDeref = false;

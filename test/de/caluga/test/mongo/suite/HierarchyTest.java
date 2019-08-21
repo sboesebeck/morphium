@@ -13,7 +13,7 @@ import org.junit.Test;
  * Time: 00:02
  * <p/>
  */
-public class HierarchyTest extends MongoTest {
+public class HierarchyTest extends MorphiumTestBase {
 
     public static class SubClass extends UncachedObject {
         private String additionalProperty;

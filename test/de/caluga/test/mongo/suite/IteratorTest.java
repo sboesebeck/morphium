@@ -20,7 +20,7 @@ import java.util.*;
  * Time: 12:04
  * <p/>
  */
-public class IteratorTest extends MongoTest {
+public class IteratorTest extends MorphiumTestBase {
 
     private List<MorphiumId> data = Collections.synchronizedList(new ArrayList<>());
 

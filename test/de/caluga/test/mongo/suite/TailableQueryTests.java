@@ -13,7 +13,7 @@ import java.util.List;
  * Created by stephan on 29.07.16.
  */
 
-public class TailableQueryTests extends MongoTest {
+public class TailableQueryTests extends MorphiumTestBase {
     boolean found = false;
 
     @Test

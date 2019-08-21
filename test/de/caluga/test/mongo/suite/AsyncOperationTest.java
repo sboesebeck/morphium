@@ -25,7 +25,7 @@ import java.util.List;
  * TODO: Add documentation here
  */
 @SuppressWarnings("AssertWithSideEffects")
-public class AsyncOperationTest extends MongoTest {
+public class AsyncOperationTest extends MorphiumTestBase {
     private boolean asyncCall = false;
     private boolean callback;
 

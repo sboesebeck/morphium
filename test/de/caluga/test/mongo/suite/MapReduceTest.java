@@ -9,7 +9,7 @@ import java.util.List;
 /**
  * Created by stephan on 28.07.16.
  */
-public class MapReduceTest extends MongoTest {
+public class MapReduceTest extends MorphiumTestBase {
 
     @Test
     public void mapReduce() throws Exception {

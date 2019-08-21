@@ -13,7 +13,7 @@ import java.util.Properties;
  * TODO: Add documentation here
  */
 @SuppressWarnings("AssertWithSideEffects")
-public class MorphiumConfigTest extends MongoTest {
+public class MorphiumConfigTest extends MorphiumTestBase {
     @Test
     public void testToString() throws Exception {
         String cfg = morphium.getConfig().toString();

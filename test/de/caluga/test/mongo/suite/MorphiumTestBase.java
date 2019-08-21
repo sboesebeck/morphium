@@ -1,11 +1,12 @@
 package de.caluga.test.mongo.suite;
 
-import ch.qos.logback.classic.LoggerContext;
 import de.caluga.morphium.Morphium;
 import de.caluga.morphium.MorphiumConfig;
 import de.caluga.morphium.ShutdownListener;
 import de.caluga.morphium.changestream.ChangeStreamMonitor;
+import de.caluga.morphium.driver.MorphiumDriverException;
 import de.caluga.morphium.driver.ReadPreference;
+import de.caluga.morphium.driver.WriteConcern;
 import de.caluga.morphium.messaging.Messaging;
 import de.caluga.morphium.query.Query;
 import de.caluga.morphium.replicaset.OplogMonitor;
@@ -25,9 +26,6 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Properties;
-import java.util.logging.Handler;
-import java.util.logging.Level;
-import java.util.logging.LogRecord;
 
 //import de.caluga.morphium.driver.inmem.InMemoryDriver;
 //import de.caluga.morphium.driver.meta.MetaDriver;
@@ -41,13 +39,13 @@ import java.util.logging.LogRecord;
  * Time: 16:17
  * <p/>
  */
-public class MongoTest {
+public class MorphiumTestBase {
 
     public static Morphium morphium;
     private static Properties props;
     protected Logger log;
 
-    public MongoTest() {
+    public MorphiumTestBase() {
         log = LoggerFactory.getLogger(getClass().getName());
     }
 
@@ -72,49 +70,38 @@ public class MongoTest {
 
     @org.junit.BeforeClass
     public static synchronized void setUpClass() {
-        LoggerContext loggerContext = (LoggerContext) LoggerFactory.getILoggerFactory();
-        ch.qos.logback.classic.Logger rootLogger = loggerContext.getLogger("org.mongodb.driver");
-        rootLogger.setLevel(ch.qos.logback.classic.Level.INFO);
-        java.util.logging.Logger l = java.util.logging.Logger.getGlobal();
-        l.setLevel(Level.SEVERE);
-                l.addHandler(new Handler() {
-                    @Override
-                    public void publish(LogRecord record) {
-//                        Logger l=LoggerFactory.getLogger(record.getLoggerName());
-//                        if (record.getLevel().equals(Level.ALL)) {
-//                            l.debug(record.getMessage(),record.getThrown());
-//                        } else if (record.getLevel().equals(Level.FINE)) {
-//                            l.warn(record.getMessage(),record.getThrown());
-//                        } else if (record.getLevel().equals(Level.FINER)) {
-//                            l.info(record.getMessage(),record.getThrown());
-//                        } else if (record.getLevel().equals(Level.FINEST)) {
-//                            l.debug(record.getMessage(),record.getThrown());
-//                        } else if (record.getLevel().equals(Level.CONFIG)) {
-//                            l.debug(record.getMessage(),record.getThrown());
-//                        } else if (record.getLevel().equals(Level.INFO)) {
-//                            l.info(record.getMessage(),record.getThrown());
-//                        } else if (record.getLevel().equals(Level.WARNING)) {
-//                            l.warn(record.getMessage(),record.getThrown());
-//                        } else if (record.getLevel().equals(Level.SEVERE)) {
-//                            l.error(record.getMessage(),record.getThrown());
-//                        } else  {
-//                            l.info(record.getMessage(),record.getThrown());
+
+    }
+
+    @org.junit.AfterClass
+    public static void tearDownClass() {
+        LoggerFactory.getLogger(MorphiumTestBase.class).info("NOT Shutting down - might be reused!");
+        //        morphium.close();
+    }
+
 //
-//                        }
-                    }
+//    public static synchronized List<Morphium> getMorphiums() {
+//        if (morphiums == null) {
+//            morphiums = new ArrayList<>();
+//            morphiums.add(morphiumMongodb);
+//            morphiums.add(morphiumInMemeory);
+//            morphiums.add(morphiumSingleConnect);
+//            morphiums.add(morphiumSingleConnectThreadded);
+//            morphiums.add(morphiumMeta);
+//        }
+//        return morphiums;
+//    }
 
-                    @Override
-                    public void flush() {
+    private static void storeProps() {
+        File f = getFile();
+        try {
+            getProps().store(new FileWriter(f), "created by morphium test");
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+    }
 
-                    }
-
-                    @Override
-                    public void close() throws SecurityException {
-
-                    }
-                });
-        l = java.util.logging.Logger.getLogger("connection");
-        l.setLevel(java.util.logging.Level.OFF);
+    private void init() {
         if (morphium == null) {
             MorphiumConfig cfg;
             Properties p = getProps();
@@ -182,122 +169,10 @@ public class MongoTest {
                 cfg.setBlockingThreadsMultiplier(2);
                 storeProps();
             }
-//            cfg.setDefaultReadPreference(ReadPreference.secondaryPreferred());
-//            cfg.setDefaultReadPreferenceType("SECONDARY_PREFERRED");
-//            //Setting up logging
-//            cfg.setGlobalLogLevel(4);
-//            cfg.setGlobalLogFile("-");
-//            cfg.setGlobalLogSynced(true);
-//
-//            cfg.setLogLevelForClass(AnnotationAndReflectionHelper.class, 4);
-//            cfg.setLogLevelForClass(PrefetchingMorphiumIterator.class, 3);
-//            cfg.setLogLevelForPrefix("de.caluga.test", 5);
-//            cfg.setLogSyncedForPrefix("de.caluga.test", true);
-//            cfg.setLogLevelForClass(SingleConnectThreaddedDriver.class, 5);
-//            cfg.setRetriesOnNetworkError(5);
-//            cfg.setSleepBetweenNetworkErrorRetries(150);
-//            cfg.setOplogMonitorEnabled(true);
-            //            cfg.setLogLevelForPrefix("de.caluga.morphium.driver", 3);
-            //            cfg.setLogLevelForPrefix(MetaDriver.class.getName(), 5);
-
-            //InMemoryTest
-            //            cfg.setDriverClass(InMemoryDriver.class.getName());
-            //MetaDriverTEst
-            //            cfg.setDriverClass(MetaDriver.class.getName());
-            //            cfg.setDriverClass(SingleConnectDirectDriver.class.getName());
-            //            cfg.setDriverClass(InMemoryDriver.class.getName());
-            //cfg.setOmClass(ObjectMapperImplNG.class);
 
             morphium = new Morphium(cfg);
-//
-//            morphiumMongodb = morphium;
-//            MorphiumConfig cfgtmp = MorphiumConfig.createFromJson(cfg.toString());
-//            cfgtmp.setDriverClass(MetaDriver.class.getName());
-//            cfgtmp.setOplogMonitorEnabled(false);
-//            morphiumMeta = new Morphium(cfgtmp);
-//
-//
-//            cfgtmp = MorphiumConfig.createFromJson(cfg.toString());
-//            cfgtmp.setDriverClass(InMemoryDriver.class.getName());
-//            cfgtmp.setReplicasetMonitoring(false);
-//            cfgtmp.setOplogMonitorEnabled(false);
-//            morphiumInMemeory = new Morphium(cfgtmp);
-//
-//            cfgtmp = MorphiumConfig.createFromJson(cfg.toString());
-//            cfgtmp.setDriverClass(SingleConnectDirectDriver.class.getName());
-//            cfgtmp.setOplogMonitorEnabled(false);
-//            morphiumSingleConnect = new Morphium(cfgtmp);
-//
-//            cfgtmp = MorphiumConfig.createFromJson(cfg.toString());
-//            cfgtmp.setDriverClass(SingleConnectThreaddedDriver.class.getName());
-//            cfgtmp.setOplogMonitorEnabled(false);
-//            morphiumSingleConnectThreadded = new Morphium(cfgtmp);
 
-
-            //            morphium.addListener(new MorphiumStorageAdapter() {
-            //                @Override
-            //                public void preStore(Morphium m, Object r, boolean isNew) {
-            //                    if (m.getARHelper().isBufferedWrite(r.getClass())) {
-            //                        LoggerFactory.getLogger(MongoTest.class).info("Buffered store of "+r.getClass());
-            //                    }
-            //                }
-            //
-            //                @Override
-            //                public void preRemove(Morphium m, Object r) {
-            //                     if (m.getARHelper().isBufferedWrite(r.getClass())) {
-            //                        LoggerFactory.getLogger(MongoTest.class).info("Buffered remove of "+r.getClass());
-            //                    }
-            //                }
-            //
-            //                @Override
-            //                public void preRemove(Morphium m, Query q) {
-            //                    if (m.getARHelper().isBufferedWrite(q.getType())) {
-            //                        LoggerFactory.getLogger(MongoTest.class).info("Buffered remove of "+q.getType(),new Exception());
-            //                    }
-            //                }
-            //
-            //                @Override
-            //                public void preDrop(Morphium m, Class cls) {
-            //                    if (m.getARHelper().isBufferedWrite(cls)) {//                        LoggerFactory.getLogger(MongoTest.class).info("Buffered drop of "+cls);
-            //                    }
-            //                }
-            //
-            //                @Override
-            //                public void preUpdate(Morphium m, Class cls, Enum updateType) {
-            //                    if (m.getARHelper().isBufferedWrite(cls)) {
-            //                        LoggerFactory.getLogger(MongoTest.class).info("Buffered update of "+cls);
-            //                    }
-            //                }
-            //            });
         }
-    }
-
-//
-//    public static synchronized List<Morphium> getMorphiums() {
-//        if (morphiums == null) {
-//            morphiums = new ArrayList<>();
-//            morphiums.add(morphiumMongodb);
-//            morphiums.add(morphiumInMemeory);
-//            morphiums.add(morphiumSingleConnect);
-//            morphiums.add(morphiumSingleConnectThreadded);
-//            morphiums.add(morphiumMeta);
-//        }
-//        return morphiums;
-//    }
-
-    private static void storeProps() {
-        File f = getFile();
-        try {
-            getProps().store(new FileWriter(f), "created by morphium test");
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
-    }
-
-    @org.junit.AfterClass
-    public static void tearDownClass() {
-        LoggerFactory.getLogger(MongoTest.class).info("NOT Shutting down - might be reused!");
-        //        morphium.close();
     }
 
     public boolean waitForAsyncOperationToStart(int maxWaits) {
@@ -364,7 +239,12 @@ public class MongoTest {
 
     @org.junit.Before
     public void setUp() {
+        init();
+    }
 
+    @org.junit.After
+    public void tearDown() {
+        if (morphium == null) return;
         try {
             Field f = morphium.getClass().getDeclaredField("shutDownListeners");
             f.setAccessible(true);
@@ -401,7 +281,7 @@ public class MongoTest {
                 }
             }
         } catch (Exception e) {
-            log.error("Could not shutdown properly!");
+            log.error("Could not shutdown properly!", e);
         }
         try {
             log.info("---------------------------------------- Re-connecting to mongo");
@@ -409,24 +289,32 @@ public class MongoTest {
             log.info("------ > Number: " + num);
 
             log.info("resetting DB...");
-            List<String> lst = morphium.getDriver().getCollectionNames(morphium.getConfig().getDatabase());
-            for (String col : lst) {
-                log.info("Dropping " + col);
-                morphium.getDriver().drop(morphium.getConfig().getDatabase(), col, morphium.getWriteConcernForClass(UncachedObject.class));
+//            List<String> lst = morphium.getDriver().getCollectionNames(morphium.getConfig().getDatabase());
+//            for (String col : lst) {
+//                log.info("Dropping " + col);
+//                morphium.getDriver().drop(morphium.getConfig().getDatabase(), col, morphium.getWriteConcernForClass(UncachedObject.class));
+//            }
+            boolean ok = false;
+
+            while (!ok) {
+                try {
+                    morphium.getDriver().drop(morphium.getConfig().getDatabase(), WriteConcern.getWc(1, true, false, 1000));
+                    ok = true;
+                } catch (MorphiumDriverException e) {
+                    Thread.sleep(200);
+                    e.printStackTrace();
+                }
             }
+
             morphium.getCache().resetCache();
             morphium.reset();
+            morphium = null;
             Thread.sleep(200);
         } catch (Exception e) {
             log.error("Error during preparation!");
             e.printStackTrace();
         }
 
-    }
-
-    @org.junit.After
-    public void tearDown() {
-        morphium.store(new UncachedObject());
     }
 
     public void waitForWrites() {

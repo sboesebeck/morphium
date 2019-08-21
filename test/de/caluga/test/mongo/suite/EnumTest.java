@@ -15,7 +15,7 @@ import java.util.List;
  * <p/>
  */
 @SuppressWarnings("unchecked")
-public class EnumTest extends MongoTest {
+public class EnumTest extends MorphiumTestBase {
 
     @Test
     public void enumTest() {

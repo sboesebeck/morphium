@@ -20,7 +20,7 @@ import java.util.concurrent.atomic.AtomicInteger;
  * <p/>
  */
 @SuppressWarnings("Duplicates")
-public class MessagingTest extends MongoTest {
+public class MessagingTest extends MorphiumTestBase {
     public boolean gotMessage = false;
 
     public boolean gotMessage1 = false;

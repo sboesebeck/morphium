@@ -12,7 +12,7 @@ import java.util.Date;
  * Time: 18:02
  * <p/>
  */
-public class AliasesTest extends MongoTest {
+public class AliasesTest extends MorphiumTestBase {
     @Test
     public void aliasTest() {
         Query<ComplexObject> q = morphium.createQueryFor(ComplexObject.class).f("last_changed").eq(new Date());

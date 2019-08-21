@@ -13,7 +13,7 @@ import org.junit.Test;
  * Time: 11:11
  * <p/>
  */
-public class ProfilingTester extends MongoTest {
+public class ProfilingTester extends MorphiumTestBase {
     private boolean readAccess = false, writeAccess = false;
     private long readTime = -1, writeTime = -1;
 

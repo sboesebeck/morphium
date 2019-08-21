@@ -18,7 +18,7 @@ import java.util.Map;
  * <p>
  */
 @SuppressWarnings("Duplicates")
-public class UpdateTest extends MongoTest {
+public class UpdateTest extends MorphiumTestBase {
     @Test
     public void incMultipleFieldsTest() throws Exception {
         morphium.dropCollection(UncachedMultipleCounter.class);

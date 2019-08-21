@@ -4,7 +4,7 @@ import de.caluga.morphium.AnnotationAndReflectionHelper;
 import de.caluga.morphium.Morphium;
 import de.caluga.morphium.annotations.caching.Cache;
 import de.caluga.morphium.cache.MorphiumCache;
-import de.caluga.test.mongo.suite.MongoTest;
+import de.caluga.test.mongo.suite.MorphiumTestBase;
 import de.caluga.test.mongo.suite.data.CachedObject;
 import org.openjdk.jmh.annotations.*;
 import org.slf4j.Logger;
@@ -30,10 +30,10 @@ public class CachePerformanceTest {
     @Setup
     public void setup() {
         try {
-            if (MongoTest.morphium == null) {
-                MongoTest.setUpClass();
+            if (MorphiumTestBase.morphium == null) {
+                MorphiumTestBase.setUpClass();
             }
-            morphium = MongoTest.morphium;
+            morphium = MorphiumTestBase.morphium;
         } catch (Exception e) {
             //TODO: Implement Handling
             throw new RuntimeException(e);

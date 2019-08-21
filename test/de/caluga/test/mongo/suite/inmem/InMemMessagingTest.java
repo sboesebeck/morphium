@@ -1,4 +1,4 @@
-package de.caluga.test.mongo.suite;
+package de.caluga.test.mongo.suite.inmem;
 
 import de.caluga.morphium.driver.MorphiumId;
 import de.caluga.morphium.messaging.MessageListener;
@@ -18,7 +18,7 @@ import java.util.*;
  * Time: 17:34
  * <p/>
  */
-public class InMemMessagingTest extends InMemTest {
+public class InMemMessagingTest extends MorphiumInMemTestBase {
     public boolean gotMessage = false;
 
     public boolean gotMessage1 = false;

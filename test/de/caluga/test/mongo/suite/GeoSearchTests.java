@@ -16,7 +16,7 @@ import java.util.List;
  * Time: 08:30
  * <p/>
  */
-public class GeoSearchTests extends MongoTest {
+public class GeoSearchTests extends MorphiumTestBase {
 
     @Test
     public void nearTest() {

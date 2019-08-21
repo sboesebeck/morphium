@@ -15,7 +15,7 @@ import java.util.List;
  * Time: 08:00
  * <p/>
  */
-public class SubDocumentTests extends MongoTest {
+public class SubDocumentTests extends MorphiumTestBase {
 
     @Test
     public void testSubDocQuery() {

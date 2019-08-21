@@ -17,7 +17,7 @@ import java.util.List;
  * <p/>
  * TODO: Add documentation here
  */
-public class TextIndexTest extends MongoTest {
+public class TextIndexTest extends MorphiumTestBase {
 
     @Test
     public void textIndexTest() {

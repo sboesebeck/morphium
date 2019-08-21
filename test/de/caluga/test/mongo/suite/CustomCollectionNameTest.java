@@ -15,7 +15,7 @@ import org.junit.Test;
  * <p>
  * TODO: Add documentation here
  */
-public class CustomCollectionNameTest extends MongoTest {
+public class CustomCollectionNameTest extends MorphiumTestBase {
 
 
     @Test
