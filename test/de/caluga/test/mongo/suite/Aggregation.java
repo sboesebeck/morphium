@@ -68,7 +68,7 @@ public class Aggregation extends MongoTest {
             morphium.store(u);
         }
         Aggregator<UncachedObject, AggregatePush> agr = morphium.createAggregator(UncachedObject.class, AggregatePush.class);
-        agr.group("$value").sum("count", 1).sum("sum_counts", "$counter").push("values", "counter", "$counter").end();
+        agr.group("$value").sum("count", 1).sum("sum_counts", "$counter").push("values", "counter", "$counter").end().sort("sum_counts");
         List<AggregatePush> lst = agr.aggregate();
         assert (lst != null);
         assert (lst.size() == 5);
