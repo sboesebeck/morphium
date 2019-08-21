@@ -1082,6 +1082,7 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
 
     @SuppressWarnings({"unchecked", "ConstantConditions"})
     private void fillList(Field forField, Reference ref, ParameterizedType listType, List<Map<String, Object>> fromDB, List toFillIn, Object containerEntity) {
+        fromDB = new ArrayList<>(fromDB); //avoiding concurrent changes!
         if (ref != null) {
             for (Map<String, Object> obj : fromDB) {
                 if (obj == null) {

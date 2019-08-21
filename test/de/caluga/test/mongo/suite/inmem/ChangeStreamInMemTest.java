@@ -1,11 +1,10 @@
-package de.caluga.test.mongo.suite;
+package de.caluga.test.mongo.suite.inmem;
 
 import de.caluga.morphium.Utils;
 import de.caluga.morphium.changestream.ChangeStreamEvent;
 import de.caluga.morphium.changestream.ChangeStreamMonitor;
 import de.caluga.test.mongo.suite.data.ComplexObject;
 import de.caluga.test.mongo.suite.data.UncachedObject;
-import de.caluga.test.mongo.suite.inmem.MorphiumInMemTestBase;
 import org.junit.Test;
 
 import java.util.concurrent.atomic.AtomicInteger;
@@ -39,6 +38,9 @@ public class ChangeStreamInMemTest extends MorphiumInMemTestBase {
         morphium.set(morphium.createQueryFor(UncachedObject.class).f("counter").eq(123), "counter", 7777);
         Thread.sleep(550);
         assert (cnt + 1 == count) : "Count wrong " + cnt + "!=" + count + "+1";
+        morphium.store(new UncachedObject("test", 123));
+
+
     }
 
     @Test
