@@ -2792,7 +2792,10 @@ public class Morphium {
 
 
     public <T> void watchDbAsync(String dbName, boolean updateFull, ChangeStreamListener lst) {
-        asyncOperationsThreadPool.execute(() -> watchDb(dbName, updateFull, lst));
+        asyncOperationsThreadPool.execute(() -> {
+            watchDb(dbName, updateFull, lst);
+            logger.debug("watch async finished");
+        });
     }
 
 
