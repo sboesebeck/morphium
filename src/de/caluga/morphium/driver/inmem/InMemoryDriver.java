@@ -529,43 +529,62 @@ public class InMemoryDriver implements MorphiumDriver {
     @SuppressWarnings("RedundantThrows")
     @Override
     public void watch(String db, int timeout, boolean fullDocumentOnUpdate, DriverTailableIterationCallback cb) throws MorphiumDriverException {
-        final boolean[] run = {true};
+        Object monitor = new Object();
         watchersByDb.putIfAbsent(db, new Vector<>());
-        watchersByDb.get(db).add((data, dur) -> {
+        DriverTailableIterationCallback cback = (data, dur) -> {
             boolean ret = cb.incomingData(data, dur);
-            run[0] = ret;
+            if (!ret) {
+                synchronized (monitor) {
+                    monitor.notifyAll();
+                }
+            }
             return ret;
-        });
+        };
+        watchersByDb.get(db).add(cback);
+
 
         //simulate blocking
-        while (run[0]) {
-            try {
-                Thread.sleep(10);
-            } catch (InterruptedException e) {
-                //swallow
+        try {
+            synchronized (monitor) {
+                monitor.wait();
             }
+        } catch (InterruptedException e) {
         }
+//        while (run[0]) {
+//            try {
+//                Thread.sleep(10);
+//            } catch (InterruptedException e) {
+//                //swallow
+//            }
+//        }
+        watchersByDb.remove(db);
+        log.debug("Exiting");
     }
 
     @SuppressWarnings("RedundantThrows")
     @Override
     public void watch(String db, String collection, int timeout, boolean fullDocumentOnUpdate, DriverTailableIterationCallback cb) throws MorphiumDriverException {
-        final boolean[] run = {true};
         String key = db + "." + collection;
+        Object monitor = new Object();
         watchersByDb.putIfAbsent(key, new Vector<>());
-        watchersByDb.get(key).add((data, dur) -> {
+        DriverTailableIterationCallback cback = (data, dur) -> {
             boolean ret = cb.incomingData(data, dur);
-            run[0] = ret;
+            if (!ret) {
+                synchronized (monitor) {
+                    monitor.notifyAll();
+                }
+            }
             return ret;
-        });
+        };
+        watchersByDb.get(key).add(cback);
         //simulate blocking
-        while (run[0]) {
+        synchronized (monitor) {
             try {
-                Thread.sleep(10);
+                monitor.wait();
             } catch (InterruptedException e) {
-                //swallow
             }
         }
+        watchersByDb.remove(key);
     }
 
     @Override

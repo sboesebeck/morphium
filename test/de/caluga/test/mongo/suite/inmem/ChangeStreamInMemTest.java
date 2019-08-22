@@ -23,23 +23,27 @@ public class ChangeStreamInMemTest extends MorphiumInMemTestBase {
         morphium.watchDbAsync(true, evt -> {
             printevent(evt);
             count++;
+            log.info("Returning " + run[0]);
+            log.info("===========");
             return run[0];
         });
+        Thread.sleep(200); //waiting for async listener to be installed
         morphium.store(new UncachedObject("test", 123));
         ComplexObject o = new ComplexObject();
         o.setEinText("Text");
         morphium.store(o);
 
         log.info("waiting for some time!");
-        Thread.sleep(1500);
+        Thread.sleep(500);
         run[0] = false;
-        assert (count >= 2 && count <= 3) : "Count = " + count;
-        long cnt = count;
+        assert (count == 2) : "Count = " + count;
         morphium.set(morphium.createQueryFor(UncachedObject.class).f("counter").eq(123), "counter", 7777);
         Thread.sleep(550);
-        assert (cnt + 1 == count) : "Count wrong " + cnt + "!=" + count + "+1";
-        morphium.store(new UncachedObject("test", 123));
-
+        assert (count == 3) : "Count wrong " + count + "!=3"; //the listener needs to be called to return false ;-)
+        morphium.store(new UncachedObject("test", 123)); //to have the monitor stop
+        assert (3 == count) : "Count wrong " + count + "!=3";
+        morphium.store(new UncachedObject("test again", 124));
+        assert (3 == count) : "Count wrong " + count + "!=3"; //monitor should have stopped by now
 
     }
 
@@ -170,6 +174,7 @@ public class ChangeStreamInMemTest extends MorphiumInMemTestBase {
 
 
     private void printevent(ChangeStreamEvent evt) {
+        log.info("---------");
         log.info("type: " + evt.getOperationType());
         log.info("time: " + evt.getClusterTime());
         log.info("dkey: " + evt.getDocumentKey());
