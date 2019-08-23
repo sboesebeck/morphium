@@ -657,7 +657,7 @@ public class MessagingTest extends MorphiumTestBase {
 
         Msg m = new Msg("test", "important", "value");
         m.setExclusive(true);
-        Msg answer = m1.sendAndAwaitFirstAnswer(m, 6000);
+        Msg answer = m1.sendAndAwaitFirstAnswer(m, 60000);
         Thread.sleep(500);
         assert (answer != null);
         assert (answer.getProcessedBy().size() == 1);
