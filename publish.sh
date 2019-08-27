@@ -27,5 +27,5 @@ git checkout master
 git merge $tag
 git push
 git checkout develop
-
-curl -X POST -H 'Content-type: application/json' --data "{'text':'Deployed current $version to integration test server'}" $(<slackurl.inc)
+. ./slackurl.inc
+curl -X POST -H 'Content-type: application/json' --data "{'text':'Deployed current $version to sonatype oss and maven central'}" $SLACKURL
