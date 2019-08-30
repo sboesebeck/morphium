@@ -98,6 +98,7 @@ public class MorphiumConfig {
     private boolean asyncWritesEnabled = true;
     private boolean bufferedWritesEnabled = true;
     private boolean camelCaseConversionEnabled = true;
+    private boolean warnOnNoEntitySerialization = false;
 
     //securitysettings
     //    private Class<? extends Object> userClass, roleClass, aclClass;
@@ -306,6 +307,14 @@ public class MorphiumConfig {
     public MorphiumConfig setAutoIndexAndCappedCreationOnWrite(boolean autoIndexAndCappedCreationOnWrite) {
         this.autoIndexAndCappedCreationOnWrite = autoIndexAndCappedCreationOnWrite;
         return this;
+    }
+
+    public boolean isWarnOnNoEntitySerialization() {
+        return warnOnNoEntitySerialization;
+    }
+
+    public void setWarnOnNoEntitySerialization(boolean warnOnNoEntitySerialization) {
+        this.warnOnNoEntitySerialization = warnOnNoEntitySerialization;
     }
 
     public boolean isCheckForNew() {
