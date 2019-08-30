@@ -1,11 +1,14 @@
 package de.caluga.test.mongo.suite;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.SerializationFeature;
 import de.caluga.morphium.*;
 import de.caluga.morphium.annotations.Embedded;
 import de.caluga.morphium.annotations.Entity;
 import de.caluga.morphium.annotations.Id;
 import de.caluga.morphium.driver.MorphiumId;
 import de.caluga.morphium.mapping.MorphiumTypeMapper;
+import de.caluga.morphium.messaging.Msg;
 import de.caluga.morphium.replicaset.ReplicaSetConf;
 import de.caluga.test.mongo.suite.data.*;
 import org.bson.types.ObjectId;
@@ -13,7 +16,6 @@ import org.junit.Test;
 
 import java.math.BigInteger;
 import java.util.*;
-
 /**
  * User: Stpehan Bösebeck
  * Date: 26.03.12
@@ -21,6 +23,72 @@ import java.util.*;
  * <p/>
  */
 public class ObjectMapperTest extends MorphiumTestBase {
+    @Test
+    public void mapSerializationTest() {
+        ObjectMapperImpl om = (ObjectMapperImpl) morphium.getMapper();
+        om.getMorphium().getConfig().setWarnOnNoEntitySerialization(true);
+        Map<String, Object> map = om.serialize(new Simple());
+        log.info("Got map");
+        assert (map.get("test").toString().startsWith("test"));
+
+        Simple s = om.deserialize(Simple.class, map);
+        log.info("Got simple");
+
+        Map<String, Object> m = new HashMap<>();
+        m.put("test", "testvalue");
+        m.put("simple", s);
+
+        map = om.serializeMap(m);
+        assert (map.get("test").equals("testvalue"));
+
+        List<Simple> lst = new ArrayList<>();
+        lst.add(new Simple());
+        lst.add(new Simple());
+        lst.add(new Simple());
+
+        List serializedList = om.serializeList(lst);
+        assert (serializedList.size() == 3);
+
+        List<Simple> deserializedList = om.deserializeList(serializedList);
+        log.info("Deserialized");
+    }
+
+    @Test
+    public void speedCheck() throws Exception {
+        ObjectMapper mapper = new ObjectMapper();
+        mapper.enable(SerializationFeature.INDENT_OUTPUT);
+
+        log.info("Checking jackson!");
+        long start = System.currentTimeMillis();
+        for (int i = 0; i < 1000; i++) {
+            Msg s = new Msg();
+            s.setName("test-" + (int) (System.currentTimeMillis() % 42));
+            s.setValue("Test");
+            for (int t = 0; t == 10; t++) s.setValue(s.getValue() + s.getValue());
+            String json = mapper.writeValueAsString(s);
+
+            Msg obj = mapper.readValue(json, Msg.class);
+        }
+        long dur = System.currentTimeMillis() - start;
+
+        log.info("Took " + dur);
+
+        MorphiumObjectMapper mom = morphium.getMapper();
+        mom.getMorphium().getConfig().setWarnOnNoEntitySerialization(true);
+        start = System.currentTimeMillis();
+        for (int i = 0; i < 1000; i++) {
+            Msg s = new Msg();
+            s.setName("test-" + (int) (System.currentTimeMillis() % 42));
+            s.setValue("Test");
+            for (int t = 0; t == 10; t++) s.setValue(s.getValue() + s.getValue());
+            Map m = mom.serialize(s);
+
+            mom.deserialize(Msg.class, m);
+        }
+        dur = System.currentTimeMillis() - start;
+        log.info("USing morphium: " + dur);
+    }
+
 
     @Test
     public void customTypeMapperTest() {
@@ -820,5 +888,11 @@ public class ObjectMapperTest extends MorphiumTestBase {
         public String value;
         public BigInteger biValue;
 
+    }
+
+
+    public static class Simple {
+        public String test = "test_" + System.currentTimeMillis();
+        public int value = (int) (System.currentTimeMillis() % 42);
     }
 }

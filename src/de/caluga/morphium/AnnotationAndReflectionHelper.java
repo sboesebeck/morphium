@@ -773,10 +773,10 @@ public class AnnotationAndReflectionHelper {
         if (embedded != null && entity != null && !ignoreEntity) {
             logger.warn("Class " + cls.getName() + " does have both @Entity and @Embedded Annotations - not allowed! Assuming @Entity is right");
         }
-
-        if (embedded == null && entity == null && !ignoreEntity) {
-            throw new IllegalArgumentException("This class " + cls.getName() + " does not have @Entity or @Embedded set, not even in hierachy - illegal!");
-        }
+//
+//        if (embedded == null && entity == null && !ignoreEntity) {
+//            throw new IllegalArgumentException("This class " + cls.getName() + " does not have @Entity or @Embedded set, not even in hierachy - illegal!");
+//        }
 
         boolean tcc = true;
         if (embedded != null)

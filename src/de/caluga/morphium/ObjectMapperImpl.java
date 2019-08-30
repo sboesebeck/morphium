@@ -180,14 +180,14 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
             for (int i = 0; i < Array.getLength(o); i++) {
                 lst.add(marshallIfNecessary(Array.get(o, i)));
             }
-            return createDBList(lst);
+            return serializeList(lst);
         }
         if (Collection.class.isAssignableFrom(o.getClass())) {
             ArrayList lst = new ArrayList((Collection) o);
-            return createDBList(lst);
+            return serializeList(lst);
         }
         if (Map.class.isAssignableFrom(o.getClass())) {
-            return createDBMap((Map) o);
+            return serializeMap((Map) o);
         }
 //        if (o instanceof MorphiumId) {
 //            o = new ObjectId(((MorphiumId) o).getBytes());
@@ -210,7 +210,7 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
             }
         }
         //recursively map object to mongo-Object...
-        if (!annotationHelper.isEntity(o)) {
+        if (!annotationHelper.isEntity(o) && !morphium.getConfig().isWarnOnNoEntitySerialization()) {
             if (morphium == null || morphium.getConfig().isObjectSerializationEnabled()) {
                 if (o instanceof Serializable) {
                     try {
@@ -235,6 +235,9 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
                 }
             }
             throw new IllegalArgumentException("Object is no entity: " + o.getClass().getSimpleName());
+        }
+        if (!annotationHelper.isEntity(o) && morphium.getConfig().isWarnOnNoEntitySerialization()) {
+            log.warn("Serializing non-entity of type " + o.getClass().getName());
         }
 
         HashMap<String, Object> dbo = new HashMap<>();
@@ -283,7 +286,7 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
                     if (!ad.readOnly()) {
                         //storing additional data
                         if (fld.get(o) != null) {
-                            dbo.putAll((Map) createDBMap((Map<String, Object>) fld.get(o)));
+                            dbo.putAll((Map) serializeMap((Map<String, Object>) fld.get(o)));
                         }
                     }
                     //additional data is usually transient
@@ -391,23 +394,23 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
                         if (v != null) {
                             if (v instanceof Map) {
                                 //create MongoHashMap<String,Object>-Map
-                                v = createDBMap((Map) v);
+                                v = serializeMap((Map) v);
                             } else if (v.getClass().isArray()) {
                                 if (!v.getClass().getComponentType().equals(byte.class)) {
                                     List lst = new ArrayList<>();
                                     for (int i = 0; i < Array.getLength(v); i++) {
                                         lst.add(marshallIfNecessary(Array.get(v, i)));
                                     }
-                                    v = createDBList(lst);
+                                    v = serializeList(lst);
                                 }
                             } else if (v instanceof List) {
-                                v = createDBList((List) v);
+                                v = serializeList((List) v);
                             } else if (v instanceof Iterable) {
                                 ArrayList lst = new ArrayList();
                                 for (Object i : (Iterable) v) {
                                     lst.add(i);
                                 }
-                                v = createDBList(lst);
+                                v = serializeList(lst);
                             } else if (v.getClass().equals(GregorianCalendar.class)) {
                                 v = ((GregorianCalendar) v).getTime();
                             } else if (v.getClass().equals(MorphiumId.class)) {
@@ -454,7 +457,7 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
         return id;
     }
 
-    private List<Object> createDBList(List v) {
+    public List<Object> serializeList(List v) {
         List<Object> lst = new ArrayList<>();
         for (Object lo : v) {
             if (lo != null) {
@@ -465,9 +468,9 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
                     marshall.put("class_name", cn);
                     lst.add(marshall);
                 } else if (lo instanceof List) {
-                    lst.add(createDBList((List) lo));
+                    lst.add(serializeList((List) lo));
                 } else if (lo instanceof Map) {
-                    lst.add(createDBMap(((Map) lo)));
+                    lst.add(serializeMap(((Map) lo)));
                 } else if (lo instanceof MorphiumId) {
                     lst.add(new ObjectId(((MorphiumId) lo).getBytes()));
                 } else if (lo.getClass().isEnum()) {
@@ -514,7 +517,7 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
     }
 
     @SuppressWarnings("unchecked")
-    private Map<String, Object> createDBMap(Map v) {
+    public Map<String, Object> serializeMap(Map v) {
         Map<String, Object> dbMap = new HashMap<>();
         for (Map.Entry<Object, Object> es : ((Map<Object, Object>) v).entrySet()) {
             Object k = es.getKey();
@@ -533,16 +536,16 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
                     obj.put("class_name", getTypeId(mval));
                     mval = obj;
                 } else if (mval instanceof Map) {
-                    mval = createDBMap((Map) mval);
+                    mval = serializeMap((Map) mval);
                 } else if (mval instanceof List) {
-                    mval = createDBList((List) mval);
+                    mval = serializeList((List) mval);
                 } else if (mval.getClass().isArray()) {
                     if (!mval.getClass().getComponentType().equals(byte.class)) {
                         ArrayList lst = new ArrayList();
                         for (int i = 0; i < Array.getLength(mval); i++) {
                             lst.add(marshallIfNecessary(Array.get(mval, i)));
                         }
-                        mval = createDBList(lst);
+                        mval = serializeList(lst);
                     }
                 } else if (mval.getClass().isEnum()) {
                     Map<String, Object> obj = new HashMap<>();
@@ -579,7 +582,7 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
             return (T) customMappers.get(cls).unmarshall(o);
         }
         try {
-            if (morphium != null && morphium.getConfig().isObjectSerializationEnabled() && !annotationHelper.isAnnotationPresentInHierarchy(cls, Entity.class) && !(annotationHelper.isAnnotationPresentInHierarchy(cls, Embedded.class))) {
+            if (morphium != null && !morphium.getConfig().isWarnOnNoEntitySerialization() && morphium.getConfig().isObjectSerializationEnabled() && !annotationHelper.isAnnotationPresentInHierarchy(cls, Entity.class) && !(annotationHelper.isAnnotationPresentInHierarchy(cls, Embedded.class))) {
                 cls = BinarySerializedObject.class;
             }
             if (o.get("class_name") != null || o.get("className") != null) {
@@ -659,10 +662,10 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
                             if (((Map<String, Object>) o.get(k)).get("class_name") != null) {
                                 data.put(k, deserialize(annotationHelper.getClassForTypeId((String) ((Map<String, Object>) o.get(k)).get("class_name")), (Map<String, Object>) o.get(k)));
                             } else {
-                                data.put(k, createMap((Map<String, Object>) o.get(k)));
+                                data.put(k, deserializeMap((Map<String, Object>) o.get(k)));
                             }
                         } else if (o.get(k) instanceof List && !((List) o.get(k)).isEmpty() && ((List) o.get(k)).get(0) instanceof Map) {
-                            data.put(k, createList((List<Map<String, Object>>) o.get(k)));
+                            data.put(k, deserializeList((List<Map<String, Object>>) o.get(k)));
                         } else {
                             data.put(k, o.get(k));
                         }
@@ -1020,7 +1023,7 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
 
     }
 
-    private Map createMap(Map<String, Object> dbObject) {
+    public Map deserializeMap(Map<String, Object> dbObject) {
         Map retMap = new HashMap(dbObject);
         if (dbObject != null) {
             for (String n : dbObject.keySet()) {
@@ -1065,18 +1068,18 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
                 }
             } else {
                 //maybe a normal map --> recurse
-                return createMap(mapVal);
+                return deserializeMap(mapVal);
             }
         } else if (val instanceof ObjectId) {
             val = new MorphiumId(((ObjectId) val).toByteArray());
         } else if (val instanceof List) {
             List<Map<String, Object>> lst = (List<Map<String, Object>>) val;
-            return createList(lst);
+            return deserializeList(lst);
         }
         return val;
     }
 
-    private List createList(List<Map<String, Object>> lst) {
+    public List deserializeList(List<Map<String, Object>> lst) {
         return lst.stream().map(this::unmarshallInternal).collect(Collectors.toList());
     }
 
