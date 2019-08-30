@@ -1,4 +1,4 @@
-package de.caluga.test.mongo.suite;
+package de.caluga.test.mongo.suite.messaging;
 
 import de.caluga.morphium.Morphium;
 import de.caluga.morphium.MorphiumConfig;
@@ -6,6 +6,7 @@ import de.caluga.morphium.driver.MorphiumId;
 import de.caluga.morphium.messaging.MessageListener;
 import de.caluga.morphium.messaging.Messaging;
 import de.caluga.morphium.messaging.Msg;
+import de.caluga.test.mongo.suite.MorphiumTestBase;
 import org.junit.Test;
 
 import java.util.List;

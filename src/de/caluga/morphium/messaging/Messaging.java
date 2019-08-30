@@ -841,6 +841,11 @@ public class Messaging extends Thread implements ShutdownListener {
         }
     }
 
+    public void sendMessage(Msg m){
+        storeMsg(m,false);
+    }
+
+    @Deprecated
     public void storeMessage(Msg m) {
         storeMsg(m, false);
     }
