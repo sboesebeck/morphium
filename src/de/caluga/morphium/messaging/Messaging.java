@@ -807,11 +807,7 @@ public class Messaging extends Thread implements ShutdownListener {
                 //swallow
             }
             retry++;
-            if (retry > 10) throw new RuntimeException("Could not terminate Messaging!");
-        }
-        if (isAlive()) {
-            //noinspection deprecation
-            stop();
+            if (retry > 20) throw new RuntimeException("Could not terminate Messaging!");
         }
     }
 
