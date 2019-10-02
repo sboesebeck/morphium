@@ -586,9 +586,8 @@ public class Driver implements MorphiumDriver {
         watch(db, null, maxWaitTime, fullDocumentOnUpdate, cb);
     }
 
-    private void processChangeStreamEvent(DriverTailableIterationCallback cb, MongoCursor<ChangeStreamDocument<Document>> iterator, long start) {
+    private void processChangeStreamEvent(DriverTailableIterationCallback cb, ChangeStreamDocument<Document> doc, long start) {
         try {
-            ChangeStreamDocument<Document> doc = iterator.next();
             Map<String, Object> obj = new HashMap<>();
             obj.put("clusterTime", Objects.requireNonNull(doc.getClusterTime()).getValue());
             if (doc.getDocumentKey() != null) {
@@ -634,12 +633,13 @@ public class Driver implements MorphiumDriver {
                 MongoCursor<ChangeStreamDocument<Document>> iterator = it.iterator();
                 long start = System.currentTimeMillis();
                 while (cb.isContinued()) {
-                    if (iterator.tryNext() == null) {
+                    ChangeStreamDocument<Document> doc = iterator.tryNext();
+                    if (doc == null) {
                         Thread.yield();
                         continue;
                     }
                     if (cb.isContinued()) {
-                        processChangeStreamEvent(cb, iterator, start);
+                        processChangeStreamEvent(cb, doc, start);
                     }
                 }
                 iterator.close();

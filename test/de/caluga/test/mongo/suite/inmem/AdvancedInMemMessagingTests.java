@@ -50,7 +50,7 @@ public class AdvancedInMemMessagingTests extends MorphiumInMemTestBase {
             Msg m = new Msg("test", "test msg", "value");
             m.setMsgId(new MorphiumId());
             m.setExclusive(true);
-            m1.storeMessage(m);
+            m1.sendMessage(m);
 
         }
 
@@ -126,7 +126,7 @@ public class AdvancedInMemMessagingTests extends MorphiumInMemTestBase {
 
         Msg msg = new Msg("test", "query", "value");
         msg.setMsgId(msgId);
-        producer.storeMessage(msg);
+        producer.sendMessage(msg);
         Thread.sleep(1000);
         assert (counts.get(msgId).equals(1));
 

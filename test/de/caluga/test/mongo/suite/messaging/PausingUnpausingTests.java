@@ -51,13 +51,13 @@ public class PausingUnpausingTests extends MorphiumTestBase {
 
         m1.pauseProcessingOfMessagesNamed("tst1");
 
-        sender.storeMessage(new Msg("test", "a message", "the value"));
+        sender.sendMessage(new Msg("test", "a message", "the value"));
         Thread.sleep(1200);
         assert (gotMessage1);
 
         gotMessage1 = false;
 
-        sender.storeMessage(new Msg("tst1", "a message", "the value"));
+        sender.sendMessage(new Msg("tst1", "a message", "the value"));
         Thread.sleep(1200);
         assert (!gotMessage1);
 
@@ -72,7 +72,7 @@ public class PausingUnpausingTests extends MorphiumTestBase {
         assert (!gotMessage1);
 
         gotMessage1 = false;
-        sender.storeMessage(new Msg("tst1", "a message", "the value"));
+        sender.sendMessage(new Msg("tst1", "a message", "the value"));
         Thread.sleep(1200);
         assert (gotMessage1);
 
@@ -112,11 +112,11 @@ public class PausingUnpausingTests extends MorphiumTestBase {
             Msg m = new Msg("pause", "pause", "pause");
             m.setPriority((int) (Math.random() * 100.0));
             m.setExclusive(true);
-            sender.storeMessage(m);
+            sender.sendMessage(m);
             //Throtteling for first message to wait for pausing
             if (i == 0) Thread.sleep(25);
             if (i % 2 == 0) {
-                sender.storeMessage(new Msg("now", "now", "now"));
+                sender.sendMessage(new Msg("now", "now", "now"));
             }
         }
         Thread.sleep(200);
@@ -167,18 +167,18 @@ public class PausingUnpausingTests extends MorphiumTestBase {
             return null;
         });
 
-        sender.storeMessage(new Msg("now", "now", "now"));
+        sender.sendMessage(new Msg("now", "now", "now"));
         Thread.sleep(500);
         assert (list.size() == 1);
 
-        sender.storeMessage(new Msg("pause", "pause", "pause"));
-        sender.storeMessage(new Msg("now", "now", "now"));
+        sender.sendMessage(new Msg("pause", "pause", "pause"));
+        sender.sendMessage(new Msg("now", "now", "now"));
         Thread.sleep(500);
         assert (list.size() == 2);
 
-        sender.storeMessage(new Msg("pause", "pause", "pause"));
-        sender.storeMessage(new Msg("pause", "pause", "pause"));
-        sender.storeMessage(new Msg("pause", "pause", "pause"));
+        sender.sendMessage(new Msg("pause", "pause", "pause"));
+        sender.sendMessage(new Msg("pause", "pause", "pause"));
+        sender.sendMessage(new Msg("pause", "pause", "pause"));
         assert (cnt.get() == 0) : "Count wrong " + cnt.get();
         Thread.sleep(2000);
         assert (cnt.get() == 1);
@@ -186,7 +186,7 @@ public class PausingUnpausingTests extends MorphiumTestBase {
         Thread.sleep(2000);
         //Message after unpausing:
         assert (cnt.get() == 2) : "Count wrong: " + cnt.get();
-        sender.storeMessage(new Msg("now", "now", "now"));
+        sender.sendMessage(new Msg("now", "now", "now"));
         Thread.sleep(100);
         assert (list.size() == 3);
         Thread.sleep(2000);
@@ -239,11 +239,11 @@ public class PausingUnpausingTests extends MorphiumTestBase {
         log.info("Testing with non-exclusive messages");
         Msg m = new Msg("test", "test1", "test", 3000000);
         m.setExclusive(false);
-        sender.storeMessage(m);
+        sender.sendMessage(m);
 
         m = new Msg("test", "test2", "test", 3000000);
         m.setExclusive(false);
-        sender.storeMessage(m);
+        sender.sendMessage(m);
 
         Thread.sleep(200);
         assert (!gotMessage1);
@@ -261,11 +261,11 @@ public class PausingUnpausingTests extends MorphiumTestBase {
 
         m = new Msg("test", "test1", "test", 3000000);
         m.setExclusive(true);
-        sender.storeMessage(m);
+        sender.sendMessage(m);
 
         m = new Msg("test", "test2", "test", 3000000);
         m.setExclusive(true);
-        sender.storeMessage(m);
+        sender.sendMessage(m);
         Thread.sleep(200);
         assert (!gotMessage1);
         assert (!gotMessage2);

@@ -121,6 +121,6 @@ public class Consumer implements JMSConsumer, de.caluga.morphium.messaging.Messa
 
     private void ack(JMSMessage m) {
         log.info("Sending ack...");
-        messaging.storeMessage(getAckMessage(m));
+        messaging.sendMessage(getAckMessage(m));
     }
 }

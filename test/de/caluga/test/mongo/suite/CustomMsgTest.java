@@ -32,7 +32,7 @@ public class CustomMsgTest extends MorphiumTestBase {
         CustomMsg cm = new CustomMsg();
         cm.setCustomBuiltValue("test a avalue");
         cm.setName("test");
-        m1.storeMessage(cm);
+        m1.sendMessage(cm);
 
         Thread.sleep(1000);
         assert (received);

@@ -627,7 +627,7 @@ public class Messaging extends Thread implements ShutdownListener {
                         if (mre.isContinueProcessing()) {
                             updateProcessedByAndReleaseLock(msg);
                             processing.remove(m.getMsgId());
-                            log.info("Message will be re-processed by others");
+                            log.debug("Message will be re-processed by others");
                         }
                     }
                 }
@@ -832,12 +832,8 @@ public class Messaging extends Thread implements ShutdownListener {
         }
     }
 
-    public void sendMessage(Msg m){
-        storeMsg(m,false);
-    }
 
-    @Deprecated
-    public void storeMessage(Msg m) {
+    public void sendMessage(Msg m) {
         storeMsg(m, false);
     }
 
@@ -939,7 +935,7 @@ public class Messaging extends Thread implements ShutdownListener {
     public <T extends Msg> T sendAndAwaitFirstAnswer(T theMessage, long timeoutInMs) {
         theMessage.setMsgId(new MorphiumId());
         waitingForMessages.put(theMessage.getMsgId(), theMessage);
-        storeMessage(theMessage);
+        sendMessage(theMessage);
         long start = System.currentTimeMillis();
         while (!waitingForAnswers.containsKey(theMessage.getMsgId())) {
             if (System.currentTimeMillis() - start > timeoutInMs) {
@@ -958,7 +954,7 @@ public class Messaging extends Thread implements ShutdownListener {
 
     public <T extends Msg> List<T> sendAndAwaitAnswers(T theMessage, int numberOfAnswers, long timeout) {
         List<Msg> answers = new ArrayList<>();
-        storeMessage(theMessage);
+        sendMessage(theMessage);
         waitingForMessages.put(theMessage.getMsgId(), theMessage);
         long start = System.currentTimeMillis();
         while (true) {

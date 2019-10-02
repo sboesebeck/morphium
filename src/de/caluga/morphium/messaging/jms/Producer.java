@@ -70,7 +70,7 @@ public class Producer implements JMSProducer {
             throw new RuntimeException(e);
         }
         if (getAsync() != null) {
-            messaging.storeMessage(jmsMessage);
+            messaging.sendMessage(jmsMessage);
             waitingForAck.add(jmsMessage.getMsgId());
         } else {
             try {
