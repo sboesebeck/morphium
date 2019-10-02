@@ -531,14 +531,21 @@ public class InMemoryDriver implements MorphiumDriver {
     public void watch(String db, int timeout, boolean fullDocumentOnUpdate, DriverTailableIterationCallback cb) throws MorphiumDriverException {
         Object monitor = new Object();
         watchersByDb.putIfAbsent(db, new Vector<>());
-        DriverTailableIterationCallback cback = (data, dur) -> {
-            boolean ret = cb.incomingData(data, dur);
-            if (!ret) {
-                synchronized (monitor) {
-                    monitor.notifyAll();
+        DriverTailableIterationCallback cback = new DriverTailableIterationCallback() {
+            @Override
+            public void incomingData(Map<String, Object> data, long dur) {
+                cb.incomingData(data, dur);
+                if (!cb.isContinued()) {
+                    synchronized (monitor) {
+                        monitor.notifyAll();
+                    }
                 }
             }
-            return ret;
+
+            @Override
+            public boolean isContinued() {
+                return cb.isContinued();
+            }
         };
         watchersByDb.get(db).add(cback);
 
@@ -567,14 +574,21 @@ public class InMemoryDriver implements MorphiumDriver {
         String key = db + "." + collection;
         Object monitor = new Object();
         watchersByDb.putIfAbsent(key, new Vector<>());
-        DriverTailableIterationCallback cback = (data, dur) -> {
-            boolean ret = cb.incomingData(data, dur);
-            if (!ret) {
-                synchronized (monitor) {
-                    monitor.notifyAll();
+        DriverTailableIterationCallback cback = new DriverTailableIterationCallback() {
+            @Override
+            public void incomingData(Map<String, Object> data, long dur) {
+                cb.incomingData(data, dur);
+                if (!cb.isContinued()) {
+                    synchronized (monitor) {
+                        monitor.notifyAll();
+                    }
                 }
             }
-            return ret;
+
+            @Override
+            public boolean isContinued() {
+                return cb.isContinued();
+            }
         };
         watchersByDb.get(key).add(cback);
         //simulate blocking

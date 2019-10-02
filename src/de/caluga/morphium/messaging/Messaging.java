@@ -776,11 +776,6 @@ public class Messaging extends Thread implements ShutdownListener {
         return running;
     }
 
-    @Deprecated
-    public void setRunning(boolean running) {
-        if (!running && (changeStreamMonitor != null)) changeStreamMonitor.terminate();
-        this.running = running;
-    }
 
     public void terminate() {
         running = false;
@@ -795,7 +790,6 @@ public class Messaging extends Thread implements ShutdownListener {
                 log.debug("Shutting down with " + sz + " runnables still pending in pool");
         }
         if (changeStreamMonitor != null) changeStreamMonitor.terminate();
-        //sendMessageToSelf(new Msg("info", "going down", "now"));
         if (isAlive()) {
             interrupt();
         }

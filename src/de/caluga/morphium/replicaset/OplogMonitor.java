@@ -2,6 +2,7 @@ package de.caluga.morphium.replicaset;
 
 import de.caluga.morphium.Morphium;
 import de.caluga.morphium.ShutdownListener;
+import de.caluga.morphium.driver.DriverTailableIterationCallback;
 import de.caluga.morphium.driver.MorphiumDriverException;
 import org.bson.BsonTimestamp;
 import org.slf4j.Logger;
@@ -118,19 +119,30 @@ public class OplogMonitor implements Runnable, ShutdownListener {
         q.put("ts", q2);
         while (running) {
             try {
-                morphium.getDriver().tailableIteration("local", "oplog.rs", q, null, null, 0, 0, 1000, null, 60000, (data, dur) -> {
-                    if (!running){
-                        return false;
-                    }
-                    timestamp = (Integer) data.get("ts");
-                    for (OplogListener lst : listeners) {
-                        try {
-                            lst.incomingData(data);
-                        } catch (Exception e) {
-                            log.error("listener threw exception", e);
+                morphium.getDriver().tailableIteration("local", "oplog.rs", q, null, null, 0, 0, 1000, null, 60000, new DriverTailableIterationCallback() {
+                    @Override
+                    public void incomingData(Map<String, Object> data, long dur) {
+                        if (!running) {
+                            return;
                         }
+                        timestamp = (Integer) data.get("ts");
+                        for (OplogListener lst : listeners) {
+                            if (!running) {
+                                return;
+                            }
+                            try {
+                                lst.incomingData(data);
+                            } catch (Exception e) {
+                                log.error("listener threw exception", e);
+                            }
+                        }
+
                     }
-                    return running;
+
+                    @Override
+                    public boolean isContinued() {
+                        return running;
+                    }
                 });
             } catch (MorphiumDriverException e) {
                 log.warn("Error in oplogmonitor - restarting", e);

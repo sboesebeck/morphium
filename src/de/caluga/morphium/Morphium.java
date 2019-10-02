@@ -15,6 +15,7 @@ import de.caluga.morphium.cache.MorphiumCacheImpl;
 import de.caluga.morphium.changestream.ChangeStreamEvent;
 import de.caluga.morphium.changestream.ChangeStreamListener;
 import de.caluga.morphium.driver.*;
+import de.caluga.morphium.driver.mongodb.Driver;
 import de.caluga.morphium.query.MongoField;
 import de.caluga.morphium.query.MongoFieldImpl;
 import de.caluga.morphium.query.Query;
@@ -2771,7 +2772,19 @@ public class Morphium {
 
     public <T> void watch(String collectionName, int maxWaitTime, boolean updateFull, ChangeStreamListener lst) {
         try {
-            getDriver().watch(config.getDatabase(), collectionName, maxWaitTime, updateFull, (doc, ts) -> processEvent(lst, doc));
+            getDriver().watch(config.getDatabase(), collectionName, maxWaitTime, updateFull, new DriverTailableIterationCallback() {
+                boolean b = true;
+
+                @Override
+                public void incomingData(Map<String, Object> data, long dur) {
+                    b = processEvent(lst, data);
+                }
+
+                @Override
+                public boolean isContinued() {
+                    return b;
+                }
+            });
         } catch (MorphiumDriverException e) {
             throw new RuntimeException(e);
         }
@@ -2813,7 +2826,19 @@ public class Morphium {
 
     public <T> void watchDb(String dbName, int maxWaitTime, boolean updateFull, ChangeStreamListener lst) {
         try {
-            getDriver().watch(dbName, maxWaitTime, updateFull, (doc, ts) -> processEvent(lst, doc));
+            getDriver().watch(dbName, maxWaitTime, updateFull, new DriverTailableIterationCallback() {
+                private boolean b = true;
+
+                @Override
+                public void incomingData(Map<String, Object> data, long dur) {
+                    b = processEvent(lst, data);
+                }
+
+                @Override
+                public boolean isContinued() {
+                    return b;
+                }
+            });
         } catch (MorphiumDriverException e) {
             throw new RuntimeException(e);
         }

@@ -21,7 +21,7 @@ public class ChangeStreamMonitor implements Runnable, ShutdownListener {
     private final Logger log = LoggerFactory.getLogger(ChangeStreamMonitor.class);
     private final String collectionName;
     private final boolean fullDocument;
-    private boolean running = true;
+    private volatile boolean running = true;
     private Thread changeStreamThread;
     private final MorphiumObjectMapper mapper;
     private boolean dbOnly = false;
@@ -87,7 +87,7 @@ public class ChangeStreamMonitor implements Runnable, ShutdownListener {
             }
             if (System.currentTimeMillis() - start > 2 * morphium.getConfig().getMaxWaitTime()) {
                 log.error("Changestream monitor did not finish before max wait time is over!");
-                break;
+
             }
         }
         if (changeStreamThread != null && changeStreamThread.isAlive()) {
@@ -107,30 +107,38 @@ public class ChangeStreamMonitor implements Runnable, ShutdownListener {
 
         while (running) {
             try {
-                DriverTailableIterationCallback callback = (data, dur) -> {
-                    if (!running) {
-                        return false;
-                    }
-                    @SuppressWarnings("unchecked") Map<String, Object> obj = (Map<String, Object>) data.get("fullDocument");
-                    data.put("fullDocument", null);
-                    ChangeStreamEvent evt = mapper.deserialize(ChangeStreamEvent.class, data);
+                DriverTailableIterationCallback callback = new DriverTailableIterationCallback() {
+                    @Override
+                    public void incomingData(Map<String, Object> data, long dur) {
+                        if (!running) {
+                            return;
+                        }
+                        @SuppressWarnings("unchecked") Map<String, Object> obj = (Map<String, Object>) data.get("fullDocument");
+                        data.put("fullDocument", null);
+                        ChangeStreamEvent evt = mapper.deserialize(ChangeStreamEvent.class, data);
 
-                    evt.setFullDocument(obj);
-                    List<ChangeStreamListener> toRemove = new ArrayList<>();
-                    for (ChangeStreamListener lst : listeners) {
-                        try {
-                            if (!lst.incomingData(evt)) {
-                                toRemove.add(lst);
+                        evt.setFullDocument(obj);
+                        List<ChangeStreamListener> toRemove = new ArrayList<>();
+                        for (ChangeStreamListener lst : listeners) {
+                            try {
+                                if (!lst.incomingData(evt)) {
+                                    toRemove.add(lst);
+                                }
+                            } catch (Exception e) {
+                                log.error("listener threw exception", e);
                             }
-                        } catch (Exception e) {
-                            log.error("listener threw exception", e);
+                        }
+                        for (ChangeStreamListener r : toRemove) {
+                            listeners.remove(r);
                         }
                     }
-                    for (ChangeStreamListener r : toRemove) {
-                        listeners.remove(r);
+
+                    @Override
+                    public boolean isContinued() {
+                        return running;
                     }
-                    return running;
                 };
+
                 if (dbOnly) {
                     morphium.getDriver().watch(morphium.getConfig().getDatabase(), morphium.getConfig().getMaxWaitTime(), fullDocument, callback);
                 } else {
