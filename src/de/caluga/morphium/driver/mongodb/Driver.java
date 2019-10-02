@@ -636,7 +636,10 @@ public class Driver implements MorphiumDriver {
                 MongoCursor<ChangeStreamDocument<Document>> iterator = it.iterator();
                 long start = System.currentTimeMillis();
                 while (run && iterator.hasNext()) {
-                    run = processChangeStreamEvent(cb, iterator, start);
+                    if (run) {
+                        boolean r = processChangeStreamEvent(cb, iterator, start);
+                        run = r && run;
+                    }
                 }
                 iterator.close();
 
