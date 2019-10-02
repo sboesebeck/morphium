@@ -795,7 +795,7 @@ public class Messaging extends Thread implements ShutdownListener {
                 log.debug("Shutting down with " + sz + " runnables still pending in pool");
         }
         if (changeStreamMonitor != null) changeStreamMonitor.terminate();
-        sendMessageToSelf(new Msg("info", "going down", "now"));
+        //sendMessageToSelf(new Msg("info", "going down", "now"));
         if (isAlive()) {
             interrupt();
         }
@@ -807,7 +807,8 @@ public class Messaging extends Thread implements ShutdownListener {
                 //swallow
             }
             retry++;
-            if (retry > 20) throw new RuntimeException("Could not terminate Messaging!");
+            if (retry > 2 * morphium.getConfig().getMaxWaitTime() / 250)
+                throw new RuntimeException("Could not terminate Messaging!");
         }
     }
 
