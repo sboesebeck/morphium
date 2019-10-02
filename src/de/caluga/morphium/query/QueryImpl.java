@@ -5,6 +5,7 @@ import de.caluga.morphium.annotations.*;
 import de.caluga.morphium.annotations.caching.Cache;
 import de.caluga.morphium.async.AsyncOperationCallback;
 import de.caluga.morphium.async.AsyncOperationType;
+import de.caluga.morphium.driver.DriverTailableIterationCallback;
 import de.caluga.morphium.driver.MorphiumDriverException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -1350,8 +1351,6 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
     public void dec(Enum field, Number value) {
         morphium.dec(this, field, value);
     }
- 
-
 
 
     @Override
@@ -1553,15 +1552,24 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
     @Override
     public void tail(int batchSize, int maxWait, AsyncOperationCallback<T> cb) {
         try {
-            morphium.getDriver().tailableIteration(getDB(), getCollectionName(), toQueryObject(), getSort(), fieldList, getSkip(), getLimit(), batchSize, getRP(), maxWait, (data, dur) -> {
-                T entity = morphium.getMapper().deserialize(getType(), data);
-                        try {
-                            cb.onOperationSucceeded(AsyncOperationType.READ, QueryImpl.this, dur, null, entity);
-                        } catch (MorphiumAccessVetoException ex) {
-                            log.info("Veto Exception " + ex.getMessage());
-                            return false;
+            morphium.getDriver().tailableIteration(getDB(), getCollectionName(), toQueryObject(), getSort(), fieldList, getSkip(), getLimit(), batchSize, getRP(), maxWait, new DriverTailableIterationCallback() {
+                private boolean running = true;
+
+                @Override
+                public void incomingData(Map<String, Object> data, long dur) {
+                    T entity = morphium.getMapper().deserialize(getType(), data);
+                    try {
+                        cb.onOperationSucceeded(AsyncOperationType.READ, QueryImpl.this, dur, null, entity);
+                    } catch (MorphiumAccessVetoException ex) {
+                        log.info("Veto Exception " + ex.getMessage());
+                        running = false;
+                    }
+                }
+
+                @Override
+                public boolean isContinued() {
+                    return running;
                         }
-                        return true;
                     }
             );
         } catch (MorphiumDriverException e) {

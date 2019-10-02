@@ -586,7 +586,7 @@ public class Driver implements MorphiumDriver {
         watch(db, null, maxWaitTime, fullDocumentOnUpdate, cb);
     }
 
-    private boolean processChangeStreamEvent(DriverTailableIterationCallback cb, MongoCursor<ChangeStreamDocument<Document>> iterator, long start) {
+    private void processChangeStreamEvent(DriverTailableIterationCallback cb, MongoCursor<ChangeStreamDocument<Document>> iterator, long start) {
         try {
             ChangeStreamDocument<Document> doc = iterator.next();
             Map<String, Object> obj = new HashMap<>();
@@ -611,18 +611,16 @@ public class Driver implements MorphiumDriver {
             }
 
             DriverHelper.replaceBsonValues(obj);
-            return cb.incomingData(obj, System.currentTimeMillis() - start);
+            cb.incomingData(obj, System.currentTimeMillis() - start);
         } catch (IllegalArgumentException e) {
             //"Drop is not a valid OperationType" -> Bug in Driver
-            return true;
         }
     }
 
     @Override
     public void watch(String db, String collection, int maxWaitTime, boolean fullDocumentOnUpdate, DriverTailableIterationCallback cb) throws MorphiumDriverException {
         DriverHelper.doCall(() -> {
-            boolean run = true;
-            while (run) {
+            while (cb.isContinued()) {
                 ChangeStreamIterable<Document> it;
                 if (collection != null) {
                     it = mongo.getDatabase(db).getCollection(collection).watch();
@@ -635,10 +633,13 @@ public class Driver implements MorphiumDriver {
 //                it.startAtOperationTime(new BsonTimestamp(System.currentTimeMillis()-250));
                 MongoCursor<ChangeStreamDocument<Document>> iterator = it.iterator();
                 long start = System.currentTimeMillis();
-                while (run && iterator.hasNext()) {
-                    if (run) {
-                        boolean r = processChangeStreamEvent(cb, iterator, start);
-                        run = r && run;
+                while (cb.isContinued()) {
+                    if (iterator.tryNext() == null) {
+                        Thread.yield();
+                        continue;
+                    }
+                    if (cb.isContinued()) {
+                        processChangeStreamEvent(cb, iterator, start);
                     }
                 }
                 iterator.close();
@@ -688,7 +689,8 @@ public class Driver implements MorphiumDriver {
             long start = System.currentTimeMillis();
             for (Document d : ret) {
                 Map<String, Object> obj = convertBSON(d);
-                if (!cb.incomingData(obj, System.currentTimeMillis() - start)) {
+                cb.incomingData(obj, System.currentTimeMillis() - start);
+                if (!cb.isContinued()) {
                     break;
                 }
             }
