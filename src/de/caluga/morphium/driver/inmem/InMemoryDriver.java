@@ -578,11 +578,6 @@ public class InMemoryDriver implements MorphiumDriver {
             @Override
             public void incomingData(Map<String, Object> data, long dur) {
                 cb.incomingData(data, dur);
-                if (!cb.isContinued()) {
-                    synchronized (monitor) {
-                        monitor.notifyAll();
-                    }
-                }
             }
 
             @Override
@@ -591,12 +586,8 @@ public class InMemoryDriver implements MorphiumDriver {
             }
         };
         watchersByDb.get(key).add(cback);
-        //simulate blocking
-        synchronized (monitor) {
-            try {
-                monitor.wait();
-            } catch (InterruptedException e) {
-            }
+        while (cb.isContinued()) {
+            Thread.yield();
         }
         watchersByDb.remove(key);
     }
