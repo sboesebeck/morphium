@@ -126,9 +126,7 @@ public class ChangeStreamMonitor implements Runnable, ShutdownListener {
                                 log.error("listener threw exception", e);
                             }
                         }
-                        for (ChangeStreamListener r : toRemove) {
-                            listeners.remove(r);
-                        }
+                        listeners.removeAll(toRemove);
                     }
 
                     @Override
