@@ -203,4 +203,19 @@ public class ChangeStreamTest extends MorphiumTestBase {
         morphium.store(new UncachedObject("killing", 0));
 
     }
+
+    @Test
+    public void terminateChangeStreamTest() throws Exception {
+        for (int i = 0; i < 10; i++) {
+            ChangeStreamMonitor m = new ChangeStreamMonitor(morphium, UncachedObject.class);
+            m.start();
+            m.addListener(evt -> {
+                printevent(evt);
+                return true;
+            });
+            morphium.store(new UncachedObject("value", 42));
+            Thread.sleep(100);
+            m.terminate();
+        }
+    }
 }

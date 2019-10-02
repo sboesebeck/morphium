@@ -86,12 +86,10 @@ public class ChangeStreamMonitor implements Runnable, ShutdownListener {
                 //ignoring it
             }
             if (System.currentTimeMillis() - start > 2 * morphium.getConfig().getMaxWaitTime()) {
-                log.error("Changestream monitor did not finish before max wait time is over!");
-
+                log.error("Changestream monitor did not finish before max wait time is over! Interrupting");
+                changeStreamThread.interrupt();
+                break;
             }
-        }
-        if (changeStreamThread != null && changeStreamThread.isAlive()) {
-            changeStreamThread.interrupt();
         }
         changeStreamThread = null;
         listeners.clear();
@@ -110,7 +108,7 @@ public class ChangeStreamMonitor implements Runnable, ShutdownListener {
                 DriverTailableIterationCallback callback = new DriverTailableIterationCallback() {
                     @Override
                     public void incomingData(Map<String, Object> data, long dur) {
-                        if (!running) {
+                        if (!ChangeStreamMonitor.this.running) {
                             return;
                         }
                         @SuppressWarnings("unchecked") Map<String, Object> obj = (Map<String, Object>) data.get("fullDocument");
@@ -135,7 +133,7 @@ public class ChangeStreamMonitor implements Runnable, ShutdownListener {
 
                     @Override
                     public boolean isContinued() {
-                        return running;
+                        return ChangeStreamMonitor.this.running;
                     }
                 };
 
@@ -151,6 +149,8 @@ public class ChangeStreamMonitor implements Runnable, ShutdownListener {
                     log.warn("Error in changestream monitor - restarting", e);
                 }
             }
+
+            log.debug("ChangeStreamMonitor finished gracefully!!!!!!!!!!!");
         }
     }
 

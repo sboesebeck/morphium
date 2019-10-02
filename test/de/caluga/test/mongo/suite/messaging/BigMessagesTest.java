@@ -27,7 +27,7 @@ public class BigMessagesTest extends MorphiumTestBase {
             txt.append(txt.toString()+"/"+txt.toString());
         }
         log.info("Text Size: "+txt.length());
-        for (int i=0;i<1000;i++){
+        for (int i = 0; i < 300; i++) {
             Msg big=new Msg();
             big.setName("bigMsg");
             big.setTtl(30000);

@@ -1,7 +1,5 @@
 package de.caluga.test.mongo.suite.messaging;
 
-import de.caluga.morphium.Morphium;
-import de.caluga.morphium.MorphiumConfig;
 import de.caluga.morphium.driver.MorphiumId;
 import de.caluga.morphium.messaging.MessageListener;
 import de.caluga.morphium.messaging.MessageRejectedException;
@@ -60,7 +58,7 @@ public class MessagingTest extends MorphiumTestBase {
 
         Msg msg = new Msg("tst", "msg", "value", 30000);
         msg.setExclusive(false);
-        m.storeMessage(msg);
+        m.sendMessage(msg);
         Thread.sleep(1);
         Query<Msg> q = morphium.createQueryFor(Msg.class);
         assert (q.countAll() == 1);
@@ -69,7 +67,7 @@ public class MessagingTest extends MorphiumTestBase {
 
         msg = new Msg("tst2", "msg", "value", 30000);
         msg.setExclusive(false);
-        m2.storeMessage(msg);
+        m2.sendMessage(msg);
         q = morphium.createQueryFor(Msg.class);
         assert (q.countAll() == 1);
         q.setCollectionName("mmsg_msg2");
@@ -153,7 +151,7 @@ public class MessagingTest extends MorphiumTestBase {
         Thread.sleep(2500);
         for (int i = 0; i < 1000; i++) {
             Msg m = new Msg("test" + i, "tm", "" + i + System.currentTimeMillis(), 10000);
-            producer.storeMessage(m);
+            producer.sendMessage(m);
         }
         Messaging consumer = new Messaging(morphium, 500, false, true, 1000);
         procCounter.set(0);
@@ -193,7 +191,7 @@ public class MessagingTest extends MorphiumTestBase {
             gotMessage = true;
             return null;
         });
-        messaging.storeMessage(new Msg("Testmessage", "A message", "the value - for now", 5000));
+        messaging.sendMessage(new Msg("Testmessage", "A message", "the value - for now", 5000));
 
         Thread.sleep(1000);
         assert (!gotMessage) : "Message recieved from self?!?!?!";
@@ -253,12 +251,12 @@ public class MessagingTest extends MorphiumTestBase {
             return null;
         });
 
-        m1.storeMessage(new Msg("testmsg1", "The message from M1", "Value"));
+        m1.sendMessage(new Msg("testmsg1", "The message from M1", "Value"));
         Thread.sleep(1000);
         assert (gotMessage2) : "Message not recieved yet?!?!?";
         gotMessage2 = false;
 
-        m2.storeMessage(new Msg("testmsg2", "The message from M2", "Value"));
+        m2.sendMessage(new Msg("testmsg2", "The message from M2", "Value"));
         Thread.sleep(1000);
         assert (gotMessage1) : "Message not recieved yet?!?!?";
         gotMessage1 = false;
@@ -316,7 +314,7 @@ public class MessagingTest extends MorphiumTestBase {
             return null;
         });
 
-        m1.storeMessage(new Msg("testmsg1", "The message from M1", "Value"));
+        m1.sendMessage(new Msg("testmsg1", "The message from M1", "Value"));
         Thread.sleep(500);
         assert (gotMessage2) : "Message not recieved yet by m2?!?!?";
         assert (gotMessage3) : "Message not recieved yet by m3?!?!?";
@@ -326,7 +324,7 @@ public class MessagingTest extends MorphiumTestBase {
         gotMessage3 = false;
         gotMessage4 = false;
 
-        m2.storeMessage(new Msg("testmsg2", "The message from M2", "Value"));
+        m2.sendMessage(new Msg("testmsg2", "The message from M2", "Value"));
         Thread.sleep(500);
         assert (gotMessage1) : "Message not recieved yet by m1?!?!?";
         assert (gotMessage3) : "Message not recieved yet by m3?!?!?";
@@ -338,7 +336,7 @@ public class MessagingTest extends MorphiumTestBase {
         gotMessage3 = false;
         gotMessage4 = false;
 
-        m1.storeMessage(new Msg("testmsg_excl", "This is the message", "value", 30000, true));
+        m1.sendMessage(new Msg("testmsg_excl", "This is the message", "value", 30000, true));
         Thread.sleep(500);
         int cnt = 0;
         if (gotMessage1) cnt++;
@@ -402,7 +400,7 @@ public class MessagingTest extends MorphiumTestBase {
                 return null;
             });
 
-            sender.storeMessage(new Msg("test", "message", "value"));
+            sender.sendMessage(new Msg("test", "message", "value"));
 
             Thread.sleep(1000);
             assert (gotMessage1);
@@ -412,7 +410,7 @@ public class MessagingTest extends MorphiumTestBase {
             sender.terminate();
             rec1.terminate();
             rec2.terminate();
-            sender.storeMessage(new Msg("quitting", "quit", "quit", 10, false));
+            sender.sendMessage(new Msg("quitting", "quit", "quit", 10, false));
             Thread.sleep(1000);
         }
 
@@ -472,7 +470,7 @@ public class MessagingTest extends MorphiumTestBase {
 
             //sending message to all
             log.info("Sending broadcast message");
-            m1.storeMessage(new Msg("testmsg1", "The message from M1", "Value"));
+            m1.sendMessage(new Msg("testmsg1", "The message from M1", "Value"));
             Thread.sleep(3000);
             assert (gotMessage2) : "Message not recieved yet by m2?!?!?";
             assert (gotMessage3) : "Message not recieved yet by m3?!?!?";
@@ -491,7 +489,7 @@ public class MessagingTest extends MorphiumTestBase {
             log.info("Sending direct message");
             Msg m = new Msg("testmsg1", "The message from M1", "Value");
             m.addRecipient(m2.getSenderId());
-            m1.storeMessage(m);
+            m1.sendMessage(m);
             Thread.sleep(1000);
             assert (gotMessage2) : "Message not received by m2?";
             assert (!gotMessage1) : "Message recieved by m1?!?!?";
@@ -511,7 +509,7 @@ public class MessagingTest extends MorphiumTestBase {
             m = new Msg("testmsg1", "The message from M1", "Value");
             m.addRecipient(m2.getSenderId());
             m.addRecipient(m3.getSenderId());
-            m1.storeMessage(m);
+            m1.sendMessage(m);
             Thread.sleep(1000);
             assert (gotMessage2) : "Message not received by m2?";
             assert (!gotMessage1) : "Message recieved by m1?!?!?";
@@ -548,7 +546,7 @@ public class MessagingTest extends MorphiumTestBase {
         m2.start();
 
         Msg m = new Msg("test", "ignore me please", "value");
-        m1.storeMessage(m);
+        m1.sendMessage(m);
         Thread.sleep(1000);
         m = morphium.reread(m);
         assert (m.getProcessedBy().size() == 1) : "wrong number of proccessed by entries: " + m.getProcessedBy().size();
@@ -645,7 +643,7 @@ public class MessagingTest extends MorphiumTestBase {
                 Msg msg = new Msg("test" + i, "The message for msg " + i, "a value", ttl);
                 msg.addAdditional("Additional Value " + i);
                 msg.setExclusive(false);
-                systems.get(m).storeMessage(msg);
+                systems.get(m).sendMessage(msg);
             }
 
             long dur = System.currentTimeMillis() - start;
@@ -762,7 +760,7 @@ public class MessagingTest extends MorphiumTestBase {
 
         Msg m = new Msg("test", "A message", "a value");
         m.setExclusive(false);
-        m1.storeMessage(m);
+        m1.sendMessage(m);
 
         Thread.sleep(500);
         assert (!gotMessage1) : "Got message again?";
@@ -785,7 +783,7 @@ public class MessagingTest extends MorphiumTestBase {
         m3.terminate();
         m = new Msg("test", "end", "a value");
         m.setExclusive(false);
-        m1.storeMessage(m);
+        m1.sendMessage(m);
         Thread.sleep(1000);
 
     }
@@ -819,7 +817,7 @@ public class MessagingTest extends MorphiumTestBase {
         int amount = 1000;
         log.info("------------- sending messages");
         for (int i = 0; i < amount; i++) {
-            producer.storeMessage(new Msg("Test " + i, "msg " + i, "value " + i));
+            producer.sendMessage(new Msg("Test " + i, "msg " + i, "value " + i));
         }
 
         for (int i = 0; i < 30 && procCounter.get() < amount; i++) {
@@ -865,7 +863,7 @@ public class MessagingTest extends MorphiumTestBase {
         int amount = 1000;
 
         for (int i = 0; i < amount; i++) {
-            producer.storeMessage(new Msg("Test " + i, "msg " + i, "value " + i));
+            producer.sendMessage(new Msg("Test " + i, "msg " + i, "value " + i));
         }
 
         for (int i = 0; i < 30 && processed[0] < amount; i++) {
@@ -917,7 +915,7 @@ public class MessagingTest extends MorphiumTestBase {
             if (i % 1000 == 0) {
                 log.info("created msg " + i + " / " + numberOfMessages);
             }
-            producer.storeMessage(m);
+            producer.sendMessage(m);
         }
 
         long start = System.currentTimeMillis();
@@ -1014,7 +1012,7 @@ public class MessagingTest extends MorphiumTestBase {
             m = new Msg();
             m.setExclusive(true);
             m.setName("A message");
-            sender2.storeMessage(m);
+            sender2.sendMessage(m);
             Thread.sleep(500);
             assert (!gotMessage1);
             assert (!gotMessage2);
@@ -1157,7 +1155,7 @@ public class MessagingTest extends MorphiumTestBase {
         Thread.sleep(1500);
 
 
-        sender.storeMessage(new Msg("test", "testmsg", "testvalue", 120000, false));
+        sender.sendMessage(new Msg("test", "testmsg", "testvalue", 120000, false));
 
         Thread.sleep(1000);
         assert (gotMessage3);
@@ -1218,8 +1216,8 @@ public class MessagingTest extends MorphiumTestBase {
         });
         receiver.start();
         Thread.sleep(500);
-        sender.storeMessage(new Msg("test", "test", "test"));
-        sender.storeMessage(new Msg("test", "test", "test"));
+        sender.sendMessage(new Msg("test", "test", "test"));
+        sender.sendMessage(new Msg("test", "test", "test"));
 
         Thread.sleep(500);
         assert (list.size() == 1) : "Size wrong: " + list.size();
@@ -1255,8 +1253,8 @@ public class MessagingTest extends MorphiumTestBase {
         });
         receiver.start();
         Thread.sleep(100);
-        sender.storeMessage(new Msg("test", "test", "test"));
-        sender.storeMessage(new Msg("test", "test", "test"));
+        sender.sendMessage(new Msg("test", "test", "test"));
+        sender.sendMessage(new Msg("test", "test", "test"));
         Thread.sleep(1000);
 
         assert (list.size() == 2) : "Size wrong: " + list.size();
@@ -1287,7 +1285,7 @@ public class MessagingTest extends MorphiumTestBase {
             Msg m = new Msg("test", "test", "test");
             m.setPriority((int) (1000.0 * Math.random()));
             log.info("Stored prio: " + m.getPriority());
-            sender.storeMessage(m);
+            sender.sendMessage(m);
         }
 
         Thread.sleep(1000);
@@ -1312,7 +1310,7 @@ public class MessagingTest extends MorphiumTestBase {
             Msg m = new Msg("test", "test", "test");
             m.setPriority((int) (10000.0 * Math.random()));
             log.info("Stored prio: " + m.getPriority());
-            sender.storeMessage(m);
+            sender.sendMessage(m);
         }
 
         Thread.sleep(1000);
@@ -1362,7 +1360,7 @@ public class MessagingTest extends MorphiumTestBase {
 
         for (int i = 0; i < 100; i++) {
             Msg m = new Msg("test", "test", "value", 3000000, true);
-            sender.storeMessage(m);
+            sender.sendMessage(m);
             if (i == 50) {
                 receiver2.pauseProcessingOfMessagesNamed("test");
             } else if (i == 60) {

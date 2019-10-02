@@ -366,7 +366,7 @@ public class Msg {
         m.setRecipient(this.getSender());
         m.setDeleteAt(new Date(System.currentTimeMillis() + m.getTtl()));
         m.setMsgId(new MorphiumId());
-        messaging.storeMessage(m);
+        messaging.sendMessage(m);
     }
 
 

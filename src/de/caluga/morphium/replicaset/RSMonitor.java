@@ -64,6 +64,28 @@ public class RSMonitor {
                 logger.debug("Getting RS-Status...");
             }
             currentStatus = getReplicaSetStatus(true);
+
+            for (ReplicaSetNode n : currentStatus.getMembers()) {
+                if (morphium.getConfig().getHostSeed().contains(n.getName())) {
+                    logger.debug("Found host in config " + n.getName());
+                } else {
+                    morphium.getConfig().getHostSeed().add(n.getName());
+                }
+            }
+            List<String> hostsNotFound = new ArrayList<>();
+            for (String host : morphium.getConfig().getHostSeed()) {
+                boolean found = false;
+                for (ReplicaSetNode n : currentStatus.getMembers()) {
+                    if (n.getName().equals(host)) {
+                        found = true;
+                        break;
+                    }
+                }
+                if (!found) {
+                    hostsNotFound.add(host);
+                }
+            }
+            morphium.getConfig().getHostSeed().removeAll(hostsNotFound);
             if (currentStatus == null) {
                 nullcounter++;
                 if (logger.isDebugEnabled()) {

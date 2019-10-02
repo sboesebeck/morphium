@@ -110,7 +110,7 @@ public class AnsweringTests extends MorphiumTestBase {
             Msg question = new Msg("QMsg", "This is the message text", "A question param");
             question.setMsgId(new MorphiumId());
             lastMsgId = question.getMsgId();
-            onlyAnswers.storeMessage(question);
+            onlyAnswers.sendMessage(question);
 
             log.info("Send Message with id: " + question.getMsgId());
             Thread.sleep(3000);
@@ -219,7 +219,7 @@ public class AnsweringTests extends MorphiumTestBase {
 
         m2.addListenerForMessageNamed("question", (msg, m) -> {
             Msg answer = m.createAnswerMsg();
-            msg.storeMessage(answer);
+            msg.sendMessage(answer);
             Thread.sleep(1000);
             answer = m.createAnswerMsg();
             return answer;
@@ -227,7 +227,7 @@ public class AnsweringTests extends MorphiumTestBase {
 
         Msg m3 = new Msg("not asdf", "will it stuck", "uahh", 10000);
         m3.setPriority(1);
-        m1.storeMessage(m3);
+        m1.sendMessage(m3);
         Thread.sleep(1000);
 
         Msg question = new Msg("question", "question", "a value");
@@ -263,7 +263,7 @@ public class AnsweringTests extends MorphiumTestBase {
             Msg question = new Msg("question", "question" + i, "a value " + i);
             question.setPriority(5);
             long start = System.currentTimeMillis();
-            Msg answer = m1.sendAndAwaitFirstAnswer(question, 150000);
+            Msg answer = m1.sendAndAwaitFirstAnswer(question, 15000);
             long dur = System.currentTimeMillis() - start;
             assert (answer != null && answer.getInAnswerTo() != null);
             assert (answer.getInAnswerTo().equals(question.getMsgId()));
@@ -282,7 +282,7 @@ public class AnsweringTests extends MorphiumTestBase {
 
         m2.addListenerForMessageNamed("question", (msg, m) -> m.createAnswerMsg());
 
-        m1.storeMessage(new Msg("not asdf", "will it stuck", "uahh", 10000));
+        m1.sendMessage(new Msg("not asdf", "will it stuck", "uahh", 10000));
         Thread.sleep(1000);
 
         Msg answer = m1.sendAndAwaitFirstAnswer(new Msg("question", "question", "a value"), 5000);
@@ -318,7 +318,7 @@ public class AnsweringTests extends MorphiumTestBase {
             }
         });
 
-        sender.storeMessage(new Msg("query", "a query", "avalue"));
+        sender.sendMessage(new Msg("query", "a query", "avalue"));
         Thread.sleep(1000);
         assert (gotMessage1);
         assert (gotMessage2);

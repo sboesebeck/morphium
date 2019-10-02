@@ -252,36 +252,47 @@ public class MorphiumTestBase {
             for (ShutdownListener l : listeners) {
                 if (l instanceof Messaging) {
                     Messaging msg = (Messaging) l;
-                    msg.terminate();
-                    log.info("Terminating still running messaging..." + msg.getSenderId());
-                    while (msg.isRunning()) {
-                        log.info("Waiting for messaging to finish");
-                        log.info("Messaging " + msg.getSenderId() + " still running");
-                        Thread.sleep(100);
+                    if (msg.isRunning()) {
+                        msg.terminate();
+                        log.info("Terminating still running messaging..." + msg.getSenderId());
+                        while (msg.isRunning()) {
+                            log.info("Waiting for messaging to finish");
+                            log.info("Messaging " + msg.getSenderId() + " still running");
+                            Thread.sleep(100);
+                        }
+                        log.info("Messaging terminated");
                     }
-                    log.info("Messaging terminated");
                 } else if (l instanceof OplogMonitor) {
-                    ((OplogMonitor) l).stop();
-                    while (((OplogMonitor) l).isRunning()) {
-                        log.info("Waiting for oplogmonitor to finish");
-                        Thread.sleep(100);
+
+                    OplogMonitor om = (OplogMonitor) l;
+                    if (om.isRunning()) {
+                        om.stop();
+                        while (om.isRunning()) {
+                            log.info("Waiting for oplogmonitor to finish");
+                            Thread.sleep(100);
+                        }
+                        f = l.getClass().getDeclaredField("listeners");
+                        f.setAccessible(true);
+                        ((Collection) f.get(l)).clear();
                     }
-                    f = l.getClass().getDeclaredField("listeners");
-                    f.setAccessible(true);
-                    ((Collection) f.get(l)).clear();
                 } else if (l instanceof ChangeStreamMonitor) {
+
                     log.info("Changestream Monitor still running");
-                    ((ChangeStreamMonitor) l).terminate();
-                    while (((ChangeStreamMonitor) l).isRunning()) {
-                        log.info("Waiting for changestreamMonitor to finish");
-                        Thread.sleep(100);
+                    ChangeStreamMonitor csm = (ChangeStreamMonitor) l;
+                    if (csm.isRunning()) {
+                        csm.terminate();
+                        while (csm.isRunning()) {
+                            log.info("Waiting for changestreamMonitor to finish");
+                            Thread.sleep(100);
+                        }
+                        log.info("ChangeStreamMonitor terminated!");
+                        f = l.getClass().getDeclaredField("listeners");
+                        f.setAccessible(true);
+                        ((Collection) f.get(l)).clear();
                     }
-                    log.info("ChangeStreamMonitor terminated!");
-                    f = l.getClass().getDeclaredField("listeners");
-                    f.setAccessible(true);
-                    ((Collection) f.get(l)).clear();
                 } else if (l instanceof BufferedMorphiumWriterImpl) {
-                    ((BufferedMorphiumWriterImpl) l).close();
+                    BufferedMorphiumWriterImpl buf = (BufferedMorphiumWriterImpl) l;
+                    buf.close();
                 }
             }
         } catch (Exception e) {
