@@ -19,7 +19,96 @@ import java.util.List;
  */
 public class AutoVariableTest extends MorphiumTestBase {
 
+    @Test
+    public void disableAutoVariablesThreadded() throws Exception {
+        //side Thread
+        Thread t = new Thread() {
+            public void run() {
+                morphium.disableAutoValuesForThread();
+                CTimeTest ct = new CTimeTest();
+                ct.value = "should not work";
+                morphium.store(ct);
+                assert (ct.created == null);
+                assert (ct.timestamp == 0);
 
+                morphium.reread(ct);
+                assert (ct.created == null);
+                assert (ct.timestamp == 0);
+
+
+                LCTest lc = new LCTest();
+                lc.value = "a test";
+                morphium.store(lc);
+                assert (lc.lastChange == 0);
+                assert (lc.lastChangeDate == null);
+                assert (lc.lastChangeString == null);
+
+                lc.value = "updated";
+                morphium.store(lc);
+                assert (lc.lastChange == 0);
+                assert (lc.lastChangeDate == null);
+                assert (lc.lastChangeString == null);
+
+                morphium.set(lc, "value", "set", false, false, null);
+                morphium.reread(lc);
+                assert (lc.lastChange == 0);
+                assert (lc.lastChangeDate == null);
+                assert (lc.lastChangeString == null);
+                assert (lc.value.equals("set"));
+
+
+                morphium.set(morphium.createQueryFor(LCTest.class).f("_id").eq(lc.morphiumId), "value", "set");
+                morphium.reread(lc);
+                assert (lc.lastChange == 0);
+                assert (lc.lastChangeDate == null);
+                assert (lc.lastChangeString == null);
+            }
+        };
+        t.start();
+
+
+        CTimeTest ct = new CTimeTest();
+        ct.value = "should not work";
+        morphium.store(ct);
+        assert (ct.created != null);
+        assert (ct.timestamp != 0);
+
+        morphium.reread(ct);
+        assert (ct.created != null);
+        assert (ct.timestamp != 0);
+
+
+        LCTest lc = new LCTest();
+        lc.value = "a test";
+        morphium.store(lc);
+        assert (lc.lastChange != 0);
+        assert (lc.lastChangeDate != null);
+        assert (lc.lastChangeString != null);
+
+        lc.value = "updated";
+        morphium.store(lc);
+        assert (lc.lastChange != 0);
+        assert (lc.lastChangeDate != null);
+        assert (lc.lastChangeString != null);
+
+        morphium.set(lc, "value", "set", false, false, null);
+        morphium.reread(lc);
+        assert (lc.lastChange != 0);
+        assert (lc.lastChangeDate != null);
+        assert (lc.lastChangeString != null);
+        assert (lc.value.equals("set"));
+
+
+        morphium.set(morphium.createQueryFor(LCTest.class).f("_id").eq(lc.morphiumId), "value", "set");
+        morphium.reread(lc);
+        assert (lc.lastChange != 0);
+        assert (lc.lastChangeDate != null);
+        assert (lc.lastChangeString != null);
+
+        while (t.isAlive()) {
+            Thread.yield();
+        }
+    }
     @Test
     public void disableAutoValues() throws Exception {
         morphium.getConfig().disableAutoValues();

@@ -969,7 +969,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
 
                 Map<String, Object> update = Utils.getMap("$set", Utils.getMap(fieldName, value.getClass().isEnum() ? value.toString() : value));
                 List<String> lastChangeFields = morphium.getARHelper().getFields(cls, LastChange.class);
-                if (lastChangeFields != null && !lastChangeFields.isEmpty() && (morphium.isAutoValuesEnabledForThread() || morphium.getConfig().isAutoValuesEnabled())) {
+                if (lastChangeFields != null && !lastChangeFields.isEmpty() && morphium.isAutoValuesEnabledForThread()) {
                     updateField(cls, update, lastChangeFields);
                 }
 
@@ -1570,7 +1570,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                     List<String> creationTimeFlds = morphium.getARHelper().getFields(cls, CreationTime.class);
                     try {
                         if (creationTimeFlds != null && !creationTimeFlds.isEmpty() && morphium.getDriver().count(getDbName(), coll, qobj, null) == 0) {
-                            if (creationTimeFlds != null && !creationTimeFlds.isEmpty() && (morphium.isAutoValuesEnabledForThread() || morphium.getConfig().isAutoValuesEnabled())) {
+                            if (creationTimeFlds != null && !creationTimeFlds.isEmpty() && (morphium.isAutoValuesEnabledForThread())) {
                                 updateField(cls, update, creationTimeFlds);
                             }
                         }
@@ -1585,7 +1585,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                 }
 
                 List<String> latChangeFlds = morphium.getARHelper().getFields(cls, LastChange.class);
-                if (latChangeFlds != null && !latChangeFlds.isEmpty() && (morphium.isAutoValuesEnabledForThread() || morphium.getConfig().isAutoValuesEnabled())) {
+                if (latChangeFlds != null && !latChangeFlds.isEmpty() && (morphium.isAutoValuesEnabledForThread())) {
                     updateField(cls, update, latChangeFlds);
                 }
 

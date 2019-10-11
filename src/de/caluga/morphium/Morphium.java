@@ -15,7 +15,6 @@ import de.caluga.morphium.cache.MorphiumCacheImpl;
 import de.caluga.morphium.changestream.ChangeStreamEvent;
 import de.caluga.morphium.changestream.ChangeStreamListener;
 import de.caluga.morphium.driver.*;
-import de.caluga.morphium.driver.mongodb.Driver;
 import de.caluga.morphium.query.MongoField;
 import de.caluga.morphium.query.MongoFieldImpl;
 import de.caluga.morphium.query.Query;
@@ -2850,4 +2849,5 @@ public class Morphium {
         setConfig(cfg);
         initializeAndConnect();
     }
+
 }
