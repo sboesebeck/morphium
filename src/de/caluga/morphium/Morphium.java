@@ -80,6 +80,7 @@ public class Morphium {
     private MorphiumDriver morphiumDriver;
 
     private Map<String, String> classNameByType = new ConcurrentHashMap<>();
+    private JavaxValidationStorageListener lst;
 
     public Morphium() {
         profilingListeners = new CopyOnWriteArrayList<>();
@@ -306,11 +307,36 @@ public class Morphium {
      * @return true, if validation is supported
      */
 
+
+    public boolean isValidationEnabled() {
+        return lst != null;
+    }
+
+    public void disableValidation() {
+        if (lst == null) return;
+        listeners.remove(lst);
+        lst = null;
+    }
+
+    public void enableValidation() {
+        setValidationSupport();
+        if (lst == null) {
+            throw new RuntimeException("Validation not possible - javax.validation implementation not in Classpath?");
+        }
+    }
     @SuppressWarnings("UnusedDeclaration")
     private void setValidationSupport() {
+        if (lst != null) {
+            if (!listeners.contains(lst)) {
+                listeners.add(lst);
+            }
+            return;
+        }
         try {
+
             getClass().getClassLoader().loadClass("javax.validation.ValidatorFactory");
-            addListener(new JavaxValidationStorageListener());
+            lst = new JavaxValidationStorageListener();
+            addListener(lst);
             logger.info("Adding javax.validation Support...");
         } catch (Exception cnf) {
             logger.info("Validation disabled!");
@@ -2845,6 +2871,7 @@ public class Morphium {
 
     public void reset() {
         MorphiumConfig cfg = getConfig();
+        if (lst != null) listeners.remove(lst);
         close();
         setConfig(cfg);
         initializeAndConnect();

@@ -20,12 +20,26 @@ import java.util.*;
 public class JavaxValidationStorageListener extends MorphiumStorageAdapter<Object> {
 
     private final Validator validator;
+    private String uuid;
 
     public JavaxValidationStorageListener() {
         ValidatorFactory factory = Validation.buildDefaultValidatorFactory();
         validator = factory.getValidator();
+        uuid = UUID.randomUUID().toString();
     }
 
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        JavaxValidationStorageListener that = (JavaxValidationStorageListener) o;
+        return Objects.equals(uuid, that.uuid);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(uuid);
+    }
 
     @Override
     public void preStore(Morphium m, Map<Object, Boolean> isNew) throws MorphiumAccessVetoException {
