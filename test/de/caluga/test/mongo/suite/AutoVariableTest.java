@@ -62,6 +62,12 @@ public class AutoVariableTest extends MorphiumTestBase {
                 assert (lc.lastChange == 0);
                 assert (lc.lastChangeDate == null);
                 assert (lc.lastChangeString == null);
+
+                LATest la = new LATest();
+                la.value = "last access";
+                morphium.store(la);
+                la = morphium.findById(LATest.class, la.morphiumId);
+                assert (la.lastAccess == 0);
             }
         };
         t.start();
@@ -104,6 +110,17 @@ public class AutoVariableTest extends MorphiumTestBase {
         assert (lc.lastChange != 0);
         assert (lc.lastChangeDate != null);
         assert (lc.lastChangeString != null);
+
+
+        LATest la = new LATest();
+        la.value = "last access";
+
+        morphium.store(la);
+        long stored = System.currentTimeMillis();
+        Thread.sleep(10);
+        la = morphium.findById(LATest.class, la.morphiumId);
+        assert (la.lastAccess != 0);
+        assert (la.lastAccess > stored);
 
         while (t.isAlive()) {
             Thread.yield();
@@ -150,6 +167,12 @@ public class AutoVariableTest extends MorphiumTestBase {
         assert (lc.lastChange == 0);
         assert (lc.lastChangeDate == null);
         assert (lc.lastChangeString == null);
+
+        LATest la = new LATest();
+        la.value = "last access";
+        morphium.store(la);
+        la = morphium.findById(LATest.class, la.morphiumId);
+        assert (la.lastAccess == 0);
         morphium.getConfig().enableAutoValues();
     }
 
