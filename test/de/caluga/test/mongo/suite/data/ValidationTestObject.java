@@ -3,7 +3,6 @@ package de.caluga.test.mongo.suite.data;
 import de.caluga.morphium.annotations.Entity;
 import de.caluga.morphium.annotations.Id;
 import de.caluga.morphium.driver.MorphiumId;
-import org.hibernate.validator.constraints.Email;
 
 import javax.validation.constraints.*;
 import java.util.Date;

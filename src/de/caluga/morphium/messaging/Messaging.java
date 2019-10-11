@@ -223,7 +223,7 @@ public class Messaging extends Thread implements ShutdownListener {
                 findAndProcessPendingMessages(null);
                 if (multithreadded) {
                     //wait for preprocessing to finish
-                    while (threadPool.getActiveCount() > 0) {
+                    while (threadPool != null && threadPool.getActiveCount() > 0) {
                         Thread.yield();
                     }
                 }

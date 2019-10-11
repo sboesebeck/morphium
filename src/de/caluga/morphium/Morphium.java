@@ -310,7 +310,7 @@ public class Morphium {
     private void setValidationSupport() {
         try {
             getClass().getClassLoader().loadClass("javax.validation.ValidatorFactory");
-            new JavaxValidationStorageListener();
+            addListener(new JavaxValidationStorageListener());
             logger.info("Adding javax.validation Support...");
         } catch (Exception cnf) {
             logger.info("Validation disabled!");
