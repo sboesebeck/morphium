@@ -1,7 +1,9 @@
 package de.caluga.morphium;
 
 import de.caluga.morphium.annotations.*;
+import de.caluga.morphium.annotations.encryption.Encrypted;
 import de.caluga.morphium.driver.MorphiumId;
+import de.caluga.morphium.encryption.ValueEncryptionProvider;
 import de.caluga.morphium.mapping.BigIntegerTypeMapper;
 import de.caluga.morphium.mapping.MorphiumTypeMapper;
 import org.bson.types.ObjectId;
@@ -28,7 +30,7 @@ import java.util.stream.Collectors;
  * Time: 19:36
  * <p>
  */
-@SuppressWarnings({"ConstantConditions", "MismatchedQueryAndUpdateOfCollection", "unchecked", "MismatchedReadAndWriteOfArray", "RedundantCast"})
+@SuppressWarnings({"ConstantConditions", "MismatchedQueryAndUpdateOfCollection", "unchecked", "RedundantCast"})
 public class ObjectMapperImpl implements MorphiumObjectMapper {
     private final Logger log = LoggerFactory.getLogger(ObjectMapperImpl.class);
     private final ReflectionFactory reflection = ReflectionFactory.getReflectionFactory();
@@ -37,7 +39,7 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
     private final List<Class<?>> mongoTypes;
     private final ContainerFactory containerFactory;
     private AnnotationAndReflectionHelper annotationHelper = new AnnotationAndReflectionHelper(true);
-    private final Map<Class, MorphiumTypeMapper> customMappers = new ConcurrentHashMap<>();
+    private final Map<Class<?>, MorphiumTypeMapper> customMappers = new ConcurrentHashMap<>();
     private Morphium morphium;
 
     public ObjectMapperImpl() {
@@ -141,7 +143,6 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
         return nameProviders.get(cls);
     }
 
-    @SuppressWarnings("unchecked")
     @Override
     public String getCollectionName(Class cls) {
         Entity p = annotationHelper.getAnnotationFromHierarchy(cls, Entity.class); //(Entity) cls.getAnnotation(Entity.class);
@@ -281,6 +282,19 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
                 if (fld.isAnnotationPresent(ReadOnly.class)) {
                     continue; //do not write value
                 }
+                if (fld.isAnnotationPresent(Encrypted.class)) {
+                    try {
+                        Encrypted enc = fld.getAnnotation(Encrypted.class);
+                        ValueEncryptionProvider encP = enc.provider().getDeclaredConstructor().newInstance();
+                        byte[] encKey = morphium.getEncryptionKeyProvider().getEncryptionKey(enc.keyName());
+                        encP.setEncryptionKey(encKey);
+                        byte[] encrypted = encP.encrypt(Utils.toJsonString(marshallIfNecessary(fld.get(o))).getBytes());
+                        dbo.put(fName, encrypted);
+                        continue;
+                    } catch (Exception exc) {
+                        throw new RuntimeException("Ecryption failed. Field: " + fName + " class: " + o.getClass().getName(), exc);
+                    }
+                }
                 AdditionalData ad = fld.getAnnotation(AdditionalData.class);
                 if (ad != null) {
                     if (!ad.readOnly()) {
@@ -314,7 +328,8 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
                             //list of references....
                             List<Map<String, Object>> lst = new ArrayList<>();
                             for (Object rec : ((Collection) value)) {
-                                if (rec != null) {
+                                if (rec != null) //noinspection DuplicatedCode
+                                {
                                     Object id = annotationHelper.getId(rec);
                                     if (id == null) {
                                         id = automaticStore(r, rec);
@@ -334,6 +349,7 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
                             //trying to store references
                             Map<Object, Map<String, Object>> map = new HashMap<>();
 
+                            //noinspection DuplicatedCode
                             ((Map) value).forEach((key, rec) -> {
                                 Object id = annotationHelper.getId(rec);
                                 if (id == null) {
@@ -564,9 +580,12 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
 
     @Override
     public <T> T deserialize(Class<? extends T> cls, String jsonString) throws ParseException {
-
-        HashMap<String, Object> obj = (HashMap<String, Object>) jsonParser.parse(jsonString, containerFactory);
-        return deserialize(cls, obj);
+        if (jsonString.startsWith("{")) {
+            HashMap<String, Object> obj = (HashMap<String, Object>) jsonParser.parse(jsonString, containerFactory);
+            return deserialize(cls, obj);
+        } else {
+            return (T) ((HashMap<String, Object>) jsonParser.parse("{\"value\":" + jsonString + "}", containerFactory)).get("value");
+        }
 
 
     }
@@ -678,6 +697,32 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
                     if (!fld.getType().isPrimitive()) {
                         fld.set(ret, null);
                     }
+                    continue;
+                }
+                if (fld.isAnnotationPresent(Encrypted.class)) {
+                    //encrypted field
+                    Encrypted enc = fld.getAnnotation(Encrypted.class);
+                    Class<? extends ValueEncryptionProvider> encCls = enc.provider();
+                    ValueEncryptionProvider ep = encCls.newInstance();
+                    String key = enc.keyName();
+                    if (key.equals(".")) {
+                        key = theClass.getName();
+                    }
+                    byte[] decKey = morphium.getEncryptionKeyProvider().getDecryptionKey(key);
+                    ep.setDecryptionKey(decKey);
+                    if (valueFromDb instanceof byte[]) {
+                        valueFromDb = new String(ep.decrypt((byte[]) valueFromDb));
+                    } else if (valueFromDb instanceof String) {
+                        valueFromDb = new String(ep.decrypt(Base64.getDecoder().decode(valueFromDb.toString())));
+                    } else {
+                        throw new RuntimeException("Decryption not possible, value is no byte array or base64 string!");
+                    }
+                    try {
+                        valueFromDb = deserialize(fld.getType(), (String) valueFromDb);
+                    } catch (Exception e) {
+                        log.debug("Not a json string, cannot deserialize further");
+                    }
+                    annotationHelper.setValue(ret, valueFromDb, f);
                     continue;
                 }
                 Object value = null;
@@ -895,7 +940,6 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
                                     } else if (lst.get(i) instanceof Long) {
                                         Array.set(arr, i, ((Long) lst.get(i)).intValue());
                                     } else {
-                                        //noinspection RedundantCast
                                         Array.set(arr, i, lst.get(i));
                                     }
 
