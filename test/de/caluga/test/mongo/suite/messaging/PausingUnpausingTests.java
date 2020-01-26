@@ -1,6 +1,7 @@
 package de.caluga.test.mongo.suite.messaging;
 
 import de.caluga.morphium.driver.MorphiumId;
+import de.caluga.morphium.messaging.MessageListener;
 import de.caluga.morphium.messaging.Messaging;
 import de.caluga.morphium.messaging.Msg;
 import de.caluga.test.mongo.suite.MorphiumTestBase;
@@ -291,7 +292,7 @@ public class PausingUnpausingTests extends MorphiumTestBase {
                     return null;
                 }
         );
-        Msg ex=new Msg("exclusive_test","a message","A value");
+        Msg ex = new Msg("exclusive_test", "a message", "A value");
         ex.setExclusive(true);
         sender.sendMessage(ex);
         log.info("Sent!");
@@ -385,6 +386,58 @@ public class PausingUnpausingTests extends MorphiumTestBase {
         }
 
 
+    }
+
+
+    @Test
+    public void massiveAnswerBigQueueTests() throws Exception {
+        morphium.dropCollection(Msg.class);
+        Messaging sender = new Messaging(morphium, 100, false, true, 5);
+        Messaging receiver1 = new Messaging(morphium, 100, false, true, 5);
+        Messaging receiver2 = new Messaging(morphium, 100, false, true, 5);
+        Messaging receiver3 = new Messaging(morphium, 100, false, true, 5);
+        Messaging receiver4 = new Messaging(morphium, 100, false, true, 5);
+        sender.start();
+        receiver1.start();
+        receiver2.start();
+        receiver3.start();
+        receiver4.start();
+        Thread.sleep(1000);
+        final AtomicInteger sent = new AtomicInteger(0);
+        final AtomicInteger answered = new AtomicInteger(0);
+        MessageListener messageListener = (msg, m) -> {
+            msg.pauseProcessingOfMessagesNamed(m.getName());
+            log.info("Incoming request! " + m.getMsgId());
+            Thread.sleep(200 - (int) (100.0 * Math.random()));
+            Msg answer = new Msg("answer", "answer", "answer", 600 * 1000);
+            msg.unpauseProcessingOfMessagesNamed(m.getName());
+            return answer;
+        };
+        receiver1.addListenerForMessageNamed("answer_me", messageListener);
+        receiver2.addListenerForMessageNamed("answer_me", messageListener);
+        receiver3.addListenerForMessageNamed("answer_me", messageListener);
+        receiver4.addListenerForMessageNamed("answer_me", messageListener);
+
+        sender.addListenerForMessageNamed("answer", (msg, m) -> {
+            log.info("Anwer came in: " + m.getValue());
+            answered.incrementAndGet();
+            return null;
+        });
+
+        int noMsg = 500;
+        for (int i = 0; i < noMsg; i++) {
+            sent.incrementAndGet();
+            Msg m = new Msg("answer_me", "answer_me_" + i, "answer_me_" + i, 3600 * 1000);
+            m.setExclusive(true);
+            sender.sendMessage(m);
+        }
+
+        long start = System.currentTimeMillis();
+        while (sent.get() > answered.get()) {
+            log.info("Got: " + answered.get() + " of " + sent.get());
+            Thread.sleep(1000);
+            assert ((System.currentTimeMillis() - start) < noMsg / 4 * 200 + 1500 * 100);
+        }
     }
 
 
