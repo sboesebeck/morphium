@@ -263,8 +263,8 @@ public class Messaging extends Thread implements ShutdownListener {
                             return running;
                         }
                         if (pauseMessages.containsKey(obj.getName())) {
-                            if (log.isDebugEnabled())
-                                log.debug("Not processing message - processing paused for " + obj.getName());
+//                            if (log.isDebugEnabled())
+//                                log.debug("Not processing message - processing paused for " + obj.getName());
                             return running;
                         }
                         //do not process messages, that are exclusive, but already processed or not for me / all
@@ -507,8 +507,8 @@ public class Messaging extends Thread implements ShutdownListener {
         if (obj != null && obj.getLockedBy() != null && obj.getLockedBy().equals(id)) {
             List<Msg> lst = new ArrayList<>();
             lst.add(obj);
-            if (log.isDebugEnabled())
-                log.debug("locked messages: " + lst.size());
+//            if (log.isDebugEnabled())
+//                log.debug("locked messages: " + lst.size());
             try {
                 processMessages(lst);
             } catch (Exception e) {
@@ -600,8 +600,8 @@ public class Messaging extends Thread implements ShutdownListener {
                         }
                         if (answer != null) {
                             msg.sendAnswer(Messaging.this, answer);
-                            if (log.isDebugEnabled())
-                                log.debug("sent answer to " + answer.getInAnswerTo() + " recipient: " + answer.getRecipient() + " id: " + answer.getMsgId());
+//                            if (log.isDebugEnabled())
+//                                log.debug("sent answer to " + answer.getInAnswerTo() + " recipient: " + answer.getRecipient() + " id: " + answer.getMsgId());
                             if (answer.getRecipient() == null) {
                                 log.warn("Recipient of answer is null?!?!");
 
@@ -653,10 +653,7 @@ public class Messaging extends Thread implements ShutdownListener {
                     //                                msg.setLocked(0);
                     //                                toStore.add(msg);
                 }
-                Runnable rb = () -> {
-                    processing.remove(m.getMsgId());
-//                    log.debug("Removed from processing " + m.getMsgId());
-                };
+                Runnable rb = new RemoveProcessTask(processing, m.getMsgId());
                 while (true) {
                     try {
                         if (!decouplePool.isTerminated() && !decouplePool.isTerminating() && !decouplePool.isShutdown()) {

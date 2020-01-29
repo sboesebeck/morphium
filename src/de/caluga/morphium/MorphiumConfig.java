@@ -12,6 +12,8 @@ import de.caluga.morphium.cache.MorphiumCache;
 import de.caluga.morphium.driver.ReadPreference;
 import de.caluga.morphium.driver.ReadPreferenceType;
 import de.caluga.morphium.driver.mongodb.Driver;
+import de.caluga.morphium.encryption.DefaultEncryptionKeyProvider;
+import de.caluga.morphium.encryption.EncryptionKeyProvider;
 import de.caluga.morphium.query.*;
 import de.caluga.morphium.writer.AsyncWriterImpl;
 import de.caluga.morphium.writer.BufferedMorphiumWriterImpl;
@@ -111,6 +113,8 @@ public class MorphiumConfig {
     private ReadPreference defaultReadPreference;
     @Transient
     private String defaultReadPreferenceType;
+    @Transient
+    private Class<? extends EncryptionKeyProvider> encryptionKeyProviderClass = DefaultEncryptionKeyProvider.class;
 
     private String driverClass;
     private int acceptableLatencyDifference = 15;
@@ -138,6 +142,7 @@ public class MorphiumConfig {
     private String requiredReplicaSetName = null;
     private int cursorBatchSize = 1000;
     private boolean oplogMonitorEnabled = false;
+    private boolean throwExceptionOnMissingEncrytptionKey = true;
 
     public MorphiumConfig(final Properties prop) {
         this(null,prop);
@@ -288,6 +293,14 @@ public class MorphiumConfig {
         return this;
     }
 
+    public Class<? extends EncryptionKeyProvider> getEncryptionKeyProviderClass() {
+        return encryptionKeyProviderClass;
+    }
+
+    public void setEncryptionKeyProviderClass(Class<? extends EncryptionKeyProvider> encryptionKeyProviderClass) {
+        this.encryptionKeyProviderClass = encryptionKeyProviderClass;
+    }
+
     public String getDriverClass() {
         if (driverClass == null) {
             driverClass = Driver.class.getName();
@@ -326,7 +339,7 @@ public class MorphiumConfig {
      * if set to true, only those, whose CreationTime settings use checkfornew will work
      * default false
      *
-     * @param checkForNew
+     * @param checkForNew boolean, check if object is really not stored yet
      */
     public MorphiumConfig setCheckForNew(boolean checkForNew) {
         this.checkForNew = checkForNew;
@@ -945,7 +958,7 @@ public class MorphiumConfig {
     /**
      * returns a property set only containing non-default values set
      *
-     * @return
+     * @return properties
      */
     public Properties asProperties() {
         return asProperties(null);
@@ -958,7 +971,7 @@ public class MorphiumConfig {
     /**
      * @param prefix          prefix to use in property keys
      * @param effectiveConfig when true, use the current effective config, including overrides from Environment
-     * @return
+     * @return the properties
      */
     public Properties asProperties(String prefix, boolean effectiveConfig) {
         if (prefix == null) {
