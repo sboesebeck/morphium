@@ -1,5 +1,6 @@
 package de.caluga.test.mongo.suite.messaging;
 
+import de.caluga.morphium.Utils;
 import de.caluga.morphium.driver.MorphiumId;
 import de.caluga.morphium.messaging.MessageListener;
 import de.caluga.morphium.messaging.Messaging;
@@ -407,9 +408,10 @@ public class PausingUnpausingTests extends MorphiumTestBase {
         final AtomicInteger answered = new AtomicInteger(0);
         MessageListener messageListener = (msg, m) -> {
             msg.pauseProcessingOfMessagesNamed(m.getName());
-            log.info("Incoming request! " + m.getMsgId());
+//            log.info("Incoming request! " + m.getMsgId());
             Thread.sleep(200 - (int) (100.0 * Math.random()));
-            Msg answer = new Msg("answer", "answer", "answer", 600 * 1000);
+            Msg answer = new Msg("answer", "answer", "answer", 240 * 1000);
+            answer.setMapValue(m.getMapValue());
             msg.unpauseProcessingOfMessagesNamed(m.getName());
             return answer;
         };
@@ -419,15 +421,25 @@ public class PausingUnpausingTests extends MorphiumTestBase {
         receiver4.addListenerForMessageNamed("answer_me", messageListener);
 
         sender.addListenerForMessageNamed("answer", (msg, m) -> {
-            log.info("Anwer came in: " + m.getValue());
+//            log.info("Anwer came in: " + m.getValue());
             answered.incrementAndGet();
             return null;
         });
-
-        int noMsg = 500;
+        Runtime runtime = Runtime.getRuntime();
+        long startFree = runtime.freeMemory();
+        long startTotal = runtime.totalMemory();
+        long startMax = runtime.maxMemory();
+        int noMsg = 800;
+        StringBuilder bld = new StringBuilder();
         for (int i = 0; i < noMsg; i++) {
+            bld.setLength(0);
             sent.incrementAndGet();
-            Msg m = new Msg("answer_me", "answer_me_" + i, "answer_me_" + i, 3600 * 1000);
+            Msg m = new Msg("answer_me", "answer_me_" + i, "answer_me_" + i, 180 * 1000);
+            for (int b = 0; b < 20240; b++) {
+                bld.append("- ultra long text -");
+            }
+
+            m.setMapValue(Utils.getMap("bigValue", bld.toString()));
             m.setExclusive(true);
             sender.sendMessage(m);
         }
@@ -435,9 +447,44 @@ public class PausingUnpausingTests extends MorphiumTestBase {
         long start = System.currentTimeMillis();
         while (sent.get() > answered.get()) {
             log.info("Got: " + answered.get() + " of " + sent.get());
-            Thread.sleep(1000);
-            assert ((System.currentTimeMillis() - start) < noMsg / 4 * 200 + 1500 * 100);
+            log.info("=====> Time passed: " + ((System.currentTimeMillis() - start) / 1000 / 60) + " mins");
+            logmem(startFree, startTotal, startMax);
+            Thread.sleep(5000);
         }
+        log.info("Got all answers... after " + (System.currentTimeMillis() - start) + "ms");
+
+        while (System.currentTimeMillis() - start < 4 * 60 * 1000) {
+            log.info("=====> Time passed: " + ((System.currentTimeMillis() - start) / 1000 / 60) + " mins");
+            logmem(startFree, startTotal, startMax);
+
+            Thread.sleep(5000);
+
+        }
+        long diff = logmem(startFree, startTotal, startMax);
+        assert (diff < 10);
+    }
+
+    private long logmem(long startFree, long startTotal, long startMax) {
+        System.gc();
+        log.info("==== Memory consumption: =======================");
+        Runtime runtime = Runtime.getRuntime();
+        long free = runtime.freeMemory();
+        long total = runtime.totalMemory();
+        long max = runtime.maxMemory();
+//
+//        log.info("Free Memory  : "+(free/1024/1024)+"mb");
+//        log.info("Total Memory : "+(total/1024/1024)+"mb");
+//        log.info("Max Memory   : "+(max/1024/1024)+"mb");
+//        log.info("diff Free Memory  : "+((free-startFree)/1024/1024)+"mb");
+        long startUsed = (startTotal - startFree) / 1024 / 1024;
+        long used = (total - free) / 1024 / 1024;
+        log.info("used Memory        : " + ((total - free) / 1024 / 1024) + "mb ~ " + ((double) (total - free) / (double) total * 100.0) + "%");
+        log.info("Start used Memory  : " + startUsed + "mb ~ " + ((double) (startUsed) / (double) (startTotal / 1024 / 1024) * 100.0) + "%");
+        log.info("Diff used Mem      : " + (used - startUsed) + "mb");
+//        log.info("start Total Memory : "+(startTotal/1024/1024)+"mb");
+//        log.info("start Max Memory   : "+(startMax/1024/1024)+"mb");
+        log.info("================================================");
+        return used - startUsed;
     }
 
 
