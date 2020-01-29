@@ -15,6 +15,7 @@ import de.caluga.morphium.cache.MorphiumCacheImpl;
 import de.caluga.morphium.changestream.ChangeStreamEvent;
 import de.caluga.morphium.changestream.ChangeStreamListener;
 import de.caluga.morphium.driver.*;
+import de.caluga.morphium.encryption.EncryptionKeyProvider;
 import de.caluga.morphium.query.MongoField;
 import de.caluga.morphium.query.MongoFieldImpl;
 import de.caluga.morphium.query.Query;
@@ -44,7 +45,7 @@ import java.util.concurrent.atomic.AtomicInteger;
  * @author stephan
  */
 
-@SuppressWarnings("WeakerAccess")
+@SuppressWarnings({"WeakerAccess", "unused"})
 public class Morphium {
 
     /**
@@ -75,11 +76,11 @@ public class Morphium {
     private List<MorphiumStorageListener> listeners = new CopyOnWriteArrayList<>();
     private AnnotationAndReflectionHelper annotationHelper;
     private MorphiumObjectMapper objectMapper;
+    private EncryptionKeyProvider encryptionKeyProvider;
     private RSMonitor rsMonitor;
     private ThreadPoolExecutor asyncOperationsThreadPool;
     private MorphiumDriver morphiumDriver;
 
-    private Map<String, String> classNameByType = new ConcurrentHashMap<>();
     private JavaxValidationStorageListener lst;
 
     public Morphium() {
@@ -285,8 +286,11 @@ public class Morphium {
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
-
-
+        try {
+            encryptionKeyProvider = config.getEncryptionKeyProviderClass().getDeclaredConstructor().newInstance();
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
         if (isReplicaSet()) {
             rsMonitor = new RSMonitor(this);
             rsMonitor.start();
@@ -295,6 +299,11 @@ public class Morphium {
 
 
         logger.info("Initialization successful...");
+    }
+
+
+    public EncryptionKeyProvider getEncryptionKeyProvider() {
+        return encryptionKeyProvider;
     }
 
     public MorphiumCache getCache() {
@@ -501,7 +510,6 @@ public class Morphium {
      *
      * @param type type to ensure indices for
      */
-    @SuppressWarnings("unchecked")
     public <T> void ensureIndicesFor(Class<T> type) {
         ensureIndicesFor(type, getMapper().getCollectionName(type), null);
     }
@@ -709,7 +717,7 @@ public class Morphium {
     public void setEnum(Query<?> query, Map<Enum, Object> values, boolean upsert, boolean multiple) {
         HashMap<String, Object> toSet = new HashMap<>();
         for (Map.Entry<Enum, Object> est : values.entrySet()) {
-            //noinspection SuspiciousMethodCalls,SuspiciousMethodCalls
+            // noinspection SuspiciousMethodCalls
             toSet.put(est.getKey().name(), values.get(est.getValue()));
         }
         set(query, toSet, upsert, multiple);
@@ -719,7 +727,7 @@ public class Morphium {
         push(query, field, value, false, true);
     }
 
-    @SuppressWarnings({"unchecked", "UnusedDeclaration"})
+    @SuppressWarnings({"UnusedDeclaration"})
     public void pull(Query<?> query, Enum field, Object value) {
         pull(query, field.name(), value, false, true);
     }
@@ -738,17 +746,17 @@ public class Morphium {
         push(query, field.name(), value, upsert, multiple);
     }
 
-    @SuppressWarnings({"unchecked", "UnusedDeclaration"})
+    @SuppressWarnings({"UnusedDeclaration"})
     public void pull(Query<?> query, Enum field, Object value, boolean upsert, boolean multiple) {
         pull(query, field.name(), value, upsert, multiple);
     }
 
-    @SuppressWarnings({"unchecked", "UnusedDeclaration"})
+    @SuppressWarnings({"UnusedDeclaration"})
     public void pushAll(Query<?> query, Enum field, List<Object> value, boolean upsert, boolean multiple) {
         push(query, field.name(), value, upsert, multiple);
     }
 
-    @SuppressWarnings({"unchecked", "UnusedDeclaration"})
+    @SuppressWarnings({"UnusedDeclaration"})
     public void pullAll(Query<?> query, Enum field, List<Object> value, boolean upsert, boolean multiple) {
         pull(query, field.name(), value, upsert, multiple);
     }
@@ -838,7 +846,7 @@ public class Morphium {
     }
 
 
-    @SuppressWarnings({"unchecked", "UnusedDeclaration"})
+    @SuppressWarnings({"UnusedDeclaration"})
     public void pullAll(Query<?> query, String field, List<Object> value, boolean upsert, boolean multiple) {
         pull(query, field, value, upsert, multiple);
     }
@@ -915,7 +923,7 @@ public class Morphium {
 
     ////////// DEC and INC Methods
 
-    @SuppressWarnings({"unchecked", "UnusedDeclaration"})
+    @SuppressWarnings({"UnusedDeclaration"})
     public void dec(Query<?> query, Enum field, double amount, boolean upsert, boolean multiple) {
         dec(query, field.name(), -amount, upsert, multiple);
     }
@@ -971,7 +979,7 @@ public class Morphium {
         inc(query, field, -amount.doubleValue(), false, false);
     }
 
-    @SuppressWarnings({"unchecked", "UnusedDeclaration"})
+    @SuppressWarnings({"UnusedDeclaration"})
     public void dec(Query<?> query, Enum field, double amount) {
         inc(query, field, -amount, false, false);
     }
@@ -1011,7 +1019,7 @@ public class Morphium {
         inc(query, field, amount, false, false);
     }
 
-    @SuppressWarnings({"unchecked", "UnusedDeclaration"})
+    @SuppressWarnings({"UnusedDeclaration"})
     public void inc(Query<?> query, Enum field, double amount) {
         inc(query, field, amount, false, false);
     }
@@ -1731,7 +1739,6 @@ public class Morphium {
      *
      * @param cls - class
      */
-    @SuppressWarnings("unchecked")
     public void clearCollection(Class<?> cls) {
         delete(createQueryFor(cls));
     }
@@ -1826,7 +1833,6 @@ public class Morphium {
         }
     }
 
-    @SuppressWarnings("unchecked")
     public List<Object> distinct(String key, Class cls) {
         try {
             return morphiumDriver.distinct(config.getDatabase(), objectMapper.getCollectionName(cls), key, new HashMap<>(), getReadPreferenceForClass(cls));
@@ -1835,7 +1841,7 @@ public class Morphium {
         }
     }
 
-    @SuppressWarnings({"unchecked", "unused"})
+    @SuppressWarnings({"unused"})
     public List<Object> distinct(String key, String collectionName) {
         try {
             return morphiumDriver.distinct(config.getDatabase(), collectionName, key, new HashMap<>(), config.getDefaultReadPreference());
@@ -1858,7 +1864,6 @@ public class Morphium {
         return group(q, initial, jsReduce, jsFinalize, null, keys);
     }
 
-    @SuppressWarnings("unchecked")
     public <T> T findById(Class<? extends T> type, Object id) {
         return findById(type, id, null);
     }
@@ -1888,7 +1893,6 @@ public class Morphium {
         return createQueryFor(type).setCollectionName(collection).f(ls.get(0)).eq(id).get();
     }
 
-    @SuppressWarnings("unchecked")
     public <T> List<T> findByField(Class<? extends T> cls, String fld, Object val) {
         Query<T> q = createQueryFor(cls);
         q = q.f(fld).eq(val);
@@ -2223,7 +2227,7 @@ public class Morphium {
         if (o instanceof List) {
             insertList((List) o, null);
         } else if (o instanceof Collection) {
-            //noinspection unchecked,unchecked
+            // noinspection unchecked
             insertList(new ArrayList<>((Collection) o), null);
         } else {
             insert(o, null);
@@ -2232,10 +2236,9 @@ public class Morphium {
 
     public <T> void insert(T o, AsyncOperationCallback<T> callback) {
         if (o instanceof List) {
-            //noinspection unchecked
             insertList((List) o, callback);
         } else if (o instanceof Collection) {
-            //noinspection unchecked,unchecked
+            // noinspection unchecked
             insertList(new ArrayList<>((Collection) o), callback);
         } else {
             insert(o, getMapper().getCollectionName(o.getClass()), callback);
@@ -2245,10 +2248,9 @@ public class Morphium {
 
     private <T> void insert(T o, String collection, AsyncOperationCallback<T> callback) {
         if (o instanceof List) {
-            //noinspection unchecked
             insertList((List) o, collection, callback);
         } else if (o instanceof Collection) {
-            //noinspection unchecked,unchecked
+            // noinspection unchecked
             insertList(new ArrayList<>((Collection) o), collection, callback);
         }
 
@@ -2292,7 +2294,7 @@ public class Morphium {
             //noinspection unchecked
             storeList((List) o);
         } else if (o instanceof Collection) {
-            //noinspection unchecked,unchecked
+            // noinspection unchecked
             storeList(new ArrayList<>((Collection) o));
         } else {
             store(o, null);
@@ -2304,7 +2306,7 @@ public class Morphium {
             //noinspection unchecked
             storeList((List) o, callback);
         } else if (o instanceof Collection) {
-            //noinspection unchecked,unchecked
+            // noinspection unchecked
             storeList(new ArrayList<>((Collection) o), callback);
         } else {
             store(o, getMapper().getCollectionName(o.getClass()), callback);
@@ -2316,7 +2318,7 @@ public class Morphium {
             //noinspection unchecked
             storeList((List) o, collection, callback);
         } else if (o instanceof Collection) {
-            //noinspection unchecked,unchecked
+            // noinspection unchecked
             storeList(new ArrayList<>((Collection) o), collection, callback);
         }
         if (getARHelper().getId(o) != null) {
@@ -2365,7 +2367,7 @@ public class Morphium {
      * sorts elements in this list, whether to store in background or directly.
      *
      * @param lst - all objects are sorted whether to store in BG or direclty. All objects are stored in their corresponding collection
-     * @param <T>
+     * @param <T> - type of list elements
      */
     public <T> void storeList(List<T> lst) {
         storeList(lst, (AsyncOperationCallback<T>) null);
