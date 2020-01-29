@@ -26,6 +26,8 @@ public interface MorphiumCache {
 
     void resetCache();
 
+    void close();
+
     void removeEntryFromIdCache(Class cls, Object id);
 
     void removeEntryFromCache(Class cls, Object id);

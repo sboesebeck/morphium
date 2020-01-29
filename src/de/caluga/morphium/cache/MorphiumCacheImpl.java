@@ -241,11 +241,18 @@ public class MorphiumCacheImpl implements MorphiumCache {
     }
 
     @Override
+    public void close() {
+        cacheHousekeeper.end();
+        resetCache();
+    }
+
+    @Override
     public void removeEntryFromIdCache(Class cls, Object id) {
         if (idCache.get(cls) != null) {
             idCache.get(cls).remove(id);
         }
     }
+
     @SuppressWarnings("unchecked")
     @Override
     public void removeEntryFromCache(Class cls, Object id) {

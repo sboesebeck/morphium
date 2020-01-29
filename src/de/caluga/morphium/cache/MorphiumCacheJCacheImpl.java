@@ -236,6 +236,11 @@ public class MorphiumCacheJCacheImpl implements MorphiumCache, CacheEntryExpired
     }
 
     @Override
+    public void close() {
+        resetCache();
+    }
+
+    @Override
     public void removeEntryFromIdCache(Class cls, Object id) {
         for (CacheListener cl : cacheListeners) {
             //noinspection unchecked,unchecked
