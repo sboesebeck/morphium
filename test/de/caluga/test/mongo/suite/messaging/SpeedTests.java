@@ -319,17 +319,34 @@ public class SpeedTests extends MorphiumTestBase {
 
     @Test
     public void testRabbitMqMessaging() throws Exception {
-        Messaging receiver = new Messaging("localhost", morphium, "tst", true);
+        Messaging receiver = new Messaging("localhost", morphium, "tst1", true);
         receiver.setSenderId("receiver");
         receiver.start();
+
+        Messaging receiver2 = new Messaging("localhost", morphium, "tst1", true);
+        receiver2.setSenderId("receiver2");
+        receiver2.start();
+
+        AtomicInteger rec = new AtomicInteger();
+        AtomicInteger rec2 = new AtomicInteger();
+
         receiver.addMessageListener(new MessageListener() {
             @Override
             public Msg onMessage(Messaging msg, Msg m) throws InterruptedException {
-                log.info("INCOMING MESSAGE!!!");
+//                log.info("INCOMING MESSAGE!!!");
+                rec.incrementAndGet();
                 return null;
             }
         });
-        Messaging sender = new Messaging("localhost", morphium, "tst", true);
+        receiver2.addMessageListener(new MessageListener() {
+            @Override
+            public Msg onMessage(Messaging msg, Msg m) throws InterruptedException {
+//                log.info("INCOMING MESSAGE!!!");
+                rec2.incrementAndGet();
+                return null;
+            }
+        });
+        Messaging sender = new Messaging("localhost", morphium, "tst1", true);
         sender.setSenderId("sender");
         sender.start();
         sender.addMessageListener(new MessageListener() {
@@ -340,8 +357,38 @@ public class SpeedTests extends MorphiumTestBase {
             }
         });
 
-        Msg m = new Msg("test", "msg", "value", 30000);
-        receiver.sendMessage(m);
-        Thread.sleep(10000);
+        long start = System.currentTimeMillis();
+        int count = 0;
+        while (System.currentTimeMillis() - start < 1000) {
+            Msg m = new Msg("test", "msg", "value", 30000);
+            sender.sendMessage(m);
+            count++;
+        }
+        log.info("after 1s - Sent: " + count + " rec: " + rec.get() + " rec2: " + rec2.get());
+
+        while (rec.get() < count) {
+            Thread.sleep(100); //waiting for the messages to be received
+        }
+        log.info("after receiving all - Sent: " + count + " rec: " + rec.get() + " rec2: " + rec2.get());
+        //Exclusive test
+        rec.set(0);
+        rec2.set(0);
+        count = 0;
+        start = System.currentTimeMillis();
+        log.info("reset: " + count + " rec: " + rec.get() + " rec2: " + rec2.get());
+        while (System.currentTimeMillis() - start < 1000) {
+            Msg m = new Msg("test", "msg", "value", 30000);
+            m.setExclusive(true);
+            sender.sendMessage(m);
+            count++;
+        }
+        Thread.sleep(100);
+        log.info("after 1s Sent exclusive: " + count + " rec: " + rec.get() + " rec2: " + rec2.get());
+
+        while (rec.get() + rec2.get() < count) {
+            Thread.sleep(100); //waiting for the messages to be received
+        }
+        log.info("final numbers: " + count + " rec: " + rec.get() + " rec2: " + rec2.get());
+        assert (rec.get() + rec2.get() == count);
     }
 }

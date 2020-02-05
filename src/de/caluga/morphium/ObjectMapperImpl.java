@@ -35,7 +35,7 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
     private final Logger log = LoggerFactory.getLogger(ObjectMapperImpl.class);
     private final ReflectionFactory reflection = ReflectionFactory.getReflectionFactory();
     private final Map<Class<?>, NameProvider> nameProviders;
-    private final JSONParser jsonParser = new JSONParser();
+//    private final JSONParser jsonParser = new JSONParser();
     private final List<Class<?>> mongoTypes;
     private final ContainerFactory containerFactory;
     private AnnotationAndReflectionHelper annotationHelper = new AnnotationAndReflectionHelper(true);
@@ -580,6 +580,7 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
 
     @Override
     public <T> T deserialize(Class<? extends T> cls, String jsonString) throws ParseException {
+        JSONParser jsonParser = new JSONParser();
         if (jsonString.startsWith("{")) {
             HashMap<String, Object> obj = (HashMap<String, Object>) jsonParser.parse(jsonString, containerFactory);
             return deserialize(cls, obj);
