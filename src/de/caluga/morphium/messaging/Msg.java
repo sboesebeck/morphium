@@ -25,7 +25,7 @@ import java.util.*;
 //timeout <0 - setting relative to replication lag
 //timeout == 0 - wait forever
 @WriteSafety(level = SafetyLevel.BASIC, waitForJournalCommit = false)
-@DefaultReadPreference(ReadPreferenceLevel.PRIMARY)
+@DefaultReadPreference(ReadPreferenceLevel.NEAREST)
 @Lifecycle
 @Index({"sender,locked_by,processed_by,recipient,priority,timestamp", "locked_by,processed_by,recipient,priority,timestamp",
         "sender,locked_by,processed_by,recipient,name,priority,timestamp"})

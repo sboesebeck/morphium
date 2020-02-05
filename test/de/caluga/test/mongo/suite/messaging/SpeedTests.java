@@ -1,11 +1,28 @@
 package de.caluga.test.mongo.suite.messaging;
 
+import com.mongodb.client.MongoCollection;
+import com.mongodb.client.MongoDatabase;
+import com.rabbitmq.client.*;
+import de.caluga.morphium.Utils;
+import de.caluga.morphium.annotations.Entity;
+import de.caluga.morphium.driver.MorphiumId;
+import de.caluga.morphium.driver.ReadPreference;
+import de.caluga.morphium.driver.WriteConcern;
+import de.caluga.morphium.driver.mongodb.Driver;
 import de.caluga.morphium.messaging.MessageListener;
 import de.caluga.morphium.messaging.Messaging;
 import de.caluga.morphium.messaging.Msg;
+import de.caluga.morphium.writer.MorphiumWriter;
 import de.caluga.test.mongo.suite.MorphiumTestBase;
+import de.caluga.test.mongo.suite.data.UncachedObject;
+import org.bson.Document;
+import org.json.simple.parser.ParseException;
 import org.junit.Test;
 
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 
 public class SpeedTests extends MorphiumTestBase {
@@ -134,4 +151,197 @@ public class SpeedTests extends MorphiumTestBase {
     }
 
 
+    @Test
+    public void serializerSpeedTest() {
+        UncachedObject o = new UncachedObject();
+        o.setCounter(1);
+        o.setValue("value");
+        o.setLongData(new long[]{12L, 123L});
+        o.setDval(12.3);
+
+        int count = 0;
+        long start = System.currentTimeMillis();
+
+        while (System.currentTimeMillis() - start < 1000) {
+            morphium.getMapper().serialize(o);
+            count++;
+        }
+        log.info("Serialized " + count);
+    }
+
+
+    @Test
+    public void writeSpeedTest() throws Exception {
+        UncachedObject o = new UncachedObject();
+        o.setCounter(1);
+        o.setValue("value");
+        o.setLongData(new long[]{12L, 123L});
+        o.setDval(12.3);
+        Map<String, Object> m = morphium.getMapper().serialize(o);
+        List<Map<String, Object>> l = new ArrayList<>();
+        l.add(m);
+        int count = 0;
+        long start = System.currentTimeMillis();
+        Driver d = (Driver) morphium.getDriver();
+        while (System.currentTimeMillis() - start < 1000) {
+            MongoDatabase db = d.getDb(morphium.getConfig().getDatabase());
+            MongoCollection<Document> c = d.getCollection(db, "uncached_object", ReadPreference.nearest(), WriteConcern.getWc(0, false, false, 100));
+            c = c.withWriteConcern(com.mongodb.WriteConcern.UNACKNOWLEDGED);
+
+            Document doc = new Document(m);
+            c.insertOne(doc);
+            count++;
+        }
+        log.info("wrote " + count);
+    }
+
+
+    @Test
+    public void writeSpeedTestMorphium() throws Exception {
+        Thread.sleep(2000);
+        Msg o = new Msg();
+        o.setName("test");
+        o.setValue("value");
+        o.setSender("tester");
+        morphium.dropCollection(Msg.class);
+        Thread.sleep(2000);
+
+        morphium.getConfig().setAutoIndexAndCappedCreationOnWrite(false);
+        morphium.store(o);
+        o.setMsgId(null);
+        final int pause = 1000;
+        int count = 0;
+        long start = System.currentTimeMillis();
+        while (System.currentTimeMillis() - start < pause) {
+            morphium.store(o, "msg", null);
+            o.setMsgId(null);
+            count++;
+        }
+        log.info("wrote using morphium " + count);
+        int mrph = count;
+        morphium.dropCollection(Msg.class);
+        count = 0;
+        start = System.currentTimeMillis();
+        while (System.currentTimeMillis() - start < pause) {
+            morphium.getARHelper().isAnnotationPresentInHierarchy(o.getClass(), Entity.class);
+            Map<String, Object> m = morphium.getMapper().serialize(o);
+            List<Map<String, Object>> l = new ArrayList<>();
+            l.add(m);
+            morphium.getDriver().insert(morphium.getConfig().getDatabase(), morphium.getMapper().getCollectionName(o.getClass()), l, morphium.getWriteConcernForClass(o.getClass()));
+//            writer.insert(o,"uncached_object",null);
+            count++;
+        }
+        log.info("wrote using driver " + count);
+        log.info("FActor: " + ((double) count / (double) mrph));
+
+        morphium.dropCollection(Msg.class);
+        count = 0;
+        start = System.currentTimeMillis();
+        while (System.currentTimeMillis() - start < pause) {
+            morphium.getARHelper().isAnnotationPresentInHierarchy(o.getClass(), Entity.class);
+            Map<String, Object> m = morphium.getMapper().serialize(o);
+            List<Map<String, Object>> l = new ArrayList<>();
+            l.add(m);
+            MorphiumWriter writer = morphium.getWriterForClass(Msg.class);
+//            morphium.getDriver().insert(morphium.getConfig().getDatabase(),morphium.getMapper().getCollectionName(o.getClass()),l,morphium.getWriteConcernForClass(o.getClass()));
+            writer.insert(o, "msg", null);
+            o.setMsgId(null);
+            count++;
+        }
+        log.info("wrote using writer " + count);
+        log.info("FActor: " + ((double) count / (double) mrph));
+
+    }
+
+    @Test
+    public void rabbitMQTest() throws Exception {
+        ConnectionFactory factory = new ConnectionFactory();
+// "guest"/"guest" by default, limited to localhost connections
+//        factory.setUsername(userName);
+//        factory.setPassword(password);
+//        factory.setVirtualHost(virtualHost);
+        factory.setHost("localhost");
+//        factory.setPort(portNumber);
+
+        Connection conn = factory.newConnection();
+        Channel channel = conn.createChannel();
+
+        //channel.exchangeDeclare(exchangeName, "direct", true);
+        String queueName = "Hello";
+        //channel.queueBind(queueName, exchangeName, routingKey);
+        channel.queueDeclare(queueName, false, false, false, null);
+
+        //AMQP.Queue.DeclareOk response = channel.queueDeclarePassive("queue-name");
+// returns the number of messages in Ready state in the queue
+//        response.getMessageCount();
+// returns the number of consumers the queue has
+//        response.getConsumerCount();
+
+
+        final AtomicInteger cnt = new AtomicInteger();
+
+        DeliverCallback deliverCallback = new DeliverCallback() {
+            @Override
+            public void handle(String s, Delivery delivery) throws IOException {
+                String message = new String(delivery.getBody(), "UTF-8");
+//                System.out.println(" [x] Received '" + message + "'");
+                try {
+                    morphium.getMapper().deserialize(Msg.class, message);
+                } catch (ParseException e) {
+                    e.printStackTrace();
+                }
+                cnt.incrementAndGet();
+            }
+        };
+        channel.basicConsume(queueName, true, deliverCallback, new CancelCallback() {
+            @Override
+            public void handle(String s) throws IOException {
+
+            }
+        });
+        Thread.sleep(1000);
+        long start = System.currentTimeMillis();
+        long sent = 0;
+        while (System.currentTimeMillis() - start < 1000) {
+            Msg m = new Msg("test", "msg", "value");
+            m.setMsgId(new MorphiumId());
+            Map<String, Object> serialize = morphium.getMapper().serialize(m);
+            String json = Utils.toJsonString(serialize);
+            channel.basicPublish("", queueName, null, json.getBytes("utf-8"));
+            sent++;
+        }
+        log.info("Sent: " + sent + " received " + cnt.get());
+        //hannel.basicPublish("", queueName, null, messageBodyBytes);
+        Thread.sleep(1000);
+
+
+    }
+
+    @Test
+    public void testRabbitMqMessaging() throws Exception {
+        Messaging receiver = new Messaging("localhost", morphium, "tst", true);
+        receiver.setSenderId("receiver");
+        receiver.start();
+        receiver.addMessageListener(new MessageListener() {
+            @Override
+            public Msg onMessage(Messaging msg, Msg m) throws InterruptedException {
+                log.info("INCOMING MESSAGE!!!");
+                return null;
+            }
+        });
+        Messaging sender = new Messaging("localhost", morphium, "tst", true);
+        sender.setSenderId("sender");
+        sender.start();
+        sender.addMessageListener(new MessageListener() {
+            @Override
+            public Msg onMessage(Messaging msg, Msg m) throws InterruptedException {
+                log.error("SHould not be here!!!! " + Utils.toJsonString(m));
+                return null;
+            }
+        });
+
+        Msg m = new Msg("test", "msg", "value", 30000);
+        receiver.sendMessage(m);
+        Thread.sleep(10000);
+    }
 }

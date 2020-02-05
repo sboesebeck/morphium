@@ -1,19 +1,24 @@
 package de.caluga.morphium.messaging;
 
+import com.rabbitmq.client.*;
 import de.caluga.morphium.Morphium;
 import de.caluga.morphium.ShutdownListener;
+import de.caluga.morphium.Utils;
 import de.caluga.morphium.async.AsyncOperationCallback;
 import de.caluga.morphium.async.AsyncOperationType;
 import de.caluga.morphium.changestream.ChangeStreamMonitor;
 import de.caluga.morphium.driver.MorphiumId;
 import de.caluga.morphium.query.MorphiumIterator;
 import de.caluga.morphium.query.Query;
+import org.json.simple.parser.ParseException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.IOException;
 import java.lang.reflect.Field;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
+import java.nio.charset.StandardCharsets;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -61,6 +66,70 @@ public class Messaging extends Thread implements ShutdownListener {
 
     private List<MorphiumId> processing = new Vector<>();
 
+    private boolean useRabbitMQ = false;
+    private Connection rabbitMqConn;
+    private Channel rabbitMqConnChannel;
+
+    public Messaging(String rabbitHost, Morphium m, String queueName, boolean multithreadded) throws Exception {
+        this.multithreadded = multithreadded;
+        this.queueName = queueName;
+        this.morphium = m;
+        init();
+        ConnectionFactory factory = new ConnectionFactory();
+// "guest"/"guest" by default, limited to localhost connections
+//        factory.setUsername(userName);
+//        factory.setPassword(password);
+//        factory.setVirtualHost(virtualHost);
+        factory.setHost(rabbitHost);
+//        factory.setPort(portNumber);
+
+        rabbitMqConn = factory.newConnection();
+        rabbitMqConnChannel = rabbitMqConn.createChannel();
+
+        rabbitMqConnChannel.queueDeclare(queueName, true, false, true, null);
+        rabbitMqConnChannel.exchangeDeclare(queueName, BuiltinExchangeType.TOPIC, true);
+        rabbitMqConnChannel.queueBind(queueName, queueName, queueName);
+        useRabbitMQ = true;
+        DeliverCallback deliverCallback = new DeliverCallback() {
+            @Override
+            public void handle(String s, Delivery delivery) throws IOException {
+                String message = new String(delivery.getBody(), StandardCharsets.UTF_8);
+                System.out.println(" [x] Received '" + message + "'");
+                //System.out.println(" [x] Received '" + message + "'");
+                try {
+                    Msg m = morphium.getMapper().deserialize(Msg.class, message);
+                    if (m.getInAnswerTo() != null && !m.getInAnswerTo().equals(getSenderId())) {
+                        //not for me, republish
+                        log.warn("Got an answer, nto for me");
+                        rabbitMqConnChannel.basicNack(delivery.getEnvelope().getDeliveryTag(), false, true);
+                    } else if (m.getSender().equals(getSenderId())) {
+                        log.warn("Got my own message back");
+                        rabbitMqConnChannel.basicNack(delivery.getEnvelope().getDeliveryTag(), false, true);
+                    } else if (m.getProcessedBy() != null && m.getProcessedBy().contains(getSenderId())) {
+                        log.warn("Already processed this message... republishing");
+                        rabbitMqConnChannel.basicNack(delivery.getEnvelope().getDeliveryTag(), false, true);
+                    } else if (m.getRecipient() != null && !m.getRecipient().equals(getSenderId())) {
+                        log.warn("Got an direct message, nto for me");
+                        rabbitMqConnChannel.basicNack(delivery.getEnvelope().getDeliveryTag(), false, true);
+                    } else {
+                        List<Msg> lst = new ArrayList<>();
+                        lst.add(m);
+                        processMessages(lst);
+                    }
+                } catch (ParseException e) {
+                    e.printStackTrace();
+                }
+            }
+        };
+        rabbitMqConnChannel.basicConsume(queueName, true, deliverCallback, new CancelCallback() {
+            @Override
+            public void handle(String s) throws IOException {
+
+            }
+        });
+
+    }
+
     /**
      * attaches to the default queue named "msg"
      *
@@ -93,7 +162,27 @@ public class Messaging extends Thread implements ShutdownListener {
         this.windowSize = windowSize;
         morphium = m;
         this.useChangeStream = useChangeStream;
+        init();
 
+        morphium.addShutdownListener(this);
+
+        this.queueName = queueName;
+        running = true;
+        this.pause = pause;
+        this.processMultiple = processMultiple;
+
+
+        m.ensureIndicesFor(Msg.class, getCollectionName());
+        //        try {
+        //            m.ensureIndex(Msg.class, Msg.Fields.lockedBy, Msg.Fields.timestamp);
+        //            m.ensureIndex(Msg.class, Msg.Fields.lockedBy, Msg.Fields.processedBy);
+        //            m.ensureIndex(Msg.class, Msg.Fields.timestamp);
+        //        } catch (Exception e) {
+        //            log.error("Could not ensure indices", e);
+        //        }
+    }
+
+    private void init() {
 
         if (multithreadded) {
             BlockingQueue<Runnable> queue = new LinkedBlockingQueue<Runnable>() {
@@ -145,6 +234,17 @@ public class Messaging extends Thread implements ShutdownListener {
                     return ret;
                 }
             });
+            id = UUID.randomUUID().toString();
+            hostname = System.getenv("HOSTNAME");
+            if (hostname == null) {
+                try {
+                    hostname = InetAddress.getLocalHost().getHostName();
+                } catch (UnknownHostException ignored) {
+                }
+            }
+            if (hostname == null) {
+                hostname = "unknown host";
+            }
         }
 
         decouplePool = new ScheduledThreadPoolExecutor(1);
@@ -160,32 +260,6 @@ public class Messaging extends Thread implements ShutdownListener {
                 return ret;
             }
         });
-        morphium.addShutdownListener(this);
-
-        this.queueName = queueName;
-        running = true;
-        this.pause = pause;
-        this.processMultiple = processMultiple;
-        id = UUID.randomUUID().toString();
-        hostname = System.getenv("HOSTNAME");
-        if (hostname == null) {
-            try {
-                hostname = InetAddress.getLocalHost().getHostName();
-            } catch (UnknownHostException ignored) {
-            }
-        }
-        if (hostname == null) {
-            hostname = "unknown host";
-        }
-
-        m.ensureIndicesFor(Msg.class, getCollectionName());
-        //        try {
-        //            m.ensureIndex(Msg.class, Msg.Fields.lockedBy, Msg.Fields.timestamp);
-        //            m.ensureIndex(Msg.class, Msg.Fields.lockedBy, Msg.Fields.processedBy);
-        //            m.ensureIndex(Msg.class, Msg.Fields.timestamp);
-        //        } catch (Exception e) {
-        //            log.error("Could not ensure indices", e);
-        //        }
 
         listeners = new CopyOnWriteArrayList<>();
         listenerByName = new HashMap<>();
@@ -211,6 +285,8 @@ public class Messaging extends Thread implements ShutdownListener {
 
     @Override
     public void run() {
+        if (useRabbitMQ) return;
+
         setName("Msg " + id);
         if (log.isDebugEnabled()) {
             log.debug("Messaging " + id + " started");
@@ -383,6 +459,7 @@ public class Messaging extends Thread implements ShutdownListener {
      * @return duration or null
      */
     public Long unpauseProcessingOfMessagesNamed(String name) {
+
         MorphiumIterator<Msg> messages = findMessages(name, processMultiple);
         processMessages(messages);
         Long ret = pauseMessages.remove(name);
@@ -524,7 +601,8 @@ public class Messaging extends Thread implements ShutdownListener {
             if (m == null) {
                 continue; //message was erased
             }
-            final Msg msg = morphium.reread(m, getCollectionName()); //make sure it's current version in DB
+
+            final Msg msg = useRabbitMQ ? m : morphium.reread(m, getCollectionName()); //make sure it's current version in DB
             if (msg == null) continue;
 
             //noinspection SuspiciousMethodCalls
@@ -841,6 +919,20 @@ public class Messaging extends Thread implements ShutdownListener {
     }
 
     private void storeMsg(Msg m, boolean async) {
+        if (useRabbitMQ) {
+            m.setSender(getSenderId());
+            m.setMsgId(new MorphiumId());
+            m.preStore();
+            m.setDeleteAt(null);
+            Map<String, Object> serialize = morphium.getMapper().serialize(m);
+            String json = Utils.toJsonString(serialize);
+            try {
+                rabbitMqConnChannel.basicPublish(queueName, queueName, null, json.getBytes(StandardCharsets.UTF_8));
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+            return;
+        }
         AsyncOperationCallback cb = null;
         if (async) {
             //noinspection unused,unused

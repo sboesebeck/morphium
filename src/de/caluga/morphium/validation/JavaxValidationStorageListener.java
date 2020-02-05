@@ -54,11 +54,13 @@ public class JavaxValidationStorageListener extends MorphiumStorageAdapter<Objec
             return;
         }
         AnnotationAndReflectionHelper annotationHelper = m.getARHelper();
-        if (!annotationHelper.isAnnotationPresentInHierarchy(r.getClass(), Entity.class) && !annotationHelper.isAnnotationPresentInHierarchy(r.getClass(), Embedded.class)) {
+        Entity en = annotationHelper.getAnnotationFromHierarchy(r.getClass(), Entity.class);
+        if (en == null && !annotationHelper.isAnnotationPresentInHierarchy(r.getClass(), Embedded.class)) {
             return;
         }
+        if (!en.validate()) return;
         Set<ConstraintViolation<Object>> violations = validator.validate(r);
-        violations=new HashSet<>(violations);
+        violations = new HashSet<>(violations);
         List<String> flds = annotationHelper.getFields(r.getClass());
         for (String f : flds) {
             Field field = annotationHelper.getField(r.getClass(), f);

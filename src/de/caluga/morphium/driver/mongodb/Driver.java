@@ -8,7 +8,6 @@ import com.mongodb.WriteConcern;
 import com.mongodb.*;
 import com.mongodb.client.*;
 import com.mongodb.client.model.InsertManyOptions;
-import com.mongodb.client.model.InsertOneOptions;
 import com.mongodb.client.model.UpdateOptions;
 import com.mongodb.client.model.changestream.ChangeStreamDocument;
 import com.mongodb.client.model.changestream.FullDocument;
@@ -951,7 +950,11 @@ public class Driver implements MorphiumDriver {
                 writeConcern = writeConcern.withFsync(wc.isFsync());
                 writeConcern = writeConcern.withJ(wc.isJ());
             } else {
-                writeConcern = new com.mongodb.WriteConcern(wc.getW(), wc.getWtimeout(), wc.isFsync(), wc.isJ());
+                if (wc.getW() == -1) {
+                    writeConcern = new com.mongodb.WriteConcern(0, (Integer) null, wc.isFsync(), wc.isJ());
+                } else {
+                    writeConcern = new com.mongodb.WriteConcern(wc.getW(), wc.getWtimeout(), wc.isFsync(), wc.isJ());
+                }
             }
             coll.setWriteConcern(writeConcern);
         }
@@ -1066,74 +1069,90 @@ public class Driver implements MorphiumDriver {
         //            Object id=o.get("_id");
         //            if (id instanceof ObjectId) o.put("_id",new MorphiumId(((ObjectId)id).toHexString()));
         //        }
-        Map m = DriverHelper.doCall(() -> {
-            DriverHelper.replaceMorphiumIdByObjectId(notnew);
-            MongoCollection c = mongo.getDatabase(db).getCollection(collection);
-            Map<String, Object> ret = new HashMap<>();
-            //                mongo.getDB(db).getCollection(collection).save()
-            int total = notnew.size();
-            int updated = 0;
-            for (Map<String, Object> toUpdate : notnew) {
+        Map m = null;
+        if (!notnew.isEmpty()) {
+            m = DriverHelper.doCall(() -> {
+                DriverHelper.replaceMorphiumIdByObjectId(notnew);
+                MongoCollection c = mongo.getDatabase(db).getCollection(collection);
+                if (wc.getW() == -1) {
+                    //unack
+                    c = c.withWriteConcern(WriteConcern.UNACKNOWLEDGED);
 
-                UpdateOptions o = new UpdateOptions();
-                o.upsert(true);
-                Document filter = new Document();
-
-                Object id = toUpdate.get("_id");
-                if (id instanceof MorphiumId) {
-                    id = new ObjectId(id.toString());
+                } else if (wc.getW() == -99) {
+                    c = c.withWriteConcern(WriteConcern.MAJORITY);
+                } else {
+                    c = c.withWriteConcern(new WriteConcern(wc.getW(), wc.getWtimeout()));
                 }
-                filter.put("_id", id);
-                //Hack to detect versioning
-                if (toUpdate.get(MorphiumDriver.VERSION_NAME) != null) {
-                    filter.put(MorphiumDriver.VERSION_NAME, toUpdate.get(MorphiumDriver.VERSION_NAME));
+                Map<String, Object> ret = new HashMap<>();
+                //                mongo.getDB(db).getCollection(collection).save()
+                int total = notnew.size();
+                int updated = 0;
+                for (Map<String, Object> toUpdate : notnew) {
+
+                    UpdateOptions o = new UpdateOptions();
+                    o.upsert(true);
+                    Document filter = new Document();
+
+                    Object id = toUpdate.get("_id");
+                    if (id instanceof MorphiumId) {
+                        id = new ObjectId(id.toString());
+                    }
+                    filter.put("_id", id);
+                    //Hack to detect versioning
+                    if (toUpdate.get(MorphiumDriver.VERSION_NAME) != null) {
+                        filter.put(MorphiumDriver.VERSION_NAME, toUpdate.get(MorphiumDriver.VERSION_NAME));
+                    }
+                    //                    toUpdate.remove("_id");
+                    //                    Document update = new Document("$set", toUpdate);
+                    Document tDocument = new Document(toUpdate);
+
+//                    for (String k : tDocument.keySet()) {
+//                        if (tDocument.get(k) instanceof byte[]) {
+//                            BsonBinary b = new BsonBinary((byte[]) tDocument.get(k));
+//                            tDocument.put(k, b);
+//                        }
+//                    }
+                    tDocument.remove("_id"); //not needed
+                    //noinspection unchecked
+                    try {
+
+                        UpdateResult res;
+                        if (currentTransaction.get() == null) {
+                            //noinspection unchecked
+                            res = c.replaceOne(filter, tDocument, o);
+                        } else {
+                            //noinspection unchecked
+                            res = c.replaceOne(currentTransaction.get().getSession(), filter, tDocument, o);
+                        }
+//                        updated += res.getModifiedCount();
+                        id = toUpdate.get("_id");
+                        if (id instanceof ObjectId) {
+                            toUpdate.put("_id", new MorphiumId(((ObjectId) id).toHexString()));
+                        }
+                    } catch (Exception e) {
+                        //log.error("",e);
+                        if (e instanceof MongoWriteException && e.getMessage().contains("E11000 duplicate key error")) {
+                            throw new ConcurrentModificationException("Version mismach - write failed", e);
+                        } else {
+                            throw new RuntimeException(e);
+                        }
+
+                    }
+
                 }
-                //                    toUpdate.remove("_id");
-                //                    Document update = new Document("$set", toUpdate);
-                Document tDocument = new Document(toUpdate);
 
-                for (String k : tDocument.keySet()) {
-                    if (tDocument.get(k) instanceof byte[]) {
-                        BsonBinary b = new BsonBinary((byte[]) tDocument.get(k));
-                        tDocument.put(k, b);
-                    }
-                }
-                tDocument.remove("_id"); //not needed
-                //noinspection unchecked
-                try {
 
-                    UpdateResult res;
-                    if (currentTransaction.get() == null) {
-                        //noinspection unchecked
-                        res = c.replaceOne(filter, tDocument, o);
-                    } else {
-                        //noinspection unchecked
-                        res = c.replaceOne(currentTransaction.get().getSession(), filter, tDocument, o);
-                    }
-                    updated += res.getModifiedCount();
-                    id = toUpdate.get("_id");
-                    if (id instanceof ObjectId) {
-                        toUpdate.put("_id", new MorphiumId(((ObjectId) id).toHexString()));
-                    }
-                } catch (Exception e) {
-                    //log.error("",e);
-                    if (e instanceof MongoWriteException && e.getMessage().contains("E11000 duplicate key error")) {
-                        throw new ConcurrentModificationException("Version mismach - write failed", e);
-                    } else {
-                        throw new RuntimeException(e);
-                    }
-
-                }
-
-            }
-            ret.put("modified", updated);
-            ret.put("total", total);
-            return ret;
-        }, retriesOnNetworkError, sleepBetweenErrorRetries);
+                ret.put("modified", updated);
+                ret.put("total", total);
+                return ret;
+            }, retriesOnNetworkError, sleepBetweenErrorRetries);
+        }
         //noinspection unchecked
-        Objects.requireNonNull(m).put("inserted", isnew.size());
+        Map ret = new HashMap();
+        if (m != null) ret.putAll(m);
+        Objects.requireNonNull(ret).put("inserted", isnew.size());
         //noinspection unchecked
-        return m;
+        return ret;
     }
 
     @Override
@@ -1152,17 +1171,27 @@ public class Driver implements MorphiumDriver {
                 }
             }
         }
+
         DriverHelper.doCall(() -> {
             MongoCollection c = mongo.getDatabase(db).getCollection(collection);
+            if (wc.getW() == -1) {
+                //unack
+                c = c.withWriteConcern(WriteConcern.UNACKNOWLEDGED);
+
+            } else if (wc.getW() == -99) {
+                c = c.withWriteConcern(WriteConcern.MAJORITY);
+            } else {
+                c = c.withWriteConcern(new WriteConcern(wc.getW(), wc.getWtimeout()));
+            }
             if (lst.size() == 1) {
                 //noinspection unchecked
-                InsertOneOptions op = new InsertOneOptions().bypassDocumentValidation(true);
+                //InsertOneOptions op = new InsertOneOptions().bypassDocumentValidation(true);
                 if (currentTransaction.get() == null) {
                     //noinspection unchecked
-                    c.insertOne(lst.get(0), op);
+                    c.insertOne(lst.get(0));
                 } else {
                     //noinspection unchecked
-                    c.insertOne(currentTransaction.get().getSession(), lst.get(0), op);
+                    c.insertOne(currentTransaction.get().getSession(), lst.get(0));
                 }
             } else {
                 InsertManyOptions imo = new InsertManyOptions();
@@ -1181,7 +1210,7 @@ public class Driver implements MorphiumDriver {
             for (int i = 0; i < lst.size(); i++) {
                 Object id = lst.get(i).get("_id");
                 if (id instanceof ObjectId) {
-                    id = new MorphiumId(((ObjectId) id).toHexString());
+                    id = new MorphiumId(((ObjectId) id).toByteArray());
                 }
                 objs.get(i).put("_id", id);
             }

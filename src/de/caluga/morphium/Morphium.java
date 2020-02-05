@@ -1376,6 +1376,7 @@ public class Morphium {
         return o;
     }
 
+
     ///Event handling
     public void firePreStore(Object o, boolean isNew) {
         if (o == null) {
@@ -1644,6 +1645,9 @@ public class Morphium {
         int w = safety.level().getValue();
         if (!isReplicaSet() && w > 1) {
             w = 1;
+        }
+        if (w <= 0) {
+            return WriteConcern.getWc(w, fsync, j, safety.timeout());
         }
         long timeout = safety.timeout();
         if (isReplicaSet() && w > 2) {

@@ -1060,6 +1060,7 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
             }
             return (T) ret;
         } catch (Exception e) {
+            e.printStackTrace();
             throw new RuntimeException(e);
         }
 

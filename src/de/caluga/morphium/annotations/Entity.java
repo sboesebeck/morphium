@@ -46,5 +46,7 @@ public @interface Entity {
      */
     boolean polymorph() default false;
 
+    boolean validate() default false;
+
     Class<? extends NameProvider> nameProvider() default DefaultNameProvider.class;
 }

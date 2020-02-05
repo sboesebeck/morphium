@@ -346,7 +346,8 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                 try {
                     T o = obj;
                     Class type = morphium.getARHelper().getRealClass(o.getClass());
-                    if (!morphium.getARHelper().isAnnotationPresentInHierarchy(type, Entity.class)) {
+                    Entity en = morphium.getARHelper().getAnnotationFromHierarchy(type, Entity.class);
+                    if (en == null) {
                         throw new RuntimeException("Not an entity: " + type.getSimpleName() + " Storing not possible!");
                     }
                     morphium.inc(StatisticKeys.WRITES);
@@ -363,7 +364,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                     morphium.firePreStore(o, true);
 
                     setIdIfNull(o);
-                    Entity en=morphium.getARHelper().getAnnotationFromHierarchy(type,Entity.class);
+
                     if (en.autoVersioning()){
                         morphium.getARHelper().setValue(o,1,morphium.getARHelper().getFields(type,Version.class).get(0));
                     }
@@ -408,6 +409,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
 
         };
         submitAndBlockIfNecessary(callback, r);
+//        r.run();
     }
 
     private <T> void createIndexAndCaps(Class type, String coll, AsyncOperationCallback<T> callback) throws MorphiumDriverException {
