@@ -1,6 +1,7 @@
 package de.caluga.morphium.messaging;
 
 import com.rabbitmq.client.*;
+import com.rabbitmq.client.impl.AMQImpl;
 import de.caluga.morphium.Morphium;
 import de.caluga.morphium.ShutdownListener;
 import de.caluga.morphium.Utils;
@@ -79,6 +80,7 @@ public class Messaging extends Thread implements ShutdownListener {
     public Messaging(String rabbitHost, Morphium m, String name, boolean multithreadded) throws Exception {
         this.multithreadded = multithreadded;
         this.morphium = m;
+        windowSize = m.getConfig().getThreadPoolMessagingMaxSize();
         init();
         ConnectionFactory factory = new ConnectionFactory();
 // "guest"/"guest" by default, limited to localhost connections
@@ -87,25 +89,30 @@ public class Messaging extends Thread implements ShutdownListener {
 //        factory.setVirtualHost(virtualHost);
         factory.setHost(rabbitHost);
 //        factory.setPort(portNumber);
+        Map<String, Object> args = new HashMap<String, Object>();
+        args.put("x-max-priority", 250);
 
         sendingConnectionMq = factory.newConnection();
         sendingChanelMq = sendingConnectionMq.createChannel();
-        sendingChanelMq.exchangeDeclare(name, BuiltinExchangeType.FANOUT, true);
+        sendingChanelMq.exchangeDeclare(name, BuiltinExchangeType.FANOUT, true, false, args);
+        sendingChanelMq.basicQos(10);
 
         exclusiveSendingConnectionMq = factory.newConnection();
         exclusiveSendingChanelMq = exclusiveSendingConnectionMq.createChannel();
-        exclusiveSendingChanelMq.queueDeclare(name + "_ex", true, false, false, null); //BuiltinExchangeType.TOPIC, true);
+        exclusiveSendingChanelMq.queueDeclare(name + "_ex", true, false, false, args); //BuiltinExchangeType.TOPIC, true);
+        exclusiveSendingChanelMq.basicQos(10);
 
         incomingConnectionRabbitMq = factory.newConnection();
         incomingChannelMq = incomingConnectionRabbitMq.createChannel();
-        incomingChannelMq.exchangeDeclare(name, BuiltinExchangeType.FANOUT, true);
+        incomingChannelMq.exchangeDeclare(name, BuiltinExchangeType.FANOUT, true, false, args);
         String qn = incomingChannelMq.queueDeclare().getQueue();
         incomingChannelMq.queueBind(qn, name, "");
+        incomingChannelMq.basicQos(10);
 
         exclusiveIncomingConnectionRabbitMq = factory.newConnection();
         exclusiveIncomingChannelMq = exclusiveIncomingConnectionRabbitMq.createChannel();
-        exclusiveIncomingChannelMq.queueDeclare(name + "_ex", true, false, false, null);
-//        exclusiveIncomingChannelMq.basicQos(1);
+        exclusiveIncomingChannelMq.queueDeclare(name + "_ex", true, false, false, args);
+        exclusiveIncomingChannelMq.basicQos(10);
 //
 //        String exclusiveQn=exclusiveIncomingChannelMq.queueDeclare().getQueue();
 //        exclusiveIncomingChannelMq.queueBind(exclusiveQn, name+"_ex", "");
@@ -118,10 +125,11 @@ public class Messaging extends Thread implements ShutdownListener {
                 String message = new String(delivery.getBody(), StandardCharsets.UTF_8);
 //                log.info(" [x] Received '" + message + "'");
                 //System.out.println(" [x] Received '" + message + "'");
-                Channel cnl = incomingChannelMq;
+                Channel cn = incomingChannelMq;
                 if (delivery.getEnvelope().getExchange().equals("")) {
-                    cnl = exclusiveIncomingChannelMq;
+                    cn = exclusiveIncomingChannelMq;
                 }
+                final Channel cnl = cn;
                 try {
                     Msg m = morphium.getMapper().deserialize(Msg.class, message);
                     if (m.getInAnswerTo() != null && !m.getInAnswerTo().equals(getSenderId())) {
@@ -147,10 +155,15 @@ public class Messaging extends Thread implements ShutdownListener {
                             cnl.basicAck(delivery.getEnvelope().getDeliveryTag(), false);
                         }
                     } else if (m.getProcessedBy() != null && m.getProcessedBy().contains(getSenderId())) {
-                        log.warn("Already processed this message... republishing");
+                        log.warn("Already processed this message...");
+                        if (cnl == exclusiveIncomingChannelMq) {
+                            cnl.basicNack(delivery.getEnvelope().getDeliveryTag(), false, true);
+                        } else {
+                            cnl.basicAck(delivery.getEnvelope().getDeliveryTag(), false);
+                        }
                         //cnl.basicNack(delivery.getEnvelope().getDeliveryTag(), false, true);
-                    } else if (m.getRecipient() != null && !m.getRecipient().equals(getSenderId())) {
-                        log.warn("Got an direct message, nto for me");
+                    } else if ((m.getRecipient() != null && !m.getRecipient().equals(getSenderId())) || (m.getTo() != null && !m.getTo().contains(getSenderId()))) {
+                        log.warn("Got an direct message, not for me");
                         if (cnl == exclusiveIncomingChannelMq) {
                             cnl.basicNack(delivery.getEnvelope().getDeliveryTag(), false, true);
                         } else {
@@ -163,36 +176,49 @@ public class Messaging extends Thread implements ShutdownListener {
                         //incomingChannelMq.basicAck(delivery.getEnvelope().getDeliveryTag(),false);
                         boolean wasProcessed = false;
                         boolean wasRejected = false;
-                        List<MessageListener> lst = new ArrayList<>(listeners);
+                        final List<MessageListener> lst = new ArrayList<>(listeners);
                         if (listenerByName.get(m.getName()) != null) {
                             lst.addAll(listenerByName.get(m.getName()));
                         }
+                        cnl.basicAck(delivery.getEnvelope().getDeliveryTag(), false);
                         for (MessageListener l : lst) {
-                            try {
-                                Msg answer = l.onMessage(Messaging.this, m);
-                                wasProcessed = true;
-                                if (autoAnswer && answer == null) {
-                                    answer = new Msg(m.getName(), "received", "");
-                                }
-                                if (answer != null) {
-                                    m.sendAnswer(Messaging.this, answer);
-                                    if (answer.getRecipient() == null) {
-                                        log.warn("Recipient of answer is null?!?!");
 
+                            Runnable r = new Runnable() {
+                                @Override
+                                public void run() {
+                                    try {
+                                        Msg answer = l.onMessage(Messaging.this, m);
+
+                                        if (autoAnswer && answer == null) {
+                                            answer = new Msg(m.getName(), "received", "");
+                                        }
+                                        if (answer != null) {
+                                            m.sendAnswer(Messaging.this, answer);
+                                            if (answer.getRecipient() == null) {
+                                                log.warn("Recipient of answer is null?!?!");
+                                            }
+                                        }
+                                    } catch (MessageRejectedException mre) {
+                                        log.warn("Message was rejected by listener", mre);
+                                        if (mre.isContinueProcessing()) {
+                                            if (m.getProcessedBy() == null) {
+                                                m.setProcessedBy(new ArrayList<>());
+                                            }
+                                            m.getProcessedBy().add(getSenderId());
+                                            storeMsg(m, false);
+                                        }
+                                        if (mre.isSendAnswer()) {
+                                            m.sendAnswer(Messaging.this, m);
+                                        }
+                                    } catch (Exception e) {
+                                        log.error("listener Processing failed", e);
                                     }
-                                }
-                            } catch (MessageRejectedException mre) {
-                                log.warn("Message was rejected by listener", mre);
-                                if (mre.isContinueProcessing()) {
-                                    cnl.basicNack(delivery.getEnvelope().getDeliveryTag(), false, true);
-                                }
-                            } catch (Exception e) {
-                                log.error("listener Processing failed", e);
-                            }
-                        }
 
-                        if (wasProcessed) {
-                            cnl.basicAck(delivery.getEnvelope().getDeliveryTag(), false);
+
+                                }
+                            };
+
+                            queueOrRun(r);
                         }
 
                     }
@@ -271,7 +297,7 @@ public class Messaging extends Thread implements ShutdownListener {
     }
 
     private void init() {
-
+        id = UUID.randomUUID().toString();
         if (multithreadded) {
             BlockingQueue<Runnable> queue = new LinkedBlockingQueue<Runnable>() {
                 @Override
@@ -322,7 +348,7 @@ public class Messaging extends Thread implements ShutdownListener {
                     return ret;
                 }
             });
-            id = UUID.randomUUID().toString();
+
             hostname = System.getenv("HOSTNAME");
             if (hostname == null) {
                 try {
@@ -943,6 +969,22 @@ public class Messaging extends Thread implements ShutdownListener {
 
 
     public void terminate() {
+        if (useRabbitMQ) {
+            try {
+                incomingChannelMq.close();
+                incomingConnectionRabbitMq.close();
+                sendingChanelMq.close();
+                sendingConnectionMq.close();
+                exclusiveSendingChanelMq.close();
+                exclusiveSendingConnectionMq.close();
+                exclusiveIncomingChannelMq.close();
+                exclusiveIncomingConnectionRabbitMq.close();
+            } catch (IOException e) {
+                e.printStackTrace();
+            } catch (TimeoutException e) {
+                e.printStackTrace();
+            }
+        }
         running = false;
         if (decouplePool != null) {
             int sz = decouplePool.shutdownNow().size();
@@ -1010,17 +1052,26 @@ public class Messaging extends Thread implements ShutdownListener {
 
     private void storeMsg(Msg m, boolean async) {
         if (useRabbitMQ) {
-            m.setSender(getSenderId());
-            m.setMsgId(new MorphiumId());
+            if (m.getSender() == null) {
+                m.setSender(getSenderId());
+            }
+            if (m.getMsgId() == null) {
+                m.setMsgId(new MorphiumId());
+            }
             m.preStore();
             m.setDeleteAt(null);
             Map<String, Object> serialize = morphium.getMapper().serialize(m);
             String json = Utils.toJsonString(serialize);
             try {
+                int prio = 255 - m.getPriority() / 4; //prio - higher numbers mean higher prio, in morphium the opposite.
+                AMQImpl.BasicProperties p = new AMQP.BasicProperties.Builder()
+                        .priority(prio)
+                        .expiration("" + m.getTtl())
+                        .build();
                 if (m.isExclusive()) {
-                    exclusiveSendingChanelMq.basicPublish("", queueName + "_ex", null, json.getBytes(StandardCharsets.UTF_8));
+                    exclusiveSendingChanelMq.basicPublish("", queueName + "_ex", p, json.getBytes(StandardCharsets.UTF_8));
                 } else {
-                    sendingChanelMq.basicPublish(queueName, "", null, json.getBytes(StandardCharsets.UTF_8));
+                    sendingChanelMq.basicPublish(queueName, "", p, json.getBytes(StandardCharsets.UTF_8));
                 }
             } catch (IOException e) {
                 e.printStackTrace();

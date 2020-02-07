@@ -43,7 +43,6 @@ public class Msg {
     private String sender;
     private String senderHost;
     private String recipient;
-    @Transient
     private List<String> to;
     private Object inAnswerTo;
     //payload goes here
