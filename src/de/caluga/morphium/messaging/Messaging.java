@@ -37,8 +37,9 @@ import java.util.concurrent.atomic.AtomicInteger;
  * - Message listeners may return a Message as answer. Or throw a MessageRejectedException.c
  */
 @SuppressWarnings({"ConstantConditions", "unchecked", "UnusedDeclaration"})
-public class Messaging extends Thread implements ShutdownListener {
+public class Messaging implements ShutdownListener, Runnable {
     private static Logger log = LoggerFactory.getLogger(Messaging.class);
+    private String rabbitHost;
     private String qn;
     private Channel exclusiveIncomingChannelMq;
     private Connection exclusiveIncomingConnectionRabbitMq;
@@ -78,12 +79,21 @@ public class Messaging extends Thread implements ShutdownListener {
     private Channel sendingChanelMq;
     private Connection incomingConnectionRabbitMq;
     private Channel incomingChannelMq;
+    private Thread mainMsgThread;
 
     public Messaging(String rabbitHost, Morphium m, String name, boolean multithreadded) throws Exception {
         this.multithreadded = multithreadded;
         this.morphium = m;
+        this.rabbitHost = rabbitHost;
+        useRabbitMQ = true;
         windowSize = m.getConfig().getThreadPoolMessagingMaxSize();
         init();
+        initRabbitMQ(name);
+
+    }
+
+    private void initRabbitMQ(String name) throws IOException, TimeoutException {
+        if (!useRabbitMQ) return;
         ConnectionFactory factory = new ConnectionFactory();
 // "guest"/"guest" by default, limited to localhost connections
 //        factory.setUsername(userName);
@@ -254,7 +264,6 @@ public class Messaging extends Thread implements ShutdownListener {
         });
 
         this.queueName = name;
-
     }
 
     /**
@@ -414,7 +423,7 @@ public class Messaging extends Thread implements ShutdownListener {
     public void run() {
         if (useRabbitMQ) return;
 
-        setName("Msg " + id);
+
         if (log.isDebugEnabled()) {
             log.debug("Messaging " + id + " started");
         }
@@ -551,7 +560,7 @@ public class Messaging extends Thread implements ShutdownListener {
                     log.error("Unhandled exception " + e.getMessage(), e);
                 } finally {
                     try {
-                        sleep(pause);
+                        Thread.sleep(pause);
                     } catch (InterruptedException ignored) {
                     }
                 }
@@ -1010,13 +1019,13 @@ public class Messaging extends Thread implements ShutdownListener {
                 log.debug("Shutting down with " + sz + " runnables still pending in pool");
         }
         if (changeStreamMonitor != null) changeStreamMonitor.terminate();
-        if (isAlive()) {
-            interrupt();
+        if (mainMsgThread.isAlive()) {
+            mainMsgThread.interrupt();
         }
         int retry = 0;
-        while (isAlive()) {
+        while (mainMsgThread.isAlive()) {
             try {
-                sleep(250);
+                Thread.sleep(250);
             } catch (InterruptedException e) {
                 //swallow
             }
@@ -1039,9 +1048,10 @@ public class Messaging extends Thread implements ShutdownListener {
     }
 
 
-    @Override
     public synchronized void start() {
-        super.start();
+        mainMsgThread = new Thread(this);
+        mainMsgThread.setName("Msg " + id);
+        mainMsgThread.start();
         if (useChangeStream) {
             try {
                 Thread.sleep(250);
@@ -1141,6 +1151,14 @@ public class Messaging extends Thread implements ShutdownListener {
                 //STore failed, reconnecting...
                 terminate();
                 init();
+                try {
+                    initRabbitMQ(queueName);
+                } catch (IOException ex) {
+                    ex.printStackTrace();
+                } catch (TimeoutException ex) {
+                    ex.printStackTrace();
+                }
+                start();
             }
         }
     }
