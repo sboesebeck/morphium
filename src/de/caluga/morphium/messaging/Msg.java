@@ -44,7 +44,7 @@ public class Msg {
     private String senderHost;
     private String recipient;
     private List<String> to;
-    private Object inAnswerTo;
+    private MorphiumId inAnswerTo;
     //payload goes here
     private String name;
     private String msg;
@@ -187,11 +187,11 @@ public class Msg {
         this.to = to;
     }
 
-    public Object getInAnswerTo() {
+    public MorphiumId getInAnswerTo() {
         return inAnswerTo;
     }
 
-    public void setInAnswerTo(Object inAnswerTo) {
+    public void setInAnswerTo(MorphiumId inAnswerTo) {
         this.inAnswerTo = inAnswerTo;
     }
 

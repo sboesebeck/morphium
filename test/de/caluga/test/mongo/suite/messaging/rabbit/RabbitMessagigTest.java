@@ -1066,6 +1066,29 @@ public class RabbitMessagigTest extends MorphiumTestBase {
 
 
     @Test
+    public void answerTests() throws Exception {
+
+        Messaging sender = new Messaging("localhost", morphium, "msg", false);
+        sender.setSenderId("sender");
+        sender.start();
+
+        Messaging receiver = new Messaging("localhost", morphium, "msg", false);
+        receiver.setSenderId("receiver");
+        receiver.start();
+
+        receiver.addMessageListener(new MessageListener() {
+            @Override
+            public Msg onMessage(Messaging msg, Msg m) throws InterruptedException {
+                log.info("Sending Answer");
+                return m.createAnswerMsg();
+            }
+        });
+
+
+        Msg answer = sender.sendAndAwaitFirstAnswer(new Msg("tst", "test query", "awaiting answer"), 190000);
+    }
+
+    @Test
     public void waitingForMessagesIfNonMultithreadded() throws Exception {
 
         Messaging sender = new Messaging("localhost", morphium, "msg", false);

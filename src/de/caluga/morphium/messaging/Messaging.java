@@ -38,6 +38,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 @SuppressWarnings({"ConstantConditions", "unchecked", "UnusedDeclaration"})
 public class Messaging extends Thread implements ShutdownListener {
     private static Logger log = LoggerFactory.getLogger(Messaging.class);
+    private String qn;
     private Channel exclusiveIncomingChannelMq;
     private Connection exclusiveIncomingConnectionRabbitMq;
     private Channel exclusiveSendingChanelMq;
@@ -105,7 +106,7 @@ public class Messaging extends Thread implements ShutdownListener {
         incomingConnectionRabbitMq = factory.newConnection();
         incomingChannelMq = incomingConnectionRabbitMq.createChannel();
         incomingChannelMq.exchangeDeclare(name, BuiltinExchangeType.FANOUT, true, false, args);
-        String qn = incomingChannelMq.queueDeclare().getQueue();
+        qn = incomingChannelMq.queueDeclare().getQueue();
         incomingChannelMq.queueBind(qn, name, "");
         incomingChannelMq.basicQos(10);
 
@@ -132,9 +133,10 @@ public class Messaging extends Thread implements ShutdownListener {
                 final Channel cnl = cn;
                 try {
                     Msg m = morphium.getMapper().deserialize(Msg.class, message);
-                    if (m.getInAnswerTo() != null && !m.getInAnswerTo().equals(getSenderId())) {
+
+                    if (m.getInAnswerTo() != null && ((m.getRecipient() != null && !m.getRecipient().equals(getSenderId())) || (m.getTo() != null && !m.getTo().contains(getSenderId())))) {
                         //not for me, republish
-                        log.warn("Got an answer, nto for me");
+                        //log.warn("Got an answer, not for me");
                         if (cnl == exclusiveIncomingChannelMq) {
                             cnl.basicNack(delivery.getEnvelope().getDeliveryTag(), false, true);
                         } else {
@@ -174,13 +176,23 @@ public class Messaging extends Thread implements ShutdownListener {
 //                        lst.add(m);
 //                        processMessages(lst);
                         //incomingChannelMq.basicAck(delivery.getEnvelope().getDeliveryTag(),false);
+                        cnl.basicAck(delivery.getEnvelope().getDeliveryTag(), false);
+                        if (m.getInAnswerTo() != null && waitingForMessages.get(m.getInAnswerTo()) != null) {
+                            if (log.isDebugEnabled()) {
+                                log.debug(getSenderId() + ": Got a message, we are waiting for...");
+                            }
+                            //this message we were waiting for
+                            waitingForAnswers.put(m.getInAnswerTo(), m);
+                            processing.remove(m.getMsgId());
+                            return;
+                        }
+
                         boolean wasProcessed = false;
                         boolean wasRejected = false;
                         final List<MessageListener> lst = new ArrayList<>(listeners);
                         if (listenerByName.get(m.getName()) != null) {
                             lst.addAll(listenerByName.get(m.getName()));
                         }
-                        cnl.basicAck(delivery.getEnvelope().getDeliveryTag(), false);
                         for (MessageListener l : lst) {
 
                             Runnable r = new Runnable() {
@@ -1045,6 +1057,14 @@ public class Messaging extends Thread implements ShutdownListener {
     }
 
     public long getNumberOfMessages() {
+        if (useRabbitMQ) {
+            try {
+                return exclusiveIncomingChannelMq.messageCount(queueName + "_ex") + incomingChannelMq.messageCount(qn);
+            } catch (Exception e) {
+                log.error("Error getting count", e);
+                return -1;
+            }
+        }
         Query<Msg> q = morphium.createQueryFor(Msg.class);
         q.setCollectionName(getCollectionName());
         return q.countAll();
