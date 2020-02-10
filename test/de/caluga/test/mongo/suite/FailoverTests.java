@@ -2,6 +2,9 @@ package de.caluga.test.mongo.suite;
 
 import de.caluga.morphium.Morphium;
 import de.caluga.morphium.annotations.Embedded;
+import de.caluga.morphium.messaging.MessageListener;
+import de.caluga.morphium.messaging.Messaging;
+import de.caluga.morphium.messaging.Msg;
 import de.caluga.morphium.query.Query;
 import de.caluga.test.mongo.suite.data.UncachedObject;
 import org.junit.Test;
@@ -9,6 +12,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import javax.swing.*;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * User: Stephan Bösebeck
@@ -133,6 +137,41 @@ public class FailoverTests extends MorphiumTestBase {
 
                 }
             }
+        }
+    }
+
+
+    @Test
+    public void failoverMessagingTest() throws Exception {
+//        if (!getProps().getProperty("failovertest", "false").equals("true")) {
+//            log.info("Not running Failover test here");
+//            return;
+//        }
+        Messaging sender = new Messaging(morphium, 500, false);
+        sender.setSenderId("sender");
+        sender.start();
+        Messaging receiver = new Messaging(morphium, 500, false);
+        receiver.setSenderId("receiver");
+        receiver.start();
+
+        final AtomicInteger sent = new AtomicInteger();
+        final AtomicInteger rec = new AtomicInteger();
+
+        receiver.addMessageListener(new MessageListener() {
+            @Override
+            public Msg onMessage(Messaging msg, Msg m) throws InterruptedException {
+//                log.info("Got msg: "+m.getMsgId().toString());
+                rec.incrementAndGet();
+                return null;
+            }
+        });
+
+        while (true) {
+            sender.sendMessage(new Msg("test", "test", "test"));
+            sent.incrementAndGet();
+
+            Thread.sleep(1000);
+            log.info("Sent: " + sent.get() + "  received: " + rec.get());
         }
     }
 

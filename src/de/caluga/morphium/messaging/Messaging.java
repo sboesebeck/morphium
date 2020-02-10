@@ -1135,7 +1135,13 @@ public class Messaging extends Thread implements ShutdownListener {
                 }
             }
         } else {
-            morphium.storeNoCache(m, getCollectionName(), cb);
+            try {
+                morphium.storeNoCache(m, getCollectionName(), cb);
+            } catch (Exception e) {
+                //STore failed, reconnecting...
+                terminate();
+                init();
+            }
         }
     }
 
