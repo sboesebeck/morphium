@@ -945,9 +945,13 @@ public class MessagingTest extends MorphiumTestBase {
         Messaging m2 = null;
         Messaging m3 = null;
         try {
-            morphium.dropCollection(Msg.class);
-            morphium.dropCollection(Msg.class, "test", null);
-            morphium.dropCollection(Msg.class, "test2", null);
+//            morphium.dropCollection(Msg.class);
+//            Thread.sleep(1000);
+//            morphium.dropCollection(Msg.class, "test", null);
+//            Thread.sleep(1000);
+//            morphium.dropCollection(Msg.class, "test2", null);
+//            Thread.sleep(1000);
+
             sender = new Messaging(morphium, "test", 100, false);
             sender.start();
             sender2 = new Messaging(morphium, "test2", 100, false);

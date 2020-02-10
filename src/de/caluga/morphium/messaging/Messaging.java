@@ -5,6 +5,7 @@ import com.rabbitmq.client.impl.AMQImpl;
 import de.caluga.morphium.Morphium;
 import de.caluga.morphium.ShutdownListener;
 import de.caluga.morphium.Utils;
+import de.caluga.morphium.async.AsyncCallbackAdapter;
 import de.caluga.morphium.async.AsyncOperationCallback;
 import de.caluga.morphium.async.AsyncOperationType;
 import de.caluga.morphium.changestream.ChangeStreamMonitor;
@@ -1147,15 +1148,15 @@ public class Messaging extends Thread implements ShutdownListener {
     }
 
     private void sendMessageToSelf(Msg m, boolean async) {
-        AsyncOperationCallback cb = null;
-        //noinspection StatementWithEmptyBody
-        if (async) {
-            //noinspection unused,unused
-        }
         m.setSender("self");
         m.setRecipient(id);
         m.setSenderHost(hostname);
-        morphium.storeNoCache(m, getCollectionName());
+        if (useRabbitMQ) {
+            storeMsg(m, async);
+            return;
+        }
+        AsyncOperationCallback cb = new AsyncCallbackAdapter();
+        morphium.storeNoCache(m, getCollectionName(), async ? cb : null);
     }
 
     public boolean isAutoAnswer() {
