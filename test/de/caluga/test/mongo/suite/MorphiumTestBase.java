@@ -139,8 +139,8 @@ public class MorphiumTestBase {
 
                 cfg.setGlobalCacheValidTime(1000);
                 cfg.setHousekeepingTimeout(500);
-                cfg.setThreadPoolMessagingCoreSize(5);
-                cfg.setThreadPoolMessagingMaxSize(150);
+                cfg.setThreadPoolMessagingCoreSize(50);
+                cfg.setThreadPoolMessagingMaxSize(1500);
                 cfg.setThreadPoolMessagingKeepAliveTime(10000);
 
                 cfg.setGlobalFsync(false);
