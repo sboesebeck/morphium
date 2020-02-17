@@ -1297,4 +1297,8 @@ public class Messaging implements ShutdownListener, Runnable {
         this.useChangeStream = useChangeStream;
         return this;
     }
+
+    public boolean isAlive() {
+        return mainMsgThread.isAlive();
+    }
 }
