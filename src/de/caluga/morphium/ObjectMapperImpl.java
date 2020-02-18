@@ -205,6 +205,7 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
         if (customMappers.containsKey(c)) {
             Object ret = customMappers.get(c).marshall(o);
             if (ret instanceof Map) {
+                ((Map) ret).put("class_name", o.getClass().getName());
                 return (Map<String, Object>) ret;
             } else {
                 return Utils.getMap("value", ret);
