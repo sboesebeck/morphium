@@ -61,10 +61,10 @@ public class VersioningTest extends MorphiumTestBase {
 
 
     @Test
-    public void testing() {
+    public void testing() throws Exception {
         VersionedEntity ve = new VersionedEntity("value", 1);
         morphium.store(ve);
-
+        Thread.sleep(500);
         VersionedEntity v2 = morphium.findById(VersionedEntity.class, ve.getMorphiumId());
         v2.setValue("test");
         morphium.store(v2);
