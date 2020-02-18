@@ -1337,9 +1337,10 @@ public class MessagingTest extends MorphiumTestBase {
 
     @Test
     public void deleteExclusiveMessageTest() throws Exception {
-        Messaging sender = new Messaging(morphium, 100, false);
-        sender.start();
 
+        Messaging sender = new Messaging(morphium, 100, false);
+        morphium.dropCollection(Msg.class, sender.getCollectionName(), null);
+        sender.start();
         Messaging receiver = new Messaging(morphium, 10, false, true, 10);
         receiver.start();
         Messaging receiver2 = new Messaging(morphium, 10, false, true, 10);
