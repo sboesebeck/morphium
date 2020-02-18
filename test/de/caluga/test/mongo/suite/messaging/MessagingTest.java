@@ -946,13 +946,14 @@ public class MessagingTest extends MorphiumTestBase {
         Messaging m3 = null;
         try {
             morphium.dropCollection(Msg.class);
-            morphium.dropCollection(Msg.class, "test", null);
-            morphium.dropCollection(Msg.class, "test2", null);
+
             sender = new Messaging(morphium, "test", 100, false);
+            morphium.dropCollection(Msg.class, sender.getCollectionName(), null);
             sender.start();
             sender2 = new Messaging(morphium, "test2", 100, false);
+            morphium.dropCollection(Msg.class, sender2.getCollectionName(), null);
             sender2.start();
-
+            Thread.sleep(1000);
             gotMessage1 = false;
             gotMessage2 = false;
             gotMessage3 = false;
@@ -987,11 +988,12 @@ public class MessagingTest extends MorphiumTestBase {
             m2.start();
             m3.start();
             m4.start();
+            Thread.sleep(1000);
             Msg m = new Msg();
             m.setExclusive(true);
             m.setName("A message");
 
-            sender.queueMessage(m);
+            sender.sendMessage(m);
 
             assert (!gotMessage3);
             assert (!gotMessage4);
