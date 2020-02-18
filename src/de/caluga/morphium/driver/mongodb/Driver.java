@@ -1077,9 +1077,9 @@ public class Driver implements MorphiumDriver {
 
                 UpdateOptions o = new UpdateOptions();
                 Document filter = new Document();
-
+                o.upsert(true);
                 Object id = toUpdate.get("_id");
-                o.upsert(id == null);
+//                o.upsert(id == null);
                 if (id instanceof MorphiumId) {
                     id = new ObjectId(id.toString());
                 }
@@ -1179,13 +1179,13 @@ public class Driver implements MorphiumDriver {
                 }
             }
 
-            for (int i = 0; i < lst.size(); i++) {
-                Object id = lst.get(i).get("_id");
-                if (id instanceof ObjectId) {
-                    id = new MorphiumId(((ObjectId) id).toHexString());
-                }
-                objs.get(i).put("_id", id);
-            }
+//            for (int i = 0; i < lst.size(); i++) {
+//                Object id = lst.get(i).get("_id");
+//                if (id instanceof ObjectId) {
+//                    id = new MorphiumId(((ObjectId) id).toHexString());
+//                }
+//                objs.get(i).put("_id", id);
+//            }
             return null;
         }, retriesOnNetworkError, sleepBetweenErrorRetries);
 
