@@ -58,4 +58,16 @@ public class VersioningTest extends MorphiumTestBase {
         ve = morphium.createQueryFor(VersionedEntity.class).f("value").eq("value11").get();
         assert (ve.getTheVersionNumber() == 1);
     }
+
+
+    @Test
+    public void testing() {
+        VersionedEntity ve = new VersionedEntity("value", 1);
+        morphium.store(ve);
+
+        VersionedEntity v2 = morphium.findById(VersionedEntity.class, ve.getMorphiumId());
+        v2.setValue("test");
+        morphium.store(v2);
+
+    }
 }
