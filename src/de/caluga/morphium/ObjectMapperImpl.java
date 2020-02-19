@@ -1043,6 +1043,10 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
                         field.set(ret, o.get("_id").toString());
                     } else if (field.getType().equals(MorphiumId.class) && o.get("_id").getClass().equals(ObjectId.class)) {
                         field.set(ret, new MorphiumId(((ObjectId) o.get("_id")).toByteArray()));
+                    } else if (field.getType().equals(ObjectId.class) && o.get("_id").getClass().equals(MorphiumId.class)) {
+                        field.set(ret, new ObjectId(((MorphiumId) o.get("_id")).getBytes()));
+                    } else if (field.getType().equals(ObjectId.class) && o.get("_id").getClass().equals(String.class)) {
+                        field.set(ret, new ObjectId(((ObjectId) o.get("_id")).toString()));
                     } else if (field.getType().equals(MorphiumId.class) && o.get("_id").getClass().equals(String.class)) {
                         //                        log.warn("ID type missmatch - field is objectId but got string from db - trying conversion");
                         field.set(ret, new MorphiumId((String) o.get("_id")));
