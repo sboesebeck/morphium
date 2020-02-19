@@ -757,6 +757,29 @@ public class BasicFunctionalityTest extends MorphiumTestBase {
     }
 
 
+    @Test
+    public void objectIdIdstest() {
+
+        ObjectIDID o = new ObjectIDID();
+        o.value = "test1";
+        morphium.store(o);
+
+        assert (o.id != null);
+        assert (o.id instanceof ObjectId);
+
+        morphium.reread(o);
+        assert (o.id != null);
+        assert (o.id instanceof ObjectId);
+
+    }
+
+    @Entity
+    public static class ObjectIDID {
+        @Id
+        public ObjectId id;
+        public String value;
+    }
+
     @Entity
     public static class ListOfIdsContainer {
         @Id
