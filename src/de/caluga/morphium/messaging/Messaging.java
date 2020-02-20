@@ -528,10 +528,10 @@ public class Messaging extends Thread implements ShutdownListener {
             }
             final Msg msg = morphium.reread(me, getCollectionName()); //make sure it's current version in DB
             if (msg == null) continue;
-            if (msg.getProcessedBy().contains(getSenderId())) {
+            if (msg.getProcessedBy() == null || msg.getProcessedBy().contains(getSenderId())) {
                 continue;
             }
-            if (msg.isExclusive() && !msg.getLockedBy().equals(getSenderId())) {
+            if (msg.isExclusive() && !getSenderId().equals(msg.getLockedBy())) {
                 continue;
             }
             msg.addProcessedId(getSenderId());

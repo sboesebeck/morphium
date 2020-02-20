@@ -1027,7 +1027,8 @@ public class MessagingTest extends MorphiumTestBase {
                 rec++;
             }
             assert (rec == 1) : "rec is " + rec;
-            assert (m1.getNumberOfMessages() == 0);
+            Thread.sleep(1000);
+            assert (m1.getNumberOfMessages() == 0) : "Number of messages is " + m1.getNumberOfMessages();
         } finally {
             m1.terminate();
             m2.terminate();
