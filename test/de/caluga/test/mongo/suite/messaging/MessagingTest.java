@@ -203,7 +203,7 @@ public class MessagingTest extends MorphiumTestBase {
         m.setMsgId(new MorphiumId());
         m.setSender("Another sender");
 
-        morphium.store(m);
+        morphium.store(m, messaging.getCollectionName(), null);
 
         Thread.sleep(5000);
         assert (gotMessage) : "Message did not come?!?!?";
