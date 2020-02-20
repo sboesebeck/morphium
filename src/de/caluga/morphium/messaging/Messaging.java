@@ -383,16 +383,13 @@ public class Messaging extends Thread implements ShutdownListener {
      * @return duration or null
      */
     public Long unpauseProcessingOfMessagesNamed(String name) {
-        Runnable r = () -> {
-            MorphiumIterator<Msg> messages = findMessages(name, processMultiple);
-            processMessages(messages);
-            pauseMessages.remove(name);
-        };
+        MorphiumIterator<Msg> messages = findMessages(name, processMultiple);
+        processMessages(messages);
+        pauseMessages.remove(name);
         Long ret = pauseMessages.get(name);
         if (ret != null) {
             ret = System.currentTimeMillis() - ret;
         }
-        decouplePool.execute(r);
         return ret;
     }
 
@@ -528,14 +525,18 @@ public class Messaging extends Thread implements ShutdownListener {
             }
             final Msg msg = morphium.reread(me, getCollectionName()); //make sure it's current version in DB
             if (msg == null) continue;
-            if (msg.getProcessedBy() == null || msg.getProcessedBy().contains(getSenderId())) {
+            if (msg.getProcessedBy() != null && msg.getProcessedBy().contains(getSenderId())) {
                 continue;
             }
             if (msg.isExclusive() && !getSenderId().equals(msg.getLockedBy())) {
                 continue;
             }
-            msg.addProcessedId(getSenderId());
+            if (msg.getSender().equals(getSenderId())) {
+                continue;
+            }
+
             morphium.push(morphium.createQueryFor(msg.getClass(), getCollectionName()).f("_id").eq(msg.getMsgId()), Msg.Fields.processedBy, getSenderId(), false, false);
+            morphium.reread(msg);
             //noinspection SuspiciousMethodCalls
             if (msg.getInAnswerTo() != null && waitingForMessages.get(msg.getInAnswerTo()) != null) {
                 if (log.isDebugEnabled())
@@ -590,38 +591,38 @@ public class Messaging extends Thread implements ShutdownListener {
                     wasProcessed = true;
                 }
 
-                for (MessageListener l : lst) {
-                    try {
-                        Msg msg1 = morphium.reread(msg, getCollectionName());
-                        if (msg1 == null) {
+                Msg msg1 = morphium.reread(msg, getCollectionName());
+                if (msg1 == null) {
+                    wasProcessed = true;
+                }
+                if (msg.isExclusive()) {
+                    morphium.delete(msg, getCollectionName());
+                }
+                if (msg1 != null)
+                    for (MessageListener l : lst) {
+                        try {
+                            Msg answer = l.onMessage(Messaging.this, msg1);
                             wasProcessed = true;
-                            break;
-                        }
-                        if (msg.isExclusive()) {
-                            morphium.delete(msg);
-                        }
-                        Msg answer = l.onMessage(Messaging.this, msg1);
-                        wasProcessed = true;
-                        if (autoAnswer && answer == null) {
-                            answer = new Msg(msg1.getName(), "received", "");
-                        }
-                        if (answer != null) {
-                            msg1.sendAnswer(Messaging.this, answer);
+                            if (autoAnswer && answer == null) {
+                                answer = new Msg(msg1.getName(), "received", "");
+                            }
+                            if (answer != null) {
+                                msg1.sendAnswer(Messaging.this, answer);
 //                            if (log.isDebugEnabled())
 //                                log.debug("sent answer to " + answer.getInAnswerTo() + " recipient: " + answer.getRecipient() + " id: " + answer.getMsgId());
-                            if (answer.getRecipient() == null) {
-                                log.warn("Recipient of answer is null?!?!");
+                                if (answer.getRecipient() == null) {
+                                    log.warn("Recipient of answer is null?!?!");
 
+                                }
                             }
+                        } catch (MessageRejectedException mre) {
+                            log.warn("Message was rejected by listener", mre);
+                            wasRejected = true;
+                            rejections.add(mre);
+                        } catch (Exception e) {
+                            log.error("listener Processing failed", e);
                         }
-                    } catch (MessageRejectedException mre) {
-                        log.warn("Message was rejected by listener", mre);
-                        wasRejected = true;
-                        rejections.add(mre);
-                    } catch (Exception e) {
-                        log.error("listener Processing failed", e);
                     }
-                }
 
 
                 if (wasRejected) {
@@ -697,6 +698,8 @@ public class Messaging extends Thread implements ShutdownListener {
 
 
     private void updateProcessedByAndReleaseLock(Msg msg) {
+        msg = morphium.reread(msg);
+        if (msg == null) return; //already deleted
         Query<Msg> idq = morphium.createQueryFor(Msg.class);
         idq.setCollectionName(getCollectionName());
         idq.f(Msg.Fields.msgId).eq(msg.getMsgId());
