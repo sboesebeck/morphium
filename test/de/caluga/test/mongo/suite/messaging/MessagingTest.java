@@ -1,5 +1,7 @@
 package de.caluga.test.mongo.suite.messaging;
 
+import de.caluga.morphium.Morphium;
+import de.caluga.morphium.MorphiumConfig;
 import de.caluga.morphium.driver.MorphiumId;
 import de.caluga.morphium.messaging.MessageListener;
 import de.caluga.morphium.messaging.MessageRejectedException;
@@ -535,7 +537,6 @@ public class MessagingTest extends MorphiumTestBase {
     }
 
 
-
     @Test
     public void ignoringMessagesTest() throws Exception {
         Messaging m1 = new Messaging(morphium, 10, false, true, 10);
@@ -588,7 +589,6 @@ public class MessagingTest extends MorphiumTestBase {
         }
 
     }
-
 
 
     @Test
@@ -1336,7 +1336,6 @@ public class MessagingTest extends MorphiumTestBase {
     }
 
 
-
     @Test
     public void deleteExclusiveMessageTest() throws Exception {
 
@@ -1390,7 +1389,112 @@ public class MessagingTest extends MorphiumTestBase {
 //
 
         receiver.terminate();
+        receiver2.terminate();
         sender.terminate();
+
+    }
+
+    @Test
+    public void exclusivityTest() throws Exception {
+        Messaging sender = new Messaging(morphium, 100, false);
+        sender.setSenderId("sender");
+        morphium.dropCollection(Msg.class, sender.getCollectionName(), null);
+        Thread.sleep(100);
+        sender.start();
+        Morphium morphium2 = new Morphium(MorphiumConfig.fromProperties(morphium.getConfig().asProperties()));
+        morphium2.getConfig().setThreadPoolMessagingMaxSize(100);
+        morphium2.getConfig().setThreadPoolMessagingCoreSize(50);
+        morphium2.getConfig().setThreadPoolAsyncOpMaxSize(100);
+        Messaging receiver = new Messaging(morphium2, 10, false, true, 10);
+        receiver.setSenderId("r1");
+        receiver.start();
+        Morphium morphium3 = new Morphium(MorphiumConfig.fromProperties(morphium.getConfig().asProperties()));
+        Messaging receiver2 = new Messaging(morphium3, 10, false, true, 10);
+        receiver2.setSenderId("r2");
+        receiver2.start();
+        final AtomicInteger received = new AtomicInteger();
+        final AtomicInteger dups = new AtomicInteger();
+        final Vector<String> ids = new Vector<>();
+
+        Thread.sleep(100);
+        int amount;
+        try {
+            receiver.addListenerForMessageNamed("m", (msg, m) -> {
+                msg.pauseProcessingOfMessagesNamed("m");
+                Thread.sleep(100);
+                //log.info("R1: Incoming message "+m.getValue());
+                received.incrementAndGet();
+                if (ids.contains(m.getMsgId().toString())) {
+                    log.error("Duplicate recieved message!");
+                    dups.incrementAndGet();
+                }
+                ids.add(m.getMsgId().toString());
+                //            new Thread(){
+                //                public void run(){
+                //                    try {
+                //                        Thread.sleep(10);
+                //                    } catch (InterruptedException e) {
+                //                    }
+                msg.unpauseProcessingOfMessagesNamed("m");
+                //                }
+                //            }.start();
+                return null;
+            });
+
+            receiver2.addListenerForMessageNamed("m", (msg, m) -> {
+                msg.pauseProcessingOfMessagesNamed("m");
+                //            log.info("R2: Incoming message "+m.getValue());
+                received.incrementAndGet();
+                if (ids.contains(m.getMsgId().toString())) {
+                    log.error("Duplicate recieved message!");
+                    dups.incrementAndGet();
+                }
+                ids.add(m.getMsgId().toString());
+                //            new Thread(){
+                //                public void run(){
+                //                    try {
+                //                        Thread.sleep(10);
+                //                    } catch (InterruptedException e) {
+                //                    }
+                msg.unpauseProcessingOfMessagesNamed("m");
+                //                }
+                //            }.start();
+
+                return null;
+            });
+            amount = 2500;
+            for (int i = 0; i < amount; i++) {
+                int rec = received.get();
+                long messageCount = sender.getMessageCount();
+                if (i % 100 == 0) log.info("Send " + i + " recieved: " + rec + " queue: " + messageCount);
+                Msg m = new Msg("m", "m", "v" + i, 3000000, true);
+                m.setExclusive(true);
+                sender.sendMessage(m);
+            }
+
+            while (sender.getMessageCount() != 0) {
+                int rec = received.get();
+                long messageCount = sender.getMessageCount();
+                log.info("Send " + amount + " recieved: " + rec + " queue: " + messageCount);
+                if (Math.abs(rec + messageCount - amount) > 10) {
+                    log.warn("sum differs by more than 10!");
+                }
+                assert (dups.get() == 0) : "got duplicate message";
+
+                Thread.sleep(1000);
+            }
+            int rec = received.get();
+            long messageCount = sender.getMessageCount();
+            log.info("Send " + amount + " recieved: " + rec + " queue: " + messageCount);
+            assert (received.get() == amount) : "should have received " + amount + " but actually got " + received.get();
+        } finally {
+
+            sender.terminate();
+            receiver.terminate();
+            receiver2.terminate();
+            morphium2.close();
+            morphium3.close();
+        }
 
     }
 
