@@ -12,6 +12,7 @@ import de.caluga.test.mongo.suite.MorphiumTestBase;
 import org.junit.Test;
 
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
@@ -1403,26 +1404,29 @@ public class MessagingTest extends MorphiumTestBase {
         Thread.sleep(100);
         sender.start();
         Morphium morphium2 = new Morphium(MorphiumConfig.fromProperties(morphium.getConfig().asProperties()));
-        morphium2.getConfig().setThreadPoolMessagingMaxSize(100);
-        morphium2.getConfig().setThreadPoolMessagingCoreSize(50);
-        morphium2.getConfig().setThreadPoolAsyncOpMaxSize(100);
-        Messaging receiver = new Messaging(morphium2, 10, false, true, 10);
+        morphium2.getConfig().setThreadPoolMessagingMaxSize(10);
+        morphium2.getConfig().setThreadPoolMessagingCoreSize(5);
+        morphium2.getConfig().setThreadPoolAsyncOpMaxSize(10);
+        Messaging receiver = new Messaging(morphium2, 10, true, true, 100);
         receiver.setSenderId("r1");
         receiver.start();
         Morphium morphium3 = new Morphium(MorphiumConfig.fromProperties(morphium.getConfig().asProperties()));
-        Messaging receiver2 = new Messaging(morphium3, 10, false, true, 10);
+        morphium3.getConfig().setThreadPoolMessagingMaxSize(10);
+        morphium3.getConfig().setThreadPoolMessagingCoreSize(5);
+        morphium3.getConfig().setThreadPoolAsyncOpMaxSize(10);
+        Messaging receiver2 = new Messaging(morphium3, 10, false, true, 100);
         receiver2.setSenderId("r2");
         receiver2.start();
         final AtomicInteger received = new AtomicInteger();
         final AtomicInteger dups = new AtomicInteger();
         final Vector<String> ids = new Vector<>();
-
+        final Map<String, String> recById = new ConcurrentHashMap<>();
         Thread.sleep(100);
         int amount;
         try {
             receiver.addListenerForMessageNamed("m", (msg, m) -> {
                 msg.pauseProcessingOfMessagesNamed("m");
-                Thread.sleep(100);
+                Thread.sleep((long) (200 * Math.random()));
                 //log.info("R1: Incoming message "+m.getValue());
                 received.incrementAndGet();
                 if (ids.contains(m.getMsgId().toString())) {
@@ -1430,6 +1434,7 @@ public class MessagingTest extends MorphiumTestBase {
                     dups.incrementAndGet();
                 }
                 ids.add(m.getMsgId().toString());
+                recById.put(m.getMsgId().toString(), msg.getSenderId());
                 //            new Thread(){
                 //                public void run(){
                 //                    try {
@@ -1446,11 +1451,13 @@ public class MessagingTest extends MorphiumTestBase {
                 msg.pauseProcessingOfMessagesNamed("m");
                 //            log.info("R2: Incoming message "+m.getValue());
                 received.incrementAndGet();
+                Thread.sleep((long) (200 * Math.random()));
                 if (ids.contains(m.getMsgId().toString())) {
                     log.error("Duplicate recieved message!");
                     dups.incrementAndGet();
                 }
                 ids.add(m.getMsgId().toString());
+                recById.put(m.getMsgId().toString(), msg.getSenderId());
                 //            new Thread(){
                 //                public void run(){
                 //                    try {
@@ -1463,7 +1470,7 @@ public class MessagingTest extends MorphiumTestBase {
 
                 return null;
             });
-            amount = 2500;
+            amount = 500;
             for (int i = 0; i < amount; i++) {
                 int rec = received.get();
                 long messageCount = sender.getMessageCount();

@@ -432,10 +432,9 @@ public class Messaging extends Thread implements ShutdownListener {
                 or1.f(Msg.Fields.name).in(listenerByName.keySet());
                 or2.f(Msg.Fields.name).in(listenerByName.keySet());
             } else if (listenerByName.isEmpty() && listeners.isEmpty()) {
+                //No listeners - only answers will be processed
                 return q.q().f(Msg.Fields.inAnswerTo).in(waitingForMessages.keySet()).asIterable();
-                // return q.q().f(Msg.Fields.msgId).eq("123445").asIterable();
             }
-
         }
         ArrayList<MorphiumId> processingIds = new ArrayList<>(processing);
         if (!processing.isEmpty()) {
@@ -468,7 +467,7 @@ public class Messaging extends Thread implements ShutdownListener {
                 q.f(Msg.Fields.name).nin(pausedMessagesKeys);
             }
         }
-        q.or(q.q().f(Msg.Fields.lockedBy).eq(id),
+        q.or(q.q().f(Msg.Fields.lockedBy).eq(id).f(Msg.Fields.processedBy).ne(id),
                 q.q().f(Msg.Fields.lockedBy).eq("ALL").f(Msg.Fields.processedBy).ne(id).f(Msg.Fields.recipient).eq(id),
                 q.q().f(Msg.Fields.lockedBy).eq("ALL").f(Msg.Fields.processedBy).ne(id).f(Msg.Fields.recipient).eq(null));
         q.sort(Msg.Fields.priority, Msg.Fields.timestamp);
@@ -524,19 +523,32 @@ public class Messaging extends Thread implements ShutdownListener {
                 continue; //message was erased
             }
             final Msg msg = morphium.reread(me, getCollectionName()); //make sure it's current version in DB
-            if (msg == null) continue;
+            if (msg == null) {
+                processing.remove(me.getMsgId());
+                continue;
+            }
             if (msg.getProcessedBy() != null && msg.getProcessedBy().contains(getSenderId())) {
+                processing.remove(msg.getMsgId());
                 continue;
             }
             if (msg.isExclusive() && !getSenderId().equals(msg.getLockedBy())) {
+                processing.remove(msg.getMsgId());
                 continue;
             }
             if (msg.getSender().equals(getSenderId())) {
+                processing.remove(msg.getMsgId());
                 continue;
             }
+            if (msg.isExclusive() && msg.getProcessedBy().size() > 2) {
+                log.error("Exclusive message processed more than once?");
+                continue;
+            }
+            if (msg.isExclusive() && !msg.getLockedBy().equals(getSenderId())) {
+                log.error("MEssage was overlocked...");
+                processing.remove(msg.getMsgId());
+                return;
+            }
 
-            morphium.push(morphium.createQueryFor(msg.getClass(), getCollectionName()).f("_id").eq(msg.getMsgId()), Msg.Fields.processedBy, getSenderId(), false, false);
-            morphium.reread(msg);
             //noinspection SuspiciousMethodCalls
             if (msg.getInAnswerTo() != null && waitingForMessages.get(msg.getInAnswerTo()) != null) {
                 if (log.isDebugEnabled())
@@ -547,37 +559,27 @@ public class Messaging extends Thread implements ShutdownListener {
                 morphium.delete(msg, getCollectionName());
                 return;
             }
+
+            if (msg.getTtl() < System.currentTimeMillis() - msg.getTimestamp()) {
+                //Delete outdated msg!
+                if (log.isDebugEnabled())
+                    log.debug(getSenderId() + ": Found outdated message - deleting it!");
+                morphium.delete(msg, getCollectionName());
+                processing.remove(msg.getMsgId());
+                return;
+            }
             if (listeners.isEmpty() && listenerByName.isEmpty()) {
                 updateProcessedByAndReleaseLock(msg);
                 log.error(getSenderId() + ": should not be here. not processing message, as no listeners are defined " + msg.getMsgId());
                 return;
             }
-//            Query<? extends Msg> q = morphium.createQueryFor(m.getClass()).f("_id").eq(m.getMsgId());
-//            q.setCollectionName(getCollectionName());
-//            morphium.push(q, Msg.Fields.receivedBy, id);
+            morphium.push(morphium.createQueryFor(msg.getClass(), getCollectionName()).f("_id").eq(msg.getMsgId()).f(Msg.Fields.processedBy).ne(getSenderId()), Msg.Fields.processedBy, getSenderId(), false, false);
+
+
             if (processing.contains(msg.getMsgId())) continue;
             processing.add(msg.getMsgId());
-//            log.info("Adding msg " + m.getMsgId());
+
             Runnable r = () -> {
-                if (msg == null) {
-                    processing.remove(msg.getMsgId());
-                    return; //was deleted
-                }
-
-                if (!msg.getLockedBy().equals(id) && !msg.getLockedBy().equals("ALL")) {
-                    //over-locked by someone else
-                    processing.remove(msg.getMsgId());
-                    return;
-                }
-
-                if (msg.getTtl() < System.currentTimeMillis() - msg.getTimestamp()) {
-                    //Delete outdated msg!
-                    if (log.isDebugEnabled())
-                        log.debug(getSenderId() + ": Found outdated message - deleting it!");
-                    morphium.delete(msg, getCollectionName());
-                    processing.remove(msg.getMsgId());
-                    return;
-                }
                 boolean wasProcessed = false;
                 boolean wasRejected = false;
                 List<MessageRejectedException> rejections = new ArrayList<>();
@@ -594,11 +596,8 @@ public class Messaging extends Thread implements ShutdownListener {
                 Msg msg1 = morphium.reread(msg, getCollectionName());
                 if (msg1 == null) {
                     wasProcessed = true;
-                }
-                if (msg.isExclusive()) {
-                    morphium.delete(msg, getCollectionName());
-                }
-                if (msg1 != null)
+                } else {
+
                     for (MessageListener l : lst) {
                         try {
                             Msg answer = l.onMessage(Messaging.this, msg1);
@@ -624,7 +623,7 @@ public class Messaging extends Thread implements ShutdownListener {
                         }
                     }
 
-
+                }
                 if (wasRejected) {
                     for (MessageRejectedException mre : rejections) {
                         if (mre.isSendAnswer()) {
@@ -643,15 +642,15 @@ public class Messaging extends Thread implements ShutdownListener {
                     //                        msg.addAdditional("Processing of message failed by "+getSenderId()+": "+t.getMessage());
                     log.error("message was not processed");
                     if (msg.isExclusive()) {
-                        msg.addProcessedId(getSenderId());
-                        msg.setLockedBy(null);
-                        msg.setLocked(0);
-                        morphium.store(msg);
+                        updateProcessedByAndReleaseLock(msg);
                     }
                 } else if (wasRejected) {
                     log.debug("Message rejected");
                 }
 
+                if (msg.isExclusive() && wasProcessed) {
+                    morphium.delete(msg);
+                }
                 //                            if (msg.getType().equals(MsgType.SINGLE)) {
                 //                                //removing it
                 //                                morphium.delete(msg, getCollectionName());
@@ -703,6 +702,7 @@ public class Messaging extends Thread implements ShutdownListener {
         Query<Msg> idq = morphium.createQueryFor(Msg.class);
         idq.setCollectionName(getCollectionName());
         idq.f(Msg.Fields.msgId).eq(msg.getMsgId());
+        idq.f(Msg.Fields.processedBy).ne(id);
         if (msg.getLockedBy().equals(id)) {
             //releasing lock
             morphium.set(idq, Msg.Fields.lockedBy, null);
@@ -715,15 +715,16 @@ public class Messaging extends Thread implements ShutdownListener {
             boolean queued = false;
             while (!queued) {
                 try {
+                    //throtteling to windowSize - do not create more threads than windowSize
+                    while (threadPool.getActiveCount() > windowSize) {
+                        Thread.yield();
+                    }
                     threadPool.execute(r);
                     queued = true;
                 } catch (Throwable ignored) {
                 }
             }
-            //throtteling to windowSize - do not create more threads than windowSize
-            while (threadPool.getActiveCount() > windowSize) {
-                Thread.yield();
-            }
+
         } else {
             r.run();
         }
