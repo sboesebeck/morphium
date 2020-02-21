@@ -206,10 +206,10 @@ public class MessagingTest extends MorphiumTestBase {
 
         morphium.store(m, messaging.getCollectionName(), null);
 
-        long start=System.currentTimeMillis();
-        while (!gotMessage){
+        long start = System.currentTimeMillis();
+        while (!gotMessage) {
             Thread.sleep(100);
-            assert (System.currentTimeMillis()-start<5000):" Message did not come?!?!?";
+            assert (System.currentTimeMillis() - start < 5000) : " Message did not come?!?!?";
         }
         assert (gotMessage);
         gotMessage = false;
@@ -893,18 +893,16 @@ public class MessagingTest extends MorphiumTestBase {
         producer.start();
         Thread.sleep(2500);
         try {
-            final int[] processed = {0};
-            final Map<String, Long> msgCountById = new Hashtable<>();
+            final AtomicInteger processed = new AtomicInteger();
+            final Map<String, AtomicInteger> msgCountById = new ConcurrentHashMap<>();
             consumer.addMessageListener((msg, m) -> {
-                synchronized (processed) {
-                    processed[0]++;
+                processed.incrementAndGet();
+                if (processed.get() % 1000 == 0) {
+                    log.info("Consumed " + processed.get());
                 }
-                if (processed[0] % 1000 == 0) {
-                    log.info("Consumed " + processed[0]);
-                }
-                assert (!m.getProcessedBy().contains(msg.getSenderId()));
-                //                assert(!msgCountById.containsKey(m.getMsgId().toString()));
-                msgCountById.put(m.getMsgId().toString(), 1L);
+                assert (!msgCountById.containsKey(m.getMsgId().toString()));
+                msgCountById.putIfAbsent(m.getMsgId().toString(), new AtomicInteger());
+                msgCountById.get(m.getMsgId().toString()).incrementAndGet();
                 //simulate processing
                 try {
                     Thread.sleep((long) (10 * Math.random()));
@@ -926,14 +924,19 @@ public class MessagingTest extends MorphiumTestBase {
 
             long start = System.currentTimeMillis();
 
-            while (processed[0] < numberOfMessages) {
+            while (processed.get() < numberOfMessages) {
                 //            ThreadMXBean thbean = ManagementFactory.getThreadMXBean();
                 //            log.info("Running threads: " + thbean.getThreadCount());
-                log.info("Processed " + processed[0]);
+                log.info("Processed " + processed.get());
                 Thread.sleep(1500);
             }
             long dur = System.currentTimeMillis() - start;
             log.info("Processing took " + dur + " ms");
+
+            assert (processed.get() == numberOfMessages);
+            for (String id : msgCountById.keySet()) {
+                assert (msgCountById.get(id).get() == 1);
+            }
         } finally {
             producer.terminate();
             consumer.terminate();
@@ -1462,10 +1465,10 @@ public class MessagingTest extends MorphiumTestBase {
                 Thread.sleep((long) (200 * Math.random()));
                 //log.info("R1: Incoming message "+m.getValue());
                 received.incrementAndGet();
-                recieveCount.putIfAbsent(msg.getSenderId(),new AtomicInteger());
+                recieveCount.putIfAbsent(msg.getSenderId(), new AtomicInteger());
                 recieveCount.get(msg.getSenderId()).incrementAndGet();
                 if (ids.contains(m.getMsgId().toString())) {
-                    log.error("Duplicate recieved message "+msg.getSenderId());
+                    log.error("Duplicate recieved message " + msg.getSenderId());
                     if (recById.get(m.getMsgId().toString()).equals(msg.getSenderId())) {
                         log.error("--- duplicate was processed before by me!");
                     } else {
@@ -1508,8 +1511,8 @@ public class MessagingTest extends MorphiumTestBase {
             log.info("Send " + amount + " recieved: " + rec + " queue: " + messageCount);
             assert (received.get() == amount) : "should have received " + amount + " but actually got " + received.get();
 
-            for (String id:recieveCount.keySet()){
-                log.info("Reciever "+id+" message count: "+recieveCount.get(id).get());
+            for (String id : recieveCount.keySet()) {
+                log.info("Reciever " + id + " message count: " + recieveCount.get(id).get());
             }
         } finally {
 
