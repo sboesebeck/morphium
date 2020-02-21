@@ -383,25 +383,25 @@ public class Messaging extends Thread implements ShutdownListener {
      * @return duration or null
      */
     public Long unpauseProcessingOfMessagesNamed(String name) {
-        if (!pauseMessages.containsKey(name)){
+        if (!pauseMessages.containsKey(name)) {
             return 0l;
         }
-        pauseMessages.remove(name);
-        Long ret = pauseMessages.get(name);
+
+        Long ret = pauseMessages.remove(name);
         if (ret != null) {
             ret = System.currentTimeMillis() - ret;
         }
-        Runnable r=new Runnable(){
-            public void run(){
+        Runnable r = new Runnable() {
+            public void run() {
                 MorphiumIterator<Msg> messages = findMessages(name, processMultiple);
                 processMessages(messages);
             }
         };
-        int max=windowSize;
-        if (multithreadded==false){
-            max=1;
+        int max = windowSize;
+        if (!multithreadded) {
+            max = 1;
         }
-        while (decouplePool.getActiveCount()>max){
+        while (decouplePool.getActiveCount() > max) {
             Thread.yield();
         }
         decouplePool.execute(r);
