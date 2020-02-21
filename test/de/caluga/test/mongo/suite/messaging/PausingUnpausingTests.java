@@ -61,7 +61,7 @@ public class PausingUnpausingTests extends MorphiumTestBase {
         Thread.sleep(1200);
         assert (!gotMessage1);
 
-        long l = m1.unpauseProcessingOfMessagesNamed("tst1");
+        Long l = m1.unpauseProcessingOfMessagesNamed("tst1");
         log.info("Processing was paused for ms " + l);
         //m1.findAndProcessPendingMessages("tst1");
         Thread.sleep(200);

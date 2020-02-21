@@ -150,6 +150,7 @@ public class MessagingTest extends MorphiumTestBase {
     @Test
     public void multithreaddingTest() throws Exception {
         Messaging producer = new Messaging(morphium, 500, false);
+        morphium.dropCollection(Msg.class, producer.getCollectionName(), null);
         // producer.start();
         Thread.sleep(2500);
         for (int i = 0; i < 1000; i++) {
@@ -169,8 +170,9 @@ public class MessagingTest extends MorphiumTestBase {
         });
 
         consumer.start();
-
-        Thread.sleep(10000);
+        while (consumer.getMessageCount() > 0) {
+            Thread.sleep(1000);
+        }
         consumer.terminate();
         producer.terminate();
         log.info("Messages processed: " + procCounter.get());
@@ -184,33 +186,36 @@ public class MessagingTest extends MorphiumTestBase {
         error = false;
 
         morphium.dropCollection(Msg.class);
-        Thread.sleep(500);
 
         final Messaging messaging = new Messaging(morphium, 500, true);
         messaging.start();
+        Thread.sleep(500);
 
         messaging.addMessageListener((msg, m) -> {
             log.info("Got Message: " + m.toString());
             gotMessage = true;
             return null;
         });
-        messaging.sendMessage(new Msg("Testmessage", "A message", "the value - for now", 5000));
+        messaging.sendMessage(new Msg("Testmessage", "A message", "the value - for now", 5000000));
 
         Thread.sleep(1000);
         assert (!gotMessage) : "Message recieved from self?!?!?!";
         log.info("Dig not get own message - cool!");
 
-        Msg m = new Msg("meine Message", "The Message", "value is a string", 5000);
+        Msg m = new Msg("meine Message", "The Message", "value is a string", 5000000);
         m.setMsgId(new MorphiumId());
         m.setSender("Another sender");
 
         morphium.store(m, messaging.getCollectionName(), null);
 
-        Thread.sleep(5000);
-        assert (gotMessage) : "Message did not come?!?!?";
-
+        long start=System.currentTimeMillis();
+        while (!gotMessage){
+            Thread.sleep(100);
+            assert (System.currentTimeMillis()-start<5000):" Message did not come?!?!?";
+        }
+        assert (gotMessage);
         gotMessage = false;
-        Thread.sleep(5000);
+        Thread.sleep(1000);
         assert (!gotMessage) : "Got message again?!?!?!";
 
         messaging.terminate();
@@ -586,7 +591,8 @@ public class MessagingTest extends MorphiumTestBase {
 
         }
         while (procCounter.get() < 150) {
-            Thread.yield();
+            Thread.sleep(1000);
+            log.info("REcieved " + procCounter.get());
         }
 
     }
@@ -1410,66 +1416,63 @@ public class MessagingTest extends MorphiumTestBase {
         Messaging receiver = new Messaging(morphium2, 10, true, true, 100);
         receiver.setSenderId("r1");
         receiver.start();
+
         Morphium morphium3 = new Morphium(MorphiumConfig.fromProperties(morphium.getConfig().asProperties()));
         morphium3.getConfig().setThreadPoolMessagingMaxSize(10);
         morphium3.getConfig().setThreadPoolMessagingCoreSize(5);
         morphium3.getConfig().setThreadPoolAsyncOpMaxSize(10);
-        Messaging receiver2 = new Messaging(morphium3, 10, false, true, 100);
+        Messaging receiver2 = new Messaging(morphium3, 10, false, false, 100);
         receiver2.setSenderId("r2");
         receiver2.start();
+
+        Morphium morphium4 = new Morphium(MorphiumConfig.fromProperties(morphium.getConfig().asProperties()));
+        morphium3.getConfig().setThreadPoolMessagingMaxSize(10);
+        morphium3.getConfig().setThreadPoolMessagingCoreSize(5);
+        morphium3.getConfig().setThreadPoolAsyncOpMaxSize(10);
+        Messaging receiver3 = new Messaging(morphium4, 10, true, false, 100);
+        receiver3.setSenderId("r3");
+        receiver3.start();
+
+        Morphium morphium5 = new Morphium(MorphiumConfig.fromProperties(morphium.getConfig().asProperties()));
+        morphium3.getConfig().setThreadPoolMessagingMaxSize(10);
+        morphium3.getConfig().setThreadPoolMessagingCoreSize(5);
+        morphium3.getConfig().setThreadPoolAsyncOpMaxSize(10);
+        Messaging receiver4 = new Messaging(morphium5, 10, false, true, 100);
+        receiver4.setSenderId("r4");
+        receiver4.start();
         final AtomicInteger received = new AtomicInteger();
         final AtomicInteger dups = new AtomicInteger();
         final Vector<String> ids = new Vector<>();
         final Map<String, String> recById = new ConcurrentHashMap<>();
+        final Map<String, AtomicInteger> recieveCount = new ConcurrentHashMap<>();
         Thread.sleep(100);
         int amount;
         try {
-            receiver.addListenerForMessageNamed("m", (msg, m) -> {
+            MessageListener messageListener = (msg, m) -> {
                 msg.pauseProcessingOfMessagesNamed("m");
                 Thread.sleep((long) (200 * Math.random()));
                 //log.info("R1: Incoming message "+m.getValue());
                 received.incrementAndGet();
+                recieveCount.putIfAbsent(msg.getSenderId(),new AtomicInteger());
+                recieveCount.get(msg.getSenderId()).incrementAndGet();
                 if (ids.contains(m.getMsgId().toString())) {
-                    log.error("Duplicate recieved message!");
+                    log.error("Duplicate recieved message "+msg.getSenderId());
+                    if (recById.get(m.getMsgId().toString()).equals(msg.getSenderId())) {
+                        log.error("--- duplicate was processed before by me!");
+                    } else {
+                        log.error("--- duplicate processed by someone else");
+                    }
                     dups.incrementAndGet();
                 }
                 ids.add(m.getMsgId().toString());
                 recById.put(m.getMsgId().toString(), msg.getSenderId());
-                //            new Thread(){
-                //                public void run(){
-                //                    try {
-                //                        Thread.sleep(10);
-                //                    } catch (InterruptedException e) {
-                //                    }
                 msg.unpauseProcessingOfMessagesNamed("m");
-                //                }
-                //            }.start();
                 return null;
-            });
-
-            receiver2.addListenerForMessageNamed("m", (msg, m) -> {
-                msg.pauseProcessingOfMessagesNamed("m");
-                //            log.info("R2: Incoming message "+m.getValue());
-                received.incrementAndGet();
-                Thread.sleep((long) (200 * Math.random()));
-                if (ids.contains(m.getMsgId().toString())) {
-                    log.error("Duplicate recieved message!");
-                    dups.incrementAndGet();
-                }
-                ids.add(m.getMsgId().toString());
-                recById.put(m.getMsgId().toString(), msg.getSenderId());
-                //            new Thread(){
-                //                public void run(){
-                //                    try {
-                //                        Thread.sleep(10);
-                //                    } catch (InterruptedException e) {
-                //                    }
-                msg.unpauseProcessingOfMessagesNamed("m");
-                //                }
-                //            }.start();
-
-                return null;
-            });
+            };
+            receiver.addListenerForMessageNamed("m", messageListener);
+            receiver2.addListenerForMessageNamed("m", messageListener);
+            receiver3.addListenerForMessageNamed("m", messageListener);
+            receiver4.addListenerForMessageNamed("m", messageListener);
             amount = 500;
             for (int i = 0; i < amount; i++) {
                 int rec = received.get();
@@ -1495,6 +1498,10 @@ public class MessagingTest extends MorphiumTestBase {
             long messageCount = sender.getMessageCount();
             log.info("Send " + amount + " recieved: " + rec + " queue: " + messageCount);
             assert (received.get() == amount) : "should have received " + amount + " but actually got " + received.get();
+
+            for (String id:recieveCount.keySet()){
+                log.info("Reciever "+id+" message count: "+recieveCount.get(id).get());
+            }
         } finally {
 
             sender.terminate();
