@@ -554,10 +554,10 @@ public class Messaging extends Thread implements ShutdownListener {
                 processing.remove(msg.getMsgId());
                 continue;
             }
-            if (msg.isExclusive() && msg.getProcessedBy().size() > 2) {
+            if (msg.isExclusive() && msg.getProcessedBy() != null && msg.getProcessedBy().size() > 2) {
                 log.error("Exclusive message processed more than once ?");
-                for (String processed:msg.getProcessedBy()){
-                    log.error("- was processed by "+processed);
+                for (String processed : msg.getProcessedBy()) {
+                    log.error("- was processed by " + processed);
                 }
                 continue;
             }

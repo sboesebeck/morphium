@@ -58,32 +58,31 @@ public class MessagingTest extends MorphiumTestBase {
             return null;
         });
         m2.start();
+        try {
+            Msg msg = new Msg("tst", "msg", "value", 30000);
+            msg.setExclusive(false);
+            m.sendMessage(msg);
+            Thread.sleep(1);
+            Query<Msg> q = morphium.createQueryFor(Msg.class);
+            assert (q.countAll() == 1);
+            q.setCollectionName("mmsg_msg2");
+            assert (q.countAll() == 0);
 
-        Msg msg = new Msg("tst", "msg", "value", 30000);
-        msg.setExclusive(false);
-        m.sendMessage(msg);
-        Thread.sleep(1);
-        Query<Msg> q = morphium.createQueryFor(Msg.class);
-        assert (q.countAll() == 1);
-        q.setCollectionName("mmsg_msg2");
-        assert (q.countAll() == 0);
+            msg = new Msg("tst2", "msg", "value", 30000);
+            msg.setExclusive(false);
+            m2.sendMessage(msg);
+            q = morphium.createQueryFor(Msg.class);
+            assert (q.countAll() == 1);
+            q.setCollectionName("mmsg_msg2");
+            assert (q.countAll() == 1) : "Count is " + q.countAll();
 
-        msg = new Msg("tst2", "msg", "value", 30000);
-        msg.setExclusive(false);
-        m2.sendMessage(msg);
-        q = morphium.createQueryFor(Msg.class);
-        assert (q.countAll() == 1);
-        q.setCollectionName("mmsg_msg2");
-        assert (q.countAll() == 1) : "Count is " + q.countAll();
-
-        Thread.sleep(4000);
-        assert (!gotMessage1);
-        assert (!gotMessage2);
-        m.terminate();
-        m2.terminate();
-        Thread.sleep(1000);
-        assert (!m.isAlive());
-        assert (!m2.isAlive());
+            Thread.sleep(4000);
+            assert (!gotMessage1);
+            assert (!gotMessage2);
+        } finally {
+            m.terminate();
+            m2.terminate();
+        }
 
     }
 
@@ -95,7 +94,6 @@ public class MessagingTest extends MorphiumTestBase {
         m.setName("A name");
         morphium.store(m);
         Thread.sleep(5000);
-
         assert (m.getTimestamp() > 0) : "Timestamp not updated?";
 
     }
@@ -418,8 +416,6 @@ public class MessagingTest extends MorphiumTestBase {
             sender.terminate();
             rec1.terminate();
             rec2.terminate();
-            sender.sendMessage(new Msg("quitting", "quit", "quit", 10, false));
-            Thread.sleep(1000);
         }
 
 
@@ -570,29 +566,34 @@ public class MessagingTest extends MorphiumTestBase {
         m1.start();
         m2.start();
         m3.start();
+        try {
+            m3.addListenerForMessageNamed("test", (msg, m) -> {
+                //log.info("Got message: "+m.getName());
+                log.info("Sending answer for " + m.getMsgId());
+                return new Msg("test", "answer", "value", 600000);
+            });
 
-        m3.addListenerForMessageNamed("test", (msg, m) -> {
-            //log.info("Got message: "+m.getName());
-            log.info("Sending answer for " + m.getMsgId());
-            return new Msg("test", "answer", "value", 600000);
-        });
+            procCounter.set(0);
+            for (int i = 0; i < 180; i++) {
+                new Thread() {
+                    public void run() {
+                        Msg m = new Msg("test", "nothing", "value");
+                        m.setTtl(60000000);
+                        Msg a = m1.sendAndAwaitFirstAnswer(m, 6000);
+                        assert (a != null);
+                        procCounter.incrementAndGet();
+                    }
+                }.start();
 
-        procCounter.set(0);
-        for (int i = 0; i < 180; i++) {
-            new Thread() {
-                public void run() {
-                    Msg m = new Msg("test", "nothing", "value");
-                    m.setTtl(60000000);
-                    Msg a = m1.sendAndAwaitFirstAnswer(m, 6000);
-                    assert (a != null);
-                    procCounter.incrementAndGet();
-                }
-            }.start();
-
-        }
-        while (procCounter.get() < 150) {
-            Thread.sleep(1000);
-            log.info("REcieved " + procCounter.get());
+            }
+            while (procCounter.get() < 180) {
+                Thread.sleep(1000);
+                log.info("Recieved " + procCounter.get());
+            }
+        } finally {
+            m1.terminate();
+            m2.terminate();
+            m3.terminate();
         }
 
     }
@@ -721,78 +722,75 @@ public class MessagingTest extends MorphiumTestBase {
         m3.start();
         m2.start();
         Thread.sleep(300);
+        try {
+            log.info("m1 ID: " + m1.getSenderId());
+            log.info("m2 ID: " + m2.getSenderId());
+            log.info("m3 ID: " + m3.getSenderId());
 
-        log.info("m1 ID: " + m1.getSenderId());
-        log.info("m2 ID: " + m2.getSenderId());
-        log.info("m3 ID: " + m3.getSenderId());
+            m1.addMessageListener((msg, m) -> {
+                gotMessage1 = true;
+                if (m.getTo() != null && m.getTo().contains(m1.getSenderId())) {
+                    log.error("wrongly received message m1?");
+                    error = true;
+                }
+                log.info("M1 got message " + m.toString());
+                return null;
+            });
 
-        m1.addMessageListener((msg, m) -> {
-            gotMessage1 = true;
-            if (m.getTo() != null && m.getTo().contains(m1.getSenderId())) {
-                log.error("wrongly received message m1?");
-                error = true;
-            }
-            log.info("M1 got message " + m.toString());
-            return null;
-        });
+            m2.addMessageListener((msg, m) -> {
+                gotMessage2 = true;
+                if (m.getTo() != null && !m.getTo().contains(m2.getSenderId())) {
+                    log.error("wrongly received message m2?");
+                    error = true;
+                }
+                log.info("M2 got message " + m.toString());
+                return null;
+            });
 
-        m2.addMessageListener((msg, m) -> {
-            gotMessage2 = true;
-            if (m.getTo() != null && !m.getTo().contains(m2.getSenderId())) {
-                log.error("wrongly received message m2?");
-                error = true;
-            }
-            log.info("M2 got message " + m.toString());
-            return null;
-        });
+            m3.addMessageListener((msg, m) -> {
+                gotMessage3 = true;
+                if (m.getTo() != null && !m.getTo().contains(m3.getSenderId())) {
+                    log.error("wrongly received message m3?");
+                    error = true;
+                }
+                log.info("M3 got message " + m.toString());
+                return null;
+            });
+            m4.addMessageListener((msg, m) -> {
+                gotMessage4 = true;
+                if (m.getTo() != null && !m.getTo().contains(m3.getSenderId())) {
+                    log.error("wrongly received message m4?");
+                    error = true;
+                }
+                log.info("M4 got message " + m.toString());
+                return null;
+            });
 
-        m3.addMessageListener((msg, m) -> {
-            gotMessage3 = true;
-            if (m.getTo() != null && !m.getTo().contains(m3.getSenderId())) {
-                log.error("wrongly received message m3?");
-                error = true;
-            }
-            log.info("M3 got message " + m.toString());
-            return null;
-        });
-        m4.addMessageListener((msg, m) -> {
-            gotMessage4 = true;
-            if (m.getTo() != null && !m.getTo().contains(m3.getSenderId())) {
-                log.error("wrongly received message m4?");
-                error = true;
-            }
-            log.info("M4 got message " + m.toString());
-            return null;
-        });
+            Msg m = new Msg("test", "A message", "a value");
+            m.setExclusive(false);
+            m1.sendMessage(m);
 
-        Msg m = new Msg("test", "A message", "a value");
-        m.setExclusive(false);
-        m1.sendMessage(m);
-
-        Thread.sleep(500);
-        assert (!gotMessage1) : "Got message again?";
-        assert (gotMessage4) : "m4 did not get msg?";
-        assert (gotMessage2) : "m2 did not get msg?";
-        assert (gotMessage3) : "m3 did not get msg";
-        assert (!error);
-        gotMessage2 = false;
-        gotMessage3 = false;
-        gotMessage4 = false;
-        Thread.sleep(500);
-        assert (!gotMessage1) : "Got message again?";
-        assert (!gotMessage2) : "m2 did get msg again?";
-        assert (!gotMessage3) : "m3 did get msg again?";
-        assert (!gotMessage4) : "m4 did get msg again?";
-        assert (!error);
-
-        m1.terminate();
-        m2.terminate();
-        m3.terminate();
-        m = new Msg("test", "end", "a value");
-        m.setExclusive(false);
-        m1.sendMessage(m);
-        Thread.sleep(1000);
-
+            Thread.sleep(500);
+            assert (!gotMessage1) : "Got message again?";
+            assert (gotMessage4) : "m4 did not get msg?";
+            assert (gotMessage2) : "m2 did not get msg?";
+            assert (gotMessage3) : "m3 did not get msg";
+            assert (!error);
+            gotMessage2 = false;
+            gotMessage3 = false;
+            gotMessage4 = false;
+            Thread.sleep(500);
+            assert (!gotMessage1) : "Got message again?";
+            assert (!gotMessage2) : "m2 did get msg again?";
+            assert (!gotMessage3) : "m3 did get msg again?";
+            assert (!gotMessage4) : "m4 did get msg again?";
+            assert (!error);
+        } finally {
+            m1.terminate();
+            m2.terminate();
+            m3.terminate();
+            m4.terminate();
+        }
     }
 
     @Test
@@ -803,40 +801,40 @@ public class MessagingTest extends MorphiumTestBase {
         final Messaging consumer = new Messaging(morphium, 100, true, true, 2000);
         producer.start();
         consumer.start();
-        Vector<String> processedIds = new Vector<>();
-        procCounter.set(0);
-        consumer.addMessageListener((msg, m) -> {
-            procCounter.incrementAndGet();
-            if (processedIds.contains(m.getMsgId().toString())) {
-                log.error("Received msg twice: " + procCounter.get() + "/" + m.getMsgId());
+        try {
+            Vector<String> processedIds = new Vector<>();
+            procCounter.set(0);
+            consumer.addMessageListener((msg, m) -> {
+                procCounter.incrementAndGet();
+                if (processedIds.contains(m.getMsgId().toString())) {
+                    log.error("Received msg twice: " + procCounter.get() + "/" + m.getMsgId());
+                    return null;
+                }
+                processedIds.add(m.getMsgId().toString());
+                //simulate processing
+                try {
+                    Thread.sleep((long) (100 * Math.random()));
+                } catch (InterruptedException e) {
+
+                }
                 return null;
+            });
+            Thread.sleep(2500);
+            int amount = 1000;
+            log.info("------------- sending messages");
+            for (int i = 0; i < amount; i++) {
+                producer.sendMessage(new Msg("Test " + i, "msg " + i, "value " + i));
             }
-            processedIds.add(m.getMsgId().toString());
-            //simulate processing
-            try {
-                Thread.sleep((long) (100 * Math.random()));
-            } catch (InterruptedException e) {
 
+            for (int i = 0; i < 30 && procCounter.get() < amount; i++) {
+                Thread.sleep(1000);
+                log.info("Still processing: " + procCounter.get());
             }
-            return null;
-        });
-        Thread.sleep(2500);
-        int amount = 1000;
-        log.info("------------- sending messages");
-        for (int i = 0; i < amount; i++) {
-            producer.sendMessage(new Msg("Test " + i, "msg " + i, "value " + i));
+            assert (procCounter.get() == amount) : "Did process " + procCounter.get();
+        } finally {
+            producer.terminate();
+            consumer.terminate();
         }
-
-        for (int i = 0; i < 30 && procCounter.get() < amount; i++) {
-            Thread.sleep(1000);
-            log.info("Still processing: " + procCounter.get());
-        }
-        producer.terminate();
-        consumer.terminate();
-        assert (procCounter.get() == amount) : "Did process " + procCounter.get();
-
-        Thread.sleep(1000);
-
     }
 
 
@@ -849,40 +847,40 @@ public class MessagingTest extends MorphiumTestBase {
         producer.start();
         consumer.start();
         Thread.sleep(2500);
-        final int[] processed = {0};
-        final Vector<String> messageIds = new Vector<>();
-        consumer.addMessageListener((msg, m) -> {
-            processed[0]++;
-            if (processed[0] % 50 == 1) {
-                log.info(processed[0] + "... Got Message " + m.getName() + " / " + m.getMsg() + " / " + m.getValue());
+        try {
+            final int[] processed = {0};
+            final Vector<String> messageIds = new Vector<>();
+            consumer.addMessageListener((msg, m) -> {
+                processed[0]++;
+                if (processed[0] % 50 == 1) {
+                    log.info(processed[0] + "... Got Message " + m.getName() + " / " + m.getMsg() + " / " + m.getValue());
+                }
+                assert (!messageIds.contains(m.getMsgId().toString())) : "Duplicate message: " + processed[0];
+                messageIds.add(m.getMsgId().toString());
+                //simulate processing
+                try {
+                    Thread.sleep((long) (10 * Math.random()));
+                } catch (InterruptedException e) {
+
+                }
+                return null;
+            });
+
+            int amount = 1000;
+
+            for (int i = 0; i < amount; i++) {
+                producer.sendMessage(new Msg("Test " + i, "msg " + i, "value " + i));
             }
-            assert (!messageIds.contains(m.getMsgId().toString())) : "Duplicate message: " + processed[0];
-            messageIds.add(m.getMsgId().toString());
-            //simulate processing
-            try {
-                Thread.sleep((long) (10 * Math.random()));
-            } catch (InterruptedException e) {
 
+            for (int i = 0; i < 30 && processed[0] < amount; i++) {
+                log.info("Still processing: " + processed[0]);
+                Thread.sleep(1000);
             }
-            return null;
-        });
-
-        int amount = 1000;
-
-        for (int i = 0; i < amount; i++) {
-            producer.sendMessage(new Msg("Test " + i, "msg " + i, "value " + i));
+            assert (processed[0] == amount) : "Did process " + processed[0];
+        } finally {
+            producer.terminate();
+            consumer.terminate();
         }
-
-        for (int i = 0; i < 30 && processed[0] < amount; i++) {
-            log.info("Still processing: " + processed[0]);
-            Thread.sleep(1000);
-        }
-        assert (processed[0] == amount) : "Did process " + processed[0];
-
-        producer.terminate();
-        consumer.terminate();
-        Thread.sleep(1000);
-
     }
 
 
@@ -894,51 +892,52 @@ public class MessagingTest extends MorphiumTestBase {
         consumer.start();
         producer.start();
         Thread.sleep(2500);
-        final int[] processed = {0};
-        final Map<String, Long> msgCountById = new Hashtable<>();
-        consumer.addMessageListener((msg, m) -> {
-            synchronized (processed) {
-                processed[0]++;
-            }
-            if (processed[0] % 1000 == 0) {
-                log.info("Consumed " + processed[0]);
-            }
-            assert (!m.getProcessedBy().contains(msg.getSenderId()));
-            //                assert(!msgCountById.containsKey(m.getMsgId().toString()));
-            msgCountById.put(m.getMsgId().toString(), 1L);
-            //simulate processing
-            try {
-                Thread.sleep((long) (10 * Math.random()));
-            } catch (InterruptedException e) {
-                e.printStackTrace();
-            }
-            return null;
-        });
+        try {
+            final int[] processed = {0};
+            final Map<String, Long> msgCountById = new Hashtable<>();
+            consumer.addMessageListener((msg, m) -> {
+                synchronized (processed) {
+                    processed[0]++;
+                }
+                if (processed[0] % 1000 == 0) {
+                    log.info("Consumed " + processed[0]);
+                }
+                assert (!m.getProcessedBy().contains(msg.getSenderId()));
+                //                assert(!msgCountById.containsKey(m.getMsgId().toString()));
+                msgCountById.put(m.getMsgId().toString(), 1L);
+                //simulate processing
+                try {
+                    Thread.sleep((long) (10 * Math.random()));
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                }
+                return null;
+            });
 
-        int numberOfMessages = 1000;
-        for (int i = 0; i < numberOfMessages; i++) {
-            Msg m = new Msg("msg", "m", "v");
-            m.setTtl(5 * 60 * 1000);
-            if (i % 1000 == 0) {
-                log.info("created msg " + i + " / " + numberOfMessages);
+            int numberOfMessages = 1000;
+            for (int i = 0; i < numberOfMessages; i++) {
+                Msg m = new Msg("msg", "m", "v");
+                m.setTtl(5 * 60 * 1000);
+                if (i % 1000 == 0) {
+                    log.info("created msg " + i + " / " + numberOfMessages);
+                }
+                producer.sendMessage(m);
             }
-            producer.sendMessage(m);
+
+            long start = System.currentTimeMillis();
+
+            while (processed[0] < numberOfMessages) {
+                //            ThreadMXBean thbean = ManagementFactory.getThreadMXBean();
+                //            log.info("Running threads: " + thbean.getThreadCount());
+                log.info("Processed " + processed[0]);
+                Thread.sleep(1500);
+            }
+            long dur = System.currentTimeMillis() - start;
+            log.info("Processing took " + dur + " ms");
+        } finally {
+            producer.terminate();
+            consumer.terminate();
         }
-
-        long start = System.currentTimeMillis();
-
-        while (processed[0] < numberOfMessages) {
-            //            ThreadMXBean thbean = ManagementFactory.getThreadMXBean();
-            //            log.info("Running threads: " + thbean.getThreadCount());
-            log.info("Processed " + processed[0]);
-            Thread.sleep(1500);
-        }
-        long dur = System.currentTimeMillis() - start;
-        log.info("Processing took " + dur + " ms");
-        producer.terminate();
-        consumer.terminate();
-        log.info("Waitingh for threads to finish");
-        Thread.sleep(1000);
 
 
     }
@@ -1076,34 +1075,36 @@ public class MessagingTest extends MorphiumTestBase {
         m1.start();
         m2.start();
         m3.start();
-        Thread.sleep(100);
+        try {
+            Thread.sleep(100);
 
 
-        Msg m = new Msg();
-        m.setExclusive(true);
-        m.setName("A message");
+            Msg m = new Msg();
+            m.setExclusive(true);
+            m.setName("A message");
 
-        sender.queueMessage(m);
-        Thread.sleep(5000);
+            sender.queueMessage(m);
+            Thread.sleep(5000);
 
-        int rec = 0;
-        if (gotMessage1) {
-            rec++;
+            int rec = 0;
+            if (gotMessage1) {
+                rec++;
+            }
+            if (gotMessage2) {
+                rec++;
+            }
+            if (gotMessage3) {
+                rec++;
+            }
+            assert (rec == 1) : "rec is " + rec;
+
+            assert (m1.getNumberOfMessages() == 0);
+        } finally {
+            m1.terminate();
+            m2.terminate();
+            m3.terminate();
+            sender.terminate();
         }
-        if (gotMessage2) {
-            rec++;
-        }
-        if (gotMessage3) {
-            rec++;
-        }
-        assert (rec == 1) : "rec is " + rec;
-
-        assert (m1.getNumberOfMessages() == 0);
-        m1.terminate();
-        m2.terminate();
-        m3.terminate();
-        sender.terminate();
-
 
     }
 
@@ -1118,6 +1119,7 @@ public class MessagingTest extends MorphiumTestBase {
             log.info("Got message: " + m.getMsg() + "/" + m.getName());
             return null;
         }));
+
         gotMessage = false;
         gotMessage1 = false;
         gotMessage2 = false;
@@ -1130,15 +1132,16 @@ public class MessagingTest extends MorphiumTestBase {
             return new Msg(m.getName(), "got message", "value", 5000);
         });
         m1.start();
-
-        sender.sendMessageToSelf(new Msg("testmsg", "Selfmessage", "value"));
-        Thread.sleep(1500);
-        assert (gotMessage);
-        //noinspection PointlessBooleanExpression
-        assert (gotMessage1 == false);
-
-        m1.terminate();
-        sender.terminate();
+        try {
+            sender.sendMessageToSelf(new Msg("testmsg", "Selfmessage", "value"));
+            Thread.sleep(1500);
+            assert (gotMessage);
+            //noinspection PointlessBooleanExpression
+            assert (gotMessage1 == false);
+        } finally {
+            m1.terminate();
+            sender.terminate();
+        }
     }
 
 
@@ -1155,52 +1158,54 @@ public class MessagingTest extends MorphiumTestBase {
         gotMessage4 = false;
 
         Messaging m3 = new Messaging(morphium, 100, false);
-        m3.addMessageListener((msg, m) -> {
-            gotMessage3 = true;
-            return null;
-        });
-
-        m3.start();
-
-        Thread.sleep(1500);
-
-
-        sender.sendMessage(new Msg("test", "testmsg", "testvalue", 120000, false));
-
-        Thread.sleep(1000);
-        assert (gotMessage3);
-        Thread.sleep(2000);
-
-
-        Messaging m1 = new Messaging(morphium, 100, false);
-        m1.addMessageListener((msg, m) -> {
-            gotMessage1 = true;
-            return null;
-        });
-
-        m1.start();
-
-        Thread.sleep(1500);
-        assert (gotMessage1);
-
-
         Messaging m2 = new Messaging(morphium, 100, false);
-        m2.addMessageListener((msg, m) -> {
-            gotMessage2 = true;
-            return null;
-        });
+        Messaging m1 = new Messaging(morphium, 100, false);
 
-        m2.start();
+        try {
+            m3.addMessageListener((msg, m) -> {
+                gotMessage3 = true;
+                return null;
+            });
 
-        Thread.sleep(1500);
-        assert (gotMessage2);
+            m3.start();
+
+            Thread.sleep(1500);
 
 
-        m1.terminate();
-        m2.terminate();
-        m3.terminate();
-        sender.terminate();
+            sender.sendMessage(new Msg("test", "testmsg", "testvalue", 120000, false));
 
+            Thread.sleep(1000);
+            assert (gotMessage3);
+            Thread.sleep(2000);
+
+
+            m1.addMessageListener((msg, m) -> {
+                gotMessage1 = true;
+                return null;
+            });
+
+            m1.start();
+
+            Thread.sleep(1500);
+            assert (gotMessage1);
+
+
+            m2.addMessageListener((msg, m) -> {
+                gotMessage2 = true;
+                return null;
+            });
+
+            m2.start();
+
+            Thread.sleep(1500);
+            assert (gotMessage2);
+
+        } finally {
+            m1.terminate();
+            m2.terminate();
+            m3.terminate();
+            sender.terminate();
+        }
 
     }
 
@@ -1225,18 +1230,19 @@ public class MessagingTest extends MorphiumTestBase {
             return null;
         });
         receiver.start();
-        Thread.sleep(500);
-        sender.sendMessage(new Msg("test", "test", "test"));
-        sender.sendMessage(new Msg("test", "test", "test"));
+        try {
+            Thread.sleep(500);
+            sender.sendMessage(new Msg("test", "test", "test"));
+            sender.sendMessage(new Msg("test", "test", "test"));
 
-        Thread.sleep(500);
-        assert (list.size() == 1) : "Size wrong: " + list.size();
-        Thread.sleep(2200);
-        assert (list.size() == 2);
-
-        sender.terminate();
-        receiver.terminate();
-
+            Thread.sleep(500);
+            assert (list.size() == 1) : "Size wrong: " + list.size();
+            Thread.sleep(2200);
+            assert (list.size() == 2);
+        } finally {
+            sender.terminate();
+            receiver.terminate();
+        }
     }
 
     @Test
@@ -1262,16 +1268,17 @@ public class MessagingTest extends MorphiumTestBase {
             return null;
         });
         receiver.start();
-        Thread.sleep(100);
-        sender.sendMessage(new Msg("test", "test", "test"));
-        sender.sendMessage(new Msg("test", "test", "test"));
-        Thread.sleep(1000);
+        try {
+            Thread.sleep(100);
+            sender.sendMessage(new Msg("test", "test", "test"));
+            sender.sendMessage(new Msg("test", "test", "test"));
+            Thread.sleep(1000);
 
-        assert (list.size() == 2) : "Size wrong: " + list.size();
-
-        sender.terminate();
-        receiver.terminate();
-
+            assert (list.size() == 2) : "Size wrong: " + list.size();
+        } finally {
+            sender.terminate();
+            receiver.terminate();
+        }
     }
 
 
@@ -1284,63 +1291,64 @@ public class MessagingTest extends MorphiumTestBase {
         //if running multithreadded, the execution order might differ a bit because of the concurrent
         //execution - hence if set to multithreadded, the test will fail!
         Messaging receiver = new Messaging(morphium, 10, false, false, 100);
+        try {
+            receiver.addMessageListener((msg, m) -> {
+                log.info("Incoming message: prio " + m.getPriority() + "  timestamp: " + m.getTimestamp());
+                list.add(m);
+                return null;
+            });
 
-        receiver.addMessageListener((msg, m) -> {
-            log.info("Incoming message: prio " + m.getPriority() + "  timestamp: " + m.getTimestamp());
-            list.add(m);
-            return null;
-        });
+            for (int i = 0; i < 10; i++) {
+                Msg m = new Msg("test", "test", "test");
+                m.setPriority((int) (1000.0 * Math.random()));
+                log.info("Stored prio: " + m.getPriority());
+                sender.sendMessage(m);
+            }
 
-        for (int i = 0; i < 10; i++) {
-            Msg m = new Msg("test", "test", "test");
-            m.setPriority((int) (1000.0 * Math.random()));
-            log.info("Stored prio: " + m.getPriority());
-            sender.sendMessage(m);
+            Thread.sleep(1000);
+            receiver.start();
+
+            while (list.size() < 10) {
+                Thread.yield();
+            }
+
+            int lastValue = -888888;
+
+            for (Msg m : list) {
+                log.info("prio: " + m.getPriority());
+                assert (m.getPriority() >= lastValue);
+                lastValue = m.getPriority();
+            }
+
+
+            receiver.pauseProcessingOfMessagesNamed("test");
+            list.clear();
+            for (int i = 0; i < 10; i++) {
+                Msg m = new Msg("test", "test", "test");
+                m.setPriority((int) (10000.0 * Math.random()));
+                log.info("Stored prio: " + m.getPriority());
+                sender.sendMessage(m);
+            }
+
+            Thread.sleep(1000);
+            receiver.unpauseProcessingOfMessagesNamed("test");
+            receiver.findAndProcessPendingMessages("test");
+            while (list.size() < 10) {
+                Thread.yield();
+            }
+
+            lastValue = -888888;
+
+            for (Msg m : list) {
+                log.info("prio: " + m.getPriority());
+                assert (m.getPriority() >= lastValue);
+                lastValue = m.getPriority();
+            }
+
+        } finally {
+            sender.terminate();
+            receiver.terminate();
         }
-
-        Thread.sleep(1000);
-        receiver.start();
-
-        while (list.size() < 10) {
-            Thread.yield();
-        }
-
-        int lastValue = -888888;
-
-        for (Msg m : list) {
-            log.info("prio: " + m.getPriority());
-            assert (m.getPriority() >= lastValue);
-            lastValue = m.getPriority();
-        }
-
-
-        receiver.pauseProcessingOfMessagesNamed("test");
-        list.clear();
-        for (int i = 0; i < 10; i++) {
-            Msg m = new Msg("test", "test", "test");
-            m.setPriority((int) (10000.0 * Math.random()));
-            log.info("Stored prio: " + m.getPriority());
-            sender.sendMessage(m);
-        }
-
-        Thread.sleep(1000);
-        receiver.unpauseProcessingOfMessagesNamed("test");
-        receiver.findAndProcessPendingMessages("test");
-        while (list.size() < 10) {
-            Thread.yield();
-        }
-
-        lastValue = -888888;
-
-        for (Msg m : list) {
-            log.info("prio: " + m.getPriority());
-            assert (m.getPriority() >= lastValue);
-            lastValue = m.getPriority();
-        }
-
-
-        sender.terminate();
-        receiver.terminate();
     }
 
 
@@ -1355,50 +1363,51 @@ public class MessagingTest extends MorphiumTestBase {
         Messaging receiver2 = new Messaging(morphium, 10, false, true, 10);
         receiver2.start();
 
+        try {
+            Thread.sleep(100);
+            receiver.addMessageListener((msg, m) -> {
+                log.info("R1: Incoming message");
+                return null;
+            });
 
-        Thread.sleep(100);
-        receiver.addMessageListener((msg, m) -> {
-            log.info("R1: Incoming message");
-            return null;
-        });
-
-        receiver2.addMessageListener((msg, m) -> {
-            log.info("R2: Incoming message");
-            return null;
-        });
+            receiver2.addMessageListener((msg, m) -> {
+                log.info("R2: Incoming message");
+                return null;
+            });
 
 
-        for (int i = 0; i < 100; i++) {
-            Msg m = new Msg("test", "test", "value", 3000000, true);
-            sender.sendMessage(m);
-            if (i == 50) {
-                receiver2.pauseProcessingOfMessagesNamed("test");
-            } else if (i == 60) {
-                receiver.pauseProcessingOfMessagesNamed("test");
-            } else if (i == 80) {
-                receiver.unpauseProcessingOfMessagesNamed("test");
-                receiver.findAndProcessPendingMessages("test");
-                receiver2.unpauseProcessingOfMessagesNamed("test");
-                receiver2.findAndProcessPendingMessages("test");
+            for (int i = 0; i < 100; i++) {
+                Msg m = new Msg("test", "test", "value", 3000000, true);
+                sender.sendMessage(m);
+                if (i == 50) {
+                    receiver2.pauseProcessingOfMessagesNamed("test");
+                } else if (i == 60) {
+                    receiver.pauseProcessingOfMessagesNamed("test");
+                } else if (i == 80) {
+                    receiver.unpauseProcessingOfMessagesNamed("test");
+                    receiver.findAndProcessPendingMessages("test");
+                    receiver2.unpauseProcessingOfMessagesNamed("test");
+                    receiver2.findAndProcessPendingMessages("test");
+                }
+
             }
 
-        }
-
-        long start = System.currentTimeMillis();
-        Query<Msg> q = morphium.createQueryFor(Msg.class).f(Msg.Fields.name).eq("test");
-        while (q.countAll() > 0) {
-            log.info("Count is still: " + q.countAll());
-            Thread.sleep(500);
-            if (System.currentTimeMillis() - start > 10000) {
-                break;
+            long start = System.currentTimeMillis();
+            Query<Msg> q = morphium.createQueryFor(Msg.class).f(Msg.Fields.name).eq("test");
+            while (q.countAll() > 0) {
+                log.info("Count is still: " + q.countAll());
+                Thread.sleep(500);
+                if (System.currentTimeMillis() - start > 10000) {
+                    break;
+                }
             }
-        }
-        assert (q.countAll() == 0) : "Count is wrong";
+            assert (q.countAll() == 0) : "Count is wrong";
 //
-
-        receiver.terminate();
-        receiver2.terminate();
-        sender.terminate();
+        } finally {
+            receiver.terminate();
+            receiver2.terminate();
+            sender.terminate();
+        }
 
     }
 
