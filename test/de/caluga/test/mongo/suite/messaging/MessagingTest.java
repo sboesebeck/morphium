@@ -62,7 +62,7 @@ public class MessagingTest extends MorphiumTestBase {
             Msg msg = new Msg("tst", "msg", "value", 30000);
             msg.setExclusive(false);
             m.sendMessage(msg);
-            Thread.sleep(1);
+            Thread.sleep(10);
             Query<Msg> q = morphium.createQueryFor(Msg.class);
             assert (q.countAll() == 1);
             q.setCollectionName(m2.getCollectionName());
@@ -71,6 +71,7 @@ public class MessagingTest extends MorphiumTestBase {
             msg = new Msg("tst2", "msg", "value", 30000);
             msg.setExclusive(false);
             m2.sendMessage(msg);
+            Thread.sleep(10);
             q = morphium.createQueryFor(Msg.class);
             assert (q.countAll() == 1);
             q.setCollectionName("mmsg_msg2");
@@ -367,10 +368,73 @@ public class MessagingTest extends MorphiumTestBase {
 
     }
 
+    @Test
+    public void testRejectExclusiveMessage() throws Exception {
+        Messaging sender = null;
+        Messaging rec1 = null;
+        Messaging rec2 = null;
+        try {
+            sender = new Messaging(morphium, 100, false);
+            sender.setSenderId("sender");
+            rec1 = new Messaging(morphium, 100, false);
+            rec1.setSenderId("rec1");
+            rec2 = new Messaging(morphium, 100, false);
+            rec2.setSenderId("rec2");
+            morphium.dropCollection(Msg.class, sender.getCollectionName(), null);
+            Thread.sleep(10);
+            sender.start();
+            rec1.start();
+            rec2.start();
+            Thread.sleep(2000);
+            final AtomicInteger recFirst = new AtomicInteger(0);
+
+            gotMessage = false;
+
+            rec1.addMessageListener((msg, m) -> {
+                if (recFirst.get() == 0) {
+                    recFirst.set(1);
+                    throw new MessageRejectedException("rejected", true, true);
+                }
+                gotMessage = true;
+                return null;
+            });
+            rec2.addMessageListener((msg, m) -> {
+                if (recFirst.get() == 0) {
+                    recFirst.set(1);
+                    throw new MessageRejectedException("rejected", true, true);
+                }
+                gotMessage = true;
+                return null;
+            });
+            sender.addMessageListener((msg, m) -> {
+                if (m.getInAnswerTo() == null) {
+                    log.error("Message is not an answer! ERROR!");
+                    return null;
+                } else {
+                    log.info("Got answer");
+                }
+                gotMessage3 = true;
+                log.info("Receiver rejected message");
+                return null;
+            });
+
+
+            sender.sendMessage(new Msg("test", "message", "value", 30000, true));
+            Thread.sleep(1000);
+            assert (gotMessage);
+            assert (gotMessage3);
+        } finally {
+            sender.terminate();
+            rec1.terminate();
+            rec2.terminate();
+        }
+
+
+    }
+
 
     @Test
     public void testRejectMessage() throws Exception {
-        morphium.clearCollection(Msg.class);
         Messaging sender = null;
         Messaging rec1 = null;
         Messaging rec2 = null;
@@ -378,7 +442,8 @@ public class MessagingTest extends MorphiumTestBase {
             sender = new Messaging(morphium, 100, false);
             rec1 = new Messaging(morphium, 100, false);
             rec2 = new Messaging(morphium, 500, false);
-
+            morphium.dropCollection(Msg.class, sender.getCollectionName(), null);
+            Thread.sleep(10);
             sender.start();
             rec1.start();
             rec2.start();
@@ -389,7 +454,7 @@ public class MessagingTest extends MorphiumTestBase {
 
             rec1.addMessageListener((msg, m) -> {
                 gotMessage1 = true;
-                throw new MessageRejectedException("rejected", true, false);
+                throw new MessageRejectedException("rejected", true, true);
             });
             rec2.addMessageListener((msg, m) -> {
                 gotMessage2 = true;
@@ -397,12 +462,12 @@ public class MessagingTest extends MorphiumTestBase {
                 return null;
             });
             sender.addMessageListener((msg, m) -> {
-                gotMessage3 = true;
-                log.info("Receiver got message");
                 if (m.getInAnswerTo() == null) {
                     log.error("Message is not an answer! ERROR!");
-                    throw new RuntimeException("Message is not an answer");
+                    return null;
                 }
+                gotMessage3 = true;
+                log.info("Receiver rejected message");
                 return null;
             });
 
@@ -411,7 +476,7 @@ public class MessagingTest extends MorphiumTestBase {
             Thread.sleep(1000);
             assert (gotMessage1);
             assert (gotMessage2);
-            assert (!gotMessage3);
+            assert (gotMessage3);
         } finally {
             sender.terminate();
             rec1.terminate();
@@ -1163,8 +1228,7 @@ public class MessagingTest extends MorphiumTestBase {
             sender.sendMessageToSelf(new Msg("testmsg", "Selfmessage", "value"));
             Thread.sleep(1500);
             assert (gotMessage);
-            //noinspection PointlessBooleanExpression
-            assert (gotMessage1 == false);
+            assert (!gotMessage1);
         } finally {
             m1.terminate();
             sender.terminate();
@@ -1390,40 +1454,57 @@ public class MessagingTest extends MorphiumTestBase {
         Messaging receiver2 = new Messaging(morphium, 10, false, true, 10);
         receiver2.start();
 
+        final AtomicInteger pausedReciever = new AtomicInteger(0);
+
         try {
             Thread.sleep(100);
             receiver.addMessageListener((msg, m) -> {
-                log.info("R1: Incoming message");
+//                log.info("R1: Incoming message");
+                assert (pausedReciever.get() != 1);
                 return null;
             });
 
             receiver2.addMessageListener((msg, m) -> {
-                log.info("R2: Incoming message");
+//                log.info("R2: Incoming message");
+                assert (pausedReciever.get() != 2);
                 return null;
             });
 
 
-            for (int i = 0; i < 100; i++) {
+            for (int i = 0; i < 200; i++) {
                 Msg m = new Msg("test", "test", "value", 3000000, true);
                 sender.sendMessage(m);
-                if (i == 50) {
+                if (i == 100) {
                     receiver2.pauseProcessingOfMessagesNamed("test");
-                } else if (i == 60) {
+                    Thread.sleep(50);
+                    pausedReciever.set(2);
+                } else if (i == 120) {
                     receiver.pauseProcessingOfMessagesNamed("test");
-                } else if (i == 80) {
+                    Thread.sleep(50);
+                    pausedReciever.set(1);
+                } else if (i == 160) {
                     receiver.unpauseProcessingOfMessagesNamed("test");
-                    receiver.findAndProcessPendingMessages("test");
+                    //receiver.findAndProcessPendingMessages("test");
                     receiver2.unpauseProcessingOfMessagesNamed("test");
-                    receiver2.findAndProcessPendingMessages("test");
+                    //receiver2.findAndProcessPendingMessages("test");
+                    pausedReciever.set(0);
                 }
 
             }
 
             long start = System.currentTimeMillis();
             Query<Msg> q = morphium.createQueryFor(Msg.class).f(Msg.Fields.name).eq("test").f(Msg.Fields.processedBy).eq(null);
+            long l = q.countAll();
             while (q.countAll() > 0) {
                 log.info("Count is still: " + q.countAll());
-                Thread.sleep(1500);
+                Thread.sleep(500);
+                if (l == q.countAll()) {
+                    //did not change... wait
+                    Thread.sleep(500);
+                    assert (l < q.countAll());
+                }
+                l = q.countAll();
+
 //                if (System.currentTimeMillis() - start > 10000) {
 //                    break;
 //                }
