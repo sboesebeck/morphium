@@ -390,7 +390,7 @@ public class InMemMessagingTest extends MorphiumInMemTestBase {
         consumer.terminate();
         producer.terminate();
         log.info("Messages processed: " + count[0]);
-        log.info("Messages left: " + consumer.getMessageCount());
+        log.info("Messages left: " + consumer.getPendingMessagesCount());
 
     }
 

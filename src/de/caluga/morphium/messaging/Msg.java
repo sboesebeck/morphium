@@ -221,6 +221,9 @@ public class Msg {
     }
 
     public List<String> getProcessedBy() {
+        if (processedBy == null) {
+            processedBy = new ArrayList<>();
+        }
         return processedBy;
     }
 
@@ -229,10 +232,7 @@ public class Msg {
     }
 
     public void addProcessedId(String id) {
-        if (processedBy == null) {
-            processedBy = new ArrayList<>();
-        }
-        processedBy.add(id);
+        getProcessedBy().add(id);
     }
 
     public String getLockedBy() {
@@ -348,6 +348,9 @@ public class Msg {
 //        }
         if (deleteAt == null) {
             deleteAt = new Date(System.currentTimeMillis() + ttl);
+        }
+        if (getProcessedBy().size() == 0) {
+            processedBy = null;
         }
         timestamp = System.currentTimeMillis();
     }

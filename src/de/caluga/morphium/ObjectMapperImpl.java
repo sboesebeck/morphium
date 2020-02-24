@@ -1303,7 +1303,11 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
             } else if (val instanceof List) {
                 //list in list
                 ArrayList lt = new ArrayList();
-                fillList(null, null, (ParameterizedType) mapType.getActualTypeArguments()[1], (List<Map<String, Object>>) val, lt, containerEntity);
+                if (mapType.getActualTypeArguments()[1] instanceof ParameterizedType) {
+                    fillList(null, null, (ParameterizedType) mapType.getActualTypeArguments()[1], (List<Map<String, Object>>) val, lt, containerEntity);
+                } else {
+                    fillList(null, null, null, (List<Map<String, Object>>) val, lt, containerEntity);
+                }
                 toFillIn.put(key, lt);
                 continue;
 
