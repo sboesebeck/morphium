@@ -344,7 +344,7 @@ public class Messaging extends Thread implements ShutdownListener {
                                     return running;
                             }
                             if (pauseMessages.containsKey(obj.getName())) return running;
-                            if (obj != null && obj.isExclusive() && obj.getLockedBy() == null && obj.getProcessedBy().size() == 0 && !pauseMessages.containsKey(obj.getName()) && (obj.getRecipient() == null || obj.getRecipient().equals(id))) {
+                            if (obj != null && obj.isExclusive() && (obj.getLockedBy() == null || obj.getLockedBy().equals(id)) && obj.getProcessedBy().size() == 0 && !pauseMessages.containsKey(obj.getName()) && (obj.getRecipient() == null || obj.getRecipient().equals(id))) {
 //                                log.debug("Update of msg - trying to lock");
                                 // locking
                                 lockAndProcess(obj);
@@ -459,7 +459,7 @@ public class Messaging extends Thread implements ShutdownListener {
         //locking messages..
         Query<Msg> q1 = q.q().f(Msg.Fields.sender).ne(id).f(Msg.Fields.lockedBy).eq(null).f(Msg.Fields.processedBy).eq(null).f(Msg.Fields.recipient).in(Arrays.asList(null, id));
         Query<Msg> q2 = q.q().f(Msg.Fields.sender).ne(id).f(Msg.Fields.lockedBy).eq(id).f(Msg.Fields.processedBy).eq(null).f(Msg.Fields.recipient).in(Arrays.asList(null, id));
-        Query<Msg> q3 = q.q().f(Msg.Fields.sender).ne(id).f(Msg.Fields.lockedBy).eq("ALL").f(Msg.Fields.processedBy).ne(id);
+        Query<Msg> q3 = q.q().f(Msg.Fields.sender).ne(id).f(Msg.Fields.lockedBy).eq("ALL").f(Msg.Fields.processedBy).ne(id).f(Msg.Fields.recipient).in(Arrays.asList(null, id));
         Set<String> pausedMessagesKeys = pauseMessages.keySet();
         if (name != null) {
             q1.f(Msg.Fields.name).eq(name);
@@ -565,14 +565,18 @@ public class Messaging extends Thread implements ShutdownListener {
         q.setCollectionName(getCollectionName());
         q.f(Msg.Fields.sender).ne(id);
         q.f(Msg.Fields.lockedBy).eq(id).f(Msg.Fields.processedBy).eq(null);
-        if (q.countAll() >= windowSize || !processMultiple && q.countAll() >= 1) {
+        if (processMultiple && q.countAll() >= windowSize) {
             return; //not locking - windowsize reached!
+        }
+        q.f(Msg.Fields.msgId).eq(obj.getMsgId());
+        if (!processMultiple && q.countAll() > 1) {
+            return; //already processing one
         }
 
         q = q.q();
         q.f("_id").eq(obj.getMsgId());
         q.f(Msg.Fields.processedBy).eq(null);
-        q.f(Msg.Fields.lockedBy).eq(null);
+        q.f(Msg.Fields.lockedBy).in(Arrays.asList(null, id));
         Map<String, Object> values = new HashMap<>();
         values.put("locked_by", id);
         values.put("locked", System.currentTimeMillis());
@@ -722,6 +726,9 @@ public class Messaging extends Thread implements ShutdownListener {
                             updateProcessedByAndReleaseLock(msg);
                             if (!msg.isExclusive()) {
                                 processing.remove(msg.getMsgId());
+                            } else {
+                                morphium.unset(msg, Msg.Fields.lockedBy);
+                                morphium.unset(msg, Msg.Fields.processedBy);
                             }
                             log.debug("Message will be re-processed by others");
                         }
