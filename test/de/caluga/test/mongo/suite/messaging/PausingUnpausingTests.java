@@ -9,6 +9,7 @@ import org.junit.Test;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 
 public class PausingUnpausingTests extends MorphiumTestBase {
     public boolean gotMessage = false;
@@ -87,6 +88,7 @@ public class PausingUnpausingTests extends MorphiumTestBase {
         Messaging sender = new Messaging(morphium, 100, false);
         sender.start();
         final AtomicInteger count = new AtomicInteger();
+        final AtomicLong lastTS = new AtomicLong(0);
 
         list.clear();
         Messaging receiver = new Messaging(morphium, 10, false, true, 100);
@@ -95,7 +97,12 @@ public class PausingUnpausingTests extends MorphiumTestBase {
 
         receiver.addListenerForMessageNamed("pause", (msg, m) -> {
             msg.pauseProcessingOfMessagesNamed(m.getName());
-            log.info("Incoming paused message: prio " + m.getPriority() + "  timestamp: " + m.getTimestamp());
+            String lst = "";
+            if (lastTS.get() != 0) {
+                lst = ("Last msg " + (System.currentTimeMillis() - lastTS.get()) + "ms ago");
+            }
+            lastTS.set(System.currentTimeMillis());
+            log.info("Incoming paused message: prio " + m.getPriority() + "  timestamp: " + m.getTimestamp() + " " + lst);
             Thread.sleep(250);
             list.add(m);
             msg.unpauseProcessingOfMessagesNamed(m.getName());
@@ -122,10 +129,10 @@ public class PausingUnpausingTests extends MorphiumTestBase {
         Thread.sleep(200);
         assert (count.get() == 10) : "Count wrong " + count.get();
         assert (list.size() < 5);
-        Thread.sleep(5200);
-        assert (list.size() == 20);
+        Thread.sleep(5500); //time=duration of processing ~250ms + messaging pause 10ms = 260ms*20 = 5200ms + processing time
+        assert (list.size() == 20) : "Size wrong " + list.size();
 
-        list.remove(0); //prio of first two is random
+        list.remove(0); //prio of first  is random
 
         int lastPrio = -1;
 
