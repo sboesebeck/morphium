@@ -5,6 +5,8 @@ morphium
 
 *ATTENTION:* _please refer also to the version [here](https://caluga.de/v/2014/9/5/morphium_doku_v3_0)_
 
+also have a look at our blog at https://caluga.de where we post interesting morphium code and documentation examples regularly.
+
 Morphium - Java Messaging (and POJO Mapper) based on MongoDB
 
 Morphium is a POJO Object mapper for Accessing Mongodb. Some of the main Features of Morphium:
