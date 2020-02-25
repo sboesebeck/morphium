@@ -469,7 +469,7 @@ public class Messaging extends Thread implements ShutdownListener {
         if (useChangeStream) {
             //when in changestream use a write to create an event for re-processing of the messages, that might have been
             //overlooked when paused / blocked etc.
-            q3 = q.q().f(Msg.Fields.sender).ne(id).f(Msg.Fields.lockedBy).eq("ALL").f(Msg.Fields.processedBy).ne(id);
+            q3 = q.q().f(Msg.Fields.sender).ne(id).f(Msg.Fields.lockedBy).eq("ALL").f(Msg.Fields.processedBy).ne(id).f(Msg.Fields.recipient).in(Arrays.asList(null, id));
         }
 
         Set<String> pausedMessagesKeys = pauseMessages.keySet();
