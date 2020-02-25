@@ -752,10 +752,12 @@ public class Messaging extends Thread implements ShutdownListener {
                 //                                morphium.delete(msg, getCollectionName());
                 //                            }
                 //updating it to be processed by others...
-                if ((msg.getLockedBy() != null && msg.getLockedBy().equals("ALL")) || (msg.getRecipient() != null && msg.getRecipient().equals(id) && msg.getInAnswerTo() != null)) {
-                    updateProcessedByAndReleaseLock(msg);
-                } else if (msg.isExclusive()) {
-                    updateProcessedByAndReleaseLock(msg);
+                if (wasProcessed) {
+                    if ((msg.getLockedBy() != null && msg.getLockedBy().equals("ALL")) || (msg.getRecipient() != null && msg.getRecipient().equals(id) && msg.getInAnswerTo() != null)) {
+                        updateProcessedByAndReleaseLock(msg);
+                    } else if (msg.isExclusive()) {
+                        updateProcessedByAndReleaseLock(msg);
+                    }
                 }
                 Runnable rb = new RemoveProcessTask(processing, msg.getMsgId());
                 while (true) {
