@@ -98,7 +98,7 @@ public class InMemMessagingTest extends MorphiumInMemTestBase {
         Thread.sleep(500);
         assert (answer != null);
         assert (answer.getProcessedBy().size() == 1);
-        assert (answer.getProcessedBy().contains("m3"));
+        assert (answer.getProcessedBy().contains("m1"));
     }
 
 
@@ -422,11 +422,11 @@ public class InMemMessagingTest extends MorphiumInMemTestBase {
 
         morphium.store(m);
 
-        Thread.sleep(5000);
+        Thread.sleep(500);
         assert (gotMessage) : "Message did not come?!?!?";
 
         gotMessage = false;
-        Thread.sleep(5000);
+        Thread.sleep(500);
         assert (!gotMessage) : "Got message again?!?!?!";
 
         messaging.terminate();
@@ -982,14 +982,14 @@ public class InMemMessagingTest extends MorphiumInMemTestBase {
         m.setExclusive(false);
         m1.sendMessage(m);
 
-        Thread.sleep(1200);
+        Thread.sleep(4200);
         assert (!gotMessage1) : "Got message again?";
         assert (gotMessage2) : "m2 did not get msg?";
         assert (gotMessage3) : "m3 did not get msg";
         assert (!error);
         gotMessage2 = false;
         gotMessage3 = false;
-        Thread.sleep(1200);
+        Thread.sleep(2200);
         assert (!gotMessage1) : "Got message again?";
         assert (!gotMessage2) : "m2 did get msg again?";
         assert (!gotMessage3) : "m3 did get msg again?";
@@ -1608,7 +1608,7 @@ public class InMemMessagingTest extends MorphiumInMemTestBase {
         Messaging receiver = new Messaging(morphium, 100, true, true, 10);
         receiver.addMessageListener((msg, m) -> {
 
-            log.info("Incoming message..." + m.getMsgId().toString() + " processed by: " + m.getProcessedBy().size() + "/" + m.getProcessedBy().get(0));
+            log.info("Incoming message..." + m.getMsgId().toString() + " processed by: " + m.getProcessedBy());
             list.add(m);
             try {
                 Thread.sleep(12000);
