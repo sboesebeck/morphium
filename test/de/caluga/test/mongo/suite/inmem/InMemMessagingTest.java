@@ -115,7 +115,7 @@ public class InMemMessagingTest extends MorphiumInMemTestBase {
         m1.sendMessage(m);
         Thread.sleep(1000);
         m = morphium.reread(m);
-        assert (m.getProcessedBy().size() == 1) : "wrong number of proccessed by entries: " + m.getProcessedBy().size();
+        assert (m.getProcessedBy().size() == 0) : "wrong number of proccessed by entries: " + m.getProcessedBy().size();
     }
 
     @Test
