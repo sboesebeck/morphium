@@ -452,42 +452,60 @@ public class Messaging extends Thread implements ShutdownListener {
     }
 
     private MorphiumIterator<Msg> lockAndGetMessages(String name, boolean multiple) {
+
         Map<String, Object> values = new HashMap<>();
         Query<Msg> q = morphium.createQueryFor(Msg.class);
         q.setCollectionName(getCollectionName());
-
+        if (listenerByName.isEmpty() && listeners.isEmpty()) {
+            //No listeners - only answers will be processed
+            return q.q().f(Msg.Fields.sender).ne(id).f(Msg.Fields.processedBy).ne(id).f(Msg.Fields.inAnswerTo).in(waitingForMessages.keySet()).asIterable();
+        }
         //locking messages..
         Query<Msg> q1 = q.q().f(Msg.Fields.sender).ne(id).f(Msg.Fields.lockedBy).eq(null).f(Msg.Fields.processedBy).eq(null).f(Msg.Fields.recipient).in(Arrays.asList(null, id));
         Query<Msg> q2 = q.q().f(Msg.Fields.sender).ne(id).f(Msg.Fields.lockedBy).eq(id).f(Msg.Fields.processedBy).eq(null).f(Msg.Fields.recipient).in(Arrays.asList(null, id));
-        Query<Msg> q3 = q.q().f(Msg.Fields.sender).ne(id).f(Msg.Fields.lockedBy).eq("ALL").f(Msg.Fields.processedBy).ne(id).f(Msg.Fields.recipient).in(Arrays.asList(null, id));
+
+        Query<Msg> q3 = null;
+
+        if (useChangeStream) {
+            //when in changestream use a write to create an event for re-processing of the messages, that might have been
+            //overlooked when paused / blocked etc.
+            q3 = q.q().f(Msg.Fields.sender).ne(id).f(Msg.Fields.lockedBy).eq("ALL").f(Msg.Fields.processedBy).ne(id);
+        }
+
         Set<String> pausedMessagesKeys = pauseMessages.keySet();
         if (name != null) {
             q1.f(Msg.Fields.name).eq(name);
             q2.f(Msg.Fields.name).eq(name);
-            q3.f(Msg.Fields.name).eq(name);
-
+            if (q3 != null) {
+                q3 = q3.f(Msg.Fields.name).eq(name);
+            }
         } else {
             //not searching for paused messages
             if (!pauseMessages.isEmpty()) {
                 q1.f(Msg.Fields.name).nin(pausedMessagesKeys);
                 q2.f(Msg.Fields.name).nin(pausedMessagesKeys);
-                q3.f(Msg.Fields.name).nin(pausedMessagesKeys);
+                if (q3 != null) {
+                    q3.f(Msg.Fields.name).nin(pausedMessagesKeys);
+                }
             }
             if (listeners.isEmpty() && !listenerByName.isEmpty()) {
                 q1.f(Msg.Fields.name).in(listenerByName.keySet());
                 q2.f(Msg.Fields.name).in(listenerByName.keySet());
-                q3.f(Msg.Fields.name).in(listenerByName.keySet());
-            } else if (listenerByName.isEmpty() && listeners.isEmpty()) {
-                //No listeners - only answers will be processed
-                return q.q().f(Msg.Fields.inAnswerTo).in(waitingForMessages.keySet()).asIterable();
+                if (q3 != null) {
+                    q3.f(Msg.Fields.name).in(listenerByName.keySet());
+
+                }
             }
         }
         ArrayList<MorphiumId> processingIds = new ArrayList<>(processing);
         if (!processing.isEmpty()) {
             q.f("_id").nin(processingIds);
         }
-
-        q = q.or(q1, q2, q3);
+        if (q3 != null) {
+            q = q.or(q1, q2, q3);
+        } else {
+            q = q.or(q1, q2);
+        }
         q.sort(Msg.Fields.priority, Msg.Fields.timestamp);
         if (!multiple) {
             q.limit(1);

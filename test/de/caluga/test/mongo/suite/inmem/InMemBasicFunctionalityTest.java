@@ -21,10 +21,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.lang.reflect.Field;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 /**
  * @author stephan
@@ -865,6 +862,34 @@ public class InMemBasicFunctionalityTest extends MorphiumInMemTestBase {
             log.info("Got another " + uc.getCounter());
         }
 
+    }
+
+    @Test
+    public void nullValueTest() {
+        UncachedObject uc = new UncachedObject(null, 10);
+        morphium.store(uc);
+        UncachedObject uc2 = new UncachedObject("null", 22);
+        morphium.store(uc2);
+
+        morphium.reread(uc);
+        assert (uc.getValue() == null);
+        UncachedObject o = morphium.createQueryFor(UncachedObject.class).f("value").eq(null).get();
+        assert (o != null);
+        assert (o.getValue() == null);
+        assert (o.getCounter() == 10);
+
+        List<UncachedObject> list = morphium.createQueryFor(UncachedObject.class).f("value").in(Arrays.asList("null", null)).asList();
+        assert (list.size() == 2);
+        assert (list.get(0).getValue() == null || list.get(1).getValue() == null);
+        assert (list.get(0).getCounter() == 10 || list.get(1).getCounter() == 10);
+
+        list = morphium.createQueryFor(UncachedObject.class).f("value").nin(Arrays.asList("null")).asList();
+        assert (list.size() == 1);
+        assert (list.get(0).getValue() == null);
+
+        list = morphium.createQueryFor(UncachedObject.class).f("value").nin(Arrays.asList((String) null)).asList();
+        assert (list.size() == 1);
+        assert (list.get(0).getValue().equals("null"));
     }
 
 

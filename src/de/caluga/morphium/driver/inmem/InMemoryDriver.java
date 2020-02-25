@@ -443,26 +443,29 @@ public class InMemoryDriver implements MorphiumDriver {
                                 }
                             case "$nin":
                                 boolean found = false;
-                                if (toCheck.containsKey(key)) {
                                     for (Object v : (List) q.get(k)) {
                                         if (v instanceof MorphiumId) {
                                             v = new ObjectId(v.toString());
                                         }
-                                        if (toCheck.get(key).equals(v)) {
-                                            found = true;
+                                        if (toCheck.get(key) == null) {
+                                            if (v == null) found = true;
+                                        } else {
+                                            if (toCheck.get(key).equals(v)) {
+                                                found = true;
+                                            }
                                         }
                                     }
-                                }
                                 return !found;
                             case "$in":
-                                if (toCheck.containsKey(key)) {
-                                    for (Object v : (List) q.get(k)) {
-                                        if (v instanceof MorphiumId) {
-                                            v = new ObjectId(v.toString());
-                                        }
-                                        if (toCheck.get(key).equals(v)) {
-                                            return true;
-                                        }
+                                for (Object v : (List) q.get(k)) {
+                                    if (v instanceof MorphiumId) {
+                                        v = new ObjectId(v.toString());
+                                    }
+                                    if (toCheck.get(key) == null && v == null) {
+                                        return true;
+                                    }
+                                    if (toCheck.get(key) != null && toCheck.get(key).equals(v)) {
+                                        return true;
                                     }
                                 }
                                 return false;
