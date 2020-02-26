@@ -372,11 +372,7 @@ public class Messaging extends Thread implements ShutdownListener {
                 log.error("Unhandled exception " + e.getMessage(), e);
             } finally {
                 try {
-                    if (useChangeStream) {
-                        sleep(morphium.getConfig().getHousekeepingTimeout());
-                    } else {
-                        sleep(pause);
-                    }
+                    sleep(pause);
                 } catch (InterruptedException ignored) {
                 }
             }
