@@ -15,7 +15,10 @@ import javax.script.ScriptEngine;
 import javax.script.ScriptEngineManager;
 import javax.script.ScriptException;
 import java.util.*;
+import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
@@ -34,7 +37,7 @@ public class InMemoryDriver implements MorphiumDriver {
     private final ThreadLocal<InMemTransactionContext> currentTransaction = new ThreadLocal<>();
     private final AtomicLong txn = new AtomicLong();
     private final Map<String, List<DriverTailableIterationCallback>> watchersByDb = new ConcurrentHashMap<>();
-
+    private final ThreadPoolExecutor exec = new ThreadPoolExecutor(1, 100, 10, TimeUnit.SECONDS, new ArrayBlockingQueue(100, true));
     @Override
     public List<String> listDatabases() {
         return new Vector<>(database.keySet());
@@ -686,7 +689,9 @@ public class InMemoryDriver implements MorphiumDriver {
     public long count(String db, String collection, Map<String, Object> query, ReadPreference rp) {
         List<Map<String, Object>> data = getCollection(db, collection);
         if (query.isEmpty()) {
-            return data.size();
+            synchronized (data) {
+                return data.size();
+            }
         }
         long cnt = 0;
         for (Map<String, Object> o : data) {
@@ -962,35 +967,53 @@ public class InMemoryDriver implements MorphiumDriver {
      * invalidate
      */
     private void notifyWatchers(String db, String collection, String op, Map doc) {
-        List<DriverTailableIterationCallback> w = null;
-        if (watchersByDb.containsKey(db)) {
-            w = new ArrayList<>(watchersByDb.get(db));
-        } else if (collection != null && watchersByDb.containsKey(db + "." + collection)) {
-            w = new ArrayList<>(watchersByDb.get(db + "." + collection));
-        }
-        if (w == null) {
-            return;
-        }
+        Runnable r = new Runnable() {
+            public void run() {
+                List<DriverTailableIterationCallback> w = null;
+                if (watchersByDb.containsKey(db)) {
+                    w = new ArrayList<>(watchersByDb.get(db));
+                } else if (collection != null && watchersByDb.containsKey(db + "." + collection)) {
+                    w = new ArrayList<>(watchersByDb.get(db + "." + collection));
+                }
+                if (w == null) {
+                    return;
+                }
 
-        long tx = txn.incrementAndGet();
-        for (DriverTailableIterationCallback cb : w) {
-            Map<String, Object> data = new HashMap<>();
-            data.put("fullDocument", doc);
-            data.put("operationType", op);
-            Map m = Utils.getMap("db", db);
-            //noinspection unchecked
-            m.put("coll", collection);
-            data.put("ns", m);
-            data.put("txnNumber", tx);
-            data.put("clusterTime", System.currentTimeMillis());
-            if (doc != null) {
-                data.put("documentKey", Utils.getMap("_id", doc.get("_id")));
+                long tx = txn.incrementAndGet();
+                for (DriverTailableIterationCallback cb : w) {
+                    Map<String, Object> data = new HashMap<>();
+                    data.put("fullDocument", doc);
+                    data.put("operationType", op);
+                    Map m = Utils.getMap("db", db);
+                    //noinspection unchecked
+                    m.put("coll", collection);
+                    data.put("ns", m);
+                    data.put("txnNumber", tx);
+                    data.put("clusterTime", System.currentTimeMillis());
+                    if (doc != null) {
+                        data.put("documentKey", Utils.getMap("_id", doc.get("_id")));
+                    }
+
+                    try {
+                        cb.incomingData(data, System.currentTimeMillis());
+                    } catch (Exception e) {
+                        log.error("Error calling watcher", e);
+                    }
+                }
+
             }
-
+        };
+        boolean scheduled = false;
+        while (!scheduled) {
             try {
-                cb.incomingData(data, System.currentTimeMillis());
+                exec.execute(r);
+                scheduled = true;
             } catch (Exception e) {
-                log.error("Error calling watcher", e);
+                try {
+                    Thread.sleep(1000);
+                } catch (InterruptedException ex) {
+                    //ignore
+                }
             }
         }
 
