@@ -313,18 +313,21 @@ public class Messaging extends Thread implements ShutdownListener {
                         //                            //there is a set-update
                         //                        }
 
-                        if (evt.getFullDocument() != null && evt.getFullDocument().get("_id") != null) {
-                            if (evt.getUpdatedFields() != null && evt.getUpdatedFields().containsKey("locked_by")) {
-                                if (evt.getUpdatedFields().get("locked_by") != null) {
-                                    return running; //ignoring locking of messages
-                                }
-                                //lock was released
+                        if (evt.getUpdatedFields() != null && evt.getUpdatedFields().containsKey("locked_by")) {
+                            if (evt.getUpdatedFields().get("locked_by") != null) {
+                                return running; //ignoring locking of messages
                             }
-                            if (evt.getUpdatedFields() != null && evt.getUpdatedFields().containsKey("processed_by")) {
-                                return running;
-                            }
+                            //lock was released
+                        }
+                        if (evt.getUpdatedFields() != null && evt.getUpdatedFields().containsKey("processed_by")) {
+                            return running;
+                        }
+                        Msg obj = null;
+                        if (evt.getDocumentKey() != null) {
+                            obj = morphium.findById(Msg.class, evt.getDocumentKey(), getCollectionName());
+                        }
+                        if (obj != null) {
 
-                            Msg obj = morphium.findById(Msg.class, new MorphiumId(evt.getFullDocument().get("_id").toString()), getCollectionName());
                             if (obj == null) {
                                 return running; //was deleted?
                             }
@@ -741,8 +744,8 @@ public class Messaging extends Thread implements ShutdownListener {
                             if (!msg.isExclusive()) {
                                 processing.remove(msg.getMsgId());
                             } else {
-                                morphium.unset(msg, Msg.Fields.lockedBy);
                                 morphium.unset(msg, Msg.Fields.processedBy);
+                                morphium.unset(msg, Msg.Fields.lockedBy);
                             }
                             log.debug("Message will be re-processed by others");
                         }

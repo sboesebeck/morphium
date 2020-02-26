@@ -149,32 +149,53 @@ public class MessagingTest extends MorphiumTestBase {
     @Test
     public void multithreaddingTest() throws Exception {
         Messaging producer = new Messaging(morphium, 500, false);
-        morphium.dropCollection(Msg.class, producer.getCollectionName(), null);
-        // producer.start();
-        Thread.sleep(2500);
-        for (int i = 0; i < 1000; i++) {
-            Msg m = new Msg("test" + i, "tm", "" + i + System.currentTimeMillis(), 10000);
+        producer.start();
+        for (int i = 0; i < 100; i++) {
+            Msg m = new Msg("test" + i, "tm", "" + i + System.currentTimeMillis(), 30000);
             producer.sendMessage(m);
         }
-        Messaging consumer = new Messaging(morphium, 500, false, true, 1000);
-        procCounter.set(0);
+        final AtomicInteger count = new AtomicInteger();
+        Messaging consumer = new Messaging(morphium, 100, false, true, 1000);
         consumer.addMessageListener((msg, m) -> {
-            //log.info("Got message!");
-            procCounter.incrementAndGet();
-            try {
-                Thread.sleep(2000);
-            } catch (InterruptedException e) {
-            }
+//            log.info("Got message!");
+            count.incrementAndGet();
             return null;
         });
-
+        long start = System.currentTimeMillis();
         consumer.start();
-        while (consumer.getPendingMessagesCount() > 0) {
+        while (count.get() < 100) {
+            log.info("Messages processed: " + count.get());
             Thread.sleep(1000);
         }
+        long dur = System.currentTimeMillis() - start;
+        log.info("processing 100 multithreaded but single messages took " + dur + "ms == " + (100 / (dur / 1000)) + " msg/sec");
+
+        consumer.terminate();
+        log.info("now multithreadded and multiprocessing");
+        for (int i = 0; i < 2500; i++) {
+            Msg m = new Msg("test" + i, "tm", "" + i + System.currentTimeMillis(), 30000);
+            producer.sendMessage(m);
+        }
+        count.set(0);
+        consumer = new Messaging(morphium, 100, true, true, 100);
+        consumer.addMessageListener((msg, m) -> {
+//            log.info("Got message!");
+            count.incrementAndGet();
+            return null;
+        });
+        start = System.currentTimeMillis();
+        consumer.start();
+        while (count.get() < 2500) {
+            log.info("Messages processed: " + count.get());
+            Thread.sleep(1000);
+        }
+        dur = System.currentTimeMillis() - start;
+        log.info("processing 2500 multithreaded and multiprocessing messages took " + dur + "ms == " + (2500 / (dur / 1000)) + " msg/sec");
+
+
         consumer.terminate();
         producer.terminate();
-        log.info("Messages processed: " + procCounter.get());
+        log.info("Messages processed: " + count.get());
         log.info("Messages left: " + consumer.getPendingMessagesCount());
 
     }
@@ -420,7 +441,7 @@ public class MessagingTest extends MorphiumTestBase {
 
 
             sender.sendMessage(new Msg("test", "message", "value", 30000, true));
-            Thread.sleep(1000);
+            Thread.sleep(2000);
             assert (gotMessage);
             assert (gotMessage3);
         } finally {
