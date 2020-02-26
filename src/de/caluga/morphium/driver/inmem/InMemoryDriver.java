@@ -580,7 +580,7 @@ public class InMemoryDriver implements MorphiumDriver {
         DriverTailableIterationCallback cback = new DriverTailableIterationCallback() {
             @Override
             public void incomingData(Map<String, Object> data, long dur) {
-                cb.incomingData(data, dur);
+                        cb.incomingData(data, dur);
             }
 
             @Override
