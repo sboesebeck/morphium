@@ -18,7 +18,7 @@ import de.caluga.morphium.driver.MorphiumId;
 @Entity
 @NoCache
 @Index({"name,locked_by"})
-@WriteSafety(waitForJournalCommit = true, waitForSync = true, timeout = 10000, level = SafetyLevel.WAIT_FOR_SLAVE)
+@WriteSafety(waitForJournalCommit = false, timeout = 10000, level = SafetyLevel.WAIT_FOR_SLAVE)
 @DefaultReadPreference(ReadPreferenceLevel.PRIMARY)
 public class Sequence {
     @Id
