@@ -280,12 +280,18 @@ public class InMemoryDriver implements MorphiumDriver {
     @Override
     public void connect() {
         Runnable r = () -> {
+
             List<Runnable> current = eventQueue;
             eventQueue = new Vector<>();
             Collections.shuffle(current);
             for (Runnable r1 : current) {
-                r1.run();
+                try {
+                    r1.run();
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
             }
+
         };
         exec.scheduleWithFixedDelay(r, 100, 500, TimeUnit.MILLISECONDS); //check for events every 100ms
     }
@@ -975,7 +981,7 @@ public class InMemoryDriver implements MorphiumDriver {
                 } else if (collection != null && watchersByDb.containsKey(db + "." + collection)) {
                     w = Collections.synchronizedList(new ArrayList<>(watchersByDb.get(db + "." + collection)));
                 }
-                if (w == null) {
+                if (w == null || w.isEmpty()) {
                     return;
                 }
 
@@ -1006,21 +1012,7 @@ public class InMemoryDriver implements MorphiumDriver {
         };
 
         eventQueue.add(r);
-//
-//        boolean scheduled = false;
-//        while (!scheduled) {
-//            try {
-//                exec.execute(r);
-//                scheduled = true;
-//            } catch (Exception e) {
-//                try {
-//                    Thread.sleep(1000);
-//                } catch (InterruptedException ex) {
-//                    //ignore
-//                }
-//            }
-//        }
-//
+
 
     }
 
