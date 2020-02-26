@@ -905,7 +905,7 @@ public class InMemMessagingTest extends MorphiumInMemTestBase {
             log.info("Waiting for messages to be processed - procCounter: " + procCounter.get());
             Thread.sleep(2000);
         }
-        Thread.sleep(1000);
+        Thread.sleep(2000);
         log.info("done");
 
         assert (processedMessages.size() == numberOfMessages) : "sent " + numberOfMessages + " messages, but only " + processedMessages.size() + " were recieved?";

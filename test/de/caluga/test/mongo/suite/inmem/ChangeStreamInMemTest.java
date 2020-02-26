@@ -21,6 +21,7 @@ public class ChangeStreamInMemTest extends MorphiumInMemTestBase {
         count = 0;
         final boolean[] run = {true};
         morphium.watchDbAsync(true, evt -> {
+            if (evt.getOperationType().equals("drop")) return true;
             printevent(evt);
             count++;
             log.info("Returning " + run[0]);
@@ -34,7 +35,7 @@ public class ChangeStreamInMemTest extends MorphiumInMemTestBase {
         morphium.store(o);
 
         log.info("waiting for some time!");
-        Thread.sleep(500);
+        Thread.sleep(2500);
         run[0] = false;
         assert (count == 2) : "Count = " + count;
         morphium.set(morphium.createQueryFor(UncachedObject.class).f("counter").eq(123), "counter", 7777);
@@ -71,6 +72,7 @@ public class ChangeStreamInMemTest extends MorphiumInMemTestBase {
             }).start();
             start = System.currentTimeMillis();
             morphium.watchAsync(UncachedObject.class, true, evt -> {
+                if (evt.getOperationType().equals("drop")) return true;
                 count[0]++;
                 printevent(evt);
                 return run[0];
@@ -108,6 +110,7 @@ public class ChangeStreamInMemTest extends MorphiumInMemTestBase {
         }).start();
         start = System.currentTimeMillis();
         morphium.watch(UncachedObject.class, true, evt -> {
+            if (evt.getOperationType().equals("drop")) return true;
             printevent(evt);
             count[0]++;
             if (count[0] > 10) {
@@ -156,6 +159,7 @@ public class ChangeStreamInMemTest extends MorphiumInMemTestBase {
         }).start();
         log.info("Watching...");
         morphium.watch(UncachedObject.class, true, evt -> {
+            if (evt.getOperationType().equals("drop")) return true;
             printevent(evt);
             count[0]++;
             log.info("count: " + count[0]);
@@ -200,6 +204,7 @@ public class ChangeStreamInMemTest extends MorphiumInMemTestBase {
         final AtomicInteger cnt = new AtomicInteger(0);
 
         m.addListener(evt -> {
+            if (evt.getOperationType().equals("drop")) return true;
             printevent(evt);
             cnt.set(cnt.get() + 1);
             return true;
