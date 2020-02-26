@@ -85,7 +85,7 @@ public class ChangeStreamInMemTest extends MorphiumInMemTestBase {
             assert (count[0] > 0 && count[0] >= written[0] - 2) : "Wrong count: " + count[0] + " written: " + written[0];
         } finally {
             run[0] = false;
-            morphium.store(new UncachedObject("value", (int) (1 + (Math.random() * 100.0))));
+           // morphium.store(new UncachedObject("value", (int) (1 + (Math.random() * 100.0))));
         }
         Thread.sleep(2000);
 
@@ -203,10 +203,13 @@ public class ChangeStreamInMemTest extends MorphiumInMemTestBase {
         m.start();
         final AtomicInteger cnt = new AtomicInteger(0);
 
+
         m.addListener(evt -> {
             if (evt.getOperationType().equals("drop")) return true;
             printevent(evt);
-            cnt.set(cnt.get() + 1);
+            if (cnt.incrementAndGet() == 100) {
+                return false;
+            }
             return true;
         });
         Thread.sleep(1000);
@@ -215,8 +218,7 @@ public class ChangeStreamInMemTest extends MorphiumInMemTestBase {
         }
         Thread.sleep(5000);
         m.terminate();
-        assert (cnt.get() >= 100 && cnt.get() <= 101) : "count is wrong: " + cnt.get();
-        morphium.store(new UncachedObject("killing", 0));
+        assert (cnt.get() == 100) : "count is wrong: " + cnt.get();
 
     }
 }
