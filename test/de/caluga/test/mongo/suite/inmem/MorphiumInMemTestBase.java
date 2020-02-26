@@ -9,6 +9,7 @@ import de.caluga.morphium.messaging.Messaging;
 import de.caluga.morphium.query.Query;
 import de.caluga.morphium.replicaset.OplogMonitor;
 import de.caluga.morphium.writer.BufferedMorphiumWriterImpl;
+import de.caluga.test.mongo.suite.MorphiumTestBase;
 import de.caluga.test.mongo.suite.data.UncachedObject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -17,6 +18,7 @@ import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.Properties;
 
 public class MorphiumInMemTestBase {
     public static Morphium morphium;
@@ -27,8 +29,9 @@ public class MorphiumInMemTestBase {
     @org.junit.Before
     public void setup() {
         log.info("creating in Memory instance");
-        MorphiumConfig cfg = new MorphiumConfig();
-        cfg.addHostToSeed("inMem");
+        Properties p = MorphiumTestBase.getProps();
+        MorphiumConfig cfg = MorphiumConfig.fromProperties(p);
+        cfg.setHostSeed("inMem");
         cfg.setDatabase("test");
         cfg.setDriverClass(InMemoryDriver.class.getName());
         cfg.setReplicasetMonitoring(false);
