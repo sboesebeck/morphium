@@ -15,38 +15,39 @@ public class AdvancedInMemMessagingTests extends MorphiumInMemTestBase {
     @Test
     public void testExclusiveMessages() throws Exception {
         counts.clear();
-        Messaging m1 = new Messaging(morphium, 10, false, false, 10);
-        m1.setUseChangeStream(true);
+        Messaging m1 = new Messaging(morphium, 100, false, false, 10);
+        m1.setSenderId("m1");
+        m1.setUseChangeStream(false);
         m1.start();
 
-        Messaging m2 = new Messaging(morphium, 10, false, false, 10);
+        Messaging m2 = new Messaging(morphium, 100, false, false, 10);
         m2.setUseChangeStream(true);
+        m2.setSenderId("m2");
         m2.start();
 
-        Messaging m3 = new Messaging(morphium, 10, false, false, 10);
+        Messaging m3 = new Messaging(morphium, 100, false, false, 10);
         m3.setUseChangeStream(true);
+        m3.setSenderId("m3");
         m3.start();
 
-        Messaging m4 = new Messaging(morphium, 10, false, false, 10);
+        Messaging m4 = new Messaging(morphium, 500, false, false, 10);
         m4.setUseChangeStream(false);
+        m4.setSenderId("m4");
         m4.start();
 
-        MessageListener<Msg> msgMessageListener = new MessageListener<Msg>() {
-            @Override
-            public Msg onMessage(Messaging msg, Msg m) throws InterruptedException {
-                log.info("Received " + m.getMsgId() + " created " + (System.currentTimeMillis() - m.getTimestamp()) + "ms ago");
-                counts.putIfAbsent(m.getMsgId(), 0);
-                counts.put(m.getMsgId(), counts.get(m.getMsgId()) + 1);
-                Thread.sleep(100);
-                return null;
-            }
+        MessageListener<Msg> msgMessageListener = (msg, m) -> {
+            log.info(msg.getSenderId() + " received " + m.getMsgId() + " created " + (System.currentTimeMillis() - m.getTimestamp()) + "ms ago");
+            counts.putIfAbsent(m.getMsgId(), 0);
+            counts.put(m.getMsgId(), counts.get(m.getMsgId()) + 1);
+            Thread.sleep(100);
+            return null;
         };
 
         m2.addListenerForMessageNamed("test", msgMessageListener);
         m3.addListenerForMessageNamed("test", msgMessageListener);
         m4.addListenerForMessageNamed("test", msgMessageListener);
 
-        for (int i = 0; i < 200; i++) {
+        for (int i = 0; i < 100; i++) {
             Msg m = new Msg("test", "test msg", "value");
             m.setMsgId(new MorphiumId());
             m.setExclusive(true);
@@ -54,7 +55,7 @@ public class AdvancedInMemMessagingTests extends MorphiumInMemTestBase {
 
         }
 
-        while (counts.size() < 200) {
+        while (counts.size() < 100) {
             log.info("-----> Messages processed so far: " + counts.size());
             for (MorphiumId id : counts.keySet()) {
                 assert (counts.get(id) <= 1) : "Count for id " + id.toString() + " is " + counts.get(id);
@@ -62,8 +63,8 @@ public class AdvancedInMemMessagingTests extends MorphiumInMemTestBase {
             Thread.sleep(1000);
         }
 
-        m1.terminate();
         m2.terminate();
+        m1.terminate();
         m3.terminate();
         m4.terminate();
 

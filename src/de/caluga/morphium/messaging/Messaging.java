@@ -304,7 +304,7 @@ public class Messaging extends Thread implements ShutdownListener {
                                 log.error("Error during message processing ", e);
                             }
                         } else {
-                            log.debug("Message is not for me");
+                            //log.debug("Message is not for me");
                         }
 
                     } else if (evt.getOperationType().equals("update")) {
