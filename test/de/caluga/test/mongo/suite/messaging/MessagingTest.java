@@ -1785,4 +1785,29 @@ public class MessagingTest extends MorphiumTestBase {
 
     }
 
+
+    @Test
+    public void exclusiveMessageStartupTests() throws Exception {
+        Messaging sender = new Messaging(morphium, 100, false);
+        Messaging receiverNoListener = new Messaging(morphium, 100, true);
+        try {
+            sender.setSenderId("sender");
+            morphium.dropCollection(Msg.class, sender.getCollectionName(), null);
+            Thread.sleep(100);
+            sender.start();
+
+            sender.sendMessage(new Msg("test", "test", "test", 30000, true));
+            sender.sendMessage(new Msg("test", "test", "test", 30000, true));
+            sender.sendMessage(new Msg("test", "test", "test", 30000, true));
+            Thread.sleep(1000);
+            receiverNoListener.setSenderId("recNL");
+            receiverNoListener.start();
+
+            assert (morphium.createQueryFor(Msg.class, sender.getCollectionName()).f(Msg.Fields.lockedBy).eq(null).countAll() == 3);
+        } finally {
+            sender.terminate();
+            receiverNoListener.terminate();
+        }
+    }
+
 }

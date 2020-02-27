@@ -50,7 +50,7 @@ public class ReplicaSetStatusTest extends MorphiumTestBase {
     }
 
     @Entity
-    @WriteSafety(level = SafetyLevel.WAIT_FOR_ALL_SLAVES, waitForSync = true, waitForJournalCommit = true, timeout = 10000)
+    @WriteSafety(level = SafetyLevel.WAIT_FOR_ALL_SLAVES, waitForJournalCommit = false, timeout = 10000)
     public class SecureObject extends UncachedObject {
 
     }
