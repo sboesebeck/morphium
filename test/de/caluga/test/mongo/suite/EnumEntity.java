@@ -18,7 +18,7 @@ import java.util.List;
  */
 @Entity
 @NoCache
-@WriteSafety(level = SafetyLevel.WAIT_FOR_ALL_SLAVES, waitForJournalCommit = true)
+@WriteSafety(level = SafetyLevel.WAIT_FOR_ALL_SLAVES, waitForJournalCommit = false)
 public class EnumEntity {
     @Id
     private MorphiumId id;

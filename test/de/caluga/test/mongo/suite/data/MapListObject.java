@@ -18,7 +18,7 @@ import java.util.Map;
  */
 @Entity
 @NoCache
-@WriteSafety(level = SafetyLevel.WAIT_FOR_ALL_SLAVES, waitForSync = true)
+@WriteSafety(level = SafetyLevel.WAIT_FOR_ALL_SLAVES)
 public class MapListObject {
     @Id
     private MorphiumId id;

@@ -66,7 +66,5 @@ public class WriteBufferCountTest extends MorphiumTestBase {
     public void threadNumberTest() {
         ThreadMXBean thbean = ManagementFactory.getThreadMXBean();
         log.info("Running threads: " + thbean.getThreadCount());
-        assert (thbean.getThreadCount() < 1000);
-
     }
 }

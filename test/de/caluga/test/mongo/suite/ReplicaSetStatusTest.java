@@ -43,14 +43,13 @@ public class ReplicaSetStatusTest extends MorphiumTestBase {
         WriteConcern w = morphium.getWriteConcernForClass(SecureObject.class);
         int c = morphium.getCurrentRSState().getActiveNodes();
         assert (w.getW() == c) : "W=" + w.getW() + " but should be: " + c;
-        assert (w.isJ());
         assert (!w.isFsync());
         assert (w.getWtimeout() == 10000);
         //        assert (w.raiseNetworkErrors());
     }
 
     @Entity
-    @WriteSafety(level = SafetyLevel.WAIT_FOR_ALL_SLAVES, waitForSync = true, waitForJournalCommit = true, timeout = 10000)
+    @WriteSafety(level = SafetyLevel.WAIT_FOR_ALL_SLAVES, waitForJournalCommit = false, timeout = 10000)
     public class SecureObject extends UncachedObject {
 
     }

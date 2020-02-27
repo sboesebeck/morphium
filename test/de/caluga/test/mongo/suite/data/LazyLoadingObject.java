@@ -14,7 +14,7 @@ import java.util.List;
  */
 @Entity
 @NoCache
-@WriteSafety(waitForJournalCommit = true, level = SafetyLevel.WAIT_FOR_ALL_SLAVES)
+@WriteSafety(waitForJournalCommit = false, level = SafetyLevel.WAIT_FOR_ALL_SLAVES)
 public class LazyLoadingObject {
     @Id
     private MorphiumId id;

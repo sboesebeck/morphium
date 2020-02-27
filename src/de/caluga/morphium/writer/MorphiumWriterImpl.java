@@ -11,6 +11,7 @@ import de.caluga.morphium.driver.MorphiumId;
 import de.caluga.morphium.driver.WriteConcern;
 import de.caluga.morphium.driver.bulk.BulkRequestContext;
 import de.caluga.morphium.query.Query;
+import org.bson.types.ObjectId;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -225,6 +226,8 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
         if (idf.get(record) != null) return;
         if (idf.get(record) == null && idf.getType().equals(MorphiumId.class)) {
             idf.set(record, new MorphiumId());
+        } else if (idf.get(record) == null && idf.getType().equals(ObjectId.class)) {
+            idf.set(record, new ObjectId());
         } else if (idf.get(record) == null && idf.getType().equals(String.class)) {
             idf.set(record, new MorphiumId().toString());
         } else {
@@ -464,12 +467,6 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                     morphium.firePreStore(o, isNew);
                     setIdIfNull(o);
 
-                    if (en.autoVersioning()){
-                        String fld = morphium.getARHelper().getFields(type, Version.class).get(0);
-                        Long v=morphium.getARHelper().getLongValue(o, fld);
-                        v=v+1;
-                        morphium.getARHelper().setValue(o,v,fld);
-                    }
                     Map<String, Object> marshall = morphium.getMapper().serialize(o);
 
                     String coll = collection;
@@ -494,8 +491,15 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                         throw new RuntimeException(t);
                     }
                     if (en.autoVersioning()){
-                        if (((Integer)ret.get("total"))<((Integer)ret.get("modified"))){
+                        if (((Integer) ret.get("total")) < ((Integer) ret.get("modified"))) {
                             throw new ConcurrentModificationException("versioning failure");
+                        }
+
+                        if (en.autoVersioning()) {
+                            String fld = morphium.getARHelper().getFields(type, Version.class).get(0);
+                            Long v = morphium.getARHelper().getLongValue(o, fld);
+                            v = v + 1;
+                            morphium.getARHelper().setValue(o, v, fld);
                         }
                     }
                     long dur = System.currentTimeMillis() - start;

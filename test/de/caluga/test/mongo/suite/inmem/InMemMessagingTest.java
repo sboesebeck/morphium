@@ -98,7 +98,7 @@ public class InMemMessagingTest extends MorphiumInMemTestBase {
         Thread.sleep(500);
         assert (answer != null);
         assert (answer.getProcessedBy().size() == 1);
-        assert (answer.getProcessedBy().contains("m3"));
+        assert (answer.getProcessedBy().contains("m1"));
     }
 
 
@@ -115,7 +115,7 @@ public class InMemMessagingTest extends MorphiumInMemTestBase {
         m1.sendMessage(m);
         Thread.sleep(1000);
         m = morphium.reread(m);
-        assert (m.getProcessedBy().size() == 1) : "wrong number of proccessed by entries: " + m.getProcessedBy().size();
+        assert (m.getProcessedBy().size() == 0) : "wrong number of proccessed by entries: " + m.getProcessedBy().size();
     }
 
     @Test
@@ -372,25 +372,53 @@ public class InMemMessagingTest extends MorphiumInMemTestBase {
     public void multithreaddingTest() throws Exception {
         Messaging producer = new Messaging(morphium, 500, false);
         producer.start();
-        for (int i = 0; i < 1000; i++) {
-            Msg m = new Msg("test" + i, "tm", "" + i + System.currentTimeMillis(), 10000);
+        for (int i = 0; i < 100; i++) {
+            Msg m = new Msg("test" + i, "tm", "" + i + System.currentTimeMillis(), 30000);
             producer.sendMessage(m);
         }
-        final int[] count = {0};
-        Messaging consumer = new Messaging(morphium, 500, false, true, 1000);
+        final AtomicInteger count = new AtomicInteger();
+        Messaging consumer = new Messaging(morphium, 100, false, true, 1000);
         consumer.addMessageListener((msg, m) -> {
-            //log.info("Got message!");
-            count[0]++;
+//            log.info("Got message!");
+            count.incrementAndGet();
             return null;
         });
-
+        long start = System.currentTimeMillis();
         consumer.start();
+        while (count.get() < 100) {
+            log.info("Messages processed: " + count.get());
+            Thread.sleep(1000);
+        }
+        long dur = System.currentTimeMillis() - start;
+        log.info("processing 100 multithreaded but single messages took " + dur + "ms == " + (100 / (dur / 1000)) + " msg/sec");
 
-        Thread.sleep(10000);
+        consumer.terminate();
+        log.info("now multithreadded and multiprocessing");
+        for (int i = 0; i < 2500; i++) {
+            Msg m = new Msg("test" + i, "tm", "" + i + System.currentTimeMillis(), 30000);
+            producer.sendMessage(m);
+        }
+        count.set(0);
+        consumer = new Messaging(morphium, 100, true, true, 100);
+        consumer.addMessageListener((msg, m) -> {
+//            log.info("Got message!");
+            count.incrementAndGet();
+            return null;
+        });
+        start = System.currentTimeMillis();
+        consumer.start();
+        while (count.get() < 2500) {
+            log.info("Messages processed: " + count.get());
+            Thread.sleep(1000);
+        }
+        dur = System.currentTimeMillis() - start;
+        log.info("processing 2500 multithreaded and multiprocessing messages took " + dur + "ms == " + (2500 / (dur / 1000)) + " msg/sec");
+
+
         consumer.terminate();
         producer.terminate();
-        log.info("Messages processed: " + count[0]);
-        log.info("Messages left: " + consumer.getMessageCount());
+        log.info("Messages processed: " + count.get());
+        log.info("Messages left: " + consumer.getPendingMessagesCount());
 
     }
 
@@ -422,11 +450,11 @@ public class InMemMessagingTest extends MorphiumInMemTestBase {
 
         morphium.store(m);
 
-        Thread.sleep(5000);
+        Thread.sleep(500);
         assert (gotMessage) : "Message did not come?!?!?";
 
         gotMessage = false;
-        Thread.sleep(5000);
+        Thread.sleep(500);
         assert (!gotMessage) : "Got message again?!?!?!";
 
         messaging.terminate();
@@ -884,48 +912,50 @@ public class InMemMessagingTest extends MorphiumInMemTestBase {
             systems.get(m).sendMessage(msg);
         }
 
-        long dur = System.currentTimeMillis() - start;
-        log.info("Queueing " + numberOfMessages + " messages took " + dur + " ms - now waiting for writes..");
-        waitForWrites();
-        log.info("...all messages persisted!");
-        int last = 0;
-        Thread.sleep(1000);
-        //See if whole number of messages processed is correct
-        //keep in mind: a message is never recieved by the sender, hence numberOfWorkers-1
-        while (true) {
-            if (procCounter.get() == numberOfMessages * (numberOfWorkers - 1)) {
-                break;
+        try {
+            long dur = System.currentTimeMillis() - start;
+            log.info("Queueing " + numberOfMessages + " messages took " + dur + " ms - now waiting for writes..");
+            waitForWrites();
+            log.info("...all messages persisted!");
+            int last = 0;
+            Thread.sleep(1000);
+            //See if whole number of messages processed is correct
+            //keep in mind: a message is never recieved by the sender, hence numberOfWorkers-1
+            while (true) {
+                if (procCounter.get() == numberOfMessages * (numberOfWorkers - 1)) {
+                    break;
+                }
+                if (last == procCounter.get()) {
+                    log.info("No change in procCounter?! somethings wrong...");
+                    break;
+
+                }
+                last = procCounter.get();
+                log.info("Waiting for messages to be processed - procCounter: " + procCounter.get());
+                Thread.sleep(1000);
             }
-            if (last == procCounter.get()) {
-                log.info("No change in procCounter?! somethings wrong...");
-                break;
+            Thread.sleep(2500);
+            log.info("done");
 
+            assert (processedMessages.size() == numberOfMessages) : "sent " + numberOfMessages + " messages, but only " + processedMessages.size() + " were recieved?";
+            for (MorphiumId id : processedMessages.keySet()) {
+                assert (processedMessages.get(id) == numberOfWorkers - 1) : "Message " + id + " was not recieved by all " + (numberOfWorkers - 1) + " other workers? only by " + processedMessages.get(id);
             }
-            last = procCounter.get();
-            log.info("Waiting for messages to be processed - procCounter: " + procCounter.get());
-            Thread.sleep(2000);
+            assert (procCounter.get() == numberOfMessages * (numberOfWorkers - 1)) : "Still processing messages?!?!?";
+        } finally {
+
+            //Waiting for all messages to be outdated and deleted
+
+            //Stopping all
+            for (Messaging m : systems) {
+                m.terminate();
+            }
+            Thread.sleep(1000);
+            for (Messaging m : systems) {
+                assert (!m.isAlive()) : "Thread still running?";
+            }
+
         }
-        Thread.sleep(1000);
-        log.info("done");
-
-        assert (processedMessages.size() == numberOfMessages) : "sent " + numberOfMessages + " messages, but only " + processedMessages.size() + " were recieved?";
-        for (MorphiumId id : processedMessages.keySet()) {
-            assert (processedMessages.get(id) == numberOfWorkers - 1) : "Message " + id + " was not recieved by all " + (numberOfWorkers - 1) + " other workers? only by " + processedMessages.get(id);
-        }
-        assert (procCounter.get() == numberOfMessages * (numberOfWorkers - 1)) : "Still processing messages?!?!?";
-
-        //Waiting for all messages to be outdated and deleted
-
-        //Stopping all
-        for (Messaging m : systems) {
-            m.terminate();
-        }
-        Thread.sleep(1000);
-        for (Messaging m : systems) {
-            assert (!m.isAlive()) : "Thread still running?";
-        }
-
-
     }
 
     @Test
@@ -982,14 +1012,14 @@ public class InMemMessagingTest extends MorphiumInMemTestBase {
         m.setExclusive(false);
         m1.sendMessage(m);
 
-        Thread.sleep(1200);
+        Thread.sleep(4200);
         assert (!gotMessage1) : "Got message again?";
         assert (gotMessage2) : "m2 did not get msg?";
         assert (gotMessage3) : "m3 did not get msg";
         assert (!error);
         gotMessage2 = false;
         gotMessage3 = false;
-        Thread.sleep(1200);
+        Thread.sleep(2200);
         assert (!gotMessage1) : "Got message again?";
         assert (!gotMessage2) : "m2 did get msg again?";
         assert (!gotMessage3) : "m3 did get msg again?";
@@ -1608,7 +1638,7 @@ public class InMemMessagingTest extends MorphiumInMemTestBase {
         Messaging receiver = new Messaging(morphium, 100, true, true, 10);
         receiver.addMessageListener((msg, m) -> {
 
-            log.info("Incoming message..." + m.getMsgId().toString() + " processed by: " + m.getProcessedBy().size() + "/" + m.getProcessedBy().get(0));
+            log.info("Incoming message..." + m.getMsgId().toString() + " processed by: " + m.getProcessedBy());
             list.add(m);
             try {
                 Thread.sleep(12000);

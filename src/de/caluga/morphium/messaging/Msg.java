@@ -17,15 +17,15 @@ import java.util.*;
  * Message class - used by Morphium's own messaging system<br>
  * </br>
  * Reads from any node, as this produces lots of reads! All Writes will block until <b>all nodes</b> have confirmed the
- * write!
+ * write!t
  */
 @SuppressWarnings("WeakerAccess")
 @Entity(polymorph = true)
 @NoCache
 //timeout <0 - setting relative to replication lag
 //timeout == 0 - wait forever
-@WriteSafety(level = SafetyLevel.BASIC, waitForJournalCommit = false)
-@DefaultReadPreference(ReadPreferenceLevel.PRIMARY)
+@WriteSafety(level = SafetyLevel.WAIT_FOR_ALL_SLAVES, waitForJournalCommit = false)
+@DefaultReadPreference(ReadPreferenceLevel.NEAREST)
 @Lifecycle
 @Index({"sender,locked_by,processed_by,recipient,priority,timestamp", "locked_by,processed_by,recipient,priority,timestamp",
         "sender,locked_by,processed_by,recipient,name,priority,timestamp"})
@@ -221,6 +221,9 @@ public class Msg {
     }
 
     public List<String> getProcessedBy() {
+        if (processedBy == null) {
+            processedBy = new ArrayList<>();
+        }
         return processedBy;
     }
 
@@ -229,10 +232,7 @@ public class Msg {
     }
 
     public void addProcessedId(String id) {
-        if (processedBy == null) {
-            processedBy = new ArrayList<>();
-        }
-        processedBy.add(id);
+        getProcessedBy().add(id);
     }
 
     public String getLockedBy() {
@@ -348,6 +348,9 @@ public class Msg {
 //        }
         if (deleteAt == null) {
             deleteAt = new Date(System.currentTimeMillis() + ttl);
+        }
+        if (getProcessedBy().size() == 0) {
+            processedBy = null;
         }
         timestamp = System.currentTimeMillis();
     }

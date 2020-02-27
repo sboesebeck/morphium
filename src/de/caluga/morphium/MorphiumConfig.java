@@ -66,7 +66,7 @@ public class MorphiumConfig {
     private int retryWaitTimeWriter = 200;
     private int retryWaitTimeAsyncWriter = 200;
     private int globalW = 1; //number of writes
-    private int maxWaitTime = 120000;
+    private int maxWaitTime = 2000;
     //default time for write buffer to be filled
     private int writeBufferTime = 1000;
     //ms for the pause of the main thread
