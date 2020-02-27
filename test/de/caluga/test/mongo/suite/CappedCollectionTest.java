@@ -17,7 +17,7 @@ public class CappedCollectionTest extends MorphiumTestBase {
     @Test
     public void testCreationOfCappedCollection() throws Exception {
         morphium.dropCollection(CappedCol.class);
-
+        Thread.sleep(1000);
         CappedCol cc = new CappedCol();
         cc.setValue("A value");
         cc.setCounter(-1);
@@ -32,7 +32,7 @@ public class CappedCollectionTest extends MorphiumTestBase {
             cc.setCounter(i);
             morphium.store(cc);
         }
-
+        Thread.sleep(1000);
         assert (morphium.createQueryFor(CappedCol.class).countAll() <= 10);
         for (CappedCol cp : morphium.createQueryFor(CappedCol.class).sort("counter").asIterable(10)) {
             log.info("Capped: " + cp.getCounter() + " - " + cp.getValue());
