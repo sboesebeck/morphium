@@ -613,7 +613,7 @@ public class CacheSyncTest extends MorphiumTestBase {
 
     @Cache(syncCache = Cache.SyncCacheStrategy.UPDATE_ENTRY)
     @WriteBuffer(timeout = 1000)
-    @WriteSafety(waitForJournalCommit = true, level = SafetyLevel.WAIT_FOR_ALL_SLAVES)
+    @WriteSafety(waitForJournalCommit = false, level = SafetyLevel.WAIT_FOR_ALL_SLAVES)
     public static class IdCachedObject extends CachedObject {
 
     }
