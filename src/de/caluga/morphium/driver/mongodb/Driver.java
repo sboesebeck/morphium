@@ -1076,10 +1076,10 @@ public class Driver implements MorphiumDriver {
             for (Map<String, Object> toUpdate : notnew) {
 
                 UpdateOptions o = new UpdateOptions();
-                o.upsert(true);
                 Document filter = new Document();
-
+                o.upsert(true);
                 Object id = toUpdate.get("_id");
+//                o.upsert(id == null);
                 if (id instanceof MorphiumId) {
                     id = new ObjectId(id.toString());
                 }
@@ -1087,6 +1087,7 @@ public class Driver implements MorphiumDriver {
                 //Hack to detect versioning
                 if (toUpdate.get(MorphiumDriver.VERSION_NAME) != null) {
                     filter.put(MorphiumDriver.VERSION_NAME, toUpdate.get(MorphiumDriver.VERSION_NAME));
+                    toUpdate.put(MorphiumDriver.VERSION_NAME, (Long) toUpdate.get(MorphiumDriver.VERSION_NAME) + 1l);
                 }
                 //                    toUpdate.remove("_id");
                 //                    Document update = new Document("$set", toUpdate);
@@ -1115,14 +1116,14 @@ public class Driver implements MorphiumDriver {
                     if (id instanceof ObjectId) {
                         toUpdate.put("_id", new MorphiumId(((ObjectId) id).toHexString()));
                     }
-                } catch (Exception e) {
-                    //log.error("",e);
-                    if (e instanceof MongoWriteException && e.getMessage().contains("E11000 duplicate key error")) {
-                        throw new ConcurrentModificationException("Version mismach - write failed", e);
-                    } else {
-                        throw new RuntimeException(e);
+                    if (toUpdate.get(MorphiumDriver.VERSION_NAME) != null && res.getModifiedCount() == 0) {
+                        throw new MorphiumDriverException("Version mismatch!");
                     }
-
+                } catch (MongoWriteException e) {
+                    //log.error("",e);
+                    if (e.getMessage().contains("E11000 duplicate key error")) {
+                        throw new ConcurrentModificationException("Version mismach - write failed", e);
+                    }
                 }
 
             }
@@ -1178,13 +1179,13 @@ public class Driver implements MorphiumDriver {
                 }
             }
 
-            for (int i = 0; i < lst.size(); i++) {
-                Object id = lst.get(i).get("_id");
-                if (id instanceof ObjectId) {
-                    id = new MorphiumId(((ObjectId) id).toHexString());
-                }
-                objs.get(i).put("_id", id);
-            }
+//            for (int i = 0; i < lst.size(); i++) {
+//                Object id = lst.get(i).get("_id");
+//                if (id instanceof ObjectId) {
+//                    id = new MorphiumId(((ObjectId) id).toHexString());
+//                }
+//                objs.get(i).put("_id", id);
+//            }
             return null;
         }, retriesOnNetworkError, sleepBetweenErrorRetries);
 

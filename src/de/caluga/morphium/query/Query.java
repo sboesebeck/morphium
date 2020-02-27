@@ -228,6 +228,13 @@ public interface Query<T> extends Cloneable {
      */
     Query<T> q();
 
+    /**
+     * bound directly to mong
+     * no field name tanslations done!
+     *
+     * @param query
+     * @return
+     */
     List<T> complexQuery(Map<String, Object> query);
 
     AnnotationAndReflectionHelper getARHelper();
@@ -237,6 +244,8 @@ public interface Query<T> extends Cloneable {
     /**
      * just sends the given query to the MongoDBDriver and masrhalls objects as listed
      * ignores all other query settings!!!!!
+     * bound directly to mong
+     * no field name tanslations done!
      *
      * @param query - query to be sent
      * @param skip  - amount to skip

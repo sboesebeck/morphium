@@ -5,6 +5,7 @@ import de.caluga.morphium.annotations.Entity;
 import de.caluga.morphium.annotations.Id;
 import de.caluga.morphium.driver.MorphiumId;
 
+import java.util.List;
 import java.util.Map;
 
 @Entity(translateCamelCase = false)
@@ -17,12 +18,21 @@ public class ChangeStreamEvent {
     private Map<String, String> ns;
     private Object documentKey;
     private Map<String, Object> updateDescription;
+    private Map<String, Object> updatedFields;
+    private List<String> removedFields;
     private long clusterTime;
     private long txnNumber;
     private String dbName;
     private String collectionName;
     private Map<String, Object> lsid;
 
+    public List<String> getRemovedFields() {
+        return removedFields;
+    }
+
+    public Map<String, Object> getUpdatedFields() {
+        return updatedFields;
+    }
 
     public String getDbName() {
         return dbName;

@@ -10,6 +10,7 @@ import de.caluga.morphium.annotations.Embedded;
 import de.caluga.morphium.annotations.Entity;
 import de.caluga.morphium.annotations.Id;
 import de.caluga.morphium.driver.MorphiumId;
+import de.caluga.morphium.mapping.MorphiumTypeMapper;
 import de.caluga.morphium.query.Query;
 import de.caluga.test.mongo.suite.data.CachedObject;
 import de.caluga.test.mongo.suite.data.ComplexObject;
@@ -754,6 +755,71 @@ public class BasicFunctionalityTest extends MorphiumTestBase {
         //noinspection ConstantConditions
         assert (c.others.size() == 4 && c.others.get(0) instanceof MorphiumId);
         assert (c.simpleId != null);
+    }
+
+    @Test
+    public void customMapperObjectIdTest() {
+        MorphiumTypeMapper<ObjectIdTest> mapper = new MorphiumTypeMapper<ObjectIdTest>() {
+            @Override
+            public Object marshall(ObjectIdTest o) {
+                Map serialized = new HashMap();
+                serialized.put("value", o.value);
+                serialized.put("_id", o.id);
+                return serialized;
+
+            }
+
+            @Override
+            public ObjectIdTest unmarshall(Object d) {
+                Map obj = ((Map) d);
+                ObjectIdTest o = new ObjectIdTest();
+                o.id = new ObjectId(obj.get("_id").toString());
+                o.value = (String) (obj.get("value"));
+                return o;
+            }
+        };
+        morphium.getMapper().registerCustomMapperFor(ObjectIdTest.class, mapper);
+
+        ObjectIdTest t = new ObjectIdTest();
+        t.value = "test1";
+        t.id = new ObjectId();
+        morphium.store(t);
+        morphium.reread(t);
+
+        t = new ObjectIdTest();
+        t.value = "test2";
+        t.id = new ObjectId();
+
+        morphium.store(t);
+
+        List<ObjectIdTest> lst = morphium.createQueryFor(ObjectIdTest.class).asList();
+        for (ObjectIdTest tst : lst) {
+            log.info("T: " + tst.value + " id: " + tst.id.toHexString());
+        }
+        morphium.getMapper().deregisterCustomMapperFor(ObjectIdTest.class);
+    }
+
+    @Test
+    public void objectIdIdstest() {
+
+        ObjectIdTest o = new ObjectIdTest();
+        o.value = "test1";
+        morphium.store(o);
+
+        assert (o.id != null);
+        assert (o.id instanceof ObjectId);
+
+        morphium.reread(o);
+        assert (o.id != null);
+        assert (o.id instanceof ObjectId);
+
+    }
+
+    @Entity
+    public static class ObjectIdTest {
+        @Id
+        public ObjectId id;
+        public String value;
     }
 
 

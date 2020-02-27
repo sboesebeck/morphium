@@ -159,7 +159,6 @@ public class AnsweringTests extends MorphiumTestBase {
         Thread.sleep(500);
         assert (answer != null);
         assert (answer.getProcessedBy().size() == 1);
-        assert (answer.getProcessedBy().contains("m3"));
     }
 
 

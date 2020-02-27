@@ -16,6 +16,8 @@ import javax.script.ScriptEngineManager;
 import javax.script.ScriptException;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ScheduledThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
@@ -34,6 +36,9 @@ public class InMemoryDriver implements MorphiumDriver {
     private final ThreadLocal<InMemTransactionContext> currentTransaction = new ThreadLocal<>();
     private final AtomicLong txn = new AtomicLong();
     private final Map<String, List<DriverTailableIterationCallback>> watchersByDb = new ConcurrentHashMap<>();
+    private final ScheduledThreadPoolExecutor exec = new ScheduledThreadPoolExecutor(1);
+    private List<Runnable> eventQueue = new Vector<>();
+    private List<Object> monitors = new Vector<>();
 
     @Override
     public List<String> listDatabases() {
@@ -274,7 +279,21 @@ public class InMemoryDriver implements MorphiumDriver {
 
     @Override
     public void connect() {
+        Runnable r = () -> {
 
+            List<Runnable> current = eventQueue;
+            eventQueue = new Vector<>();
+            Collections.shuffle(current);
+            for (Runnable r1 : current) {
+                try {
+                    r1.run();
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
+            }
+
+        };
+        exec.scheduleWithFixedDelay(r, 100, 500, TimeUnit.MILLISECONDS); //check for events every 100ms
     }
 
     @Override
@@ -284,7 +303,7 @@ public class InMemoryDriver implements MorphiumDriver {
 
     @Override
     public void connect(String replicasetName) {
-
+        connect();
     }
 
     @Override
@@ -323,7 +342,12 @@ public class InMemoryDriver implements MorphiumDriver {
 
     @Override
     public void close() {
-
+        exec.shutdownNow();
+        for (Object m : monitors) {
+            synchronized (m) {
+                m.notifyAll();
+            }
+        }
     }
 
     @Override
@@ -421,7 +445,7 @@ public class InMemoryDriver implements MorphiumDriver {
                                 //noinspection unchecked
                                 boolean contains = false;
                                 if (toCheck.get(key) instanceof List) {
-                                    List chk = new ArrayList((List) toCheck.get(key));
+                                    List chk = Collections.synchronizedList(new ArrayList((List) toCheck.get(key)));
                                     for (Object o : chk) {
                                         if (o != null && q.get(k) != null && o.equals(q.get(k))) {
                                             contains = true;
@@ -443,11 +467,13 @@ public class InMemoryDriver implements MorphiumDriver {
                                 }
                             case "$nin":
                                 boolean found = false;
-                                if (toCheck.containsKey(key)) {
-                                    for (Object v : (List) q.get(k)) {
-                                        if (v instanceof MorphiumId) {
-                                            v = new ObjectId(v.toString());
-                                        }
+                                for (Object v : (List) q.get(k)) {
+                                    if (v instanceof MorphiumId) {
+                                        v = new ObjectId(v.toString());
+                                    }
+                                    if (toCheck.get(key) == null) {
+                                        if (v == null) found = true;
+                                    } else {
                                         if (toCheck.get(key).equals(v)) {
                                             found = true;
                                         }
@@ -455,14 +481,15 @@ public class InMemoryDriver implements MorphiumDriver {
                                 }
                                 return !found;
                             case "$in":
-                                if (toCheck.containsKey(key)) {
-                                    for (Object v : (List) q.get(k)) {
-                                        if (v instanceof MorphiumId) {
-                                            v = new ObjectId(v.toString());
-                                        }
-                                        if (toCheck.get(key).equals(v)) {
-                                            return true;
-                                        }
+                                for (Object v : (List) q.get(k)) {
+                                    if (v instanceof MorphiumId) {
+                                        v = new ObjectId(v.toString());
+                                    }
+                                    if (toCheck.get(key) == null && v == null) {
+                                        return true;
+                                    }
+                                    if (toCheck.get(key) != null && toCheck.get(key).equals(v)) {
+                                        return true;
                                     }
                                 }
                                 return false;
@@ -515,7 +542,7 @@ public class InMemoryDriver implements MorphiumDriver {
             l = limit;
         }
         List<Map<String, Object>> res = find(db, collection, query, sort, projection, skip, l, batchSize, readPreference, findMetaData);
-        crs.setBatch(new ArrayList<>(res));
+        crs.setBatch(Collections.synchronizedList(new ArrayList<>(res)));
 
         if (res.size() < batchSize) {
             //noinspection unchecked
@@ -529,8 +556,16 @@ public class InMemoryDriver implements MorphiumDriver {
     @SuppressWarnings("RedundantThrows")
     @Override
     public void watch(String db, int timeout, boolean fullDocumentOnUpdate, DriverTailableIterationCallback cb) throws MorphiumDriverException {
+        watch(db, null, timeout, fullDocumentOnUpdate, cb);
+    }
+
+    @SuppressWarnings("RedundantThrows")
+    @Override
+    public void watch(String db, String collection, int timeout, boolean fullDocumentOnUpdate, DriverTailableIterationCallback cb) throws MorphiumDriverException {
+
         Object monitor = new Object();
-        watchersByDb.putIfAbsent(db, new Vector<>());
+        monitors.add(monitor);
+
         DriverTailableIterationCallback cback = new DriverTailableIterationCallback() {
             @Override
             public void incomingData(Map<String, Object> data, long dur) {
@@ -547,49 +582,27 @@ public class InMemoryDriver implements MorphiumDriver {
                 return cb.isContinued();
             }
         };
-        watchersByDb.get(db).add(cback);
+        if (collection != null) {
+            String key = db + "." + collection;
+            watchersByDb.putIfAbsent(key, new Vector<>());
+            watchersByDb.get(key).add(cback);
+        } else {
+            watchersByDb.putIfAbsent(db, new Vector<>());
+            watchersByDb.get(db).add(cback);
+        }
 
 
         //simulate blocking
         try {
             synchronized (monitor) {
                 monitor.wait();
+                monitors.remove(monitor);
             }
         } catch (InterruptedException e) {
         }
-//        while (run[0]) {
-//            try {
-//                Thread.sleep(10);
-//            } catch (InterruptedException e) {
-//                //swallow
-//            }
-//        }
+
         watchersByDb.remove(db);
         log.debug("Exiting");
-    }
-
-    @SuppressWarnings("RedundantThrows")
-    @Override
-    public void watch(String db, String collection, int timeout, boolean fullDocumentOnUpdate, DriverTailableIterationCallback cb) throws MorphiumDriverException {
-        String key = db + "." + collection;
-        Object monitor = new Object();
-        watchersByDb.putIfAbsent(key, new Vector<>());
-        DriverTailableIterationCallback cback = new DriverTailableIterationCallback() {
-            @Override
-            public void incomingData(Map<String, Object> data, long dur) {
-                cb.incomingData(data, dur);
-            }
-
-            @Override
-            public boolean isContinued() {
-                return cb.isContinued();
-            }
-        };
-        watchersByDb.get(key).add(cback);
-        while (cb.isContinued()) {
-            Thread.yield();
-        }
-        watchersByDb.remove(key);
     }
 
     @Override
@@ -622,7 +635,7 @@ public class InMemoryDriver implements MorphiumDriver {
             }
         }
         List<Map<String, Object>> res = find(inCrs.getDb(), inCrs.getCollection(), inCrs.getQuery(), inCrs.getSort(), inCrs.getProjection(), inCrs.getSkip(), limit, inCrs.getBatchSize(), inCrs.getReadPreference(), inCrs.getFindMetaData());
-        next.setBatch(new ArrayList<>(res));
+        next.setBatch(Collections.synchronizedList(new ArrayList<>(res)));
         if (res.size() < inCrs.getBatchSize()) {
             //finished!
             //noinspection unchecked
@@ -676,22 +689,23 @@ public class InMemoryDriver implements MorphiumDriver {
             //todo add projection
         }
 
-        return new ArrayList<>(ret);
+        return Collections.synchronizedList(new ArrayList<>(ret));
     }
 
     @Override
     public long count(String db, String collection, Map<String, Object> query, ReadPreference rp) {
-        List<Map<String, Object>> data = getCollection(db, collection);
+        List<Map<String, Object>> d = getCollection(db, collection);
+        List<Map<String, Object>> data = new ArrayList<>(d);
         if (query.isEmpty()) {
             return data.size();
         }
         long cnt = 0;
+
         for (Map<String, Object> o : data) {
             if (matchesQuery(query, o)) {
                 cnt++;
             }
         }
-
         return cnt;
     }
 
@@ -708,7 +722,7 @@ public class InMemoryDriver implements MorphiumDriver {
                 ret.add(new HashMap<>(obj));
             }
         }
-        return new ArrayList<>(ret);
+        return Collections.synchronizedList(new ArrayList<>(ret));
     }
 
     @Override
@@ -959,37 +973,45 @@ public class InMemoryDriver implements MorphiumDriver {
      * invalidate
      */
     private void notifyWatchers(String db, String collection, String op, Map doc) {
-        List<DriverTailableIterationCallback> w = null;
-        if (watchersByDb.containsKey(db)) {
-            w = new ArrayList<>(watchersByDb.get(db));
-        } else if (collection != null && watchersByDb.containsKey(db + "." + collection)) {
-            w = new ArrayList<>(watchersByDb.get(db + "." + collection));
-        }
-        if (w == null) {
-            return;
-        }
+        Runnable r = new Runnable() {
+            public void run() {
+                List<DriverTailableIterationCallback> w = null;
+                if (watchersByDb.containsKey(db)) {
+                    w = Collections.synchronizedList(new ArrayList<>(watchersByDb.get(db)));
+                } else if (collection != null && watchersByDb.containsKey(db + "." + collection)) {
+                    w = Collections.synchronizedList(new ArrayList<>(watchersByDb.get(db + "." + collection)));
+                }
+                if (w == null || w.isEmpty()) {
+                    return;
+                }
 
-        long tx = txn.incrementAndGet();
-        for (DriverTailableIterationCallback cb : w) {
-            Map<String, Object> data = new HashMap<>();
-            data.put("fullDocument", doc);
-            data.put("operationType", op);
-            Map m = Utils.getMap("db", db);
-            //noinspection unchecked
-            m.put("coll", collection);
-            data.put("ns", m);
-            data.put("txnNumber", tx);
-            data.put("clusterTime", System.currentTimeMillis());
-            if (doc != null) {
-                data.put("documentKey", Utils.getMap("_id", doc.get("_id")));
-            }
+                long tx = txn.incrementAndGet();
+                Collections.shuffle(w);
+                for (DriverTailableIterationCallback cb : w) {
+                    Map<String, Object> data = new HashMap<>();
+                    data.put("fullDocument", doc);
+                    data.put("operationType", op);
+                    Map m = Utils.getMap("db", db);
+                    //noinspection unchecked
+                    m.put("coll", collection);
+                    data.put("ns", m);
+                    data.put("txnNumber", tx);
+                    data.put("clusterTime", System.currentTimeMillis());
+                    if (doc != null) {
+                        data.put("documentKey", Utils.getMap("_id", doc.get("_id")));
+                    }
 
-            try {
-                cb.incomingData(data, System.currentTimeMillis());
-            } catch (Exception e) {
-                log.error("Error calling watcher", e);
+                    try {
+                        cb.incomingData(data, System.currentTimeMillis());
+                    } catch (Exception e) {
+                        log.error("Error calling watcher", e);
+                    }
+                }
+
             }
-        }
+        };
+
+        eventQueue.add(r);
 
 
     }
@@ -1039,7 +1061,7 @@ public class InMemoryDriver implements MorphiumDriver {
             }
         }
 
-        return new ArrayList<>(distinctValues);
+        return Collections.synchronizedList(new ArrayList<>(distinctValues));
     }
 
     @Override

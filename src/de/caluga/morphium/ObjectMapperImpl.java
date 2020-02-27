@@ -205,6 +205,7 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
         if (customMappers.containsKey(c)) {
             Object ret = customMappers.get(c).marshall(o);
             if (ret instanceof Map) {
+                ((Map) ret).put("class_name", o.getClass().getName());
                 return (Map<String, Object>) ret;
             } else {
                 return Utils.getMap("value", ret);
@@ -1042,6 +1043,10 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
                         field.set(ret, o.get("_id").toString());
                     } else if (field.getType().equals(MorphiumId.class) && o.get("_id").getClass().equals(ObjectId.class)) {
                         field.set(ret, new MorphiumId(((ObjectId) o.get("_id")).toByteArray()));
+                    } else if (field.getType().equals(ObjectId.class) && o.get("_id").getClass().equals(MorphiumId.class)) {
+                        field.set(ret, new ObjectId(((MorphiumId) o.get("_id")).getBytes()));
+                    } else if (field.getType().equals(ObjectId.class) && o.get("_id").getClass().equals(String.class)) {
+                        field.set(ret, new ObjectId(((ObjectId) o.get("_id")).toString()));
                     } else if (field.getType().equals(MorphiumId.class) && o.get("_id").getClass().equals(String.class)) {
                         //                        log.warn("ID type missmatch - field is objectId but got string from db - trying conversion");
                         field.set(ret, new MorphiumId((String) o.get("_id")));
@@ -1298,7 +1303,11 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
             } else if (val instanceof List) {
                 //list in list
                 ArrayList lt = new ArrayList();
-                fillList(null, null, (ParameterizedType) mapType.getActualTypeArguments()[1], (List<Map<String, Object>>) val, lt, containerEntity);
+                if (mapType.getActualTypeArguments()[1] instanceof ParameterizedType) {
+                    fillList(null, null, (ParameterizedType) mapType.getActualTypeArguments()[1], (List<Map<String, Object>>) val, lt, containerEntity);
+                } else {
+                    fillList(null, null, null, (List<Map<String, Object>>) val, lt, containerEntity);
+                }
                 toFillIn.put(key, lt);
                 continue;
 

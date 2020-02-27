@@ -1,10 +1,12 @@
 package de.caluga.test.mongo.suite.data;
 
 
+import de.caluga.morphium.mapping.MorphiumTypeMapper;
+
 import java.util.HashMap;
 import java.util.Map;
 
-public class CustomMappedObjectMapper {
+public class CustomMappedObjectMapper implements MorphiumTypeMapper<CustomMappedObject> {
 
     public Object marshall(CustomMappedObject o) {
         Map<String, Object> map = new HashMap<>();
@@ -12,6 +14,7 @@ public class CustomMappedObjectMapper {
         map.put("name", o.getName());
         map.put("string_value", o.getValue());
         map.put("int_value", o.getIntValue());
+        map.put("class_name", CustomMappedObject.class.getName());
         return map;
     }
 
@@ -27,13 +30,6 @@ public class CustomMappedObjectMapper {
             return cmo;
         }
         return null;
-    }
-
-    public boolean matches(Object v) {
-        if (!(v instanceof Map)) return false;
-        Map value = (Map) v;
-        //noinspection ConstantConditions
-        return value != null && value.get("marker") != null && value.get("marker").equals(Boolean.TRUE);
     }
 
 }

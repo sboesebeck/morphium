@@ -34,7 +34,7 @@ public class SpeedTests extends MorphiumTestBase {
         while (System.currentTimeMillis() < start + dur) {
             Thread.sleep(10);
         }
-        long cnt = msg.getMessageCount();
+        long cnt = msg.getPendingMessagesCount();
         log.info("stored msg: " + cnt + " in " + dur + "ms");
         msg.terminate();
     }
@@ -75,7 +75,7 @@ public class SpeedTests extends MorphiumTestBase {
         while (System.currentTimeMillis() < start + dur) {
             Thread.sleep(10);
         }
-        long cnt = sender.getMessageCount();
+        long cnt = sender.getPendingMessagesCount();
         log.info("Messages sent: " + cnt + " received: " + recCount.get() + " in " + dur + "ms");
         sender.terminate();
         receiver.terminate();
@@ -127,7 +127,7 @@ public class SpeedTests extends MorphiumTestBase {
         while (System.currentTimeMillis() < start + dur) {
             Thread.sleep(10);
         }
-        long cnt = sender.getMessageCount();
+        long cnt = sender.getPendingMessagesCount();
         log.info("Messages sent: " + cnt + " received: " + recCount.get() + " in " + dur + "ms");
         sender.terminate();
         receiver.terminate();
