@@ -631,14 +631,19 @@ public class MessagingTest extends MorphiumTestBase {
         m1.setSenderId("m1");
         Messaging m2 = new Messaging(morphium, 10, false, true, 10);
         m2.setSenderId("m2");
-        m1.start();
-        m2.start();
+        try {
+            m1.start();
+            m2.start();
 
-        Msg m = new Msg("test", "ignore me please", "value");
-        m1.sendMessage(m);
-        Thread.sleep(1000);
-        m = morphium.reread(m);
-        assert (m.getProcessedBy().size() == 0) : "wrong number of proccessed by entries: " + m.getProcessedBy().size();
+            Msg m = new Msg("test", "ignore me please", "value");
+            m1.sendMessage(m);
+            Thread.sleep(1000);
+            m = morphium.reread(m);
+            assert (m.getProcessedBy().size() == 0) : "wrong number of proccessed by entries: " + m.getProcessedBy().size();
+        } finally {
+            m1.terminate();
+            m2.terminate();
+        }
     }
 
     @Test
@@ -1040,6 +1045,7 @@ public class MessagingTest extends MorphiumTestBase {
         Messaging m1 = null;
         Messaging m2 = null;
         Messaging m3 = null;
+        Messaging m4 = null;
         try {
             morphium.dropCollection(Msg.class);
 
@@ -1078,7 +1084,7 @@ public class MessagingTest extends MorphiumTestBase {
                 log.info("Got message m3");
                 return null;
             });
-            Messaging m4 = new Messaging(morphium, "test2", 100, false);
+            m4 = new Messaging(morphium, "test2", 100, false);
             m4.setSenderId("m4");
             m4.addMessageListener((msg, m) -> {
                 gotMessage4 = true;
@@ -1152,6 +1158,7 @@ public class MessagingTest extends MorphiumTestBase {
             m1.terminate();
             m2.terminate();
             m3.terminate();
+            m4.terminate();
             sender.terminate();
             sender2.terminate();
 
@@ -1659,6 +1666,8 @@ public class MessagingTest extends MorphiumTestBase {
             sender.terminate();
             receiver.terminate();
             receiver2.terminate();
+            receiver3.terminate();
+            receiver4.terminate();
             morphium2.close();
             morphium3.close();
         }
@@ -1779,6 +1788,8 @@ public class MessagingTest extends MorphiumTestBase {
             sender.terminate();
             receiver.terminate();
             receiver2.terminate();
+            receiver3.terminate();
+            receiver4.terminate();
             morphium2.close();
             morphium3.close();
         }
