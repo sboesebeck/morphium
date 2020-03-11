@@ -685,7 +685,7 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
                                 data.put(k, deserializeMap((Map<String, Object>) o.get(k)));
                             }
                         } else if (o.get(k) instanceof List && !((List) o.get(k)).isEmpty() && ((List) o.get(k)).get(0) instanceof Map) {
-                            data.put(k, deserializeList((List<Map<String, Object>>) o.get(k)));
+                            data.put(k, deserializeList((List<Object>) o.get(k)));
                         } else {
                             data.put(k, o.get(k));
                         }
@@ -1122,13 +1122,13 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
         } else if (val instanceof ObjectId) {
             val = new MorphiumId(((ObjectId) val).toByteArray());
         } else if (val instanceof List) {
-            List<Map<String, Object>> lst = (List<Map<String, Object>>) val;
+            List<Object> lst = (List<Object>) val;
             return deserializeList(lst);
         }
         return val;
     }
 
-    public List deserializeList(List<Map<String, Object>> lst) {
+    public List deserializeList(List<Object> lst) {
         return lst.stream().map(this::unmarshallInternal).collect(Collectors.toList());
     }
 
