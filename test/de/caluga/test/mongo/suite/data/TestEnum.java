@@ -7,5 +7,11 @@ package de.caluga.test.mongo.suite.data;
  * <p/>
  */
 public enum TestEnum {
-    TEST1, TEST2, VALUE, NOCH_EIN_TEST
+    TEST1("test"), TEST2("test2"), VALUE("value"), NOCH_EIN_TEST("noch ein test");
+
+    String content;
+
+    TestEnum(String n) {
+        content = n;
+    }
 }
