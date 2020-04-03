@@ -2,6 +2,8 @@ package de.caluga.morphium.driver;/**
  * Created by stephan on 05.11.15.
  */
 
+import java.util.concurrent.TimeUnit;
+
 /**
  * define how secure the write should be. most important the w value which states the number of nodes written to:
  * 0: no error handling
@@ -37,6 +39,23 @@ public class WriteConcern {
 
     public static WriteConcern getWc(int w, boolean fsync, boolean j, int wtimeout) {
         return new WriteConcern(w, fsync, j, wtimeout);
+    }
+
+
+    public com.mongodb.WriteConcern toMongoWriteConcern() {
+        com.mongodb.WriteConcern wc = getW() > 0 ? com.mongodb.WriteConcern.ACKNOWLEDGED : com.mongodb.WriteConcern.UNACKNOWLEDGED;
+        if (getW() > 0) {
+            if (isJ()) {
+                wc = wc.withJournal(isJ());
+            } else if (isFsync()) {
+                // do not set if journal is already set - otherwise AWS DocumentDB will throw an error. fsync must be null not only false
+                wc = wc.withFsync(isFsync());
+            }
+            if (getWtimeout() > 0) {
+                wc.withWTimeout(getWtimeout(), TimeUnit.MILLISECONDS);
+            }
+        }
+        return wc;
     }
 
     public int getW() {
