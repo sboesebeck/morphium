@@ -2373,6 +2373,10 @@ public class Morphium {
         storeList(lst, (AsyncOperationCallback<T>) null);
     }
 
+    public <T> void storeList(Set<T> set) {
+        storeList(new ArrayList<T>(set), (AsyncOperationCallback<T>) null);
+    }
+
     public <T> void storeList(List<T> lst, final AsyncOperationCallback<T> callback) {
         //have to sort list - might have different objects
         List<T> storeDirect = new ArrayList<>();

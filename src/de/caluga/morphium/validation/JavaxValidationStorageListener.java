@@ -74,6 +74,22 @@ public class JavaxValidationStorageListener extends MorphiumStorageAdapter<Objec
                 } catch (IllegalAccessException e) {
                     LoggerFactory.getLogger(JavaxValidationStorageListener.class).error("Could not access Field: " + f);
                 }
+
+            } else if (Set.class.isAssignableFrom(field.getType())) {
+                try {
+                    Collection<Object> lst = (Set<Object>) field.get(r);
+                    if (lst != null) {
+                        Map<Object, Boolean> map = new HashMap<>();
+                        for (Object o : lst) {
+                            map.put(o, isNew);
+                        }
+                        validatePrestore(m, violations, map);
+
+                    }
+
+                } catch (IllegalAccessException e) {
+                    LoggerFactory.getLogger(JavaxValidationStorageListener.class).error("Could not access list field: " + f);
+                }
             } else if (Collection.class.isAssignableFrom(field.getType())) {
                 //list handling
                 try {
