@@ -364,8 +364,7 @@ public class Driver implements MorphiumDriver {
     public void connect(String replicasetName) throws MorphiumDriverException {
         try {
             MongoClientOptions.Builder o = MongoClientOptions.builder();
-            com.mongodb.WriteConcern w = new com.mongodb.WriteConcern(getDefaultW(), getWriteTimeout(), isDefaultFsync(), isDefaultJ());
-            o.writeConcern(w);
+            o.writeConcern(de.caluga.morphium.driver.WriteConcern.getWc(getDefaultW(), isDefaultFsync(), isDefaultJ(), getWriteTimeout()).toMongoWriteConcern());
             o.socketTimeout(getSocketTimeout());
             o.connectTimeout(getConnectionTimeout());
             o.connectionsPerHost(getMaxConnectionsPerHost());
@@ -951,7 +950,7 @@ public class Driver implements MorphiumDriver {
                 writeConcern = writeConcern.withFsync(wc.isFsync());
                 writeConcern = writeConcern.withJ(wc.isJ());
             } else {
-                writeConcern = new com.mongodb.WriteConcern(wc.getW(), wc.getWtimeout(), wc.isFsync(), wc.isJ());
+                writeConcern = wc.toMongoWriteConcern();
             }
             coll.setWriteConcern(writeConcern);
         }
@@ -1027,7 +1026,7 @@ public class Driver implements MorphiumDriver {
                 writeConcern = writeConcern.withFsync(wc.isFsync());
                 writeConcern = writeConcern.withJ(wc.isJ());
             } else {
-                writeConcern = new com.mongodb.WriteConcern(wc.getW(), wc.getWtimeout() >= 0 ? wc.getWtimeout() : 0, wc.isFsync(), wc.isJ());
+                writeConcern = wc.toMongoWriteConcern();
             }
             coll = coll.withWriteConcern(writeConcern);
         }
@@ -1197,10 +1196,7 @@ public class Driver implements MorphiumDriver {
         DriverHelper.replaceMorphiumIdByObjectId(op);
         return DriverHelper.doCall(() -> {
             UpdateOptions opts = new UpdateOptions();
-            WriteConcern w = new com.mongodb.WriteConcern(wc != null ? wc.getW() : getDefaultW(),
-                    wc != null ? wc.getWtimeout() : getDefaultWriteTimeout(),
-                    wc == null || wc.isFsync(),
-                    wc != null && wc.isJ());
+            WriteConcern w = wc.toMongoWriteConcern();
 
             opts.upsert(upsert);
             UpdateResult res;
@@ -1278,7 +1274,7 @@ public class Driver implements MorphiumDriver {
         DriverHelper.doCall(() -> {
             MongoDatabase database = mongo.getDatabase(db);
             if (wc != null) {
-                com.mongodb.WriteConcern writeConcern = new com.mongodb.WriteConcern(wc.getW(), wc.getWtimeout(), wc.isFsync(), wc.isJ());
+                com.mongodb.WriteConcern writeConcern = wc.toMongoWriteConcern();
                 database = database.withWriteConcern(writeConcern);
             }
             if (currentTransaction.get() != null) {
