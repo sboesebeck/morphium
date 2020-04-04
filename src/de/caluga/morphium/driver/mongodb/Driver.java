@@ -1196,7 +1196,10 @@ public class Driver implements MorphiumDriver {
         DriverHelper.replaceMorphiumIdByObjectId(op);
         return DriverHelper.doCall(() -> {
             UpdateOptions opts = new UpdateOptions();
-            WriteConcern w = wc.toMongoWriteConcern();
+            WriteConcern w = null;
+            if (wc == null)
+                w = de.caluga.morphium.driver.WriteConcern.getWc(getDefaultW(), isDefaultFsync(), isDefaultJ(), getWriteTimeout()).toMongoWriteConcern();
+            else w = wc.toMongoWriteConcern();
 
             opts.upsert(upsert);
             UpdateResult res;
