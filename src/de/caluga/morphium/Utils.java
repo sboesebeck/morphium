@@ -5,6 +5,11 @@ package de.caluga.morphium;/**
 import de.caluga.morphium.driver.MorphiumId;
 import org.bson.types.ObjectId;
 
+import java.io.IOException;
+import java.io.OutputStream;
+import java.io.StringWriter;
+import java.io.Writer;
+import java.lang.reflect.Array;
 import java.lang.reflect.Field;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
@@ -17,60 +22,88 @@ public class Utils {
 
     public static final String[] hexChars = {"0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "A", "B", "C", "D", "E", "F",};
 
-    @SuppressWarnings({"unchecked", "UnusedDeclaration"})
+
     public static String toJsonString(Object o) {
-        if (o == null) return "null";
-        StringBuilder b = new StringBuilder();
+        StringWriter sw = new StringWriter();
+        try {
+            writeJson(o, sw);
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+        return sw.toString();
+    }
+
+    @SuppressWarnings({"unchecked", "UnusedDeclaration"})
+    public static void writeJson(Object o, Writer out) throws IOException {
+        if (o == null) return;
+
         boolean comma = false;
         if (o instanceof Collection) {
-            b.append(" [ ");
+            out.write(" [ ");
 
             for (Object obj : ((Collection) o)) {
                 if (comma) {
-                    b.append(", ");
+                    out.write(", ");
                 }
                 comma = true;
-                b.append(toJsonString(obj));
+                writeJson(obj, out);
             }
-            b.append("]");
-            return b.toString();
-        } else if ((o instanceof String) || (o instanceof MorphiumId) || (o.getClass().isEnum())) {
-            return "\"" + o.toString() + "\"";
+            out.write("]");
+            return;
+        } else if (o.getClass().isArray()) {
+            out.write(" [ ");
+
+            int length = Array.getLength(o);
+            for (int i = 0; i < length; i++) {
+                Object obj = Array.get(o, i);
+                if (comma) {
+                    out.write(", ");
+                }
+                comma = true;
+                writeJson(obj, out);
+            }
+            out.write("]");
+            return;
+        } else if ((o instanceof String) || (o instanceof MorphiumId) || (o instanceof ObjectId) || (o.getClass().isEnum())) {
+            out.write("\"");
+            out.write(o.toString());
+            out.write("\"");
+            return;
         } else if (!(o instanceof Map)) {
-            return o.toString();
+            out.write(o.toString());
+            return;
         }
         Map<String, Object> db = (Map<String, Object>) o;
 
-        b.append("{ ");
+        out.write("{ ");
         comma = false;
         for (Map.Entry<String, Object> e : db.entrySet()) {
             if (comma) {
-                b.append(", ");
+                out.write(", ");
             }
 
             comma = true;
-            b.append("\"");
-            b.append(e.getKey());
-            b.append("\"");
+            out.write("\"");
+            out.write(e.getKey());
+            out.write("\"");
 
-            b.append(" : ");
+            out.write(" : ");
             if (e.getValue() == null) {
-                b.append(" null");
+                out.write(" null");
             } else if (e.getValue() instanceof String) {
-                b.append("\"");
-                b.append(e.getValue());
-                b.append("\"");
+                out.write("\"");
+                out.write((String) e.getValue());
+                out.write("\"");
             } else if (e.getValue().getClass().isEnum()) {
-                b.append("\"");
-                b.append(e.getValue().toString());
-                b.append("\"");
+                out.write("\"");
+                out.write(e.getValue().toString());
+                out.write("\"");
             } else {
-                b.append(toJsonString(e.getValue()));
+                writeJson(e.getValue(), out);
             }
 
         }
-        b.append(" } ");
-        return b.toString();
+        out.write(" } ");
     }
 
     public static <K, V> Map<K, V> getMap(K key, V value) {
