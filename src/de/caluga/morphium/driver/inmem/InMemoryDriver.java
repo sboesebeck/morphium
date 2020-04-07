@@ -953,13 +953,13 @@ public class InMemoryDriver implements MorphiumDriver {
                         for (Map.Entry<String, Object> entry : cmd.entrySet()) {
                             Object value = obj.get(entry.getKey());
                             if (value instanceof Integer) {
-                                value = value * entry.getValue();
+                                value = (Integer) value * ((Integer) entry.getValue());
                             } else if (value instanceof Double) {
-                                value = value * entry.getValue();
+                                value = (Double) value * ((Double) entry.getValue());
                             } else if (value instanceof Float) {
-                                value = value * entry.getValue();
+                                value = (Float) value * ((Float) entry.getValue());
                             } else if (value instanceof Long) {
-                                value = value * entry.getValue();
+                                value = (Long) value * ((Long) entry.getValue());
                             }
                             obj.put(entry.getKey(), value);
                         }
