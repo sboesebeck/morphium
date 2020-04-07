@@ -906,43 +906,43 @@ public class InMemoryDriver implements MorphiumDriver {
                             Object value = obj.get(entry.getKey());
                             if (value instanceof Integer) {
                                 if (entry.getValue() instanceof Integer) {
-                                    value = (Integer) value + ((Integer) entry.getValue());
+                                    value = value + entry.getValue();
                                 } else if (entry.getValue() instanceof Float) {
-                                    value = (Integer) value + ((Float) entry.getValue());
+                                    value = value + entry.getValue();
                                 } else if (entry.getValue() instanceof Double) {
-                                    value = (Integer) value + ((Double) entry.getValue());
+                                    value = value + entry.getValue();
                                 } else if (entry.getValue() instanceof Long) {
-                                    value = (Integer) value + ((Long) entry.getValue());
+                                    value = value + entry.getValue();
                                 }
                             } else if (value instanceof Double) {
                                 if (entry.getValue() instanceof Integer) {
-                                    value = (Double) value + ((Integer) entry.getValue());
+                                    value = value + entry.getValue();
                                 } else if (entry.getValue() instanceof Float) {
-                                    value = (Double) value + ((Float) entry.getValue());
+                                    value = value + entry.getValue();
                                 } else if (entry.getValue() instanceof Double) {
-                                    value = (Double) value + ((Double) entry.getValue());
+                                    value = value + entry.getValue();
                                 } else if (entry.getValue() instanceof Long) {
-                                    value = (Double) value + ((Long) entry.getValue());
+                                    value = value + entry.getValue();
                                 }
                             } else if (value instanceof Float) {
                                 if (entry.getValue() instanceof Integer) {
-                                    value = (Float) value + ((Integer) entry.getValue());
+                                    value = value + entry.getValue();
                                 } else if (entry.getValue() instanceof Float) {
-                                    value = (Float) value + ((Float) entry.getValue());
+                                    value = value + entry.getValue();
                                 } else if (entry.getValue() instanceof Double) {
-                                    value = (Float) value + ((Double) entry.getValue());
+                                    value = value + entry.getValue();
                                 } else if (entry.getValue() instanceof Long) {
-                                    value = (Float) value + ((Long) entry.getValue());
+                                    value = value + entry.getValue();
                                 }
                             } else if (value instanceof Long) {
                                 if (entry.getValue() instanceof Integer) {
-                                    value = (Long) value + ((Integer) entry.getValue());
+                                    value = value + entry.getValue();
                                 } else if (entry.getValue() instanceof Float) {
-                                    value = (Long) value + ((Float) entry.getValue());
+                                    value = value + entry.getValue();
                                 } else if (entry.getValue() instanceof Double) {
-                                    value = (Long) value + ((Double) entry.getValue());
+                                    value = value + entry.getValue();
                                 } else if (entry.getValue() instanceof Long) {
-                                    value = (Long) value + ((Long) entry.getValue());
+                                    value = value + entry.getValue();
                                 }
 
                             }
@@ -953,13 +953,13 @@ public class InMemoryDriver implements MorphiumDriver {
                         for (Map.Entry<String, Object> entry : cmd.entrySet()) {
                             Object value = obj.get(entry.getKey());
                             if (value instanceof Integer) {
-                                value = (Integer) value * ((Integer) entry.getValue());
+                                value = value * entry.getValue();
                             } else if (value instanceof Double) {
-                                value = (Double) value * ((Double) entry.getValue());
+                                value = value * entry.getValue();
                             } else if (value instanceof Float) {
-                                value = (Float) value * ((Float) entry.getValue());
+                                value = value * entry.getValue();
                             } else if (value instanceof Long) {
-                                value = (Long) value * ((Long) entry.getValue());
+                                value = value * entry.getValue();
                             }
                             obj.put(entry.getKey(), value);
                         }
@@ -1086,7 +1086,7 @@ public class InMemoryDriver implements MorphiumDriver {
                     data.put("txnNumber", tx);
                     data.put("clusterTime", System.currentTimeMillis());
                     if (doc != null) {
-                        data.put("documentKey", Utils.getMap("_id", doc.get("_id")));
+                        data.put("documentKey", doc.get("_id"));
                     }
 
                     try {

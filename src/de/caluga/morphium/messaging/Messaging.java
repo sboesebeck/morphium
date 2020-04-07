@@ -326,39 +326,37 @@ public class Messaging extends Thread implements ShutdownListener {
                         if (evt.getDocumentKey() != null) {
                             obj = morphium.findById(Msg.class, evt.getDocumentKey(), getCollectionName());
                         }
-                        if (obj != null) {
 
-                            if (obj == null) {
-                                return running; //was deleted?
-                            }
-                            if (obj.getInAnswerTo() != null && waitingForMessages.containsKey(obj.getInAnswerTo())) {
-                                if (obj.isExclusive() && obj.getProcessedBy().size() == 0) {
-                                    lockAndProcess(obj);
-                                } else {
-                                    try {
-                                        processMessages(Arrays.asList(obj));
-                                    } catch (Exception e) {
-                                        log.error("Error during message processing ", e);
-                                    }
+                        if (obj == null) {
+                            return running; //was deleted?
+                        }
+                        if (obj.getInAnswerTo() != null && waitingForMessages.containsKey(obj.getInAnswerTo())) {
+                            if (obj.isExclusive() && obj.getProcessedBy().size() == 0) {
+                                lockAndProcess(obj);
+                            } else {
+                                try {
+                                    processMessages(Arrays.asList(obj));
+                                } catch (Exception e) {
+                                    log.error("Error during message processing ", e);
                                 }
                             }
-                            if (listenerByName.get(obj.getName()) == null && listeners.size() == 0) {
-                                if (obj.getInAnswerTo() == null || !waitingForMessages.containsKey(obj.getInAnswerTo()))
-                                    return running;
-                            }
-                            if (pauseMessages.containsKey(obj.getName())) return running;
-                            if (obj != null && obj.isExclusive() && (obj.getLockedBy() == null || obj.getLockedBy().equals(id)) && obj.getProcessedBy().size() == 0 && !pauseMessages.containsKey(obj.getName()) && (obj.getRecipient() == null || obj.getRecipient().equals(id))) {
-//                                log.debug("Update of msg - trying to lock");
-                                // locking
-                                lockAndProcess(obj);
-                            }
-                            if (!obj.isExclusive() && !obj.getProcessedBy().contains(id)) {
-                                processMessages(Arrays.asList(obj));
-                            }
                         }
-
-
+                        if (listenerByName.get(obj.getName()) == null && listeners.size() == 0) {
+                            if (obj.getInAnswerTo() == null || !waitingForMessages.containsKey(obj.getInAnswerTo()))
+                                return running;
+                        }
+                        if (pauseMessages.containsKey(obj.getName())) return running;
+                        if (obj != null && obj.isExclusive() && (obj.getLockedBy() == null || obj.getLockedBy().equals(id)) && obj.getProcessedBy().size() == 0 && !pauseMessages.containsKey(obj.getName()) && (obj.getRecipient() == null || obj.getRecipient().equals(id))) {
+//                                log.debug("Update of msg - trying to lock");
+                            // locking
+                            lockAndProcess(obj);
+                        }
+                        if (!obj.isExclusive() && !obj.getProcessedBy().contains(id)) {
+                            processMessages(Arrays.asList(obj));
+                        }
                     }
+
+
                 } catch (Exception e) {
                     log.error("Error during event processing in changestream", e);
                 }
