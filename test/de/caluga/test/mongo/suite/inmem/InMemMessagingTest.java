@@ -475,6 +475,8 @@ public class InMemMessagingTest extends MorphiumInMemTestBase {
         morphium.clearCollection(Msg.class);
         final Messaging m1 = new Messaging(morphium, 500, true);
         final Messaging m2 = new Messaging(morphium, 500, true);
+        m1.setUseChangeStream(true);
+        m2.setUseChangeStream(true);
         m1.start();
         m2.start();
 
