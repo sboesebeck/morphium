@@ -906,43 +906,43 @@ public class InMemoryDriver implements MorphiumDriver {
                             Object value = obj.get(entry.getKey());
                             if (value instanceof Integer) {
                                 if (entry.getValue() instanceof Integer) {
-                                    value = value + entry.getValue();
+                                    value = (Integer) value + ((Integer) entry.getValue());
                                 } else if (entry.getValue() instanceof Float) {
-                                    value = value + entry.getValue();
+                                    value = (Integer) value + ((Float) entry.getValue());
                                 } else if (entry.getValue() instanceof Double) {
-                                    value = value + entry.getValue();
+                                    value = (Integer) value + ((Double) entry.getValue());
                                 } else if (entry.getValue() instanceof Long) {
-                                    value = value + entry.getValue();
+                                    value = (Integer) value + ((Long) entry.getValue());
                                 }
                             } else if (value instanceof Double) {
                                 if (entry.getValue() instanceof Integer) {
-                                    value = value + entry.getValue();
+                                    value = (Double) value + ((Integer) entry.getValue());
                                 } else if (entry.getValue() instanceof Float) {
-                                    value = value + entry.getValue();
+                                    value = (Double) value + ((Float) entry.getValue());
                                 } else if (entry.getValue() instanceof Double) {
-                                    value = value + entry.getValue();
+                                    value = (Double) value + ((Double) entry.getValue());
                                 } else if (entry.getValue() instanceof Long) {
-                                    value = value + entry.getValue();
+                                    value = (Double) value + ((Long) entry.getValue());
                                 }
                             } else if (value instanceof Float) {
                                 if (entry.getValue() instanceof Integer) {
-                                    value = value + entry.getValue();
+                                    value = (Float) value + ((Integer) entry.getValue());
                                 } else if (entry.getValue() instanceof Float) {
-                                    value = value + entry.getValue();
+                                    value = (Float) value + ((Float) entry.getValue());
                                 } else if (entry.getValue() instanceof Double) {
-                                    value = value + entry.getValue();
+                                    value = (Float) value + ((Double) entry.getValue());
                                 } else if (entry.getValue() instanceof Long) {
-                                    value = value + entry.getValue();
+                                    value = (Float) value + ((Long) entry.getValue());
                                 }
                             } else if (value instanceof Long) {
                                 if (entry.getValue() instanceof Integer) {
-                                    value = value + entry.getValue();
+                                    value = (Long) value + ((Integer) entry.getValue());
                                 } else if (entry.getValue() instanceof Float) {
-                                    value = value + entry.getValue();
+                                    value = (Long) value + ((Float) entry.getValue());
                                 } else if (entry.getValue() instanceof Double) {
-                                    value = value + entry.getValue();
+                                    value = (Long) value + ((Double) entry.getValue());
                                 } else if (entry.getValue() instanceof Long) {
-                                    value = value + entry.getValue();
+                                    value = (Long) value + ((Long) entry.getValue());
                                 }
 
                             }
