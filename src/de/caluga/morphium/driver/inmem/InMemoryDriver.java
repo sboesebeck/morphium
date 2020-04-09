@@ -1,6 +1,5 @@
 package de.caluga.morphium.driver.inmem;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.rits.cloning.Cloner;
 import de.caluga.morphium.*;
 import de.caluga.morphium.driver.*;
@@ -12,6 +11,7 @@ import org.json.simple.parser.ParseException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import javax.net.ssl.SSLContext;
 import javax.script.ScriptContext;
 import javax.script.ScriptEngine;
 import javax.script.ScriptEngineManager;
@@ -1436,5 +1436,25 @@ public class InMemoryDriver implements MorphiumDriver {
         public void setLimit(int limit) {
             this.limit = limit;
         }
+    }
+
+    @Override
+    public SSLContext getSslContext() {
+        return null;
+    }
+
+    @Override
+    public void setSslContext(SSLContext sslContext) {
+        
+    }
+
+    @Override
+    public boolean isSslInvalidHostNameAllowed() {
+        return false;
+    }
+
+    @Override
+    public void setSslInvalidHostNameAllowed(boolean sslInvalidHostNameAllowed) {
+        
     }
 }

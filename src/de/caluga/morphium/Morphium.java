@@ -222,6 +222,9 @@ public class Morphium {
             morphiumDriver.setMaxConnectionLifetime(config.getMaxConnectionLifeTime());
             morphiumDriver.setMaxWaitTime(config.getMaxWaitTime());
 
+            morphiumDriver.setUseSSL(config.isUseSSL());
+            morphiumDriver.setSslContext(config.getSslContext());
+            morphiumDriver.setSslInvalidHostNameAllowed(config.isSslInvalidHostNameAllowed());
 
             if (config.getHostSeed().isEmpty()) {
                 throw new RuntimeException("Error - no server address specified!");
