@@ -26,6 +26,8 @@ import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
 import java.util.*;
 
+import javax.net.ssl.SSLContext;
+
 /**
  * Stores the configuration for the MongoDBLayer.
  *
@@ -76,6 +78,10 @@ public class MorphiumConfig {
     private int blockingThreadsMultiplier = 5;
 
     private boolean autoIndexAndCappedCreationOnWrite = true;
+    
+    private boolean useSSL = false;
+    private SSLContext sslContext = null;
+    private boolean sslInvalidHostNameAllowed = false;
 
     @Transient
     private Class<? extends Query> queryClass;
@@ -1305,6 +1311,24 @@ public class MorphiumConfig {
     public MorphiumConfig setCursorBatchSize(int cursorBatchSize) {
         this.cursorBatchSize = cursorBatchSize;
         return this;
+    }
+    public SSLContext getSslContext() {
+        return sslContext;
+    }
+    public void setSslContext(SSLContext sslContext) {
+        this.sslContext = sslContext;
+    }
+    public boolean isUseSSL() {
+        return useSSL;
+    }
+    public void setUseSSL(boolean useSSL) {
+        this.useSSL = useSSL;
+    }
+    public boolean isSslInvalidHostNameAllowed() {
+        return sslInvalidHostNameAllowed;
+    }
+    public void setSslInvalidHostNameAllowed(boolean sslInvalidHostNameAllowed) {
+        this.sslInvalidHostNameAllowed = sslInvalidHostNameAllowed;
     }
 
 

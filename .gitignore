@@ -7,3 +7,8 @@ dist/
 *.orig
 MorphiumDoku.html
 slackurl.inc
+
+#Eclipse
+.classpath
+.settings/
+.project
