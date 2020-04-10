@@ -29,6 +29,8 @@ import java.util.concurrent.TimeUnit;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
+import javax.net.ssl.SSLContext;
+
 @SuppressWarnings({"WeakerAccess", "deprecation"})
 public class Driver implements MorphiumDriver {
     private final Logger log = LoggerFactory.getLogger(Driver.class);
@@ -44,6 +46,8 @@ public class Driver implements MorphiumDriver {
     private int heartbeatFrequency = 1000;
     private int heartbeatSocketTimeout = 1000;
     private boolean useSSL = false;
+    private SSLContext sslContext = null;
+    private boolean sslInvalidHostNameAllowed = false;
     private boolean defaultJ = false;
     private int writeTimeout = 1000;
     private int localThreshold = 15;
@@ -385,6 +389,9 @@ public class Driver implements MorphiumDriver {
             }
             o.maxWaitTime(getMaxWaitTime());
 
+            o.sslEnabled(isUseSSL());
+            o.sslContext(getSslContext());
+            o.sslInvalidHostNameAllowed(isSslInvalidHostNameAllowed());
 
             List<MongoCredential> lst = new ArrayList<>();
             for (Map.Entry<String, String[]> e : credentials.entrySet()) {
@@ -1645,5 +1652,23 @@ public class Driver implements MorphiumDriver {
             throw new IllegalArgumentException("Transaction in progress!");
         }
         currentTransaction.set((MongoTransactionContext) ctx);
+    }
+
+    @Override
+    public SSLContext getSslContext() {
+        return this.sslContext;
+    }
+
+    @Override
+    public void setSslContext(SSLContext sslContext) {
+        this.sslContext = sslContext;
+    }
+
+    public boolean isSslInvalidHostNameAllowed() {
+        return sslInvalidHostNameAllowed;
+    }
+
+    public void setSslInvalidHostNameAllowed(boolean sslInvalidHostNameAllowed) {
+        this.sslInvalidHostNameAllowed = sslInvalidHostNameAllowed;
     }
 }
