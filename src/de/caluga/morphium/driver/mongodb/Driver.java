@@ -1012,7 +1012,7 @@ public class Driver implements MorphiumDriver {
                     if (tags != null) {
                         prf = com.mongodb.ReadPreference.secondaryPreferred(tags);
                     } else {
-                        prf = com.mongodb.ReadPreference.secondary();
+                        prf = com.mongodb.ReadPreference.secondaryPreferred();
                     }
                     break;
                 default:
