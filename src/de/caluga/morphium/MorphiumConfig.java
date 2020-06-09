@@ -466,7 +466,7 @@ public class MorphiumConfig {
         return queryClass;
     }
 
-    public MorphiumConfig setQueryClass(Class<Query> queryClass) {
+    public MorphiumConfig setQueryClass(Class<? extends Query> queryClass) {
         this.queryClass = queryClass;
         return this;
     }
