@@ -641,7 +641,11 @@ public class Driver implements MorphiumDriver {
                 while (cb.isContinued()) {
                     ChangeStreamDocument<Document> doc = iterator.tryNext();
                     if (doc == null) {
-                        Thread.yield();
+                        try {
+                            Thread.sleep(250);
+                        } catch (InterruptedException e) {
+                            //swallow
+                        }
                         continue;
                     }
                     if (cb.isContinued()) {
