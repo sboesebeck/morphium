@@ -59,6 +59,9 @@
                         <goals>
                             <goal>sign</goal>
                         </goals>
+                        <configuration>
+                            <keyname>8759656B</keyname>
+                        </configuration>
                     </execution>
                 </executions>
             </plugin>
@@ -218,6 +221,9 @@
                                 <goals>
                                     <goal>sign</goal>
                                 </goals>
+                                <configuration>
+                                    <keyname>8759656B</keyname>
+                                </configuration>
                             </execution>
                         </executions>
                     </plugin>
