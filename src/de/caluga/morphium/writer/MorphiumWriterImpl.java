@@ -1601,7 +1601,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                         createCappedColl(cls, coll);
                         morphium.ensureIndicesFor((Class<T>) cls, coll, callback);
                     }
-                    morphium.getDriver().update(getDbName(), coll, qobj, update, multiple, upsert, wc);
+                    Map<String, Object> daa = morphium.getDriver().update(getDbName(), coll, qobj, update, multiple, upsert, wc);
                     long dur = System.currentTimeMillis() - start;
                     morphium.fireProfilingWriteEvent(cls, update, dur, upsert, multiple ? WriteAccessType.BULK_UPDATE : WriteAccessType.SINGLE_UPDATE);
                     morphium.getCache().clearCacheIfNecessary(cls);
