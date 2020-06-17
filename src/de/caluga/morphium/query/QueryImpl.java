@@ -203,6 +203,17 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
         arHelper = ar;
     }
 
+    @Override
+    public long complexQueryCount(Map<String, Object> query) {
+        long ret = 0;
+        try {
+            ret = morphium.getDriver().count(getDB(), getCollectionName(), query, getRP());
+        } catch (MorphiumDriverException e) {
+            //TODO: Implement Handling
+            throw new RuntimeException(e);
+        }
+        return ret;
+    }
 
     @Override
     public List<T> complexQuery(Map<String, Object> query, Map<String, Integer> sort, int skip, int limit) {

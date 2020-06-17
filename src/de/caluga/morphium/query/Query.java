@@ -256,6 +256,8 @@ public interface Query<T> extends Cloneable {
 
     List<T> complexQuery(Map<String, Object> query, String sort, int skip, int limit);
 
+    long complexQueryCount(Map<String, Object> query);
+
     /**
      * same as copmplexQuery(query,0,1).get(0);
      *
