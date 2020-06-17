@@ -1,5 +1,6 @@
 package de.caluga.test.mongo.suite.messaging;
 
+import de.caluga.morphium.Morphium;
 import de.caluga.morphium.messaging.MessageListener;
 import de.caluga.morphium.messaging.Messaging;
 import de.caluga.morphium.messaging.Msg;
@@ -12,6 +13,7 @@ public class SpeedTests extends MorphiumTestBase {
 
     @Test
     public void writeSpeed() throws Exception {
+        morphium.clearCollection(Msg.class);
         Messaging msg = new Messaging(morphium, 100, false, true, 10);
         msg.start();
 
@@ -34,13 +36,14 @@ public class SpeedTests extends MorphiumTestBase {
         while (System.currentTimeMillis() < start + dur) {
             Thread.sleep(10);
         }
-        long cnt = msg.getPendingMessagesCount();
+        long cnt = morphium.createQueryFor(Msg.class).countAll();
         log.info("stored msg: " + cnt + " in " + dur + "ms");
         msg.terminate();
     }
 
     @Test
     public void writeRecSpeed() throws Exception {
+        morphium.clearCollection(Msg.class);
 //        morphium.getConfig().setThreadPoolAsyncOpCoreSize(1000);
         Messaging sender = new Messaging(morphium, 100, false, true, 10);
         sender.start();
@@ -75,7 +78,7 @@ public class SpeedTests extends MorphiumTestBase {
         while (System.currentTimeMillis() < start + dur) {
             Thread.sleep(10);
         }
-        long cnt = sender.getPendingMessagesCount();
+        long cnt = morphium.createQueryFor(Msg.class).countAll();
         log.info("Messages sent: " + cnt + " received: " + recCount.get() + " in " + dur + "ms");
         sender.terminate();
         receiver.terminate();
@@ -84,6 +87,7 @@ public class SpeedTests extends MorphiumTestBase {
     @Test
     public void writeExclusiveRec() throws Exception {
 //        morphium.getConfig().setThreadPoolAsyncOpCoreSize(1000);
+        morphium.clearCollection(Msg.class);
         Messaging sender = new Messaging(morphium, 100, false, true, 10);
         sender.start();
         Messaging receiver = new Messaging(morphium, 100, true, true, 100);
@@ -127,7 +131,7 @@ public class SpeedTests extends MorphiumTestBase {
         while (System.currentTimeMillis() < start + dur) {
             Thread.sleep(10);
         }
-        long cnt = sender.getPendingMessagesCount();
+        long cnt = morphium.createQueryFor(Msg.class).countAll();
         log.info("Messages sent: " + cnt + " received: " + recCount.get() + " in " + dur + "ms");
         sender.terminate();
         receiver.terminate();
