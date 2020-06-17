@@ -829,7 +829,7 @@ public class Morphium {
     /**
      * will change an entry in mongodb-collection corresponding to given class object
      * if query is too complex, upsert might not work!
-     * Upsert should consist of single and-queries, which will be used to generate the object to create, unless
+     * Upsert should consist of single anueries, which will be used to generate the object to create, unless
      * it already exists. look at Mongodb-query documentation as well
      *
      * @param query    - query to specify which objects should be set
