@@ -1,7 +1,6 @@
 package de.caluga.test.mongo.suite.messaging;
 
-import de.caluga.morphium.Morphium;
-import de.caluga.morphium.MorphiumConfig;
+import de.caluga.morphium.*;
 import de.caluga.morphium.driver.MorphiumId;
 import de.caluga.morphium.messaging.MessageListener;
 import de.caluga.morphium.messaging.MessageRejectedException;
@@ -1497,7 +1496,7 @@ public class MessagingTest extends MorphiumTestBase {
 
     @Test
     public void exclusivityPausedUnpausingTest() throws Exception {
-        Messaging sender = new Messaging(morphium, 100, false);
+        Messaging sender = new Messaging(morphium, 1000, false);
         sender.setSenderId("sender");
         morphium.dropCollection(Msg.class, sender.getCollectionName(), null);
         Thread.sleep(100);
@@ -1506,7 +1505,7 @@ public class MessagingTest extends MorphiumTestBase {
         morphium2.getConfig().setThreadPoolMessagingMaxSize(10);
         morphium2.getConfig().setThreadPoolMessagingCoreSize(5);
         morphium2.getConfig().setThreadPoolAsyncOpMaxSize(10);
-        Messaging receiver = new Messaging(morphium2, 10, true, true, 15);
+        Messaging receiver = new Messaging(morphium2, (int) (50 + 100 * Math.random()), true, true, 15);
         receiver.setSenderId("r1");
         receiver.start();
 
@@ -1514,7 +1513,7 @@ public class MessagingTest extends MorphiumTestBase {
         morphium3.getConfig().setThreadPoolMessagingMaxSize(10);
         morphium3.getConfig().setThreadPoolMessagingCoreSize(5);
         morphium3.getConfig().setThreadPoolAsyncOpMaxSize(10);
-        Messaging receiver2 = new Messaging(morphium3, 10, false, false, 15);
+        Messaging receiver2 = new Messaging(morphium3, (int) (50 + 100 * Math.random()), false, false, 15);
         receiver2.setSenderId("r2");
         receiver2.start();
 
@@ -1522,7 +1521,7 @@ public class MessagingTest extends MorphiumTestBase {
         morphium3.getConfig().setThreadPoolMessagingMaxSize(10);
         morphium3.getConfig().setThreadPoolMessagingCoreSize(5);
         morphium3.getConfig().setThreadPoolAsyncOpMaxSize(10);
-        Messaging receiver3 = new Messaging(morphium4, 10, true, false, 15);
+        Messaging receiver3 = new Messaging(morphium4, (int) (50 + 100 * Math.random()), true, false, 15);
         receiver3.setSenderId("r3");
         receiver3.start();
 
@@ -1530,9 +1529,31 @@ public class MessagingTest extends MorphiumTestBase {
         morphium3.getConfig().setThreadPoolMessagingMaxSize(10);
         morphium3.getConfig().setThreadPoolMessagingCoreSize(5);
         morphium3.getConfig().setThreadPoolAsyncOpMaxSize(10);
-        Messaging receiver4 = new Messaging(morphium5, 10, false, true, 15);
+        Messaging receiver4 = new Messaging(morphium5, (int) (50 + 100 * Math.random()), false, true, 15);
         receiver4.setSenderId("r4");
         receiver4.start();
+
+        final Map<WriteAccessType, AtomicInteger> wcounts = new ConcurrentHashMap<>();
+        final Map<ReadAccessType, AtomicInteger> rcounts = new ConcurrentHashMap<>();
+
+        ProfilingListener lst = new ProfilingListener() {
+            @Override
+            public void readAccess(Query query, long time, ReadAccessType t) {
+                rcounts.putIfAbsent(t, new AtomicInteger());
+                rcounts.get(t).incrementAndGet();
+            }
+
+            @Override
+            public void writeAccess(Class type, Object o, long time, boolean isNew, WriteAccessType t) {
+                wcounts.putIfAbsent(t, new AtomicInteger());
+                wcounts.get(t).incrementAndGet();
+            }
+        };
+        morphium.addProfilingListener(lst);
+        morphium2.addProfilingListener(lst);
+        morphium3.addProfilingListener(lst);
+        morphium4.addProfilingListener(lst);
+        morphium5.addProfilingListener(lst);
         final AtomicInteger received = new AtomicInteger();
         final AtomicInteger dups = new AtomicInteger();
         final Map<String, Long> ids = new ConcurrentHashMap<>();
@@ -1542,7 +1563,7 @@ public class MessagingTest extends MorphiumTestBase {
         try {
             MessageListener messageListener = (msg, m) -> {
                 msg.pauseProcessingOfMessagesNamed("m");
-                Thread.sleep((long) (200 * Math.random()));
+                Thread.sleep((long) (300 * Math.random()));
                 //log.info("R1: Incoming message "+m.getValue());
                 received.incrementAndGet();
                 recieveCount.putIfAbsent(msg.getSenderId(), new AtomicInteger());
@@ -1609,6 +1630,25 @@ public class MessagingTest extends MorphiumTestBase {
             log.info("R2 active: " + receiver2.getRunningTasks());
             log.info("R3 active: " + receiver3.getRunningTasks());
             log.info("R4 active: " + receiver4.getRunningTasks());
+
+
+            for (WriteAccessType w : wcounts.keySet()) {
+                log.info("Write: " + w.name() + " => " + wcounts.get(w));
+            }
+            for (ReadAccessType r : rcounts.keySet()) {
+                log.info("Read: " + r.name() + " => " + wcounts.get(r));
+            }
+            morphium.removeProfilingListener(lst);
+            morphium2.removeProfilingListener(lst);
+            morphium3.removeProfilingListener(lst);
+            morphium4.removeProfilingListener(lst);
+            morphium5.removeProfilingListener(lst);
+
+            logStats(morphium);
+            logStats(morphium2);
+            logStats(morphium3);
+            logStats(morphium4);
+            logStats(morphium5);
         } finally {
 
             sender.terminate();

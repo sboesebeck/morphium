@@ -2,6 +2,7 @@ package de.caluga.morphium.messaging;
 
 import de.caluga.morphium.Morphium;
 import de.caluga.morphium.ShutdownListener;
+import de.caluga.morphium.StatisticKeys;
 import de.caluga.morphium.Utils;
 import de.caluga.morphium.async.AsyncOperationCallback;
 import de.caluga.morphium.async.AsyncOperationType;
@@ -62,6 +63,8 @@ public class Messaging extends Thread implements ShutdownListener {
     private Map<MorphiumId, Msg> waitingForMessages = new ConcurrentHashMap<>();
 
     private List<MorphiumId> processing = new Vector<>();
+
+    private AtomicInteger skipped = new AtomicInteger(0);
 
     /**
      * attaches to the default queue named "msg"
@@ -211,16 +214,6 @@ public class Messaging extends Thread implements ShutdownListener {
         morphium.delete(m, getCollectionName());
     }
 
-    public List<Msg> lockAndGetMessages(Query<Msg> q) {
-        try {
-            q = q.clone();
-        } catch (CloneNotSupportedException e) {
-            //cannot happen
-        }
-        q.setCollectionName(getCollectionName());
-        return q.asList();
-    }
-
     @Override
     public void run() {
         setName("Msg " + id);
@@ -271,15 +264,11 @@ public class Messaging extends Thread implements ShutdownListener {
                             return running;
                         }
                         if (pauseMessages.containsKey(obj.getName())) {
+                            skipped.incrementAndGet();
                             return running;
                         }
                         if (obj.getSender().equals(id) || obj.getProcessedBy().contains(id) || (obj.getRecipient() != null && !obj.getRecipient().equals(id))) {
                             //ignoring my own messages
-                            return running;
-                        }
-                        if (pauseMessages.containsKey(obj.getName())) {
-//                            if (log.isDebugEnabled())
-//                                log.debug("Not processing message - processing paused for " + obj.getName());
                             return running;
                         }
                         //do not process messages, that are exclusive, but already processed or not for me / all
@@ -317,13 +306,17 @@ public class Messaging extends Thread implements ShutdownListener {
 //                        log.info(id+": incoming update");
 //                        log.info(id+": updating: "+Utils.toJsonString(evt.getUpdatedFields()));
 //                        log.info(id+": Removing: "+ Utils.toJsonString(evt.getRemovedFields()));
+
+//                        if (evt.getUpdatedFields().size()==1&&evt.getUpdatedFields().containsKey("locked")){
+//                            log.info(id+" refresh incoming");
+//                        }
                         if (evt.getUpdatedFields() != null && evt.getUpdatedFields().containsKey("locked_by")) {
                             if (evt.getUpdatedFields().get("locked_by") != null) {
                                 return running; //ignoring locking of messages
                             }
                             //lock was released
                         }
-                        if (evt.getUpdatedFields() != null && evt.getUpdatedFields().containsKey("processed_by")) {
+                        if (evt.getUpdatedFields() != null && evt.getUpdatedFields().containsKey("processed_by") && !evt.getUpdatedFields().containsKey("locked_by")) {
                             return running;
                         }
                         Msg obj = null;
@@ -372,11 +365,16 @@ public class Messaging extends Thread implements ShutdownListener {
             });
             changeStreamMonitor.start();
         }
-
+        findAndProcessMessages(processMultiple); //check for new msg on startup
         //always run this find in addtion to changestream
         while (running) {
             try {
-                findAndProcessMessages(processMultiple);
+                if (skipped.get() > 0) {
+                    skipped.set(0);
+                    findAndProcessMessages(processMultiple);
+                } else {
+                    morphium.inc(StatisticKeys.SKIPPED_MSG_UPDATES);
+                }
             } catch (Throwable e) {
                 log.error("Unhandled exception " + e.getMessage(), e);
             } finally {
@@ -422,6 +420,7 @@ public class Messaging extends Thread implements ShutdownListener {
         if (ret != null) {
             ret = System.currentTimeMillis() - ret;
         }
+        skipped.incrementAndGet();
 //        Runnable r = new Runnable() {
 //            public void run() {
 //                MorphiumIterator<Msg> messages = findMessages(name, processMultiple);
@@ -509,8 +508,12 @@ public class Messaging extends Thread implements ShutdownListener {
         }
         values.put("locked", System.currentTimeMillis());
         //just trigger unprocessed messages for Changestream...
-
-        morphium.set(q.q().f("_id").in(q.idList()), values, false, multiple);
+        long cnt = q.countAll();
+        List<Object> lst = q.idList();
+        if (cnt > q.idList().size()) {
+            skipped.incrementAndGet();
+        }
+        morphium.set(q.q().f("_id").in(lst), values, false, multiple);
 
         if (!useChangeStream) {
             try {
@@ -566,10 +569,12 @@ public class Messaging extends Thread implements ShutdownListener {
         q.f(Msg.Fields.sender).ne(id);
         q.f(Msg.Fields.lockedBy).eq(id).f(Msg.Fields.processedBy).ne(id);
         if (processMultiple && q.countAll() >= windowSize) {
+            skipped.incrementAndGet();
             return; //not locking - windowsize reached!
         }
         q.f(Msg.Fields.msgId).eq(obj.getMsgId());
         if (!processMultiple && q.countAll() > 1) {
+            skipped.incrementAndGet();
             return; //already processing one
         }
 
@@ -686,6 +691,7 @@ public class Messaging extends Thread implements ShutdownListener {
                             if (pauseMessages.containsKey(msg1.getName())) {
                                 //paused - do not process
                                 processing.remove(msg1.getMsgId());
+                                skipped.incrementAndGet();
                                 return;
                             }
                             Msg answer = l.onMessage(Messaging.this, msg1);
