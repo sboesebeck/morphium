@@ -22,10 +22,7 @@ import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.lang.reflect.Field;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.List;
-import java.util.Properties;
+import java.util.*;
 
 //import de.caluga.morphium.driver.inmem.InMemoryDriver;
 //import de.caluga.morphium.driver.meta.MetaDriver;
@@ -242,9 +239,19 @@ public class MorphiumTestBase {
         init();
     }
 
+
+    public void logStats(Morphium m) {
+        Map<String, Double> stats = m.getStatistics();
+        log.info("Statistics: ");
+        for (Map.Entry<String, Double> e : stats.entrySet()) {
+            log.info(e.getKey() + " - " + e.getValue());
+        }
+    }
+
     @org.junit.After
     public void tearDown() {
         if (morphium == null) return;
+        logStats(morphium);
         try {
             Field f = morphium.getClass().getDeclaredField("shutDownListeners");
             f.setAccessible(true);

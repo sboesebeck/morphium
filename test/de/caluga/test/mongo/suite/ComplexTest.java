@@ -217,4 +217,15 @@ public class ComplexTest extends MorphiumTestBase {
         assert (co.getEinText().equals("Text"));
     }
 
+
+    @Test
+    public void complexQueryCallTest() throws Exception {
+        createUncachedObjects(100);
+        Query<UncachedObject> q = morphium.createQueryFor(UncachedObject.class);
+        UncachedObject uc = q.complexQuery(Utils.getMap("counter", 10)).get(0);
+        assert (uc.getCounter() == 10);
+
+        assert (q.complexQuery(Utils.getMap("counter", Utils.getMap("$lte", 50))).size() == 50);
+        assert (q.complexQueryCount(Utils.getMap("counter", Utils.getMap("$lte", 50))) == 50);
+    }
 }

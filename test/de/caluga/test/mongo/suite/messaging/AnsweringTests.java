@@ -111,9 +111,11 @@ public class AnsweringTests extends MorphiumTestBase {
             question.setMsgId(new MorphiumId());
             lastMsgId = question.getMsgId();
             onlyAnswers.sendMessage(question);
-
             log.info("Send Message with id: " + question.getMsgId());
             Thread.sleep(3000);
+            long cnt = morphium.createQueryFor(Msg.class, onlyAnswers.getCollectionName()).f(Msg.Fields.inAnswerTo).eq(question.getMsgId()).countAll();
+            log.info("Answers in mongo: " + cnt);
+            assert (cnt == 2);
             assert (gotMessage3) : "no answer got back?";
             assert (gotMessage1) : "Question not received by m1";
             assert (gotMessage2) : "Question not received by m2";
@@ -125,6 +127,16 @@ public class AnsweringTests extends MorphiumTestBase {
             assert (!error);
 
             assert (!gotMessage3 && !gotMessage1 && !gotMessage2) : "Message processing repeat?";
+
+            question = new Msg("QMsg", "This is the message text", "A question param", 30000, true);
+            question.setMsgId(new MorphiumId());
+            lastMsgId = question.getMsgId();
+            onlyAnswers.sendMessage(question);
+            log.info("Send Message with id: " + question.getMsgId());
+            Thread.sleep(2000);
+            cnt = morphium.createQueryFor(Msg.class, onlyAnswers.getCollectionName()).f(Msg.Fields.inAnswerTo).eq(question.getMsgId()).countAll();
+            assert (cnt == 1);
+
         } finally {
             m1.terminate();
             m2.terminate();
@@ -198,6 +210,10 @@ public class AnsweringTests extends MorphiumTestBase {
             log.info("... got it.");
         }
 
+        m1.terminate();
+        m2.terminate();
+        mSrv.terminate();
+
     }
 
     @Test
@@ -238,6 +254,9 @@ public class AnsweringTests extends MorphiumTestBase {
             assert (m.getInAnswerTo() != null);
             assert (m.getInAnswerTo().equals(question.getMsgId()));
         }
+        m1.terminate();
+        m2.terminate();
+        mTst.terminate();
     }
 
     @Test
@@ -268,6 +287,8 @@ public class AnsweringTests extends MorphiumTestBase {
             assert (answer.getInAnswerTo().equals(question.getMsgId()));
             log.info("... ok - took " + dur + " ms");
         }
+        m1.terminate();
+        m2.terminate();
         mor.close();
     }
 
@@ -286,6 +307,9 @@ public class AnsweringTests extends MorphiumTestBase {
 
         Msg answer = m1.sendAndAwaitFirstAnswer(new Msg("question", "question", "a value"), 5000);
         assert (answer != null);
+        m1.terminate();
+        m2.terminate();
+
     }
 
 
@@ -324,6 +348,8 @@ public class AnsweringTests extends MorphiumTestBase {
 
         Msg answer = sender.sendAndAwaitFirstAnswer(new Msg("query", "query", "avalue"), 1000);
         assert (answer != null);
+        sender.terminate();
+        recipient.terminate();
     }
 
 

@@ -9,6 +9,8 @@ import de.caluga.morphium.driver.mongodb.Maximums;
 import java.util.List;
 import java.util.Map;
 
+import javax.net.ssl.SSLContext;
+
 /**
  * Morphium driver interface
  * <p>
@@ -279,4 +281,12 @@ public interface MorphiumDriver {
     void setTransactionContext(MorphiumTransactionContext ctx);
 
     void abortTransaction();
+
+    SSLContext getSslContext();
+
+    void setSslContext(SSLContext sslContext);
+
+    boolean isSslInvalidHostNameAllowed();
+
+    void setSslInvalidHostNameAllowed(boolean sslInvalidHostNameAllowed);
 }
