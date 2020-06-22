@@ -820,7 +820,9 @@ public class MessagingTest extends MorphiumTestBase {
             m.setExclusive(false);
             m1.sendMessage(m);
 
-            Thread.sleep(500);
+            while (!gotMessage2 || !gotMessage3 || !gotMessage4) {
+                Thread.sleep(500);
+            }
             assert (!gotMessage1) : "Got message again?";
             assert (gotMessage4) : "m4 did not get msg?";
             assert (gotMessage2) : "m2 did not get msg?";
