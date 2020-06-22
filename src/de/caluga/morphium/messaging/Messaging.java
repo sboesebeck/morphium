@@ -1,9 +1,6 @@
 package de.caluga.morphium.messaging;
 
-import de.caluga.morphium.Morphium;
-import de.caluga.morphium.ShutdownListener;
-import de.caluga.morphium.StatisticKeys;
-import de.caluga.morphium.Utils;
+import de.caluga.morphium.*;
 import de.caluga.morphium.async.AsyncOperationCallback;
 import de.caluga.morphium.async.AsyncOperationType;
 import de.caluga.morphium.changestream.ChangeStreamMonitor;
@@ -369,7 +366,10 @@ public class Messaging extends Thread implements ShutdownListener {
         //always run this find in addtion to changestream
         while (running) {
             try {
-                if (skipped.get() > 0) {
+                if (skipped.get() > 0 || !useChangeStream) {
+                    morphium.inc(StatisticKeys.PULL);
+                    StatisticValue sk = morphium.getStats().get(StatisticKeys.PULLSKIP);
+                    sk.set(sk.get() + skipped.get());
                     skipped.set(0);
                     findAndProcessMessages(processMultiple);
                 } else {
@@ -465,8 +465,12 @@ public class Messaging extends Thread implements ShutdownListener {
             return q.q().f(Msg.Fields.sender).ne(id).f(Msg.Fields.processedBy).ne(id).f(Msg.Fields.inAnswerTo).in(waitingForMessages.keySet()).asIterable();
         }
         //locking messages..
-        q.f(Msg.Fields.sender).ne(id).f(Msg.Fields.lockedBy).in(Arrays.asList(id, null, "ALL")).f(Msg.Fields.processedBy).ne(id).f(Msg.Fields.recipient).in(Arrays.asList(null, id));
+        if (!useChangeStream) {
+            q.f(Msg.Fields.sender).ne(id).f(Msg.Fields.lockedBy).in(Arrays.asList(id, null)).f(Msg.Fields.processedBy).ne(id).f(Msg.Fields.recipient).in(Arrays.asList(null, id));
 
+        } else {
+            q.f(Msg.Fields.sender).ne(id).f(Msg.Fields.lockedBy).in(Arrays.asList(id, null, "ALL")).f(Msg.Fields.processedBy).ne(id).f(Msg.Fields.recipient).in(Arrays.asList(null, id));
+        }
 
         Set<String> pausedMessagesKeys = pauseMessages.keySet();
         if (name != null) {
@@ -517,7 +521,7 @@ public class Messaging extends Thread implements ShutdownListener {
 
         if (!useChangeStream) {
             try {
-                //waiting for changestream to kick in, if necessary
+                //waiting a bit for data to be stored
                 Thread.sleep(10);
             } catch (InterruptedException e) {
                 //swallow
@@ -525,14 +529,6 @@ public class Messaging extends Thread implements ShutdownListener {
 
             q = q.q();
             q.f(Msg.Fields.sender).ne(id);
-            if (name != null) {
-                q.f(Msg.Fields.name).eq(name);
-            } else {
-                //not searching for paused messages
-                if (!pauseMessages.isEmpty()) {
-                    q.f(Msg.Fields.name).nin(pausedMessagesKeys);
-                }
-            }
             q.f("_id").nin(processingIds);
             q.f(Msg.Fields.lockedBy).in(Arrays.asList("ALL", id)).f(Msg.Fields.processedBy).ne(id).f(Msg.Fields.recipient).in(Arrays.asList(null, id));
             if (name != null) {

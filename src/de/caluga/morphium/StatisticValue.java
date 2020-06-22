@@ -1,5 +1,7 @@
 package de.caluga.morphium;
 
+import java.util.concurrent.atomic.AtomicLong;
+
 /**
  * User: Stephan Bösebeck
  * Date: 05.07.12
@@ -9,19 +11,16 @@ package de.caluga.morphium;
  */
 
 @SuppressWarnings("UnusedDeclaration")
-public class StatisticValue {
-
-    private long value = 0;
+public class StatisticValue extends AtomicLong {
 
     public void inc() {
-        value++;
+        incrementAndGet();
     }
+
 
     public void dec() {
-        value--;
+        decrementAndGet();
     }
 
-    public long get() {
-        return value;
-    }
+
 }
