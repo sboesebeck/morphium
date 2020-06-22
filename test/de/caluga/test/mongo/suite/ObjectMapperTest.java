@@ -794,6 +794,46 @@ public class ObjectMapperTest extends MorphiumTestBase {
 
     }
 
+    @Test
+    public void testStructure() throws Exception {
+        Complex c = new Complex();
+        c.id = new MorphiumId();
+        c.structureK = new ArrayList<>();
+
+        Map<String, Object> v1 = new HashMap<>();
+        v1.put("String", "String");
+        v1.put("Integer", 123);
+        v1.put("List", Arrays.asList("l1", "l2"));
+        c.structureK.add(v1);
+
+        Map<String, Object> v2 = new HashMap<>();
+        v2.put("String", "String");
+        v2.put("Integer", 123);
+        v2.put("List", Arrays.asList("l1", "l2"));
+        v2.put("Map", Utils.getMap("key", 123));
+        c.structureK.add(v2);
+
+        Map<String, Object> seralized = new ObjectMapperImpl().serialize(c);
+        log.info(Utils.toJsonString(seralized));
+
+        Complex c2 = new ObjectMapperImpl().deserialize(Complex.class, seralized);
+        log.info("Deserialized!");
+        assert (c2 != null);
+        assert (c2.id.equals(c.id));
+        assert (c2.structureK.size() == c.structureK.size());
+        assert (c2.structureK.get(0).get("String") instanceof String);
+        assert (c2.structureK.get(0).get("Integer") instanceof Integer);
+        assert (c2.structureK.get(0).get("List") instanceof List);
+        assert (c2.structureK.get(0).get("Map") == null);
+        assert (c2.structureK.get(1).get("String") instanceof String);
+        assert (c2.structureK.get(1).get("Integer") instanceof Integer);
+        assert (c2.structureK.get(1).get("List") instanceof List);
+        assert (c2.structureK.get(1).get("Map") != null);
+        assert (((Map) c2.structureK.get(1).get("Map")).get("key").equals(123));
+
+        log.info("All fine!");
+    }
+
     @Embedded
     public static class MyClass {
         //does not need to be entity?
@@ -881,12 +921,21 @@ public class ObjectMapperTest extends MorphiumTestBase {
         }
     }
 
+
     @Entity
     public static class BIObject {
         @Id
         public MorphiumId id;
         public String value;
         public BigInteger biValue;
+
+    }
+
+    @Entity
+    public static class Complex {
+        @Id
+        public MorphiumId id;
+        public List<Map<String, Object>> structureK;
 
     }
 

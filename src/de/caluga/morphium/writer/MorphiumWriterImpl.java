@@ -1014,7 +1014,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                     long dur = System.currentTimeMillis() - start;
                     morphium.fireProfilingWriteEvent(cls, update, dur, false, WriteAccessType.SINGLE_UPDATE);
                     morphium.getCache().clearCacheIfNecessary(cls);
-
+                    morphium.inc(StatisticKeys.WRITES);
                     try {
                         f.set(toSet, v);
                     } catch (IllegalAccessException e) {
@@ -1224,6 +1224,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                         orQuery = orQuery.or(sortedMap.get(cls));
                         remove(orQuery, null); //sync call
                     }
+                    morphium.inc(StatisticKeys.WRITES);
                     morphium.firePostRemove(lst);
                     if (callback != null) {
                         callback.onOperationSucceeded(AsyncOperationType.REMOVE, null, System.currentTimeMillis() - start, null, null, lst);
@@ -1271,6 +1272,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                     morphium.getDriver().delete(getDbName(), collectionName, q.toQueryObject(), multiple, wc);
                     long dur = System.currentTimeMillis() - start;
                     morphium.fireProfilingWriteEvent(q.getType(), q.toQueryObject(), dur, false, WriteAccessType.BULK_DELETE);
+                    morphium.inc(StatisticKeys.WRITES);
                     morphium.getCache().clearCacheIfNecessary(q.getType());
                     morphium.firePostRemoveEvent(q);
                     if (callback != null) {
@@ -1601,9 +1603,10 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                         createCappedColl(cls, coll);
                         morphium.ensureIndicesFor((Class<T>) cls, coll, callback);
                     }
-                    morphium.getDriver().update(getDbName(), coll, qobj, update, multiple, upsert, wc);
+                    Map<String, Object> daa = morphium.getDriver().update(getDbName(), coll, qobj, update, multiple, upsert, wc);
                     long dur = System.currentTimeMillis() - start;
                     morphium.fireProfilingWriteEvent(cls, update, dur, upsert, multiple ? WriteAccessType.BULK_UPDATE : WriteAccessType.SINGLE_UPDATE);
+                    morphium.inc(StatisticKeys.WRITES);
                     morphium.getCache().clearCacheIfNecessary(cls);
                     morphium.firePostUpdateEvent(morphium.getARHelper().getRealClass(cls), MorphiumStorageListener.UpdateTypes.SET);
                     if (callback != null) {
@@ -1884,6 +1887,8 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                 morphium.ensureIndicesFor(cls, coll);
             }
             morphium.getDriver().update(getDbName(), coll, qobj, update, multiple, upsert, wc);
+            morphium.inc(StatisticKeys.WRITES);
+
         } catch (MorphiumDriverException e) {
             //TODO: Implement Handling
             throw new RuntimeException(e);
@@ -1901,6 +1906,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
             long cnt;
             try {
                 cnt = morphium.getDriver().count(getDbName(), coll, qobj, null);
+                morphium.inc(StatisticKeys.WRITES);
             } catch (MorphiumDriverException e) {
                 //TODO: Implement Handling
                 throw new RuntimeException(e);
@@ -1964,6 +1970,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                             morphium.ensureIndicesFor((Class<T>) cls, coll, callback);
                         }
                         morphium.getDriver().update(getDbName(), coll, qobj, update, multiple, upsert, wc);
+                        morphium.inc(StatisticKeys.WRITES);
                     } catch (MorphiumDriverException e) {
                         //TODO: Implement Handling
                         throw new RuntimeException(e);
@@ -2094,7 +2101,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                     morphium.ensureIndicesFor(cls, coll, callback);
                 }
                 morphium.getDriver().update(getDbName(), coll, query, update, false, false, wc);
-
+                morphium.inc(StatisticKeys.WRITES);
                 List<String> lastChangeFields = morphium.getARHelper().getFields(cls, LastChange.class);
                 if (lastChangeFields != null && !lastChangeFields.isEmpty()) {
                     update = Utils.getMap("$set", new HashMap<String, Object>());

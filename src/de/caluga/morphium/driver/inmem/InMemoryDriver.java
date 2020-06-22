@@ -1,24 +1,29 @@
 package de.caluga.morphium.driver.inmem;
 
 import com.rits.cloning.Cloner;
-import de.caluga.morphium.Morphium;
-import de.caluga.morphium.Utils;
+import de.caluga.morphium.*;
 import de.caluga.morphium.driver.*;
 import de.caluga.morphium.driver.bulk.*;
 import de.caluga.morphium.driver.mongodb.Maximums;
+import de.caluga.morphium.mapping.MorphiumTypeMapper;
 import org.bson.types.ObjectId;
+import org.json.simple.parser.ParseException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import javax.net.ssl.SSLContext;
 import javax.script.ScriptContext;
 import javax.script.ScriptEngine;
 import javax.script.ScriptEngineManager;
 import javax.script.ScriptException;
+import java.io.*;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.zip.GZIPInputStream;
+import java.util.zip.GZIPOutputStream;
 
 /**
  * User: Stephan Bösebeck
@@ -36,9 +41,89 @@ public class InMemoryDriver implements MorphiumDriver {
     private final ThreadLocal<InMemTransactionContext> currentTransaction = new ThreadLocal<>();
     private final AtomicLong txn = new AtomicLong();
     private final Map<String, List<DriverTailableIterationCallback>> watchersByDb = new ConcurrentHashMap<>();
-    private final ScheduledThreadPoolExecutor exec = new ScheduledThreadPoolExecutor(1);
+    private ScheduledThreadPoolExecutor exec = new ScheduledThreadPoolExecutor(1);
     private List<Runnable> eventQueue = new Vector<>();
     private List<Object> monitors = new Vector<>();
+
+
+    public Map<String, List<Map<String, Object>>> getDatabase(String dbn) {
+        return database.get(dbn);
+    }
+
+    public void setDatabase(String dbn, Map<String, List<Map<String, Object>>> db) {
+        database.put(dbn, db);
+    }
+
+
+    public void restore(InputStream in) throws IOException, ParseException {
+        GZIPInputStream gzin = new GZIPInputStream(in);
+        BufferedInputStream bin = new BufferedInputStream(gzin);
+        BufferedReader br = new BufferedReader(new InputStreamReader(bin));
+        String l = null;
+        StringBuilder b = new StringBuilder();
+        while ((l = br.readLine()) != null) {
+            b.append(l);
+        }
+        br.close();
+        ObjectMapperImpl mapper = new ObjectMapperImpl();
+
+        MorphiumTypeMapper<ObjectId> typeMapper = getObjectIdTypeMapper();
+        mapper.registerCustomMapperFor(ObjectId.class, typeMapper);
+        log.info("Read in json: " + b.toString());
+        InMemDumpContainer cnt = mapper.deserialize(InMemDumpContainer.class, b.toString());
+        log.info("Restoring DB " + cnt.getDb() + " dump from " + new Date(cnt.getCreated()));
+        setDatabase(cnt.getDb(), cnt.getData());
+    }
+
+    public void restoreFromFile(File f) throws IOException, ParseException {
+        restore(new FileInputStream(f));
+    }
+
+    public void dumpToFile(Morphium m, String db, File f) throws IOException {
+        dump(m, db, new FileOutputStream(f));
+    }
+
+    public void dump(Morphium m, String db, OutputStream out) throws IOException {
+        MorphiumObjectMapper mapper = m.getMapper();
+
+        MorphiumTypeMapper<ObjectId> typeMapper = getObjectIdTypeMapper();
+        mapper.registerCustomMapperFor(ObjectId.class, typeMapper);
+        GZIPOutputStream gzip = new GZIPOutputStream(out);
+
+        InMemDumpContainer d = new InMemDumpContainer();
+        d.setCreated(System.currentTimeMillis());
+        d.setData(getDatabase(db));
+        d.setDb(db);
+
+        Map<String, Object> ser = mapper.serialize(d);
+        OutputStreamWriter wr = new OutputStreamWriter(gzip);
+        Utils.writeJson(ser, wr);
+        wr.flush();
+        gzip.finish();
+        gzip.flush();
+        out.flush();
+        gzip.close();
+
+    }
+
+    private MorphiumTypeMapper<ObjectId> getObjectIdTypeMapper() {
+        return new MorphiumTypeMapper<ObjectId>() {
+            @Override
+            public Object marshall(ObjectId o) {
+                Map<String, String> m = new HashMap<>();
+                m.put("value", o.toHexString());
+                m.put("class_name", o.getClass().getName());
+                return m;
+
+            }
+
+            @Override
+            public ObjectId unmarshall(Object d) {
+                return new ObjectId(((Map) d).get("value").toString());
+            }
+        };
+    }
+
 
     @Override
     public List<String> listDatabases() {
@@ -279,6 +364,9 @@ public class InMemoryDriver implements MorphiumDriver {
 
     @Override
     public void connect() {
+        if (exec.isShutdown()) {
+            exec = new ScheduledThreadPoolExecutor(1);
+        }
         Runnable r = () -> {
 
             List<Runnable> current = eventQueue;
@@ -998,7 +1086,7 @@ public class InMemoryDriver implements MorphiumDriver {
                     data.put("txnNumber", tx);
                     data.put("clusterTime", System.currentTimeMillis());
                     if (doc != null) {
-                        data.put("documentKey", Utils.getMap("_id", doc.get("_id")));
+                        data.put("documentKey", doc.get("_id"));
                     }
 
                     try {
@@ -1241,6 +1329,11 @@ public class InMemoryDriver implements MorphiumDriver {
         currentTransaction.set((InMemTransactionContext) ctx);
     }
 
+    // creates a zipped json stream containing all data.
+    public void writeDump(File f) {
+
+    }
+
     private class InMemoryCursor {
         private int skip;
         private int limit;
@@ -1343,5 +1436,25 @@ public class InMemoryDriver implements MorphiumDriver {
         public void setLimit(int limit) {
             this.limit = limit;
         }
+    }
+
+    @Override
+    public SSLContext getSslContext() {
+        return null;
+    }
+
+    @Override
+    public void setSslContext(SSLContext sslContext) {
+        
+    }
+
+    @Override
+    public boolean isSslInvalidHostNameAllowed() {
+        return false;
+    }
+
+    @Override
+    public void setSslInvalidHostNameAllowed(boolean sslInvalidHostNameAllowed) {
+        
     }
 }

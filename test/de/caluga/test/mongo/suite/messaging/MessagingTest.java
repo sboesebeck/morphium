@@ -1,7 +1,6 @@
 package de.caluga.test.mongo.suite.messaging;
 
-import de.caluga.morphium.Morphium;
-import de.caluga.morphium.MorphiumConfig;
+import de.caluga.morphium.*;
 import de.caluga.morphium.driver.MorphiumId;
 import de.caluga.morphium.messaging.MessageListener;
 import de.caluga.morphium.messaging.MessageRejectedException;
@@ -71,7 +70,7 @@ public class MessagingTest extends MorphiumTestBase {
             msg = new Msg("tst2", "msg", "value", 30000);
             msg.setExclusive(false);
             m2.sendMessage(msg);
-            Thread.sleep(10);
+            Thread.sleep(100);
             q = morphium.createQueryFor(Msg.class);
             assert (q.countAll() == 1);
             q.setCollectionName("mmsg_msg2");
@@ -96,52 +95,6 @@ public class MessagingTest extends MorphiumTestBase {
         morphium.store(m);
         Thread.sleep(5000);
         assert (m.getTimestamp() > 0) : "Timestamp not updated?";
-
-    }
-
-
-    @Test
-    public void messageQueueTest() {
-        morphium.clearCollection(Msg.class);
-        String id = "meine ID";
-
-
-        Msg m = new Msg("name", "Msgid1", "value", 5000);
-        m.setSender(id);
-        m.setExclusive(true);
-        morphium.store(m);
-
-        Query<Msg> q = morphium.createQueryFor(Msg.class);
-        //        morphium.remove(q);
-        //locking messages...
-        q = q.f(Msg.Fields.sender).ne(id).f(Msg.Fields.lockedBy).eq(null).f(Msg.Fields.processedBy).ne(id);
-        morphium.set(q, Msg.Fields.lockedBy, id);
-
-        q = q.q();
-        q = q.f(Msg.Fields.lockedBy).eq(id);
-        q.sort(Msg.Fields.timestamp);
-
-        List<Msg> messagesList = q.asList();
-        assert (messagesList.isEmpty()) : "Got my own message?!?!?!" + messagesList.get(0).toString();
-
-        m = new Msg("name", "msgid2", "value", 5000);
-        m.setSender("sndId2");
-        m.setExclusive(true);
-        morphium.store(m);
-
-        q = morphium.createQueryFor(Msg.class);
-        //locking messages...
-        q = q.f(Msg.Fields.sender).ne(id).f(Msg.Fields.lockedBy).eq(null).f(Msg.Fields.processedBy).ne(id);
-        morphium.set(q, Msg.Fields.lockedBy, id);
-
-        q = q.q();
-        q = q.f(Msg.Fields.lockedBy).eq(id);
-        q.sort(Msg.Fields.timestamp);
-
-        messagesList = q.asList();
-        assert (messagesList.size() == 1) : "should get annother id - did not?!?!?!" + messagesList.size();
-
-        log.info("Got msg: " + messagesList.get(0).toString());
 
     }
 
@@ -364,13 +317,16 @@ public class MessagingTest extends MorphiumTestBase {
         gotMessage3 = false;
         gotMessage4 = false;
 
-        m1.sendMessage(new Msg("testmsg_excl", "This is the message", "value", 30000, true));
+        m1.sendMessage(new Msg("testmsg_excl", "This is the message", "value", 30000000, true));
         Thread.sleep(500);
         int cnt = 0;
         if (gotMessage1) cnt++;
         if (gotMessage2) cnt++;
         if (gotMessage3) cnt++;
         if (gotMessage4) cnt++;
+
+
+        Thread.sleep(1000);
 
         assert (cnt != 0) : "Message was  not received";
         assert (cnt == 1) : "Message was received too often: " + cnt;
@@ -435,13 +391,15 @@ public class MessagingTest extends MorphiumTestBase {
                     log.info("Got answer");
                 }
                 gotMessage3 = true;
-                log.info("Receiver rejected message");
+                log.info("Receiver " + m.getSender() + " rejected message");
                 return null;
             });
 
 
-            sender.sendMessage(new Msg("test", "message", "value", 30000, true));
-            Thread.sleep(2000);
+            sender.sendMessage(new Msg("test", "message", "value", 3000000, true));
+            while (!gotMessage) {
+                Thread.sleep(500);
+            }
             assert (gotMessage);
             assert (gotMessage3);
         } finally {
@@ -862,7 +820,9 @@ public class MessagingTest extends MorphiumTestBase {
             m.setExclusive(false);
             m1.sendMessage(m);
 
-            Thread.sleep(500);
+            while (!gotMessage2 || !gotMessage3 || !gotMessage4) {
+                Thread.sleep(500);
+            }
             assert (!gotMessage1) : "Got message again?";
             assert (gotMessage4) : "m4 did not get msg?";
             assert (gotMessage2) : "m2 did not get msg?";
@@ -1522,20 +1482,9 @@ public class MessagingTest extends MorphiumTestBase {
 
             long start = System.currentTimeMillis();
             Query<Msg> q = morphium.createQueryFor(Msg.class).f(Msg.Fields.name).eq("test").f(Msg.Fields.processedBy).eq(null);
-            long l = q.countAll();
             while (q.countAll() > 0) {
                 log.info("Count is still: " + q.countAll());
                 Thread.sleep(500);
-                if (l == q.countAll()) {
-                    //did not change... wait
-                    Thread.sleep(500);
-                    assert (l < q.countAll());
-                }
-                l = q.countAll();
-
-//                if (System.currentTimeMillis() - start > 10000) {
-//                    break;
-//                }
             }
             assert (q.countAll() == 0) : "Count is wrong: " + q.countAll();
 //
@@ -1549,7 +1498,7 @@ public class MessagingTest extends MorphiumTestBase {
 
     @Test
     public void exclusivityPausedUnpausingTest() throws Exception {
-        Messaging sender = new Messaging(morphium, 100, false);
+        Messaging sender = new Messaging(morphium, 1000, false);
         sender.setSenderId("sender");
         morphium.dropCollection(Msg.class, sender.getCollectionName(), null);
         Thread.sleep(100);
@@ -1558,7 +1507,7 @@ public class MessagingTest extends MorphiumTestBase {
         morphium2.getConfig().setThreadPoolMessagingMaxSize(10);
         morphium2.getConfig().setThreadPoolMessagingCoreSize(5);
         morphium2.getConfig().setThreadPoolAsyncOpMaxSize(10);
-        Messaging receiver = new Messaging(morphium2, 10, true, true, 15);
+        Messaging receiver = new Messaging(morphium2, (int) (50 + 100 * Math.random()), true, true, 15);
         receiver.setSenderId("r1");
         receiver.start();
 
@@ -1566,7 +1515,7 @@ public class MessagingTest extends MorphiumTestBase {
         morphium3.getConfig().setThreadPoolMessagingMaxSize(10);
         morphium3.getConfig().setThreadPoolMessagingCoreSize(5);
         morphium3.getConfig().setThreadPoolAsyncOpMaxSize(10);
-        Messaging receiver2 = new Messaging(morphium3, 10, false, false, 15);
+        Messaging receiver2 = new Messaging(morphium3, (int) (50 + 100 * Math.random()), false, false, 15);
         receiver2.setSenderId("r2");
         receiver2.start();
 
@@ -1574,7 +1523,7 @@ public class MessagingTest extends MorphiumTestBase {
         morphium3.getConfig().setThreadPoolMessagingMaxSize(10);
         morphium3.getConfig().setThreadPoolMessagingCoreSize(5);
         morphium3.getConfig().setThreadPoolAsyncOpMaxSize(10);
-        Messaging receiver3 = new Messaging(morphium4, 10, true, false, 15);
+        Messaging receiver3 = new Messaging(morphium4, (int) (50 + 100 * Math.random()), true, false, 15);
         receiver3.setSenderId("r3");
         receiver3.start();
 
@@ -1582,9 +1531,31 @@ public class MessagingTest extends MorphiumTestBase {
         morphium3.getConfig().setThreadPoolMessagingMaxSize(10);
         morphium3.getConfig().setThreadPoolMessagingCoreSize(5);
         morphium3.getConfig().setThreadPoolAsyncOpMaxSize(10);
-        Messaging receiver4 = new Messaging(morphium5, 10, false, true, 15);
+        Messaging receiver4 = new Messaging(morphium5, (int) (50 + 100 * Math.random()), false, true, 15);
         receiver4.setSenderId("r4");
         receiver4.start();
+
+        final Map<WriteAccessType, AtomicInteger> wcounts = new ConcurrentHashMap<>();
+        final Map<ReadAccessType, AtomicInteger> rcounts = new ConcurrentHashMap<>();
+
+        ProfilingListener lst = new ProfilingListener() {
+            @Override
+            public void readAccess(Query query, long time, ReadAccessType t) {
+                rcounts.putIfAbsent(t, new AtomicInteger());
+                rcounts.get(t).incrementAndGet();
+            }
+
+            @Override
+            public void writeAccess(Class type, Object o, long time, boolean isNew, WriteAccessType t) {
+                wcounts.putIfAbsent(t, new AtomicInteger());
+                wcounts.get(t).incrementAndGet();
+            }
+        };
+        morphium.addProfilingListener(lst);
+        morphium2.addProfilingListener(lst);
+        morphium3.addProfilingListener(lst);
+        morphium4.addProfilingListener(lst);
+        morphium5.addProfilingListener(lst);
         final AtomicInteger received = new AtomicInteger();
         final AtomicInteger dups = new AtomicInteger();
         final Map<String, Long> ids = new ConcurrentHashMap<>();
@@ -1594,7 +1565,7 @@ public class MessagingTest extends MorphiumTestBase {
         try {
             MessageListener messageListener = (msg, m) -> {
                 msg.pauseProcessingOfMessagesNamed("m");
-                Thread.sleep((long) (200 * Math.random()));
+                Thread.sleep((long) (300 * Math.random()));
                 //log.info("R1: Incoming message "+m.getValue());
                 received.incrementAndGet();
                 recieveCount.putIfAbsent(msg.getSenderId(), new AtomicInteger());
@@ -1619,7 +1590,7 @@ public class MessagingTest extends MorphiumTestBase {
             receiver2.addListenerForMessageNamed("m", messageListener);
             receiver3.addListenerForMessageNamed("m", messageListener);
             receiver4.addListenerForMessageNamed("m", messageListener);
-            int exclusiveAmount = 100;
+            int exclusiveAmount = 50;
             int broadcastAmount = 100;
             for (int i = 0; i < exclusiveAmount; i++) {
                 int rec = received.get();
@@ -1661,6 +1632,25 @@ public class MessagingTest extends MorphiumTestBase {
             log.info("R2 active: " + receiver2.getRunningTasks());
             log.info("R3 active: " + receiver3.getRunningTasks());
             log.info("R4 active: " + receiver4.getRunningTasks());
+
+
+            for (WriteAccessType w : wcounts.keySet()) {
+                log.info("Write: " + w.name() + " => " + wcounts.get(w));
+            }
+            for (ReadAccessType r : rcounts.keySet()) {
+                log.info("Read: " + r.name() + " => " + wcounts.get(r));
+            }
+            morphium.removeProfilingListener(lst);
+            morphium2.removeProfilingListener(lst);
+            morphium3.removeProfilingListener(lst);
+            morphium4.removeProfilingListener(lst);
+            morphium5.removeProfilingListener(lst);
+
+            logStats(morphium);
+            logStats(morphium2);
+            logStats(morphium3);
+            logStats(morphium4);
+            logStats(morphium5);
         } finally {
 
             sender.terminate();
@@ -1821,4 +1811,60 @@ public class MessagingTest extends MorphiumTestBase {
         }
     }
 
+    @Test
+    public void exclusiveTest() throws Exception {
+        morphium.dropCollection(Msg.class);
+        Messaging sender;
+        List<Messaging> recs;
+
+        sender = new Messaging(morphium, 1000, false);
+        sender.setSenderId("sender");
+        sender.start();
+        final AtomicInteger counts = new AtomicInteger();
+        recs = new ArrayList<>();
+        for (int i = 0; i < 10; i++) {
+            Messaging r = new Messaging(morphium, 100, false);
+            r.setSenderId("r" + i);
+            recs.add(r);
+            r.start();
+
+            r.addMessageListener((m, msg) -> {
+                counts.incrementAndGet();
+                return null;
+            });
+        }
+        try {
+
+            for (int i = 0; i < 50; i++) {
+                if (i % 10 == 0) log.info("Msg sent");
+                sender.sendMessage(new Msg("name", "msg", "value", 20000000, true));
+            }
+            while (counts.get() < 50) {
+                log.info("Still waiting for incoming messages: " + counts.get());
+                Thread.sleep(1000);
+            }
+            Thread.sleep(2000);
+            assert (counts.get() == 50) : "Did get too many? " + counts.get();
+
+
+            counts.set(0);
+            for (int i = 0; i < 10; i++) {
+                log.info("Msg sent");
+                sender.sendMessage(new Msg("name", "msg", "value", 20000000, false));
+            }
+            while (counts.get() < 10 * recs.size()) {
+                log.info("Still waiting for incoming messages: " + counts.get());
+                Thread.sleep(1000);
+            }
+            Thread.sleep(2000);
+            assert (counts.get() == 10 * recs.size()) : "Did get too many? " + counts.get();
+
+        } finally {
+            sender.terminate();
+            for (Messaging r : recs) r.terminate();
+
+
+        }
+
+    }
 }
