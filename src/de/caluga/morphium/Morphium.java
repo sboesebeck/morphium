@@ -217,10 +217,11 @@ public class Morphium {
             morphiumDriver.setHeartbeatSocketTimeout(config.getHeartbeatSocketTimeout());
             morphiumDriver.setMinConnectionsPerHost(config.getMinConnectionsPerHost());
             //            drv.setMinminHeartbeatFrequency(config.getMinHearbeatFrequency());
-            morphiumDriver.setLocalThreshold(config.getLocalThreashold());
+            morphiumDriver.setLocalThreshold(config.getLocalThreshold());
             morphiumDriver.setMaxConnectionIdleTime(config.getMaxConnectionIdleTime());
             morphiumDriver.setMaxConnectionLifetime(config.getMaxConnectionLifeTime());
             morphiumDriver.setMaxWaitTime(config.getMaxWaitTime());
+            morphiumDriver.setServerSelectionTimeout(config.getServerSelectionTimeout());
 
             morphiumDriver.setUseSSL(config.isUseSSL());
             morphiumDriver.setSslContext(config.getSslContext());
