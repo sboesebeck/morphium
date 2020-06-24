@@ -55,6 +55,7 @@ public class Driver implements MorphiumDriver {
     private boolean socketKeepAlive;
     private int heartbeatConnectTimeout;
     private int maxWaitTime;
+    private int serverSelectionTimeout;
 
     private int defaultBatchSize = 100;
     private int retriesOnNetworkError = 2;
@@ -388,6 +389,7 @@ public class Driver implements MorphiumDriver {
                 o.requiredReplicaSetName(replicasetName);
             }
             o.maxWaitTime(getMaxWaitTime());
+            o.serverSelectionTimeout(getServerSelectionTimeout());
 
             o.sslEnabled(isUseSSL());
             o.sslContext(getSslContext());
@@ -1500,6 +1502,16 @@ public class Driver implements MorphiumDriver {
     @Override
     public void setMaxWaitTime(int maxWaitTime) {
         this.maxWaitTime = maxWaitTime;
+    }
+
+    @Override
+    public int getServerSelectionTimeout() {
+        return serverSelectionTimeout;
+    }
+
+    @Override
+    public void setServerSelectionTimeout(int serverSelectionTimeout) {
+        this.serverSelectionTimeout = serverSelectionTimeout;
     }
 
     @Override
