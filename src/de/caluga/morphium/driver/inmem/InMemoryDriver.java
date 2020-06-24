@@ -1213,6 +1213,15 @@ public class InMemoryDriver implements MorphiumDriver {
     }
 
     @Override
+    public int getServerSelectionTimeout() {
+        return 0;
+    }
+
+    @Override
+    public void setServerSelectionTimeout(int serverSelectionTimeout) {
+    }
+
+    @Override
     public boolean isCapped(String db, String coll) {
         return false;
     }

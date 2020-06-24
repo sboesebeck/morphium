@@ -250,6 +250,10 @@ public interface MorphiumDriver {
 
     void setMaxWaitTime(int maxWaitTime);
 
+    int getServerSelectionTimeout();
+
+    void setServerSelectionTimeout(int serverSelectionTimeout);
+
     boolean isCapped(String db, String coll) throws MorphiumDriverException;
 
     BulkRequestContext createBulkContext(Morphium m, String db, String collection, boolean ordered, WriteConcern wc);
