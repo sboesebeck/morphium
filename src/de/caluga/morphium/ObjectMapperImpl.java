@@ -695,7 +695,7 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
                     continue;
                 }
                 if (valueFromDb == null) {
-                    if (!fld.getType().isPrimitive()) {
+                    if (!fld.getType().isPrimitive() && o.containsKey(f)) {
                         fld.set(ret, null);
                     }
                     continue;

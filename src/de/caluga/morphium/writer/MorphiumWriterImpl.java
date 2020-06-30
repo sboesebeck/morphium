@@ -971,7 +971,12 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                 }
                 String fieldName = morphium.getARHelper().getFieldName(cls, field);
 
-                Map<String, Object> update = Utils.getMap("$set", Utils.getMap(fieldName, value.getClass().isEnum() ? value.toString() : value));
+                Map<String, Object> update;
+                if (value != null) {
+                    update = Utils.getMap("$set", Utils.getMap(fieldName, value.getClass().isEnum() ? value.toString() : value));
+                } else {
+                    update = Utils.getMap("$set", Utils.getMap(fieldName, null));
+                }
                 List<String> lastChangeFields = morphium.getARHelper().getFields(cls, LastChange.class);
                 if (lastChangeFields != null && !lastChangeFields.isEmpty() && morphium.isAutoValuesEnabledForThread()) {
                     updateField(cls, update, lastChangeFields);
