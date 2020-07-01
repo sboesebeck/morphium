@@ -695,7 +695,7 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
                     continue;
                 }
                 if (valueFromDb == null) {
-                    if (!fld.getType().isPrimitive()) {
+                    if (!fld.getType().isPrimitive() && o.containsKey(f)) {
                         fld.set(ret, null);
                     }
                     continue;
@@ -855,10 +855,16 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
                     //                    morphium.firePostLoad(lst);
 
                 } else if (Map.class.isAssignableFrom(fld.getType())) {
-                    Map<String, Object> map = (Map<String, Object>) valueFromDb;
-                    Map toFill = new HashMap();
-                    if (map != null) {
-                        fillMap((ParameterizedType) fld.getGenericType(), map, toFill, ret);
+                    ParameterizedType genericMapType = (ParameterizedType) fld.getGenericType();
+                    Class<?> keyClass = getKeyClass(genericMapType);
+                    Map toFill;
+                    if (Enum.class.isAssignableFrom(keyClass)) {
+                        toFill = new EnumMap<>((Class<? extends Enum>) keyClass);
+                    } else {
+                        toFill = new HashMap();
+                    }
+                    if (valueFromDb != null) {
+                        fillMap(genericMapType, (Map<String, Object>) valueFromDb, toFill, ret);
                     }
                     value = toFill;
                 } else if (Collection.class.isAssignableFrom(fld.getType()) || fld.getType().isArray()) {
@@ -1270,10 +1276,74 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
         }
     }
 
-    @SuppressWarnings({"unchecked", "ConstantConditions"})
+    private Class getKeyClass(ParameterizedType parameterizedType) {
+        Type[] parameters = parameterizedType.getActualTypeArguments();
+        Type relevantParameter = parameters[0];
+        if (relevantParameter instanceof Class) {
+            return (Class) relevantParameter;
+        }
+        if (relevantParameter instanceof ParameterizedType) {
+
+            ParameterizedType parameterType = (ParameterizedType) relevantParameter;
+            if (parameterType.getRawType() instanceof Class) {
+                return (Class) parameterType.getRawType();
+            } else {
+                try {
+                    return annotationHelper.getClassForTypeId(parameterType.getTypeName());
+                } catch (ClassNotFoundException e) {
+                    log.error("Could not determin class for type " + parameterType.getRawType().getTypeName());
+                    return Object.class;
+                }
+            }
+        } else if (relevantParameter instanceof WildcardType) {
+            return ((WildcardType) relevantParameter).getClass();
+        } else {
+            log.error("Could not determin type of key!");
+            return Object.class;
+        }
+    }
+
+    @SuppressWarnings({ "unchecked", "ConstantConditions" })
     private void fillMap(ParameterizedType mapType, Map<String, Object> fromDB, Map toFillIn, Object containerEntity) {
+        Class keyClass = getKeyClass(mapType);
+        Method convertMethod = null;
+        if (keyClass != null && !String.class.equals(keyClass)) {
+            try {
+                convertMethod = keyClass.getMethod("valueOf", String.class);
+            } catch (NoSuchMethodException e) {
+                try {
+                    convertMethod = keyClass.getMethod("valueOf", CharSequence.class);
+                } catch (NoSuchMethodException e1) {
+                    try {
+                        convertMethod = keyClass.getMethod("valueOf", Object.class);
+                    } catch (NoSuchMethodException e2) {
+                        try {
+                            convertMethod = keyClass.getMethod("parse", String.class);
+                        } catch (NoSuchMethodException e3) {
+                            try {
+                                convertMethod = keyClass.getMethod("parse", CharSequence.class);
+                            } catch (NoSuchMethodException e4) {
+                                try {
+                                    convertMethod = keyClass.getMethod("parse", Object.class);
+                                } catch (NoSuchMethodException e5) {
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
         for (Entry<String, Object> entry : fromDB.entrySet()) {
-            String key = entry.getKey();
+            String stringKey = entry.getKey();
+            Object key = stringKey;
+            if (convertMethod != null) {
+                try {
+                    key = convertMethod.invoke(null, stringKey);
+                } catch (ReflectiveOperationException | RuntimeException e) {
+                    log.error("Could not convert " + stringKey + " to key type " + keyClass, e);
+                    continue;
+                }
+            }
             Object val = entry.getValue();
             if (val instanceof Map) {
                 if (mapType != null) {
