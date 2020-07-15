@@ -46,7 +46,7 @@ import java.util.concurrent.atomic.AtomicInteger;
  */
 
 @SuppressWarnings({"WeakerAccess", "unused"})
-public class Morphium {
+public class Morphium implements AutoCloseable {
 
     /**
      * singleton is usually not a good idea in j2ee-Context, but as we did it on
