@@ -388,7 +388,15 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
         StringBuilder fieldPath = new StringBuilder();
         String cf;
         Class<?> clz = type;
-        if (f.contains(".")) {
+        if (additionalDataPresent) {
+            MongoField<T> fld = morphium.createMongoField();
+            fld.setFieldString(f);
+            fld.setMapper(morphium.getMapper());
+            fld.setQuery(this);
+            log.debug("Not checking field name, additionalData is present");
+            return fld;
+        }
+        if (f.contains(".") && !additionalDataPresent) {
             String[] fieldNames = f.split("\\.");
             for (String fieldName : fieldNames) {
                 String fieldNameInstance = getARHelper().getFieldName(clz, fieldName);
@@ -396,6 +404,7 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
                 if (field == null) {
                     throw new IllegalArgumentException("Field " + fieldNameInstance + " not found!");
                 }
+
                 //                if (field.isAnnotationPresent(Reference.class)) {
                 //                    //cannot join
                 //                    throw new IllegalArgumentException("cannot subquery references: " + fieldNameInstance + " of type " + clz.getName() + " has @Reference");
@@ -421,9 +430,6 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
         } else {
             cf = getARHelper().getFieldName(clz, f);
 
-        }
-        if (additionalDataPresent) {
-            log.debug("Additional data is available, not checking field");
         }
         MongoField<T> fld = morphium.createMongoField();
         fld.setFieldString(cf);
