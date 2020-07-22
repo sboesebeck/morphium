@@ -1,5 +1,7 @@
 package de.caluga.test.mongo.suite;
 
+import de.caluga.morphium.Utils;
+import de.caluga.morphium.annotations.AdditionalData;
 import de.caluga.morphium.annotations.Index;
 import de.caluga.morphium.query.Query;
 import de.caluga.test.mongo.suite.data.ComplexObject;
@@ -7,7 +9,9 @@ import de.caluga.test.mongo.suite.data.EmbeddedObject;
 import de.caluga.test.mongo.suite.data.UncachedObject;
 import org.junit.Test;
 
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * User: Stephan Bösebeck
@@ -88,6 +92,23 @@ public class SubDocumentTests extends MorphiumTestBase {
         assert (lst.isEmpty());
     }
 
+    @Test
+    public void testSubDocAdditionals() throws Exception {
+        SubDocumentAdditional s = new SubDocumentAdditional();
+        s.setValue("SubDoc");
+        s.setCounter(102);
+        s.additionals = new HashMap<>();
+        s.additionals.put("test", 100);
+        s.additionals.put("sub", Utils.getMap("val", 42));
+
+        morphium.store(s);
+        Thread.sleep(100);
+        List<SubDocumentAdditional> lst = morphium.createQueryFor(SubDocumentAdditional.class).f("sub.val").eq(42).asList();
+        assert (lst.size() == 1);
+        assert (lst.get(0).additionals.get("sub") != null);
+        assert (lst.get(0).additionals.get("sub") instanceof Map);
+    }
+
 
     @Test
     public void testSubDocumentIndex() {
@@ -97,6 +118,12 @@ public class SubDocumentTests extends MorphiumTestBase {
     @Index({"embed.id"})
     public static class SubDocumentIndex extends ComplexObject {
 
+    }
+
+
+    public static class SubDocumentAdditional extends UncachedObject {
+        @AdditionalData(readOnly = false)
+        public Map<String, Object> additionals;
     }
 
 }
