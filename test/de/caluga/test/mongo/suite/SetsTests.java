@@ -12,9 +12,7 @@ import de.caluga.test.mongo.suite.data.SetContainer;
 import de.caluga.test.mongo.suite.data.UncachedObject;
 import org.junit.Test;
 
-import java.util.ArrayList;
-import java.util.HashSet;
-import java.util.Set;
+import java.util.*;
 
 import static org.junit.Assert.fail;
 
@@ -30,7 +28,7 @@ public class SetsTests extends MorphiumTestBase {
     @Test
     public void setStoringTest() throws Exception {
         morphium.dropCollection(Uc.class);
-        Set<UncachedObject> lst = new HashSet<>();
+        Set<UncachedObject> lst = new LinkedHashSet<>();
         for (int i = 0; i < 100; i++) {
             Uc u = new Uc();
             u.setCounter(i);
@@ -93,7 +91,7 @@ public class SetsTests extends MorphiumTestBase {
         }
 
         Thread.sleep(1000);
-        q = morphium.createQueryFor(SetContainer.class).f("refList").eq(lst2.getRefSet().toArray()[0]);
+        q = morphium.createQueryFor(SetContainer.class).f("refSet").eq(lst2.getRefSet().toArray()[0]);
         assert (q.countAll() != 0);
         log.info("found " + q.countAll() + " entries");
         assert (q.countAll() == 1);
@@ -105,6 +103,7 @@ public class SetsTests extends MorphiumTestBase {
 
     @Test
     public void nullValueListTest() {
+
         morphium.dropCollection(SetContainer.class);
         SetContainer lst = new SetContainer();
         int count = 2;
@@ -151,7 +150,7 @@ public class SetsTests extends MorphiumTestBase {
     @Test
     public void singleEntryListTest() throws Exception {
         morphium.dropCollection(UncachedObject.class);
-        Set<UncachedObject> lst = new HashSet<>();
+        Set<UncachedObject> lst = new LinkedHashSet<>();
         lst.add(new UncachedObject());
 
         lst.toArray(new UncachedObject[]{})[0].setValue("hello");
@@ -177,7 +176,7 @@ public class SetsTests extends MorphiumTestBase {
         MySetContainer mc = new MySetContainer();
         mc.name = "test";
         mc.number = 42;
-        mc.objectList = new HashSet<>();
+        mc.objectList = new LinkedHashSet<>();
 
         ExtendedEmbeddedObject extendedEmbeddedObject = new ExtendedEmbeddedObject();
         extendedEmbeddedObject.setName("testName");
@@ -226,7 +225,7 @@ public class SetsTests extends MorphiumTestBase {
     @Test
     public void idListTest() throws Exception {
         MyIdSetContainer ilst = new MyIdSetContainer();
-        ilst.idList = new HashSet<>();
+        ilst.idList = new LinkedHashSet<>();
         ilst.idList.add(new MorphiumId());
         ilst.idList.add(new MorphiumId());
         ilst.idList.add(new MorphiumId());
@@ -251,6 +250,7 @@ public class SetsTests extends MorphiumTestBase {
 
 
     }
+
 
     @Entity(collectionName = "UCTest")
     public static class Uc extends UncachedObject {

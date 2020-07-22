@@ -156,7 +156,7 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
         } catch (InstantiationException e) {
             log.error("Could not instanciate NameProvider: " + p.nameProvider().getName(), e);
             throw new RuntimeException("Could not Instaciate NameProvider", e);
-        } catch (IllegalAccessException|NoSuchMethodException|InvocationTargetException e) {
+        } catch (IllegalAccessException | NoSuchMethodException | InvocationTargetException e) {
             log.error("Illegal Access during instanciation of NameProvider: " + p.nameProvider().getName(), e);
             throw new RuntimeException("Illegal Access during instanciation", e);
         }
@@ -200,7 +200,7 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
     @SuppressWarnings("unchecked")
     @Override
     public Map<String, Object> serialize(Object o) {
-        if (o==null) return new HashMap<>();
+        if (o == null) return new HashMap<>();
         Class c = annotationHelper.getRealClass(o.getClass());
         if (customMappers.containsKey(c)) {
             Object ret = customMappers.get(c).marshall(o);
@@ -868,7 +868,9 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
                     }
                     value = toFill;
                 } else if (Collection.class.isAssignableFrom(fld.getType()) || fld.getType().isArray()) {
+
                     List lst = new ArrayList();
+
                     if (valueFromDb.getClass().isArray()) {
                         //a real array!
                         if (valueFromDb.getClass().getComponentType().isPrimitive()) {
@@ -1008,7 +1010,11 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
                         }
                         value = arr;
                     } else {
-                        value = lst;
+                        if (Set.class.isAssignableFrom(fld.getType())) {
+                            value = new LinkedHashSet<>(lst);
+                        } else {
+                            value = lst;
+                        }
                     }
 
 
@@ -1303,7 +1309,7 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
         }
     }
 
-    @SuppressWarnings({ "unchecked", "ConstantConditions" })
+    @SuppressWarnings({"unchecked", "ConstantConditions"})
     private void fillMap(ParameterizedType mapType, Map<String, Object> fromDB, Map toFillIn, Object containerEntity) {
         Class keyClass = getKeyClass(mapType);
         Method convertMethod = null;
