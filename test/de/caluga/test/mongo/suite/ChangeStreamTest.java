@@ -206,7 +206,7 @@ public class ChangeStreamTest extends MorphiumTestBase {
 
     @Test
     public void changeStreamMonitorCollectionTest() throws Exception {
-        morphium.dropCollection(UncachedObject.class);
+        morphium.dropCollection(UncachedObject.class, "uncached_object", null);
         ChangeStreamMonitor m = new ChangeStreamMonitor(morphium, "uncached_object", false);
         m.start();
         final AtomicInteger cnt = new AtomicInteger(0);
@@ -218,7 +218,7 @@ public class ChangeStreamTest extends MorphiumTestBase {
         });
         Thread.sleep(1000);
         for (int i = 0; i < 100; i++) {
-            morphium.store(new UncachedObject("value " + i, i));
+            morphium.store(new UncachedObject("value " + i, i), "uncached_object", null);
         }
         Thread.sleep(5000);
         m.terminate();
