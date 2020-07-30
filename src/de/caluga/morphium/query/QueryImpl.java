@@ -402,24 +402,25 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
                 String fieldNameInstance = getARHelper().getFieldName(clz, fieldName);
                 Field field = getARHelper().getField(clz, fieldNameInstance);
                 if (field == null) {
-                    throw new IllegalArgumentException("Field " + fieldNameInstance + " not found!");
-                }
+                    log.warn("Field " + fieldNameInstance + " not found!");
+                } else {
 
-                //                if (field.isAnnotationPresent(Reference.class)) {
-                //                    //cannot join
-                //                    throw new IllegalArgumentException("cannot subquery references: " + fieldNameInstance + " of type " + clz.getName() + " has @Reference");
-                //                }
-                fieldPath.append(fieldNameInstance);
-                fieldPath.append('.');
-                clz = field.getType();
-                if (clz.equals(List.class) || clz.equals(Collection.class) || clz.equals(Array.class) || clz.equals(Set.class) || clz.equals(Map.class)) {
-                    if (log.isDebugEnabled()) {
-                        log.debug("Cannot check fields in generic lists or maps");
+                    //                if (field.isAnnotationPresent(Reference.class)) {
+                    //                    //cannot join
+                    //                    throw new IllegalArgumentException("cannot subquery references: " + fieldNameInstance + " of type " + clz.getName() + " has @Reference");
+                    //                }
+                    fieldPath.append(fieldNameInstance);
+                    fieldPath.append('.');
+                    clz = field.getType();
+                    if (clz.equals(List.class) || clz.equals(Collection.class) || clz.equals(Array.class) || clz.equals(Set.class) || clz.equals(Map.class)) {
+                        if (log.isDebugEnabled()) {
+                            log.debug("Cannot check fields in generic lists or maps");
+                        }
+                        clz = Object.class;
                     }
-                    clz = Object.class;
-                }
-                if (clz.equals(Object.class)) {
-                    break;
+                    if (clz.equals(Object.class)) {
+                        break;
+                    }
                 }
             }
             if (clz.equals(Object.class)) {
