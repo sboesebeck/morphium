@@ -67,7 +67,6 @@ public class InMemBasicFunctionalityTest extends MorphiumInMemTestBase {
         assert (queryString.contains("embed.test_value_long") && queryString.contains("entityEmbeded.binary_data"));
     }
 
-    @Test(expected = IllegalArgumentException.class)
     public void subObjectQueryTestUnknownField() {
         Query<ComplexObject> q = morphium.createQueryFor(ComplexObject.class);
 
