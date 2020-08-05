@@ -7,6 +7,7 @@ import de.caluga.test.mongo.suite.data.ComplexObject;
 import de.caluga.test.mongo.suite.data.UncachedObject;
 import org.junit.Test;
 
+import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
 
 public class ChangeStreamTest extends MorphiumTestBase {
@@ -207,7 +208,7 @@ public class ChangeStreamTest extends MorphiumTestBase {
     @Test
     public void changeStreamMonitorCollectionTest() throws Exception {
         morphium.dropCollection(UncachedObject.class, "uncached_object", null);
-        ChangeStreamMonitor m = new ChangeStreamMonitor(morphium, "uncached_object", false);
+        ChangeStreamMonitor m = new ChangeStreamMonitor(morphium, "uncached_object", false, null);
         m.start();
         final AtomicInteger cnt = new AtomicInteger(0);
 
@@ -240,5 +241,76 @@ public class ChangeStreamTest extends MorphiumTestBase {
             Thread.sleep(100);
             m.terminate();
         }
+    }
+
+
+    @Test
+    public void changeStreamPipelineTest() throws Exception {
+        List<Map<String, Object>> pipeline = new ArrayList<>();
+        pipeline.add(Utils.getMap("$match", Utils.getMap("operationType", Utils.getMap("$in", Arrays.asList("insert")))));
+        ChangeStreamMonitor mon = new ChangeStreamMonitor(morphium, "uncached_object", false, pipeline);
+        final AtomicInteger inserts = new AtomicInteger();
+        final AtomicInteger updates = new AtomicInteger();
+        final AtomicInteger deletes = new AtomicInteger();
+        mon.addListener(evt -> {
+            if (evt.getOperationType().equals("insert")) {
+                inserts.incrementAndGet();
+            }
+            if (evt.getOperationType().equals("update")) {
+                updates.incrementAndGet();
+            }
+            if (evt.getOperationType().equals("delete")) {
+                deletes.incrementAndGet();
+            }
+            assert (evt.getOperationType().equals("insert"));
+            return true;
+        });
+        mon.start();
+
+        for (int i = 0; i < 10; i++) morphium.store(new UncachedObject("value " + i, i), "uncached_object", null);
+
+        morphium.set(morphium.createQueryFor(UncachedObject.class).setCollectionName("uncached_object"), "value", "updated");
+        morphium.delete(morphium.createQueryFor(UncachedObject.class).setCollectionName("uncached_object"));
+        Thread.sleep(1000);
+        assert (inserts.get() == 10);
+        assert (updates.get() == 0);
+        assert (deletes.get() == 0);
+        mon.terminate();
+
+
+        inserts.set(0);
+        updates.set(0);
+        deletes.set(0);
+        pipeline = new ArrayList<>();
+        pipeline.add(Utils.getMap("$match", Utils.getMap("operationType", Utils.getMap("$in", Arrays.asList("update")))));
+        mon = new ChangeStreamMonitor(morphium, "uncached_object", false, pipeline);
+
+        mon.addListener(evt -> {
+            if (evt.getOperationType().equals("insert")) {
+                inserts.incrementAndGet();
+            }
+            if (evt.getOperationType().equals("update")) {
+                updates.incrementAndGet();
+            }
+            if (evt.getOperationType().equals("delete")) {
+                deletes.incrementAndGet();
+            }
+            return true;
+        });
+        mon.start();
+
+        for (int i = 0; i < 10; i++) morphium.store(new UncachedObject("value " + i, i), "uncached_object", null);
+
+        morphium.set(morphium.createQueryFor(UncachedObject.class).setCollectionName("uncached_object"), "value", "updated");
+        Thread.sleep(100);
+        assert (inserts.get() == 0);
+        assert (updates.get() == 1);
+        assert (deletes.get() == 0);
+
+        morphium.set(morphium.createQueryFor(UncachedObject.class).setCollectionName("uncached_object"), "value", "updated", false, true);
+        Thread.sleep(100);
+
+        assert (updates.get() == 10);
+        mon.terminate();
     }
 }
