@@ -5,6 +5,7 @@ import de.caluga.morphium.annotations.caching.NoCache;
 import de.caluga.morphium.driver.MorphiumId;
 
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.Set;
 
 /**
@@ -29,10 +30,10 @@ public class SetContainer {
     private Set<EmbeddedObject> embeddedObjectsSet;
 
     public SetContainer() {
-        stringSet = new HashSet<>();
-        longSet = new HashSet<>();
-        refSet = new HashSet<>();
-        embeddedObjectsSet = new HashSet<>();
+        stringSet = new LinkedHashSet<>();
+        longSet = new LinkedHashSet<>();
+        refSet = new LinkedHashSet<>();
+        embeddedObjectsSet = new LinkedHashSet<>();
     }
 
     public MorphiumId getId() {

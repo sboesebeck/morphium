@@ -329,13 +329,14 @@ There are a lot of settings and customizations you can do within *Morphium*. Her
 *   *retryWaitTimeWriter*, *retryWaitTimeAsyncWriter*: similar to *retryWaitTimeBufferedWriter*, but for the according writing type
 *   *globalW*: W sets the number of nodes to have finished the write operation (according to your safe and j / fsync settings)
 *   *maxWaitTime*: Sets the maximum time that a thread will block waiting for a connection.
+*   *serverSelectionTimeout*: Defines how long the driver will wait for server selection to succeed before throwing an exception
 *   *writeBufferTime:* Timeout for buffered writes. Default is 0
 *   *autoReconnect*: if set to `true` connections are re-established, when lost. Default is `true`
 *   *maxAutoReconnectTime*: how long to try to reconnect (in ms). Default is `0`⇒ try as long as it takes
 *   *blockingThreadsMultiplier*: There is a max number of connections to mongo, this factor determines the maximum number of threads that may be waiting for some connection. If this threshold is reached, new threads will get an Exception upon access to mongo.
 *   *mongoLogin*,*mongoPassword*: User Credentials to connect to mongodb. Can be null.
 *   *mongoAdminUser*, *mongoAdminPwd*: Credentials to do admin tasks, like get the replicaset status. If not set, use mongoLogin instead.
-*   *acceptableLatencyDifference*: Latency between replicaset members still acceptable for reads.
+*   *localThreshold*: Latency between replicaset members still acceptable for reads.
 *   *autoValuesEnabled*: *Morphium* supports automatic values being set to your POJO. These are configured by annotations (`@LasChange`, `@CreationTime`, `@LastAccess`, ...). If you want to switch this off *globally*, you can set it in the config. Very useful for test environments, which should not temper with productional data
 *   *readCacheEnabled*: Globally disable readcache. This only affects entities with a `@Cache` annotation. By default it's enabled.
 *   *asyncWritesEnabled*: Globally disable async writes. This only affects entities with a `@AsyncWrites`annotation

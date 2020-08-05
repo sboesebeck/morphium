@@ -19,6 +19,8 @@ import de.caluga.morphium.driver.ReadPreference;
 import de.caluga.morphium.driver.*;
 import de.caluga.morphium.driver.bulk.BulkRequestContext;
 import org.bson.*;
+import org.bson.conversions.Bson;
+import org.bson.types.BasicBSONList;
 import org.bson.types.Binary;
 import org.bson.types.ObjectId;
 import org.slf4j.Logger;
@@ -55,6 +57,7 @@ public class Driver implements MorphiumDriver {
     private boolean socketKeepAlive;
     private int heartbeatConnectTimeout;
     private int maxWaitTime;
+    private int serverSelectionTimeout;
 
     private int defaultBatchSize = 100;
     private int retriesOnNetworkError = 2;
@@ -388,6 +391,7 @@ public class Driver implements MorphiumDriver {
                 o.requiredReplicaSetName(replicasetName);
             }
             o.maxWaitTime(getMaxWaitTime());
+            o.serverSelectionTimeout(getServerSelectionTimeout());
 
             o.sslEnabled(isUseSSL());
             o.sslContext(getSslContext());
@@ -474,7 +478,7 @@ public class Driver implements MorphiumDriver {
             }
             mongo.close();
         } catch (Exception e) {
-            throw new MorphiumDriverException("error closing", e);
+            //throw new MorphiumDriverException("error closing", e);
         }
     }
 
@@ -588,8 +592,8 @@ public class Driver implements MorphiumDriver {
 
 
     @Override
-    public void watch(String db, int maxWaitTime, boolean fullDocumentOnUpdate, DriverTailableIterationCallback cb) throws MorphiumDriverException {
-        watch(db, null, maxWaitTime, fullDocumentOnUpdate, cb);
+    public void watch(String db, int maxWaitTime, boolean fullDocumentOnUpdate, List<Map<String, Object>> pipeline, DriverTailableIterationCallback cb) throws MorphiumDriverException {
+        watch(db, null, maxWaitTime, fullDocumentOnUpdate, pipeline, cb);
     }
 
     private void processChangeStreamEvent(DriverTailableIterationCallback cb, ChangeStreamDocument<Document> doc, long start) {
@@ -623,14 +627,24 @@ public class Driver implements MorphiumDriver {
     }
 
     @Override
-    public void watch(String db, String collection, int maxWaitTime, boolean fullDocumentOnUpdate, DriverTailableIterationCallback cb) throws MorphiumDriverException {
+    public void watch(String db, String collection, int maxWaitTime, boolean fullDocumentOnUpdate, List<Map<String, Object>> pipeline, DriverTailableIterationCallback cb) throws MorphiumDriverException {
         DriverHelper.doCall(() -> {
+            List<Bson> p;
+            if (pipeline == null) {
+                p = Collections.<Bson>emptyList();
+            } else {
+                p = new ArrayList<>();
+                for (Map<String, Object> o : pipeline) {
+                    p.add(new BasicDBObject(o));
+                }
+            }
+
             while (cb.isContinued()) {
                 ChangeStreamIterable<Document> it;
                 if (collection != null) {
-                    it = mongo.getDatabase(db).getCollection(collection).watch();
+                    it = mongo.getDatabase(db).getCollection(collection).watch(p);
                 } else {
-                    it = mongo.getDatabase(db).watch();
+                    it = mongo.getDatabase(db).watch(p);
                 }
                 it.maxAwaitTime(maxWaitTime, TimeUnit.MILLISECONDS);
                 it.batchSize(defaultBatchSize);
@@ -1500,6 +1514,16 @@ public class Driver implements MorphiumDriver {
     @Override
     public void setMaxWaitTime(int maxWaitTime) {
         this.maxWaitTime = maxWaitTime;
+    }
+
+    @Override
+    public int getServerSelectionTimeout() {
+        return serverSelectionTimeout;
+    }
+
+    @Override
+    public void setServerSelectionTimeout(int serverSelectionTimeout) {
+        this.serverSelectionTimeout = serverSelectionTimeout;
     }
 
     @Override

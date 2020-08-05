@@ -172,9 +172,9 @@ public interface MorphiumDriver {
 
     MorphiumCursor initIteration(String db, String collection, Map<String, Object> query, Map<String, Integer> sort, Map<String, Object> projection, int skip, int limit, int batchSize, ReadPreference readPreference, Map<String, Object> findMetaData) throws MorphiumDriverException;
 
-    void watch(String db, int maxWait, boolean fullDocumentOnUpdate, DriverTailableIterationCallback cb) throws MorphiumDriverException;
+    void watch(String db, int maxWait, boolean fullDocumentOnUpdate, List<Map<String, Object>> pipeline, DriverTailableIterationCallback cb) throws MorphiumDriverException;
 
-    void watch(String db, String collection, int maxWait, boolean fullDocumentOnUpdate, DriverTailableIterationCallback cb) throws MorphiumDriverException;
+    void watch(String db, String collection, int maxWait, boolean fullDocumentOnUpdate, List<Map<String, Object>> pipeline, DriverTailableIterationCallback cb) throws MorphiumDriverException;
 
     void tailableIteration(String db, String collection, Map<String, Object> query, Map<String, Integer> sort, Map<String, Object> projection, int skip, int limit, int batchSize, ReadPreference readPreference, int timeout, DriverTailableIterationCallback cb) throws MorphiumDriverException;
 
@@ -249,6 +249,10 @@ public interface MorphiumDriver {
     int getMaxWaitTime();
 
     void setMaxWaitTime(int maxWaitTime);
+
+    int getServerSelectionTimeout();
+
+    void setServerSelectionTimeout(int serverSelectionTimeout);
 
     boolean isCapped(String db, String coll) throws MorphiumDriverException;
 
