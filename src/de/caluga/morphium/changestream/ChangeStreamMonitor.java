@@ -25,22 +25,36 @@ public class ChangeStreamMonitor implements Runnable, ShutdownListener {
     private Thread changeStreamThread;
     private final MorphiumObjectMapper mapper;
     private boolean dbOnly = false;
-
+    private List<Map<String, Object>> pipeline;
 
     public ChangeStreamMonitor(Morphium m) {
-        this(m, null, false);
+        this(m, null, false, null);
         dbOnly = true;
     }
 
+    public ChangeStreamMonitor(Morphium m, List<Map<String, Object>> pipeline) {
+        this(m, null, false, pipeline);
+        dbOnly = true;
+    }
+
+
     public ChangeStreamMonitor(Morphium m, Class<?> entity) {
-        this(m, m.getMapper().getCollectionName(entity), false);
+        this(m, m.getMapper().getCollectionName(entity), false, null);
+    }
+
+    public ChangeStreamMonitor(Morphium m, Class<?> entity, List<Map<String, Object>> pipeline) {
+        this(m, m.getMapper().getCollectionName(entity), false, null);
     }
 
     public ChangeStreamMonitor(Morphium m, String collectionName, boolean fullDocument) {
+        this(m, collectionName, fullDocument, null);
+    }
+
+    public ChangeStreamMonitor(Morphium m, String collectionName, boolean fullDocument, List<Map<String, Object>> pipeline) {
         morphium = m;
         listeners = new ConcurrentLinkedDeque<>();
-        long timestamp = System.currentTimeMillis() / 1000;
         morphium.addShutdownListener(this);
+        this.pipeline = pipeline;
         this.collectionName = collectionName;
         this.fullDocument = fullDocument;
 
@@ -136,9 +150,9 @@ public class ChangeStreamMonitor implements Runnable, ShutdownListener {
                 };
 
                 if (dbOnly) {
-                    morphium.getDriver().watch(morphium.getConfig().getDatabase(), morphium.getConfig().getMaxWaitTime(), fullDocument, callback);
+                    morphium.getDriver().watch(morphium.getConfig().getDatabase(), morphium.getConfig().getMaxWaitTime(), fullDocument, pipeline, callback);
                 } else {
-                    morphium.getDriver().watch(morphium.getConfig().getDatabase(), collectionName, morphium.getConfig().getMaxWaitTime(), fullDocument, callback);
+                    morphium.getDriver().watch(morphium.getConfig().getDatabase(), collectionName, morphium.getConfig().getMaxWaitTime(), fullDocument, pipeline, callback);
                 }
             } catch (MorphiumDriverException e) {
                 if (e.getMessage().contains("Network error error: state should be: open")){

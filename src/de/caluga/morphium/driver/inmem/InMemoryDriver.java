@@ -643,13 +643,13 @@ public class InMemoryDriver implements MorphiumDriver {
 
     @SuppressWarnings("RedundantThrows")
     @Override
-    public void watch(String db, int timeout, boolean fullDocumentOnUpdate, DriverTailableIterationCallback cb) throws MorphiumDriverException {
-        watch(db, null, timeout, fullDocumentOnUpdate, cb);
+    public void watch(String db, int timeout, boolean fullDocumentOnUpdate, List<Map<String, Object>> pipeline, DriverTailableIterationCallback cb) throws MorphiumDriverException {
+        watch(db, null, timeout, fullDocumentOnUpdate, pipeline, cb);
     }
 
     @SuppressWarnings("RedundantThrows")
     @Override
-    public void watch(String db, String collection, int timeout, boolean fullDocumentOnUpdate, DriverTailableIterationCallback cb) throws MorphiumDriverException {
+    public void watch(String db, String collection, int timeout, boolean fullDocumentOnUpdate, List<Map<String, Object>> pipeline, DriverTailableIterationCallback cb) throws MorphiumDriverException {
 
         Object monitor = new Object();
         monitors.add(monitor);
