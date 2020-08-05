@@ -388,29 +388,39 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
         StringBuilder fieldPath = new StringBuilder();
         String cf;
         Class<?> clz = type;
-        if (f.contains(".")) {
+        if (additionalDataPresent) {
+            MongoField<T> fld = morphium.createMongoField();
+            fld.setFieldString(f);
+            fld.setMapper(morphium.getMapper());
+            fld.setQuery(this);
+            log.debug("Not checking field name, additionalData is present");
+            return fld;
+        }
+        if (f.contains(".") && !additionalDataPresent) {
             String[] fieldNames = f.split("\\.");
             for (String fieldName : fieldNames) {
                 String fieldNameInstance = getARHelper().getFieldName(clz, fieldName);
                 Field field = getARHelper().getField(clz, fieldNameInstance);
                 if (field == null) {
-                    throw new IllegalArgumentException("Field " + fieldNameInstance + " not found!");
-                }
-                //                if (field.isAnnotationPresent(Reference.class)) {
-                //                    //cannot join
-                //                    throw new IllegalArgumentException("cannot subquery references: " + fieldNameInstance + " of type " + clz.getName() + " has @Reference");
-                //                }
-                fieldPath.append(fieldNameInstance);
-                fieldPath.append('.');
-                clz = field.getType();
-                if (clz.equals(List.class) || clz.equals(Collection.class) || clz.equals(Array.class) || clz.equals(Set.class) || clz.equals(Map.class)) {
-                    if (log.isDebugEnabled()) {
-                        log.debug("Cannot check fields in generic lists or maps");
+                    log.warn("Field " + fieldNameInstance + " not found!");
+                } else {
+
+                    //                if (field.isAnnotationPresent(Reference.class)) {
+                    //                    //cannot join
+                    //                    throw new IllegalArgumentException("cannot subquery references: " + fieldNameInstance + " of type " + clz.getName() + " has @Reference");
+                    //                }
+                    fieldPath.append(fieldNameInstance);
+                    fieldPath.append('.');
+                    clz = field.getType();
+                    if (clz.equals(List.class) || clz.equals(Collection.class) || clz.equals(Array.class) || clz.equals(Set.class) || clz.equals(Map.class)) {
+                        if (log.isDebugEnabled()) {
+                            log.debug("Cannot check fields in generic lists or maps");
+                        }
+                        clz = Object.class;
                     }
-                    clz = Object.class;
-                }
-                if (clz.equals(Object.class)) {
-                    break;
+                    if (clz.equals(Object.class)) {
+                        break;
+                    }
                 }
             }
             if (clz.equals(Object.class)) {
@@ -421,9 +431,6 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
         } else {
             cf = getARHelper().getFieldName(clz, f);
 
-        }
-        if (additionalDataPresent) {
-            log.debug("Additional data is available, not checking field");
         }
         MongoField<T> fld = morphium.createMongoField();
         fld.setFieldString(cf);

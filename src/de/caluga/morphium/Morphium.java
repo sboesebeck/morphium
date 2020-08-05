@@ -46,7 +46,7 @@ import java.util.concurrent.atomic.AtomicInteger;
  */
 
 @SuppressWarnings({"WeakerAccess", "unused"})
-public class Morphium {
+public class Morphium implements AutoCloseable {
 
     /**
      * singleton is usually not a good idea in j2ee-Context, but as we did it on
@@ -217,10 +217,11 @@ public class Morphium {
             morphiumDriver.setHeartbeatSocketTimeout(config.getHeartbeatSocketTimeout());
             morphiumDriver.setMinConnectionsPerHost(config.getMinConnectionsPerHost());
             //            drv.setMinminHeartbeatFrequency(config.getMinHearbeatFrequency());
-            morphiumDriver.setLocalThreshold(config.getLocalThreashold());
+            morphiumDriver.setLocalThreshold(config.getLocalThreshold());
             morphiumDriver.setMaxConnectionIdleTime(config.getMaxConnectionIdleTime());
             morphiumDriver.setMaxConnectionLifetime(config.getMaxConnectionLifeTime());
             morphiumDriver.setMaxWaitTime(config.getMaxWaitTime());
+            morphiumDriver.setServerSelectionTimeout(config.getServerSelectionTimeout());
 
             morphiumDriver.setUseSSL(config.isUseSSL());
             morphiumDriver.setSslContext(config.getSslContext());
@@ -2788,24 +2789,40 @@ public class Morphium {
     }
 
     public <T> void watchAsync(String collectionName, boolean updateFull, ChangeStreamListener lst) {
-        asyncOperationsThreadPool.execute(() -> watch(collectionName, updateFull, lst));
+        asyncOperationsThreadPool.execute(() -> watch(collectionName, updateFull, null, lst));
+    }
+
+    public <T> void watchAsync(String collectionName, boolean updateFull, List<Map<String, Object>> pipeline, ChangeStreamListener lst) {
+        asyncOperationsThreadPool.execute(() -> watch(collectionName, updateFull, pipeline, lst));
     }
 
     public <T> void watchAsync(Class<T> entity, boolean updateFull, ChangeStreamListener lst) {
-        asyncOperationsThreadPool.execute(() -> watch(entity, updateFull, lst));
+        asyncOperationsThreadPool.execute(() -> watch(entity, updateFull, null, lst));
+    }
+
+    public <T> void watchAsync(Class<T> entity, boolean updateFull, List<Map<String, Object>> pipeline, ChangeStreamListener lst) {
+        asyncOperationsThreadPool.execute(() -> watch(entity, updateFull, pipeline, lst));
     }
 
     public <T> void watch(Class<T> entity, boolean updateFull, ChangeStreamListener lst) {
-        watch(getMapper().getCollectionName(entity), updateFull, lst);
+        watch(getMapper().getCollectionName(entity), updateFull, null, lst);
+    }
+
+    public <T> void watch(Class<T> entity, boolean updateFull, List<Map<String, Object>> pipeline, ChangeStreamListener lst) {
+        watch(getMapper().getCollectionName(entity), updateFull, pipeline, lst);
     }
 
     public <T> void watch(String collectionName, boolean updateFull, ChangeStreamListener lst) {
-        watch(collectionName, config.getMaxWaitTime(), updateFull, lst);
+        watch(collectionName, config.getMaxWaitTime(), updateFull, null, lst);
     }
 
-    public <T> void watch(String collectionName, int maxWaitTime, boolean updateFull, ChangeStreamListener lst) {
+    public <T> void watch(String collectionName, boolean updateFull, List<Map<String, Object>> pipeline, ChangeStreamListener lst) {
+        watch(collectionName, config.getMaxWaitTime(), updateFull, pipeline, lst);
+    }
+
+    public <T> void watch(String collectionName, int maxWaitTime, boolean updateFull, List<Map<String, Object>> pipeline, ChangeStreamListener lst) {
         try {
-            getDriver().watch(config.getDatabase(), collectionName, maxWaitTime, updateFull, new DriverTailableIterationCallback() {
+            getDriver().watch(config.getDatabase(), collectionName, maxWaitTime, updateFull, pipeline, new DriverTailableIterationCallback() {
                 boolean b = true;
 
                 @Override
@@ -2837,7 +2854,7 @@ public class Morphium {
     }
 
 
-    public <T> void watchDbAsync(String dbName, boolean updateFull, ChangeStreamListener lst) {
+    public <T> void watchDbAsync(String dbName, boolean updateFull, List<Map<String, Object>> pipeline, ChangeStreamListener lst) {
         asyncOperationsThreadPool.execute(() -> {
             watchDb(dbName, updateFull, lst);
             logger.debug("watch async finished");
@@ -2846,7 +2863,11 @@ public class Morphium {
 
 
     public <T> void watchDbAsync(boolean updateFull, ChangeStreamListener lst) {
-        watchDbAsync(config.getDatabase(), updateFull, lst);
+        watchDbAsync(config.getDatabase(), updateFull, null, lst);
+    }
+
+    public <T> void watchDbAsync(boolean updateFull, List<Map<String, Object>> pipeline, ChangeStreamListener lst) {
+        watchDbAsync(config.getDatabase(), updateFull, pipeline, lst);
     }
 
     public <T> void watchDb(boolean updateFull, ChangeStreamListener lst) {
@@ -2854,12 +2875,16 @@ public class Morphium {
     }
 
     public <T> void watchDb(String dbName, boolean updateFull, ChangeStreamListener lst) {
-        watchDb(dbName, getConfig().getMaxWaitTime(), updateFull, lst);
+        watchDb(dbName, getConfig().getMaxWaitTime(), updateFull, null, lst);
     }
 
-    public <T> void watchDb(String dbName, int maxWaitTime, boolean updateFull, ChangeStreamListener lst) {
+    public <T> void watchDb(String dbName, boolean updateFull, List<Map<String, Object>> pipeline, ChangeStreamListener lst) {
+        watchDb(dbName, getConfig().getMaxWaitTime(), updateFull, pipeline, lst);
+    }
+
+    public <T> void watchDb(String dbName, int maxWaitTime, boolean updateFull, List<Map<String, Object>> pipeline, ChangeStreamListener lst) {
         try {
-            getDriver().watch(dbName, maxWaitTime, updateFull, new DriverTailableIterationCallback() {
+            getDriver().watch(dbName, maxWaitTime, updateFull, pipeline, new DriverTailableIterationCallback() {
                 private boolean b = true;
 
                 @Override

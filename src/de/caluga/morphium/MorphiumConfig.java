@@ -69,6 +69,7 @@ public class MorphiumConfig {
     private int retryWaitTimeAsyncWriter = 200;
     private int globalW = 1; //number of writes
     private int maxWaitTime = 2000;
+    private int serverSelectionTimeout = 30000;
     //default time for write buffer to be filled
     private int writeBufferTime = 1000;
     //ms for the pause of the main thread
@@ -123,7 +124,6 @@ public class MorphiumConfig {
     private Class<? extends EncryptionKeyProvider> encryptionKeyProviderClass = DefaultEncryptionKeyProvider.class;
 
     private String driverClass;
-    private int acceptableLatencyDifference = 15;
     private int threadPoolMessagingCoreSize = 0;
     private int threadPoolMessagingMaxSize = 100;
     private long threadPoolMessagingKeepAliveTime = 2000;
@@ -138,7 +138,7 @@ public class MorphiumConfig {
     private int heartbeatSocketTimeout = 1000;
     private int minConnectionsPerHost = 1;
     private int minHearbeatFrequency = 2000;
-    private int localThreashold = 0;
+    private int localThreshold = 15;
     private int maxConnectionIdleTime = 10000;
     private int maxConnectionLifeTime = 60000;
 
@@ -591,8 +591,39 @@ public class MorphiumConfig {
         return maxWaitTime;
     }
 
+    /**
+     * Sets the maximum time that a thread will block waiting for a connection.
+     *
+     * @param maxWaitTime
+     *            the maximum wait time, in milliseconds
+     * @return {@code this}
+     * @see MongoClientOptions#getMaxWaitTime()
+     */
     public MorphiumConfig setMaxWaitTime(int maxWaitTime) {
         this.maxWaitTime = maxWaitTime;
+        return this;
+    }
+
+    public int getServerSelectionTimeout() {
+        return serverSelectionTimeout;
+    }
+
+    /**
+     * <p>
+     * Sets the server selection timeout in milliseconds, which defines how long the driver will wait for server selection to succeed before throwing an exception.
+     * </p>
+     *
+     * <p>
+     * A value of 0 means that it will timeout immediately if no server is available. A negative value means to wait indefinitely.
+     * </p>
+     *
+     * @param serverSelectionTimeout
+     *            the server selection timeout, in milliseconds
+     * @return {@code this}
+     * @see com.mongodb.MongoClientOptions#getServerSelectionTimeout()
+     */
+    public MorphiumConfig setServerSelectionTimeout(int serverSelectionTimeout) {
+        this.serverSelectionTimeout = serverSelectionTimeout;
         return this;
     }
 
@@ -1095,15 +1126,6 @@ public class MorphiumConfig {
         return this;
     }
 
-    public int getAcceptableLatencyDifference() {
-        return acceptableLatencyDifference;
-    }
-
-    public MorphiumConfig setAcceptableLatencyDifference(int acceptableLatencyDifference) {
-        this.acceptableLatencyDifference = acceptableLatencyDifference;
-        return this;
-    }
-
     public boolean isCamelCaseConversionEnabled() {
         return camelCaseConversionEnabled;
     }
@@ -1239,12 +1261,30 @@ public class MorphiumConfig {
         return this;
     }
 
-    public int getLocalThreashold() {
-        return localThreashold;
+    public int getLocalThreshold() {
+        return localThreshold;
     }
 
-    public MorphiumConfig setLocalThreashold(int localThreashold) {
-        this.localThreashold = localThreashold;
+    /**
+     * <p>
+     * Sets the local threshold. When choosing among multiple MongoDB servers to send a request, the MongoClient will only send that request to a server whose ping time is less than or equal to the server with the fastest ping time plus the local threshold.
+     * </p>
+     *
+     * <p>
+     * For example, let's say that the client is choosing a server to send a query when the read preference is {@code
+     * ReadPreference.secondary()}, and that there are three secondaries, server1, server2, and server3, whose ping times are 10, 15, and 16 milliseconds, respectively. With a local threshold of 5 milliseconds, the client will send the query to either server1 or server2 (randomly selecting between the two).
+     * </p>
+     *
+     * <p>
+     * Default is 15 milliseconds.
+     * </p>
+     *
+     * @return the local threshold, in milliseconds
+     * @mongodb.driver.manual reference/program/mongos/#cmdoption--localThreshold Local Threshold
+     * @since 2.13.0
+     */
+    public MorphiumConfig setLocalThreshold(int localThreshold) {
+        this.localThreshold = localThreshold;
         return this;
     }
 
