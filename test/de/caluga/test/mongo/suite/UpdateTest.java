@@ -41,6 +41,7 @@ public class UpdateTest extends MorphiumTestBase {
         assert (q.get().getCounter() == 15) : "counter is:" + q.get().getCounter();
         assert (q.get().getCounter2() == 3);
         morphium.inc(q, toInc, false, true, null);
+        Thread.sleep(150);
         assert (q.get().getCounter() == 25) : "counter is:" + q.get().getCounter();
         assert (q.get().getCounter2() == 3.5);
 
@@ -66,7 +67,7 @@ public class UpdateTest extends MorphiumTestBase {
         q = morphium.createQueryFor(UncachedObject.class);
         q = q.f("counter").gte(10).f("counter").lte(25).sort("counter");
         morphium.inc(q, "counter", 100);
-
+        Thread.sleep(100);
         uc = q.get();
         assert (uc.getCounter() == 11) : "Counter is wrong: " + uc.getCounter();
 
