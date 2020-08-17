@@ -877,6 +877,10 @@ public class Morphium implements AutoCloseable {
     }
 
 
+    public <T> void currentDate(final Query<?> query, String field, boolean upsert, boolean multiple) {
+        set(query, Utils.getMap("$currentDate", Utils.getMap("field", 1)), upsert, multiple);
+    }
+
     @SuppressWarnings("unused")
     public <T> void set(T toSet, Enum field, Object value, AsyncOperationCallback<T> callback) {
         set(toSet, field.name(), value, callback);

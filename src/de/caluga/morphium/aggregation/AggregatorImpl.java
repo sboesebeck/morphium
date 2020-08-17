@@ -103,14 +103,8 @@ public class AggregatorImpl<T, R> implements Aggregator<T, R> {
     @Override
     public Aggregator<T, R> match(Query<T> q) {
         Map<String, Object> o = Utils.getMap("$match", q.toQueryObject());
-        collectionName = q.getCollectionName();
-        params.add(o);
-        return this;
-    }
-
-    @Override
-    public Aggregator<T, R> matchSubQuery(Query<?> q) {
-        Map<String, Object> o = Utils.getMap("$match", q.toQueryObject());
+        if (collectionName == null)
+            collectionName = q.getCollectionName();
         params.add(o);
         return this;
     }
@@ -187,16 +181,6 @@ public class AggregatorImpl<T, R> implements Aggregator<T, R> {
     }
 
     @Override
-    public Group<T, R> groupSubObj(Map<String, String> idSubObject) {
-        //noinspection unchecked,unchecked
-        Group gr = new Group(this, idSubObject);
-        //noinspection unchecked
-        groups.add(gr);
-        //noinspection unchecked
-        return gr;
-    }
-
-    @Override
     public Group<T, R> group(String id) {
         Group<T, R> gr = new Group<>(this, id);
         groups.add(gr);
@@ -236,4 +220,143 @@ public class AggregatorImpl<T, R> implements Aggregator<T, R> {
         return params;
     }
 
+    @Override
+    public Aggregator<T, R> count(String fld) {
+        return null;
+    }
+
+    @Override
+    public Aggregator<T, R> count(Enum fld) {
+        return null;
+    }
+
+    @Override
+    public Aggregator<T, R> bucket(Map<String, Object> param) {
+        return null;
+    }
+
+    @Override
+    public Aggregator<T, R> bucketAuto(Map<String, Object> param) {
+        return null;
+    }
+
+    @Override
+    public Aggregator<T, R> collStats(Map<String, Object> param) {
+        return null;
+    }
+
+    @Override
+    public Aggregator<T, R> currentOp(Map<String, Object> param) {
+        return null;
+    }
+
+    @Override
+    public Aggregator<T, R> facet(Map<String, Object> param) {
+        return null;
+    }
+
+    @Override
+    public Aggregator<T, R> geoNear(Map<String, Object> param) {
+        return null;
+    }
+
+    @Override
+    public Aggregator<T, R> graphLookup(Map<String, Object> param) {
+        return null;
+    }
+
+    @Override
+    public Aggregator<T, R> indexStats(Map<String, Object> param) {
+        return null;
+    }
+
+    @Override
+    public Aggregator<T, R> listLocalSessions(Map<String, Object> param) {
+        return null;
+    }
+
+    @Override
+    public Aggregator<T, R> listSessions(Map<String, Object> param) {
+        return null;
+    }
+
+    @Override
+    public Aggregator<T, R> lookup(Map<String, Object> param) {
+        return null;
+    }
+
+    @Override
+    public Aggregator<T, R> match(Map<String, Object> param) {
+        return null;
+    }
+
+    @Override
+    public Aggregator<T, R> merge(Map<String, Object> param) {
+        return null;
+    }
+
+    @Override
+    public Aggregator<T, R> out(Map<String, Object> param) {
+        return null;
+    }
+
+    @Override
+    public Aggregator<T, R> planCacheStats(Map<String, Object> param) {
+        return null;
+    }
+
+    @Override
+    public Aggregator<T, R> redact(Map<String, Object> param) {
+        return null;
+    }
+
+    @Override
+    public Aggregator<T, R> replaceRoot(Map<String, Object> param) {
+        return null;
+    }
+
+    @Override
+    public Aggregator<T, R> replaceWith(Map<String, Object> param) {
+        return null;
+    }
+
+    @Override
+    public Aggregator<T, R> sample(Map<String, Object> param) {
+        return null;
+    }
+
+    @Override
+    public Aggregator<T, R> set(Map<String, Object> param) {
+        return null;
+    }
+
+    @Override
+    public Aggregator<T, R> sortByCount(Map<String, Object> param) {
+        return null;
+    }
+
+    @Override
+    public Aggregator<T, R> unionWith(Map<String, Object> param) {
+        return null;
+    }
+
+    @Override
+    public Aggregator<T, R> unset(List<String> field) {
+        return null;
+    }
+
+    @Override
+    public Aggregator<T, R> unset(String... param) {
+        return null;
+    }
+
+    @Override
+    public Aggregator<T, R> unset(Enum... field) {
+        return null;
+    }
+
+    @Override
+    public Aggregator<T, R> genericStage(String stageName, Object param) {
+        return null;
+    }
 }

@@ -3,6 +3,7 @@ package de.caluga.morphium.query;
 import de.caluga.morphium.FilterExpression;
 import de.caluga.morphium.MongoType;
 import de.caluga.morphium.MorphiumObjectMapper;
+import de.caluga.morphium.Utils;
 import de.caluga.morphium.annotations.Entity;
 import de.caluga.morphium.annotations.Reference;
 import de.caluga.morphium.driver.MorphiumId;
@@ -26,11 +27,18 @@ public class MongoFieldImpl<T> implements MongoField<T> {
     private Query<T> query;
     private MorphiumObjectMapper mapper;
     private String fldStr;
+    private boolean not = false;
 
     private FilterExpression fe;
 
 
     public MongoFieldImpl() {
+    }
+
+    @Override
+    public Query<T> not() {
+        not = true;
+        return query;
     }
 
     public MongoFieldImpl(Query<T> q, MorphiumObjectMapper map) {
@@ -71,10 +79,8 @@ public class MongoFieldImpl<T> implements MongoField<T> {
         // checking for Ids in references...
         val = checkValue(val);
 
-        fe.setValue(val);
-        fe.setField(mapper.getMorphium().getARHelper().getFieldName(query.getType(), fldStr));
-        query.addChild(fe);
-        return query;  // To change body of implemented methods use File | Settings | File Templates.
+        addSimple(val);
+        return query;
     }
 
     private Object checkValue(Object val) {
@@ -123,11 +129,26 @@ public class MongoFieldImpl<T> implements MongoField<T> {
         return val;
     }
 
+    private void addSimple(Object val) {
+        if (not) {
+            fe.setValue(Utils.getMap("$not", val));
+        } else {
+            fe.setValue(val);
+        }
+        fe.setField(mapper.getMorphium().getARHelper().getFieldName(query.getType(), fldStr));
+        query.addChild(fe);
+    }
+
+
     private void add(String op, Object value) {
         fe.setField(mapper.getMorphium().getARHelper().getFieldName(query.getType(), fldStr));
         FilterExpression child = new FilterExpression();
         child.setField(op);
-        child.setValue(value);
+        if (not) {
+            child.setValue(Utils.getMap("$not", value));
+        } else {
+            child.setValue(value);
+        }
         fe.addChild(child);
 
         query.addChild(fe);
@@ -203,9 +224,11 @@ public class MongoFieldImpl<T> implements MongoField<T> {
 
     @Override
     public Query<T> matches(Pattern p) {
-        fe.setValue(p);
-        fe.setField(mapper.getMorphium().getARHelper().getFieldName(query.getType(), fldStr));
-        query.addChild(fe);
+        addSimple(p);
+//            fe.setValue(p);
+//
+//        fe.setField(mapper.getMorphium().getARHelper().getFieldName(query.getType(), fldStr));
+//        query.addChild(fe);
         return query;
     }
 
@@ -277,6 +300,12 @@ public class MongoFieldImpl<T> implements MongoField<T> {
 
         createFilterExpressionList(lst, "$box");
         return query;
+    }
+
+    @Override
+    public Query<T> geoIntersects(double x, double y, double x2, double y2) {
+        List<Object> lst = new ArrayList<>();
+
     }
 
     private void createFilterExpressionList(List<Object> lst, String type) {
@@ -414,6 +443,26 @@ public class MongoFieldImpl<T> implements MongoField<T> {
     @Override
     public void setQuery(Query<T> q) {
         query = q;
+    }
+
+    @Override
+    public Query<T> bitsAllClear(int... b) {
+
+    }
+
+    @Override
+    public Query<T> bitsAllSet(int... b) {
+
+    }
+
+    @Override
+    public Query<T> bitsAnyClear(int... b) {
+
+    }
+
+    @Override
+    public Query<T> bitsAnySet(int... b) {
+
     }
 
 }
