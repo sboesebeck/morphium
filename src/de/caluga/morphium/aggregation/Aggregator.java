@@ -47,15 +47,63 @@ public interface Aggregator<T, R> {
 
     Aggregator<T, R> match(Query<T> q);
 
-    /**
-     * use matchSubQuery if you prepared som mid-result in your aggregation you need to do an additional match for
-     * Do not use it for the base query!
-     *
-     * @param q
-     * @return aggregator
-     */
-    @SuppressWarnings("unused")
-    Aggregator<T, R> matchSubQuery(Query<?> q);
+    Aggregator<T, R> count(String fld);
+
+    Aggregator<T, R> count(Enum fld);
+
+    Aggregator<T, R> bucket(Map<String, Object> param);
+
+    Aggregator<T, R> bucketAuto(Map<String, Object> param);
+
+    Aggregator<T, R> collStats(Map<String, Object> param);
+
+    Aggregator<T, R> currentOp(Map<String, Object> param);
+
+    Aggregator<T, R> facet(Map<String, Object> param);
+
+    Aggregator<T, R> geoNear(Map<String, Object> param);
+
+    Aggregator<T, R> graphLookup(Map<String, Object> param);
+
+    Aggregator<T, R> indexStats(Map<String, Object> param);
+
+    Aggregator<T, R> listLocalSessions(Map<String, Object> param);
+
+    Aggregator<T, R> listSessions(Map<String, Object> param);
+
+    Aggregator<T, R> lookup(Map<String, Object> param);
+
+    Aggregator<T, R> match(Map<String, Object> param);
+
+    Aggregator<T, R> merge(Map<String, Object> param);
+
+    Aggregator<T, R> out(Map<String, Object> param);
+
+    Aggregator<T, R> planCacheStats(Map<String, Object> param);
+
+    Aggregator<T, R> redact(Map<String, Object> param);
+
+    Aggregator<T, R> replaceRoot(Map<String, Object> param);
+
+    Aggregator<T, R> replaceWith(Map<String, Object> param);
+
+    Aggregator<T, R> sample(Map<String, Object> param);
+
+    Aggregator<T, R> set(Map<String, Object> param);
+
+    Aggregator<T, R> sortByCount(Map<String, Object> param);
+
+    Aggregator<T, R> unionWith(Map<String, Object> param);
+
+    Aggregator<T, R> unset(List<String> field);
+
+    Aggregator<T, R> unset(String... param);
+
+    Aggregator<T, R> unset(Enum... field);
+
+
+    Aggregator<T, R> genericStage(String stageName, Object param);
+
 
     Aggregator<T, R> limit(int num);
 
@@ -76,9 +124,6 @@ public interface Aggregator<T, R> {
     void setCollectionName(String cn);
 
     Group<T, R> group(Map<String, Object> id);
-
-    @SuppressWarnings("unused")
-    Group<T, R> groupSubObj(Map<String, String> idSubObject);
 
     Group<T, R> group(String id);
 

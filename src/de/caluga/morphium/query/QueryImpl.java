@@ -629,6 +629,13 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
         return o;
     }
 
+
+    @Override
+    public List<T> matchesJsonSchema(String schemaDef) {
+
+    }
+
+
     @Override
     public Class<? extends T> getType() {
         return type;
