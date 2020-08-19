@@ -114,7 +114,25 @@ public interface MongoField<T> {
 
     void setMapper(MorphiumObjectMapper mapper);
 
+    Query<T> not();
+
     String getFieldString();
 
     void setFieldString(String fld);
+
+    Query<T> bitsAllClear(int... b);
+
+    Query<T> bitsAllSet(int... b);
+
+    Query<T> bitsAnyClear(int... b);
+
+    Query<T> bitsAnySet(int... b);
+
+    Query<T> bitsAllClear(long bitmask);
+
+    Query<T> bitsAllSet(long bitmask);
+
+    Query<T> bitsAnyClear(long bitmask);
+
+    Query<T> bitsAnySet(long bitmask);
 }
