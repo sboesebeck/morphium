@@ -3,6 +3,7 @@ package de.caluga.morphium.query;
 import de.caluga.morphium.AnnotationAndReflectionHelper;
 import de.caluga.morphium.FilterExpression;
 import de.caluga.morphium.Morphium;
+import de.caluga.morphium.aggregation.Expr;
 import de.caluga.morphium.annotations.ReadPreferenceLevel;
 import de.caluga.morphium.async.AsyncOperationCallback;
 import org.json.simple.parser.ParseException;
@@ -152,6 +153,8 @@ public interface Query<T> extends Cloneable {
      * @return query object
      */
     Map<String, Object> toQueryObject();
+
+    Query<T> expr(Expr exp);
 
     Query<T> matchesJsonSchema(Map<String, Object> schemaDef);
 

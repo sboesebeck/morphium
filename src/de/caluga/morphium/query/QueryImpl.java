@@ -1,6 +1,7 @@
 package de.caluga.morphium.query;
 
 import de.caluga.morphium.*;
+import de.caluga.morphium.aggregation.Expr;
 import de.caluga.morphium.annotations.*;
 import de.caluga.morphium.annotations.caching.Cache;
 import de.caluga.morphium.async.AsyncOperationCallback;
@@ -632,6 +633,16 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
         return o;
     }
 
+
+    @Override
+    public Query<T> expr(Expr exp) {
+        FilterExpression fe = new FilterExpression();
+        fe.setField("$expr");
+
+        fe.setValue(toQueryObject());
+        andExpr.add(fe);
+        return this;
+    }
 
     @Override
     public Query<T> matchesJsonSchema(Map<String, Object> schemaDef) {
