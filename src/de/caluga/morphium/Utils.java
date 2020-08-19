@@ -106,14 +106,14 @@ public class Utils {
         out.write(" } ");
     }
 
-    public static <K, V> Map<K, V> getMap(K key, V value) {
-        LinkedHashMap<K, V> ret = new LinkedHashMap<>();
+    public static <K, V> UtilsMap<K, V> getMap(K key, V value) {
+        UtilsMap<K, V> ret = new UtilsMap<>();
         ret.put(key, value);
         return ret;
     }
 
-    public static Map<String, Integer> getIntMap(String key, Integer value) {
-        HashMap<String, Integer> ret = new LinkedHashMap<>();
+    public static UtilsMap<String, Integer> getIntMap(String key, Integer value) {
+        UtilsMap<String, Integer> ret = new UtilsMap<>();
         ret.put(key, value);
         return ret;
     }
@@ -283,4 +283,16 @@ public class Utils {
         return ret;
     }
 
+
+    public static class UtilsMap<K, V> extends LinkedHashMap<K, V> {
+        public UtilsMap<K, V> add(K key, V val) {
+            put(key, val);
+            return this;
+        }
+
+        public UtilsMap<K, V> addAll(Map<K, V> m) {
+            putAll(m);
+            return this;
+        }
+    }
 }

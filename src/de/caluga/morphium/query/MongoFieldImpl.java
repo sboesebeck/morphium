@@ -556,6 +556,7 @@ public class MongoFieldImpl<T> implements MongoField<T> {
         return query;
     }
 
+    @Override
     public Query<T> geoIntersects(Geo shape) {
         List<FilterExpression> expressionList = new ArrayList<>();
 
@@ -571,6 +572,7 @@ public class MongoFieldImpl<T> implements MongoField<T> {
         return query;
     }
 
+    @Override
     public Query<T> geoWithin(Geo shape) {
         List<FilterExpression> expressionList = new ArrayList<>();
 
