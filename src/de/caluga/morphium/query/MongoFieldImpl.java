@@ -447,22 +447,61 @@ public class MongoFieldImpl<T> implements MongoField<T> {
 
     @Override
     public Query<T> bitsAllClear(int... b) {
-
+        List<Integer> lst = new ArrayList<>();
+        for (int r : b) lst.add(r);
+        add("$bitsAllClear", lst);
+        return query;
     }
 
     @Override
     public Query<T> bitsAllSet(int... b) {
-
+        List<Integer> lst = new ArrayList<>();
+        for (int r : b) lst.add(r);
+        add("$bitsAllSet", lst);
+        return query;
     }
 
     @Override
     public Query<T> bitsAnyClear(int... b) {
-
+        List<Integer> lst = new ArrayList<>();
+        for (int r : b) lst.add(r);
+        add("$bitsAnyClear", lst);
+        return query;
     }
 
     @Override
     public Query<T> bitsAnySet(int... b) {
+        List<Integer> lst = new ArrayList<>();
+        for (int r : b) lst.add(r);
+        add("$bitsAnySet", lst);
+        return query;
+    }
 
+    @Override
+    public Query<T> bitsAllClear(long bitmask) {
+
+        add("$bitsAllClear", bitmask);
+        return query;
+    }
+
+    @Override
+    public Query<T> bitsAllSet(long bitmask) {
+
+        add("$bitsAllSet", bitmask);
+        return query;
+    }
+
+    @Override
+    public Query<T> bitsAnyClear(long bitmask) {
+
+        add("$bitsAnyClear", bitmask);
+        return query;
+    }
+
+    @Override
+    public Query<T> bitsAnySet(long bitmask) {
+        add("$bitsAnySet", bitmask);
+        return query;
     }
 
 }

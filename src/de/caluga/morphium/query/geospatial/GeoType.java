@@ -1,4 +1,4 @@
-package de.caluga.morphium.query;
+package de.caluga.morphium.query.geospatial;
 
 public enum GeoType {
     POINT, POLYGON, LineString,
