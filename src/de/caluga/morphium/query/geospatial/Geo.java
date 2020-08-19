@@ -1,5 +1,8 @@
 package de.caluga.morphium.query.geospatial;
 
+import de.caluga.morphium.annotations.Embedded;
+
+@Embedded
 public abstract class Geo<T> {
 
     private GeoType type;
