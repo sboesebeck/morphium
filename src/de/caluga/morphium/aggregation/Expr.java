@@ -1,7 +1,6 @@
 package de.caluga.morphium.aggregation;
 
 import de.caluga.morphium.Utils;
-import sun.awt.image.ImageWatched;
 
 import java.util.*;
 
@@ -105,7 +104,7 @@ public abstract class Expr {
     }
 
     public static Expr concatArrays(Expr... arrays) {
-        return new OpExpr("log", Arrays.asList(arrays));
+        return new OpExpr("concatArrays", Arrays.asList(arrays));
     }
 
     public static Expr filter(Expr inputArray, String as, Expr cond) {
@@ -113,7 +112,7 @@ public abstract class Expr {
     }
 
     public static Expr first(Expr e) {
-        return new OpExpr("first", Arrays.asList(e));
+        return new OpExprNoList("first", e);
     }
 
     public static Expr in(Expr elem, Expr array) {
@@ -129,7 +128,7 @@ public abstract class Expr {
     }
 
     public static Expr last(Expr e) {
-        return new OpExpr("first", Arrays.asList(e));
+        return new OpExprNoList("first", e);
     }
 
     public static Expr map(Expr inputArray, Expr as, Expr in) {
@@ -170,422 +169,676 @@ public abstract class Expr {
 
 
     //Boolean Expression Operators
-    public static Expr and() {
-        return null;
+    public static Expr and(Expr... expressions) {
+        return new OpExpr("and", Arrays.asList(expressions));
     }
 
-    public static Expr or() {
-        return null;
+    public static Expr or(Expr... expressions) {
+        return new OpExpr("and", Arrays.asList(expressions));
     }
 
-    public static Expr not() {
-        return null;
+    public static Expr not(Expr expression) {
+        return new OpExpr("not", Arrays.asList(expression));
     }
 
 
     //Comparison Expression Operators
-    public static Expr cmp() {
-        return null;
+    public static Expr cmp(Expr e1, Expr e2) {
+        return new OpExpr("cmp", Arrays.asList(e1, e2));
     }
 
-    public static Expr eq() {
-        return null;
+    public static Expr eq(Expr e1, Expr e2) {
+        return new OpExpr("eq", Arrays.asList(e1, e2));
     }
 
-    public static Expr ne() {
-        return null;
+    public static Expr ne(Expr e1, Expr e2) {
+        return new OpExpr("ne", Arrays.asList(e1, e2));
     }
 
-    public static Expr gt() {
-        return null;
+    public static Expr gt(Expr e1, Expr e2) {
+        return new OpExpr("gt", Arrays.asList(e1, e2));
     }
 
-    public static Expr lt() {
-        return null;
+    public static Expr lt(Expr e1, Expr e2) {
+        return new OpExpr("lt", Arrays.asList(e1, e2));
     }
 
-    public static Expr gte() {
-        return null;
+    public static Expr gte(Expr e1, Expr e2) {
+        return new OpExpr("gte", Arrays.asList(e1, e2));
     }
 
-    public static Expr lte() {
-        return null;
+    public static Expr lte(Expr e1, Expr e2) {
+        return new OpExpr("lte", Arrays.asList(e1, e2));
     }
 
 
     //Conditional Expression Operators
-    public static Expr cond() {
-        return null;
+    public static Expr cond(Expr condition, Expr caseTrue, Expr caseFalse) {
+        return new OpExpr("cond", Arrays.asList(condition, caseTrue, caseFalse));
     }
 
-    public static Expr ifNull() {
-        return null;
+    public static Expr ifNull(Expr toCheck, Expr resultIfNull) {
+        return new OpExpr("ifNull", Arrays.asList(toCheck, resultIfNull));
     }
 
-    public static Expr switchExpr() {
-        return null;
+    /**
+     * @param branches a map, where key is the condition and value is the result if true
+     * @return
+     */
+    public static Expr switchExpr(Map<Expr, Expr> branches, Expr defaultCase) {
+        List<Map<String, Expr>> branchList = new ArrayList<>();
+        for (Map.Entry<Expr, Expr> ex : branches.entrySet()) {
+            branchList.add(Utils.getMap("case", ex.getKey()).add("then", ex.getValue()));
+        }
+        Utils.UtilsMap<String, Expr> branches1 = Utils.getMap("branches", new Expr() {
+            @Override
+            public Object toQueryObject() {
+                return branchList;
+            }
+        });
+        branches1.put("default", defaultCase);
+        return new MapOpExpr("switch", branches1);
     }
 
 
     //Custom Aggregation
-    public static Expr function() {
-        return null;
+    public static Expr function(String code, Expr args) {
+        return function(code, args);
     }
 
-    public static Expr accumulator() {
-        return null;
+    public static Expr function(String code, Expr args, String lang) {
+        if (lang == null) lang = "js";
+        return new MapOpExpr("function", Utils.getMap("body", string(code)).add("args", args).add("lang", string(lang)));
+    }
+
+
+    // $accumulator: {
+    //    init: <code>,
+    //    initArgs: <array expression>,        // Optional
+    //    accumulate: <code>,
+    //    accumulateArgs: <array expression>,
+    //    merge: <code>,
+    //    finalize: <code>,                    // Optional
+    //    lang: <string>
+    //  }
+    public static Expr accumulator(String initCode, String accumulateCode, Expr accArgs, String mergeCode) {
+        return accumulator(initCode, null, accumulateCode, accArgs, mergeCode, null, null);
+    }
+
+    public static Expr accumulator(String initCode, Expr initArgs, String accumulateCode, Expr accArgs, String mergeCode) {
+        return accumulator(initCode, initArgs, accumulateCode, accArgs, mergeCode, null, null);
+    }
+
+    public static Expr accumulator(String initCode, Expr initArgs, String accumulateCode, Expr accArgs, String mergeCode, String finalizeCode) {
+        return accumulator(initCode, initArgs, accumulateCode, accArgs, mergeCode, finalizeCode, null);
+    }
+
+    public static Expr accumulator(String initCode, Expr initArgs, String accumulateCode, Expr accArgs, String mergeCode, String finalizeCode, String lang) {
+        if (lang == null) lang = "js";
+        Utils.UtilsMap<String, Expr> map = Utils.getMap("init", string(initCode));
+        map.add("initArgs", initArgs)
+                .add("accumulate", string(accumulateCode))
+                .add("accumulateArgs", accArgs)
+                .add("merge", string(mergeCode))
+                .add("finalize", string(finalizeCode))
+                .add("lang", string(lang));
+
+
+        return new MapOpExpr("function", map);
     }
 
 
     //Data Size Operators
-    public static Expr binarySize() {
-        return null;
+    public static Expr binarySize(Expr e) {
+        return new OpExprNoList("binarySize", e);
     }
 
-    public static Expr bsonSize() {
-        return null;
+    public static Expr bsonSize(Expr e) {
+        return new OpExprNoList("bsonSize", e);
     }
 
 
     //Date Expression Operators
 
-    public static Expr dateFromParts() {
-        return null;
+    public static Expr dateFromParts(Expr year) {
+        return new MapOpExpr("dateFromParts", Utils.getMap("year", year)
+        );
     }
 
-    public static Expr dateFromString() {
-        return null;
+    public static Expr dateFromParts(Expr year, Expr month) {
+        return new MapOpExpr("dateFromParts", Utils.getMap("year", year)
+                .add("month", month)
+        );
     }
 
-    public static Expr dateToParts() {
-        return null;
+    public static Expr dateFromParts(Expr year, Expr month, Expr day, Expr hour) {
+        return new MapOpExpr("dateFromParts", Utils.getMap("year", year)
+                .add("month", month)
+                .add("day", day)
+                .add("hour", hour)
+        );
     }
 
-    public static Expr dateToString() {
-        return null;
+    public static Expr dateFromParts(Expr year, Expr month, Expr day, Expr hour, Expr min, Expr sec) {
+        return new MapOpExpr("dateFromParts", Utils.getMap("year", year)
+                .add("month", month)
+                .add("day", day)
+                .add("hour", hour)
+                .add("minute", min)
+                .add("second", sec)
+
+        );
     }
 
-    public static Expr dayOfMonth() {
-        return null;
+    public static Expr dateFromParts(Expr year, Expr month, Expr day, Expr hour, Expr min, Expr sec, Expr ms) {
+        return new MapOpExpr("dateFromParts", Utils.getMap("year", year)
+                .add("month", month)
+                .add("day", day)
+                .add("hour", hour)
+                .add("minute", min)
+                .add("second", sec)
+                .add("millisecond", ms)
+        );
     }
 
-    public static Expr dayOfWeek() {
-        return null;
-    }
-
-    public static Expr dayOfYear() {
-        return null;
-    }
-
-    public static Expr hour() {
-        return null;
-    }
-
-    public static Expr isoDayOfWeek() {
-        return null;
-    }
-
-    public static Expr isoWeek() {
-        return null;
-    }
-
-    public static Expr isoWeekYear() {
-        return null;
-    }
-
-    public static Expr millisecond() {
-        return null;
-    }
-
-    public static Expr minute() {
-        return null;
-    }
-
-    public static Expr month() {
-        return null;
-    }
-
-    public static Expr second() {
-        return null;
-    }
-
-    public static Expr toDate() {
-        return null;
-    }
-
-    public static Expr week() {
-        return null;
-    }
-
-    public static Expr year() {
-        return null;
+    public static Expr dateFromParts(Expr year, Expr month, Expr day, Expr hour, Expr min, Expr sec, Expr ms, Expr timeZone) {
+        return new MapOpExpr("dateFromParts", Utils.getMap("year", year)
+                .add("month", month)
+                .add("day", day)
+                .add("hour", hour)
+                .add("minute", min)
+                .add("second", sec)
+                .add("millisecond", ms)
+                .add("timezone", timeZone)
+        );
     }
 
 
-    public static Expr literal() {
-        return null;
+    public static Expr isoDateFromParts(Expr isoWeekYear) {
+        return new MapOpExpr("dateFromParts", Utils.getMap("isoWeekYear", isoWeekYear)
+        );
+    }
+
+    public static Expr isoDateFromParts(Expr isoWeekYear, Expr isoWeek) {
+        return new MapOpExpr("dateFromParts", Utils.getMap("isoWeekYear", isoWeekYear)
+                .add("month", isoWeek)
+        );
+    }
+
+    public static Expr isoDateFromParts(Expr isoWeekYear, Expr isoWeek, Expr isoDayOfWeek) {
+        return new MapOpExpr("dateFromParts", Utils.getMap("isoWeekYear", isoWeekYear)
+                .add("month", isoWeek)
+                .add("day", isoDayOfWeek)
+        );
+    }
+
+    public static Expr isoDateFromParts(Expr isoWeekYear, Expr isoWeek, Expr isoDayOfWeek, Expr hour) {
+        return new MapOpExpr("dateFromParts", Utils.getMap("isoWeekYear", isoWeekYear)
+                .add("month", isoWeek)
+                .add("day", isoDayOfWeek)
+                .add("hour", hour)
+        );
+    }
+
+    public static Expr isoDateFromParts(Expr isoWeekYear, Expr isoWeek, Expr isoDayOfWeek, Expr hour, Expr min) {
+        return new MapOpExpr("dateFromParts", Utils.getMap("isoWeekYear", isoWeekYear)
+                .add("month", isoWeek)
+                .add("day", isoDayOfWeek)
+                .add("hour", hour)
+                .add("minute", min)
+        );
+    }
+
+    public static Expr isoDateFromParts(Expr isoWeekYear, Expr isoWeek, Expr isoDayOfWeek, Expr hour, Expr min, Expr sec) {
+        return new MapOpExpr("dateFromParts", Utils.getMap("isoWeekYear", isoWeekYear)
+                .add("month", isoWeek)
+                .add("day", isoDayOfWeek)
+                .add("hour", hour)
+                .add("minute", min)
+                .add("second", sec)
+        );
+    }
+
+    public static Expr isoDateFromParts(Expr isoWeekYear, Expr isoWeek, Expr isoDayOfWeek, Expr hour, Expr min, Expr sec, Expr ms) {
+        return new MapOpExpr("dateFromParts", Utils.getMap("isoWeekYear", isoWeekYear)
+                .add("month", isoWeek)
+                .add("day", isoDayOfWeek)
+                .add("hour", hour)
+                .add("minute", min)
+                .add("second", sec)
+                .add("millisecond", ms)
+        );
+    }
+
+    public static Expr isoDateFromParts(Expr isoWeekYear, Expr isoWeek, Expr isoDayOfWeek, Expr hour, Expr min, Expr sec, Expr ms, Expr timeZone) {
+        return new MapOpExpr("dateFromParts", Utils.getMap("isoWeekYear", isoWeekYear)
+                .add("month", isoWeek)
+                .add("day", isoDayOfWeek)
+                .add("hour", hour)
+                .add("minute", min)
+                .add("second", sec)
+                .add("millisecond", ms)
+                .add("timezone", timeZone)
+        );
+    }
+
+    public static Expr dateFromString(Expr dateString, Expr format, Expr timezone, Expr onError, Expr onNull) {
+        return new MapOpExpr("dateFromString", Utils.getMap("dateString", dateString)
+                .add("format", format)
+                .add("timezone", timezone)
+                .add("onError", onError)
+                .add("onNull", onNull)
+        );
+    }
+
+    public static Expr dateToParts(Expr date, Expr timezone, boolean iso8601) {
+        return new MapOpExpr("dateToParts", Utils.getMap("date", date)
+                .add("timezone", timezone)
+                .add("iso8601", bool(iso8601))
+        );
+    }
+
+    public static Expr dateToString(Expr date, Expr format, Expr timezone, Expr onNull) {
+        return new MapOpExpr("dateToString", Utils.getMap("dateString", date)
+                .add("format", format)
+                .add("timezone", timezone)
+                .add("onNull", onNull)
+        );
+    }
+
+    public static Expr dayOfMonth(Expr date) {
+        return new OpExpr("dayOfMonth", Arrays.asList(date));
+    }
+
+    public static Expr dayOfWeek(Expr date) {
+        return new OpExpr("dayOfWeek", Arrays.asList(date));
+    }
+
+    public static Expr dayOfYear(Expr date) {
+        return new OpExpr("dayOfYear", Arrays.asList(date));
+
+    }
+
+    public static Expr hour(Expr date) {
+        return new OpExpr("hour", Arrays.asList(date));
+    }
+
+    public static Expr isoDayOfWeek(Expr date) {
+        return new OpExpr("isoDayOfWeek", Arrays.asList(date));
+    }
+
+    public static Expr isoWeek(Expr date) {
+        return new OpExpr("isoWeek", Arrays.asList(date));
+    }
+
+    public static Expr isoWeekYear(Expr date) {
+        return new OpExpr("isoWeekYear", Arrays.asList(date));
+    }
+
+    public static Expr millisecond(Expr date) {
+        return new OpExpr("millisecond", Arrays.asList(date));
+    }
+
+    public static Expr minute(Expr date) {
+        return new OpExpr("minute", Arrays.asList(date));
+    }
+
+    public static Expr month(Expr date) {
+        return new OpExpr("month", Arrays.asList(date));
+    }
+
+    public static Expr second(Expr date) {
+        return new OpExpr("second", Arrays.asList(date));
+    }
+
+    public static Expr toDate(Expr e) {
+        return new OpExprNoList("toDate", e);
+    }
+
+    public static Expr week(Expr date) {
+        return new OpExpr("week", Arrays.asList(date));
+    }
+
+    public static Expr year(Expr date) {
+        return new OpExpr("year", Arrays.asList(date));
     }
 
 
-    public static Expr mergeObjects() {
-        return null;
+    public static Expr literal(Expr e) {
+        return new OpExprNoList("literal", e);
+    }
+
+
+    public static Expr mergeObjects(Expr doc) {
+        return new Expr() {
+            @Override
+            public Object toQueryObject() {
+                return Utils.getMap("$mergeObjects", doc.toQueryObject());
+            }
+        };
+    }
+
+    public static Expr mergeObjects(Expr... docs) {
+        return new OpExpr("mergeObjects", Arrays.asList(docs));
     }
 
 
     //Set Expression Operators
 
-    public static Expr allElementsTrue() {
-        return null;
+    public static Expr allElementsTrue(Expr... e) {
+        return new OpExpr("allElementsTrue", Arrays.asList(e));
     }
 
-    public static Expr anyElementTrue() {
-        return null;
+    public static Expr anyElementTrue(Expr... e) {
+        return new OpExpr("anyElementsTrue", Arrays.asList(e));
     }
 
-    public static Expr setDifference() {
-        return null;
+    public static Expr setDifference(Expr e1, Expr e2) {
+        return new OpExpr("setDifference", Arrays.asList(e1, e2));
     }
 
-    public static Expr setEquals() {
-        return null;
+    public static Expr setEquals(Expr... e) {
+        return new OpExpr("setEquals", Arrays.asList(e));
     }
 
-    public static Expr setIntersection() {
-        return null;
+    public static Expr setIntersection(Expr... e) {
+        return new OpExpr("anyElementsTrue", Arrays.asList(e));
     }
 
-    public static Expr setIsSubset() {
-        return null;
+    public static Expr setIsSubset(Expr e1, Expr e2) {
+        return new OpExpr("setIsSubset", Arrays.asList(e1, e2));
     }
 
-    public static Expr setUnion() {
-        return null;
+    public static Expr setUnion(Expr... e) {
+        return new OpExpr("setUnion", Arrays.asList(e));
     }
 
 
     //concat
 
-    public static Expr concat() {
-        return null;
+    public static Expr concat(Expr... e) {
+        return new OpExpr("concat", Arrays.asList(e));
     }
 
-    public static Expr dindexOfBytes() {
-        return null;
+    public static Expr indexOfBytes(Expr str, Expr substr, Expr start, Expr end) {
+        return new OpExpr("indexOfBytes", Arrays.asList(str, substr, start, end));
     }
 
-    public static Expr indexOfCP() {
-        return null;
+    public static Expr indexOfCP(Expr str, Expr substr, Expr start, Expr end) {
+        return new OpExpr("indexOfCP", Arrays.asList(str, substr, start, end));
     }
 
-    public static Expr ltrim() {
-        return null;
+    public static Expr ltrim(Expr str, Expr charsToTrim) {
+        return new MapOpExpr("ltrim", Utils.getMap("input", str).add("chars", charsToTrim));
     }
 
-    public static Expr regexFind() {
-        return null;
+    public static Expr regexFind(Expr input, Expr regex, Expr options) {
+        return new MapOpExpr("regexFind", Utils.getMap("input", input)
+                .add("regex", regex)
+                .add("options", options)
+        );
     }
 
-    public static Expr regexFindAll() {
-        return null;
+    public static Expr regexFindAll(Expr input, Expr regex, Expr options) {
+        return new MapOpExpr("regexFindAll", Utils.getMap("input", input)
+                .add("regex", regex)
+                .add("options", options)
+        );
     }
 
-    public static Expr regexMatch() {
-        return null;
+    public static Expr regexMatch(Expr input, Expr regex, Expr options) {
+        return new MapOpExpr("regexMatch", Utils.getMap("input", input)
+                .add("regex", regex)
+                .add("options", options)
+        );
     }
 
-    public static Expr replaceOne() {
-        return null;
+    public static Expr replaceOne(Expr input, Expr find, Expr replacement) {
+        return new MapOpExpr("replaceOne", Utils.getMap("input", input)
+                .add("find", find)
+                .add("replacement", replacement)
+        );
     }
 
-    public static Expr replaceAll() {
-        return null;
+    public static Expr replaceAll(Expr input, Expr find, Expr replacement) {
+        return new MapOpExpr("replaceAll", Utils.getMap("input", input)
+                .add("find", find)
+                .add("replacement", replacement));
     }
 
-    public static Expr rtrim() {
-        return null;
+    public static Expr rtrim(Expr str, Expr charsToTrim) {
+        return new MapOpExpr("rtrim", Utils.getMap("input", str).add("chars", charsToTrim));
     }
 
-    public static Expr split() {
-        return null;
+    public static Expr split(Expr str, Expr delimiter) {
+        return new OpExpr("split", Arrays.asList(str, delimiter));
     }
 
-    public static Expr strLenBytes() {
-        return null;
+    public static Expr strLenBytes(Expr str) {
+        return new OpExpr("strLenBytes", Arrays.asList(str));
     }
 
-    public static Expr strLenCP() {
-        return null;
+    public static Expr strLenCP(Expr str) {
+        return new OpExpr("strLenCP", Arrays.asList(str));
     }
 
-    public static Expr strcasecmp() {
-        return null;
+    public static Expr strcasecmp(Expr e1, Expr e2) {
+        return new OpExpr("strcasecmp", Arrays.asList(e1, e2));
     }
 
-    public static Expr substr() {
-        return null;
+    public static Expr substr(Expr str, Expr start, Expr len) {
+        return new OpExpr("substr", Arrays.asList(str, start, len));
     }
 
-    public static Expr substrBytes() {
-        return null;
+    public static Expr substrBytes(Expr str, Expr index, Expr count) {
+        return new OpExpr("substrBytes", Arrays.asList(str, index, count));
     }
 
-    public static Expr substrCP() {
-        return null;
+    public static Expr substrCP(Expr str, Expr cpIdx, Expr cpCount) {
+        return new OpExpr("substrCP", Arrays.asList(str, cpIdx, cpCount));
     }
 
-    public static Expr toLower() {
-        return null;
+    public static Expr toLower(Expr e) {
+        return new OpExprNoList("toLower", e);
     }
 
-    public static Expr toStr() {
-        return null;
+    public static Expr toStr(Expr e) {
+        return new OpExprNoList("toString", e);
     }
 
-    public static Expr trim() {
-        return null;
+    public static Expr trim(Expr str, Expr charsToTrim) {
+        return new MapOpExpr("trim", Utils.getMap("input", str).add("chars", charsToTrim));
     }
 
-    public static Expr toUpper() {
-        return null;
+    public static Expr toUpper(Expr e) {
+        return new OpExprNoList("toUpper", e);
     }
 
 
-    public static Expr meta() {
-        return null;
+    public static Expr meta(String metaDataKeyword) {
+        return new Expr() {
+            @Override
+            public Object toQueryObject() {
+                return Utils.getMap("$meta", metaDataKeyword);
+            }
+        };
     }
 
 
     //Trigonometry Expression Operators
 
-    public static Expr sin() {
-        return null;
+    public static Expr sin(Expr e) {
+        return new OpExprNoList("sin", e);
     }
 
-    public static Expr cos() {
-        return null;
+    public static Expr cos(Expr e) {
+        return new OpExprNoList("cos", e);
     }
 
-    public static Expr tan() {
-        return null;
+    public static Expr tan(Expr e) {
+        return new OpExprNoList("tan", e);
     }
 
-    public static Expr asin() {
-        return null;
+    public static Expr asin(Expr e) {
+        return new OpExprNoList("asin", e);
     }
 
-    public static Expr acos() {
-        return null;
+    public static Expr acos(Expr e) {
+        return new OpExprNoList("acos", e);
     }
 
-    public static Expr atan() {
-        return null;
+    public static Expr atan(Expr e) {
+        return new OpExprNoList("atan", e);
     }
 
-    public static Expr atan2() {
-        return null;
+    public static Expr atan2(Expr e) {
+        return new OpExprNoList("atan2", e);
     }
 
-    public static Expr asinh() {
-        return null;
+    public static Expr asinh(Expr e) {
+        return new OpExprNoList("asinh", e);
     }
 
-    public static Expr acosh() {
-        return null;
+    public static Expr acosh(Expr e) {
+        return new OpExprNoList("acosh", e);
     }
 
-    public static Expr atanh() {
-        return null;
+    public static Expr atanh(Expr e1, Expr e2) {
+        return new OpExpr("atanh", Arrays.asList(e1, e2));
     }
 
-    public static Expr degreesToRadian() {
-        return null;
+    public static Expr degreesToRadian(Expr e) {
+        return new OpExprNoList("degreesToRadian", e);
     }
 
-    public static Expr radiansToDegrees() {
-        return null;
+    public static Expr radiansToDegrees(Expr e) {
+        return new OpExprNoList("radiansToDegrees", e);
     }
 
 
     //Type Expression
 
-    public static Expr convert() {
-        return null;
+    public static Expr convert(Expr input, Expr to) {
+        return convert(input, to, null, null);
     }
 
-    public static Expr isNumber() {
-        return null;
+    public static Expr convert(Expr input, Expr to, Expr onError) {
+        return convert(input, to, onError, null);
     }
 
-    public static Expr toBool() {
-        return null;
+    public static Expr convert(Expr input, Expr to, Expr onError, Expr onNull) {
+        return new MapOpExpr("convert", Utils.getMap("input", input)
+                .add("to", to)
+                .add("onError", onError)
+                .add("onNull", onNull));
     }
 
-    public static Expr toDecimal() {
-        return null;
+    public static Expr isNumber(Expr e) {
+        return new OpExprNoList("isNumber", e);
     }
 
-    public static Expr toDouble() {
-        return null;
+    public static Expr toBool(Expr e) {
+        return new OpExprNoList("toBool", e);
     }
 
-    public static Expr toInt() {
-        return null;
+    public static Expr toDecimal(Expr e) {
+        return new OpExprNoList("toDecimal", e);
     }
 
-    public static Expr toLong() {
-        return null;
+    public static Expr toDouble(Expr e) {
+        return new OpExprNoList("toDouble", e);
     }
 
-    public static Expr toObjectId() {
-        return null;
+    public static Expr toInt(Expr e) {
+        return new OpExprNoList("toInt", e);
     }
 
-    public static Expr type() {
-        return null;
+    public static Expr toLong(Expr e) {
+        return new OpExprNoList("toLong", e);
+    }
+
+    public static Expr toObjectId(Expr e) {
+        return new OpExprNoList("toObjectId", e);
+    }
+
+    public static Expr type(Expr e) {
+        return new OpExprNoList("type", e);
     }
 
 
     //Group stage
 
-    public static Expr addToSet() {
-        return null;
+    public static Expr addToSet(Expr e) {
+        return new OpExprNoList("addToSet", e);
     }
 
-    public static Expr avg() {
-        return null;
+    public static Expr avg(Expr... e) {
+        return new OpExpr("avg", Arrays.asList(e));
     }
 
-    public static Expr max() {
-        return null;
+    public static Expr avg(Expr e) {
+        return new OpExprNoList("avg", e);
     }
 
-    public static Expr min() {
-        return null;
+    public static Expr max(Expr... e) {
+        return new OpExpr("max", Arrays.asList(e));
     }
 
-    public static Expr push() {
-        return null;
-    }
-
-    public static Expr stdDevPop() {
-        return null;
-    }
-
-    public static Expr stdDevSamp() {
-        return null;
-    }
-
-    public static Expr sum() {
-        return null;
+    public static Expr max(Expr e) {
+        return new OpExprNoList("max", e);
     }
 
 
-    public static Expr let() {
-        return null;
+    public static Expr min(Expr... e) {
+        return new OpExpr("min", Arrays.asList(e));
+    }
+
+    public static Expr min(Expr e) {
+        return new OpExprNoList("min", e);
+    }
+
+    public static Expr push(Expr e) {
+        return new OpExprNoList("push", e);
+    }
+
+    public static Expr stdDevPop(Expr e) {
+        return new OpExprNoList("stdDevPop", e);
+    }
+
+    public static Expr stdDevPop(Expr... e) {
+        return new OpExpr("stdDevPop", Arrays.asList(e));
+    }
+
+
+    public static Expr stdDevSamp(Expr e) {
+        return new OpExprNoList("stdDevSamp", e);
+    }
+
+    public static Expr stdDevSamp(Expr... e) {
+        return new OpExpr("stdDevSamp", Arrays.asList(e));
+    }
+
+    public static Expr sum(Expr e) {
+        return new OpExprNoList("sum", e);
+    }
+
+    public static Expr sum(Expr... e) {
+        return new OpExpr("sum", Arrays.asList(e));
+    }
+
+
+    public static Expr let(Map<String, Expr> vars, Expr in) {
+        return new Expr() {
+            @Override
+            public Object toQueryObject() {
+                return Utils.getMap("$let", Utils.getMap("vars", (Object) vars).add("in", in));
+            }
+        };
     }
 
 
     public abstract Object toQueryObject();
+
 
     public static class MapOpExpr extends Expr {
         private String operation;
@@ -631,6 +884,25 @@ public abstract class Expr {
                 p.add(e.toQueryObject());
             }
             return Utils.getMap(operation, p);
+        }
+    }
+
+    public static class OpExprNoList extends Expr {
+        private String operation;
+        private Expr params;
+
+        private OpExprNoList(String type, Expr par) {
+            if (!type.startsWith("$")) {
+                type = "$" + type;
+            }
+            operation = type;
+            params = par;
+        }
+
+
+        @Override
+        public Object toQueryObject() {
+            return Utils.getMap(operation, params.toQueryObject());
         }
     }
 
