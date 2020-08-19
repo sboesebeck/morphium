@@ -12,6 +12,9 @@ import de.caluga.morphium.driver.WriteConcern;
 import de.caluga.morphium.driver.bulk.BulkRequestContext;
 import de.caluga.morphium.query.Query;
 import org.bson.types.ObjectId;
+import org.json.simple.parser.ContainerFactory;
+import org.json.simple.parser.JSONParser;
+import org.json.simple.parser.ParseException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -846,8 +849,13 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
 
     private void createCappedColl(Class c, String n) {
         if (logger.isDebugEnabled()) {
-            logger.debug("Collection does not exist - ensuring indices / capped status");
+            logger.debug("Collection does not exist - ensuring indices / capped status / Schema validation");
         }
+
+
+        Entity e = morphium.getARHelper().getAnnotationFromHierarchy(c, Entity.class);
+
+
         Map<String, Object> cmd = new LinkedHashMap<>();
         cmd.put("create", n != null ? n : morphium.getMapper().getCollectionName(c));
         Capped capped = morphium.getARHelper().getAnnotationFromHierarchy(c, Capped.class);
@@ -855,16 +863,40 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
             cmd.put("capped", true);
             cmd.put("size", capped.maxSize());
             cmd.put("max", capped.maxEntries());
-        } else {
-            //            logger.warn("cannot cap collection for class " + c.getName() + " not @Capped");
-            return;
         }
+
         cmd.put("autoIndexId", (morphium.getARHelper().getIdField(c).getType().equals(MorphiumId.class)));
+
+        if (!e.schemaDef().equals("")) {
+            JSONParser jsonParser = new JSONParser();
+            try {
+                Map<String, Object> def = (Map<String, Object>) jsonParser.parse(e.schemaDef(), new ContainerFactory() {
+                    @Override
+                    public Map createObjectContainer() {
+                        return new HashMap<>();
+                    }
+
+                    @Override
+                    public List creatArrayContainer() {
+                        return new ArrayList();
+                    }
+                });
+                cmd.put("validator", def);
+                cmd.put("validationLevel", e.validationLevel().name());
+                cmd.put("validationAction", e.validationAction().name());
+            } catch (ParseException parseException) {
+                parseException.printStackTrace();
+            }
+
+        }
+        if (!e.comment().equals("")) {
+            cmd.put("comment", e.comment());
+        }
         try {
             morphium.getDriver().runCommand(morphium.getConfig().getDatabase(), cmd);
-        } catch (MorphiumDriverException e) {
+        } catch (MorphiumDriverException ex) {
             //TODO: Implement Handling
-            throw new RuntimeException(e);
+            throw new RuntimeException(ex);
         }
     }
 
