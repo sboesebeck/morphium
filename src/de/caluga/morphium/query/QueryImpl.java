@@ -639,7 +639,7 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
         FilterExpression fe = new FilterExpression();
         fe.setField("$expr");
 
-        fe.setValue(toQueryObject());
+        fe.setValue(exp.toQueryObject());
         andExpr.add(fe);
         return this;
     }

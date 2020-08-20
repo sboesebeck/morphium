@@ -1,6 +1,8 @@
 package de.caluga.test.mongo.suite;
 
+import de.caluga.morphium.Utils;
 import de.caluga.morphium.aggregation.Aggregator;
+import de.caluga.morphium.aggregation.Expr;
 import de.caluga.morphium.annotations.Embedded;
 import de.caluga.morphium.annotations.Property;
 import de.caluga.morphium.query.Query;
@@ -36,6 +38,48 @@ public class Aggregation extends MorphiumTestBase {
         //group by - in dem Fall ALL, könnte auch beliebig sein
         a = a.group("all").avg("schnitt", "$counter").sum("summe", "$counter").sum("anz", 1).last("letzter", "$counter").first("erster", "$counter").end();
         //        a = a.group("a2").avg("schnitt", "$counter").sum("summe", "$counter").sum("anz", 1).last("letzter", "$counter").first("erster", "$counter").end();
+        //ergebnis projezieren
+        HashMap<String, Object> projection = new HashMap<>();
+        projection.put("summe", 1);
+        projection.put("anzahl", "$anz");
+        projection.put("schnitt", 1);
+        projection.put("last", "$letzter");
+        projection.put("first", "$erster");
+        a = a.project(projection);
+
+        List<Aggregate> lst = a.aggregate();
+        assert (lst.size() == 1) : "Size wrong: " + lst.size();
+        log.info("Sum  : " + lst.get(0).getSumme());
+        log.info("Avg  : " + lst.get(0).getSchnitt());
+        log.info("Last :    " + lst.get(0).getLast());
+        log.info("First:   " + lst.get(0).getFirst());
+        log.info("count:  " + lst.get(0).getAnzahl());
+
+
+        assert (lst.get(0).getAnzahl() == 15) : "did not find 15, instead found: " + lst.get(0).getAnzahl();
+
+    }
+
+    @Test
+    public void aggregatorExprTest() {
+        createUncachedObjects(1000);
+
+        Aggregator<UncachedObject, Aggregate> a = morphium.createAggregator(UncachedObject.class, Aggregate.class);
+        assert (a.getResultType() != null);
+        //eingangsdaten reduzieren
+        a = a.project(Utils.getMap("counter", (Object) Expr.intExpr(1)).add("cnt2", Expr.field("counter")));
+        //Filtern
+//        a = a.match(morphium.createQueryFor(UncachedObject.class).f("counter").gt(100));
+        a = a.match(Expr.gt(Expr.field("counter"), Expr.intExpr(100)));
+        //Sortieren - für $first/$last
+        a = a.sort("counter");
+        //limit der Daten
+        a = a.limit(15);
+        //group by - in dem Fall alle, könnte auch beliebig sein
+        a = a.group(Expr.string(null)).expr("schnitt", Expr.avg(Expr.field("counter"))).expr("summe", Expr.sum(Expr.field("counter"))).expr("anz", Expr.sum(Expr.intExpr(1))).expr("letzter", Expr.last(Expr.field("counter"))).expr("erster", Expr.first(Expr.field("counter"))).end();
+        //a = a.group("null").avg("schnitt", "$counter").sum("summe", "$counter").sum("anz", 1).last("letzter", "$counter").first("erster", "$counter").end();
+        //        a = a.group("a2").avg("schnitt", "$counter").sum("summe", "$counter").sum("anz", 1).last("letzter", "$counter").first("erster", "$counter").end();
+
         //ergebnis projezieren
         HashMap<String, Object> projection = new HashMap<>();
         projection.put("summe", 1);

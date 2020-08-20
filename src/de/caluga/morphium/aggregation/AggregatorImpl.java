@@ -6,10 +6,7 @@ import de.caluga.morphium.async.AsyncOperationCallback;
 import de.caluga.morphium.async.AsyncOperationType;
 import de.caluga.morphium.query.Query;
 
-import java.util.ArrayList;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 /**
  * User: Stephan Bösebeck
@@ -78,6 +75,29 @@ public class AggregatorImpl<T, R> implements Aggregator<T, R> {
     }
 
     @Override
+    public Aggregator<T, R> project(Map<String, Object> m) {
+        Map<String, Object> p = new LinkedHashMap<>();
+        for (Map.Entry<String, Object> e : m.entrySet()) {
+            if (e.getValue() instanceof Expr) {
+                p.put(e.getKey(), ((Expr) e.getValue()).toQueryObject());
+            } else {
+                p.put(e.getKey(), e.getValue());
+            }
+        }
+        Map<String, Object> map = Utils.getMap("$project", p);
+
+        params.add(map);
+        return this;
+    }
+
+    @Override
+    public Aggregator<T, R> project(String fld, Expr e) {
+        Map<String, Object> map = new LinkedHashMap<>();
+        map.put(fld, e.toQueryObject());
+        return project(map);
+    }
+
+    @Override
     public Aggregator<T, R> project(String... m) {
         Map<String, Object> map = new LinkedHashMap<>();
         for (String sm : m) {
@@ -85,13 +105,13 @@ public class AggregatorImpl<T, R> implements Aggregator<T, R> {
         }
         return project(map);
     }
-
-    @Override
-    public Aggregator<T, R> project(Map<String, Object> m) {
-        Map<String, Object> o = Utils.getMap("$project", m);
-        params.add(o);
-        return this;
-    }
+//
+//    @Override
+//    public Aggregator<T, R> project(Map<String, Object> m) {
+//        Map<String, Object> o = Utils.getMap("$project", m);
+//        params.add(o);
+//        return this;
+//    }
 
     @Override
     public Aggregator<T, R> addFields(Map<String, Object> m) {
@@ -106,6 +126,12 @@ public class AggregatorImpl<T, R> implements Aggregator<T, R> {
         if (collectionName == null)
             collectionName = q.getCollectionName();
         params.add(o);
+        return this;
+    }
+
+    @Override
+    public Aggregator<T, R> match(Expr q) {
+        params.add(Utils.getMap("$match", Utils.getMap("$expr", q.toQueryObject())));
         return this;
     }
 
@@ -181,6 +207,12 @@ public class AggregatorImpl<T, R> implements Aggregator<T, R> {
     }
 
     @Override
+    public Group<T, R> group(Expr id) {
+        return new Group<>(this, id);
+
+    }
+
+    @Override
     public Group<T, R> group(String id) {
         Group<T, R> gr = new Group<>(this, id);
         groups.add(gr);
@@ -222,17 +254,45 @@ public class AggregatorImpl<T, R> implements Aggregator<T, R> {
 
     @Override
     public Aggregator<T, R> count(String fld) {
-        return null;
+        params.add(Utils.getMap("$count", fld));
+        return this;
     }
 
     @Override
     public Aggregator<T, R> count(Enum fld) {
-        return null;
+        return count(fld.name());
     }
 
+
+    /**
+     * Categorizes incoming documents into groups, called buckets, based on a specified expression and
+     * bucket boundaries and outputs a document per each bucket. Each output document contains an _id field
+     * whose value specifies the inclusive lower bound of the bucket. The output option specifies
+     * the fields included in each output document.
+     * <p>
+     * $bucket only produces output documents for buckets that contain at least one input document.
+     *
+     * @param groupBy:    Expression to group by, usually a field name
+     * @param boundaries: Boundaries for the  buckets
+     * @param preset:     the default, needs to be a literal
+     * @param output:     definition of output documents and accumulator
+     * @return
+     */
     @Override
-    public Aggregator<T, R> bucket(Map<String, Object> param) {
-        return null;
+    public Aggregator<T, R> bucket(Expr groupBy, List<Expr> boundaries, Expr preset, Map<String, Expr> output) {
+        Map<String, Object> out = new LinkedHashMap<>();
+        for (Map.Entry<String, Expr> e : output.entrySet()) {
+            out.put(e.getKey(), e.getValue().toQueryObject());
+        }
+        List<Object> bn = new ArrayList<>();
+        boundaries.stream().forEach(x -> bn.add(x.toQueryObject()));
+        Map<String, Object> m = Utils.getMap("bucket", Utils.getMap("groupBy", groupBy.toQueryObject())
+                .add("boudaries", bn)
+                .add("default", preset)
+                .add("output", out)
+        );
+        params.add(m);
+        return this;
     }
 
     @Override

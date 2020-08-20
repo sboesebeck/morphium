@@ -45,13 +45,17 @@ public interface Aggregator<T, R> {
 
     Aggregator<T, R> project(String... m);    //field:1
 
+    Aggregator<T, R> project(String fld, Expr e);
+
     Aggregator<T, R> match(Query<T> q);
+
+    Aggregator<T, R> match(Expr q);
 
     Aggregator<T, R> count(String fld);
 
     Aggregator<T, R> count(Enum fld);
 
-    Aggregator<T, R> bucket(Map<String, Object> param);
+    Aggregator<T, R> bucket(Expr groupBy, List<Expr> boundaries, Expr preset, Map<String, Expr> output);
 
     Aggregator<T, R> bucketAuto(Map<String, Object> param);
 
@@ -126,6 +130,8 @@ public interface Aggregator<T, R> {
     Group<T, R> group(Map<String, Object> id);
 
     Group<T, R> group(String id);
+
+    Group<T, R> group(Expr id);
 
     List<Map<String, Object>> toAggregationList();
 

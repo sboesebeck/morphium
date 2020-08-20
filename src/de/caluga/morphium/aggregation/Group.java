@@ -34,6 +34,11 @@ public class Group<T, R> {
         this.id = getMap("_id", id);
     }
 
+    public Group(Aggregator<T, R> ag, Expr id) {
+        aggregator = ag;
+        this.id = getMap("_id", id.toQueryObject());
+    }
+
     private Map<String, Object> getMap(String key, Object value) {
         Map<String, Object> ret = new HashMap<>();
         ret.put(key, value);
@@ -123,7 +128,10 @@ public class Group<T, R> {
         return this;
     }
 
-
+    public Group<T, R> expr(String fld, Expr e) {
+        operators.add(getMap(fld, e.toQueryObject()));
+        return this;
+    }
 
 
     public Aggregator<T, R> end() {
