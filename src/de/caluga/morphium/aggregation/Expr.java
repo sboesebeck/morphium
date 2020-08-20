@@ -10,8 +10,30 @@ public abstract class Expr {
         return new OpExpr("abs", Arrays.asList(e));
     }
 
+    public static Expr field(Enum field) {
+        return field(field.name());
+    }
+
     public static Expr field(String name) {
         return new FieldExpr(name);
+    }
+
+    public static Expr date(Date d) {
+        return new Expr() {
+            @Override
+            public Object toQueryObject() {
+                return d;
+            }
+        };
+    }
+
+    public static Expr now() {
+        return new Expr() {
+            @Override
+            public Object toQueryObject() {
+                return new Date();
+            }
+        };
     }
 
     public static Expr doubleExpr(double d) {
@@ -26,7 +48,7 @@ public abstract class Expr {
         return new BoolExpr(v);
     }
 
-    public static <T> Expr arrayExpr(Expr... elem) {
+    public static Expr arrayExpr(Expr... elem) {
         return new ArrayExpr(elem);
     }
 
@@ -34,12 +56,25 @@ public abstract class Expr {
         return new StringExpr(str);
     }
 
+    public static Expr mapExpr(Map<String, Expr> map) {
+        return new Expr() {
+            @Override
+            public Object toQueryObject() {
+                Map<String, Object> ret = new LinkedHashMap<>();
+                for (Map.Entry<String, Expr> e : map.entrySet()) {
+                    ret.put(e.getKey(), e.getValue().toQueryObject());
+                }
+                return ret;
+            }
+        };
+    }
+
     public static Expr add(Expr... fld) {
         return new OpExpr("add", Arrays.asList(fld));
     }
 
     public static Expr ceil(Expr e) {
-        return new OpExpr("ceil", Arrays.asList(e));
+        return new OpExprNoList("ceil", e);
     }
 
     public static Expr divide(Expr divident, Expr divisor) {
@@ -47,15 +82,15 @@ public abstract class Expr {
     }
 
     public static Expr exp(Expr e) {
-        return new OpExpr("exp", Arrays.asList(e));
+        return new OpExprNoList("exp", e);
     }
 
     public static Expr floor(Expr e) {
-        return new OpExpr("floor", Arrays.asList(e));
+        return new OpExprNoList("floor", e);
     }
 
     public static Expr ln(Expr e) {
-        return new OpExpr("ln", Arrays.asList(e));
+        return new OpExprNoList("ln", e);
     }
 
     public static Expr log(Expr num, Expr base) {
@@ -63,7 +98,7 @@ public abstract class Expr {
     }
 
     public static Expr log10(Expr e) {
-        return new OpExpr("log10", Arrays.asList(e));
+        return new OpExprNoList("log10", e);
     }
 
     public static Expr mod(Expr divident, Expr divisor) {
@@ -79,11 +114,11 @@ public abstract class Expr {
     }
 
     public static Expr round(Expr e) {
-        return new OpExpr("round", Arrays.asList(e));
+        return new OpExprNoList("round", e);
     }
 
     public static Expr sqrt(Expr e) {
-        return new OpExpr("sqrt", Arrays.asList(e));
+        return new OpExprNoList("sqrt", e);
     }
 
     public static Expr subtract(Expr e1, Expr e2) {
@@ -128,7 +163,7 @@ public abstract class Expr {
     }
 
     public static Expr last(Expr e) {
-        return new OpExprNoList("first", e);
+        return new OpExprNoList("last", e);
     }
 
     public static Expr map(Expr inputArray, Expr as, Expr in) {
@@ -136,7 +171,7 @@ public abstract class Expr {
     }
 
     public static Expr objectToArray(Expr obj) {
-        return new OpExpr("objectToArray", Arrays.asList(obj));
+        return new OpExprNoList("objectToArray", obj);
     }
 
     public static Expr range(Expr start, Expr end, Expr step) {
@@ -144,15 +179,19 @@ public abstract class Expr {
     }
 
     public static Expr reduce(Expr inputArray, Expr initValue, Expr in) {
-        return new OpExpr("reduce", Arrays.asList(inputArray, initValue, in));
+        return new MapOpExpr("reduce", Utils.getMap("input", inputArray)
+                .add("initialValue", initValue)
+                .add("in", in)
+
+        );
     }
 
     public static Expr reverseArray(Expr array) {
-        return new OpExpr("reverseArray", Arrays.asList(array));
+        return new OpExprNoList("reverseArray", array);
     }
 
     public static Expr size(Expr array) {
-        return new OpExpr("size", Arrays.asList(array));
+        return new OpExprNoList("size", array);
     }
 
     public static Expr slice(Expr array, Expr pos, Expr n) {
@@ -174,11 +213,11 @@ public abstract class Expr {
     }
 
     public static Expr or(Expr... expressions) {
-        return new OpExpr("and", Arrays.asList(expressions));
+        return new OpExpr("or", Arrays.asList(expressions));
     }
 
     public static Expr not(Expr expression) {
-        return new OpExpr("not", Arrays.asList(expression));
+        return new OpExprNoList("not", expression);
     }
 
 
@@ -226,9 +265,9 @@ public abstract class Expr {
      * @return
      */
     public static Expr switchExpr(Map<Expr, Expr> branches, Expr defaultCase) {
-        List<Map<String, Expr>> branchList = new ArrayList<>();
+        List<Map<String, Object>> branchList = new ArrayList<>();
         for (Map.Entry<Expr, Expr> ex : branches.entrySet()) {
-            branchList.add(Utils.getMap("case", ex.getKey()).add("then", ex.getValue()));
+            branchList.add(Utils.getMap("case", ex.getKey().toQueryObject()).add("then", ex.getValue().toQueryObject()));
         }
         Utils.UtilsMap<String, Expr> branches1 = Utils.getMap("branches", new Expr() {
             @Override
@@ -243,7 +282,7 @@ public abstract class Expr {
 
     //Custom Aggregation
     public static Expr function(String code, Expr args) {
-        return function(code, args);
+        return function(code, args, null);
     }
 
     public static Expr function(String code, Expr args, String lang) {
@@ -284,7 +323,7 @@ public abstract class Expr {
                 .add("lang", string(lang));
 
 
-        return new MapOpExpr("function", map);
+        return new MapOpExpr("accumulator", map);
     }
 
 
@@ -447,48 +486,48 @@ public abstract class Expr {
     }
 
     public static Expr dayOfMonth(Expr date) {
-        return new OpExpr("dayOfMonth", Arrays.asList(date));
+        return new OpExprNoList("dayOfMonth", date);
     }
 
     public static Expr dayOfWeek(Expr date) {
-        return new OpExpr("dayOfWeek", Arrays.asList(date));
+        return new OpExprNoList("dayOfWeek", date);
     }
 
     public static Expr dayOfYear(Expr date) {
-        return new OpExpr("dayOfYear", Arrays.asList(date));
+        return new OpExprNoList("dayOfYear", date);
 
     }
 
     public static Expr hour(Expr date) {
-        return new OpExpr("hour", Arrays.asList(date));
+        return new OpExprNoList("hour", date);
     }
 
     public static Expr isoDayOfWeek(Expr date) {
-        return new OpExpr("isoDayOfWeek", Arrays.asList(date));
+        return new OpExprNoList("isoDayOfWeek", date);
     }
 
     public static Expr isoWeek(Expr date) {
-        return new OpExpr("isoWeek", Arrays.asList(date));
+        return new OpExprNoList("isoWeek", date);
     }
 
     public static Expr isoWeekYear(Expr date) {
-        return new OpExpr("isoWeekYear", Arrays.asList(date));
+        return new OpExprNoList("isoWeekYear", date);
     }
 
     public static Expr millisecond(Expr date) {
-        return new OpExpr("millisecond", Arrays.asList(date));
+        return new OpExprNoList("millisecond", date);
     }
 
     public static Expr minute(Expr date) {
-        return new OpExpr("minute", Arrays.asList(date));
+        return new OpExprNoList("minute", date);
     }
 
     public static Expr month(Expr date) {
-        return new OpExpr("month", Arrays.asList(date));
+        return new OpExprNoList("month", date);
     }
 
     public static Expr second(Expr date) {
-        return new OpExpr("second", Arrays.asList(date));
+        return new OpExprNoList("second", date);
     }
 
     public static Expr toDate(Expr e) {
@@ -496,11 +535,11 @@ public abstract class Expr {
     }
 
     public static Expr week(Expr date) {
-        return new OpExpr("week", Arrays.asList(date));
+        return new OpExprNoList("week", date);
     }
 
     public static Expr year(Expr date) {
-        return new OpExpr("year", Arrays.asList(date));
+        return new OpExprNoList("year", date);
     }
 
 
@@ -542,7 +581,7 @@ public abstract class Expr {
     }
 
     public static Expr setIntersection(Expr... e) {
-        return new OpExpr("anyElementsTrue", Arrays.asList(e));
+        return new OpExpr("setIntersection", Arrays.asList(e));
     }
 
     public static Expr setIsSubset(Expr e1, Expr e2) {
@@ -831,7 +870,20 @@ public abstract class Expr {
         return new Expr() {
             @Override
             public Object toQueryObject() {
-                return Utils.getMap("$let", Utils.getMap("vars", (Object) vars).add("in", in));
+                Map<String, Object> map = new HashMap<>();
+                for (Map.Entry<String, Expr> e : vars.entrySet()) {
+                    map.put(e.getKey(), e.getValue().toQueryObject());
+                }
+                return Utils.getMap("$let", Utils.getMap("vars", (Object) map).add("in", in.toQueryObject()));
+            }
+        };
+    }
+
+    public static Expr doc(Map<String, Object> document) {
+        return new Expr() {
+            @Override
+            public Object toQueryObject() {
+                return document;
             }
         };
     }
@@ -840,7 +892,7 @@ public abstract class Expr {
     public abstract Object toQueryObject();
 
 
-    public static class MapOpExpr extends Expr {
+    private static class MapOpExpr extends Expr {
         private String operation;
         private Map<String, Expr> params;
 
@@ -864,7 +916,7 @@ public abstract class Expr {
         }
     }
 
-    public static class OpExpr extends Expr {
+    private static class OpExpr extends Expr {
         private String operation;
         private List<Expr> params;
 
@@ -881,13 +933,14 @@ public abstract class Expr {
         public Object toQueryObject() {
             List<Object> p = new ArrayList<>();
             for (Expr e : params) {
-                p.add(e.toQueryObject());
+                if (e != null)
+                    p.add(e.toQueryObject());
             }
             return Utils.getMap(operation, p);
         }
     }
 
-    public static class OpExprNoList extends Expr {
+    private static class OpExprNoList extends Expr {
         private String operation;
         private Expr params;
 
@@ -907,7 +960,7 @@ public abstract class Expr {
     }
 
 
-    public static class FieldExpr extends Expr {
+    private static class FieldExpr extends Expr {
 
         private String fieldRef;
 
@@ -924,7 +977,7 @@ public abstract class Expr {
         }
     }
 
-    public static class StringExpr extends Expr {
+    private static class StringExpr extends Expr {
 
         private String str;
 
@@ -938,7 +991,7 @@ public abstract class Expr {
         }
     }
 
-    public static class IntExpr extends Expr {
+    private static class IntExpr extends Expr {
 
         private Integer number;
 
@@ -953,7 +1006,7 @@ public abstract class Expr {
     }
 
 
-    public static class DoubleExpr extends Expr {
+    private static class DoubleExpr extends Expr {
 
         private Double number;
 
@@ -968,7 +1021,7 @@ public abstract class Expr {
     }
 
 
-    public static class BoolExpr extends Expr {
+    private static class BoolExpr extends Expr {
 
         private Boolean bool;
 
@@ -982,7 +1035,7 @@ public abstract class Expr {
         }
     }
 
-    public static class ArrayExpr extends Expr {
+    private static class ArrayExpr extends Expr {
 
         private List<Expr> arr;
 
