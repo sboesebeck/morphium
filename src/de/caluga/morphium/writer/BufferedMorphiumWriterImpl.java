@@ -506,7 +506,7 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
                 flds = m.toArray(String[]::new);
             }
 
-            UpdateBulkRequest r = new UpdateBulkRequest();
+            UpdateBulkRequest r = ctx.addUpdateBulkRequest();
             r.setMultiple(false);
             r.setUpsert(false);
             r.setQuery(query.toQueryObject());
@@ -584,7 +584,7 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
         addToWriteQueue(query.getType(), query.getCollectionName(), ctx -> {
             //                directWriter.set(toSet, collection, field, value, upsert, multiple, callback);
             morphium.firePreUpdateEvent(query.getType(), MorphiumStorageListener.UpdateTypes.INC);
-            UpdateBulkRequest wr = new UpdateBulkRequest();
+            UpdateBulkRequest wr = ctx.addUpdateBulkRequest();
             wr.setQuery(query.toQueryObject());
             wr.setUpsert(upsert);
             Map<String, Object> inc = new HashMap<>();
@@ -659,7 +659,7 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
             //                directWriter.set(toSet, collection, field, value, upsert, multiple, callback);
             morphium.firePreUpdateEvent(obj.getClass(), MorphiumStorageListener.UpdateTypes.POP);
             Query q = morphium.createQueryFor(obj.getClass()).f(morphium.getARHelper().getIdFieldName(obj)).eq(morphium.getARHelper().getId(obj));
-            UpdateBulkRequest wr = new UpdateBulkRequest();
+            UpdateBulkRequest wr = ctx.addUpdateBulkRequest();
             //noinspection unchecked
             wr.setQuery(q.toQueryObject());
             wr.setUpsert(false);
