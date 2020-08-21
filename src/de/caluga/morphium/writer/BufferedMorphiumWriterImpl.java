@@ -587,6 +587,7 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
             UpdateBulkRequest wr = ctx.addUpdateBulkRequest();
             wr.setQuery(query.toQueryObject());
             wr.setUpsert(upsert);
+            wr.setMultiple(multiple);
             Map<String, Object> inc = new HashMap<>();
             wr.setCmd(Utils.getMap("$inc", inc));
             morphium.getCache().clearCacheIfNecessary(query.getType());

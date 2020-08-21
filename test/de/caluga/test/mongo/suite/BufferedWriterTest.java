@@ -108,23 +108,28 @@ public class BufferedWriterTest extends MorphiumTestBase {
         toInc.put("dval", 0.1);
 
         Query<BufferedByTimeObject> q = morphium.createQueryFor(BufferedByTimeObject.class).f("counter").eq(100);
-        morphium.inc(q, toInc, false, false, null);
+        morphium.inc(q, toInc, false, true, null);
 
-        waitForAsyncOperationToStart(10000);
+        waitForAsyncOperationToStart(1000);
         waitForWrites();
-        Thread.sleep(300000000);
+        Thread.sleep(1000);
         assert (morphium.createQueryFor(BufferedByTimeObject.class).countAll() == 100);
         assert (morphium.createQueryFor(BufferedByTimeObject.class).f("counter").eq(101).countAll() == 100);
+        assert (morphium.createQueryFor(BufferedByTimeObject.class).f("dval").eq(1.1).countAll() == 100);
 
 
-        waitForAsyncOperationToStart(10000);
+        q = morphium.createQueryFor(BufferedByTimeObject.class).f("counter").eq(201);
+        morphium.inc(q, toInc, true, false, null);
+        waitForAsyncOperationToStart(1000);
         waitForWrites();
-        Thread.sleep(3000);
-        q = morphium.createQueryFor(BufferedByTimeObject.class);
-        assert (q.countAll() == 3) : "Count wrong: " + q.countAll();
-        for (BufferedByTimeObject o : q.asList()) {
-            log.info("Counter: " + o.getCounter());
-        }
+        Thread.sleep(1000);
+
+        assert (morphium.createQueryFor(BufferedByTimeObject.class).countAll() == 101);
+        assert (morphium.createQueryFor(BufferedByTimeObject.class).f("counter").eq(101).countAll() == 100);
+        assert (morphium.createQueryFor(BufferedByTimeObject.class).f("counter").eq(202).countAll() == 1);
+        assert (morphium.createQueryFor(BufferedByTimeObject.class).f("dval").eq(0.1).countAll() == 1);
+        assert (morphium.createQueryFor(BufferedByTimeObject.class).f("dval").eq(1.1).countAll() == 100);
+
     }
 
 
