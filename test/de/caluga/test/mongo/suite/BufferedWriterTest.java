@@ -12,9 +12,7 @@ import de.caluga.test.mongo.suite.data.EmbeddedObject;
 import de.caluga.test.mongo.suite.data.UncachedObject;
 import org.junit.Test;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Vector;
+import java.util.*;
 
 /**
  * User: Stephan Bösebeck
@@ -83,6 +81,55 @@ public class BufferedWriterTest extends MorphiumTestBase {
         for (BufferedBySizeObject o : q.asList()) {
             log.info("Counter: " + o.getCounter());
         }
+    }
+
+    @Test
+    public void testWriteBufferUpdateMap() throws Exception {
+        morphium.dropCollection(BufferedByTimeObject.class);
+
+        waitForAsyncOperationToStart(10000);
+        waitForWrites();
+
+        for (int i = 0; i < 100; i++) {
+            BufferedByTimeObject bo = new BufferedByTimeObject();
+            bo.setCounter(100);
+            bo.setDval(1.0);
+            morphium.store(bo);
+        }
+        waitForAsyncOperationToStart(10000);
+        waitForWrites();
+        Thread.sleep(1000);
+        while (morphium.createQueryFor(BufferedByTimeObject.class).countAll() != 100) {
+            Thread.sleep(100);
+        }
+
+        Map<String, Number> toInc = new LinkedHashMap<>();
+        toInc.put("counter", 1);
+        toInc.put("dval", 0.1);
+
+        Query<BufferedByTimeObject> q = morphium.createQueryFor(BufferedByTimeObject.class).f("counter").eq(100);
+        morphium.inc(q, toInc, false, true, null);
+
+        waitForAsyncOperationToStart(1000);
+        waitForWrites();
+        Thread.sleep(1000);
+        assert (morphium.createQueryFor(BufferedByTimeObject.class).countAll() == 100);
+        assert (morphium.createQueryFor(BufferedByTimeObject.class).f("counter").eq(101).countAll() == 100);
+        assert (morphium.createQueryFor(BufferedByTimeObject.class).f("dval").eq(1.1).countAll() == 100);
+
+
+        q = morphium.createQueryFor(BufferedByTimeObject.class).f("counter").eq(201);
+        morphium.inc(q, toInc, true, false, null);
+        waitForAsyncOperationToStart(1000);
+        waitForWrites();
+        Thread.sleep(1000);
+
+        assert (morphium.createQueryFor(BufferedByTimeObject.class).countAll() == 101);
+        assert (morphium.createQueryFor(BufferedByTimeObject.class).f("counter").eq(101).countAll() == 100);
+        assert (morphium.createQueryFor(BufferedByTimeObject.class).f("counter").eq(202).countAll() == 1);
+        assert (morphium.createQueryFor(BufferedByTimeObject.class).f("dval").eq(0.1).countAll() == 1);
+        assert (morphium.createQueryFor(BufferedByTimeObject.class).f("dval").eq(1.1).countAll() == 100);
+
     }
 
 
