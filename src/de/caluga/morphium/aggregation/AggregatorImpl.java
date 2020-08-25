@@ -296,10 +296,10 @@ public class AggregatorImpl<T, R> implements Aggregator<T, R> {
         }
         List<Object> bn = new ArrayList<>();
         boundaries.stream().forEach(x -> bn.add(x.toQueryObject()));
-        Map<String, Object> m = Utils.getMap("bucket", Utils.getMap("groupBy", groupBy.toQueryObject())
-                .add("boudaries", bn)
-                .add("default", preset)
-                .add("output", out)
+        Map<String, Object> m = Utils.getMap("$bucket", Utils.getMap("groupBy", groupBy.toQueryObject())
+                .add("boundaries", bn)
+                .add("default", preset.toQueryObject())
+                .add("output", Utils.getQueryObjectMap(output))
         );
         params.add(m);
         return this;
