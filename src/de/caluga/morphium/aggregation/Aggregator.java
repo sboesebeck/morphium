@@ -57,47 +57,89 @@ public interface Aggregator<T, R> {
 
     Aggregator<T, R> bucket(Expr groupBy, List<Expr> boundaries, Expr preset, Map<String, Expr> output);
 
-    Aggregator<T, R> bucketAuto(Map<String, Object> param);
+    Aggregator<T, R> bucketAuto(Expr groupBy, int numBuckets, Map<String, Expr> output, BucketGranularity granularity);
 
-    Aggregator<T, R> collStats(Map<String, Object> param);
+    /**
+     * @param latencyHistograms: if null, no latency stats
+     * @param scale:             if null, no storageStats
+     * @param count
+     * @param queryExecStats
+     * @return
+     */
 
-    Aggregator<T, R> currentOp(Map<String, Object> param);
+    Aggregator<T, R> collStats(Boolean latencyHistograms, Double scale, boolean count, boolean queryExecStats);
 
-    Aggregator<T, R> facet(Map<String, Object> param);
+    Aggregator<T, R> currentOp(boolean allUsers, boolean idleConnections, boolean idleCursors, boolean idleSessions, boolean localOps);
 
-    Aggregator<T, R> geoNear(Map<String, Object> param);
+    Aggregator<T, R> facet(Map<String, Expr> param);
 
-    Aggregator<T, R> graphLookup(Map<String, Object> param);
+    Aggregator<T, R> geoNear(Map<GeoNearFiels, Object> param);
 
-    Aggregator<T, R> indexStats(Map<String, Object> param);
+    Aggregator<T, R> graphLookup(Class<?> fromType, Expr startWith, String connectFromField, String connectToField, String as, int maxDepth, String depthField, Query restrictSearchWithMatch);
 
-    Aggregator<T, R> listLocalSessions(Map<String, Object> param);
+    Aggregator<T, R> graphLookup(String fromCollection, Expr startWith, String connectFromField, String connectToField, String as, int maxDepth, String depthField, Query restrictSearchWithMatch);
 
-    Aggregator<T, R> listSessions(Map<String, Object> param);
+    Aggregator<T, R> indexStats();
+
+    Aggregator<T, R> listLocalSessions();
+
+    Aggregator<T, R> listLocalSessionsAllUsers();
+
+    Aggregator<T, R> listLocalSessions(List<String> users, List<String> dbs);
+
+    Aggregator<T, R> listSessions();
+
+    Aggregator<T, R> listSessionsAllUsers();
+
+    Aggregator<T, R> listSessions(List<String> users, List<String> dbs);
+
 
     Aggregator<T, R> lookup(Map<String, Object> param);
 
-    Aggregator<T, R> match(Map<String, Object> param);
-
     Aggregator<T, R> merge(Map<String, Object> param);
 
-    Aggregator<T, R> out(Map<String, Object> param);
+    Aggregator<T, R> out(String collection);
+
+    Aggregator<T, R> out(String db, String collection);
 
     Aggregator<T, R> planCacheStats(Map<String, Object> param);
 
-    Aggregator<T, R> redact(Map<String, Object> param);
+    /**
+     * see https://docs.mongodb.com/manual/reference/operator/aggregation/redact/
+     *
+     * @param expr
+     * @return
+     */
+    Aggregator<T, R> redact(Expr expr);
 
-    Aggregator<T, R> replaceRoot(Map<String, Object> param);
+    Aggregator<T, R> replaceRoot(Expr newRoot);
 
-    Aggregator<T, R> replaceWith(Map<String, Object> param);
+    /**
+     * Replaces the input document with the specified document. The operation replaces all existing fields
+     * in the input document, including the _id field. With $replaceWith, you can promote an embedded document
+     * to the top-level. You can also specify a new document as the replacement.
+     *
+     * @param replacement
+     * @return
+     */
 
-    Aggregator<T, R> sample(Map<String, Object> param);
+    Aggregator<T, R> replaceWith(Expr replacement);
 
-    Aggregator<T, R> set(Map<String, Object> param);
+    /**
+     * Randomly selects the specified number of documents from its input.
+     *
+     * @param sampleSize
+     * @return
+     */
+    Aggregator<T, R> sample(int sampleSize);
 
-    Aggregator<T, R> sortByCount(Map<String, Object> param);
+    Aggregator<T, R> set(Map<String, Expr> param);
 
-    Aggregator<T, R> unionWith(Map<String, Object> param);
+    Aggregator<T, R> sortByCount(Expr countBy);
+
+    Aggregator<T, R> unionWith(String collection);
+
+    Aggregator<T, R> unionWith(Aggregator aggregator);
 
     Aggregator<T, R> unset(List<String> field);
 
@@ -151,5 +193,52 @@ public interface Aggregator<T, R> {
 
     @SuppressWarnings("unused")
     void setUseDisk(boolean useDisk);
+
+
+    enum GeoNearFiels {
+        near,
+        distanceField,
+        spherical,
+        maxDistance,
+        query,
+        distanceMultiplier,
+        includeLocs,
+        uniqueDocs,
+        minDistance,
+        key,
+    }
+
+
+    enum BucketGranularity {
+        R5,
+        R10,
+        R20,
+        R40,
+        R80,
+        E6,
+        E12,
+        E24,
+        E48,
+        E96,
+        E192,
+        POWERSOF2,
+        SERIES_125("1-2-5");
+
+        private final String value;
+
+        BucketGranularity() {
+            value = name();
+        }
+
+        BucketGranularity(String name) {
+            value = name;
+        }
+
+        public String getValue() {
+            return value;
+        }
+
+
+    }
 
 }
