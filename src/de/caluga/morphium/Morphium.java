@@ -2608,50 +2608,26 @@ public class Morphium implements AutoCloseable {
         return aggregator;
     }
 
-    public <T, R> List<R> aggregate(Aggregator<T, R> a) {
-
-        //        DBCollection coll = null;
-        //        for (int i = 0; i < getConfig().getRetriesOnNetworkError(); i++) {
-        //            try {
-        //                String collectionName = a.getCollectionName();
-        //                if (collectionName == null) collectionName = objectMapper.getCollectionName(a.getSearchType());
-        //                coll = config.getDb().getCollection(collectionName);
-        //                break;
-        //            } catch (Throwable e) {
-        //                handleNetworkError(i, e);
-        //            }
-        //        }
+    public <T, R> List<Map<String, Object>> aggregateMap(Aggregator<T, R> a) {
         List<Map<String, Object>> agList = a.toAggregationList();
         try {
-            List<Map<String, Object>> ret = getDriver().aggregate(config.getDatabase(), a.getCollectionName(), agList, a.isExplain(), a.isUseDisk(), getReadPreferenceForClass(a.getSearchType()));
-            List<R> result = new ArrayList<>();
-            for (Map<String, Object> dbObj : ret) {
-                result.add(getMapper().deserialize(a.getResultType(), dbObj));
-            }
-            return result;
+            return getDriver().aggregate(config.getDatabase(), a.getCollectionName(), agList, a.isExplain(), a.isUseDisk(), getReadPreferenceForClass(a.getSearchType()));
+
         } catch (MorphiumDriverException e) {
             throw new RuntimeException(e);
         }
-        //        Map<String, Object> first = agList.get(0);
-        //        agList.remove(0);
-        //        AggregationOutput resp = null;
-        //        for (int i = 0; i < getConfig().getRetriesOnNetworkError(); i++) {
-        //            try {
-        //                resp = coll.aggregate(first, agList.toArray(new Map<String, Object>[agList.size()]));
-        //                break;
-        //            } catch (Throwable t) {
-        //                handleNetworkError(i, t);
-        //            }
-        //        }
-        //        List<R> ret = new ArrayList<>();
-        //        if (resp != null) {
-        //            for (Map<String, Object> o : resp.results()) {
-        //                R obj = getMapper().deserialize(a.getResultType(), o);
-        //                if (obj == null) continue;
-        //                ret.add(obj);
-        //            }
-        //        }
-        //        return ret;
+    }
+
+    public <T, R> List<R> aggregate(Aggregator<T, R> a) {
+        List<Map<String, Object>> ret = aggregateMap(a);
+        if (a.getResultType().equals(Map.class)) {
+            return (List<R>) ret;
+        }
+        List<R> result = new ArrayList<>();
+        for (Map<String, Object> dbObj : ret) {
+            result.add(getMapper().deserialize(a.getResultType(), dbObj));
+        }
+        return result;
     }
 
 
