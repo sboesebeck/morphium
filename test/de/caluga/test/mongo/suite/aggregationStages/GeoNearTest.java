@@ -51,19 +51,6 @@ public class GeoNearTest extends MorphiumTestBase {
     @Entity
     @Index(value = {"location:2dsphere", "legacy:2d"})
     public static class Place {
-        /**
-         * {
-         * "_id" : 3,
-         * "name" : "Polo Grounds",
-         * "location": {
-         * "type" : "Point",
-         * "coordinates" : [ -73.9375, 40.8303 ]
-         * },
-         * "legacy" : [ -73.9375, 40.8303 ],
-         * "category" : "Stadiums"
-         * }
-         */
-
         @Id
         public MorphiumId id;
         public String name;
