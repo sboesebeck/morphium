@@ -75,7 +75,7 @@ public interface Aggregator<T, R> {
 
     Aggregator<T, R> facet(Map<String, Aggregator> pipeline);
 
-    Aggregator<T, R> geoNear(Map<GeoNearFiels, Object> param);
+    Aggregator<T, R> geoNear(Map<GeoNearFields, Object> param);
 
     Aggregator<T, R> graphLookup(Class<?> fromType, Expr startWith, String connectFromField, String connectToField, String as, int maxDepth, String depthField, Query restrictSearchWithMatch);
 
@@ -202,7 +202,7 @@ public interface Aggregator<T, R> {
     void setUseDisk(boolean useDisk);
 
 
-    enum GeoNearFiels {
+    enum GeoNearFields {
         near,
         distanceField,
         spherical,

@@ -1,6 +1,7 @@
 package de.caluga.morphium.aggregation;
 
 import de.caluga.morphium.Morphium;
+import de.caluga.morphium.ObjectMapperImpl;
 import de.caluga.morphium.Utils;
 import de.caluga.morphium.async.AsyncOperationCallback;
 import de.caluga.morphium.async.AsyncOperationType;
@@ -408,8 +409,12 @@ public class AggregatorImpl<T, R> implements Aggregator<T, R> {
     }
 
     @Override
-    public Aggregator<T, R> geoNear(Map<Aggregator.GeoNearFiels, Object> param) {
-        params.add(Utils.getMap("$geoNear", Utils.getNoExprMap((Map) param)));
+    public Aggregator<T, R> geoNear(Map<GeoNearFields, Object> param) {
+        Map<String, Object> map = new LinkedHashMap<>();
+        for (Map.Entry<GeoNearFields, Object> e : param.entrySet()) {
+            map.put(e.getKey().name(), ((ObjectMapperImpl) morphium.getMapper()).marshallIfNecessary(e.getValue()));
+        }
+        params.add(Utils.getMap("$geoNear", map));
         return this;
     }
 

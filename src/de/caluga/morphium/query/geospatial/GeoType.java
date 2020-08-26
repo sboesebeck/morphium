@@ -10,6 +10,10 @@ public enum GeoType {
 
     String mongoName;
 
+    public String getMongoName() {
+        return mongoName;
+    }
+
     GeoType(String mongoName) {
         this.mongoName = mongoName;
     }
