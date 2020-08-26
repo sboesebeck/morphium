@@ -1,20 +1,31 @@
 package de.caluga.morphium.query.geospatial;
 
+import java.util.ArrayList;
 import java.util.List;
 
 //array of 2: lng, lat
-public class Point extends Geo<int[]> {
+public class Point extends Geo<List<Double>> {
     public Point() {
         super(GeoType.POINT);
-        setCoordinates(new int[2]);
+        ArrayList<Double> coordinates = new ArrayList<>(2);
+        coordinates.add(0.0);
+        coordinates.add(0.0);
+        setCoordinates(coordinates);
     }
 
-    public void setLat(int lat) {
-        getCoordinates()[1] = lat;
+    public Point(Double lng, Double lat) {
+        this();
+        setLong(lng);
+        setLat(lat);
     }
 
-    public void setLong(int lng) {
-        getCoordinates()[0] = lng;
+    public void setLat(Double lat) {
+        getCoordinates().set(1, lat);
     }
+
+    public void setLong(Double lng) {
+        getCoordinates().set(0, lng);
+    }
+
 
 }

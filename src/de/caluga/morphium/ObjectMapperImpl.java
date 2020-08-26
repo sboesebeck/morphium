@@ -1,11 +1,14 @@
 package de.caluga.morphium;
 
+import de.caluga.morphium.aggregation.Expr;
 import de.caluga.morphium.annotations.*;
 import de.caluga.morphium.annotations.encryption.Encrypted;
 import de.caluga.morphium.driver.MorphiumId;
 import de.caluga.morphium.encryption.ValueEncryptionProvider;
 import de.caluga.morphium.mapping.BigIntegerTypeMapper;
+import de.caluga.morphium.mapping.BsonGeoMapper;
 import de.caluga.morphium.mapping.MorphiumTypeMapper;
+import de.caluga.morphium.query.geospatial.*;
 import org.bson.types.ObjectId;
 import org.json.simple.parser.ContainerFactory;
 import org.json.simple.parser.JSONParser;
@@ -69,6 +72,13 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
         };
 
         customMappers.put(BigInteger.class, new BigIntegerTypeMapper());
+        customMappers.put(Geo.class, new BsonGeoMapper());
+        customMappers.put(Point.class, new BsonGeoMapper());
+        customMappers.put(MultiPoint.class, new BsonGeoMapper());
+        customMappers.put(MultiLineString.class, new BsonGeoMapper());
+        customMappers.put(MultiPolygon.class, new BsonGeoMapper());
+        customMappers.put(Polygon.class, new BsonGeoMapper());
+        customMappers.put(LineString.class, new BsonGeoMapper());
 
     }
 
@@ -166,6 +176,9 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
     public Object marshallIfNecessary(Object o) {
         if (o == null) {
             return null;
+        }
+        if (o instanceof Expr) {
+            return ((Expr) o).toQueryObject();
         }
         if (annotationHelper.isEntity(o) || customMappers.containsKey(o.getClass())) {
             return serialize(o);
