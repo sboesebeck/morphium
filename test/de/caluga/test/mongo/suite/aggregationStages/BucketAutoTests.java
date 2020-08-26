@@ -66,14 +66,21 @@ public class BucketAutoTests extends MorphiumTestBase {
         assert (result.get("area") != null);
         log.info("Result for Area:");
         log.info(result.get("area").toString());
+        assert (((List) result.get("area")).size() == 4);
+        assert (result.get("area").toString().equals("[{count=3, _id={min=432, max=500}, titles=[The Scream, The Persistence of Memory, Blue Flower]}, {count=2, _id={min=500, max=864}, titles=[Dancer, The Pillars of Society]}, {count=2, _id={min=864, max=1568}, titles=[The Great Wave off Kanagawa, Composition VII]}, {count=1, _id={min=1568, max=1568}, titles=[Melancholy III]}]"));
+
 
         assert (result.get("price") != null);
         log.info("Result for price:");
         log.info(result.get("price").toString());
+        assert (((List) result.get("price")).size() == 4);
+        assert (result.get("price").toString().equals("[{count=2, _id={min=76.04, max=159.0}}, {count=2, _id={min=159.0, max=199.99}}, {count=2, _id={min=199.99, max=385.0}}, {count=2, _id={min=385.0, max=483.0}}]"));
 
         assert (result.get("year") != null);
         log.info("Result for year:");
         log.info(result.get("year").toString());
+        assert (((List) result.get("year")).size() == 3);
+        assert (result.get("year").toString().equals("[{count=3, _id={min=null, max=1913}, years=[1902]}, {count=3, _id={min=1913, max=1926}, years=[1913, 1918, 1925]}, {count=2, _id={min=1926, max=1931}, years=[1926, 1931]}]"));
 
     }
 
