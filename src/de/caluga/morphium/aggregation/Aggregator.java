@@ -71,7 +71,9 @@ public interface Aggregator<T, R> {
 
     Aggregator<T, R> currentOp(boolean allUsers, boolean idleConnections, boolean idleCursors, boolean idleSessions, boolean localOps);
 
-    Aggregator<T, R> facet(Map<String, Expr> param);
+    Aggregator<T, R> facetExpr(Map<String, Expr> param);
+
+    Aggregator<T, R> facet(Map<String, Aggregator> pipeline);
 
     Aggregator<T, R> geoNear(Map<GeoNearFiels, Object> param);
 
@@ -183,6 +185,11 @@ public interface Aggregator<T, R> {
 
     @SuppressWarnings("unused")
     void aggregate(AsyncOperationCallback<R> callback);
+
+    List<Map<String, Object>> aggregateMap();
+
+    @SuppressWarnings("unused")
+    void aggregateMap(AsyncOperationCallback<Map<String, Object>> callback);
 
     boolean isExplain();
 

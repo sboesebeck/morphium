@@ -45,6 +45,9 @@ public class BucketTests extends MorphiumTestBase {
             assert (a.artists != null);
             assert (a.artists.size() > 0);
             assert (a.count == a.artists.size());
+            for (Artist artist : a.artists) {
+                assert (a.id <= artist.yearBorn);
+            }
         }
 
 

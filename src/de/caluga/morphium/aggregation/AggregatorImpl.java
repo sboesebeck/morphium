@@ -254,6 +254,25 @@ public class AggregatorImpl<T, R> implements Aggregator<T, R> {
     }
 
     @Override
+    public List<Map<String, Object>> aggregateMap() {
+        return morphium.aggregateMap(this);
+    }
+
+    @Override
+    public void aggregateMap(AsyncOperationCallback<Map<String, Object>> callback) {
+        if (callback == null) {
+            morphium.aggregateMap(this);
+        } else {
+
+            morphium.queueTask(() -> {
+                long start = System.currentTimeMillis();
+                List<Map<String, Object>> ret = morphium.aggregateMap(AggregatorImpl.this);
+                callback.onOperationSucceeded(AsyncOperationType.READ, null, System.currentTimeMillis() - start, ret, null, AggregatorImpl.this);
+            });
+        }
+    }
+
+    @Override
     public List<Map<String, Object>> toAggregationList() {
         for (Group<T, R> g : groups) {
             g.end();
@@ -307,15 +326,23 @@ public class AggregatorImpl<T, R> implements Aggregator<T, R> {
 
     @Override
     public Aggregator<T, R> bucketAuto(Expr groupBy, int numBuckets, Map<String, Expr> output, BucketGranularity granularity) {
-        Map<String, Object> out = new LinkedHashMap<>();
-        for (Map.Entry<String, Expr> e : output.entrySet()) {
-            out.put(e.getKey(), e.getValue().toQueryObject());
+        Map<String, Object> out = null;
+
+        if (output != null) {
+            out = new LinkedHashMap<>();
+            for (Map.Entry<String, Expr> e : output.entrySet()) {
+                out.put(e.getKey(), e.getValue().toQueryObject());
+            }
         }
-        params.add(Utils.getMap("$bucketAuto", Utils.getMap("groupBy", groupBy.toQueryObject())
-                .add("buckets", numBuckets)
-                .add("output", out)
-                .add("granularity", granularity.getValue())
-        ));
+        Utils.UtilsMap<String, Object> bucketAuto = Utils.getMap("groupBy", groupBy.toQueryObject());
+        bucketAuto.add("buckets", numBuckets);
+        Utils.UtilsMap<String, Object> map = Utils.getMap("$bucketAuto", bucketAuto);
+
+        if (out != null)
+            bucketAuto.add("output", out);
+        if (granularity != null)
+            bucketAuto.add("granularity", granularity.getValue());
+        params.add(map);
 
         return this;
     }
@@ -362,8 +389,20 @@ public class AggregatorImpl<T, R> implements Aggregator<T, R> {
     }
 
     @Override
-    public Aggregator<T, R> facet(Map<String, Expr> facets) {
+    public Aggregator<T, R> facetExpr(Map<String, Expr> facets) {
         Map<String, Object> map = Utils.getQueryObjectMap(facets);
+        params.add(Utils.getMap("$facet", map));
+        return this;
+    }
+
+    @Override
+    public Aggregator<T, R> facet(Map<String, Aggregator> facets) {
+
+        Map<String, Object> map = new HashMap<>();
+
+        for (Map.Entry<String, Aggregator> e : facets.entrySet()) {
+            map.put(e.getKey(), e.getValue().toAggregationList());
+        }
         params.add(Utils.getMap("$facet", map));
         return this;
     }
