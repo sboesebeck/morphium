@@ -1173,7 +1173,7 @@ public class InMemoryDriver implements MorphiumDriver {
     }
 
     @Override
-    public List<Map<String, Object>> aggregate(String db, String collection, List<Map<String, Object>> pipeline, boolean explain, boolean allowDiskUse, ReadPreference readPreference) {
+    public List<Map<String, Object>> aggregate(String db, String collection, List<Map<String, Object>> pipeline, boolean explain, boolean allowDiskUse, Collation collation, ReadPreference readPreference) throws MorphiumDriverException {
         throw new RuntimeException("Aggregate not possible in memory!");
     }
 

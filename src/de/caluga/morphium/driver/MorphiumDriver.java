@@ -2,6 +2,7 @@ package de.caluga.morphium.driver;/**
  * Created by stephan on 15.10.15.
  */
 
+import de.caluga.morphium.Collation;
 import de.caluga.morphium.Morphium;
 import de.caluga.morphium.driver.bulk.BulkRequestContext;
 import de.caluga.morphium.driver.mongodb.Maximums;
@@ -233,7 +234,7 @@ public interface MorphiumDriver {
     Map<String, Object> group(String db, String coll, Map<String, Object> query, Map<String, Object> initial, String jsReduce, String jsFinalize, ReadPreference rp, String... keys) throws MorphiumDriverException;
 
     @SuppressWarnings("RedundantThrows")
-    List<Map<String, Object>> aggregate(String db, String collection, List<Map<String, Object>> pipeline, boolean explain, boolean allowDiskUse, ReadPreference readPreference) throws MorphiumDriverException;
+    List<Map<String, Object>> aggregate(String db, String collection, List<Map<String, Object>> pipeline, boolean explain, boolean allowDiskUse, Collation collation, ReadPreference readPreference) throws MorphiumDriverException;
 
     @SuppressWarnings("unused")
     boolean isSocketKeepAlive();

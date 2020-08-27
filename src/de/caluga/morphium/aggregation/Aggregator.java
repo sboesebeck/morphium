@@ -1,5 +1,6 @@
 package de.caluga.morphium.aggregation;
 
+import de.caluga.morphium.Collation;
 import de.caluga.morphium.Morphium;
 import de.caluga.morphium.async.AsyncOperationCallback;
 import de.caluga.morphium.query.Query;
@@ -94,6 +95,10 @@ public interface Aggregator<T, R> {
     Aggregator<T, R> listSessionsAllUsers();
 
     Aggregator<T, R> listSessions(List<String> users, List<String> dbs);
+
+    Aggregator<T, R> collation(Collation collation);
+
+    Collation getCollation();
 
 
     Aggregator<T, R> lookup(Map<String, Object> param);
