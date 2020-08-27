@@ -349,7 +349,7 @@ public class ObjectMapperTest extends MorphiumTestBase {
 
         morphium.store(uc);
 
-        List<Map<String, Object>> res = morphium.getDriver().find(morphium.getConfig().getDatabase(), "uncached_object_" + TestEntityNameProvider.number.get(), Utils.getMap("_id", uc.getMorphiumId()), null, null, 0, 0, 10000, null, null);
+        List<Map<String, Object>> res = morphium.getDriver().find(morphium.getConfig().getDatabase(), "uncached_object_" + TestEntityNameProvider.number.get(), Utils.getMap("_id", uc.getMorphiumId()), null, null, 0, 0, 10000, null, null, null);
         assert (res.size() == 1);
     }
 

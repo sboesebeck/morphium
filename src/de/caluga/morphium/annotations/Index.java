@@ -1,5 +1,7 @@
 package de.caluga.morphium.annotations;
 
+import de.caluga.morphium.Collation;
+
 import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
@@ -42,4 +44,20 @@ public @interface Index {
     String[] value() default {};
 
     String[] options() default {};
+
+    String locale() default "";
+
+    boolean caseLevel() default false;
+
+    Collation.CaseFirst caseFirst() default Collation.CaseFirst.OFF;
+
+    Collation.Strength strength() default Collation.Strength.TERTIARY;
+
+    boolean numericOrdering() default false;
+
+    de.caluga.morphium.Collation.Alternate alternate() default de.caluga.morphium.Collation.Alternate.NON_IGNORABLE;
+
+    Collation.MaxVariable maxVariable() default Collation.MaxVariable.SPACE;
+
+    boolean backwards() default false;
 }

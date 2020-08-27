@@ -160,7 +160,7 @@ public class PrefetchingDriverIterator<T> implements MorphiumIterator<T> {
             startedAlready = true;
             //startup
             try {
-                cursor = query.getMorphium().getDriver().initIteration(query.getMorphium().getConfig().getDatabase(), query.getCollectionName(), query.toQueryObject(), query.getSort(), query.getFieldListForQuery(), query.getSkip(), query.getLimit(), batchsize, query.getMorphium().getReadPreferenceForClass(query.getType()), null);
+                cursor = query.getMorphium().getDriver().initIteration(query.getMorphium().getConfig().getDatabase(), query.getCollectionName(), query.toQueryObject(), query.getSort(), query.getFieldListForQuery(), query.getSkip(), query.getLimit(), batchsize, query.getMorphium().getReadPreferenceForClass(query.getType()), query.getCollation(), null);
                 if (cursor == null) {
                     return false;
                 }

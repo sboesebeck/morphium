@@ -23,11 +23,12 @@ public class Collation {
     private Alternate alternate;
     private MaxVariable maxVariable;
     private Boolean backwards;
+    private Boolean normalization;
 
     public Collation() {
     }
 
-    public Collation(String locale, Boolean caseLevel, CaseFirst caseFirst, Strength strength, Boolean numericOrdering, Alternate alternate, MaxVariable maxVariable, Boolean backwards) {
+    public Collation(String locale, Boolean caseLevel, CaseFirst caseFirst, Strength strength, Boolean numericOrdering, Alternate alternate, MaxVariable maxVariable, Boolean backwards, Boolean normalization) {
         this.locale = locale;
         this.caseLevel = caseLevel;
         this.caseFirst = caseFirst;
@@ -38,11 +39,20 @@ public class Collation {
         this.backwards = backwards;
     }
 
+    public Boolean getNormalization() {
+        return normalization;
+    }
+
+    public Collation normalization(Boolean normalization) {
+        this.normalization = normalization;
+        return this;
+    }
+
     public String getLocale() {
         return locale;
     }
 
-    public Collation setLocale(String locale) {
+    public Collation locale(String locale) {
         this.locale = locale;
         return this;
     }
@@ -51,7 +61,7 @@ public class Collation {
         return caseLevel;
     }
 
-    public Collation setCaseLevel(Boolean caseLevel) {
+    public Collation caseLevel(Boolean caseLevel) {
         this.caseLevel = caseLevel;
         return this;
     }
@@ -60,7 +70,7 @@ public class Collation {
         return caseFirst;
     }
 
-    public Collation setCaseFirst(CaseFirst caseFirst) {
+    public Collation caseFirst(CaseFirst caseFirst) {
         this.caseFirst = caseFirst;
         return this;
     }
@@ -69,7 +79,7 @@ public class Collation {
         return strength;
     }
 
-    public Collation setStrength(Strength strength) {
+    public Collation strength(Strength strength) {
         this.strength = strength;
         return this;
     }
@@ -78,7 +88,7 @@ public class Collation {
         return numericOrdering;
     }
 
-    public Collation setNumericOrdering(Boolean numericOrdering) {
+    public Collation numericOrdering(Boolean numericOrdering) {
         this.numericOrdering = numericOrdering;
         return this;
     }
@@ -87,7 +97,7 @@ public class Collation {
         return alternate;
     }
 
-    public Collation setAlternate(Alternate alternate) {
+    public Collation alternate(Alternate alternate) {
         this.alternate = alternate;
         return this;
     }
@@ -96,7 +106,7 @@ public class Collation {
         return maxVariable;
     }
 
-    public Collation setMaxVariable(MaxVariable maxVariable) {
+    public Collation maxVariable(MaxVariable maxVariable) {
         this.maxVariable = maxVariable;
         return this;
     }
@@ -105,7 +115,7 @@ public class Collation {
         return backwards;
     }
 
-    public Collation setBackwards(Boolean backwards) {
+    public Collation backwards(Boolean backwards) {
         this.backwards = backwards;
         return this;
     }

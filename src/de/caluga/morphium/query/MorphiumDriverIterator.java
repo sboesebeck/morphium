@@ -147,7 +147,7 @@ public class MorphiumDriverIterator<T> implements MorphiumIterator<T> {
         if (currentBatch == null && cursorExternal == 0) {
             try {
                 //noinspection unchecked
-                currentBatch = query.getMorphium().getDriver().initIteration(query.getMorphium().getConfig().getDatabase(), query.getCollectionName(), query.toQueryObject(), query.getSort(), query.getFieldListForQuery(), query.getSkip(), query.getLimit(), getWindowSize(), query.getMorphium().getReadPreferenceForClass(query.getType()), null);
+                currentBatch = query.getMorphium().getDriver().initIteration(query.getMorphium().getConfig().getDatabase(), query.getCollectionName(), query.toQueryObject(), query.getSort(), query.getFieldListForQuery(), query.getSkip(), query.getLimit(), getWindowSize(), query.getMorphium().getReadPreferenceForClass(query.getType()), getQuery().getCollation(), null);
             } catch (MorphiumDriverException e) {
                 log.error("error during fetching first batch", e);
             }
@@ -166,7 +166,7 @@ public class MorphiumDriverIterator<T> implements MorphiumIterator<T> {
         try {
             if (currentBatch == null && cursorExternal == 0) {
                 //noinspection unchecked
-                currentBatch = query.getMorphium().getDriver().initIteration(query.getMorphium().getConfig().getDatabase(), query.getCollectionName(), query.toQueryObject(), query.getSort(), query.getFieldListForQuery(), query.getSkip(), query.getLimit(), getWindowSize(), query.getMorphium().getReadPreferenceForClass(query.getType()), null);
+                currentBatch = query.getMorphium().getDriver().initIteration(query.getMorphium().getConfig().getDatabase(), query.getCollectionName(), query.toQueryObject(), query.getSort(), query.getFieldListForQuery(), query.getSkip(), query.getLimit(), getWindowSize(), query.getMorphium().getReadPreferenceForClass(query.getType()), query.getCollation(), null);
                 cursor = 0;
             } else if (currentBatch != null && cursor + 1 < currentBatch.getBatch().size()) {
                 cursor++;
