@@ -7,13 +7,12 @@ import com.mongodb.MongoClient;
 import com.mongodb.WriteConcern;
 import com.mongodb.*;
 import com.mongodb.client.*;
-import com.mongodb.client.model.InsertManyOptions;
-import com.mongodb.client.model.InsertOneOptions;
-import com.mongodb.client.model.UpdateOptions;
+import com.mongodb.client.model.*;
 import com.mongodb.client.model.changestream.ChangeStreamDocument;
 import com.mongodb.client.model.changestream.FullDocument;
 import com.mongodb.client.result.DeleteResult;
 import com.mongodb.client.result.UpdateResult;
+import de.caluga.morphium.Collation;
 import de.caluga.morphium.Morphium;
 import de.caluga.morphium.driver.ReadPreference;
 import de.caluga.morphium.driver.*;
@@ -1452,7 +1451,7 @@ public class Driver implements MorphiumDriver {
 
     @Override
     public List<Map<String, Object>> aggregate(String db, String collection, List<Map<String, Object>> pipeline,
-                                               boolean explain, boolean allowDiskUse, ReadPreference readPreference) {
+                                               boolean explain, boolean allowDiskUse, Collation collation, ReadPreference readPreference) {
         DriverHelper.replaceMorphiumIdByObjectId(pipeline);
         //noinspection unchecked
         List list = pipeline.stream().map(BasicDBObject::new).collect(Collectors.toList());
@@ -1469,10 +1468,20 @@ public class Driver implements MorphiumDriver {
             if (currentTransaction.get() == null) {
                 //noinspection unchecked,unchecked
                 it = c.aggregate(list, Document.class);
+
             } else {
                 //noinspection unchecked,unchecked
                 it = c.aggregate(currentTransaction.get().getSession(), list, Document.class);
             }
+            it.allowDiskUse(allowDiskUse);
+            com.mongodb.client.model.Collation col = com.mongodb.client.model.Collation.builder().backwards(collation.getBackwards())
+                    .caseLevel(collation.getCaseLevel())
+                    .collationAlternate(collation.getAlternate().equals(Collation.Alternate.NON_IGNORABLE) ? CollationAlternate.NON_IGNORABLE : CollationAlternate.SHIFTED)
+                    .collationCaseFirst(CollationCaseFirst.fromString(collation.getCaseFirst().getMongoText()))
+                    .collationMaxVariable(CollationMaxVariable.fromString(collation.getMaxVariable().getMongoText()))
+                    .collationStrength(CollationStrength.fromInt(collation.getStrength().getMongoValue()))
+                    .build();
+            it.collation(col);
 //            @SuppressWarnings("unchecked") Cursor ret = getColl(mongo.getDB(db), collection, getDefaultReadPreference(), null).aggregate(list, opts);
             List<Map<String, Object>> result = new ArrayList<>();
 

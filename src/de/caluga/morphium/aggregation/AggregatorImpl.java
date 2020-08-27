@@ -1,5 +1,6 @@
 package de.caluga.morphium.aggregation;
 
+import de.caluga.morphium.Collation;
 import de.caluga.morphium.Morphium;
 import de.caluga.morphium.ObjectMapperImpl;
 import de.caluga.morphium.Utils;
@@ -25,6 +26,13 @@ public class AggregatorImpl<T, R> implements Aggregator<T, R> {
     private String collectionName;
     private boolean useDisk = false;
     private boolean explain = false;
+    private Collation collation;
+
+
+    @Override
+    public Collation getCollation() {
+        return collation;
+    }
 
     @Override
     public boolean isUseDisk() {
@@ -638,7 +646,13 @@ public class AggregatorImpl<T, R> implements Aggregator<T, R> {
         if (!stageName.startsWith("$")) {
             stageName = "$" + stageName;
         }
-        params.add(Utils.getMap(stageName,param));
+        params.add(Utils.getMap(stageName, param));
+        return this;
+    }
+
+    @Override
+    public Aggregator<T, R> collation(Collation collation) {
+        this.collation = collation;
         return this;
     }
 }
