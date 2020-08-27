@@ -1355,7 +1355,7 @@ public class Morphium implements AutoCloseable {
 
         try {
             Map<String, Object> findMetaData = new HashMap<>();
-            List<Map<String, Object>> found = morphiumDriver.find(config.getDatabase(), collection, srch, null, null, 0, 1, 1, null, findMetaData);
+            List<Map<String, Object>> found = morphiumDriver.find(config.getDatabase(), collection, srch, null, null, 0, 1, 1, null, null, findMetaData);
             if (found != null && !found.isEmpty()) {
                 Map<String, Object> dbo = found.get(0);
                 Object fromDb = objectMapper.deserialize(o.getClass(), dbo);
@@ -1835,15 +1835,19 @@ public class Morphium implements AutoCloseable {
     @SuppressWarnings("unchecked")
     public List<Object> distinct(String key, Query q) {
         try {
-            return morphiumDriver.distinct(config.getDatabase(), q.getCollectionName(), key, q.toQueryObject(), getReadPreferenceForClass(q.getType()));
+            return morphiumDriver.distinct(config.getDatabase(), q.getCollectionName(), key, q.toQueryObject(), q.getCollation(), getReadPreferenceForClass(q.getType()));
         } catch (MorphiumDriverException e) {
             throw new RuntimeException(e);
         }
     }
 
     public List<Object> distinct(String key, Class cls) {
+        return distinct(key, cls, null);
+    }
+
+    public List<Object> distinct(String key, Class cls, Collation collation) {
         try {
-            return morphiumDriver.distinct(config.getDatabase(), objectMapper.getCollectionName(cls), key, new HashMap<>(), getReadPreferenceForClass(cls));
+            return morphiumDriver.distinct(config.getDatabase(), objectMapper.getCollectionName(cls), key, new HashMap<>(), collation, getReadPreferenceForClass(cls));
         } catch (MorphiumDriverException e) {
             throw new RuntimeException(e);
         }
@@ -1851,8 +1855,12 @@ public class Morphium implements AutoCloseable {
 
     @SuppressWarnings({"unused"})
     public List<Object> distinct(String key, String collectionName) {
+        return distinct(key, collectionName, null);
+    }
+
+    public List<Object> distinct(String key, String collectionName, Collation collation) {
         try {
-            return morphiumDriver.distinct(config.getDatabase(), collectionName, key, new HashMap<>(), config.getDefaultReadPreference());
+            return morphiumDriver.distinct(config.getDatabase(), collectionName, key, new HashMap<>(), collation, config.getDefaultReadPreference());
         } catch (MorphiumDriverException e) {
             throw new RuntimeException(e);
         }

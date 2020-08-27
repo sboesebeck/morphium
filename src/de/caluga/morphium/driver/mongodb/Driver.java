@@ -781,7 +781,7 @@ public class Driver implements MorphiumDriver {
 
     @Override
     @SuppressWarnings("ALL")
-    public List<Map<String, Object>> find(String db, String collection, Map<String, Object> query, Map<String, Integer> sort, Map<String, Object> projection, int skip, int limit, int batchSize, ReadPreference readPreference, final Map<String, Object> findMetaData) throws MorphiumDriverException {
+    public List<Map<String, Object>> find(String db, String collection, Map<String, Object> query, Map<String, Integer> sort, Map<String, Object> projection, int skip, int limit, int batchSize, ReadPreference readPreference, Collation collation, final Map<String, Object> findMetaData) throws MorphiumDriverException {
         DriverHelper.replaceMorphiumIdByObjectId(query);
         //noinspection unused
         return (List<Map<String, Object>>) DriverHelper.doCall(new MorphiumDriverOperation() {
@@ -811,6 +811,14 @@ public class Driver implements MorphiumDriver {
                 }
                 it.maxAwaitTime(getMaxWaitTime(), TimeUnit.MILLISECONDS);
                 it.maxTime(getMaxWaitTime(), TimeUnit.MILLISECONDS);
+                com.mongodb.client.model.Collation col = com.mongodb.client.model.Collation.builder().backwards(collation.getBackwards())
+                        .caseLevel(collation.getCaseLevel())
+                        .collationAlternate(collation.getAlternate().equals(Collation.Alternate.NON_IGNORABLE) ? CollationAlternate.NON_IGNORABLE : CollationAlternate.SHIFTED)
+                        .collationCaseFirst(CollationCaseFirst.fromString(collation.getCaseFirst().getMongoText()))
+                        .collationMaxVariable(CollationMaxVariable.fromString(collation.getMaxVariable().getMongoText()))
+                        .collationStrength(CollationStrength.fromInt(collation.getStrength().getMongoValue()))
+                        .build();
+                it.collation(col);
                 MongoCursor<Document> ret = it.iterator();
                 handleMetaData(findMetaData, ret);
 
@@ -1059,14 +1067,32 @@ public class Driver implements MorphiumDriver {
 
 
     @Override
-    public long count(String db, String collection, Map<String, Object> query, ReadPreference rp) {
+    public long count(String db, String collection, Map<String, Object> query, Collation collation, ReadPreference rp) {
         DriverHelper.replaceMorphiumIdByObjectId(query);
         MongoDatabase database = mongo.getDatabase(db);
         MongoCollection<Document> coll = getCollection(database, collection, rp, null);
+        CountOptions co = new CountOptions();
+        com.mongodb.client.model.Collation col = null;
+        if (collation != null) {
+            col = com.mongodb.client.model.Collation.builder().backwards(collation.getBackwards())
+                    .caseLevel(collation.getCaseLevel())
+                    .collationAlternate(collation.getAlternate().equals(Collation.Alternate.NON_IGNORABLE) ? CollationAlternate.NON_IGNORABLE : CollationAlternate.SHIFTED)
+                    .collationCaseFirst(CollationCaseFirst.fromString(collation.getCaseFirst().getMongoText()))
+                    .collationMaxVariable(CollationMaxVariable.fromString(collation.getMaxVariable().getMongoText()))
+                    .collationStrength(CollationStrength.fromInt(collation.getStrength().getMongoValue()))
+                    .build();
+            co.collation(col);
+        }
         if (currentTransaction.get() != null) {
-            return coll.count(currentTransaction.get().getSession(), new BasicDBObject(query));
+            if (co != null) {
+                return coll.countDocuments(currentTransaction.get().getSession(), new BasicDBObject(query), co);
+            }
+            return coll.countDocuments(currentTransaction.get().getSession(), new BasicDBObject(query));
         } else {
-            return coll.count(new BasicDBObject(query));
+            if (co != null) {
+                return coll.countDocuments(new BasicDBObject(query), co);
+            }
+            return coll.countDocuments(new BasicDBObject(query));
         }
 
     }
@@ -1215,7 +1241,7 @@ public class Driver implements MorphiumDriver {
     }
 
     @Override
-    public Map<String, Object> update(String db, String collection, Map<String, Object> query, Map<String, Object> op, boolean multiple, boolean upsert, de.caluga.morphium.driver.WriteConcern wc) throws MorphiumDriverException {
+    public Map<String, Object> update(String db, String collection, Map<String, Object> query, Map<String, Object> op, boolean multiple, boolean upsert, Collation collation, de.caluga.morphium.driver.WriteConcern wc) throws MorphiumDriverException {
         DriverHelper.replaceMorphiumIdByObjectId(query);
         DriverHelper.replaceMorphiumIdByObjectId(op);
         return DriverHelper.doCall(() -> {
@@ -1224,11 +1250,22 @@ public class Driver implements MorphiumDriver {
             if (wc == null)
                 w = de.caluga.morphium.driver.WriteConcern.getWc(getDefaultW(), isDefaultFsync(), isDefaultJ(), getWriteTimeout()).toMongoWriteConcern();
             else w = wc.toMongoWriteConcern();
-
+            if (collation != null) {
+                com.mongodb.client.model.Collation col = com.mongodb.client.model.Collation.builder().backwards(collation.getBackwards())
+                        .caseLevel(collation.getCaseLevel())
+                        .collationAlternate(collation.getAlternate().equals(Collation.Alternate.NON_IGNORABLE) ? CollationAlternate.NON_IGNORABLE : CollationAlternate.SHIFTED)
+                        .collationCaseFirst(CollationCaseFirst.fromString(collation.getCaseFirst().getMongoText()))
+                        .collationMaxVariable(CollationMaxVariable.fromString(collation.getMaxVariable().getMongoText()))
+                        .collationStrength(CollationStrength.fromInt(collation.getStrength().getMongoValue()))
+                        .build();
+                opts.collation(col);
+            }
             opts.upsert(upsert);
+
             UpdateResult res;
             if (multiple) {
                 if (currentTransaction.get() == null) {
+
                     res = mongo.getDatabase(db).getCollection(collection).withWriteConcern(w).updateMany(new BasicDBObject(query), new BasicDBObject(op), opts);
                 } else {
                     res = mongo.getDatabase(db).getCollection(collection).withWriteConcern(w).updateMany(currentTransaction.get().getSession(), new BasicDBObject(query), new BasicDBObject(op), opts);
@@ -1253,24 +1290,36 @@ public class Driver implements MorphiumDriver {
     }
 
     @Override
-    public Map<String, Object> delete(String db, String collection, Map<String, Object> query, boolean multiple, de.caluga.morphium.driver.WriteConcern wc) throws MorphiumDriverException {
+    public Map<String, Object> delete(String db, String collection, Map<String, Object> query, boolean multiple, Collation collation, de.caluga.morphium.driver.WriteConcern wc) throws MorphiumDriverException {
         DriverHelper.replaceMorphiumIdByObjectId(query);
         return DriverHelper.doCall(() -> {
             MongoDatabase database = mongo.getDatabase(db);
             MongoCollection<Document> coll = database.getCollection(collection);
             DeleteResult res;
+            DeleteOptions opts = new DeleteOptions();
+            if (collation != null) {
+                com.mongodb.client.model.Collation col = com.mongodb.client.model.Collation.builder().backwards(collation.getBackwards())
+                        .caseLevel(collation.getCaseLevel())
+                        .collationAlternate(collation.getAlternate().equals(Collation.Alternate.NON_IGNORABLE) ? CollationAlternate.NON_IGNORABLE : CollationAlternate.SHIFTED)
+                        .collationCaseFirst(CollationCaseFirst.fromString(collation.getCaseFirst().getMongoText()))
+                        .collationMaxVariable(CollationMaxVariable.fromString(collation.getMaxVariable().getMongoText()))
+                        .collationStrength(CollationStrength.fromInt(collation.getStrength().getMongoValue()))
+                        .build();
+                opts.collation(col);
+            }
+
             if (multiple) {
                 if (currentTransaction.get() == null) {
-                    res = coll.deleteMany(new BasicDBObject(query));
+                    res = coll.deleteMany(new BasicDBObject(query), opts);
                 } else {
-                    res = coll.deleteMany(currentTransaction.get().getSession(), new BasicDBObject(query));
+                    res = coll.deleteMany(currentTransaction.get().getSession(), new BasicDBObject(query), opts);
 
                 }
             } else {
                 if (currentTransaction.get() == null) {
-                    res = coll.deleteOne(new BasicDBObject(query));
+                    res = coll.deleteOne(new BasicDBObject(query), opts);
                 } else {
-                    res = coll.deleteOne(currentTransaction.get().getSession(), new BasicDBObject(query));
+                    res = coll.deleteOne(currentTransaction.get().getSession(), new BasicDBObject(query), opts);
                 }
             }
             Map<String, Object> r = new HashMap<>();
@@ -1325,7 +1374,7 @@ public class Driver implements MorphiumDriver {
 
 
     @Override
-    public List<Object> distinct(String db, String collection, String field, final Map<String, Object> filter, ReadPreference rp) throws MorphiumDriverException {
+    public List<Object> distinct(String db, String collection, String field, final Map<String, Object> filter, Collation collation, ReadPreference rp) throws MorphiumDriverException {
         DriverHelper.replaceMorphiumIdByObjectId(filter);
         final List<Object> ret = new ArrayList<>();
         DriverHelper.doCall(() -> {
@@ -1334,10 +1383,21 @@ public class Driver implements MorphiumDriver {
                 @SuppressWarnings("unchecked") List<Object> lst = getColl(mongo.getDB(db), collection, getDefaultReadPreference(), null).distinct(field, new BasicDBObject(filter));
                 ret.addAll(lst);
             } else {
-                List<Map<String, Object>> r = find(db, collection, filter, null, new BasicDBObject(field, 1), 0, 1, 1, defaultReadPreference, null);
+
+                List<Map<String, Object>> r = find(db, collection, filter, null, new BasicDBObject(field, 1), 0, 1, 1, defaultReadPreference, collation, null);
                 if (r == null || r.size() == 0) return null;
 
                 it = getCollection(mongo.getDatabase(db), collection, getDefaultReadPreference(), null).distinct(currentTransaction.get().getSession(), field, new BasicDBObject(filter), r.get(0).get(field).getClass());
+                if (collation != null) {
+                    com.mongodb.client.model.Collation col = com.mongodb.client.model.Collation.builder().backwards(collation.getBackwards())
+                            .caseLevel(collation.getCaseLevel())
+                            .collationAlternate(collation.getAlternate().equals(Collation.Alternate.NON_IGNORABLE) ? CollationAlternate.NON_IGNORABLE : CollationAlternate.SHIFTED)
+                            .collationCaseFirst(CollationCaseFirst.fromString(collation.getCaseFirst().getMongoText()))
+                            .collationMaxVariable(CollationMaxVariable.fromString(collation.getMaxVariable().getMongoText()))
+                            .collationStrength(CollationStrength.fromInt(collation.getStrength().getMongoValue()))
+                            .build();
+                    it.collation(col);
+                }
                 for (Object d : it) {
                     ret.add(d);
                 }
@@ -1412,6 +1472,74 @@ public class Driver implements MorphiumDriver {
             return null;
         }, retriesOnNetworkError, sleepBetweenErrorRetries);
         return ret;
+    }
+
+    @Override
+    public Map<String, Object> findAndOneAndDelete(String db, String col, Map<String, Object> query, Collation collation) {
+        DriverHelper.replaceMorphiumIdByObjectId(query);
+        FindOneAndDeleteOptions opts = new FindOneAndDeleteOptions();
+        if (collation != null) {
+            com.mongodb.client.model.Collation c = com.mongodb.client.model.Collation.builder().backwards(collation.getBackwards())
+                    .caseLevel(collation.getCaseLevel())
+                    .collationAlternate(collation.getAlternate().equals(Collation.Alternate.NON_IGNORABLE) ? CollationAlternate.NON_IGNORABLE : CollationAlternate.SHIFTED)
+                    .collationCaseFirst(CollationCaseFirst.fromString(collation.getCaseFirst().getMongoText()))
+                    .collationMaxVariable(CollationMaxVariable.fromString(collation.getMaxVariable().getMongoText()))
+                    .collationStrength(CollationStrength.fromInt(collation.getStrength().getMongoValue()))
+                    .build();
+            opts.collation(c);
+        }
+        if (currentTransaction.get() != null) {
+            Document ret = mongo.getDatabase(db).getCollection(col).findOneAndDelete(currentTransaction.get().getSession(), new BasicDBObject(query));
+            return convertBSON(new HashMap<>((Map) ret));
+        }
+        Document ret = mongo.getDatabase(db).getCollection(col).findOneAndDelete(new BasicDBObject(query));
+        return convertBSON(new HashMap<>((Map) ret));
+    }
+
+
+    @Override
+    public Map<String, Object> findAndOneAndUpdate(String db, String col, Map<String, Object> query, Map<String, Object> update, Collation collation) {
+        DriverHelper.replaceMorphiumIdByObjectId(query);
+        FindOneAndUpdateOptions opts = new FindOneAndUpdateOptions();
+        if (collation != null) {
+            com.mongodb.client.model.Collation c = com.mongodb.client.model.Collation.builder().backwards(collation.getBackwards())
+                    .caseLevel(collation.getCaseLevel())
+                    .collationAlternate(collation.getAlternate().equals(Collation.Alternate.NON_IGNORABLE) ? CollationAlternate.NON_IGNORABLE : CollationAlternate.SHIFTED)
+                    .collationCaseFirst(CollationCaseFirst.fromString(collation.getCaseFirst().getMongoText()))
+                    .collationMaxVariable(CollationMaxVariable.fromString(collation.getMaxVariable().getMongoText()))
+                    .collationStrength(CollationStrength.fromInt(collation.getStrength().getMongoValue()))
+                    .build();
+            opts.collation(c);
+        }
+        if (currentTransaction.get() != null) {
+            Document ret = mongo.getDatabase(db).getCollection(col).findOneAndUpdate(currentTransaction.get().getSession(), new BasicDBObject(query), new BasicDBObject(update), opts);
+            return convertBSON(new HashMap<>((Map) ret));
+        }
+        Document ret = mongo.getDatabase(db).getCollection(col).findOneAndUpdate(new BasicDBObject(query), new BasicDBObject(update), opts);
+        return convertBSON(new HashMap<>((Map) ret));
+    }
+
+
+    @Override
+    public Map<String, Object> findAndOneAndReplace(String db, String col, Map<String, Object> query, Map<String, Object> replacement, Collation collation) {
+        DriverHelper.replaceMorphiumIdByObjectId(query);
+        FindOneAndReplaceOptions opts = new FindOneAndReplaceOptions();
+        if (collation != null) {
+            com.mongodb.client.model.Collation c = com.mongodb.client.model.Collation.builder().backwards(collation.getBackwards())
+                    .caseLevel(collation.getCaseLevel())
+                    .collationAlternate(collation.getAlternate().equals(Collation.Alternate.NON_IGNORABLE) ? CollationAlternate.NON_IGNORABLE : CollationAlternate.SHIFTED)
+                    .collationCaseFirst(CollationCaseFirst.fromString(collation.getCaseFirst().getMongoText()))
+                    .collationMaxVariable(CollationMaxVariable.fromString(collation.getMaxVariable().getMongoText()))
+                    .collationStrength(CollationStrength.fromInt(collation.getStrength().getMongoValue()))
+                    .build();
+            opts.collation(c);
+        }
+        if (currentTransaction.get() != null) {
+            Document ret = mongo.getDatabase(db).getCollection(col).findOneAndReplace(currentTransaction.get().getSession(), new BasicDBObject(query), new Document(replacement), opts);
+            return convertBSON(new HashMap<>((Map) ret));
+        }
+        Document ret = mongo.getDatabase(db).getCollection(col).findOneAndReplace(new BasicDBObject(query), new Document(replacement), opts);
+        return convertBSON(new HashMap<>((Map) ret));
     }
 
 
@@ -1602,21 +1730,31 @@ public class Driver implements MorphiumDriver {
 
     @Override
     public List<Map<String, Object>> mapReduce(String db, String collection, String mapping, String reducing) {
-        return mapReduce(db, collection, mapping, reducing, null, null);
+        return mapReduce(db, collection, mapping, reducing, null, null, null);
     }
 
     @Override
     public List<Map<String, Object>> mapReduce(String db, String collection, String mapping, String reducing, Map<String, Object> query) {
-        return mapReduce(db, collection, mapping, reducing, query, null);
+        return mapReduce(db, collection, mapping, reducing, query, null, null);
     }
 
     @Override
-    public List<Map<String, Object>> mapReduce(String db, String collection, String mapping, String reducing, Map<String, Object> query, Map<String, Object> sorting) {
+    public List<Map<String, Object>> mapReduce(String db, String collection, String mapping, String reducing, Map<String, Object> query, Map<String, Object> sorting, Collation collation) {
         MapReduceIterable<Document> res;
         if (currentTransaction.get() == null) {
             res = mongo.getDatabase(db).getCollection(collection).mapReduce(mapping, reducing);
         } else {
             res = mongo.getDatabase(db).getCollection(collection).mapReduce(currentTransaction.get().getSession(), mapping, reducing);
+        }
+        if (collation != null) {
+            com.mongodb.client.model.Collation col = com.mongodb.client.model.Collation.builder().backwards(collation.getBackwards())
+                    .caseLevel(collation.getCaseLevel())
+                    .collationAlternate(collation.getAlternate().equals(Collation.Alternate.NON_IGNORABLE) ? CollationAlternate.NON_IGNORABLE : CollationAlternate.SHIFTED)
+                    .collationCaseFirst(CollationCaseFirst.fromString(collation.getCaseFirst().getMongoText()))
+                    .collationMaxVariable(CollationMaxVariable.fromString(collation.getMaxVariable().getMongoText()))
+                    .collationStrength(CollationStrength.fromInt(collation.getStrength().getMongoValue()))
+                    .build();
+            res.collation(col);
         }
         if (query != null) {
             BasicDBObject v = new BasicDBObject(query);

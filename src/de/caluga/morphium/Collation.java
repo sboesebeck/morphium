@@ -42,64 +42,72 @@ public class Collation {
         return locale;
     }
 
-    public void setLocale(String locale) {
+    public Collation setLocale(String locale) {
         this.locale = locale;
+        return this;
     }
 
     public Boolean getCaseLevel() {
         return caseLevel;
     }
 
-    public void setCaseLevel(Boolean caseLevel) {
+    public Collation setCaseLevel(Boolean caseLevel) {
         this.caseLevel = caseLevel;
+        return this;
     }
 
     public CaseFirst getCaseFirst() {
         return caseFirst;
     }
 
-    public void setCaseFirst(CaseFirst caseFirst) {
+    public Collation setCaseFirst(CaseFirst caseFirst) {
         this.caseFirst = caseFirst;
+        return this;
     }
 
     public Strength getStrength() {
         return strength;
     }
 
-    public void setStrength(Strength strength) {
+    public Collation setStrength(Strength strength) {
         this.strength = strength;
+        return this;
     }
 
     public Boolean getNumericOrdering() {
         return numericOrdering;
     }
 
-    public void setNumericOrdering(Boolean numericOrdering) {
+    public Collation setNumericOrdering(Boolean numericOrdering) {
         this.numericOrdering = numericOrdering;
+        return this;
     }
 
     public Alternate getAlternate() {
         return alternate;
     }
 
-    public void setAlternate(Alternate alternate) {
+    public Collation setAlternate(Alternate alternate) {
         this.alternate = alternate;
+        return this;
     }
 
     public MaxVariable getMaxVariable() {
         return maxVariable;
     }
 
-    public void setMaxVariable(MaxVariable maxVariable) {
+    public Collation setMaxVariable(MaxVariable maxVariable) {
         this.maxVariable = maxVariable;
+        return this;
     }
 
     public Boolean getBackwards() {
         return backwards;
     }
 
-    public void setBackwards(Boolean backwards) {
+    public Collation setBackwards(Boolean backwards) {
         this.backwards = backwards;
+        return this;
     }
 
     public Map<String, Object> toQueryObject() {

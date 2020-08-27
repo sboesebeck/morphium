@@ -183,9 +183,9 @@ public interface MorphiumDriver {
 
     void closeIteration(MorphiumCursor crs) throws MorphiumDriverException;
 
-    List<Map<String, Object>> find(String db, String collection, Map<String, Object> query, Map<String, Integer> sort, Map<String, Object> projection, int skip, int limit, int batchSize, ReadPreference rp, Map<String, Object> findMetaData) throws MorphiumDriverException;
+     List<Map<String, Object>> find(String db, String collection, Map<String, Object> query, Map<String, Integer> sort, Map<String, Object> projection, int skip, int limit, int batchSize, ReadPreference readPreference, Collation collation, final Map<String, Object> findMetaData) throws MorphiumDriverException;
 
-    long count(String db, String collection, Map<String, Object> query, ReadPreference rp) throws MorphiumDriverException;
+    long count(String db, String collection, Map<String, Object> query, Collation collation, ReadPreference rp) throws MorphiumDriverException;
 
     /**
      * just insert - no special handling
@@ -210,9 +210,9 @@ public interface MorphiumDriver {
     Map<String,Object> store(String db, String collection, List<Map<String, Object>> objs, WriteConcern wc) throws MorphiumDriverException;
 
 
-    Map<String, Object> update(String db, String collection, Map<String, Object> query, Map<String, Object> op, boolean multiple, boolean upsert, WriteConcern wc) throws MorphiumDriverException;
+    Map<String, Object> update(String db, String collection, Map<String, Object> query, Map<String, Object> op, boolean multiple, boolean upsert, Collation collation, WriteConcern wc) throws MorphiumDriverException;
 
-    Map<String, Object> delete(String db, String collection, Map<String, Object> query, boolean multiple, WriteConcern wc) throws MorphiumDriverException;
+    Map<String, Object> delete(String db, String collection, Map<String, Object> query, boolean multiple, Collation collation, WriteConcern wc) throws MorphiumDriverException;
 
     void drop(String db, String collection, WriteConcern wc) throws MorphiumDriverException;
 
@@ -222,7 +222,7 @@ public interface MorphiumDriver {
     @SuppressWarnings("unused")
     boolean exists(String db) throws MorphiumDriverException;
 
-    List<Object> distinct(String db, String collection, String field, Map<String, Object> filter, ReadPreference rp) throws MorphiumDriverException;
+    List<Object> distinct(String db, String collection, String field, final Map<String, Object> filter, Collation collation, ReadPreference rp) throws MorphiumDriverException;
 
     boolean exists(String db, String collection) throws MorphiumDriverException;
 
@@ -230,6 +230,12 @@ public interface MorphiumDriver {
 
     @SuppressWarnings("unused")
     List<String> getCollectionNames(String db) throws MorphiumDriverException;
+
+    Map<String, Object> findAndOneAndDelete(String db, String col, Map<String, Object> query, Collation collation);
+
+    Map<String, Object> findAndOneAndUpdate(String db, String col, Map<String, Object> query, Map<String, Object> update, Collation collation);
+
+    Map<String, Object> findAndOneAndReplace(String db, String col, Map<String, Object> query, Map<String, Object> replacement, Collation collation);
 
     Map<String, Object> group(String db, String coll, Map<String, Object> query, Map<String, Object> initial, String jsReduce, String jsFinalize, ReadPreference rp, String... keys) throws MorphiumDriverException;
 
@@ -266,7 +272,7 @@ public interface MorphiumDriver {
 
     List<Map<String, Object>> mapReduce(String db, String collection, String mapping, String reducing, Map<String, Object> query) throws MorphiumDriverException;
 
-    List<Map<String, Object>> mapReduce(String db, String collection, String mapping, String reducing, Map<String, Object> query, Map<String, Object> sorting) throws MorphiumDriverException;
+    List<Map<String, Object>> mapReduce(String db, String collection, String mapping, String reducing, Map<String, Object> query, Map<String, Object> sorting, Collation collation);
 
     /**
      * list collections whose name match the pattern
