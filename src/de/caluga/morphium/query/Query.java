@@ -63,7 +63,7 @@ public interface Query<T> extends Cloneable {
 
     Collation getCollation();
 
-    void setCollation(Collation c);
+    Query<T> setCollation(Collation c);
 
     /**
      * return the DB name the query is going to be executed on or was executed on

@@ -26,7 +26,7 @@ public class CollectionNameOverrideTest extends MorphiumTestBase {
         //should be in a different colleciton now
         //        c = morphium.getDatabase().getCollection("uncached_collection_test_2");
 
-        long count = morphium.getDriver().count(morphium.getConfig().getDatabase(), "uncached_collection_test_2", new HashMap<>(), null);
+        long count = morphium.getDriver().count(morphium.getConfig().getDatabase(), "uncached_collection_test_2", new HashMap<>(), null, null);
         assert (count == 1) : "Count is: " + count;
     }
 

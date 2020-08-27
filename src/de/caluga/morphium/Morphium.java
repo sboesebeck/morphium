@@ -533,14 +533,27 @@ public class Morphium implements AutoCloseable {
 
     public <T> void ensureIndicesFor(Class<T> type, String onCollection, AsyncOperationCallback<T> callback, MorphiumWriter wr) {
         if (annotationHelper.isAnnotationPresentInHierarchy(type, Index.class)) {
+            List<Annotation> collations = annotationHelper.getAllAnnotationsFromHierachy(type, de.caluga.morphium.annotations.Collation.class);
+
             @SuppressWarnings("unchecked") List<Annotation> lst = annotationHelper.getAllAnnotationsFromHierachy(type, Index.class);
             for (Annotation a : lst) {
                 Index i = (Index) a;
                 if (i.value().length > 0) {
                     List<Map<String, Object>> options = null;
+
                     if (i.options().length > 0) {
                         //options set
                         options = createIndexMapFrom(i.options());
+                    }
+                    if (!i.locale().equals("")) {
+                        Map<String, Object> collation = Utils.getMap("locale", i.locale());
+                        collation.put("alternate", i.alternate().mongoText);
+                        collation.put("backwards", i.backwards());
+                        collation.put("caseFirst", i.caseFirst().mongoText);
+                        collation.put("caseLevel", i.caseLevel());
+                        collation.put("maxVariable", i.maxVariable().mongoText);
+                        collation.put("strength", i.strength().mongoValue);
+                        options.add(Utils.getMap("collation", collation));
                     }
                     List<Map<String, Object>> idx = createIndexMapFrom(i.value());
                     int cnt = 0;
@@ -1865,7 +1878,6 @@ public class Morphium implements AutoCloseable {
             throw new RuntimeException(e);
         }
     }
-
 
     public Map<String, Object> group(Query q, Map<String, Object> initial, String jsReduce, String jsFinalize, ReadPreference rp, String... keys) {
         try {
