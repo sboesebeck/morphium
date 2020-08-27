@@ -1,6 +1,7 @@
 package de.caluga.morphium.query;
 
 import de.caluga.morphium.AnnotationAndReflectionHelper;
+import de.caluga.morphium.Collation;
 import de.caluga.morphium.FilterExpression;
 import de.caluga.morphium.Morphium;
 import de.caluga.morphium.aggregation.Expr;
@@ -59,6 +60,10 @@ public interface Query<T> extends Cloneable {
      * @param db
      */
     void overrideDB(String db);
+
+    Collation getCollation();
+
+    void setCollation(Collation c);
 
     /**
      * return the DB name the query is going to be executed on or was executed on

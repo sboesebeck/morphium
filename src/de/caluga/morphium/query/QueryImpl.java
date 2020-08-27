@@ -1,6 +1,7 @@
 package de.caluga.morphium.query;
 
 import de.caluga.morphium.*;
+import de.caluga.morphium.Collation;
 import de.caluga.morphium.aggregation.Expr;
 import de.caluga.morphium.annotations.*;
 import de.caluga.morphium.annotations.caching.Cache;
@@ -53,10 +54,20 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
     private AnnotationAndReflectionHelper arHelper;
 
     private String overrideDB;
-
+    private Collation collation;
 
     public QueryImpl() {
 
+    }
+
+    @Override
+    public Collation getCollation() {
+        return collation;
+    }
+
+    @Override
+    public void setCollation(Collation collation) {
+        this.collation = collation;
     }
 
     public QueryImpl(Morphium m, Class<? extends T> type, ThreadPoolExecutor executor) {
@@ -211,7 +222,7 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
     public long complexQueryCount(Map<String, Object> query) {
         long ret = 0;
         try {
-            ret = morphium.getDriver().count(getDB(), getCollectionName(), query, getRP());
+            ret = morphium.getDriver().count(getDB(), getCollectionName(), query, getCollation(), getRP());
         } catch (MorphiumDriverException e) {
             //TODO: Implement Handling
             throw new RuntimeException(e);
@@ -236,7 +247,7 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
         List<Map<String, Object>> obj;
         Map<String, Object> findMetaData = new HashMap<>();
         try {
-            obj = morphium.getDriver().find(getDB(), getCollectionName(), query, sort, lst, skip, limit, 100, getRP(), findMetaData);
+            obj = morphium.getDriver().find(getDB(), getCollectionName(), query, sort, lst, skip, limit, 100, getRP(), getCollation(), findMetaData);
         } catch (MorphiumDriverException e) {
             //TODO: Implement Handling
             throw new RuntimeException(e);
@@ -309,7 +320,7 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
     @Override
     public List distinct(String field) {
         try {
-            return morphium.getDriver().distinct(getDB(), getCollectionName(), field, toQueryObject(), morphium.getReadPreferenceForClass(getType()));
+            return morphium.getDriver().distinct(getDB(), getCollectionName(), field, toQueryObject(), getCollation(), morphium.getReadPreferenceForClass(getType()));
         } catch (MorphiumDriverException e) {
             //TODO: Implement Handling
             throw new RuntimeException(e);
@@ -548,7 +559,7 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
         long start = System.currentTimeMillis();
         long ret;
         try {
-            ret = morphium.getDriver().count(getDB(), getCollectionName(), toQueryObject(), getRP());
+            ret = morphium.getDriver().count(getDB(), getCollectionName(), toQueryObject(), getCollation(), getRP());
         } catch (MorphiumDriverException e) {
             //TODO: Implement Handling
             throw new RuntimeException(e);
@@ -735,7 +746,7 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
         try {
 
             Map<String, Object> findMetaData = new HashMap<>();
-            List<Map<String, Object>> query = morphium.getDriver().find(getDB(), getCollectionName(), toQueryObject(), sort, lst, skip, limit, morphium.getConfig().getCursorBatchSize(), getRP(), findMetaData);
+            List<Map<String, Object>> query = morphium.getDriver().find(getDB(), getCollectionName(), toQueryObject(), sort, lst, skip, limit, morphium.getConfig().getCursorBatchSize(), getRP(), collation, findMetaData);
             srv = (String) findMetaData.get("server");
 
 
@@ -844,10 +855,9 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
                             f.set(unmarshall, currentTime);
 
                         }
-                        MorphiumObjectMapper mapper = morphium.getMapper();
                         Object id = getARHelper().getId(unmarshall);
                         //Cannot use store, as this would trigger an update of last changed...
-                        morphium.getDriver().update(getDB(), getCollectionName(), Utils.getMap("_id", id), Utils.getMap("$set", Utils.getMap(ctf, currentTime)), false, false, null);
+                        morphium.getDriver().update(getDB(), getCollectionName(), Utils.getMap("_id", id), Utils.getMap("$set", Utils.getMap(ctf, currentTime)), false, false, collation, null);
                         //                        morphium.getDatabase().getCollection(collName).update(new HashMap<String, Object>("_id", id), new HashMap<String, Object>("$set", new HashMap<String, Object>(ctf, currentTime)));
                     } catch (Exception e) {
                         log.error("Could not set modification time");
@@ -944,7 +954,7 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
         int lim = getLimit();
         limit(1);
         try {
-            srch = morphium.getDriver().find(getDB(), getCollectionName(), toQueryObject(), getSort(), fl, getSkip(), getLimit(), 1, getRP(), findMetaData);
+            srch = morphium.getDriver().find(getDB(), getCollectionName(), toQueryObject(), getSort(), fl, getSkip(), getLimit(), 1, getRP(), collation, findMetaData);
         } catch (MorphiumDriverException e) {
             //TODO: Implement Handling
             throw new RuntimeException(e);
@@ -1030,7 +1040,7 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
 
         List<Map<String, Object>> query;
         try {
-            query = morphium.getDriver().find(getDB(), getCollectionName(), toQueryObject(), sort, Utils.getMap("_id", 1), skip, limit, 1, getRP(), findMetadata);
+            query = morphium.getDriver().find(getDB(), getCollectionName(), toQueryObject(), sort, Utils.getMap("_id", 1), skip, limit, 1, getRP(), collation, findMetadata);
         } catch (MorphiumDriverException e) {
             //TODO: Implement Handling
             throw new RuntimeException(e);
