@@ -96,7 +96,7 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
             //            logger.warn("cannot cap collection for class " + c.getName() + " not @Capped");
             return;
         }
-        cmd.put("autoIndexId", (morphium.getARHelper().getIdField(c).getType().equals(MorphiumId.class)));
+        //cmd.put("autoIndexId", (morphium.getARHelper().getIdField(c).getType().equals(MorphiumId.class)));
         try {
             morphium.getDriver().runCommand(morphium.getConfig().getDatabase(), cmd);
         } catch (MorphiumDriverException e) {

@@ -865,7 +865,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
             cmd.put("max", capped.maxEntries());
         }
 
-        cmd.put("autoIndexId", (morphium.getARHelper().getIdField(c).getType().equals(MorphiumId.class)));
+        //cmd.put("autoIndexId", (morphium.getARHelper().getIdField(c).getType().equals(MorphiumId.class)));
 
         if (!e.schemaDef().equals("")) {
             JSONParser jsonParser = new JSONParser();
@@ -948,7 +948,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                         cmd.put("size", capped.maxSize());
                         cmd.put("max", capped.maxEntries());
                     }
-                    cmd.put("autoIndexId", (morphium.getARHelper().getIdField(c).getType().equals(MorphiumId.class)));
+                    //cmd.put("autoIndexId", (morphium.getARHelper().getIdField(c).getType().equals(MorphiumId.class)));
                     morphium.getDriver().runCommand(getDbName(), cmd);
                 } else {
                     Capped capped = morphium.getARHelper().getAnnotationFromHierarchy(c, Capped.class);

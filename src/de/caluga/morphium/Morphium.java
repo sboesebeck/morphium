@@ -668,7 +668,7 @@ public class Morphium implements AutoCloseable {
                         cmd.put("size", capped.maxSize());
                         cmd.put("max", capped.maxEntries());
                     }
-                    cmd.put("autoIndexId", (annotationHelper.getIdField(c).getType().equals(MorphiumId.class)));
+                    //cmd.put("autoIndexId", (annotationHelper.getIdField(c).getType().equals(MorphiumId.class)));
                     morphiumDriver.runCommand(config.getDatabase(), cmd);
                 } else {
                     Capped capped = annotationHelper.getAnnotationFromHierarchy(c, Capped.class);

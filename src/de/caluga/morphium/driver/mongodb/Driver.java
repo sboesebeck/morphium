@@ -835,6 +835,7 @@ public class Driver implements MorphiumDriver {
     }
 
     private com.mongodb.client.model.Collation getCollation(Collation collation) {
+        if (collation == null) return null;
         com.mongodb.client.model.Collation.Builder bld = com.mongodb.client.model.Collation.builder();
         if (collation.getLocale() != null) {
             bld.locale(collation.getLocale());
@@ -1590,8 +1591,10 @@ public class Driver implements MorphiumDriver {
                 it = c.aggregate(currentTransaction.get().getSession(), list, Document.class);
             }
             it.allowDiskUse(allowDiskUse);
-            com.mongodb.client.model.Collation col = getCollation(collation);
-            it.collation(col);
+            if (collation != null) {
+                com.mongodb.client.model.Collation col = getCollation(collation);
+                it.collation(col);
+            }
 //            @SuppressWarnings("unchecked") Cursor ret = getColl(mongo.getDB(db), collection, getDefaultReadPreference(), null).aggregate(list, opts);
             List<Map<String, Object>> result = new ArrayList<>();
 
