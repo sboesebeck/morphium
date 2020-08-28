@@ -288,19 +288,19 @@
         <dependency>
             <groupId>org.mongodb</groupId>
             <artifactId>bson</artifactId>
-            <version>3.12.5</version>
+            <version>3.12.7</version>
             <scope>provided</scope>
         </dependency>
         <dependency>
             <groupId>org.mongodb</groupId>
             <artifactId>mongodb-driver-core</artifactId>
-            <version>3.12.5</version>
+            <version>3.12.7</version>
             <scope>provided</scope>
         </dependency>
         <dependency>
             <groupId>org.mongodb</groupId>
             <artifactId>mongodb-driver</artifactId>
-            <version>3.12.5</version>
+            <version>3.12.7</version>
             <scope>provided</scope>
         </dependency>
         <dependency>
