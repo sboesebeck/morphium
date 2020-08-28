@@ -427,6 +427,16 @@ public class AggregatorImpl<T, R> implements Aggregator<T, R> {
     }
 
     @Override
+    public Aggregator<T, R> graphLookup(Class<?> type, Expr startWith, Enum connectFromField, Enum connectToField, String as, int maxDepth, String depthField, Query restrictSearchWithMatch) {
+        return graphLookup(morphium.getMapper().getCollectionName(type),
+                startWith,
+                connectFromField.name(),
+                connectToField.name(),
+                as,
+                maxDepth, depthField, restrictSearchWithMatch);
+    }
+
+    @Override
     public Aggregator<T, R> graphLookup(Class<?> type, Expr startWith, String connectFromField, String connectToField, String as, int maxDepth, String depthField, Query restrictSearchWithMatch) {
         return graphLookup(morphium.getMapper().getCollectionName(type),
                 startWith,
@@ -520,6 +530,14 @@ public class AggregatorImpl<T, R> implements Aggregator<T, R> {
      *
      * @return
      */
+
+
+    public Aggregator<T, R> lookup(Class fromType, Enum localField, Enum foreignField, String outputArray, List<Expr> pipeline, Map<String, Expr> let) {
+        return lookup(getMorphium().getMapper().getCollectionName(fromType),
+                localField.name(), foreignField.name(), outputArray, pipeline, let
+        );
+
+    }
 
     @Override
     public Aggregator<T, R> lookup(String fromCollection, String localField, String foreignField, String outputArray, List<Expr> pipeline, Map<String, Expr> let) {

@@ -78,6 +78,8 @@ public interface Aggregator<T, R> {
 
     Aggregator<T, R> geoNear(Map<GeoNearFields, Object> param);
 
+    Aggregator<T, R> graphLookup(Class<?> fromType, Expr startWith, Enum connectFromField, Enum connectToField, String as, int maxDepth, String depthField, Query restrictSearchWithMatch);
+
     Aggregator<T, R> graphLookup(Class<?> fromType, Expr startWith, String connectFromField, String connectToField, String as, int maxDepth, String depthField, Query restrictSearchWithMatch);
 
     Aggregator<T, R> graphLookup(String fromCollection, Expr startWith, String connectFromField, String connectToField, String as, int maxDepth, String depthField, Query restrictSearchWithMatch);
@@ -100,6 +102,8 @@ public interface Aggregator<T, R> {
 
     Collation getCollation();
 
+
+    Aggregator<T, R> lookup(Class fromType, Enum localField, Enum foreignField, String outputArray, List<Expr> pipeline, Map<String, Expr> let);
 
     Aggregator<T, R> lookup(String fromCollection, String localField, String foreignField, String outputArray, List<Expr> pipeline, Map<String, Expr> let);
 
