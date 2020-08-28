@@ -1,7 +1,7 @@
 package de.caluga.morphium.query;
 
-import de.caluga.morphium.*;
 import de.caluga.morphium.Collation;
+import de.caluga.morphium.*;
 import de.caluga.morphium.aggregation.Expr;
 import de.caluga.morphium.annotations.*;
 import de.caluga.morphium.annotations.caching.Cache;
@@ -623,6 +623,26 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
         morphium.inc(StatisticKeys.READS);
         long start = System.currentTimeMillis();
         long ret;
+        if (where != null) {
+            log.warn("efficient counting with $where is not possible... need to iterate!");
+            int lim = limit;
+            int sk = skip;
+            skip = 0;
+            limit = 0;
+            Map<String, Object> fld = fieldList;
+
+            fieldList = null;
+            addProjection("_id"); //only read ids
+            int count = 0;
+            for (T elem : asIterable()) {
+                count++;
+            }
+            limit = lim;
+            skip = sk;
+            fieldList = fld;
+            return count;
+
+        }
         try {
             ret = morphium.getDriver().count(getDB(), getCollectionName(), toQueryObject(), getCollation(), getRP());
         } catch (MorphiumDriverException e) {
