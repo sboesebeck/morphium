@@ -625,6 +625,18 @@ public abstract class Expr {
         );
     }
 
+    public static Expr project(Map<String, Expr> expr) {
+        return new MapOpExpr("$project", expr);
+    }
+
+    public static Expr match(Expr expr) {
+        return new OpExprNoList("$match", expr);
+    }
+
+    public static Expr expr(Expr expr) {
+        return new OpExprNoList("expr", expr);
+    }
+
     public static Expr regexMatch(Expr input, Expr regex, Expr options) {
         return new MapOpExpr("regexMatch", Utils.getMap("input", input)
                 .add("regex", regex)

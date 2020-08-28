@@ -509,9 +509,43 @@ public class AggregatorImpl<T, R> implements Aggregator<T, R> {
     }
 
 
+    /**
+     * $lookup:
+     * {
+     * from: <collection to join>,
+     * localField: <field from the input documents>,
+     * foreignField: <field from the documents of the "from" collection>,
+     * as: <output array field>
+     * }
+     *
+     * @return
+     */
+
     @Override
-    public Aggregator<T, R> lookup(Map<String, Object> param) {
-        return null;
+    public Aggregator<T, R> lookup(String fromCollection, String localField, String foreignField, String outputArray, List<Expr> pipeline, Map<String, Expr> let) {
+        Utils.UtilsMap<String, Object> m = Utils.getMap("from", (Object) fromCollection);
+        if (localField != null)
+            m.add("localField", localField);
+        if (foreignField != null)
+            m.add("foreignField", foreignField);
+        if (outputArray != null)
+            m.add("as", outputArray);
+        if (pipeline != null && pipeline.size() > 0) {
+            List lst = new ArrayList();
+            for (Expr e : pipeline) {
+                lst.add(e.toQueryObject());
+            }
+            m.put("pipeline", lst);
+        }
+        if (let != null) {
+            Map<String, Object> map = new HashMap<>();
+            for (Map.Entry<String, Expr> e : let.entrySet()) {
+                map.put(e.getKey(), e.getValue().toQueryObject());
+            }
+            m.put("let", map);
+        }
+        params.add(Utils.getMap("$lookup", m));
+        return this;
     }
 
 

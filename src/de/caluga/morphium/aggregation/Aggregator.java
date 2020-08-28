@@ -101,7 +101,7 @@ public interface Aggregator<T, R> {
     Collation getCollation();
 
 
-    Aggregator<T, R> lookup(Map<String, Object> param);
+    Aggregator<T, R> lookup(String fromCollection, String localField, String foreignField, String outputArray, List<Expr> pipeline, Map<String, Expr> let);
 
     Aggregator<T, R> merge(Map<String, Object> param);
 
