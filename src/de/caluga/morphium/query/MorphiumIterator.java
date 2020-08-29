@@ -1,5 +1,7 @@
 package de.caluga.morphium.query;
 
+import de.caluga.morphium.aggregation.Aggregator;
+
 import java.util.Iterator;
 import java.util.List;
 
@@ -23,10 +25,6 @@ public interface MorphiumIterator<T> extends Iterable<T>, Iterator<T> {
 
     int getWindowSize();
 
-    void setQuery(Query<T> q);
-
-    Query<T> getQuery();
-
     /**
      * retruns the number of elements now in buffer. Max windowsize
      *
@@ -40,7 +38,6 @@ public interface MorphiumIterator<T> extends Iterable<T>, Iterator<T> {
      * @return list
      */
     List<T> getCurrentBuffer();
-
     /**
      * how many elements are to be processed.
      * Attention: this count is not updated. It shows how many elements are there at the beginning of the interation!

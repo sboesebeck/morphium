@@ -186,11 +186,15 @@ public interface Aggregator<T, R> {
 
     Group<T, R> group(Expr id);
 
-    List<Map<String, Object>> toAggregationList();
+    List<Map<String, Object>> getPipeline();
 
     void addOperator(Map<String, Object> o);
 
     List<R> aggregate();
+
+    long getCount();
+
+    MorphiumAggregationIterator<T, R> aggregateIterable();
 
     @SuppressWarnings("unused")
     void aggregate(AsyncOperationCallback<R> callback);

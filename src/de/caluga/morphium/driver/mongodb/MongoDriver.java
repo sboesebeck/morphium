@@ -30,9 +30,11 @@ import java.util.concurrent.TimeUnit;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
+import static de.caluga.morphium.aggregation.Aggregator.GeoNearFields.query;
+
 @SuppressWarnings({"WeakerAccess", "deprecation"})
-public class Driver implements MorphiumDriver {
-    private final Logger log = LoggerFactory.getLogger(Driver.class);
+public class MongoDriver implements MorphiumDriver {
+    private final Logger log = LoggerFactory.getLogger(MongoDriver.class);
     private String[] hostSeed;
     private int maxConnectionsPerHost = 50;
     private int minConnectionsPerHost = 10;
@@ -522,6 +524,65 @@ public class Driver implements MorphiumDriver {
             }
             return convertBSON(ret);
         }, retriesOnNetworkError, sleepBetweenErrorRetries);
+    }
+
+
+    @Override
+    public MorphiumCursor initAggregationIteration(String db, String collection, List<Map<String, Object>> aggregationPipeline, ReadPreference readPreference, Collation collation, int batchSize, final Map<String, Object> findMetaData) throws MorphiumDriverException {
+        DriverHelper.replaceMorphiumIdByObjectId(query);
+        //noinspection ConstantConditions
+        return (MorphiumCursor) DriverHelper.doCall(() -> {
+
+            MongoDatabase database = mongo.getDatabase(db);
+            //                MongoDatabase database = mongo.getDatabase(db);
+//            DBCollection coll = getColl(database, collection, readPreference, null);
+            MongoCollection<Document> c = getCollection(database, collection, readPreference, null);
+            List<BasicDBObject> pipe = new ArrayList<>();
+            aggregationPipeline.stream().forEach((x) -> pipe.add(new BasicDBObject(x)));
+            AggregateIterable<Document> it = currentTransaction.get() == null ? c.aggregate(pipe) : c.aggregate(currentTransaction.get().getSession(), pipe);
+
+            if (batchSize != 0) {
+                it.batchSize(batchSize);
+            } else {
+                it.batchSize(defaultBatchSize);
+            }
+            if (collation != null) {
+                com.mongodb.client.model.Collation col = getCollation(collation);
+                it.collation(col);
+            }
+            MongoCursor<Document> ret = it.iterator();
+//            DBCursor ret = coll.find(new BasicDBObject(query), projection != null ? new BasicDBObject(projection) : null);
+            handleMetaData(findMetaData, ret);
+
+            List<Map<String, Object>> values = new ArrayList<>();
+
+            while (ret.hasNext()) {
+                Document d = ret.next();
+                Map<String, Object> obj = convertBSON(d);
+                values.add(obj);
+                int cnt = values.size();
+                if ((cnt >= batchSize && batchSize != 0) || (cnt >= 1000 && batchSize == 0)) {
+                    break;
+                }
+            }
+
+            Map<String, Object> r = new HashMap<>();
+
+            MorphiumCursor<MongoCursor<Document>> crs = new MorphiumCursor<>();
+            crs.setBatchSize(batchSize);
+
+            if (values.size() < batchSize || values.size() < 1000 && batchSize == 0) {
+                ret.close();
+            } else {
+                crs.setInternalCursorObject(ret);
+            }
+//            if (ret.hasNext() && ret.getServerCursor() != null) {
+////                crs.setCursorId(ret.getServerCursor().getId());
+////            }
+            crs.setBatch(values);
+            r.put("result", crs);
+            return r;
+        }, retriesOnNetworkError, sleepBetweenErrorRetries).get("result");
     }
 
     @Override
@@ -1564,7 +1625,6 @@ public class Driver implements MorphiumDriver {
         //noinspection unchecked
         return convertBSON((Map<? extends String, ?>) cmd.toDBObject());
     }
-
 
     @Override
     public List<Map<String, Object>> aggregate(String db, String collection, List<Map<String, Object>> pipeline,

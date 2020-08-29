@@ -462,6 +462,11 @@ public class InMemoryDriver implements MorphiumDriver {
         throw new RuntimeException("not working on memory");
     }
 
+    @Override
+    public MorphiumCursor initAggregationIteration(String db, String collection, List<Map<String, Object>> aggregationPipeline, ReadPreference readPreference, Collation collation, int batchSize, Map<String, Object> findMetaData) throws MorphiumDriverException {
+        return null;
+    }
+
 
     private boolean matchesQuery(Map<String, Object> query, Map<String, Object> toCheck) {
         if (query.isEmpty()) {

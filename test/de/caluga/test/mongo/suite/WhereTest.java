@@ -1,9 +1,5 @@
 package de.caluga.test.mongo.suite;
 
-import com.mongodb.BasicDBObject;
-import com.mongodb.client.MongoCollection;
-import de.caluga.morphium.annotations.ReadPreferenceLevel;
-import de.caluga.morphium.driver.mongodb.Driver;
 import de.caluga.morphium.query.Query;
 import de.caluga.test.mongo.suite.data.UncachedObject;
 import org.junit.Test;

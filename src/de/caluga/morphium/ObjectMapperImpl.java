@@ -1075,6 +1075,18 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
                     } else if (field.getType().equals(MorphiumId.class) && o.get("_id").getClass().equals(String.class)) {
                         //                        log.warn("ID type missmatch - field is objectId but got string from db - trying conversion");
                         field.set(ret, new MorphiumId((String) o.get("_id")));
+
+                        //The following cases are more commen with Aggregation
+                    } else if (field.getType().equals(int.class) && o.get("_id").getClass().equals(Integer.class)) {
+                        field.set(ret, ((Integer) o.get("_id")).intValue());
+                    } else if (field.getType().equals(long.class) && o.get("_id").getClass().equals(Long.class)) {
+                        field.set(ret, ((Long) o.get("_id")).longValue());
+                    } else if (field.getType().equals(double.class) && o.get("_id").getClass().equals(Double.class)) {
+                        field.set(ret, ((Double) o.get("_id")).doubleValue());
+                    } else if (field.getType().equals(float.class) && o.get("_id").getClass().equals(Float.class)) {
+                        field.set(ret, ((Float) o.get("_id")).floatValue());
+                    } else if (field.getType().equals(Boolean.class) && o.get("_id").getClass().equals(Boolean.class)) {
+                        field.set(ret, ((Boolean) o.get("_id")).booleanValue());
                     } else {
                         log.error("ID type missmatch");
                         throw new IllegalArgumentException("ID type missmatch. Field in '" + ret.getClass().toString() + "' is '" + field.getType().toString() + "' but we got '" + o.get("_id").getClass().toString() + "' from Mongo!");
