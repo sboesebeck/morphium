@@ -511,6 +511,21 @@ public class InMemoryDriver implements MorphiumDriver {
                     return false;
 
                 }
+                case "$not": {
+                    return (!matchesQuery((Map<String, Object>) query.get(key), toCheck));
+                }
+                case "$nor": {
+                    //list of or queries
+                    @SuppressWarnings("unchecked") List<Map<String, Object>> lst = ((List<Map<String, Object>>) query.get(key));
+
+                    for (Map<String, Object> q : lst) {
+                        if (matchesQuery(q, toCheck)) {
+                            return false;
+                        }
+                    }
+                    return true;
+
+                }
                 default:
                     //field check
                     if (query.get(key) instanceof Map) {
@@ -589,6 +604,27 @@ public class InMemoryDriver implements MorphiumDriver {
                                     }
                                 }
                                 return false;
+
+                            case "$comment":
+                                continue;
+                            case "$expr":
+                            case "$jsonSchema":
+                            case "$type":
+                            case "$regex":
+                            case "$text":
+                            case "$geoIntersects":
+                            case "$geoWithin":
+                            case "$near":
+                            case "$nearSphere":
+                            case "$all":
+                            case "$elemMatch":
+                            case "$size":
+                            case "$bitsAllClear":
+                            case "$bitsAllSet":
+                            case "$bitsAnyClear":
+                            case "$bitsAnySet":
+                                log.warn("Unsupported op " + k + " for in memory driver");
+                                break;
                             default:
                                 throw new RuntimeException("Unknown Operator " + k);
                         }
