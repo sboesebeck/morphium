@@ -4,9 +4,9 @@ import de.caluga.morphium.Utils;
 import de.caluga.morphium.annotations.Entity;
 import de.caluga.morphium.annotations.Id;
 import de.caluga.morphium.driver.MorphiumId;
-import de.caluga.morphium.query.MorphiumDriverIterator;
+import de.caluga.morphium.query.QueryIterator;
 import de.caluga.morphium.query.MorphiumIterator;
-import de.caluga.morphium.query.PrefetchingDriverIterator;
+import de.caluga.morphium.query.PrefetchingQueryIterator;
 import de.caluga.morphium.query.Query;
 import de.caluga.test.mongo.suite.data.CachedObject;
 import de.caluga.test.mongo.suite.data.UncachedObject;
@@ -455,9 +455,9 @@ public class IteratorTest extends MorphiumTestBase {
     }
 
     @Test
-    public void basicPefetchIteratorTest() {
+    public void basicPefetchIteratorTest() throws Exception {
         createUncachedObjects(1000);
-
+        Thread.sleep(100);
         Query<UncachedObject> qu = getUncachedObjectQuery();
         long start = System.currentTimeMillis();
         MorphiumIterator<UncachedObject> it = qu.asIterable(2, 10);
@@ -724,8 +724,9 @@ public class IteratorTest extends MorphiumTestBase {
     @Test
     public void iteratorTypeTest() {
         Query<UncachedObject> qu = morphium.createQueryFor(UncachedObject.class).sort("counter");
-        assert (qu.asIterable().getClass().equals(MorphiumDriverIterator.class));
-        assert (qu.asIterable(10).getClass().equals(MorphiumDriverIterator.class));
-        assert (qu.asIterable(10, 5).getClass().equals(PrefetchingDriverIterator.class));
+        assert (qu.asIterable().getClass().equals(QueryIterator.class));
+        assert (qu.asIterable(10).getClass().equals(QueryIterator.class));
+        assert (qu.asIterable(10, 5).getClass().equals(PrefetchingQueryIterator.class));
     }
+
 }

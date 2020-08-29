@@ -20,6 +20,14 @@ import static java.lang.annotation.ElementType.TYPE;
 public @interface Entity {
     String collectionName() default ".";
 
+    String schemaDef() default "";
+
+    String comment() default "";
+
+    ValidationLevel validationLevel() default ValidationLevel.off;
+
+    ValidationAction validationAction() default ValidationAction.warn;
+
     boolean translateCamelCase() default true;
 
     /**
@@ -47,4 +55,12 @@ public @interface Entity {
     boolean polymorph() default false;
 
     Class<? extends NameProvider> nameProvider() default DefaultNameProvider.class;
+
+    enum ValidationAction {
+        warn, error
+    }
+
+    enum ValidationLevel {
+        off, strict, moderate
+    }
 }

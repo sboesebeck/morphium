@@ -1,10 +1,13 @@
 package de.caluga.morphium.query;
 
 import de.caluga.morphium.AnnotationAndReflectionHelper;
+import de.caluga.morphium.Collation;
 import de.caluga.morphium.FilterExpression;
 import de.caluga.morphium.Morphium;
+import de.caluga.morphium.aggregation.Expr;
 import de.caluga.morphium.annotations.ReadPreferenceLevel;
 import de.caluga.morphium.async.AsyncOperationCallback;
+import org.json.simple.parser.ParseException;
 
 import java.util.List;
 import java.util.Map;
@@ -57,6 +60,10 @@ public interface Query<T> extends Cloneable {
      * @param db
      */
     void overrideDB(String db);
+
+    Collation getCollation();
+
+    Query<T> setCollation(Collation c);
 
     /**
      * return the DB name the query is going to be executed on or was executed on
@@ -133,6 +140,7 @@ public interface Query<T> extends Cloneable {
      *
      * @return number
      */
+
     long countAll();  //not taking limit and skip into account!
 
     void countAll(AsyncOperationCallback<T> callback);
@@ -151,6 +159,12 @@ public interface Query<T> extends Cloneable {
      * @return query object
      */
     Map<String, Object> toQueryObject();
+
+    Query<T> expr(Expr exp);
+
+    Query<T> matchesJsonSchema(Map<String, Object> schemaDef);
+
+    Query<T> matchesJsonSchema(String schemaDef) throws ParseException;
 
     /**
      * what type this query is for
@@ -178,17 +192,17 @@ public interface Query<T> extends Cloneable {
     /**
      * create an iterator / iterable for this query, default windowSize (10), prefetch windows 1
      */
-    MorphiumIterator<T> asIterable();
+    MorphiumQueryIterator<T> asIterable();
 
-    MorphiumIterator<T> asIterable(int windowSize, Class<? extends MorphiumIterator<T>> it);
+    MorphiumQueryIterator<T> asIterable(int windowSize, Class<? extends MorphiumQueryIterator<T>> it);
 
-    MorphiumIterator<T> asIterable(int windowSize, MorphiumIterator<T> ret);
+    MorphiumQueryIterator<T> asIterable(MorphiumQueryIterator<T> ret);
 
     /**
      * create an iterator / iterable for this query, sets window size (how many objects should be read from DB)
      * prefetch number is 1 in this case
      */
-    MorphiumIterator<T> asIterable(int windowSize);
+    MorphiumQueryIterator<T> asIterable(int windowSize);
 
     /**
      * create an iterator / iterable for this query, sets window size (how many entities are read en block) and how many windows of this size will be prefechted...
@@ -198,7 +212,7 @@ public interface Query<T> extends Cloneable {
      * @return
      */
 
-    MorphiumIterator<T> asIterable(int windowSize, int prefixWindows);
+    MorphiumQueryIterator<T> asIterable(int windowSize, int prefixWindows);
 
 
     void tail(int bufferSize, int maxWait, AsyncOperationCallback<T> cb);

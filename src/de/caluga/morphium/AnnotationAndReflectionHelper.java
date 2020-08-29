@@ -6,7 +6,7 @@ import de.caluga.morphium.annotations.caching.WriteBuffer;
 import de.caluga.morphium.annotations.lifecycle.Lifecycle;
 import de.caluga.morphium.driver.MorphiumDriver;
 import de.caluga.morphium.driver.MorphiumId;
-import de.caluga.morphium.driver.mongodb.Driver;
+import de.caluga.morphium.driver.mongodb.MongoDriver;
 import io.github.classgraph.*;
 import org.slf4j.Logger;
 
@@ -831,7 +831,7 @@ public class AnnotationAndReflectionHelper {
                 }
             }
             if (f.isAnnotationPresent(Version.class)) {
-                ret.add(Driver.VERSION_NAME);
+                ret.add(MongoDriver.VERSION_NAME);
                 continue;
             }
             if (f.isAnnotationPresent(Reference.class) && !".".equals(f.getAnnotation(Reference.class).fieldName())) {

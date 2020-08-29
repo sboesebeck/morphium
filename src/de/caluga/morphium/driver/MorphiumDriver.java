@@ -2,6 +2,7 @@ package de.caluga.morphium.driver;/**
  * Created by stephan on 15.10.15.
  */
 
+import de.caluga.morphium.Collation;
 import de.caluga.morphium.Morphium;
 import de.caluga.morphium.driver.bulk.BulkRequestContext;
 import de.caluga.morphium.driver.mongodb.Maximums;
@@ -170,7 +171,9 @@ public interface MorphiumDriver {
 
     Map<String, Object> runCommand(String db, Map<String, Object> cmd) throws MorphiumDriverException;
 
-    MorphiumCursor initIteration(String db, String collection, Map<String, Object> query, Map<String, Integer> sort, Map<String, Object> projection, int skip, int limit, int batchSize, ReadPreference readPreference, Map<String, Object> findMetaData) throws MorphiumDriverException;
+    MorphiumCursor initAggregationIteration(String db, String collection, List<Map<String, Object>> aggregationPipeline, ReadPreference readPreference, Collation collation, int batchSize, Map<String, Object> findMetaData) throws MorphiumDriverException;
+
+    MorphiumCursor initIteration(String db, String collection, Map<String, Object> query, Map<String, Integer> sort, Map<String, Object> projection, int skip, int limit, int batchSize, ReadPreference readPreference, Collation coll, Map<String, Object> findMetaData) throws MorphiumDriverException;
 
     void watch(String db, int maxWait, boolean fullDocumentOnUpdate, List<Map<String, Object>> pipeline, DriverTailableIterationCallback cb) throws MorphiumDriverException;
 
@@ -182,9 +185,9 @@ public interface MorphiumDriver {
 
     void closeIteration(MorphiumCursor crs) throws MorphiumDriverException;
 
-    List<Map<String, Object>> find(String db, String collection, Map<String, Object> query, Map<String, Integer> sort, Map<String, Object> projection, int skip, int limit, int batchSize, ReadPreference rp, Map<String, Object> findMetaData) throws MorphiumDriverException;
+     List<Map<String, Object>> find(String db, String collection, Map<String, Object> query, Map<String, Integer> sort, Map<String, Object> projection, int skip, int limit, int batchSize, ReadPreference readPreference, Collation collation, final Map<String, Object> findMetaData) throws MorphiumDriverException;
 
-    long count(String db, String collection, Map<String, Object> query, ReadPreference rp) throws MorphiumDriverException;
+    long count(String db, String collection, Map<String, Object> query, Collation collation, ReadPreference rp) throws MorphiumDriverException;
 
     /**
      * just insert - no special handling
@@ -209,9 +212,9 @@ public interface MorphiumDriver {
     Map<String,Object> store(String db, String collection, List<Map<String, Object>> objs, WriteConcern wc) throws MorphiumDriverException;
 
 
-    Map<String, Object> update(String db, String collection, Map<String, Object> query, Map<String, Object> op, boolean multiple, boolean upsert, WriteConcern wc) throws MorphiumDriverException;
+    Map<String, Object> update(String db, String collection, Map<String, Object> query, Map<String, Object> op, boolean multiple, boolean upsert, Collation collation, WriteConcern wc) throws MorphiumDriverException;
 
-    Map<String, Object> delete(String db, String collection, Map<String, Object> query, boolean multiple, WriteConcern wc) throws MorphiumDriverException;
+    Map<String, Object> delete(String db, String collection, Map<String, Object> query, boolean multiple, Collation collation, WriteConcern wc) throws MorphiumDriverException;
 
     void drop(String db, String collection, WriteConcern wc) throws MorphiumDriverException;
 
@@ -221,7 +224,7 @@ public interface MorphiumDriver {
     @SuppressWarnings("unused")
     boolean exists(String db) throws MorphiumDriverException;
 
-    List<Object> distinct(String db, String collection, String field, Map<String, Object> filter, ReadPreference rp) throws MorphiumDriverException;
+    List<Object> distinct(String db, String collection, String field, final Map<String, Object> filter, Collation collation, ReadPreference rp) throws MorphiumDriverException;
 
     boolean exists(String db, String collection) throws MorphiumDriverException;
 
@@ -230,10 +233,16 @@ public interface MorphiumDriver {
     @SuppressWarnings("unused")
     List<String> getCollectionNames(String db) throws MorphiumDriverException;
 
+    Map<String, Object> findAndOneAndDelete(String db, String col, Map<String, Object> query, Map<String, Integer> sort, Collation collation) throws MorphiumDriverException;
+
+    Map<String, Object> findAndOneAndUpdate(String db, String col, Map<String, Object> query, Map<String, Object> update, Map<String, Integer> sort, Collation collation) throws MorphiumDriverException;
+
+    Map<String, Object> findAndOneAndReplace(String db, String col, Map<String, Object> query, Map<String, Object> replacement, Map<String, Integer> sort, Collation collation) throws MorphiumDriverException;
+
     Map<String, Object> group(String db, String coll, Map<String, Object> query, Map<String, Object> initial, String jsReduce, String jsFinalize, ReadPreference rp, String... keys) throws MorphiumDriverException;
 
     @SuppressWarnings("RedundantThrows")
-    List<Map<String, Object>> aggregate(String db, String collection, List<Map<String, Object>> pipeline, boolean explain, boolean allowDiskUse, ReadPreference readPreference) throws MorphiumDriverException;
+    List<Map<String, Object>> aggregate(String db, String collection, List<Map<String, Object>> pipeline, boolean explain, boolean allowDiskUse, Collation collation, ReadPreference readPreference) throws MorphiumDriverException;
 
     @SuppressWarnings("unused")
     boolean isSocketKeepAlive();
@@ -265,7 +274,7 @@ public interface MorphiumDriver {
 
     List<Map<String, Object>> mapReduce(String db, String collection, String mapping, String reducing, Map<String, Object> query) throws MorphiumDriverException;
 
-    List<Map<String, Object>> mapReduce(String db, String collection, String mapping, String reducing, Map<String, Object> query, Map<String, Object> sorting) throws MorphiumDriverException;
+    List<Map<String, Object>> mapReduce(String db, String collection, String mapping, String reducing, Map<String, Object> query, Map<String, Object> sorting, Collation collation) throws MorphiumDriverException;
 
     /**
      * list collections whose name match the pattern

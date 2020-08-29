@@ -533,14 +533,27 @@ public class Morphium implements AutoCloseable {
 
     public <T> void ensureIndicesFor(Class<T> type, String onCollection, AsyncOperationCallback<T> callback, MorphiumWriter wr) {
         if (annotationHelper.isAnnotationPresentInHierarchy(type, Index.class)) {
+            List<Annotation> collations = annotationHelper.getAllAnnotationsFromHierachy(type, de.caluga.morphium.annotations.Collation.class);
+
             @SuppressWarnings("unchecked") List<Annotation> lst = annotationHelper.getAllAnnotationsFromHierachy(type, Index.class);
             for (Annotation a : lst) {
                 Index i = (Index) a;
                 if (i.value().length > 0) {
                     List<Map<String, Object>> options = null;
+
                     if (i.options().length > 0) {
                         //options set
                         options = createIndexMapFrom(i.options());
+                    }
+                    if (!i.locale().equals("")) {
+                        Map<String, Object> collation = Utils.getMap("locale", i.locale());
+                        collation.put("alternate", i.alternate().mongoText);
+                        collation.put("backwards", i.backwards());
+                        collation.put("caseFirst", i.caseFirst().mongoText);
+                        collation.put("caseLevel", i.caseLevel());
+                        collation.put("maxVariable", i.maxVariable().mongoText);
+                        collation.put("strength", i.strength().mongoValue);
+                        options.add(Utils.getMap("collation", collation));
                     }
                     List<Map<String, Object>> idx = createIndexMapFrom(i.value());
                     int cnt = 0;
@@ -655,7 +668,7 @@ public class Morphium implements AutoCloseable {
                         cmd.put("size", capped.maxSize());
                         cmd.put("max", capped.maxEntries());
                     }
-                    cmd.put("autoIndexId", (annotationHelper.getIdField(c).getType().equals(MorphiumId.class)));
+                    //cmd.put("autoIndexId", (annotationHelper.getIdField(c).getType().equals(MorphiumId.class)));
                     morphiumDriver.runCommand(config.getDatabase(), cmd);
                 } else {
                     Capped capped = annotationHelper.getAnnotationFromHierarchy(c, Capped.class);
@@ -876,6 +889,10 @@ public class Morphium implements AutoCloseable {
         getWriterForClass(query.getType()).set(query, map, upsert, multiple, callback);
     }
 
+
+    public <T> void currentDate(final Query<?> query, String field, boolean upsert, boolean multiple) {
+        set(query, Utils.getMap("$currentDate", Utils.getMap("field", 1)), upsert, multiple);
+    }
 
     @SuppressWarnings("unused")
     public <T> void set(T toSet, Enum field, Object value, AsyncOperationCallback<T> callback) {
@@ -1351,7 +1368,7 @@ public class Morphium implements AutoCloseable {
 
         try {
             Map<String, Object> findMetaData = new HashMap<>();
-            List<Map<String, Object>> found = morphiumDriver.find(config.getDatabase(), collection, srch, null, null, 0, 1, 1, null, findMetaData);
+            List<Map<String, Object>> found = morphiumDriver.find(config.getDatabase(), collection, srch, null, null, 0, 1, 1, null, null, findMetaData);
             if (found != null && !found.isEmpty()) {
                 Map<String, Object> dbo = found.get(0);
                 Object fromDb = objectMapper.deserialize(o.getClass(), dbo);
@@ -1831,15 +1848,19 @@ public class Morphium implements AutoCloseable {
     @SuppressWarnings("unchecked")
     public List<Object> distinct(String key, Query q) {
         try {
-            return morphiumDriver.distinct(config.getDatabase(), q.getCollectionName(), key, q.toQueryObject(), getReadPreferenceForClass(q.getType()));
+            return morphiumDriver.distinct(config.getDatabase(), q.getCollectionName(), key, q.toQueryObject(), q.getCollation(), getReadPreferenceForClass(q.getType()));
         } catch (MorphiumDriverException e) {
             throw new RuntimeException(e);
         }
     }
 
     public List<Object> distinct(String key, Class cls) {
+        return distinct(key, cls, null);
+    }
+
+    public List<Object> distinct(String key, Class cls, Collation collation) {
         try {
-            return morphiumDriver.distinct(config.getDatabase(), objectMapper.getCollectionName(cls), key, new HashMap<>(), getReadPreferenceForClass(cls));
+            return morphiumDriver.distinct(config.getDatabase(), objectMapper.getCollectionName(cls), key, new HashMap<>(), collation, getReadPreferenceForClass(cls));
         } catch (MorphiumDriverException e) {
             throw new RuntimeException(e);
         }
@@ -1847,13 +1868,16 @@ public class Morphium implements AutoCloseable {
 
     @SuppressWarnings({"unused"})
     public List<Object> distinct(String key, String collectionName) {
+        return distinct(key, collectionName, null);
+    }
+
+    public List<Object> distinct(String key, String collectionName, Collation collation) {
         try {
-            return morphiumDriver.distinct(config.getDatabase(), collectionName, key, new HashMap<>(), config.getDefaultReadPreference());
+            return morphiumDriver.distinct(config.getDatabase(), collectionName, key, new HashMap<>(), collation, config.getDefaultReadPreference());
         } catch (MorphiumDriverException e) {
             throw new RuntimeException(e);
         }
     }
-
 
     public Map<String, Object> group(Query q, Map<String, Object> initial, String jsReduce, String jsFinalize, ReadPreference rp, String... keys) {
         try {
@@ -2604,51 +2628,6 @@ public class Morphium implements AutoCloseable {
         return aggregator;
     }
 
-    public <T, R> List<R> aggregate(Aggregator<T, R> a) {
-
-        //        DBCollection coll = null;
-        //        for (int i = 0; i < getConfig().getRetriesOnNetworkError(); i++) {
-        //            try {
-        //                String collectionName = a.getCollectionName();
-        //                if (collectionName == null) collectionName = objectMapper.getCollectionName(a.getSearchType());
-        //                coll = config.getDb().getCollection(collectionName);
-        //                break;
-        //            } catch (Throwable e) {
-        //                handleNetworkError(i, e);
-        //            }
-        //        }
-        List<Map<String, Object>> agList = a.toAggregationList();
-        try {
-            List<Map<String, Object>> ret = getDriver().aggregate(config.getDatabase(), a.getCollectionName(), agList, a.isExplain(), a.isUseDisk(), getReadPreferenceForClass(a.getSearchType()));
-            List<R> result = new ArrayList<>();
-            for (Map<String, Object> dbObj : ret) {
-                result.add(getMapper().deserialize(a.getResultType(), dbObj));
-            }
-            return result;
-        } catch (MorphiumDriverException e) {
-            throw new RuntimeException(e);
-        }
-        //        Map<String, Object> first = agList.get(0);
-        //        agList.remove(0);
-        //        AggregationOutput resp = null;
-        //        for (int i = 0; i < getConfig().getRetriesOnNetworkError(); i++) {
-        //            try {
-        //                resp = coll.aggregate(first, agList.toArray(new Map<String, Object>[agList.size()]));
-        //                break;
-        //            } catch (Throwable t) {
-        //                handleNetworkError(i, t);
-        //            }
-        //        }
-        //        List<R> ret = new ArrayList<>();
-        //        if (resp != null) {
-        //            for (Map<String, Object> o : resp.results()) {
-        //                R obj = getMapper().deserialize(a.getResultType(), o);
-        //                if (obj == null) continue;
-        //                ret.add(obj);
-        //            }
-        //        }
-        //        return ret;
-    }
 
 
     @SuppressWarnings("unchecked")

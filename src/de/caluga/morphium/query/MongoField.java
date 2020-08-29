@@ -2,6 +2,9 @@ package de.caluga.morphium.query;
 
 import de.caluga.morphium.MongoType;
 import de.caluga.morphium.MorphiumObjectMapper;
+import de.caluga.morphium.query.geospatial.Geo;
+import de.caluga.morphium.query.geospatial.Point;
+import de.caluga.morphium.query.geospatial.Polygon;
 
 import java.util.Collection;
 import java.util.List;
@@ -48,63 +51,31 @@ public interface MongoField<T> {
 
     Query<T> nin(Collection<?> vals);
 
-    /**
-     * return a sorted list of elements around point x,y
-     * spherical distance calculation
-     *
-     * @param x pos x
-     * @param y pos y
-     * @return the query
-     */
-    Query<T> nearSphere(double x, double y);
+    abstract Query<T> nearSphere(double x, double y);
 
-    /**
-     * return a sorted list of elements around point x,y
-     *
-     * @param x pos x
-     * @param y pos y
-     * @return the query
-     */
-    Query<T> near(double x, double y);
+    abstract Query<T> near(double x, double y);
 
-    /**
-     * return a sorted list of elements around point x,y
-     * spherical distance calculation
-     *
-     * @param x pos x
-     * @param y pos y
-     * @return the query
-     */
-    Query<T> nearSphere(double x, double y, double maxDistance);
+    abstract Query<T> nearSphere(double x, double y, double maxDistance);
 
-    /**
-     * return a sorted list of elements around point x,y
-     *
-     * @param x pos x
-     * @param y pos y
-     * @return the query
-     */
-    Query<T> near(double x, double y, double maxDistance);
+    Query<T> nearSphere(double x, double y, double minDistance, double maxDistance);
+
+    Query<T> nearSpere(Point point, double minDistance, double maxDistance);
+
+    abstract Query<T> near(double x, double y, double maxDistance);
 
     /**
      * search for entries with geo coordinates wihtin the given rectancle - x,y upper left, x2,y2 lower right corner
      */
-    Query<T> box(double x, double y, double x2, double y2);
+    abstract Query<T> box(double x, double y, double x2, double y2);
 
     Query<T> polygon(double... p);
 
-    Query<T> center(double x, double y, double r);
+    abstract Query<T> center(double x, double y, double r);
 
-    /**
-     * same as center() but uses spherical geometry for distance calc.
-     *
-     * @param x - pos x
-     * @param y - y pos
-     * @param r - radius
-     * @return the query
-     */
-    Query<T> centerSphere(double x, double y, double r);
+    abstract Query<T> centerSphere(double x, double y, double r);
 
+
+    Query<T> polygon(Polygon p);
 
     Query<T> getQuery();
 
@@ -114,7 +85,31 @@ public interface MongoField<T> {
 
     void setMapper(MorphiumObjectMapper mapper);
 
+    Query<T> not();
+
     String getFieldString();
 
     void setFieldString(String fld);
+
+    Query<T> bitsAllClear(int... b);
+
+    Query<T> bitsAllSet(int... b);
+
+    Query<T> bitsAnyClear(int... b);
+
+    Query<T> bitsAnySet(int... b);
+
+    Query<T> bitsAllClear(long bitmask);
+
+    Query<T> bitsAllSet(long bitmask);
+
+    Query<T> bitsAnyClear(long bitmask);
+
+    Query<T> bitsAnySet(long bitmask);
+
+    Query<T> near(Point point, double minDistance, double maxDistance);
+
+    Query<T> geoIntersects(Geo shape);
+
+    Query<T> geoWithin(Geo shape);
 }

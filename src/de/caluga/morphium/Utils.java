@@ -2,6 +2,7 @@ package de.caluga.morphium;/**
  * Created by stephan on 25.11.15.
  */
 
+import de.caluga.morphium.aggregation.Expr;
 import de.caluga.morphium.driver.MorphiumId;
 import org.bson.types.ObjectId;
 
@@ -106,14 +107,14 @@ public class Utils {
         out.write(" } ");
     }
 
-    public static <K, V> Map<K, V> getMap(K key, V value) {
-        LinkedHashMap<K, V> ret = new LinkedHashMap<>();
+    public static <K, V> UtilsMap<K, V> getMap(K key, V value) {
+        UtilsMap<K, V> ret = new UtilsMap<>();
         ret.put(key, value);
         return ret;
     }
 
-    public static Map<String, Integer> getIntMap(String key, Integer value) {
-        HashMap<String, Integer> ret = new LinkedHashMap<>();
+    public static UtilsMap<String, Integer> getIntMap(String key, Integer value) {
+        UtilsMap<String, Integer> ret = new UtilsMap<>();
         ret.put(key, value);
         return ret;
     }
@@ -283,4 +284,39 @@ public class Utils {
         return ret;
     }
 
+
+    public static class UtilsMap<K, V> extends LinkedHashMap<K, V> {
+        public UtilsMap<K, V> add(K key, V val) {
+            if (val == null) return this;
+            put(key, val);
+            return this;
+        }
+
+        public UtilsMap<K, V> addAll(Map<K, V> m) {
+            putAll(m);
+            return this;
+        }
+    }
+
+
+    public static Map<String, Object> getNoExprMap(Map<Object, Object> map) {
+        Map<String, Object> ret = new LinkedHashMap<>();
+        for (Map.Entry<Object, Object> e : map.entrySet()) {
+            String k = e.getKey().toString();
+            if (e.getValue() instanceof Expr) {
+                ret.put(k, ((Expr) e.getValue()).toQueryObject());
+            } else {
+                ret.put(k, e.getValue());
+            }
+        }
+        return ret;
+    }
+
+    public static Map<String, Object> getQueryObjectMap(Map<String, Expr> exprMap) {
+        Map<String, Object> ret = new LinkedHashMap<>();
+        for (Map.Entry<String, Expr> e : exprMap.entrySet()) {
+            ret.put(e.getKey(), e.getValue().toQueryObject());
+        }
+        return ret;
+    }
 }
