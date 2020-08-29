@@ -454,17 +454,20 @@ public class InMemoryDriver implements MorphiumDriver {
 
     @Override
     public Map<String, Object> getOps(long threshold) {
-        throw new RuntimeException("not working on memory");
+        log.warn("getOpts not working on memory");
+        return new HashMap<>();
     }
 
     @Override
     public Map<String, Object> runCommand(String db, Map<String, Object> cmd) {
-        throw new RuntimeException("not working on memory");
+        log.warn("Runcommand not working on memory");
+        return new HashMap<>();
     }
 
     @Override
     public MorphiumCursor initAggregationIteration(String db, String collection, List<Map<String, Object>> aggregationPipeline, ReadPreference readPreference, Collation collation, int batchSize, Map<String, Object> findMetaData) throws MorphiumDriverException {
-        return null;
+        log.warn("aggregation not possible in mem");
+        return new MorphiumCursor();
     }
 
 
@@ -1175,7 +1178,12 @@ public class InMemoryDriver implements MorphiumDriver {
 
     @Override
     public Map<String, Object> findAndOneAndDelete(String db, String col, Map<String, Object> query, Map<String, Integer> sort, Collation collation) throws MorphiumDriverException {
-        return null;
+        List<Map<String, Object>> r = find(db, col, query, sort, null, 0, 1, 1000, null, collation, null);
+        if (r.size() == 0) {
+            return null;
+        }
+        delete(db, col, Utils.getMap("_id", r.get(0).get("_id")), false, collation, null);
+        return r.get(0);
     }
 
     @Override
@@ -1190,12 +1198,14 @@ public class InMemoryDriver implements MorphiumDriver {
 
     @Override
     public Map<String, Object> group(String db, String coll, Map<String, Object> query, Map<String, Object> initial, String jsReduce, String jsFinalize, ReadPreference rp, String... keys) {
-        return null;
+        log.warn("Aggregate not possible in memory!");
+        return new HashMap<>();
     }
 
     @Override
     public List<Map<String, Object>> aggregate(String db, String collection, List<Map<String, Object>> pipeline, boolean explain, boolean allowDiskUse, Collation collation, ReadPreference readPreference) throws MorphiumDriverException {
-        throw new RuntimeException("Aggregate not possible in memory!");
+        log.warn("Aggregate not possible in memory!");
+        return new ArrayList<>();
     }
 
     @Override
