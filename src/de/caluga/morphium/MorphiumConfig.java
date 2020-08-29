@@ -11,7 +11,7 @@ import de.caluga.morphium.annotations.Transient;
 import de.caluga.morphium.cache.MorphiumCache;
 import de.caluga.morphium.driver.ReadPreference;
 import de.caluga.morphium.driver.ReadPreferenceType;
-import de.caluga.morphium.driver.mongodb.Driver;
+import de.caluga.morphium.driver.mongodb.MongoDriver;
 import de.caluga.morphium.encryption.DefaultEncryptionKeyProvider;
 import de.caluga.morphium.encryption.EncryptionKeyProvider;
 import de.caluga.morphium.query.*;
@@ -309,7 +309,7 @@ public class MorphiumConfig {
 
     public String getDriverClass() {
         if (driverClass == null) {
-            driverClass = Driver.class.getName();
+            driverClass = MongoDriver.class.getName();
         }
         return driverClass;
     }

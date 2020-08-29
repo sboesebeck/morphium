@@ -140,6 +140,7 @@ public interface Query<T> extends Cloneable {
      *
      * @return number
      */
+
     long countAll();  //not taking limit and skip into account!
 
     void countAll(AsyncOperationCallback<T> callback);
@@ -191,17 +192,17 @@ public interface Query<T> extends Cloneable {
     /**
      * create an iterator / iterable for this query, default windowSize (10), prefetch windows 1
      */
-    MorphiumIterator<T> asIterable();
+    MorphiumQueryIterator<T> asIterable();
 
-    MorphiumIterator<T> asIterable(int windowSize, Class<? extends MorphiumIterator<T>> it);
+    MorphiumQueryIterator<T> asIterable(int windowSize, Class<? extends MorphiumQueryIterator<T>> it);
 
-    MorphiumIterator<T> asIterable(int windowSize, MorphiumIterator<T> ret);
+    MorphiumQueryIterator<T> asIterable(MorphiumQueryIterator<T> ret);
 
     /**
      * create an iterator / iterable for this query, sets window size (how many objects should be read from DB)
      * prefetch number is 1 in this case
      */
-    MorphiumIterator<T> asIterable(int windowSize);
+    MorphiumQueryIterator<T> asIterable(int windowSize);
 
     /**
      * create an iterator / iterable for this query, sets window size (how many entities are read en block) and how many windows of this size will be prefechted...
@@ -211,7 +212,7 @@ public interface Query<T> extends Cloneable {
      * @return
      */
 
-    MorphiumIterator<T> asIterable(int windowSize, int prefixWindows);
+    MorphiumQueryIterator<T> asIterable(int windowSize, int prefixWindows);
 
 
     void tail(int bufferSize, int maxWait, AsyncOperationCallback<T> cb);

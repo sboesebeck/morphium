@@ -25,7 +25,7 @@ import java.util.Map;
 @SuppressWarnings("WeakerAccess")
 public class MongodbBulkContext extends BulkRequestContext {
     private final Logger log = LoggerFactory.getLogger(MongodbBulkContext.class);
-    private final Driver driver;
+    private final MongoDriver driver;
     private final boolean ordered;
     private final String db;
     private final String collection;
@@ -33,7 +33,7 @@ public class MongodbBulkContext extends BulkRequestContext {
 
     private final List<BulkRequest> requests;
 
-    public MongodbBulkContext(Morphium m, String db, String collection, Driver driver, boolean ordered, int batchSize, WriteConcern wc) {
+    public MongodbBulkContext(Morphium m, String db, String collection, MongoDriver driver, boolean ordered, int batchSize, WriteConcern wc) {
         super(m);
         this.driver = driver;
         this.ordered = ordered;

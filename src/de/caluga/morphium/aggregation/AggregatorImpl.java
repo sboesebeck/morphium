@@ -6,9 +6,12 @@ import de.caluga.morphium.ObjectMapperImpl;
 import de.caluga.morphium.Utils;
 import de.caluga.morphium.async.AsyncOperationCallback;
 import de.caluga.morphium.async.AsyncOperationType;
+import de.caluga.morphium.driver.MorphiumDriverException;
 import de.caluga.morphium.query.Query;
+import org.slf4j.LoggerFactory;
 
 import java.util.*;
+import java.util.logging.Logger;
 import java.util.stream.Collectors;
 
 /**
@@ -245,44 +248,105 @@ public class AggregatorImpl<T, R> implements Aggregator<T, R> {
 
     @Override
     public List<R> aggregate() {
-        return morphium.aggregate(this);
+        try {
+            return deserializeList();
+        } catch (MorphiumDriverException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    @Override
+    public long getCount() {
+        List<Map<String, Object>> pipeline = new ArrayList<>(getPipeline());
+        pipeline.add(Utils.getMap("$count", "num"));
+        List<Map<String, Object>> res = null;
+        try {
+            res = getMorphium().getDriver().aggregate(getMorphium().getConfig().getDatabase(), getCollectionName(), pipeline, isExplain(), isUseDisk(), getCollation(), getMorphium().getReadPreferenceForClass(getSearchType()));
+        } catch (MorphiumDriverException e) {
+            throw new RuntimeException(e);
+        }
+        if (res.get(0).get("num") instanceof Integer) {
+            return ((Integer) res.get(0).get("num")).longValue();
+        }
+        return ((Long) res.get(0).get("num")).longValue();
+    }
+
+    @Override
+    public MorphiumAggregationIterator<T, R> aggregateIterable() {
+        AggregationIterator<T, R> agg = new AggregationIterator<>();
+        agg.setAggregator(this);
+        return agg;
     }
 
     @Override
     public void aggregate(final AsyncOperationCallback<R> callback) {
         if (callback == null) {
-            morphium.aggregate(this);
+            try {
+                morphium.getDriver().aggregate(morphium.getConfig().getDatabase(), getCollectionName(), getPipeline(), isExplain(), isUseDisk(), getCollation(), morphium.getReadPreferenceForClass(getSearchType()));
+            } catch (MorphiumDriverException e) {
+                throw new RuntimeException(e);
+            }
         } else {
 
             morphium.queueTask(() -> {
-                long start = System.currentTimeMillis();
-                List<R> ret = morphium.aggregate(AggregatorImpl.this);
-                callback.onOperationSucceeded(AsyncOperationType.READ, null, System.currentTimeMillis() - start, ret, null, AggregatorImpl.this);
+                try {
+                    long start = System.currentTimeMillis();
+                    List<R> result = deserializeList();
+
+                    callback.onOperationSucceeded(AsyncOperationType.READ, null, System.currentTimeMillis() - start, result, null, AggregatorImpl.this);
+                } catch (MorphiumDriverException e) {
+                    e.printStackTrace();
+                }
             });
         }
     }
 
+    private List<R> deserializeList() throws MorphiumDriverException {
+        List<Map<String, Object>> r = morphium.getDriver().aggregate(morphium.getConfig().getDatabase(), getCollectionName(), getPipeline(), isExplain(), isUseDisk(), getCollation(), morphium.getReadPreferenceForClass(getSearchType()));
+        List<R> result = new ArrayList<>();
+        if (getResultType().equals(Map.class)) {
+            result = (List<R>) r;
+        }
+        for (Map<String, Object> dbObj : r) {
+            result.add(morphium.getMapper().deserialize(getResultType(), dbObj));
+        }
+        return result;
+    }
+
     @Override
     public List<Map<String, Object>> aggregateMap() {
-        return morphium.aggregateMap(this);
+        try {
+            return morphium.getDriver().aggregate(morphium.getConfig().getDatabase(), getCollectionName(), getPipeline(), isExplain(), isUseDisk(), getCollation(), morphium.getReadPreferenceForClass(getSearchType()));
+        } catch (MorphiumDriverException e) {
+            throw new RuntimeException(e);
+        }
     }
 
     @Override
     public void aggregateMap(AsyncOperationCallback<Map<String, Object>> callback) {
         if (callback == null) {
-            morphium.aggregateMap(this);
+            try {
+                morphium.getDriver().aggregate(morphium.getConfig().getDatabase(), getCollectionName(), getPipeline(), isExplain(), isUseDisk(), getCollation(), morphium.getReadPreferenceForClass(getSearchType()));
+            } catch (MorphiumDriverException e) {
+                throw new RuntimeException(e);
+            }
+
         } else {
 
             morphium.queueTask(() -> {
-                long start = System.currentTimeMillis();
-                List<Map<String, Object>> ret = morphium.aggregateMap(AggregatorImpl.this);
-                callback.onOperationSucceeded(AsyncOperationType.READ, null, System.currentTimeMillis() - start, ret, null, AggregatorImpl.this);
+                try {
+                    long start = System.currentTimeMillis();
+                    List<Map<String, Object>> ret = morphium.getDriver().aggregate(morphium.getConfig().getDatabase(), getCollectionName(), getPipeline(), isExplain(), isUseDisk(), getCollation(), morphium.getReadPreferenceForClass(getSearchType()));
+                    callback.onOperationSucceeded(AsyncOperationType.READ, null, System.currentTimeMillis() - start, ret, null, AggregatorImpl.this);
+                } catch (MorphiumDriverException e) {
+                    LoggerFactory.getLogger(AggregatorImpl.class).error("error", e);
+                }
             });
         }
     }
 
     @Override
-    public List<Map<String, Object>> toAggregationList() {
+    public List<Map<String, Object>> getPipeline() {
         for (Group<T, R> g : groups) {
             g.end();
         }
@@ -410,7 +474,7 @@ public class AggregatorImpl<T, R> implements Aggregator<T, R> {
         Map<String, Object> map = new HashMap<>();
 
         for (Map.Entry<String, Aggregator> e : facets.entrySet()) {
-            map.put(e.getKey(), e.getValue().toAggregationList());
+            map.put(e.getKey(), e.getValue().getPipeline());
         }
         params.add(Utils.getMap("$facet", map));
         return this;
@@ -666,7 +730,7 @@ public class AggregatorImpl<T, R> implements Aggregator<T, R> {
     @Override
     public Aggregator<T, R> unionWith(Aggregator agg) {
         params.add(Utils.getMap("$unionWith", Utils.getMap("coll", (Object) collectionName)
-                .add("pipeline", agg.toAggregationList())
+                .add("pipeline", agg.getPipeline())
         ));
         return this;
     }

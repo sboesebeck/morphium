@@ -2628,27 +2628,6 @@ public class Morphium implements AutoCloseable {
         return aggregator;
     }
 
-    public <T, R> List<Map<String, Object>> aggregateMap(Aggregator<T, R> a) {
-        List<Map<String, Object>> agList = a.toAggregationList();
-        try {
-            return getDriver().aggregate(config.getDatabase(), a.getCollectionName(), agList, a.isExplain(), a.isUseDisk(), a.getCollation(), getReadPreferenceForClass(a.getSearchType()));
-
-        } catch (MorphiumDriverException e) {
-            throw new RuntimeException(e);
-        }
-    }
-
-    public <T, R> List<R> aggregate(Aggregator<T, R> a) {
-        List<Map<String, Object>> ret = aggregateMap(a);
-        if (a.getResultType().equals(Map.class)) {
-            return (List<R>) ret;
-        }
-        List<R> result = new ArrayList<>();
-        for (Map<String, Object> dbObj : ret) {
-            result.add(getMapper().deserialize(a.getResultType(), dbObj));
-        }
-        return result;
-    }
 
 
     @SuppressWarnings("unchecked")

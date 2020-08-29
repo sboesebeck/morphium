@@ -860,56 +860,54 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
     }
 
     @Override
-    public MorphiumIterator<T> asIterable() {
-        MorphiumDriverIterator<T> it = new MorphiumDriverIterator<>();
+    public MorphiumQueryIterator<T> asIterable() {
+        QueryIterator<T> it = new QueryIterator<>();
         it.setQuery(this);
         return it;
     }
 
-    @Override
-    public MorphiumIterator<T> asIterable(int windowSize, Class<? extends MorphiumIterator<T>> it) {
-        try {
-            MorphiumIterator<T> ret = it.getDeclaredConstructor().newInstance();
-            return asIterable(windowSize, ret);
-        } catch (Exception e) {
-            throw new RuntimeException(e);
-        }
+
+    public MorphiumQueryIterator<T> asIterable(int windowSize) {
+        QueryIterator<T> it = new QueryIterator<>();
+        it.setWindowSize(windowSize);
+        it.setQuery(this);
+        return it;
     }
 
+
     @Override
-    public MorphiumIterator<T> asIterable(int windowSize, MorphiumIterator<T> ret) {
+    public MorphiumQueryIterator<T> asIterable(MorphiumQueryIterator<T> ret) {
         try {
             ret.setQuery(this);
-            ret.setWindowSize(windowSize);
             return ret;
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
     }
 
-    public MorphiumIterator<T> asIterable(int windowSize) {
-        if (log.isDebugEnabled()) {
-            log.debug("creating iterable for query - windowsize " + windowSize);
+    @Override
+    public MorphiumQueryIterator<T> asIterable(int windowSize, Class<? extends MorphiumQueryIterator<T>> it) {
+        try {
+            MorphiumQueryIterator<T> ret = it.getDeclaredConstructor().newInstance();
+            ret.setWindowSize(windowSize);
+            return asIterable(ret);
+        } catch (Exception e) {
+            throw new RuntimeException(e);
         }
-        MorphiumIterator<T> it = new MorphiumDriverIterator<>();
-        it.setQuery(this);
-        it.setWindowSize(windowSize);
-        return it;
     }
 
-
     @Override
-    public MorphiumIterator<T> asIterable(int windowSize, int prefixWindows) {
+    public MorphiumQueryIterator<T> asIterable(int windowSize, int prefetchWindows) {
 
         if (log.isDebugEnabled()) {
             log.debug("creating iterable for query - windowsize " + windowSize);
         }
-        MorphiumIterator<T> it;
-        if (prefixWindows == 1) {
-            it = new DefaultMorphiumIterator<>();
+        MorphiumQueryIterator<T> it;
+        if (prefetchWindows <= 1) {
+            it = new QueryIterator<>();
         } else {
-            it = new PrefetchingDriverIterator<>();
-            it.setNumberOfPrefetchWindows(prefixWindows);
+            it = new PrefetchingQueryIterator<>();
+            it.setNumberOfPrefetchWindows(prefetchWindows);
         }
         it.setQuery(this);
         it.setWindowSize(windowSize);
