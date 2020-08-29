@@ -454,12 +454,20 @@ public class InMemoryDriver implements MorphiumDriver {
 
     @Override
     public Map<String, Object> getOps(long threshold) {
-        throw new RuntimeException("not working on memory");
+        log.warn("getOpts not working on memory");
+        return new HashMap<>();
     }
 
     @Override
     public Map<String, Object> runCommand(String db, Map<String, Object> cmd) {
-        throw new RuntimeException("not working on memory");
+        log.warn("Runcommand not working on memory");
+        return new HashMap<>();
+    }
+
+    @Override
+    public MorphiumCursor initAggregationIteration(String db, String collection, List<Map<String, Object>> aggregationPipeline, ReadPreference readPreference, Collation collation, int batchSize, Map<String, Object> findMetaData) throws MorphiumDriverException {
+        log.warn("aggregation not possible in mem");
+        return new MorphiumCursor();
     }
 
 
@@ -501,6 +509,21 @@ public class InMemoryDriver implements MorphiumDriver {
                         }
                     }
                     return false;
+
+                }
+                case "$not": {
+                    return (!matchesQuery((Map<String, Object>) query.get(key), toCheck));
+                }
+                case "$nor": {
+                    //list of or queries
+                    @SuppressWarnings("unchecked") List<Map<String, Object>> lst = ((List<Map<String, Object>>) query.get(key));
+
+                    for (Map<String, Object> q : lst) {
+                        if (matchesQuery(q, toCheck)) {
+                            return false;
+                        }
+                    }
+                    return true;
 
                 }
                 default:
@@ -581,6 +604,27 @@ public class InMemoryDriver implements MorphiumDriver {
                                     }
                                 }
                                 return false;
+
+                            case "$comment":
+                                continue;
+                            case "$expr":
+                            case "$jsonSchema":
+                            case "$type":
+                            case "$regex":
+                            case "$text":
+                            case "$geoIntersects":
+                            case "$geoWithin":
+                            case "$near":
+                            case "$nearSphere":
+                            case "$all":
+                            case "$elemMatch":
+                            case "$size":
+                            case "$bitsAllClear":
+                            case "$bitsAllSet":
+                            case "$bitsAnyClear":
+                            case "$bitsAnySet":
+                                log.warn("Unsupported op " + k + " for in memory driver");
+                                break;
                             default:
                                 throw new RuntimeException("Unknown Operator " + k);
                         }
@@ -604,7 +648,7 @@ public class InMemoryDriver implements MorphiumDriver {
     }
 
     @Override
-    public MorphiumCursor initIteration(String db, String collection, Map<String, Object> query, Map<String, Integer> sort, Map<String, Object> projection, int skip, int limit, int batchSize, ReadPreference readPreference, Map<String, Object> findMetaData) throws MorphiumDriverException {
+    public MorphiumCursor initIteration(String db, String collection, Map<String, Object> query, Map<String, Integer> sort, Map<String, Object> projection, int skip, int limit, int batchSize, ReadPreference readPreference, Collation coll, Map<String, Object> findMetaData) throws MorphiumDriverException {
         MorphiumCursor crs = new MorphiumCursor();
         crs.setBatchSize(batchSize);
         crs.setCursorId(System.currentTimeMillis());
@@ -629,7 +673,7 @@ public class InMemoryDriver implements MorphiumDriver {
         if (limit != 0 && limit < batchSize) {
             l = limit;
         }
-        List<Map<String, Object>> res = find(db, collection, query, sort, projection, skip, l, batchSize, readPreference, findMetaData);
+        List<Map<String, Object>> res = find(db, collection, query, sort, projection, skip, l, batchSize, readPreference, coll, findMetaData);
         crs.setBatch(Collections.synchronizedList(new ArrayList<>(res)));
 
         if (res.size() < batchSize) {
@@ -711,6 +755,7 @@ public class InMemoryDriver implements MorphiumDriver {
         inCrs.setCollection(oldCrs.getCollection());
         inCrs.setProjection(oldCrs.getProjection());
         inCrs.setBatchSize(oldCrs.getBatchSize());
+        inCrs.setCollation(oldCrs.getCollation());
 
         inCrs.setLimit(oldCrs.getLimit());
 
@@ -722,7 +767,7 @@ public class InMemoryDriver implements MorphiumDriver {
                 limit = oldCrs.getLimit() - oldCrs.getDataRead();
             }
         }
-        List<Map<String, Object>> res = find(inCrs.getDb(), inCrs.getCollection(), inCrs.getQuery(), inCrs.getSort(), inCrs.getProjection(), inCrs.getSkip(), limit, inCrs.getBatchSize(), inCrs.getReadPreference(), inCrs.getFindMetaData());
+        List<Map<String, Object>> res = find(inCrs.getDb(), inCrs.getCollection(), inCrs.getQuery(), inCrs.getSort(), inCrs.getProjection(), inCrs.getSkip(), limit, inCrs.getBatchSize(), inCrs.getReadPreference(), inCrs.getCollation(), inCrs.getFindMetaData());
         next.setBatch(Collections.synchronizedList(new ArrayList<>(res)));
         if (res.size() < inCrs.getBatchSize()) {
             //finished!
@@ -737,7 +782,7 @@ public class InMemoryDriver implements MorphiumDriver {
     }
 
     @Override
-    public List<Map<String, Object>> find(String db, String collection, Map<String, Object> query, Map<String, Integer> sort, Map<String, Object> projection, int skip, int limit, int batchSize, ReadPreference rp, Map<String, Object> findMetaData) throws MorphiumDriverException {
+    public List<Map<String, Object>> find(String db, String collection, Map<String, Object> query, Map<String, Integer> sort, Map<String, Object> projection, int skip, int limit, int batchSize, ReadPreference rp, Collation col, Map<String, Object> findMetaData) throws MorphiumDriverException {
         return find(db, collection, query, sort, projection, skip, limit, false);
     }
 
@@ -781,7 +826,7 @@ public class InMemoryDriver implements MorphiumDriver {
     }
 
     @Override
-    public long count(String db, String collection, Map<String, Object> query, ReadPreference rp) {
+    public long count(String db, String collection, Map<String, Object> query, Collation collation, ReadPreference rp) {
         List<Map<String, Object>> d = getCollection(db, collection);
         List<Map<String, Object>> data = new ArrayList<>(d);
         if (query.isEmpty()) {
@@ -875,7 +920,7 @@ public class InMemoryDriver implements MorphiumDriver {
     }
 
     @Override
-    public Map<String, Object> update(String db, String collection, Map<String, Object> query, Map<String, Object> op, boolean multiple, boolean upsert, WriteConcern wc) throws MorphiumDriverException {
+    public Map<String, Object> update(String db, String collection, Map<String, Object> query, Map<String, Object> op, boolean multiple, boolean upsert, Collation collation, WriteConcern wc) throws MorphiumDriverException {
         List<Map<String, Object>> lst = find(db, collection, query, null, null, 0, multiple ? 0 : 1, true);
         boolean insert = false;
         if (lst == null) lst = new Vector<>();
@@ -1105,8 +1150,8 @@ public class InMemoryDriver implements MorphiumDriver {
     }
 
     @Override
-    public Map<String, Object> delete(String db, String collection, Map<String, Object> query, boolean multiple, WriteConcern wc) throws MorphiumDriverException {
-        List<Map<String, Object>> toDel = find(db, collection, query, null, null, 0, multiple ? 0 : 1, 10000, null, null);
+    public Map<String, Object> delete(String db, String collection, Map<String, Object> query, boolean multiple, Collation collation, WriteConcern wc) throws MorphiumDriverException {
+        List<Map<String, Object>> toDel = find(db, collection, query, null, null, 0, multiple ? 0 : 1, 10000, null, collation, null);
         for (Map<String, Object> o : toDel) {
             getCollection(db, collection).remove(o);
             notifyWatchers(db, collection, "delete", o);
@@ -1137,7 +1182,7 @@ public class InMemoryDriver implements MorphiumDriver {
     }
 
     @Override
-    public List<Object> distinct(String db, String collection, String field, Map<String, Object> filter, ReadPreference rp) {
+    public List<Object> distinct(String db, String collection, String field, Map<String, Object> filter, Collation collation, ReadPreference rp) {
         List<Map<String, Object>> list = getDB(db).get(collection);
         Set<Object> distinctValues = new HashSet<>();
 
@@ -1168,13 +1213,35 @@ public class InMemoryDriver implements MorphiumDriver {
     }
 
     @Override
-    public Map<String, Object> group(String db, String coll, Map<String, Object> query, Map<String, Object> initial, String jsReduce, String jsFinalize, ReadPreference rp, String... keys) {
+    public Map<String, Object> findAndOneAndDelete(String db, String col, Map<String, Object> query, Map<String, Integer> sort, Collation collation) throws MorphiumDriverException {
+        List<Map<String, Object>> r = find(db, col, query, sort, null, 0, 1, 1000, null, collation, null);
+        if (r.size() == 0) {
+            return null;
+        }
+        delete(db, col, Utils.getMap("_id", r.get(0).get("_id")), false, collation, null);
+        return r.get(0);
+    }
+
+    @Override
+    public Map<String, Object> findAndOneAndUpdate(String db, String col, Map<String, Object> query, Map<String, Object> update, Map<String, Integer> sort, Collation collation) throws MorphiumDriverException {
         return null;
     }
 
     @Override
-    public List<Map<String, Object>> aggregate(String db, String collection, List<Map<String, Object>> pipeline, boolean explain, boolean allowDiskUse, ReadPreference readPreference) {
-        throw new RuntimeException("Aggregate not possible in memory!");
+    public Map<String, Object> findAndOneAndReplace(String db, String col, Map<String, Object> query, Map<String, Object> replacement, Map<String, Integer> sort, Collation collation) throws MorphiumDriverException {
+        return null;
+    }
+
+    @Override
+    public Map<String, Object> group(String db, String coll, Map<String, Object> query, Map<String, Object> initial, String jsReduce, String jsFinalize, ReadPreference rp, String... keys) {
+        log.warn("Aggregate not possible in memory!");
+        return new HashMap<>();
+    }
+
+    @Override
+    public List<Map<String, Object>> aggregate(String db, String collection, List<Map<String, Object>> pipeline, boolean explain, boolean allowDiskUse, Collation collation, ReadPreference readPreference) throws MorphiumDriverException {
+        log.warn("Aggregate not possible in memory!");
+        return new ArrayList<>();
     }
 
     @Override
@@ -1239,9 +1306,9 @@ public class InMemoryDriver implements MorphiumDriver {
                             insert(db, collection, ((InsertBulkRequest) r).getToInsert(), null);
                         } else if (r instanceof UpdateBulkRequest) {
                             UpdateBulkRequest up = (UpdateBulkRequest) r;
-                            update(db, collection, up.getQuery(), up.getCmd(), up.isMultiple(), up.isUpsert(), null);
+                            update(db, collection, up.getQuery(), up.getCmd(), up.isMultiple(), up.isUpsert(), null, null);
                         } else if (r instanceof DeleteBulkRequest) {
-                            delete(db, collection, ((DeleteBulkRequest) r).getQuery(), ((DeleteBulkRequest) r).isMultiple(), null);
+                            delete(db, collection, ((DeleteBulkRequest) r).getQuery(), ((DeleteBulkRequest) r).isMultiple(), null, null);
                         } else {
                             throw new RuntimeException("Unknown operation " + r.getClass().getName());
                         }
@@ -1300,7 +1367,7 @@ public class InMemoryDriver implements MorphiumDriver {
     }
 
     @Override
-    public List<Map<String, Object>> mapReduce(String db, String collection, String mapping, String reducing, Map<String, Object> query, Map<String, Object> sorting) throws MorphiumDriverException {
+    public List<Map<String, Object>> mapReduce(String db, String collection, String mapping, String reducing, Map<String, Object> query, Map<String, Object> sorting, Collation collation) throws MorphiumDriverException {
         throw new FunctionNotSupportedException("no map reduce in memory");
     }
 
@@ -1356,6 +1423,7 @@ public class InMemoryDriver implements MorphiumDriver {
         private Map<String, Object> projection;
         private ReadPreference readPreference;
         private Map<String, Object> findMetaData;
+        private Collation collation;
 
         public String getDb() {
             return db;
@@ -1444,6 +1512,14 @@ public class InMemoryDriver implements MorphiumDriver {
 
         public void setLimit(int limit) {
             this.limit = limit;
+        }
+
+        public Collation getCollation() {
+            return collation;
+        }
+
+        public void setCollation(Collation collation) {
+            this.collation = collation;
         }
     }
 

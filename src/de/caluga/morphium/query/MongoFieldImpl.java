@@ -3,9 +3,13 @@ package de.caluga.morphium.query;
 import de.caluga.morphium.FilterExpression;
 import de.caluga.morphium.MongoType;
 import de.caluga.morphium.MorphiumObjectMapper;
+import de.caluga.morphium.Utils;
 import de.caluga.morphium.annotations.Entity;
 import de.caluga.morphium.annotations.Reference;
 import de.caluga.morphium.driver.MorphiumId;
+import de.caluga.morphium.query.geospatial.Geo;
+import de.caluga.morphium.query.geospatial.Point;
+import de.caluga.morphium.query.geospatial.Polygon;
 import org.bson.types.ObjectId;
 
 import java.lang.reflect.Field;
@@ -26,11 +30,18 @@ public class MongoFieldImpl<T> implements MongoField<T> {
     private Query<T> query;
     private MorphiumObjectMapper mapper;
     private String fldStr;
+    private boolean not = false;
 
     private FilterExpression fe;
 
 
     public MongoFieldImpl() {
+    }
+
+    @Override
+    public Query<T> not() {
+        not = true;
+        return query;
     }
 
     public MongoFieldImpl(Query<T> q, MorphiumObjectMapper map) {
@@ -71,10 +82,8 @@ public class MongoFieldImpl<T> implements MongoField<T> {
         // checking for Ids in references...
         val = checkValue(val);
 
-        fe.setValue(val);
-        fe.setField(mapper.getMorphium().getARHelper().getFieldName(query.getType(), fldStr));
-        query.addChild(fe);
-        return query;  // To change body of implemented methods use File | Settings | File Templates.
+        addSimple(val);
+        return query;
     }
 
     private Object checkValue(Object val) {
@@ -123,11 +132,26 @@ public class MongoFieldImpl<T> implements MongoField<T> {
         return val;
     }
 
+    private void addSimple(Object val) {
+        if (not) {
+            fe.setValue(Utils.getMap("$not", val));
+        } else {
+            fe.setValue(val);
+        }
+        fe.setField(mapper.getMorphium().getARHelper().getFieldName(query.getType(), fldStr));
+        query.addChild(fe);
+    }
+
+
     private void add(String op, Object value) {
         fe.setField(mapper.getMorphium().getARHelper().getFieldName(query.getType(), fldStr));
         FilterExpression child = new FilterExpression();
         child.setField(op);
-        child.setValue(value);
+        if (not) {
+            child.setValue(Utils.getMap("$not", value));
+        } else {
+            child.setValue(value);
+        }
         fe.addChild(child);
 
         query.addChild(fe);
@@ -203,9 +227,11 @@ public class MongoFieldImpl<T> implements MongoField<T> {
 
     @Override
     public Query<T> matches(Pattern p) {
-        fe.setValue(p);
-        fe.setField(mapper.getMorphium().getARHelper().getFieldName(query.getType(), fldStr));
-        query.addChild(fe);
+        addSimple(p);
+//            fe.setValue(p);
+//
+//        fe.setField(mapper.getMorphium().getARHelper().getFieldName(query.getType(), fldStr));
+//        query.addChild(fe);
         return query;
     }
 
@@ -239,6 +265,117 @@ public class MongoFieldImpl<T> implements MongoField<T> {
         add("$nin", lst);
         return query;
     }
+
+
+    private void createGeoWithinFilterExpression(List<Object> lst, String type) {
+        List<FilterExpression> expressionList = new ArrayList<>();
+
+        FilterExpression withinExpression = new FilterExpression();
+        withinExpression.setField("$geoWithin");
+
+        Map<String, Object> box = new HashMap<>();
+        box.put(type, lst);
+        withinExpression.setValue(box);
+
+        expressionList.add(withinExpression);
+
+        add(expressionList);
+    }
+
+    @Override
+    public Query<T> polygon(double... p) {
+        if (p.length % 2 == 1) {
+            throw new IllegalArgumentException("Need a list of coordinates: x,y, x1,y1, x2,y2....");
+        }
+        List<Object> lst = new ArrayList<>();
+        for (int i = 0; i < p.length; i += 2) {
+            List<Object> p1 = new ArrayList<>();
+            p1.add(p[i]);
+            p1.add(p[i + 1]);
+            lst.add(p1);
+        }
+
+        createGeoWithinFilterExpression(lst, "$polygon");
+        return query;
+    }
+
+    @Override
+    public Query<T> polygon(Polygon p) {
+        createGeoWithinFilterExpression((List) p.getCoordinates(), "$polygon");
+        return query;
+    }
+
+
+    @Override
+    public Query<T> getQuery() {
+        return query;
+    }
+
+    @Override
+    public void setQuery(Query<T> q) {
+        query = q;
+    }
+
+    @Override
+    public Query<T> bitsAllClear(int... b) {
+        List<Integer> lst = new ArrayList<>();
+        for (int r : b) lst.add(r);
+        add("$bitsAllClear", lst);
+        return query;
+    }
+
+    @Override
+    public Query<T> bitsAllSet(int... b) {
+        List<Integer> lst = new ArrayList<>();
+        for (int r : b) lst.add(r);
+        add("$bitsAllSet", lst);
+        return query;
+    }
+
+    @Override
+    public Query<T> bitsAnyClear(int... b) {
+        List<Integer> lst = new ArrayList<>();
+        for (int r : b) lst.add(r);
+        add("$bitsAnyClear", lst);
+        return query;
+    }
+
+    @Override
+    public Query<T> bitsAnySet(int... b) {
+        List<Integer> lst = new ArrayList<>();
+        for (int r : b) lst.add(r);
+        add("$bitsAnySet", lst);
+        return query;
+    }
+
+    @Override
+    public Query<T> bitsAllClear(long bitmask) {
+
+        add("$bitsAllClear", bitmask);
+        return query;
+    }
+
+    @Override
+    public Query<T> bitsAllSet(long bitmask) {
+
+        add("$bitsAllSet", bitmask);
+        return query;
+    }
+
+    @Override
+    public Query<T> bitsAnyClear(long bitmask) {
+
+        add("$bitsAnyClear", bitmask);
+        return query;
+    }
+
+    @Override
+    public Query<T> bitsAnySet(long bitmask) {
+        add("$bitsAnySet", bitmask);
+        return query;
+    }
+
+    //Geospacial queries
 
     @Override
     public Query<T> near(double x, double y) {
@@ -275,39 +412,7 @@ public class MongoFieldImpl<T> implements MongoField<T> {
         lst.add(p1);
         lst.add(p2);
 
-        createFilterExpressionList(lst, "$box");
-        return query;
-    }
-
-    private void createFilterExpressionList(List<Object> lst, String type) {
-        List<FilterExpression> expressionList = new ArrayList<>();
-
-        FilterExpression withinExpression = new FilterExpression();
-        withinExpression.setField("$within");
-
-        Map<String, Object> box = new HashMap<>();
-        box.put(type, lst);
-        withinExpression.setValue(box);
-
-        expressionList.add(withinExpression);
-
-        add(expressionList);
-    }
-
-    @Override
-    public Query<T> polygon(double... p) {
-        if (p.length % 2 == 1) {
-            throw new IllegalArgumentException("Need a list of coordinates: x,y, x1,y1, x2,y2....");
-        }
-        List<Object> lst = new ArrayList<>();
-        for (int i = 0; i < p.length; i += 2) {
-            List<Object> p1 = new ArrayList<>();
-            p1.add(p[i]);
-            p1.add(p[i + 1]);
-            lst.add(p1);
-        }
-
-        createFilterExpressionList(lst, "$polygon");
+        createGeoWithinFilterExpression(lst, "$box");
         return query;
     }
 
@@ -324,7 +429,7 @@ public class MongoFieldImpl<T> implements MongoField<T> {
         List<FilterExpression> expressionList = new ArrayList<>();
 
         FilterExpression withinExpression = new FilterExpression();
-        withinExpression.setField("$within");
+        withinExpression.setField("$geoWithin");
 
         HashMap<String, Object> cnt = new HashMap<>();
         cnt.put("$center", lst);
@@ -349,7 +454,7 @@ public class MongoFieldImpl<T> implements MongoField<T> {
         List<FilterExpression> expressionList = new ArrayList<>();
 
         FilterExpression withinExpression = new FilterExpression();
-        withinExpression.setField("$within");
+        withinExpression.setField("$geoWithin");
 
         HashMap<String, Object> cnt = new HashMap<>();
         cnt.put("$centerSphere", lst);
@@ -363,6 +468,12 @@ public class MongoFieldImpl<T> implements MongoField<T> {
 
     @Override
     public Query<T> nearSphere(double x, double y, double maxDistance) {
+        return nearSphere(x, y, 0, maxDistance);
+
+    }
+
+    @Override
+    public Query<T> nearSphere(double x, double y, double minDistance, double maxDistance) {
         List<Object> location = new ArrayList<>();
         location.add(x);
         location.add(y);
@@ -379,7 +490,29 @@ public class MongoFieldImpl<T> implements MongoField<T> {
         maxDistanceExpression.setValue(maxDistance);
         expressionList.add(maxDistanceExpression);
 
+        FilterExpression minDistanceExpression = new FilterExpression();
+        maxDistanceExpression.setField("$minDistance");
+        maxDistanceExpression.setValue(minDistance);
+        expressionList.add(maxDistanceExpression);
+
         add(expressionList);
+        return query;
+    }
+
+    @Override
+    public Query<T> nearSpere(Point point, double minDistance, double maxDistance) {
+        List<FilterExpression> expressionList = new ArrayList<>();
+
+        FilterExpression nearExpression = new FilterExpression();
+        nearExpression.setField("$nearSphere");
+        Map<String, Object> val = Utils.getMap("$geometry", (Object) mapper.serialize(point));
+        val.put("$maxDistance", maxDistance);
+        val.put("$minDistance", minDistance);
+        nearExpression.setValue(val);
+        expressionList.add(nearExpression);
+
+        add(expressionList);
+
         return query;
     }
 
@@ -407,13 +540,53 @@ public class MongoFieldImpl<T> implements MongoField<T> {
     }
 
     @Override
-    public Query<T> getQuery() {
+    public Query<T> near(Point point, double minDistance, double maxDistance) {
+        List<FilterExpression> expressionList = new ArrayList<>();
+
+        FilterExpression nearExpression = new FilterExpression();
+        nearExpression.setField("$near");
+        Map<String, Object> val = Utils.getMap("$geometry", (Object) mapper.serialize(point));
+        val.put("$maxDistance", maxDistance);
+        val.put("$minDistance", minDistance);
+        nearExpression.setValue(val);
+        expressionList.add(nearExpression);
+
+        add(expressionList);
+
         return query;
     }
 
     @Override
-    public void setQuery(Query<T> q) {
-        query = q;
+    public Query<T> geoIntersects(Geo shape) {
+        List<FilterExpression> expressionList = new ArrayList<>();
+
+        FilterExpression expr = new FilterExpression();
+        expr.setField("$geoIntersects");
+        Map<String, Map<String, Object>> val = Utils.getMap("$geometry", mapper.serialize(shape));
+
+        expr.setValue(val);
+        expressionList.add(expr);
+
+        add(expressionList);
+
+        return query;
     }
+
+    @Override
+    public Query<T> geoWithin(Geo shape) {
+        List<FilterExpression> expressionList = new ArrayList<>();
+
+        FilterExpression expr = new FilterExpression();
+        expr.setField("$geoWithin");
+        Map<String, Map<String, Object>> val = Utils.getMap("$geometry", mapper.serialize(shape));
+
+        expr.setValue(val);
+        expressionList.add(expr);
+
+        add(expressionList);
+
+        return query;
+    }
+
 
 }

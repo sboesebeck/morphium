@@ -3,7 +3,7 @@ package de.caluga.morphium.query;
 import java.util.Iterator;
 import java.util.List;
 
-public class EmptyIterator<T> implements MorphiumIterator<T> {
+public class EmptyIterator<T> implements MorphiumQueryIterator<T> {
     private Query<T> q;
 
     @Override

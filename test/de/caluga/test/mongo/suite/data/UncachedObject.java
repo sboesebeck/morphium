@@ -166,6 +166,5 @@ public class UncachedObject {
         return result;
     }
 
-
-    public enum Fields {counter, binaryData, intData, longData, floatData, doubleData, boolData, mongoId, value}
+    public enum Fields {counter, dval, binaryData, intData, longData, floatData, doubleData, boolData, morphiumId, value}
 }

@@ -1,12 +1,17 @@
 package de.caluga.morphium.query;
 
+import de.caluga.morphium.Collation;
 import de.caluga.morphium.*;
+import de.caluga.morphium.aggregation.Expr;
 import de.caluga.morphium.annotations.*;
 import de.caluga.morphium.annotations.caching.Cache;
 import de.caluga.morphium.async.AsyncOperationCallback;
 import de.caluga.morphium.async.AsyncOperationType;
 import de.caluga.morphium.driver.DriverTailableIterationCallback;
 import de.caluga.morphium.driver.MorphiumDriverException;
+import org.json.simple.parser.ContainerFactory;
+import org.json.simple.parser.JSONParser;
+import org.json.simple.parser.ParseException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -49,10 +54,21 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
     private AnnotationAndReflectionHelper arHelper;
 
     private String overrideDB;
-
+    private Collation collation;
 
     public QueryImpl() {
 
+    }
+
+    @Override
+    public Collation getCollation() {
+        return collation;
+    }
+
+    @Override
+    public Query<T> setCollation(Collation collation) {
+        this.collation = collation;
+        return this;
     }
 
     public QueryImpl(Morphium m, Class<? extends T> type, ThreadPoolExecutor executor) {
@@ -190,6 +206,70 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
         return complexQuery(query, srt, skip, limit);
     }
 
+
+    public T findOneAndDelete() {
+        Cache c = getARHelper().getAnnotationFromHierarchy(type, Cache.class); //type.getAnnotation(Cache.class);
+        boolean useCache = c != null && c.readCache() && morphium.isReadCacheEnabledForThread();
+        String ck = morphium.getCache().getCacheKey(this);
+        morphium.inc(StatisticKeys.READS);
+        if (useCache) {
+            if (morphium.getCache().isCached(type, ck)) {
+                morphium.inc(StatisticKeys.CHITS);
+                List<T> lst = morphium.getCache().getFromCache(type, ck);
+                if (lst == null || lst.isEmpty()) {
+                    return null;
+                } else {
+                    morphium.delete(lst.get(0));
+                    return lst.get(0);
+                }
+
+            }
+            morphium.inc(StatisticKeys.CMISS);
+        } else {
+            morphium.inc(StatisticKeys.NO_CACHED_READS);
+        }
+        long start = System.currentTimeMillis();
+
+        Map<String, Object> ret = null;
+
+        try {
+            ret = morphium.getDriver().findAndOneAndDelete(getDB(), getCollectionName(), toQueryObject(), getSort(), collation);
+        } catch (MorphiumDriverException e) {
+            e.printStackTrace();
+        }
+
+        if (ret == null) {
+            List<T> lst = new ArrayList<>(0);
+            if (useCache) {
+                morphium.getCache().addToCache(ck, type, lst);
+            }
+            return null;
+        }
+
+        List<T> lst = new ArrayList<>(1);
+        long dur = System.currentTimeMillis() - start;
+        morphium.fireProfilingReadEvent(this, dur, ReadAccessType.GET);
+
+        if (ret != null) {
+            T unmarshall = morphium.getMapper().deserialize(type, ret);
+            if (unmarshall != null) {
+                morphium.firePostLoadEvent(unmarshall);
+                updateLastAccess(unmarshall);
+
+                lst.add(unmarshall);
+                if (useCache) {
+                    morphium.getCache().addToCache(ck, type, lst);
+                }
+            }
+            return unmarshall;
+        }
+
+        if (useCache) {
+            morphium.getCache().addToCache(ck, type, lst);
+        }
+        return null;
+    }
+
     @Override
     public AnnotationAndReflectionHelper getARHelper() {
         if (arHelper == null) {
@@ -207,7 +287,7 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
     public long complexQueryCount(Map<String, Object> query) {
         long ret = 0;
         try {
-            ret = morphium.getDriver().count(getDB(), getCollectionName(), query, getRP());
+            ret = morphium.getDriver().count(getDB(), getCollectionName(), query, getCollation(), getRP());
         } catch (MorphiumDriverException e) {
             //TODO: Implement Handling
             throw new RuntimeException(e);
@@ -232,7 +312,7 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
         List<Map<String, Object>> obj;
         Map<String, Object> findMetaData = new HashMap<>();
         try {
-            obj = morphium.getDriver().find(getDB(), getCollectionName(), query, sort, lst, skip, limit, 100, getRP(), findMetaData);
+            obj = morphium.getDriver().find(getDB(), getCollectionName(), query, sort, lst, skip, limit, 100, getRP(), getCollation(), findMetaData);
         } catch (MorphiumDriverException e) {
             //TODO: Implement Handling
             throw new RuntimeException(e);
@@ -305,7 +385,7 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
     @Override
     public List distinct(String field) {
         try {
-            return morphium.getDriver().distinct(getDB(), getCollectionName(), field, toQueryObject(), morphium.getReadPreferenceForClass(getType()));
+            return morphium.getDriver().distinct(getDB(), getCollectionName(), field, toQueryObject(), getCollation(), morphium.getReadPreferenceForClass(getType()));
         } catch (MorphiumDriverException e) {
             //TODO: Implement Handling
             throw new RuntimeException(e);
@@ -543,8 +623,28 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
         morphium.inc(StatisticKeys.READS);
         long start = System.currentTimeMillis();
         long ret;
+        if (where != null) {
+            log.warn("efficient counting with $where is not possible... need to iterate!");
+            int lim = limit;
+            int sk = skip;
+            skip = 0;
+            limit = 0;
+            Map<String, Object> fld = fieldList;
+
+            fieldList = null;
+            addProjection("_id"); //only read ids
+            int count = 0;
+            for (T elem : asIterable()) {
+                count++;
+            }
+            limit = lim;
+            skip = sk;
+            fieldList = fld;
+            return count;
+
+        }
         try {
-            ret = morphium.getDriver().count(getDB(), getCollectionName(), toQueryObject(), getRP());
+            ret = morphium.getDriver().count(getDB(), getCollectionName(), toQueryObject(), getCollation(), getRP());
         } catch (MorphiumDriverException e) {
             //TODO: Implement Handling
             throw new RuntimeException(e);
@@ -629,6 +729,48 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
         return o;
     }
 
+
+    @Override
+    public Query<T> expr(Expr exp) {
+        FilterExpression fe = new FilterExpression();
+        fe.setField("$expr");
+
+        fe.setValue(exp.toQueryObject());
+        andExpr.add(fe);
+        return this;
+    }
+
+    @Override
+    public Query<T> matchesJsonSchema(Map<String, Object> schemaDef) {
+        FilterExpression fe = new FilterExpression();
+        fe.setField("$jsonSchema");
+        fe.setValue(schemaDef);
+        andExpr.add(fe);
+
+        return this;
+    }
+
+    @Override
+    public Query<T> matchesJsonSchema(String schemaDef) throws ParseException {
+        JSONParser jsonParser = new JSONParser();
+
+        Map<String, Object> map = (Map<String, Object>) jsonParser.parse(schemaDef, new ContainerFactory() {
+                    @Override
+                    public Map createObjectContainer() {
+                        return new HashMap<>();
+                    }
+
+                    @Override
+                    public List creatArrayContainer() {
+                        return new ArrayList();
+                    }
+                }
+        );
+
+        return matchesJsonSchema(map);
+    }
+
+
     @Override
     public Class<? extends T> getType() {
         return type;
@@ -689,7 +831,7 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
         try {
 
             Map<String, Object> findMetaData = new HashMap<>();
-            List<Map<String, Object>> query = morphium.getDriver().find(getDB(), getCollectionName(), toQueryObject(), sort, lst, skip, limit, morphium.getConfig().getCursorBatchSize(), getRP(), findMetaData);
+            List<Map<String, Object>> query = morphium.getDriver().find(getDB(), getCollectionName(), toQueryObject(), sort, lst, skip, limit, morphium.getConfig().getCursorBatchSize(), getRP(), collation, findMetaData);
             srv = (String) findMetaData.get("server");
 
 
@@ -718,56 +860,54 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
     }
 
     @Override
-    public MorphiumIterator<T> asIterable() {
-        MorphiumDriverIterator<T> it = new MorphiumDriverIterator<>();
+    public MorphiumQueryIterator<T> asIterable() {
+        QueryIterator<T> it = new QueryIterator<>();
         it.setQuery(this);
         return it;
     }
 
-    @Override
-    public MorphiumIterator<T> asIterable(int windowSize, Class<? extends MorphiumIterator<T>> it) {
-        try {
-            MorphiumIterator<T> ret = it.getDeclaredConstructor().newInstance();
-            return asIterable(windowSize, ret);
-        } catch (Exception e) {
-            throw new RuntimeException(e);
-        }
+
+    public MorphiumQueryIterator<T> asIterable(int windowSize) {
+        QueryIterator<T> it = new QueryIterator<>();
+        it.setWindowSize(windowSize);
+        it.setQuery(this);
+        return it;
     }
 
+
     @Override
-    public MorphiumIterator<T> asIterable(int windowSize, MorphiumIterator<T> ret) {
+    public MorphiumQueryIterator<T> asIterable(MorphiumQueryIterator<T> ret) {
         try {
             ret.setQuery(this);
-            ret.setWindowSize(windowSize);
             return ret;
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
     }
 
-    public MorphiumIterator<T> asIterable(int windowSize) {
-        if (log.isDebugEnabled()) {
-            log.debug("creating iterable for query - windowsize " + windowSize);
+    @Override
+    public MorphiumQueryIterator<T> asIterable(int windowSize, Class<? extends MorphiumQueryIterator<T>> it) {
+        try {
+            MorphiumQueryIterator<T> ret = it.getDeclaredConstructor().newInstance();
+            ret.setWindowSize(windowSize);
+            return asIterable(ret);
+        } catch (Exception e) {
+            throw new RuntimeException(e);
         }
-        MorphiumIterator<T> it = new MorphiumDriverIterator<>();
-        it.setQuery(this);
-        it.setWindowSize(windowSize);
-        return it;
     }
 
-
     @Override
-    public MorphiumIterator<T> asIterable(int windowSize, int prefixWindows) {
+    public MorphiumQueryIterator<T> asIterable(int windowSize, int prefetchWindows) {
 
         if (log.isDebugEnabled()) {
             log.debug("creating iterable for query - windowsize " + windowSize);
         }
-        MorphiumIterator<T> it;
-        if (prefixWindows == 1) {
-            it = new DefaultMorphiumIterator<>();
+        MorphiumQueryIterator<T> it;
+        if (prefetchWindows <= 1) {
+            it = new QueryIterator<>();
         } else {
-            it = new PrefetchingDriverIterator<>();
-            it.setNumberOfPrefetchWindows(prefixWindows);
+            it = new PrefetchingQueryIterator<>();
+            it.setNumberOfPrefetchWindows(prefetchWindows);
         }
         it.setQuery(this);
         it.setWindowSize(windowSize);
@@ -798,10 +938,9 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
                             f.set(unmarshall, currentTime);
 
                         }
-                        MorphiumObjectMapper mapper = morphium.getMapper();
                         Object id = getARHelper().getId(unmarshall);
                         //Cannot use store, as this would trigger an update of last changed...
-                        morphium.getDriver().update(getDB(), getCollectionName(), Utils.getMap("_id", id), Utils.getMap("$set", Utils.getMap(ctf, currentTime)), false, false, null);
+                        morphium.getDriver().update(getDB(), getCollectionName(), Utils.getMap("_id", id), Utils.getMap("$set", Utils.getMap(ctf, currentTime)), false, false, collation, null);
                         //                        morphium.getDatabase().getCollection(collName).update(new HashMap<String, Object>("_id", id), new HashMap<String, Object>("$set", new HashMap<String, Object>(ctf, currentTime)));
                     } catch (Exception e) {
                         log.error("Could not set modification time");
@@ -898,7 +1037,7 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
         int lim = getLimit();
         limit(1);
         try {
-            srch = morphium.getDriver().find(getDB(), getCollectionName(), toQueryObject(), getSort(), fl, getSkip(), getLimit(), 1, getRP(), findMetaData);
+            srch = morphium.getDriver().find(getDB(), getCollectionName(), toQueryObject(), getSort(), fl, getSkip(), getLimit(), 1, getRP(), collation, findMetaData);
         } catch (MorphiumDriverException e) {
             //TODO: Implement Handling
             throw new RuntimeException(e);
@@ -984,7 +1123,7 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
 
         List<Map<String, Object>> query;
         try {
-            query = morphium.getDriver().find(getDB(), getCollectionName(), toQueryObject(), sort, Utils.getMap("_id", 1), skip, limit, 1, getRP(), findMetadata);
+            query = morphium.getDriver().find(getDB(), getCollectionName(), toQueryObject(), sort, Utils.getMap("_id", 1), skip, limit, 1, getRP(), collation, findMetadata);
         } catch (MorphiumDriverException e) {
             //TODO: Implement Handling
             throw new RuntimeException(e);
@@ -1571,22 +1710,22 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
     public void tail(int batchSize, int maxWait, AsyncOperationCallback<T> cb) {
         try {
             morphium.getDriver().tailableIteration(getDB(), getCollectionName(), toQueryObject(), getSort(), fieldList, getSkip(), getLimit(), batchSize, getRP(), maxWait, new DriverTailableIterationCallback() {
-                private boolean running = true;
+                        private boolean running = true;
 
-                @Override
-                public void incomingData(Map<String, Object> data, long dur) {
-                    T entity = morphium.getMapper().deserialize(getType(), data);
-                    try {
-                        cb.onOperationSucceeded(AsyncOperationType.READ, QueryImpl.this, dur, null, entity);
-                    } catch (MorphiumAccessVetoException ex) {
-                        log.info("Veto Exception " + ex.getMessage());
-                        running = false;
-                    }
-                }
+                        @Override
+                        public void incomingData(Map<String, Object> data, long dur) {
+                            T entity = morphium.getMapper().deserialize(getType(), data);
+                            try {
+                                cb.onOperationSucceeded(AsyncOperationType.READ, QueryImpl.this, dur, null, entity);
+                            } catch (MorphiumAccessVetoException ex) {
+                                log.info("Veto Exception " + ex.getMessage());
+                                running = false;
+                            }
+                        }
 
-                @Override
-                public boolean isContinued() {
-                    return running;
+                        @Override
+                        public boolean isContinued() {
+                            return running;
                         }
                     }
             );

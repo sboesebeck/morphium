@@ -121,7 +121,7 @@ public class RSMonitor {
 
                 if (full) {
                     Map<String, Object> findMetaData = new HashMap<>();
-                    List<Map<String, Object>> stats = morphium.getDriver().find("local", "system.replset", new HashMap<>(), null, null, 0, 10, 10, null, findMetaData);
+                    List<Map<String, Object>> stats = morphium.getDriver().find("local", "system.replset", new HashMap<>(), null, null, 0, 10, 10, null, null, findMetaData);
                     if (stats == null || stats.isEmpty()) {
                         logger.debug("could not get replicaset status");
                     } else {

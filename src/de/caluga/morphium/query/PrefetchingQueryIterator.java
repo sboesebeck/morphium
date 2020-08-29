@@ -17,8 +17,8 @@ import java.util.concurrent.CopyOnWriteArrayList;
 /**
  * iterating over huge collections using the db interal cursor. This iterator does create a thread reading the data
  **/
-public class PrefetchingDriverIterator<T> implements MorphiumIterator<T> {
-    private final Logger log = LoggerFactory.getLogger(PrefetchingDriverIterator.class);
+public class PrefetchingQueryIterator<T> implements MorphiumQueryIterator<T> {
+    private final Logger log = LoggerFactory.getLogger(PrefetchingQueryIterator.class);
     private long lastAccess = System.currentTimeMillis();
     private List<List<T>> prefetchBuffer; //each entry is one buffer
     private Query<T> query;
@@ -28,7 +28,7 @@ public class PrefetchingDriverIterator<T> implements MorphiumIterator<T> {
     private volatile int cursorPos;
     private boolean startedAlready = false;
 
-    public PrefetchingDriverIterator() {
+    public PrefetchingQueryIterator() {
         prefetchBuffer = new CopyOnWriteArrayList<>();//Collections.synchronizedList(new ArrayList<>());
     }
 
@@ -160,7 +160,7 @@ public class PrefetchingDriverIterator<T> implements MorphiumIterator<T> {
             startedAlready = true;
             //startup
             try {
-                cursor = query.getMorphium().getDriver().initIteration(query.getMorphium().getConfig().getDatabase(), query.getCollectionName(), query.toQueryObject(), query.getSort(), query.getFieldListForQuery(), query.getSkip(), query.getLimit(), batchsize, query.getMorphium().getReadPreferenceForClass(query.getType()), null);
+                cursor = query.getMorphium().getDriver().initIteration(query.getMorphium().getConfig().getDatabase(), query.getCollectionName(), query.toQueryObject(), query.getSort(), query.getFieldListForQuery(), query.getSkip(), query.getLimit(), batchsize, query.getMorphium().getReadPreferenceForClass(query.getType()), query.getCollation(), null);
                 if (cursor == null) {
                     return false;
                 }
