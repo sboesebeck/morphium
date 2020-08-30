@@ -491,7 +491,7 @@ public class AggregatorImpl<T, R> implements Aggregator<T, R> {
     }
 
     @Override
-    public Aggregator<T, R> graphLookup(Class<?> type, Expr startWith, Enum connectFromField, Enum connectToField, String as, int maxDepth, String depthField, Query restrictSearchWithMatch) {
+    public Aggregator<T, R> graphLookup(Class<?> type, Expr startWith, Enum connectFromField, Enum connectToField, String as, Integer maxDepth, String depthField, Query restrictSearchWithMatch) {
         return graphLookup(morphium.getMapper().getCollectionName(type),
                 startWith,
                 connectFromField.name(),
@@ -501,7 +501,7 @@ public class AggregatorImpl<T, R> implements Aggregator<T, R> {
     }
 
     @Override
-    public Aggregator<T, R> graphLookup(Class<?> type, Expr startWith, String connectFromField, String connectToField, String as, int maxDepth, String depthField, Query restrictSearchWithMatch) {
+    public Aggregator<T, R> graphLookup(Class<?> type, Expr startWith, String connectFromField, String connectToField, String as, Integer maxDepth, String depthField, Query restrictSearchWithMatch) {
         return graphLookup(morphium.getMapper().getCollectionName(type),
                 startWith,
                 connectFromField,
@@ -511,15 +511,19 @@ public class AggregatorImpl<T, R> implements Aggregator<T, R> {
     }
 
     @Override
-    public Aggregator<T, R> graphLookup(String fromCollection, Expr startWith, String connectFromField, String connectToField, String as, int maxDepth, String depthField, Query restrictSearchWithMatch) {
-        params.add(Utils.getMap("$graphLookup", Utils.getMap("from", (Object) fromCollection)
+    public Aggregator<T, R> graphLookup(String fromCollection, Expr startWith, String connectFromField, String connectToField, String as, Integer maxDepth, String depthField, Query restrictSearchWithMatch) {
+        Utils.UtilsMap<String, Object> add = Utils.getMap("from", (Object) fromCollection)
                 .add("startWith", startWith.toQueryObject())
                 .add("connectFromField", connectFromField)
                 .add("connectToField", connectToField)
-                .add("maxDepth", maxDepth)
-                .add("depthField", depthField)
-                .add("restrictSearchWithMatch", restrictSearchWithMatch.toQueryObject())
-        ));
+                .add("as", as);
+        params.add(Utils.getMap("$graphLookup", add));
+        if (maxDepth != null)
+            add.add("maxDepth", maxDepth);
+        if (depthField != null)
+            add.add("depthField", depthField);
+        if (restrictSearchWithMatch != null)
+            add.add("restrictSearchWithMatch", restrictSearchWithMatch.toQueryObject());
 
         return this;
     }
