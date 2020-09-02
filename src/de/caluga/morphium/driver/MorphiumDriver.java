@@ -194,7 +194,7 @@ public interface MorphiumDriver {
      *
      * @param db
      * @param collection
-     * @param objs
+     * @param obj
      * @param wc
      * @throws MorphiumDriverException
      */
@@ -239,7 +239,6 @@ public interface MorphiumDriver {
 
     Map<String, Object> findAndOneAndReplace(String db, String col, Map<String, Object> query, Map<String, Object> replacement, Map<String, Integer> sort, Collation collation) throws MorphiumDriverException;
 
-    Map<String, Object> group(String db, String coll, Map<String, Object> query, Map<String, Object> initial, String jsReduce, String jsFinalize, ReadPreference rp, String... keys) throws MorphiumDriverException;
 
     @SuppressWarnings("RedundantThrows")
     List<Map<String, Object>> aggregate(String db, String collection, List<Map<String, Object>> pipeline, boolean explain, boolean allowDiskUse, Collation collation, ReadPreference readPreference) throws MorphiumDriverException;

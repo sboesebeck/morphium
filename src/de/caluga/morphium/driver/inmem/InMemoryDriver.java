@@ -1232,11 +1232,6 @@ public class InMemoryDriver implements MorphiumDriver {
         return null;
     }
 
-    @Override
-    public Map<String, Object> group(String db, String coll, Map<String, Object> query, Map<String, Object> initial, String jsReduce, String jsFinalize, ReadPreference rp, String... keys) {
-        log.warn("Aggregate not possible in memory!");
-        return new HashMap<>();
-    }
 
     @Override
     public List<Map<String, Object>> aggregate(String db, String collection, List<Map<String, Object>> pipeline, boolean explain, boolean allowDiskUse, Collation collation, ReadPreference readPreference) throws MorphiumDriverException {

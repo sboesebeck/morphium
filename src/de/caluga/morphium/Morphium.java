@@ -1879,18 +1879,6 @@ public class Morphium implements AutoCloseable {
         }
     }
 
-    public Map<String, Object> group(Query q, Map<String, Object> initial, String jsReduce, String jsFinalize, ReadPreference rp, String... keys) {
-        try {
-            //noinspection unchecked
-            return morphiumDriver.group(config.getDatabase(), objectMapper.getCollectionName(q.getType()), q.toQueryObject(), initial, jsReduce, jsFinalize, rp, keys);
-        } catch (MorphiumDriverException e) {
-            throw new RuntimeException(e);
-        }
-    }
-
-    public Map<String, Object> group(Query q, Map<String, Object> initial, String jsReduce, String jsFinalize, String... keys) {
-        return group(q, initial, jsReduce, jsFinalize, null, keys);
-    }
 
     public <T> T findById(Class<? extends T> type, Object id) {
         return findById(type, id, null);
