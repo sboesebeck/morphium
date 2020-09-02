@@ -636,8 +636,29 @@ public class AggregatorImpl<T, R> implements Aggregator<T, R> {
 
 
     @Override
-    public Aggregator<T, R> merge(Map<String, Object> param) {
-        return null;
+    public Aggregator<T, R> merge(String intoCollection, Map<String, Expr> let, MergeActionWhenMatched matchAction, MergeActionWhenNotMatched notMatchedAction, String... onFields) {
+        return merge(morphium.getConfig().getDatabase(), intoCollection, let, matchAction, notMatchedAction, onFields);
+
+    }
+
+    @Override
+    public Aggregator<T, R> merge(String intoDb, String intoCollection, Map<String, Expr> let, MergeActionWhenMatched matchAction, MergeActionWhenNotMatched notMatchedAction, String... onFields) {
+        Map doc = Utils.getMap("into", Utils.getMap("db", intoDb).add("collection", intoCollection));
+        if (let != null) {
+            doc.put("let", Utils.getNoExprMap((Map) let));
+        }
+        if (matchAction != null) {
+            doc.put("whenMatched", matchAction.name());
+        }
+        if (notMatchedAction != null) {
+            doc.put("whenNotMatched", notMatchedAction.name());
+        }
+        if (onFields != null && onFields.length != 0) {
+            doc.put("on", Arrays.asList(onFields));
+        }
+
+        params.add(Utils.getMap("$merge", doc));
+        return this;
     }
 
     @Override

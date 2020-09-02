@@ -107,7 +107,9 @@ public interface Aggregator<T, R> {
 
     Aggregator<T, R> lookup(String fromCollection, String localField, String foreignField, String outputArray, List<Expr> pipeline, Map<String, Expr> let);
 
-    Aggregator<T, R> merge(Map<String, Object> param);
+    Aggregator<T, R> merge(String intoDb, String intoCollection, Map<String, Expr> let, MergeActionWhenMatched matchAction, MergeActionWhenNotMatched notMatchedAction, String... onFields);
+
+    Aggregator<T, R> merge(String intoCollection, Map<String, Expr> let, MergeActionWhenMatched matchAction, MergeActionWhenNotMatched notMatchedAction, String... onFields);
 
     Aggregator<T, R> out(String collection);
 
@@ -259,6 +261,14 @@ public interface Aggregator<T, R> {
         }
 
 
+    }
+
+    enum MergeActionWhenMatched {
+        replace, keepExisting, merge, fail,
+    }
+
+    enum MergeActionWhenNotMatched {
+        insert, discard, fail,
     }
 
 }
