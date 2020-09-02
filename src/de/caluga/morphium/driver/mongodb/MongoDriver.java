@@ -2,16 +2,16 @@ package de.caluga.morphium.driver.mongodb;/**
  * Created by stephan on 05.11.15.
  */
 
-
-import com.mongodb.MongoClient;
+import com.mongodb.ConnectionString;
+import com.mongodb.client.*;
 import com.mongodb.WriteConcern;
 import com.mongodb.*;
-import com.mongodb.client.*;
 import com.mongodb.client.model.*;
 import com.mongodb.client.model.changestream.ChangeStreamDocument;
 import com.mongodb.client.model.changestream.FullDocument;
 import com.mongodb.client.result.DeleteResult;
 import com.mongodb.client.result.UpdateResult;
+import com.mongodb.connection.ClusterConnectionMode;
 import de.caluga.morphium.Collation;
 import de.caluga.morphium.Morphium;
 import de.caluga.morphium.driver.ReadPreference;
@@ -25,6 +25,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import javax.net.ssl.SSLContext;
+import java.sql.Time;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
 import java.util.regex.Pattern;
@@ -369,50 +370,72 @@ public class MongoDriver implements MorphiumDriver {
     @Override
     public void connect(String replicasetName) throws MorphiumDriverException {
         try {
-            MongoClientOptions.Builder o = MongoClientOptions.builder();
+            MongoClientSettings.Builder o = MongoClientSettings.builder();
             o.writeConcern(de.caluga.morphium.driver.WriteConcern.getWc(getDefaultW(), isDefaultFsync(), isDefaultJ(), getWriteTimeout()).toMongoWriteConcern());
-            o.socketTimeout(getSocketTimeout());
-            o.connectTimeout(getConnectionTimeout());
-            o.connectionsPerHost(getMaxConnectionsPerHost());
-            o.socketKeepAlive(isSocketKeepAlive());
-            o.threadsAllowedToBlockForConnectionMultiplier(getMaxBlockintThreadMultiplier());
+            o.applyToSocketSettings(socketSettings -> {
+                socketSettings.connectTimeout(getConnectionTimeout(), TimeUnit.MILLISECONDS);
+                socketSettings.readTimeout(getWriteTimeout(), TimeUnit.MILLISECONDS);
+            });
+
+            o.applyToConnectionPoolSettings(connectionPoolSettings -> {
+                connectionPoolSettings.maxConnectionIdleTime(maxConnectionIdleTime, TimeUnit.MILLISECONDS);
+                connectionPoolSettings.maxConnectionLifeTime(maxConnectionLifetime, TimeUnit.MILLISECONDS);
+                connectionPoolSettings.maintenanceFrequency(getHeartbeatFrequency(), TimeUnit.MILLISECONDS);
+                connectionPoolSettings.maxWaitTime(maxWaitTime, TimeUnit.MILLISECONDS);
+            });
+
+            o.applyToClusterSettings(clusterSettings -> {
+                clusterSettings.serverSelectionTimeout(getConnectionTimeout(), TimeUnit.MILLISECONDS);
+                if (hostSeed.length > 1) {
+                    clusterSettings.mode(ClusterConnectionMode.MULTIPLE);
+                } else {
+                    clusterSettings.mode(ClusterConnectionMode.SINGLE);
+                }
+                if (replicasetName != null) {
+                    clusterSettings.requiredReplicaSetName(replicasetName);
+                }
+                //TODO: check serverselector
+
+            });
+            if (isUseSSL()) {
+                o.applyToSslSettings(sslSettings -> {
+                    sslSettings.enabled(true);
+                    sslSettings.invalidHostNameAllowed(isSslInvalidHostNameAllowed());
+                    sslSettings.context(getSslContext());
+
+                });
+            }
+
+//            o.connectTimeout(getConnectionTimeout());
+//            o.connectionsPerHost(getMaxConnectionsPerHost());
+//            o.socketKeepAlive(isSocketKeepAlive());
+//            o.threadsAllowedToBlockForConnectionMultiplier(getMaxBlockintThreadMultiplier());
             //        o.cursorFinalizerEnabled(isCursorFinalizerEnabled()); //Deprecated?
             //        o.alwaysUseMBeans(isAlwaysUseMBeans());
-            o.heartbeatConnectTimeout(getHeartbeatConnectTimeout());
-            o.heartbeatFrequency(getHeartbeatFrequency());
-            o.heartbeatSocketTimeout(getHeartbeatSocketTimeout());
-            o.minConnectionsPerHost(getMinConnectionsPerHost());
-            o.minHeartbeatFrequency(getHeartbeatFrequency());
-            o.localThreshold(getLocalThreshold());
-            o.maxConnectionIdleTime(getMaxConnectionIdleTime());
-            o.maxConnectionLifeTime(getMaxConnectionLifetime());
-            if (replicasetName != null) {
-                o.requiredReplicaSetName(replicasetName);
-            }
-            o.maxWaitTime(getMaxWaitTime());
-            o.serverSelectionTimeout(getServerSelectionTimeout());
-
-            o.sslEnabled(isUseSSL());
-            o.sslContext(getSslContext());
-            o.sslInvalidHostNameAllowed(isSslInvalidHostNameAllowed());
+//            o.heartbeatConnectTimeout(getHeartbeatConnectTimeout());
+//            o.heartbeatFrequency(getHeartbeatFrequency());
+//            o.heartbeatSocketTimeout(getHeartbeatSocketTimeout());
+//            o.minConnectionsPerHost(getMinConnectionsPerHost());
+//            o.minHeartbeatFrequency(getHeartbeatFrequency());
+//            o.localThreshold(getLocalThreshold());
+//            o.maxConnectionIdleTime(getMaxConnectionIdleTime());
+//            o.maxConnectionLifeTime(getMaxConnectionLifetime());
+//            if (replicasetName != null) {
+//                o.requiredReplicaSetName(replicasetName);
+//            }
+//            o.maxWaitTime(getMaxWaitTime());
+//            o.serverSelectionTimeout(getServerSelectionTimeout());
 
             List<MongoCredential> lst = new ArrayList<>();
             for (Map.Entry<String, String[]> e : credentials.entrySet()) {
                 MongoCredential cred = MongoCredential.createCredential(e.getValue()[0], e.getKey(), e.getValue()[1].toCharArray());
-                lst.add(cred);
+                o.credential(cred);
             }
+            o.applyConnectionString(new ConnectionString(hostSeed[0]));
+            //TODO: better cluster aware handling of connections
 
+            mongo = MongoClients.create(o.build());
 
-            if (hostSeed.length == 1) {
-                ServerAddress adr = new ServerAddress(hostSeed[0]);
-                mongo = new MongoClient(adr, lst, o.build());
-            } else {
-                List<ServerAddress> adrLst = new ArrayList<>();
-                for (String h : hostSeed) {
-                    adrLst.add(new ServerAddress(h));
-                }
-                mongo = new MongoClient(adrLst, lst, o.build());
-            }
             try {
                 Document res = mongo.getDatabase("local").runCommand(new BasicDBObject("isMaster", true));
                 if (res.get("setName") != null) {
@@ -959,7 +982,7 @@ public class MongoDriver implements MorphiumDriver {
                     List v = new ArrayList<>();
 
                     for (Object o : (List) value) {
-                        if (o instanceof BSON || o instanceof BsonValue || o instanceof Map)
+                        if (o instanceof BSONObject || o instanceof BsonValue || o instanceof Map)
                         //noinspection unchecked
                         {
                             //noinspection unchecked
@@ -995,8 +1018,8 @@ public class MongoDriver implements MorphiumDriver {
 
 
     @SuppressWarnings("Duplicates")
-    public DBCollection getColl(DB database, String collection, ReadPreference readPreference, de.caluga.morphium.driver.WriteConcern wc) {
-        DBCollection coll = database.getCollection(collection);
+    public MongoCollection<Document> getColl(MongoDatabase database, String collection, ReadPreference readPreference, de.caluga.morphium.driver.WriteConcern wc) {
+        MongoCollection<Document> coll = database.getCollection(collection);
         com.mongodb.ReadPreference prf;
 
         if (readPreference == null) {
@@ -1052,9 +1075,7 @@ public class MongoDriver implements MorphiumDriver {
                     prf = null;
 
             }
-            if (prf != null) {
-                coll.setReadPreference(prf);
-            }
+            //TODO: find where to set ReadPReference
         }
 
         if (wc != null) {
@@ -1062,12 +1083,11 @@ public class MongoDriver implements MorphiumDriver {
             if (wc.getW() < 0) {
                 //majority
                 writeConcern = com.mongodb.WriteConcern.MAJORITY;
-                writeConcern = writeConcern.withFsync(wc.isFsync());
-                writeConcern = writeConcern.withJ(wc.isJ());
             } else {
                 writeConcern = wc.toMongoWriteConcern();
             }
-            coll.setWriteConcern(writeConcern);
+            //coll.setWriteConcern(writeConcern);
+            //TODO: fix writePReference setting
         }
         return coll;
     }
@@ -1138,8 +1158,6 @@ public class MongoDriver implements MorphiumDriver {
             if (wc.getW() < 0) {
                 //majority
                 writeConcern = com.mongodb.WriteConcern.MAJORITY;
-                writeConcern = writeConcern.withFsync(wc.isFsync());
-                writeConcern = writeConcern.withJ(wc.isJ());
             } else {
                 writeConcern = wc.toMongoWriteConcern();
             }
@@ -1231,10 +1249,10 @@ public class MongoDriver implements MorphiumDriver {
                     UpdateResult res;
                     if (currentTransaction.get() == null) {
                         //noinspection unchecked
-                        res = c.replaceOne(filter, tDocument, o);
+                        res = c.replaceOne(filter, tDocument);
                     } else {
                         //noinspection unchecked
-                        res = c.replaceOne(currentTransaction.get().getSession(), filter, tDocument, o);
+                        res = c.replaceOne(currentTransaction.get().getSession(), filter, tDocument);
                     }
                     updated += res.getModifiedCount();
                     id = toUpdate.get("_id");
@@ -1428,7 +1446,7 @@ public class MongoDriver implements MorphiumDriver {
 
     @Override
     public boolean exists(String db) {
-        for (String dbName : mongo.getDatabaseNames()) {
+        for (String dbName : mongo.listDatabaseNames()) {
             if (dbName.equals(db)) {
                 return true;
             }
@@ -1444,8 +1462,10 @@ public class MongoDriver implements MorphiumDriver {
         DriverHelper.doCall(() -> {
             DistinctIterable<?> it;
             if (currentTransaction.get() == null) {
-                @SuppressWarnings("unchecked") List<Object> lst = getColl(mongo.getDB(db), collection, getDefaultReadPreference(), null).distinct(field, new BasicDBObject(filter));
-                ret.addAll(lst);
+                DistinctIterable<Document> lst = getColl(mongo.getDatabase(db), collection, getDefaultReadPreference(), null).distinct(field, new BasicDBObject(filter), Document.class);
+                for (Document o : lst) {
+                    ret.add(o);
+                }
             } else {
 
                 List<Map<String, Object>> r = find(db, collection, filter, null, new BasicDBObject(field, 1), 0, 1, 1, defaultReadPreference, collation, null);
@@ -1594,39 +1614,6 @@ public class MongoDriver implements MorphiumDriver {
 
 
     @Override
-    public Map<String, Object> group(String db, String coll, Map<String, Object> query, Map<String, Object> initial, String jsReduce, String jsFinalize, ReadPreference rp, String... keys) {
-        DriverHelper.replaceMorphiumIdByObjectId(query);
-        DriverHelper.replaceMorphiumIdByObjectId(initial);
-        BasicDBObject k = new BasicDBObject();
-        BasicDBObject ini = new BasicDBObject();
-        ini.putAll(initial);
-        for (String ks : keys) {
-            if (ks.startsWith("-")) {
-                k.put(ks.substring(1), "false");
-            } else if (ks.startsWith("+")) {
-                k.put(ks.substring(1), "true");
-            } else {
-                k.put(ks, "true");
-            }
-        }
-        if (!jsReduce.trim().startsWith("function(")) {
-            jsReduce = "function (obj,data) { " + jsReduce + " }";
-        }
-        if (jsFinalize == null) {
-            jsFinalize = "";
-        }
-        if (!jsFinalize.trim().startsWith("function(")) {
-            jsFinalize = "function (data) {" + jsFinalize + "}";
-        }
-        DBCollection collection = mongo.getDB(db).getCollection(coll);
-        GroupCommand cmd = new GroupCommand(collection,
-                k, new BasicDBObject(query), ini, jsReduce, jsFinalize);
-
-        //noinspection unchecked
-        return convertBSON((Map<? extends String, ?>) cmd.toDBObject());
-    }
-
-    @Override
     public List<Map<String, Object>> aggregate(String db, String collection, List<Map<String, Object>> pipeline,
                                                boolean explain, boolean allowDiskUse, Collation collation, ReadPreference readPreference) {
         DriverHelper.replaceMorphiumIdByObjectId(pipeline);
@@ -1635,10 +1622,11 @@ public class MongoDriver implements MorphiumDriver {
 
 
         if (explain) {
-            @SuppressWarnings({"unchecked", "ConstantConditions"}) CommandResult ret = getColl(mongo.getDB(db), collection, getDefaultReadPreference(), null).explainAggregate(list, null);
-            List<Map<String, Object>> o = new ArrayList<>();
-            o.add(new HashMap<>(ret));
-            return o;
+//            @SuppressWarnings({"unchecked", "ConstantConditions"}) CommandResult ret = getColl(mongo.getDatabase(db), collection, getDefaultReadPreference(), null).explainAggregate(list, null);
+//            List<Map<String, Object>> o = new ArrayList<>();
+//            o.add(new HashMap<>(ret));
+//            return o;
+            throw new IllegalArgumentException("Not implemented yet!");
         } else {
             MongoCollection<Document> c = getCollection(mongo.getDatabase(db), collection, getDefaultReadPreference(), null);
             AggregateIterable<Document> it;
@@ -1764,9 +1752,13 @@ public class MongoDriver implements MorphiumDriver {
     @Override
     public void createIndex(String db, String collection, Map<String, Object> index, Map<String, Object> options) throws MorphiumDriverException {
         DriverHelper.doCall(() -> {
-            BasicDBObject options1 = options == null ? new BasicDBObject() : new BasicDBObject(options);
+            // BasicDBObject options1 = options == null ? new BasicDBObject() : new BasicDBObject(options);
+            IndexOptions options1 = new IndexOptions();
+
+            //TODO add index parsing
+
             //use IndexOptions and new API
-            mongo.getDB(db).getCollection(collection).createIndex(new BasicDBObject(index), options1);
+            mongo.getDatabase(db).getCollection(collection).createIndex(new BasicDBObject(index), options1);
             return null;
         }, retriesOnNetworkError, sleepBetweenErrorRetries);
 

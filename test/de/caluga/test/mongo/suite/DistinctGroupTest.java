@@ -66,15 +66,4 @@ public class DistinctGroupTest extends MorphiumTestBase {
         morphium.commitTransaction();
     }
 
-    @Test
-    public void groupTest() {
-        createUncachedObjects(100);
-        HashMap<String, Object> initial = new HashMap<>();
-        initial.put("count", 0);
-        initial.put("sum", 0);
-        Map<String, Object> ret = morphium.group(morphium.createQueryFor(UncachedObject.class), initial,
-                "data.count++; data.sum+=obj.counter;", "data.avg=data.sum/data.count;");
-        log.info("got DBObject: " + ret);
-
-    }
 }

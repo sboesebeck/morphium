@@ -43,7 +43,6 @@ public class ReplicaSetStatusTest extends MorphiumTestBase {
         WriteConcern w = morphium.getWriteConcernForClass(SecureObject.class);
         int c = morphium.getCurrentRSState().getActiveNodes();
         assert (w.getW() == c) : "W=" + w.getW() + " but should be: " + c;
-        assert (!w.isFsync());
         assert (w.getWtimeout() == 10000);
         //        assert (w.raiseNetworkErrors());
     }
