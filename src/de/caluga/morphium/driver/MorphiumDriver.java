@@ -41,15 +41,15 @@ public interface MorphiumDriver {
 
     void setHostSeed(String... host);
 
-    @SuppressWarnings("unused")
-    int getMaxConnectionsPerHost();
 
-    void setMaxConnectionsPerHost(int mx);
+    abstract int getMaxConnections();
 
-    @SuppressWarnings("unused")
-    int getMinConnectionsPerHost();
+    abstract void setMaxConnections(int maxConnections);
 
-    void setMinConnectionsPerHost(int mx);
+
+    abstract int getMinConnections();
+
+    abstract void setMinConnections(int minConnections);
 
     @SuppressWarnings("unused")
     int getMaxConnectionLifetime();
@@ -78,9 +78,6 @@ public interface MorphiumDriver {
     void setDefaultW(int w);
 
     @SuppressWarnings("unused")
-    int getMaxBlockintThreadMultiplier();
-
-    @SuppressWarnings("unused")
     int getHeartbeatFrequency();
 
     void setHeartbeatFrequency(int heartbeatFrequency);
@@ -91,10 +88,14 @@ public interface MorphiumDriver {
     @SuppressWarnings("unused")
     void setCredentials(Map<String, String[]> credentials);
 
-    @SuppressWarnings("unused")
-    int getHeartbeatSocketTimeout();
 
-    void setHeartbeatSocketTimeout(int heartbeatSocketTimeout);
+    boolean isRetryReads();
+
+    void setRetryReads(boolean retryReads);
+
+    boolean isRetryWrites();
+
+    void setRetryWrites(boolean retryWrites);
 
     @SuppressWarnings("unused")
     boolean isUseSSL();
@@ -108,24 +109,17 @@ public interface MorphiumDriver {
     @SuppressWarnings("unused")
     void setDefaultJ(boolean j);
 
-    @SuppressWarnings("unused")
-    int getWriteTimeout();
+    abstract int getReadTimeout();
 
-    @SuppressWarnings("unused")
-    void setWriteTimeout(int writeTimeout);
+    abstract void setReadTimeout(int readTimeout);
 
     @SuppressWarnings("unused")
     int getLocalThreshold();
 
     void setLocalThreshold(int thr);
 
-    void setMaxBlockingThreadMultiplier(int m);
-
     @SuppressWarnings("unused")
     void heartBeatFrequency(int t);
-
-    @SuppressWarnings("unused")
-    void heartBeatSocketTimeout(int t);
 
     @SuppressWarnings("unused")
     void useSsl(boolean ssl);
@@ -194,7 +188,6 @@ public interface MorphiumDriver {
      *
      * @param db
      * @param collection
-     * @param obj
      * @param wc
      * @throws MorphiumDriverException
      */
@@ -242,16 +235,6 @@ public interface MorphiumDriver {
 
     @SuppressWarnings("RedundantThrows")
     List<Map<String, Object>> aggregate(String db, String collection, List<Map<String, Object>> pipeline, boolean explain, boolean allowDiskUse, Collation collation, ReadPreference readPreference) throws MorphiumDriverException;
-
-    @SuppressWarnings("unused")
-    boolean isSocketKeepAlive();
-
-    void setSocketKeepAlive(boolean socketKeepAlive);
-
-    @SuppressWarnings("unused")
-    int getHeartbeatConnectTimeout();
-
-    void setHeartbeatConnectTimeout(int heartbeatConnectTimeout);
 
     @SuppressWarnings("unused")
     int getMaxWaitTime();

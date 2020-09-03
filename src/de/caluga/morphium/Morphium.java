@@ -207,16 +207,12 @@ public class Morphium implements AutoCloseable {
             }
             morphiumDriver.setSocketTimeout(config.getSocketTimeout());
             morphiumDriver.setConnectionTimeout(config.getConnectionTimeout());
-            morphiumDriver.setMaxConnectionsPerHost(config.getMaxConnections());
-            morphiumDriver.setSocketKeepAlive((config.isSocketKeepAlive()));
-            morphiumDriver.setMaxBlockingThreadMultiplier(config.getBlockingThreadsMultiplier());
-            //            drv.cursorFinalizerEnabled(config.isCursorFinalizerEnabled());
-            //            drv.alwaysUseMBeans(config.isAlwaysUseMBeans());
-            morphiumDriver.setHeartbeatConnectTimeout(config.getHeartbeatConnectTimeout());
+            morphiumDriver.setMaxConnections(config.getMaxConnections());
+            morphiumDriver.setMinConnections(config.getMinConnectionsHost());
+            morphiumDriver.setReadTimeout(config.getReadTimeout());
+            morphiumDriver.setRetryReads(config.isRetryReads());
+            morphiumDriver.setRetryWrites(config.isRetryWrites());
             morphiumDriver.setHeartbeatFrequency(config.getHeartbeatFrequency());
-            morphiumDriver.setHeartbeatSocketTimeout(config.getHeartbeatSocketTimeout());
-            morphiumDriver.setMinConnectionsPerHost(config.getMinConnectionsPerHost());
-            //            drv.setMinminHeartbeatFrequency(config.getMinHearbeatFrequency());
             morphiumDriver.setLocalThreshold(config.getLocalThreshold());
             morphiumDriver.setMaxConnectionIdleTime(config.getMaxConnectionIdleTime());
             morphiumDriver.setMaxConnectionLifetime(config.getMaxConnectionLifeTime());

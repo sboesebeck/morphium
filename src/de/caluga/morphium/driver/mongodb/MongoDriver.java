@@ -12,6 +12,7 @@ import com.mongodb.client.model.changestream.FullDocument;
 import com.mongodb.client.result.DeleteResult;
 import com.mongodb.client.result.UpdateResult;
 import com.mongodb.connection.ClusterConnectionMode;
+import com.mongodb.event.*;
 import de.caluga.morphium.Collation;
 import de.caluga.morphium.Morphium;
 import de.caluga.morphium.driver.ReadPreference;
@@ -37,27 +38,31 @@ import static de.caluga.morphium.aggregation.Aggregator.GeoNearFields.query;
 public class MongoDriver implements MorphiumDriver {
     private final Logger log = LoggerFactory.getLogger(MongoDriver.class);
     private String[] hostSeed;
-    private int maxConnectionsPerHost = 50;
-    private int minConnectionsPerHost = 10;
+
+    private int maxConnections = 100;
+    private int minConnections = 10;
+
     private int maxConnectionLifetime = 60000;
     private int maxConnectionIdleTime = 20000;
     private int socketTimeout = 1000;
     private int connectionTimeout = 1000;
     private int defaultW = 1;
-    private int maxBlockintThreadMultiplier = 5;
     private int heartbeatFrequency = 1000;
-    private int heartbeatSocketTimeout = 1000;
-    private boolean useSSL = false;
-    private SSLContext sslContext = null;
-    private boolean sslInvalidHostNameAllowed = false;
     private boolean defaultJ = false;
     private int writeTimeout = 1000;
     private int localThreshold = 15;
     private boolean defaultFsync;
-    private boolean socketKeepAlive;
-    private int heartbeatConnectTimeout;
     private int maxWaitTime;
     private int serverSelectionTimeout;
+    private int readTimeout = 1000;
+    private boolean retryReads = false;
+    private boolean retryWrites = false;
+
+    //SSL-Settings
+    private boolean useSSL = false;
+    private SSLContext sslContext = null;
+    private boolean sslInvalidHostNameAllowed = false;
+
 
     private int defaultBatchSize = 100;
     private int retriesOnNetworkError = 2;
@@ -193,23 +198,23 @@ public class MongoDriver implements MorphiumDriver {
     }
 
     @Override
-    public int getMaxConnectionsPerHost() {
-        return maxConnectionsPerHost;
+    public int getMaxConnections() {
+        return maxConnections;
     }
 
     @Override
-    public void setMaxConnectionsPerHost(int mx) {
-        maxConnectionsPerHost = mx;
+    public void setMaxConnections(int maxConnections) {
+        this.maxConnections = maxConnections;
     }
 
     @Override
-    public int getMinConnectionsPerHost() {
-        return minConnectionsPerHost;
+    public int getMinConnections() {
+        return minConnections;
     }
 
     @Override
-    public void setMinConnectionsPerHost(int mx) {
-        minConnectionsPerHost = mx;
+    public void setMinConnections(int minConnections) {
+        this.minConnections = minConnections;
     }
 
     @Override
@@ -263,11 +268,6 @@ public class MongoDriver implements MorphiumDriver {
     }
 
     @Override
-    public int getMaxBlockintThreadMultiplier() {
-        return maxBlockintThreadMultiplier;
-    }
-
-    @Override
     public int getHeartbeatFrequency() {
         return heartbeatFrequency;
     }
@@ -292,15 +292,27 @@ public class MongoDriver implements MorphiumDriver {
         this.mongo = mongo;
     }
 
+
     @Override
-    public int getHeartbeatSocketTimeout() {
-        return heartbeatSocketTimeout;
+    public boolean isRetryReads() {
+        return retryReads;
     }
 
     @Override
-    public void setHeartbeatSocketTimeout(int heartbeatSocketTimeout) {
-        this.heartbeatSocketTimeout = heartbeatSocketTimeout;
+    public void setRetryReads(boolean retryReads) {
+        this.retryReads = retryReads;
     }
+
+    @Override
+    public boolean isRetryWrites() {
+        return retryWrites;
+    }
+
+    @Override
+    public void setRetryWrites(boolean retryWrites) {
+        this.retryWrites = retryWrites;
+    }
+
 
     @Override
     public boolean isUseSSL() {
@@ -323,16 +335,6 @@ public class MongoDriver implements MorphiumDriver {
     }
 
     @Override
-    public int getWriteTimeout() {
-        return writeTimeout;
-    }
-
-    @Override
-    public void setWriteTimeout(int writeTimeout) {
-        this.writeTimeout = writeTimeout;
-    }
-
-    @Override
     public int getLocalThreshold() {
         return localThreshold;
     }
@@ -343,23 +345,24 @@ public class MongoDriver implements MorphiumDriver {
     }
 
     @Override
-    public void setMaxBlockingThreadMultiplier(int m) {
-        maxBlockintThreadMultiplier = m;
-    }
-
-    @Override
     public void heartBeatFrequency(int t) {
         heartbeatFrequency = t;
     }
 
-    @Override
-    public void heartBeatSocketTimeout(int t) {
-        heartbeatSocketTimeout = t;
-    }
 
     @Override
     public void useSsl(boolean ssl) {
         useSSL = ssl;
+    }
+
+    @Override
+    public int getReadTimeout() {
+        return readTimeout;
+    }
+
+    @Override
+    public void setReadTimeout(int readTimeout) {
+        this.readTimeout = readTimeout;
     }
 
     @Override
@@ -371,17 +374,104 @@ public class MongoDriver implements MorphiumDriver {
     public void connect(String replicasetName) throws MorphiumDriverException {
         try {
             MongoClientSettings.Builder o = MongoClientSettings.builder();
-            o.writeConcern(de.caluga.morphium.driver.WriteConcern.getWc(getDefaultW(), isDefaultFsync(), isDefaultJ(), getWriteTimeout()).toMongoWriteConcern());
+            o.writeConcern(de.caluga.morphium.driver.WriteConcern.getWc(getDefaultW(), isDefaultFsync(), isDefaultJ(), getDefaultWriteTimeout()).toMongoWriteConcern());
+            //read preference check
+            o.retryReads(retryReads);
+            o.retryWrites(retryWrites);
+            o.addCommandListener(new CommandListener() {
+                @Override
+                public void commandStarted(CommandStartedEvent event) {
+
+                }
+
+                @Override
+                public void commandSucceeded(CommandSucceededEvent event) {
+
+                }
+
+                @Override
+                public void commandFailed(CommandFailedEvent event) {
+                    log.error("Command failed: " + event.getCommandName(), event.getThrowable());
+                }
+            });
             o.applyToSocketSettings(socketSettings -> {
                 socketSettings.connectTimeout(getConnectionTimeout(), TimeUnit.MILLISECONDS);
-                socketSettings.readTimeout(getWriteTimeout(), TimeUnit.MILLISECONDS);
+                socketSettings.readTimeout(getReadTimeout(), TimeUnit.MILLISECONDS);
             });
 
             o.applyToConnectionPoolSettings(connectionPoolSettings -> {
                 connectionPoolSettings.maxConnectionIdleTime(maxConnectionIdleTime, TimeUnit.MILLISECONDS);
                 connectionPoolSettings.maxConnectionLifeTime(maxConnectionLifetime, TimeUnit.MILLISECONDS);
                 connectionPoolSettings.maintenanceFrequency(getHeartbeatFrequency(), TimeUnit.MILLISECONDS);
+                connectionPoolSettings.maxSize(maxConnections);
+                connectionPoolSettings.minSize(minConnections);
                 connectionPoolSettings.maxWaitTime(maxWaitTime, TimeUnit.MILLISECONDS);
+                connectionPoolSettings.addConnectionPoolListener(new ConnectionPoolListener() {
+                    @Override
+                    public void connectionPoolOpened(ConnectionPoolOpenedEvent event) {
+
+                    }
+
+                    @Override
+                    public void connectionPoolCreated(ConnectionPoolCreatedEvent event) {
+
+                    }
+
+                    @Override
+                    public void connectionPoolCleared(ConnectionPoolClearedEvent event) {
+
+                    }
+
+                    @Override
+                    public void connectionPoolClosed(ConnectionPoolClosedEvent event) {
+
+                    }
+
+                    @Override
+                    public void connectionCheckOutStarted(ConnectionCheckOutStartedEvent event) {
+
+                    }
+
+                    @Override
+                    public void connectionCheckedOut(ConnectionCheckedOutEvent event) {
+
+                    }
+
+                    @Override
+                    public void connectionCheckOutFailed(ConnectionCheckOutFailedEvent event) {
+
+                    }
+
+                    @Override
+                    public void connectionCheckedIn(ConnectionCheckedInEvent event) {
+
+                    }
+
+                    @Override
+                    public void connectionAdded(ConnectionAddedEvent event) {
+
+                    }
+
+                    @Override
+                    public void connectionCreated(ConnectionCreatedEvent event) {
+
+                    }
+
+                    @Override
+                    public void connectionReady(ConnectionReadyEvent event) {
+
+                    }
+
+                    @Override
+                    public void connectionRemoved(ConnectionRemovedEvent event) {
+
+                    }
+
+                    @Override
+                    public void connectionClosed(ConnectionClosedEvent event) {
+
+                    }
+                });
             });
 
             o.applyToClusterSettings(clusterSettings -> {
@@ -394,9 +484,32 @@ public class MongoDriver implements MorphiumDriver {
                 if (replicasetName != null) {
                     clusterSettings.requiredReplicaSetName(replicasetName);
                 }
-                //TODO: check serverselector
+
+                List<ServerAddress> hosts = new ArrayList<>();
+                for (String host : hostSeed) {
+                    hosts.add(new ServerAddress(host));
+                }
+                clusterSettings.hosts(hosts);
+                clusterSettings.serverSelectionTimeout(getServerSelectionTimeout(), TimeUnit.MILLISECONDS);
+                clusterSettings.addClusterListener(new ClusterListener() {
+                    @Override
+                    public void clusterOpening(ClusterOpeningEvent event) {
+                        log.info("Cluster opened: " + event.toString());
+                    }
+
+                    @Override
+                    public void clusterClosed(ClusterClosedEvent event) {
+                        log.info("Cluster closed: " + event.toString());
+                    }
+
+                    @Override
+                    public void clusterDescriptionChanged(ClusterDescriptionChangedEvent event) {
+                        log.info("Cluster description changed: " + event.getNewDescription().toString());
+                    }
+                });
 
             });
+
             if (isUseSSL()) {
                 o.applyToSslSettings(sslSettings -> {
                     sslSettings.enabled(true);
@@ -426,20 +539,26 @@ public class MongoDriver implements MorphiumDriver {
 //            o.maxWaitTime(getMaxWaitTime());
 //            o.serverSelectionTimeout(getServerSelectionTimeout());
 
-            List<MongoCredential> lst = new ArrayList<>();
+
             for (Map.Entry<String, String[]> e : credentials.entrySet()) {
                 MongoCredential cred = MongoCredential.createCredential(e.getValue()[0], e.getKey(), e.getValue()[1].toCharArray());
                 o.credential(cred);
             }
-            o.applyConnectionString(new ConnectionString(hostSeed[0]));
-            //TODO: better cluster aware handling of connections
-
             mongo = MongoClients.create(o.build());
 
             try {
                 Document res = mongo.getDatabase("local").runCommand(new BasicDBObject("isMaster", true));
                 if (res.get("setName") != null) {
                     replicaset = true;
+                    if (hostSeed.length == 1) {
+                        log.warn("have to reconnect to cluster... only one host specified, but its a replicaset");
+                        o.applyToClusterSettings(builder -> {
+                            builder.mode(ClusterConnectionMode.MULTIPLE);
+                        });
+                        mongo.close();
+                        mongo = MongoClients.create(o.build());
+                    }
+
                 }
             } catch (MongoCommandException mce) {
                 if (mce.getCode() == 20) {
@@ -1342,7 +1461,7 @@ public class MongoDriver implements MorphiumDriver {
             UpdateOptions opts = new UpdateOptions();
             WriteConcern w = null;
             if (wc == null)
-                w = de.caluga.morphium.driver.WriteConcern.getWc(getDefaultW(), isDefaultFsync(), isDefaultJ(), getWriteTimeout()).toMongoWriteConcern();
+                w = de.caluga.morphium.driver.WriteConcern.getWc(getDefaultW(), isDefaultFsync(), isDefaultJ(), getDefaultWriteTimeout()).toMongoWriteConcern();
             else w = wc.toMongoWriteConcern();
             if (collation != null) {
                 com.mongodb.client.model.Collation col = getCollation(collation);
@@ -1656,25 +1775,16 @@ public class MongoDriver implements MorphiumDriver {
 
     }
 
-    @Override
-    public boolean isSocketKeepAlive() {
-        return socketKeepAlive;
-    }
-
-    @Override
-    public void setSocketKeepAlive(boolean socketKeepAlive) {
-        this.socketKeepAlive = socketKeepAlive;
-    }
-
-    @Override
-    public int getHeartbeatConnectTimeout() {
-        return heartbeatConnectTimeout;
-    }
-
-    @Override
-    public void setHeartbeatConnectTimeout(int heartbeatConnectTimeout) {
-        this.heartbeatConnectTimeout = heartbeatConnectTimeout;
-    }
+//
+//    @Override
+//    public int getHeartbeatConnectTimeout() {
+//        return heartbeatConnectTimeout;
+//    }
+//
+//    @Override
+//    public void setHeartbeatConnectTimeout(int heartbeatConnectTimeout) {
+//        this.heartbeatConnectTimeout = heartbeatConnectTimeout;
+//    }
 
     @Override
     public int getMaxWaitTime() {
