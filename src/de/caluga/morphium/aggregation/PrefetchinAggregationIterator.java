@@ -213,8 +213,8 @@ public class PrefetchinAggregationIterator<T, R> implements MorphiumAggregationI
                 {
                     try {
                         //Busy wait for buffer to be processed
-                        int socketTimeout = aggregator.getMorphium().getConfig().getSocketTimeout();
-                        if (socketTimeout > 0 && System.currentTimeMillis() - lastAccess > socketTimeout) {
+                        int waitTime = aggregator.getMorphium().getConfig().getMaxWaitTime();
+                        if (waitTime > 0 && System.currentTimeMillis() - lastAccess > waitTime) {
                             log.error("Cursor timeout... closing");
                             try {
                                 aggregator.getMorphium().getDriver().closeIteration(cursor);

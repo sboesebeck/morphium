@@ -238,16 +238,6 @@ public class InMemoryDriver implements MorphiumDriver {
     }
 
     @Override
-    public int getSocketTimeout() {
-        return 0;
-    }
-
-    @Override
-    public void setSocketTimeout(int timeout) {
-
-    }
-
-    @Override
     public int getConnectionTimeout() {
         return 0;
     }
@@ -336,17 +326,6 @@ public class InMemoryDriver implements MorphiumDriver {
 
     @Override
     public void setReadTimeout(int readTimeout) {
-
-    }
-
-
-    @Override
-    public int getLocalThreshold() {
-        return 0;
-    }
-
-    @Override
-    public void setLocalThreshold(int thr) {
 
     }
 

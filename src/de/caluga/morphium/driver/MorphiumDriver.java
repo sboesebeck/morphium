@@ -61,10 +61,6 @@ public interface MorphiumDriver {
 
     void setMaxConnectionIdleTime(int time);
 
-    @SuppressWarnings("unused")
-    int getSocketTimeout();
-
-    void setSocketTimeout(int timeout);
 
     @SuppressWarnings("unused")
     int getConnectionTimeout();
