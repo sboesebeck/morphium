@@ -7,10 +7,9 @@ import de.caluga.morphium.Morphium;
 import de.caluga.morphium.driver.bulk.BulkRequestContext;
 import de.caluga.morphium.driver.mongodb.Maximums;
 
+import javax.net.ssl.SSLContext;
 import java.util.List;
 import java.util.Map;
-
-import javax.net.ssl.SSLContext;
 
 /**
  * Morphium driver interface
@@ -21,6 +20,7 @@ import javax.net.ssl.SSLContext;
 @SuppressWarnings({"BooleanMethodIsAlwaysInverted", "RedundantThrows"})
 public interface MorphiumDriver {
     String VERSION_NAME = "morphium version";
+
     List<String> listDatabases() throws MorphiumDriverException;
 
     void setCredentials(String db, String login, char[] pwd);
@@ -109,14 +109,9 @@ public interface MorphiumDriver {
     @SuppressWarnings("unused")
     void setDefaultJ(boolean j);
 
-    abstract int getReadTimeout();
+    int getReadTimeout();
 
-    abstract void setReadTimeout(int readTimeout);
-
-    @SuppressWarnings("unused")
-    int getLocalThreshold();
-
-    void setLocalThreshold(int thr);
+    void setReadTimeout(int readTimeout);
 
     @SuppressWarnings("unused")
     void heartBeatFrequency(int t);
@@ -179,7 +174,7 @@ public interface MorphiumDriver {
 
     void closeIteration(MorphiumCursor crs) throws MorphiumDriverException;
 
-     List<Map<String, Object>> find(String db, String collection, Map<String, Object> query, Map<String, Integer> sort, Map<String, Object> projection, int skip, int limit, int batchSize, ReadPreference readPreference, Collation collation, final Map<String, Object> findMetaData) throws MorphiumDriverException;
+    List<Map<String, Object>> find(String db, String collection, Map<String, Object> query, Map<String, Integer> sort, Map<String, Object> projection, int skip, int limit, int batchSize, ReadPreference readPreference, Collation collation, final Map<String, Object> findMetaData) throws MorphiumDriverException;
 
     long count(String db, String collection, Map<String, Object> query, Collation collation, ReadPreference rp) throws MorphiumDriverException;
 
@@ -202,7 +197,7 @@ public interface MorphiumDriver {
      * @param wc
      * @throws MorphiumDriverException
      */
-    Map<String,Object> store(String db, String collection, List<Map<String, Object>> objs, WriteConcern wc) throws MorphiumDriverException;
+    Map<String, Object> store(String db, String collection, List<Map<String, Object>> objs, WriteConcern wc) throws MorphiumDriverException;
 
 
     Map<String, Object> update(String db, String collection, Map<String, Object> query, Map<String, Object> op, boolean multiple, boolean upsert, Collation collation, WriteConcern wc) throws MorphiumDriverException;

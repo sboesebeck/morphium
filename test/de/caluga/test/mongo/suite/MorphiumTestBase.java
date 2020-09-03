@@ -119,7 +119,7 @@ public class MorphiumTestBase {
                 cfg.setMaxConnectionLifeTime(60000);
                 cfg.setMaxConnectionIdleTime(30000);
                 cfg.setMaxConnections(100);
-                cfg.setMinConnectionsPerHost(1);
+                cfg.setMinConnections(1);
                 cfg.setAutoreconnect(true);
                 cfg.setMaximumRetriesBufferedWriter(1000);
                 cfg.setMaximumRetriesWriter(1000);

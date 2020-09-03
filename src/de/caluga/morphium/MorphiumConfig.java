@@ -40,6 +40,8 @@ public class MorphiumConfig {
     private Map<String, Object> restoreData;
     //    private MongoDbMode mode;
     private int maxConnections, housekeepingTimeout;
+    private int minConnections = 1;
+
     private int globalCacheValidTime = 5000;
     private int writeCacheTimeout = 5000;
     private String database;
@@ -51,12 +53,9 @@ public class MorphiumConfig {
     private MorphiumWriter asyncWriter;
     private int connectionTimeout = 0;
     private int socketTimeout = 0;
-    private boolean socketKeepAlive = true;
-    private boolean safeMode = false;
     private boolean globalFsync = false;
     private boolean globalJ = false;
     private boolean checkForNew = true;
-    private int writeTimeout = 0;
     private boolean replicaset = true;
 
     //maximum number of tries to queue a write operation
@@ -74,9 +73,6 @@ public class MorphiumConfig {
     private int writeBufferTime = 1000;
     //ms for the pause of the main thread
     private int writeBufferTimeGranularity = 100;
-    private boolean autoreconnect = true;
-    private int maxAutoReconnectTime = 0;
-    private int blockingThreadsMultiplier = 5;
 
     private boolean autoIndexAndCappedCreationOnWrite = true;
     
@@ -131,14 +127,7 @@ public class MorphiumConfig {
     private int threadPoolAsyncOpMaxSize = 1000;
     private long threadPoolAsyncOpKeepAliveTime = 1000;
     private boolean objectSerializationEnabled = true;
-    private boolean cursorFinalizerEnabled = false;
-    private boolean alwaysUseMBeans = false;
-    private int heartbeatConnectTimeout = 0;
     private int heartbeatFrequency = 1000;
-    private int heartbeatSocketTimeout = 1000;
-    private int minConnectionsPerHost = 1;
-    private int minHearbeatFrequency = 2000;
-    private int localThreshold = 15;
     private int maxConnectionIdleTime = 10000;
     private int maxConnectionLifeTime = 60000;
 
@@ -147,8 +136,6 @@ public class MorphiumConfig {
     private String defaultTags;
     private String requiredReplicaSetName = null;
     private int cursorBatchSize = 1000;
-    private boolean oplogMonitorEnabled = false;
-    private boolean throwExceptionOnMissingEncrytptionKey = true;
     private int readTimeout;
     private boolean retryReads;
     private boolean retryWrites;
@@ -409,15 +396,6 @@ public class MorphiumConfig {
         return this;
     }
 
-    public boolean isOplogMonitorEnabled() {
-        return this.oplogMonitorEnabled;
-    }
-
-    public MorphiumConfig setOplogMonitorEnabled(boolean op) {
-        this.oplogMonitorEnabled = op;
-        return this;
-    }
-
     public int getWriteBufferTime() {
         return writeBufferTime;
     }
@@ -433,15 +411,6 @@ public class MorphiumConfig {
 
     public MorphiumConfig setOmClass(Class<? extends MorphiumObjectMapper> omClass) {
         this.omClass = omClass;
-        return this;
-    }
-
-    public int getWriteTimeout() {
-        return writeTimeout;
-    }
-
-    public MorphiumConfig setWriteTimeout(int writeTimeout) {
-        this.writeTimeout = writeTimeout;
         return this;
     }
 
@@ -517,25 +486,6 @@ public class MorphiumConfig {
 
     public MorphiumConfig setGlobalFsync(boolean globalFsync) {
         this.globalFsync = globalFsync;
-        return this;
-    }
-
-    public boolean isSafeMode() {
-        return safeMode;
-    }
-
-    public MorphiumConfig setSafeMode(boolean safeMode) {
-        this.safeMode = safeMode;
-
-        return this;
-    }
-
-    public int getBlockingThreadsMultiplier() {
-        return blockingThreadsMultiplier;
-    }
-
-    public MorphiumConfig setBlockingThreadsMultiplier(int blockingThreadsMultiplier) {
-        this.blockingThreadsMultiplier = blockingThreadsMultiplier;
         return this;
     }
 
@@ -626,33 +576,6 @@ public class MorphiumConfig {
      */
     public MorphiumConfig setServerSelectionTimeout(int serverSelectionTimeout) {
         this.serverSelectionTimeout = serverSelectionTimeout;
-        return this;
-    }
-
-    public boolean isAutoreconnect() {
-        return autoreconnect;
-    }
-
-    public MorphiumConfig setAutoreconnect(boolean autoreconnect) {
-        this.autoreconnect = autoreconnect;
-        return this;
-    }
-
-    public int getMaxAutoReconnectTime() {
-        return maxAutoReconnectTime;
-    }
-
-    public MorphiumConfig setMaxAutoReconnectTime(int maxAutoReconnectTime) {
-        this.maxAutoReconnectTime = maxAutoReconnectTime;
-        return this;
-    }
-
-    public boolean isSocketKeepAlive() {
-        return socketKeepAlive;
-    }
-
-    public MorphiumConfig setSocketKeepAlive(boolean socketKeepAlive) {
-        this.socketKeepAlive = socketKeepAlive;
         return this;
     }
 
@@ -1200,32 +1123,6 @@ public class MorphiumConfig {
         return this;
     }
 
-    public boolean isCursorFinalizerEnabled() {
-        return cursorFinalizerEnabled;
-    }
-
-    public MorphiumConfig setCursorFinalizerEnabled(boolean cursorFinalizerEnabled) {
-        this.cursorFinalizerEnabled = cursorFinalizerEnabled;
-        return this;
-    }
-
-    public boolean isAlwaysUseMBeans() {
-        return alwaysUseMBeans;
-    }
-
-    public MorphiumConfig setAlwaysUseMBeans(boolean alwaysUseMBeans) {
-        this.alwaysUseMBeans = alwaysUseMBeans;
-        return this;
-    }
-
-    public int getHeartbeatConnectTimeout() {
-        return heartbeatConnectTimeout;
-    }
-
-    public MorphiumConfig setHeartbeatConnectTimeout(int heartbeatConnectTimeout) {
-        this.heartbeatConnectTimeout = heartbeatConnectTimeout;
-        return this;
-    }
 
     public int getHeartbeatFrequency() {
         return heartbeatFrequency;
@@ -1236,59 +1133,15 @@ public class MorphiumConfig {
         return this;
     }
 
-    public int getHeartbeatSocketTimeout() {
-        return heartbeatSocketTimeout;
-    }
-
-    public MorphiumConfig setHeartbeatSocketTimeout(int heartbeatSocketTimeout) {
-        this.heartbeatSocketTimeout = heartbeatSocketTimeout;
-        return this;
-    }
-
     public int getMinConnectionsHost() {
-        return minConnectionsPerHost;
+        return minConnections;
     }
 
-    public MorphiumConfig setMinConnectionsPerHost(int minConnectionsPerHost) {
-        this.minConnectionsPerHost = minConnectionsPerHost;
+    public MorphiumConfig setMinConnections(int minConnections) {
+        this.minConnections = minConnections;
         return this;
     }
 
-    public int getMinHearbeatFrequency() {
-        return minHearbeatFrequency;
-    }
-
-    public MorphiumConfig setMinHearbeatFrequency(int minHearbeatFrequency) {
-        this.minHearbeatFrequency = minHearbeatFrequency;
-        return this;
-    }
-
-    public int getLocalThreshold() {
-        return localThreshold;
-    }
-
-    /**
-     * <p>
-     * Sets the local threshold. When choosing among multiple MongoDB servers to send a request, the MongoClient will only send that request to a server whose ping time is less than or equal to the server with the fastest ping time plus the local threshold.
-     * </p>
-     *
-     * <p>
-     * For example, let's say that the client is choosing a server to send a query when the read preference is {@code
-     * ReadPreference.secondary()}, and that there are three secondaries, server1, server2, and server3, whose ping times are 10, 15, and 16 milliseconds, respectively. With a local threshold of 5 milliseconds, the client will send the query to either server1 or server2 (randomly selecting between the two).
-     * </p>
-     *
-     * <p>
-     * Default is 15 milliseconds.
-     * </p>
-     *
-     * @return the local threshold, in milliseconds
-     * @mongodb.driver.manual reference/program/mongos/#cmdoption--localThreshold Local Threshold
-     * @since 2.13.0
-     */
-    public MorphiumConfig setLocalThreshold(int localThreshold) {
-        this.localThreshold = localThreshold;
-        return this;
-    }
 
     public int getMaxConnectionIdleTime() {
         return maxConnectionIdleTime;
