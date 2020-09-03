@@ -483,13 +483,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                     objs.add(marshall);
                     Map<String, Object> ret;
                     try {
-                        if (isNew) {
-
-                            morphium.getDriver().insert(morphium.getConfig().getDatabase(), coll, objs, wc);
-                            ret = new HashMap<>();
-                        } else {
-                            ret = morphium.getDriver().store(morphium.getConfig().getDatabase(), coll, objs, wc);
-                        }
+                        ret = morphium.getDriver().store(morphium.getConfig().getDatabase(), coll, objs, wc);
                     } catch (MorphiumDriverException mde) {
                         if (mde.getMessage().contains("duplicate key") && mde.getMessage().contains("_id") && en.autoVersioning()) {
                             throw new ConcurrentModificationException("Versioning / upsert failure - concurrent modification!");

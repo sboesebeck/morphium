@@ -755,56 +755,56 @@ public class MessagingTest extends MorphiumTestBase {
 
 
     }
-//
-//    @Test
-//    public void simpleMessagingTest() throws Exception {
-//        final Object monitor = new Object();
-//        final Messaging m1 = new Messaging(morphium, 1000, true);
-//        final Messaging m2 = new Messaging(morphium, 10, true);
-//
-//        new Thread() {
-//            public void run() {
-//                morphium.watch(Msg.class, false, new ChangeStreamListener() {
-//                    @Override
-//                    public boolean incomingData(ChangeStreamEvent evt) {
-//                        log.info("Incoming event!");
-//                        return true;
-//                    }
-//                });
-//            }
-//        }.start();
-//
-//        m1.start();
-//        m2.start();
-//        final AtomicInteger count = new AtomicInteger();
-//        m2.addMessageListener(new MessageListener() {
-//            @Override
-//            public Msg onMessage(Messaging msg, Msg m) throws InterruptedException {
-//                log.info("Got message: " + m.getValue());
-//                return null;
-//            }
-//        });
-//
-//        new Thread() {
-//            public void run() {
-//                while (true) {
-//                    int c = count.incrementAndGet();
-//                    m1.sendMessage(new Msg("test", "msg", "value" + c));
-//                    log.info("Msg. sent..." + c);
-//                    morphium.store(new UncachedObject("value", c));
-//                    try {
-//                        Thread.sleep(1000);
-//                    } catch (InterruptedException e) {
-//                    }
-//                }
-//            }
-//        }.start();
-//
-//        synchronized (monitor) {
-//            monitor.wait();
-//        }
-//
-//    }
+
+    @Test
+    public void simpleMessagingTest() throws Exception {
+        final Object monitor = new Object();
+        final Messaging m1 = new Messaging(morphium, 1000, true);
+        final Messaging m2 = new Messaging(morphium, 10, true);
+
+        new Thread() {
+            public void run() {
+                morphium.watch(Msg.class, false, new ChangeStreamListener() {
+                    @Override
+                    public boolean incomingData(ChangeStreamEvent evt) {
+                        log.info("Incoming event!");
+                        return true;
+                    }
+                });
+            }
+        }.start();
+
+        m1.start();
+        m2.start();
+        final AtomicInteger count = new AtomicInteger();
+        m2.addMessageListener(new MessageListener() {
+            @Override
+            public Msg onMessage(Messaging msg, Msg m) throws InterruptedException {
+                log.info("Got message: " + m.getValue());
+                return null;
+            }
+        });
+
+        new Thread() {
+            public void run() {
+                while (true) {
+                    int c = count.incrementAndGet();
+                    m1.sendMessage(new Msg("test", "msg", "value" + c));
+                    log.info("Msg. sent..." + c);
+                    morphium.store(new UncachedObject("value", c));
+                    try {
+                        Thread.sleep(1000);
+                    } catch (InterruptedException e) {
+                    }
+                }
+            }
+        }.start();
+
+        synchronized (monitor) {
+            monitor.wait();
+        }
+
+    }
 
     @Test
     public void broadcastTest() throws Exception {

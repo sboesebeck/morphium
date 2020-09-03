@@ -22,6 +22,7 @@ import de.caluga.morphium.Morphium;
 import de.caluga.morphium.driver.ReadPreference;
 import de.caluga.morphium.driver.*;
 import de.caluga.morphium.driver.bulk.BulkRequestContext;
+import de.caluga.morphium.replicaset.ReplicaSetConf;
 import org.bson.*;
 import org.bson.conversions.Bson;
 import org.bson.types.Binary;
@@ -1294,19 +1295,31 @@ public class MongoDriver implements MorphiumDriver {
     }
 
     @Override
-    public Map<String, Object> store(String db, String collection, final List<Map<String, Object>> objs, de.caluga.morphium.driver.WriteConcern wc) throws MorphiumDriverException {
+    public Map<String, Object> store(String db, String collection, List<Map<String, Object>> objs, de.caluga.morphium.driver.WriteConcern wc) throws MorphiumDriverException {
+        List<Map<String, Object>> isnew = new ArrayList<>();
+        final List<Map<String, Object>> notnew = new ArrayList<>();
+        for (Map<String, Object> o : objs) {
+            if (o.get("_id") == null) {
+                //isnew!!!
+                isnew.add(o);
+            } else {
+                notnew.add(o);
+            }
+        }
+        if (!isnew.isEmpty())
+            insert(db, collection, isnew, wc);
         //        for (Map<String,Object> o:isnew){
         //            Object id=o.get("_id");
         //            if (id instanceof ObjectId) o.put("_id",new MorphiumId(((ObjectId)id).toHexString()));
         //        }
         Map m = DriverHelper.doCall(() -> {
-            DriverHelper.replaceMorphiumIdByObjectId(objs);
+            DriverHelper.replaceMorphiumIdByObjectId(notnew);
             MongoCollection c = mongo.getDatabase(db).getCollection(collection);
             Map<String, Object> ret = new HashMap<>();
             //                mongo.getDB(db).getCollection(collection).save()
-            int total = objs.size();
+            int total = notnew.size();
             int updated = 0;
-            for (Map<String, Object> toUpdate : objs) {
+            for (Map<String, Object> toUpdate : notnew) {
 
                 UpdateOptions o = new UpdateOptions();
                 Document filter = new Document();
@@ -1335,14 +1348,15 @@ public class MongoDriver implements MorphiumDriver {
                 tDocument.remove("_id"); //not needed
                 //noinspection unchecked
                 try {
-
+                    ReplaceOptions r = new ReplaceOptions();
+                    r.upsert(true);
                     UpdateResult res;
                     if (currentTransaction.get() == null) {
                         //noinspection unchecked
-                        res = c.replaceOne(filter, tDocument);
+                        res = c.replaceOne(filter, tDocument, r);
                     } else {
                         //noinspection unchecked
-                        res = c.replaceOne(currentTransaction.get().getSession(), filter, tDocument);
+                        res = c.replaceOne(currentTransaction.get().getSession(), filter, tDocument, r);
                     }
                     updated += res.getModifiedCount();
                     id = toUpdate.get("_id");
@@ -1365,7 +1379,7 @@ public class MongoDriver implements MorphiumDriver {
             return ret;
         }, retriesOnNetworkError, sleepBetweenErrorRetries);
         //noinspection unchecked
-        Objects.requireNonNull(m).put("inserted", objs.size());
+        Objects.requireNonNull(m).put("inserted", isnew.size());
         //noinspection unchecked
         return m;
     }
