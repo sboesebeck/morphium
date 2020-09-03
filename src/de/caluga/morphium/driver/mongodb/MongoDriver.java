@@ -12,7 +12,11 @@ import com.mongodb.client.model.changestream.FullDocument;
 import com.mongodb.client.result.DeleteResult;
 import com.mongodb.client.result.UpdateResult;
 import com.mongodb.connection.ClusterConnectionMode;
+import com.mongodb.connection.ClusterDescription;
+import com.mongodb.connection.ServerDescription;
 import com.mongodb.event.*;
+import com.mongodb.internal.selector.ReadPreferenceServerSelector;
+import com.mongodb.selector.ServerSelector;
 import de.caluga.morphium.Collation;
 import de.caluga.morphium.Morphium;
 import de.caluga.morphium.driver.ReadPreference;
@@ -50,7 +54,6 @@ public class MongoDriver implements MorphiumDriver {
     private int heartbeatFrequency = 1000;
     private boolean defaultJ = false;
     private int writeTimeout = 1000;
-    private int localThreshold = 15;
     private boolean defaultFsync;
     private int maxWaitTime;
     private int serverSelectionTimeout;
@@ -335,16 +338,6 @@ public class MongoDriver implements MorphiumDriver {
     }
 
     @Override
-    public int getLocalThreshold() {
-        return localThreshold;
-    }
-
-    @Override
-    public void setLocalThreshold(int thr) {
-        localThreshold = thr;
-    }
-
-    @Override
     public void heartBeatFrequency(int t) {
         heartbeatFrequency = t;
     }
@@ -507,6 +500,7 @@ public class MongoDriver implements MorphiumDriver {
                         log.info("Cluster description changed: " + event.getNewDescription().toString());
                     }
                 });
+                //clusterSettings.serverSelector(new ReadPreferenceServerSelector(defaultReadPreference));
 
             });
 
