@@ -10,7 +10,7 @@ import java.util.Properties;
  * Date: 30.07.13
  * Time: 14:31
  * <p/>
- * TODO: Add documentation here
+ *
  */
 @SuppressWarnings("AssertWithSideEffects")
 public class MorphiumConfigTest extends MorphiumTestBase {
@@ -41,8 +41,6 @@ public class MorphiumConfigTest extends MorphiumTestBase {
     public void partialJsonTest() throws Exception {
         String json = "{ \"hosts\":\"localhost:27018, localhost:27099\", \"database\" : \"testdb\", \"safe_mode\" : true , \"global_fsync\" : false , \"globalJ\" : false , \"write_timeout\" : 9990 }";
         MorphiumConfig cfg = MorphiumConfig.createFromJson(json);
-        assert (cfg.getWriteTimeout() == 9990);
-        assert (cfg.isSafeMode());
         assert (cfg.getDatabase().equals("testdb"));
         assert (cfg.getHostSeed().size() == 2);
         assert (cfg.getHostSeed().get(0).endsWith(":27018"));
@@ -77,7 +75,6 @@ public class MorphiumConfigTest extends MorphiumTestBase {
         MorphiumConfig cfg = MorphiumConfig.fromProperties(p);
         assert (cfg.getHostSeed().size() == 1);
         assert (cfg.getDatabase().equals("thingy"));
-        assert (cfg.getSocketTimeout() == 1000);
     }
 
     @Test
@@ -117,11 +114,11 @@ public class MorphiumConfigTest extends MorphiumTestBase {
         p.put("prefix.socketTimeout", "1000");
         p.put("prefix.hosts", "localhost:27017");
         p.put("prefix.database", "thingy");
+        p.put("prefix.retryReads", "true");
         MorphiumConfig cfg = MorphiumConfig.fromProperties("prefix", p);
         assert (cfg.getHostSeed().size() == 1);
         assert (cfg.getDatabase().equals("thingy"));
-        assert (cfg.getSocketTimeout() == 1000);
-        p = System.getProperties();
+        assert (cfg.isRetryReads());
     }
 
 

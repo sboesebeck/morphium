@@ -48,7 +48,6 @@ public class MongoDriver implements MorphiumDriver {
 
     private int maxConnectionLifetime = 60000;
     private int maxConnectionIdleTime = 20000;
-    private int socketTimeout = 1000;
     private int connectionTimeout = 1000;
     private int defaultW = 1;
     private int heartbeatFrequency = 1000;
@@ -238,16 +237,6 @@ public class MongoDriver implements MorphiumDriver {
     @Override
     public void setMaxConnectionIdleTime(int time) {
         maxConnectionIdleTime = time;
-    }
-
-    @Override
-    public int getSocketTimeout() {
-        return socketTimeout;
-    }
-
-    @Override
-    public void setSocketTimeout(int timeout) {
-        socketTimeout = timeout;
     }
 
     @Override

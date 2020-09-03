@@ -79,7 +79,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
             };
             int core = m.getConfig().getMaxConnections() / 2;
             if (core <= 1) core = 1;
-            int max = (int) (m.getConfig().getMaxConnections() * m.getConfig().getBlockingThreadsMultiplier() * 0.9);
+            int max = (int) (m.getConfig().getMaxConnections() * m.getConfig().getThreadConnectionMultiplier());
             if (max <= core) max = 2 * core;
 
             executor = new ThreadPoolExecutor(core, max,

@@ -205,7 +205,6 @@ public class Morphium implements AutoCloseable {
             } catch (Exception e) {
                 throw new RuntimeException(e);
             }
-            morphiumDriver.setSocketTimeout(config.getSocketTimeout());
             morphiumDriver.setConnectionTimeout(config.getConnectionTimeout());
             morphiumDriver.setMaxConnections(config.getMaxConnections());
             morphiumDriver.setMinConnections(config.getMinConnectionsHost());

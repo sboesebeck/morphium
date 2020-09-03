@@ -52,7 +52,6 @@ public class MorphiumConfig {
     @Transient
     private MorphiumWriter asyncWriter;
     private int connectionTimeout = 0;
-    private int socketTimeout = 0;
     private boolean globalFsync = false;
     private boolean globalJ = false;
     private boolean checkForNew = true;
@@ -68,6 +67,7 @@ public class MorphiumConfig {
     private int retryWaitTimeAsyncWriter = 200;
     private int globalW = 1; //number of writes
     private int maxWaitTime = 2000;
+    private int threadConnectionMultiplier = 5;
     private int serverSelectionTimeout = 30000;
     //default time for write buffer to be filled
     private int writeBufferTime = 1000;
@@ -423,6 +423,14 @@ public class MorphiumConfig {
         return this;
     }
 
+    public int getThreadConnectionMultiplier() {
+        return threadConnectionMultiplier;
+    }
+
+    public void setThreadConnectionMultiplier(int threadConnectionMultiplier) {
+        this.threadConnectionMultiplier = threadConnectionMultiplier;
+    }
+
     public boolean isGlobalJ() {
         return globalJ;
     }
@@ -523,14 +531,6 @@ public class MorphiumConfig {
         return this;
     }
 
-    public int getSocketTimeout() {
-        return socketTimeout;
-    }
-
-    public MorphiumConfig setSocketTimeout(int socketTimeout) {
-        this.socketTimeout = socketTimeout;
-        return this;
-    }
 
     public Class<? extends MongoField> getFieldImplClass() {
         return fieldImplClass;

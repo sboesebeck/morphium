@@ -105,7 +105,7 @@ public class MorphiumTestBase {
             if (p.getProperty("database") != null) {
                 cfg = MorphiumConfig.fromProperties(p);
                 cfg.setMaxConnections(100);
-                cfg.setBlockingThreadsMultiplier(2);
+                cfg.setThreadConnectionMultiplier(2);
             } else {
                 //creating default config
                 cfg = new MorphiumConfig("morphium_test", 2055, 50000, 5000);
@@ -114,25 +114,21 @@ public class MorphiumTestBase {
                 //                cfg.addHostToSeed("localhost", 27019);
                 cfg.setWriteCacheTimeout(1000);
                 cfg.setConnectionTimeout(2000);
+                cfg.setRetryReads(false);
+                cfg.setRetryWrites(false);
+                cfg.setReadTimeout(1000);
                 cfg.setMaxWaitTime(2000);
-                cfg.setMaxAutoReconnectTime(500);
                 cfg.setMaxConnectionLifeTime(60000);
                 cfg.setMaxConnectionIdleTime(30000);
                 cfg.setMaxConnections(100);
                 cfg.setMinConnections(1);
-                cfg.setAutoreconnect(true);
                 cfg.setMaximumRetriesBufferedWriter(1000);
                 cfg.setMaximumRetriesWriter(1000);
                 cfg.setMaximumRetriesAsyncWriter(1000);
                 cfg.setRetryWaitTimeAsyncWriter(1000);
                 cfg.setRetryWaitTimeWriter(1000);
                 cfg.setRetryWaitTimeBufferedWriter(1000);
-                cfg.setSocketTimeout(0);
-                cfg.setSocketKeepAlive(true);
-                cfg.setHeartbeatConnectTimeout(1000);
-                cfg.setHeartbeatSocketTimeout(1000);
                 cfg.setHeartbeatFrequency(500);
-                cfg.setMinHearbeatFrequency(1000);
 
                 cfg.setGlobalCacheValidTime(1000);
                 cfg.setHousekeepingTimeout(500);
@@ -159,11 +155,10 @@ public class MorphiumTestBase {
                 //            cfg.setMongoAdminUser("admin");
                 //            cfg.setMongoAdminPwd("admin");
 
-                cfg.setMaxAutoReconnectTime(5000);
                 cfg.setDefaultReadPreference(ReadPreference.nearest());
                 p.putAll(cfg.asProperties());
                 p.put("failovertest", "false");
-                cfg.setBlockingThreadsMultiplier(2);
+                cfg.setThreadConnectionMultiplier(2);
                 storeProps();
             }
 

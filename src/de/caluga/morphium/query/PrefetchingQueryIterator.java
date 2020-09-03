@@ -214,8 +214,8 @@ public class PrefetchingQueryIterator<T> implements MorphiumQueryIterator<T> {
                 {
                     try {
                         //Busy wait for buffer to be processed
-                        int socketTimeout = query.getMorphium().getConfig().getSocketTimeout();
-                        if (socketTimeout > 0 && System.currentTimeMillis() - lastAccess > socketTimeout) {
+                        int maxWaitTime = query.getMorphium().getConfig().getMaxWaitTime();
+                        if (maxWaitTime > 0 && System.currentTimeMillis() - lastAccess > maxWaitTime) {
                             log.error("Cursor timeout... closing");
                             try {
                                 query.getMorphium().getDriver().closeIteration(cursor);
