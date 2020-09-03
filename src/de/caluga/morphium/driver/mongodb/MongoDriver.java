@@ -1296,30 +1296,15 @@ public class MongoDriver implements MorphiumDriver {
 
     @Override
     public Map<String, Object> store(String db, String collection, List<Map<String, Object>> objs, de.caluga.morphium.driver.WriteConcern wc) throws MorphiumDriverException {
-        List<Map<String, Object>> isnew = new ArrayList<>();
-        final List<Map<String, Object>> notnew = new ArrayList<>();
-        for (Map<String, Object> o : objs) {
-            if (o.get("_id") == null) {
-                //isnew!!!
-                isnew.add(o);
-            } else {
-                notnew.add(o);
-            }
-        }
-        if (!isnew.isEmpty())
-            insert(db, collection, isnew, wc);
-        //        for (Map<String,Object> o:isnew){
-        //            Object id=o.get("_id");
-        //            if (id instanceof ObjectId) o.put("_id",new MorphiumId(((ObjectId)id).toHexString()));
-        //        }
+
         Map m = DriverHelper.doCall(() -> {
-            DriverHelper.replaceMorphiumIdByObjectId(notnew);
+            DriverHelper.replaceMorphiumIdByObjectId(objs);
             MongoCollection c = mongo.getDatabase(db).getCollection(collection);
             Map<String, Object> ret = new HashMap<>();
             //                mongo.getDB(db).getCollection(collection).save()
-            int total = notnew.size();
+            int total = objs.size();
             int updated = 0;
-            for (Map<String, Object> toUpdate : notnew) {
+            for (Map<String, Object> toUpdate : objs) {
 
                 UpdateOptions o = new UpdateOptions();
                 Document filter = new Document();
@@ -1374,12 +1359,9 @@ public class MongoDriver implements MorphiumDriver {
                 }
 
             }
-            ret.put("modified", updated);
             ret.put("total", total);
             return ret;
         }, retriesOnNetworkError, sleepBetweenErrorRetries);
-        //noinspection unchecked
-        Objects.requireNonNull(m).put("inserted", isnew.size());
         //noinspection unchecked
         return m;
     }
