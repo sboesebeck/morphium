@@ -149,11 +149,15 @@ public class MorphiumConfig {
     private int cursorBatchSize = 1000;
     private boolean oplogMonitorEnabled = false;
     private boolean throwExceptionOnMissingEncrytptionKey = true;
+    private int readTimeout;
+    private boolean retryReads;
+    private boolean retryWrites;
 
     public MorphiumConfig(final Properties prop) {
-        this(null,prop);
+        this(null, prop);
     }
-    public MorphiumConfig(String prefix,final Properties prop) {
+
+    public MorphiumConfig(String prefix, final Properties prop) {
         this(prefix, prop::get);
     }
 
@@ -597,7 +601,6 @@ public class MorphiumConfig {
      * @param maxWaitTime
      *            the maximum wait time, in milliseconds
      * @return {@code this}
-     * @see MongoClientOptions#getMaxWaitTime()
      */
     public MorphiumConfig setMaxWaitTime(int maxWaitTime) {
         this.maxWaitTime = maxWaitTime;
@@ -620,7 +623,6 @@ public class MorphiumConfig {
      * @param serverSelectionTimeout
      *            the server selection timeout, in milliseconds
      * @return {@code this}
-     * @see com.mongodb.MongoClientOptions#getServerSelectionTimeout()
      */
     public MorphiumConfig setServerSelectionTimeout(int serverSelectionTimeout) {
         this.serverSelectionTimeout = serverSelectionTimeout;
@@ -1243,7 +1245,7 @@ public class MorphiumConfig {
         return this;
     }
 
-    public int getMinConnectionsPerHost() {
+    public int getMinConnectionsHost() {
         return minConnectionsPerHost;
     }
 
@@ -1364,12 +1366,37 @@ public class MorphiumConfig {
     public void setUseSSL(boolean useSSL) {
         this.useSSL = useSSL;
     }
+
     public boolean isSslInvalidHostNameAllowed() {
         return sslInvalidHostNameAllowed;
     }
+
     public void setSslInvalidHostNameAllowed(boolean sslInvalidHostNameAllowed) {
         this.sslInvalidHostNameAllowed = sslInvalidHostNameAllowed;
     }
 
 
+    public int getReadTimeout() {
+        return readTimeout;
+    }
+
+    public void setReadTimeout(int readTimeout) {
+        this.readTimeout = readTimeout;
+    }
+
+    public boolean isRetryReads() {
+        return retryReads;
+    }
+
+    public void setRetryReads(boolean retryReads) {
+        this.retryReads = retryReads;
+    }
+
+    public boolean isRetryWrites() {
+        return retryWrites;
+    }
+
+    public void setRetryWrites(boolean retryWrites) {
+        this.retryWrites = retryWrites;
+    }
 }

@@ -198,22 +198,22 @@ public class InMemoryDriver implements MorphiumDriver {
     }
 
     @Override
-    public int getMaxConnectionsPerHost() {
+    public int getMaxConnections() {
         return 0;
     }
 
     @Override
-    public void setMaxConnectionsPerHost(int mx) {
+    public void setMaxConnections(int maxConnections) {
 
     }
 
     @Override
-    public int getMinConnectionsPerHost() {
+    public int getMinConnections() {
         return 0;
     }
 
     @Override
-    public void setMinConnectionsPerHost(int mx) {
+    public void setMinConnections(int minConnections) {
 
     }
 
@@ -268,11 +268,6 @@ public class InMemoryDriver implements MorphiumDriver {
     }
 
     @Override
-    public int getMaxBlockintThreadMultiplier() {
-        return 0;
-    }
-
-    @Override
     public int getHeartbeatFrequency() {
         return 0;
     }
@@ -281,6 +276,7 @@ public class InMemoryDriver implements MorphiumDriver {
     public void setHeartbeatFrequency(int heartbeatFrequency) {
 
     }
+
 
     @Override
     public void setDefaultBatchSize(int defaultBatchSize) {
@@ -293,14 +289,25 @@ public class InMemoryDriver implements MorphiumDriver {
     }
 
     @Override
-    public int getHeartbeatSocketTimeout() {
-        return 0;
+    public boolean isRetryReads() {
+        return false;
     }
 
     @Override
-    public void setHeartbeatSocketTimeout(int heartbeatSocketTimeout) {
+    public void setRetryReads(boolean retryReads) {
 
     }
+
+    @Override
+    public boolean isRetryWrites() {
+        return false;
+    }
+
+    @Override
+    public void setRetryWrites(boolean retryWrites) {
+
+    }
+
 
     @Override
     public boolean isUseSSL() {
@@ -323,14 +330,15 @@ public class InMemoryDriver implements MorphiumDriver {
     }
 
     @Override
-    public int getWriteTimeout() {
+    public int getReadTimeout() {
         return 0;
     }
 
     @Override
-    public void setWriteTimeout(int writeTimeout) {
+    public void setReadTimeout(int readTimeout) {
 
     }
+
 
     @Override
     public int getLocalThreshold() {
@@ -343,17 +351,7 @@ public class InMemoryDriver implements MorphiumDriver {
     }
 
     @Override
-    public void setMaxBlockingThreadMultiplier(int m) {
-
-    }
-
-    @Override
     public void heartBeatFrequency(int t) {
-
-    }
-
-    @Override
-    public void heartBeatSocketTimeout(int t) {
 
     }
 
@@ -1239,25 +1237,6 @@ public class InMemoryDriver implements MorphiumDriver {
         return new ArrayList<>();
     }
 
-    @Override
-    public boolean isSocketKeepAlive() {
-        return false;
-    }
-
-    @Override
-    public void setSocketKeepAlive(boolean socketKeepAlive) {
-
-    }
-
-    @Override
-    public int getHeartbeatConnectTimeout() {
-        return 0;
-    }
-
-    @Override
-    public void setHeartbeatConnectTimeout(int heartbeatConnectTimeout) {
-
-    }
 
     @Override
     public void tailableIteration(String db, String collection, Map<String, Object> query, Map<String, Integer> sort, Map<String, Object> projection, int skip, int limit, int batchSize, ReadPreference readPreference, int timeout, DriverTailableIterationCallback cb) throws MorphiumDriverException {
