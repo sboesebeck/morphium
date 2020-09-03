@@ -79,7 +79,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
             };
             int core = m.getConfig().getMaxConnections() / 2;
             if (core <= 1) core = 1;
-            int max = (int) (m.getConfig().getMaxConnections() * m.getConfig().getThreadConnectionMultiplier());
+            int max = m.getConfig().getMaxConnections() * m.getConfig().getThreadConnectionMultiplier();
             if (max <= core) max = 2 * core;
 
             executor = new ThreadPoolExecutor(core, max,
@@ -483,7 +483,13 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                     objs.add(marshall);
                     Map<String, Object> ret;
                     try {
-                        ret = morphium.getDriver().store(morphium.getConfig().getDatabase(), coll, objs, wc);
+                        if (isNew) {
+
+                            morphium.getDriver().insert(morphium.getConfig().getDatabase(), coll, objs, wc);
+                            ret = new HashMap<>();
+                        } else {
+                            ret = morphium.getDriver().store(morphium.getConfig().getDatabase(), coll, objs, wc);
+                        }
                     } catch (MorphiumDriverException mde) {
                         if (mde.getMessage().contains("duplicate key") && mde.getMessage().contains("_id") && en.autoVersioning()) {
                             throw new ConcurrentModificationException("Versioning / upsert failure - concurrent modification!");
