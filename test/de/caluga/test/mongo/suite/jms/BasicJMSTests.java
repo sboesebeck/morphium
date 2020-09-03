@@ -23,6 +23,7 @@ public class BasicJMSTests extends MorphiumTestBase {
 
         JMSConsumer con = ctx2.createConsumer(dest);
         con.setMessageListener(message -> log.info("Got Message!"));
+        Thread.sleep(1000);
         pr1.send(dest, "A test");
 
         ctx1.close();

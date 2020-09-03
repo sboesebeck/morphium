@@ -1,6 +1,8 @@
 package de.caluga.test.mongo.suite.messaging;
 
 import de.caluga.morphium.*;
+import de.caluga.morphium.changestream.ChangeStreamEvent;
+import de.caluga.morphium.changestream.ChangeStreamListener;
 import de.caluga.morphium.driver.MorphiumId;
 import de.caluga.morphium.messaging.MessageListener;
 import de.caluga.morphium.messaging.MessageRejectedException;
@@ -8,6 +10,7 @@ import de.caluga.morphium.messaging.Messaging;
 import de.caluga.morphium.messaging.Msg;
 import de.caluga.morphium.query.Query;
 import de.caluga.test.mongo.suite.MorphiumTestBase;
+import de.caluga.test.mongo.suite.data.UncachedObject;
 import org.junit.Test;
 
 import java.util.*;
@@ -35,9 +38,9 @@ public class MessagingTest extends MorphiumTestBase {
 
     public AtomicInteger procCounter = new AtomicInteger(0);
 
-    private List<Msg> list = new ArrayList<>();
+    private final List<Msg> list = new ArrayList<>();
 
-    private AtomicInteger queueCount = new AtomicInteger(1000);
+    private final AtomicInteger queueCount = new AtomicInteger(1000);
 
     @Test
     public void testMsgQueName() throws Exception {
@@ -669,7 +672,7 @@ public class MessagingTest extends MorphiumTestBase {
                 systems.add(m);
                 MessageListener l = new MessageListener() {
                     Messaging msg;
-                    List<String> ids = Collections.synchronizedList(new ArrayList<>());
+                    final List<String> ids = Collections.synchronizedList(new ArrayList<>());
 
                     @Override
                     public Msg onMessage(Messaging msg, Msg m) {
@@ -753,6 +756,55 @@ public class MessagingTest extends MorphiumTestBase {
 
     }
 
+    @Test
+    public void simpleMessagingTest() throws Exception {
+        final Object monitor = new Object();
+        final Messaging m1 = new Messaging(morphium, 1000, true);
+        final Messaging m2 = new Messaging(morphium, 10, true);
+
+        new Thread() {
+            public void run() {
+                morphium.watch(Msg.class, false, new ChangeStreamListener() {
+                    @Override
+                    public boolean incomingData(ChangeStreamEvent evt) {
+                        log.info("Incoming event!");
+                        return true;
+                    }
+                });
+            }
+        }.start();
+
+        m1.start();
+        m2.start();
+        final AtomicInteger count = new AtomicInteger();
+        m2.addMessageListener(new MessageListener() {
+            @Override
+            public Msg onMessage(Messaging msg, Msg m) throws InterruptedException {
+                log.info("Got message: " + m.getValue());
+                return null;
+            }
+        });
+
+        new Thread() {
+            public void run() {
+                while (true) {
+                    int c = count.incrementAndGet();
+                    m1.sendMessage(new Msg("test", "msg", "value" + c));
+                    log.info("Msg. sent..." + c);
+                    morphium.store(new UncachedObject("value", c));
+                    try {
+                        Thread.sleep(1000);
+                    } catch (InterruptedException e) {
+                    }
+                }
+            }
+        }.start();
+
+        synchronized (monitor) {
+            monitor.wait();
+        }
+
+    }
 
     @Test
     public void broadcastTest() throws Exception {
@@ -1570,7 +1622,7 @@ public class MessagingTest extends MorphiumTestBase {
                 received.incrementAndGet();
                 recieveCount.putIfAbsent(msg.getSenderId(), new AtomicInteger());
                 recieveCount.get(msg.getSenderId()).incrementAndGet();
-                if (ids.keySet().contains(m.getMsgId().toString())) {
+                if (ids.containsKey(m.getMsgId().toString())) {
                     if (m.isExclusive()) {
                         log.error("Duplicate recieved message " + msg.getSenderId() + " " + (System.currentTimeMillis() - ids.get(m.getMsgId().toString())) + "ms ago");
                         if (recById.get(m.getMsgId().toString()).equals(msg.getSenderId())) {
@@ -1715,7 +1767,7 @@ public class MessagingTest extends MorphiumTestBase {
                 received.incrementAndGet();
                 recieveCount.putIfAbsent(msg.getSenderId(), new AtomicInteger());
                 recieveCount.get(msg.getSenderId()).incrementAndGet();
-                if (ids.keySet().contains(m.getMsgId().toString()) && m.isExclusive()) {
+                if (ids.containsKey(m.getMsgId().toString()) && m.isExclusive()) {
                     log.error("Duplicate recieved message " + msg.getSenderId() + " " + (System.currentTimeMillis() - ids.get(m.getMsgId().toString())) + "ms ago");
                     if (recById.get(m.getMsgId().toString()).equals(msg.getSenderId())) {
                         log.error("--- duplicate was processed before by me!");
