@@ -1,5 +1,8 @@
 package de.caluga.morphium.driver.inmem;
 
+import com.mongodb.event.ClusterListener;
+import com.mongodb.event.CommandListener;
+import com.mongodb.event.ConnectionPoolListener;
 import com.rits.cloning.Cloner;
 import de.caluga.morphium.*;
 import de.caluga.morphium.driver.*;
@@ -43,7 +46,7 @@ public class InMemoryDriver implements MorphiumDriver {
     private final Map<String, List<DriverTailableIterationCallback>> watchersByDb = new ConcurrentHashMap<>();
     private ScheduledThreadPoolExecutor exec = new ScheduledThreadPoolExecutor(1);
     private List<Runnable> eventQueue = new Vector<>();
-    private List<Object> monitors = new Vector<>();
+    private final List<Object> monitors = new Vector<>();
 
 
     public Map<String, List<Map<String, Object>>> getDatabase(String dbn) {
@@ -234,6 +237,36 @@ public class InMemoryDriver implements MorphiumDriver {
 
     @Override
     public void setMaxConnectionIdleTime(int time) {
+
+    }
+
+    @Override
+    public void addCommandListener(CommandListener cmd) {
+
+    }
+
+    @Override
+    public void removeCommandListener(CommandListener cmd) {
+
+    }
+
+    @Override
+    public void addClusterListener(ClusterListener cl) {
+
+    }
+
+    @Override
+    public void removeClusterListener(ClusterListener cl) {
+
+    }
+
+    @Override
+    public void addConnectionPoolListener(ConnectionPoolListener cpl) {
+
+    }
+
+    @Override
+    public void removeConnectionPoolListener(ConnectionPoolListener cpl) {
 
     }
 

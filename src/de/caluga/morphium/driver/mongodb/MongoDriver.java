@@ -15,6 +15,7 @@ import com.mongodb.connection.ClusterConnectionMode;
 import com.mongodb.connection.ClusterDescription;
 import com.mongodb.connection.ServerDescription;
 import com.mongodb.event.*;
+import com.mongodb.internal.connection.Cluster;
 import com.mongodb.internal.selector.ReadPreferenceServerSelector;
 import com.mongodb.selector.ServerSelector;
 import de.caluga.morphium.Collation;
@@ -31,6 +32,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import javax.net.ssl.SSLContext;
+import javax.xml.stream.events.Comment;
 import java.sql.Time;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
@@ -77,6 +79,10 @@ public class MongoDriver implements MorphiumDriver {
     private MongoClient mongo;
     private Maximums maximums;
 
+    private final List<CommandListener> commandListeners = new Vector<>();
+    private final List<ClusterListener> clusterListeners = new Vector<>();
+    private final List<ConnectionPoolListener> connectionPoolListeners = new Vector<>();
+
     private boolean replicaset;
 
 
@@ -117,6 +123,37 @@ public class MongoDriver implements MorphiumDriver {
         }
         return ret;
     }
+
+    @Override
+    public void addCommandListener(CommandListener cmd) {
+        commandListeners.add(cmd);
+    }
+
+    @Override
+    public void removeCommandListener(CommandListener cmd) {
+        commandListeners.remove(cmd);
+    }
+
+    @Override
+    public void addClusterListener(ClusterListener cl) {
+        clusterListeners.add(cl);
+    }
+
+    @Override
+    public void removeClusterListener(ClusterListener cl) {
+        clusterListeners.remove(cl);
+    }
+
+    @Override
+    public void addConnectionPoolListener(ConnectionPoolListener cpl) {
+        connectionPoolListeners.add(cpl);
+    }
+
+    @Override
+    public void removeConnectionPoolListener(ConnectionPoolListener cpl) {
+        connectionPoolListeners.remove(cpl);
+    }
+
 
     @Override
     public List<String> listCollections(String db, String pattern) throws MorphiumDriverException {
@@ -364,17 +401,24 @@ public class MongoDriver implements MorphiumDriver {
             o.addCommandListener(new CommandListener() {
                 @Override
                 public void commandStarted(CommandStartedEvent event) {
-
+                    for (CommandListener cl : commandListeners) {
+                        cl.commandStarted(event);
+                    }
                 }
 
                 @Override
                 public void commandSucceeded(CommandSucceededEvent event) {
-
+                    for (CommandListener cl : commandListeners) {
+                        cl.commandSucceeded(event);
+                    }
                 }
 
                 @Override
                 public void commandFailed(CommandFailedEvent event) {
-                    log.error("Command failed: " + event.getCommandName(), event.getThrowable());
+                    //log.error("Command failed: " + event.getCommandName(), event.getThrowable());
+                    for (CommandListener cl : commandListeners) {
+                        cl.commandFailed(event);
+                    }
                 }
             });
             o.applyToSocketSettings(socketSettings -> {
@@ -392,67 +436,93 @@ public class MongoDriver implements MorphiumDriver {
                 connectionPoolSettings.addConnectionPoolListener(new ConnectionPoolListener() {
                     @Override
                     public void connectionPoolOpened(ConnectionPoolOpenedEvent event) {
-
+                        for (ConnectionPoolListener cpl : connectionPoolListeners) {
+                            cpl.connectionPoolOpened(event);
+                        }
                     }
 
                     @Override
                     public void connectionPoolCreated(ConnectionPoolCreatedEvent event) {
-
+                        for (ConnectionPoolListener cpl : connectionPoolListeners) {
+                            cpl.connectionPoolCreated(event);
+                        }
                     }
 
                     @Override
                     public void connectionPoolCleared(ConnectionPoolClearedEvent event) {
-
+                        for (ConnectionPoolListener cpl : connectionPoolListeners) {
+                            cpl.connectionPoolCleared(event);
+                        }
                     }
 
                     @Override
                     public void connectionPoolClosed(ConnectionPoolClosedEvent event) {
-
+                        for (ConnectionPoolListener cpl : connectionPoolListeners) {
+                            cpl.connectionPoolClosed(event);
+                        }
                     }
 
                     @Override
                     public void connectionCheckOutStarted(ConnectionCheckOutStartedEvent event) {
-
+                        for (ConnectionPoolListener cpl : connectionPoolListeners) {
+                            cpl.connectionCheckOutStarted(event);
+                        }
                     }
 
                     @Override
                     public void connectionCheckedOut(ConnectionCheckedOutEvent event) {
-
+                        for (ConnectionPoolListener cpl : connectionPoolListeners) {
+                            cpl.connectionCheckedOut(event);
+                        }
                     }
 
                     @Override
                     public void connectionCheckOutFailed(ConnectionCheckOutFailedEvent event) {
-
+                        for (ConnectionPoolListener cpl : connectionPoolListeners) {
+                            cpl.connectionCheckOutFailed(event);
+                        }
                     }
 
                     @Override
                     public void connectionCheckedIn(ConnectionCheckedInEvent event) {
-
+                        for (ConnectionPoolListener cpl : connectionPoolListeners) {
+                            cpl.connectionCheckedIn(event);
+                        }
                     }
 
                     @Override
                     public void connectionAdded(ConnectionAddedEvent event) {
-
+                        for (ConnectionPoolListener cpl : connectionPoolListeners) {
+                            cpl.connectionAdded(event);
+                        }
                     }
 
                     @Override
                     public void connectionCreated(ConnectionCreatedEvent event) {
-
+                        for (ConnectionPoolListener cpl : connectionPoolListeners) {
+                            cpl.connectionCreated(event);
+                        }
                     }
 
                     @Override
                     public void connectionReady(ConnectionReadyEvent event) {
-
+                        for (ConnectionPoolListener cpl : connectionPoolListeners) {
+                            cpl.connectionReady(event);
+                        }
                     }
 
                     @Override
                     public void connectionRemoved(ConnectionRemovedEvent event) {
-
+                        for (ConnectionPoolListener cpl : connectionPoolListeners) {
+                            cpl.connectionRemoved(event);
+                        }
                     }
 
                     @Override
                     public void connectionClosed(ConnectionClosedEvent event) {
-
+                        for (ConnectionPoolListener cpl : connectionPoolListeners) {
+                            cpl.connectionClosed(event);
+                        }
                     }
                 });
             });
@@ -477,17 +547,24 @@ public class MongoDriver implements MorphiumDriver {
                 clusterSettings.addClusterListener(new ClusterListener() {
                     @Override
                     public void clusterOpening(ClusterOpeningEvent event) {
-                        log.info("Cluster opened: " + event.toString());
+                        for (ClusterListener cl : clusterListeners) {
+                            cl.clusterOpening(event);
+                        }
                     }
 
                     @Override
                     public void clusterClosed(ClusterClosedEvent event) {
-                        log.info("Cluster closed: " + event.toString());
+                        for (ClusterListener cl : clusterListeners) {
+                            cl.clusterClosed(event);
+                        }
                     }
 
                     @Override
                     public void clusterDescriptionChanged(ClusterDescriptionChangedEvent event) {
                         //log.info("Cluster description changed: " + event.getNewDescription().toString());
+                        for (ClusterListener cl : clusterListeners) {
+                            cl.clusterDescriptionChanged(event);
+                        }
                     }
                 });
                 //clusterSettings.serverSelector(new ReadPreferenceServerSelector(defaultReadPreference));
