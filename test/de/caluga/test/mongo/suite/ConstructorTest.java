@@ -37,13 +37,13 @@ public class ConstructorTest {
     }
 
     @Test
-    public void severalMorphiumTest() {
+    public void severalMorphiumTest() throws Exception {
         Morphium m = new Morphium("localhost", "morphium-test");
         UncachedObject o = new UncachedObject();
         o.setValue("Tst: " + System.nanoTime());
         o.setCounter((int) System.currentTimeMillis());
         m.store(o);
-
+        Thread.sleep(100);
         assert (m.createQueryFor(UncachedObject.class).countAll() >= 1);
 
         MorphiumConfig cfg = new MorphiumConfig("morphium-test", 10, 1000, 1000);

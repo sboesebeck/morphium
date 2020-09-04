@@ -113,7 +113,7 @@ public class BulkInsertTest extends MorphiumTestBase {
 
                 @Override
                 public void onOperationError(AsyncOperationType type, Query<UncachedObject> q, long duration, String error, Throwable t, UncachedObject entity, Object... param) {
-                    log.error("Got async error - should not be!!!");
+                    log.error("Got async error - should not be!!!", t);
                     asyncSuccess = false;
                 }
             });
@@ -146,9 +146,8 @@ public class BulkInsertTest extends MorphiumTestBase {
 
     }
 
-
-    @Test(expected = IllegalArgumentException.class)
-    public void bulkInsertNonId() {
+    @Test
+    public void bulkInsertNonId() throws Exception {
         morphium.dropCollection(Person.class);
         List<Person> prs = new ArrayList<>();
         for (int i = 0; i < 100; i++) {
@@ -158,5 +157,10 @@ public class BulkInsertTest extends MorphiumTestBase {
             prs.add(p);
         }
         morphium.storeList(prs);
+
+        Thread.sleep(1000);
+        assert (prs.get(0).getId() != null);
+        long cnt = morphium.createQueryFor(Person.class).countAll();
+        assert (cnt == 100);
     }
 }

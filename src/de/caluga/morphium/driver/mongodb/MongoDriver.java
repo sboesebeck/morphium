@@ -18,8 +18,10 @@ import com.mongodb.event.*;
 import com.mongodb.internal.connection.Cluster;
 import com.mongodb.internal.selector.ReadPreferenceServerSelector;
 import com.mongodb.selector.ServerSelector;
+import de.caluga.morphium.AnnotationAndReflectionHelper;
 import de.caluga.morphium.Collation;
 import de.caluga.morphium.Morphium;
+import de.caluga.morphium.ObjectMapperImpl;
 import de.caluga.morphium.driver.ReadPreference;
 import de.caluga.morphium.driver.*;
 import de.caluga.morphium.driver.bulk.BulkRequestContext;
@@ -33,6 +35,8 @@ import org.slf4j.LoggerFactory;
 
 import javax.net.ssl.SSLContext;
 import javax.xml.stream.events.Comment;
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
 import java.sql.Time;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
@@ -865,6 +869,10 @@ public class MongoDriver implements MorphiumDriver {
         try {
             Map<String, Object> obj = new HashMap<>();
             obj.put("clusterTime", Objects.requireNonNull(doc.getClusterTime()).getValue());
+            if (doc.getDocumentKey().get("_id") instanceof BsonNull) {
+                return;
+            }
+
             if (doc.getDocumentKey() != null) {
                 obj.put("documentKey", new MorphiumId(((BsonObjectId) doc.getDocumentKey().get("_id")).getValue().toByteArray()));
             }
@@ -1617,7 +1625,6 @@ public class MongoDriver implements MorphiumDriver {
         return false;
     }
 
-
     @Override
     public List<Object> distinct(String db, String collection, String field, final Map<String, Object> filter, Collation collation, ReadPreference rp) throws MorphiumDriverException {
         DriverHelper.replaceMorphiumIdByObjectId(filter);
@@ -1625,8 +1632,11 @@ public class MongoDriver implements MorphiumDriver {
         DriverHelper.doCall(() -> {
             DistinctIterable<?> it;
             if (currentTransaction.get() == null) {
-                DistinctIterable<Document> lst = getColl(mongo.getDatabase(db), collection, getDefaultReadPreference(), null).distinct(field, new BasicDBObject(filter), Document.class);
-                for (Document o : lst) {
+                //need to find return-type for distinct otherwise the damn driver will throw exeptions!
+                List<Map<String, Object>> r = find(db, collection, filter, null, new BasicDBObject(field, 1), 0, 1, 1, defaultReadPreference, collation, null);
+                if (r == null || r.size() == 0) return null;
+                DistinctIterable lst = getCollection(mongo.getDatabase(db), collection, getDefaultReadPreference(), null).distinct(field, new BasicDBObject(filter), r.get(0).get(field).getClass());
+                for (Object o : lst) {
                     ret.add(o);
                 }
             } else {
@@ -1907,12 +1917,33 @@ public class MongoDriver implements MorphiumDriver {
     public void createIndex(String db, String collection, Map<String, Object> index, Map<String, Object> options) throws MorphiumDriverException {
         DriverHelper.doCall(() -> {
             // BasicDBObject options1 = options == null ? new BasicDBObject() : new BasicDBObject(options);
-            IndexOptions options1 = new IndexOptions();
+            if (options != null) {
+                IndexOptions options1 = new IndexOptions();
+                for (Map.Entry<String, Object> opt : options.entrySet()) {
+                    try {
+                        String name = opt.getKey();
+                        if (name.equals("expireAfterSeconds")) {
+                            //all is different!!!!
+                            options1.expireAfter(((Integer) opt.getValue()).longValue(), TimeUnit.SECONDS);
 
-            //TODO add index parsing
-
-            //use IndexOptions and new API
-            mongo.getDatabase(db).getCollection(collection).createIndex(new BasicDBObject(index), options1);
+                        } else {
+                            Method m = IndexOptions.class.getMethod(opt.getKey());
+                            m.setAccessible(true);
+                            Object val = opt.getValue();
+                            if (!m.getParameterTypes()[0].equals(opt.getValue().getClass())) {
+                                if (m.getParameterTypes()[0].equals(boolean.class) || m.getParameterTypes()[0].equals(Boolean.class)) {
+                                    val = val.equals("true");
+                                }
+                            }
+                            m.invoke(options1, val);
+                        }
+                    } catch (Exception e) {
+                        e.printStackTrace();
+                        log.info("Could not find setting: " + opt.getKey());
+                    }
+                }
+                mongo.getDatabase(db).getCollection(collection).createIndex(new BasicDBObject(index), options1);
+            }
             return null;
         }, retriesOnNetworkError, sleepBetweenErrorRetries);
 

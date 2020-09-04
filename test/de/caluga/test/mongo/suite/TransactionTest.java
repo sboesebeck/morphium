@@ -46,6 +46,7 @@ public class TransactionTest extends MorphiumTestBase {
                 assert (u.getCounter() == 101);
                 assert (cnt == 10) : "Count after rollback: " + cnt;
             } catch (Exception e) {
+                log.error("ERROR", e);
                 morphium.abortTransaction();
             }
         }

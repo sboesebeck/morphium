@@ -101,7 +101,7 @@ public class CollationTest extends MorphiumTestBase {
         morphium.store(new UncachedObject("a", 1));
         morphium.store(new UncachedObject("b", 1));
         morphium.store(new UncachedObject("c", 1));
-        Thread.sleep(100);
+        Thread.sleep(1000);
         Aggregator<UncachedObject, Map> agg = morphium.createAggregator(UncachedObject.class, Map.class);
         agg.collation(new Collation().locale("de").strength(Collation.Strength.PRIMARY));
         agg.match(Expr.eq(Expr.field("value"), Expr.string("a")));
