@@ -23,6 +23,8 @@ public class TransactionTest extends MorphiumTestBase {
                 log.info("Entityname number: " + TestEntityNameProvider.number.get());
                 createUncachedObjects(10);
                 Thread.sleep(100);
+
+
                 morphium.startTransaction();
                 Thread.sleep(100);
                 log.info("Count after transaction start: " + morphium.createQueryFor(UncachedObject.class).countAll());
@@ -43,7 +45,7 @@ public class TransactionTest extends MorphiumTestBase {
                 Thread.sleep(100);
                 cnt = morphium.createQueryFor(UncachedObject.class).countAll();
                 u = morphium.reread(u);
-                assert (u.getCounter() == 101);
+                assert (u == null);
                 assert (cnt == 10) : "Count after rollback: " + cnt;
             } catch (Exception e) {
                 log.error("ERROR", e);

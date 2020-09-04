@@ -35,9 +35,9 @@ public class GeoSearchTests extends MorphiumTestBase {
         morphium.storeList(toStore);
 
         Query<Place> q = morphium.createQueryFor(Place.class).f("position").near(0, 0, 10);
-        long cnt = q.countAll();
-        log.info("Found " + cnt + " places around 0,0 (10)");
+
         List<Place> lst = q.asList();
+        log.info("Found " + lst.size() + " places around 0,0 (10)");
         for (Place p : lst) {
             log.info("Position: " + p.getPosition().get(0) + " / " + p.getPosition().get(1));
         }
@@ -60,9 +60,9 @@ public class GeoSearchTests extends MorphiumTestBase {
         morphium.storeList(toStore);
 
         Query<Place> q = morphium.createQueryFor(Place.class).f("position").nearSphere(0, 0);
-        long cnt = q.countAll();
-        log.info("Found " + cnt + " places around 0,0 ");
+
         List<Place> lst = q.asList();
+        log.info("Found " + lst.size() + " places around 0,0 ");
         for (Place p : lst) {
             log.info("Position: " + p.getPosition().get(0) + " / " + p.getPosition().get(1));
         }
@@ -172,7 +172,7 @@ public class GeoSearchTests extends MorphiumTestBase {
         }
     }
 
-    @Index("position:2d")
+    @Index(value = {"position:2d"})
     @NoCache
     @WriteBuffer(false)
     @WriteSafety(level = SafetyLevel.MAJORITY)

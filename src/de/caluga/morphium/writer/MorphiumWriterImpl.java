@@ -594,12 +594,8 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
 
 
                             boolean isn = morphium.getId(o) == null;
-                            if (morphium.getARHelper().isAnnotationPresentInHierarchy(o.getClass(), CreationTime.class)) {
-                                try {
-                                    isn = morphium.setAutoValues(o);
-                                } catch (IllegalAccessException e) {
-                                    logger.error(e.getMessage(), e);
-                                }
+                            if (morphium.isAutoValuesEnabledForThread()) {
+                                isn = morphium.setAutoValues(o);
                             }
 
                             if (isn) {
@@ -622,10 +618,9 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                             WriteConcern wc = morphium.getWriteConcernForClass(c);
                             String coll = cln != null ? cln : morphium.getMapper().getCollectionName(c);
 
-                            if (morphium.getConfig().isAutoIndexAndCappedCreationOnWrite() && !morphium.getDriver().exists(morphium.getConfig().getDatabase(), coll)) {
-                                createCappedCollationColl(c, coll);
-                                morphium.ensureIndicesFor(c, coll, callback);
-                            }
+
+                            createIndexAndCaps(c, coll, callback);
+
 
                             Entity en = morphium.getARHelper().getAnnotationFromHierarchy(c, Entity.class);
                             long start = System.currentTimeMillis();

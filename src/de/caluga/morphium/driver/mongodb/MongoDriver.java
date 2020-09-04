@@ -1366,12 +1366,12 @@ public class MongoDriver implements MorphiumDriver {
             co.collation(col);
         }
         if (currentTransaction.get() != null) {
-            if (co != null) {
+            if (collation != null) {
                 return coll.countDocuments(currentTransaction.get().getSession(), new BasicDBObject(query), co);
             }
             return coll.countDocuments(currentTransaction.get().getSession(), new BasicDBObject(query));
         } else {
-            if (co != null) {
+            if (collation != null) {
                 return coll.countDocuments(new BasicDBObject(query), co);
             }
             return coll.countDocuments(new BasicDBObject(query));
@@ -1445,6 +1445,7 @@ public class MongoDriver implements MorphiumDriver {
 
             }
             ret.put("total", total);
+            ret.put("modified", updated);
             return ret;
         }, retriesOnNetworkError, sleepBetweenErrorRetries);
         //noinspection unchecked
@@ -1917,33 +1918,41 @@ public class MongoDriver implements MorphiumDriver {
     public void createIndex(String db, String collection, Map<String, Object> index, Map<String, Object> options) throws MorphiumDriverException {
         DriverHelper.doCall(() -> {
             // BasicDBObject options1 = options == null ? new BasicDBObject() : new BasicDBObject(options);
+            IndexOptions options1 = new IndexOptions();
+            Method[] methods = IndexOptions.class.getMethods();
             if (options != null) {
-                IndexOptions options1 = new IndexOptions();
                 for (Map.Entry<String, Object> opt : options.entrySet()) {
+                    if (opt.getKey().equals("")) continue;
                     try {
                         String name = opt.getKey();
                         if (name.equals("expireAfterSeconds")) {
                             //all is different!!!!
                             options1.expireAfter(((Integer) opt.getValue()).longValue(), TimeUnit.SECONDS);
-
                         } else {
-                            Method m = IndexOptions.class.getMethod(opt.getKey());
-                            m.setAccessible(true);
-                            Object val = opt.getValue();
-                            if (!m.getParameterTypes()[0].equals(opt.getValue().getClass())) {
-                                if (m.getParameterTypes()[0].equals(boolean.class) || m.getParameterTypes()[0].equals(Boolean.class)) {
-                                    val = val.equals("true");
+                            Method method = null;
+                            for (Method m : methods) {
+                                if (m.getName().equals(opt.getKey())) {
+                                    method = m;
+                                    break;
                                 }
                             }
-                            m.invoke(options1, val);
+
+                            method.setAccessible(true);
+                            Object val = opt.getValue();
+                            if (!method.getParameterTypes()[0].equals(opt.getValue().getClass())) {
+                                if (method.getParameterTypes()[0].equals(boolean.class) || method.getParameterTypes()[0].equals(Boolean.class)) {
+                                    val = val.equals("true") || val.equals(1);
+                                }
+                            }
+                            method.invoke(options1, val);
                         }
                     } catch (Exception e) {
                         e.printStackTrace();
                         log.info("Could not find setting: " + opt.getKey());
                     }
                 }
-                mongo.getDatabase(db).getCollection(collection).createIndex(new BasicDBObject(index), options1);
             }
+            mongo.getDatabase(db).getCollection(collection).createIndex(new BasicDBObject(index), options1);
             return null;
         }, retriesOnNetworkError, sleepBetweenErrorRetries);
 
