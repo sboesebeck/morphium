@@ -596,6 +596,7 @@ public class CacheSyncTest extends MorphiumTestBase {
         List<Map<String, Object>> writings = new ArrayList<>();
         Map<String, Object> obj = new HashMap<>();
         obj.put("counter", 123);
+        obj.put("_id", new MorphiumId());
         obj.put(CachedObject.Fields.value.name(), "test");
         writings.add(obj);
         morphium.getDriver().store(morphium.getConfig().getDatabase(), morphium.getMapper().getCollectionName(CachedObject.class), writings, morphium.getWriteConcernForClass(CachedObject.class));
@@ -603,6 +604,8 @@ public class CacheSyncTest extends MorphiumTestBase {
         //now cache should be empty
         waitForWriteToStart(1000);
         waitForWrites();
+
+        Thread.sleep(200);
         assert (morphium.getStatistics().get("X-Entries for: resultCache|de.caluga.test.mongo.suite.data.CachedObject") <= 1);
         sync.terminate();
         Thread.sleep(1000);

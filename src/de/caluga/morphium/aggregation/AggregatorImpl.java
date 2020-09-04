@@ -306,9 +306,10 @@ public class AggregatorImpl<T, R> implements Aggregator<T, R> {
         List<R> result = new ArrayList<>();
         if (getResultType().equals(Map.class)) {
             result = (List<R>) r;
-        }
-        for (Map<String, Object> dbObj : r) {
-            result.add(morphium.getMapper().deserialize(getResultType(), dbObj));
+        } else {
+            for (Map<String, Object> dbObj : r) {
+                result.add(morphium.getMapper().deserialize(getResultType(), dbObj));
+            }
         }
         return result;
     }
@@ -609,7 +610,7 @@ public class AggregatorImpl<T, R> implements Aggregator<T, R> {
 
     @Override
     public Aggregator<T, R> lookup(String fromCollection, String localField, String foreignField, String outputArray, List<Expr> pipeline, Map<String, Expr> let) {
-        Utils.UtilsMap<String, Object> m = Utils.getMap("from", (Object) fromCollection);
+        Utils.UtilsMap<String, Object> m = Utils.getMap("from", fromCollection);
         if (localField != null)
             m.add("localField", localField);
         if (foreignField != null)

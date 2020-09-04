@@ -604,9 +604,10 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
 
                             if (isn) {
                                 setIdIfNull(o);
-                                toUpdate.putIfAbsent(o.getClass(), new ArrayList<>());
+                                newElementsToInsert.putIfAbsent(o.getClass(), new ArrayList<>());
                                 newElementsToInsert.get(o.getClass()).add(morphium.getMapper().serialize(o));
                             } else {
+                                toUpdate.putIfAbsent(o.getClass(), new ArrayList<>());
                                 toUpdate.get(o.getClass()).add(morphium.getMapper().serialize(o));
                             }
                             morphium.firePreStore(o, isn);
@@ -774,8 +775,12 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
         try {
             morphium.getDriver().runCommand(morphium.getConfig().getDatabase(), cmd);
         } catch (MorphiumDriverException ex) {
-            //TODO: Implement Handling
-            throw new RuntimeException(ex);
+            if (ex.getMessage().startsWith("internal error: Command failed with error 48 (NamespaceExists): 'Collection already exists. NS:")) {
+                LoggerFactory.getLogger(MorphiumWriterImpl.class).error("Collection already exists...?");
+            } else {
+
+                throw new RuntimeException(ex);
+            }
         }
     }
 
