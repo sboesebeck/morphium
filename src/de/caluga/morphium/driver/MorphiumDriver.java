@@ -2,6 +2,9 @@ package de.caluga.morphium.driver;/**
  * Created by stephan on 15.10.15.
  */
 
+import com.mongodb.event.ClusterListener;
+import com.mongodb.event.CommandListener;
+import com.mongodb.event.ConnectionPoolListener;
 import de.caluga.morphium.Collation;
 import de.caluga.morphium.Morphium;
 import de.caluga.morphium.driver.bulk.BulkRequestContext;
@@ -42,14 +45,14 @@ public interface MorphiumDriver {
     void setHostSeed(String... host);
 
 
-    abstract int getMaxConnections();
+    int getMaxConnections();
 
-    abstract void setMaxConnections(int maxConnections);
+    void setMaxConnections(int maxConnections);
 
 
-    abstract int getMinConnections();
+    int getMinConnections();
 
-    abstract void setMinConnections(int minConnections);
+    void setMinConnections(int minConnections);
 
     @SuppressWarnings("unused")
     int getMaxConnectionLifetime();
@@ -248,6 +251,18 @@ public interface MorphiumDriver {
     List<Map<String, Object>> mapReduce(String db, String collection, String mapping, String reducing, Map<String, Object> query) throws MorphiumDriverException;
 
     List<Map<String, Object>> mapReduce(String db, String collection, String mapping, String reducing, Map<String, Object> query, Map<String, Object> sorting, Collation collation) throws MorphiumDriverException;
+
+    void addCommandListener(CommandListener cmd);
+
+    void removeCommandListener(CommandListener cmd);
+
+    void addClusterListener(ClusterListener cl);
+
+    void removeClusterListener(ClusterListener cl);
+
+    void addConnectionPoolListener(ConnectionPoolListener cpl);
+
+    void removeConnectionPoolListener(ConnectionPoolListener cpl);
 
     /**
      * list collections whose name match the pattern

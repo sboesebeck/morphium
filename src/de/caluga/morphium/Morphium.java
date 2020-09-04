@@ -4,6 +4,9 @@
  */
 package de.caluga.morphium;
 
+import com.mongodb.event.ClusterListener;
+import com.mongodb.event.CommandListener;
+import com.mongodb.event.ConnectionPoolListener;
 import de.caluga.morphium.aggregation.Aggregator;
 import de.caluga.morphium.annotations.*;
 import de.caluga.morphium.annotations.caching.Cache;
@@ -226,10 +229,10 @@ public class Morphium implements AutoCloseable {
             }
 
             if (config.getMongoLogin() != null && config.getMongoPassword() != null) {
-                morphiumDriver.setCredentials(config.getDatabase(),config.getMongoLogin(), config.getMongoPassword().toCharArray());
+                morphiumDriver.setCredentials(config.getDatabase(), config.getMongoLogin(), config.getMongoPassword().toCharArray());
             }
             if (config.getMongoAdminUser() != null && config.getMongoAdminPwd() != null) {
-                morphiumDriver.setCredentials("admin",config.getMongoAdminUser(), config.getMongoAdminPwd().toCharArray());
+                morphiumDriver.setCredentials("admin", config.getMongoAdminUser(), config.getMongoAdminPwd().toCharArray());
             }
             String[] seed = new String[config.getHostSeed().size()];
             for (int i = 0; i < seed.length; i++) {
@@ -331,6 +334,7 @@ public class Morphium implements AutoCloseable {
             throw new RuntimeException("Validation not possible - javax.validation implementation not in Classpath?");
         }
     }
+
     @SuppressWarnings("UnusedDeclaration")
     private void setValidationSupport() {
         if (lst != null) {
@@ -2611,7 +2615,6 @@ public class Morphium implements AutoCloseable {
     }
 
 
-
     @SuppressWarnings("unchecked")
     public <T> T createLazyLoadedEntity(Class<? extends T> cls, Object id, String collectionName) {
         return (T) Enhancer.create(cls, new Class[]{Serializable.class}, new LazyDeReferencingProxy(this, cls, id, collectionName));
@@ -2871,4 +2874,28 @@ public class Morphium implements AutoCloseable {
         initializeAndConnect();
     }
 
+
+    public void addCommandListener(CommandListener cmd) {
+        morphiumDriver.addCommandListener(cmd);
+    }
+
+    public void removeCommandListener(CommandListener cmd) {
+        morphiumDriver.removeCommandListener(cmd);
+    }
+
+    public void addClusterListener(ClusterListener cl) {
+        morphiumDriver.addClusterListener(cl);
+    }
+
+    public void removeClusterListener(ClusterListener cl) {
+        morphiumDriver.removeClusterListener(cl);
+    }
+
+    public void addConnectionPoolListener(ConnectionPoolListener cpl) {
+        morphiumDriver.addConnectionPoolListener(cpl);
+    }
+
+    public void removeConnectionPoolListener(ConnectionPoolListener cpl) {
+        morphiumDriver.removeConnectionPoolListener(cpl);
+    }
 }
