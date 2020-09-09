@@ -123,6 +123,7 @@ public class MorphiumConfig {
     private int threadPoolMessagingCoreSize = 0;
     private int threadPoolMessagingMaxSize = 100;
     private long threadPoolMessagingKeepAliveTime = 2000;
+    private int messagingWindowSize = 100;
     private int threadPoolAsyncOpCoreSize = 1;
     private int threadPoolAsyncOpMaxSize = 1000;
     private long threadPoolAsyncOpKeepAliveTime = 1000;
@@ -247,9 +248,17 @@ public class MorphiumConfig {
         return cfg;
     }
 
+    public int getMessagingWindowSize() {
+        return messagingWindowSize;
+    }
+
+    public void setMessagingWindowSize(int messagingWindowSize) {
+        this.messagingWindowSize = messagingWindowSize;
+    }
+
     private static void parseClassSettings(String k, Object value, MorphiumConfig cfg) throws ClassNotFoundException, NoSuchFieldException, IllegalAccessException, InstantiationException, NoSuchMethodException, InvocationTargetException {
         if (!k.endsWith("ClassName")) {
-            return ;
+            return;
         }
         if (k.contains(".")) {
             k = k.substring(0, k.indexOf(".") + 1);

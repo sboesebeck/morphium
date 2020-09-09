@@ -31,9 +31,9 @@ import java.util.concurrent.atomic.AtomicInteger;
  */
 @SuppressWarnings({"ConstantConditions", "unchecked", "UnusedDeclaration"})
 public class Messaging extends Thread implements ShutdownListener {
-    private static Logger log = LoggerFactory.getLogger(Messaging.class);
+    private static final Logger log = LoggerFactory.getLogger(Messaging.class);
 
-    private Morphium morphium;
+    private final Morphium morphium;
     private boolean running;
     private int pause;
     private String id;
@@ -41,27 +41,27 @@ public class Messaging extends Thread implements ShutdownListener {
     private String hostname;
     private boolean processMultiple;
 
-    private List<MessageListener> listeners;
+    private final List<MessageListener> listeners;
 
 
-    private Map<String, Long> pauseMessages = new ConcurrentHashMap<>();
+    private final Map<String, Long> pauseMessages = new ConcurrentHashMap<>();
     private Map<String, List<MessageListener>> listenerByName;
     private String queueName;
 
     private ThreadPoolExecutor threadPool;
-    private ScheduledThreadPoolExecutor decouplePool;
+    private final ScheduledThreadPoolExecutor decouplePool;
 
     private boolean multithreadded;
     private int windowSize;
     private boolean useChangeStream;
     private ChangeStreamMonitor changeStreamMonitor;
 
-    private Map<MorphiumId, Msg> waitingForAnswers = new ConcurrentHashMap<>();
-    private Map<MorphiumId, Msg> waitingForMessages = new ConcurrentHashMap<>();
+    private final Map<MorphiumId, Msg> waitingForAnswers = new ConcurrentHashMap<>();
+    private final Map<MorphiumId, Msg> waitingForMessages = new ConcurrentHashMap<>();
 
-    private List<MorphiumId> processing = new Vector<>();
+    private final List<MorphiumId> processing = new Vector<>();
 
-    private AtomicInteger skipped = new AtomicInteger(0);
+    private final AtomicInteger skipped = new AtomicInteger(0);
 
     /**
      * attaches to the default queue named "msg"
@@ -83,7 +83,7 @@ public class Messaging extends Thread implements ShutdownListener {
     }
 
     public Messaging(Morphium m, String queueName, int pause, boolean processMultiple) {
-        this(m, queueName, pause, processMultiple, false, 1000);
+        this(m, queueName, pause, processMultiple, false, m.getConfig().getMessagingWindowSize());
     }
 
     public Messaging(Morphium m, String queueName, int pause, boolean processMultiple, boolean multithreadded, int windowSize) {
@@ -137,7 +137,7 @@ public class Messaging extends Thread implements ShutdownListener {
             });
             //noinspection unused,unused
             threadPool.setThreadFactory(new ThreadFactory() {
-                private AtomicInteger num = new AtomicInteger(1);
+                private final AtomicInteger num = new AtomicInteger(1);
 
                 @Override
                 public Thread newThread(Runnable r) {
@@ -152,7 +152,7 @@ public class Messaging extends Thread implements ShutdownListener {
         decouplePool = new ScheduledThreadPoolExecutor(1);
         //noinspection unused,unused
         decouplePool.setThreadFactory(new ThreadFactory() {
-            private AtomicInteger num = new AtomicInteger(1);
+            private final AtomicInteger num = new AtomicInteger(1);
 
             @Override
             public Thread newThread(Runnable r) {
