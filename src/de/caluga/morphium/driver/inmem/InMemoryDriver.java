@@ -1234,18 +1234,23 @@ public class InMemoryDriver implements MorphiumDriver {
 
     @Override
     public Map<String, Object> findAndOneAndUpdate(String db, String col, Map<String, Object> query, Map<String, Object> update, Map<String, Integer> sort, Collation collation) throws MorphiumDriverException {
-        return null;
+        List<Map<String, Object>> ret = find(db, col, query, sort, null, 0, 1, 1, null, collation, new HashMap<>());
+        update(db, col, query, update, false, false, collation, null);
+        return ret.get(0);
     }
 
     @Override
     public Map<String, Object> findAndOneAndReplace(String db, String col, Map<String, Object> query, Map<String, Object> replacement, Map<String, Integer> sort, Collation collation) throws MorphiumDriverException {
-        return null;
+        List<Map<String, Object>> ret = find(db, col, query, sort, null, 0, 1, 1, null, collation, new HashMap<>());
+        replacement.put("_id", ret.get(0).get("_id"));
+        store(db, col, Arrays.asList(replacement), null);
+        return replacement;
     }
 
 
     @Override
     public List<Map<String, Object>> aggregate(String db, String collection, List<Map<String, Object>> pipeline, boolean explain, boolean allowDiskUse, Collation collation, ReadPreference readPreference) throws MorphiumDriverException {
-        log.warn("Aggregate not possible in memory!");
+        log.warn("Aggregate not possible yet in memory!");
         return new ArrayList<>();
     }
 

@@ -23,7 +23,7 @@ public class CollationTest extends MorphiumTestBase {
         morphium.store(new UncachedObject("a", 1));
         morphium.store(new UncachedObject("b", 1));
         morphium.store(new UncachedObject("c", 1));
-
+        Thread.sleep(150);
         List<UncachedObject> lst = morphium.createQueryFor(UncachedObject.class).setCollation(new Collation().locale("de")).sort("value").asList();
         String result = "";
         for (UncachedObject u : lst) {
