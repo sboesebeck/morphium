@@ -27,8 +27,8 @@ import java.util.*;
 @WriteSafety(level = SafetyLevel.WAIT_FOR_ALL_SLAVES, waitForJournalCommit = false)
 @DefaultReadPreference(ReadPreferenceLevel.NEAREST)
 @Lifecycle
-@Index({"sender,locked_by,processed_by,recipient,priority,timestamp", "locked_by,processed_by,recipient,priority,timestamp",
-        "sender,locked_by,processed_by,recipient,name,priority,timestamp"})
+@Index({"sender,locked_by,processed_by,priority,timestamp", "locked_by,processed_by,priority,timestamp",
+        "sender,locked_by,processed_by,name,priority,timestamp"})
 public class Msg {
     @Index
     private List<String> processedBy;
@@ -42,9 +42,7 @@ public class Msg {
     private long ttl;
     private String sender;
     private String senderHost;
-    private String recipient;
-    @Transient
-    private List<String> to;
+    private List<String> recipients;
     private Object inAnswerTo;
     //payload goes here
     private String name;
@@ -112,15 +110,6 @@ public class Msg {
     }
 
     @SuppressWarnings("unused")
-    public String getRecipient() {
-        return recipient;
-    }
-
-    public void setRecipient(String recipient) {
-        this.recipient = recipient;
-    }
-
-    @SuppressWarnings("unused")
     public String getSenderHost() {
         return senderHost;
     }
@@ -139,20 +128,20 @@ public class Msg {
     }
 
     public void addRecipient(String id) {
-        if (to == null) {
-            to = new ArrayList<>();
+        if (recipients == null) {
+            recipients = new ArrayList<>();
 
         }
-        if (!to.contains(id)) {
-            to.add(id);
+        if (!recipients.contains(id)) {
+            recipients.add(id);
         }
     }
 
     @SuppressWarnings("unused")
     public void removeRecipient(String id) {
-        if (to != null) {
+        if (recipients != null) {
 
-            to.remove(id);
+            recipients.remove(id);
         }
     }
 
@@ -181,11 +170,11 @@ public class Msg {
     }
 
     public List<String> getTo() {
-        return to;
+        return recipients;
     }
 
     public void setTo(List<String> to) {
-        this.to = to;
+        this.recipients = to;
     }
 
     public Object getInAnswerTo() {
@@ -322,9 +311,7 @@ public class Msg {
                 ", timestamp=" + timestamp +
                 ", additional='" + additional + '\'' +
                 ", mapValue='" + mapValue + '\'' +
-                ", recipient='" + recipient + '\'' +
-                ", to_list='" + to + '\'' +
-
+                ", recipient='" + recipients + '\'' +
                 ", processedBy=" + processedBy +
                 '}';
     }
@@ -366,12 +353,25 @@ public class Msg {
     public void sendAnswer(Messaging messaging, Msg m) {
         m.setInAnswerTo(this.msgId);
         //m.addRecipient(this.getSender());
-        m.setRecipient(this.getSender());
+        m.addRecipient(this.getSender());
         m.setDeleteAt(new Date(System.currentTimeMillis() + m.getTtl()));
         m.setMsgId(new MorphiumId());
         messaging.sendMessage(m);
     }
 
+    public void setRecipient(String id) {
+        if (recipients == null) recipients = new ArrayList<>();
+        recipients.clear();
+        recipients.add(id);
+    }
 
-    public enum Fields {msgId, lockedBy, locked, ttl, sender, senderHost, recipient, to, inAnswerTo, name, msg, additional, mapValue, value, timestamp, deleteAt, priority, processedBy}
+    public List<String> getRecipients() {
+        return recipients;
+    }
+
+    public void setRecipients(List<String> recipients) {
+        this.recipients = recipients;
+    }
+
+    public enum Fields {msgId, lockedBy, locked, ttl, sender, senderHost, recipients, to, inAnswerTo, name, msg, additional, mapValue, value, timestamp, deleteAt, priority, processedBy}
 }
