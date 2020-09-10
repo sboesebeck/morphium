@@ -1,8 +1,6 @@
 package de.caluga.test.mongo.suite.messaging;
 
 import de.caluga.morphium.*;
-import de.caluga.morphium.changestream.ChangeStreamEvent;
-import de.caluga.morphium.changestream.ChangeStreamListener;
 import de.caluga.morphium.driver.MorphiumId;
 import de.caluga.morphium.messaging.MessageListener;
 import de.caluga.morphium.messaging.MessageRejectedException;
@@ -10,7 +8,6 @@ import de.caluga.morphium.messaging.Messaging;
 import de.caluga.morphium.messaging.Msg;
 import de.caluga.morphium.query.Query;
 import de.caluga.test.mongo.suite.MorphiumTestBase;
-import de.caluga.test.mongo.suite.data.UncachedObject;
 import org.junit.Test;
 
 import java.util.*;
@@ -23,7 +20,7 @@ import java.util.concurrent.atomic.AtomicInteger;
  * Time: 17:34
  * <p/>
  */
-@SuppressWarnings("Duplicates")
+@SuppressWarnings("ALL")
 public class MessagingTest extends MorphiumTestBase {
     public boolean gotMessage = false;
 
