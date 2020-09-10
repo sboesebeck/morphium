@@ -10,12 +10,12 @@ import java.util.Stack;
 public class Consumer implements JMSConsumer, de.caluga.morphium.messaging.MessageListener<JMSMessage> {
 
     private final Destination destination;
-    private String selector;
-    private Messaging messaging;
+    private final String selector;
+    private final Messaging messaging;
     private MessageListener listener;
-    private Stack<JMSMessage> incomingQueue = new Stack<>();
+    private final Stack<JMSMessage> incomingQueue = new Stack<>();
 
-    private Logger log = LoggerFactory.getLogger(Consumer.class);
+    private final Logger log = LoggerFactory.getLogger(Consumer.class);
 
     public Consumer(Messaging messaging, Destination dst) {
         this.messaging = messaging;
@@ -115,7 +115,7 @@ public class Consumer implements JMSConsumer, de.caluga.morphium.messaging.Messa
         ans.setName("ack");
         ans.setInAnswerTo(m.getMsgId());
         ans.setMsg("ack");
-        ans.setRecipient(m.getSender());
+        ans.addRecipient(m.getSender());
         return ans;
     }
 

@@ -34,8 +34,8 @@ public class InMemMessagingTest extends MorphiumInMemTestBase {
     public AtomicInteger procCounter = new AtomicInteger(0);
     public AtomicInteger errCounter = new AtomicInteger(0);
 
-    private Logger log = LoggerFactory.getLogger(InMemMessagingTest.class);
-    private List<Msg> list = new ArrayList<>();
+    private final Logger log = LoggerFactory.getLogger(InMemMessagingTest.class);
+    private final List<Msg> list = new ArrayList<>();
 
     public InMemMessagingTest() {
 
@@ -882,7 +882,7 @@ public class InMemMessagingTest extends MorphiumInMemTestBase {
             systems.add(m);
             MessageListener l = new MessageListener() {
                 Messaging msg;
-                List<String> ids = Collections.synchronizedList(new ArrayList<>());
+                final List<String> ids = Collections.synchronizedList(new ArrayList<>());
 
                 @Override
                 public Msg onMessage(Messaging msg, Msg m) {
@@ -1394,7 +1394,7 @@ public class InMemMessagingTest extends MorphiumInMemTestBase {
         assert (answer != null);
         assert (answer.getName().equals("test"));
         assert (answer.getInAnswerTo() != null);
-        assert (answer.getRecipient() != null);
+        assert (answer.getRecipients() != null);
         assert (answer.getMsg().equals("got message"));
         m1.terminate();
         sender.terminate();

@@ -588,6 +588,8 @@ public class MessagingTest extends MorphiumTestBase {
 
     @Test
     public void ignoringMessagesTest() throws Exception {
+        morphium.dropCollection(Msg.class);
+        Thread.sleep(100);
         Messaging m1 = new Messaging(morphium, 10, false, true, 10);
         m1.setSenderId("m1");
         Messaging m2 = new Messaging(morphium, 10, false, true, 10);
@@ -609,6 +611,8 @@ public class MessagingTest extends MorphiumTestBase {
 
     @Test
     public void severalMessagingsTest() throws Exception {
+        morphium.dropCollection(Msg.class);
+        Thread.sleep(100);
         Messaging m1 = new Messaging(morphium, 10, false, true, 10);
         m1.setSenderId("m1");
         Messaging m2 = new Messaging(morphium, 10, false, true, 10);
@@ -1870,4 +1874,61 @@ public class MessagingTest extends MorphiumTestBase {
         }
 
     }
+
+
+    @Test
+    public void severalRecipientsTest() throws Exception {
+        Messaging sender = new Messaging(morphium, 1000, false);
+        sender.setSenderId("sender");
+        sender.start();
+
+        List<Messaging> receivers = new ArrayList<>();
+        final List<String> receivedBy = new Vector<>();
+
+        for (int i = 0; i < 10; i++) {
+            Messaging receiver1 = new Messaging(morphium, 1000, false);
+            receiver1.setSenderId("rec" + i);
+            receiver1.start();
+            receivers.add(receiver1);
+            receiver1.addMessageListener(new MessageListener() {
+                @Override
+                public Msg onMessage(Messaging msg, Msg m) throws InterruptedException {
+                    receivedBy.add(msg.getSenderId());
+                    return null;
+                }
+            });
+        }
+
+        Msg m = new Msg("test", "msg", "value");
+        m.addRecipient("rec1");
+        m.addRecipient("rec2");
+        m.addRecipient("rec5");
+
+        sender.sendMessage(m);
+        Thread.sleep(1000);
+
+        assert (receivedBy.size() == m.getTo().size());
+        for (String r : m.getTo()) {
+            assert (receivedBy.contains(r));
+        }
+
+
+        receivedBy.clear();
+
+        m = new Msg("test", "msg", "value");
+        m.addRecipient("rec1");
+        m.addRecipient("rec2");
+        m.addRecipient("rec5");
+        m.setExclusive(true);
+
+        sender.sendMessage(m);
+        Thread.sleep(1000);
+        assert (receivedBy.size() == 1);
+        assert (m.getTo().contains(receivedBy.get(0)));
+
+        for (Messaging ms : receivers) {
+            ms.terminate();
+        }
+    }
+
 }

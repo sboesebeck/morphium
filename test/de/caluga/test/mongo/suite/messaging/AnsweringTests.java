@@ -28,9 +28,9 @@ public class AnsweringTests extends MorphiumTestBase {
 
     public AtomicInteger procCounter = new AtomicInteger(0);
 
-    private List<Msg> list = new ArrayList<>();
+    private final List<Msg> list = new ArrayList<>();
 
-    private AtomicInteger queueCount = new AtomicInteger(1000);
+    private final AtomicInteger queueCount = new AtomicInteger(1000);
 
 
     @Test
@@ -398,7 +398,7 @@ public class AnsweringTests extends MorphiumTestBase {
         assert (answer != null);
         assert (answer.getName().equals("test"));
         assert (answer.getInAnswerTo() != null);
-        assert (answer.getRecipient() != null);
+        assert (answer.getRecipients() != null);
         assert (answer.getMsg().equals("got message"));
         m1.terminate();
         sender.terminate();
