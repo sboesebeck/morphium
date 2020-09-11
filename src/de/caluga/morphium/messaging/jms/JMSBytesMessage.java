@@ -88,7 +88,7 @@ public class JMSBytesMessage extends JMSMessage implements BytesMessage {
 
     @Override
     public String readUTF() throws JMSException {
-        return null;
+        throw new IllegalArgumentException("not implemented yet, sorry");
     }
 
     @Override
