@@ -22,8 +22,6 @@ import de.caluga.morphium.driver.MorphiumId;
 @DefaultReadPreference(ReadPreferenceLevel.PRIMARY)
 public class Sequence {
     @Id
-    private MorphiumId id;
-    @Index
     private String name;
     private Long currentValue;
     @Index
@@ -66,20 +64,10 @@ public class Sequence {
         this.lockedBy = lockedBy;
     }
 
-    @SuppressWarnings("unused")
-    public MorphiumId getId() {
-        return id;
-    }
-
-    public void setId(MorphiumId id) {
-        this.id = id;
-    }
-
     @Override
     public String toString() {
         return "Sequence{" +
-                "id=" + id +
-                ", name='" + name + '\'' +
+                "name='" + name + '\'' +
                 ", currentValue=" + currentValue +
                 ", lockedBy='" + lockedBy + '\'' +
                 '}';
