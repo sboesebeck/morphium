@@ -15,12 +15,12 @@ _Morphium_ is simple to use, and easy to customise to your needs. The messaging 
 There is a ton of messaging solutions out there. All of them have their advantages and offer lots of features. But only few of them offer the things that _Morphium_ has:
 
 - the message queue can easily be inspected and you can use mongo search queries to find the messages you are looking for
-- the message queue can be altered
-- possibility to broadcast messages, that are only processed by one client max (Exclusive Messages)
-- multithreaded and thread safe
+- the message queue can be altered (update single messages with ease, delete messages or just _add_ new messages)
+- possibility to broadcast messages, that are only processed by one client max (Exclusive Messages). With V4.2 of _Morphium_ this also works with a group of recipients.
+- Messaging is multithreaded and thread safe
 - pausing and unpausing of message processing without data loss
 - _Morphium_ Messaging picks up all pending messages on startup - no data loss.
-- no need to install additional servers, provide infrastructure. Just use your MongoDB(fn)
+- no need to install additional servers, provide infrastructure. Just use your MongoDB.
 
 ### Quick start Messaging
 ```java
@@ -47,11 +47,11 @@ messaging.addMessageListener((messaging, msg) -> {
 
 So if you want to send a Message, that is also simple:
 
-
+```java
 messaging.queueMessage(new Msg("name","A message","the value");
+```
 
-
-queueMessage is running asynchrounously, which means, that the message is _not_ directly stored. If you need more speed and shorter reaction time, you should use `storeMessage` instead (directly storing message to mongo).
+queueMessage is running asynchrounously, which means, that the message is _not_ directly stored. If you need more speed and shorter reaction time, you should use `sendMessage` instead (directly storing message to mongo).
 
 
 ### Answering messages
@@ -134,6 +134,72 @@ some examples to clarify that:
 #### Custom MessageQueue name
 When creating a Messaging instance, you can set a collection name to use. This could be compared to having a separate message queue in the system. Messages sent to one queue are not being registered by another.
 
+#### JMS Support
+_Morphium_ messaging also implements the standard JMS-API to a certain extend and can be used this way. Please keep in mind that JMS does not support most of the features, _Morphium_ messaging offers, and that the JMS implementaion does not cover 100% of the JMS API yet:
+
+```java
+@Test
+    public void basicSendReceiveTest() throws Exception {
+        JMSConnectionFactory factory = new JMSConnectionFactory(morphium);
+        JMSContext ctx1 = factory.createContext();
+        JMSContext ctx2 = factory.createContext();
+
+        JMSProducer pr1 = ctx1.createProducer();
+        Topic dest = new JMSTopic("test1");
+
+        JMSConsumer con = ctx2.createConsumer(dest);
+        con.setMessageListener(message -> log.info("Got Message!"));
+        Thread.sleep(1000);
+        pr1.send(dest, "A test");
+
+        ctx1.close();
+        ctx2.close();
+    }
+    
+     @Test
+    public void synchronousSendRecieveTest() throws Exception {
+        JMSConnectionFactory factory = new JMSConnectionFactory(morphium);
+        JMSContext ctx1 = factory.createContext();
+        JMSContext ctx2 = factory.createContext();
+
+        JMSProducer pr1 = ctx1.createProducer();
+        Topic dest = new JMSTopic("test1");
+        JMSConsumer con = ctx2.createConsumer(dest);
+
+        final Map<String, Object> exchange = new ConcurrentHashMap<>();
+        Thread senderThread = new Thread(() -> {
+            JMSTextMessage message = new JMSTextMessage();
+            try {
+                message.setText("Test");
+            } catch (JMSException e) {
+                e.printStackTrace();
+            }
+            pr1.send(dest, message);
+            log.info("Sent out message");
+            exchange.put("sent", true);
+        });
+        Thread receiverThread = new Thread(() -> {
+            log.info("Receiving...");
+            Message msg = con.receive();
+            log.info("Got incoming message");
+            exchange.put("received", true);
+        });
+        receiverThread.start();
+        senderThread.start();
+        Thread.sleep(5000);
+        assert (exchange.get("sent") != null);
+        assert (exchange.get("received") != null);
+    }
+```
+
+__Caveats:__
+
+The JMS Implementation uses the answering mechanism for acknowledging incoming messages. This makes JMS more or less half as fast as the direct usage of _Morphium_ messaging. 
+
+Also, the implementation is very basic at the moment. A lot of methods lack implementation[^those throw an Exception to let you know, it is missing]. If you notice some missing functionality, just open an issue at [github](https://github.com/sboesebeck/morphium). 
+
+Because of the JMS Implementation being very basic at the moment, it should not be considered production ready!
+
 ### Examples
 #### Simple producer consumer setup:
 
@@ -183,6 +249,8 @@ In order to send a message directly to a specific messaging instance, you need t
 
 _Background_: This is used to send answers back to the sender. If you return a message instance in `onMessage`, this message will be sent directly back to the sender.
 
+You can add as many recipients as needed, if no recipient is defined, the message by default is sent to all listeners.
+
 #### Exclusive Broadcast messages
 Broadcast messages are fine for informing all listeners about something. But for some more complex scenarios, you would need a way to queue a message, and have only one listener process it - no matter which one (load balancing?)
 
@@ -196,17 +264,23 @@ Sending a exclusive broadcast message is simple:
 
 The listener only need to implement the standard `onMessage`-Method to get this message. Due to some sophisticated locking of messages, _Morphium_ makes this message exclusive - which means, it is only processed once!
 
+Since _Morphium_ V4.2 it is also possible to send an exclusive message to certain recipients[^does only make sense, when there is more than one recipient usually]. 
+
+The behaviour is the same: the message will only be processed by _one_ of the specified recipients, whereas it will be processed by _all_ recipients, if not exclusive.
+
+
 ## InMemory Driver
-one main purpose of the InMemoryDriver is to be able to do testing without having a MongoDB installed. The InMemoryDriver adds the opportunity to let all MongoDB-code run in Memeory, with a couple of exceptions
+One main purpose of the `InMemoryDriver` is to be able to do testing without having a MongoDB installed. The InMemoryDriver adds the opportunity to let all MongoDB-code run in Memeory, with a couple of exceptions
 - unfortunately, the InMemoryDriver cannot do aggregations. It will throw an Exception, when trying Aggregations with this driver
-- the inMemoryDriver is also not capable to return cluster information, runn mongodb commands
+- the inMemoryDriver is also not capable to return cluster information, run mongodb commands
 - it does not support spacial indexes or queries
 
-if you want to mock those things in testing, you need to:
+If you want to mock those things in testing, you need to:
 1. create a subclass of the inMemoryDriver
 2. override the corresponding method, for example `aggregate()` for aggregation and return the properly mocked data
 3. set the driver back to default in order to have it work
 
+```java
 		@Test
 		public void mockAggregation() throws Exception{
 		    MorphiumDriver original=morphium.getDriver();
@@ -223,6 +297,7 @@ if you want to mock those things in testing, you need to:
 	    morphium.getDriver().close(); 
 	    morphium.setDriver(original);
 	   }
+```
 
 
 ### how to use the inMemory Driver
@@ -245,6 +320,208 @@ You can also set the Driver in the settings, e.g. in properties:
 
 After that initialization you can use this _Morphium_ instance as always, except that it will "persist" data only in Memory.
 
+### Dumping InMemory data
+As in memory storage is by definition not lasting, it might be a good idea to store your data onto disk for later use. The InMemoryDriver does support that:
+
+```java
+ @Test
+public void driverDumpTest() throws Exception {
+    for (int i = 0; i < 100; i++) {
+        UncachedObject e = new UncachedObject();
+        e.setCounter(i);
+        e.setValue("value" + i);
+        e.setIntData(new int[]{i, i + 1, i + 2});
+        e.setDval(42.00001);
+        e.setBinaryData(new byte[]{1, 2, 3, 4, 5});
+        morphium.store(e);
+
+        ComplexObject o = new ComplexObject();
+        o.setEinText("A text " + i);
+        o.setEmbed(new EmbeddedObject("emb", "v1", System.currentTimeMillis()));
+        o.setRef(e);
+        morphium.store(o);
+
+
+    }
+
+    ByteArrayOutputStream bout = new ByteArrayOutputStream();
+
+    InMemoryDriver driver = (InMemoryDriver) morphium.getDriver();
+    driver.dump(morphium, morphium.getDriver().listDatabases().get(0), bout);
+    log.info("database dump is " + bout.size());
+
+    driver.close();
+    driver.connect();
+    driver.restore(new ByteArrayInputStream(bout.toByteArray()));
+    assert (morphium.createQueryFor(UncachedObject.class).countAll() == 100);
+    assert (morphium.createQueryFor(ComplexObject.class).countAll() == 100);
+
+    for (ComplexObject co : morphium.createQueryFor(ComplexObject.class).asList()) {
+        assert (co.getEinText() != null);
+        assert (co.getRef() != null);
+    }
+}
+```
+
+In this example, data is stored to a binary stream, which could also be stored to disk somewhere.
+
+But you can also create a dump in _JSON_ format, which makes it easier to edit and maybe to create from scratch:
+
+```java
+
+@Test
+public void jsonDumpTest() throws Exception {
+
+    MorphiumTypeMapper<ObjectId> mapper = new MorphiumTypeMapper<ObjectId>() {
+        @Override
+        public Object marshall(ObjectId o) {
+            Map<String, String> m = new HashMap<>();
+            m.put("value", o.toHexString());
+            m.put("class_name", o.getClass().getName());
+            return m;
+
+        }
+
+        @Override
+        public ObjectId unmarshall(Object d) {
+            return new ObjectId(((Map) d).get("value").toString());
+        }
+    };
+    morphium.getMapper().registerCustomMapperFor(ObjectId.class, mapper);
+    for (int i = 0; i < 10; i++) {
+        UncachedObject e = new UncachedObject();
+        e.setCounter(i);
+        e.setValue("value" + i);
+        morphium.store(e);
+    }
+    ExportContainer cnt = new ExportContainer();
+    cnt.created = System.currentTimeMillis();
+
+    cnt.data = ((InMemoryDriver) morphium.getDriver()).getDatabase(morphium.getDriver().listDatabases().get(0));
+
+    Map<String, Object> s = morphium.getMapper().serialize(cnt);
+    System.out.println(Utils.toJsonString(s));
+
+    morphium.dropCollection(UncachedObject.class);
+    ExportContainer ex = morphium.getMapper().deserialize(ExportContainer.class, Utils.toJsonString(s));
+    assert (ex != null);
+    ((InMemoryDriver) morphium.getDriver()).setDatabase(morphium.getDriver().listDatabases().get(0), ex.data);
+
+    List<UncachedObject> result = morphium.createQueryFor(UncachedObject.class).asList();
+    assert (result.size() == 10);
+    assert (result.get(1).getCounter() == 1);
+}
+
+
+@Entity
+public static class ExportContainer {
+    @Id
+    public Long created;
+    public Map<String, List<Map<String, Object>>> data;
+}
+``` 
+
+The JSON output of this little dump looks like this:
+
+```json
+{
+   "_id" : 1599853076411,
+   "data" : {
+      "uncached_object_0" : [
+         {
+            "_id" : {
+               "class_name" : "org.bson.types.ObjectId",
+               "value" : "5f5bd214f8fd82e792ef3b51"
+            },
+            "counter" : 0,
+            "dval" : 0,
+            "value" : "value0"
+         },
+         {
+            "_id" : {
+               "class_name" : "org.bson.types.ObjectId",
+               "value" : "5f5bd214f8fd82e792ef3b53"
+            },
+            "counter" : 1,
+            "dval" : 0,
+            "value" : "value1"
+         },
+         {
+            "_id" : {
+               "class_name" : "org.bson.types.ObjectId",
+               "value" : "5f5bd214f8fd82e792ef3b55"
+            },
+            "counter" : 2,
+            "dval" : 0,
+            "value" : "value2"
+         },
+         {
+            "_id" : {
+               "class_name" : "org.bson.types.ObjectId",
+               "value" : "5f5bd214f8fd82e792ef3b57"
+            },
+            "counter" : 3,
+            "dval" : 0,
+            "value" : "value3"
+         },
+         {
+            "_id" : {
+               "class_name" : "org.bson.types.ObjectId",
+               "value" : "5f5bd214f8fd82e792ef3b59"
+            },
+            "counter" : 4,
+            "dval" : 0,
+            "value" : "value4"
+         },
+         {
+            "_id" : {
+               "class_name" : "org.bson.types.ObjectId",
+               "value" : "5f5bd214f8fd82e792ef3b5b"
+            },
+            "counter" : 5,
+            "dval" : 0,
+            "value" : "value5"
+         },
+         {
+            "_id" : {
+               "class_name" : "org.bson.types.ObjectId",
+               "value" : "5f5bd214f8fd82e792ef3b5d"
+            },
+            "counter" : 6,
+            "dval" : 0,
+            "value" : "value6"
+         },
+         {
+            "_id" : {
+               "class_name" : "org.bson.types.ObjectId",
+               "value" : "5f5bd214f8fd82e792ef3b5f"
+            },
+            "counter" : 7,
+            "dval" : 0,
+            "value" : "value7"
+         },
+         {
+            "_id" : {
+               "class_name" : "org.bson.types.ObjectId",
+               "value" : "5f5bd214f8fd82e792ef3b61"
+            },
+            "counter" : 8,
+            "dval" : 0,
+            "value" : "value8"
+         },
+         {
+            "_id" : {
+               "class_name" : "org.bson.types.ObjectId",
+               "value" : "5f5bd214f8fd82e792ef3b63"
+            },
+            "counter" : 9,
+            "dval" : 0,
+            "value" : "value9"
+         }
+      ]
+   }
+}
+``` 
 
 ## _Morphium_ POJO Mapping
 ### Ideas and design criteria
@@ -258,6 +535,7 @@ _Morphium_ is built with flexibility, thread safety, performance and cluster awa
 - thread safety: all aspects of _Morphium_ were tested multithreaded so that it can be used in production
 - performance: one of the main goals of _Morphium_ was to improve performance. The Object Mapping in use is a custom implementation that was built especially for _Morphium_, is very fast and to improve speed even further, caching is part of the core features of _Morphium_
 - cluster awareness: this is essential nowadays for high availability or just mere speed. _Morphium_s caches are all cluster aware which means you will not end up with dirty reads in a clustered environment when using _Morphium_(fn)
+- independent from mongoDB Driver: _Morphium_ does not have a direct dependency on the mongoDB java driver, instead it considers it to be provided. This means, you can have a different version of the driver in use than the one _Morphium_ was last tested with (you do not need the latest and grates, usually it is backward compatible). In addition to that, _Morphium_ does not directly use MongoDB or BSON classes but offers its own implementation. For example the `MorphiumId`, wich is a drop in replacement for `ObjectId`.
 
 
 ### Concepts
@@ -297,8 +575,101 @@ _Morphium_ is capable of mapping standard Java objects (POJOs - plain old java o
 #### Declarative caching
 When working with databases - not only NoSQL ones - you need to consider caching. _Morphium_ integrates transparent declarative caching by entity to your application, if needed. Just define your caching needs in the `@Cache` annotation.(fn)
 The cache uses any JavaCache compatible cache implementation (like EHCache), but provides an own implementation if nothing is specified otherwise.
+
+There are two kinds of caches: read cache and write cache.
+
+__Write cache__:
+ 
+The WriteCache is just a buffer, where all things to write will be stored and eventually stored to database. This is done by adding the Annotation `@WriteBuffer` to the class:
+
+```java
+@Entity
+ @WriteBuffer(size = 150, strategy = WriteBuffer.STRATEGY.DEL_OLD)
+    public static class BufferedBySizeDelOldObject extends UncachedObject {
+
+    }
+```
+In this case, the buffer has a maximum of 150 entries, and if the buffer has reached that maximum, the oldest entries will just be deleted from buffer and hence NOT be written!
+Possible strategies are:
+* `WriteBuffer.STRATEGY.DEL_OLD`: delete oldest entries from buffer - use with caution
+* `WriteBuffer.STRATEGY.IGNORE_NEW`: Do not write the new entry - just discard it. use with caution
+* `WriteBuffer.STRATEGY.JUST_WARN`: just log a warning message, but store data anyway
+* `WriteBuffer.STRATEGY.WRITE_NEW`: write the new entry synchronously and wait for it to be finished
+* `WriteBuffer.STRATEGY.WRITE_OLD`: write some old data NOW, wait for it to be finished, than queue new entries
+
+That's it - rest is 100% transparent - just call `morphium.store(entity);` - the rest is done automatically.
+
+internally it uses the `BufferedWriter` implementation, which can be changed, if needed (see configuration options below). Also, some config settings exist for switching off the buffered writing altogether - comes in handy when testing. have a closer look at the configuration options in `MorphiumConfig` which refer to `writeBuffer` or `BufferedWriter`.
+
+__Read Cache__
+
+Read caches are defined on type level with the annotation @Cache. There you can specify, how your cache should operate:
+
+```java
+@Cache(clearOnWrite = true, maxEntries = 20000, strategy = Cache.ClearStrategy.LRU, syncCache = Cache.SyncCacheStrategy.CLEAR_TYPE_CACHE, timeout = 5000)
+@Entity
+public class MyCachedEntity {
+.....
+}
+```
+
+here a cache is defined, which has a maximum of 20000 entries. Those Entries have a lifetime of 5 seconds (timeout=5000). Which means, no element will stay longer than 5sec in cache. The strategy defines, what should happen, when you read additional object, and the cache is full:
+* `Cache.ClearStartegy.LRU`: remove least recently used elements from cache
+* `Cache.ClearStrategy.FIFO`:first in first out - depending time added to cache
+* `Cache.ClearStrategy.RANDOM`: just remove some random entries
+With `clearOnWrite=true` set, the local cache will be erased any time you write an entity of this typte to database. This prevents dirty reads. If set to false, you might end up with stale data (for as long as the timeout value) but produce less stress on mongo and be probably a bit faster.
+
 #### cache synchronization
 as mentioned above, caching is of utter importance in production grade applications. Usually, caching in a clustered Environment is kind of a pain. As you need consider dirty reads and such. But _Morphium_ caching works also fine in a clustered environment. Just start (instantiate) a `CacheSynchronizer` - and you're good to go!
+
+**Internals / Implementation details **
+* _Morphium_ uses the cache based on the search query, sort options and collection overrides given. This means  that there might be doublicate cache entries. In order to minimize the memory usage, _Morphium_ also uses an ID-Cache. So all results are just added to this id cache and those ids are added as result to the query cache.
+the Caches are organized per type. This means, if your entity is not marked with @Cache, queries to this type won't be cached, even if you override the collection name. 
+* The cache is implemented completely unblocking and completely thread safe. There is almost no synchronized block in _Morphium_.
+
+It's a common problem, especially in clustered environments. How to synchronize caches on the different nodes. _Morphium_ offers a simple solutions for it: On every write operation, a Message is stored in the Message queue (see MessagingSystem) and all nodes will clear the cache for the corresponding type (which will result in re-read of objects from mongo - keep that in mind if you plan to have a hundred hosts on your network) This is easy to use, does not cause a lot of overhead. Unfortunately it cannot be more efficient hence the Cache in _Morphium_ is organized by searches.
+
+the _Morphium_ cache Syncrhonizer does not issue messages for uncached entities or entities, where clearOnWriteis set to false. Configurations are always synced - if you need a host-local configuration, you need to name it uniquely (by adding the hostname or mac address or something). BUT: All configuration will be synchronized to all nodes...
+
+Here is an example on how to use this:
+```java
+    Messaging m=new Messaging(morphium,10000,true);
+    CacheSynchronizer cs=new CacheSynchronizer(m,morphium);
+```
+Actually this is all there is to do, as the CacheSynchronizer registers itself to both _Morphium_ and the messaging system.
+
+__Change sinces 1.4.0__
+Now the Caching is specified by every entity in the @Cache annotation using one Enum called SyncCacheStrategy. Possible Values are: NONE (Default), CLEAR_TYPE_CACHE (clear cache of all queries on change) and UPDATE_ENTRY (updates the entry itself), REMOVE_ENTRY_FROM_TYPE_CACHE (removes all entries from cache, containing this element)
+```java
+enum SyncCacheStrategy {NONE, CLEAR_TYPE_CACHE, REMOVE_ENTRY_FROM_TYPE_CACHE, UPDATE_ENTRY}
+```
+UPDATE_ENTRY only works when updating records, not on drop or remove or update (like inc, set, push...). For example, if UPDATE_ENTRY is set, and you drop the collection, type cache will be cleared. 
+**Attention:** UPDATE_ENTRY will result in dirty reads, as the Item itself is updated, but not the corresponding searches! 
+Meaning: assume you have a Query result cached, where you have all Users listed which have a certain role:
+```java
+   Query<User> q=morphium.createQueryFor(User.class);
+   q=q.f("role").eq("Admin");
+   List<User> lst=q.asList();
+```
+
+Let's further assume you got 3 Users as a result. Now imagine, one node on your cluster changes the role of one of the users to something different than "Admin". If you have a list of users that might be changed while you use them! Careful with that! More importantly: your cache holds a copy of that list of users for a certain amount of time. During that time you will get a dirty read. Meaning: you will get objects that actually might not be part of your query or you will not get that actually might (not so bad actually).
+
+Better use REMOVE_ENTRY_FROM_TYPE_CACHE in that case, as it will keep everything in cache except your search results containing the updated element. Might also cause a dirty read (as the newly added elements might not be added to your results) but it keeps findings more or less correct.
+
+As all these synchronizations are done by sending messages via the _Morphium_ own messaging system (which means storing messages in DB), you should really consider just disabling cache in case of heavy updates as a read from Mongo might actually be lots faster then sync of caches.
+
+Keep that in mind!
+
+__Change since 1.3.07__
+Since 1.3.07 you need to add a autoSync=true to your cache annotation, in order to have things synced. It tuned out, that automatic syncing is not always the best solution. So, you can still manually sync your caches.
+
+__Manually Syncing the Caches__
+The sync in _Morphium_ can be controlled totally manually (since 1.3.07), just send your own Clear-Cache Message using the corresponding method in CacheSynchronizer.
+```java
+   cs.sendClearMessage(CachedObject.class,"Manual delete");
+```
+
+
 #### Auto-Versioning
 When it comes to dirty reads and such, you might want to use the auto-versioning feature of _Morphium_. This will give every entity a version number. If you want to write to MongoDB and the version number differs, you'd get an exception - meaning the database was modified before you tried to persist your data. This so called _optimistic locking_ will help in most cases to avoid accidental overwriting of data.
 To use auto-Versioning, just set the corresponding flag in the `@Entity`-annotation to `true` and define a `Long` in your class, that should hold the version number using the `@Version`-annotation.
@@ -310,11 +681,117 @@ usually _Morphium_ knows which collection holds which kind of data. When de-seri
 But when it comes to polymorphism and containers (like lists and maps), things get compicated. _Morphium_ adds in this case the class name as property to the document. Up until version 4.0.0 this was causing some problems when refactoring your Entities. If you changed the classname or the package name of that class, de-serializing was impossible (the classname was obviously wrong).
 
 now you can just set the `typeId` in `@Entity` to be able refactor more easily. If you already have data, and you want to refactor your entitiy names, just add the _original_ class name as type id!
+#### Sequences
+One of the very convenient features of SQL-Databases is the support for sequences. This is _very_ useful when trying to have unique IDs.
+_Morphium_ implements a feature very similar to SQL-Sequences. Hence it is also called `SequenceGenerator`.
+
+A sequence is a simple implementation in _Morphium_ that uses MongoDB to generate unique numbers. Example:
+
+```
+SequenceGenerator sg = new SequenceGenerator(morphium, "tstseq", 1, 1);
+long v = sg.getNextValue();
+assert (v == 1) : "Value wrong: " + v;
+v = sg.getNextValue();
+assert (v == 2);
+```
+
+As those generators use MongoDB for synchronization, they are cluster-safe and can be used by all clients of the same MongoDB simultaneously. No number will be delivered twice!
+
+This test here uses several Threads to access the same `SequenceGenerator`:
+
+```java
+ final SequenceGenerator sg1 = new SequenceGenerator(morphium, "tstseq", 1, 0);
+        Vector<Thread> thr = new Vector<>();
+        final Vector<Long> data = new Vector<>();
+        for (int i = 0; i < 10; i++) {
+            Thread t = new Thread(() -> {
+                for (int i1 = 0; i1 < 25; i1++) {
+                    long nv = sg1.getNextValue();
+                    assert (!data.contains(nv)) : "Value already stored? Value: " + nv;
+                    data.add(nv);
+                    try {
+                        Thread.sleep(10);
+                    } catch (InterruptedException e) {
+                    }
+                }
+            });
+            t.start();
+            thr.add(t);
+        }
+        log.info("Waiting for threads to finish");
+        for (Thread t : thr) {
+            t.join();
+        }
+        long last = -1;
+        Collections.sort(data);
+        for (Long l : data) {
+            assert (last == l - 1);
+            last = l;
+        }
+        log.info("done");
+``` 
+
+Here is an example, where the sequences are being used by _a lot_ of separate threads each with its own connection to mongodb:
+
+```java
+morphium.dropCollection(Sequence.class);
+Thread.sleep(100); //wait for the drop to be persisted
+
+
+//creating lots of sequences, with separate MongoDBConnections
+//reading from the same sequence
+//in different Threads
+final Vector<Long> values=new Vector<>();
+List<Thread> threads=new ArrayList<>();
+final AtomicInteger errors=new AtomicInteger(0);
+for (int i = 0; i < 10; i++) {
+    Morphium m=new Morphium(MorphiumConfig.fromProperties(morphium.getConfig().asProperties()));
+
+    Thread t=new Thread(()->{
+        SequenceGenerator sg1 = new SequenceGenerator(m, "testsequence", 1, 0);
+        for (int j=0;j<100;j++){
+            long l=sg1.getNextValue();
+            log.info("Got nextValue: "+l);
+            if(values.contains(l)){
+                log.error("Duplicate value "+l);
+                errors.incrementAndGet();
+            } else {
+                values.add(l);
+            }
+            try {
+                Thread.sleep((long) (100*Math.random()));
+            } catch (InterruptedException e) {
+            }
+        }
+        m.close();
+    });
+    threads.add(t);
+    t.start();
+}
+
+while (threads.size()>0){
+    //log.info("Threads active: "+threads.size());
+    threads.get(0).join();
+    threads.remove(0);
+    Thread.sleep(100);
+}
+
+assert(errors.get()==0);
+
+```
+
+__Attention__ after creating a new `SequenceGenerator` the `currentValue` will be `startValue-inc` in order so that `getNextValue()` will return `startValue` first.
+When migrating to _Morphium_ 4.2.x or higher from older versions the sequences will not be compatible anymore due to a change in ID.
+to fix that, you need to run the following command in mongoDB shell:
+```js
+db.sequence.find({name:{$exists:true}}).forEach(function(x){db.sequence.deleteOne({_id:x._id}); x._id=x.name;delete x.name; db.sequence.save(x);});
+```
 
 #### transparent encryption of values
-Morphium implemented a client side version of auto encrypted fields. When defining a property, you can specifiy the value to be encrypted. Morphium provides an implementation of AESEncryption, but you could implement any other encryption. 
+_Morphium_ implemented a client side version of auto encrypted fields. When defining a property, you can specify the value to be encrypted. _Morphium_ provides an implementation of AESEncryption, but you could implement any other encryption. 
 In order for encryption to work, we need to provide a `ValueEncryptionProvider`. This is a very simple interface:
 
+```java
 		package de.caluga.morphium.encryption;
 
 		public interface ValueEncryptionProvider {
@@ -331,9 +808,12 @@ In order for encryption to work, we need to provide a `ValueEncryptionProvider`.
 		    byte[] decrypt(byte[] input);
 		
 		}
+```
+
 There are two implementations available: `AESEncryptionProvider` and `RSAEncryptionProvider`. 
 Another interface being used is the `EncryptionKeyProvider`, a simple system for managing encryption keys:
 
+```java
 		package de.caluga.morphium.encryption;
 		
 		public interface EncryptionKeyProvider {
@@ -346,11 +826,13 @@ Another interface being used is the `EncryptionKeyProvider`, a simple system for
 		    byte[] getDecryptionKey(String name);
 		
 		}
+```
 
 The `DefaultEncrptionKeyProvider` acutally is a very simple key-value-store and needs to be filled manually. The implementation `PropertyEncryptionKeyProvider` reads those keys from _encrypted_ property files.
 
 Here is an example, on how to use the transparent encryption:
 
+```java
     @Entity
     public static class EncryptedEntity {
         @Id
@@ -408,14 +890,228 @@ Here is an example, on how to use the transparent encryption:
         assert (ent.floatValue.equals(deserialized.floatValue));
         assert (ent.listOfStrings.equals(deserialized.listOfStrings));
     }
-
+```
 
 
 Please note, that the key _name_ used for encryption and decryption is to be defined in the property configuration of the corresponding entity. 
 
+#### binary serialization
+the config of morphium does have a setting called `objectSerializationEnabled`. When set to `true` this will cause morphium to use the standard binary serialization of the JDK to store _any_ instance of _any_ class that implements `serializable`[^attention: the "top level" document needs to be an Entity to have all necessary settings there. But "subdocuments"/properties might be just serializable].
+
+Another setting in the config called `warnOnNoEntitySerialization` will create a warning message in log, when this serialization takes place. 
+
+This is set to `true` by default, to make development easier. But you probably do not want to use it on heavy load entities.
+
+To store the binary data, _Morphium_ uses a helper class called `BinarySerializedObject`, which will be shown in MongoDB:
+
+```json
+{
+    "_id" : ObjectId("5f5bc1d8f8fd8247688e41f5"),
+    "list" : [ 
+        {
+            "original_class_name" : "de.caluga.test.mongo.suite.NonEntitySerialization$NonEntity",
+            "_b64data" : "rO0ABXNyADtkZS5jYWx1Z2EudGVzdC5tb25nby5zdWl0ZS5Ob25FbnRpdHlTZXJpYWxpemF0aW9u\r\nJE5vbkVudGl0eV18gEK68jkAAgACTAAHaW50ZWdlcnQAE0xqYXZhL2xhbmcvSW50ZWdlcjtMAAV2\r\nYWx1ZXQAEkxqYXZhL2xhbmcvU3RyaW5nO3hwc3IAEWphdmEubGFuZy5JbnRlZ2VyEuKgpPeBhzgC\r\nAAFJAAV2YWx1ZXhyABBqYXZhLmxhbmcuTnVtYmVyhqyVHQuU4IsCAAB4cAAAACp0ABZUaGFuayB5\r\nb3UgZm9yIHRoZSBmaXNo"
+        }, 
+        "Some string"
+    ]
+}
+```
+
+In this case, this "Container" does contain a list of non-entity objects:
+
+```java
+
+    @Entity
+    public class NonEntityContainer {
+        @Id
+        private MorphiumId id;
+        private List<Object> list;
+        private HashMap<String, Object> map;
+
+        public MorphiumId getId() {
+            return id;
+        }
+
+        public void setId(MorphiumId id) {
+            this.id = id;
+        }
+
+        public List<Object> getList() {
+            return list;
+        }
+
+        public void setList(List<Object> list) {
+            this.list = list;
+        }
+
+        public HashMap<String, Object> getMap() {
+            return map;
+        }
+
+        public void setMap(HashMap<String, Object> map) {
+            this.map = map;
+        }
+    }
+
+
+
+    public class NonEntity implements Serializable {
+        private String value;
+        private Integer integer;
+
+        public String getValue() {
+            return value;
+        }
+
+        public void setValue(String value) {
+            this.value = value;
+        }
+
+        public Integer getInteger() {
+            return integer;
+        }
+
+        public void setInteger(Integer integer) {
+            this.integer = integer;
+        }
+
+        @Override
+        public String toString() {
+            return "NonEntity{" +
+                    "value='" + value + '\'' +
+                    ", integer=" + integer +
+                    '}';
+        }
+    }
+```
+
+__Attention:__ please keep in mind, that you cannot store non-entities directly. Only a member variable of an entity (even if it is in a list or Map) might be non-entities.
+
+
+
+#### complex data structures
+ In the jUnit tests, _Morphium_ is tested to support those complex data structures, like lists of lists, lists of maps or maps of lists of entities. I think, you'll get the picture:
+ 
+```java
+  public static class CMapListObject extends MapListObject {
+        private Map<String, List<EmbObj>> map1;
+        private Map<String, EmbObj> map2;
+        private Map<String, List<String>> map3;
+        private Map<String, List<EmbObj>> map4;
+
+        private Map<String, Map<String, String>> map5;
+        private Map<String, Map<String, EmbObj>> map5a;
+        private Map<String, List<Map<String, EmbObj>>> map6a;
+
+        private List<Map<String, String>> map7;
+        private List<List<Map<String, String>>> map7a;
+        ....
+```
+
+have a look at the Tests in code on github for more examples. the main challenge here is, to determine the right type of elements in the list in order to be able to de-serialize them properly. In this case, de-serialization is done in background transparently:
+
+```java
+ @Test
+    public void testListOfListOfMap() {
+        morphium.dropCollection(MapListObject.class);
+
+        CMapListObject o = new CMapListObject();
+        List<List<Map<String, String>>> lst = new ArrayList<>();
+        List<Map<String, String>> l2 = new ArrayList<>();
+        Map<String, String> map = new HashMap<>();
+        map.put("k1", "v1");
+        map.put("k2", "v2");
+        l2.add(map);
+        map = new HashMap<>();
+        map.put("k11", "v11");
+        map.put("k21", "v21");
+        map.put("k31", "v31");
+        l2.add(map);
+        lst.add(l2);
+
+        l2 = new ArrayList<>();
+        map = new HashMap<>();
+        map.put("k15", "v1");
+        map.put("k25", "v2");
+        l2.add(map);
+        map = new HashMap<>();
+        map.put("k51", "v11");
+        map.put("k533", "v21");
+        map.put("k513", "v31");
+        l2.add(map);
+        map = new HashMap<>();
+        map.put("k512", "v11");
+        map.put("k514", "v21");
+        map.put("k513", "v31");
+        l2.add(map);
+
+        lst.add(l2);
+        o.setMap7a(lst);
+
+        morphium.store(o);
+
+        CMapListObject ml = morphium.findById(CMapListObject.class, o.getId());
+        assert (ml.getMap7a().get(1).get(0).get("k15").equals("v1"));
+    }
+```
+
+as you see here, the deserialization is done transparently in background even on several levels "down", the `CMapListObject` is initialized properly.
+
+_Caveat_: this can only work, if java knows the type of the elements in the list. As soon as there is a `List<Object>` in the type definition, morphium does not know, what the type might be. It will try to deserialize it (which will work if it is a proper entity), but might not work in all cases. If this detection fails, you'll likely end up getting a `ClassCastException`. If so, try to define the data structure more strictly or simplify it.
+
+#### Support for MapReduce
+To do complex aggregations and analysis of your data in MongoDB the first choice to do that was _MapReduce_. If necessary or convenient, you can use that with _Morphium_ as well, although it is not as powerful as the _Aggregation Framework_ (see below).
+
+Here is a basic example on how to use _MapReduce_:
+
+```java
+
+    private void doSimpleMRTest(Morphium m) throws Exception {
+        List<UncachedObject> result = m.mapReduce(UncachedObject.class, "function(){emit(this.counter%2==0,this);}", "function (key,values){var ret={_id:ObjectId(), value:\"\", counter:0}; if (key==true) {ret.value=\"even\";} else { ret.value=\"odd\";} for (var i=0; i<values.length;i++){ret.counter=ret.counter+values[i].counter;}return ret;}");
+        assert (result.size() == 2);
+        boolean odd = false;
+        boolean even = false;
+        for (UncachedObject r : result) {
+            if (r.getValue().equals("odd")) {
+                odd = true;
+            }
+            if (r.getValue().equals("even")) {
+                even = true;
+            }
+            assert (r.getCounter() > 0);
+        }
+        assert (odd);
+        assert (even);
+    }
+```
+
+the problem here is, that you need to write _JavaScript_ code and hence need to switch between contexts, whereas the Aggregation support in _Morphium_ lets you define the whole pipeline in Java.
+
+#### automatic retries on error
+The write concern aka WriteSafety-Annotation in _Morphium_ is not enough for being on the safe side. the WriteSafety only makes sure, that, if all is ok, data is written to the amount of nodes, you want it to be written. You define the safety level more or less in an Application point of view. This does not affect networking outage or other problems. Also in case of a failover during access, you will end up with an exception in application. In order to deal with the problem, the coding advice for MongoDB is, to have all accesses run in a loop so that you can retry on failure and hope for fast recovery. 
+
+_Morphium_ takes care of that: all access to mongo is done in a loop and _Morphium_ tries to detect if that error is recoverable (like a failover) or not. there are several retry-settings in the config.
+
+__retry settings in writers__
+_Morphium_ has 3 different types of writers:
+* the normal writer: supports asynchronous and synchronous writes
+* the async writer: forces asynchronous writes
+* the buffered writer: stores write requests in a buffer and executes those on block
+
+This has some implications, as the core of _Morphium_ is asynchronous, we need to make sure, there are not too many pending writes. (the "pile" is determined by the maximum amount of connections to mongo - hence this is something you won't need to configure)
+This is where the retry settings for writers come in. When writing data, this data is either written synchronously or asynchronously. In the latter case, the requests tend to pile up on heavy load. And we need to handle the case, when this pile gets too high. This is the retry. When the pile of pending requests is too high, wait for a specified amount of time and try again to queue the operation. If that fails for all retries - throw an exception.
+
+__Retry settings for Network errors__
+As we had a really sh... network which causes problems more than once a day, we needed to come up with a solution for this as well. As our network does not fail for more than a couple of requests, the idea is to detect network problems and retry the operation after a certain amount of time. This setting is specified globally in _Morphium_ config:
+
+´´´java
+        morphiumConfig.setRetriesOnNetworkError(10);
+        morphiumConfig.setSleepBetweenNetworkErrorRetries(500);
+´´´
+This causes _Morphium_ to retry any operation on mongo 10 times (if a network related error occurs) and pause 500ms between each try. This includes, reads, writes, updates, index creation and aggregation. If the access failed after the (in this case) 10th try - rethrow the networking error to the caller.
 
 ##  configuring _Morphium_: `MorphiumConfig`
-MorphiumConfig is the class to encapsulate all settings for _Morphium_. The most obious settings are the host seed and port definitions. But there is a ton of additional settings available.
+MorphiumConfig is the class to encapsulate all settings for _Morphium_. The most obvious settings are the host seed and port definitions. But there is a ton of additional settings available.
 
 ### Different sources
 #### Json
@@ -425,7 +1121,7 @@ the configuration can be stored and read from a property object.
 
 `MorphiumConfig.fromProperties(Properties p);` Call this method to set all values according to the given properties. You also can pass the properties to the constructor to have it configured.
 
-To get the properties for the current configuration, just call `asProperties()` on a configured MorphiumConfig Object.
+To get the properties for the current configuration, call `asProperties()` on a configured MorphiumConfig Object.
 
 Here is an example property-file:
 
@@ -452,7 +1148,7 @@ The minimal property file would define only `hosts` and `database`. All other va
 If you want to specify classes in the config (like the Query Implementation), you need to specify the full qualified class name, e.g. `de.caluga.morphium.customquery.QueryImpl`
 
 #### Java-Code
-The most straight forward way of configuring _Morphium_ is, using the object directly. This means you just call the getters and setters according to the given variable names above (like `setMaxAutoReconnectTime()`).
+The most straight forward way of configuring _Morphium_ is, using the object directly. This means you call the getters and setters according to the given variable names above (like `setMaxAutoReconnectTime()`).
 
 The minimum configuration is explained above: you only need to specify the database name and the host(s) to connect to. All other settings have sensible defaults, which should work for most cases.
 
@@ -491,7 +1187,7 @@ There are a lot of settings and customizations you can do within _Morphium_. Her
 *   `replicaSetMonitoringTimeout`: time interval to update replicaset status.
 *   *retriesOnNetworkError*: if you happen to have an unreliable network, maybe you want to retry writes / reads upon network error. This settings sets the number of retries for that case.
 *   *sleepBetweenNetworkErrorRetries*: set the time to wait between network error retries.
-* _autoIndexAndCappedCreationOnWrite_: This setting is by default _true_ which means, that _Morphium_ keeps a list of existing collections. When a collection would be created automatically by writing to it, morphium can then and only then have all indexes and capped settings configured for that specific collection. Causes a little overhead on write access to see, if a collection exists. Probably a good idea to switch off in production environment, but for development it makes things easier.
+* _autoIndexAndCappedCreationOnWrite_: This setting is by default _true_ which means, that _Morphium_ keeps a list of existing collections. When a collection would be created automatically by writing to it, _Morphium_ can then and only then have all indexes and capped settings configured for that specific collection. Causes a little overhead on write access to see, if a collection exists. Probably a good idea to switch off in production environment, but for development it makes things easier.
 
 
 In addition to those settings describing the behaviour of *_Morphium_*, you can also define custom classes to be used internally:
@@ -505,6 +1201,46 @@ In addition to those settings describing the behaviour of *_Morphium_*, you can 
 *   *cache*: Set your own implementation of the cache. It needs to implement the `MorphiumCache` interface. Default is `MorphiumCacheImpl`. You need to specify a fully configured cache object here, not only a class object.
 *   _driverClass_: Set the driver implementation, you want to use. This is a string, set the class name here. E.g. `MorphiumConfig.setDriverClass(MetaDriver.class.getName()`. Custom implementations need to implement the `MorphiumDriver` interface.
 
+In Mongo until V 2.4 authentication and user privileges were not really existent. With 2.4, roles are introduces which might make it a bit more complicated to get things working.
+
+### authentication
+_Morphium_ supports authentication, of course, but only once. So usually you have an application user, which connects to database. Login to mongo is configured as follows:
+```java
+    MorphiumConfig cfg=new Morpiumconfig(...);
+    ...
+    cfg.setMongoLogin("tst");
+    cfg.setMongoPassword("tst");
+```
+This user usually needs to have read/Write access to the database. If you want your indices to be created automatically by you, this user also needs to have the role dbAdmin for the corresponding database. If you use _Morphium_ with a replicase of mongo nodes, _Morphium_ needs to be able to get access to local database and get the replicaset status. In order to do so, either the mongo user needs to get additional roles (clusterAdmin and read to local db), or you specify a special user for that task, which has excactly those roles. _Morphium_ authenticates with that different user for accessing replicaSet status (and only for getting the replicaset status) and is convigured very similar to the normal login:
+```java
+     cfg.setMongoAdminUser("adm");
+     cfg.setMongoAdminPwd("adm");
+```
+
+#### corresponding MongoD Config
+You need to run your mongo nodes with -auth (or authenticate = true set in config) and if you run a replicaset, those nodes need to share a key file or kerberos authentication. (see http://docs.mongodb.org/manual/reference/user-privileges/) Let's assume, that all works for now. Now you need to specify the users. One way of doing that is the following:
+* add the user for mongo to your main database (in our case tst)
+* add an admin user for your own usage from shell to admin db (with all privileges)
+* add the clusterAdmin user to admin db as well, grant read access to local
+```js
+    use admin
+    db.addUser({user:"adm",pwd:"adm",
+                       roles:["read","clusterAdmin"], 
+                       otherDBRoles:{local:["read"]}
+                      })
+    db.addUser({user:"admin",pwd:"admin",
+                      roles:["dbAdminAnyDatabase",
+                                "readWriteAnyDatabase",
+                                "clusterAdmin",
+                                "userAdminAnyDatabase"]
+                       })
+
+    use morphium_test
+    db.addUser({user:"tst",pwd:"tst",roles:["readWrite","dbAdmin"]})
+```
+Here morphium_test is your application database _Morphium_ is connected to primarily. The admin db is a system database.
+
+This is far away from being a complete guide, I hope this just gets you started with authentication....
 
 ## Entity Definition
 
@@ -512,12 +1248,13 @@ Entitys in *_Morphium_* ar just "Plain old Java Objects" (POJOs). So you just cr
 
 If you specify your ID to be of a different kind (like String), you need to make sure, that the String is set, when the object will be written. Otherwise you might not find the object again. So the shortest Entity would look like this:
 
+```java
 	   @Entity
 	    public class MyEntity {
 	       @Id private ObjectId id;
 	       //.. add getter and setter here
 	    }
-	    
+```	    
 
 
 ### indexes
@@ -527,9 +1264,10 @@ Indexes are *critical* in mongo, so you should definitely define your indexes as
 private String name;
 
  you can define combined indexes using the `@Index` annotation at the class itself:
- 
+ ```java
 		@Index({"counter, name","value,thing,-counter"}
 		public class MyEntity {
+```
 		
 This would create two combined indexes: one with `counter` and `name` (both ascending) and one with `value`, `thing` and descending `counter`. You could also define single field indexes using this annotations, but it's easier to read adding the annotation directly to the field.
 
@@ -537,14 +1275,52 @@ Indexes will be created automatically if you _create_ the collection. If you wan
 
 Every Index might have a set of options which define the kind of this index. Like `buildInBackground` or `unique`. You need to add those as second parameter to the Index-Annotation:
 
-	@Entity
-	 @Index(value = {"-name, timer", "-name, -timer", "lst:2d", "name:text"}, 
-	                options = {"unique:1", "", "", ""})
-	    public static class IndexedObject {
-	
-here 4 indexes are created. The first two ar more or less standard, wheres the `lst` index is a geospacial one and the index on `name` is a text index (only since mongo 2.6). If you need to define options for one of your indexes, you need to define it for all of them (here, only the first index is unique).
+```java
+@Entity
+@Index(value = {"-name, timer", "-name, -timer", "lst:2d", "name:text"}, 
+	        options = {"unique:1", "", "", ""})
+public static class IndexedObject {
+```
 
-We're working on porting *_Morphium_* to java8, and there it will be possible to have more than one `@Index` annotation, making the syntax a bit more legible
+here 4 indexes are created. The first two are more or less standard, wheres the `lst` index is a geospatial one and the index on `name` is a text index (only since mongo 2.6). If you need to define options for one of your indexes, you need to define it for all of them (here, only the first index is unique).
+#### Text indexes
+Mongodb has  a built in text search functionality since V3.x. This can be used in commandline, or using _Morphium_. In order for it to work, a _text index_ nedds to be defined for the entity/collection. HEre an example for an entity called `Person`:
+
+```java
+@Entity
+    @Index(value = {"vorname:text,nachname:text,anrede:text,description:text", "age:1"}, options = {"name:myIdx"})
+    public static class Person { 
+	    //properties and getters/setters left out for readability
+    }
+```
+in this case, a text index was built on fields `vorname`, `nachname`, `andrede` and `description`.
+
+To use the index, we need to create a text query[^text search and text indices can be disabled in mongodb config. When creating the index, it would throw an Exception]:
+
+```java
+@Test
+public void textIndexTest() throws Exception {
+    morphium.dropCollection(Person.class);
+    try {
+        morphium.ensureIndicesFor(Person.class);
+    } catch (Exception e) {
+        log.info("Text search not enabled - test skipped");
+        return;
+    }
+    createData();
+    waitForWrites();
+    Query<Person> p = morphium.createQueryFor(Person.class);
+    List<Person> lst = p.text(Query.TextSearchLanguages.english, "hugo", "bruce").asList();
+    assert (lst.size() == 2) : "size is " + lst.size();
+    p = morphium.createQueryFor(Person.class);
+    lst = p.text(Query.TextSearchLanguages.english, false, false, "Hugo", "Bruce").asList();
+    assert (lst.size() == 2) : "size is " + lst.size();
+}
+```
+
+In this case, there is some Data created, which puts the name of some superheroes in a mongo. Searching for the text ist something different than searching via regular expressions, because Text Indexes are way more efficient in that case.
+
+If you need more information on text indexes, have a look at Mongodbs documentation and take a look at the Tests for TextIndexes within the sourcecode of _Morphium_.
 
 ### capped collections
 
@@ -554,36 +1330,80 @@ Similar as with indexes, you can define you collection to be capped using the `@
 
 Querying is done via the Query-Object, which is created by *_Morphium_* itself (using the Query Factory). The definition of the query is done using the fluent interface:
 		
-		Query<MyEntity> query=_Morphium_.createQueryFor(MyEntity.class);
-		query=query.f("id").eq(new ObjectId());
-		query=query.f("valueField").eq("the value");
-		query=query.f("counter").lt(22);
-		query=query.f("personName").matches("[a-zA-Z]+");
-		query=query.limit(100).sort("counter");
-    
+```java
+Query<MyEntity> query=_Morphium_.createQueryFor(MyEntity.class);
+query=query.f("id").eq(new ObjectId());
+query=query.f("valueField").eq("the value");
+query=query.f("counter").lt(22);
+query=query.f("personName").matches("[a-zA-Z]+");
+query=query.limit(100).sort("counter");
+```
 
 In this example, I refer to several fields of different types. The Query itself is always of the same basic syntax:
 
-    	queryObject=queryObject.f(FIELDNAME).OPERATION(Value);
-    queryObject=queryObject.skip(NUMBER); //skip a number of entreis
-    queryObject=queryObject.limig(NUMBER); // limit result
-    queryObject.sort(FIELD_TO_SORTBY);`    
+```java
+queryObject=queryObject.f(FIELDNAME).OPERATION(Value);
+queryObject=queryObject.skip(NUMBER); //skip a number of entreis
+queryObject=queryObject.limig(NUMBER); // limit result
+queryObject.sort(FIELD_TO_SORTBY);`    
+```
 
 As field name you may either use the name of the field as it is in mongo or the name of the field in java. If you specify an unknown field to *_Morphium_*, a `RuntimeException` will be raised.
 
 For definition of the query, it's also a good practice to define enums for all of your fields. This makes it hard to have mistypes in a query:
 		
+```java
 		public class MyEntity {
 		      //.... field definitions
 		      public enum Fields { id, value, personName,counter, }
 		}
-		    
+``` 
     
-There is a plugin for intelliJ creating those enums automatically. Then, when defining the query, you don't have to type in the name of the field, just use the field enum:
+There is a IntelliJ plugin ("GeneratePropertyEnums") that is used for creating those enums automatically. Then, when defining the query, you don't have to type in the name of the field, just use the field enum:
 
 `query=query.f(MyEntity.Fields.counter).eq(123);`
 
-After you defined your query, you probably want to access the data in mongo. Via *_Morphium_*,there are several possibilities to do that: - `queryObject.get()`: returns the first object matching the query, only one. Or null if nothing matched - `queryObject.asList()`: return a list of all matching objects. Reads all data in RAM. Useful for small amounts of data - `Iterator<MyEntity> it=queryObject.asIterator()`: creates a `MorphiumIterator` to iterate through the data, whch does not read all data at once, but only a couple of elements in a row (default 10).
+This avoids typos and shows compile time errors, when a field was renamed for whatever reason. 
+
+After you defined your query, you probably want to access the data in mongo. Via *_Morphium_*,there are several possibilities to do that: - `queryObject.get()`: returns the first object matching the query, only one. Or null if nothing matched - `queryObject.asList()`: return a list of all matching objects. Reads all data in RAM. Useful for small amounts of data - `Iterator<MyEntity> it=queryObject.asIterator()`: creates a `MorphiumIterator` to iterate through the data, which does not read all data at once, but only a couple of elements in a row (default 10).
+
+### Simple queries
+most of your queries probably are simple ones. like searching for a special id or value. This is done rather simply with the query-Object: morphium.createQueryFor(MyEntity.class).f("field").eq(value) if you add more f(fields) to the query, they will be concatenated by a logical AND. so you can do something like:
+```java
+    Query<UncachedObject> q=morphium.createQueryFor(UncachedObject.class);
+    q.f("counter").gt(10).f("counter").lt(20);
+```
+This would result in a query like: "All Uncached Objects, where counter is greater than 10 and counter is less then 20".
+
+### Or Queries
+in addition to those AND-queries you can add an unlimited list of queries to it, which will be concatenated by a logical OR.
+```java
+   q.f("counter").lt(100).or(q.q().f("value").eq("Value 12"), q.q().f("value").eq("other"));
+```
+This would create a query like: "all UncachedObjects where counter is less than 100 and (value is 'value 12' or value is 'other')"
+
+the Method q() creates a new empty query for the same object. It's a convenience Method. Please be careful, never use your query Object in the parameter list of or - this would cause and endless loop! ATTENTION here!
+
+This gives you the possibility to create rather complex queries, which should handle about 75% of all cases. Although you can also add some NOR-Queries as well. These are like "not or"-Queries....
+```java
+   q.f("counter").lt(100).nor(q.q().f("counter").eq(90), q.q().f("counter").eq(55));
+```
+this would result in a query like: "All query objects where counter is less than 100 and not (counter=90 or counter=55).
+
+this adds another complexity level to the queries ;-)
+
+If that's not enough, specify your own query in "mongo"-Syntax.
+You can also specify your own query object (Map<String,Object>) in case of a very complex query. This is part of the Query-Object and can be used rather easily:
+```java
+        Map<String,Object> query=new HashMap<>();
+        query.put("counter",Utils.getMap("$lt",10));
+        Query<UncachedObject> q=MorphiumSingleton.get().createQueryFor(UncachedObject.class);
+        List<UncachedObject> lst=q.complexQuery(query);
+```
+Although, in this case the query is a very simple one (counter < 10), but I think you get the Idea....
+
+#### Limitations
+Well, the fluent query interface does have its limitations. So its not possible to have a certain number of or-concatenated queries (like (counter==14 or Counter <10) and (counter >50 or counter ==30)). I'm not sure, this is very legible... 
 
 ### the Iterator
 
@@ -593,6 +1413,183 @@ After you defined your query, you probably want to access the data in mongo. Via
 *   `queryObject.asIterable(100)` will step through the result list, 100 at a time
 *   `queryObject.asIterable(100,5)` will step through the result list, 100 at a time and keep 4 chunks of 100 elements each as prefetch buffers. Those will be filled in background.
 *   `MorphiumIterator it=queryObject.asIterable(100,5); it.setmultithreadedAccess(true);` use the same iterator as before, but make it thread safe.
+
+__Description__
+Problem is, when dealing with huge tables or lots of data, you'd probably include paging to your queries. You would read data in chunks of for example 100 objects to avoid memory overflows. This is now available by _Morphium_. The new MorphiumIterator works as Iterable or Iterator - whatever you like. It's included in the Query-interface and can be used very easily:
+```java
+Query<Type> q=morphium.createQueryFor(Type.class);
+q=q.f("field").eq..... //whatever
+
+for (Type t:q.asIterable()) {
+   //do something with t
+}
+```
+This creates an iterator, reading all objects from the query in chunks of 10... if you want to read them one by one, you only ned to give the chunk-size to the call:
+```java
+for (Type t:q.asIterable(1)) {
+   //now reads every single Object from db
+}
+```
+
+You can also use the iterator as in the "good ol' days".
+```java
+   Iterator<Type> it=q.asIterable(100);  //reads objects in chunks of 100
+   while (it.hasNext()) {
+    ... //do something
+   }
+```
+If you use the MorphiumIterator as the type it actually is, you'd get even more information:
+```java
+   MorphiumIterator<Type> it=q.asIterable(100);
+   it.next();
+   ....
+   long count=it.getCount(); //returns the number of objects to be read
+   int cursorPos=it.getCursor(); //where are we right now, how many did we read
+   it.ahead(5); //jump ahead 5 objects
+   it.back(4); //jump back 
+   int bufferSize=it.getCurrentBufferSize(); //how many objects are currently stored in RAM
+   List<Type> lst=it.getCurrentBuffer(); //get the objects in RAM
+```
+**Attention**: the count is the number of objects matching the query at the instanciation of the iterator. This ensures, that the iterator terminates. The Query will be executed every time the buffer boundaries are reached. It might cause unexpected results, if the sort of the query is wrong.
+
+For example:
+```java
+   //created Uncached Objects with counter 1-100; value is always "v"
+   Query<UncachedObject> qu=morphium.createQueryFor(UncachedObject.class).sort("-counter");
+   for (UncachedObject u:qu.asIterable()) {
+       UncachedObject uc=new UncachedObject();
+            uc.setCounter(u.getCounter()+1);
+            uc.setValue("WRONG!");
+            MorphiumSingleton.get().store(uc);
+            log.info("Current Counter: "+u.getCounter()+" and Value: "+u.getValue());
+   }
+```
+The output is as follows:
+```
+14:21:10,494 INFO  [main] IteratorTest: Current Counter: 100 and Value: v
+14:21:10,529 INFO  [main] IteratorTest: Current Counter: 99 and Value: v
+14:21:10,565 INFO  [main] IteratorTest: Current Counter: 98 and Value: v
+14:21:10,610 INFO  [main] IteratorTest: Current Counter: 97 and Value: v
+14:21:10,645 INFO  [main] IteratorTest: Current Counter: 96 and Value: v
+14:21:10,680 INFO  [main] IteratorTest: Current Counter: 95 and Value: v
+14:21:10,715 INFO  [main] IteratorTest: Current Counter: 94 and Value: v
+14:21:10,751 INFO  [main] IteratorTest: Current Counter: 93 and Value: v
+14:21:10,786 INFO  [main] IteratorTest: Current Counter: 92 and Value: v
+14:21:10,822 INFO  [main] IteratorTest: Current Counter: 91 and Value: v
+14:21:10,857 INFO  [main] IteratorTest: Current Counter: 96 and Value: WRONG!
+14:21:10,892 INFO  [main] IteratorTest: Current Counter: 95 and Value: v
+14:21:10,927 INFO  [main] IteratorTest: Current Counter: 95 and Value: WRONG!
+14:21:10,963 INFO  [main] IteratorTest: Current Counter: 94 and Value: v
+14:21:10,999 INFO  [main] IteratorTest: Current Counter: 94 and Value: WRONG!
+14:21:11,035 INFO  [main] IteratorTest: Current Counter: 93 and Value: v
+14:21:11,070 INFO  [main] IteratorTest: Current Counter: 93 and Value: WRONG!
+14:21:11,105 INFO  [main] IteratorTest: Current Counter: 92 and Value: v
+14:21:11,140 INFO  [main] IteratorTest: Current Counter: 92 and Value: WRONG!
+14:21:11,175 INFO  [main] IteratorTest: Current Counter: 91 and Value: v
+14:21:11,210 INFO  [main] IteratorTest: Current Counter: 94 and Value: WRONG!
+14:21:11,245 INFO  [main] IteratorTest: Current Counter: 94 and Value: WRONG!
+14:21:11,284 INFO  [main] IteratorTest: Current Counter: 93 and Value: v
+14:21:11,328 INFO  [main] IteratorTest: Current Counter: 93 and Value: WRONG!
+14:21:11,361 INFO  [main] IteratorTest: Current Counter: 93 and Value: WRONG!
+14:21:11,397 INFO  [main] IteratorTest: Current Counter: 93 and Value: WRONG!
+14:21:11,432 INFO  [main] IteratorTest: Current Counter: 92 and Value: v
+14:21:11,467 INFO  [main] IteratorTest: Current Counter: 92 and Value: WRONG!
+14:21:11,502 INFO  [main] IteratorTest: Current Counter: 92 and Value: WRONG!
+14:21:11,538 INFO  [main] IteratorTest: Current Counter: 91 and Value: v
+14:21:11,572 INFO  [main] IteratorTest: Current Counter: 93 and Value: WRONG!
+14:21:11,607 INFO  [main] IteratorTest: Current Counter: 93 and Value: WRONG!
+14:21:11,642 INFO  [main] IteratorTest: Current Counter: 93 and Value: WRONG!
+14:21:11,677 INFO  [main] IteratorTest: Current Counter: 93 and Value: WRONG!
+14:21:11,713 INFO  [main] IteratorTest: Current Counter: 93 and Value: WRONG!
+14:21:11,748 INFO  [main] IteratorTest: Current Counter: 92 and Value: v
+14:21:11,783 INFO  [main] IteratorTest: Current Counter: 92 and Value: WRONG!
+14:21:11,819 INFO  [main] IteratorTest: Current Counter: 92 and Value: WRONG!
+14:21:11,853 INFO  [main] IteratorTest: Current Counter: 92 and Value: WRONG!
+14:21:11,889 INFO  [main] IteratorTest: Current Counter: 91 and Value: v
+14:21:11,923 INFO  [main] IteratorTest: Current Counter: 93 and Value: WRONG!
+14:21:11,958 INFO  [main] IteratorTest: Current Counter: 93 and Value: WRONG!
+14:21:11,993 INFO  [main] IteratorTest: Current Counter: 93 and Value: WRONG!
+14:21:12,028 INFO  [main] IteratorTest: Current Counter: 93 and Value: WRONG!
+14:21:12,063 INFO  [main] IteratorTest: Current Counter: 92 and Value: v
+14:21:12,098 INFO  [main] IteratorTest: Current Counter: 92 and Value: WRONG!
+14:21:12,133 INFO  [main] IteratorTest: Current Counter: 92 and Value: WRONG!
+14:21:12,168 INFO  [main] IteratorTest: Current Counter: 92 and Value: WRONG!
+14:21:12,203 INFO  [main] IteratorTest: Current Counter: 92 and Value: WRONG!
+14:21:12,239 INFO  [main] IteratorTest: Current Counter: 91 and Value: v
+14:21:12,273 INFO  [main] IteratorTest: Current Counter: 93 and Value: WRONG!
+14:21:12,308 INFO  [main] IteratorTest: Current Counter: 93 and Value: WRONG!
+14:21:12,344 INFO  [main] IteratorTest: Current Counter: 93 and Value: WRONG!
+14:21:12,379 INFO  [main] IteratorTest: Current Counter: 92 and Value: v
+14:21:12,413 INFO  [main] IteratorTest: Current Counter: 92 and Value: WRONG!
+14:21:12,448 INFO  [main] IteratorTest: Current Counter: 92 and Value: WRONG!
+14:21:12,487 INFO  [main] IteratorTest: Current Counter: 92 and Value: WRONG!
+14:21:12,521 INFO  [main] IteratorTest: Current Counter: 92 and Value: WRONG!
+14:21:12,557 INFO  [main] IteratorTest: Current Counter: 92 and Value: WRONG!
+14:21:12,592 INFO  [main] IteratorTest: Current Counter: 91 and Value: v
+14:21:12,626 INFO  [main] IteratorTest: Current Counter: 93 and Value: WRONG!
+14:21:12,662 INFO  [main] IteratorTest: Current Counter: 93 and Value: WRONG!
+14:21:12,697 INFO  [main] IteratorTest: Current Counter: 92 and Value: v
+14:21:12,733 INFO  [main] IteratorTest: Current Counter: 92 and Value: WRONG!
+14:21:12,769 INFO  [main] IteratorTest: Current Counter: 92 and Value: WRONG!
+14:21:12,804 INFO  [main] IteratorTest: Current Counter: 92 and Value: WRONG!
+14:21:12,839 INFO  [main] IteratorTest: Current Counter: 92 and Value: WRONG!
+14:21:12,874 INFO  [main] IteratorTest: Current Counter: 92 and Value: WRONG!
+14:21:12,910 INFO  [main] IteratorTest: Current Counter: 92 and Value: WRONG!
+14:21:12,945 INFO  [main] IteratorTest: Current Counter: 91 and Value: v
+14:21:12,980 INFO  [main] IteratorTest: Current Counter: 93 and Value: WRONG!
+14:21:13,015 INFO  [main] IteratorTest: Current Counter: 92 and Value: v
+14:21:13,051 INFO  [main] IteratorTest: Current Counter: 92 and Value: WRONG!
+14:21:13,085 INFO  [main] IteratorTest: Current Counter: 92 and Value: WRONG!
+14:21:13,121 INFO  [main] IteratorTest: Current Counter: 92 and Value: WRONG!
+14:21:13,156 INFO  [main] IteratorTest: Current Counter: 92 and Value: WRONG!
+14:21:13,192 INFO  [main] IteratorTest: Current Counter: 92 and Value: WRONG!
+14:21:13,226 INFO  [main] IteratorTest: Current Counter: 92 and Value: WRONG!
+14:21:13,262 INFO  [main] IteratorTest: Current Counter: 92 and Value: WRONG!
+14:21:13,297 INFO  [main] IteratorTest: Current Counter: 91 and Value: v
+14:21:13,331 INFO  [main] IteratorTest: Current Counter: 92 and Value: v
+14:21:13,367 INFO  [main] IteratorTest: Current Counter: 92 and Value: WRONG!
+14:21:13,403 INFO  [main] IteratorTest: Current Counter: 92 and Value: WRONG!
+14:21:13,446 INFO  [main] IteratorTest: Current Counter: 92 and Value: WRONG!
+14:21:13,485 INFO  [main] IteratorTest: Current Counter: 92 and Value: WRONG!
+14:21:13,520 INFO  [main] IteratorTest: Current Counter: 92 and Value: WRONG!
+14:21:13,556 INFO  [main] IteratorTest: Current Counter: 92 and Value: WRONG!
+14:21:13,592 INFO  [main] IteratorTest: Current Counter: 92 and Value: WRONG!
+14:21:13,627 INFO  [main] IteratorTest: Current Counter: 92 and Value: WRONG!
+14:21:13,662 INFO  [main] IteratorTest: Current Counter: 91 and Value: v
+14:21:13,697 INFO  [main] IteratorTest: Current Counter: 92 and Value: WRONG!
+14:21:13,733 INFO  [main] IteratorTest: Current Counter: 92 and Value: WRONG!
+14:21:13,768 INFO  [main] IteratorTest: Current Counter: 92 and Value: WRONG!
+14:21:13,805 INFO  [main] IteratorTest: Current Counter: 92 and Value: WRONG!
+14:21:13,841 INFO  [main] IteratorTest: Current Counter: 92 and Value: WRONG!
+14:21:13,875 INFO  [main] IteratorTest: Current Counter: 92 and Value: WRONG!
+14:21:13,911 INFO  [main] IteratorTest: Current Counter: 92 and Value: WRONG!
+14:21:13,946 INFO  [main] IteratorTest: Current Counter: 92 and Value: WRONG!
+14:21:13,982 INFO  [main] IteratorTest: Current Counter: 92 and Value: WRONG!
+14:21:14,017 INFO  [main] IteratorTest: Current Counter: 91 and Value: v
+14:21:14,017 INFO  [main] IteratorTest: Cleaning up...
+14:21:14,088 INFO  [main] IteratorTest: done...
+```
+The first chunk is ok, but all that follow are not. Fortunately count did not change or in this case, the iterator would never stop. Hence, if your collection changes while you're iterating over it, you might get inexpected results. Writing to the same collection within the loop of the iterator is generally a bad idea...
+
+__Advanced Features__
+
+Since V2.2.5 the _Morphium_ iterator supports lookahead (prefetching). This means its not only possible to define a window size to step through your data, but also how many of those windows should be prefetched, while you step through the first one.
+
+This works totally transparent for the user, its just a simple call to activate this feature:
+
+```java
+theQuery.asIterable(1000,5); //window size 1000, 5 windows prefetch
+```
+
+Since 2.2.5 the _Morphium_ iterator is also able to be used by multiple threads simultaneously. This means, several threads access the _same_ iterator. This might be useful for querying and alike.
+To use that, you only need to set `setMultithreaddedAccess` to true in the iterator itself:
+
+```java
+MorphiumIterator<MyEntity> it=theQuery.asIterable(1000,15)
+it.setMultithreaddedAccess(true);
+```
+
+*Attention*: Setting mutlithreaddedAccess to true will cause the iterator to be a bit slower as it has to do some things in a `synchronized` fashion.
 
 ## Storing
 
@@ -609,9 +1606,11 @@ But in *_Morphium_* you can of course change that behaviour. Easiest way is to s
 
 If you need to have only several types converted, but not all, you have to have the conversion globally enabled, and only switch it off for certain types. This is done in either the `@Entity` or `@Embedded` annotation.
 
+```java
 		@Entity(convertCamelCase=false)
 		public class MyEntity {
 		     private String myField;
+```
 
 This example will create a collection called `MyEntity` (no conversion) and the field will be called `myField` in mongo as well (no conversion).
 
@@ -620,10 +1619,12 @@ This example will create a collection called `MyEntity` (no conversion) and the 
 #### using the full qualified classname
 
 you can tell *_Morphium_* to use the full qualified classname as basis for the collection name, not the simple class name. This would result in createing a collection `de_caluga_morphium_my_entity` for a class called `de.caluga.morphium.MyEntity`. Just set the flag `useFQN` in the entity annotation to `true`.
-		
+
+```java
 		@Entity(useFQN=true)
 		public class MyEntity {
-		
+```
+
 Recommendation is, not to use the full qualified classname unless it's really needed.
 
 #### Specifying a collection / fieldname
@@ -631,18 +1632,23 @@ Recommendation is, not to use the full qualified classname unless it's really ne
 In addition to that, you can define custom names of fields and collections using the corresponding annotation (`@Entity`, `@Property`).
 
 For entities you may set a custom name by using the `collectionName` value for the annotation:
-		
+
+```java
 		@Entity(collectionName="totallyDifferent")
 		public class MyEntity {
 		    private String myValue;
 		}
+```
+
 the collection name will be `totallyDifferent` in mongo. Keep in mind that camel case conversion for fields will still take place. So in that case, the field name would probably be `my_value`. (if camel case conversion is enabled in config)
 
 You can also specify the name of a field using the property annotation:
-		
+
+```java
 		@Property(fieldName="my_wonderful_field")
 		private String something;
-		   
+```
+
 Again, this only affects this field (in this case, it will be called `my_wondwerful_field` in mongo) and this field won't be converted camelcase. This might cause a mix up of cases in your MongoDB, so please use this with care.
 
 #### Accessing fields
@@ -651,37 +1657,207 @@ When accessing fields in *_Morphium_* (especially for the query) you may use eit
 
 #### Using NameProviders
 
-In some cases it might be necessary to have the collection name calculated dynamically. This can be acchieved using the `NameProvider` Interface.
+In some cases it might be necessary to have the collection name calculated dynamically. This can be achieved using the `NameProvider` Interface.
 
-You can define a NameProvider for your entity in the `@Entity` annotation. You need to specify the type there. By default, the NameProvider for all Entities is `DefaultNameProvider`. Which acutally looks like this:
-		
-		public final class DefaultNameProvider implements NameProvider {
-		    
-    @Override
-    public String getCollectionName(Class<?> type, ObjectMapper om, boolean translateCamelCase, boolean useFQN, String specifiedName, _Morphium_ _Morphium_) {
-    
-        String name = type.getSimpleName();
-    
-        if (useFQN) {
-            name = type.getName().replaceAll("\\.", "_");
-        }
-        if (specifiedName != null) {
-            name = specifiedName;
-        } else {
-            if (translateCamelCase) {
-                name = _Morphium_.getARHelper().convertCamelCase(name);
-            }
-        }
-        return name;
-    }
-		    
-		    
-		}
-    
+You can define a NameProvider for your entity in the `@Entity` annotation. You need to specify the type there. By default, the NameProvider for all Entities is `DefaultNameProvider`. Which actually looks like this:
+
+```java	
+public final class DefaultNameProvider implements NameProvider {
+			
+	@Override
+	public String getCollectionName(Class<?> type, ObjectMapper om, boolean translateCamelCase, boolean useFQN, String specifiedName, _Morphium_ _Morphium_) {
+	
+	    String name = type.getSimpleName();
+	
+	    if (useFQN) {
+	        name = type.getName().replaceAll("\\.", "_");
+	    }
+	    if (specifiedName != null) {
+	        name = specifiedName;
+	    } else {
+	        if (translateCamelCase) {
+	            name = _Morphium_.getARHelper().convertCamelCase(name);
+	        }
+	    }
+	    return name;
+	}
+}
+```  
 
     
 You can use your own provider to calculate collection names depending on time and date or for example depending on the querying host name (like: create a log collection for each server separately or create a collection storing logs for only one month each).
-**Attention**: Name Provider instances will be cached, so please implement them threadsafe.
+**Attention**: Name Provider instances will be cached, so please implement them thread safe.
+
+#### examples
+mongo is really fast and stores a lot of date in no time. Sometimes it's hard then, to get this data out of mongo again, especially for logs this might be an issue (in our case, we had more than a 100 million entries in one collection). It might be a good idea to change the collection name upon some rule (by date, timestamp whatever you like). _Morphium_ supports this using a strategy-pattern.
+
+```java
+public class DatedCollectionNameProvider implements NameProvider{
+    @Override
+    public String getCollectionName(Class<?> type, ObjectMapper om, boolean translateCamelCase, boolean useFQN, String specifiedName, Morphium morphium) {
+        SimpleDateFormat df=new SimpleDateFormat("yyyyMM");
+        String date=df.format(new Date());
+        String ret=null;
+        if (specifiedName!=null) {
+            ret=specifiedName+="_"+date;
+        } else {
+                String name = type.getSimpleName();
+                if (useFQN) {
+                    name=type.getName();
+                }
+            if (translateCamelCase) {
+                name=om.convertCamelCase(name);
+            }
+            ret=name+"_"+date;
+        }
+        return ret;
+    }
+}
+```
+This would create a monthly named collection like "my_entity_201206". In order to use that name provider, just add it to your `@Entity`-Annotation:
+```java
+@Entity(nameProvider = DatedCollectionNameProvider.class)
+public class MyEntity {
+....
+}
+```
+
+__performance__:
+The name provider instances themselves are cached for each type upon first use, so you actually might do as much work as possible in the constructor. 
+BUT: on every read or store of an object the corresponding name provider method `getCollectionName` is called, this might cause Performance drawbacks, if you logic in there is quite heavy and/or time consuming.
+
+### Automatic values
+
+This is something quite common: you want to know, when your data was last changed and maybe who did it. Usually you keep a timestamp with your object and you need to make sure, that these timestamps are updated accordingly. _Morphium_ does this automatically - just declare the annotations:
+
+```java
+ @Entity
+    @NoCache
+    @LastAccess
+    @LastChange
+    @CreationTime
+    public static class TstObjLA {
+        @Id
+        private ObjectId id;
+
+        @LastAccess
+        private long lastAccess;
+
+        @LastChange
+        private long lastChange;
+
+        @CreationTime
+        private long creationTime;
+
+        private String value;
+
+        public long getLastAccess() {
+            return lastAccess;
+        }
+
+        public void setLastAccess(long lastAccess) {
+            this.lastAccess = lastAccess;
+        }
+
+        public long getLastChange() {
+            return lastChange;
+        }
+
+        public void setLastChange(long lastChange) {
+            this.lastChange = lastChange;
+        }
+
+        public long getCreationTime() {
+            return creationTime;
+        }
+
+        public void setCreationTime(long creationTime) {
+            this.creationTime = creationTime;
+        }
+
+        public String getValue() {
+            return value;
+        }
+
+        public void setValue(String value) {
+            this.value = value;
+        }
+    }
+```
+
+You might ask, why do we need to specify, that access time is to be stored for the class and the field. The reason is: Performance! In order to search for a certain annotation we need to read all fields of the whole hierarchy the of the corresponding object which is rather expensive. In this case, we only search for those access fields, if necessary. All those are stored as long - System.currentTimeMillies()
+
+_Explanation:_
+
+`@LastAccess`: Stores the last time, this object was read from db! Careful with that one: it will create a write access, for _every read_!
+`@CreationTime`: Stores the creation timestamp
+`@LastChange`: Timestamp the last moment, this object was stored.
+
+## Asynchronous API
+All writer implementation support asynchronous calls like
+```java
+   public <T> void store(List<T> lst, AsyncOperationCallback<T> callback); 
+```
+if callback==null the method call should be synchronous... If callback!=null do the call to mongo asynchronous in background. Usually, you specify the default behaviour in your class definition:
+```java
+  @Entity
+  @AsyncWrites
+  public class EntityType {
+   ...
+  }
+```
+All write operations to this type will be asynchronous! (synchronous call is not possible in this case!).
+
+Asynchronous calls are also possible for Queries, you can call q.asList(callback) if you want to have this query be executed in background.
+
+### Difference asynchronous write / write buffer
+Asynchronous calls will be issued at once to the mongoDb but the calling thread will not have to wait. It will be executed in Background. the `@WriteBuffer` annotation specifies a write buffer for this type (you can specify the size etc if you like). All writes will be held temporarily in ram until time frame is reached or the number of objects in write buffer exceeds the maximum you specified (0 means no maximum). Attention if you shut down the Java VM during that time, those entries will be lost. Please only use that for logging or "not so important" data. specifying a write buffer four you entitiy is quite easy:
+
+```java
+  @Entity
+  @WriteBuffer(size=1000, timeout=5000)
+  public class MyBufferedLog {
+  ....
+  }
+```
+
+This means, all write access to this type will be stored for 5 seconds or 1000 entries, whichever occurs first. If you want to specify a different behavior when the maximum number of entries is reached, you can specify a strategy:
+
+- `WRITE_NEW`: write newest entry (synchronous and not add to buffer)
+- `WRITE_OLD`: write some old entries (and remove from buffer)
+- `DEL_OLD`: delete old entries from buffer - oldest elements won't be written to Mongo!
+- `IGNORE_NEW`: just ignore incoming - newest elements WILL NOT BE WRITTEN!
+- `JUST_WARN`: increase buffer and warn about it
+
+## Validation support
+Morphium does support for javax.validation annotations and those might be used to ensure data quality:
+
+```java
+ @Id
+    private MorphiumId id;
+
+    @Min(3)
+    @Max(7)
+    private int theInt;
+
+    @NotNull
+    private Integer anotherInt;
+
+    @Future
+    private Date whenever;
+
+    @Pattern(regexp = "m[ueü]nchen")
+    private String whereever;
+
+    @Size(min = 2, max = 5)
+    private List friends;
+
+    @Email
+    private String email;
+``` 
+
+You do not need to have any validator implementation in classpath, _Morphium_ detects, if validation is available and only enables it then.
+
 ## Annotations
 a lot of things can be configured in *_Morphium_* using annotations. Those annotations might be added to either classes, fields or both.
 
@@ -703,6 +1879,10 @@ These are the settings available for entities:
 Marks POJOs for object mapping, but don't need to have an ID set. These objects will be marshalled and un-marshalled, but only as part of another object (Subdocument). This has to be set at class level.
 
 You can switch off camel case conversion for this type and determine, whether data might be used polymorph.
+### AsyncWrites
+ensures, that all write accesses to this entity are asynchronous.
+### NoCache
+switches OFF caching for this entity. This is useful if some superclass might have caches enabled and we need to disable it here.
 
 ### Capped
 Valid at: Class level
@@ -710,20 +1890,24 @@ Tells *_Morphium_* to create a capped collection for this object (see capped col
 Parameters:
 - _maxSize_: maximum size in byte. Is used when converting to a capped collection
 - _maxNumber_: number of entries for this capped collection
+### Collation
+These are the collation settings for this given entity. will be used when creating new collections and indices
 
 ### AdditionalData
 
 Special feature for *_Morphium_*: this annotation has to be added for at lease *one* field of type Map<String,Object>. It does make sure, that all data in Mongo, that cannot be mapped to a field of this entity, will be added to the annotated Map properties.
 
-by default this map is read only. But if you want to change those values or add new ones to it, you can set `readOnly=false`
+by default this map is read only. But if you want to change those values or add new ones to it, you can set `readOnly=false`.
+
 
 ### Aliases
 
 It's possible to define aliases for field names with this annotation (hence it has to be added to a field).
-
+```java
 @Alias({"stringList","string_list"})
-kList<String> strLst;
- 
+List<String> strLst;
+```
+
 in this case, when reading an object from MongoDB, the name of the field `strLst` might also be `stringList` or `string_list` in mongo. When storing it, it will always be stored as `strLst` or `str_lst` according to configs camelcase settings.
 
 This feature comes in handy when migrating data.
@@ -733,7 +1917,7 @@ This feature comes in handy when migrating data.
 has to be added to both the class and the field(s) to store the creation time in. This value is set in the moment, the object is being stored to mongo. The data type for creation time might be:
 
 *   `long` / `Long`: store as timestamp
-*   `Eate`: store as date object
+*   `Date`: store as date object
 *   `String`: store as a string, you may need to specify the format for that
 
 ### LastAccess
@@ -745,16 +1929,16 @@ Usage: find out, which entries on a translation table are not used for quite som
 ### LastChange
 
 Same as the two above, except the timestamp of the last change (to mongo) is being stored. The value will be set, just before the object is written to mongo.
-
+ 
 ### DefaultReadPreference
 
 Define the read preference level for an entity. This annotation has to be used at class level. Valid types are:
 
-*   PRIMARY: only read from primary node
-*   PRIMARY_PREFERED: if possible, use primary. 
-*   SECONDARY: only read from secondary node
-*   SECONDARY_PREFERED: if possible, use secondary
-*   NEAREST: I don't care, take the fastest
+*   `PRIMARY`: only read from primary node
+*   `PRIMARY_PREFERED`: if possible, use primary. 
+*   `SECONDARY`: only read from secondary node
+*   `SECONDARY_PREFERED`: if possible, use secondary
+*   `NEAREST`: I don't care, take the fastest
 
 ### Id
 
@@ -766,7 +1950,55 @@ The Id may be of any type, though usage of ObjectId is strongly recommended.
 
 Define indexes. Indexes can be defined for a single field. Combined indexes need to be defined on class level. See above.
 
+### IgnoreFields
+ List of fields in class, that can be ignored. Defaults no none.
+ usually an exact match, but can use ~ as substring, / as regex marker
+ 
+ Field names are JAVA Fields, not translated ones for mongo
+ 
+ `IgnoreFields` will not be honored for fields marked with `@Property` and a custom fieldname
+ 
+ this will be inherited by subclasses!
+ 
+ ```java
+ 
+    @Entity
+    @IgnoreFields({"var1", "var3"})
+    public class TestClass {
+        @Id
+        public MorphiumId id;
+        public int var1;
+        public int var2;
+        public int var3;
+    }
+```
+### LimitToFields
+this is a positive list of fields to use for MongoDB. All fields, not listed here will be ignored when it comes to mongodb.
 
+```java
+ @Entity
+    @LimitToFields({"var1"})
+    public class TestClass2 {
+        @Id
+        public MorphiumId id;
+        public int var1;
+        public int var2;
+        public int var3;
+    }
+```
+
+`LimitToFields` also takes a Class as an argument, then the fields will be limited to the fields of the given class.
+
+```java
+
+    @Entity
+    @LimitToFields(type = TestClass2.class)
+    public class TestClass3 extends TestClass2 {
+
+        public String notValid;
+    }
+
+```
 ### Property
 
 Can be added to any field. This not only has documenting character, it also gives the opportunity to change the name of this field by setting the `fieldName` value. By Default the fieldName is ".", which means "fieldName based".
@@ -786,16 +2018,54 @@ If you have a member variable, that is a POJO and not a simple value, you can st
 This also works for lists and Maps. Attention: when reading Objects from disk, references will be de-referenced, which will result into one call to mongo each.
 
 Unless you set `lazyLoading` to true, in that case, the child documents will only be loaded when accessed.
+####  Lazy Loaded references
+_Morphium_ supports lazy loading of references. This is easy to use, just add `@Reference(lazyLoading=true)` to the reference you want to have them loaded lazyly.
 
-#### transient
+```java
+@Entity
+public class MyEntity {
+   ....
+   @Reference(lazyLoading=true)
+   private UncachedObject myReference;  //will be loaded when first accessed
+   @Reference
+   private MyEntity ent; //will be loaded when this object is loaded - use with caution
+                         //this could cause an endless loop
+   private MyEntity embedded; //this object is not available on its own
+                              //its embedded as subobject in this one
+}
+```
 
-Do not store the field.
 
+When a reference is being lazy loaded, the corresponding field will be set with a Proxy for an instance of the correct type, where only the ObjectID is set. Any access to it will be catched by the proxy, and any method will cause the object to be read from DB and deserialized. Hence this object will only be loaded upon first access.
+
+It should be noted that when using `Object.toString();` for testing that the object will be loaded from the database and appear to not be lazy loaded. In order to test Lazy Loading you should load the base object with the lazy reference and access it directly and it will be null. Additionally the referenced object will be null until the references objects fields are accessed.
+
+### Transient
+Do not store the field - similar to `@IgnoreFields` or `@LimitToFields` 
+### Cache
+Cache settings for this entity, see the chapter about transparent caching above for more details.
+### Encrypted
+Encryption settings for this field. See chapter about field encryption for details
 ### UseIfnull
 
-Usually, *_Morphium_* does not store null values at all. That means, the corresponding document just would not contain the given field(s) at all.
+Usually, _Morphium_ does not store null values. That means, the corresponding document just would not contain the given field(s) at all.
 
 Sometimes that might cause problems, so if you add `@UseIfNull` to any field, it will be stored into mongo even if it is null.
+
+### LifeCycle
+this annotation for an Entity tells morphium, that this entity does have some lifecycle methods defined. Those methods all need to be marked with the corresponding annotation:
+- `@PostLoad`
+- `@PostRemove` 
+- `@PostStore` 
+- `@PostUpdate` 
+- `@PreRemove`
+- `@PreStore` 
+- `@PreUpdate` 
+
+the methods where those annotations are added must not have any parameters. They should only access the local object/entity.
+
+### Version
+only used auto-versioning is enabled in `@Entity`. Defines the field to hold the version number.
 
 ### WriteSafety
 
@@ -808,18 +2078,189 @@ Sepcify the safety for this entity when it comes to writing to mongo. This can r
     *   `BASIC` Checks server for errors as well as network socket errors raised
     *   `WAIT_FOR_SLAVE` Checks servers (at lease 2) for errors as well as network socket errors raised
     *   `MAJORITY` Wait for at least 50% of the slaves to have written the data
-    *   `WAIT_FOR_ALL_SLAVES`: waits for all slaves to have committed the data. This is depending on how many slaves are available in replica set. Wise timeout settings are important here. See [WriteConcern in MongoDB Java-Driver][3] for additional information
+    *   `WAIT_FOR_ALL_SLAVES`: waits for all slaves to have committed the data. This is depending on how many slaves are available in replica set. Wise timeout settings are important here. See WriteConcern in MongoDB Java-Driver for additional information
+
+#### Cluster awareness
+
+_Morphium_ is tracking the cluster status internally in order to react properly on different scenarios[^can be switched off in morphiumConfig]. For example, if one node goes down, waiting for all nodes to write the data will result in the application blocking until the last cluster member came back up again.
+This is defined by the `w`-Setting in `WriteSafety`. In a nutshell, it tells mongo on how many cluster nodes you want to have written, and will wait until this number is reached.
+
+This caused _major_ problems with our environments, like having different cluster configurations in test and production environments. 
+
+_Morphium_ fixes that issue in that way, that when "WAIT_FOR_ALL_SLAVES" is defined in `WriteSafety`, it will set the `w`-value according to the number of _available_ slaves, resulting in no blocking. [^as it takes some time for _Morphium_ and mongo do determine if a cluster member is down, some requests might actually block]
+
+### Annotation Inheritence
+By default, Java does not support the inheritence of annotations. This is ok in most cases, but in the case of entities it's a bugger. We added inheritence to _Morphium_ to be able to build flexible data structures and store them to mongo.
+
+### Implementation
+Well, it's quite easy, actually ;-) The algorithm for getting the inherited annotations looks as follows (simplified)
+
+1. Take the annotations from the current class, if found, return it
+2. Take the superclass, if superclass is "Object" return null
+3. if there is the annotation to look for, return it
+4. continue with step 1
+
+This way, all annotations in the hierarchy are taken into account and the most recent one is taken. You can always change the annotations when subclassing, although you cannot "erase" them (which means, if you inherit from an entity, it's always an entity). For Example:
+
+```java
+   @Entity 
+   @NoCache
+   public class Person {
+      @Id
+      private ObjectId id;
+     ....
+   }
+```
+
+And the subclass:
+```java
+   @Cache(writeCache=true, readCache=false)
+   public class Parent {
+      @Reference
+      private List<Person> parentFrom;
+      ...
+   }
+```
+
+Please keep in mind, that unless specified otherwise, the classname will be taken as the name for your collection. Also, be sure to store your classname in the collection (set polymorph=true in @Entity annotation) if you want to store them in one collection.
+
+## Changestream support
+MongoDB introduced a feature called changestreams with V4.0 of mongodb. This is a special search that returns all changes to a database or collection. This is very useful if you want to be notified about changes to certain types or about certain commands being run.
+
+Changestreams are only available when connected to a replicaset.
+
+_Morphium_ does support changestreams, in fact the messaging subsystem is built completely relying on this feature.
+
+The easiest way to use changestreams is to use _Morphiums_ `ChangeStreamMonitor`:
+
+```java
+ChangeStreamMonitor m = new ChangeStreamMonitor(morphium, UncachedObject.class);
+m.start();
+final AtomicInteger cnt = new AtomicInteger(0);
+
+m.addListener(evt -> {
+    printevent(evt);
+    cnt.set(cnt.get() + 1);
+    return true;
+});
+Thread.sleep(1000);
+for (int i = 0; i < 100; i++) {
+    morphium.store(new UncachedObject("value " + i, i));
+}
+Thread.sleep(5000);
+m.terminate();
+assert (cnt.get() >= 100 && cnt.get() <= 101) : "count is wrong: " + cnt.get();
+morphium.store(new UncachedObject("killing", 0));
+
+```
+
+The monitor by definition runs asynchronous, it uses the `watch` methods to database or collection. 
+
+- `morphium.watch(Class type, boolean updateFullDocument,ChangeStreamListener lst)`: this watches in a _synchronous_ call for any change event. This call _blocks!_ until the Listener returns `false`
+- `morphium.watchAsync(...)` (same parameters as above), runs asynchronously. _attention_: the Settings for asyncExcecutor in `MorphiumConfig` might affect the behaviour of this call.
+
+There are also methods for watching _all_ changes, that happen in the connected database. This might result in a lot of callbacks: `watchDB()` and `watchDBAsync()`.
+
+
+### partial updating
+The idea behind partial updates is, that only the changes to an entity are transmitted to the database and will thus reduce the load on network and Mongodb itself. 
+
+This is the easiest way - you already know, what fields you changed and maybe you even do not want to store fields, that you actually did change. In that case, call the updateUsingFields-Method:
+```java
+   UncachedObject o....
+   o.setValue("A value");
+   o.setCounter(105);
+   Morphium.get().updateUsingFields(o,"value"); 
+         //does only send updates for Value to mongodb
+         //counter is ignored
+```
+
+`updateUsingFields()` honors the lifecycle methods as well as caches (write cache or clear read_cache on write). take a look at some code from the corresponding junit-test for better understanding:
+
+```java
+UncachedObject o... //read from MongoDB
+o.setValue("Updated!");
+morphium.updateUsingFields(o, "value");
+log.info("uncached object altered... look for it");
+Query<UncachedObject> c=morphium.createQueryFor(UncachedObject.class);
+UncachedObject fnd= (UncachedObject) c.f("_id").eq( o.getMongoId()).get();
+assert(fnd.getValue().equals("Updated!")):"Value not changed? "+fnd.getValue();
+```
+
+### Transaction support
+MongoDB does have support for transactions  in newer releases. _Morphium_ does support that as well:
+
+```java 
+  @Test
+    public void transactionTest() throws Exception {
+        for (int i = 0; i < 10; i++) {
+            try {
+                morphium.createQueryFor(UncachedObject.class).delete();
+                Thread.sleep(100);
+                TestEntityNameProvider.number.incrementAndGet();
+                log.info("Entityname number: " + TestEntityNameProvider.number.get());
+                createUncachedObjects(10);
+                Thread.sleep(100);
+
+
+                morphium.startTransaction();
+                Thread.sleep(100);
+                log.info("Count after transaction start: " + morphium.createQueryFor(UncachedObject.class).countAll());
+                UncachedObject u = new UncachedObject("test", 101);
+                morphium.store(u);
+                Thread.sleep(100);
+                long cnt = morphium.createQueryFor(UncachedObject.class).countAll();
+                if (cnt != 11) {
+                    morphium.abortTransaction();
+                    assert (cnt == 11) : "Count during transaction: " + cnt;
+                }
+
+                morphium.inc(u, "counter", 1);
+                Thread.sleep(100);
+                u = morphium.reread(u);
+                assert (u.getCounter() == 102);
+                morphium.abortTransaction();
+                Thread.sleep(100);
+                cnt = morphium.createQueryFor(UncachedObject.class).countAll();
+                u = morphium.reread(u);
+                assert (u == null);
+                assert (cnt == 10) : "Count after rollback: " + cnt;
+            } catch (Exception e) {
+                log.error("ERROR", e);
+                morphium.abortTransaction();
+            }
+        }
+
+    }
+```
+
+Internally, _Morphium_ uses the transaction context if _this thread_ started a transaction (if you need a transaction spanning over Threads, you need to pass on the current transaction session:
+
+```java
+ctx=morphium.getDriver().getTransactionContext();
+...
+//other thread
+morphium.getDriver().setTransactionContext(ctx);
+```
+
+__Caveat__: mongodb does not support nested transactions (yet), so you will get an `Exception` when trying to start another transaction in the same thread.
+
 
 ## The Aggregation Framework
-The aggregation framework is a very powerful feature of MongoDB and morphium supports it from the start. But with _Morphium_ V4.2.x we made use of it a lot easier.
+The aggregation framework is a very powerful feature of MongoDB and _Morphium_ supports it from the start[^does not work with the `InMemoryDriver' yet]. But with _Morphium_ V4.2.x we made use of it a lot easier.
 Core of the aggregation Framework in _Morphium_ is the `Aggregator`. This will be created (using the configured `AggregatorFactory`) by a `Morphium` instance.
 
 ```java
 Aggregator<Source,Result> aggregator=morphium.createAggregator(Source.class,Result.class);
 ```
 
-This creates an aggregator, that reads from the entity `Source` and returns the results in `Result`. Usually you will have to define a `Result` entity in order to use aggregation, but with _Morphium_ V4.2 it is possible to have a `Map` as a result class.
-After preparing the aggregator, you need to define the stages. All currently available stages are also available in _Morphium._ For a list of available stages, just consult the mongodb documentation. Example:
+This creates an aggregator that reads from the entity `Source` (or better the corresponding collection) and returns the results in `Result`. Usually you will have to define a `Result` entity in order to use aggregation, but with _Morphium_ V4.2 it is possible to have a `Map` as a result class.
+After preparing the aggregator, you need to define the stages. All currently available stages are also available in _Morphium._ For a list of available stages, just consult the [mongodb documentation](https://docs.mongodb.com/manual/core/aggregation-pipeline/). 
+
+In a nutshell, the aggregation framework runs all documents through a pipeline of commands, that either reduce the input (like a query), change the output (a projection) or calculate some values (like with sum count etc). 
+The most important pipeline stage is probably the "group" stage. This is similar to the `group by` in SQL, but more powerful, as you can have several of those `group stages` in a pipeline.
+
+here an Example with a simple pipeline:
 
 ```java
 Aggregator<UncachedObject, Aggregate> a = morphium.createAggregator(UncachedObject.class, Aggregate.class);
@@ -857,9 +2298,13 @@ log.info("count:  " + lst.get(0).getAnzahl());
 assert (lst.get(0).getAnzahl() == 15) : "did not find 15, instead found: " + lst.get(0).getAnzahl();
 ```
 
+But you could have that result grouped again for example or add fields to it or change values or ....
+
+Consult the MongoDB documentation for more information about the aggregation pipeline.
+
 ### Aggregation Expressions
 MongoDB has support for an own expression language, that is mainly used in aggregation. _Morphium_s representation thereof is `Expr`. 
-Expr does have a lot of factory methods to create special `Expr` instances, for example `Expr.string()` returns a string expression (string constant), `Expr.gt()` creates the "greater than" expression and so on.
+`Expr` does have a lot of factory methods to create special `Expr` instances, for example `Expr.string()` returns a string expression (string constant), `Expr.gt()` creates the "greater than" expression and so on.
 Examples of expressions:
 
 ```java
@@ -879,7 +2324,6 @@ val=Utils.toJsonString(e.toQueryObject());
 log.info(val);
 assert(val.equals("{ \"$zip\" : { \"inputs\" :  [  [ 1, 14],  [ 1, 14]], \"useLongestLength\" : true, \"defaults\" : \"$test\" }  } "));
 
-
 e = Expr.filter(Expr.arrayExpr(Expr.intExpr(1), Expr.intExpr(14), Expr.string("asV")), "str", Expr.string("NEN"));
 val=Utils.toJsonString(e.toQueryObject());
 log.info(val);
@@ -897,6 +2341,7 @@ the output of this little program would be:
 
 This way you can create complex aggregation pipelines:
 
+```java
 	 Aggregator<UncachedObject, Aggregate> a = morphium.createAggregator(UncachedObject.class, Aggregate.class);
 	        assert (a.getResultType() != null);
 	        a = a.project(Utils.getMap("counter", (Object) Expr.intExpr(1)).add("cnt2", Expr.field("counter")));
@@ -904,10 +2349,10 @@ This way you can create complex aggregation pipelines:
 	        a = a.sort("counter");
 	        a = a.limit(15);
 	        a = a.group(Expr.string(null)).expr("schnitt", Expr.avg(Expr.field("counter"))).expr("summe", Expr.sum(Expr.field("counter"))).expr("anz", Expr.sum(Expr.intExpr(1))).expr("letzter", Expr.last(Expr.field("counter"))).expr("erster", Expr.first(Expr.field("counter"))).end();
-	
+```
 	
 This expression language can also be used in queries:
-
+```java
 			Query<UncachedObject> q = morphium.createQueryFor(UncachedObject.class);
         q.expr(Expr.gt(Expr.field(UncachedObject.Fields.counter), Expr.intExpr(50)));
         log.info(Utils.toJsonString(q.toQueryObject()));
@@ -922,6 +2367,16 @@ This expression language can also be used in queries:
 
         q = q.q().expr(Expr.gt(Expr.field(UncachedObject.Fields.counter), Expr.field(UncachedObject.Fields.dval)));
         lst = q.asList();
+```
+
+Hint: if you use `Expr` in your code, it is probably a good idea to use `import static de.caluga.morphium.aggregation.Expr.*;` to make the code easier to read and understand. 
+
+## Additional information sources
+There are some places, you also might want to look at for additional information on mongodb or _Morphium_:
+
+- The mongodb [manual](https://docs.mongodb.com/manual/introduction/), especially the part about [aggregation pipelines](https://docs.mongodb.com/manual/core/aggregation-pipeline/#pipeline)
+- The [caluga blog](https://caluga.de), there are some articles on how to use _Morphium_ and related projects and examples. Also, this document itself is available [there](https://boesebeck.name/v/2014/9/5/morphium_documentation?lang=en).[^this blog is powered by _Morphium_ and mongodb]
+
 
 ## Code Examples
 
@@ -1201,3 +2656,12 @@ This expression language can also be used in queries:
     assert (asyncCall);
 }
 ```
+      
+
+
+
+
+   
+ 
+ 
+
