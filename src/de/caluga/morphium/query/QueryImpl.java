@@ -492,7 +492,7 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
                     fieldPath.append(fieldNameInstance);
                     fieldPath.append('.');
                     clz = field.getType();
-                    if (clz.equals(List.class) || clz.equals(Collection.class) || clz.equals(Array.class) || clz.equals(Set.class) || clz.equals(Map.class)) {
+                    if (List.class.isAssignableFrom(clz) || Collection.class.isAssignableFrom(clz) || Array.class.isAssignableFrom(clz) || Set.class.isAssignableFrom(clz) || Map.class.isAssignableFrom(clz)) {
                         if (log.isDebugEnabled()) {
                             log.debug("Cannot check fields in generic lists or maps");
                         }
