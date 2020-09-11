@@ -226,7 +226,7 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
         }
         //recursively map object to mongo-Object...
         if (!annotationHelper.isEntity(o) && !morphium.getConfig().isWarnOnNoEntitySerialization()) {
-            if (morphium == null || morphium.getConfig().isObjectSerializationEnabled()) {
+            if (morphium.getConfig().isObjectSerializationEnabled()) {
                 if (o instanceof Serializable) {
                     try {
                         BinarySerializedObject obj = new BinarySerializedObject();
