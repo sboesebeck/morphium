@@ -5,7 +5,7 @@ import de.caluga.morphium.Morphium;
 import javax.jms.*;
 
 public class JMSConnection implements Connection {
-    private Morphium morphium;
+    private final Morphium morphium;
 
     public JMSConnection(Morphium m) {
         morphium = m;
@@ -13,22 +13,22 @@ public class JMSConnection implements Connection {
 
     @Override
     public Session createSession(boolean transacted, int acknowledgeMode) throws JMSException {
-        return null;
+        throw new IllegalArgumentException("not implemented yet, sorry");
     }
 
     @Override
     public Session createSession(int sessionMode) throws JMSException {
-        return null;
+        throw new IllegalArgumentException("not implemented yet, sorry");
     }
 
     @Override
     public Session createSession() throws JMSException {
-        return null;
+        throw new IllegalArgumentException("not implemented yet, sorry");
     }
 
     @Override
     public String getClientID() throws JMSException {
-        return null;
+        throw new IllegalArgumentException("not implemented yet, sorry");
     }
 
     @Override
@@ -38,12 +38,12 @@ public class JMSConnection implements Connection {
 
     @Override
     public ConnectionMetaData getMetaData() throws JMSException {
-        return null;
+        throw new IllegalArgumentException("not implemented yet, sorry");
     }
 
     @Override
     public ExceptionListener getExceptionListener() throws JMSException {
-        return null;
+        throw new IllegalArgumentException("not implemented yet, sorry");
     }
 
     @Override
@@ -68,21 +68,21 @@ public class JMSConnection implements Connection {
 
     @Override
     public ConnectionConsumer createConnectionConsumer(Destination destination, String messageSelector, ServerSessionPool sessionPool, int maxMessages) throws JMSException {
-        return null;
+        throw new IllegalArgumentException("not implemented yet, sorry");
     }
 
     @Override
     public ConnectionConsumer createSharedConnectionConsumer(Topic topic, String subscriptionName, String messageSelector, ServerSessionPool sessionPool, int maxMessages) throws JMSException {
-        return null;
+        throw new IllegalArgumentException("not implemented yet, sorry");
     }
 
     @Override
     public ConnectionConsumer createDurableConnectionConsumer(Topic topic, String subscriptionName, String messageSelector, ServerSessionPool sessionPool, int maxMessages) throws JMSException {
-        return null;
+        throw new IllegalArgumentException("not implemented yet, sorry");
     }
 
     @Override
     public ConnectionConsumer createSharedDurableConnectionConsumer(Topic topic, String subscriptionName, String messageSelector, ServerSessionPool sessionPool, int maxMessages) throws JMSException {
-        return null;
+        throw new IllegalArgumentException("not implemented yet, sorry");
     }
 }

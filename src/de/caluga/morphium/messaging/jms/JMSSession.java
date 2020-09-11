@@ -7,42 +7,42 @@ public class JMSSession implements Session {
 
     @Override
     public BytesMessage createBytesMessage() throws JMSException {
-        return null;
+        throw new IllegalArgumentException("not implemented yet, sorry");
     }
 
     @Override
     public MapMessage createMapMessage() throws JMSException {
-        return null;
+        throw new IllegalArgumentException("not implemented yet, sorry");
     }
 
     @Override
     public Message createMessage() throws JMSException {
-        return null;
+        throw new IllegalArgumentException("not implemented yet, sorry");
     }
 
     @Override
     public ObjectMessage createObjectMessage() throws JMSException {
-        return null;
+        throw new IllegalArgumentException("not implemented yet, sorry");
     }
 
     @Override
     public ObjectMessage createObjectMessage(Serializable object) throws JMSException {
-        return null;
+        throw new IllegalArgumentException("not implemented yet, sorry");
     }
 
     @Override
     public StreamMessage createStreamMessage() throws JMSException {
-        return null;
+        throw new IllegalArgumentException("not implemented yet, sorry");
     }
 
     @Override
     public TextMessage createTextMessage() throws JMSException {
-        return null;
+        throw new IllegalArgumentException("not implemented yet, sorry");
     }
 
     @Override
     public TextMessage createTextMessage(String text) throws JMSException {
-        return null;
+        throw new IllegalArgumentException("not implemented yet, sorry");
     }
 
     @Override
@@ -77,7 +77,7 @@ public class JMSSession implements Session {
 
     @Override
     public MessageListener getMessageListener() throws JMSException {
-        return null;
+        throw new IllegalArgumentException("not implemented yet, sorry");
     }
 
     @Override
@@ -92,92 +92,92 @@ public class JMSSession implements Session {
 
     @Override
     public MessageProducer createProducer(Destination destination) throws JMSException {
-        return null;
+        throw new IllegalArgumentException("not implemented yet, sorry");
     }
 
     @Override
     public MessageConsumer createConsumer(Destination destination) throws JMSException {
-        return null;
+        throw new IllegalArgumentException("not implemented yet, sorry");
     }
 
     @Override
     public MessageConsumer createConsumer(Destination destination, String messageSelector) throws JMSException {
-        return null;
+        throw new IllegalArgumentException("not implemented yet, sorry");
     }
 
     @Override
     public MessageConsumer createConsumer(Destination destination, String messageSelector, boolean noLocal) throws JMSException {
-        return null;
+        throw new IllegalArgumentException("not implemented yet, sorry");
     }
 
     @Override
     public MessageConsumer createSharedConsumer(Topic topic, String sharedSubscriptionName) throws JMSException {
-        return null;
+        throw new IllegalArgumentException("not implemented yet, sorry");
     }
 
     @Override
     public MessageConsumer createSharedConsumer(Topic topic, String sharedSubscriptionName, String messageSelector) throws JMSException {
-        return null;
+        throw new IllegalArgumentException("not implemented yet, sorry");
     }
 
     @Override
     public Queue createQueue(String queueName) throws JMSException {
-        return null;
+        throw new IllegalArgumentException("not implemented yet, sorry");
     }
 
     @Override
     public Topic createTopic(String topicName) throws JMSException {
-        return null;
+        throw new IllegalArgumentException("not implemented yet, sorry");
     }
 
     @Override
     public TopicSubscriber createDurableSubscriber(Topic topic, String name) throws JMSException {
-        return null;
+        throw new IllegalArgumentException("not implemented yet, sorry");
     }
 
     @Override
     public TopicSubscriber createDurableSubscriber(Topic topic, String name, String messageSelector, boolean noLocal) throws JMSException {
-        return null;
+        throw new IllegalArgumentException("not implemented yet, sorry");
     }
 
     @Override
     public MessageConsumer createDurableConsumer(Topic topic, String name) throws JMSException {
-        return null;
+        throw new IllegalArgumentException("not implemented yet, sorry");
     }
 
     @Override
     public MessageConsumer createDurableConsumer(Topic topic, String name, String messageSelector, boolean noLocal) throws JMSException {
-        return null;
+        throw new IllegalArgumentException("not implemented yet, sorry");
     }
 
     @Override
     public MessageConsumer createSharedDurableConsumer(Topic topic, String name) throws JMSException {
-        return null;
+        throw new IllegalArgumentException("not implemented yet, sorry");
     }
 
     @Override
     public MessageConsumer createSharedDurableConsumer(Topic topic, String name, String messageSelector) throws JMSException {
-        return null;
+        throw new IllegalArgumentException("not implemented yet, sorry");
     }
 
     @Override
     public QueueBrowser createBrowser(Queue queue) throws JMSException {
-        return null;
+        throw new IllegalArgumentException("not implemented yet, sorry");
     }
 
     @Override
     public QueueBrowser createBrowser(Queue queue, String messageSelector) throws JMSException {
-        return null;
+        throw new IllegalArgumentException("not implemented yet, sorry");
     }
 
     @Override
     public TemporaryQueue createTemporaryQueue() throws JMSException {
-        return null;
+        throw new IllegalArgumentException("not implemented yet, sorry");
     }
 
     @Override
     public TemporaryTopic createTemporaryTopic() throws JMSException {
-        return null;
+        throw new IllegalArgumentException("not implemented yet, sorry");
     }
 
     @Override

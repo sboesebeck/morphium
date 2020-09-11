@@ -36,7 +36,7 @@ public class Context implements javax.jms.JMSContext {
 
     @Override
     public String getClientID() {
-        return null;
+        throw new IllegalArgumentException("not implemented yet, sorry");
     }
 
     @Override
@@ -46,12 +46,12 @@ public class Context implements javax.jms.JMSContext {
 
     @Override
     public ConnectionMetaData getMetaData() {
-        return null;
+        throw new IllegalArgumentException("not implemented yet, sorry");
     }
 
     @Override
     public ExceptionListener getExceptionListener() {
-        return null;
+        throw new IllegalArgumentException("not implemented yet, sorry");
     }
 
     @Override
@@ -86,42 +86,42 @@ public class Context implements javax.jms.JMSContext {
 
     @Override
     public BytesMessage createBytesMessage() {
-        return null;
+        throw new IllegalArgumentException("not implemented yet, sorry");
     }
 
     @Override
     public MapMessage createMapMessage() {
-        return null;
+        throw new IllegalArgumentException("not implemented yet, sorry");
     }
 
     @Override
     public Message createMessage() {
-        return null;
+        throw new IllegalArgumentException("not implemented yet, sorry");
     }
 
     @Override
     public ObjectMessage createObjectMessage() {
-        return null;
+        throw new IllegalArgumentException("not implemented yet, sorry");
     }
 
     @Override
     public ObjectMessage createObjectMessage(Serializable object) {
-        return null;
+        throw new IllegalArgumentException("not implemented yet, sorry");
     }
 
     @Override
     public StreamMessage createStreamMessage() {
-        return null;
+        throw new IllegalArgumentException("not implemented yet, sorry");
     }
 
     @Override
     public TextMessage createTextMessage() {
-        return null;
+        throw new IllegalArgumentException("not implemented yet, sorry");
     }
 
     @Override
     public TextMessage createTextMessage(String text) {
-        return null;
+        throw new IllegalArgumentException("not implemented yet, sorry");
     }
 
     @Override
@@ -157,72 +157,72 @@ public class Context implements javax.jms.JMSContext {
 
     @Override
     public JMSConsumer createConsumer(Destination destination, String messageSelector) {
-        return null;
+        throw new IllegalArgumentException("not implemented yet, sorry");
     }
 
     @Override
     public JMSConsumer createConsumer(Destination destination, String messageSelector, boolean noLocal) {
-        return null;
+        throw new IllegalArgumentException("not implemented yet, sorry");
     }
 
     @Override
     public Queue createQueue(String queueName) {
-        return null;
+        throw new IllegalArgumentException("not implemented yet, sorry");
     }
 
     @Override
     public Topic createTopic(String topicName) {
-        return null;
+        throw new IllegalArgumentException("not implemented yet, sorry");
     }
 
     @Override
     public JMSConsumer createDurableConsumer(Topic topic, String name) {
-        return null;
+        throw new IllegalArgumentException("not implemented yet, sorry");
     }
 
     @Override
     public JMSConsumer createDurableConsumer(Topic topic, String name, String messageSelector, boolean noLocal) {
-        return null;
+        throw new IllegalArgumentException("not implemented yet, sorry");
     }
 
     @Override
     public JMSConsumer createSharedDurableConsumer(Topic topic, String name) {
-        return null;
+        throw new IllegalArgumentException("not implemented yet, sorry");
     }
 
     @Override
     public JMSConsumer createSharedDurableConsumer(Topic topic, String name, String messageSelector) {
-        return null;
+        throw new IllegalArgumentException("not implemented yet, sorry");
     }
 
     @Override
     public JMSConsumer createSharedConsumer(Topic topic, String sharedSubscriptionName) {
-        return null;
+        throw new IllegalArgumentException("not implemented yet, sorry");
     }
 
     @Override
     public JMSConsumer createSharedConsumer(Topic topic, String sharedSubscriptionName, String messageSelector) {
-        return null;
+        throw new IllegalArgumentException("not implemented yet, sorry");
     }
 
     @Override
     public QueueBrowser createBrowser(Queue queue) {
-        return null;
+        throw new IllegalArgumentException("not implemented yet, sorry");
     }
 
     @Override
     public QueueBrowser createBrowser(Queue queue, String messageSelector) {
-        return null;
+        throw new IllegalArgumentException("not implemented yet, sorry");
     }
 
     @Override
     public TemporaryQueue createTemporaryQueue() {
-        return null;
+        throw new IllegalArgumentException("not implemented yet, sorry");
     }
 
     @Override
     public TemporaryTopic createTemporaryTopic() {
-        return null;
+        throw new IllegalArgumentException("not implemented yet, sorry");
     }
 
     @Override

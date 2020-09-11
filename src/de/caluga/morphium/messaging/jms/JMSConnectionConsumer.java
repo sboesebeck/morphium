@@ -7,7 +7,7 @@ import javax.jms.ServerSessionPool;
 public class JMSConnectionConsumer implements ConnectionConsumer {
     @Override
     public ServerSessionPool getServerSessionPool() throws JMSException {
-        return null;
+        throw new IllegalArgumentException("not implemented yet, sorry");
     }
 
     @Override

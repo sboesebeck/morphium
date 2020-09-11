@@ -64,7 +64,7 @@ public class Consumer implements JMSConsumer, de.caluga.morphium.messaging.Messa
         while (incomingQueue.size() == 0) {
             Thread.yield();
             if (timeout > 0 && System.currentTimeMillis() - start > timeout) {
-                return null;
+                throw new IllegalArgumentException("not implemented yet, sorry");
             }
         }
         JMSMessage msg = incomingQueue.pop();
@@ -84,17 +84,17 @@ public class Consumer implements JMSConsumer, de.caluga.morphium.messaging.Messa
 
     @Override
     public <T> T receiveBody(Class<T> c) {
-        return null;
+        throw new IllegalArgumentException("not implemented yet, sorry");
     }
 
     @Override
     public <T> T receiveBody(Class<T> c, long timeout) {
-        return null;
+        throw new IllegalArgumentException("not implemented yet, sorry");
     }
 
     @Override
     public <T> T receiveBodyNoWait(Class<T> c) {
-        return null;
+        throw new IllegalArgumentException("not implemented yet, sorry");
     }
 
     @Override
@@ -106,7 +106,7 @@ public class Consumer implements JMSConsumer, de.caluga.morphium.messaging.Messa
             return ans;
         }
         incomingQueue.push(m);
-        return null;
+        throw new IllegalArgumentException("not implemented yet, sorry");
     }
 
     private JMSMessage getAckMessage(JMSMessage m) {
