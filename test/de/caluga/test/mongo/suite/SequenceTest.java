@@ -1,11 +1,16 @@
 package de.caluga.test.mongo.suite;
 
+import de.caluga.morphium.Morphium;
+import de.caluga.morphium.MorphiumConfig;
 import de.caluga.morphium.Sequence;
 import de.caluga.morphium.SequenceGenerator;
 import org.junit.Test;
 
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.List;
 import java.util.Vector;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * User: Stephan Bösebeck
@@ -153,4 +158,52 @@ public class SequenceTest extends MorphiumTestBase {
         log.info("done!");
     }
 
+    @Test
+    public void massiveParallelMulticonnectSingleSequenceTest() throws Exception {
+        morphium.dropCollection(Sequence.class);
+        Thread.sleep(100); //wait for the drop to be persisted
+
+
+        //creating lots of sequences, with separate MongoDBConnections
+        //reading from the same sequence
+        //in different Threads
+        final Vector<Long> values = new Vector<>();
+        List<Thread> threads = new ArrayList<>();
+        final AtomicInteger errors = new AtomicInteger(0);
+        for (int i = 0; i < 10; i++) {
+            Morphium m = new Morphium(MorphiumConfig.fromProperties(morphium.getConfig().asProperties()));
+
+            Thread t = new Thread(() -> {
+                SequenceGenerator sg1 = new SequenceGenerator(m, "testsequence", 1, 0);
+                for (int j = 0; j < 100; j++) {
+                    long l = sg1.getNextValue();
+                    log.info("Got nextValue: " + l);
+                    if (values.contains(l)) {
+                        log.error("Duplicate value " + l);
+                        errors.incrementAndGet();
+                    } else {
+                        values.add(l);
+                    }
+                    try {
+                        Thread.sleep((long) (100 * Math.random()));
+                    } catch (InterruptedException e) {
+                    }
+                }
+                m.close();
+            });
+            threads.add(t);
+            t.start();
+
+        }
+
+        while (threads.size() > 0) {
+            //log.info("Threads active: "+threads.size());
+            threads.get(0).join();
+            threads.remove(0);
+            Thread.sleep(100);
+        }
+
+        assert (errors.get() == 0);
+
+    }
 }

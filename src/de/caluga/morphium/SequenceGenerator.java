@@ -29,7 +29,7 @@ import java.util.UUID;
 
 @SuppressWarnings("UnusedDeclaration")
 public class SequenceGenerator {
-    private static Logger log = LoggerFactory.getLogger(SequenceGenerator.class);
+    private static final Logger log = LoggerFactory.getLogger(SequenceGenerator.class);
     private int inc;
     private long startValue;
     private Morphium morphium;
@@ -57,25 +57,15 @@ public class SequenceGenerator {
                 if (log.isDebugEnabled()) {
                     log.debug("Sequence does not exist yet... inserting");
                 }
-                //            Query<Sequence> seq = morphium.createQueryFor(Sequence.class);
-                //            seq.f("name").eq(name);
-                //
-                //            Map<String, Object> values = new HashMap<String, Object>();
-                //            values.put("locked_by", null);
-                //            values.put("current_value", startValue - inc);
-                //            morphium.set(seq, values, true, false);
-                //            morphium.ensureIndicesFor(Sequence.class);
-
                 Sequence s = new Sequence();
-                s.setCurrentValue(startValue - inc);
+                s.setCurrentValue(startValue - inc); //making sure first value will be startValue!
                 s.setName(name);
-                //                s.setId(new MongoId(new Date(0l), name.hashCode() & 0xffffff));
-                s.setId(new MorphiumId());
-                morphium.storeNoCache(s);
-                //inserted
+                morphium.storeNoCache(s); //will ensure indices
             }
         } catch (MorphiumDriverException e) {
             throw new RuntimeException(e);
+            //} catch (InterruptedException e) {
+            //ignore
         }
 
     }
