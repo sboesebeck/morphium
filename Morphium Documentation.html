@@ -5,15 +5,16 @@
     <title>Morphium 4.2 Documentation</title>
 </head>
 <body>
-<h1 id="morphium-42-documentation">Morphium 4.2 Documentation</h1>
+<h1 id="morphium-documentation">Morphium Documentation</h1>
 <div class="TOC">
 
 
     <ul>
-        <li><a href="#morphium-42-documentation">Morphium 4.2 Documentation</a>
+        <li><a href="#morphium-documentation">Morphium Documentation</a>
 
             <ul>
                 <li><a href="#what-is-morphium">What is <em>Morphium</em></a></li>
+                <li><a href="#about-this-document">About this document</a></li>
                 <li><a href="#using-morphium-as-a-messaging-system">Using <em>Morphium</em> as a messaging system</a>
 
                     <ul>
@@ -214,6 +215,7 @@
                         <li><a href="#asynchronous-write">Asynchronous Write</a></li>
                     </ul>
                 </li>
+                <li><a href="#disclaimer">Disclaimer</a></li>
             </ul>
         </li>
     </ul>
@@ -221,18 +223,34 @@
 
 <h2 id="what-is-morphium">What is <em>Morphium</em></h2>
 
-<p><em>Morphium</em> started as a feature rich access layer for MongoDB in java. It was built with speed and flexibility
-    in mind. So it supported cluster aware caching out of the box, lazy loading references and such.</p>
+<p><em>Morphium</em> started as a feature rich access layer and POJO mapper for MongoDB in java. It was built with speed
+    and flexibility in mind. So it supported cluster aware caching out of the box, lazy loading references and much
+    more. The POJO Mapping is the <em>core</em> of <em>Morphium</em>, all other features were built around that. It
+    makes accessing MongoDB easy, supports all great features of MongoDB and adds some more.</p>
 
-<p>But with time, one of the most popular features in <em>Morphium</em> is the messaging based on MongoDB. It is fast,
+<p>But with time, the MongoDB based messaging became one of the most popular features in <em>Morphium</em>. It is fast,
     reliable, customizable and stable. </p>
+
+<h2 id="about-this-document">About this document</h2>
+
+<p>This document is a documentation for <em>Morphium</em> in the current (4.2) version. It would be best, if you had a
+    basic understanding of MongoDB and a good knowledge on <em>Morphium</em>. If you want to know about MongoDBs
+    features, that <em>Morphium</em> implements here, have a look at the official mongodb pages and the documentation
+    there.</p>
+
+<p>This documentation covers all features <em>Morphium</em> has to offer.</p>
+
+<p>Later in this document there are chapters about the POJO mapping, querying data and using the aggregation framework.
+    Also a chapter about the InMemory driver, which is quite useful for testing. But let's start with the messaging
+    subsystem first. </p>
 
 <h2 id="using-morphium-as-a-messaging-system">Using <em>Morphium</em> as a messaging system</h2>
 
-<p><em>Morphium</em> is simple to use, and easy to customise to your needs. The messaging implementation in
-    <em>Morphium</em> relies on the <code>watch</code> functionality, that MongoDB offers since V3.6 (you can also use
-    messaging with older versions of MongoDB, but it will result in polling for new messages). With that feature, the
-    messages are <em>pushed</em> to all listeners. This makes it a very efficient messaging system based on MongoDB.</p>
+<p><em>Morphium</em> itself is simple to use, easy to customise to your needs and was built for high performance and
+    scalability. The messaging system is no different. It relies on the <code>watch</code> functionality, that MongoDB
+    offers since V3.6 (you can also use messaging with older versions of MongoDB, but it will result in polling for new
+    messages). With that feature, the messages are <em>pushed</em> to all listeners. This makes it a very efficient
+    messaging system based on MongoDB.</p>
 
 <h3 id="why-morphium-messaging">why <em>Morphium</em> messaging</h3>
 
@@ -241,19 +259,24 @@
 
 <ul>
     <li>the message queue can easily be inspected and you can use mongo search queries to find the messages you are
-        looking for
-    </li>
+        looking for<sup><a class="footnote" href="#fn1-30673" id="fnr1-30673" title="see footnote">1</a></sup></li>
     <li>the message queue can be altered (update single messages with ease, delete messages or just <em>add</em> new
         messages)
     </li>
-    <li>possibility to broadcast messages, that are only processed by one client max (Exclusive Messages). With V4.2 of
+    <li>Possibility to broadcast messages, that are only processed by one client max (Exclusive Messages). With V4.2 of
         <em>Morphium</em> this also works with a group of recipients.
     </li>
     <li>Messaging is multithreaded and thread safe</li>
     <li>pausing and unpausing of message processing without data loss</li>
-    <li><em>Morphium</em> Messaging picks up all pending messages on startup - no data loss.</li>
-    <li>no need to install additional servers, provide infrastructure. Just use your MongoDB.</li>
+    <li><em>Morphium</em> messaging picks up all pending messages on startup - no data loss.</li>
+    <li>no need to install additional servers or provide separate infrastructure. Just use your MongoDB you likely
+        already have in place.
+    </li>
 </ul>
+
+<p>There are people out there using <em>Morphium</em> and its messaging for production grade development. For example <a
+        href="https://www.genios.de">Genios.de</a> uses Morphium messaging to power a microservice architecture with an
+    enterprise message bus.</p>
 
 <h3 id="quick-start-messaging">Quick start Messaging</h3>
 
@@ -496,9 +519,9 @@ messaging.addMessageListener((messaging, msg) -&gt; {
     half as fast as the direct usage of <em>Morphium</em> messaging. </p>
 
 <p>Also, the implementation is very basic at the moment. A lot of methods lack implementation<sup><a class="footnote"
-                                                                                                     href="#fn1-25488"
-                                                                                                     id="fnr1-25488"
-                                                                                                     title="see footnote">1</a></sup>.
+                                                                                                     href="#fn2-30673"
+                                                                                                     id="fnr2-30673"
+                                                                                                     title="see footnote">2</a></sup>.
     If you notice some missing functionality, just open an issue at <a href="https://github.com/sboesebeck/morphium">github</a>.
 </p>
 
@@ -581,7 +604,7 @@ m.addRecipient(messaging1.getId());
     processed once!</p>
 
 <p>Since <em>Morphium</em> V4.2 it is also possible to send an exclusive message to certain recipients<sup><a
-        class="footnote" href="#fn2-25488" id="fnr2-25488" title="see footnote">2</a></sup>. </p>
+        class="footnote" href="#fn3-30673" id="fnr3-30673" title="see footnote">3</a></sup>. </p>
 
 <p>The behaviour is the same: the message will only be processed by <em>one</em> of the specified recipients, whereas it
     will be processed by <em>all</em> recipients, if not exclusive.</p>
@@ -1393,9 +1416,9 @@ assert(errors.get()==0);
 
 <p>the config of morphium does have a setting called <code>objectSerializationEnabled</code>. When set to
     <code>true</code> this will cause morphium to use the standard binary serialization of the JDK to store <em>any</em>
-    instance of <em>any</em> class that implements <code>serializable</code><sup><a class="footnote" href="#fn3-25488"
-                                                                                    id="fnr3-25488"
-                                                                                    title="see footnote">3</a></sup>.
+    instance of <em>any</em> class that implements <code>serializable</code><sup><a class="footnote" href="#fn4-30673"
+                                                                                    id="fnr4-30673"
+                                                                                    title="see footnote">4</a></sup>.
 </p>
 
 <p>Another setting in the config called <code>warnOnNoEntitySerialization</code> will create a warning message in log,
@@ -1960,8 +1983,8 @@ public static class IndexedObject {
 <p>in this case, a text index was built on fields <code>vorname</code>, <code>nachname</code>, <code>andrede</code> and
     <code>description</code>.</p>
 
-<p>To use the index, we need to create a text query<sup><a class="footnote" href="#fn4-25488" id="fnr4-25488"
-                                                           title="see footnote">4</a></sup>:</p>
+<p>To use the index, we need to create a text query<sup><a class="footnote" href="#fn5-30673" id="fnr5-30673"
+                                                           title="see footnote">5</a></sup>:</p>
 
 <pre><code class="java">@Test
 public void textIndexTest() throws Exception {
@@ -2957,7 +2980,7 @@ public class MyEntity {
 <h4 id="cluster-awareness">Cluster awareness</h4>
 
 <p><em>Morphium</em> is tracking the cluster status internally in order to react properly on different scenarios<sup><a
-        class="footnote" href="#fn5-25488" id="fnr5-25488" title="see footnote">5</a></sup>. For example, if one node
+        class="footnote" href="#fn6-30673" id="fnr6-30673" title="see footnote">6</a></sup>. For example, if one node
     goes down, waiting for all nodes to write the data will result in the application blocking until the last cluster
     member came back up again.</p>
 
@@ -2969,7 +2992,7 @@ public class MyEntity {
 
 <p><em>Morphium</em> fixes that issue in that way, that when &quot;WAIT_FOR_ALL_SLAVES&quot; is defined in <code>WriteSafety</code>,
     it will set the <code>w</code>-value according to the number of <em>available</em> slaves, resulting in no blocking.
-    <sup><a class="footnote" href="#fn6-25488" id="fnr6-25488" title="see footnote">6</a></sup></p>
+    <sup><a class="footnote" href="#fn7-30673" id="fnr7-30673" title="see footnote">7</a></sup></p>
 
 <h3 id="annotation-inheritence">Annotation Inheritence</h3>
 
@@ -3153,7 +3176,7 @@ morphium.getDriver().setTransactionContext(ctx);
 <h2 id="the-aggregation-framework">The Aggregation Framework</h2>
 
 <p>The aggregation framework is a very powerful feature of MongoDB and <em>Morphium</em> supports it from the start<sup><a
-        class="footnote" href="#fn7-25488" id="fnr7-25488" title="see footnote">7</a></sup>. But with <em>Morphium</em>
+        class="footnote" href="#fn8-30673" id="fnr8-30673" title="see footnote">8</a></sup>. But with <em>Morphium</em>
     V4.2.x we made use of it a lot easier.</p>
 
 <p>Core of the aggregation Framework in <em>Morphium</em> is the <code>Aggregator</code>. This will be created (using
@@ -3301,7 +3324,7 @@ assert(val.equals(&quot;{ \&quot;$filter\&quot; : { \&quot;input\&quot; :  [ 1, 
     <li>The <a href="https://caluga.de">caluga blog</a>, there are some articles on how to use <em>Morphium</em> and
         related projects and examples. Also, this document itself is available <a
                 href="https://boesebeck.name/v/2014/9/5/morphium_documentation?lang=en">there</a>.<sup><a
-                class="footnote" href="#fn8-25488" id="fnr8-25488" title="see footnote">8</a></sup></li>
+                class="footnote" href="#fn9-30673" id="fnr9-30673" title="see footnote">9</a></sup></li>
 </ul>
 
 <h2 id="code-examples">Code Examples</h2>
@@ -3579,55 +3602,67 @@ assert(val.equals(&quot;{ \&quot;$filter\&quot; : { \&quot;input\&quot; :  [ 1, 
 }
 </code></pre>
 
+<h2 id="disclaimer">Disclaimer</h2>
+
+<p>This document was written by the authors with most care, but there is no guarantee for 100% accuracy. If you have any
+    questions, find a mistake or have suggestions for improvements, please contact the authors of this document and the
+    developers of morphium via <a href="https://www.github.com/sboesebeck/morphium">github.com/sboesebeck/morphium</a>
+    or send an email to <a href="mailto://sb@caluga.de">sb@caluga.de</a></p>
+
 <div class="footnotes">
     <hr/>
     <ol>
 
-        <li id="fn1-25488">
-            <p>those throw an Exception to let you know, it is missing <a class="reversefootnote" href="#fnr1-25488"
+        <li id="fn1-30673">
+            <p>you can even use aggregation on it, to gather more information about your messages <a
+                    class="reversefootnote" href="#fnr1-30673" title="return to article">&#8617;&#xFE0E;</a></p>
+        </li>
+
+        <li id="fn2-30673">
+            <p>those throw an Exception to let you know, it is missing <a class="reversefootnote" href="#fnr2-30673"
                                                                           title="return to article">&#8617;&#xFE0E;</a>
             </p>
         </li>
 
-        <li id="fn2-25488">
+        <li id="fn3-30673">
             <p>does only make sense, when there is more than one recipient usually <a class="reversefootnote"
-                                                                                      href="#fnr2-25488"
+                                                                                      href="#fnr3-30673"
                                                                                       title="return to article">&#8617;&#xFE0E;</a>
             </p>
         </li>
 
-        <li id="fn3-25488">
+        <li id="fn4-30673">
             <p>attention: the &quot;top level&quot; document needs to be an Entity to have all necessary settings there.
                 But &quot;subdocuments&quot;/properties might be just serializable <a class="reversefootnote"
-                                                                                      href="#fnr3-25488"
+                                                                                      href="#fnr4-30673"
                                                                                       title="return to article">&#8617;&#xFE0E;</a>
             </p>
         </li>
 
-        <li id="fn4-25488">
+        <li id="fn5-30673">
             <p>text search and text indices can be disabled in mongodb config. When creating the index, it would throw
-                an Exception <a class="reversefootnote" href="#fnr4-25488" title="return to article">&#8617;&#xFE0E;</a>
+                an Exception <a class="reversefootnote" href="#fnr5-30673" title="return to article">&#8617;&#xFE0E;</a>
             </p>
         </li>
 
-        <li id="fn5-25488">
-            <p>can be switched off in morphiumConfig <a class="reversefootnote" href="#fnr5-25488"
+        <li id="fn6-30673">
+            <p>can be switched off in morphiumConfig <a class="reversefootnote" href="#fnr6-30673"
                                                         title="return to article">&#8617;&#xFE0E;</a></p>
         </li>
 
-        <li id="fn6-25488">
+        <li id="fn7-30673">
             <p>as it takes some time for <em>Morphium</em> and mongo do determine if a cluster member is down, some
-                requests might actually block <a class="reversefootnote" href="#fnr6-25488" title="return to article">&#8617;&#xFE0E;</a>
+                requests might actually block <a class="reversefootnote" href="#fnr7-30673" title="return to article">&#8617;&#xFE0E;</a>
             </p>
         </li>
 
-        <li id="fn7-25488">
-            <p>does not work with the `InMemoryDriver' yet <a class="reversefootnote" href="#fnr7-25488"
+        <li id="fn8-30673">
+            <p>does not work with the `InMemoryDriver' yet <a class="reversefootnote" href="#fnr8-30673"
                                                               title="return to article">&#8617;&#xFE0E;</a></p>
         </li>
 
-        <li id="fn8-25488">
-            <p>this blog is powered by <em>Morphium</em> and mongodb <a class="reversefootnote" href="#fnr8-25488"
+        <li id="fn9-30673">
+            <p>this blog is powered by <em>Morphium</em> and mongodb <a class="reversefootnote" href="#fnr9-30673"
                                                                         title="return to article">&#8617;&#xFE0E;</a>
             </p>
         </li>
