@@ -598,6 +598,13 @@ public class InMemoryDriver implements MorphiumDriver {
                                         if (toCheck.get(key).equals(v)) {
                                             found = true;
                                         }
+                                        if (toCheck.get(key) instanceof List) {
+                                            for (Object v2 : (List) toCheck.get(key)) {
+                                                if (v2.equals(v)) {
+                                                    found = true;
+                                                }
+                                            }
+                                        }
                                     }
                                 }
                                 return !found;
@@ -612,6 +619,14 @@ public class InMemoryDriver implements MorphiumDriver {
                                     if (toCheck.get(key) != null && toCheck.get(key).equals(v)) {
                                         return true;
                                     }
+                                    if (toCheck.get(key) != null && toCheck.get(key) instanceof List) {
+                                        for (Object v2 : (List) toCheck.get(key)) {
+                                            if (v2.equals(v)) {
+                                                return true;
+                                            }
+                                        }
+                                    }
+
                                 }
                                 return false;
 
