@@ -179,8 +179,9 @@ public class ReplicaSetNode {
 
     @Override
     public String toString() {
-        return "  ReplicaSetNode{" +
-                "name='" + name + '\'' +
+        return "ReplicaSetNode{" +
+                "id=" + id +
+                ", name='" + name + '\'' +
                 ", health=" + health +
                 ", state=" + state +
                 ", stateStr='" + stateStr + '\'' +
@@ -188,6 +189,14 @@ public class ReplicaSetNode {
                 ", optimeDate=" + optimeDate +
                 ", lastHeartbeat=" + lastHeartbeat +
                 ", pingMs=" + pingMs +
+                ", syncSourceHost='" + syncSourceHost + '\'' +
+                ", syncSourceId=" + syncSourceId +
+                ", infoMessage='" + infoMessage + '\'' +
+                ", electionDate=" + electionDate +
+                ", configVersion=" + configVersion +
+                ", configTerm=" + configTerm +
+                ", lastHeartbeatMessage='" + lastHeartbeatMessage + '\'' +
+                ", self=" + self +
                 '}';
     }
 }
