@@ -221,6 +221,7 @@ public class ComplexTest extends MorphiumTestBase {
     @Test
     public void complexQueryCallTest() throws Exception {
         createUncachedObjects(100);
+        Thread.sleep(100);
         Query<UncachedObject> q = morphium.createQueryFor(UncachedObject.class);
         UncachedObject uc = q.complexQuery(Utils.getMap("counter", 10)).get(0);
         assert (uc.getCounter() == 10);
