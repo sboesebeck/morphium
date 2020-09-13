@@ -6,10 +6,10 @@
 ## What is _Morphium_
 _Morphium_ started as a feature rich access layer and POJO mapper for MongoDB in java. It was built with speed and flexibility in mind. So it supported cluster aware caching out of the box, lazy loading references and much more. The POJO Mapping is the _core_ of _Morphium_, all other features were built around that. It makes accessing MongoDB easy, supports all great features of MongoDB and adds some more.
 
-But with time, the MongoDB based messaging became one of the most popular features in _Morphium_. It is fast, reliable, customizable and stable. 
+But with time, the MongoDB based messaging became one of the most popular features in _Morphium_. It is fast, reliable, customisable and stable. 
 
 ## About this document
-This document is a documentation for _Morphium_ in the current (4.2) version. It would be best, if you had a basic understanding of MongoDB and a good knowledge on _Morphium_. If you want to know about MongoDBs features, that _Morphium_ implements here, have a look at the official mongodb pages and the documentation there.
+This document is a documentation for _Morphium_ in the current (4.2) version. It would be best, if you had a basic understanding of MongoDB and a good knowledge on _Morphium_. If you want to know about MongoDB's features, that _Morphium_ implements here, have a look at the official MongoDB pages and the documentation there.
 
 This documentation covers all features _Morphium_ has to offer.
 
@@ -60,7 +60,7 @@ So if you want to send a Message, that is also simple:
 messaging.queueMessage(new Msg("name","A message","the value");
 ```
 
-queueMessage is running asynchrounously, which means, that the message is _not_ directly stored. If you need more speed and shorter reaction time, you should use `sendMessage` instead (directly storing message to mongo).
+queueMessage is running asynchronously, which means, that the message is _not_ directly stored. If you need more speed and shorter reaction time, you should use `sendMessage` instead (directly storing message to mongo).
 
 
 ### Answering messages
@@ -144,7 +144,7 @@ some examples to clarify that:
 When creating a Messaging instance, you can set a collection name to use. This could be compared to having a separate message queue in the system. Messages sent to one queue are not being registered by another.
 
 #### JMS Support
-_Morphium_ messaging also implements the standard JMS-API to a certain extend and can be used this way. Please keep in mind that JMS does not support most of the features, _Morphium_ messaging offers, and that the JMS implementaion does not cover 100% of the JMS API yet:
+_Morphium_ messaging also implements the standard JMS-API to a certain extend and can be used this way. Please keep in mind that JMS does not support most of the features, _Morphium_ messaging offers, and that the JMS implementation does not cover 100% of the JMS API yet:
 
 ```java
 @Test
@@ -279,7 +279,7 @@ The behaviour is the same: the message will only be processed by _one_ of the sp
 
 
 ## InMemory Driver
-One main purpose of the `InMemoryDriver` is to be able to do testing without having a MongoDB installed. The InMemoryDriver adds the opportunity to let all MongoDB-code run in Memeory, with a couple of exceptions
+One main purpose of the `InMemoryDriver` is to be able to do testing without having a MongoDB installed. The InMemoryDriver adds the opportunity to let all MongoDB-code run in Memory, with a couple of exceptions
 - unfortunately, the InMemoryDriver cannot do aggregations. It will throw an Exception, when trying Aggregations with this driver
 - the inMemoryDriver is also not capable to return cluster information, run mongodb commands
 - it does not support spacial indexes or queries
@@ -327,7 +327,7 @@ You can also set the Driver in the settings, e.g. in properties:
 
     morphium.driverClass = "de.caluga.morphium.driver.inmem.InMemoryDriver"
 
-After that initialization you can use this _Morphium_ instance as always, except that it will "persist" data only in Memory.
+After that initialisation you can use this _Morphium_ instance as always, except that it will "persist" data only in Memory.
 
 ### Dumping InMemory data
 As in memory storage is by definition not lasting, it might be a good idea to store your data onto disk for later use. The InMemoryDriver does support that:
@@ -552,7 +552,7 @@ _Morphium_ is built with flexibility, thread safety, performance and cluster awa
 
 There are four major components of *_Morphium_*:
 
-1.  the *_Morphium_* Instance: This is you main entrypoint for interaction with Mongo. Here you create Queries and you write data to mongo. All writes will then be forwarded to the configured Writer implementation, all reads are handled by the Query-Object
+1.  the *_Morphium_* Instance: This is you main entry point for interaction with Mongo. Here you create Queries and you write data to mongo. All writes will then be forwarded to the configured Writer implementation, all reads are handled by the Query-Object
 2.  Query-Object: you need a query object to do reads from mongo. This is usually created by using `_Morphium_.createQueryFor(Class<T> cls)`. With a Query, you can easily get data from database or have some things changed (update) and alike. 
 3.  the Cache: For every request that should be sent to mongo, *_Morphium_* checks first, whether this collection is to be cached and if there is already a result being stored for the corresponding request.
 4.  The Writers: there are 3 different types of writers in *_Morphium_*: The Default Writer (`_Morphium_Writer`) - writes directly to database, waiting for the response, the BufferedWriter (`BufferedWriter`) - does not write directly. All writes are stored in a buffer which is then processed as a bulk. The last type of writer ist the asynchronous writer (`AsyncWriter`) which is similar to the buffered one, but starts writing immediately - only asynchronous. *_Morphium_* decides which writer to use depending on the configuration and the annotations of the given Entities. But you can _always_ use asynchronous calls just by adding a`AsyncCallback` implementation to your request.
@@ -638,7 +638,7 @@ There are two implementations of the cache synchronizer:
 
 
 **Internals / Implementation details **
-* _Morphium_ uses the cache based on the search query, sort options and collection overrides given. This means  that there might be douplicate cache entries. In order to minimize the memory usage, _Morphium_ also uses an ID-Cache. So all results are just added to this id cache and those ids are added as result to the query cache.
+* _Morphium_ uses the cache based on the search query, sort options and collection overrides given. This means  that there might be duplicate cache entries. In order to minimize the memory usage, _Morphium_ also uses an ID-Cache. So all results are just added to this id cache and those ids are added as result to the query cache.
 the Caches are organized per type. This means, if your entity is not marked with @Cache, queries to this type won't be cached, even if you override the collection name. 
 * The cache is implemented completely unblocking and completely thread safe. There is almost no synchronized block in _Morphium_.
 
@@ -653,7 +653,7 @@ Here is an example on how to use this:
 ```
 Actually this is all there is to do, as the CacheSynchronizer registers itself to both _Morphium_ and the messaging system.
 
-__Change sinces 1.4.0__
+__Change since 1.4.0__
 Now the Caching is specified by every entity in the @Cache annotation using one Enum called SyncCacheStrategy. Possible Values are: NONE (Default), CLEAR_TYPE_CACHE (clear cache of all queries on change) and UPDATE_ENTRY (updates the entry itself), REMOVE_ENTRY_FROM_TYPE_CACHE (removes all entries from cache, containing this element)
 ```java
 enum SyncCacheStrategy {NONE, CLEAR_TYPE_CACHE, REMOVE_ENTRY_FROM_TYPE_CACHE, UPDATE_ENTRY}
@@ -1214,19 +1214,19 @@ In addition to those settings describing the behaviour of *_Morphium_*, you can 
 *   *queryClass* and *fieldImplClass*: this is used for Queries. If you want to take control over how queries ar built in *_Morphium_* and on how fields within queries are represented, you can replace those two with your custom implementation.
 * _queryFactoryClass_: query factory implementation, usually just creates a Query-Object. Custom implementations need to implement the `QueryFactory` interface.
 *   *cache*: Set your own implementation of the cache. It needs to implement the `MorphiumCache` interface. Default is `MorphiumCacheImpl`. You need to specify a fully configured cache object here, not only a class object.
-*   _driverClass_: Set the driver implementation, you want to use. This is a string, set the class name here. E.g. `MorphiumConfig.setDriverClass(MetaDriver.class.getName()`. Custom implementations need to implement the `MorphiumDriver` interface.
+*   _driverClass_: Set the driver implementation, you want to use. This is a string, set the class name here. E.g. `MorphiumConfig.setDriverClass(MetaDriver.class.getName()`. Custom implementations need to implement the `MorphiumDriver` interface. By default the `MongodbDriver` is used, which connects to mongo using the official Java driver. But there are some other implementations, that do have some advantages (like the inMemoryDriver or the ones from the project [here](https://github.com/sboesebeck/morphium-drivers).
 
 In Mongo until V 2.4 authentication and user privileges were not really existent. With 2.4, roles are introduces which might make it a bit more complicated to get things working.
 
 ### authentication
-_Morphium_ supports authentication, of course, but only once. So usually you have an application user, which connects to database. Login to mongo is configured as follows:
+_Morphium_ supports authentication, of course, but on startup. So usually you have an application user, which connects to database. Login to mongo is configured as follows:
 ```java
     MorphiumConfig cfg=new Morpiumconfig(...);
     ...
     cfg.setMongoLogin("tst");
     cfg.setMongoPassword("tst");
 ```
-This user usually needs to have read/Write access to the database. If you want your indices to be created automatically by you, this user also needs to have the role dbAdmin for the corresponding database. If you use _Morphium_ with a replicase of mongo nodes, _Morphium_ needs to be able to get access to local database and get the replicaset status. In order to do so, either the mongo user needs to get additional roles (clusterAdmin and read to local db), or you specify a special user for that task, which has excactly those roles. _Morphium_ authenticates with that different user for accessing replicaSet status (and only for getting the replicaset status) and is convigured very similar to the normal login:
+This user usually needs to have read/write access to the database. If you want your indices to be created automatically by you, this user also needs to have the role _dbAdmin_ for the corresponding database. If you use _Morphium_ with a replicaset of mongo nodes, _Morphium_ needs to be able to get access to local database and get the replicaset status. In order to do so, either the mongo user needs to get additional roles (clusterAdmin and read to local db), or you specify a special user for that task, which has excactly those roles. _Morphium_ authenticates with that different user for accessing replicaSet status (and only for getting the replicaset status) and is configured very similar to the normal login:
 ```java
      cfg.setMongoAdminUser("adm");
      cfg.setMongoAdminPwd("adm");
@@ -1259,7 +1259,7 @@ This is far away from being a complete guide, I hope this just gets you started 
 
 ## Entity Definition
 
-Entitys in *_Morphium_* ar just "Plain old Java Objects" (POJOs). So you just create your data objects, as usual. You only need to add the annotation `@Entity` to the class, to tell *_Morphium_* "Yes, this can be stored". The only additional thing you need to take care of is the definition of an ID-Field. This can be any field in the POJO identifiying the instance. Its best, to use `ObjectID` as type of this field, as these can be created automatically and you don't need to care about those as well.
+Entities in *_Morphium_* are just "Plain old Java Objects" (POJOs). So you just create your data objects, as usual. You only need to add the annotation `@Entity` to the class, to tell *_Morphium_* "Yes, this can be stored". The only additional thing you need to take care of is the definition of an ID-Field. This can be any field in the POJO identifying the instance. Its best, to use `ObjectID` as type of this field, as these can be created automatically and you don't need to care about those as well.
 
 If you specify your ID to be of a different kind (like String), you need to make sure, that the String is set, when the object will be written. Otherwise you might not find the object again. So the shortest Entity would look like this:
 
@@ -1286,7 +1286,7 @@ private String name;
 		
 This would create two combined indexes: one with `counter` and `name` (both ascending) and one with `value`, `thing` and descending `counter`. You could also define single field indexes using this annotations, but it's easier to read adding the annotation directly to the field.
 
-Indexes will be created automatically if you _create_ the collection. If you want the indexes to be created, even if there is already data stores, you need to call`morphium.ensureIndicesFor(MyEntity.class)`- You also may create your own indexes, which are not defined in annotations by calling`morphium.ensureIndex()`. As parameter you pass on a Map containing field name and order (-1 or 1) or just a prefixed list of strings (like` "-counter","name"`).
+Indexes will be created automatically if you _create_ the collection. If you want the indexes to be created, even if there is already data stores, you need to call `morphium.ensureIndicesFor(MyEntity.class)`- You also may create your own indexes, which are not defined in annotations by calling `morphium.ensureIndex()`. As parameter you pass on a Map containing field name and order (-1 or 1) or just a prefixed list of strings (like` "-counter","name"`).
 
 Every Index might have a set of options which define the kind of this index. Like `buildInBackground` or `unique`. You need to add those as second parameter to the Index-Annotation:
 
@@ -1299,7 +1299,7 @@ public static class IndexedObject {
 
 here 4 indexes are created. The first two are more or less standard, wheres the `lst` index is a geospatial one and the index on `name` is a text index (only since mongo 2.6). If you need to define options for one of your indexes, you need to define it for all of them (here, only the first index is unique).
 #### Text indexes
-Mongodb has  a built in text search functionality since V3.x. This can be used in commandline, or using _Morphium_. In order for it to work, a _text index_ nedds to be defined for the entity/collection. HEre an example for an entity called `Person`:
+MongoDB has  a built in text search functionality since V3.x. This can be used in command line, or using _Morphium_. In order for it to work, a _text index_ needs to be defined for the entity/collection. Here an example for an entity called `Person`:
 
 ```java
 @Entity
@@ -1310,7 +1310,7 @@ Mongodb has  a built in text search functionality since V3.x. This can be used i
 ```
 in this case, a text index was built on fields `vorname`, `nachname`, `andrede` and `description`.
 
-To use the index, we need to create a text query[^text search and text indices can be disabled in mongodb config. When creating the index, it would throw an Exception]:
+To use the index, we need to create a text query[^text search and text indices can be disabled in mongoDB config. When creating the index, it would throw an Exception]:
 
 ```java
 @Test
@@ -1335,7 +1335,7 @@ public void textIndexTest() throws Exception {
 
 In this case, there is some Data created, which puts the name of some superheroes in a mongo. Searching for the text ist something different than searching via regular expressions, because Text Indexes are way more efficient in that case.
 
-If you need more information on text indexes, have a look at Mongodbs documentation and take a look at the Tests for TextIndexes within the sourcecode of _Morphium_.
+If you need more information on text indexes, have a look at MongoDBs documentation and take a look at the Tests for TextIndexes within the source code of _Morphium_.
 
 ### capped collections
 
@@ -2061,7 +2061,7 @@ Do not store the field - similar to `@IgnoreFields` or `@LimitToFields`
 Cache settings for this entity, see the chapter about transparent caching above for more details.
 ### Encrypted
 Encryption settings for this field. See chapter about field encryption for details
-### UseIfnull
+### UseIfNull
 
 Usually, _Morphium_ does not store null values. That means, the corresponding document just would not contain the given field(s) at all.
 
@@ -2083,8 +2083,7 @@ the methods where those annotations are added must not have any parameters. They
 only used auto-versioning is enabled in `@Entity`. Defines the field to hold the version number.
 
 ### WriteSafety
-
-Sepcify the safety for this entity when it comes to writing to mongo. This can range from "NONE" to "WAIT FOR ALL SLAVES". Here are the available settings:
+Specify the safety for this entity when it comes to writing to mongo. This can range from "NONE" to "WAIT FOR ALL SLAVES". Here are the available settings:
 
 *   timeout: set a timeout in ms for the operation - if set to 0, unlimited (default). If set to negative value, wait relative to replication lag
 *   level: set the safety level: 
@@ -2104,8 +2103,8 @@ This caused _major_ problems with our environments, like having different cluste
 
 _Morphium_ fixes that issue in that way, that when "WAIT_FOR_ALL_SLAVES" is defined in `WriteSafety`, it will set the `w`-value according to the number of _available_ slaves, resulting in no blocking. [^as it takes some time for _Morphium_ and mongo do determine if a cluster member is down, some requests might actually block]
 
-### Annotation Inheritence
-By default, Java does not support the inheritence of annotations. This is ok in most cases, but in the case of entities it's a bugger. We added inheritence to _Morphium_ to be able to build flexible data structures and store them to mongo.
+### Annotation Inheritance
+By default, Java does not support the inheritance of annotations. This is ok in most cases, but in the case of entities it's a bugger. We added inheritance to _Morphium_ to be able to build flexible data structures and store them to mongo.
 
 ### Implementation
 Well, it's quite easy, actually ;-) The algorithm for getting the inherited annotations looks as follows (simplified)
@@ -2212,7 +2211,7 @@ OplogListener lst = data -> {
 ```
 
 ### partial updating
-The idea behind partial updates is, that only the changes to an entity are transmitted to the database and will thus reduce the load on network and Mongodb itself. 
+The idea behind partial updates is, that only the changes to an entity are transmitted to the database and will thus reduce the load on network and MongoDB itself. 
 
 This is the easiest way - you already know, what fields you changed and maybe you even do not want to store fields, that you actually did change. In that case, call the updateUsingFields-Method:
 ```java
@@ -2224,7 +2223,7 @@ This is the easiest way - you already know, what fields you changed and maybe yo
          //counter is ignored
 ```
 
-`updateUsingFields()` honors the lifecycle methods as well as caches (write cache or clear read_cache on write). take a look at some code from the corresponding junit-test for better understanding:
+`updateUsingFields()` honours the lifecycle methods as well as caches (write cache or clear read_cache on write). take a look at some code from the corresponding JUnit test for better understanding:
 
 ```java
 UncachedObject o... //read from MongoDB
@@ -2235,6 +2234,29 @@ Query<UncachedObject> c=morphium.createQueryFor(UncachedObject.class);
 UncachedObject fnd= (UncachedObject) c.f("_id").eq( o.getMongoId()).get();
 assert(fnd.getValue().equals("Updated!")):"Value not changed? "+fnd.getValue();
 ```
+
+### BulkRequest support
+If you need to send a lot of write requests to MongoDB, it might be useful to use _bulk requests_ for that. MongoDB does have support for that. It means, that not each command is sent on its own, but all are sent in one single bulk command to the database, which is a lot more efficient.
+
+To use that via _Morphium_ you need to add your requests to the `BulkRequestContext`:
+
+```java
+MorphiumBulkContext c = morphium.createBulkRequestContext(UncachedObject.class, false);
+c.addSetRequest(morphium.createQueryFor(UncachedObject.class).f("counter").gte(0), "counter", 999, true, true);
+//could add more requests here
+Map<String, Object> ret = c.runBulk();
+```
+
+There are all basic operations you might send in a bulk:
+- insert
+- delete
+- set/unset
+- inc/dec
+- update
+- mul (multiplication)
+- ...
+
+If there is a special request, where there is no direct support in bulk context, use the generic method `addCustomUpdateRequest()` for adding a request. You need to pass on your requests Map-Representation.
 
 ### Transaction support
 MongoDB does have support for transactions  in newer releases. _Morphium_ does support that as well:
@@ -2292,10 +2314,11 @@ ctx=morphium.getDriver().getTransactionContext();
 morphium.getDriver().setTransactionContext(ctx);
 ```
 
-__Caveat__: mongodb does not support nested transactions (yet), so you will get an `Exception` when trying to start another transaction in the same thread.
+__Caveat__: mongoDB does not support nested transactions (yet), so you will get an `Exception` when trying to start another transaction in the same thread.
 
 ## Listeners in _Morphium_
 there are a lot of listeners in _Morphium_ that help you get informed about what is going on in the system. Some of which also might help you, to adapt behaviour according to your needs:
+
 ### ReplicasetStatusListener
 _Morphium_ is monitoring the status of the replicaset it is connected to (default is every 5s, but can be changed in MorphiumConfigs setting `replicaSetMonitoringTimeout`). You can get this information on demand, by calling `morphium.getReplicasetStatus()`.
 But you can also be informed whenever there is a change in the cluster by implementing the interface (since _Morphium_ V4.2):
@@ -2374,9 +2397,9 @@ public class ReplicaSetNode {
 ``` 
 
 
-See mongodb documentation of [`rs.status()` command](https://docs.mongodb.com/manual/reference/method/rs.status/) for more information on the different fields.
+See mongoDB documentation of [`rs.status()` command](https://docs.mongodb.com/manual/reference/method/rs.status/) for more information on the different fields.
 ## CacheListener
-Via this interfact, you will be informed about cache operations and may interfere with them or change the behaviour:
+Via this interface, you will be informed about cache operations and may interfere with them or change the behaviour:
 
 ```java
 public interface CacheListener {
@@ -2539,8 +2562,8 @@ public interface OplogListener {
     void incomingData(Map<String, Object> data);
 }
 ``` 
-### Profilinig Listener
-If you need to gather performance data about your mongodb setup, the Profiling listener has you covered. It gives detailed information about the duration of any write or read access:
+### Profiling Listener
+If you need to gather performance data about your mongoDB setup, the Profiling listener has you covered. It gives detailed information about the duration of any write or read access:
 ```java 
 public interface ProfilingListener {
     void readAccess(Query query, long time, ReadAccessType t);

@@ -178,7 +178,7 @@
                         <li><a href="#transient">Transient</a></li>
                         <li><a href="#cache">Cache</a></li>
                         <li><a href="#encrypted">Encrypted</a></li>
-                        <li><a href="#useifnull">UseIfnull</a></li>
+                        <li><a href="#useifnull">UseIfNull</a></li>
                         <li><a href="#lifecycle">LifeCycle</a></li>
                         <li><a href="#version">Version</a></li>
                         <li><a href="#writesafety">WriteSafety</a>
@@ -187,7 +187,7 @@
                                 <li><a href="#cluster-awareness">Cluster awareness</a></li>
                             </ul>
                         </li>
-                        <li><a href="#annotation-inheritence">Annotation Inheritence</a></li>
+                        <li><a href="#annotation-inheritance">Annotation Inheritance</a></li>
                         <li><a href="#implementation">Implementation</a></li>
                     </ul>
                 </li>
@@ -195,6 +195,7 @@
 
                     <ul>
                         <li><a href="#partial-updating">partial updating</a></li>
+                        <li><a href="#bulkrequest-support">BulkRequest support</a></li>
                         <li><a href="#transaction-support">Transaction support</a></li>
                     </ul>
                 </li>
@@ -212,7 +213,7 @@
                         <li><a href="#messagelistener">MessageListener</a></li>
                         <li><a href="#morphiumstoragelistener">MorphiumStorageListener</a></li>
                         <li><a href="#oploglistener">OplogListener</a></li>
-                        <li><a href="#profilinig-listener">Profilinig Listener</a></li>
+                        <li><a href="#profiling-listener">Profiling Listener</a></li>
                     </ul>
                 </li>
                 <li><a href="#the-aggregation-framework">The Aggregation Framework</a>
@@ -246,13 +247,13 @@
     makes accessing MongoDB easy, supports all great features of MongoDB and adds some more.</p>
 
 <p>But with time, the MongoDB based messaging became one of the most popular features in <em>Morphium</em>. It is fast,
-    reliable, customizable and stable. </p>
+    reliable, customisable and stable. </p>
 
 <h2 id="about-this-document">About this document</h2>
 
 <p>This document is a documentation for <em>Morphium</em> in the current (4.2) version. It would be best, if you had a
-    basic understanding of MongoDB and a good knowledge on <em>Morphium</em>. If you want to know about MongoDBs
-    features, that <em>Morphium</em> implements here, have a look at the official mongodb pages and the documentation
+    basic understanding of MongoDB and a good knowledge on <em>Morphium</em>. If you want to know about MongoDB's
+    features, that <em>Morphium</em> implements here, have a look at the official MongoDB pages and the documentation
     there.</p>
 
 <p>This documentation covers all features <em>Morphium</em> has to offer.</p>
@@ -276,7 +277,7 @@
 
 <ul>
     <li>the message queue can easily be inspected and you can use mongo search queries to find the messages you are
-        looking for<sup><a class="footnote" href="#fn1-12132" id="fnr1-12132" title="see footnote">1</a></sup></li>
+        looking for<sup><a class="footnote" href="#fn1-10247" id="fnr1-10247" title="see footnote">1</a></sup></li>
     <li>the message queue can be altered (update single messages with ease, delete messages or just <em>add</em> new
         messages)
     </li>
@@ -330,7 +331,7 @@ messaging.addMessageListener((messaging, msg) -&gt; {
 <pre><code class="java">messaging.queueMessage(new Msg(&quot;name&quot;,&quot;A message&quot;,&quot;the value&quot;);
 </code></pre>
 
-<p>queueMessage is running asynchrounously, which means, that the message is <em>not</em> directly stored. If you need
+<p>queueMessage is running asynchronously, which means, that the message is <em>not</em> directly stored. If you need
     more speed and shorter reaction time, you should use <code>sendMessage</code> instead (directly storing message to
     mongo).</p>
 
@@ -474,7 +475,7 @@ messaging.addMessageListener((messaging, msg) -&gt; {
 
 <p><em>Morphium</em> messaging also implements the standard JMS-API to a certain extend and can be used this way. Please
     keep in mind that JMS does not support most of the features, <em>Morphium</em> messaging offers, and that the JMS
-    implementaion does not cover 100% of the JMS API yet:</p>
+    implementation does not cover 100% of the JMS API yet:</p>
 
 <pre><code class="java">@Test
     public void basicSendReceiveTest() throws Exception {
@@ -536,8 +537,8 @@ messaging.addMessageListener((messaging, msg) -&gt; {
     half as fast as the direct usage of <em>Morphium</em> messaging. </p>
 
 <p>Also, the implementation is very basic at the moment. A lot of methods lack implementation<sup><a class="footnote"
-                                                                                                     href="#fn2-12132"
-                                                                                                     id="fnr2-12132"
+                                                                                                     href="#fn2-10247"
+                                                                                                     id="fnr2-10247"
                                                                                                      title="see footnote">2</a></sup>.
     If you notice some missing functionality, just open an issue at <a href="https://github.com/sboesebeck/morphium">github</a>.
 </p>
@@ -621,7 +622,7 @@ m.addRecipient(messaging1.getId());
     processed once!</p>
 
 <p>Since <em>Morphium</em> V4.2 it is also possible to send an exclusive message to certain recipients<sup><a
-        class="footnote" href="#fn3-12132" id="fnr3-12132" title="see footnote">3</a></sup>. </p>
+        class="footnote" href="#fn3-10247" id="fnr3-10247" title="see footnote">3</a></sup>. </p>
 
 <p>The behaviour is the same: the message will only be processed by <em>one</em> of the specified recipients, whereas it
     will be processed by <em>all</em> recipients, if not exclusive.</p>
@@ -629,7 +630,7 @@ m.addRecipient(messaging1.getId());
 <h2 id="inmemory-driver">InMemory Driver</h2>
 
 <p>One main purpose of the <code>InMemoryDriver</code> is to be able to do testing without having a MongoDB installed.
-    The InMemoryDriver adds the opportunity to let all MongoDB-code run in Memeory, with a couple of exceptions</p>
+    The InMemoryDriver adds the opportunity to let all MongoDB-code run in Memory, with a couple of exceptions</p>
 
 <ul>
     <li>unfortunately, the InMemoryDriver cannot do aggregations. It will throw an Exception, when trying Aggregations
@@ -687,7 +688,7 @@ m.addRecipient(messaging1.getId());
 <pre><code>morphium.driverClass = &quot;de.caluga.morphium.driver.inmem.InMemoryDriver&quot;
 </code></pre>
 
-<p>After that initialization you can use this <em>Morphium</em> instance as always, except that it will &quot;persist&quot;
+<p>After that initialisation you can use this <em>Morphium</em> instance as always, except that it will &quot;persist&quot;
     data only in Memory.</p>
 
 <h3 id="dumping-inmemory-data">Dumping InMemory data</h3>
@@ -936,9 +937,9 @@ public static class ExportContainer {
 <p>There are four major components of <em><em>Morphium</em></em>:</p>
 
 <ol>
-    <li>the <em><em>Morphium</em></em> Instance: This is you main entrypoint for interaction with Mongo. Here you create
-        Queries and you write data to mongo. All writes will then be forwarded to the configured Writer implementation,
-        all reads are handled by the Query-Object
+    <li>the <em><em>Morphium</em></em> Instance: This is you main entry point for interaction with Mongo. Here you
+        create Queries and you write data to mongo. All writes will then be forwarded to the configured Writer
+        implementation, all reads are handled by the Query-Object
     </li>
     <li>Query-Object: you need a query object to do reads from mongo. This is usually created by using <code>_Morphium_.createQueryFor(Class&lt;T&gt;
         cls)</code>. With a Query, you can easily get data from database or have some things changed (update) and alike.
@@ -1100,9 +1101,9 @@ public class MyCachedEntity {
 
 <ul>
     <li><p><em>Morphium</em> uses the cache based on the search query, sort options and collection overrides given. This
-        means that there might be douplicate cache entries. In order to minimize the memory usage, <em>Morphium</em>
-        also uses an ID-Cache. So all results are just added to this id cache and those ids are added as result to the
-        query cache.</p>
+        means that there might be duplicate cache entries. In order to minimize the memory usage, <em>Morphium</em> also
+        uses an ID-Cache. So all results are just added to this id cache and those ids are added as result to the query
+        cache.</p>
         the Caches are organized per type. This means, if your entity is not marked with @Cache, queries to this type
         won't be cached, even if you override the collection name.
     </li>
@@ -1130,7 +1131,7 @@ public class MyCachedEntity {
 <p>Actually this is all there is to do, as the CacheSynchronizer registers itself to both <em>Morphium</em> and the
     messaging system.</p>
 
-<p><strong>Change sinces 1.4.0</strong></p>
+<p><strong>Change since 1.4.0</strong></p>
 
 <p>Now the Caching is specified by every entity in the @Cache annotation using one Enum called SyncCacheStrategy.
     Possible Values are: NONE (Default), CLEAR_TYPE_CACHE (clear cache of all queries on change) and UPDATE_ENTRY
@@ -1442,8 +1443,8 @@ assert(errors.get()==0);
 
 <p>the config of morphium does have a setting called <code>objectSerializationEnabled</code>. When set to
     <code>true</code> this will cause morphium to use the standard binary serialization of the JDK to store <em>any</em>
-    instance of <em>any</em> class that implements <code>serializable</code><sup><a class="footnote" href="#fn4-12132"
-                                                                                    id="fnr4-12132"
+    instance of <em>any</em> class that implements <code>serializable</code><sup><a class="footnote" href="#fn4-10247"
+                                                                                    id="fnr4-10247"
                                                                                     title="see footnote">4</a></sup>.
 </p>
 
@@ -1871,7 +1872,10 @@ assert(errors.get()==0);
     </li>
     <li><em>driverClass</em>: Set the driver implementation, you want to use. This is a string, set the class name here.
         E.g. <code>MorphiumConfig.setDriverClass(MetaDriver.class.getName()</code>. Custom implementations need to
-        implement the <code>MorphiumDriver</code> interface.
+        implement the <code>MorphiumDriver</code> interface. By default the <code>MongodbDriver</code> is used, which
+        connects to mongo using the official Java driver. But there are some other implementations, that do have some
+        advantages (like the inMemoryDriver or the ones from the project <a
+                href="https://github.com/sboesebeck/morphium-drivers">here</a>.
     </li>
 </ul>
 
@@ -1880,7 +1884,7 @@ assert(errors.get()==0);
 
 <h3 id="authentication">authentication</h3>
 
-<p><em>Morphium</em> supports authentication, of course, but only once. So usually you have an application user, which
+<p><em>Morphium</em> supports authentication, of course, but on startup. So usually you have an application user, which
     connects to database. Login to mongo is configured as follows:</p>
 
 <pre><code class="java">    MorphiumConfig cfg=new Morpiumconfig(...);
@@ -1889,13 +1893,13 @@ assert(errors.get()==0);
     cfg.setMongoPassword(&quot;tst&quot;);
 </code></pre>
 
-<p>This user usually needs to have read/Write access to the database. If you want your indices to be created
-    automatically by you, this user also needs to have the role dbAdmin for the corresponding database. If you use <em>Morphium</em>
-    with a replicase of mongo nodes, <em>Morphium</em> needs to be able to get access to local database and get the
-    replicaset status. In order to do so, either the mongo user needs to get additional roles (clusterAdmin and read to
-    local db), or you specify a special user for that task, which has excactly those roles. <em>Morphium</em>
-    authenticates with that different user for accessing replicaSet status (and only for getting the replicaset status)
-    and is convigured very similar to the normal login:</p>
+<p>This user usually needs to have read/write access to the database. If you want your indices to be created
+    automatically by you, this user also needs to have the role <em>dbAdmin</em> for the corresponding database. If you
+    use <em>Morphium</em> with a replicaset of mongo nodes, <em>Morphium</em> needs to be able to get access to local
+    database and get the replicaset status. In order to do so, either the mongo user needs to get additional roles
+    (clusterAdmin and read to local db), or you specify a special user for that task, which has excactly those roles.
+    <em>Morphium</em> authenticates with that different user for accessing replicaSet status (and only for getting the
+    replicaset status) and is configured very similar to the normal login:</p>
 
 <pre><code class="java">     cfg.setMongoAdminUser(&quot;adm&quot;);
      cfg.setMongoAdminPwd(&quot;adm&quot;);
@@ -1937,11 +1941,11 @@ db.addUser({user:&quot;tst&quot;,pwd:&quot;tst&quot;,roles:[&quot;readWrite&quot
 
 <h2 id="entity-definition">Entity Definition</h2>
 
-<p>Entitys in <em><em>Morphium</em></em> ar just &quot;Plain old Java Objects&quot; (POJOs). So you just create your
+<p>Entities in <em><em>Morphium</em></em> are just &quot;Plain old Java Objects&quot; (POJOs). So you just create your
     data objects, as usual. You only need to add the annotation <code>@Entity</code> to the class, to tell <em><em>Morphium</em></em>
     &quot;Yes, this can be stored&quot;. The only additional thing you need to take care of is the definition of an
-    ID-Field. This can be any field in the POJO identifiying the instance. Its best, to use <code>ObjectID</code> as
-    type of this field, as these can be created automatically and you don't need to care about those as well.</p>
+    ID-Field. This can be any field in the POJO identifying the instance. Its best, to use <code>ObjectID</code> as type
+    of this field, as these can be created automatically and you don't need to care about those as well.</p>
 
 <p>If you specify your ID to be of a different kind (like String), you need to make sure, that the String is set, when
     the object will be written. Otherwise you might not find the object again. So the shortest Entity would look like
@@ -1975,10 +1979,10 @@ db.addUser({user:&quot;tst&quot;,pwd:&quot;tst&quot;,roles:[&quot;readWrite&quot
     indexes using this annotations, but it's easier to read adding the annotation directly to the field.</p>
 
 <p>Indexes will be created automatically if you <em>create</em> the collection. If you want the indexes to be created,
-    even if there is already data stores, you need to call<code>morphium.ensureIndicesFor(MyEntity.class)</code>- You
-    also may create your own indexes, which are not defined in annotations by calling<code>morphium.ensureIndex()</code>.
-    As parameter you pass on a Map containing field name and order (-1 or 1) or just a prefixed list of strings
-    (like<code>&quot;-counter&quot;,&quot;name&quot;</code>).</p>
+    even if there is already data stores, you need to call <code>morphium.ensureIndicesFor(MyEntity.class)</code>- You
+    also may create your own indexes, which are not defined in annotations by calling
+    <code>morphium.ensureIndex()</code>. As parameter you pass on a Map containing field name and order (-1 or 1) or
+    just a prefixed list of strings (like<code>&quot;-counter&quot;,&quot;name&quot;</code>).</p>
 
 <p>Every Index might have a set of options which define the kind of this index. Like <code>buildInBackground</code> or
     <code>unique</code>. You need to add those as second parameter to the Index-Annotation:</p>
@@ -1995,9 +1999,9 @@ public static class IndexedObject {
 
 <h4 id="text-indexes">Text indexes</h4>
 
-<p>Mongodb has a built in text search functionality since V3.x. This can be used in commandline, or using
-    <em>Morphium</em>. In order for it to work, a <em>text index</em> nedds to be defined for the entity/collection.
-    HEre an example for an entity called <code>Person</code>:</p>
+<p>MongoDB has a built in text search functionality since V3.x. This can be used in command line, or using
+    <em>Morphium</em>. In order for it to work, a <em>text index</em> needs to be defined for the entity/collection.
+    Here an example for an entity called <code>Person</code>:</p>
 
 <pre><code class="java">@Entity
     @Index(value = {&quot;vorname:text,nachname:text,anrede:text,description:text&quot;, &quot;age:1&quot;}, options = {&quot;name:myIdx&quot;})
@@ -2009,7 +2013,7 @@ public static class IndexedObject {
 <p>in this case, a text index was built on fields <code>vorname</code>, <code>nachname</code>, <code>andrede</code> and
     <code>description</code>.</p>
 
-<p>To use the index, we need to create a text query<sup><a class="footnote" href="#fn5-12132" id="fnr5-12132"
+<p>To use the index, we need to create a text query<sup><a class="footnote" href="#fn5-10247" id="fnr5-10247"
                                                            title="see footnote">5</a></sup>:</p>
 
 <pre><code class="java">@Test
@@ -2036,8 +2040,8 @@ public void textIndexTest() throws Exception {
     ist something different than searching via regular expressions, because Text Indexes are way more efficient in that
     case.</p>
 
-<p>If you need more information on text indexes, have a look at Mongodbs documentation and take a look at the Tests for
-    TextIndexes within the sourcecode of <em>Morphium</em>.</p>
+<p>If you need more information on text indexes, have a look at MongoDBs documentation and take a look at the Tests for
+    TextIndexes within the source code of <em>Morphium</em>.</p>
 
 <h3 id="capped-collections">capped collections</h3>
 
@@ -2946,7 +2950,7 @@ public class MyEntity {
 
 <p>Encryption settings for this field. See chapter about field encryption for details</p>
 
-<h3 id="useifnull">UseIfnull</h3>
+<h3 id="useifnull">UseIfNull</h3>
 
 <p>Usually, <em>Morphium</em> does not store null values. That means, the corresponding document just would not contain
     the given field(s) at all.</p>
@@ -2978,7 +2982,7 @@ public class MyEntity {
 
 <h3 id="writesafety">WriteSafety</h3>
 
-<p>Sepcify the safety for this entity when it comes to writing to mongo. This can range from &quot;NONE&quot; to &quot;WAIT
+<p>Specify the safety for this entity when it comes to writing to mongo. This can range from &quot;NONE&quot; to &quot;WAIT
     FOR ALL SLAVES&quot;. Here are the available settings:</p>
 
 <ul>
@@ -3006,7 +3010,7 @@ public class MyEntity {
 <h4 id="cluster-awareness">Cluster awareness</h4>
 
 <p><em>Morphium</em> is tracking the cluster status internally in order to react properly on different scenarios<sup><a
-        class="footnote" href="#fn6-12132" id="fnr6-12132" title="see footnote">6</a></sup>. For example, if one node
+        class="footnote" href="#fn6-10247" id="fnr6-10247" title="see footnote">6</a></sup>. For example, if one node
     goes down, waiting for all nodes to write the data will result in the application blocking until the last cluster
     member came back up again.</p>
 
@@ -3018,12 +3022,12 @@ public class MyEntity {
 
 <p><em>Morphium</em> fixes that issue in that way, that when &quot;WAIT_FOR_ALL_SLAVES&quot; is defined in <code>WriteSafety</code>,
     it will set the <code>w</code>-value according to the number of <em>available</em> slaves, resulting in no blocking.
-    <sup><a class="footnote" href="#fn7-12132" id="fnr7-12132" title="see footnote">7</a></sup></p>
+    <sup><a class="footnote" href="#fn7-10247" id="fnr7-10247" title="see footnote">7</a></sup></p>
 
-<h3 id="annotation-inheritence">Annotation Inheritence</h3>
+<h3 id="annotation-inheritance">Annotation Inheritance</h3>
 
-<p>By default, Java does not support the inheritence of annotations. This is ok in most cases, but in the case of
-    entities it's a bugger. We added inheritence to <em>Morphium</em> to be able to build flexible data structures and
+<p>By default, Java does not support the inheritance of annotations. This is ok in most cases, but in the case of
+    entities it's a bugger. We added inheritance to <em>Morphium</em> to be able to build flexible data structures and
     store them to mongo.</p>
 
 <h3 id="implementation">Implementation</h3>
@@ -3154,7 +3158,7 @@ morphium.store(new UncachedObject(&quot;killing&quot;, 0));
 <h3 id="partial-updating">partial updating</h3>
 
 <p>The idea behind partial updates is, that only the changes to an entity are transmitted to the database and will thus
-    reduce the load on network and Mongodb itself. </p>
+    reduce the load on network and MongoDB itself. </p>
 
 <p>This is the easiest way - you already know, what fields you changed and maybe you even do not want to store fields,
     that you actually did change. In that case, call the updateUsingFields-Method:</p>
@@ -3167,8 +3171,8 @@ morphium.store(new UncachedObject(&quot;killing&quot;, 0));
          //counter is ignored
 </code></pre>
 
-<p><code>updateUsingFields()</code> honors the lifecycle methods as well as caches (write cache or clear read_cache on
-    write). take a look at some code from the corresponding junit-test for better understanding:</p>
+<p><code>updateUsingFields()</code> honours the lifecycle methods as well as caches (write cache or clear read_cache on
+    write). take a look at some code from the corresponding JUnit test for better understanding:</p>
 
 <pre><code class="java">UncachedObject o... //read from MongoDB
 o.setValue(&quot;Updated!&quot;);
@@ -3178,6 +3182,35 @@ Query&lt;UncachedObject&gt; c=morphium.createQueryFor(UncachedObject.class);
 UncachedObject fnd= (UncachedObject) c.f(&quot;_id&quot;).eq( o.getMongoId()).get();
 assert(fnd.getValue().equals(&quot;Updated!&quot;)):&quot;Value not changed? &quot;+fnd.getValue();
 </code></pre>
+
+<h3 id="bulkrequest-support">BulkRequest support</h3>
+
+<p>If you need to send a lot of write requests to MongoDB, it might be useful to use <em>bulk requests</em> for that.
+    MongoDB does have support for that. It means, that not each command is sent on its own, but all are sent in one
+    single bulk command to the database, which is a lot more efficient.</p>
+
+<p>To use that via <em>Morphium</em> you need to add your requests to the <code>BulkRequestContext</code>:</p>
+
+<pre><code class="java">MorphiumBulkContext c = morphium.createBulkRequestContext(UncachedObject.class, false);
+c.addSetRequest(morphium.createQueryFor(UncachedObject.class).f(&quot;counter&quot;).gte(0), &quot;counter&quot;, 999, true, true);
+//could add more requests here
+Map&lt;String, Object&gt; ret = c.runBulk();
+</code></pre>
+
+<p>There are all basic operations you might send in a bulk:</p>
+
+<ul>
+    <li>insert</li>
+    <li>delete</li>
+    <li>set/unset</li>
+    <li>inc/dec</li>
+    <li>update</li>
+    <li>mul (multiplication)</li>
+    <li>...</li>
+</ul>
+
+<p>If there is a special request, where there is no direct support in bulk context, use the generic method <code>addCustomUpdateRequest()</code>
+    for adding a request. You need to pass on your requests Map-Representation.</p>
 
 <h3 id="transaction-support">Transaction support</h3>
 
@@ -3235,7 +3268,7 @@ assert(fnd.getValue().equals(&quot;Updated!&quot;)):&quot;Value not changed? &qu
 morphium.getDriver().setTransactionContext(ctx);
 </code></pre>
 
-<p><strong>Caveat</strong>: mongodb does not support nested transactions (yet), so you will get an
+<p><strong>Caveat</strong>: mongoDB does not support nested transactions (yet), so you will get an
     <code>Exception</code> when trying to start another transaction in the same thread.</p>
 
 <h2 id="listeners-in-morphium">Listeners in <em>Morphium</em></h2>
@@ -3324,13 +3357,13 @@ public class ReplicaSetNode {
 
 </code></pre>
 
-<p>See mongodb documentation of <a
+<p>See mongoDB documentation of <a
         href="https://docs.mongodb.com/manual/reference/method/rs.status/"><code>rs.status()</code> command</a> for more
     information on the different fields.</p>
 
 <h2 id="cachelistener">CacheListener</h2>
 
-<p>Via this interfact, you will be informed about cache operations and may interfere with them or change the
+<p>Via this interface, you will be informed about cache operations and may interfere with them or change the
     behaviour:</p>
 
 <pre><code class="java">public interface CacheListener {
@@ -3497,8 +3530,8 @@ public class ReplicaSetNode {
 <h3 id="oploglistener">OplogListener</h3>
 
 <p>there is a listener / watch functionality that works with older Mongodb installations. The OpLogListener is used by
-    the <code>OplogMonitor</code> and uses the OpLog to inform about changes <sup><a class="footnote" href="#fn8-12132"
-                                                                                     id="fnr8-12132"
+    the <code>OplogMonitor</code> and uses the OpLog to inform about changes <sup><a class="footnote" href="#fn8-10247"
+                                                                                     id="fnr8-10247"
                                                                                      title="see footnote">8</a></sup>.
 </p>
 
@@ -3507,9 +3540,9 @@ public class ReplicaSetNode {
 }
 </code></pre>
 
-<h3 id="profilinig-listener">Profilinig Listener</h3>
+<h3 id="profiling-listener">Profiling Listener</h3>
 
-<p>If you need to gather performance data about your mongodb setup, the Profiling listener has you covered. It gives
+<p>If you need to gather performance data about your mongoDB setup, the Profiling listener has you covered. It gives
     detailed information about the duration of any write or read access:</p>
 
 <pre><code class="java">public interface ProfilingListener {
@@ -3522,7 +3555,7 @@ public class ReplicaSetNode {
 <h2 id="the-aggregation-framework">The Aggregation Framework</h2>
 
 <p>The aggregation framework is a very powerful feature of MongoDB and <em>Morphium</em> supports it from the start<sup><a
-        class="footnote" href="#fn9-12132" id="fnr9-12132" title="see footnote">9</a></sup>. But with <em>Morphium</em>
+        class="footnote" href="#fn9-10247" id="fnr9-10247" title="see footnote">9</a></sup>. But with <em>Morphium</em>
     V4.2.x we made use of it a lot easier.</p>
 
 <p>Core of the aggregation Framework in <em>Morphium</em> is the <code>Aggregator</code>. This will be created (using
@@ -3670,7 +3703,7 @@ assert(val.equals(&quot;{ \&quot;$filter\&quot; : { \&quot;input\&quot; :  [ 1, 
     <li>The <a href="https://caluga.de">caluga blog</a>, there are some articles on how to use <em>Morphium</em> and
         related projects and examples. Also, this document itself is available <a
                 href="https://boesebeck.name/v/2014/9/5/morphium_documentation?lang=en">there</a>.<sup><a
-                class="footnote" href="#fn10-12132" id="fnr10-12132" title="see footnote">10</a></sup></li>
+                class="footnote" href="#fn10-10247" id="fnr10-10247" title="see footnote">10</a></sup></li>
 </ul>
 
 <h2 id="code-examples">Code Examples</h2>
@@ -3890,61 +3923,61 @@ assert(val.equals(&quot;{ \&quot;$filter\&quot; : { \&quot;input\&quot; :  [ 1, 
     <hr/>
     <ol>
 
-        <li id="fn1-12132">
+        <li id="fn1-10247">
             <p>you can even use aggregation on it, to gather more information about your messages <a
-                    class="reversefootnote" href="#fnr1-12132" title="return to article">&#8617;&#xFE0E;</a></p>
+                    class="reversefootnote" href="#fnr1-10247" title="return to article">&#8617;&#xFE0E;</a></p>
         </li>
 
-        <li id="fn2-12132">
-            <p>those throw an Exception to let you know, it is missing <a class="reversefootnote" href="#fnr2-12132"
+        <li id="fn2-10247">
+            <p>those throw an Exception to let you know, it is missing <a class="reversefootnote" href="#fnr2-10247"
                                                                           title="return to article">&#8617;&#xFE0E;</a>
             </p>
         </li>
 
-        <li id="fn3-12132">
+        <li id="fn3-10247">
             <p>does only make sense, when there is more than one recipient usually <a class="reversefootnote"
-                                                                                      href="#fnr3-12132"
+                                                                                      href="#fnr3-10247"
                                                                                       title="return to article">&#8617;&#xFE0E;</a>
             </p>
         </li>
 
-        <li id="fn4-12132">
+        <li id="fn4-10247">
             <p>attention: the &quot;top level&quot; document needs to be an Entity to have all necessary settings there.
                 But &quot;subdocuments&quot;/properties might be just serializable <a class="reversefootnote"
-                                                                                      href="#fnr4-12132"
+                                                                                      href="#fnr4-10247"
                                                                                       title="return to article">&#8617;&#xFE0E;</a>
             </p>
         </li>
 
-        <li id="fn5-12132">
-            <p>text search and text indices can be disabled in mongodb config. When creating the index, it would throw
-                an Exception <a class="reversefootnote" href="#fnr5-12132" title="return to article">&#8617;&#xFE0E;</a>
+        <li id="fn5-10247">
+            <p>text search and text indices can be disabled in mongoDB config. When creating the index, it would throw
+                an Exception <a class="reversefootnote" href="#fnr5-10247" title="return to article">&#8617;&#xFE0E;</a>
             </p>
         </li>
 
-        <li id="fn6-12132">
-            <p>can be switched off in morphiumConfig <a class="reversefootnote" href="#fnr6-12132"
+        <li id="fn6-10247">
+            <p>can be switched off in morphiumConfig <a class="reversefootnote" href="#fnr6-10247"
                                                         title="return to article">&#8617;&#xFE0E;</a></p>
         </li>
 
-        <li id="fn7-12132">
+        <li id="fn7-10247">
             <p>as it takes some time for <em>Morphium</em> and mongo do determine if a cluster member is down, some
-                requests might actually block <a class="reversefootnote" href="#fnr7-12132" title="return to article">&#8617;&#xFE0E;</a>
+                requests might actually block <a class="reversefootnote" href="#fnr7-10247" title="return to article">&#8617;&#xFE0E;</a>
             </p>
         </li>
 
-        <li id="fn8-12132">
-            <p>also only works when connected to a replicaset <a class="reversefootnote" href="#fnr8-12132"
+        <li id="fn8-10247">
+            <p>also only works when connected to a replicaset <a class="reversefootnote" href="#fnr8-10247"
                                                                  title="return to article">&#8617;&#xFE0E;</a></p>
         </li>
 
-        <li id="fn9-12132">
-            <p>does not work with the `InMemoryDriver' yet <a class="reversefootnote" href="#fnr9-12132"
+        <li id="fn9-10247">
+            <p>does not work with the `InMemoryDriver' yet <a class="reversefootnote" href="#fnr9-10247"
                                                               title="return to article">&#8617;&#xFE0E;</a></p>
         </li>
 
-        <li id="fn10-12132">
-            <p>this blog is powered by <em>Morphium</em> and mongodb <a class="reversefootnote" href="#fnr10-12132"
+        <li id="fn10-10247">
+            <p>this blog is powered by <em>Morphium</em> and mongodb <a class="reversefootnote" href="#fnr10-10247"
                                                                         title="return to article">&#8617;&#xFE0E;</a>
             </p>
         </li>
