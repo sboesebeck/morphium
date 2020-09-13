@@ -1,10 +1,13 @@
 package de.caluga.morphium.replicaset;
 
+import de.caluga.morphium.ObjectMapperImpl;
+import de.caluga.morphium.Utils;
 import de.caluga.morphium.annotations.Embedded;
 import de.caluga.morphium.annotations.Transient;
 
 import java.util.Date;
 import java.util.List;
+import java.util.Map;
 
 /**
  * User: Stephan Bösebeck
@@ -17,9 +20,20 @@ import java.util.List;
 @Embedded(translateCamelCase = false)
 public class ReplicaSetStatus {
     private String set;
-    private String myState;
+    private int myState;
+    private String syncSourceHost;
     private Date date;
+    private int term;
+    private int syncSourceId;
+    private long heartbeatIntervalMillis;
+    private int majorityVoteCount;
+    private int writeMajorityCount;
+    private int votingMembersCount;
+    private int writableVotingMembersCount;
+    private long lastStableRecoveryTimestamp;
     private List<ReplicaSetNode> members;
+    private Map<String, Object> optimes;
+    private Map<String, Object> electionCandidateMetrics;
 
     @Transient
     private ReplicaSetConf config;
@@ -32,11 +46,11 @@ public class ReplicaSetStatus {
         this.set = set;
     }
 
-    public String getMyState() {
+    public int getMyState() {
         return myState;
     }
 
-    public void setMyState(String myState) {
+    public void setMyState(int myState) {
         this.myState = myState;
     }
 
@@ -65,6 +79,93 @@ public class ReplicaSetStatus {
 
     }
 
+    public String getSyncSourceHost() {
+        return syncSourceHost;
+    }
+
+    public void setSyncSourceHost(String syncSourceHost) {
+        this.syncSourceHost = syncSourceHost;
+    }
+
+    public int getTerm() {
+        return term;
+    }
+
+    public void setTerm(int term) {
+        this.term = term;
+    }
+
+    public int getSyncSourceId() {
+        return syncSourceId;
+    }
+
+    public void setSyncSourceId(int syncSourceId) {
+        this.syncSourceId = syncSourceId;
+    }
+
+    public long getHeartbeatIntervalMillis() {
+        return heartbeatIntervalMillis;
+    }
+
+    public void setHeartbeatIntervalMillis(long heartbeatIntervalMillis) {
+        this.heartbeatIntervalMillis = heartbeatIntervalMillis;
+    }
+
+    public int getMajorityVoteCount() {
+        return majorityVoteCount;
+    }
+
+    public void setMajorityVoteCount(int majorityVoteCount) {
+        this.majorityVoteCount = majorityVoteCount;
+    }
+
+    public int getWriteMajorityCount() {
+        return writeMajorityCount;
+    }
+
+    public void setWriteMajorityCount(int writeMajorityCount) {
+        this.writeMajorityCount = writeMajorityCount;
+    }
+
+    public int getVotingMembersCount() {
+        return votingMembersCount;
+    }
+
+    public void setVotingMembersCount(int votingMembersCount) {
+        this.votingMembersCount = votingMembersCount;
+    }
+
+    public int getWritableVotingMembersCount() {
+        return writableVotingMembersCount;
+    }
+
+    public void setWritableVotingMembersCount(int writableVotingMembersCount) {
+        this.writableVotingMembersCount = writableVotingMembersCount;
+    }
+
+    public long getLastStableRecoveryTimestamp() {
+        return lastStableRecoveryTimestamp;
+    }
+
+    public void setLastStableRecoveryTimestamp(long lastStableRecoveryTimestamp) {
+        this.lastStableRecoveryTimestamp = lastStableRecoveryTimestamp;
+    }
+
+    public Map<String, Object> getOptimes() {
+        return optimes;
+    }
+
+    public void setOptimes(Map<String, Object> optimes) {
+        this.optimes = optimes;
+    }
+
+    public Map<String, Object> getElectionCandidateMetrics() {
+        return electionCandidateMetrics;
+    }
+
+    public void setElectionCandidateMetrics(Map<String, Object> electionCandidateMetrics) {
+        this.electionCandidateMetrics = electionCandidateMetrics;
+    }
 
     public int getActiveNodes() {
         if (members == null) {
@@ -92,25 +193,9 @@ public class ReplicaSetStatus {
         return up;
     }
 
-
     @Override
     public String toString() {
-        StringBuilder stringBuilder = new StringBuilder("[ \n");
-        if (members != null) {
-            for (ReplicaSetNode n : members) {
-                stringBuilder.append(n.toString());
-                stringBuilder.append(",\n");
-            }
-        }
-        stringBuilder.append("]");
+        return Utils.toJsonString(new ObjectMapperImpl().serialize(this));
 
-        return "ReplicaSetStatus{" +
-                "active=" + getActiveNodes() +
-                ", set='" + set + '\'' +
-                ", myState='" + myState + '\'' +
-                ", date=" + date +
-                ", members=" + stringBuilder.toString() +
-                ", config=" + config +
-                '}';
     }
 }

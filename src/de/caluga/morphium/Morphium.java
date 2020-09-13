@@ -25,6 +25,7 @@ import de.caluga.morphium.query.Query;
 import de.caluga.morphium.replicaset.RSMonitor;
 import de.caluga.morphium.replicaset.ReplicaSetNode;
 import de.caluga.morphium.replicaset.ReplicaSetStatus;
+import de.caluga.morphium.replicaset.ReplicasetStatusListener;
 import de.caluga.morphium.validation.JavaxValidationStorageListener;
 import de.caluga.morphium.writer.BufferedMorphiumWriterImpl;
 import de.caluga.morphium.writer.MorphiumWriter;
@@ -529,9 +530,21 @@ public class Morphium implements AutoCloseable {
         ensureIndicesFor(type, onCollection, callback, getWriterForClass(type));
     }
 
+    public void addReplicasetStatusListener(ReplicasetStatusListener lst) {
+        if (rsMonitor != null) {
+            rsMonitor.addListener(lst);
+        }
+    }
+
+    public void removeReplicasetStatusListener(ReplicasetStatusListener lst) {
+        if (rsMonitor != null) {
+            rsMonitor.removeListener(lst);
+        }
+    }
+
     public <T> void ensureIndicesFor(Class<T> type, String onCollection, AsyncOperationCallback<T> callback, MorphiumWriter wr) {
         if (annotationHelper.isAnnotationPresentInHierarchy(type, Index.class)) {
-           // List<Annotation> collations = annotationHelper.getAllAnnotationsFromHierachy(type, de.caluga.morphium.annotations.Collation.class);
+            // List<Annotation> collations = annotationHelper.getAllAnnotationsFromHierachy(type, de.caluga.morphium.annotations.Collation.class);
 
             @SuppressWarnings("unchecked") List<Annotation> lst = annotationHelper.getAllAnnotationsFromHierachy(type, Index.class);
             for (Annotation a : lst) {

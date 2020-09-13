@@ -4,10 +4,7 @@ import de.caluga.morphium.Morphium;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
@@ -25,6 +22,7 @@ public class RSMonitor {
     private final Morphium morphium;
     private ReplicaSetStatus currentStatus;
     private int nullcounter = 0;
+    private final List<ReplicasetStatusListener> listeners = new Vector<>();
 
     public RSMonitor(Morphium morphium) {
         this.morphium = morphium;
@@ -47,6 +45,15 @@ public class RSMonitor {
         execute();
     }
 
+
+    public void addListener(ReplicasetStatusListener lst) {
+        listeners.add(lst);
+    }
+
+    public void removeListener(ReplicasetStatusListener lst) {
+        listeners.remove(lst);
+    }
+
     public void terminate() {
         executorService.shutdownNow();
         while (!executorService.isShutdown()) {
@@ -64,6 +71,24 @@ public class RSMonitor {
                 logger.debug("Getting RS-Status...");
             }
             currentStatus = getReplicaSetStatus(true);
+            if (currentStatus == null) {
+                nullcounter++;
+                if (logger.isDebugEnabled()) {
+                    logger.debug("RS status is null! Counter " + nullcounter);
+                }
+                for (ReplicasetStatusListener l : listeners) l.onGetStatusFailure(morphium, nullcounter);
+            } else {
+                nullcounter = 0;
+            }
+            if (nullcounter > 10) {
+                logger.error("Getting ReplicasetStatus failed 10 times... will gracefully exit thread");
+                executorService.shutdownNow();
+                for (ReplicasetStatusListener l : listeners) l.onMonitorAbort(morphium, nullcounter);
+
+            }
+            for (ReplicasetStatusListener l : listeners) {
+                l.gotNewStatus(morphium, currentStatus);
+            }
 
             for (ReplicaSetNode n : currentStatus.getMembers()) {
                 if (morphium.getConfig().getHostSeed().contains(n.getName())) {
@@ -85,19 +110,12 @@ public class RSMonitor {
                     hostsNotFound.add(host);
                 }
             }
-            morphium.getConfig().getHostSeed().removeAll(hostsNotFound);
-            if (currentStatus == null) {
-                nullcounter++;
-                if (logger.isDebugEnabled()) {
-                    logger.debug("RS status is null! Counter " + nullcounter);
-                }
-            } else {
-                nullcounter = 0;
+            if (!hostsNotFound.isEmpty()) {
+                morphium.getConfig().getHostSeed().removeAll(hostsNotFound);
+                for (ReplicasetStatusListener l : listeners)
+                    l.onHostDown(morphium, hostsNotFound, morphium.getConfig().getHostSeed());
             }
-            if (nullcounter > 10) {
-                logger.error("Getting ReplicasetStatus failed 10 times... will gracefully exit thread");
-                executorService.shutdownNow();
-            }
+
         } catch (Exception ignored) {
             //ignored
         }

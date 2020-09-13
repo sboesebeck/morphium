@@ -28,6 +28,78 @@ public class ReplicaSetNode {
     @Property(fieldName = "lastHeartbeat")
     private Date lastHeartbeat;
     private int pingMs;
+    private String syncSourceHost;
+    private int syncSourceId;
+    private String infoMessage;
+    private Date electionDate;
+    private int configVersion;
+    private int configTerm;
+    private String lastHeartbeatMessage;
+    private boolean self;
+
+    public String getSyncSourceHost() {
+        return syncSourceHost;
+    }
+
+    public void setSyncSourceHost(String syncSourceHost) {
+        this.syncSourceHost = syncSourceHost;
+    }
+
+    public int getSyncSourceId() {
+        return syncSourceId;
+    }
+
+    public void setSyncSourceId(int syncSourceId) {
+        this.syncSourceId = syncSourceId;
+    }
+
+    public String getInfoMessage() {
+        return infoMessage;
+    }
+
+    public void setInfoMessage(String infoMessage) {
+        this.infoMessage = infoMessage;
+    }
+
+    public Date getElectionDate() {
+        return electionDate;
+    }
+
+    public void setElectionDate(Date electionDate) {
+        this.electionDate = electionDate;
+    }
+
+    public int getConfigVersion() {
+        return configVersion;
+    }
+
+    public void setConfigVersion(int configVersion) {
+        this.configVersion = configVersion;
+    }
+
+    public int getConfigTerm() {
+        return configTerm;
+    }
+
+    public void setConfigTerm(int configTerm) {
+        this.configTerm = configTerm;
+    }
+
+    public String getLastHeartbeatMessage() {
+        return lastHeartbeatMessage;
+    }
+
+    public void setLastHeartbeatMessage(String lastHeartbeatMessage) {
+        this.lastHeartbeatMessage = lastHeartbeatMessage;
+    }
+
+    public boolean isSelf() {
+        return self;
+    }
+
+    public void setSelf(boolean self) {
+        this.self = self;
+    }
 
     public int getId() {
         return id;
