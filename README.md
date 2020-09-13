@@ -4,7 +4,7 @@ morphium
 **Want to contribute? Every help is welcome... just contact us**
 
 *ATTENTION:* _please refer also to the version [here](https://caluga.de/v/2014/9/5/morphium_documentation)_
-Contact us on [discord](https://discord.gg/7vAy9W6)
+Contact us on [discord](https://discord.gg/7vAy9W6) or on [slack](https://join.slack.com/t/team-morphium/shared_invite/zt-3l0gwj9j-5xt_B6y1xNVkQvDZaSq4EQ)
 
 also have a look at our blog at https://caluga.de where we post interesting morphium code and documentation examples regularly.
 
