@@ -631,19 +631,25 @@ With `clearOnWrite=true` set, the local cache will be erased any time you write 
 #### cache synchronization
 as mentioned above, caching is of utter importance in production grade applications. Usually, caching in a clustered Environment is kind of a pain. As you need consider dirty reads and such. But _Morphium_ caching works also fine in a clustered environment. Just start (instantiate) a `CacheSynchronizer` - and you're good to go!
 
+There are two implementations of the cache synchronizer:
+
+- `WatchingCacheSynchronizer`: uses mongodbs `watch` - Feature to get informed about changes in collections via push.
+- `MessagingCacheSynchronizer`: uses messaging to inform cluster members about changes. This one has the advantage that you can send messages manually or when other events occur
+
+
 **Internals / Implementation details **
-* _Morphium_ uses the cache based on the search query, sort options and collection overrides given. This means  that there might be doublicate cache entries. In order to minimize the memory usage, _Morphium_ also uses an ID-Cache. So all results are just added to this id cache and those ids are added as result to the query cache.
+* _Morphium_ uses the cache based on the search query, sort options and collection overrides given. This means  that there might be douplicate cache entries. In order to minimize the memory usage, _Morphium_ also uses an ID-Cache. So all results are just added to this id cache and those ids are added as result to the query cache.
 the Caches are organized per type. This means, if your entity is not marked with @Cache, queries to this type won't be cached, even if you override the collection name. 
 * The cache is implemented completely unblocking and completely thread safe. There is almost no synchronized block in _Morphium_.
 
 It's a common problem, especially in clustered environments. How to synchronize caches on the different nodes. _Morphium_ offers a simple solutions for it: On every write operation, a Message is stored in the Message queue (see MessagingSystem) and all nodes will clear the cache for the corresponding type (which will result in re-read of objects from mongo - keep that in mind if you plan to have a hundred hosts on your network) This is easy to use, does not cause a lot of overhead. Unfortunately it cannot be more efficient hence the Cache in _Morphium_ is organized by searches.
 
-the _Morphium_ cache Syncrhonizer does not issue messages for uncached entities or entities, where clearOnWriteis set to false. Configurations are always synced - if you need a host-local configuration, you need to name it uniquely (by adding the hostname or mac address or something). BUT: All configuration will be synchronized to all nodes...
+the _Morphium_ cache synchronizer does not issue messages for uncached entities or entities, where clearOnWrite is set to false. 
 
 Here is an example on how to use this:
 ```java
     Messaging m=new Messaging(morphium,10000,true);
-    CacheSynchronizer cs=new CacheSynchronizer(m,morphium);
+    MessagingCacheSynchronizer cs=new MessagingCacheSynchronizer(m,morphium);
 ```
 Actually this is all there is to do, as the CacheSynchronizer registers itself to both _Morphium_ and the messaging system.
 
@@ -2067,9 +2073,9 @@ this annotation for an Entity tells morphium, that this entity does have some li
 - `@PostRemove` 
 - `@PostStore` 
 - `@PostUpdate` 
-- `@PreRemove`
-- `@PreStore` 
-- `@PreUpdate` 
+- `@PreRemove` - may throw a `MorphiumAccessVetoException` to abort the removal
+- `@PreStore` - may throw a `MorphiumAccessVetoException` to abort store
+- `@PreUpdate` - may throw a `MorphiumAccessVetoException` to abort update
 
 the methods where those annotations are added must not have any parameters. They should only access the local object/entity.
 
@@ -2169,7 +2175,41 @@ The monitor by definition runs asynchronous, it uses the `watch` methods to data
 - `morphium.watchAsync(...)` (same parameters as above), runs asynchronously. _attention_: the Settings for asyncExcecutor in `MorphiumConfig` might affect the behaviour of this call.
 
 There are also methods for watching _all_ changes, that happen in the connected database. This might result in a lot of callbacks: `watchDB()` and `watchDBAsync()`.
+#### OplogMonitor
+there is also an older implementation of this, the `OplogMonitor`. This one does more or less the same thing as the `ChangeStreamMonitor`, but also runs with older installations of MongoDB (when connected to a ReplicaSet).
+You'd probably want to use the `ChangestreamListener` instead, as it is more efficient. 
 
+```java
+OplogListener lst = data -> {
+            log.info(Utils.toJsonString(data));
+            gotIt = true;
+        };
+        OplogMonitor olm = new OplogMonitor(morphium);
+        olm.addListener(lst);
+        olm.start();
+
+        Thread.sleep(100);
+        UncachedObject u = new UncachedObject("test", 123);
+        morphium.store(u);
+
+        Thread.sleep(1250);
+        assert (gotIt);
+        gotIt = false;
+
+        morphium.set(u, UncachedObject.Fields.value, "new value");
+        Thread.sleep(550);
+        assert (gotIt);
+        gotIt = false;
+
+        olm.removeListener(lst);
+        u = new UncachedObject("test", 123);
+        morphium.store(u);
+        Thread.sleep(200);
+        assert (!gotIt);
+
+
+        olm.stop();
+```
 
 ### partial updating
 The idea behind partial updates is, that only the changes to an entity are transmitted to the database and will thus reduce the load on network and Mongodb itself. 
@@ -2253,6 +2293,261 @@ morphium.getDriver().setTransactionContext(ctx);
 ```
 
 __Caveat__: mongodb does not support nested transactions (yet), so you will get an `Exception` when trying to start another transaction in the same thread.
+
+## Listeners in _Morphium_
+there are a lot of listeners in _Morphium_ that help you get informed about what is going on in the system. Some of which also might help you, to adapt behaviour according to your needs:
+### ReplicasetStatusListener
+_Morphium_ is monitoring the status of the replicaset it is connected to (default is every 5s, but can be changed in MorphiumConfigs setting `replicaSetMonitoringTimeout`). You can get this information on demand, by calling `morphium.getReplicasetStatus()`.
+But you can also be informed whenever there is a change in the cluster by implementing the interface (since _Morphium_ V4.2):
+```java
+public interface ReplicasetStatusListener {
+
+     void gotNewStatus(Morphium morphium, ReplicaSetStatus status);
+
+    /**
+     * infoms, if replicaset status could not be optained.
+     * @param numErrors - how many errors getting the status in a row we already havei
+     */
+    void onGetStatusFailure(Morphium morphium, int numErrors);
+
+    /**
+     * called, if the ReplicasetMonitor aborts due to too many errors
+     * @param numErrors - number of errors occured
+     */
+    void onMonitorAbort(Morphium morphium, int numErrors);
+
+    /**
+     *
+     * @param hostsDown - list of hostnamed not up
+     * @param currentHostSeed - list of currently available replicaset members
+     */
+    void onHostDown(Morphium morphium, List<String> hostsDown,List<String> currentHostSeed);
+}
+```
+
+The `ReplicasetStatus` does contain a lot of information about the replicaset itself:
+
+```java
+public class ReplicaSetStatus {
+    private String set;
+    private String myState;
+    private String syncSourceHost;
+    private Date date;
+    private int term;
+    private int syncSourceId;
+    private long heartbeatIntervalMillis;
+    private int majorityVoteCount;
+    private int writeMajorityCount;
+    private int votingMembersCount;
+    private int writableVotingMembersCount;
+    private long lastStableRecoveryTimestamp;
+    private List<ReplicaSetNode> members;
+    private Map<String,Object> optimes;
+    private Map<String,Object> electionCandidateMetrics;
+}
+
+
+public class ReplicaSetNode {
+    private int id;
+    private String name;
+    private double health;
+    private int state;
+    @Property(fieldName = "stateStr")
+    private String stateStr;
+    private long uptime;
+    @Property(fieldName = "optimeDate")
+    private Date optimeDate;
+
+    @Property(fieldName = "lastHeartbeat")
+    private Date lastHeartbeat;
+    private int pingMs;
+    private String syncSourceHost;
+    private int syncSourceId;
+    private String infoMessage;
+    private Date electionDate;
+    private int configVersion;
+    private int configTerm;
+    private String lastHeartbeatMessage;
+    private boolean self;
+}
+
+``` 
+
+
+See mongodb documentation of [`rs.status()` command](https://docs.mongodb.com/manual/reference/method/rs.status/) for more information on the different fields.
+## CacheListener
+Via this interfact, you will be informed about cache operations and may interfere with them or change the behaviour:
+
+```java
+public interface CacheListener {
+    /**
+     * ability to alter cached entries or avoid caching overall
+     *
+     * @param toCache - datastructure containing cache key and result
+     * @param <T>     - the type
+     * @return false, if not to cache
+     */
+     //return the cache entry to be stored, null if not
+    <T> CacheEntry<T> wouldAddToCache(Object k, CacheEntry<T> toCache, boolean updated);
+
+		//return false, if you do not want cache to be cleared
+    <T> boolean wouldClearCache(Class<T> affectedEntityType);
+
+		//return false, if you do not want entry to be removed from cache
+    <T> boolean wouldRemoveEntryFromCache(Object key, CacheEntry<T> toRemove, boolean expired);
+
+}
+```
+
+### CacheSyncListener
+This are special cache listeners which will be informed, when a cache needs to be updated because of incoming clear or update requests. There are two direct sub-interfaces:
+- `WatchingCacheSyncListener`: to be used with `WatchingCacheSynchronizer`
+- `MessagingCacheSyncListener`: to be used with `MessagingCacheSynchronizer` 
+
+The base interface is CacheSyncListener:
+```java
+public interface CacheSyncListener {
+    /**
+     * before clearing cache - if cls == null whole cache
+     * Message m contains information about reason and stuff...
+     */
+    @SuppressWarnings("UnusedParameters")
+    void preClear(Class cls) throws CacheSyncVetoException;
+
+    @SuppressWarnings("UnusedParameters")
+    void postClear(Class cls);
+}
+```
+
+and the subclasses `WatchingCacheSyncListener` (just adds one other method):
+```java
+public interface WatchingCacheSyncListener extends CacheSyncListener {
+    void preClear(Class<?> type, String operation);
+
+}
+```
+
+and the `MessagingCacheSyncListener` which adds some Messaging based methods:
+
+```java
+public interface MessagingCacheSyncListener extends CacheSyncListener {
+
+    /**
+     * Class is null for CLEAR ALL
+     *
+     * @param cls
+     * @param m   - message about to be send - add info if necessary!
+     * @throws CacheSyncVetoException
+     */
+    @SuppressWarnings("UnusedParameters")
+    void preSendClearMsg(Class cls, Msg m) throws CacheSyncVetoException;
+
+    @SuppressWarnings("UnusedParameters")
+    void postSendClearMsg(Class cls, Msg m);
+}
+
+```
+### ChangeStreamListener
+As already mentioned, this listener is used to be informed about changes in your data.
+
+```java
+public interface ChangeStreamListener {
+    /**
+     * return true, if you want to continue getting events.
+     *
+     * @param evt
+     * @return
+     */
+    boolean incomingData(ChangeStreamEvent evt);
+}
+```
+
+### MessageListener
+This one is one of the core functionalities of _Morphium_ messaging, this is the placed to be informed about incoming messages:
+
+```java
+public interface ChangeStreamListener {
+    /**
+     * return true, if you want to continue getting events.
+     *
+     * @param evt
+     * @return
+     */
+    boolean incomingData(ChangeStreamEvent evt);
+}
+```
+
+### MorphiumStorageListener
+If you add a listener for these kind of events, you will be informed about _any_ store via morphium. This is kind of the same thing as the `LifeCycle` annotation and the corresponding methods. But its a different design pattern. If a `MorphiumAccessVetoException` is thrown, the corresponding action is aborted.
+
+```java
+public interface MorphiumStorageListener<T> {
+    void preStore(Morphium m, T r, boolean isNew) throws MorphiumAccessVetoException;
+
+    void preStore(Morphium m, Map<T, Boolean> isNew) throws MorphiumAccessVetoException;
+
+    @SuppressWarnings("UnusedParameters")
+    void postStore(Morphium m, T r, boolean isNew);
+
+    @SuppressWarnings("UnusedParameters")
+    void postStore(Morphium m, Map<T, Boolean> isNew);
+
+    @SuppressWarnings("UnusedParameters")
+    void preRemove(Morphium m, Query<T> q) throws MorphiumAccessVetoException;
+
+    @SuppressWarnings({"EmptyMethod", "UnusedParameters"})
+    void preRemove(Morphium m, T r) throws MorphiumAccessVetoException;
+
+    @SuppressWarnings("UnusedParameters")
+    void postRemove(Morphium m, T r);
+
+    @SuppressWarnings("UnusedParameters")
+    void postRemove(Morphium m, List<T> lst);
+
+    @SuppressWarnings("UnusedParameters")
+    void postDrop(Morphium m, Class<? extends T> cls);
+
+    @SuppressWarnings("UnusedParameters")
+    void preDrop(Morphium m, Class<? extends T> cls) throws MorphiumAccessVetoException;
+
+    @SuppressWarnings("UnusedParameters")
+    void postRemove(Morphium m, Query<T> q);
+
+    @SuppressWarnings({"EmptyMethod", "UnusedParameters"})
+    void postLoad(Morphium m, T o);
+
+    @SuppressWarnings({"EmptyMethod", "UnusedParameters"})
+    void postLoad(Morphium m, List<T> o);
+
+    @SuppressWarnings("UnusedParameters")
+    void preUpdate(Morphium m, Class<? extends T> cls, Enum updateType) throws MorphiumAccessVetoException;
+
+    @SuppressWarnings("UnusedParameters")
+    void postUpdate(Morphium m, Class<? extends T> cls, Enum updateType);
+
+    enum UpdateTypes {
+        SET, UNSET, PUSH, PULL, INC, @SuppressWarnings("unused")DEC, MUL, MIN, MAX, RENAME, POP, CURRENTDATE, CUSTOM,
+    }
+
+}
+```
+### OplogListener
+there is a listener / watch functionality that works with older Mongodb installations. The OpLogListener is used by the `OplogMonitor` and uses the OpLog to inform about changes [^also only works when connected to a replicaset].
+
+```java
+public interface OplogListener {
+    void incomingData(Map<String, Object> data);
+}
+``` 
+### Profilinig Listener
+If you need to gather performance data about your mongodb setup, the Profiling listener has you covered. It gives detailed information about the duration of any write or read access:
+```java 
+public interface ProfilingListener {
+    void readAccess(Query query, long time, ReadAccessType t);
+
+    void writeAccess(Class type, Object o, long time, boolean isNew, WriteAccessType t);
+}
+``` 
 
 
 ## The Aggregation Framework
@@ -2392,93 +2687,22 @@ There are some places, you also might want to look at for additional information
 
 ### Cache Synchronization
 ```java
-    @Test
-    public void cacheSyncTest() throws Exception {
-        morphium.dropCollection(Msg.class);
-        createCachedObjects(1000);
-    
-        Morphium m1 = morphium;
-        MorphiumConfig cfg2 = new MorphiumConfig();
-        cfg2.setAdr(m1.getConfig().getAdr());
-        cfg2.setDatabase(m1.getConfig().getDatabase());
-    
-        Morphium m2 = new Morphium(cfg2);
-        Messaging msg1 = new Messaging(m1, 200, true);
-        Messaging msg2 = new Messaging(m2, 200, true);
-    
-        msg1.start();
-        msg2.start();
-    
-        CacheSynchronizer cs1 = new CacheSynchronizer(msg1, m1);
-        CacheSynchronizer cs2 = new CacheSynchronizer(msg2, m2);
-        waitForWrites();
-    
-        //fill caches
-        for (int i = 0; i < 1000; i++) {
-            m1.createQueryFor(CachedObject.class).f("counter").lte(i + 10).asList(); //fill cache
-            m2.createQueryFor(CachedObject.class).f("counter").lte(i + 10).asList(); //fill cache
-        }
-        //1 always sends to 2....
-    
-    
-        CachedObject o = m1.createQueryFor(CachedObject.class).f("counter").eq(155).get();
-        cs2.addSyncListener(CachedObject.class, new CacheSyncListener() {
-            @Override
-            public void preClear(Class cls, Msg m) throws CacheSyncVetoException {
-                log.info("Should clear cache");
-                preClear = true;
-            }
-    
-            @Override
-            public void postClear(Class cls, Msg m) {
-                log.info("did clear cache");
-                postclear = true;
-            }
-    
-            @Override
-            public void preSendClearMsg(Class cls, Msg m) throws CacheSyncVetoException {
-                log.info("will send clear message");
-                preSendClear = true;
-            }
-    
-            @Override
-            public void postSendClearMsg(Class cls, Msg m) {
-                log.info("just sent clear message");
-                postSendClear = true;
-            }
-        });
-        msg2.addMessageListener(new MessageListener() {
-            @Override
-            public Msg onMessage(Messaging msg, Msg m) {
-                log.info("Got message " + m.getName());
-                return null;
-            }
-        });
-        preSendClear = false;
-        preClear = false;
-        postclear = false;
-        postSendClear = false;
-        o.setValue("changed it");
-        m1.store(o);
-    
-        Thread.sleep(1000);
-        assert (!preSendClear);
-        assert (!postSendClear);
-        assert (postclear);
-        assert (preClear);
-        Thread.sleep(60000);
-    
-        long l = m1.createQueryFor(Msg.class).countAll();
-        assert (l <= 1) : "too many messages? " + l;
-        cs1.detach();
-        cs2.detach();
-        msg1.setRunning(false);
-        msg2.setRunning(false);
-        m2.close();
-    }
-```
- 
+ Messaging msg = new Messaging(morphium, 100, true);
+        msg.start();
+        MessagingCacheSynchronizer cs = new MessagingCacheSynchronizer(msg, morphium);
 
+        Query<Msg> q = morphium.createQueryFor(Msg.class);
+        long cnt = q.countAll();
+        assert (cnt == 0) : "Already a message?!?! " + cnt;
+
+        cs.sendClearMessage(CachedObject.class, "test");
+        Thread.sleep(2000);
+        waitForWrites();
+        cnt = q.countAll();
+        assert (cnt == 1) : "there should be one msg, there are " + cnt;
+        msg.terminate();
+        cs.detach();
+``` 
 
 ### Geo Spacial Search
 ```java
@@ -2661,7 +2885,7 @@ There are some places, you also might want to look at for additional information
     
     waitForWrites();
     
-    assert morphiuum.createQueryFor(UncachedObject.class).f("counter").eq(0).countAll() > 0;
+    assert(morphium.createQueryFor(UncachedObject.class).f("counter").eq(0).countAll() > 0);
     assert (asyncCall);
 }
 ```
@@ -2670,7 +2894,7 @@ There are some places, you also might want to look at for additional information
 
 
 ## Disclaimer
-This document was written by the authors with most care, but there is no guarantee for 100% accuracy. If you have any questions, find a mistake or have suggestions for improvements, please contact the authors of this document and the developers of morphium via [github.com/sboesebeck/morphium](https://www.github.com/sboesebeck/morphium) or send an email to [sb@caluga.de](mailto://sb@caluga.de)
+This document was written by the authors with most care, but there is no guarantee for 100% accuracy. If you have any questions, find a mistake or have suggestions for improvements, please contact the authors of this document and the developers of morphium via [github.com/sboesebeck/morphium](https://www.github.com/sboesebeck/morphium) or send an email to [sb@caluga.de](mailto:sb@caluga.de)
    
  
  

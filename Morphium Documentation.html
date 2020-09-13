@@ -198,6 +198,23 @@
                         <li><a href="#transaction-support">Transaction support</a></li>
                     </ul>
                 </li>
+                <li><a href="#listeners-in-morphium">Listeners in <em>Morphium</em></a>
+
+                    <ul>
+                        <li><a href="#replicasetstatuslistener">ReplicasetStatusListener</a></li>
+                    </ul>
+                </li>
+                <li><a href="#cachelistener">CacheListener</a>
+
+                    <ul>
+                        <li><a href="#cachesynclistener">CacheSyncListener</a></li>
+                        <li><a href="#changestreamlistener">ChangeStreamListener</a></li>
+                        <li><a href="#messagelistener">MessageListener</a></li>
+                        <li><a href="#morphiumstoragelistener">MorphiumStorageListener</a></li>
+                        <li><a href="#oploglistener">OplogListener</a></li>
+                        <li><a href="#profilinig-listener">Profilinig Listener</a></li>
+                    </ul>
+                </li>
                 <li><a href="#the-aggregation-framework">The Aggregation Framework</a>
 
                     <ul>
@@ -259,7 +276,7 @@
 
 <ul>
     <li>the message queue can easily be inspected and you can use mongo search queries to find the messages you are
-        looking for<sup><a class="footnote" href="#fn1-30673" id="fnr1-30673" title="see footnote">1</a></sup></li>
+        looking for<sup><a class="footnote" href="#fn1-12132" id="fnr1-12132" title="see footnote">1</a></sup></li>
     <li>the message queue can be altered (update single messages with ease, delete messages or just <em>add</em> new
         messages)
     </li>
@@ -519,8 +536,8 @@ messaging.addMessageListener((messaging, msg) -&gt; {
     half as fast as the direct usage of <em>Morphium</em> messaging. </p>
 
 <p>Also, the implementation is very basic at the moment. A lot of methods lack implementation<sup><a class="footnote"
-                                                                                                     href="#fn2-30673"
-                                                                                                     id="fnr2-30673"
+                                                                                                     href="#fn2-12132"
+                                                                                                     id="fnr2-12132"
                                                                                                      title="see footnote">2</a></sup>.
     If you notice some missing functionality, just open an issue at <a href="https://github.com/sboesebeck/morphium">github</a>.
 </p>
@@ -604,7 +621,7 @@ m.addRecipient(messaging1.getId());
     processed once!</p>
 
 <p>Since <em>Morphium</em> V4.2 it is also possible to send an exclusive message to certain recipients<sup><a
-        class="footnote" href="#fn3-30673" id="fnr3-30673" title="see footnote">3</a></sup>. </p>
+        class="footnote" href="#fn3-12132" id="fnr3-12132" title="see footnote">3</a></sup>. </p>
 
 <p>The behaviour is the same: the message will only be processed by <em>one</em> of the specified recipients, whereas it
     will be processed by <em>all</em> recipients, if not exclusive.</p>
@@ -1068,11 +1085,22 @@ public class MyCachedEntity {
     fine in a clustered environment. Just start (instantiate) a <code>CacheSynchronizer</code> - and you're good to go!
 </p>
 
+<p>There are two implementations of the cache synchronizer:</p>
+
+<ul>
+    <li><code>WatchingCacheSynchronizer</code>: uses mongodbs <code>watch</code> - Feature to get informed about changes
+        in collections via push.
+    </li>
+    <li><code>MessagingCacheSynchronizer</code>: uses messaging to inform cluster members about changes. This one has
+        the advantage that you can send messages manually or when other events occur
+    </li>
+</ul>
+
 <p>**Internals / Implementation details **</p>
 
 <ul>
     <li><p><em>Morphium</em> uses the cache based on the search query, sort options and collection overrides given. This
-        means that there might be doublicate cache entries. In order to minimize the memory usage, <em>Morphium</em>
+        means that there might be douplicate cache entries. In order to minimize the memory usage, <em>Morphium</em>
         also uses an ID-Cache. So all results are just added to this id cache and those ids are added as result to the
         query cache.</p>
         the Caches are organized per type. This means, if your entity is not marked with @Cache, queries to this type
@@ -1090,15 +1118,13 @@ public class MyCachedEntity {
     does not cause a lot of overhead. Unfortunately it cannot be more efficient hence the Cache in <em>Morphium</em> is
     organized by searches.</p>
 
-<p>the <em>Morphium</em> cache Syncrhonizer does not issue messages for uncached entities or entities, where
-    clearOnWriteis set to false. Configurations are always synced - if you need a host-local configuration, you need to
-    name it uniquely (by adding the hostname or mac address or something). BUT: All configuration will be synchronized
-    to all nodes...</p>
+<p>the <em>Morphium</em> cache synchronizer does not issue messages for uncached entities or entities, where
+    clearOnWrite is set to false. </p>
 
 <p>Here is an example on how to use this:</p>
 
 <pre><code class="java">    Messaging m=new Messaging(morphium,10000,true);
-    CacheSynchronizer cs=new CacheSynchronizer(m,morphium);
+    MessagingCacheSynchronizer cs=new MessagingCacheSynchronizer(m,morphium);
 </code></pre>
 
 <p>Actually this is all there is to do, as the CacheSynchronizer registers itself to both <em>Morphium</em> and the
@@ -1416,8 +1442,8 @@ assert(errors.get()==0);
 
 <p>the config of morphium does have a setting called <code>objectSerializationEnabled</code>. When set to
     <code>true</code> this will cause morphium to use the standard binary serialization of the JDK to store <em>any</em>
-    instance of <em>any</em> class that implements <code>serializable</code><sup><a class="footnote" href="#fn4-30673"
-                                                                                    id="fnr4-30673"
+    instance of <em>any</em> class that implements <code>serializable</code><sup><a class="footnote" href="#fn4-12132"
+                                                                                    id="fnr4-12132"
                                                                                     title="see footnote">4</a></sup>.
 </p>
 
@@ -1983,7 +2009,7 @@ public static class IndexedObject {
 <p>in this case, a text index was built on fields <code>vorname</code>, <code>nachname</code>, <code>andrede</code> and
     <code>description</code>.</p>
 
-<p>To use the index, we need to create a text query<sup><a class="footnote" href="#fn5-30673" id="fnr5-30673"
+<p>To use the index, we need to create a text query<sup><a class="footnote" href="#fn5-12132" id="fnr5-12132"
                                                            title="see footnote">5</a></sup>:</p>
 
 <pre><code class="java">@Test
@@ -2938,9 +2964,9 @@ public class MyEntity {
     <li><code>@PostRemove</code></li>
     <li><code>@PostStore</code></li>
     <li><code>@PostUpdate</code></li>
-    <li><code>@PreRemove</code></li>
-    <li><code>@PreStore</code></li>
-    <li><code>@PreUpdate</code></li>
+    <li><code>@PreRemove</code> - may throw a <code>MorphiumAccessVetoException</code> to abort the removal</li>
+    <li><code>@PreStore</code> - may throw a <code>MorphiumAccessVetoException</code> to abort store</li>
+    <li><code>@PreUpdate</code> - may throw a <code>MorphiumAccessVetoException</code> to abort update</li>
 </ul>
 
 <p>the methods where those annotations are added must not have any parameters. They should only access the local
@@ -2980,7 +3006,7 @@ public class MyEntity {
 <h4 id="cluster-awareness">Cluster awareness</h4>
 
 <p><em>Morphium</em> is tracking the cluster status internally in order to react properly on different scenarios<sup><a
-        class="footnote" href="#fn6-30673" id="fnr6-30673" title="see footnote">6</a></sup>. For example, if one node
+        class="footnote" href="#fn6-12132" id="fnr6-12132" title="see footnote">6</a></sup>. For example, if one node
     goes down, waiting for all nodes to write the data will result in the application blocking until the last cluster
     member came back up again.</p>
 
@@ -2992,7 +3018,7 @@ public class MyEntity {
 
 <p><em>Morphium</em> fixes that issue in that way, that when &quot;WAIT_FOR_ALL_SLAVES&quot; is defined in <code>WriteSafety</code>,
     it will set the <code>w</code>-value according to the number of <em>available</em> slaves, resulting in no blocking.
-    <sup><a class="footnote" href="#fn7-30673" id="fnr7-30673" title="see footnote">7</a></sup></p>
+    <sup><a class="footnote" href="#fn7-12132" id="fnr7-12132" title="see footnote">7</a></sup></p>
 
 <h3 id="annotation-inheritence">Annotation Inheritence</h3>
 
@@ -3086,6 +3112,45 @@ morphium.store(new UncachedObject(&quot;killing&quot;, 0));
 <p>There are also methods for watching <em>all</em> changes, that happen in the connected database. This might result in
     a lot of callbacks: <code>watchDB()</code> and <code>watchDBAsync()</code>.</p>
 
+<h4 id="oplogmonitor">OplogMonitor</h4>
+
+<p>there is also an older implementation of this, the <code>OplogMonitor</code>. This one does more or less the same
+    thing as the <code>ChangeStreamMonitor</code>, but also runs with older installations of MongoDB (when connected to
+    a ReplicaSet).</p>
+
+<p>You'd probably want to use the <code>ChangestreamListener</code> instead, as it is more efficient. </p>
+
+<pre><code class="java">OplogListener lst = data -&gt; {
+            log.info(Utils.toJsonString(data));
+            gotIt = true;
+        };
+        OplogMonitor olm = new OplogMonitor(morphium);
+        olm.addListener(lst);
+        olm.start();
+
+        Thread.sleep(100);
+        UncachedObject u = new UncachedObject(&quot;test&quot;, 123);
+        morphium.store(u);
+
+        Thread.sleep(1250);
+        assert (gotIt);
+        gotIt = false;
+
+        morphium.set(u, UncachedObject.Fields.value, &quot;new value&quot;);
+        Thread.sleep(550);
+        assert (gotIt);
+        gotIt = false;
+
+        olm.removeListener(lst);
+        u = new UncachedObject(&quot;test&quot;, 123);
+        morphium.store(u);
+        Thread.sleep(200);
+        assert (!gotIt);
+
+
+        olm.stop();
+</code></pre>
+
 <h3 id="partial-updating">partial updating</h3>
 
 <p>The idea behind partial updates is, that only the changes to an entity are transmitted to the database and will thus
@@ -3173,10 +3238,291 @@ morphium.getDriver().setTransactionContext(ctx);
 <p><strong>Caveat</strong>: mongodb does not support nested transactions (yet), so you will get an
     <code>Exception</code> when trying to start another transaction in the same thread.</p>
 
+<h2 id="listeners-in-morphium">Listeners in <em>Morphium</em></h2>
+
+<p>there are a lot of listeners in <em>Morphium</em> that help you get informed about what is going on in the system.
+    Some of which also might help you, to adapt behaviour according to your needs:</p>
+
+<h3 id="replicasetstatuslistener">ReplicasetStatusListener</h3>
+
+<p><em>Morphium</em> is monitoring the status of the replicaset it is connected to (default is every 5s, but can be
+    changed in MorphiumConfigs setting <code>replicaSetMonitoringTimeout</code>). You can get this information on
+    demand, by calling <code>morphium.getReplicasetStatus()</code>.</p>
+
+<p>But you can also be informed whenever there is a change in the cluster by implementing the interface (since <em>Morphium</em>
+    V4.2):</p>
+
+<pre><code class="java">public interface ReplicasetStatusListener {
+
+     void gotNewStatus(Morphium morphium, ReplicaSetStatus status);
+
+    /**
+     * infoms, if replicaset status could not be optained.
+     * @param numErrors - how many errors getting the status in a row we already havei
+     */
+    void onGetStatusFailure(Morphium morphium, int numErrors);
+
+    /**
+     * called, if the ReplicasetMonitor aborts due to too many errors
+     * @param numErrors - number of errors occured
+     */
+    void onMonitorAbort(Morphium morphium, int numErrors);
+
+    /**
+     *
+     * @param hostsDown - list of hostnamed not up
+     * @param currentHostSeed - list of currently available replicaset members
+     */
+    void onHostDown(Morphium morphium, List&lt;String&gt; hostsDown,List&lt;String&gt; currentHostSeed);
+}
+</code></pre>
+
+<p>The <code>ReplicasetStatus</code> does contain a lot of information about the replicaset itself:</p>
+
+<pre><code class="java">public class ReplicaSetStatus {
+    private String set;
+    private String myState;
+    private String syncSourceHost;
+    private Date date;
+    private int term;
+    private int syncSourceId;
+    private long heartbeatIntervalMillis;
+    private int majorityVoteCount;
+    private int writeMajorityCount;
+    private int votingMembersCount;
+    private int writableVotingMembersCount;
+    private long lastStableRecoveryTimestamp;
+    private List&lt;ReplicaSetNode&gt; members;
+    private Map&lt;String,Object&gt; optimes;
+    private Map&lt;String,Object&gt; electionCandidateMetrics;
+}
+
+
+public class ReplicaSetNode {
+    private int id;
+    private String name;
+    private double health;
+    private int state;
+    @Property(fieldName = &quot;stateStr&quot;)
+    private String stateStr;
+    private long uptime;
+    @Property(fieldName = &quot;optimeDate&quot;)
+    private Date optimeDate;
+
+    @Property(fieldName = &quot;lastHeartbeat&quot;)
+    private Date lastHeartbeat;
+    private int pingMs;
+    private String syncSourceHost;
+    private int syncSourceId;
+    private String infoMessage;
+    private Date electionDate;
+    private int configVersion;
+    private int configTerm;
+    private String lastHeartbeatMessage;
+    private boolean self;
+}
+
+</code></pre>
+
+<p>See mongodb documentation of <a
+        href="https://docs.mongodb.com/manual/reference/method/rs.status/"><code>rs.status()</code> command</a> for more
+    information on the different fields.</p>
+
+<h2 id="cachelistener">CacheListener</h2>
+
+<p>Via this interfact, you will be informed about cache operations and may interfere with them or change the
+    behaviour:</p>
+
+<pre><code class="java">public interface CacheListener {
+    /**
+     * ability to alter cached entries or avoid caching overall
+     *
+     * @param toCache - datastructure containing cache key and result
+     * @param &lt;T&gt;     - the type
+     * @return false, if not to cache
+     */
+     //return the cache entry to be stored, null if not
+    &lt;T&gt; CacheEntry&lt;T&gt; wouldAddToCache(Object k, CacheEntry&lt;T&gt; toCache, boolean updated);
+
+        //return false, if you do not want cache to be cleared
+    &lt;T&gt; boolean wouldClearCache(Class&lt;T&gt; affectedEntityType);
+
+        //return false, if you do not want entry to be removed from cache
+    &lt;T&gt; boolean wouldRemoveEntryFromCache(Object key, CacheEntry&lt;T&gt; toRemove, boolean expired);
+
+}
+</code></pre>
+
+<h3 id="cachesynclistener">CacheSyncListener</h3>
+
+<p>This are special cache listeners which will be informed, when a cache needs to be updated because of incoming clear
+    or update requests. There are two direct sub-interfaces:</p>
+
+<ul>
+    <li><code>WatchingCacheSyncListener</code>: to be used with <code>WatchingCacheSynchronizer</code></li>
+    <li><code>MessagingCacheSyncListener</code>: to be used with <code>MessagingCacheSynchronizer</code></li>
+</ul>
+
+<p>The base interface is CacheSyncListener:</p>
+
+<pre><code class="java">public interface CacheSyncListener {
+    /**
+     * before clearing cache - if cls == null whole cache
+     * Message m contains information about reason and stuff...
+     */
+    @SuppressWarnings(&quot;UnusedParameters&quot;)
+    void preClear(Class cls) throws CacheSyncVetoException;
+
+    @SuppressWarnings(&quot;UnusedParameters&quot;)
+    void postClear(Class cls);
+}
+</code></pre>
+
+<p>and the subclasses <code>WatchingCacheSyncListener</code> (just adds one other method):</p>
+
+<pre><code class="java">public interface WatchingCacheSyncListener extends CacheSyncListener {
+    void preClear(Class&lt;?&gt; type, String operation);
+
+}
+</code></pre>
+
+<p>and the <code>MessagingCacheSyncListener</code> which adds some Messaging based methods:</p>
+
+<pre><code class="java">public interface MessagingCacheSyncListener extends CacheSyncListener {
+
+    /**
+     * Class is null for CLEAR ALL
+     *
+     * @param cls
+     * @param m   - message about to be send - add info if necessary!
+     * @throws CacheSyncVetoException
+     */
+    @SuppressWarnings(&quot;UnusedParameters&quot;)
+    void preSendClearMsg(Class cls, Msg m) throws CacheSyncVetoException;
+
+    @SuppressWarnings(&quot;UnusedParameters&quot;)
+    void postSendClearMsg(Class cls, Msg m);
+}
+
+</code></pre>
+
+<h3 id="changestreamlistener">ChangeStreamListener</h3>
+
+<p>As already mentioned, this listener is used to be informed about changes in your data.</p>
+
+<pre><code class="java">public interface ChangeStreamListener {
+    /**
+     * return true, if you want to continue getting events.
+     *
+     * @param evt
+     * @return
+     */
+    boolean incomingData(ChangeStreamEvent evt);
+}
+</code></pre>
+
+<h3 id="messagelistener">MessageListener</h3>
+
+<p>This one is one of the core functionalities of <em>Morphium</em> messaging, this is the placed to be informed about
+    incoming messages:</p>
+
+<pre><code class="java">public interface ChangeStreamListener {
+    /**
+     * return true, if you want to continue getting events.
+     *
+     * @param evt
+     * @return
+     */
+    boolean incomingData(ChangeStreamEvent evt);
+}
+</code></pre>
+
+<h3 id="morphiumstoragelistener">MorphiumStorageListener</h3>
+
+<p>If you add a listener for these kind of events, you will be informed about <em>any</em> store via morphium. This is
+    kind of the same thing as the <code>LifeCycle</code> annotation and the corresponding methods. But its a different
+    design pattern. If a <code>MorphiumAccessVetoException</code> is thrown, the corresponding action is aborted.</p>
+
+<pre><code class="java">public interface MorphiumStorageListener&lt;T&gt; {
+    void preStore(Morphium m, T r, boolean isNew) throws MorphiumAccessVetoException;
+
+    void preStore(Morphium m, Map&lt;T, Boolean&gt; isNew) throws MorphiumAccessVetoException;
+
+    @SuppressWarnings(&quot;UnusedParameters&quot;)
+    void postStore(Morphium m, T r, boolean isNew);
+
+    @SuppressWarnings(&quot;UnusedParameters&quot;)
+    void postStore(Morphium m, Map&lt;T, Boolean&gt; isNew);
+
+    @SuppressWarnings(&quot;UnusedParameters&quot;)
+    void preRemove(Morphium m, Query&lt;T&gt; q) throws MorphiumAccessVetoException;
+
+    @SuppressWarnings({&quot;EmptyMethod&quot;, &quot;UnusedParameters&quot;})
+    void preRemove(Morphium m, T r) throws MorphiumAccessVetoException;
+
+    @SuppressWarnings(&quot;UnusedParameters&quot;)
+    void postRemove(Morphium m, T r);
+
+    @SuppressWarnings(&quot;UnusedParameters&quot;)
+    void postRemove(Morphium m, List&lt;T&gt; lst);
+
+    @SuppressWarnings(&quot;UnusedParameters&quot;)
+    void postDrop(Morphium m, Class&lt;? extends T&gt; cls);
+
+    @SuppressWarnings(&quot;UnusedParameters&quot;)
+    void preDrop(Morphium m, Class&lt;? extends T&gt; cls) throws MorphiumAccessVetoException;
+
+    @SuppressWarnings(&quot;UnusedParameters&quot;)
+    void postRemove(Morphium m, Query&lt;T&gt; q);
+
+    @SuppressWarnings({&quot;EmptyMethod&quot;, &quot;UnusedParameters&quot;})
+    void postLoad(Morphium m, T o);
+
+    @SuppressWarnings({&quot;EmptyMethod&quot;, &quot;UnusedParameters&quot;})
+    void postLoad(Morphium m, List&lt;T&gt; o);
+
+    @SuppressWarnings(&quot;UnusedParameters&quot;)
+    void preUpdate(Morphium m, Class&lt;? extends T&gt; cls, Enum updateType) throws MorphiumAccessVetoException;
+
+    @SuppressWarnings(&quot;UnusedParameters&quot;)
+    void postUpdate(Morphium m, Class&lt;? extends T&gt; cls, Enum updateType);
+
+    enum UpdateTypes {
+        SET, UNSET, PUSH, PULL, INC, @SuppressWarnings(&quot;unused&quot;)DEC, MUL, MIN, MAX, RENAME, POP, CURRENTDATE, CUSTOM,
+    }
+
+}
+</code></pre>
+
+<h3 id="oploglistener">OplogListener</h3>
+
+<p>there is a listener / watch functionality that works with older Mongodb installations. The OpLogListener is used by
+    the <code>OplogMonitor</code> and uses the OpLog to inform about changes <sup><a class="footnote" href="#fn8-12132"
+                                                                                     id="fnr8-12132"
+                                                                                     title="see footnote">8</a></sup>.
+</p>
+
+<pre><code class="java">public interface OplogListener {
+    void incomingData(Map&lt;String, Object&gt; data);
+}
+</code></pre>
+
+<h3 id="profilinig-listener">Profilinig Listener</h3>
+
+<p>If you need to gather performance data about your mongodb setup, the Profiling listener has you covered. It gives
+    detailed information about the duration of any write or read access:</p>
+
+<pre><code class="java">public interface ProfilingListener {
+    void readAccess(Query query, long time, ReadAccessType t);
+
+    void writeAccess(Class type, Object o, long time, boolean isNew, WriteAccessType t);
+}
+</code></pre>
+
 <h2 id="the-aggregation-framework">The Aggregation Framework</h2>
 
 <p>The aggregation framework is a very powerful feature of MongoDB and <em>Morphium</em> supports it from the start<sup><a
-        class="footnote" href="#fn8-30673" id="fnr8-30673" title="see footnote">8</a></sup>. But with <em>Morphium</em>
+        class="footnote" href="#fn9-12132" id="fnr9-12132" title="see footnote">9</a></sup>. But with <em>Morphium</em>
     V4.2.x we made use of it a lot easier.</p>
 
 <p>Core of the aggregation Framework in <em>Morphium</em> is the <code>Aggregator</code>. This will be created (using
@@ -3324,97 +3670,28 @@ assert(val.equals(&quot;{ \&quot;$filter\&quot; : { \&quot;input\&quot; :  [ 1, 
     <li>The <a href="https://caluga.de">caluga blog</a>, there are some articles on how to use <em>Morphium</em> and
         related projects and examples. Also, this document itself is available <a
                 href="https://boesebeck.name/v/2014/9/5/morphium_documentation?lang=en">there</a>.<sup><a
-                class="footnote" href="#fn9-30673" id="fnr9-30673" title="see footnote">9</a></sup></li>
+                class="footnote" href="#fn10-12132" id="fnr10-12132" title="see footnote">10</a></sup></li>
 </ul>
 
 <h2 id="code-examples">Code Examples</h2>
 
 <h3 id="cache-synchronization">Cache Synchronization</h3>
 
-<pre><code class="java">    @Test
-    public void cacheSyncTest() throws Exception {
-        morphium.dropCollection(Msg.class);
-        createCachedObjects(1000);
-    
-        Morphium m1 = morphium;
-        MorphiumConfig cfg2 = new MorphiumConfig();
-        cfg2.setAdr(m1.getConfig().getAdr());
-        cfg2.setDatabase(m1.getConfig().getDatabase());
-    
-        Morphium m2 = new Morphium(cfg2);
-        Messaging msg1 = new Messaging(m1, 200, true);
-        Messaging msg2 = new Messaging(m2, 200, true);
-    
-        msg1.start();
-        msg2.start();
-    
-        CacheSynchronizer cs1 = new CacheSynchronizer(msg1, m1);
-        CacheSynchronizer cs2 = new CacheSynchronizer(msg2, m2);
+<pre><code class="java"> Messaging msg = new Messaging(morphium, 100, true);
+        msg.start();
+        MessagingCacheSynchronizer cs = new MessagingCacheSynchronizer(msg, morphium);
+
+        Query&lt;Msg&gt; q = morphium.createQueryFor(Msg.class);
+        long cnt = q.countAll();
+        assert (cnt == 0) : &quot;Already a message?!?! &quot; + cnt;
+
+        cs.sendClearMessage(CachedObject.class, &quot;test&quot;);
+        Thread.sleep(2000);
         waitForWrites();
-    
-        //fill caches
-        for (int i = 0; i &lt; 1000; i++) {
-            m1.createQueryFor(CachedObject.class).f(&quot;counter&quot;).lte(i + 10).asList(); //fill cache
-            m2.createQueryFor(CachedObject.class).f(&quot;counter&quot;).lte(i + 10).asList(); //fill cache
-        }
-        //1 always sends to 2....
-    
-    
-        CachedObject o = m1.createQueryFor(CachedObject.class).f(&quot;counter&quot;).eq(155).get();
-        cs2.addSyncListener(CachedObject.class, new CacheSyncListener() {
-            @Override
-            public void preClear(Class cls, Msg m) throws CacheSyncVetoException {
-                log.info(&quot;Should clear cache&quot;);
-                preClear = true;
-            }
-    
-            @Override
-            public void postClear(Class cls, Msg m) {
-                log.info(&quot;did clear cache&quot;);
-                postclear = true;
-            }
-    
-            @Override
-            public void preSendClearMsg(Class cls, Msg m) throws CacheSyncVetoException {
-                log.info(&quot;will send clear message&quot;);
-                preSendClear = true;
-            }
-    
-            @Override
-            public void postSendClearMsg(Class cls, Msg m) {
-                log.info(&quot;just sent clear message&quot;);
-                postSendClear = true;
-            }
-        });
-        msg2.addMessageListener(new MessageListener() {
-            @Override
-            public Msg onMessage(Messaging msg, Msg m) {
-                log.info(&quot;Got message &quot; + m.getName());
-                return null;
-            }
-        });
-        preSendClear = false;
-        preClear = false;
-        postclear = false;
-        postSendClear = false;
-        o.setValue(&quot;changed it&quot;);
-        m1.store(o);
-    
-        Thread.sleep(1000);
-        assert (!preSendClear);
-        assert (!postSendClear);
-        assert (postclear);
-        assert (preClear);
-        Thread.sleep(60000);
-    
-        long l = m1.createQueryFor(Msg.class).countAll();
-        assert (l &lt;= 1) : &quot;too many messages? &quot; + l;
-        cs1.detach();
-        cs2.detach();
-        msg1.setRunning(false);
-        msg2.setRunning(false);
-        m2.close();
-    }
+        cnt = q.countAll();
+        assert (cnt == 1) : &quot;there should be one msg, there are &quot; + cnt;
+        msg.terminate();
+        cs.detach();
 </code></pre>
 
 <h3 id="geo-spacial-search">Geo Spacial Search</h3>
@@ -3597,7 +3874,7 @@ assert(val.equals(&quot;{ \&quot;$filter\&quot; : { \&quot;input\&quot; :  [ 1, 
     
     waitForWrites();
     
-    assert morphiuum.createQueryFor(UncachedObject.class).f(&quot;counter&quot;).eq(0).countAll() &gt; 0;
+    assert(morphium.createQueryFor(UncachedObject.class).f(&quot;counter&quot;).eq(0).countAll() &gt; 0);
     assert (asyncCall);
 }
 </code></pre>
@@ -3607,62 +3884,67 @@ assert(val.equals(&quot;{ \&quot;$filter\&quot; : { \&quot;input\&quot; :  [ 1, 
 <p>This document was written by the authors with most care, but there is no guarantee for 100% accuracy. If you have any
     questions, find a mistake or have suggestions for improvements, please contact the authors of this document and the
     developers of morphium via <a href="https://www.github.com/sboesebeck/morphium">github.com/sboesebeck/morphium</a>
-    or send an email to <a href="mailto://sb@caluga.de">sb@caluga.de</a></p>
+    or send an email to <a href="mailto:sb@caluga.de">sb@caluga.de</a></p>
 
 <div class="footnotes">
     <hr/>
     <ol>
 
-        <li id="fn1-30673">
+        <li id="fn1-12132">
             <p>you can even use aggregation on it, to gather more information about your messages <a
-                    class="reversefootnote" href="#fnr1-30673" title="return to article">&#8617;&#xFE0E;</a></p>
+                    class="reversefootnote" href="#fnr1-12132" title="return to article">&#8617;&#xFE0E;</a></p>
         </li>
 
-        <li id="fn2-30673">
-            <p>those throw an Exception to let you know, it is missing <a class="reversefootnote" href="#fnr2-30673"
+        <li id="fn2-12132">
+            <p>those throw an Exception to let you know, it is missing <a class="reversefootnote" href="#fnr2-12132"
                                                                           title="return to article">&#8617;&#xFE0E;</a>
             </p>
         </li>
 
-        <li id="fn3-30673">
+        <li id="fn3-12132">
             <p>does only make sense, when there is more than one recipient usually <a class="reversefootnote"
-                                                                                      href="#fnr3-30673"
+                                                                                      href="#fnr3-12132"
                                                                                       title="return to article">&#8617;&#xFE0E;</a>
             </p>
         </li>
 
-        <li id="fn4-30673">
+        <li id="fn4-12132">
             <p>attention: the &quot;top level&quot; document needs to be an Entity to have all necessary settings there.
                 But &quot;subdocuments&quot;/properties might be just serializable <a class="reversefootnote"
-                                                                                      href="#fnr4-30673"
+                                                                                      href="#fnr4-12132"
                                                                                       title="return to article">&#8617;&#xFE0E;</a>
             </p>
         </li>
 
-        <li id="fn5-30673">
+        <li id="fn5-12132">
             <p>text search and text indices can be disabled in mongodb config. When creating the index, it would throw
-                an Exception <a class="reversefootnote" href="#fnr5-30673" title="return to article">&#8617;&#xFE0E;</a>
+                an Exception <a class="reversefootnote" href="#fnr5-12132" title="return to article">&#8617;&#xFE0E;</a>
             </p>
         </li>
 
-        <li id="fn6-30673">
-            <p>can be switched off in morphiumConfig <a class="reversefootnote" href="#fnr6-30673"
+        <li id="fn6-12132">
+            <p>can be switched off in morphiumConfig <a class="reversefootnote" href="#fnr6-12132"
                                                         title="return to article">&#8617;&#xFE0E;</a></p>
         </li>
 
-        <li id="fn7-30673">
+        <li id="fn7-12132">
             <p>as it takes some time for <em>Morphium</em> and mongo do determine if a cluster member is down, some
-                requests might actually block <a class="reversefootnote" href="#fnr7-30673" title="return to article">&#8617;&#xFE0E;</a>
+                requests might actually block <a class="reversefootnote" href="#fnr7-12132" title="return to article">&#8617;&#xFE0E;</a>
             </p>
         </li>
 
-        <li id="fn8-30673">
-            <p>does not work with the `InMemoryDriver' yet <a class="reversefootnote" href="#fnr8-30673"
+        <li id="fn8-12132">
+            <p>also only works when connected to a replicaset <a class="reversefootnote" href="#fnr8-12132"
+                                                                 title="return to article">&#8617;&#xFE0E;</a></p>
+        </li>
+
+        <li id="fn9-12132">
+            <p>does not work with the `InMemoryDriver' yet <a class="reversefootnote" href="#fnr9-12132"
                                                               title="return to article">&#8617;&#xFE0E;</a></p>
         </li>
 
-        <li id="fn9-30673">
-            <p>this blog is powered by <em>Morphium</em> and mongodb <a class="reversefootnote" href="#fnr9-30673"
+        <li id="fn10-12132">
+            <p>this blog is powered by <em>Morphium</em> and mongodb <a class="reversefootnote" href="#fnr10-12132"
                                                                         title="return to article">&#8617;&#xFE0E;</a>
             </p>
         </li>
