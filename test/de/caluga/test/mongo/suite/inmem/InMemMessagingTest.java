@@ -1320,11 +1320,13 @@ public class InMemMessagingTest extends MorphiumInMemTestBase {
         morphium.dropCollection(Msg.class);
         Messaging sender = new Messaging(morphium, 100, false);
         sender.start();
+        Thread.sleep(2500);
         sender.addMessageListener(((msg, m) -> {
             gotMessage = true;
             log.info("Got message: " + m.getMsg() + "/" + m.getName());
             return null;
         }));
+
         gotMessage = false;
         gotMessage1 = false;
         gotMessage2 = false;
@@ -1337,15 +1339,15 @@ public class InMemMessagingTest extends MorphiumInMemTestBase {
             return new Msg(m.getName(), "got message", "value", 5000);
         });
         m1.start();
-
-        sender.sendMessageToSelf(new Msg("testmsg", "Selfmessage", "value"));
-        Thread.sleep(500);
-        assert (gotMessage);
-        //noinspection PointlessBooleanExpression
-        assert (gotMessage1 == false);
-
-        m1.terminate();
-        sender.terminate();
+        try {
+            sender.sendMessageToSelf(new Msg("testmsg", "Selfmessage", "value"));
+            Thread.sleep(1500);
+            assert (gotMessage);
+            assert (!gotMessage1);
+        } finally {
+            m1.terminate();
+            sender.terminate();
+        }
     }
 
 
