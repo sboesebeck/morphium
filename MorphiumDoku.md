@@ -1,26 +1,35 @@
 
-# Morphium 4.2 Documentation
+# Morphium Documentation
 
 {{TOC}}
 
 ## What is _Morphium_
-_Morphium_ started as a feature rich access layer for MongoDB in java. It was built with speed and flexibility in mind. So it supported cluster aware caching out of the box, lazy loading references and such.
+_Morphium_ started as a feature rich access layer and POJO mapper for MongoDB in java. It was built with speed and flexibility in mind. So it supported cluster aware caching out of the box, lazy loading references and much more. The POJO Mapping is the _core_ of _Morphium_, all other features were built around that. It makes accessing MongoDB easy, supports all great features of MongoDB and adds some more.
 
-But with time, one of the most popular features in _Morphium_ is the messaging based on MongoDB. It is fast, reliable, customizable and stable. 
+But with time, the MongoDB based messaging became one of the most popular features in _Morphium_. It is fast, reliable, customizable and stable. 
+
+## About this document
+This document is a documentation for _Morphium_ in the current (4.2) version. It would be best, if you had a basic understanding of MongoDB and a good knowledge on _Morphium_. If you want to know about MongoDBs features, that _Morphium_ implements here, have a look at the official mongodb pages and the documentation there.
+
+This documentation covers all features _Morphium_ has to offer.
+
+Later in this document there are chapters about the POJO mapping, querying data and using the aggregation framework. Also a chapter about the InMemory driver, which is quite useful for testing. But let's start with the messaging subsystem first. 
 
 ## Using _Morphium_ as a messaging system
-_Morphium_ is simple to use, and easy to customise to your needs. The messaging implementation in _Morphium_ relies on the `watch` functionality, that MongoDB offers since V3.6 (you can also use messaging with older versions of MongoDB, but it will result in polling for new messages). With that feature, the messages are _pushed_ to all listeners. This makes it a very efficient messaging system based on MongoDB.
+_Morphium_ itself is simple to use, easy to customise to your needs and was built for high performance and scalability. The messaging system is no different. It relies on the `watch` functionality, that MongoDB offers since V3.6 (you can also use messaging with older versions of MongoDB, but it will result in polling for new messages). With that feature, the messages are _pushed_ to all listeners. This makes it a very efficient messaging system based on MongoDB.
 
 ### why _Morphium_ messaging
 There is a ton of messaging solutions out there. All of them have their advantages and offer lots of features. But only few of them offer the things that _Morphium_ has:
 
-- the message queue can easily be inspected and you can use mongo search queries to find the messages you are looking for
+- the message queue can easily be inspected and you can use mongo search queries to find the messages you are looking for[^you can even use aggregation on it, to gather more information about your messages]
 - the message queue can be altered (update single messages with ease, delete messages or just _add_ new messages)
-- possibility to broadcast messages, that are only processed by one client max (Exclusive Messages). With V4.2 of _Morphium_ this also works with a group of recipients.
+- Possibility to broadcast messages, that are only processed by one client max (Exclusive Messages). With V4.2 of _Morphium_ this also works with a group of recipients.
 - Messaging is multithreaded and thread safe
 - pausing and unpausing of message processing without data loss
-- _Morphium_ Messaging picks up all pending messages on startup - no data loss.
-- no need to install additional servers, provide infrastructure. Just use your MongoDB.
+- _Morphium_ messaging picks up all pending messages on startup - no data loss.
+- no need to install additional servers or provide separate infrastructure. Just use your MongoDB you likely already have in place.
+
+There are people out there using _Morphium_ and its messaging for production grade development. For example [Genios.de](https://www.genios.de) uses Morphium messaging to power a microservice architecture with an enterprise message bus.
 
 ### Quick start Messaging
 ```java
@@ -2660,7 +2669,8 @@ There are some places, you also might want to look at for additional information
 
 
 
-
+## Disclaimer
+This document was written by the authors with most care, but there is no guarantee for 100% accuracy. If you have any questions, find a mistake or have suggestions for improvements, please contact the authors of this document and the developers of morphium via [github.com/sboesebeck/morphium](https://www.github.com/sboesebeck/morphium) or send an email to [sb@caluga.de](mailto://sb@caluga.de)
    
  
  
