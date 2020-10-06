@@ -108,6 +108,10 @@ public interface MorphiumDriver {
     @SuppressWarnings("unused")
     void setDefaultJ(boolean j);
 
+    int getLocalThreshold();
+
+    void setLocalThreshold(int thr);
+
     int getReadTimeout();
 
     void setReadTimeout(int readTimeout);
