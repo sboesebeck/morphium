@@ -50,6 +50,8 @@ public interface Aggregator<T, R> {
 
     Aggregator<T, R> match(Query<T> q);
 
+    Aggregator<T, R> matchSubQuery(Query<?> q);
+
     Aggregator<T, R> match(Expr q);
 
     Aggregator<T, R> count(String fld);
