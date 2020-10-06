@@ -60,6 +60,7 @@ public class MongoDriver implements MorphiumDriver {
     private int heartbeatFrequency = 1000;
     private boolean defaultJ = false;
     private int writeTimeout = 1000;
+    private int localThreshold = 15;
     private boolean defaultFsync;
     private int maxWaitTime;
     private int serverSelectionTimeout;
@@ -369,6 +370,16 @@ public class MongoDriver implements MorphiumDriver {
     }
 
     @Override
+    public int getLocalThreshold() {
+        return localThreshold;
+    }
+
+    @Override
+    public void setLocalThreshold(int thr) {
+        localThreshold = thr;
+    }
+
+    @Override
     public void heartBeatFrequency(int t) {
         heartbeatFrequency = t;
     }
@@ -548,6 +559,7 @@ public class MongoDriver implements MorphiumDriver {
                 }
                 clusterSettings.hosts(hosts);
                 clusterSettings.serverSelectionTimeout(getServerSelectionTimeout(), TimeUnit.MILLISECONDS);
+                clusterSettings.localThreshold(getLocalThreshold(), TimeUnit.MILLISECONDS);
                 clusterSettings.addClusterListener(new ClusterListener() {
                     @Override
                     public void clusterOpening(ClusterOpeningEvent event) {
@@ -586,7 +598,6 @@ public class MongoDriver implements MorphiumDriver {
 
 //            o.connectTimeout(getConnectionTimeout());
 //            o.connectionsPerHost(getMaxConnectionsPerHost());
-//            o.socketKeepAlive(isSocketKeepAlive());
 //            o.threadsAllowedToBlockForConnectionMultiplier(getMaxBlockintThreadMultiplier());
             //        o.cursorFinalizerEnabled(isCursorFinalizerEnabled()); //Deprecated?
             //        o.alwaysUseMBeans(isAlwaysUseMBeans());

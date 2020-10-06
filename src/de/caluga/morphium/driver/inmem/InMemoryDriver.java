@@ -363,6 +363,16 @@ public class InMemoryDriver implements MorphiumDriver {
     }
 
     @Override
+    public int getLocalThreshold() {
+        return 0;
+    }
+
+    @Override
+    public void setLocalThreshold(int thr) {
+
+    }
+
+    @Override
     public void heartBeatFrequency(int t) {
 
     }
