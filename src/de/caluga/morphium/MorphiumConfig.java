@@ -129,6 +129,7 @@ public class MorphiumConfig {
     private long threadPoolAsyncOpKeepAliveTime = 1000;
     private boolean objectSerializationEnabled = true;
     private int heartbeatFrequency = 1000;
+    private int localThreshold = 15;
     private int maxConnectionIdleTime = 10000;
     private int maxConnectionLifeTime = 60000;
 
@@ -1151,6 +1152,32 @@ public class MorphiumConfig {
         return this;
     }
 
+    public int getLocalThreshold() {
+        return localThreshold;
+    }
+
+    /**
+     * <p>
+     * Sets the local threshold. When choosing among multiple MongoDB servers to send a request, the MongoClient will only send that request to a server whose ping time is less than or equal to the server with the fastest ping time plus the local threshold.
+     * </p>
+     *
+     * <p>
+     * For example, let's say that the client is choosing a server to send a query when the read preference is {@code
+     * ReadPreference.secondary()}, and that there are three secondaries, server1, server2, and server3, whose ping times are 10, 15, and 16 milliseconds, respectively. With a local threshold of 5 milliseconds, the client will send the query to either server1 or server2 (randomly selecting between the two).
+     * </p>
+     *
+     * <p>
+     * Default is 15 milliseconds.
+     * </p>
+     *
+     * @return the local threshold, in milliseconds
+     * @mongodb.driver.manual reference/program/mongos/#cmdoption--localThreshold Local Threshold
+     * @since 2.13.0
+     */
+    public MorphiumConfig setLocalThreshold(int localThreshold) {
+        this.localThreshold = localThreshold;
+        return this;
+    }
 
     public int getMaxConnectionIdleTime() {
         return maxConnectionIdleTime;
