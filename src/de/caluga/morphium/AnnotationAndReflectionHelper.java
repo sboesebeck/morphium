@@ -1,29 +1,77 @@
 package de.caluga.morphium;
 
-import de.caluga.morphium.annotations.*;
+import de.caluga.morphium.annotations.AdditionalData;
+import de.caluga.morphium.annotations.Aliases;
+import de.caluga.morphium.annotations.CreationTime;
+import de.caluga.morphium.annotations.Embedded;
+import de.caluga.morphium.annotations.Entity;
+import de.caluga.morphium.annotations.Id;
+import de.caluga.morphium.annotations.IgnoreFields;
+import de.caluga.morphium.annotations.LastAccess;
+import de.caluga.morphium.annotations.LastChange;
+import de.caluga.morphium.annotations.LimitToFields;
+import de.caluga.morphium.annotations.Property;
+import de.caluga.morphium.annotations.Reference;
+import de.caluga.morphium.annotations.Transient;
+import de.caluga.morphium.annotations.Version;
 import de.caluga.morphium.annotations.caching.AsyncWrites;
 import de.caluga.morphium.annotations.caching.WriteBuffer;
 import de.caluga.morphium.annotations.lifecycle.Lifecycle;
 import de.caluga.morphium.driver.MorphiumDriver;
 import de.caluga.morphium.driver.MorphiumId;
 import de.caluga.morphium.driver.mongodb.MongoDriver;
-import io.github.classgraph.*;
+
+import io.github.classgraph.AnnotationInfo;
+import io.github.classgraph.AnnotationInfoList;
+import io.github.classgraph.AnnotationParameterValue;
+import io.github.classgraph.ClassGraph;
+import io.github.classgraph.ClassInfo;
+import io.github.classgraph.ClassInfoList;
+import io.github.classgraph.ScanResult;
+
 import org.slf4j.Logger;
 
 import java.lang.annotation.Annotation;
-import java.lang.reflect.*;
-import java.text.ParseException;
+import java.lang.reflect.Array;
+import java.lang.reflect.Field;
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
+import java.lang.reflect.Modifier;
+import java.nio.ByteBuffer;
 import java.text.SimpleDateFormat;
-import java.util.*;
+import java.time.Instant;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.LocalTime;
+import java.time.ZoneOffset;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.Date;
+import java.util.GregorianCalendar;
+import java.util.HashMap;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Optional;
+import java.util.Queue;
+import java.util.Set;
+import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 import java.util.regex.Pattern;
+
+import static org.slf4j.LoggerFactory.getLogger;
 
 import static java.lang.String.format;
 import static java.util.Collections.emptyMap;
 import static java.util.Optional.ofNullable;
 import static java.util.stream.Stream.of;
-import static org.slf4j.LoggerFactory.getLogger;
 
 /**
  * User: Stephan Bösebeck
@@ -494,165 +542,11 @@ public class AnnotationAndReflectionHelper {
                 try {
                     field.set(o, value);
                 } catch (Exception e) {
-
                     if (value != null) {
                         if (logger.isDebugEnabled()) {
                             logger.debug("Setting of value (" + value.getClass().getSimpleName() + ") failed for field " + field.getName() + "- trying type-conversion");
                         }
-                        //Doing some type conversions... lots of :-(
-                        if (value instanceof Double) {
-                            //maybe some kind of Default???
-                            Double d = (Double) value;
-                            if (field.getType().equals(Integer.class) || field.getType().equals(int.class)) {
-                                field.set(o, d.intValue());
-                            } else if (field.getType().equals(Long.class) || field.getType().equals(long.class)) {
-                                field.set(o, d.longValue());
-                            } else if (field.getType().equals(Date.class)) {
-                                //Fucking date / timestamp mixup
-                                field.set(o, new Date(d.longValue()));
-                            } else if (field.getType().equals(Float.class) || field.getType().equals(float.class)) {
-                                field.set(o, d.floatValue());
-                            } else if (field.getType().equals(Boolean.class) || field.getType().equals(boolean.class)) {
-                                field.set(o, d == 1.0);
-                            } else if (field.getType().equals(String.class)) {
-                                field.set(o, d.toString());
-                            } else {
-                                throw AnnotationAndReflectionException.wrongFieldType(fld, field.getType().toString(), value.getClass().toString());
-                            }
-                        } else if (value instanceof Float) {
-                            //maybe some kind of Default???
-                            Float d = (Float) value;
-                            if (field.getType().equals(Integer.class) || field.getType().equals(int.class)) {
-                                field.set(o, d.intValue());
-                            } else if (field.getType().equals(Long.class) || field.getType().equals(long.class)) {
-                                field.set(o, d.longValue());
-                            } else if (field.getType().equals(Date.class)) {
-                                //Fucking date / timestamp mixup
-                                field.set(o, new Date(d.longValue()));
-                            } else if (field.getType().equals(Float.class) || field.getType().equals(float.class)) {
-                                field.set(o, d);
-                            } else if (field.getType().equals(Boolean.class) || field.getType().equals(boolean.class)) {
-                                field.set(o, d == 1.0f);
-                            } else if (field.getType().equals(String.class)) {
-                                field.set(o, d.toString());
-                            } else {
-                                throw AnnotationAndReflectionException.wrongFieldType(fld, field.getType().toString(), value.getClass().toString());
-                            }
-                        } else if (value instanceof Date) {
-                            //Date/String mess-up?
-                            Date d = (Date) value;
-                            if (field.getType().equals(Long.class) || field.getType().equals(long.class)) {
-                                field.set(o, d.getTime());
-                            } else if (field.getType().equals(GregorianCalendar.class)) {
-                                GregorianCalendar cal = new GregorianCalendar();
-                                cal.setTimeInMillis(d.getTime());
-                                field.set(o, cal);
-                            } else if (field.getType().equals(String.class)) {
-                                SimpleDateFormat df = new SimpleDateFormat("yyyyMMdd");
-                                field.set(o, df.format(d));
-                            }
-                        } else if (value instanceof String) {
-                            //String->Number conversion necessary????
-                            try {
-                                String s = (String) value;
-                                if (field.getType().equals(Long.class) || field.getType().equals(long.class)) {
-                                    field.set(o, Long.parseLong(s));
-                                } else if (field.getType().equals(Integer.class) || field.getType().equals(int.class)) {
-                                    field.set(o, Integer.parseInt(s));
-                                } else if (field.getType().equals(Double.class) || field.getType().equals(double.class)) {
-                                    field.set(o, Double.parseDouble(s));
-                                } else if (field.getType().equals(Date.class)) {
-                                    //Fucking date / timestamp mixup
-                                    if (s.length() == 8) {
-                                        //probably time-string 20120812
-                                        SimpleDateFormat df = new SimpleDateFormat("yyyyMMdd");
-                                        field.set(o, df.parse(s));
-                                    } else if (s.indexOf('-') > 0) {
-                                        //maybe a date-String?
-                                        SimpleDateFormat df = new SimpleDateFormat("yyyy-MM-dd");
-                                        field.set(o, df.parse(s));
-                                    } else if (s.indexOf('.') > 0) {
-                                        //maybe a date-String?
-                                        SimpleDateFormat df = new SimpleDateFormat("dd.MM.yyyy");
-                                        field.set(o, df.parse(s));
-                                    } else {
-                                        field.set(o, new Date(Long.parseLong(s)));
-                                    }
-                                } else if (field.getType().equals(Boolean.class) || field.getType().equals(boolean.class)) {
-                                    field.set(o, s.equalsIgnoreCase("true"));
-                                } else if (field.getType().equals(Float.class) || field.getType().equals(float.class)) {
-                                    field.set(o, Float.parseFloat(s));
-                                } else if (field.getType().equals(MorphiumId.class)) {
-                                    field.set(o, new MorphiumId(s));
-                                } else {
-                                    throw AnnotationAndReflectionException.wrongFieldType(fld, field.getType().toString(), value.getClass().toString());
-                                }
-                            } catch (ParseException pe) {
-                                throw AnnotationAndReflectionException.of(pe);
-                            }
-                        } else if (value instanceof Integer) {
-                            Integer i = (Integer) value;
-                            if (field.getType().equals(Long.class) || field.getType().equals(long.class)) {
-                                field.set(o, i.longValue());
-                            } else if (field.getType().equals(Double.class) || field.getType().equals(double.class)) {
-                                field.set(o, i.doubleValue());
-                            } else if (field.getType().equals(Date.class)) {
-                                //Fucking date / timestamp mixup
-                                field.set(o, new Date(i.longValue()));
-                            } else if (field.getType().equals(String.class)) {
-                                field.set(o, i.toString());
-                            } else if (field.getType().equals(Float.class) || field.getType().equals(float.class)) {
-                                field.set(o, i.floatValue());
-                            } else if (field.getType().equals(Boolean.class) || field.getType().equals(boolean.class)) {
-                                field.set(o, i == 1);
-                            } else {
-                                throw AnnotationAndReflectionException.wrongFieldType(fld, field.getType().toString(), value.getClass().toString());
-                            }
-                        } else if (value instanceof Long) {
-                            Long l = (Long) value;
-                            if (field.getType().equals(Integer.class) || field.getType().equals(int.class)) {
-                                field.set(o, l.intValue());
-                            } else if (field.getType().equals(Double.class) || field.getType().equals(double.class)) {
-                                field.set(o, l.doubleValue());
-                            } else if (field.getType().equals(Date.class)) {
-                                //Fucking date / timestamp mixup
-                                field.set(o, new Date(l));
-                            } else if (field.getType().equals(Float.class) || field.getType().equals(float.class)) {
-                                field.set(o, l.floatValue());
-                            } else if (field.getType().equals(Boolean.class) || field.getType().equals(boolean.class)) {
-                                field.set(o, l == 1L);
-                            } else if (field.getType().equals(String.class)) {
-                                field.set(o, l.toString());
-                            } else {
-                                throw AnnotationAndReflectionException.wrongFieldType(fld, field.getType().toString(), value.getClass().toString());
-                            }
-                        } else if (value instanceof Boolean) {
-                            Boolean b = (Boolean) value;
-                            if (field.getType().equals(Integer.class) || field.getType().equals(int.class)) {
-                                field.set(o, b ? 1 : 0);
-                            } else if (field.getType().equals(Double.class) || field.getType().equals(double.class)) {
-                                field.set(o, b ? 1.0 : 0.0);
-                            } else if (field.getType().equals(Float.class) || field.getType().equals(float.class)) {
-                                field.set(o, b ? 1.0f : 0.0f);
-                            } else if (field.getType().equals(String.class)) {
-                                field.set(o, b ? "true" : "false");
-                            } else {
-                                throw AnnotationAndReflectionException.wrongFieldType(fld, field.getType().toString(), value.getClass().toString());
-                            }
-                        } else if (field.getType().isArray() && value instanceof List) {
-                            Object arr = Array.newInstance(field.getType(), ((List) value).size());
-                            int idx = 0;
-                            for (Object io : ((List) value)) {
-                                try {
-                                    Array.set(arr, idx, io);
-                                } catch (Exception e1) {
-                                    Array.set(arr, idx, ((Integer) io).byteValue());
-                                }
-                            }
-                            field.set(o, arr);
-                        } else {
-                            logger.error("Could not set value!!!");
-                        }
+                        field.set(o, convertType(value, fld, field.getType()));
                     }
                     if (logger.isDebugEnabled()) {
                         logger.debug("Type conversion was successful");
@@ -662,6 +556,163 @@ public class AnnotationAndReflectionHelper {
         } catch (IllegalAccessException e) {
             logger.error("Illegal access to field " + fld + " of toype " + o.getClass().getSimpleName());
         }
+    }
+
+    public static Object convertType(Object value, String fieldName, Class<?> fieldType) {
+        //Doing some type conversions... lots of :-(
+        if (value instanceof Number) {
+            Number n = (Number) value;
+            if (fieldType.equals(Integer.class) || fieldType.equals(int.class)) {
+                return n.intValue();
+            } else if (fieldType.equals(Long.class) || fieldType.equals(long.class)) {
+                return n.longValue();
+            } else if (fieldType.equals(Double.class) || fieldType.equals(double.class)) {
+                return n.doubleValue();
+            } else if (fieldType.equals(Float.class) || fieldType.equals(float.class)) {
+                return n.floatValue();
+            } else if (fieldType.equals(Byte.class) || fieldType.equals(byte.class)) {
+                return n.byteValue();
+            } else if (fieldType.equals(Short.class) || fieldType.equals(short.class)) {
+                return n.shortValue();
+            } else if (fieldType.equals(AtomicInteger.class)) {
+                return new AtomicInteger(n.intValue());
+            } else if (fieldType.equals(AtomicLong.class)) {
+                return new AtomicLong(n.intValue());
+            } else if (fieldType.equals(Date.class)) {
+                //Fucking date / timestamp mixup
+                return new Date(n.longValue());
+            } else if (fieldType.equals(Boolean.class) || fieldType.equals(boolean.class)) {
+                return n.intValue() == 1;
+            } else if (fieldType.equals(String.class)) {
+                return n.toString();
+            } else {
+                throw AnnotationAndReflectionException.wrongFieldType(fieldName, fieldType.toString(), value.getClass().toString());
+            }
+        } else if (value instanceof Boolean) {
+            Boolean b = (Boolean) value;
+            if (fieldType.equals(Integer.class) || fieldType.equals(int.class)) {
+                return Integer.valueOf(b ? 1 : 0);
+            } else if (fieldType.equals(Long.class) || fieldType.equals(long.class)) {
+                return Long.valueOf(b ? 1l : 0l);
+            } else if (fieldType.equals(Double.class) || fieldType.equals(double.class)) {
+                return Double.valueOf(b ? 1.0 : 0.0);
+            } else if (fieldType.equals(Float.class) || fieldType.equals(float.class)) {
+                return Float.valueOf(b ? 1.0f : 0.0f);
+            } else if (fieldType.equals(Byte.class) || fieldType.equals(byte.class)) {
+                return Byte.valueOf(b ? (byte)1 : 0);
+            } else if (fieldType.equals(Short.class) || fieldType.equals(short.class)) {
+                return Short.valueOf(b ? (short)1 : 0);
+            } else if (fieldType.equals(String.class)) {
+                return b ? "true" : "false";
+            } else if (fieldType.equals(AtomicBoolean.class)) {
+                return new AtomicBoolean(b);
+            } else {
+                throw AnnotationAndReflectionException.wrongFieldType(fieldName, fieldType.toString(), value.getClass().toString());
+            }
+        } else if (value instanceof Date) {
+            //Date/String mess-up?
+            Date d = (Date) value;
+            if (fieldType.equals(Long.class) || fieldType.equals(long.class)) {
+                return d.getTime();
+            } else if (fieldType.equals(GregorianCalendar.class)) {
+                GregorianCalendar cal = new GregorianCalendar();
+                cal.setTimeInMillis(d.getTime());
+                return cal;
+            } else if (fieldType.equals(String.class)) {
+                SimpleDateFormat df = new SimpleDateFormat("yyyyMMdd");
+                return df.format(d);
+            } else if (fieldType.equals(Instant.class)) {
+                return d.toInstant();
+            } else if (fieldType.equals(LocalDate.class)) {
+                return d.toInstant().atZone(ZoneOffset.UTC).toLocalDate();
+            } else if (fieldType.equals(LocalTime.class)) {
+                return d.toInstant().atZone(ZoneOffset.UTC).toLocalTime();
+            } else if (fieldType.equals(LocalDateTime.class)) {
+                return d.toInstant().atZone(ZoneOffset.UTC).toLocalDateTime();
+            }
+        } else if (value instanceof String) {
+                String s = (String) value;
+                try {
+                    if (fieldType.equals(Date.class)) {
+                        //Fucking date / timestamp mixup
+                        if (s.length() == 8) {
+                            //probably time-string 20120812
+                            SimpleDateFormat df = new SimpleDateFormat("yyyyMMdd");
+                            return df.parse(s);
+                        } else if (s.indexOf('-') > 0) {
+                            //maybe a date-String?
+                            SimpleDateFormat df = new SimpleDateFormat("yyyy-MM-dd");
+                            return df.parse(s);
+                        } else if (s.indexOf('.') > 0) {
+                            //maybe a date-String?
+                            SimpleDateFormat df = new SimpleDateFormat("dd.MM.yyyy");
+                            return df.parse(s);
+                        } else {
+                            return new Date(Long.parseLong(s));
+                        }
+                    } else if (fieldType.equals(MorphiumId.class)) {
+                        return new MorphiumId(s);
+                    }
+                } catch (Exception e) {
+                }
+                Method convertMethod = getConvertMethod(fieldType);
+                if (convertMethod != null) {
+                    try {
+                        return convertMethod.invoke(null, s);
+                    } catch (Exception e) {
+                    }
+                }
+        } else if (fieldType.isArray() && value instanceof List) {
+            Object arr = Array.newInstance(fieldType, ((List) value).size());
+            int idx = 0;
+            for (Object io : ((List) value)) {
+                try {
+                    Array.set(arr, idx, io);
+                } catch (Exception e1) {
+                    Array.set(arr, idx, ((Integer) io).byteValue());
+                }
+            }
+            return arr;
+        } else if (value instanceof byte[]) {
+            if(fieldType.equals(UUID.class)) {
+                // Convert Java Legacy UUID from byte array to object
+                ByteBuffer bb = ByteBuffer.wrap((byte[]) value);
+                return new UUID(bb.getLong(), bb.getLong());
+            }
+        }
+        throw AnnotationAndReflectionException.wrongFieldType(fieldName, fieldType.toString(), value.getClass().toString());
+    }
+
+    public static Method getConvertMethod(Class<?> fieldType) {
+        try {
+            return fieldType.getMethod("valueOf", String.class);
+        } catch (NoSuchMethodException e) {
+            try {
+                return fieldType.getMethod("valueOf", CharSequence.class);
+            } catch (NoSuchMethodException e1) {
+                try {
+                    return fieldType.getMethod("valueOf", Object.class);
+                } catch (NoSuchMethodException e2) {
+                    try {
+                        return fieldType.getMethod("parse", String.class);
+                    } catch (NoSuchMethodException e3) {
+                        try {
+                            return fieldType.getMethod("parse", CharSequence.class);
+                        } catch (NoSuchMethodException e4) {
+                            try {
+                                return fieldType.getMethod("parse", Object.class);
+                            } catch (NoSuchMethodException e5) {
+                                try {
+                                    return fieldType.getMethod("fromString", String.class); // for UUID
+                                } catch (NoSuchMethodException e6) {
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        return null;
     }
 
     public Field getVersionField(Object o) {

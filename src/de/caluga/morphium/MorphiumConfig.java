@@ -19,6 +19,8 @@ import de.caluga.morphium.writer.AsyncWriterImpl;
 import de.caluga.morphium.writer.BufferedMorphiumWriterImpl;
 import de.caluga.morphium.writer.MorphiumWriter;
 import de.caluga.morphium.writer.MorphiumWriterImpl;
+
+import org.bson.UuidRepresentation;
 import org.json.simple.parser.ParseException;
 import org.slf4j.LoggerFactory;
 
@@ -141,6 +143,7 @@ public class MorphiumConfig {
     private int readTimeout;
     private boolean retryReads;
     private boolean retryWrites;
+    private String uuidRepresentation;
 
     public MorphiumConfig(final Properties prop) {
         this(null, prop);
@@ -1287,5 +1290,27 @@ public class MorphiumConfig {
 
     public void setRetryWrites(boolean retryWrites) {
         this.retryWrites = retryWrites;
+    }
+
+    public String getUuidRepresentation() {
+        return uuidRepresentation;
+    }
+
+    /**
+     * Sets the UUID representation to use when encoding instances of {@link java.util.UUID} and when decoding BSON binary values with
+     * subtype of 3.
+     *
+     * <p>The default is UNSPECIFIED, If your application stores UUID values in MongoDB, you must set this
+     * value to the desired representation.  New applications should prefer STANDARD, while existing Java
+     * applications should prefer JAVA_LEGACY. Applications wishing to interoperate with existing Python or
+     * .NET applications should prefer PYTHON_LEGACY or C_SHARP_LEGACY,
+     * respectively. Applications that do not store UUID values in MongoDB don't need to set this value.
+     * </p>
+     *
+     * @param uuidRepresentation the UUID representation
+     * @since 3.12
+     */
+    public void setUuidRepresentation(String uuidRepresentation) {
+        this.uuidRepresentation = uuidRepresentation;
     }
 }

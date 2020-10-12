@@ -331,6 +331,14 @@ public class InMemoryDriver implements MorphiumDriver {
 
     }
 
+    @Override
+    public String getUuidRepresentation() {
+        return null;
+    }
+
+    @Override
+    public void setUuidRepresentation(String uuidRepresentation) {
+    }
 
     @Override
     public boolean isUseSSL() {
