@@ -2,31 +2,105 @@ package de.caluga.morphium.driver.mongodb;/**
  * Created by stephan on 05.11.15.
  */
 
-import com.mongodb.ConnectionString;
-import com.mongodb.client.*;
+import com.mongodb.BasicDBList;
+import com.mongodb.BasicDBObject;
+import com.mongodb.ClientSessionOptions;
+import com.mongodb.CursorType;
+import com.mongodb.MongoClientSettings;
+import com.mongodb.MongoCommandException;
+import com.mongodb.MongoCredential;
+import com.mongodb.MongoWriteException;
+import com.mongodb.ReadConcern;
+import com.mongodb.ServerAddress;
+import com.mongodb.Tag;
+import com.mongodb.TagSet;
+import com.mongodb.TransactionOptions;
 import com.mongodb.WriteConcern;
-import com.mongodb.*;
-import com.mongodb.client.model.*;
+import com.mongodb.client.AggregateIterable;
+import com.mongodb.client.ChangeStreamIterable;
+import com.mongodb.client.ClientSession;
+import com.mongodb.client.DistinctIterable;
+import com.mongodb.client.FindIterable;
+import com.mongodb.client.ListIndexesIterable;
+import com.mongodb.client.MapReduceIterable;
+import com.mongodb.client.MongoClient;
+import com.mongodb.client.MongoClients;
+import com.mongodb.client.MongoCollection;
+import com.mongodb.client.MongoCursor;
+import com.mongodb.client.MongoDatabase;
+import com.mongodb.client.model.CollationAlternate;
+import com.mongodb.client.model.CollationCaseFirst;
+import com.mongodb.client.model.CollationMaxVariable;
+import com.mongodb.client.model.CollationStrength;
+import com.mongodb.client.model.CountOptions;
+import com.mongodb.client.model.DeleteOptions;
+import com.mongodb.client.model.FindOneAndDeleteOptions;
+import com.mongodb.client.model.FindOneAndReplaceOptions;
+import com.mongodb.client.model.FindOneAndUpdateOptions;
+import com.mongodb.client.model.IndexOptions;
+import com.mongodb.client.model.InsertManyOptions;
+import com.mongodb.client.model.InsertOneOptions;
+import com.mongodb.client.model.ReplaceOptions;
+import com.mongodb.client.model.UpdateOptions;
 import com.mongodb.client.model.changestream.ChangeStreamDocument;
 import com.mongodb.client.model.changestream.FullDocument;
 import com.mongodb.client.result.DeleteResult;
 import com.mongodb.client.result.UpdateResult;
 import com.mongodb.connection.ClusterConnectionMode;
-import com.mongodb.connection.ClusterDescription;
-import com.mongodb.connection.ServerDescription;
-import com.mongodb.event.*;
-import com.mongodb.internal.connection.Cluster;
-import com.mongodb.internal.selector.ReadPreferenceServerSelector;
-import com.mongodb.selector.ServerSelector;
-import de.caluga.morphium.AnnotationAndReflectionHelper;
+import com.mongodb.event.ClusterClosedEvent;
+import com.mongodb.event.ClusterDescriptionChangedEvent;
+import com.mongodb.event.ClusterListener;
+import com.mongodb.event.ClusterOpeningEvent;
+import com.mongodb.event.CommandFailedEvent;
+import com.mongodb.event.CommandListener;
+import com.mongodb.event.CommandStartedEvent;
+import com.mongodb.event.CommandSucceededEvent;
+import com.mongodb.event.ConnectionAddedEvent;
+import com.mongodb.event.ConnectionCheckOutFailedEvent;
+import com.mongodb.event.ConnectionCheckOutStartedEvent;
+import com.mongodb.event.ConnectionCheckedInEvent;
+import com.mongodb.event.ConnectionCheckedOutEvent;
+import com.mongodb.event.ConnectionClosedEvent;
+import com.mongodb.event.ConnectionCreatedEvent;
+import com.mongodb.event.ConnectionPoolClearedEvent;
+import com.mongodb.event.ConnectionPoolClosedEvent;
+import com.mongodb.event.ConnectionPoolCreatedEvent;
+import com.mongodb.event.ConnectionPoolListener;
+import com.mongodb.event.ConnectionPoolOpenedEvent;
+import com.mongodb.event.ConnectionReadyEvent;
+import com.mongodb.event.ConnectionRemovedEvent;
+
 import de.caluga.morphium.Collation;
 import de.caluga.morphium.Morphium;
-import de.caluga.morphium.ObjectMapperImpl;
+import de.caluga.morphium.driver.DriverTailableIterationCallback;
+import de.caluga.morphium.driver.MorphiumCursor;
+import de.caluga.morphium.driver.MorphiumDriver;
+import de.caluga.morphium.driver.MorphiumDriverException;
+import de.caluga.morphium.driver.MorphiumDriverOperation;
+import de.caluga.morphium.driver.MorphiumId;
+import de.caluga.morphium.driver.MorphiumTransactionContext;
 import de.caluga.morphium.driver.ReadPreference;
-import de.caluga.morphium.driver.*;
 import de.caluga.morphium.driver.bulk.BulkRequestContext;
-import de.caluga.morphium.replicaset.ReplicaSetConf;
-import org.bson.*;
+
+import org.bson.BSONObject;
+import org.bson.BasicBSONObject;
+import org.bson.BsonArray;
+import org.bson.BsonBinary;
+import org.bson.BsonBoolean;
+import org.bson.BsonDateTime;
+import org.bson.BsonDocument;
+import org.bson.BsonDouble;
+import org.bson.BsonInt32;
+import org.bson.BsonInt64;
+import org.bson.BsonNull;
+import org.bson.BsonObjectId;
+import org.bson.BsonRegularExpression;
+import org.bson.BsonString;
+import org.bson.BsonTimestamp;
+import org.bson.BsonValue;
+import org.bson.Document;
+import org.bson.UuidRepresentation;
+import org.bson.codecs.PatternCodec;
 import org.bson.conversions.Bson;
 import org.bson.types.Binary;
 import org.bson.types.ObjectId;
@@ -34,11 +108,18 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import javax.net.ssl.SSLContext;
-import javax.xml.stream.events.Comment;
-import java.lang.reflect.InvocationTargetException;
+
 import java.lang.reflect.Method;
-import java.sql.Time;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.ConcurrentModificationException;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Map.Entry;
+import java.util.Objects;
+import java.util.Vector;
 import java.util.concurrent.TimeUnit;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -67,6 +148,7 @@ public class MongoDriver implements MorphiumDriver {
     private int readTimeout = 1000;
     private boolean retryReads = false;
     private boolean retryWrites = false;
+    private String uuidRepresentation;
 
     //SSL-Settings
     private boolean useSSL = false;
@@ -348,6 +430,15 @@ public class MongoDriver implements MorphiumDriver {
         this.retryWrites = retryWrites;
     }
 
+    @Override
+    public String getUuidRepresentation() {
+        return uuidRepresentation;
+    }
+
+    @Override
+    public void setUuidRepresentation(String uuidRepresentation) {
+        this.uuidRepresentation = uuidRepresentation;
+    }
 
     @Override
     public boolean isUseSSL() {
@@ -596,6 +687,10 @@ public class MongoDriver implements MorphiumDriver {
                 });
             }
 
+            if (this.uuidRepresentation != null && !this.uuidRepresentation.isEmpty()) {
+                o.uuidRepresentation(UuidRepresentation.valueOf(this.uuidRepresentation));
+            }
+
 //            o.connectTimeout(getConnectionTimeout());
 //            o.connectionsPerHost(getMaxConnectionsPerHost());
 //            o.threadsAllowedToBlockForConnectionMultiplier(getMaxBlockintThreadMultiplier());
@@ -614,7 +709,6 @@ public class MongoDriver implements MorphiumDriver {
 //            }
 //            o.maxWaitTime(getMaxWaitTime());
 //            o.serverSelectionTimeout(getServerSelectionTimeout());
-
 
             for (Map.Entry<String, String[]> e : credentials.entrySet()) {
                 MongoCredential cred = MongoCredential.createCredential(e.getValue()[0], e.getKey(), e.getValue()[1].toCharArray());
@@ -1141,15 +1235,15 @@ public class MongoDriver implements MorphiumDriver {
         return bld.build();
     }
 
-    private Map<String, Object> convertBSON(Map d) {
+    private <E extends Object> Map<String, Object> convertBSON(Map<String, E> d) {
         Map<String, Object> obj = new HashMap<>();
 
-        for (Object k : d.keySet()) {
-            Object value = d.get(k);
+        for (Entry<String, E> entry: d.entrySet()) {
+            Object value = entry.getValue();
             if (value instanceof BsonTimestamp) {
                 value = (((BsonTimestamp) value).getTime() * 1000);
             } else if (value instanceof BsonDocument) {
-                value = convertBSON((Map) value);
+                value = convertBSON((BsonDocument) value);
             } else if (value instanceof BsonBoolean) {
                 value = ((BsonBoolean) value).getValue();
             } else if (value instanceof BsonDateTime) {
@@ -1160,32 +1254,38 @@ public class MongoDriver implements MorphiumDriver {
                 value = ((BsonInt64) value).getValue();
             } else if (value instanceof BsonDouble) {
                 value = ((BsonDouble) value).getValue();
+            } else if (value instanceof BsonRegularExpression) {
+                BsonRegularExpression bsonRegularExpression = (BsonRegularExpression)value;
+                try {
+                    Method getOptionsAsIntMethod = PatternCodec.class.getDeclaredMethod("getOptionsAsInt", BsonRegularExpression.class);
+                    getOptionsAsIntMethod.setAccessible(true);
+                    value = Pattern.compile(bsonRegularExpression.getPattern(), (int) getOptionsAsIntMethod.invoke(null, bsonRegularExpression));
+                } catch (Exception e) {
+                    log.debug(e.toString(), e);
+                }
             } else if (value instanceof ObjectId) {
                 value = new MorphiumId(((ObjectId) value).toByteArray());
             } else if (value instanceof BasicDBList) {
-                Map m = new HashMap<>();
-                //noinspection unchecked,unchecked
-                m.put("list", new ArrayList(((BasicDBList) value)));
-                value = convertBSON(m).get("list");
+                value = convertBSON(Collections.singletonMap("list", new ArrayList(((BasicDBList) value)))).get("list");
             } else //noinspection ConditionCoveredByFurtherCondition,DuplicateCondition,DuplicateCondition
                 if (value instanceof BasicBSONObject
                         || value instanceof Document
                         || value instanceof BSONObject) {
-                    value = convertBSON((Map) value);
+                    value = convertBSON((Map<String, Object>) value);
                 } else if (value instanceof Binary) {
                     Binary b = (Binary) value;
                     value = b.getData();
                 } else if (value instanceof BsonString) {
                     value = value.toString();
                 } else if (value instanceof List) {
-                    List v = new ArrayList<>();
+                    List<Object> v = new ArrayList<>();
 
                     for (Object o : (List) value) {
                         if (o instanceof BSONObject || o instanceof BsonValue || o instanceof Map)
                         //noinspection unchecked
                         {
                             //noinspection unchecked
-                            v.add(convertBSON((Map) o));
+                            v.add(convertBSON((Map<String, Object>) o));
                         } else if (o instanceof ObjectId) {
                             //noinspection unchecked
                             v.add(new MorphiumId(((ObjectId) o).toString()));
@@ -1199,18 +1299,15 @@ public class MongoDriver implements MorphiumDriver {
                     value = v;
                 } else //noinspection ConstantConditions
                     if (value instanceof BsonArray) {
-                        Map m = new HashMap<>();
-                        //noinspection unchecked,unchecked
-                        m.put("list", new ArrayList(((BsonArray) value).getValues()));
-                        value = convertBSON(m).get("list");
+                        value = convertBSON(Collections.singletonMap("list", new ArrayList(((BsonArray) value).getValues()))).get("list");
                     } else //noinspection ConstantConditions,DuplicateCondition
                         if (value instanceof Document) {
-                            value = convertBSON((Map) value);
+                            value = convertBSON((Document) value);
                         } else //noinspection ConstantConditions,DuplicateCondition
                             if (value instanceof BSONObject) {
-                                value = convertBSON((Map) value);
+                                value = convertBSON((Map<String, Object>) value);
                             }
-            obj.put(k.toString(), value);
+            obj.put(entry.getKey(), value);
         }
         return obj;
     }
