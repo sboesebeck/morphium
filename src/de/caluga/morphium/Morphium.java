@@ -220,6 +220,7 @@ public class Morphium implements AutoCloseable {
             morphiumDriver.setMaxConnectionLifetime(config.getMaxConnectionLifeTime());
             morphiumDriver.setMaxWaitTime(config.getMaxWaitTime());
             morphiumDriver.setServerSelectionTimeout(config.getServerSelectionTimeout());
+            morphiumDriver.setUuidRepresentation(config.getUuidRepresentation());
 
             morphiumDriver.setUseSSL(config.isUseSSL());
             morphiumDriver.setSslContext(config.getSslContext());
@@ -2552,37 +2553,43 @@ public class Morphium implements AutoCloseable {
             rsMonitor = null;
         }
 
-        config.getAsyncWriter().close();
-        config.getBufferedWriter().close();
-        config.getWriter().close();
-        try {
-            getDriver().close();
-        } catch (MorphiumDriverException e) {
-            e.printStackTrace();
+        if (config != null) {
+            config.getAsyncWriter().close();
+            config.getBufferedWriter().close();
+            config.getWriter().close();
         }
-        //        if (oplogMonitor != null) {
-        //            oplogMonitor.terminate();
-        //            try {
-        //                Thread.sleep(1000); //wait for it to finish...
-        //            } catch (InterruptedException e) {
-        //                //ignoring interrupted excepition
-        //            }
-        //        }
-        //        if (oplogMonitorThread != null) {
-        //            try {
-        //                oplogMonitorThread.interrupt();
-        //            } catch (Exception e) {
-        //                //ignoring
-        //            }
-        //        }
-        config.getCache().resetCache();
-        config.setBufferedWriter(null);
-        config.setAsyncWriter(null);
-        config.setWriter(null);
-        config = null;
-        morphiumDriver = null;
-//        config.getCache().resetCache();
-        //        MorphiumSingleton.reset();
+        if (morphiumDriver != null) {
+            try {
+                morphiumDriver.close();
+            } catch (MorphiumDriverException e) {
+                e.printStackTrace();
+            }
+            morphiumDriver = null;
+        }
+        // if (oplogMonitor != null) {
+        // oplogMonitor.terminate();
+        // try {
+        // Thread.sleep(1000); //wait for it to finish...
+        // } catch (InterruptedException e) {
+        // //ignoring interrupted excepition
+        // }
+        // }
+        // if (oplogMonitorThread != null) {
+        // try {
+        // oplogMonitorThread.interrupt();
+        // } catch (Exception e) {
+        // //ignoring
+        // }
+        // }
+        if (config != null) {
+            config.getCache().resetCache();
+            config.setBufferedWriter(null);
+            config.setAsyncWriter(null);
+            config.setWriter(null);
+            config = null;
+        }
+        // config.getCache().resetCache();
+        // MorphiumSingleton.reset();
     }
 
     @SuppressWarnings("unused")
