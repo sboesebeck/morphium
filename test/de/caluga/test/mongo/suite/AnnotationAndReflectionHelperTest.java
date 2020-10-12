@@ -1,14 +1,21 @@
 package de.caluga.test.mongo.suite;
 
 import de.caluga.morphium.AnnotationAndReflectionHelper;
-import de.caluga.morphium.annotations.*;
+import de.caluga.morphium.annotations.Entity;
+import de.caluga.morphium.annotations.Id;
+import de.caluga.morphium.annotations.IgnoreFields;
+import de.caluga.morphium.annotations.Index;
+import de.caluga.morphium.annotations.LimitToFields;
 import de.caluga.morphium.annotations.caching.Cache;
 import de.caluga.morphium.driver.MorphiumId;
 import de.caluga.test.mongo.suite.data.CachedObject;
 import de.caluga.test.mongo.suite.data.EmbeddedObject;
+import de.caluga.test.mongo.suite.data.UUIDTestObject;
 import de.caluga.test.mongo.suite.data.UncachedObject;
+
 import net.sf.cglib.proxy.Enhancer;
 import net.sf.cglib.proxy.FixedValue;
+
 import org.junit.Before;
 import org.junit.Test;
 
@@ -17,6 +24,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
@@ -138,6 +146,14 @@ public class AnnotationAndReflectionHelperTest {
         UncachedObject uncachedObject = new UncachedObject();
         helper.setValue(uncachedObject, 123, "counter");
         assertThat(uncachedObject.getCounter()).isEqualTo(123);
+    }
+
+    @Test
+    public void testSetUUIDFromJavaLegacyUIIDByteArray() {
+        UUIDTestObject uuidTestObject = new UUIDTestObject();
+        byte[] dbValue = new byte[] {78, 67, 47, -34, -114, 8, 62, -13, 72, -42, 126, -10, 38, 56, -106, -122};
+        helper.setValue(uuidTestObject, dbValue, "uuidValue");
+        assertThat(uuidTestObject.uuidValue).isEqualTo(UUID.fromString("4e432fde-8e08-3ef3-48d6-7ef626389686"));
     }
 
     @Test

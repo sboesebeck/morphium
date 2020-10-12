@@ -96,6 +96,10 @@ public interface MorphiumDriver {
 
     void setRetryWrites(boolean retryWrites);
 
+    String getUuidRepresentation();
+
+    void setUuidRepresentation(String uuidRepresentation);
+
     @SuppressWarnings("unused")
     boolean isUseSSL();
 
