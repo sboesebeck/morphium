@@ -885,6 +885,11 @@ public class InMemoryDriver implements MorphiumDriver {
         return cnt;
     }
 
+    @Override
+    public long estimatedDocumentCount(String db, String collection, ReadPreference rp) {
+        return getCollection(db, collection).size();
+    }
+
     public List<Map<String, Object>> findByFieldValue(String db, String coll, String field, Object value) {
         List<Map<String, Object>> ret = new Vector<>();
 
