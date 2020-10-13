@@ -1371,7 +1371,6 @@ public class MongoDriver implements MorphiumDriver {
         return coll;
     }
 
-
     @Override
     public long count(String db, String collection, Map<String, Object> query, Collation collation, ReadPreference rp) {
         DriverHelper.replaceMorphiumIdByObjectId(query);
@@ -1393,8 +1392,14 @@ public class MongoDriver implements MorphiumDriver {
             }
             return coll.countDocuments(new BasicDBObject(query));
         }
-
     }
+
+    @Override
+    public long estimatedDocumentCount(String db, String collection, ReadPreference rp) {
+        MongoDatabase database = mongo.getDatabase(db);
+        MongoCollection<Document> coll = getCollection(database, collection, rp, null);
+        return coll.estimatedDocumentCount();
+     }
 
     @Override
     public Map<String, Integer> store(String db, String collection, List<Map<String, Object>> objs, de.caluga.morphium.driver.WriteConcern wc) throws MorphiumDriverException {
