@@ -20,7 +20,7 @@ public class QueryIterator<T> implements MorphiumQueryIterator<T> {
 
     private final Logger log = LoggerFactory.getLogger(QueryIterator.class);
     private Query<T> query;
-    private MorphiumCursor<T> currentBatch = null;
+    private MorphiumCursor currentBatch = null;
 
     private int cursor = 0;
     private int cursorExternal = 0;
