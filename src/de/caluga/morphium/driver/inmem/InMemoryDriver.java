@@ -916,8 +916,8 @@ public class InMemoryDriver implements MorphiumDriver {
     }
 
     @Override
-    public Map<String, Object> store(String db, String collection, List<Map<String, Object>> objs, WriteConcern wc) {
-        Map<String, Object> ret = new HashMap<>();
+    public Map<String, Integer> store(String db, String collection, List<Map<String, Object>> objs, WriteConcern wc) {
+        Map<String, Integer> ret = new HashMap<>();
         int upd = 0;
         int total = objs.size();
         for (Map<String, Object> o : objs) {

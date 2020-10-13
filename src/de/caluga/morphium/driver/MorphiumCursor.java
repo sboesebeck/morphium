@@ -8,11 +8,11 @@ import java.util.Map;
 /**
  * Morphiums representation of the mongodb Cursor.
  **/
-public class MorphiumCursor<T> {
+public class MorphiumCursor {
     private long cursorId;
     private int batchSize;
     private List<Map<String, Object>> batch;
-    private T internalCursorObject;
+    private Object internalCursorObject;
 
     public int getBatchSize() {
         return batchSize;
@@ -38,11 +38,11 @@ public class MorphiumCursor<T> {
         this.batch = batch;
     }
 
-    public T getInternalCursorObject() {
+    public Object getInternalCursorObject() {
         return internalCursorObject;
     }
 
-    public void setInternalCursorObject(T internalCursorObject) {
+    public void setInternalCursorObject(Object internalCursorObject) {
         this.internalCursorObject = internalCursorObject;
     }
 }
