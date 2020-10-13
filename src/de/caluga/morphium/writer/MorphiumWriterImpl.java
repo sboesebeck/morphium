@@ -463,7 +463,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                     WriteConcern wc = morphium.getWriteConcernForClass(type);
                     List<Map<String, Object>> objs = new ArrayList<>();
                     objs.add(marshall);
-                    Map<String, Object> ret;
+                    Map<String, Integer> ret;
                     try {
                         ret = morphium.getDriver().store(morphium.getConfig().getDatabase(), coll, objs, wc);
                     } catch (MorphiumDriverException mde) {
@@ -476,7 +476,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                         throw new RuntimeException(t);
                     }
                     if (en.autoVersioning()) {
-                        if (((Integer) ret.get("total")) < ((Integer) ret.get("modified"))) {
+                        if (ret.get("total") < ret.get("modified")) {
                             throw new ConcurrentModificationException("versioning failure");
                         }
 
@@ -625,9 +625,9 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                             Entity en = morphium.getARHelper().getAnnotationFromHierarchy(c, Entity.class);
                             long start = System.currentTimeMillis();
 
-                            Map<String, Object> ret = morphium.getDriver().store(morphium.getConfig().getDatabase(), coll, es.getValue(), wc);
+                            Map<String, Integer> ret = morphium.getDriver().store(morphium.getConfig().getDatabase(), coll, es.getValue(), wc);
                             if (en.autoVersioning()) {
-                                if (((Integer) ret.get("total")) < ((Integer) ret.get("modified"))) {
+                                if (ret.get("total") < ret.get("modified")) {
                                     throw new ConcurrentModificationException("versioning failure");
                                 }
                             }
