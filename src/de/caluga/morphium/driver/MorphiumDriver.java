@@ -185,6 +185,8 @@ public interface MorphiumDriver {
 
     long count(String db, String collection, Map<String, Object> query, Collation collation, ReadPreference rp) throws MorphiumDriverException;
 
+    long estimatedDocumentCount(String db, String collection, ReadPreference rp);
+
     /**
      * just insert - no special handling
      *
