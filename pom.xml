@@ -252,43 +252,43 @@
         <dependency>
             <groupId>org.slf4j</groupId>
             <artifactId>slf4j-api</artifactId>
-            <version>[1.7.28,)</version>
+            <version>1.7.30</version>
         </dependency>
         <dependency>
             <groupId>ch.qos.logback</groupId>
             <artifactId>logback-core</artifactId>
-            <version>[1.2.3,)</version>
+            <version>1.2.3</version>
             <scope>test</scope>
         </dependency>
         <dependency>
             <groupId>ch.qos.logback</groupId>
             <artifactId>logback-classic</artifactId>
-            <version>[1.2.3,)</version>
+            <version>1.2.3</version>
             <scope>test</scope>
         </dependency>
         <dependency>
             <groupId>cglib</groupId>
             <artifactId>cglib</artifactId>
-            <version>RELEASE</version>
+            <version>3.3.0</version>
         </dependency>
 
         <dependency>
             <groupId>org.mongodb</groupId>
             <artifactId>bson</artifactId>
-            <version>[4.1.0,)</version>
+            <version>4.1.0</version>
             <scope>provided</scope>
         </dependency>
         <dependency>
             <groupId>org.mongodb</groupId>
             <artifactId>mongodb-driver-sync</artifactId>
-            <version>[4.1.0,)</version>
+            <version>4.1.0</version>
             <scope>provided</scope>
         </dependency>
 
         <dependency>
             <groupId>com.googlecode.json-simple</groupId>
             <artifactId>json-simple</artifactId>
-            <version>RELEASE</version>
+            <version>1.1.1</version>
         </dependency>
 
         <!-- for validation, we compile against the validation API -->
@@ -310,20 +310,20 @@
         <dependency>
             <groupId>org.ehcache</groupId>
             <artifactId>jcache</artifactId>
-            <version>RELEASE</version>
+            <version>1.0.1</version>
             <scope>test</scope>
         </dependency>
 
         <dependency>
             <groupId>org.hibernate</groupId>
             <artifactId>hibernate-validator</artifactId>
-            <version>6.0.14.Final</version>
+            <version>6.0.21.Final</version>
             <scope>provided</scope>
         </dependency>
         <dependency>
             <groupId>javax.cache</groupId>
             <artifactId>cache-api</artifactId>
-            <version>RELEASE</version>
+            <version>1.1.1</version>
         </dependency>
 
         <dependency>
@@ -341,12 +341,7 @@
         <dependency>
             <groupId>io.github.classgraph</groupId>
             <artifactId>classgraph</artifactId>
-            <version>4.8.45</version>
-        </dependency>
-        <dependency>
-            <groupId>com.fasterxml.jackson.core</groupId>
-            <artifactId>jackson-databind</artifactId>
-            <version>2.10.0.pr1</version>
+            <version>4.8.90</version>
         </dependency>
         <dependency>
             <groupId>de.caluga</groupId>
