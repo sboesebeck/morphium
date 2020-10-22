@@ -38,7 +38,7 @@ public class ObjectMapperTest extends MorphiumTestBase {
         m.put("test", "testvalue");
         m.put("simple", s);
 
-        map = om.serializeMap(m);
+        map = om.serializeMap(m, null);
         assert (map.get("test").equals("testvalue"));
 
         List<Simple> lst = new ArrayList<>();
@@ -46,7 +46,7 @@ public class ObjectMapperTest extends MorphiumTestBase {
         lst.add(new Simple());
         lst.add(new Simple());
 
-        List serializedList = om.serializeList(lst);
+        List serializedList = om.serializeIterable(lst, null);
         assert (serializedList.size() == 3);
 
         List<Simple> deserializedList = om.deserializeList(serializedList);
