@@ -95,7 +95,7 @@ public class MongoFieldImpl<T> implements MongoField<T> {
                     Object id;
                     if (val instanceof MorphiumId) {
                         id = new ObjectId(val.toString());
-                    } else if (val.getClass().isEnum()) {
+                    } else if (val instanceof Enum) {
                         id = ((Enum) val).name();
                     } else {
                         id = mapper.getMorphium().getARHelper().getId(val);
@@ -123,7 +123,7 @@ public class MongoFieldImpl<T> implements MongoField<T> {
                         val = new MorphiumId((String) val);
                     } catch (Exception ignored) {
                     }
-                } else if (val.getClass().isEnum()) {
+                } else if (val instanceof Enum) {
                     //noinspection ConstantConditions
                     val = ((Enum) val).name();
                 }

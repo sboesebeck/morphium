@@ -51,7 +51,7 @@ public class FilterExpression {
             }
             o.put(field, expression);
         } else {
-            if (value != null && value.getClass().isEnum()) {
+            if (value instanceof Enum) {
                 o.put(field, ((Enum) value).name());
             } else {
                 o.put(field, value);
