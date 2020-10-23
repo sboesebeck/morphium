@@ -644,7 +644,16 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
 
         }
         if (andExpr.isEmpty() && orQueries.isEmpty() && norQueries.isEmpty()) {
-            ret = morphium.getDriver().estimatedDocumentCount(getDB(), getCollectionName(), getRP());
+            if (morphium.getDriver().getTransactionContext() != null) {
+                try {
+                    ret = morphium.getDriver().count(getDB(), getCollectionName(), this.toQueryObject(), getCollation(), getRP());
+                } catch (MorphiumDriverException e) {
+                    log.error("Error counting", e);
+                    ret = 0;
+                }
+            } else {
+                ret = morphium.getDriver().estimatedDocumentCount(getDB(), getCollectionName(), getRP());
+            }
         } else {
             try {
                 ret = morphium.getDriver().count(getDB(), getCollectionName(), toQueryObject(), getCollation(), getRP());
