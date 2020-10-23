@@ -65,7 +65,7 @@ public class Utils {
             }
             out.write("]");
             return;
-        } else if ((o instanceof String) || (o instanceof MorphiumId) || (o instanceof ObjectId) || (o.getClass().isEnum())) {
+        } else if ((o instanceof String) || (o instanceof MorphiumId) || (o instanceof ObjectId) || (o instanceof Enum)) {
             out.write("\"");
             out.write(o.toString());
             out.write("\"");
@@ -95,7 +95,7 @@ public class Utils {
                 out.write("\"");
                 out.write((String) e.getValue());
                 out.write("\"");
-            } else if (e.getValue().getClass().isEnum()) {
+            } else if (e.getValue() instanceof Enum) {
                 out.write("\"");
                 out.write(e.getValue().toString());
                 out.write("\"");

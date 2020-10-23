@@ -21,11 +21,11 @@ public class DriverHelper {
     //Logger logger = LoggerFactory.getLogger(DriverHelper.class);
 
 
-    public static Map<String, Object> doCall(MorphiumDriverOperation r, int maxRetry, int sleep) throws MorphiumDriverException {
+    public static <V> V doCall(MorphiumDriverOperation<V> r, int maxRetry, int sleep) throws MorphiumDriverException {
         Exception lastException = null;
         for (int i = 0; i < maxRetry; i++) {
             try {
-                Map<String, Object> ret = r.execute();
+                V ret = r.execute();
                 if (i > 0) {
                     if (lastException == null) {
                         LoggerFactory.getLogger(DriverHelper.class).warn("recovered from error without exception");
@@ -87,115 +87,198 @@ public class DriverHelper {
         }
     }
 
-    public static void replaceBsonValues(Object in) {
-        if (in == null) {
+    public static void replaceBsonValues(List<Map<String, Object>> in) {
+        if (in == null || in.isEmpty()) {
             return;
         }
-
-        if (in instanceof Map) {
-            @SuppressWarnings("unchecked") Map<String, Object> m = (Map) in;
-            Map<String, Object> toSet = new HashMap<>();
-            try {
-                for (Map.Entry e : m.entrySet()) {
-                    if (e.getValue() instanceof ObjectId) {
-                        toSet.put((String) e.getKey(), new MorphiumId(e.getValue().toString()));
-                    } else if (e.getValue() instanceof Collection) {
-                        Collection v = new LinkedList();
-                        for (Object o : (Collection) e.getValue()) {
-                            if (o != null) {
-                                if (o instanceof Map
-                                        || o instanceof List
-                                        || o.getClass().isArray()) {
-                                    replaceBsonValues(o);
-                                } else if (o instanceof MorphiumId) {
-                                    o = new ObjectId(o.toString());
-                                }
-                            }
-                            //noinspection unchecked
-                            v.add(o);
-                        }
-                        toSet.put((String) e.getKey(), v);
-                    } else {
-                        Object value = e.getValue();
-                        replaceBsonValues(value);
-                        toSet.put(String.valueOf(e.getKey()), value);
-                    }
-                }
-                for (Map.Entry<String, Object> e : toSet.entrySet()) {
-                    //noinspection unchecked
-                    ((Map) in).put(e.getKey(), e.getValue());
-                }
-
-            } catch (Exception e) {
-                LoggerFactory.getLogger(DriverHelper.class).error("Error replacing mongoid", e);
-                //                throw new RuntimeException(e);
-            }
-        } else if (in instanceof Collection) {
-            Collection c = (Collection) in;
-            //noinspection unchecked
-            c.forEach(DriverHelper::replaceBsonValues);
-        } else if (in.getClass().isArray()) {
-
-            for (int i = 0; i < Array.getLength(in); i++) {
-                replaceBsonValues(Array.get(in, i));
-            }
+        for (Map<String, Object> map : in) {
+            replaceMorphiumIdByObjectId(map);
         }
-
     }
 
-    public static void replaceMorphiumIdByObjectId(Object in) {
-        if (in == null) {
+    public static void replaceBsonValues(Map<String, Object> m) {
+        if (m == null || m.isEmpty()) {
             return;
         }
-        if (in instanceof Map) {
-            @SuppressWarnings("unchecked") Map<String, Object> m = (Map) in;
-            Map<String, Object> toSet = new HashMap<>();
-            try {
-                for (Map.Entry e : m.entrySet()) {
-                    if (e.getValue() instanceof MorphiumId) {
-                        toSet.put((String) e.getKey(), new ObjectId(e.getValue().toString()));
-                    } else if (e.getValue() instanceof MorphiumReference) {
-                        toSet.put((String) e.getKey(), new ObjectId(((MorphiumReference) e.getValue()).getId().toString()));
-                    } else if (e.getValue() instanceof Collection) {
-                        Collection v = new LinkedList();
-                        for (Object o : (Collection) e.getValue()) {
-                            if (o != null) {
-                                if (o instanceof Map
-                                        || o instanceof List
-                                        || o.getClass().isArray()) {
-                                    replaceMorphiumIdByObjectId(o);
-                                } else if (o instanceof MorphiumId) {
-                                    o = new ObjectId(o.toString());
-                                }
-                            }
-                            //noinspection unchecked
-                            v.add(o);
-                        }
-                        toSet.put((String) e.getKey(), v);
-                    } else {
-                        Object value = e.getValue();
-                        replaceMorphiumIdByObjectId(value);
-                        toSet.put(String.valueOf(e.getKey()), value);
-                    }
+        try {
+            for (Map.Entry<String, Object> e : m.entrySet()) {
+                Object value = e.getValue();
+                if (value instanceof MorphiumId) {
+                    e.setValue(new ObjectId(value.toString()));
+                } else if (value instanceof MorphiumReference) {
+                    e.setValue(new ObjectId(((MorphiumReference) value).getId().toString()));
+                } else if (value instanceof List) {
+                    replaceMorphiumIdByObjectIdInList((List<Object>) value);
+                } else if (value != null && value.getClass().isArray()) {
+                    replaceMorphiumIdByObjectIdInArray(value);
+                } else if (value instanceof Map) {
+                    replaceMorphiumIdByObjectId((Map<String, Object>) value);
+                } else if (value instanceof Collection) {
+                    e.setValue(replaceMorphiumIdByObjectIdInCollection((Collection<Object>) value));
                 }
-                for (Map.Entry<String, Object> e : toSet.entrySet()) {
-                    //noinspection unchecked
-                    ((Map) in).put(e.getKey(), e.getValue());
-                }
-
-            } catch (Exception e) {
-                LoggerFactory.getLogger(DriverHelper.class).error("Error replacing mongoid", e);
-                //                throw new RuntimeException(e);
             }
-        } else if (in instanceof Collection) {
-            Collection c = (Collection) in;
-            //noinspection unchecked
-            c.forEach(DriverHelper::replaceMorphiumIdByObjectId);
-        } else if (in.getClass().isArray()) {
+        } catch (Exception e) {
+            LoggerFactory.getLogger(DriverHelper.class).error("Error replacing mongoid", e);
+            // throw new RuntimeException(e);
+        }
+    }
 
-            for (int i = 0; i < Array.getLength(in); i++) {
-                replaceMorphiumIdByObjectId(Array.get(in, i));
+    public static void replaceBsonValuesIdInList(List<Object> in) {
+        if (in == null || in.isEmpty()) {
+            return;
+        }
+        for (int i = 0; i < in.size(); i++) {
+            Object element = in.get(i);
+            if (element instanceof MorphiumId) {
+                in.set(i, new ObjectId(element.toString()));
+            } else if (element instanceof MorphiumReference) {
+                in.set(i, new ObjectId(((MorphiumReference) element).getId().toString()));
+            } else if (element instanceof List) {
+                replaceMorphiumIdByObjectIdInList((List<Object>) element);
+            } else if (element != null && element.getClass().isArray()) {
+                replaceMorphiumIdByObjectIdInArray(element);
+            } else if (element instanceof Map) {
+                replaceMorphiumIdByObjectId((Map<String, Object>) element);
+            } else if (element instanceof Collection) {
+                in.set(i, replaceMorphiumIdByObjectIdInCollection((Collection<Object>) element));
             }
         }
     }
+
+    public static void replaceBsonValuesInArray(Object o) {
+        if (o == null) {
+            return;
+        }
+        for (int i = 0; i < Array.getLength(o); i++) {
+            Object arrayElement = Array.get(o, i);
+            if (arrayElement instanceof MorphiumId) {
+                Array.set(o, i, new ObjectId(arrayElement.toString()));
+            } else if (arrayElement instanceof MorphiumReference) {
+                Array.set(o, i, new ObjectId(((MorphiumReference) arrayElement).getId().toString()));
+            } else if (arrayElement instanceof List) {
+                replaceMorphiumIdByObjectIdInList((List<Object>) arrayElement);
+            } else if (arrayElement != null && arrayElement.getClass().isArray()) {
+                replaceMorphiumIdByObjectIdInArray(arrayElement);
+            } else if (arrayElement instanceof Map) {
+                replaceMorphiumIdByObjectId((Map<String, Object>) arrayElement);
+            } else if (arrayElement instanceof Collection) {
+                Array.set(o, i, replaceMorphiumIdByObjectIdInCollection((Collection<Object>) arrayElement));
+            }
+        }
+    }
+
+    public static Collection<Object> replaceBsonValuesInCollection(Collection<Object> collection) {
+        boolean needToReplace = false;
+        for(Object iv : collection) {
+            if (iv instanceof MorphiumId || iv instanceof MorphiumReference) {
+                needToReplace = true;
+                break;
+            }
+        }
+        if(needToReplace) {
+            ArrayList<Object> copyOfIterable = new ArrayList<>(collection);
+            replaceMorphiumIdByObjectIdInList(copyOfIterable);
+            return copyOfIterable;
+        }
+        return collection;
+    }
+
+    
+    
+    public static void replaceMorphiumIdByObjectId(List<Map<String, Object>> in) {
+        if (in == null || in.isEmpty()) {
+            return;
+        }
+        for (Map<String, Object> map : in) {
+            replaceMorphiumIdByObjectId(map);
+        }
+    }
+
+    public static void replaceMorphiumIdByObjectId(Map<String, Object> m) {
+        if (m == null || m.isEmpty()) {
+            return;
+        }
+        try {
+            for (Map.Entry<String, Object> e : m.entrySet()) {
+                Object value = e.getValue();
+                if (value instanceof MorphiumId) {
+                    e.setValue(new ObjectId(value.toString()));
+                } else if (value instanceof MorphiumReference) {
+                    e.setValue(new ObjectId(((MorphiumReference) value).getId().toString()));
+                } else if (value instanceof List) {
+                    replaceMorphiumIdByObjectIdInList((List<Object>) value);
+                } else if (value != null && value.getClass().isArray()) {
+                    replaceMorphiumIdByObjectIdInArray(value);
+                } else if (value instanceof Map) {
+                    replaceMorphiumIdByObjectId((Map<String, Object>) value);
+                } else if (value instanceof Collection) {
+                    e.setValue(replaceMorphiumIdByObjectIdInCollection((Collection<Object>) value));
+                }
+            }
+        } catch (Exception e) {
+            LoggerFactory.getLogger(DriverHelper.class).error("Error replacing mongoid", e);
+            // throw new RuntimeException(e);
+        }
+    }
+
+    public static void replaceMorphiumIdByObjectIdInList(List<Object> in) {
+        if (in == null || in.isEmpty()) {
+            return;
+        }
+        for (int i = 0; i < in.size(); i++) {
+            Object element = in.get(i);
+            if (element instanceof MorphiumId) {
+                in.set(i, new ObjectId(element.toString()));
+            } else if (element instanceof MorphiumReference) {
+                in.set(i, new ObjectId(((MorphiumReference) element).getId().toString()));
+            } else if (element instanceof List) {
+                replaceMorphiumIdByObjectIdInList((List<Object>) element);
+            } else if (element != null && element.getClass().isArray()) {
+                replaceMorphiumIdByObjectIdInArray(element);
+            } else if (element instanceof Map) {
+                replaceMorphiumIdByObjectId((Map<String, Object>) element);
+            } else if (element instanceof Collection) {
+                in.set(i, replaceMorphiumIdByObjectIdInCollection((Collection<Object>) element));
+            }
+        }
+    }
+
+    public static void replaceMorphiumIdByObjectIdInArray(Object o) {
+        if (o == null) {
+            return;
+        }
+        for (int i = 0; i < Array.getLength(o); i++) {
+            Object arrayElement = Array.get(o, i);
+            if (arrayElement instanceof MorphiumId) {
+                Array.set(o, i, new ObjectId(arrayElement.toString()));
+            } else if (arrayElement instanceof MorphiumReference) {
+                Array.set(o, i, new ObjectId(((MorphiumReference) arrayElement).getId().toString()));
+            } else if (arrayElement instanceof List) {
+                replaceMorphiumIdByObjectIdInList((List<Object>) arrayElement);
+            } else if (arrayElement != null && arrayElement.getClass().isArray()) {
+                replaceMorphiumIdByObjectIdInArray(arrayElement);
+            } else if (arrayElement instanceof Map) {
+                replaceMorphiumIdByObjectId((Map<String, Object>) arrayElement);
+            } else if (arrayElement instanceof Collection) {
+                Array.set(o, i, replaceMorphiumIdByObjectIdInCollection((Collection<Object>) arrayElement));
+            }
+        }
+    }
+
+    public static Collection<Object> replaceMorphiumIdByObjectIdInCollection(Collection<Object> collection) {
+        boolean needToReplace = false;
+        for(Object iv : collection) {
+            if (iv instanceof MorphiumId || iv instanceof MorphiumReference) {
+                needToReplace = true;
+                break;
+            }
+        }
+        if(needToReplace) {
+            ArrayList<Object> copyOfIterable = new ArrayList<>(collection);
+            replaceMorphiumIdByObjectIdInList(copyOfIterable);
+            return copyOfIterable;
+        }
+        return collection;
+    }
+
 }

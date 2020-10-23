@@ -643,11 +643,24 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
             return count;
 
         }
-        try {
-            ret = morphium.getDriver().count(getDB(), getCollectionName(), toQueryObject(), getCollation(), getRP());
-        } catch (MorphiumDriverException e) {
-            //TODO: Implement Handling
-            throw new RuntimeException(e);
+        if (andExpr.isEmpty() && orQueries.isEmpty() && norQueries.isEmpty()) {
+            if (morphium.getDriver().getTransactionContext() != null) {
+                try {
+                    ret = morphium.getDriver().count(getDB(), getCollectionName(), this.toQueryObject(), getCollation(), getRP());
+                } catch (MorphiumDriverException e) {
+                    log.error("Error counting", e);
+                    ret = 0;
+                }
+            } else {
+                ret = morphium.getDriver().estimatedDocumentCount(getDB(), getCollectionName(), getRP());
+            }
+        } else {
+            try {
+                ret = morphium.getDriver().count(getDB(), getCollectionName(), toQueryObject(), getCollation(), getRP());
+            } catch (MorphiumDriverException e) {
+                // TODO: Implement Handling
+                throw new RuntimeException(e);
+            }
         }
 
         morphium.fireProfilingReadEvent(QueryImpl.this, System.currentTimeMillis() - start, ReadAccessType.COUNT);

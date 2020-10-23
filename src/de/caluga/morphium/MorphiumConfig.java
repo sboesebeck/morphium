@@ -19,6 +19,8 @@ import de.caluga.morphium.writer.AsyncWriterImpl;
 import de.caluga.morphium.writer.BufferedMorphiumWriterImpl;
 import de.caluga.morphium.writer.MorphiumWriter;
 import de.caluga.morphium.writer.MorphiumWriterImpl;
+
+import org.bson.UuidRepresentation;
 import org.json.simple.parser.ParseException;
 import org.slf4j.LoggerFactory;
 
@@ -129,6 +131,7 @@ public class MorphiumConfig {
     private long threadPoolAsyncOpKeepAliveTime = 1000;
     private boolean objectSerializationEnabled = true;
     private int heartbeatFrequency = 1000;
+    private int localThreshold = 15;
     private int maxConnectionIdleTime = 10000;
     private int maxConnectionLifeTime = 60000;
 
@@ -140,6 +143,7 @@ public class MorphiumConfig {
     private int readTimeout;
     private boolean retryReads;
     private boolean retryWrites;
+    private String uuidRepresentation;
 
     public MorphiumConfig(final Properties prop) {
         this(null, prop);
@@ -1151,6 +1155,32 @@ public class MorphiumConfig {
         return this;
     }
 
+    public int getLocalThreshold() {
+        return localThreshold;
+    }
+
+    /**
+     * <p>
+     * Sets the local threshold. When choosing among multiple MongoDB servers to send a request, the MongoClient will only send that request to a server whose ping time is less than or equal to the server with the fastest ping time plus the local threshold.
+     * </p>
+     *
+     * <p>
+     * For example, let's say that the client is choosing a server to send a query when the read preference is {@code
+     * ReadPreference.secondary()}, and that there are three secondaries, server1, server2, and server3, whose ping times are 10, 15, and 16 milliseconds, respectively. With a local threshold of 5 milliseconds, the client will send the query to either server1 or server2 (randomly selecting between the two).
+     * </p>
+     *
+     * <p>
+     * Default is 15 milliseconds.
+     * </p>
+     *
+     * @return the local threshold, in milliseconds
+     * @mongodb.driver.manual reference/program/mongos/#cmdoption--localThreshold Local Threshold
+     * @since 2.13.0
+     */
+    public MorphiumConfig setLocalThreshold(int localThreshold) {
+        this.localThreshold = localThreshold;
+        return this;
+    }
 
     public int getMaxConnectionIdleTime() {
         return maxConnectionIdleTime;
@@ -1260,5 +1290,27 @@ public class MorphiumConfig {
 
     public void setRetryWrites(boolean retryWrites) {
         this.retryWrites = retryWrites;
+    }
+
+    public String getUuidRepresentation() {
+        return uuidRepresentation;
+    }
+
+    /**
+     * Sets the UUID representation to use when encoding instances of {@link java.util.UUID} and when decoding BSON binary values with
+     * subtype of 3.
+     *
+     * <p>The default is UNSPECIFIED, If your application stores UUID values in MongoDB, you must set this
+     * value to the desired representation.  New applications should prefer STANDARD, while existing Java
+     * applications should prefer JAVA_LEGACY. Applications wishing to interoperate with existing Python or
+     * .NET applications should prefer PYTHON_LEGACY or C_SHARP_LEGACY,
+     * respectively. Applications that do not store UUID values in MongoDB don't need to set this value.
+     * </p>
+     *
+     * @param uuidRepresentation the UUID representation
+     * @since 3.12
+     */
+    public void setUuidRepresentation(String uuidRepresentation) {
+        this.uuidRepresentation = uuidRepresentation;
     }
 }
