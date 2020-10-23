@@ -21,11 +21,11 @@ tag=$(grep "scm.tag=" release.properties | cut -f2 -d=)
 
 echo "Releasing $version - tagging as $tag"
 mvn release:perform -Dgpg.passphrase='$GPG_PASSPHRASE'
-mvn nexus-staging:release -Ddescription="Latest release"
+mvn nexus-staging:release -Ddescription="Latest release" -DstagingRepositoryId="sonatype-nexus-staging"
 
 git checkout master
 git merge $tag
 git push
 git checkout develop
-. ./slackurl.inc
-curl -X POST -H 'Content-type: application/json' --data "{'text':'Deployed current $version to sonatype oss and maven central'}" $SLACKURL
+#. ./slackurl.inc
+#curl -X POST -H 'Content-type: application/json' --data "{'text':'Deployed current $version to sonatype oss and maven central'}" $SLACKURL
