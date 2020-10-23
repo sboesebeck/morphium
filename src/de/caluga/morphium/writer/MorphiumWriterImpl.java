@@ -884,7 +884,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
 
                 Map<String, Object> update;
                 if (value != null) {
-                    update = Utils.getMap("$set", Utils.getMap(fieldName, value.getClass().isEnum() ? value.toString() : value));
+                    update = Utils.getMap("$set", Utils.getMap(fieldName, value instanceof Enum ? ((Enum)value).name() : value));
                 } else {
                     update = Utils.getMap("$set", Utils.getMap(fieldName, null));
                 }
@@ -1710,7 +1710,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                 Object v = marshallIfNecessary(value);
 
                 String fieldName = morphium.getARHelper().getFieldName(cls, field);
-                Map<String, Object> set = Utils.getMap(fieldName, v.getClass().isEnum() ? v.toString() : v);
+                Map<String, Object> set = Utils.getMap(fieldName, v instanceof Enum ? ((Enum)v).name() : v);
                 Map<String, Object> update = Utils.getMap(push ? "$push" : "$pull", set);
 
                 long start = System.currentTimeMillis();
@@ -1735,7 +1735,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
 
     private Object marshallIfNecessary(Object value) {
         if (value != null) {
-            if (value.getClass().isEnum()) {
+            if (value instanceof Enum) {
                 return ((Enum) value).name();
             }
             if (morphium.getARHelper().isAnnotationPresentInHierarchy(value.getClass(), Entity.class)
