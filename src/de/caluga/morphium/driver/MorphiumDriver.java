@@ -96,6 +96,10 @@ public interface MorphiumDriver {
 
     void setRetryWrites(boolean retryWrites);
 
+    String getUuidRepresentation();
+
+    void setUuidRepresentation(String uuidRepresentation);
+
     @SuppressWarnings("unused")
     boolean isUseSSL();
 
@@ -107,6 +111,10 @@ public interface MorphiumDriver {
 
     @SuppressWarnings("unused")
     void setDefaultJ(boolean j);
+
+    int getLocalThreshold();
+
+    void setLocalThreshold(int thr);
 
     int getReadTimeout();
 
@@ -177,6 +185,8 @@ public interface MorphiumDriver {
 
     long count(String db, String collection, Map<String, Object> query, Collation collation, ReadPreference rp) throws MorphiumDriverException;
 
+    long estimatedDocumentCount(String db, String collection, ReadPreference rp);
+
     /**
      * just insert - no special handling
      *
@@ -196,7 +206,7 @@ public interface MorphiumDriver {
      * @param wc
      * @throws MorphiumDriverException
      */
-    Map<String, Object> store(String db, String collection, List<Map<String, Object>> objs, WriteConcern wc) throws MorphiumDriverException;
+    Map<String, Integer> store(String db, String collection, List<Map<String, Object>> objs, WriteConcern wc) throws MorphiumDriverException;
 
 
     Map<String, Object> update(String db, String collection, Map<String, Object> query, Map<String, Object> op, boolean multiple, boolean upsert, Collation collation, WriteConcern wc) throws MorphiumDriverException;

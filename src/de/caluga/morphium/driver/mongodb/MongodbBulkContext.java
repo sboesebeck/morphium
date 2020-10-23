@@ -139,11 +139,15 @@ public class MongodbBulkContext extends BulkRequestContext {
         int modifiedCount = 0;
         int upsertCount = 0;
         for (BulkWriteResult r : results) {
-            delCount += r.getDeletedCount();
-            matchedCount += r.getMatchedCount();
-            insertCount += r.getInsertedCount();
-            modifiedCount += r.getModifiedCount();
-            upsertCount += r.getUpserts().size();
+            try {
+                delCount += r.getDeletedCount();
+                matchedCount += r.getMatchedCount();
+                insertCount += r.getInsertedCount();
+                modifiedCount += r.getModifiedCount();
+                upsertCount += r.getUpserts().size();
+            } catch (UnsupportedOperationException e) {
+                // If write is unacknowledged and mongo version is < 3.6 BulkWriteResult will throw an UnsupportedOperationException
+            }
         }
 
         res.put("num_del", delCount);

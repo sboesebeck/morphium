@@ -463,7 +463,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                     WriteConcern wc = morphium.getWriteConcernForClass(type);
                     List<Map<String, Object>> objs = new ArrayList<>();
                     objs.add(marshall);
-                    Map<String, Object> ret;
+                    Map<String, Integer> ret;
                     try {
                         ret = morphium.getDriver().store(morphium.getConfig().getDatabase(), coll, objs, wc);
                     } catch (MorphiumDriverException mde) {
@@ -476,7 +476,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                         throw new RuntimeException(t);
                     }
                     if (en.autoVersioning()) {
-                        if (((Integer) ret.get("total")) < ((Integer) ret.get("modified"))) {
+                        if (ret.get("total") < ret.get("modified")) {
                             throw new ConcurrentModificationException("versioning failure");
                         }
 
@@ -625,9 +625,9 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                             Entity en = morphium.getARHelper().getAnnotationFromHierarchy(c, Entity.class);
                             long start = System.currentTimeMillis();
 
-                            Map<String, Object> ret = morphium.getDriver().store(morphium.getConfig().getDatabase(), coll, es.getValue(), wc);
+                            Map<String, Integer> ret = morphium.getDriver().store(morphium.getConfig().getDatabase(), coll, es.getValue(), wc);
                             if (en.autoVersioning()) {
-                                if (((Integer) ret.get("total")) < ((Integer) ret.get("modified"))) {
+                                if (ret.get("total") < ret.get("modified")) {
                                     throw new ConcurrentModificationException("versioning failure");
                                 }
                             }
@@ -884,7 +884,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
 
                 Map<String, Object> update;
                 if (value != null) {
-                    update = Utils.getMap("$set", Utils.getMap(fieldName, value.getClass().isEnum() ? value.toString() : value));
+                    update = Utils.getMap("$set", Utils.getMap(fieldName, value instanceof Enum ? ((Enum)value).name() : value));
                 } else {
                     update = Utils.getMap("$set", Utils.getMap(fieldName, null));
                 }
@@ -1710,7 +1710,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                 Object v = marshallIfNecessary(value);
 
                 String fieldName = morphium.getARHelper().getFieldName(cls, field);
-                Map<String, Object> set = Utils.getMap(fieldName, v.getClass().isEnum() ? v.toString() : v);
+                Map<String, Object> set = Utils.getMap(fieldName, v instanceof Enum ? ((Enum)v).name() : v);
                 Map<String, Object> update = Utils.getMap(push ? "$push" : "$pull", set);
 
                 long start = System.currentTimeMillis();
@@ -1735,7 +1735,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
 
     private Object marshallIfNecessary(Object value) {
         if (value != null) {
-            if (value.getClass().isEnum()) {
+            if (value instanceof Enum) {
                 return ((Enum) value).name();
             }
             if (morphium.getARHelper().isAnnotationPresentInHierarchy(value.getClass(), Entity.class)

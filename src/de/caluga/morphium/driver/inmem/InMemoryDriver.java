@@ -331,6 +331,14 @@ public class InMemoryDriver implements MorphiumDriver {
 
     }
 
+    @Override
+    public String getUuidRepresentation() {
+        return null;
+    }
+
+    @Override
+    public void setUuidRepresentation(String uuidRepresentation) {
+    }
 
     @Override
     public boolean isUseSSL() {
@@ -359,6 +367,16 @@ public class InMemoryDriver implements MorphiumDriver {
 
     @Override
     public void setReadTimeout(int readTimeout) {
+
+    }
+
+    @Override
+    public int getLocalThreshold() {
+        return 0;
+    }
+
+    @Override
+    public void setLocalThreshold(int thr) {
 
     }
 
@@ -867,6 +885,11 @@ public class InMemoryDriver implements MorphiumDriver {
         return cnt;
     }
 
+    @Override
+    public long estimatedDocumentCount(String db, String collection, ReadPreference rp) {
+        return getCollection(db, collection).size();
+    }
+
     public List<Map<String, Object>> findByFieldValue(String db, String coll, String field, Object value) {
         List<Map<String, Object>> ret = new Vector<>();
 
@@ -898,8 +921,8 @@ public class InMemoryDriver implements MorphiumDriver {
     }
 
     @Override
-    public Map<String, Object> store(String db, String collection, List<Map<String, Object>> objs, WriteConcern wc) {
-        Map<String, Object> ret = new HashMap<>();
+    public Map<String, Integer> store(String db, String collection, List<Map<String, Object>> objs, WriteConcern wc) {
+        Map<String, Integer> ret = new HashMap<>();
         int upd = 0;
         int total = objs.size();
         for (Map<String, Object> o : objs) {

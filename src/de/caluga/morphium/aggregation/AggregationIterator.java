@@ -1,6 +1,5 @@
 package de.caluga.morphium.aggregation;
 
-import de.caluga.morphium.Utils;
 import de.caluga.morphium.driver.MorphiumCursor;
 import de.caluga.morphium.driver.MorphiumDriverException;
 import org.slf4j.Logger;
@@ -18,7 +17,7 @@ import java.util.*;
 public class AggregationIterator<T, R> implements MorphiumAggregationIterator<T, R> {
 
     private final Logger log = LoggerFactory.getLogger(AggregationIterator.class);
-    private MorphiumCursor<T> currentBatch = null;
+    private MorphiumCursor currentBatch;
 
     private int cursor = 0;
     private int cursorExternal = 0;
