@@ -28,20 +28,7 @@ import com.mongodb.client.MongoClients;
 import com.mongodb.client.MongoCollection;
 import com.mongodb.client.MongoCursor;
 import com.mongodb.client.MongoDatabase;
-import com.mongodb.client.model.CollationAlternate;
-import com.mongodb.client.model.CollationCaseFirst;
-import com.mongodb.client.model.CollationMaxVariable;
-import com.mongodb.client.model.CollationStrength;
-import com.mongodb.client.model.CountOptions;
-import com.mongodb.client.model.DeleteOptions;
-import com.mongodb.client.model.FindOneAndDeleteOptions;
-import com.mongodb.client.model.FindOneAndReplaceOptions;
-import com.mongodb.client.model.FindOneAndUpdateOptions;
-import com.mongodb.client.model.IndexOptions;
-import com.mongodb.client.model.InsertManyOptions;
-import com.mongodb.client.model.InsertOneOptions;
-import com.mongodb.client.model.ReplaceOptions;
-import com.mongodb.client.model.UpdateOptions;
+import com.mongodb.client.model.*;
 import com.mongodb.client.model.changestream.ChangeStreamDocument;
 import com.mongodb.client.model.changestream.FullDocument;
 import com.mongodb.client.result.DeleteResult;
@@ -2042,7 +2029,7 @@ public class MongoDriver implements MorphiumDriver {
         if (currentTransaction.get() == null) {
             throw new IllegalArgumentException("No transaction in progress");
         }
-        currentTransaction.get().getSession().abortTransaction();
+        currentTransaction.get().getSession().commitTransaction();
         currentTransaction.set(null);
     }
 
