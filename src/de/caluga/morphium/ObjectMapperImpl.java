@@ -1365,7 +1365,7 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
 
             }
             Object unmarshalled = unmarshallInternal(val);
-            if (unmarshalled != null && !elementClass.isAssignableFrom(unmarshalled.getClass())) {
+            if (unmarshalled != null && elementClass != null && !elementClass.isAssignableFrom(unmarshalled.getClass())) {
                 try {
                     unmarshalled = AnnotationAndReflectionHelper.convertType(unmarshalled, "", elementClass);
                 } catch (Exception e) {
