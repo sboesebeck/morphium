@@ -958,7 +958,7 @@ public class MongoDriver implements MorphiumDriver {
                 return;
             }
 
-            if (doc.getDocumentKey() != null) {
+            if (doc.getDocumentKey() != null && doc.getDocumentKey().get("_id") instanceof BsonObjectId) {
                 obj.put("documentKey", new MorphiumId(((BsonObjectId) doc.getDocumentKey().get("_id")).getValue().toByteArray()));
             }
             obj.put("operationType", doc.getOperationType().getValue());
