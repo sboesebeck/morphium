@@ -1265,11 +1265,13 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
         Class<?> elementClass = null;
         Type elementType = null;
         if (listType instanceof ParameterizedType) {
-            elementClass = getElementClass((ParameterizedType)listType);
+            elementClass = getElementClass((ParameterizedType) listType);
             Type[] actualTypeArguments = ((ParameterizedType) listType).getActualTypeArguments();
-            if(actualTypeArguments != null && actualTypeArguments.length > 0) {
+            if (actualTypeArguments != null && actualTypeArguments.length > 0) {
                 elementType = actualTypeArguments[0];
             }
+        } else {
+            elementClass = Object.class;
         }
         fromDB = new ArrayList<>(fromDB); //avoiding concurrent changes!
         if (ref != null) {
