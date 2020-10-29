@@ -1,15 +1,11 @@
 package de.caluga.test.mongo.suite;
 
-import de.caluga.morphium.Morphium;
-import de.caluga.morphium.MorphiumConfig;
-import de.caluga.morphium.Sequence;
-import de.caluga.morphium.SequenceGenerator;
+import com.sun.tools.corba.se.idl.SequenceGen;
+import de.caluga.morphium.*;
+import de.caluga.morphium.driver.MorphiumId;
 import org.junit.Test;
 
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
-import java.util.Vector;
+import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
@@ -62,6 +58,23 @@ public class SequenceTest extends MorphiumTestBase {
         log.info("Got next Value: " + v);
         assert (v == 2);
 
+
+    }
+
+    @Test
+    public void migrationTest() throws Exception {
+
+        Map<String, Object> seq = Utils.getMap("_id", new MorphiumId());
+        seq.put("name", "testSeq");
+        seq.put("locked_at", 0);
+        seq.put("current_value", 100);
+        morphium.getDriver().store(morphium.getConfig().getDatabase(), "sequence", Arrays.asList(seq), null);
+        Thread.sleep(100);
+
+        SequenceGenerator gen = new SequenceGenerator(morphium, "testSeq");
+        log.info("Current value: " + gen.getCurrentValue());
+        assert (gen.getCurrentValue() == 100);
+        assert (gen.getNextValue() > 100);
 
     }
 

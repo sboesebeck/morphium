@@ -106,7 +106,7 @@ public class Consumer implements JMSConsumer, de.caluga.morphium.messaging.Messa
             return ans;
         }
         incomingQueue.push(m);
-        throw new IllegalArgumentException("not implemented yet, sorry");
+        return null;
     }
 
     private JMSMessage getAckMessage(JMSMessage m) {
