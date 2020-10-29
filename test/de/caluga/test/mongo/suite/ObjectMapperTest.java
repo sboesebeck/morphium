@@ -577,9 +577,12 @@ public class ObjectMapperTest extends MorphiumTestBase {
         SetObject so2 = morphium.getMapper().deserialize(SetObject.class, m);
         assert (so2 != null);
         assert (so2.listOfSetOfStrings.size() == 2);
-        assert (so2.listOfSetOfStrings.get(0).size() == 2);
 
-        assert (so.mapOfSetOfStrings.get("t1") instanceof Set);
+        Set<String> firstSetOfStrings = so2.listOfSetOfStrings.get(0);
+        assert (firstSetOfStrings.size() == 2);
+
+        Set<String> t1 = so2.mapOfSetOfStrings.get("t1");
+        assert (t1 instanceof Set);
     }
 
     @Test

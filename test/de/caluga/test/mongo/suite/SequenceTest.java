@@ -1,6 +1,5 @@
 package de.caluga.test.mongo.suite;
 
-import com.sun.tools.corba.se.idl.SequenceGen;
 import de.caluga.morphium.*;
 import de.caluga.morphium.driver.MorphiumId;
 import org.junit.Test;
