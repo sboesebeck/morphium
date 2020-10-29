@@ -6,9 +6,7 @@ import de.caluga.morphium.query.Query;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.HashMap;
-import java.util.Map;
-import java.util.UUID;
+import java.util.*;
 
 /**
  * User: Stephan Bösebeck
@@ -52,15 +50,28 @@ public class SequenceGenerator {
         id = UUID.randomUUID().toString();
 
         try {
-            if (!morphium.getDriver().exists(morphium.getConfig().getDatabase(), morphium.getMapper().getCollectionName(Sequence.class)) || morphium.createQueryFor(Sequence.class).f("name").eq(name).countAll() == 0) {
-                //sequence does not exist yet
-                if (log.isDebugEnabled()) {
-                    log.debug("Sequence does not exist yet... inserting");
+            if (!morphium.getDriver().exists(morphium.getConfig().getDatabase(), morphium.getMapper().getCollectionName(Sequence.class)) || morphium.createQueryFor(Sequence.class).f("_id").eq(name).countAll() == 0) {
+                List<Map<String, Object>> lst = morphium.getDriver().find(morphium.getConfig().getDatabase(), "sequence", Utils.getMap("name", name), null, null, 0, 1, 100, null, null, new HashMap<>());
+                if (lst.size() != 0) {
+                    log.info("Migrating old sequence");
+                    //migrate old
+                    Map<String, Object> seq = lst.get(0);
+                    Object oldId = seq.get("_id");
+                    seq.put("_id", seq.get("name"));
+                    seq.remove("name");
+                    morphium.getDriver().store(morphium.getConfig().getDatabase(), "sequence", Arrays.asList(seq), null);
+                    morphium.getDriver().delete(morphium.getConfig().getDatabase(), "sequence", Utils.getMap("_id", oldId), false, null, null);
+                } else {
+                    //sequence does not exist yet
+                    if (log.isDebugEnabled()) {
+                        log.debug("Sequence does not exist yet... inserting");
+                    }
+                    Sequence s = new Sequence();
+                    s.setCurrentValue(startValue - inc); //making sure first value will be startValue!
+                    s.setName(name);
+                    morphium.ensureIndicesFor(Sequence.class);
+                    morphium.storeNoCache(s);
                 }
-                Sequence s = new Sequence();
-                s.setCurrentValue(startValue - inc); //making sure first value will be startValue!
-                s.setName(name);
-                morphium.storeNoCache(s); //will ensure indices
             }
         } catch (MorphiumDriverException e) {
             throw new RuntimeException(e);
@@ -71,7 +82,7 @@ public class SequenceGenerator {
     }
 
     public long getCurrentValue() {
-        Sequence s = morphium.createQueryFor(Sequence.class).f("name").eq(name).get();
+        Sequence s = morphium.createQueryFor(Sequence.class).f("_id").eq(name).get();
         if (s == null || s.getCurrentValue() == null) {
             //new sequence - get default
             return getNextValue(1);
@@ -89,7 +100,7 @@ public class SequenceGenerator {
     }
 
     private synchronized long getNextValue(int recLevel) {
-        Query<Sequence> seq = morphium.createQueryFor(Sequence.class).f("name").eq(name);
+        Query<Sequence> seq = morphium.createQueryFor(Sequence.class).f("_id").eq(name);
         if (seq.countAll() == 0) {
             log.error("Sequence vanished?");
             throw new RuntimeException("Sequence vanished");
@@ -100,8 +111,8 @@ public class SequenceGenerator {
             log.error("Could not get lock on Sequence " + name + " Checking timestamp...");
             if (System.currentTimeMillis() - sequence.getLockedAt() > 1000 * 5) {
                 log.error("Was locked for more than 30s - assuming error, resetting lock");
-                sequence.setLockedBy(null);
-                morphium.store(sequence);
+                //sequence.setLockedBy(null);
+                morphium.set(sequence, "locked_by", null);
                 //noinspection EmptyCatchBlock
                 try {
                     Thread.sleep(500);
@@ -123,7 +134,7 @@ public class SequenceGenerator {
             log.debug("locked sequence entry");
         }
         seq = morphium.createQueryFor(Sequence.class);
-        seq.f("name").eq(name).f("locked_by").eq(id);
+        seq.f("_id").eq(name).f("locked_by").eq(id);
 
         if (seq.countAll() == 0) {
             //locking failed... wait a moment, try again
