@@ -1265,11 +1265,13 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
         Class<?> elementClass = null;
         Type elementType = null;
         if (listType instanceof ParameterizedType) {
-            elementClass = getElementClass((ParameterizedType)listType);
+            elementClass = getElementClass((ParameterizedType) listType);
             Type[] actualTypeArguments = ((ParameterizedType) listType).getActualTypeArguments();
-            if(actualTypeArguments != null && actualTypeArguments.length > 0) {
+            if (actualTypeArguments != null && actualTypeArguments.length > 0) {
                 elementType = actualTypeArguments[0];
             }
+        } else {
+            elementClass = Object.class;
         }
         fromDB = new ArrayList<>(fromDB); //avoiding concurrent changes!
         if (ref != null) {
@@ -1342,20 +1344,16 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
                     continue;
                 }
             } else if (val instanceof List) {
-                //list in list
-                if (listType != null) {
+                // list in list
+                if (elementType instanceof ParameterizedType) {
                     ArrayList lt = new ArrayList();
-                    Class lstt = null;
-                    try {
-                        lstt = annotationHelper.getClassForTypeId(listType.getActualTypeArguments()[0].getTypeName());
-                    } catch (ClassNotFoundException e) {
-                        //could not find it, assuming list type
-                    }
-                    if (lstt == null || lstt.isAssignableFrom(List.class)) {
-                        fillList(forField, ref, (ParameterizedType) listType.getActualTypeArguments()[0], (List<?>) val, lt);
-                        toFillIn.add(lt);
+                    fillList(forField, ref, (ParameterizedType) elementType, (List<?>) val, lt);
+                    if (EnumSet.class.isAssignableFrom(elementClass)) {
+                        toFillIn.add(EnumSet.copyOf(lt));
+                    } else if (Set.class.isAssignableFrom(elementClass)) {
+                        toFillIn.add(new LinkedHashSet<>(lt));
                     } else {
-                        fillList(forField, ref, listType, (List<?>) val, toFillIn);
+                        toFillIn.add(lt);
                     }
                 } else {
                     log.warn("Cannot de-reference to unknown collection - trying to add Object only");
@@ -1365,7 +1363,7 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
 
             }
             Object unmarshalled = unmarshallInternal(val);
-            if (unmarshalled != null && !elementClass.isAssignableFrom(unmarshalled.getClass())) {
+            if (unmarshalled != null && elementClass != null && !elementClass.isAssignableFrom(unmarshalled.getClass())) {
                 try {
                     unmarshalled = AnnotationAndReflectionHelper.convertType(unmarshalled, "", elementClass);
                 } catch (Exception e) {
@@ -1509,7 +1507,13 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
                 } else {
                     fillList(null, null, null, (List<?>) val, lt);
                 }
-                toFillIn.put(key, lt);
+                if (elementClass != null && EnumSet.class.isAssignableFrom(elementClass)) {
+                    toFillIn.put(key, EnumSet.copyOf(lt));
+                } else if (elementClass != null && Set.class.isAssignableFrom(elementClass)) {
+                    toFillIn.put(key, new LinkedHashSet<>(lt));
+                } else {
+                    toFillIn.put(key, lt);
+                }
                 continue;
             }
             Object unmarshalled = unmarshallInternal(val);

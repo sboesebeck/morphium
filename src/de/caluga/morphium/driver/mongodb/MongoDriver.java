@@ -84,6 +84,7 @@ import org.bson.BsonObjectId;
 import org.bson.BsonRegularExpression;
 import org.bson.BsonString;
 import org.bson.BsonTimestamp;
+import org.bson.BsonUndefined;
 import org.bson.BsonValue;
 import org.bson.Document;
 import org.bson.UuidRepresentation;
@@ -958,7 +959,7 @@ public class MongoDriver implements MorphiumDriver {
                 return;
             }
 
-            if (doc.getDocumentKey() != null) {
+            if (doc.getDocumentKey() != null && doc.getDocumentKey().get("_id") instanceof BsonObjectId) {
                 obj.put("documentKey", new MorphiumId(((BsonObjectId) doc.getDocumentKey().get("_id")).getValue().toByteArray()));
             }
             obj.put("operationType", doc.getOperationType().getValue());
@@ -1228,6 +1229,8 @@ public class MongoDriver implements MorphiumDriver {
                 value = ((BsonInt64) value).getValue();
             } else if (value instanceof BsonDouble) {
                 value = ((BsonDouble) value).getValue();
+            } else if (value instanceof BsonUndefined) {
+                value = null;
             } else if (value instanceof BsonRegularExpression) {
                 BsonRegularExpression bsonRegularExpression = (BsonRegularExpression)value;
                 try {
