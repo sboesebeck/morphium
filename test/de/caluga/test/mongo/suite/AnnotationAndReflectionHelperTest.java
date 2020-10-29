@@ -113,6 +113,13 @@ public class AnnotationAndReflectionHelperTest {
     }
 
     @Test
+    public void convertCamelCaseTest() {
+        String n = helper.convertCamelCase("thisIsATestTT");
+        assert (n.equals("this_is_a_test_t_t"));
+
+    }
+
+    @Test
     public void testGetAllFields() throws Exception {
         List<Field> fields = helper.getAllFields(UncachedObject.class);
         assertThat(fields).hasSize(10);
