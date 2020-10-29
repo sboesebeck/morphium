@@ -1,6 +1,8 @@
 package de.caluga.test.mongo.suite;
 
 import de.caluga.morphium.Utils;
+import de.caluga.morphium.annotations.Entity;
+import de.caluga.morphium.annotations.Id;
 import de.caluga.morphium.changestream.ChangeStreamEvent;
 import de.caluga.morphium.changestream.ChangeStreamMonitor;
 import de.caluga.test.mongo.suite.data.ComplexObject;
@@ -312,5 +314,44 @@ public class ChangeStreamTest extends MorphiumTestBase {
 
         assert (updates.get() == 10);
         mon.terminate();
+    }
+
+    @Test
+    public void testStringId() throws Exception {
+        final AtomicInteger cnt = new AtomicInteger();
+        morphium.dropCollection(StringIdEntity.class);
+        Thread.sleep(100);
+        ChangeStreamMonitor m = new ChangeStreamMonitor(morphium, "string_id_entity", true, null);
+        m.start();
+        m.addListener(evt -> {
+            cnt.incrementAndGet();
+            return true;
+        });
+
+        StringIdEntity i = new StringIdEntity();
+        i.id = "test1";
+        i.name = "test";
+        i.value = new Integer(23);
+
+        morphium.store(i);
+        Thread.sleep(100);
+        assert (cnt.get() == 1);
+
+        i.name = "neuer Testt";
+        morphium.store(i);
+        Thread.sleep(100);
+        assert (cnt.get() == 2);
+
+        m.terminate();
+
+    }
+
+
+    @Entity
+    public static class StringIdEntity {
+        @Id
+        public String id;
+        public String name;
+        public Integer value;
     }
 }

@@ -275,10 +275,41 @@ public class ListTests extends MorphiumTestBase {
 
     }
 
+    @Test
+    public void unGenericListTest() throws Exception {
+        MyNoGenericListContainer c = new MyNoGenericListContainer();
+        c.aList = new ArrayList();
+        c.aList.add("String");
+        c.aList.add(new Integer(12));
+        c.aList.add(new UncachedObject("value", 42));
+        c.name = "test";
+        c.number = 44;
+        morphium.store(c);
+
+        Thread.sleep(100);
+        morphium.reread(c);
+        assert (c.name.equals("test"));
+        assert (c.number == 44);
+        assert (c.aList.size() == 3);
+        assert (c.aList.get(0) instanceof String);
+        assert (c.aList.get(1) instanceof Integer);
+        assert (c.aList.get(2) instanceof UncachedObject);
+
+    }
+
     @Entity(collectionName = "UCTest")
     public static class Uc extends UncachedObject {
     }
 
+
+    @Entity
+    public static class MyNoGenericListContainer {
+        @Id
+        public MorphiumId id;
+        public List aList;
+        public String name;
+        public int number;
+    }
 
     @Entity
     public static class MyListContainer {
