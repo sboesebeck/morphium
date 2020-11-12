@@ -373,7 +373,10 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
                     break;
                 }
                 String n = getARHelper().getFieldName(type, f.getName());
-                lst.put(n, 1);
+                // prevent Query failed with error code 16410 and error message 'FieldPath field names may not start with '$'.'
+                if (!n.startsWith("$jacoco")) {
+                    lst.put(n, 1);
+                }
             }
         }
         if (additionalFields != null) {

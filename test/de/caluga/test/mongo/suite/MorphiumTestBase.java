@@ -357,7 +357,7 @@ public class MorphiumTestBase {
         }
     }
 
-    public boolean stringWordCompare(String m1, String m2) {
+    public static boolean stringWordCompare(String m1, String m2) {
         if (m1 == null && m2 == null) return true;
         if (m1 == null || m2 == null) return false;
         m1 = m1.replaceAll(" ", "");
