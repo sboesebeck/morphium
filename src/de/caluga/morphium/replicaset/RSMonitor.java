@@ -86,38 +86,39 @@ public class RSMonitor {
                 for (ReplicasetStatusListener l : listeners) l.onMonitorAbort(morphium, nullcounter);
 
             }
-            for (ReplicasetStatusListener l : listeners) {
-                l.gotNewStatus(morphium, currentStatus);
-            }
-
-            for (ReplicaSetNode n : currentStatus.getMembers()) {
-                if (morphium.getConfig().getHostSeed().contains(n.getName())) {
-                    logger.debug("Found host in config " + n.getName());
-                } else {
-                    morphium.getConfig().getHostSeed().add(n.getName());
+            if (currentStatus != null) {
+                for (ReplicasetStatusListener l : listeners) {
+                    l.gotNewStatus(morphium, currentStatus);
                 }
-            }
-            List<String> hostsNotFound = new ArrayList<>();
-            for (String host : morphium.getConfig().getHostSeed()) {
-                boolean found = false;
+
                 for (ReplicaSetNode n : currentStatus.getMembers()) {
-                    if (n.getName().equals(host)) {
-                        found = true;
-                        break;
+                    if (morphium.getConfig().getHostSeed().contains(n.getName())) {
+                        logger.debug("Found host in config " + n.getName());
+                    } else {
+                        morphium.getConfig().getHostSeed().add(n.getName());
                     }
                 }
-                if (!found) {
-                    hostsNotFound.add(host);
+                List<String> hostsNotFound = new ArrayList<>();
+                for (String host : morphium.getConfig().getHostSeed()) {
+                    boolean found = false;
+                    for (ReplicaSetNode n : currentStatus.getMembers()) {
+                        if (n.getName().equals(host)) {
+                            found = true;
+                            break;
+                        }
+                    }
+                    if (!found) {
+                        hostsNotFound.add(host);
+                    }
+                }
+                if (!hostsNotFound.isEmpty()) {
+                    morphium.getConfig().getHostSeed().removeAll(hostsNotFound);
+                    for (ReplicasetStatusListener l : listeners)
+                        l.onHostDown(morphium, hostsNotFound, morphium.getConfig().getHostSeed());
                 }
             }
-            if (!hostsNotFound.isEmpty()) {
-                morphium.getConfig().getHostSeed().removeAll(hostsNotFound);
-                for (ReplicasetStatusListener l : listeners)
-                    l.onHostDown(morphium, hostsNotFound, morphium.getConfig().getHostSeed());
-            }
-
         } catch (Exception ignored) {
-            //ignored
+            // ignored
         }
     }
 

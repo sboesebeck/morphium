@@ -44,6 +44,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.ZoneOffset;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -51,27 +52,19 @@ import java.util.Collections;
 import java.util.Date;
 import java.util.GregorianCalendar;
 import java.util.HashMap;
-import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
-import java.util.Optional;
-import java.util.Queue;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.function.Consumer;
 import java.util.regex.Pattern;
 
 import static org.slf4j.LoggerFactory.getLogger;
 
 import static java.lang.String.format;
-import static java.util.Collections.emptyMap;
-import static java.util.Optional.ofNullable;
-import static java.util.stream.Stream.of;
 
 /**
  * User: Stephan Bösebeck
@@ -87,11 +80,10 @@ import static java.util.stream.Stream.of;
 @SuppressWarnings("unchecked")
 public class AnnotationAndReflectionHelper {
 
-    private static final Annotation ANNOTATION_NOT_PRESENT = () -> null;
     private final Logger logger = getLogger(AnnotationAndReflectionHelper.class);
     private final Map<Class<?>, Class<?>> realClassCache;
     private final Map<Class<?>, List<Field>> fieldListCache;
-    private final Map<Class<?>, Map<Class<? extends Annotation>, Annotation>> annotationCache;
+    private final ConcurrentHashMap<Class<?>, Map<Class<? extends Annotation>, Annotation>> annotationCache;
     private final Map<Class<?>, Map<String, String>> fieldNameCache;
     private static ConcurrentHashMap<String, String> classNameByType;
     private Map<String, Field> fieldCache;
@@ -193,28 +185,28 @@ public class AnnotationAndReflectionHelper {
      * @return the Annotation
      */
     public <T extends Annotation> T getAnnotationFromHierarchy(final Class<?> superClass, final Class<? extends T> annotationClass) {
-
         final Class<?> aClass = getRealClass(superClass);
-
-        if (isCached(aClass, annotationClass)) {
-            return (T) annotationCache.get(aClass).get(annotationClass);
+        Map<Class<? extends Annotation>, Annotation> cacheForClass = annotationCache.get(aClass);
+        if (cacheForClass != null) {
+            // Must be done with containsKey to enable caching of null
+            if (cacheForClass.containsKey(annotationClass)) {
+                return (T) cacheForClass.get(annotationClass);
+            }
         }
-
-        final Optional<T> annotation = of(aClass.getAnnotation(annotationClass), annotationOfClassHierarchy(aClass, annotationClass))
-                .filter(Objects::nonNull).findFirst();
-
-        annotation.ifPresent(cacheAnnotation(aClass, annotationClass));
-
-        return annotation.orElse(null);
+        T annotation = aClass.getAnnotation(annotationClass);
+        if (annotation == null) {
+            annotation = annotationOfClassHierarchy(aClass, annotationClass);
+        }
+        annotationCache.computeIfAbsent(aClass, k -> new HashMap<>()).put(annotationClass, annotation);
+        return annotation;
     }
 
     private <T extends Annotation> T annotationOfClassHierarchy(Class<?> aClass, Class<? extends T> annotationClass) {
         T annotation = null;
         Class<?> tmpClass = aClass;
         while (!tmpClass.equals(Object.class)) {
-            if (tmpClass.isAnnotationPresent(annotationClass)) {
-                annotation = tmpClass.getAnnotation(annotationClass); //found it on the "downmost" inheritence level
-                break;
+            if ((annotation = tmpClass.getAnnotation(annotationClass)) != null) {
+                return annotation; //found it on the "downmost" inheritence level
             }
             tmpClass = tmpClass.getSuperclass();
             if (tmpClass == null) {
@@ -224,39 +216,33 @@ public class AnnotationAndReflectionHelper {
 
         if (annotation == null) {
             //check interfaces if nothing was found yet
-            Queue<Class<?>> interfaces = new LinkedList<>();
+            ArrayDeque<Class<?>> interfaces = new ArrayDeque<Class<?>>();
             Collections.addAll(interfaces, aClass.getInterfaces());
             while (!interfaces.isEmpty()) {
-                Class<?> anInterface = interfaces.poll();
+                Class<?> anInterface = interfaces.pollFirst();
                 if (anInterface != null) {
-                    if (anInterface.isAnnotationPresent(annotationClass)) {
-                        annotation = anInterface.getAnnotation(annotationClass);
-                        break; //no need to look further, found annotation
+                    if ((annotation = anInterface.getAnnotation(annotationClass)) != null) {
+                        return annotation; //no need to look further, found annotation
                     }
-                    interfaces.addAll(Arrays.asList(anInterface.getInterfaces()));
+                    Collections.addAll(interfaces, anInterface.getInterfaces());
                 }
             }
         }
         return annotation;
     }
 
-    private <T extends Annotation> boolean isCached(Class<?> aClass, Class<? extends T> annotationClass) {
-        return !ofNullable(annotationCache.putIfAbsent(aClass, new HashMap<>()))
-                .orElse(emptyMap())
-                .getOrDefault(annotationClass, ANNOTATION_NOT_PRESENT)
-                .equals(ANNOTATION_NOT_PRESENT);
-    }
-
     public <T> Class<? extends T> getRealClass(final Class<? extends T> superClass) {
-        if (isCached(superClass)) {
-            return (Class<? extends T>) realClassCache.get(superClass);
+        Class realClass = realClassCache.get(superClass);
+        if (realClass != null) {
+            return (Class<? extends T>) realClass;
         }
         if (isProxy(superClass)) {
-            final Class realClass = realClassOf(superClass);
-            realClassCache.put(superClass, realClass);
-            return realClass;
+            realClass = realClassOf(superClass);
+        } else {
+            realClass = superClass;
         }
-        return superClass;
+        realClassCache.put(superClass, realClass);
+        return realClass;
     }
 
     public boolean isBufferedWrite(Class<?> aClass) {
@@ -333,11 +319,7 @@ public class AnnotationAndReflectionHelper {
                 ret = convertCamelCase(ret);
             }
         }
-        Map<Class<?>, Map<String, String>> m = fieldNameCache;
-        if (!m.containsKey(cls)) {
-            m.put(cls, new HashMap<>());
-        }
-        m.get(cls).put(field, ret);
+        fieldNameCache.computeIfAbsent(cls, k -> new HashMap<>()).put(field, ret);
         return ret;
 
     }
@@ -414,12 +396,18 @@ public class AnnotationAndReflectionHelper {
         //we need to run through it in the right order
         //in order to allow Inheritance to "shadow" fields
         for (Class c : hierachy) {
-            Collections.addAll(ret, c.getDeclaredFields());
+            Field[] declaredFields = c.getDeclaredFields();
+            if (declaredFields != null && declaredFields.length > 0) {
+                for (Field declaredField : declaredFields) {
+                    if (!declaredField.getName().startsWith("$jacoco")) {
+                        ret.add(declaredField);
+                    }
+                }
+            }
         }
         fieldListCache.put(clz, ret);
         return ret;
     }
-
 
     /**
      * extended logic: Fld may be, the java field name, the name of the specified value in Property-Annotation or
@@ -1172,14 +1160,6 @@ public class AnnotationAndReflectionHelper {
         } catch (ClassNotFoundException e) {
             throw AnnotationAndReflectionException.of(e);
         }
-    }
-
-    private <T> boolean isCached(Class<? extends T> superClass) {
-        return realClassCache.containsKey(superClass);
-    }
-
-    private <T extends Annotation> Consumer<T> cacheAnnotation(Class<?> aClass, Class<? extends T> annotationClass) {
-        return annotation -> annotationCache.get(aClass).put(annotationClass, annotation);
     }
 
     private static final class AnnotationAndReflectionException extends RuntimeException {
