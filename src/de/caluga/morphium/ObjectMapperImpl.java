@@ -624,10 +624,19 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
     }
 
     private String getTypeId(Class cls, Entity e, Embedded emb) {
-        if (e != null && !e.typeId().equals(".")) {
-            return e.typeId();
-        } else if (emb != null && !emb.typeId().equals(".")) {
-            return emb.typeId();
+        if (e != null) {
+            // Annotation can be on super class - for the correct type Id we must check only the annotation on used Sub-Class.
+            Entity clsEntity = annotationHelper.getAnnotationFromClass(cls, Entity.class);
+            if (clsEntity != null && !clsEntity.typeId().equals(".")) {
+                return clsEntity.typeId();
+            }
+        }
+        if (emb != null) {
+            // Annotation can be on super class - for the correct type Id we must check only the annotation on used Sub-Class.
+            Embedded clsEmbedded = annotationHelper.getAnnotationFromClass(cls, Embedded.class);
+            if (clsEmbedded != null && !clsEmbedded.typeId().equals(".")) {
+                return clsEmbedded.typeId();
+            }
         }
         return cls.getName();
     }
