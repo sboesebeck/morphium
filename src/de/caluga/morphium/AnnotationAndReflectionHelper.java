@@ -231,6 +231,11 @@ public class AnnotationAndReflectionHelper {
         return annotation;
     }
 
+    public <T extends Annotation> T getAnnotationFromClass(final Class<?> cls, final Class<? extends T> annotationClass) {
+        final Class<?> aClass = getRealClass(cls);
+        return aClass.getAnnotation(annotationClass);
+    }
+
     public <T> Class<? extends T> getRealClass(final Class<? extends T> superClass) {
         Class realClass = realClassCache.get(superClass);
         if (realClass != null) {
