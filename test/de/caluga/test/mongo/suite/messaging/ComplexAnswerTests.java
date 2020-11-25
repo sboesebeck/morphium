@@ -1,6 +1,5 @@
 package de.caluga.test.mongo.suite.messaging;
 
-import de.caluga.morphium.messaging.MessageListener;
 import de.caluga.morphium.messaging.Messaging;
 import de.caluga.morphium.messaging.Msg;
 import de.caluga.test.mongo.suite.MorphiumTestBase;
@@ -32,8 +31,39 @@ public class ComplexAnswerTests extends MorphiumTestBase {
         assert (answers.size() == 1);
         answers = m1.sendAndAwaitAnswers(new Msg("test", "ms", "val"), 10, 1000);
         assert (answers.size() == 1);
-        log.info("MEssages: " + morphium.createQueryFor(Msg.class).countAll());
+        log.info("Messagecount: " + morphium.createQueryFor(Msg.class).countAll());
         assert (morphium.createQueryFor(Msg.class).countAll() == 4);
 
+        m1.setReceiveAnswers(true);
+        m2.setReceiveAnswers(false);
+        morphium.createQueryFor(Msg.class).delete();
+        Thread.sleep(200);
+        m1.sendMessage(new Msg("test", "ms", "val"));
+        Thread.sleep(500);
+        log.info("Messagecount: " + morphium.createQueryFor(Msg.class).countAll());
+        assert (morphium.createQueryFor(Msg.class).countAll() == 3);
+
+        //creating a loop!
+
+        m2.setReceiveAnswers(true);
+        morphium.createQueryFor(Msg.class).delete();
+        Thread.sleep(200);
+        m1.sendMessage(new Msg("test", "ms", "val"));
+        Thread.sleep(250);
+        m2.setReceiveAnswers(false);
+        m1.setReceiveAnswers(false);
+        Thread.sleep(250);
+        long cnt = morphium.createQueryFor(Msg.class).countAll();
+        log.info("Messagecount PingPongLoop: " + cnt);
+        assert (cnt > 10);
+
+        assert (cnt == morphium.createQueryFor(Msg.class).countAll());
+
+        m1.terminate();
+        m2.terminate();
+
+
     }
+
+
 }
