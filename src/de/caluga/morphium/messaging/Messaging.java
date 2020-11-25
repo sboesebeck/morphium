@@ -1071,9 +1071,9 @@ public class Messaging extends Thread implements ShutdownListener {
     }
 
     public <T extends Msg> List<T> sendAndAwaitAnswers(T theMessage, int numberOfAnswers, long timeout) {
+        waitingForMessages.put(theMessage.getMsgId(), theMessage);
         List<Msg> answers = new ArrayList<>();
         sendMessage(theMessage);
-        waitingForMessages.put(theMessage.getMsgId(), theMessage);
         long start = System.currentTimeMillis();
         while (true) {
             if (waitingForAnswers.get(theMessage.getMsgId()) != null) {
