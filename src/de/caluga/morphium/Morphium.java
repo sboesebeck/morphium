@@ -30,6 +30,9 @@ import de.caluga.morphium.validation.JavaxValidationStorageListener;
 import de.caluga.morphium.writer.BufferedMorphiumWriterImpl;
 import de.caluga.morphium.writer.MorphiumWriter;
 import de.caluga.morphium.writer.MorphiumWriterImpl;
+import io.github.classgraph.ClassGraph;
+import io.github.classgraph.ClassInfoList;
+import io.github.classgraph.ScanResult;
 import net.sf.cglib.proxy.Enhancer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -299,7 +302,16 @@ public class Morphium implements AutoCloseable {
             rsMonitor.start();
             rsMonitor.getReplicaSetStatus(false);
         }
-
+        if (config.isCheckIndicesOnStartup()) {
+            Map<Class<?>, List<Map<String, Object>>> missing = checkIndices();
+            if (missing != null && !missing.isEmpty()) {
+                for (Class cls : missing.keySet()) {
+                    if (missing.get(cls).size() != 0) {
+                        logger.warn("Missing indices for entity " + cls.getName() + ": " + missing.get(cls).size());
+                    }
+                }
+            }
+        }
 
         logger.info("Initialization successful...");
     }
@@ -2894,6 +2906,152 @@ public class Morphium implements AutoCloseable {
         initializeAndConnect();
     }
 
+
+    public List<Map<String, Object>> getMissingIndicesFor(Class<?> entity) throws MorphiumDriverException {
+        List<Map<String, Object>> missingIndexDef = new ArrayList<>();
+        Index i = annotationHelper.getAnnotationFromClass(entity, Index.class);
+        List<Map<String, Object>> ind = morphiumDriver.getIndexes(getConfig().getDatabase(), objectMapper.getCollectionName(entity));
+        List<Map<String, Object>> indices = new ArrayList<>();
+        for (Map<String, Object> m : ind) {
+            Map<String, Object> indexKey = (Map<String, Object>) m.get("key");
+            indices.add(indexKey);
+        }
+        if (indices.size() > 0 && indices.get(0) == null) {
+            logger.error("Something is wrong!");
+        }
+        if (i != null) {
+            if (i.value().length > 0) {
+                List<Map<String, Object>> options = null;
+
+                if (i.options().length > 0) {
+                    //options se
+                    options = createIndexMapFrom(i.options());
+                }
+                if (!i.locale().equals("")) {
+                    Map<String, Object> collation = Utils.getMap("locale", i.locale());
+                    collation.put("alternate", i.alternate().mongoText);
+                    collation.put("backwards", i.backwards());
+                    collation.put("caseFirst", i.caseFirst().mongoText);
+                    collation.put("caseLevel", i.caseLevel());
+                    collation.put("maxVariable", i.maxVariable().mongoText);
+                    collation.put("strength", i.strength().mongoValue);
+                    options.add(Utils.getMap("collation", collation));
+                }
+                List<Map<String, Object>> idx = createIndexMapFrom(i.value());
+                if (!morphiumDriver.exists(config.getDatabase(), objectMapper.getCollectionName(entity)) || indices.size() == 0) {
+                    logger.info("Collection does not exist or no indices defined, all Indices will be missing...");
+                    return idx;
+                }
+                int cnt = 0;
+                for (Map<String, Object> m : idx) {
+                    Map<String, Object> optionsMap = null;
+                    if (options != null && options.size() > cnt) {
+                        optionsMap = options.get(cnt);
+
+                        if (!indices.contains(m)) {
+                            if (m.values().toArray()[0].equals("text")) {
+                                //special text handling
+                                logger.info("Handling text index");
+                                boolean found = false;
+                                for (Map<String, Object> indexDef : ind) {
+                                    if (indexDef.containsKey("textIndexVersion")) {
+                                        found = true;
+                                        break;
+                                    }
+                                }
+                                if (!found) {
+                                    //assuming text index is missing
+
+                                    missingIndexDef.add(m);
+                                }
+                            } else {
+                                missingIndexDef.add(m);
+                            }
+                        }
+                    }
+
+                    cnt++;
+                }
+            }
+        }
+
+        @SuppressWarnings("unchecked") List<String> flds = annotationHelper.getFields(entity, Index.class);
+        if (flds != null && !flds.isEmpty()) {
+
+            for (String f : flds) {
+                i = annotationHelper.getField(entity, f).getAnnotation(Index.class);
+                Map<String, Object> idx = new LinkedHashMap<>();
+                if (i.decrement()) {
+                    idx.put(f, -1);
+                } else {
+                    idx.put(f, 1);
+                }
+                Map<String, Object> optionsMap = null;
+                if (createIndexMapFrom(i.options()) != null) {
+                    optionsMap = createIndexMapFrom(i.options()).get(0);
+
+                }
+                if (!indices.contains(idx)) {
+                    //special handling for text indices
+                    if (idx.values().toArray()[0].equals("text")) {
+                        logger.info("checking for text index...");
+                        for (Map<String, Object> indexDef : ind) {
+                            if (!indexDef.containsKey("textIndexVersion")) {
+                                //assuming text index is missing
+                                missingIndexDef.add(idx);
+                            }
+                        }
+                    } else {
+                        missingIndexDef.add(idx);
+                    }
+                }
+
+            }
+        }
+        return missingIndexDef;
+    }
+
+    /**
+     * run trhough classpath, find all Entities, check indices
+     * returns a list of Entities, whos indices are missing or different
+     */
+    public Map<Class<?>, List<Map<String, Object>>> checkIndices() {
+
+        Map<Class<?>, List<Map<String, Object>>> missingIndicesByClass = new ConcurrentHashMap<>();
+//initializing type IDs
+        try (ScanResult scanResult =
+                     new ClassGraph()
+                             //                     .verbose()             // Enable verbose logging
+                             .enableAnnotationInfo()
+//                             .enableFieldInfo()
+                             .enableClassInfo()       // Scan classes, methods, fields, annotations
+                             .scan()) {
+            ClassInfoList entities =
+                    scanResult.getClassesWithAnnotation(Entity.class.getName());
+            //entities.addAll(scanResult.getClassesWithAnnotation(Embedded.class.getName()));
+            logger.debug("Found " + entities.size() + " entities in classpath");
+
+            for (String cn : entities.getNames()) {
+                //ClassInfo ci = scanResult.getClassInfo(cn);
+
+
+                try {
+                    //if (param.getName().equals("index"))
+                    //logger.info("Class " + cn + "   Param " + param.getName() + " = " + param.getValue());
+                    Class<?> entity = Class.forName(cn);
+                    List<Map<String, Object>> missing = getMissingIndicesFor(entity);
+                    if (missing != null && !missing.isEmpty()) {
+                        missingIndicesByClass.put(entity, missing);
+                    }
+                } catch (Exception e) {
+                    logger.error("Could not check indices for " + cn, e);
+                }
+            }
+        } catch (Exception e) {
+            logger.error("error", e);
+        }
+        return missingIndicesByClass;
+    }
 
     public void addCommandListener(CommandListener cmd) {
         morphiumDriver.addCommandListener(cmd);
