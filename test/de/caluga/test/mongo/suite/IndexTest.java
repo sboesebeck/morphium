@@ -1,13 +1,19 @@
 package de.caluga.test.mongo.suite;
 
+import de.caluga.morphium.Utils;
 import de.caluga.morphium.annotations.Entity;
 import de.caluga.morphium.annotations.Id;
 import de.caluga.morphium.annotations.Index;
 import de.caluga.morphium.annotations.Property;
+import de.caluga.morphium.driver.MorphiumDriverException;
 import de.caluga.morphium.driver.MorphiumId;
+import de.caluga.test.mongo.suite.data.CachedObject;
+import de.caluga.test.mongo.suite.data.UncachedObject;
+import org.bson.types.ObjectId;
 import org.junit.Test;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
@@ -30,6 +36,26 @@ public class IndexTest extends MorphiumTestBase {
         assert (idx.get(1).get("blub").equals(1));
     }
 
+    @Test
+    public void checkIndexTest() throws Exception {
+        morphium.getConfig().setAutoIndexAndCappedCreationOnWrite(false);
+        morphium.storeNoCache(new CachedObject("value", 12));
+        Thread.sleep(100);
+        morphium.getConfig().setAutoIndexAndCappedCreationOnWrite(true);
+        morphium.store(new UncachedObject("value", 123));
+        morphium.store(new IndexedObject("name", 123));
+
+        Map<Class<?>, List<Map<String, Object>>> missing = morphium.checkIndices();
+        assert (missing.size() != 0);
+        assert (missing.get(UncachedObject.class) == null);
+        assert (missing.get(IndexedObject.class) == null);
+        assert (missing.get(CachedObject.class) != null);
+
+        morphium.ensureIndicesFor(CachedObject.class);
+        Thread.sleep(1600); //waiting for writebuffer and mongodb
+        assert (morphium.getMissingIndicesFor(CachedObject.class).isEmpty());
+
+    }
 
     @Test
     public void indexOnNewCollTest() throws Exception {

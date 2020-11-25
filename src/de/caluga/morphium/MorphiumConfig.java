@@ -144,6 +144,7 @@ public class MorphiumConfig {
     private boolean retryReads;
     private boolean retryWrites;
     private String uuidRepresentation;
+    private boolean checkIndicesOnStartup = false;
 
     public MorphiumConfig(final Properties prop) {
         this(null, prop);
@@ -1297,7 +1298,7 @@ public class MorphiumConfig {
     }
 
     /**
-     * Sets the UUID representation to use when encoding instances of {@link java.util.UUID} and when decoding BSON binary values with
+     * Sets the UUID representation to use when encoding instances of {@link UUID} and when decoding BSON binary values with
      * subtype of 3.
      *
      * <p>The default is UNSPECIFIED, If your application stores UUID values in MongoDB, you must set this
@@ -1312,5 +1313,13 @@ public class MorphiumConfig {
      */
     public void setUuidRepresentation(String uuidRepresentation) {
         this.uuidRepresentation = uuidRepresentation;
+    }
+
+    public boolean isCheckIndicesOnStartup() {
+        return checkIndicesOnStartup;
+    }
+
+    public void setCheckIndicesOnStartup(boolean checkIndicesOnStartup) {
+        this.checkIndicesOnStartup = checkIndicesOnStartup;
     }
 }
