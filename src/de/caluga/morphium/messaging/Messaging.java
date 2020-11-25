@@ -11,7 +11,6 @@ import de.caluga.morphium.query.Query;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.lang.reflect.Field;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.*;
@@ -40,6 +39,7 @@ public class Messaging extends Thread implements ShutdownListener {
     private boolean autoAnswer = false;
     private String hostname;
     private boolean processMultiple;
+    private boolean receiveAnswers = false;
 
     private final List<MessageListener> listeners;
 
@@ -91,10 +91,15 @@ public class Messaging extends Thread implements ShutdownListener {
     }
 
     public Messaging(Morphium m, String queueName, int pause, boolean processMultiple, boolean multithreadded, int windowSize, boolean useChangeStream) {
+        this(m, queueName, pause, processMultiple, multithreadded, windowSize, useChangeStream, false);
+    }
+
+    public Messaging(Morphium m, String queueName, int pause, boolean processMultiple, boolean multithreadded, int windowSize, boolean useChangeStream, boolean recieveAnswers) {
         this.multithreadded = multithreadded;
         this.windowSize = windowSize;
         morphium = m;
         this.useChangeStream = useChangeStream;
+        this.receiveAnswers = recieveAnswers;
 
 
         if (multithreadded) {
@@ -348,9 +353,13 @@ public class Messaging extends Thread implements ShutdownListener {
                                 }
                             }
                         }
+                        //ignore message, when no listener ist registered and message is not an answer, we are waiting for
                         if (listenerByName.get(obj.getName()) == null && listeners.size() == 0) {
                             if (obj.getInAnswerTo() == null || !waitingForMessages.containsKey(obj.getInAnswerTo()))
                                 return running;
+                        }
+                        if (!receiveAnswers && obj.getInAnswerTo() != null) {
+                            return running;
                         }
                         if (pauseMessages.containsKey(obj.getName())) return running;
                         if (obj != null && obj.isExclusive()
@@ -630,6 +639,8 @@ public class Messaging extends Thread implements ShutdownListener {
 //                processing.remove(msg.getMsgId());
 //                continue;
 //            }
+
+
             if (msg.getProcessedBy().contains(getSenderId())) {
                 processing.remove(msg.getMsgId());
                 continue;
@@ -649,11 +660,13 @@ public class Messaging extends Thread implements ShutdownListener {
                     log.debug(getSenderId() + ": Got a message, we are waiting for...");
                 //this message we were waiting for
                 waitingForAnswers.put((MorphiumId) msg.getInAnswerTo(), msg);
-                processing.remove(msg.getMsgId());
-                //morphium.delete(msg, getCollectionName());
-                msg.addProcessedId(id);
-                morphium.store(msg, getCollectionName(), null);
-                return;
+                if (!receiveAnswers) {
+                    processing.remove(msg.getMsgId());
+                    //morphium.delete(msg, getCollectionName());
+                    msg.addProcessedId(id);
+                    morphium.store(msg, getCollectionName(), null);
+                    return;
+                }
             }
 
             if (msg.getTtl() < System.currentTimeMillis() - msg.getTimestamp()) {
@@ -663,6 +676,10 @@ public class Messaging extends Thread implements ShutdownListener {
                 morphium.delete(msg, getCollectionName());
                 processing.remove(msg.getMsgId());
                 return;
+            }
+            if (!receiveAnswers && msg.getInAnswerTo() != null) {
+                processing.remove(msg.getMsgId());
+                continue;
             }
             if (listeners.isEmpty() && listenerByName.isEmpty()) {
                 updateProcessedBy(msg);
@@ -1071,6 +1088,8 @@ public class Messaging extends Thread implements ShutdownListener {
     }
 
     public <T extends Msg> List<T> sendAndAwaitAnswers(T theMessage, int numberOfAnswers, long timeout) {
+        if (theMessage.getMsgId() == null)
+            theMessage.setMsgId(new MorphiumId());
         waitingForMessages.put(theMessage.getMsgId(), theMessage);
         List<Msg> answers = new ArrayList<>();
         sendMessage(theMessage);
@@ -1126,6 +1145,26 @@ public class Messaging extends Thread implements ShutdownListener {
     public Messaging setWindowSize(int windowSize) {
         this.windowSize = windowSize;
         return this;
+    }
+
+    /**
+     * Receive answers=false, onMessage is not called, when answers come in
+     * if true, onMessage is called for all answers
+     * this is not affecting the sendAndWaitFor-Methods!
+     *
+     * @return
+     */
+    public boolean isReceiveAnswers() {
+        return receiveAnswers;
+    }
+
+    /**
+     * Receive answers=false, onMessage is not called, when answers come in
+     * if true, onMessage is called for all answers
+     * this is not affecting the sendAndWaitFor-Methods!
+     */
+    public void setReceiveAnswers(boolean receiveAnswers) {
+        this.receiveAnswers = receiveAnswers;
     }
 
     public boolean isUseChangeStream() {
