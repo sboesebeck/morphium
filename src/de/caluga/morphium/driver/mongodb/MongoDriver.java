@@ -1895,6 +1895,7 @@ public class MongoDriver implements MorphiumDriver {
     @Override
     public boolean isCapped(String db, String coll) throws MorphiumDriverException {
         Object capped = getCollectionStats(db, coll, 1024, false).get("capped");
+        if (capped == null) return false;
         if (capped instanceof String) {
             return capped.equals("true");
         }
