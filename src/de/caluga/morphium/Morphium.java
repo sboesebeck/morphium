@@ -302,18 +302,42 @@ public class Morphium implements AutoCloseable {
             rsMonitor.start();
             rsMonitor.getReplicaSetStatus(false);
         }
-        if (config.isCheckIndicesOnStartup()) {
+        if (!config.getIndexCappedCheck().equals(MorphiumConfig.IndexCappedCheck.NO_CHECK) &&
+                (config.getIndexCappedCheck().equals(MorphiumConfig.IndexCappedCheck.CREATE_ON_STARTUP) ||
+                        config.getIndexCappedCheck().equals(MorphiumConfig.IndexCappedCheck.WARN_ON_WRITE_NEW_COL))) {
             Map<Class<?>, List<Map<String, Object>>> missing = checkIndices();
             if (missing != null && !missing.isEmpty()) {
                 for (Class cls : missing.keySet()) {
                     if (missing.get(cls).size() != 0) {
-                        logger.warn("Missing indices for entity " + cls.getName() + ": " + missing.get(cls).size());
+                        if (config.getIndexCappedCheck().equals(MorphiumConfig.IndexCappedCheck.WARN_ON_STARTUP)) {
+                            logger.warn("Missing indices for entity " + cls.getName() + ": " + missing.get(cls).size());
+                            if (cappedMissing(missing.get(cls))) {
+                                logger.warn("No capped settings missing for " + cls.getName());
+                            }
+                        } else if (config.getIndexCappedCheck().equals(MorphiumConfig.IndexCappedCheck.CREATE_ON_STARTUP)) {
+                            logger.warn("Creating missing indices for entity " + cls.getName());
+                            ensureIndicesFor(cls);
+                            if (cappedMissing(missing.get(cls))) {
+                                logger.warn("applying capped settings for entity " + cls.getName());
+                                ensureCapped(cls);
+                            }
+                        }
                     }
                 }
             }
         }
 
         logger.info("Initialization successful...");
+    }
+
+    private boolean cappedMissing(List<Map<String, Object>> lst) {
+        for (Map<String, Object> idx : lst) {
+            if (idx.containsKey("__capped_size")) {
+                return true;
+            }
+        }
+        return false;
+
     }
 
 
@@ -3027,9 +3051,8 @@ public class Morphium implements AutoCloseable {
                              .enableClassInfo()       // Scan classes, methods, fields, annotations
                              .scan()) {
             ClassInfoList entities =
-                    scanResult.getClassesWithAnnotation(Entity.class.getName());
+                    scanResult.getAllClasses();
             //entities.addAll(scanResult.getClassesWithAnnotation(Embedded.class.getName()));
-            logger.debug("Found " + entities.size() + " entities in classpath");
 
             for (String cn : entities.getNames()) {
                 //ClassInfo ci = scanResult.getClassInfo(cn);
@@ -3039,12 +3062,28 @@ public class Morphium implements AutoCloseable {
                     //if (param.getName().equals("index"))
                     //logger.info("Class " + cn + "   Param " + param.getName() + " = " + param.getValue());
                     Class<?> entity = Class.forName(cn);
+                    if (annotationHelper.getAnnotationFromHierarchy(entity, Entity.class) == null) {
+                        continue;
+                    }
                     List<Map<String, Object>> missing = getMissingIndicesFor(entity);
+
                     if (missing != null && !missing.isEmpty()) {
                         missingIndicesByClass.put(entity, missing);
                     }
-                } catch (Exception e) {
-                    logger.error("Could not check indices for " + cn, e);
+                    if (annotationHelper.isAnnotationPresentInHierarchy(entity, Capped.class)) {
+                        if (!morphiumDriver.isCapped(getConfig().getDatabase(), getMapper().getCollectionName(entity))) {
+                            missingIndicesByClass.putIfAbsent(entity, new ArrayList<>());
+                            Capped capped = annotationHelper.getAnnotationFromClass(entity, Capped.class);
+                            missingIndicesByClass.get(entity).add(
+                                    Utils.getMap("__capped_entries", (Object) capped.maxEntries())
+                                            .add("__capped_size", capped.maxSize())
+                            );
+                        }
+
+                    }
+                } catch (Throwable e) {
+                    //swallow
+                    //logger.error("Could not check indices for " + cn, e);
                 }
             }
         } catch (Exception e) {

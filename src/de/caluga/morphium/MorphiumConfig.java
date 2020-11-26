@@ -20,7 +20,6 @@ import de.caluga.morphium.writer.BufferedMorphiumWriterImpl;
 import de.caluga.morphium.writer.MorphiumWriter;
 import de.caluga.morphium.writer.MorphiumWriterImpl;
 
-import org.bson.UuidRepresentation;
 import org.json.simple.parser.ParseException;
 import org.slf4j.LoggerFactory;
 
@@ -76,8 +75,8 @@ public class MorphiumConfig {
     //ms for the pause of the main thread
     private int writeBufferTimeGranularity = 100;
 
-    private boolean autoIndexAndCappedCreationOnWrite = true;
-    
+    private final boolean autoIndexAndCappedCreationOnWrite = true;
+
     private boolean useSSL = false;
     private SSLContext sslContext = null;
     private boolean sslInvalidHostNameAllowed = false;
@@ -144,7 +143,7 @@ public class MorphiumConfig {
     private boolean retryReads;
     private boolean retryWrites;
     private String uuidRepresentation;
-    private boolean checkIndicesOnStartup = false;
+    private IndexCappedCheck indexCappedCheck = IndexCappedCheck.CREATE_ON_WRITE_NEW_COL;
 
     public MorphiumConfig(final Properties prop) {
         this(null, prop);
@@ -180,6 +179,9 @@ public class MorphiumConfig {
             try {
                 if (f.getType().equals(int.class) || f.getType().equals(Integer.class)) {
                     f.set(this, Integer.parseInt((String) setting));
+                } else if (f.getType().isEnum()) {
+                    Enum value = Enum.valueOf((Class<? extends Enum>) f.getType(), (String) setting);
+                    f.set(this, value);
                 } else if (f.getType().equals(String.class)) {
                     f.set(this, setting);
                 } else if (List.class.isAssignableFrom(f.getType())) {
@@ -325,11 +327,16 @@ public class MorphiumConfig {
     }
 
     public boolean isAutoIndexAndCappedCreationOnWrite() {
-        return autoIndexAndCappedCreationOnWrite;
+        return indexCappedCheck.equals(IndexCappedCheck.CREATE_ON_WRITE_NEW_COL);
     }
 
+    @Deprecated
     public MorphiumConfig setAutoIndexAndCappedCreationOnWrite(boolean autoIndexAndCappedCreationOnWrite) {
-        this.autoIndexAndCappedCreationOnWrite = autoIndexAndCappedCreationOnWrite;
+        if (autoIndexAndCappedCreationOnWrite) {
+            indexCappedCheck = IndexCappedCheck.CREATE_ON_WRITE_NEW_COL;
+        } else {
+            indexCappedCheck = IndexCappedCheck.NO_CHECK;
+        }
         return this;
     }
 
@@ -1315,11 +1322,18 @@ public class MorphiumConfig {
         this.uuidRepresentation = uuidRepresentation;
     }
 
-    public boolean isCheckIndicesOnStartup() {
-        return checkIndicesOnStartup;
+    public IndexCappedCheck getIndexCappedCheck() {
+        return indexCappedCheck;
     }
 
-    public void setCheckIndicesOnStartup(boolean checkIndicesOnStartup) {
-        this.checkIndicesOnStartup = checkIndicesOnStartup;
+    public void setIndexCappedCheck(IndexCappedCheck indexCappedCheck) {
+        this.indexCappedCheck = indexCappedCheck;
+    }
+
+    public enum IndexCappedCheck {
+        NO_CHECK,
+        WARN_ON_STARTUP,
+        CREATE_ON_WRITE_NEW_COL,
+        CREATE_ON_STARTUP,
     }
 }
