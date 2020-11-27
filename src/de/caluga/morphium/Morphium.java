@@ -303,8 +303,7 @@ public class Morphium implements AutoCloseable {
             rsMonitor.getReplicaSetStatus(false);
         }
         if (!config.getIndexCappedCheck().equals(MorphiumConfig.IndexCappedCheck.NO_CHECK) &&
-                (config.getIndexCappedCheck().equals(MorphiumConfig.IndexCappedCheck.CREATE_ON_STARTUP) ||
-                        config.getIndexCappedCheck().equals(MorphiumConfig.IndexCappedCheck.WARN_ON_WRITE_NEW_COL))) {
+                config.getIndexCappedCheck().equals(MorphiumConfig.IndexCappedCheck.CREATE_ON_STARTUP)) {
             Map<Class<?>, List<Map<String, Object>>> missing = checkIndices();
             if (missing != null && !missing.isEmpty()) {
                 for (Class cls : missing.keySet()) {
