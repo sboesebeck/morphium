@@ -8,7 +8,6 @@ import de.caluga.morphium.driver.MorphiumId;
 import de.caluga.morphium.query.EmptyIterator;
 import de.caluga.morphium.query.MorphiumIterator;
 import de.caluga.morphium.query.Query;
-import jdk.management.jfr.RecordingInfo;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -180,6 +179,7 @@ public class Messaging extends Thread implements ShutdownListener {
             try {
                 hostname = InetAddress.getLocalHost().getHostName();
             } catch (UnknownHostException ignored) {
+                //swallow
             }
         }
         if (hostname == null) {
@@ -262,6 +262,9 @@ public class Messaging extends Thread implements ShutdownListener {
                                 case ALL:
                                     break;
                                 case NONE:
+                                    if (waitingForMessages.containsKey(obj.getInAnswerTo())) {
+                                        break;
+                                    }
                                     return running;
                                 case ONLY_MINE:
                                     if (waitingForMessages.containsKey(obj.getInAnswerTo())) {
@@ -682,10 +685,11 @@ public class Messaging extends Thread implements ShutdownListener {
             }
 
             //noinspection SuspiciousMethodCalls
-            if (msg.getInAnswerTo() != null && waitingForMessages.get(msg.getInAnswerTo()) != null) {
+            if (msg.getInAnswerTo() != null && waitingForMessages.containsKey(msg.getInAnswerTo())) {
                 if (log.isDebugEnabled())
                     log.debug(getSenderId() + ": Got a message, we are waiting for...");
                 //this message we were waiting for
+                updateProcessedBy(msg);
                 waitingForAnswers.put((MorphiumId) msg.getInAnswerTo(), msg);
                 if (receiveAnswers.equals(ReceiveAnswers.NONE)) {
                     processing.remove(msg.getMsgId());
@@ -704,11 +708,8 @@ public class Messaging extends Thread implements ShutdownListener {
                 processing.remove(msg.getMsgId());
                 return;
             }
-            if (receiveAnswers.equals(ReceiveAnswers.NONE) && msg.getInAnswerTo() != null && (msg.getRecipients() == null || !msg.getRecipients().contains(id))) {
-                processing.remove(msg.getMsgId());
-                continue;
-            }
-            if (listeners.isEmpty() && listenerByName.isEmpty()) {
+
+            if (listeners.isEmpty() && !listenerByName.containsKey(msg.getName()) && msg.getInAnswerTo() == null) {
                 updateProcessedBy(msg);
                 if (msg.isExclusive()) {
                     morphium.unset(msg, getCollectionName(), Msg.Fields.lockedBy);
@@ -730,7 +731,7 @@ public class Messaging extends Thread implements ShutdownListener {
                 }
                 if (lst.isEmpty()) {
                     if (log.isDebugEnabled())
-                        log.debug(getSenderId() + ": Message did not have a listener registered");
+                        log.debug(getSenderId() + ": Message did not have a listener registered for name " + msg.getName());
                     wasProcessed = true;
                 }
                 for (MessageListener l : lst) {
@@ -859,7 +860,10 @@ public class Messaging extends Thread implements ShutdownListener {
 //        }
         //msg.setLockedBy(null);
         Query<Msg> idq = morphium.createQueryFor(Msg.class, getCollectionName());
-        idq.f(Msg.Fields.msgId).eq(msg.getMsgId());
+        idq.f(Msg.Fields.msgId).eq(msg.getMsgId())
+                .f(Msg.Fields.processedBy).ne(id); //avoid duplication
+        if (msg.getProcessedBy() == null) msg.setProcessedBy(new ArrayList<>());
+        if (!msg.getProcessedBy().contains(id)) msg.getProcessedBy().add(id);
         morphium.push(idq, Msg.Fields.processedBy, id);
     }
 

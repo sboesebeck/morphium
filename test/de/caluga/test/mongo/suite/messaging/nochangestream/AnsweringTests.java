@@ -1,4 +1,4 @@
-package de.caluga.test.mongo.suite.messaging;
+package de.caluga.test.mongo.suite.messaging.nochangestream;
 
 import de.caluga.morphium.Morphium;
 import de.caluga.morphium.MorphiumConfig;
@@ -16,23 +16,16 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 
 public class AnsweringTests extends MorphiumTestBase {
+    private final List<Msg> list = new ArrayList<>();
+    private final AtomicInteger queueCount = new AtomicInteger(1000);
     public boolean gotMessage = false;
-
     public boolean gotMessage1 = false;
     public boolean gotMessage2 = false;
     public boolean gotMessage3 = false;
     public boolean gotMessage4 = false;
-
     public boolean error = false;
-
     public MorphiumId lastMsgId;
-
     public AtomicInteger procCounter = new AtomicInteger(0);
-
-    private final List<Msg> list = new ArrayList<>();
-
-    private final AtomicInteger queueCount = new AtomicInteger(1000);
-
 
     @Test
     public void answeringTest() throws Exception {
@@ -50,9 +43,9 @@ public class AnsweringTests extends MorphiumTestBase {
         onlyAnswers = new Messaging(morphium, 100, true);
         try {
 
-            m1.start();
-            m2.start();
-            onlyAnswers.start();
+            m1.setUseChangeStream(false).start();
+            m2.setUseChangeStream(false).start();
+            onlyAnswers.setUseChangeStream(false).start();
             Thread.sleep(100);
 
             log.info("m1 ID: " + m1.getSenderId());
@@ -157,9 +150,9 @@ public class AnsweringTests extends MorphiumTestBase {
             m1.setSenderId("m1");
             m2.setSenderId("m2");
             m3.setSenderId("m3");
-            m1.start();
-            m2.start();
-            m3.start();
+            m1.setUseChangeStream(false).start();
+            m2.setUseChangeStream(false).start();
+            m3.setUseChangeStream(false).start();
 
 
             //different behaviour:
@@ -305,9 +298,9 @@ public class AnsweringTests extends MorphiumTestBase {
         m2.setSenderId("m2");
         Messaging m3 = new Messaging(morphium, 10, false, true, 10);
         m3.setSenderId("m3");
-        m1.start();
-        m2.start();
-        m3.start();
+        m1.setUseChangeStream(false).start();
+        m2.setUseChangeStream(false).start();
+        m3.setUseChangeStream(false).start();
 
         m3.addListenerForMessageNamed("test", (msg, m) -> {
             log.info("Incoming message");
@@ -322,7 +315,6 @@ public class AnsweringTests extends MorphiumTestBase {
     }
 
 
-
     @Test
     public void answers3NodesTest() throws Exception {
         Messaging m1 = new Messaging(morphium, 10, false, true, 10);
@@ -332,9 +324,9 @@ public class AnsweringTests extends MorphiumTestBase {
         Messaging mSrv = new Messaging(morphium, 10, false, true, 10);
         mSrv.setSenderId("Srv");
 
-        m1.start();
-        m2.start();
-        mSrv.start();
+        m1.setUseChangeStream(false).start();
+        m2.setUseChangeStream(false).start();
+        mSrv.setUseChangeStream(false).start();
 
         mSrv.addListenerForMessageNamed("query", (msg, m) -> {
             log.info("Incoming message - sending result");
@@ -370,9 +362,9 @@ public class AnsweringTests extends MorphiumTestBase {
         Messaging m2 = new Messaging(morphium, 10, false, true, 10);
         Messaging mTst = new Messaging(morphium, 10, false, true, 10);
 
-        m1.start();
-        m2.start();
-        mTst.start();
+        m1.setUseChangeStream(false).start();
+        m2.setUseChangeStream(false).start();
+        mTst.setUseChangeStream(false).start();
 
 
         mTst.addListenerForMessageNamed("somethign else", (msg, m) -> {
@@ -416,8 +408,8 @@ public class AnsweringTests extends MorphiumTestBase {
         Messaging m2 = new Messaging(mor, 10, false, true, 10);
         m1.setSenderId("m1");
         m2.setSenderId("m2");
-        m1.start();
-        m2.start();
+        m1.setUseChangeStream(false).start();
+        m2.setUseChangeStream(false).start();
 
         m2.addListenerForMessageNamed("question", (msg, m) -> {
             Msg answer = m.createAnswerMsg();
@@ -445,8 +437,8 @@ public class AnsweringTests extends MorphiumTestBase {
         Messaging m1 = new Messaging(morphium, 10, false, true, 10);
         Messaging m2 = new Messaging(morphium, 10, false, true, 10);
 
-        m1.start();
-        m2.start();
+        m1.setUseChangeStream(false).start();
+        m2.setUseChangeStream(false).start();
 
         m2.addListenerForMessageNamed("question", (msg, m) -> m.createAnswerMsg());
 
@@ -465,8 +457,8 @@ public class AnsweringTests extends MorphiumTestBase {
     public void answerTestDifferentType() throws Exception {
         Messaging sender = new Messaging(morphium, 100, true);
         Messaging recipient = new Messaging(morphium, 100, true);
-        sender.start();
-        recipient.start();
+        sender.setUseChangeStream(false).start();
+        recipient.setUseChangeStream(false).start();
         gotMessage1 = false;
         recipient.addListenerForMessageNamed("query", new MessageListener() {
             @Override
@@ -511,7 +503,7 @@ public class AnsweringTests extends MorphiumTestBase {
                 return new Msg(m.getName(), "got message", "value", 5000);
             });
 
-            m1.start();
+            m1.setUseChangeStream(false).start();
 
             Msg answer = m1.sendAndAwaitFirstAnswer(new Msg("test", "Sender", "sent", 5000), 500);
         } finally {
@@ -526,7 +518,7 @@ public class AnsweringTests extends MorphiumTestBase {
     public void sendAndWaitforAnswerTest() throws Exception {
 //        morphium.dropCollection(Msg.class);
         Messaging sender = new Messaging(morphium, 100, false);
-        sender.start();
+        sender.setUseChangeStream(false).start();
 
         gotMessage1 = false;
         gotMessage2 = false;
@@ -539,7 +531,7 @@ public class AnsweringTests extends MorphiumTestBase {
             return new Msg(m.getName(), "got message", "value", 5000);
         });
 
-        m1.start();
+        m1.setUseChangeStream(false).start();
         Thread.sleep(2500);
 
         Msg answer = sender.sendAndAwaitFirstAnswer(new Msg("test", "Sender", "sent", 15000), 15000);
