@@ -8,6 +8,7 @@ import de.caluga.morphium.driver.MorphiumId;
 import de.caluga.morphium.query.EmptyIterator;
 import de.caluga.morphium.query.MorphiumIterator;
 import de.caluga.morphium.query.Query;
+import jdk.management.jfr.RecordingInfo;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -39,7 +40,7 @@ public class Messaging extends Thread implements ShutdownListener {
     private boolean autoAnswer = false;
     private String hostname;
     private boolean processMultiple;
-    private boolean receiveAnswers = false;
+    private ReceiveAnswers receiveAnswers = ReceiveAnswers.ONLY_MINE;
 
     private final List<MessageListener> listeners;
 
@@ -91,10 +92,10 @@ public class Messaging extends Thread implements ShutdownListener {
     }
 
     public Messaging(Morphium m, String queueName, int pause, boolean processMultiple, boolean multithreadded, int windowSize, boolean useChangeStream) {
-        this(m, queueName, pause, processMultiple, multithreadded, windowSize, useChangeStream, false);
+        this(m, queueName, pause, processMultiple, multithreadded, windowSize, useChangeStream, ReceiveAnswers.ONLY_MINE);
     }
 
-    public Messaging(Morphium m, String queueName, int pause, boolean processMultiple, boolean multithreadded, int windowSize, boolean useChangeStream, boolean recieveAnswers) {
+    public Messaging(Morphium m, String queueName, int pause, boolean processMultiple, boolean multithreadded, int windowSize, boolean useChangeStream, ReceiveAnswers recieveAnswers) {
         this.multithreadded = multithreadded;
         this.windowSize = windowSize;
         morphium = m;
@@ -256,6 +257,21 @@ public class Messaging extends Thread implements ShutdownListener {
                         //insert => new Message
 //                        log.info(id+": incoming insert "+ Utils.toJsonString(evt.getFullDocument()));
                         Msg obj = morphium.getMapper().deserialize(Msg.class, evt.getFullDocument());
+                        if (obj.getInAnswerTo() != null) {
+                            switch (receiveAnswers) {
+                                case ALL:
+                                    break;
+                                case NONE:
+                                    return running;
+                                case ONLY_MINE:
+                                    if (waitingForMessages.containsKey(obj.getInAnswerTo())) {
+                                        break;
+                                    }
+                                    if (!(obj.getRecipients() != null && obj.getRecipients().contains(id))) {
+                                        return running;
+                                    }
+                            }
+                        }
                         if (obj.getInAnswerTo() != null && waitingForMessages.containsKey(obj.getInAnswerTo())) {
                             if (log.isDebugEnabled())
                                 log.debug("processing answer " + obj.getMsgId() + " in answer to " + obj.getInAnswerTo());
@@ -357,8 +373,20 @@ public class Messaging extends Thread implements ShutdownListener {
                             if (obj.getInAnswerTo() == null || !waitingForMessages.containsKey(obj.getInAnswerTo()))
                                 return running;
                         }
-                        if (!receiveAnswers && obj.getInAnswerTo() != null) {
-                            return running;
+                        if (obj.getInAnswerTo() != null) {
+                            switch (receiveAnswers) {
+                                case ALL:
+                                    break;
+                                case NONE:
+                                    return running;
+                                case ONLY_MINE:
+                                    if (waitingForMessages.containsKey(obj.getInAnswerTo())) {
+                                        break;
+                                    }
+                                    if (!(obj.getRecipients() != null && obj.getRecipients().contains(id))) {
+                                        return running;
+                                    }
+                            }
                         }
                         if (pauseMessages.containsKey(obj.getName())) return running;
                         if (obj != null && obj.isExclusive()
@@ -659,7 +687,7 @@ public class Messaging extends Thread implements ShutdownListener {
                     log.debug(getSenderId() + ": Got a message, we are waiting for...");
                 //this message we were waiting for
                 waitingForAnswers.put((MorphiumId) msg.getInAnswerTo(), msg);
-                if (!receiveAnswers) {
+                if (receiveAnswers.equals(ReceiveAnswers.NONE)) {
                     processing.remove(msg.getMsgId());
                     //morphium.delete(msg, getCollectionName());
                     msg.addProcessedId(id);
@@ -676,7 +704,7 @@ public class Messaging extends Thread implements ShutdownListener {
                 processing.remove(msg.getMsgId());
                 return;
             }
-            if (!receiveAnswers && msg.getInAnswerTo() != null) {
+            if (receiveAnswers.equals(ReceiveAnswers.NONE) && msg.getInAnswerTo() != null && (msg.getRecipients() == null || !msg.getRecipients().contains(id))) {
                 processing.remove(msg.getMsgId());
                 continue;
             }
@@ -1154,6 +1182,10 @@ public class Messaging extends Thread implements ShutdownListener {
      * @return
      */
     public boolean isReceiveAnswers() {
+        return !receiveAnswers.equals(ReceiveAnswers.NONE);
+    }
+
+    public ReceiveAnswers getReceiveAnswers() {
         return receiveAnswers;
     }
 
@@ -1162,7 +1194,7 @@ public class Messaging extends Thread implements ShutdownListener {
      * if true, onMessage is called for all answers
      * this is not affecting the sendAndWaitFor-Methods!
      */
-    public void setReceiveAnswers(boolean receiveAnswers) {
+    public void setReceiveAnswers(ReceiveAnswers receiveAnswers) {
         this.receiveAnswers = receiveAnswers;
     }
 
@@ -1180,5 +1212,10 @@ public class Messaging extends Thread implements ShutdownListener {
     public Messaging setUseChangeStream(boolean useChangeStream) {
         this.useChangeStream = useChangeStream;
         return this;
+    }
+
+
+    public enum ReceiveAnswers {
+        NONE, ONLY_MINE, ALL,
     }
 }
