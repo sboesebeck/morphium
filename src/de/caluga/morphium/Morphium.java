@@ -31,6 +31,7 @@ import de.caluga.morphium.writer.BufferedMorphiumWriterImpl;
 import de.caluga.morphium.writer.MorphiumWriter;
 import de.caluga.morphium.writer.MorphiumWriterImpl;
 import io.github.classgraph.ClassGraph;
+import io.github.classgraph.ClassInfo;
 import io.github.classgraph.ClassInfoList;
 import io.github.classgraph.ScanResult;
 import net.sf.cglib.proxy.Enhancer;
@@ -304,7 +305,7 @@ public class Morphium implements AutoCloseable {
         }
         if (!config.getIndexCappedCheck().equals(MorphiumConfig.IndexCappedCheck.NO_CHECK) &&
                 config.getIndexCappedCheck().equals(MorphiumConfig.IndexCappedCheck.CREATE_ON_STARTUP)) {
-            Map<Class<?>, List<Map<String, Object>>> missing = checkIndices();
+            Map<Class<?>, List<Map<String, Object>>> missing = checkIndices(classInfo -> !classInfo.getPackageName().startsWith("de.caluga.morphium"));
             if (missing != null && !missing.isEmpty()) {
                 for (Class cls : missing.keySet()) {
                     if (missing.get(cls).size() != 0) {
@@ -2931,9 +2932,13 @@ public class Morphium implements AutoCloseable {
 
 
     public List<Map<String, Object>> getMissingIndicesFor(Class<?> entity) throws MorphiumDriverException {
+        return getMissingIndicesFor(entity, objectMapper.getCollectionName(entity));
+    }
+
+    public List<Map<String, Object>> getMissingIndicesFor(Class<?> entity, String collection) throws MorphiumDriverException {
         List<Map<String, Object>> missingIndexDef = new ArrayList<>();
         Index i = annotationHelper.getAnnotationFromClass(entity, Index.class);
-        List<Map<String, Object>> ind = morphiumDriver.getIndexes(getConfig().getDatabase(), objectMapper.getCollectionName(entity));
+        List<Map<String, Object>> ind = morphiumDriver.getIndexes(getConfig().getDatabase(), collection);
         List<Map<String, Object>> indices = new ArrayList<>();
         for (Map<String, Object> m : ind) {
             Map<String, Object> indexKey = (Map<String, Object>) m.get("key");
@@ -2961,8 +2966,8 @@ public class Morphium implements AutoCloseable {
                     options.add(Utils.getMap("collation", collation));
                 }
                 List<Map<String, Object>> idx = createIndexMapFrom(i.value());
-                if (!morphiumDriver.exists(config.getDatabase(), objectMapper.getCollectionName(entity)) || indices.size() == 0) {
-                    logger.info("Collection does not exist or no indices defined, all Indices will be missing...");
+                if (!morphiumDriver.exists(config.getDatabase(), collection) || indices.size() == 0) {
+                    logger.info("Collection '" + collection + "' for entity '" + entity.getName() + "' does not exist.");
                     return idx;
                 }
                 int cnt = 0;
@@ -3034,11 +3039,16 @@ public class Morphium implements AutoCloseable {
         return missingIndexDef;
     }
 
+
     /**
      * run trhough classpath, find all Entities, check indices
      * returns a list of Entities, whos indices are missing or different
      */
     public Map<Class<?>, List<Map<String, Object>>> checkIndices() {
+        return checkIndices(null);
+    }
+
+    public Map<Class<?>, List<Map<String, Object>>> checkIndices(ClassInfoList.ClassInfoFilter filter) {
 
         Map<Class<?>, List<Map<String, Object>>> missingIndicesByClass = new ConcurrentHashMap<>();
 //initializing type IDs
@@ -3051,6 +3061,9 @@ public class Morphium implements AutoCloseable {
                              .scan()) {
             ClassInfoList entities =
                     scanResult.getAllClasses();
+            if (filter != null) {
+                entities = entities.filter(filter);
+            }
             //entities.addAll(scanResult.getClassesWithAnnotation(Embedded.class.getName()));
 
             for (String cn : entities.getNames()) {

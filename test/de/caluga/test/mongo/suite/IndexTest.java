@@ -40,7 +40,7 @@ public class IndexTest extends MorphiumTestBase {
         morphium.dropCollection(UncachedObject.class);
         morphium.dropCollection(IndexedObject.class);
         morphium.dropCollection(CappedCol.class);
-        Thread.sleep(500);
+        Thread.sleep(1500);
         morphium.getConfig().setIndexCappedCheck(MorphiumConfig.IndexCappedCheck.NO_CHECK);
         morphium.storeNoCache(new CachedObject("value", 12));
         Thread.sleep(100);
@@ -54,6 +54,10 @@ public class IndexTest extends MorphiumTestBase {
         assert (missing.get(IndexedObject.class) == null);
         assert (missing.get(CachedObject.class) != null);
         assert (missing.get(CappedCol.class) != null);
+        morphium.ensureIndex(CachedObject.class, missing.get(CachedObject.class).get(0));
+        Thread.sleep(1500);
+        List<Map<String, Object>> missingForCached = morphium.getMissingIndicesFor(CachedObject.class);
+        assert (missingForCached.size() < missing.get(CachedObject.class).size());
         //look for capping info
         boolean found = false;
         for (Map<String, Object> info : missing.get(CappedCol.class)) {
