@@ -1,4 +1,4 @@
-package de.caluga.test.mongo.suite.messaging;
+package de.caluga.test.mongo.suite.messaging.nochangestream;
 
 import de.caluga.morphium.*;
 import de.caluga.morphium.driver.MorphiumId;
@@ -22,22 +22,16 @@ import java.util.concurrent.atomic.AtomicInteger;
  */
 @SuppressWarnings("ALL")
 public class MessagingTest extends MorphiumTestBase {
+    private final List<Msg> list = new ArrayList<>();
+    private final AtomicInteger queueCount = new AtomicInteger(1000);
     public boolean gotMessage = false;
-
     public boolean gotMessage1 = false;
     public boolean gotMessage2 = false;
     public boolean gotMessage3 = false;
     public boolean gotMessage4 = false;
-
     public boolean error = false;
-
     public MorphiumId lastMsgId;
-
     public AtomicInteger procCounter = new AtomicInteger(0);
-
-    private final List<Msg> list = new ArrayList<>();
-
-    private final AtomicInteger queueCount = new AtomicInteger(1000);
 
     @Test
     public void testMsgQueName() throws Exception {
@@ -49,14 +43,14 @@ public class MessagingTest extends MorphiumTestBase {
             gotMessage1 = true;
             return null;
         });
-        m.start();
+        m.setUseChangeStream(false).start();
 
         Messaging m2 = new Messaging(morphium, "msg2", 500, true);
         m2.addMessageListener((msg, m1) -> {
             gotMessage2 = true;
             return null;
         });
-        m2.start();
+        m2.setUseChangeStream(false).start();
         try {
             Msg msg = new Msg("tst", "msg", "value", 30000);
             msg.setExclusive(false);
@@ -102,7 +96,7 @@ public class MessagingTest extends MorphiumTestBase {
     @Test
     public void multithreaddingTest() throws Exception {
         Messaging producer = new Messaging(morphium, 500, false);
-        producer.start();
+        producer.setUseChangeStream(false).start();
         for (int i = 0; i < 100; i++) {
             Msg m = new Msg("test" + i, "tm", "" + i + System.currentTimeMillis(), 30000);
             producer.sendMessage(m);
@@ -115,7 +109,7 @@ public class MessagingTest extends MorphiumTestBase {
             return null;
         });
         long start = System.currentTimeMillis();
-        consumer.start();
+        consumer.setUseChangeStream(false).start();
         while (count.get() < 100) {
             log.info("Messages processed: " + count.get());
             Thread.sleep(1000);
@@ -137,7 +131,7 @@ public class MessagingTest extends MorphiumTestBase {
             return null;
         });
         start = System.currentTimeMillis();
-        consumer.start();
+        consumer.setUseChangeStream(false).start();
         while (count.get() < 2500) {
             log.info("Messages processed: " + count.get());
             Thread.sleep(1000);
@@ -161,7 +155,7 @@ public class MessagingTest extends MorphiumTestBase {
         morphium.dropCollection(Msg.class);
 
         final Messaging messaging = new Messaging(morphium, 500, true);
-        messaging.start();
+        messaging.setUseChangeStream(false).start();
         Thread.sleep(500);
 
         messaging.addMessageListener((msg, m) -> {
@@ -209,8 +203,8 @@ public class MessagingTest extends MorphiumTestBase {
         morphium.clearCollection(Msg.class);
         final Messaging m1 = new Messaging(morphium, 500, true);
         final Messaging m2 = new Messaging(morphium, 500, true);
-        m1.start();
-        m2.start();
+        m1.setUseChangeStream(false).start();
+        m2.setUseChangeStream(false).start();
         Thread.sleep(100);
         m1.addMessageListener((msg, m) -> {
             gotMessage1 = true;
@@ -265,10 +259,10 @@ public class MessagingTest extends MorphiumTestBase {
         final Messaging m3 = new Messaging(morphium, 10, true);
         final Messaging m4 = new Messaging(morphium, 10, true);
 
-        m4.start();
-        m1.start();
-        m2.start();
-        m3.start();
+        m4.setUseChangeStream(false).start();
+        m1.setUseChangeStream(false).start();
+        m2.setUseChangeStream(false).start();
+        m3.setUseChangeStream(false).start();
         Thread.sleep(200);
 
         m1.addMessageListener((msg, m) -> {
@@ -359,9 +353,9 @@ public class MessagingTest extends MorphiumTestBase {
             rec2.setSenderId("rec2");
             morphium.dropCollection(Msg.class, sender.getCollectionName(), null);
             Thread.sleep(10);
-            sender.start();
-            rec1.start();
-            rec2.start();
+            sender.setUseChangeStream(false).start();
+            rec1.setUseChangeStream(false).start();
+            rec2.setUseChangeStream(false).start();
             Thread.sleep(2000);
             final AtomicInteger recFirst = new AtomicInteger(0);
 
@@ -423,9 +417,9 @@ public class MessagingTest extends MorphiumTestBase {
             rec2 = new Messaging(morphium, 500, false);
             morphium.dropCollection(Msg.class, sender.getCollectionName(), null);
             Thread.sleep(10);
-            sender.start();
-            rec1.start();
-            rec2.start();
+            sender.setUseChangeStream(false).start();
+            rec1.setUseChangeStream(false).start();
+            rec2.setUseChangeStream(false).start();
             Thread.sleep(2000);
             gotMessage1 = false;
             gotMessage2 = false;
@@ -476,9 +470,9 @@ public class MessagingTest extends MorphiumTestBase {
         m3 = new Messaging(morphium, 100, true);
         try {
 
-            m1.start();
-            m2.start();
-            m3.start();
+            m1.setUseChangeStream(false).start();
+            m2.setUseChangeStream(false).start();
+            m3.setUseChangeStream(false).start();
             Thread.sleep(2500);
             gotMessage1 = false;
             gotMessage2 = false;
@@ -592,8 +586,8 @@ public class MessagingTest extends MorphiumTestBase {
         Messaging m2 = new Messaging(morphium, 10, false, true, 10);
         m2.setSenderId("m2");
         try {
-            m1.start();
-            m2.start();
+            m1.setUseChangeStream(false).start();
+            m2.setUseChangeStream(false).start();
 
             Msg m = new Msg("test", "ignore me please", "value");
             m1.sendMessage(m);
@@ -616,9 +610,9 @@ public class MessagingTest extends MorphiumTestBase {
         m2.setSenderId("m2");
         Messaging m3 = new Messaging(morphium, 10, false, true, 10);
         m3.setSenderId("m3");
-        m1.start();
-        m2.start();
-        m3.start();
+        m1.setUseChangeStream(false).start();
+        m2.setUseChangeStream(false).start();
+        m3.setUseChangeStream(false).start();
         try {
             m3.addListenerForMessageNamed("test", (msg, m) -> {
                 //log.info("Got message: "+m.getName());
@@ -669,11 +663,11 @@ public class MessagingTest extends MorphiumTestBase {
             for (int i = 0; i < numberOfWorkers; i++) {
                 //creating messaging instances
                 Messaging m = new Messaging(morphium, 100, true);
-                m.start();
+                m.setUseChangeStream(false).start();
                 systems.add(m);
                 MessageListener l = new MessageListener() {
-                    Messaging msg;
                     final List<String> ids = Collections.synchronizedList(new ArrayList<>());
+                    Messaging msg;
 
                     @Override
                     public Msg onMessage(Messaging msg, Msg m) {
@@ -771,10 +765,10 @@ public class MessagingTest extends MorphiumTestBase {
         gotMessage4 = false;
         error = false;
 
-        m4.start();
-        m1.start();
-        m3.start();
-        m2.start();
+        m4.setUseChangeStream(false).start();
+        m1.setUseChangeStream(false).start();
+        m3.setUseChangeStream(false).start();
+        m2.setUseChangeStream(false).start();
         Thread.sleep(300);
         try {
             log.info("m1 ID: " + m1.getSenderId());
@@ -855,8 +849,8 @@ public class MessagingTest extends MorphiumTestBase {
         Thread.sleep(2500);
         final Messaging producer = new Messaging(morphium, 100, true, false, 10);
         final Messaging consumer = new Messaging(morphium, 100, true, true, 2000);
-        producer.start();
-        consumer.start();
+        producer.setUseChangeStream(false).start();
+        consumer.setUseChangeStream(false).start();
         try {
             Vector<String> processedIds = new Vector<>();
             procCounter.set(0);
@@ -900,8 +894,8 @@ public class MessagingTest extends MorphiumTestBase {
         Thread.sleep(100);
         final Messaging producer = new Messaging(morphium, 100, true);
         final Messaging consumer = new Messaging(morphium, 10, true);
-        producer.start();
-        consumer.start();
+        producer.setUseChangeStream(false).start();
+        consumer.setUseChangeStream(false).start();
         Thread.sleep(2500);
         try {
             final int[] processed = {0};
@@ -945,8 +939,8 @@ public class MessagingTest extends MorphiumTestBase {
         morphium.clearCollection(Msg.class);
         final Messaging producer = new Messaging(morphium, 100, true);
         final Messaging consumer = new Messaging(morphium, 10, true, true, 2000);
-        consumer.start();
-        producer.start();
+        consumer.setUseChangeStream(false).start();
+        producer.setUseChangeStream(false).start();
         Thread.sleep(2500);
         try {
             final AtomicInteger processed = new AtomicInteger();
@@ -1016,11 +1010,11 @@ public class MessagingTest extends MorphiumTestBase {
             sender = new Messaging(morphium, "test", 100, false);
             sender.setSenderId("sender1");
             morphium.dropCollection(Msg.class, sender.getCollectionName(), null);
-            sender.start();
+            sender.setUseChangeStream(false).start();
             sender2 = new Messaging(morphium, "test2", 100, false);
             sender2.setSenderId("sender2");
             morphium.dropCollection(Msg.class, sender2.getCollectionName(), null);
-            sender2.start();
+            sender2.setUseChangeStream(false).start();
             Thread.sleep(200);
             gotMessage1 = false;
             gotMessage2 = false;
@@ -1056,10 +1050,10 @@ public class MessagingTest extends MorphiumTestBase {
                 return null;
             });
 
-            m1.start();
-            m2.start();
-            m3.start();
-            m4.start();
+            m1.setUseChangeStream(false).start();
+            m2.setUseChangeStream(false).start();
+            m3.setUseChangeStream(false).start();
+            m4.setUseChangeStream(false).start();
             Thread.sleep(200);
             Msg m = new Msg();
             m.setExclusive(true);
@@ -1133,7 +1127,7 @@ public class MessagingTest extends MorphiumTestBase {
     public void exclusiveMessageTest() throws Exception {
         morphium.dropCollection(Msg.class);
         Messaging sender = new Messaging(morphium, 100, false);
-        sender.start();
+        sender.setUseChangeStream(false).start();
 
         gotMessage1 = false;
         gotMessage2 = false;
@@ -1156,9 +1150,9 @@ public class MessagingTest extends MorphiumTestBase {
             return null;
         });
 
-        m1.start();
-        m2.start();
-        m3.start();
+        m1.setUseChangeStream(false).start();
+        m2.setUseChangeStream(false).start();
+        m3.setUseChangeStream(false).start();
         try {
             Thread.sleep(100);
 
@@ -1214,7 +1208,7 @@ public class MessagingTest extends MorphiumTestBase {
             cnt.incrementAndGet();
             return null;
         });
-        m1.start();
+        m1.setUseChangeStream(false).start();
         Thread.sleep(100);
         Msg m = new Msg().setMsgId(new MorphiumId()).setMsg("msg").setName("name").setValue("a value").setTtl(-1000);
         m1.sendMessage(m);
@@ -1227,7 +1221,7 @@ public class MessagingTest extends MorphiumTestBase {
     public void selfMessages() throws Exception {
         morphium.dropCollection(Msg.class);
         Messaging sender = new Messaging(morphium, 100, false);
-        sender.start();
+        sender.setUseChangeStream(false).start();
         Thread.sleep(2500);
         sender.addMessageListener(((msg, m) -> {
             gotMessage = true;
@@ -1246,7 +1240,7 @@ public class MessagingTest extends MorphiumTestBase {
             gotMessage1 = true;
             return new Msg(m.getName(), "got message", "value", 5000);
         });
-        m1.start();
+        m1.setUseChangeStream(false).start();
         try {
             sender.sendMessageToSelf(new Msg("testmsg", "Selfmessage", "value"));
             Thread.sleep(1500);
@@ -1264,7 +1258,7 @@ public class MessagingTest extends MorphiumTestBase {
         morphium.dropCollection(Msg.class);
         Thread.sleep(1000);
         Messaging sender = new Messaging(morphium, 100, false);
-        sender.start();
+        sender.setUseChangeStream(false).start();
 
         gotMessage1 = false;
         gotMessage2 = false;
@@ -1281,7 +1275,7 @@ public class MessagingTest extends MorphiumTestBase {
                 return null;
             });
 
-            m3.start();
+            m3.setUseChangeStream(false).start();
 
             Thread.sleep(1500);
 
@@ -1298,7 +1292,7 @@ public class MessagingTest extends MorphiumTestBase {
                 return null;
             });
 
-            m1.start();
+            m1.setUseChangeStream(false).start();
 
             Thread.sleep(1500);
             assert (gotMessage1);
@@ -1309,7 +1303,7 @@ public class MessagingTest extends MorphiumTestBase {
                 return null;
             });
 
-            m2.start();
+            m2.setUseChangeStream(false).start();
 
             Thread.sleep(1500);
             assert (gotMessage2);
@@ -1329,7 +1323,7 @@ public class MessagingTest extends MorphiumTestBase {
         morphium.dropCollection(Msg.class);
         Thread.sleep(1000);
         Messaging sender = new Messaging(morphium, 100, false, false, 10);
-        sender.start();
+        sender.setUseChangeStream(false).start();
 
         list.clear();
         Messaging receiver = new Messaging(morphium, 100, false, false, 10);
@@ -1343,7 +1337,7 @@ public class MessagingTest extends MorphiumTestBase {
 
             return null;
         });
-        receiver.start();
+        receiver.setUseChangeStream(false).start();
         try {
             Thread.sleep(500);
             sender.sendMessage(new Msg("test", "test", "test"));
@@ -1366,7 +1360,7 @@ public class MessagingTest extends MorphiumTestBase {
         log.info("Max threadpool:" + morphium.getConfig().getThreadPoolMessagingCoreSize());
         Thread.sleep(1000);
         Messaging sender = new Messaging(morphium, 100, false, true, 10);
-        sender.start();
+        sender.setUseChangeStream(false).start();
 
         list.clear();
         Messaging receiver = new Messaging(morphium, 100, false, true, 10);
@@ -1381,7 +1375,7 @@ public class MessagingTest extends MorphiumTestBase {
 
             return null;
         });
-        receiver.start();
+        receiver.setUseChangeStream(false).start();
         try {
             Thread.sleep(100);
             sender.sendMessage(new Msg("test", "test", "test"));
@@ -1399,7 +1393,7 @@ public class MessagingTest extends MorphiumTestBase {
     @Test
     public void priorityTest() throws Exception {
         Messaging sender = new Messaging(morphium, 100, false);
-        sender.start();
+        sender.setUseChangeStream(false).start();
 
         list.clear();
         //if running multithreadded, the execution order might differ a bit because of the concurrent
@@ -1420,7 +1414,7 @@ public class MessagingTest extends MorphiumTestBase {
             }
 
             Thread.sleep(1000);
-            receiver.start();
+            receiver.setUseChangeStream(false).start();
 
             while (list.size() < 10) {
                 Thread.yield();
@@ -1471,11 +1465,11 @@ public class MessagingTest extends MorphiumTestBase {
 
         Messaging sender = new Messaging(morphium, 100, false);
         morphium.dropCollection(Msg.class, sender.getCollectionName(), null);
-        sender.start();
+        sender.setUseChangeStream(false).start();
         Messaging receiver = new Messaging(morphium, 10, false, true, 10);
-        receiver.start();
+        receiver.setUseChangeStream(false).start();
         Messaging receiver2 = new Messaging(morphium, 10, false, true, 10);
-        receiver2.start();
+        receiver2.setUseChangeStream(false).start();
 
         final AtomicInteger pausedReciever = new AtomicInteger(0);
 
@@ -1537,14 +1531,14 @@ public class MessagingTest extends MorphiumTestBase {
         sender.setSenderId("sender");
         morphium.dropCollection(Msg.class, sender.getCollectionName(), null);
         Thread.sleep(100);
-        sender.start();
+        sender.setUseChangeStream(false).start();
         Morphium morphium2 = new Morphium(MorphiumConfig.fromProperties(morphium.getConfig().asProperties()));
         morphium2.getConfig().setThreadPoolMessagingMaxSize(10);
         morphium2.getConfig().setThreadPoolMessagingCoreSize(5);
         morphium2.getConfig().setThreadPoolAsyncOpMaxSize(10);
         Messaging receiver = new Messaging(morphium2, (int) (50 + 100 * Math.random()), true, true, 15);
         receiver.setSenderId("r1");
-        receiver.start();
+        receiver.setUseChangeStream(false).start();
 
         Morphium morphium3 = new Morphium(MorphiumConfig.fromProperties(morphium.getConfig().asProperties()));
         morphium3.getConfig().setThreadPoolMessagingMaxSize(10);
@@ -1552,7 +1546,7 @@ public class MessagingTest extends MorphiumTestBase {
         morphium3.getConfig().setThreadPoolAsyncOpMaxSize(10);
         Messaging receiver2 = new Messaging(morphium3, (int) (50 + 100 * Math.random()), false, false, 15);
         receiver2.setSenderId("r2");
-        receiver2.start();
+        receiver2.setUseChangeStream(false).start();
 
         Morphium morphium4 = new Morphium(MorphiumConfig.fromProperties(morphium.getConfig().asProperties()));
         morphium3.getConfig().setThreadPoolMessagingMaxSize(10);
@@ -1560,7 +1554,7 @@ public class MessagingTest extends MorphiumTestBase {
         morphium3.getConfig().setThreadPoolAsyncOpMaxSize(10);
         Messaging receiver3 = new Messaging(morphium4, (int) (50 + 100 * Math.random()), true, false, 15);
         receiver3.setSenderId("r3");
-        receiver3.start();
+        receiver3.setUseChangeStream(false).start();
 
         Morphium morphium5 = new Morphium(MorphiumConfig.fromProperties(morphium.getConfig().asProperties()));
         morphium3.getConfig().setThreadPoolMessagingMaxSize(10);
@@ -1568,7 +1562,7 @@ public class MessagingTest extends MorphiumTestBase {
         morphium3.getConfig().setThreadPoolAsyncOpMaxSize(10);
         Messaging receiver4 = new Messaging(morphium5, (int) (50 + 100 * Math.random()), false, true, 15);
         receiver4.setSenderId("r4");
-        receiver4.start();
+        receiver4.setUseChangeStream(false).start();
 
         final Map<WriteAccessType, AtomicInteger> wcounts = new ConcurrentHashMap<>();
         final Map<ReadAccessType, AtomicInteger> rcounts = new ConcurrentHashMap<>();
@@ -1705,14 +1699,14 @@ public class MessagingTest extends MorphiumTestBase {
         sender.setSenderId("sender");
         morphium.dropCollection(Msg.class, sender.getCollectionName(), null);
         Thread.sleep(100);
-        sender.start();
+        sender.setUseChangeStream(false).start();
         Morphium morphium2 = new Morphium(MorphiumConfig.fromProperties(morphium.getConfig().asProperties()));
         morphium2.getConfig().setThreadPoolMessagingMaxSize(10);
         morphium2.getConfig().setThreadPoolMessagingCoreSize(5);
         morphium2.getConfig().setThreadPoolAsyncOpMaxSize(10);
         Messaging receiver = new Messaging(morphium2, 10, true, true, 15);
         receiver.setSenderId("r1");
-        receiver.start();
+        receiver.setUseChangeStream(false).start();
 
         Morphium morphium3 = new Morphium(MorphiumConfig.fromProperties(morphium.getConfig().asProperties()));
         morphium3.getConfig().setThreadPoolMessagingMaxSize(10);
@@ -1720,7 +1714,7 @@ public class MessagingTest extends MorphiumTestBase {
         morphium3.getConfig().setThreadPoolAsyncOpMaxSize(10);
         Messaging receiver2 = new Messaging(morphium3, 10, false, false, 15);
         receiver2.setSenderId("r2");
-        receiver2.start();
+        receiver2.setUseChangeStream(false).start();
 
         Morphium morphium4 = new Morphium(MorphiumConfig.fromProperties(morphium.getConfig().asProperties()));
         morphium3.getConfig().setThreadPoolMessagingMaxSize(10);
@@ -1728,7 +1722,7 @@ public class MessagingTest extends MorphiumTestBase {
         morphium3.getConfig().setThreadPoolAsyncOpMaxSize(10);
         Messaging receiver3 = new Messaging(morphium4, 10, true, false, 15);
         receiver3.setSenderId("r3");
-        receiver3.start();
+        receiver3.setUseChangeStream(false).start();
 
         Morphium morphium5 = new Morphium(MorphiumConfig.fromProperties(morphium.getConfig().asProperties()));
         morphium3.getConfig().setThreadPoolMessagingMaxSize(10);
@@ -1736,7 +1730,7 @@ public class MessagingTest extends MorphiumTestBase {
         morphium3.getConfig().setThreadPoolAsyncOpMaxSize(10);
         Messaging receiver4 = new Messaging(morphium5, 10, false, true, 15);
         receiver4.setSenderId("r4");
-        receiver4.start();
+        receiver4.setUseChangeStream(false).start();
         final AtomicInteger received = new AtomicInteger();
         final AtomicInteger dups = new AtomicInteger();
         final Map<String, Long> ids = new ConcurrentHashMap<>();
@@ -1830,14 +1824,14 @@ public class MessagingTest extends MorphiumTestBase {
             sender.setSenderId("sender");
             morphium.dropCollection(Msg.class, sender.getCollectionName(), null);
             Thread.sleep(100);
-            sender.start();
+            sender.setUseChangeStream(false).start();
 
             sender.sendMessage(new Msg("test", "test", "test", 30000, true));
             sender.sendMessage(new Msg("test", "test", "test", 30000, true));
             sender.sendMessage(new Msg("test", "test", "test", 30000, true));
             Thread.sleep(1000);
             receiverNoListener.setSenderId("recNL");
-            receiverNoListener.start();
+            receiverNoListener.setUseChangeStream(false).start();
 
             assert (morphium.createQueryFor(Msg.class, sender.getCollectionName()).f(Msg.Fields.lockedBy).eq(null).countAll() == 3);
         } finally {
@@ -1854,14 +1848,14 @@ public class MessagingTest extends MorphiumTestBase {
 
         sender = new Messaging(morphium, 1000, false);
         sender.setSenderId("sender");
-        sender.start();
+        sender.setUseChangeStream(false).start();
         final AtomicInteger counts = new AtomicInteger();
         recs = new ArrayList<>();
         for (int i = 0; i < 10; i++) {
             Messaging r = new Messaging(morphium, 100, false);
             r.setSenderId("r" + i);
             recs.add(r);
-            r.start();
+            r.setUseChangeStream(false).start();
 
             r.addMessageListener((m, msg) -> {
                 counts.incrementAndGet();
@@ -1908,7 +1902,7 @@ public class MessagingTest extends MorphiumTestBase {
     public void severalRecipientsTest() throws Exception {
         Messaging sender = new Messaging(morphium, 1000, false);
         sender.setSenderId("sender");
-        sender.start();
+        sender.setUseChangeStream(false).start();
 
         List<Messaging> receivers = new ArrayList<>();
         final List<String> receivedBy = new Vector<>();
@@ -1916,7 +1910,7 @@ public class MessagingTest extends MorphiumTestBase {
         for (int i = 0; i < 10; i++) {
             Messaging receiver1 = new Messaging(morphium, 1000, false);
             receiver1.setSenderId("rec" + i);
-            receiver1.start();
+            receiver1.setUseChangeStream(false).start();
             receivers.add(receiver1);
             receiver1.addMessageListener(new MessageListener() {
                 @Override

@@ -28,14 +28,16 @@ public class BigMessagesTest extends MorphiumTestBase {
         }
         log.info("Text Size: "+txt.length());
         for (int i = 0; i < 300; i++) {
-            Msg big=new Msg();
+            Msg big = new Msg();
             big.setName("bigMsg");
             big.setTtl(30000);
             big.setValue(txt.toString());
-            big.setMapValue(Utils.getMap("msgNr",i));
-            big.getMapValue().put("ts",System.currentTimeMillis());
+            big.setMapValue(Utils.getMap("msgNr", i));
+            big.getMapValue().put("ts", System.currentTimeMillis());
             big.setTimestamp(System.currentTimeMillis());
             sender.sendMessage(big);
         }
+        sender.terminate();
+        receiver.terminate();
     }
 }
