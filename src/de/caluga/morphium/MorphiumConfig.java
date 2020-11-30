@@ -330,7 +330,6 @@ public class MorphiumConfig {
         return indexCappedCheck.equals(IndexCappedCheck.CREATE_ON_WRITE_NEW_COL);
     }
 
-    @Deprecated
     public MorphiumConfig setAutoIndexAndCappedCreationOnWrite(boolean autoIndexAndCappedCreationOnWrite) {
         if (autoIndexAndCappedCreationOnWrite) {
             indexCappedCheck = IndexCappedCheck.CREATE_ON_WRITE_NEW_COL;

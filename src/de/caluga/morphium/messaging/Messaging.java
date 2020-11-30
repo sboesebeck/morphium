@@ -184,7 +184,6 @@ public class Messaging extends Thread implements ShutdownListener {
         if (hostname == null) {
             hostname = "unknown host";
         }
-
         m.ensureIndicesFor(Msg.class, getCollectionName());
         //        try {
         //            m.ensureIndex(Msg.class, Msg.Fields.lockedBy, Msg.Fields.timestamp);
