@@ -30,24 +30,12 @@ public class ReplicaSetConf {
         return id;
     }
 
-    public void setId(String id) {
-        this.id = id;
-    }
-
     public int getVersion() {
         return version;
     }
 
-    public void setVersion(int version) {
-        this.version = version;
-    }
-
     public List<ConfNode> getMembers() {
         return members;
-    }
-
-    public void setMembers(List<ConfNode> members) {
-        this.members = members;
     }
 
     @Override

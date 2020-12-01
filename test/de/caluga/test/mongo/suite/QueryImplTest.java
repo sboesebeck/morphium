@@ -112,18 +112,28 @@ public class QueryImplTest extends MorphiumTestBase {
     }
 
     @Test
+    public void distinctTest() {
+        for (int i = 0; i < 10; i++) {
+            morphium.store(new UncachedObject("uc", i % 3));
+        }
+
+        List lt = morphium.createQueryFor(UncachedObject.class).distinct("counter");
+        assert (lt.size() == 3);
+    }
+
+    @Test
     public void testSize() {
 
         ListContainer lc = new ListContainer();
         for (int i = 0; i < 10; i++) {
-            lc.addLong((long) i);
+            lc.addLong(i);
         }
         lc.setName("A test");
         morphium.store(lc);
 
         lc = new ListContainer();
         for (int i = 0; i < 5; i++) {
-            lc.addLong((long) i);
+            lc.addLong(i);
         }
         lc.setName("A test2");
         morphium.store(lc);

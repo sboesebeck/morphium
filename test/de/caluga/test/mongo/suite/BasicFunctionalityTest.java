@@ -6,10 +6,13 @@ package de.caluga.test.mongo.suite;
 
 import de.caluga.morphium.AnnotationAndReflectionHelper;
 import de.caluga.morphium.StatisticKeys;
+import de.caluga.morphium.Utils;
 import de.caluga.morphium.annotations.Embedded;
 import de.caluga.morphium.annotations.Entity;
 import de.caluga.morphium.annotations.Id;
+import de.caluga.morphium.annotations.ReadPreferenceLevel;
 import de.caluga.morphium.driver.MorphiumId;
+import de.caluga.morphium.driver.ReadPreference;
 import de.caluga.morphium.mapping.MorphiumTypeMapper;
 import de.caluga.morphium.query.Query;
 import de.caluga.test.mongo.suite.data.CachedObject;
@@ -38,6 +41,13 @@ public class BasicFunctionalityTest extends MorphiumTestBase {
     public BasicFunctionalityTest() {
     }
 
+
+    @Test
+    public void readPreferenceTest() {
+        ReadPreferenceLevel.NEAREST.setPref(ReadPreference.nearest());
+        assert (ReadPreferenceLevel.NEAREST.getPref().getType().equals(ReadPreference.nearest().getType()));
+    }
+
     @Test
     public void subObjectQueryTest() {
         Query<ComplexObject> q = morphium.createQueryFor(ComplexObject.class);
@@ -52,7 +62,7 @@ public class BasicFunctionalityTest extends MorphiumTestBase {
         assert (queryString.contains("embed.test_value_long") && queryString.contains("entityEmbeded.binary_data"));
     }
 
-   @Test
+    @Test
     public void subObjectQueryTestUnknownField() {
         Query<ComplexObject> q = morphium.createQueryFor(ComplexObject.class);
 
@@ -812,6 +822,35 @@ public class BasicFunctionalityTest extends MorphiumTestBase {
         morphium.reread(o);
         assert (o.id != null);
         assert (o.id instanceof ObjectId);
+
+    }
+
+
+    @Test
+    public void testExistst() throws Exception {
+        morphium.store(new UncachedObject("value", 123));
+        assert (morphium.getDriver().exists(morphium.getConfig().getDatabase()));
+    }
+
+    @Test
+    public void testFindOneAndDelete() throws Exception {
+        UncachedObject uc = new UncachedObject("value", 123);
+        morphium.store(uc);
+        UncachedObject ret = morphium.createQueryFor(UncachedObject.class).f("_id").eq(uc.getMorphiumId()).findOneAndDelete();
+        assert (ret.getValue().equals("value"));
+        assert (morphium.createQueryFor(UncachedObject.class).countAll() == 0);
+
+    }
+
+    @Test
+    public void testFindOneAndUpdate() throws Exception {
+        UncachedObject uc = new UncachedObject("value", 123);
+        morphium.store(uc);
+        UncachedObject ret = morphium.createQueryFor(UncachedObject.class).f("_id").eq(uc.getMorphiumId()).findOneAndUpdate(Utils.getMap("$set", Utils.getMap("counter", 42)));
+        assert (ret.getValue().equals("value"));
+        assert (morphium.createQueryFor(UncachedObject.class).countAll() == 1);
+        morphium.reread(uc);
+        assert (uc.getCounter() == 42);
 
     }
 

@@ -7,6 +7,7 @@ import de.caluga.morphium.annotations.WriteSafety;
 import de.caluga.morphium.annotations.caching.AsyncWrites;
 import de.caluga.morphium.annotations.lifecycle.Lifecycle;
 import de.caluga.morphium.annotations.lifecycle.PreStore;
+import de.caluga.morphium.async.AsyncCallbackAdapter;
 import de.caluga.morphium.async.AsyncOperationCallback;
 import de.caluga.morphium.async.AsyncOperationType;
 import de.caluga.morphium.driver.MorphiumId;
@@ -40,7 +41,7 @@ public class AsyncOperationTest extends MorphiumTestBase {
         Query<UncachedObject> uc = morphium.createQueryFor(UncachedObject.class);
         uc = uc.f("counter").lt(100);
         log.info("deleting...");
-        morphium.delete(uc, new AsyncOperationCallback<Query<UncachedObject>>() {
+        morphium.delete(uc, new AsyncCallbackAdapter<Query<UncachedObject>>() {
             @Override
             public void onOperationSucceeded(AsyncOperationType type, Query<Query<UncachedObject>> q, long duration, List<Query<UncachedObject>> result, Query<UncachedObject> entity, Object... param) {
                 log.info("Objects deleted");

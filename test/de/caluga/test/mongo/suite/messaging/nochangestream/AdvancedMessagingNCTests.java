@@ -13,7 +13,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
-public class AdvancedMessagingTests extends MorphiumTestBase {
+public class AdvancedMessagingNCTests extends MorphiumTestBase {
     private final Map<MorphiumId, Integer> counts = new ConcurrentHashMap<>();
 
     @Test

@@ -21,11 +21,12 @@ public class BinarySerializedObject {
     public void setB64Data(String b64Data) {
         this.b64Data = b64Data;
     }
-
-    @SuppressWarnings("unused")
-    public String getOriginalClassName() {
-        return originalClassName;
-    }
+//  no one can access this object directly, it is only used internally for serialization
+    // de-serialization does not create this object
+//    @SuppressWarnings("unused")
+//    public String getOriginalClassName() {
+//        return originalClassName;
+//    }
 
     public void setOriginalClassName(String originalClassName) {
         this.originalClassName = originalClassName;

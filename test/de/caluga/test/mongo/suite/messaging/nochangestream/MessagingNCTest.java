@@ -21,7 +21,7 @@ import java.util.concurrent.atomic.AtomicInteger;
  * <p/>
  */
 @SuppressWarnings("ALL")
-public class MessagingTest extends MorphiumTestBase {
+public class MessagingNCTest extends MorphiumTestBase {
     private final List<Msg> list = new ArrayList<>();
     private final AtomicInteger queueCount = new AtomicInteger(1000);
     public boolean gotMessage = false;

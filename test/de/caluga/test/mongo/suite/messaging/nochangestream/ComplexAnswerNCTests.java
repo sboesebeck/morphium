@@ -7,7 +7,7 @@ import org.junit.Test;
 
 import java.util.List;
 
-public class ComplexAnswerTests extends MorphiumTestBase {
+public class ComplexAnswerNCTests extends MorphiumTestBase {
 
 
     @Test
