@@ -1904,7 +1904,7 @@ public class MongoDriver implements MorphiumDriver {
 
     @Override
     public BulkRequestContext createBulkContext(Morphium m, String db, String collection, boolean ordered, de.caluga.morphium.driver.WriteConcern wc) {
-        return new MongodbBulkContext(m, db, collection, this, ordered, defaultBatchSize, wc);
+        return new MongodbBulkContext(m, db, collection, this, ordered, wc);
     }
 
 

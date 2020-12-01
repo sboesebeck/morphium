@@ -8,7 +8,7 @@ import org.junit.Test;
 
 import java.util.concurrent.atomic.AtomicInteger;
 
-public class SpeedTests extends MorphiumTestBase {
+public class SpeedNCTests extends MorphiumTestBase {
 
     @Test
     public void writeSpeed() throws Exception {

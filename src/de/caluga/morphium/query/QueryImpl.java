@@ -206,7 +206,7 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
         return complexQuery(query, srt, skip, limit);
     }
 
-
+    @Override
     public T findOneAndDelete() {
         Cache c = getARHelper().getAnnotationFromHierarchy(type, Cache.class); //type.getAnnotation(Cache.class);
         boolean useCache = c != null && c.readCache() && morphium.isReadCacheEnabledForThread();
@@ -234,6 +234,70 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
 
         try {
             ret = morphium.getDriver().findAndOneAndDelete(getDB(), getCollectionName(), toQueryObject(), getSort(), collation);
+        } catch (MorphiumDriverException e) {
+            e.printStackTrace();
+        }
+
+        if (ret == null) {
+            List<T> lst = new ArrayList<>(0);
+            if (useCache) {
+                morphium.getCache().addToCache(ck, type, lst);
+            }
+            return null;
+        }
+
+        List<T> lst = new ArrayList<>(1);
+        long dur = System.currentTimeMillis() - start;
+        morphium.fireProfilingReadEvent(this, dur, ReadAccessType.GET);
+
+        if (ret != null) {
+            T unmarshall = morphium.getMapper().deserialize(type, ret);
+            if (unmarshall != null) {
+                morphium.firePostLoadEvent(unmarshall);
+                updateLastAccess(unmarshall);
+
+                lst.add(unmarshall);
+                if (useCache) {
+                    morphium.getCache().addToCache(ck, type, lst);
+                }
+            }
+            return unmarshall;
+        }
+
+        if (useCache) {
+            morphium.getCache().addToCache(ck, type, lst);
+        }
+        return null;
+    }
+
+    @Override
+    public T findOneAndUpdate(Map<String, Object> update) {
+        Cache c = getARHelper().getAnnotationFromHierarchy(type, Cache.class); //type.getAnnotation(Cache.class);
+        boolean useCache = c != null && c.readCache() && morphium.isReadCacheEnabledForThread();
+        String ck = morphium.getCache().getCacheKey(this);
+        morphium.inc(StatisticKeys.READS);
+        if (useCache) {
+            if (morphium.getCache().isCached(type, ck)) {
+                morphium.inc(StatisticKeys.CHITS);
+                List<T> lst = morphium.getCache().getFromCache(type, ck);
+                if (lst == null || lst.isEmpty()) {
+                    return null;
+                } else {
+                    morphium.delete(lst.get(0));
+                    return lst.get(0);
+                }
+
+            }
+            morphium.inc(StatisticKeys.CMISS);
+        } else {
+            morphium.inc(StatisticKeys.NO_CACHED_READS);
+        }
+        long start = System.currentTimeMillis();
+
+        Map<String, Object> ret = null;
+
+        try {
+            ret = morphium.getDriver().findAndOneAndUpdate(getDB(), getCollectionName(), toQueryObject(), update, getSort(), collation);
         } catch (MorphiumDriverException e) {
             e.printStackTrace();
         }

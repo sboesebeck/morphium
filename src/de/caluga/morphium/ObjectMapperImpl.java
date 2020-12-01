@@ -1299,7 +1299,7 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
             }
             return;
         }
-        for (Object val : fromDB) {
+        for (Object val : new ArrayList<>(fromDB)) {
             if (val instanceof Map) {
                 //Override type if className is specified - needed for polymoprh lists etc.
                 if (((Map<String, Object>) val).containsKey("class_name") || ((Map<String, Object>) val).containsKey("className")) {

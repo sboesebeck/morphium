@@ -264,6 +264,7 @@ public class MorphiumTestBase {
                         }
                         log.info("Messaging terminated");
                     }
+                    ((Collection) f.get(morphium)).clear();
                 } else if (l instanceof OplogMonitor) {
 
                     OplogMonitor om = (OplogMonitor) l;
@@ -292,9 +293,9 @@ public class MorphiumTestBase {
                         f.setAccessible(true);
                         ((Collection) f.get(l)).clear();
                     }
-                } else if (l instanceof BufferedMorphiumWriterImpl) {
-                    BufferedMorphiumWriterImpl buf = (BufferedMorphiumWriterImpl) l;
-                    buf.close();
+//                } else if (l instanceof BufferedMorphiumWriterImpl) {
+//                    BufferedMorphiumWriterImpl buf = (BufferedMorphiumWriterImpl) l;
+//                    buf.close();
                 }
             }
         } catch (Exception e) {
@@ -324,9 +325,9 @@ public class MorphiumTestBase {
             }
 
             morphium.getCache().resetCache();
-            morphium.reset();
-            morphium = null;
-            Thread.sleep(200);
+//            morphium.reset();
+//            morphium = null;
+//            Thread.sleep(200);
         } catch (Exception e) {
             log.error("Error during preparation!");
             e.printStackTrace();

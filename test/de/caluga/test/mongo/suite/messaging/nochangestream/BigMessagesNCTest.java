@@ -6,7 +6,7 @@ import de.caluga.morphium.messaging.Msg;
 import de.caluga.test.mongo.suite.MorphiumTestBase;
 import org.junit.Test;
 
-public class BigMessagesTest extends MorphiumTestBase {
+public class BigMessagesNCTest extends MorphiumTestBase {
 
     @Test
     public void testBigMessage() throws Exception {

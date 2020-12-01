@@ -461,6 +461,10 @@ public interface Query<T> extends Cloneable {
 
     void delete();
 
+    T findOneAndDelete();
+
+    T findOneAndUpdate(Map<String, Object> update);
+
     boolean isAutoValuesEnabled();
 
     @SuppressWarnings("UnusedReturnValue")

@@ -1604,6 +1604,15 @@ public class Morphium implements AutoCloseable {
         return obj;
     }
 
+
+    public void setNameProviderForClass(Class<?> cls, NameProvider pro) {
+        getMapper().setNameProviderForClass(cls, pro);
+    }
+
+    public NameProvider getNameProviderForClass(Class<?> cls) {
+        return getMapper().getNameProviderForClass(cls);
+    }
+
     /**
      * will be called by query after unmarshalling
      *
@@ -2533,6 +2542,15 @@ public class Morphium implements AutoCloseable {
     @SuppressWarnings("unused")
     public <T> void delete(final T lo, String collection, final AsyncOperationCallback<T> callback) {
         getWriterForClass(lo.getClass()).remove(lo, collection, callback);
+    }
+
+
+    public boolean exists(String db) throws MorphiumDriverException {
+        return getDriver().exists(db);
+    }
+
+    public boolean exists(String db, String col) throws MorphiumDriverException {
+        return getDriver().exists(db, col);
     }
 
 

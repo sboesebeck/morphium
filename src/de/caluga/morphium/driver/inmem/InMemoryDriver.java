@@ -856,7 +856,10 @@ public class InMemoryDriver implements MorphiumDriver {
                 continue;
             }
             if (matchesQuery(query, o)) {
-                ret.add(internal ? o : new HashMap<>(o));
+                if (o == null) o = new HashMap<>();
+                synchronized (this) {
+                    ret.add(internal ? o : new HashMap<>(o));
+                }
             }
             if (limit > 0 && ret.size() >= limit) {
                 break;
@@ -1356,13 +1359,6 @@ public class InMemoryDriver implements MorphiumDriver {
                 return up;
             }
 
-            @Override
-            public StoreBulkRequest addStoreBulkRequest(List<Map<String, Object>> toStore) {
-                StoreBulkRequest store = new StoreBulkRequest(toStore);
-                requests.add(store);
-                return store;
-
-            }
 
             @Override
             public InsertBulkRequest addInsertBulkRequest(List<Map<String, Object>> toInsert) {
