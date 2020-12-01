@@ -1900,7 +1900,7 @@ public class MessagingTest extends MorphiumTestBase {
 
     @Test
     public void severalRecipientsTest() throws Exception {
-        Messaging sender = new Messaging(morphium, 1000, false);
+        Messaging sender = new Messaging(morphium, 100, false);
         sender.setSenderId("sender");
         sender.setUseChangeStream(false).start();
 
@@ -1908,13 +1908,16 @@ public class MessagingTest extends MorphiumTestBase {
         final List<String> receivedBy = new Vector<>();
 
         for (int i = 0; i < 10; i++) {
-            Messaging receiver1 = new Messaging(morphium, 1000, false);
+            Messaging receiver1 = new Messaging(morphium, 100, false);
             receiver1.setSenderId("rec" + i);
             receiver1.setUseChangeStream(false).start();
             receivers.add(receiver1);
             receiver1.addMessageListener(new MessageListener() {
                 @Override
                 public Msg onMessage(Messaging msg, Msg m) throws InterruptedException {
+                    if (receivedBy.contains(msg.getSenderId())) {
+                        log.error("Receiving msg twice: " + m.getMsgId());
+                    }
                     receivedBy.add(msg.getSenderId());
                     return null;
                 }
