@@ -2,7 +2,9 @@ package de.caluga.test.mongo.suite;
 
 import de.caluga.morphium.cache.MorphiumCache;
 import de.caluga.morphium.cache.MorphiumCacheJCacheImpl;
+import de.caluga.morphium.cache.jcache.CacheEntry;
 import de.caluga.morphium.cache.jcache.CacheManagerImpl;
+import de.caluga.morphium.cache.jcache.CachingProviderImpl;
 import de.caluga.morphium.driver.MorphiumId;
 import de.caluga.test.mongo.suite.data.CachedObject;
 import de.caluga.test.mongo.suite.data.UncachedObject;
@@ -14,6 +16,7 @@ import org.slf4j.LoggerFactory;
 
 import javax.cache.CacheManager;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 
@@ -77,9 +80,22 @@ public class JCacheTest extends MorphiumTestBase {
         morphium.getConfig().setCache(cache);
         e.setUri(e.getUri());
         e.setProperties(e.getProperties());
-        e.setCachingProvider(e.getCachingProvider());
+        e.setCachingProvider(new CachingProviderImpl());
         e.setClassLoader(e.getClassLoader());
-        e.close();
+        e.getCachingProvider().getCacheManager();
+        e.getCachingProvider().getDefaultClassLoader();
+        e.getCachingProvider().getDefaultURI();
+        e.getCachingProvider().getDefaultProperties();
+        e.getCache("test").getAll(new HashSet<>());
+        e.getCache("test").removeAll(new HashSet<>());
+        e.getCache("test").removeAll();
+        e.getCache("test").getAndPut(new CacheEntry<String>("test", 1), new CacheEntry<String>("test2", 2));
+        e.getCache("test").getAndReplace(new CacheEntry<String>("test", 1), new CacheEntry<String>("test2", 2));
+        e.getCache("test").getAndRemove(new CacheEntry<String>("test", 1));
+        e.getCache("test").replace(new CacheEntry<String>("test", 1), new CacheEntry<String>("test2", 2));
+        e.getCache("test").replace("123", new CacheEntry<String>("test", 1), new CacheEntry<String>("test2", 2));
+        e.getCache("test").get("123");
+        e.getCache("test").put("123", new CacheEntry<String>("test", 1));
     }
 
     private void cacheTest(MorphiumCache cache) throws Exception {
