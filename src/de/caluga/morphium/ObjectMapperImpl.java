@@ -23,6 +23,7 @@ import de.caluga.morphium.query.geospatial.Point;
 import de.caluga.morphium.query.geospatial.Polygon;
 
 import org.apache.commons.lang3.ClassUtils;
+import org.bson.types.Binary;
 import org.bson.types.ObjectId;
 import org.json.simple.parser.ContainerFactory;
 import org.json.simple.parser.JSONParser;
@@ -55,23 +56,10 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
-import java.util.ArrayList;
-import java.util.Base64;
+import java.util.*;
 import java.util.Base64.Decoder;
 import java.util.Base64.Encoder;
-import java.util.Calendar;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.Date;
-import java.util.EnumMap;
-import java.util.EnumSet;
-import java.util.HashMap;
-import java.util.LinkedHashSet;
-import java.util.List;
-import java.util.Map;
 import java.util.Map.Entry;
-import java.util.Set;
-import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -1000,8 +988,11 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
                 } else if (Collection.class.isAssignableFrom(fldType) || fldType.isArray()) {
 
                     List<?> collection = null;
-
+                    if ((valueFromDb instanceof Binary)) {
+                        valueFromDb = Arrays.asList(((Binary) valueFromDb).getData());
+                    }
                     if (valueFromDb.getClass().isArray()) {
+
                         ArrayList lst = new ArrayList();
                         //a real array!
                         if (valueFromDb.getClass().getComponentType().isPrimitive()) {

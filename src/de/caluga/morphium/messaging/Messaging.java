@@ -95,11 +95,14 @@ public class Messaging extends Thread implements ShutdownListener {
     }
 
     public Messaging(Morphium m, String queueName, int pause, boolean processMultiple, boolean multithreadded, int windowSize, boolean useChangeStream, ReceiveAnswers recieveAnswers) {
-        this.multithreadded = multithreadded;
-        this.windowSize = windowSize;
+        setMultithreadded(multithreadded);
+        setWindowSize(windowSize);
+        setUseChangeStream(useChangeStream);
+        setReceiveAnswers(recieveAnswers);
+        setQueueName(queueName);
+        setPause(pause);
+        setProcessMultiple(processMultiple);
         morphium = m;
-        this.useChangeStream = useChangeStream;
-        this.receiveAnswers = recieveAnswers;
 
 
         if (multithreadded) {
@@ -169,10 +172,7 @@ public class Messaging extends Thread implements ShutdownListener {
         });
         morphium.addShutdownListener(this);
 
-        this.queueName = queueName;
         running = true;
-        this.pause = pause;
-        this.processMultiple = processMultiple;
         id = UUID.randomUUID().toString();
         hostname = System.getenv("HOSTNAME");
         if (hostname == null) {
@@ -360,37 +360,37 @@ public class Messaging extends Thread implements ShutdownListener {
                             //ignoring my own messages
                             return running;
                         }
-                        if (obj.getInAnswerTo() != null && waitingForMessages.containsKey(obj.getInAnswerTo())) {
-                            if (obj.isExclusive() && obj.getProcessedBy().size() == 0) {
-                                lockAndProcess(obj);
-                            } else {
-                                try {
-                                    processMessages(Arrays.asList(obj));
-                                } catch (Exception e) {
-                                    log.error("Error during message processing ", e);
-                                }
-                            }
-                        }
+//                        if (obj.getInAnswerTo() != null && waitingForMessages.containsKey(obj.getInAnswerTo())) {
+//                            if (obj.isExclusive() && obj.getProcessedBy().size() == 0) {
+//                                lockAndProcess(obj);
+//                            } else {
+//                                try {
+//                                    processMessages(Arrays.asList(obj));
+//                                } catch (Exception e) {
+//                                    log.error("Error during message processing ", e);
+//                                }
+//                            }
+//                        }
                         //ignore message, when no listener ist registered and message is not an answer, we are waiting for
                         if (listenerByName.get(obj.getName()) == null && listeners.size() == 0) {
                             if (obj.getInAnswerTo() == null || !waitingForMessages.containsKey(obj.getInAnswerTo()))
                                 return running;
                         }
-                        if (obj.getInAnswerTo() != null) {
-                            switch (receiveAnswers) {
-                                case ALL:
-                                    break;
-                                case NONE:
-                                    return running;
-                                case ONLY_MINE:
-                                    if (waitingForMessages.containsKey(obj.getInAnswerTo())) {
-                                        break;
-                                    }
-                                    if (!(obj.getRecipients() != null && obj.getRecipients().contains(id))) {
-                                        return running;
-                                    }
-                            }
-                        }
+//                        if (obj.getInAnswerTo() != null) {
+//                            switch (receiveAnswers) {
+//                                case ALL:
+//                                    break;
+//                                case NONE:
+//                                    return running;
+//                                case ONLY_MINE:
+//                                    if (waitingForMessages.containsKey(obj.getInAnswerTo())) {
+//                                        break;
+//                                    }
+//                                    if (!(obj.getRecipients() != null && obj.getRecipients().contains(id))) {
+//                                        return running;
+//                                    }
+//                            }
+//                        }
                         if (pauseMessages.containsKey(obj.getName())) return running;
                         if (obj != null && obj.isExclusive()
                                 && !obj.getSender().equals(id)

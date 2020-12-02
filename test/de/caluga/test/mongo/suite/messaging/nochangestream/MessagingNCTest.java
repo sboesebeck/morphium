@@ -57,7 +57,7 @@ public class MessagingNCTest extends MorphiumTestBase {
             m.sendMessage(msg);
             Thread.sleep(10);
             Query<Msg> q = morphium.createQueryFor(Msg.class);
-            assert (q.countAll() == 1);
+            assert (q.countAll() == 1) : "Count wrong: " + q.countAll() + " - should be 1!";
             q.setCollectionName(m2.getCollectionName());
             assert (q.countAll() == 0);
 
