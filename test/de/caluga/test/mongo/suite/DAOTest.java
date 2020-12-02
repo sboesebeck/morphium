@@ -30,5 +30,13 @@ public class DAOTest extends MorphiumTestBase {
         assert (lst.size() == 1) : "Wrong element count in find: " + lst.size();
 
         assert (lst.get(0).getCounter() == 55) : "Got wrong element: " + lst.get(0).getCounter();
+        assert (dao.getValue(UncachedObjectDAO.Field.counter, lst.get(0)) != null);
+        assert (dao.getValue("counter", lst.get(0)) != null);
+        assert (dao.existsField("value"));
+        dao.setValue(UncachedObjectDAO.Field.counter, 12, lst.get(0));
+        assert (lst.get(0).getCounter() == 12) : "Got wrong element: " + lst.get(0).getCounter();
+        dao.setValue("counter", 13, lst.get(0));
+        assert (lst.get(0).getCounter() == 13) : "Got wrong element: " + lst.get(0).getCounter();
+
     }
 }

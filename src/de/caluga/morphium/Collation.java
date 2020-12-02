@@ -37,6 +37,7 @@ public class Collation {
         this.alternate = alternate;
         this.maxVariable = maxVariable;
         this.backwards = backwards;
+        this.normalization = normalization;
     }
 
     public Boolean getNormalization() {
