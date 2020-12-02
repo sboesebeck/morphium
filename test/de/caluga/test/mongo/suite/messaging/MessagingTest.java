@@ -44,7 +44,16 @@ public class MessagingTest extends MorphiumTestBase {
         morphium.dropCollection(Msg.class);
         morphium.dropCollection(Msg.class, "mmsg_msg2", null);
 
-        Messaging m = new Messaging(morphium, 500, true);
+        Messaging m = new Messaging(morphium);
+        m.setPause(500);
+        m.setMultithreadded(false);
+        m.setAutoAnswer(false);
+        m.setProcessMultiple(true);
+
+        assert (!m.isAutoAnswer());
+        assert (!m.isMultithreadded());
+        assert (m.getPause() == 500);
+        assert (m.isProcessMultiple());
         m.addMessageListener((msg, m1) -> {
             gotMessage1 = true;
             return null;
