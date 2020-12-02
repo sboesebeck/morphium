@@ -9,6 +9,7 @@ import de.caluga.morphium.messaging.Msg;
 import de.caluga.test.mongo.suite.MorphiumTestBase;
 import org.junit.Test;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -17,48 +18,56 @@ public class AdvancedMessagingNCTests extends MorphiumTestBase {
     private final Map<MorphiumId, Integer> counts = new ConcurrentHashMap<>();
 
     @Test
-    public void testExclusiveMessages() throws Exception {
+    public void testExclusiveXTimes() throws Exception {
+        for (int i = 0; i < 3; i++) runExclusiveMessagesTest((int) (200 * Math.random()), (int) (40 * Math.random()));
+    }
+
+    private void runExclusiveMessagesTest(int amount, int receivers) throws Exception {
+
+        log.info("Running Exclusive message test - sending " + amount + " exclusive messages, received by " + receivers);
+        morphium.dropCollection(Msg.class, "msg", null);
+        log.info("Collection dropped");
+
+        Thread.sleep(100);
         counts.clear();
-        Messaging m1 = new Messaging(morphium, 100, false, true, 10);
-        m1.setUseChangeStream(false).start();
 
+        Messaging sender = new Messaging(morphium, 10, false);
+        sender.setSenderId("sender");
 
-        Morphium morphium2 = new Morphium(MorphiumConfig.fromProperties(morphium.getConfig().asProperties()));
-        Messaging m2 = new Messaging(morphium2, 100, false, true, 10);
-        m2.setUseChangeStream(false).start();
-
-        Morphium morphium3 = new Morphium(MorphiumConfig.fromProperties(morphium.getConfig().asProperties()));
-        Messaging m3 = new Messaging(morphium3, 100, false, true, 10);
-        m3.setUseChangeStream(false).start();
-
-        Morphium morphium4 = new Morphium(MorphiumConfig.fromProperties(morphium.getConfig().asProperties()));
-        Messaging m4 = new Messaging(morphium4, 100, false, false, 10);
-        m4.setUseChangeStream(false).start();
-
+        List<Morphium> morphiums = new ArrayList<>();
+        List<Messaging> messagings = new ArrayList<>();
         MessageListener<Msg> msgMessageListener = new MessageListener<Msg>() {
             @Override
             public Msg onMessage(Messaging msg, Msg m) throws InterruptedException {
-                log.info("Received " + m.getMsgId() + " created " + (System.currentTimeMillis() - m.getTimestamp()) + "ms ago");
+                log.info(msg.getSenderId() + ": Received " + m.getMsgId() + " created " + (System.currentTimeMillis() - m.getTimestamp()) + "ms ago");
                 counts.putIfAbsent(m.getMsgId(), 0);
                 counts.put(m.getMsgId(), counts.get(m.getMsgId()) + 1);
-                Thread.sleep(100);
+                Thread.sleep((long) (100 * Math.random()));
                 return null;
             }
         };
+        for (int i = 0; i < receivers; i++) {
+            log.info("Creating morphiums..." + i);
+            Morphium m = new Morphium(MorphiumConfig.fromProperties(morphium.getConfig().asProperties()));
+            m.getConfig().getCache().setHouskeepingIntervalPause(100);
+            morphiums.add(m);
+            Messaging msg = new Messaging(m, 100, false, true, 10);
+            msg.setSenderId("msg" + i);
+            msg.setUseChangeStream(false).start();
+            messagings.add(msg);
+            msg.addListenerForMessageNamed("test", msgMessageListener);
+        }
 
-        m2.addListenerForMessageNamed("test", msgMessageListener);
-        m3.addListenerForMessageNamed("test", msgMessageListener);
-        m4.addListenerForMessageNamed("test", msgMessageListener);
 
-        for (int i = 0; i < 500; i++) {
+        for (int i = 0; i < amount; i++) {
             Msg m = new Msg("test", "test msg", "value");
             m.setMsgId(new MorphiumId());
             m.setExclusive(true);
-            m1.sendMessage(m);
+            sender.sendMessage(m);
 
         }
 
-        while (counts.size() < 500) {
+        while (counts.size() < amount) {
             log.info("-----> Messages processed so far: " + counts.size());
             for (MorphiumId id : counts.keySet()) {
                 assert (counts.get(id) <= 1) : "Count for id " + id.toString() + " is " + counts.get(id);
@@ -66,14 +75,13 @@ public class AdvancedMessagingNCTests extends MorphiumTestBase {
             Thread.sleep(1000);
         }
 
-        m1.terminate();
-        m2.terminate();
-        m3.terminate();
-        m4.terminate();
-
-        morphium2.close();
-        morphium3.close();
-        morphium4.close();
+        sender.terminate();
+        for (Messaging m : messagings) {
+            m.terminate();
+        }
+        for (Morphium m : morphiums) {
+            m.close();
+        }
     }
 
 

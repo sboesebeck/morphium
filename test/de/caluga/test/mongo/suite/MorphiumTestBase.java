@@ -99,6 +99,7 @@ public class MorphiumTestBase {
     }
 
     private void init() {
+        log.info("in init!");
         if (morphium == null) {
             MorphiumConfig cfg;
             Properties p = getProps();
@@ -165,6 +166,7 @@ public class MorphiumTestBase {
             morphium = new Morphium(cfg);
 
         }
+        log.info("Init complete");
     }
 
     public boolean waitForAsyncOperationToStart(int maxWaits) {

@@ -664,11 +664,16 @@ public class Messaging extends Thread implements ShutdownListener {
                 processing.remove(me.getMsgId());
                 continue;
             }
-//            if (msg.isExclusive() && msg.getProcessedBy().contains(id)) {
-//                morphium.unset(msg, Msg.Fields.lockedBy);
-//                processing.remove(msg.getMsgId());
-//                continue;
-//            }
+            if (!msg.getLockedBy().equals("ALL") && !msg.getLockedBy().equals(id)) {
+                //overlocked
+                processing.remove(me.getMsgId());
+                continue;
+            }
+            if (msg.isExclusive() && msg.getProcessedBy().contains(id)) {
+                morphium.unset(msg, Msg.Fields.lockedBy);
+                processing.remove(msg.getMsgId());
+                continue;
+            }
 
 
             if (msg.getProcessedBy().contains(getSenderId())) {

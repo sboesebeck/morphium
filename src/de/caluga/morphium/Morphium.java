@@ -2598,7 +2598,7 @@ public class Morphium implements AutoCloseable {
             l.onShutdown(this);
         }
         try {
-            Thread.sleep(1000); //give it time to end ;-)
+            Thread.sleep(100); //give it time to end ;-)
         } catch (Exception e) {
             logger.debug("Ignoring interrupted-exception");
         }
@@ -2637,10 +2637,12 @@ public class Morphium implements AutoCloseable {
         // }
         if (config != null) {
             config.getCache().resetCache();
+            config.getCache().close();
             config.setBufferedWriter(null);
             config.setAsyncWriter(null);
             config.setWriter(null);
             config = null;
+
         }
         // config.getCache().resetCache();
         // MorphiumSingleton.reset();
