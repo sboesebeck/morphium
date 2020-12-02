@@ -302,7 +302,7 @@ public class Messaging extends Thread implements ShutdownListener {
                         //do not process messages, that are exclusive, but already processed or not for me / all
                         if (obj.isExclusive() && obj.getLockedBy() == null && (obj.getRecipients() == null || obj.getRecipients().contains(id)) && obj.getProcessedBy().size() == 0) {
                             // locking
-                            lockAndProcess(obj);
+                            changeStreamLockAndProcess(obj);
 
                         } else if (!obj.isExclusive() || (obj.getRecipients() != null && obj.getRecipients().contains(id))) {
                             //I need process this new message... it is either for all or for me directly
@@ -399,7 +399,7 @@ public class Messaging extends Thread implements ShutdownListener {
                                 && (obj.getRecipients() == null || obj.getRecipients().contains(id))) {
 //                                log.debug("Update of msg - trying to lock");
                             // locking
-                            lockAndProcess(obj);
+                            changeStreamLockAndProcess(obj);
                         }
                         if (!obj.isExclusive() && !obj.getProcessedBy().contains(id)) {
                             processMessages(Arrays.asList(obj));
@@ -573,12 +573,10 @@ public class Messaging extends Thread implements ShutdownListener {
 
         if (!useChangeStream) {
             try {
-                //waiting a bit for data to be stored
-                Thread.sleep(10);
+                long tm = 15;
+                Thread.sleep(lst.size() * tm);
             } catch (InterruptedException e) {
-                //swallow
             }
-
             q = q.q();
             q.f(Msg.Fields.sender).ne(id);
             q.f("_id").nin(processingIds);
@@ -611,7 +609,7 @@ public class Messaging extends Thread implements ShutdownListener {
         processMessages(messages);
     }
 
-    private void lockAndProcess(Msg obj) {
+    private void changeStreamLockAndProcess(Msg obj) {
 
         Query<Msg> q = morphium.createQueryFor(Msg.class, getCollectionName());
         q.f(Msg.Fields.sender).ne(id);
@@ -634,13 +632,20 @@ public class Messaging extends Thread implements ShutdownListener {
         values.put("locked_by", id);
         values.put("locked", System.currentTimeMillis());
         morphium.set(q, values, false, false); //always locking single message
-        try {
-            //wait for the locking to be saved
-            Thread.sleep(10);
-        } catch (InterruptedException e) {
-            //swallow
+
+
+        while (true) {
+            try {
+                //wait for the locking to be saved
+                Thread.sleep(10); //10 ms should be fine for one element...
+            } catch (InterruptedException e) {
+                //swallow
+            }
+            obj = morphium.reread(obj, getCollectionName());
+            if (obj.getLocked() >= (Long) values.get("locked")) { //i was overlocked, or my data was written
+                break;
+            }
         }
-        obj = morphium.reread(obj, getCollectionName());
         if (obj != null && obj.getLockedBy() != null && obj.getLockedBy().equals(id)) {
 //            if (log.isDebugEnabled())
 //                log.debug("locked messages: " + lst.size());
@@ -664,8 +669,9 @@ public class Messaging extends Thread implements ShutdownListener {
                 processing.remove(me.getMsgId());
                 continue;
             }
-            if (!msg.getLockedBy().equals("ALL") && !msg.getLockedBy().equals(id)) {
+            if (msg.isExclusive() && !id.equals(msg.getLockedBy())) {
                 //overlocked
+                //log.warn("Overlocked...");
                 processing.remove(me.getMsgId());
                 continue;
             }
@@ -740,9 +746,13 @@ public class Messaging extends Thread implements ShutdownListener {
                     wasProcessed = true;
                 }
                 for (MessageListener l : lst) {
-                    Msg msg1 = msg;
-                    if (msg1 == null || msg1.isExclusive() && !msg1.getLockedBy().equals(id)) {
-                        log.error("msg was overlocked or deleted?!?!?");
+                    Msg msg1 = morphium.reread(msg);
+                    if (msg1 == null || (msg1.isExclusive() && !msg1.getLockedBy().equals(id))) {
+                        if (msg1 != null) {
+                            log.error(msg1.getMsgId() + " was overlocked?!?!?");
+                        } else {
+                            log.error("msg was deleted!");
+                        }
                         wasProcessed = true;
                         break;
                     } else {
@@ -864,6 +874,9 @@ public class Messaging extends Thread implements ShutdownListener {
 //            morphium.unsetQ(idq.q().f(Msg.Fields.msgId).eq(msg.getMsgId()), Msg.Fields.lockedBy);
 //        }
         //msg.setLockedBy(null);
+        if (msg.isExclusive() && !msg.getLockedBy().equals(id)) {
+            return;
+        }
         Query<Msg> idq = morphium.createQueryFor(Msg.class, getCollectionName());
         idq.f(Msg.Fields.msgId).eq(msg.getMsgId())
                 .f(Msg.Fields.processedBy).ne(id); //avoid duplication
