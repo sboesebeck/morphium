@@ -19,7 +19,7 @@ public class AdvancedMessagingNCTests extends MorphiumTestBase {
 
     @Test
     public void testExclusiveXTimes() throws Exception {
-        for (int i = 0; i < 3; i++) runExclusiveMessagesTest((int) (200 * Math.random()), (int) (40 * Math.random()));
+        for (int i = 0; i < 3; i++) runExclusiveMessagesTest((int) (1200 * Math.random()), (int) (50 * Math.random()));
     }
 
     private void runExclusiveMessagesTest(int amount, int receivers) throws Exception {
@@ -31,27 +31,35 @@ public class AdvancedMessagingNCTests extends MorphiumTestBase {
         Thread.sleep(100);
         counts.clear();
 
-        Messaging sender = new Messaging(morphium, 10, false);
+        Messaging sender = new Messaging(morphium, 50, false);
         sender.setSenderId("sender");
 
         List<Morphium> morphiums = new ArrayList<>();
         List<Messaging> messagings = new ArrayList<>();
-        MessageListener<Msg> msgMessageListener = new MessageListener<Msg>() {
-            @Override
-            public Msg onMessage(Messaging msg, Msg m) throws InterruptedException {
-                log.info(msg.getSenderId() + ": Received " + m.getMsgId() + " created " + (System.currentTimeMillis() - m.getTimestamp()) + "ms ago");
-                counts.putIfAbsent(m.getMsgId(), 0);
-                counts.put(m.getMsgId(), counts.get(m.getMsgId()) + 1);
-                Thread.sleep((long) (100 * Math.random()));
-                return null;
+        MessageListener<Msg> msgMessageListener = (msg, m) -> {
+            if (!m.getLockedBy().equals(msg.getSenderId())) {
+                log.error("SEnder ID did not lock message?!?!?!?");
             }
+            log.info(msg.getSenderId() + ": Received " + m.getMsgId() + " created " + (System.currentTimeMillis() - m.getTimestamp()) + "ms ago");
+            counts.putIfAbsent(m.getMsgId(), 0);
+            counts.put(m.getMsgId(), counts.get(m.getMsgId()) + 1);
+            if (counts.get(m.getMsgId()) > 1) {
+                log.error("Msg: " + m.getMsgId() + " processed: " + counts.get(m.getMsgId()));
+                log.error("... locked by " + m.getLockedBy());
+                for (String id : m.getProcessedBy()) {
+                    log.error("... processed by: " + id);
+                }
+            }
+
+            Thread.sleep((long) (100 * Math.random()));
+            return null;
         };
         for (int i = 0; i < receivers; i++) {
             log.info("Creating morphiums..." + i);
             Morphium m = new Morphium(MorphiumConfig.fromProperties(morphium.getConfig().asProperties()));
             m.getConfig().getCache().setHouskeepingIntervalPause(100);
             morphiums.add(m);
-            Messaging msg = new Messaging(m, 100, false, true, 10);
+            Messaging msg = new Messaging(m, 500, true, false, 150);
             msg.setSenderId("msg" + i);
             msg.setUseChangeStream(false).start();
             messagings.add(msg);
