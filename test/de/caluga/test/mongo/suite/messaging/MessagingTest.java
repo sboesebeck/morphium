@@ -355,6 +355,23 @@ public class MessagingTest extends MorphiumTestBase {
     }
 
     @Test
+    public void testRejectException() {
+        MessageRejectedException ex = new MessageRejectedException("rejected", true, true);
+        assert (ex.isContinueProcessing());
+        assert (ex.isSendAnswer());
+
+        ex = new MessageRejectedException("rejected");
+        ex.setSendAnswer(true);
+        ex.setContinueProcessing(true);
+        assert (ex.isContinueProcessing());
+        assert (ex.isSendAnswer());
+
+        ex = new MessageRejectedException("rejected", true);
+        assert (ex.isContinueProcessing());
+        assert (!ex.isSendAnswer());
+    }
+
+    @Test
     public void testRejectExclusiveMessage() throws Exception {
         Messaging sender = null;
         Messaging rec1 = null;
@@ -1236,6 +1253,12 @@ public class MessagingTest extends MorphiumTestBase {
     public void selfMessages() throws Exception {
         morphium.dropCollection(Msg.class);
         Messaging sender = new Messaging(morphium, 100, false);
+        assert (sender.isReceiveAnswers());
+        assert (sender.getReceiveAnswers().equals(Messaging.ReceiveAnswers.ONLY_MINE)); //default!!!
+        assert (sender.isUseChangeStream());
+        assert (sender.getWindowSize() > 0);
+        assert (sender.getQueueName() == null);
+
         sender.start();
         Thread.sleep(2500);
         sender.addMessageListener(((msg, m) -> {
@@ -1259,6 +1282,12 @@ public class MessagingTest extends MorphiumTestBase {
         try {
             sender.sendMessageToSelf(new Msg("testmsg", "Selfmessage", "value"));
             Thread.sleep(1500);
+            assert (gotMessage);
+            assert (!gotMessage1);
+
+            gotMessage = false;
+            sender.queueMessagetoSelf(new Msg("testmsg", "SelfMessage", "val"));
+            Thread.sleep(1400);
             assert (gotMessage);
             assert (!gotMessage1);
         } finally {

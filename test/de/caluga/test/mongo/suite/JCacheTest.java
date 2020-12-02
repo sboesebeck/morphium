@@ -3,7 +3,10 @@ package de.caluga.test.mongo.suite;
 import de.caluga.morphium.cache.MorphiumCache;
 import de.caluga.morphium.cache.MorphiumCacheJCacheImpl;
 import de.caluga.morphium.cache.jcache.CacheManagerImpl;
+import de.caluga.morphium.driver.MorphiumId;
 import de.caluga.test.mongo.suite.data.CachedObject;
+import de.caluga.test.mongo.suite.data.UncachedObject;
+import org.assertj.core.util.Arrays;
 import org.ehcache.jcache.JCacheCachingProvider;
 import org.junit.Test;
 import org.slf4j.Logger;
@@ -22,7 +25,7 @@ import java.util.Map;
  * TODO: Add documentation here
  */
 public class JCacheTest extends MorphiumTestBase {
-    private Logger log = LoggerFactory.getLogger(JCacheTest.class);
+    private final Logger log = LoggerFactory.getLogger(JCacheTest.class);
 
     @Test
     public void getProviderTest() throws Exception {
@@ -30,13 +33,37 @@ public class JCacheTest extends MorphiumTestBase {
         morphium.getConfig().setCache(new MorphiumCacheJCacheImpl());
         //keep original setting
         CacheManager def = cache.getCacheManager();
+        morphium.getCache().setCacheManager(def);
+        morphium.getCache().removeEntryFromCache(String.class, "123");
+        List<UncachedObject> l = new ArrayList<>();
+        l.add(new UncachedObject("val", 123));
+        l.get(0).setMorphiumId(new MorphiumId());
+        morphium.getCache().addToCache("test", UncachedObject.class, l);
+
 
         List<CacheManager> lst = new ArrayList<>();
 
         JCacheCachingProvider provider = new JCacheCachingProvider();
 //        CachingProvider provider = Caching.getCachingProvider();
         lst.add(provider.getCacheManager());
-        lst.add(new CacheManagerImpl(morphium.getConfig().asProperties()));
+        CacheManagerImpl e = new CacheManagerImpl(morphium.getConfig().asProperties());
+        e.getCachingProvider();
+        e.getCacheNames();
+        e.getClassLoader();
+        e.getURI();
+        e.getUri();
+        e.getProperties();
+        e.getCaches();
+        e.createCache("Testcache", null);
+        e.enableManagement("Testcache", true);
+        e.enableStatistics("Testcache", true);
+        e.destroyCache("Testcache");
+        e.unwrap(e.getClass());
+
+        assert (!e.isClosed());
+
+        lst.add(e);
+
 
         for (CacheManager m : lst) {
             long start = System.currentTimeMillis();
@@ -48,7 +75,11 @@ public class JCacheTest extends MorphiumTestBase {
         }
         cache.setCacheManager(def);
         morphium.getConfig().setCache(cache);
-
+        e.setUri(e.getUri());
+        e.setProperties(e.getProperties());
+        e.setCachingProvider(e.getCachingProvider());
+        e.setClassLoader(e.getClassLoader());
+        e.close();
     }
 
     private void cacheTest(MorphiumCache cache) throws Exception {
