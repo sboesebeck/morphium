@@ -19,7 +19,7 @@ public class AdvancedMessagingNCTests extends MorphiumTestBase {
 
     @Test
     public void testExclusiveXTimes() throws Exception {
-        for (int i = 0; i < 3; i++) runExclusiveMessagesTest((int) (1200 * Math.random()), (int) (50 * Math.random()));
+        for (int i = 0; i < 3; i++) runExclusiveMessagesTest(1200, 15);
     }
 
     private void runExclusiveMessagesTest(int amount, int receivers) throws Exception {
@@ -38,7 +38,7 @@ public class AdvancedMessagingNCTests extends MorphiumTestBase {
         List<Messaging> messagings = new ArrayList<>();
         MessageListener<Msg> msgMessageListener = (msg, m) -> {
             if (!m.getLockedBy().equals(msg.getSenderId())) {
-                log.error("SEnder ID did not lock message?!?!?!?");
+                log.error("Receiver ID did not lock message?!?!?!?");
             }
             log.info(msg.getSenderId() + ": Received " + m.getMsgId() + " created " + (System.currentTimeMillis() - m.getTimestamp()) + "ms ago");
             counts.putIfAbsent(m.getMsgId(), 0);
@@ -59,7 +59,7 @@ public class AdvancedMessagingNCTests extends MorphiumTestBase {
             Morphium m = new Morphium(MorphiumConfig.fromProperties(morphium.getConfig().asProperties()));
             m.getConfig().getCache().setHouskeepingIntervalPause(100);
             morphiums.add(m);
-            Messaging msg = new Messaging(m, 500, true, false, 150);
+            Messaging msg = new Messaging(m, 500, true, false, (int) (1000 * Math.random()));
             msg.setSenderId("msg" + i);
             msg.setUseChangeStream(false).start();
             messagings.add(msg);
