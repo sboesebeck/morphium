@@ -2,6 +2,9 @@ package de.caluga.test.mongo.suite.messaging.nochangestream;
 
 import de.caluga.morphium.Morphium;
 import de.caluga.morphium.MorphiumConfig;
+import de.caluga.morphium.Utils;
+import de.caluga.morphium.changestream.ChangeStreamEvent;
+import de.caluga.morphium.changestream.ChangeStreamListener;
 import de.caluga.morphium.driver.MorphiumId;
 import de.caluga.morphium.messaging.MessageListener;
 import de.caluga.morphium.messaging.Messaging;
@@ -10,18 +13,43 @@ import de.caluga.test.mongo.suite.MorphiumTestBase;
 import org.junit.Test;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 
 public class AdvancedMessagingNCTests extends MorphiumTestBase {
     private final Map<MorphiumId, Integer> counts = new ConcurrentHashMap<>();
-
+    Map<Object, List<Map<String, Object>>> storage = new ConcurrentHashMap<>();
     @Test
     public void testExclusiveXTimes() throws Exception {
-        for (int i = 0; i < 3; i++) runExclusiveMessagesTest(1200, 15);
-    }
+//        morphium.watchAsync("msg", true,new ChangeStreamListener(){
+//
+//            @Override
+//            public boolean incomingData(ChangeStreamEvent evt) {
+//
+//                if (evt.getOperationType().equals("insert")){
+//
+//                    storage.put(evt.getDocumentKey(),new ArrayList<>());
+//                    storage.get(evt.getDocumentKey()).add(evt.getFullDocument());
+//
+//                } else if (evt.getOperationType().equals("update")){
+//                    if (evt.getUpdatedFields().containsKey("locked_by")){
+//                            storage.get(evt.getDocumentKey()).add(evt.getFullDocument());
+//
+//                    }
+//                } else if (evt.getOperationType().equals("delete")){
+//                    //storage.remove(evt.getDocumentKey());
+//                }
+//                return true;
+//            }
+//        });
 
+        for (int i = 0; i < 13; i++)
+            runExclusiveMessagesTest((int) (Math.random() * 2500), (int) (55 * Math.random()) + 2);
+    }
     private void runExclusiveMessagesTest(int amount, int receivers) throws Exception {
 
         log.info("Running Exclusive message test - sending " + amount + " exclusive messages, received by " + receivers);
@@ -32,26 +60,37 @@ public class AdvancedMessagingNCTests extends MorphiumTestBase {
         counts.clear();
 
         Messaging sender = new Messaging(morphium, 50, false);
-        sender.setSenderId("sender");
+        sender.setSenderId("amsender");
 
         List<Morphium> morphiums = new ArrayList<>();
         List<Messaging> messagings = new ArrayList<>();
         MessageListener<Msg> msgMessageListener = (msg, m) -> {
             if (!m.getLockedBy().equals(msg.getSenderId())) {
                 log.error("Receiver ID did not lock message?!?!?!?");
+                if (m.getLockedBy().equals("ALL")) {
+                    log.error("Broadcast message? " + m.toString());
+                }
             }
-            log.info(msg.getSenderId() + ": Received " + m.getMsgId() + " created " + (System.currentTimeMillis() - m.getTimestamp()) + "ms ago");
+            //log.info(msg.getSenderId() + ": Received " + m.getMsgId() + " created " + (System.currentTimeMillis() - m.getTimestamp()) + "ms ago");
             counts.putIfAbsent(m.getMsgId(), 0);
             counts.put(m.getMsgId(), counts.get(m.getMsgId()) + 1);
             if (counts.get(m.getMsgId()) > 1) {
                 log.error("Msg: " + m.getMsgId() + " processed: " + counts.get(m.getMsgId()));
-                log.error("... locked by " + m.getLockedBy());
+                log.error("... locked by " + m.getLockedBy() + " me: " + msg.getSenderId());
                 for (String id : m.getProcessedBy()) {
                     log.error("... processed by: " + id);
                 }
+                if (m.getProcessedBy().isEmpty()) {
+                    log.error("... no processed by set yet!");
+                }
+                int cnt = 0;
+                for (Map<String, Object> history : storage.get(m.getMsgId())) {
+                    cnt++;
+                    log.error(cnt + ".: " + Utils.toJsonString(history));
+                }
             }
 
-            Thread.sleep((long) (100 * Math.random()));
+            Thread.sleep(250);
             return null;
         };
         for (int i = 0; i < receivers; i++) {
@@ -59,7 +98,7 @@ public class AdvancedMessagingNCTests extends MorphiumTestBase {
             Morphium m = new Morphium(MorphiumConfig.fromProperties(morphium.getConfig().asProperties()));
             m.getConfig().getCache().setHouskeepingIntervalPause(100);
             morphiums.add(m);
-            Messaging msg = new Messaging(m, 500, true, false, (int) (1000 * Math.random()));
+            Messaging msg = new Messaging(m, 50, Math.random() > 0.5, true, (int) (1500 * Math.random()));
             msg.setSenderId("msg" + i);
             msg.setUseChangeStream(false).start();
             messagings.add(msg);
@@ -68,29 +107,38 @@ public class AdvancedMessagingNCTests extends MorphiumTestBase {
 
 
         for (int i = 0; i < amount; i++) {
-            Msg m = new Msg("test", "test msg", "value");
+            if (i % 100 == 0) {
+                log.info("Sending message " + i + "/" + amount);
+            }
+            Msg m = new Msg("test", "test msg" + i, "value" + i);
             m.setMsgId(new MorphiumId());
             m.setExclusive(true);
+            m.setTtl(600000);
             sender.sendMessage(m);
 
         }
 
         while (counts.size() < amount) {
-            log.info("-----> Messages processed so far: " + counts.size());
+            log.info("-----> Messages processed so far: " + counts.size() + "/" + amount + " with " + receivers + " receivers");
             for (MorphiumId id : counts.keySet()) {
                 assert (counts.get(id) <= 1) : "Count for id " + id.toString() + " is " + counts.get(id);
             }
             Thread.sleep(1000);
         }
-
+        log.info("-----> Messages processed so far: " + counts.size() + "/" + amount + " with " + receivers + " receivers");
         sender.terminate();
         for (Messaging m : messagings) {
             m.terminate();
         }
+        int num = 0;
         for (Morphium m : morphiums) {
+            num++;
+            log.info("Closing morphium..." + num + "/" + morphiums.size());
             m.close();
         }
+        log.info("Run finished!");
     }
+
 
 
     @Test
@@ -147,6 +195,56 @@ public class AdvancedMessagingNCTests extends MorphiumTestBase {
         m3.terminate();
         m4.terminate();
     }
+//
+//
+//    @Test
+//    public void testMorphiums() throws Exception {
+//
+//        final List<Morphium>morphiums=new ArrayList<>();
+//        for (int i=0;i<150;i++) {
+//            Morphium m = new Morphium(MorphiumConfig.fromProperties(morphium.getConfig().asProperties()));
+//            m.getConfig().getCache().setHouskeepingIntervalPause(100);
+//            morphiums.add(m);
+//        }
+//
+//
+//
+//        final Msg msg=new Msg("name","msg","value");
+//        msg.setSender("test");
+//        msg.setMsgId(new MorphiumId());
+//
+//        final AtomicLong cnt=new AtomicLong();
+//        morphium.store(msg);
+//
+//        Thread.sleep(200);
+//
+//        for (int i =0;i<100;i++) {
+//            cnt.set(0);
+//            msg.setLocked(System.currentTimeMillis());
+//
+//            for (final Morphium m:morphiums) {
+//                new Thread() {
+//                    public void run() {
+//                        while (m.createQueryFor(Msg.class, "msg").f("_id").eq(msg.getMsgId()).get().getLocked() != msg.getLocked()) {
+//                            yield();
+//                        }
+//                        cnt.incrementAndGet();
+//                    }
+//                }.start();
+//            }
+//
+//            long start = System.currentTimeMillis();
+//            morphium.set(msg, "locked", msg.getLocked());
+//            long end=System.currentTimeMillis();
+//            while(cnt.get()<150){
+//                Thread.yield();
+//            }
+//            log.info("Turnaround update        : " + (System.currentTimeMillis() - start));
+//            //log.info("Turnaround update (local): " + (end - start));
+//        }
+//
+//
+//    }
 
     @Test
     public void answerWithDifferentNameTest() throws Exception {

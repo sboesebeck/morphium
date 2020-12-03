@@ -1064,7 +1064,7 @@ public class MessagingNCTest extends MorphiumTestBase {
 
             assert (!gotMessage3);
             assert (!gotMessage4);
-            Thread.sleep(200);
+            Thread.sleep(1200);
 
             int rec = 0;
             if (gotMessage1) {

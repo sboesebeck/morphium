@@ -2597,11 +2597,7 @@ public class Morphium implements AutoCloseable {
         for (ShutdownListener l : shutDownListeners) {
             l.onShutdown(this);
         }
-        try {
-            Thread.sleep(100); //give it time to end ;-)
-        } catch (Exception e) {
-            logger.debug("Ignoring interrupted-exception");
-        }
+
         if (rsMonitor != null) {
             rsMonitor.terminate();
             rsMonitor = null;
