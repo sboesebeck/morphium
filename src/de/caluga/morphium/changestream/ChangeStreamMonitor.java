@@ -25,7 +25,7 @@ public class ChangeStreamMonitor implements Runnable, ShutdownListener {
     private Thread changeStreamThread;
     private final MorphiumObjectMapper mapper;
     private boolean dbOnly = false;
-    private List<Map<String, Object>> pipeline;
+    private final List<Map<String, Object>> pipeline;
 
     public ChangeStreamMonitor(Morphium m) {
         this(m, null, false, null);
@@ -100,7 +100,7 @@ public class ChangeStreamMonitor implements Runnable, ShutdownListener {
                 //ignoring it
             }
             if (System.currentTimeMillis() - start > morphium.getConfig().getMaxWaitTime()) {
-                log.error("Changestream monitor did not finish before max wait time is over! Interrupting");
+                log.info("Changestream monitor did not finish before max wait time is over! Interrupting");
                 changeStreamThread.interrupt();
                 break;
             }

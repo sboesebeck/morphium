@@ -566,16 +566,20 @@ public class Messaging extends Thread implements ShutdownListener {
         //just trigger unprocessed messages for Changestream...
         long cnt = q.countAll();
         List<Object> lst = q.idList();
-        if (cnt > q.idList().size()) {
+        if (cnt > lst.size()) {
             skipped.incrementAndGet();
         }
         morphium.set(q.q().f("_id").in(lst), values, false, multiple);
 
         if (!useChangeStream) {
-            try {
-                long tm = 15;
-                Thread.sleep(lst.size() * tm);
-            } catch (InterruptedException e) {
+            //check for writes to happen
+            while (q.q().f("_id").in(lst).f(Msg.Fields.lockedBy).ne(null).countAll() < lst.size()) {
+                try {
+                    long tm = 10;
+                    Thread.sleep(tm);
+                } catch (InterruptedException e) {
+                }
+                lst = q.idList();
             }
             q = q.q();
             q.f(Msg.Fields.sender).ne(id);
@@ -642,7 +646,7 @@ public class Messaging extends Thread implements ShutdownListener {
                 //swallow
             }
             obj = morphium.reread(obj, getCollectionName());
-            if (obj.getLocked() >= (Long) values.get("locked")) { //i was overlocked, or my data was written
+            if (obj == null || obj.getLocked() >= (Long) values.get("locked") || (obj.getLockedBy() != null && !obj.getLockedBy().equals(id)) || (id.equals(obj.getLockedBy()))) { //i was overlocked, or my data was written
                 break;
             }
         }
@@ -1004,19 +1008,19 @@ public class Messaging extends Thread implements ShutdownListener {
         storeMsg(m, true);
     }
 
-
-    @Override
-    public synchronized void start() {
-        super.start();
-        if (useChangeStream) {
-            try {
-                Thread.sleep(250);
-                //wait for changestream to kick in ;-)
-            } catch (Exception e) {
-                log.error("error:" + e.getMessage());
-            }
-        }
-    }
+//
+//    @Override
+//    public synchronized void start() {
+//        super.start();
+//        if (useChangeStream) {
+//            try {
+//                Thread.sleep(250);
+//                //wait for changestream to kick in ;-)
+//            } catch (Exception e) {
+//                log.error("error:" + e.getMessage());
+//            }
+//        }
+//    }
 
 
     public void sendMessage(Msg m) {
