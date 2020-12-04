@@ -1,4 +1,4 @@
-package de.caluga.test.mongo.suite.messaging.nochangestream;
+package de.caluga.test.mongo.suite.ncmessaging;
 
 import de.caluga.morphium.messaging.MessageListener;
 import de.caluga.morphium.messaging.Messaging;

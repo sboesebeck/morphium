@@ -1087,11 +1087,15 @@ public class MessagingTest extends MorphiumTestBase {
             m3.start();
             m4.start();
             Thread.sleep(200);
+
+
+            //Sending exclusive Message
             Msg m = new Msg();
             m.setExclusive(true);
             m.setTtl(3000000);
+            m.setMsgId(new MorphiumId());
             m.setName("A message");
-
+            log.info("Sending: " + m.getMsgId().toString());
             sender.sendMessage(m);
 
             assert (!gotMessage3);
