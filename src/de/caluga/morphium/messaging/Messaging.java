@@ -258,17 +258,7 @@ public class Messaging extends Thread implements ShutdownListener {
 //                        log.info(id+": incoming insert "+ Utils.toJsonString(evt.getFullDocument()));
                         Msg obj = morphium.getMapper().deserialize(Msg.class, evt.getFullDocument());
                         if (obj.getInAnswerTo() != null && waitingForMessages.containsKey(obj.getInAnswerTo())) {
-                            List<Msg> lst = new ArrayList<>();
-                            lst.add(obj);
-                            updateProcessedBy(obj);
-                            waitingForAnswers.put((MorphiumId) obj.getInAnswerTo(), obj);
-                            if (!receiveAnswers.equals(ReceiveAnswers.NONE)) {
-                                try {
-                                    processMessages(lst);
-                                } catch (Exception e) {
-                                    log.error("Error during message processing ", e);
-                                }
-                            }
+                            handleAnswer(obj);
 
                             return running;
                         }
@@ -347,17 +337,7 @@ public class Messaging extends Thread implements ShutdownListener {
                             return running;
                         }
                         if (obj.getInAnswerTo() != null && waitingForMessages.containsKey(obj.getInAnswerTo())) {
-                            List<Msg> lst = new ArrayList<>();
-                            lst.add(obj);
-                            updateProcessedBy(obj);
-                            waitingForAnswers.put((MorphiumId) obj.getInAnswerTo(), obj);
-                            if (!receiveAnswers.equals(ReceiveAnswers.NONE)) {
-                                try {
-                                    processMessages(lst);
-                                } catch (Exception e) {
-                                    log.error("Error during message processing ", e);
-                                }
-                            }
+                            handleAnswer(obj);
                             return running;
                         }
 
@@ -412,6 +392,20 @@ public class Messaging extends Thread implements ShutdownListener {
             listenerByName.clear();
         }
 
+    }
+
+    private void handleAnswer(Msg obj) {
+        List<Msg> lst = new ArrayList<>();
+        lst.add(obj);
+        updateProcessedBy(obj);
+        waitingForAnswers.put((MorphiumId) obj.getInAnswerTo(), obj);
+        if (!receiveAnswers.equals(ReceiveAnswers.NONE)) {
+            try {
+                processMessages(lst);
+            } catch (Exception e) {
+                log.error("Error during message processing ", e);
+            }
+        }
     }
 
     /**
@@ -485,7 +479,7 @@ public class Messaging extends Thread implements ShutdownListener {
         }
         //locking messages..
         if (!useChangeStream) {
-            q.f(Msg.Fields.sender).ne(id).f(Msg.Fields.lockedBy).in(Arrays.asList(id, null)).f(Msg.Fields.processedBy).ne(id).f(Msg.Fields.recipients).in(Arrays.asList(null, id));
+            q.f(Msg.Fields.sender).ne(id).f(Msg.Fields.lockedBy).eq(null).f(Msg.Fields.processedBy).ne(id).f(Msg.Fields.recipients).in(Arrays.asList(null, id));
 
         } else {
             q.f(Msg.Fields.sender).ne(id).f(Msg.Fields.lockedBy).in(Arrays.asList(id, null, "ALL")).f(Msg.Fields.processedBy).ne(id).f(Msg.Fields.recipients).in(Arrays.asList(null, id));
@@ -653,6 +647,7 @@ public class Messaging extends Thread implements ShutdownListener {
                 continue;
             }
 
+
             if (msg.getTtl() < System.currentTimeMillis() - msg.getTimestamp()) {
                 //Delete outdated msg!
                 if (log.isDebugEnabled())
@@ -661,33 +656,33 @@ public class Messaging extends Thread implements ShutdownListener {
                 processing.remove(msg.getMsgId());
                 continue;
             }
-            if (listeners.isEmpty() && listenerByName.isEmpty()) {
-                updateProcessedBy(msg);
-                processing.remove(msg.getMsgId());
-                if (msg.isExclusive()) {
-                    morphium.unset(msg, getCollectionName(), Msg.Fields.lockedBy);
-                }
-                log.error(getSenderId() + ": should not be here. not processing message, as no listeners are defined " + msg.getMsgId());
-                continue;
-            }
             if (msg.getInAnswerTo() != null) {
+                updateProcessedBy(msg);
+                waitingForAnswers.put((MorphiumId) msg.getInAnswerTo(), msg);
                 switch (receiveAnswers) {
                     case ALL:
                         break;
                     case NONE:
-                        updateProcessedBy(msg);
                         processing.remove(msg.getMsgId());
                         continue;
                     case ONLY_MINE:
                     default:
                         if (!msg.getRecipients().contains(id)) {
-                            updateProcessedBy(msg);
                             processing.remove(msg.getMsgId());
                             continue;
                         }
 
 
                 }
+            }
+            if (listeners.isEmpty() && listenerByName.isEmpty()) {
+                updateProcessedBy(msg);
+                processing.remove(msg.getMsgId());
+                if (msg.isExclusive()) {
+                    morphium.unset(msg, getCollectionName(), Msg.Fields.lockedBy);
+                }
+                //log.error(getSenderId() + ": should not be here. not processing message, as no listeners are defined " + msg.getMsgId());
+                continue;
             }
 
             if (processing.contains(msg.getMsgId())) continue;
@@ -823,9 +818,9 @@ public class Messaging extends Thread implements ShutdownListener {
 //        morphium.storeList(toStore, getCollectionName());
 //        morphium.delete(toRemove, getCollectionName());
 //        toExec.forEach(this::queueOrRun);
-        while (morphium.getWriteBufferCount() > 0) {
-            Thread.yield();
-        }
+//        while (morphium.getWriteBufferCount() > 0) {
+//            Thread.yield();
+//        }
     }
 
 
