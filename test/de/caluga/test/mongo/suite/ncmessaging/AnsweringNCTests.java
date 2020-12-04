@@ -1,4 +1,4 @@
-package de.caluga.test.mongo.suite.messaging.nochangestream;
+package de.caluga.test.mongo.suite.ncmessaging;
 
 import de.caluga.morphium.Morphium;
 import de.caluga.morphium.MorphiumConfig;
