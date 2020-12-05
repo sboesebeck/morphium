@@ -43,7 +43,7 @@ public class Msg {
     private String sender;
     private String senderHost;
     private List<String> recipients;
-    private Object inAnswerTo;
+    private MorphiumId inAnswerTo;
     //payload goes here
     private String name;
     private String msg;
@@ -188,11 +188,11 @@ public class Msg {
         return this;
     }
 
-    public Object getInAnswerTo() {
+    public MorphiumId getInAnswerTo() {
         return inAnswerTo;
     }
 
-    public Msg setInAnswerTo(Object inAnswerTo) {
+    public Msg setInAnswerTo(MorphiumId inAnswerTo) {
         this.inAnswerTo = inAnswerTo;
         return this;
     }
@@ -395,6 +395,20 @@ public class Msg {
 
     public void setRecipients(List<String> recipients) {
         this.recipients = recipients;
+    }
+
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (!(o instanceof Msg)) return false;
+        Msg msg = (Msg) o;
+        return Objects.equals(getMsgId(), msg.getMsgId());
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(getMsgId());
     }
 
     public enum Fields {msgId, lockedBy, locked, ttl, sender, senderHost, recipients, to, inAnswerTo, name, msg, additional, mapValue, value, timestamp, deleteAt, priority, processedBy}

@@ -635,7 +635,10 @@ public class MessagingTest extends MorphiumTestBase {
     @Test
     public void severalMessagingsTest() throws Exception {
         morphium.dropCollection(Msg.class);
-        Thread.sleep(100);
+        while (morphium.createQueryFor(Msg.class).countAll() != 0) {
+            Thread.sleep(100);
+        }
+
         Messaging m1 = new Messaging(morphium, 10, false, true, 10);
         m1.setSenderId("m1");
         Messaging m2 = new Messaging(morphium, 10, false, true, 10);
@@ -646,17 +649,17 @@ public class MessagingTest extends MorphiumTestBase {
         m2.start();
         m3.start();
         try {
-            m3.addListenerForMessageNamed("test", (msg, m) -> {
+            m3.addListenerForMessageNamed("multisystemtest", (msg, m) -> {
                 //log.info("Got message: "+m.getName());
                 log.info("Sending answer for " + m.getMsgId());
-                return new Msg("test", "answer", "value", 600000);
+                return new Msg("multisystemtest", "answer", "value", 600000);
             });
 
             procCounter.set(0);
             for (int i = 0; i < 180; i++) {
                 new Thread() {
                     public void run() {
-                        Msg m = new Msg("test", "nothing", "value");
+                        Msg m = new Msg("multisystemtest", "nothing", "value");
                         m.setTtl(60000000);
                         Msg a = m1.sendAndAwaitFirstAnswer(m, 6000);
                         assert (a != null);
@@ -1225,6 +1228,8 @@ public class MessagingTest extends MorphiumTestBase {
 
     @Test
     public void removeMessageTest() throws Exception {
+        morphium.dropCollection(Msg.class, "msg", null);
+        Thread.sleep(100);
         Messaging m1 = new Messaging(morphium, 1000, false);
         Msg m = new Msg().setMsgId(new MorphiumId()).setMsg("msg").setName("name").setValue("a value");
         m1.sendMessage(m);
@@ -1232,7 +1237,7 @@ public class MessagingTest extends MorphiumTestBase {
         m1.removeMessage(m);
         Thread.sleep(100);
         assert (morphium.createQueryFor(Msg.class).countAll() == 0);
-
+        m1.terminate();
     }
 
     @Test
@@ -1896,7 +1901,7 @@ public class MessagingTest extends MorphiumTestBase {
 
         sender = new Messaging(morphium, 1000, false);
         sender.setSenderId("sender");
-        sender.start();
+        //sender.start();
         final AtomicInteger counts = new AtomicInteger();
         recs = new ArrayList<>();
         for (int i = 0; i < 10; i++) {
@@ -1943,6 +1948,10 @@ public class MessagingTest extends MorphiumTestBase {
 
         }
 
+        for (Messaging r : recs) {
+            assert (!r.isRunning());
+        }
+
     }
 
 
@@ -1955,50 +1964,55 @@ public class MessagingTest extends MorphiumTestBase {
         List<Messaging> receivers = new ArrayList<>();
         final List<String> receivedBy = new Vector<>();
 
-        for (int i = 0; i < 10; i++) {
-            Messaging receiver1 = new Messaging(morphium, 1000, false);
-            receiver1.setSenderId("rec" + i);
-            receiver1.start();
-            receivers.add(receiver1);
-            receiver1.addMessageListener(new MessageListener() {
-                @Override
-                public Msg onMessage(Messaging msg, Msg m) throws InterruptedException {
-                    receivedBy.add(msg.getSenderId());
-                    return null;
-                }
-            });
+        try {
+            for (int i = 0; i < 10; i++) {
+                Messaging receiver1 = new Messaging(morphium, 1000, false);
+                receiver1.setSenderId("rec" + i);
+                receiver1.start();
+                receivers.add(receiver1);
+                receiver1.addMessageListener(new MessageListener() {
+                    @Override
+                    public Msg onMessage(Messaging msg, Msg m) throws InterruptedException {
+                        receivedBy.add(msg.getSenderId());
+                        return null;
+                    }
+                });
+            }
+
+            Msg m = new Msg("test", "msg", "value");
+            m.addRecipient("rec1");
+            m.addRecipient("rec2");
+            m.addRecipient("rec5");
+
+            sender.sendMessage(m);
+            Thread.sleep(1000);
+
+            assert (receivedBy.size() == m.getTo().size());
+            for (String r : m.getTo()) {
+                assert (receivedBy.contains(r));
+            }
+
+
+            receivedBy.clear();
+
+            m = new Msg("test", "msg", "value");
+            m.addRecipient("rec1");
+            m.addRecipient("rec2");
+            m.addRecipient("rec5");
+            m.setExclusive(true);
+
+            sender.sendMessage(m);
+            Thread.sleep(1000);
+            assert (receivedBy.size() == 1);
+            assert (m.getTo().contains(receivedBy.get(0)));
+        } finally {
+            sender.terminate();
+            for (Messaging ms : receivers) {
+                ms.terminate();
+            }
         }
 
-        Msg m = new Msg("test", "msg", "value");
-        m.addRecipient("rec1");
-        m.addRecipient("rec2");
-        m.addRecipient("rec5");
 
-        sender.sendMessage(m);
-        Thread.sleep(1000);
-
-        assert (receivedBy.size() == m.getTo().size());
-        for (String r : m.getTo()) {
-            assert (receivedBy.contains(r));
-        }
-
-
-        receivedBy.clear();
-
-        m = new Msg("test", "msg", "value");
-        m.addRecipient("rec1");
-        m.addRecipient("rec2");
-        m.addRecipient("rec5");
-        m.setExclusive(true);
-
-        sender.sendMessage(m);
-        Thread.sleep(1000);
-        assert (receivedBy.size() == 1);
-        assert (m.getTo().contains(receivedBy.get(0)));
-
-        for (Messaging ms : receivers) {
-            ms.terminate();
-        }
     }
 
 }

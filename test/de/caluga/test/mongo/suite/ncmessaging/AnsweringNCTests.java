@@ -188,7 +188,7 @@ public class AnsweringNCTests extends MorphiumTestBase {
             m1.setReceiveAnswers(Messaging.ReceiveAnswers.ALL);
             m2.setReceiveAnswers(Messaging.ReceiveAnswers.ALL);
             Msg answer = new Msg("test", "An answer", "42");
-            answer.setInAnswerTo("an answer");
+            answer.setInAnswerTo(new MorphiumId());
             m3.sendMessage(answer);
             Thread.sleep(100);
             assert (recievedById.size() == 2);
@@ -198,7 +198,7 @@ public class AnsweringNCTests extends MorphiumTestBase {
             //sending a direct message
             recievedById.clear();
             answer = new Msg("test", "An answer", "42");
-            answer.setInAnswerTo("an answer");
+            answer.setInAnswerTo(new MorphiumId());
             answer.setRecipient("m2");
             m3.sendMessage(answer);
             Thread.sleep(100);
@@ -209,7 +209,7 @@ public class AnsweringNCTests extends MorphiumTestBase {
             //exclusive answer!
             recievedById.clear();
             answer = new Msg("test", "An answer", "42");
-            answer.setInAnswerTo("an answer");
+            answer.setInAnswerTo(new MorphiumId());
             answer.setExclusive(true);
             m3.sendMessage(answer);
             Thread.sleep(100);
@@ -223,7 +223,7 @@ public class AnsweringNCTests extends MorphiumTestBase {
             m2.setReceiveAnswers(Messaging.ReceiveAnswers.ONLY_MINE);
             recievedById.clear();
             answer = new Msg("test", "An answer", "42");
-            answer.setInAnswerTo("an answer");
+            answer.setInAnswerTo(new MorphiumId());
             answer.setRecipient("m2");
             m3.sendMessage(answer);
             Thread.sleep(100);
@@ -237,7 +237,7 @@ public class AnsweringNCTests extends MorphiumTestBase {
             m2.setReceiveAnswers(Messaging.ReceiveAnswers.NONE);
             recievedById.clear();
             answer = new Msg("test", "An answer", "42");
-            answer.setInAnswerTo("an answer");
+            answer.setInAnswerTo(new MorphiumId());
             answer.setExclusive(true);
             m3.sendMessage(answer);
             m3.sendMessage(answer.createAnswerMsg());
