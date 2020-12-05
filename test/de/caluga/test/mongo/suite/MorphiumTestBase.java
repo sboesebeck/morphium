@@ -249,60 +249,60 @@ public class MorphiumTestBase {
     public void tearDown() {
         if (morphium == null) return;
         logStats(morphium);
-        try {
-            Field f = morphium.getClass().getDeclaredField("shutDownListeners");
-            f.setAccessible(true);
-            List<ShutdownListener> listeners = (List<ShutdownListener>) f.get(morphium);
-            for (ShutdownListener l : listeners) {
-                if (l instanceof Messaging) {
-                    Messaging msg = (Messaging) l;
-                    if (msg.isRunning()) {
-                        msg.terminate();
-                        log.info("Terminating still running messaging..." + msg.getSenderId());
-                        while (msg.isRunning()) {
-                            log.info("Waiting for messaging to finish");
-                            log.info("Messaging " + msg.getSenderId() + " still running");
-                            Thread.sleep(100);
-                        }
-                        log.info("Messaging terminated");
-                    }
-                    ((Collection) f.get(morphium)).clear();
-                } else if (l instanceof OplogMonitor) {
-
-                    OplogMonitor om = (OplogMonitor) l;
-                    if (om.isRunning()) {
-                        om.stop();
-                        while (om.isRunning()) {
-                            log.info("Waiting for oplogmonitor to finish");
-                            Thread.sleep(100);
-                        }
-                        f = l.getClass().getDeclaredField("listeners");
-                        f.setAccessible(true);
-                        ((Collection) f.get(l)).clear();
-                    }
-                } else if (l instanceof ChangeStreamMonitor) {
-
-                    log.info("Changestream Monitor still running");
-                    ChangeStreamMonitor csm = (ChangeStreamMonitor) l;
-                    if (csm.isRunning()) {
-                        csm.terminate();
-                        while (csm.isRunning()) {
-                            log.info("Waiting for changestreamMonitor to finish");
-                            Thread.sleep(100);
-                        }
-                        log.info("ChangeStreamMonitor terminated!");
-                        f = l.getClass().getDeclaredField("listeners");
-                        f.setAccessible(true);
-                        ((Collection) f.get(l)).clear();
-                    }
-//                } else if (l instanceof BufferedMorphiumWriterImpl) {
-//                    BufferedMorphiumWriterImpl buf = (BufferedMorphiumWriterImpl) l;
-//                    buf.close();
-                }
-            }
-        } catch (Exception e) {
-            log.error("Could not shutdown properly!", e);
-        }
+//        try {
+//            Field f = morphium.getClass().getDeclaredField("shutDownListeners");
+//            f.setAccessible(true);
+//            List<ShutdownListener> listeners = (List<ShutdownListener>) f.get(morphium);
+//            for (ShutdownListener l : listeners) {
+//                if (l instanceof Messaging) {
+//                    Messaging msg = (Messaging) l;
+//                    if (msg.isRunning()) {
+//                        msg.terminate();
+//                        log.info("Terminating still running messaging..." + msg.getSenderId());
+//                        while (msg.isRunning()) {
+//                            log.info("Waiting for messaging to finish");
+//                            log.info("Messaging " + msg.getSenderId() + " still running");
+//                            Thread.sleep(100);
+//                        }
+//                        log.info("Messaging terminated");
+//                    }
+//                    ((Collection) f.get(morphium)).clear();
+//                } else if (l instanceof OplogMonitor) {
+//
+//                    OplogMonitor om = (OplogMonitor) l;
+//                    if (om.isRunning()) {
+//                        om.stop();
+//                        while (om.isRunning()) {
+//                            log.info("Waiting for oplogmonitor to finish");
+//                            Thread.sleep(100);
+//                        }
+//                        f = l.getClass().getDeclaredField("listeners");
+//                        f.setAccessible(true);
+//                        ((Collection) f.get(l)).clear();
+//                    }
+//                } else if (l instanceof ChangeStreamMonitor) {
+//
+//                    log.info("Changestream Monitor still running");
+//                    ChangeStreamMonitor csm = (ChangeStreamMonitor) l;
+//                    if (csm.isRunning()) {
+//                        csm.terminate();
+//                        while (csm.isRunning()) {
+//                            log.info("Waiting for changestreamMonitor to finish");
+//                            Thread.sleep(100);
+//                        }
+//                        log.info("ChangeStreamMonitor terminated!");
+//                        f = l.getClass().getDeclaredField("listeners");
+//                        f.setAccessible(true);
+//                        ((Collection) f.get(l)).clear();
+//                    }
+////                } else if (l instanceof BufferedMorphiumWriterImpl) {
+////                    BufferedMorphiumWriterImpl buf = (BufferedMorphiumWriterImpl) l;
+////                    buf.close();
+//                }
+//            }
+//        } catch (Exception e) {
+//            log.error("Could not shutdown properly!", e);
+//        }
         try {
             log.info("---------------------------------------- Re-connecting to mongo");
             int num = TestEntityNameProvider.number.incrementAndGet();
