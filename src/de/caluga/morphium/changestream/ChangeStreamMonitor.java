@@ -103,6 +103,18 @@ public class ChangeStreamMonitor implements Runnable, ShutdownListener {
                 if (System.currentTimeMillis() - start > morphium.getConfig().getMaxWaitTime()) {
                     log.debug("Changestream monitor did not finish before max wait time is over! Interrupting");
                     changeStreamThread.interrupt();
+                    try {
+                        Thread.sleep(100);
+                    } catch (InterruptedException e) {
+                        e.printStackTrace();
+                    }
+                    if (changeStreamThread.isAlive()) {
+                        try {
+                            changeStreamThread.stop();
+                        } catch (Exception e) {
+                            e.printStackTrace();
+                        }
+                    }
                     break;
                 }
             }
