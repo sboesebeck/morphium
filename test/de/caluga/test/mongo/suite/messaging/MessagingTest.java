@@ -216,8 +216,8 @@ public class MessagingTest extends MorphiumTestBase {
         error = false;
 
         morphium.clearCollection(Msg.class);
-        final Messaging m1 = new Messaging(morphium, 500, true);
-        final Messaging m2 = new Messaging(morphium, 500, true);
+        Messaging m1 = new Messaging(morphium, 500, true);
+        Messaging m2 = new Messaging(morphium, 500, true);
         m1.start();
         m2.start();
         Thread.sleep(100);
@@ -1231,7 +1231,7 @@ public class MessagingTest extends MorphiumTestBase {
         morphium.dropCollection(Msg.class, "msg", null);
         Thread.sleep(100);
         Messaging m1 = new Messaging(morphium, 1000, false);
-        Msg m = new Msg().setMsgId(new MorphiumId()).setMsg("msg").setName("name").setValue("a value");
+        Msg m = new Msg().setMsgId(new MorphiumId()).setMsg("msg").setName("the_name").setValue("a value");
         m1.sendMessage(m);
         Thread.sleep(100);
         m1.removeMessage(m);
@@ -1251,7 +1251,7 @@ public class MessagingTest extends MorphiumTestBase {
         });
         m1.start();
         Thread.sleep(100);
-        Msg m = new Msg().setMsgId(new MorphiumId()).setMsg("msg").setName("name").setValue("a value").setTtl(-1000);
+        Msg m = new Msg().setMsgId(new MorphiumId()).setMsg("msg").setName("timeout_name").setValue("a value").setTtl(-1000);
         m1.sendMessage(m);
         Thread.sleep(200);
         assert (cnt.get() == 0);
@@ -1919,7 +1919,7 @@ public class MessagingTest extends MorphiumTestBase {
 
             for (int i = 0; i < 50; i++) {
                 if (i % 10 == 0) log.info("Msg sent");
-                sender.sendMessage(new Msg("name", "msg", "value", 20000000, true));
+                sender.sendMessage(new Msg("excl_name", "msg", "value", 20000000, true));
             }
             while (counts.get() < 50) {
                 log.info("Still waiting for incoming messages: " + counts.get());
@@ -1932,7 +1932,7 @@ public class MessagingTest extends MorphiumTestBase {
             counts.set(0);
             for (int i = 0; i < 10; i++) {
                 log.info("Msg sent");
-                sender.sendMessage(new Msg("name", "msg", "value", 20000000, false));
+                sender.sendMessage(new Msg("excl_name", "msg", "value", 20000000, false));
             }
             while (counts.get() < 10 * recs.size()) {
                 log.info("Still waiting for incoming messages: " + counts.get());
