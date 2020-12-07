@@ -634,10 +634,9 @@ public class MessagingTest extends MorphiumTestBase {
 
     @Test
     public void severalMessagingsTest() throws Exception {
+
         morphium.dropCollection(Msg.class);
-        while (morphium.createQueryFor(Msg.class).countAll() != 0) {
-            Thread.sleep(100);
-        }
+        Thread.sleep(100);
 
         Messaging m1 = new Messaging(morphium, 10, false, true, 10);
         m1.setSenderId("m1");

@@ -27,7 +27,7 @@ public class PausingUnpausingNCTests extends MorphiumTestBase {
     public void pauseUnpauseProcessingTest() throws Exception {
         morphium.dropCollection(Msg.class);
         Thread.sleep(1000);
-        Messaging sender = new Messaging(morphium, 100, false, false, 1);
+        Messaging sender = new Messaging(morphium, 10, false, false, 1);
         sender.setUseChangeStream(false).start();
         Thread.sleep(2500);
         gotMessage1 = false;
@@ -35,7 +35,7 @@ public class PausingUnpausingNCTests extends MorphiumTestBase {
         gotMessage3 = false;
         gotMessage4 = false;
 
-        Messaging m1 = new Messaging(morphium, 100, false, false, 1);
+        Messaging m1 = new Messaging(morphium, 10, false, false, 1);
         m1.addMessageListener((msg, m) -> {
             gotMessage1 = true;
             return new Msg(m.getName(), "got message", "value", 5000);
@@ -58,7 +58,7 @@ public class PausingUnpausingNCTests extends MorphiumTestBase {
         Long l = m1.unpauseProcessingOfMessagesNamed("tst1");
         log.info("Processing was paused for ms " + l);
         //m1.findAndProcessPendingMessages("tst1");
-        Thread.sleep(200);
+        Thread.sleep(300);
 
         assert (gotMessage1);
         gotMessage1 = false;
@@ -78,6 +78,8 @@ public class PausingUnpausingNCTests extends MorphiumTestBase {
 
     @Test
     public void priorityPausedMessagingTest() throws Exception {
+        morphium.dropCollection(Msg.class, "msg", null);
+        Thread.sleep(100);
         Messaging sender = new Messaging(morphium, 100, false);
         sender.setUseChangeStream(false).start();
         final AtomicInteger count = new AtomicInteger();
@@ -119,9 +121,9 @@ public class PausingUnpausingNCTests extends MorphiumTestBase {
                 sender.sendMessage(new Msg("now", "now", "now"));
             }
         }
-        Thread.sleep(300);
+        Thread.sleep(10000);
         assert (count.get() == 10) : "Count wrong " + count.get();
-        assert (list.size() < 5);
+        assert (list.size() >= 5);
         Thread.sleep(5500); //time=duration of processing ~250ms + messaging pause 10ms = 260ms*20 = 5200ms + processing time
         assert (list.size() == 20) : "Size wrong " + list.size();
 
@@ -140,6 +142,8 @@ public class PausingUnpausingNCTests extends MorphiumTestBase {
 
     @Test
     public void unpausingTest() throws Exception {
+        morphium.dropCollection(Msg.class, "msg", null);
+        Thread.sleep(100);
         list.clear();
         final AtomicInteger cnt = new AtomicInteger(0);
         Messaging sender = new Messaging(morphium, 100, false);
@@ -187,7 +191,7 @@ public class PausingUnpausingNCTests extends MorphiumTestBase {
         //Message after unpausing:
         assert (cnt.get() == 2) : "Count wrong: " + cnt.get();
         sender.sendMessage(new Msg("now", "now", "now"));
-        Thread.sleep(100);
+        Thread.sleep(200);
         assert (list.size() == 3);
         Thread.sleep(2000);
         //Message after unpausing:

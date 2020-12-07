@@ -555,7 +555,7 @@ public class Messaging extends Thread implements ShutdownListener {
         if (!useChangeStream) {
             try {
                 //waiting a bit for data to be stored
-                Thread.sleep(10);
+                Thread.sleep(250);
             } catch (InterruptedException e) {
                 //swallow
             }

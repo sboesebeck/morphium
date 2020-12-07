@@ -185,7 +185,7 @@ public class AdvancedMessagingNCTests extends MorphiumTestBase {
         for (int i = 0; i < 100; i++) {
             Msg query = new Msg("test", "test querey", "query");
             query.setExclusive(true);
-            List<Msg> ans = m1.sendAndAwaitAnswers(query, 3, 250);
+            List<Msg> ans = m1.sendAndAwaitAnswers(query, 3, 1250);
             assert (ans.size() == 1) : "Recieved more than one answer to query " + query.getMsgId();
         }
 
@@ -193,7 +193,7 @@ public class AdvancedMessagingNCTests extends MorphiumTestBase {
         for (int i = 0; i < 100; i++) {
             Msg query = new Msg("test", "test querey", "query");
             query.setExclusive(false);
-            List<Msg> ans = m1.sendAndAwaitAnswers(query, 3, 250);
+            List<Msg> ans = m1.sendAndAwaitAnswers(query, 3, 1250);
             assert (ans.size() == 3) : "Recieved not enough answers to  " + query.getMsgId();
         }
         m1.terminate();
