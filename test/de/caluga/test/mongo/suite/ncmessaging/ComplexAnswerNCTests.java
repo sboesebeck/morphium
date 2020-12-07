@@ -33,7 +33,7 @@ public class ComplexAnswerNCTests extends MorphiumTestBase {
         answers = m1.sendAndAwaitAnswers(new Msg("test", "ms", "val"), 10, 1000);
         assert (answers.size() == 1);
         log.info("Messagecount: " + morphium.createQueryFor(Msg.class).countAll());
-        assert (morphium.createQueryFor(Msg.class).countAll() == 4);
+        assert (morphium.createQueryFor(Msg.class).countAll() == 4) : "Count wrong - " + morphium.createQueryFor(Msg.class).countAll();
 
         m1.setReceiveAnswers(Messaging.ReceiveAnswers.ONLY_MINE);
         m2.setReceiveAnswers(Messaging.ReceiveAnswers.NONE);

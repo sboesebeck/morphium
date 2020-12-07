@@ -626,7 +626,7 @@ public class MessagingNCTest extends MorphiumTestBase {
                     public void run() {
                         Msg m = new Msg("test", "nothing", "value");
                         m.setTtl(60000000);
-                        Msg a = m1.sendAndAwaitFirstAnswer(m, 6000);
+                        Msg a = m1.sendAndAwaitFirstAnswer(m, 16000);
                         assert (a != null);
                         procCounter.incrementAndGet();
                     }
@@ -1083,7 +1083,7 @@ public class MessagingNCTest extends MorphiumTestBase {
             m.setName("A message");
             m.setTtl(3000000);
             sender2.sendMessage(m);
-            Thread.sleep(500);
+            Thread.sleep(1500);
             assert (!gotMessage1);
             assert (!gotMessage2);
 
