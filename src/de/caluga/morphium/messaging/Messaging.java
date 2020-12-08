@@ -555,7 +555,7 @@ public class Messaging extends Thread implements ShutdownListener {
         if (!useChangeStream) {
             try {
                 //waiting a bit for data to be stored
-                Thread.sleep(250);
+                Thread.sleep(150);
             } catch (InterruptedException e) {
                 //swallow
             }
@@ -656,16 +656,20 @@ public class Messaging extends Thread implements ShutdownListener {
 //                processing.remove(msg.getMsgId());
 //                continue;
 //            }
+
+            //Not locked by me
             if (msg.isExclusive() && !getSenderId().equals(msg.getLockedBy())) {
                 processing.remove(msg.getMsgId());
                 continue;
             }
+            //I am the sender?
             if (msg.getSender().equals(getSenderId())) {
                 processing.remove(msg.getMsgId());
                 continue;
             }
 
 
+            //outdated message
             if (msg.getTtl() < System.currentTimeMillis() - msg.getTimestamp()) {
                 //Delete outdated msg!
                 if (log.isDebugEnabled())
@@ -674,8 +678,8 @@ public class Messaging extends Thread implements ShutdownListener {
                 processing.remove(msg.getMsgId());
                 continue;
             }
-            if (msg.getInAnswerTo() != null) {
 
+            if (msg.getInAnswerTo() != null) {
                 if (waitingForMessages.containsKey(msg.getInAnswerTo())) {
                     waitingForAnswers.putIfAbsent(msg.getInAnswerTo(), new ArrayList<>());
                     if (!waitingForAnswers.get(msg.getInAnswerTo()).contains(msg)) {

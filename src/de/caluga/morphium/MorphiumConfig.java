@@ -971,7 +971,7 @@ public class MorphiumConfig {
             }
             f.setAccessible(true);
             try {
-                if (f.get(this) != null && !f.get(this).equals(f.get(defaults))) {
+                if (f.get(this) != null && !f.get(this).equals(f.get(defaults)) || f.getName().equals("database")) {
                     p.put(prefix + f.getName(), f.get(this).toString());
                 }
             } catch (IllegalAccessException e) {

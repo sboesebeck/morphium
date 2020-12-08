@@ -1,4 +1,4 @@
-package de.caluga.test.mongo.suite.messaging;
+package de.caluga.test.mongo.suite.inmem.messaging;
 
 import de.caluga.morphium.Morphium;
 import de.caluga.morphium.MorphiumConfig;
@@ -7,6 +7,7 @@ import de.caluga.morphium.messaging.MessageListener;
 import de.caluga.morphium.messaging.Messaging;
 import de.caluga.morphium.messaging.Msg;
 import de.caluga.test.mongo.suite.MorphiumTestBase;
+import de.caluga.test.mongo.suite.inmem.MorphiumInMemTestBase;
 import org.junit.Test;
 
 import java.util.ArrayList;
@@ -14,7 +15,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
-public class AdvancedMessagingTests extends MorphiumTestBase {
+public class AdvancedInMemMessagingTests extends MorphiumInMemTestBase {
     private final Map<MorphiumId, Integer> counts = new ConcurrentHashMap<>();
 
     @Test
@@ -25,7 +26,6 @@ public class AdvancedMessagingTests extends MorphiumTestBase {
 
     private void runExclusiveMessagesTest(int amount, int receivers) throws Exception {
 
-        List<Morphium> morphiums = new ArrayList<>();
         List<Messaging> messagings = new ArrayList<>();
 
         Messaging sender;
@@ -63,10 +63,8 @@ public class AdvancedMessagingTests extends MorphiumTestBase {
             };
             for (int i = 0; i < receivers; i++) {
                 log.info("Creating morphiums..." + i);
-                Morphium m = new Morphium(MorphiumConfig.fromProperties(morphium.getConfig().asProperties()));
-                m.getConfig().getCache().setHouskeepingIntervalPause(100);
-                morphiums.add(m);
-                Messaging msg = new Messaging(m, 50, false, true, (int) (1500 * Math.random()));
+
+                Messaging msg = new Messaging(morphium, 50, false, true, (int) (1500 * Math.random()));
                 msg.setSenderId("msg" + i);
                 msg.setUseChangeStream(true).start();
                 messagings.add(msg);
@@ -102,12 +100,7 @@ public class AdvancedMessagingTests extends MorphiumTestBase {
             for (Messaging m : messagings) {
                 m.terminate();
             }
-            int num = 0;
-            for (Morphium m : morphiums) {
-                num++;
-                log.info("Closing morphium..." + num + "/" + morphiums.size());
-                m.close();
-            }
+
             log.info("Run finished!");
         }
 
@@ -121,18 +114,15 @@ public class AdvancedMessagingTests extends MorphiumTestBase {
         m1.start();
 
 
-        Morphium morphium2 = new Morphium(MorphiumConfig.fromProperties(morphium.getConfig().asProperties()));
-        Messaging m2 = new Messaging(morphium2, 100, false, true, 10);
+        Messaging m2 = new Messaging(morphium, 100, false, true, 10);
 //        m2.setUseChangeStream(false);
         m2.start();
 
-        Morphium morphium3 = new Morphium(MorphiumConfig.fromProperties(morphium.getConfig().asProperties()));
-        Messaging m3 = new Messaging(morphium3, 100, false, true, 10);
+        Messaging m3 = new Messaging(morphium, 100, false, true, 10);
 //        m3.setUseChangeStream(false);
         m3.start();
 
-        Morphium morphium4 = new Morphium(MorphiumConfig.fromProperties(morphium.getConfig().asProperties()));
-        Messaging m4 = new Messaging(morphium4, 100, false, true, 10);
+        Messaging m4 = new Messaging(morphium, 100, false, true, 10);
 //        m4.setUseChangeStream(false);
         m4.start();
         MessageListener<Msg> msgMessageListener = (msg, m) -> {
@@ -147,10 +137,10 @@ public class AdvancedMessagingTests extends MorphiumTestBase {
             m3.addListenerForMessageNamed("test", msgMessageListener);
             m4.addListenerForMessageNamed("test", msgMessageListener);
 
-            for (int i = 0; i < 100; i++) {
+            for (int i = 0; i < 10; i++) {
                 Msg query = new Msg("test", "test query", "query");
                 query.setExclusive(true);
-                List<Msg> ans = m1.sendAndAwaitAnswers(query, 3, 100);
+                List<Msg> ans = m1.sendAndAwaitAnswers(query, 3, 1500);
                 //            for(Msg m:ans){
                 //                log.info("Incoming message: "+m);
                 //            }
@@ -158,10 +148,10 @@ public class AdvancedMessagingTests extends MorphiumTestBase {
             }
 
 
-            for (int i = 0; i < 100; i++) {
+            for (int i = 0; i < 10; i++) {
                 Msg query = new Msg("test", "test query", "query");
                 query.setExclusive(false);
-                List<Msg> ans = m1.sendAndAwaitAnswers(query, 3, 100);
+                List<Msg> ans = m1.sendAndAwaitAnswers(query, 3, 1000);
                 assert (ans.size() == 3) : "Recieved not enough answers to  " + query.getMsgId();
             }
         } finally {
@@ -169,10 +159,6 @@ public class AdvancedMessagingTests extends MorphiumTestBase {
             m2.terminate();
             m3.terminate();
             m4.terminate();
-
-            morphium2.close();
-            morphium3.close();
-            morphium4.close();
         }
 
     }

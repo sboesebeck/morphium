@@ -365,6 +365,9 @@ public class Msg {
         timestamp = System.currentTimeMillis();
     }
 
+    public boolean isAnswer() {
+        return inAnswerTo != null;
+    }
 
     public Msg createAnswerMsg() {
         Msg ret = new Msg(name, msg, value, ttl);
