@@ -84,41 +84,6 @@ public class ObjectMapperImplTest {
     }
 
     @Test
-    public void speedCheck() throws Exception {
-        ObjectMapper mapper = new ObjectMapper();
-        mapper.enable(SerializationFeature.INDENT_OUTPUT);
-
-        log.info("Checking jackson!");
-        long start = System.currentTimeMillis();
-        for (int i = 0; i < 1000; i++) {
-            Msg s = new Msg();
-            s.setName("test-" + (int) (System.currentTimeMillis() % 42));
-            s.setValue("Test");
-            for (int t = 0; t == 10; t++) s.setValue(s.getValue() + s.getValue());
-            String json = mapper.writeValueAsString(s);
-
-            Msg obj = mapper.readValue(json, Msg.class);
-        }
-        long dur = System.currentTimeMillis() - start;
-
-        log.info("Took " + dur);
-
-        //OM.getMorphium().getConfig().setWarnOnNoEntitySerialization(true);
-        start = System.currentTimeMillis();
-        for (int i = 0; i < 1000; i++) {
-            Msg s = new Msg();
-            s.setName("test-" + (int) (System.currentTimeMillis() % 42));
-            s.setValue("Test");
-            for (int t = 0; t == 10; t++) s.setValue(s.getValue() + s.getValue());
-            Map m = OM.serialize(s);
-
-            OM.deserialize(Msg.class, m);
-        }
-        dur = System.currentTimeMillis() - start;
-        log.info("USing morphium: " + dur);
-    }
-
-    @Test
     public void idTest() {
         UncachedObject o = new UncachedObject("test", 1234);
         o.setMorphiumId(new MorphiumId());
@@ -1083,11 +1048,8 @@ public class ObjectMapperImplTest {
             } else if (!lstlst.equals(other.lstlst))
                 return false;
             if (set == null) {
-                if (other.set != null)
-                    return false;
-            } else if (!set.equals(other.set))
-                return false;
-            return true;
+                return other.set == null;
+            } else return set.equals(other.set);
         }
 
         @Override
@@ -1174,11 +1136,8 @@ public class ObjectMapperImplTest {
             } else if (!timeUnitSet.equals(other.timeUnitSet))
                 return false;
             if (timeUnitValueMap == null) {
-                if (other.timeUnitValueMap != null)
-                    return false;
-            } else if (!timeUnitValueMap.equals(other.timeUnitValueMap))
-                return false;
-            return true;
+                return other.timeUnitValueMap == null;
+            } else return timeUnitValueMap.equals(other.timeUnitValueMap);
         }
     }
 
@@ -1251,11 +1210,8 @@ public class ObjectMapperImplTest {
             } else if (!id.equals(other.id))
                 return false;
             if (listOfChronoUnitMap == null) {
-                if (other.listOfChronoUnitMap != null)
-                    return false;
-            } else if (!listOfChronoUnitMap.equals(other.listOfChronoUnitMap))
-                return false;
-            return true;
+                return other.listOfChronoUnitMap == null;
+            } else return listOfChronoUnitMap.equals(other.listOfChronoUnitMap);
         }
     }
 
@@ -1303,11 +1259,8 @@ public class ObjectMapperImplTest {
             } else if (!id.equals(other.id))
                 return false;
             if (timeUnits == null) {
-                if (other.timeUnits != null)
-                    return false;
-            } else if (!timeUnits.equals(other.timeUnits))
-                return false;
-            return true;
+                return other.timeUnits == null;
+            } else return timeUnits.equals(other.timeUnits);
         }
 
     }
@@ -1407,9 +1360,7 @@ public class ObjectMapperImplTest {
                 return false;
             if (!Arrays.equals(stringArr, other.stringArr))
                 return false;
-            if (!Arrays.equals(timeUnitArr, other.timeUnitArr))
-                return false;
-            return true;
+            return Arrays.equals(timeUnitArr, other.timeUnitArr);
         }
 
     }

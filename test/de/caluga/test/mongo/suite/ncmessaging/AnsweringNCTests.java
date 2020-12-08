@@ -190,8 +190,8 @@ public class AnsweringNCTests extends MorphiumTestBase {
             Msg answer = new Msg("test", "An answer", "42");
             answer.setInAnswerTo(new MorphiumId());
             m3.sendMessage(answer);
-            Thread.sleep(100);
-            assert (recievedById.size() == 2);
+            Thread.sleep(1500);
+            assert (recievedById.size() == 2) : "recieved by is wrong: " + recievedById.size();
             assert (recievedById.get("m1").get() == 1);
             assert (recievedById.get("m2").get() == 1);
 
@@ -201,7 +201,7 @@ public class AnsweringNCTests extends MorphiumTestBase {
             answer.setInAnswerTo(new MorphiumId());
             answer.setRecipient("m2");
             m3.sendMessage(answer);
-            Thread.sleep(100);
+            Thread.sleep(1500);
             assert (recievedById.size() == 1);
             assert (recievedById.get("m1") == null);
             assert (recievedById.get("m2").get() == 1);
@@ -212,7 +212,7 @@ public class AnsweringNCTests extends MorphiumTestBase {
             answer.setInAnswerTo(new MorphiumId());
             answer.setExclusive(true);
             m3.sendMessage(answer);
-            Thread.sleep(100);
+            Thread.sleep(1500);
             assert (recievedById.size() == 1);
             assert ((recievedById.get("m1") == null && recievedById.get("m2").get() == 1)
                     || (recievedById.get("m2") == null && recievedById.get("m1").get() == 1));
@@ -226,8 +226,8 @@ public class AnsweringNCTests extends MorphiumTestBase {
             answer.setInAnswerTo(new MorphiumId());
             answer.setRecipient("m2");
             m3.sendMessage(answer);
-            Thread.sleep(100);
-            assert (recievedById.size() == 1);
+            Thread.sleep(1500);
+            assert (recievedById.size() == 1) : "Recieved size wrong: " + recievedById.size();
             assert (recievedById.get("m1") == null);
             assert (recievedById.get("m2").get() == 1);
 
@@ -241,8 +241,8 @@ public class AnsweringNCTests extends MorphiumTestBase {
             answer.setExclusive(true);
             m3.sendMessage(answer);
             m3.sendMessage(answer.createAnswerMsg());
-            Thread.sleep(100);
-            assert (recievedById.size() == 1);
+            Thread.sleep(2500);
+            assert (recievedById.size() == 1) : "size wrong: " + recievedById.size();
             assert (recievedById.get("m1").get() == 1);
             assert (!recievedById.containsKey("m2"));
 
@@ -260,7 +260,7 @@ public class AnsweringNCTests extends MorphiumTestBase {
             m3.setReceiveAnswers(Messaging.ReceiveAnswers.ONLY_MINE);
             recievedById.clear();
             answer = m3.sendAndAwaitFirstAnswer(new Msg("test2", "An answer", "42").setRecipient("m1"), 400);
-            Thread.sleep(100);
+            Thread.sleep(1500);
             assert (recievedById.size() == 1);
 
             recievedById.clear();
@@ -269,7 +269,7 @@ public class AnsweringNCTests extends MorphiumTestBase {
             m3.setReceiveAnswers(Messaging.ReceiveAnswers.ALL);
             recievedById.clear();
             answer = m3.sendAndAwaitFirstAnswer(new Msg("test2", "An answer", "42").setRecipient("m1"), 400);
-            Thread.sleep(100); //wait for onMessage to be called
+            Thread.sleep(1500); //wait for onMessage to be called
             assert (recievedById.size() == 1);
 
             recievedById.clear();
@@ -278,7 +278,7 @@ public class AnsweringNCTests extends MorphiumTestBase {
             m3.setReceiveAnswers(Messaging.ReceiveAnswers.NONE);
             recievedById.clear();
             answer = m3.sendAndAwaitFirstAnswer(new Msg("test2", "An answer", "42").setRecipient("m1"), 400);
-            Thread.sleep(100); //wait for onMessage to be called
+            Thread.sleep(1500); //wait for onMessage to be called
             assert (recievedById.size() == 0);
 
         } finally {
