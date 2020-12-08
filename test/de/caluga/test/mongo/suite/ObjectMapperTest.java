@@ -1,7 +1,5 @@
 package de.caluga.test.mongo.suite;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.SerializationFeature;
 import de.caluga.morphium.*;
 import de.caluga.morphium.annotations.Embedded;
 import de.caluga.morphium.annotations.Entity;
@@ -52,43 +50,6 @@ public class ObjectMapperTest extends MorphiumTestBase {
         List<Simple> deserializedList = om.deserializeList(serializedList);
         log.info("Deserialized");
     }
-
-    @Test
-    public void speedCheck() throws Exception {
-        ObjectMapper mapper = new ObjectMapper();
-        mapper.enable(SerializationFeature.INDENT_OUTPUT);
-
-        log.info("Checking jackson!");
-        long start = System.currentTimeMillis();
-        for (int i = 0; i < 1000; i++) {
-            Msg s = new Msg();
-            s.setName("test-" + (int) (System.currentTimeMillis() % 42));
-            s.setValue("Test");
-            for (int t = 0; t == 10; t++) s.setValue(s.getValue() + s.getValue());
-            String json = mapper.writeValueAsString(s);
-
-            Msg obj = mapper.readValue(json, Msg.class);
-        }
-        long dur = System.currentTimeMillis() - start;
-
-        log.info("Took " + dur);
-
-        MorphiumObjectMapper mom = morphium.getMapper();
-        mom.getMorphium().getConfig().setWarnOnNoEntitySerialization(true);
-        start = System.currentTimeMillis();
-        for (int i = 0; i < 1000; i++) {
-            Msg s = new Msg();
-            s.setName("test-" + (int) (System.currentTimeMillis() % 42));
-            s.setValue("Test");
-            for (int t = 0; t == 10; t++) s.setValue(s.getValue() + s.getValue());
-            Map m = mom.serialize(s);
-
-            mom.deserialize(Msg.class, m);
-        }
-        dur = System.currentTimeMillis() - start;
-        log.info("USing morphium: " + dur);
-    }
-
 
     @Test
     public void customTypeMapperTest() {

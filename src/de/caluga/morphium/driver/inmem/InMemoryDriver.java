@@ -464,6 +464,7 @@ public class InMemoryDriver implements MorphiumDriver {
                 m.notifyAll();
             }
         }
+        database.clear();
     }
 
     @Override
