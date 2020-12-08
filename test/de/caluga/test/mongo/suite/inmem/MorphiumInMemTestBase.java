@@ -10,6 +10,7 @@ import de.caluga.morphium.query.Query;
 import de.caluga.morphium.replicaset.OplogMonitor;
 import de.caluga.morphium.writer.BufferedMorphiumWriterImpl;
 import de.caluga.test.mongo.suite.MorphiumTestBase;
+import de.caluga.test.mongo.suite.data.CachedObject;
 import de.caluga.test.mongo.suite.data.UncachedObject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -123,6 +124,22 @@ public class MorphiumInMemTestBase {
         }
     }
 
+
+    public void createCachedObjects(Morphium morphium, int amount) {
+        List<CachedObject> lst = new ArrayList<>();
+        for (int i = 0; i < amount; i++) {
+            CachedObject uc = new CachedObject();
+            uc.setCounter(i + 1);
+            uc.setValue("v");
+            lst.add(uc);
+        }
+        morphium.storeList(lst);
+        try {
+            Thread.sleep(500);
+        } catch (InterruptedException e) {
+            e.printStackTrace();  //To change body of catch statement use File | Settings | File Templates.
+        }
+    }
 
     public void createUncachedObjects(int amount) {
         createUncachedObjects(morphium, amount);

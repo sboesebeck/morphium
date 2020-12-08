@@ -38,14 +38,14 @@ public class MessagingNCTest extends MorphiumTestBase {
         morphium.dropCollection(Msg.class);
         morphium.dropCollection(Msg.class, "mmsg_msg2", null);
 
-        Messaging m = new Messaging(morphium, 500, true);
+        Messaging m = new Messaging(morphium, 100, true);
         m.addMessageListener((msg, m1) -> {
             gotMessage1 = true;
             return null;
         });
         m.setUseChangeStream(false).start();
 
-        Messaging m2 = new Messaging(morphium, "msg2", 500, true);
+        Messaging m2 = new Messaging(morphium, "msg2", 100, true);
         m2.addMessageListener((msg, m1) -> {
             gotMessage2 = true;
             return null;
@@ -55,7 +55,7 @@ public class MessagingNCTest extends MorphiumTestBase {
             Msg msg = new Msg("tst", "msg", "value", 30000);
             msg.setExclusive(false);
             m.sendMessage(msg);
-            Thread.sleep(10);
+            Thread.sleep(200);
             Query<Msg> q = morphium.createQueryFor(Msg.class);
             assert (q.countAll() == 1) : "Count wrong: " + q.countAll() + " - should be 1!";
             q.setCollectionName(m2.getCollectionName());
@@ -64,7 +64,7 @@ public class MessagingNCTest extends MorphiumTestBase {
             msg = new Msg("tst2", "msg", "value", 30000);
             msg.setExclusive(false);
             m2.sendMessage(msg);
-            Thread.sleep(100);
+            Thread.sleep(600);
             q = morphium.createQueryFor(Msg.class);
             assert (q.countAll() == 1);
             q.setCollectionName("mmsg_msg2");
@@ -154,40 +154,44 @@ public class MessagingNCTest extends MorphiumTestBase {
 
         morphium.dropCollection(Msg.class);
 
-        final Messaging messaging = new Messaging(morphium, 500, true);
-        messaging.setUseChangeStream(false).start();
-        Thread.sleep(500);
+        final Messaging messaging = new Messaging(morphium, 100, true);
+        try {
+            messaging.setUseChangeStream(false).start();
+            Thread.sleep(500);
 
-        messaging.addMessageListener((msg, m) -> {
-            log.info("Got Message: " + m.toString());
-            gotMessage = true;
-            return null;
-        });
-        messaging.sendMessage(new Msg("Testmessage", "A message", "the value - for now", 5000000));
+            messaging.addMessageListener((msg, m) -> {
+                log.info("Got Message: " + m.toString());
+                gotMessage = true;
+                return null;
+            });
+            messaging.sendMessage(new Msg("Testmessage", "A message", "the value - for now", 5000000));
 
-        Thread.sleep(1000);
-        assert (!gotMessage) : "Message recieved from self?!?!?!";
-        log.info("Dig not get own message - cool!");
+            Thread.sleep(1000);
+            assert (!gotMessage) : "Message recieved from self?!?!?!";
+            log.info("Dig not get own message - cool!");
 
-        Msg m = new Msg("meine Message", "The Message", "value is a string", 5000000);
-        m.setMsgId(new MorphiumId());
-        m.setSender("Another sender");
+            Msg m = new Msg("meine Message", "The Message", "value is a string", 5000000);
+            m.setMsgId(new MorphiumId());
+            m.setSender("Another sender");
 
-        morphium.store(m, messaging.getCollectionName(), null);
+            morphium.store(m, messaging.getCollectionName(), null);
 
-        long start = System.currentTimeMillis();
-        while (!gotMessage) {
-            Thread.sleep(100);
-            assert (System.currentTimeMillis() - start < 5000) : " Message did not come?!?!?";
+            long start = System.currentTimeMillis();
+            while (!gotMessage) {
+                Thread.sleep(100);
+                assert (System.currentTimeMillis() - start < 5000) : " Message did not come?!?!?";
+            }
+            assert (gotMessage);
+            gotMessage = false;
+            Thread.sleep(200);
+            assert (!gotMessage) : "Got message again?!?!?!";
+        } finally {
+            messaging.terminate();
+            Thread.sleep(200);
+            assert (!messaging.isAlive()) : "Messaging still running?!?";
         }
-        assert (gotMessage);
-        gotMessage = false;
-        Thread.sleep(1000);
-        assert (!gotMessage) : "Got message again?!?!?!";
 
-        messaging.terminate();
-        Thread.sleep(1000);
-        assert (!messaging.isAlive()) : "Messaging still running?!?";
+
     }
 
 
@@ -201,46 +205,50 @@ public class MessagingNCTest extends MorphiumTestBase {
         error = false;
 
         morphium.clearCollection(Msg.class);
-        final Messaging m1 = new Messaging(morphium, 500, true);
-        final Messaging m2 = new Messaging(morphium, 500, true);
-        m1.setUseChangeStream(false).start();
-        m2.setUseChangeStream(false).start();
-        Thread.sleep(100);
-        m1.addMessageListener((msg, m) -> {
-            gotMessage1 = true;
-            log.info("M1 got message " + m.toString());
-            if (!m.getSender().equals(m2.getSenderId())) {
-                log.error("Sender is not M2?!?!? m2_id: " + m2.getSenderId() + " - message sender: " + m.getSender());
-                error = true;
-            }
-            return null;
-        });
+        final Messaging m1 = new Messaging(morphium, 100, true);
+        final Messaging m2 = new Messaging(morphium, 100, true);
+        try {
+            m1.setUseChangeStream(false).start();
+            m2.setUseChangeStream(false).start();
+            Thread.sleep(100);
+            m1.addMessageListener((msg, m) -> {
+                gotMessage1 = true;
+                log.info("M1 got message " + m.toString());
+                if (!m.getSender().equals(m2.getSenderId())) {
+                    log.error("Sender is not M2?!?!? m2_id: " + m2.getSenderId() + " - message sender: " + m.getSender());
+                    error = true;
+                }
+                return null;
+            });
 
-        m2.addMessageListener((msg, m) -> {
-            gotMessage2 = true;
-            log.info("M2 got message " + m.toString());
-            if (!m.getSender().equals(m1.getSenderId())) {
-                log.error("Sender is not M1?!?!? m1_id: " + m1.getSenderId() + " - message sender: " + m.getSender());
-                error = true;
-            }
-            return null;
-        });
+            m2.addMessageListener((msg, m) -> {
+                gotMessage2 = true;
+                log.info("M2 got message " + m.toString());
+                if (!m.getSender().equals(m1.getSenderId())) {
+                    log.error("Sender is not M1?!?!? m1_id: " + m1.getSenderId() + " - message sender: " + m.getSender());
+                    error = true;
+                }
+                return null;
+            });
 
-        m1.sendMessage(new Msg("testmsg1", "The message from M1", "Value"));
-        Thread.sleep(1000);
-        assert (gotMessage2) : "Message not recieved yet?!?!?";
-        gotMessage2 = false;
+            m1.sendMessage(new Msg("testmsg1", "The message from M1", "Value"));
+            Thread.sleep(1000);
+            assert (gotMessage2) : "Message not recieved yet?!?!?";
+            gotMessage2 = false;
 
-        m2.sendMessage(new Msg("testmsg2", "The message from M2", "Value"));
-        Thread.sleep(1000);
-        assert (gotMessage1) : "Message not recieved yet?!?!?";
-        gotMessage1 = false;
-        assert (!error);
-        m1.terminate();
-        m2.terminate();
-        Thread.sleep(1000);
-        assert (!m1.isAlive()) : "m1 still running?";
-        assert (!m2.isAlive()) : "m2 still running?";
+            m2.sendMessage(new Msg("testmsg2", "The message from M2", "Value"));
+            Thread.sleep(1000);
+            assert (gotMessage1) : "Message not recieved yet?!?!?";
+            gotMessage1 = false;
+            assert (!error);
+        } finally {
+            m1.terminate();
+            m2.terminate();
+            Thread.sleep(200);
+            assert (!m1.isAlive()) : "m1 still running?";
+            assert (!m2.isAlive()) : "m2 still running?";
+        }
+
 
     }
 
@@ -259,82 +267,83 @@ public class MessagingNCTest extends MorphiumTestBase {
         final Messaging m3 = new Messaging(morphium, 10, true);
         final Messaging m4 = new Messaging(morphium, 10, true);
 
-        m4.setUseChangeStream(false).start();
-        m1.setUseChangeStream(false).start();
-        m2.setUseChangeStream(false).start();
-        m3.setUseChangeStream(false).start();
-        Thread.sleep(200);
+        try {
+            m4.setUseChangeStream(false).start();
+            m1.setUseChangeStream(false).start();
+            m2.setUseChangeStream(false).start();
+            m3.setUseChangeStream(false).start();
+            Thread.sleep(200);
 
-        m1.addMessageListener((msg, m) -> {
-            gotMessage1 = true;
-            log.info("M1 got message " + m.toString());
-            return null;
-        });
+            m1.addMessageListener((msg, m) -> {
+                gotMessage1 = true;
+                log.info("M1 got message " + m.toString());
+                return null;
+            });
 
-        m2.addMessageListener((msg, m) -> {
-            gotMessage2 = true;
-            log.info("M2 got message " + m.toString());
-            return null;
-        });
+            m2.addMessageListener((msg, m) -> {
+                gotMessage2 = true;
+                log.info("M2 got message " + m.toString());
+                return null;
+            });
 
-        m3.addMessageListener((msg, m) -> {
-            gotMessage3 = true;
-            log.info("M3 got message " + m.toString());
-            return null;
-        });
+            m3.addMessageListener((msg, m) -> {
+                gotMessage3 = true;
+                log.info("M3 got message " + m.toString());
+                return null;
+            });
 
-        m4.addMessageListener((msg, m) -> {
-            gotMessage4 = true;
-            log.info("M4 got message " + m.toString());
-            return null;
-        });
+            m4.addMessageListener((msg, m) -> {
+                gotMessage4 = true;
+                log.info("M4 got message " + m.toString());
+                return null;
+            });
 
-        m1.sendMessage(new Msg("testmsg1", "The message from M1", "Value"));
-        Thread.sleep(500);
-        assert (gotMessage2) : "Message not recieved yet by m2?!?!?";
-        assert (gotMessage3) : "Message not recieved yet by m3?!?!?";
-        assert (gotMessage4) : "Message not recieved yet by m4?!?!?";
-        gotMessage1 = false;
-        gotMessage2 = false;
-        gotMessage3 = false;
-        gotMessage4 = false;
+            m1.sendMessage(new Msg("testmsg1", "The message from M1", "Value"));
+            Thread.sleep(500);
+            assert (gotMessage2) : "Message not recieved yet by m2?!?!?";
+            assert (gotMessage3) : "Message not recieved yet by m3?!?!?";
+            assert (gotMessage4) : "Message not recieved yet by m4?!?!?";
+            gotMessage1 = false;
+            gotMessage2 = false;
+            gotMessage3 = false;
+            gotMessage4 = false;
 
-        m2.sendMessage(new Msg("testmsg2", "The message from M2", "Value"));
-        Thread.sleep(500);
-        assert (gotMessage1) : "Message not recieved yet by m1?!?!?";
-        assert (gotMessage3) : "Message not recieved yet by m3?!?!?";
-        assert (gotMessage4) : "Message not recieved yet by m4?!?!?";
-
-
-        gotMessage1 = false;
-        gotMessage2 = false;
-        gotMessage3 = false;
-        gotMessage4 = false;
-
-        m1.sendMessage(new Msg("testmsg_excl", "This is the message", "value", 30000000, true));
-        Thread.sleep(500);
-        int cnt = 0;
-        if (gotMessage1) cnt++;
-        if (gotMessage2) cnt++;
-        if (gotMessage3) cnt++;
-        if (gotMessage4) cnt++;
+            m2.sendMessage(new Msg("testmsg2", "The message from M2", "Value"));
+            Thread.sleep(500);
+            assert (gotMessage1) : "Message not recieved yet by m1?!?!?";
+            assert (gotMessage3) : "Message not recieved yet by m3?!?!?";
+            assert (gotMessage4) : "Message not recieved yet by m4?!?!?";
 
 
-        Thread.sleep(1000);
+            gotMessage1 = false;
+            gotMessage2 = false;
+            gotMessage3 = false;
+            gotMessage4 = false;
 
-        assert (cnt != 0) : "Message was  not received";
-        assert (cnt == 1) : "Message was received too often: " + cnt;
+            m1.sendMessage(new Msg("testmsg_excl", "This is the message", "value", 30000000, true));
+            Thread.sleep(500);
+            int cnt = 0;
+            if (gotMessage1) cnt++;
+            if (gotMessage2) cnt++;
+            if (gotMessage3) cnt++;
+            if (gotMessage4) cnt++;
 
 
-        m1.terminate();
-        m2.terminate();
-        m3.terminate();
-        m4.terminate();
-        Thread.sleep(2000);
-        assert (!m1.isAlive()) : "M1 still running";
-        assert (!m2.isAlive()) : "M2 still running";
-        assert (!m3.isAlive()) : "M3 still running";
-        assert (!m4.isAlive()) : "M4 still running";
+            Thread.sleep(1000);
+
+            assert (cnt != 0) : "Message was  not received";
+            assert (cnt == 1) : "Message was received too often: " + cnt;
+        } finally {
+            m1.terminate();
+            m2.terminate();
+            m3.terminate();
+            m4.terminate();
+            Thread.sleep(200);
+            assert (!m1.isAlive()) : "M1 still running";
+            assert (!m2.isAlive()) : "M2 still running";
+            assert (!m3.isAlive()) : "M3 still running";
+            assert (!m4.isAlive()) : "M4 still running";
+        }
 
 
     }
@@ -616,6 +625,9 @@ public class MessagingNCTest extends MorphiumTestBase {
         try {
             m3.addListenerForMessageNamed("test", (msg, m) -> {
                 //log.info("Got message: "+m.getName());
+                if (m.getInAnswerTo() != null) {
+                    log.error("Got an answer here?");
+                }
                 log.info("Sending answer for " + m.getMsgId());
                 return new Msg("test", "answer", "value", 600000);
             });
@@ -626,7 +638,7 @@ public class MessagingNCTest extends MorphiumTestBase {
                     public void run() {
                         Msg m = new Msg("test", "nothing", "value");
                         m.setTtl(60000000);
-                        Msg a = m1.sendAndAwaitFirstAnswer(m, 16000);
+                        Msg a = m1.sendAndAwaitFirstAnswer(m, 36000);
                         assert (a != null);
                         procCounter.incrementAndGet();
                     }
@@ -1190,12 +1202,16 @@ public class MessagingNCTest extends MorphiumTestBase {
     @Test
     public void removeMessageTest() throws Exception {
         Messaging m1 = new Messaging(morphium, 1000, false);
-        Msg m = new Msg().setMsgId(new MorphiumId()).setMsg("msg").setName("name").setValue("a value");
-        m1.sendMessage(m);
-        Thread.sleep(100);
-        m1.removeMessage(m);
-        Thread.sleep(100);
-        assert (morphium.createQueryFor(Msg.class).countAll() == 0);
+        try {
+            Msg m = new Msg().setMsgId(new MorphiumId()).setMsg("msg").setName("name").setValue("a value");
+            m1.sendMessage(m);
+            Thread.sleep(100);
+            m1.removeMessage(m);
+            Thread.sleep(100);
+            assert (morphium.createQueryFor(Msg.class).countAll() == 0);
+        } finally {
+            m1.terminate();
+        }
 
     }
 
@@ -1203,17 +1219,22 @@ public class MessagingNCTest extends MorphiumTestBase {
     public void timeoutMessages() throws Exception {
         final AtomicInteger cnt = new AtomicInteger();
         Messaging m1 = new Messaging(morphium, 1000, false);
-        m1.addMessageListener((msg, m) -> {
-            log.error("ERROR!");
-            cnt.incrementAndGet();
-            return null;
-        });
-        m1.setUseChangeStream(false).start();
-        Thread.sleep(100);
-        Msg m = new Msg().setMsgId(new MorphiumId()).setMsg("msg").setName("name").setValue("a value").setTtl(-1000);
-        m1.sendMessage(m);
-        Thread.sleep(200);
-        assert (cnt.get() == 0);
+        try {
+            m1.addMessageListener((msg, m) -> {
+                log.error("ERROR!");
+                cnt.incrementAndGet();
+                return null;
+            });
+            m1.setUseChangeStream(false).start();
+            Thread.sleep(100);
+            Msg m = new Msg().setMsgId(new MorphiumId()).setMsg("msg").setName("name").setValue("a value").setTtl(-1000);
+            m1.sendMessage(m);
+            Thread.sleep(200);
+            assert (cnt.get() == 0);
+        } finally {
+            m1.terminate();
+        }
+
 
     }
 
@@ -1549,17 +1570,17 @@ public class MessagingNCTest extends MorphiumTestBase {
         receiver2.setUseChangeStream(false).start();
 
         Morphium morphium4 = new Morphium(MorphiumConfig.fromProperties(morphium.getConfig().asProperties()));
-        morphium3.getConfig().setThreadPoolMessagingMaxSize(10);
-        morphium3.getConfig().setThreadPoolMessagingCoreSize(5);
-        morphium3.getConfig().setThreadPoolAsyncOpMaxSize(10);
+        morphium4.getConfig().setThreadPoolMessagingMaxSize(10);
+        morphium4.getConfig().setThreadPoolMessagingCoreSize(5);
+        morphium4.getConfig().setThreadPoolAsyncOpMaxSize(10);
         Messaging receiver3 = new Messaging(morphium4, (int) (50 + 100 * Math.random()), true, false, 15);
         receiver3.setSenderId("r3");
         receiver3.setUseChangeStream(false).start();
 
         Morphium morphium5 = new Morphium(MorphiumConfig.fromProperties(morphium.getConfig().asProperties()));
-        morphium3.getConfig().setThreadPoolMessagingMaxSize(10);
-        morphium3.getConfig().setThreadPoolMessagingCoreSize(5);
-        morphium3.getConfig().setThreadPoolAsyncOpMaxSize(10);
+        morphium5.getConfig().setThreadPoolMessagingMaxSize(10);
+        morphium5.getConfig().setThreadPoolMessagingCoreSize(5);
+        morphium5.getConfig().setThreadPoolAsyncOpMaxSize(10);
         Messaging receiver4 = new Messaging(morphium5, (int) (50 + 100 * Math.random()), false, true, 15);
         receiver4.setSenderId("r4");
         receiver4.setUseChangeStream(false).start();
@@ -1689,6 +1710,8 @@ public class MessagingNCTest extends MorphiumTestBase {
             receiver4.terminate();
             morphium2.close();
             morphium3.close();
+            morphium4.close();
+            morphium5.close();
         }
 
     }
@@ -1717,17 +1740,17 @@ public class MessagingNCTest extends MorphiumTestBase {
         receiver2.setUseChangeStream(false).start();
 
         Morphium morphium4 = new Morphium(MorphiumConfig.fromProperties(morphium.getConfig().asProperties()));
-        morphium3.getConfig().setThreadPoolMessagingMaxSize(10);
-        morphium3.getConfig().setThreadPoolMessagingCoreSize(5);
-        morphium3.getConfig().setThreadPoolAsyncOpMaxSize(10);
+        morphium4.getConfig().setThreadPoolMessagingMaxSize(10);
+        morphium4.getConfig().setThreadPoolMessagingCoreSize(5);
+        morphium4.getConfig().setThreadPoolAsyncOpMaxSize(10);
         Messaging receiver3 = new Messaging(morphium4, 10, true, false, 15);
         receiver3.setSenderId("r3");
         receiver3.setUseChangeStream(false).start();
 
         Morphium morphium5 = new Morphium(MorphiumConfig.fromProperties(morphium.getConfig().asProperties()));
-        morphium3.getConfig().setThreadPoolMessagingMaxSize(10);
-        morphium3.getConfig().setThreadPoolMessagingCoreSize(5);
-        morphium3.getConfig().setThreadPoolAsyncOpMaxSize(10);
+        morphium5.getConfig().setThreadPoolMessagingMaxSize(10);
+        morphium5.getConfig().setThreadPoolMessagingCoreSize(5);
+        morphium5.getConfig().setThreadPoolAsyncOpMaxSize(10);
         Messaging receiver4 = new Messaging(morphium5, 10, false, true, 15);
         receiver4.setSenderId("r4");
         receiver4.setUseChangeStream(false).start();
@@ -1755,7 +1778,7 @@ public class MessagingNCTest extends MorphiumTestBase {
                 }
                 ids.put(m.getMsgId().toString(), System.currentTimeMillis());
                 recById.put(m.getMsgId().toString(), msg.getSenderId());
-                msg.unpauseProcessingOfMessagesNamed("m");
+                //msg.unpauseProcessingOfMessagesNamed("m");
                 return null;
             };
             receiver.addListenerForMessageNamed("m", messageListener);
@@ -1811,6 +1834,8 @@ public class MessagingNCTest extends MorphiumTestBase {
             receiver4.terminate();
             morphium2.close();
             morphium3.close();
+            morphium4.close();
+            morphium5.close();
         }
 
     }
@@ -1924,36 +1949,39 @@ public class MessagingNCTest extends MorphiumTestBase {
             });
         }
 
-        Msg m = new Msg("test", "msg", "value");
-        m.addRecipient("rec1");
-        m.addRecipient("rec2");
-        m.addRecipient("rec5");
+        try {
+            Msg m = new Msg("test", "msg", "value");
+            m.addRecipient("rec1");
+            m.addRecipient("rec2");
+            m.addRecipient("rec5");
 
-        sender.sendMessage(m);
-        Thread.sleep(1000);
+            sender.sendMessage(m);
+            Thread.sleep(1000);
 
-        assert (receivedBy.size() == m.getTo().size());
-        for (String r : m.getTo()) {
-            assert (receivedBy.contains(r));
+            assert (receivedBy.size() == m.getTo().size());
+            for (String r : m.getTo()) {
+                assert (receivedBy.contains(r));
+            }
+
+
+            receivedBy.clear();
+
+            m = new Msg("test", "msg", "value");
+            m.addRecipient("rec1");
+            m.addRecipient("rec2");
+            m.addRecipient("rec5");
+            m.setExclusive(true);
+
+            sender.sendMessage(m);
+            Thread.sleep(1000);
+            assert (receivedBy.size() == 1);
+            assert (m.getTo().contains(receivedBy.get(0)));
+        } finally {
+            for (Messaging ms : receivers) {
+                ms.terminate();
+            }
         }
 
-
-        receivedBy.clear();
-
-        m = new Msg("test", "msg", "value");
-        m.addRecipient("rec1");
-        m.addRecipient("rec2");
-        m.addRecipient("rec5");
-        m.setExclusive(true);
-
-        sender.sendMessage(m);
-        Thread.sleep(1000);
-        assert (receivedBy.size() == 1);
-        assert (m.getTo().contains(receivedBy.get(0)));
-
-        for (Messaging ms : receivers) {
-            ms.terminate();
-        }
     }
 
 }
