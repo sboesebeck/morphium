@@ -440,7 +440,7 @@ public class AnsweringTests extends MorphiumTestBase {
             Msg question = new Msg("q_wait_for", "question" + i, "a value " + i);
             question.setPriority(5);
             long start = System.currentTimeMillis();
-            Msg answer = m1.sendAndAwaitFirstAnswer(question, 1500);
+            Msg answer = m1.sendAndAwaitFirstAnswer(question, 2500);
             long dur = System.currentTimeMillis() - start;
             assert (answer != null && answer.getInAnswerTo() != null);
             assert (answer.getInAnswerTo().equals(question.getMsgId()));
