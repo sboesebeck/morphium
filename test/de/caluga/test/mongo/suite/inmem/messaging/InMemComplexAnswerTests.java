@@ -58,7 +58,7 @@ public class InMemComplexAnswerTests extends MorphiumInMemTestBase {
             Thread.sleep(250);
             long cnt = morphium.createQueryFor(Msg.class).countAll();
             log.info("Messagecount PingPongLoop: " + cnt);
-            assert (cnt > 5) : "count wrong: " + cnt;
+            assert (cnt >= 5) : "count wrong: " + cnt;
 
             assert (cnt == morphium.createQueryFor(Msg.class).countAll());
         } finally {

@@ -2447,7 +2447,7 @@ public class Morphium implements AutoCloseable {
     }
 
     public <T> void storeList(Set<T> set) {
-        storeList(new ArrayList<T>(set), (AsyncOperationCallback<T>) null);
+        storeList(new ArrayList<>(set), (AsyncOperationCallback<T>) null);
     }
 
     public <T> void storeList(List<T> lst, final AsyncOperationCallback<T> callback) {
@@ -3085,10 +3085,13 @@ public class Morphium implements AutoCloseable {
             for (String cn : entities.getNames()) {
                 //ClassInfo ci = scanResult.getClassInfo(cn);
 
-
                 try {
                     //if (param.getName().equals("index"))
                     //logger.info("Class " + cn + "   Param " + param.getName() + " = " + param.getValue());
+                    if (cn.startsWith("sun.")) continue;
+                    if (cn.startsWith("com.sun.")) continue;
+                    if (cn.startsWith("org.assertj.")) continue;
+                    //logger.info("Checking "+cn);
                     Class<?> entity = Class.forName(cn);
                     if (annotationHelper.getAnnotationFromHierarchy(entity, Entity.class) == null) {
                         continue;
@@ -3107,7 +3110,6 @@ public class Morphium implements AutoCloseable {
                                             .add("__capped_size", capped.maxSize())
                             );
                         }
-
                     }
                 } catch (Throwable e) {
                     //swallow

@@ -190,7 +190,7 @@ public class AnsweringNCTests extends MorphiumTestBase {
             Msg answer = new Msg("test", "An answer", "42");
             answer.setInAnswerTo(new MorphiumId());
             m3.sendMessage(answer);
-            Thread.sleep(2500);
+            Thread.sleep(3500);
             assert (recievedById.size() == 2) : "recieved by is wrong: " + recievedById.size();
             assert (recievedById.get("m1").get() == 1);
             assert (recievedById.get("m2").get() == 1);

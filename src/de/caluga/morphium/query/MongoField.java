@@ -51,28 +51,28 @@ public interface MongoField<T> {
 
     Query<T> nin(Collection<?> vals);
 
-    abstract Query<T> nearSphere(double x, double y);
+     Query<T> nearSphere(double x, double y);
 
-    abstract Query<T> near(double x, double y);
+    Query<T> near(double x, double y);
 
-    abstract Query<T> nearSphere(double x, double y, double maxDistance);
+    Query<T> nearSphere(double x, double y, double maxDistance);
 
     Query<T> nearSphere(double x, double y, double minDistance, double maxDistance);
 
     Query<T> nearSpere(Point point, double minDistance, double maxDistance);
 
-    abstract Query<T> near(double x, double y, double maxDistance);
+    Query<T> near(double x, double y, double maxDistance);
 
     /**
      * search for entries with geo coordinates wihtin the given rectancle - x,y upper left, x2,y2 lower right corner
      */
-    abstract Query<T> box(double x, double y, double x2, double y2);
+    Query<T> box(double x, double y, double x2, double y2);
 
     Query<T> polygon(double... p);
 
-    abstract Query<T> center(double x, double y, double r);
+    Query<T> center(double x, double y, double r);
 
-    abstract Query<T> centerSphere(double x, double y, double r);
+    Query<T> centerSphere(double x, double y, double r);
 
 
     Query<T> polygon(Polygon p);

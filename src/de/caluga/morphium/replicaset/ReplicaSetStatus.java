@@ -123,6 +123,7 @@ public class ReplicaSetStatus {
                 for (ConfNode c : config.getMembers()) {
                     if (c.getId() == n.getId() && c.getHidden() != null && c.getHidden()) {
                         ignore = true;
+                        break;
                     }
                 }
                 if (!ignore) {

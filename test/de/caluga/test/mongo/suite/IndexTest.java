@@ -35,6 +35,8 @@ public class IndexTest extends MorphiumTestBase {
 
     @Test
     public void checkIndexTest() throws Exception {
+        log.info("Starting check");
+        Thread.sleep(100);
         morphium.dropCollection(UncachedObject.class);
         morphium.dropCollection(IndexedObject.class);
         morphium.dropCollection(CappedCol.class);

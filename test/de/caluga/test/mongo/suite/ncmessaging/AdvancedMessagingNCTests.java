@@ -149,6 +149,9 @@ public class AdvancedMessagingNCTests extends MorphiumTestBase {
 
     @Test
     public void messageAnswerTest() throws Exception {
+        morphium.dropCollection(Msg.class, "msg", null);
+        Thread.sleep(100);
+
         counts.clear();
         Messaging m1 = new Messaging(morphium, 100, false, true, 10);
         m1.setUseChangeStream(false).start();
@@ -168,38 +171,41 @@ public class AdvancedMessagingNCTests extends MorphiumTestBase {
         Messaging m4 = new Messaging(morphium4, 100, false, true, 10);
 //        m4.setUseChangeStream(false);
         m4.setUseChangeStream(false).start();
-        MessageListener<Msg> msgMessageListener = new MessageListener<Msg>() {
-            @Override
-            public Msg onMessage(Messaging msg, Msg m) throws InterruptedException {
+
+
+        try {
+            MessageListener<Msg> msgMessageListener = (msg, m) -> {
                 log.info("Received " + m.getMsgId() + " created " + (System.currentTimeMillis() - m.getTimestamp()) + "ms ago");
                 Msg answer = m.createAnswerMsg();
                 answer.setName("test_answer");
                 return answer;
+            };
+
+            m2.addListenerForMessageNamed("test", msgMessageListener);
+            m3.addListenerForMessageNamed("test", msgMessageListener);
+            m4.addListenerForMessageNamed("test", msgMessageListener);
+
+            for (int i = 0; i < 100; i++) {
+                Msg query = new Msg("test", "test querey", "query");
+                query.setExclusive(true);
+                List<Msg> ans = m1.sendAndAwaitAnswers(query, 3, 1250);
+                assert (ans.size() == 1) : "Recieved more than one answer to query " + query.getMsgId();
             }
-        };
 
-        m2.addListenerForMessageNamed("test", msgMessageListener);
-        m3.addListenerForMessageNamed("test", msgMessageListener);
-        m4.addListenerForMessageNamed("test", msgMessageListener);
 
-        for (int i = 0; i < 100; i++) {
-            Msg query = new Msg("test", "test querey", "query");
-            query.setExclusive(true);
-            List<Msg> ans = m1.sendAndAwaitAnswers(query, 3, 1250);
-            assert (ans.size() == 1) : "Recieved more than one answer to query " + query.getMsgId();
+            for (int i = 0; i < 100; i++) {
+                Msg query = new Msg("test", "test querey", "query");
+                query.setExclusive(false);
+                List<Msg> ans = m1.sendAndAwaitAnswers(query, 3, 1250);
+                assert (ans.size() == 3) : "Recieved not enough answers to  " + query.getMsgId();
+            }
+        } finally {
+            m1.terminate();
+            m2.terminate();
+            m3.terminate();
+            m4.terminate();
         }
 
-
-        for (int i = 0; i < 100; i++) {
-            Msg query = new Msg("test", "test querey", "query");
-            query.setExclusive(false);
-            List<Msg> ans = m1.sendAndAwaitAnswers(query, 3, 1250);
-            assert (ans.size() == 3) : "Recieved not enough answers to  " + query.getMsgId();
-        }
-        m1.terminate();
-        m2.terminate();
-        m3.terminate();
-        m4.terminate();
     }
 //
 //
@@ -260,21 +266,24 @@ public class AdvancedMessagingNCTests extends MorphiumTestBase {
         Messaging consumer = new Messaging(morphium, 100, false, true, 10);
         consumer.setUseChangeStream(false).start();
 
-        consumer.addListenerForMessageNamed("testDiff", new MessageListener() {
-            @Override
-            public Msg onMessage(Messaging msg, Msg m) throws InterruptedException {
+        Msg answer;
+        try {
+            consumer.addListenerForMessageNamed("testDiff", (msg, m) -> {
                 log.info("incoming message, replying with answer");
-                Msg answer = m.createAnswerMsg();
-                answer.setName("answer");
-                return answer;
-            }
-        });
+                Msg answer1 = m.createAnswerMsg();
+                answer1.setName("answer");
+                return answer1;
+            });
 
-        Msg answer = producer.sendAndAwaitFirstAnswer(new Msg("testDiff", "query", "value"), 1000);
-        assert (answer != null);
-        assert (answer.getName().equals("answer")) : "Name is wrong: " + answer.getName();
-        producer.terminate();
-        consumer.terminate();
+            answer = producer.sendAndAwaitFirstAnswer(new Msg("testDiff", "query", "value"), 1000);
+            assert (answer != null);
+            assert (answer.getName().equals("answer")) : "Name is wrong: " + answer.getName();
+        } finally {
+
+            producer.terminate();
+            consumer.terminate();
+        }
+
 
     }
 
@@ -285,36 +294,34 @@ public class AdvancedMessagingNCTests extends MorphiumTestBase {
         Messaging consumer = new Messaging(morphium, 100, false, true, 10);
         consumer.setUseChangeStream(false).start();
 
-        consumer.addListenerForMessageNamed("testAnswering", new MessageListener() {
-            @Override
-            public Msg onMessage(Messaging msg, Msg m) throws InterruptedException {
+        try {
+            consumer.addListenerForMessageNamed("testAnswering", (msg, m) -> {
                 log.info("incoming message, replying with answer");
                 Msg answer = m.createAnswerMsg();
                 answer.setName("answerForTestAnswering");
                 return answer;
-            }
-        });
+            });
 
-        MorphiumId msgId = new MorphiumId();
+            MorphiumId msgId = new MorphiumId();
 
 
-        producer.addListenerForMessageNamed("answerForTestAnswering", new MessageListener() {
-            @Override
-            public Msg onMessage(Messaging msg, Msg m) throws InterruptedException {
+            producer.addListenerForMessageNamed("answerForTestAnswering", (msg, m) -> {
                 log.info("Incoming answer! " + m.getInAnswerTo() + " ---> " + msgId);
                 assert (msgId.equals(m.getInAnswerTo()));
                 counts.put(msgId, 1);
                 return null;
-            }
-        });
+            });
 
-        Msg msg = new Msg("testAnswering", "query", "value");
-        msg.setMsgId(msgId);
-        producer.sendMessage(msg);
-        Thread.sleep(1000);
-        assert (counts.get(msgId).equals(1));
-        producer.terminate();
-        consumer.terminate();
+            Msg msg = new Msg("testAnswering", "query", "value");
+            msg.setMsgId(msgId);
+            producer.sendMessage(msg);
+            Thread.sleep(1000);
+            assert (counts.get(msgId).equals(1));
+        } finally {
+            producer.terminate();
+            consumer.terminate();
+        }
+
 
     }
 }
