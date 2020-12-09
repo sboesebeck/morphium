@@ -144,7 +144,7 @@ public class InMemMessagingTest extends MorphiumInMemTestBase {
                     Msg m = new Msg("test", "nothing", "value");
                     m.setTtl(60000000);
                     try {
-                        Msg a = m1.sendAndAwaitFirstAnswer(m, 16000);
+                        Msg a = m1.sendAndAwaitFirstAnswer(m, 36000);
                         assert (a != null);
                         procCounter.incrementAndGet();
                     } catch (Exception e) {

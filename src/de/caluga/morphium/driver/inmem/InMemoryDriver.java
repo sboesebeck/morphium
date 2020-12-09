@@ -813,7 +813,7 @@ public class InMemoryDriver implements MorphiumDriver {
         }
         List<Map<String, Object>> res = find(inCrs.getDb(), inCrs.getCollection(), inCrs.getQuery(), inCrs.getSort(), inCrs.getProjection(), inCrs.getSkip(), limit, inCrs.getBatchSize(), inCrs.getReadPreference(), inCrs.getCollation(), inCrs.getFindMetaData());
         next.setBatch(Collections.synchronizedList(new ArrayList<>(res)));
-        if (res.size() < inCrs.getBatchSize() || res.size() + oldCrs.getDataRead() >= oldCrs.limit) {
+        if (res.size() < inCrs.getBatchSize() || (oldCrs.limit != 0 && res.size() + oldCrs.getDataRead() > oldCrs.limit)) {
             //finished!
             //noinspection unchecked
             next.setInternalCursorObject(null);

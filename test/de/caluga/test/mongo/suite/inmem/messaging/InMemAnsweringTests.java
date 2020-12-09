@@ -228,7 +228,7 @@ public class InMemAnsweringTests extends MorphiumInMemTestBase {
             answer.setInAnswerTo(new MorphiumId());
             answer.setRecipient("m2");
             m3.sendMessage(answer);
-            Thread.sleep(100);
+            Thread.sleep(1500);
             assert (receivedById.size() == 1);
             assert (receivedById.get("m1") == null);
             assert (receivedById.get("m2").get() == 1);

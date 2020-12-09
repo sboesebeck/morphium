@@ -109,7 +109,7 @@ public class InMemMessagingTest extends MorphiumInMemTestBase {
         Messaging producer = new Messaging(morphium, 500, false);
         producer.setUseChangeStream(true).start();
         for (int i = 0; i < 100; i++) {
-            Msg m = new Msg("test" + i, "tm", "" + i + System.currentTimeMillis(), 30000);
+            Msg m = new Msg("test" + i, "tm", "" + i + System.currentTimeMillis(), 130000);
             producer.sendMessage(m);
         }
         final AtomicInteger count = new AtomicInteger();
@@ -131,7 +131,7 @@ public class InMemMessagingTest extends MorphiumInMemTestBase {
         consumer.terminate();
         log.info("now multithreadded and multiprocessing");
         for (int i = 0; i < 2500; i++) {
-            Msg m = new Msg("test" + i, "tm", "" + i + System.currentTimeMillis(), 30000);
+            Msg m = new Msg("test" + i, "tm", "" + i + System.currentTimeMillis(), 130000);
             producer.sendMessage(m);
         }
         count.set(0);
