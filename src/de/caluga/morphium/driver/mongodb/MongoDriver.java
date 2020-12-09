@@ -776,6 +776,7 @@ public class MongoDriver implements MorphiumDriver {
                 abortTransaction();
             }
             mongo.close();
+            mongo = null;
         } catch (Exception e) {
             //throw new MorphiumDriverException("error closing", e);
         }
@@ -999,6 +1000,8 @@ public class MongoDriver implements MorphiumDriver {
             }
 
             while (cb.isContinued()) {
+                if (mongo == null) break;
+
                 ChangeStreamIterable<Document> it;
                 if (collection != null) {
                     it = mongo.getDatabase(db).getCollection(collection).watch(p);
@@ -1012,6 +1015,9 @@ public class MongoDriver implements MorphiumDriver {
                 MongoCursor<ChangeStreamDocument<Document>> iterator = it.iterator();
                 long start = System.currentTimeMillis();
                 while (cb.isContinued()) {
+                    if (mongo == null) {
+                        break; //connection closed!
+                    }
                     ChangeStreamDocument<Document> doc = iterator.tryNext();
                     if (doc == null) {
                         try {
@@ -1071,6 +1077,7 @@ public class MongoDriver implements MorphiumDriver {
             }
             long start = System.currentTimeMillis();
             for (Document d : ret) {
+                if (mongo == null || d == null) break; //connection closed!
                 Map<String, Object> obj = convertBSON(d);
                 cb.incomingData(obj, System.currentTimeMillis() - start);
                 if (!cb.isContinued()) {
@@ -1110,6 +1117,9 @@ public class MongoDriver implements MorphiumDriver {
                 int cnt = values.size();
                 if (cnt >= batchSize && batchSize != 0 || cnt >= 1000 && batchSize == 0) {
                     break;
+                }
+                if (mongo == null) {
+                    return null; //connection closed!
                 }
             }
             MorphiumCursor crs1 = new MorphiumCursor();

@@ -326,7 +326,11 @@ public class MorphiumTestBase {
                 }
             }
 
-            morphium.getCache().resetCache();
+            //morphium.getCache().resetCache();
+            morphium.close();
+            morphium = null;
+            System.gc();
+            init();
 //            morphium.reset();
 //            morphium = null;
 //            Thread.sleep(200);

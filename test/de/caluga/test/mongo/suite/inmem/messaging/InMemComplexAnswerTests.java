@@ -30,9 +30,9 @@ public class InMemComplexAnswerTests extends MorphiumInMemTestBase {
             m1.setReceiveAnswers(Messaging.ReceiveAnswers.NONE);
             m2.setReceiveAnswers(Messaging.ReceiveAnswers.NONE);
             Thread.sleep(100);
-            List<Msg> answers = m2.sendAndAwaitAnswers(new Msg("test", "ms", "val"), 10, 1000);
+            List<Msg> answers = m2.sendAndAwaitAnswers(new Msg("test", "ms", "val"), 10, 2000);
             assert (answers.size() == 1);
-            answers = m1.sendAndAwaitAnswers(new Msg("test", "ms", "val"), 10, 1000);
+            answers = m1.sendAndAwaitAnswers(new Msg("test", "ms", "val"), 10, 2500);
             assert (answers.size() == 1);
             log.info("Messagecount: " + morphium.createQueryFor(Msg.class).countAll());
             assert (morphium.createQueryFor(Msg.class).countAll() == 4);
@@ -40,9 +40,9 @@ public class InMemComplexAnswerTests extends MorphiumInMemTestBase {
             m1.setReceiveAnswers(Messaging.ReceiveAnswers.ONLY_MINE);
             m2.setReceiveAnswers(Messaging.ReceiveAnswers.NONE);
             morphium.createQueryFor(Msg.class).delete();
-            Thread.sleep(200);
+            Thread.sleep(1200);
             m1.sendMessage(new Msg("test", "ms", "val"));
-            Thread.sleep(500);
+            Thread.sleep(1500);
             log.info("Messagecount: " + morphium.createQueryFor(Msg.class).countAll());
             assert (morphium.createQueryFor(Msg.class).countAll() == 3) : "Message count is wrong: " + morphium.createQueryFor(Msg.class).countAll();
 

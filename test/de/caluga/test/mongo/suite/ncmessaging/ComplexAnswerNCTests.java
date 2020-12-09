@@ -14,6 +14,8 @@ public class ComplexAnswerNCTests extends MorphiumTestBase {
     public void pingPongTest() throws Exception {
         Messaging m1 = new Messaging(morphium);
         Messaging m2 = new Messaging(morphium);
+        m1.setPause(100);
+        m2.setPause(100);
 
         m1.setUseChangeStream(false).start();
         m2.setUseChangeStream(false).start();
@@ -27,10 +29,10 @@ public class ComplexAnswerNCTests extends MorphiumTestBase {
         });
         m1.setReceiveAnswers(Messaging.ReceiveAnswers.NONE);
         m2.setReceiveAnswers(Messaging.ReceiveAnswers.NONE);
-        Thread.sleep(100);
-        List<Msg> answers = m2.sendAndAwaitAnswers(new Msg("test", "ms", "val"), 10, 1000);
+        Thread.sleep(200);
+        List<Msg> answers = m2.sendAndAwaitAnswers(new Msg("test", "ms", "val"), 10, 1500);
         assert (answers.size() == 1);
-        answers = m1.sendAndAwaitAnswers(new Msg("test", "ms", "val"), 10, 1000);
+        answers = m1.sendAndAwaitAnswers(new Msg("test", "ms", "val"), 10, 1500);
         assert (answers.size() == 1);
         log.info("Messagecount: " + morphium.createQueryFor(Msg.class).countAll());
         assert (morphium.createQueryFor(Msg.class).countAll() == 4) : "Count wrong - " + morphium.createQueryFor(Msg.class).countAll();
