@@ -208,8 +208,7 @@ public class Messaging extends Thread implements ShutdownListener {
                 .f(Msg.Fields.lockedBy).eq("ALL")
                 .f(Msg.Fields.processedBy).ne(id);
         q1.or(or1, or2);
-        long ret = q1.countAll();
-        return ret;
+        return q1.countAll();
     }
 
     public void removeMessage(Msg m) {

@@ -1198,7 +1198,7 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
     }
 
     public Map<String, Object> deserializeMap(Map<String, Object> dbObject) {
-        Map<String, Object> retMap = new HashMap<String, Object>(dbObject);
+        Map<String, Object> retMap = new HashMap<>(dbObject);
         if (dbObject != null) {
             for (Entry<String, Object> entry : dbObject.entrySet()) {
                 retMap.put(entry.getKey(), unmarshallInternal(entry.getValue()));

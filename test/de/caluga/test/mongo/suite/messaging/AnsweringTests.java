@@ -483,25 +483,19 @@ public class AnsweringTests extends MorphiumTestBase {
         sender.start();
         recipient.start();
         gotMessage1 = false;
-        recipient.addListenerForMessageNamed("query", new MessageListener() {
-            @Override
-            public Msg onMessage(Messaging msg, Msg m) throws InterruptedException {
-                gotMessage1 = true;
-                Msg answer = m.createAnswerMsg();
-                answer.setName("queryAnswer");
-                answer.setMsg("the answer");
-                //msg.storeMessage(answer);
-                return answer;
-            }
+        recipient.addListenerForMessageNamed("query", (msg, m) -> {
+            gotMessage1 = true;
+            Msg answer = m.createAnswerMsg();
+            answer.setName("queryAnswer");
+            answer.setMsg("the answer");
+            //msg.storeMessage(answer);
+            return answer;
         });
         gotMessage2 = false;
-        sender.addListenerForMessageNamed("queryAnswer", new MessageListener() {
-            @Override
-            public Msg onMessage(Messaging msg, Msg m) throws InterruptedException {
-                gotMessage2 = true;
-                assert (m.getInAnswerTo() != null);
-                return null;
-            }
+        sender.addListenerForMessageNamed("queryAnswer", (msg, m) -> {
+            gotMessage2 = true;
+            assert (m.getInAnswerTo() != null);
+            return null;
         });
 
         sender.sendMessage(new Msg("query", "a query", "avalue"));

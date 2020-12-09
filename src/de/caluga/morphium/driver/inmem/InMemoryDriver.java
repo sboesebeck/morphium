@@ -621,6 +621,7 @@ public class InMemoryDriver implements MorphiumDriver {
                                             for (Object v2 : (List) toCheck.get(key)) {
                                                 if (v2.equals(v)) {
                                                     found = true;
+                                                    break;
                                                 }
                                             }
                                         }
@@ -1158,42 +1159,40 @@ public class InMemoryDriver implements MorphiumDriver {
      * invalidate
      */
     private void notifyWatchers(String db, String collection, String op, Map doc) {
-        Runnable r = new Runnable() {
-            public void run() {
-                List<DriverTailableIterationCallback> w = null;
-                if (watchersByDb.containsKey(db)) {
-                    w = Collections.synchronizedList(new ArrayList<>(watchersByDb.get(db)));
-                } else if (collection != null && watchersByDb.containsKey(db + "." + collection)) {
-                    w = Collections.synchronizedList(new ArrayList<>(watchersByDb.get(db + "." + collection)));
-                }
-                if (w == null || w.isEmpty()) {
-                    return;
-                }
-
-                long tx = txn.incrementAndGet();
-                Collections.shuffle(w);
-                for (DriverTailableIterationCallback cb : w) {
-                    Map<String, Object> data = new HashMap<>();
-                    data.put("fullDocument", doc);
-                    data.put("operationType", op);
-                    Map m = Utils.getMap("db", db);
-                    //noinspection unchecked
-                    m.put("coll", collection);
-                    data.put("ns", m);
-                    data.put("txnNumber", tx);
-                    data.put("clusterTime", System.currentTimeMillis());
-                    if (doc != null) {
-                        data.put("documentKey", doc.get("_id"));
-                    }
-
-                    try {
-                        cb.incomingData(data, System.currentTimeMillis());
-                    } catch (Exception e) {
-                        log.error("Error calling watcher", e);
-                    }
-                }
-
+        Runnable r = () -> {
+            List<DriverTailableIterationCallback> w = null;
+            if (watchersByDb.containsKey(db)) {
+                w = Collections.synchronizedList(new ArrayList<>(watchersByDb.get(db)));
+            } else if (collection != null && watchersByDb.containsKey(db + "." + collection)) {
+                w = Collections.synchronizedList(new ArrayList<>(watchersByDb.get(db + "." + collection)));
             }
+            if (w == null || w.isEmpty()) {
+                return;
+            }
+
+            long tx = txn.incrementAndGet();
+            Collections.shuffle(w);
+            for (DriverTailableIterationCallback cb : w) {
+                Map<String, Object> data = new HashMap<>();
+                data.put("fullDocument", doc);
+                data.put("operationType", op);
+                Map m = Utils.getMap("db", db);
+                //noinspection unchecked
+                m.put("coll", collection);
+                data.put("ns", m);
+                data.put("txnNumber", tx);
+                data.put("clusterTime", System.currentTimeMillis());
+                if (doc != null) {
+                    data.put("documentKey", doc.get("_id"));
+                }
+
+                try {
+                    cb.incomingData(data, System.currentTimeMillis());
+                } catch (Exception e) {
+                    log.error("Error calling watcher", e);
+                }
+            }
+
         };
 
         eventQueue.add(r);
@@ -1436,7 +1435,7 @@ public class InMemoryDriver implements MorphiumDriver {
 
     }
 
-    private class InMemoryCursor {
+    private static class InMemoryCursor {
         private int skip;
         private int limit;
         private int batchSize;

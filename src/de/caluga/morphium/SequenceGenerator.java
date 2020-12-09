@@ -219,6 +219,6 @@ public class SequenceGenerator {
     }
 
 
-    public class RecursionException extends RuntimeException {
+    public static class RecursionException extends RuntimeException {
     }
 }

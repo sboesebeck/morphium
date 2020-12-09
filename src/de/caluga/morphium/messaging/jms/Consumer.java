@@ -102,8 +102,7 @@ public class Consumer implements JMSConsumer, de.caluga.morphium.messaging.Messa
         log.info("Incoming message...");
         if (getMessageListener() != null) {
             getMessageListener().onMessage(m);
-            JMSMessage ans = getAckMessage(m);
-            return ans;
+            return getAckMessage(m);
         }
         incomingQueue.push(m);
         return null;

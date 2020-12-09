@@ -90,7 +90,7 @@ public class AnnotationAndReflectionHelper {
     private Map<String, List<String>> fieldAnnotationListCache;
     private Map<Class<?>, Map<Class<? extends Annotation>, Method>> lifeCycleMethods;
     private Map<Class<?>, Boolean> hasAdditionalData;
-    private boolean ccc;
+    private final boolean ccc;
 
     public AnnotationAndReflectionHelper(boolean convertCamelCase) {
         this(convertCamelCase, new HashMap<>());
@@ -214,21 +214,19 @@ public class AnnotationAndReflectionHelper {
             }
         }
 
-        if (annotation == null) {
-            //check interfaces if nothing was found yet
-            ArrayDeque<Class<?>> interfaces = new ArrayDeque<Class<?>>();
-            Collections.addAll(interfaces, aClass.getInterfaces());
-            while (!interfaces.isEmpty()) {
-                Class<?> anInterface = interfaces.pollFirst();
-                if (anInterface != null) {
-                    if ((annotation = anInterface.getAnnotation(annotationClass)) != null) {
-                        return annotation; //no need to look further, found annotation
-                    }
-                    Collections.addAll(interfaces, anInterface.getInterfaces());
+        //check interfaces if nothing was found yet
+        ArrayDeque<Class<?>> interfaces = new ArrayDeque<>();
+        Collections.addAll(interfaces, aClass.getInterfaces());
+        while (!interfaces.isEmpty()) {
+            Class<?> anInterface = interfaces.pollFirst();
+            if (anInterface != null) {
+                if ((annotation = anInterface.getAnnotation(annotationClass)) != null) {
+                    return annotation; //no need to look further, found annotation
                 }
+                Collections.addAll(interfaces, anInterface.getInterfaces());
             }
         }
-        return annotation;
+        return null;
     }
 
     public <T extends Annotation> T getAnnotationFromClass(final Class<?> cls, final Class<? extends T> annotationClass) {
@@ -402,7 +400,7 @@ public class AnnotationAndReflectionHelper {
         //in order to allow Inheritance to "shadow" fields
         for (Class c : hierachy) {
             Field[] declaredFields = c.getDeclaredFields();
-            if (declaredFields != null && declaredFields.length > 0) {
+            if (declaredFields.length > 0) {
                 for (Field declaredField : declaredFields) {
                     if (!declaredField.getName().startsWith("$jacoco")) {
                         ret.add(declaredField);
@@ -906,6 +904,7 @@ public class AnnotationAndReflectionHelper {
                 for (String ign : ignoreContains) {
                     if (f.getName().contains(ign) || conv.contains(ign)) {
                         ignore = true;
+                        break;
                     }
                 }
             }
@@ -997,7 +996,7 @@ public class AnnotationAndReflectionHelper {
         List<Annotation> ret = new ArrayList<>();
         Class<?> z = cls;
         while (!z.equals(Object.class)) {
-            if (z.getAnnotations() != null && z.getAnnotations().length != 0) {
+            if (z.getAnnotations().length != 0) {
                 if (anCls.length == 0) {
                     ret.addAll(Arrays.asList(z.getAnnotations()));
                 } else {
