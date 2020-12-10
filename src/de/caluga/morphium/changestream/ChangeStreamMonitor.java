@@ -142,7 +142,7 @@ public class ChangeStreamMonitor implements Runnable, ShutdownListener {
                             return;
                         }
                         @SuppressWarnings("unchecked") Map<String, Object> obj = (Map<String, Object>) data.get("fullDocument");
-                        data.put("fullDocument", null);
+                        data.remove("fullDocument");
                         ChangeStreamEvent evt = mapper.deserialize(ChangeStreamEvent.class, data);
 
                         evt.setFullDocument(obj);
