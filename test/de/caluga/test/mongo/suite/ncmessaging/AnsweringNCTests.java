@@ -141,6 +141,7 @@ public class AnsweringNCTests extends MorphiumTestBase {
 
     }
 
+
     @Test
     public void answerListenerTest() throws Exception {
         Messaging m1 = new Messaging(morphium, 10, false, true, 10);
@@ -190,29 +191,47 @@ public class AnsweringNCTests extends MorphiumTestBase {
             Msg answer = new Msg("test", "An answer", "42");
             answer.setInAnswerTo(new MorphiumId());
             m3.sendMessage(answer);
-            Thread.sleep(3500);
+            int loops = 0;
+            while (loops < 20) {
+                log.info("Waiting for normal onMessage to process...");
+                loops++;
+                if (recievedById.size() >= 2) break;
+                Thread.sleep(500);
+            }
             assert (recievedById.size() == 2) : "recieved by is wrong: " + recievedById.size();
             assert (recievedById.get("m1").get() == 1);
             assert (recievedById.get("m2").get() == 1);
 
             //sending a direct message
             recievedById.clear();
-            answer = new Msg("test", "An answer", "42");
+            answer = new Msg("test", "An answer, direct to m2", "42");
             answer.setInAnswerTo(new MorphiumId());
             answer.setRecipient("m2");
             m3.sendMessage(answer);
-            Thread.sleep(1500);
+            loops = 0;
+            while (loops < 20) {
+                log.info("Waiting for normal onMessage to process...");
+                loops++;
+                Thread.sleep(500);
+                if (recievedById.size() != 0) break;
+            }
             assert (recievedById.size() == 1);
             assert (recievedById.get("m1") == null);
             assert (recievedById.get("m2").get() == 1);
 
             //exclusive answer!
             recievedById.clear();
-            answer = new Msg("test", "An answer", "42");
+            answer = new Msg("test", "An exclusive answer, not directed", "42");
             answer.setInAnswerTo(new MorphiumId());
             answer.setExclusive(true);
             m3.sendMessage(answer);
-            Thread.sleep(1500);
+            loops = 0;
+            while (loops < 20) {
+                log.info("Waiting for normal onMessage to process...");
+                loops++;
+                Thread.sleep(500);
+                if (recievedById.size() != 0) break;
+            }
             assert (recievedById.size() == 1);
             assert ((recievedById.get("m1") == null && recievedById.get("m2").get() == 1)
                     || (recievedById.get("m2") == null && recievedById.get("m1").get() == 1));
@@ -222,11 +241,17 @@ public class AnsweringNCTests extends MorphiumTestBase {
             m1.setReceiveAnswers(Messaging.ReceiveAnswers.ONLY_MINE);
             m2.setReceiveAnswers(Messaging.ReceiveAnswers.ONLY_MINE);
             recievedById.clear();
-            answer = new Msg("test", "An answer", "42");
+            answer = new Msg("test", "A direct answer to m2", "42");
             answer.setInAnswerTo(new MorphiumId());
             answer.setRecipient("m2");
             m3.sendMessage(answer);
-            Thread.sleep(2500);
+            loops = 0;
+            while (loops < 40) {
+                log.info("Waiting for normal onMessage to process...");
+                loops++;
+                Thread.sleep(500);
+                if (recievedById.size() != 0) break;
+            }
             assert (recievedById.size() == 1) : "Recieved size wrong: " + recievedById.size();
             assert (recievedById.get("m1") == null);
             assert (recievedById.get("m2").get() == 1);
@@ -236,23 +261,27 @@ public class AnsweringNCTests extends MorphiumTestBase {
             m1.setReceiveAnswers(Messaging.ReceiveAnswers.ALL);
             m2.setReceiveAnswers(Messaging.ReceiveAnswers.NONE);
             recievedById.clear();
-            answer = new Msg("test", "An answer", "42");
+            answer = new Msg("test", "An exclusive answer", "42");
             answer.setInAnswerTo(new MorphiumId());
             answer.setExclusive(true);
             m3.sendMessage(answer);
-            m3.sendMessage(answer.createAnswerMsg());
-            Thread.sleep(2500);
+
+            loops = 0;
+            while (loops < 40) {
+                log.info("Waiting for normal onMessage to process...");
+                loops++;
+                Thread.sleep(500);
+                if (recievedById.size() != 0) break;
+            }
+            if (recievedById.size() != 1) {
+                log.info("Wrong");
+            }
             assert (recievedById.size() == 1) : "size wrong: " + recievedById.size();
             assert (recievedById.get("m1").get() == 1);
             assert (!recievedById.containsKey("m2"));
 
             //checking wait for
-            MessageListener<Msg> listener = new MessageListener<Msg>() {
-                @Override
-                public Msg onMessage(Messaging msg, Msg m) throws InterruptedException {
-                    return m.createAnswerMsg();
-                }
-            };
+            MessageListener<Msg> listener = (msg, m) -> m.createAnswerMsg();
             m1.addListenerForMessageNamed("test2", listener);
             recievedById.clear();
             m1.setReceiveAnswers(Messaging.ReceiveAnswers.NONE);
@@ -260,7 +289,13 @@ public class AnsweringNCTests extends MorphiumTestBase {
             m3.setReceiveAnswers(Messaging.ReceiveAnswers.ONLY_MINE);
             recievedById.clear();
             answer = m3.sendAndAwaitFirstAnswer(new Msg("test2", "An answer", "42").setRecipient("m1"), 400);
-            Thread.sleep(2500);
+            loops = 0;
+            while (loops < 40) {
+                log.info("Waiting for normal onMessage to process...");
+                loops++;
+                Thread.sleep(500);
+                if (recievedById.size() != 0) break;
+            }
             assert (recievedById.size() == 1);
 
             recievedById.clear();
@@ -269,7 +304,13 @@ public class AnsweringNCTests extends MorphiumTestBase {
             m3.setReceiveAnswers(Messaging.ReceiveAnswers.ALL);
             recievedById.clear();
             answer = m3.sendAndAwaitFirstAnswer(new Msg("test2", "An answer", "42").setRecipient("m1"), 400);
-            Thread.sleep(2500); //wait for onMessage to be called
+            loops = 0;
+            while (loops < 20) {
+                log.info("Waiting for normal onMessage to process...");
+                loops++;
+                Thread.sleep(500);
+                if (recievedById.size() != 0) break;
+            }
             assert (recievedById.size() == 1);
 
             recievedById.clear();
@@ -278,7 +319,13 @@ public class AnsweringNCTests extends MorphiumTestBase {
             m3.setReceiveAnswers(Messaging.ReceiveAnswers.NONE);
             recievedById.clear();
             answer = m3.sendAndAwaitFirstAnswer(new Msg("test2", "An answer", "42").setRecipient("m1"), 400);
-            Thread.sleep(2500); //wait for onMessage to be called
+            loops = 0;
+            while (loops < 10) {
+                log.info("Waiting for normal onMessage to process...");
+                loops++;
+                Thread.sleep(500);
+                if (recievedById.size() != 0) break;
+            }
             assert (recievedById.size() == 0);
 
         } finally {

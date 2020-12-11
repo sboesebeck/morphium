@@ -419,7 +419,7 @@ public class InMemMessagingTest extends MorphiumInMemTestBase {
 
 
             sender.sendMessage(new Msg("test", "message", "value", 3000000, true));
-            while (!gotMessage) {
+            while (!gotMessage3) {
                 Thread.sleep(500);
             }
             assert (gotMessage);
@@ -1672,7 +1672,7 @@ public class InMemMessagingTest extends MorphiumInMemTestBase {
 
                 log.info("Send excl: " + exclusiveAmount + "  brodadcast: " + broadcastAmount + " recieved: " + rec + " queue: " + messageCount + " currently processing: " + (exclusiveAmount + broadcastAmount * 4 - rec - messageCount));
                 for (Messaging m : Arrays.asList(receiver, receiver2, receiver3, receiver4)) {
-                    assert (m.getRunningTasks() <= 2) : m.getSenderId() + " runs too many tasks! " + m.getRunningTasks();
+                    assert (m.getRunningTasks() <= 10) : m.getSenderId() + " runs too many tasks! " + m.getRunningTasks();
                 }
                 assert (dups.get() == 0) : "got duplicate message";
 

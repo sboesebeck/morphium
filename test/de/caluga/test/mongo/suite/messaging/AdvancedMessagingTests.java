@@ -19,7 +19,7 @@ public class AdvancedMessagingTests extends MorphiumTestBase {
 
     @Test
     public void testExclusiveXTimes() throws Exception {
-        for (int i = 0; i < 2; i++)
+        for (int i = 0; i < 5; i++)
             runExclusiveMessagesTest((int) (Math.random() * 3500), (int) (22 * Math.random()) + 2);
     }
 
@@ -98,16 +98,73 @@ public class AdvancedMessagingTests extends MorphiumTestBase {
             }
             log.info("-----> Messages processed so far: " + counts.size() + "/" + amount + " with " + receivers + " receivers");
         } finally {
+            List<Thread> threads = new ArrayList<>();
+            threads.add(new Thread() {
+                private Messaging msg;
+
+                public Thread setMessaging(Messaging m) {
+                    this.msg = m;
+                    return this;
+                }
+
+                public void run() {
+                    msg.terminate();
+                }
+            }.setMessaging(sender));
+            threads.get(0).start();
+
             sender.terminate();
             for (Messaging m : messagings) {
-                m.terminate();
+                Thread t = new Thread() {
+                    private Messaging msg;
+
+                    public Thread setMessaging(Messaging m) {
+                        this.msg = m;
+                        return this;
+                    }
+
+                    public void run() {
+                        log.info("Terminating " + m.getSenderId());
+                        msg.terminate();
+                    }
+                }.setMessaging(m);
+                threads.add(t);
+                t.start();
             }
+
+            for (Thread t : threads) {
+                t.join();
+            }
+            threads.clear();
             int num = 0;
             for (Morphium m : morphiums) {
                 num++;
-                log.info("Closing morphium..." + num + "/" + morphiums.size());
-                m.close();
+
+                Thread t = new Thread() {
+                    private Morphium m;
+                    private int n;
+
+                    public Thread setMorphium(Morphium m, int num) {
+                        this.m = m;
+                        this.n = num;
+                        return this;
+                    }
+
+                    public void run() {
+                        log.info("Terminating Morphium " + n + "/" + morphiums.size());
+                        m.close();
+                    }
+                }.setMorphium(m, num);
+
+                threads.add(t);
+                t.start();
+//                log.info("Closing morphium..." + num + "/" + morphiums.size());
+//                m.close();
             }
+            for (Thread t : threads) {
+                t.join();
+            }
+            threads.clear();
             log.info("Run finished!");
         }
 
@@ -234,7 +291,7 @@ public class AdvancedMessagingTests extends MorphiumTestBase {
         Msg msg = new Msg("testAnswering", "query", "value");
         msg.setMsgId(msgId);
         producer.sendMessage(msg);
-        Thread.sleep(1000);
+        Thread.sleep(1500);
         assert (counts.get(msgId).equals(1));
         producer.terminate();
         consumer.terminate();
