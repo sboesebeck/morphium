@@ -122,9 +122,14 @@ public class InMemPausingUnpausingTests extends MorphiumInMemTestBase {
                 sender.sendMessage(new Msg("now", "now", "now"));
             }
         }
-        Thread.sleep(2500);
-        assert (count.get() == 10) : "Count wrong " + count.get();
-        Thread.sleep(8500); //time=duration of processing ~250ms + messaging pause 10ms = 260ms*20 = 5200ms + processing time
+        long start = System.currentTimeMillis();
+        while (count.get() < 10) {
+            Thread.sleep(100);
+        }
+        log.info("Got half at " + (System.currentTimeMillis() - start));
+        while (list.size() < 20) {
+            Thread.sleep(100);
+        }
         assert (list.size() == 20) : "Size wrong " + list.size();
 
         list.remove(0); //prio of first  is random
