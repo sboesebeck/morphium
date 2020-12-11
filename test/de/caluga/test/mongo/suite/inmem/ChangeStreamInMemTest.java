@@ -82,7 +82,7 @@ public class ChangeStreamInMemTest extends MorphiumInMemTestBase {
             log.info("waiting for some time!");
             Thread.sleep(8500);
             run[0] = false;
-            assert (count[0] > 0 && count[0] >= written[0] - 2) : "Wrong count: " + count[0] + " written: " + written[0];
+            assert (count[0] > 0 && count[0] >= written[0] - 3) : "Wrong count: " + count[0] + " written: " + written[0];
         } finally {
             run[0] = false;
            // morphium.store(new UncachedObject("value", (int) (1 + (Math.random() * 100.0))));
@@ -207,10 +207,7 @@ public class ChangeStreamInMemTest extends MorphiumInMemTestBase {
         m.addListener(evt -> {
             if (evt.getOperationType().equals("drop")) return true;
             printevent(evt);
-            if (cnt.incrementAndGet() == 100) {
-                return false;
-            }
-            return true;
+            return cnt.incrementAndGet() != 100;
         });
         Thread.sleep(1000);
         for (int i = 0; i < 100; i++) {

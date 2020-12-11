@@ -1040,17 +1040,20 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                 for (String f : fields) {
                     try {
                         Object value = morphium.getARHelper().getValue(ent, f);
-                        Entity en = morphium.getARHelper().getAnnotationFromHierarchy(value.getClass(), Entity.class);
-                        if (morphium.getARHelper().isAnnotationPresentInHierarchy(value.getClass(), Entity.class)) {
-                            if (morphium.getARHelper().getField(ent.getClass(), f).getAnnotation(Reference.class) != null) {
-                                //need to store reference
-                                value = morphium.getARHelper().getId(ent);
-                            } else {
-                                value = morphium.getMapper().serialize(value);
+                        if (value != null) {
+                            Entity en = morphium.getARHelper().getAnnotationFromHierarchy(value.getClass(), Entity.class);
+                            if (morphium.getARHelper().isAnnotationPresentInHierarchy(value.getClass(), Entity.class)) {
+                                if (morphium.getARHelper().getField(ent.getClass(), f).getAnnotation(Reference.class) != null) {
+                                    //need to store reference
+                                    value = morphium.getARHelper().getId(ent);
+                                } else {
+                                    value = morphium.getMapper().serialize(value);
+                                }
                             }
-                        }
-                        if (en != null && en.translateCamelCase() || en != null && morphium.getConfig().isCamelCaseConversionEnabled()) {
-                            f = morphium.getARHelper().convertCamelCase(f);
+
+                            if (en != null && en.translateCamelCase() || en != null && morphium.getConfig().isCamelCaseConversionEnabled()) {
+                                f = morphium.getARHelper().convertCamelCase(f);
+                            }
                         }
                         update.put(f, value);
 

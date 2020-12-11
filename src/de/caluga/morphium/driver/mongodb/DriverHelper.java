@@ -28,9 +28,9 @@ public class DriverHelper {
                 V ret = r.execute();
                 if (i > 0) {
                     if (lastException == null) {
-                        LoggerFactory.getLogger(DriverHelper.class).warn("recovered from error without exception");
+                        LoggerFactory.getLogger(DriverHelper.class).debug("recovered from error without exception");
                     } else {
-                        LoggerFactory.getLogger(DriverHelper.class).warn("recovered from error: " + lastException.getMessage());
+                        LoggerFactory.getLogger(DriverHelper.class).debug("recovered from error: " + lastException.getMessage());
                     }
                 }
                 return ret;
@@ -46,7 +46,7 @@ public class DriverHelper {
 
 
     private static void handleNetworkError(int max, int i, int sleep, Throwable e) throws MorphiumDriverException {
-        LoggerFactory.getLogger(DriverHelper.class).info("Handling network error..." + e.getClass().getName());
+        LoggerFactory.getLogger(DriverHelper.class).debug("Handling network error..." + e.getClass().getName());
         if (e.getClass().getName().equals("javax.validation.ConstraintViolationException")) {
             throw (new MorphiumDriverException("Validation error", e));
         }

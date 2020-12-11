@@ -984,6 +984,8 @@ public class InMemoryDriver implements MorphiumDriver {
                 if (k.startsWith("$")) continue;
                 if (query.get(k) != null)
                     lst.get(0).put(k, query.get(k));
+                else
+                    lst.get(0).remove(k);
             }
             insert = true;
         }
@@ -995,6 +997,8 @@ public class InMemoryDriver implements MorphiumDriver {
                         for (Map.Entry<String, Object> entry : cmd.entrySet()) {
                             if (entry.getValue() != null)
                                 obj.put(entry.getKey(), entry.getValue());
+                            else
+                                obj.remove(entry.getKey());
                         }
                         break;
                     case "$unset":
@@ -1049,6 +1053,8 @@ public class InMemoryDriver implements MorphiumDriver {
                             }
                             if (value != null)
                                 obj.put(entry.getKey(), value);
+                            else
+                                obj.remove(entry.getKey());
                         }
                         break;
                     case "$mul":
@@ -1065,12 +1071,16 @@ public class InMemoryDriver implements MorphiumDriver {
                             }
                             if (value != null)
                                 obj.put(entry.getKey(), value);
+                            else
+                                obj.remove(entry.getKey());
                         }
                         break;
                     case "$rename":
                         for (Map.Entry<String, Object> entry : cmd.entrySet()) {
                             if (obj.get(entry.getKey()) != null)
                                 obj.put((String) entry.getValue(), obj.get(entry.getKey()));
+                            else
+                                obj.remove(entry.getValue());
                             obj.remove(entry.getKey());
                         }
                         break;
@@ -1292,7 +1302,10 @@ public class InMemoryDriver implements MorphiumDriver {
     @Override
     public Map<String, Object> findAndOneAndReplace(String db, String col, Map<String, Object> query, Map<String, Object> replacement, Map<String, Integer> sort, Collation collation) throws MorphiumDriverException {
         List<Map<String, Object>> ret = find(db, col, query, sort, null, 0, 1, 1, null, collation, new ConcurrentHashMap<>());
-        if (ret.get(0).get("_id") != null) replacement.put("_id", ret.get(0).get("_id"));
+        if (ret.get(0).get("_id") != null)
+            replacement.put("_id", ret.get(0).get("_id"));
+        else
+            replacement.remove("_id");
         store(db, col, Arrays.asList(replacement), null);
         return replacement;
     }

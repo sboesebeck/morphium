@@ -17,12 +17,9 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicLong;
 
 public class AdvancedMessagingNCTests extends MorphiumTestBase {
     private final Map<MorphiumId, Integer> counts = new ConcurrentHashMap<>();
-    Map<Object, List<Map<String, Object>>> storage = new ConcurrentHashMap<>();
     @Test
     public void testExclusiveXTimes() throws Exception {
 //        morphium.watchAsync("msg", true,new ChangeStreamListener(){
@@ -47,11 +44,13 @@ public class AdvancedMessagingNCTests extends MorphiumTestBase {
 //            }
 //        });
 
-        for (int i = 0; i < 1; i++)
+        for (int i = 0; i < 2; i++)
             runExclusiveMessagesTest((int) (Math.random() * 1500), (int) (55 * Math.random()) + 2);
     }
 
     private void runExclusiveMessagesTest(int amount, int receivers) throws Exception {
+        morphium.dropCollection(Msg.class, "msg", null);
+        Thread.sleep(1000);
         List<Morphium> morphiums = new ArrayList<>();
         List<Messaging> messagings = new ArrayList<>();
 
@@ -72,7 +71,7 @@ public class AdvancedMessagingNCTests extends MorphiumTestBase {
                 if (!m.getLockedBy().equals(msg.getSenderId())) {
                     log.error("Receiver ID did not lock message?!?!?!?");
                     if (m.getLockedBy().equals("ALL")) {
-                        log.error("Broadcast message? " + m.toString());
+                        log.error("Broadcase message? " + m.toString());
                     }
                 }
                 //log.info(msg.getSenderId() + ": Received " + m.getMsgId() + " created " + (System.currentTimeMillis() - m.getTimestamp()) + "ms ago");
@@ -84,17 +83,12 @@ public class AdvancedMessagingNCTests extends MorphiumTestBase {
                     for (String id : m.getProcessedBy()) {
                         log.error("... processed by: " + id);
                     }
-                    if (m.getProcessedBy().isEmpty()) {
-                        log.error("... no processed by set yet!");
-                    }
-                    int cnt = 0;
-                    for (Map<String, Object> history : storage.get(m.getMsgId())) {
-                        cnt++;
-                        log.error(cnt + ".: " + Utils.toJsonString(history));
-                    }
                 }
 
-                Thread.sleep(250);
+                try {
+                    Thread.sleep(250);
+                } catch (InterruptedException e) {
+                }
                 return null;
             };
             for (int i = 0; i < receivers; i++) {
@@ -102,9 +96,9 @@ public class AdvancedMessagingNCTests extends MorphiumTestBase {
                 Morphium m = new Morphium(MorphiumConfig.fromProperties(morphium.getConfig().asProperties()));
                 m.getConfig().getCache().setHouskeepingIntervalPause(100);
                 morphiums.add(m);
-                Messaging msg = new Messaging(m, 50, Math.random() > 0.5, true, (int) (1500 * Math.random()));
+                Messaging msg = new Messaging(m, 50, false, true, (int) (1500 * Math.random()));
                 msg.setSenderId("msg" + i);
-                msg.setUseChangeStream(false).start();
+                msg.setUseChangeStream(true).start();
                 messagings.add(msg);
                 msg.addListenerForMessageNamed("test", msgMessageListener);
             }
@@ -121,26 +115,86 @@ public class AdvancedMessagingNCTests extends MorphiumTestBase {
                 sender.sendMessage(m);
 
             }
-
+            int lastCount = counts.size();
             while (counts.size() < amount) {
                 log.info("-----> Messages processed so far: " + counts.size() + "/" + amount + " with " + receivers + " receivers");
                 for (MorphiumId id : counts.keySet()) {
                     assert (counts.get(id) <= 1) : "Count for id " + id.toString() + " is " + counts.get(id);
                 }
                 Thread.sleep(1000);
+                assert (counts.size() != lastCount);
+                log.info("----> current speed: " + (counts.size() - lastCount) + "/sec");
+                lastCount = counts.size();
             }
             log.info("-----> Messages processed so far: " + counts.size() + "/" + amount + " with " + receivers + " receivers");
         } finally {
+            List<Thread> threads = new ArrayList<>();
+            threads.add(new Thread() {
+                private Messaging msg;
+
+                public Thread setMessaging(Messaging m) {
+                    this.msg = m;
+                    return this;
+                }
+
+                public void run() {
+                    msg.terminate();
+                }
+            }.setMessaging(sender));
+            threads.get(0).start();
+
             sender.terminate();
             for (Messaging m : messagings) {
-                m.terminate();
+                Thread t = new Thread() {
+                    private Messaging msg;
+
+                    public Thread setMessaging(Messaging m) {
+                        this.msg = m;
+                        return this;
+                    }
+
+                    public void run() {
+                        log.info("Terminating " + m.getSenderId());
+                        msg.terminate();
+                    }
+                }.setMessaging(m);
+                threads.add(t);
+                t.start();
             }
+
+            for (Thread t : threads) {
+                t.join();
+            }
+            threads.clear();
             int num = 0;
             for (Morphium m : morphiums) {
                 num++;
-                log.info("Closing morphium..." + num + "/" + morphiums.size());
-                m.close();
+
+                Thread t = new Thread() {
+                    private Morphium m;
+                    private int n;
+
+                    public Thread setMorphium(Morphium m, int num) {
+                        this.m = m;
+                        this.n = num;
+                        return this;
+                    }
+
+                    public void run() {
+                        log.info("Terminating Morphium " + n + "/" + morphiums.size());
+                        m.close();
+                    }
+                }.setMorphium(m, num);
+
+                threads.add(t);
+                t.start();
+//                log.info("Closing morphium..." + num + "/" + morphiums.size());
+//                m.close();
             }
+            for (Thread t : threads) {
+                t.join();
+            }
+            threads.clear();
             log.info("Run finished!");
         }
 
@@ -185,7 +239,7 @@ public class AdvancedMessagingNCTests extends MorphiumTestBase {
             m3.addListenerForMessageNamed("test", msgMessageListener);
             m4.addListenerForMessageNamed("test", msgMessageListener);
 
-            for (int i = 0; i < 100; i++) {
+            for (int i = 0; i < 10; i++) {
                 Msg query = new Msg("test", "test querey", "query");
                 query.setExclusive(true);
                 List<Msg> ans = m1.sendAndAwaitAnswers(query, 3, 1250);
@@ -193,7 +247,7 @@ public class AdvancedMessagingNCTests extends MorphiumTestBase {
             }
 
 
-            for (int i = 0; i < 100; i++) {
+            for (int i = 0; i < 10; i++) {
                 Msg query = new Msg("test", "test querey", "query");
                 query.setExclusive(false);
                 List<Msg> ans = m1.sendAndAwaitAnswers(query, 3, 1250);

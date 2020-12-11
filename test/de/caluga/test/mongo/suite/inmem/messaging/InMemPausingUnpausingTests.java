@@ -189,7 +189,7 @@ public class InMemPausingUnpausingTests extends MorphiumInMemTestBase {
         //Message after unpausing:
         assert (cnt.get() == 2) : "Count wrong: " + cnt.get();
         sender.sendMessage(new Msg("now", "now", "now"));
-        Thread.sleep(100);
+        Thread.sleep(1000);
         assert (list.size() == 3);
         Thread.sleep(2000);
         //Message after unpausing:

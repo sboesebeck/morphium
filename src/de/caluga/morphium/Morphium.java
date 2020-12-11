@@ -327,7 +327,7 @@ public class Morphium implements AutoCloseable {
             }
         }
 
-        logger.info("Initialization successful...");
+        //logger.info("Initialization successful...");
     }
 
     private boolean cappedMissing(List<Map<String, Object>> lst) {
@@ -386,9 +386,9 @@ public class Morphium implements AutoCloseable {
             getClass().getClassLoader().loadClass("javax.validation.ValidatorFactory");
             lst = new JavaxValidationStorageListener();
             addListener(lst);
-            logger.info("Adding javax.validation Support...");
+            logger.debug("Adding javax.validation Support...");
         } catch (Exception cnf) {
-            logger.info("Validation disabled!");
+            logger.debug("Validation disabled!");
 
         }
     }
@@ -2882,7 +2882,7 @@ public class Morphium implements AutoCloseable {
         mapper.setAnnotationHelper(hlp);
 
         @SuppressWarnings("unchecked") Map<String, Object> obj = (Map<String, Object>) doc.get("fullDocument");
-        doc.put("fullDocument", null);
+        doc.remove("fullDocument");
         ChangeStreamEvent evt = mapper.deserialize(ChangeStreamEvent.class, doc);
 
         evt.setFullDocument(obj);
