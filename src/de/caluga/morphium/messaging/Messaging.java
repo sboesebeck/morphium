@@ -60,7 +60,7 @@ public class Messaging extends Thread implements ShutdownListener {
     private final Map<MorphiumId, List<Msg>> waitingForAnswers = new ConcurrentHashMap<>();
     private final Map<MorphiumId, Msg> waitingForMessages = new ConcurrentHashMap<>();
 
-    private final List<MorphiumId> processing = new Vector<>();
+    private final List<MorphiumId> processing = new CopyOnWriteArrayList<>();
 
     private final AtomicInteger skipped = new AtomicInteger(0);
 
