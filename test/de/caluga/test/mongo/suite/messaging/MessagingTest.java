@@ -660,7 +660,7 @@ public class MessagingTest extends MorphiumTestBase {
                     public void run() {
                         Msg m = new Msg("multisystemtest", "nothing", "value");
                         m.setTtl(60000000);
-                        Msg a = m1.sendAndAwaitFirstAnswer(m, 6000);
+                        Msg a = m1.sendAndAwaitFirstAnswer(m, 16000);
                         assert (a != null);
                         procCounter.incrementAndGet();
                     }
