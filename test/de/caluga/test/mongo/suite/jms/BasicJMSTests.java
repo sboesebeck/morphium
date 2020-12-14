@@ -70,7 +70,7 @@ public class BasicJMSTests extends MorphiumTestBase {
     }
 
     @Test
-    public void synchronousSendRecieveTest() throws Exception {
+    public void synchronousSendReceiveTest() throws Exception {
         JMSConnectionFactory factory = new JMSConnectionFactory(morphium);
         JMSContext ctx1 = factory.createContext();
         JMSContext ctx2 = factory.createContext();
