@@ -14,17 +14,17 @@ import java.util.concurrent.ConcurrentHashMap;
 
 public class Producer implements JMSProducer {
 
-    private Messaging messaging;
-    private Map<String, Object> properties;
+    private final Messaging messaging;
+    private final Map<String, Object> properties;
     private long ttl = 30000;
     private int priority = 500;
     private int deliveryMode;
     private boolean disableTimestamp;
     private boolean disableId;
-    private Vector<Object> waitingForAck;
+    private final Vector<Object> waitingForAck;
     private CompletionListener completionListener;
 
-    private Logger log = LoggerFactory.getLogger(Producer.class);
+    private final Logger log = LoggerFactory.getLogger(Producer.class);
 
 
     public Producer(Messaging messaging) {
@@ -38,9 +38,9 @@ public class Producer implements JMSProducer {
                 waitingForAck.remove(m.getInAnswerTo());
             } else {
                 if (m.getInAnswerTo() == null) {
-                    log.error("Got broadcasted ack-Message?!?!?");
+                    log.debug("Got broadcasted ack-Message?!?!?");
                 } else {
-                    log.error("Got answer for an unknown message " + m.getInAnswerTo());
+                    log.debug("Got answer for an unknown yet message " + m.getInAnswerTo());
                 }
             }
             return null;

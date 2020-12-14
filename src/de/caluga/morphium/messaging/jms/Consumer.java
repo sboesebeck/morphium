@@ -64,7 +64,8 @@ public class Consumer implements JMSConsumer, de.caluga.morphium.messaging.Messa
         while (incomingQueue.size() == 0) {
             Thread.yield();
             if (timeout > 0 && System.currentTimeMillis() - start > timeout) {
-                throw new IllegalArgumentException("not implemented yet, sorry");
+                log.warn("Did not receive message in time!");
+                return null;
             }
         }
         JMSMessage msg = incomingQueue.pop();
@@ -102,10 +103,10 @@ public class Consumer implements JMSConsumer, de.caluga.morphium.messaging.Messa
         log.info("Incoming message...");
         if (getMessageListener() != null) {
             getMessageListener().onMessage(m);
-            return getAckMessage(m);
         }
+
         incomingQueue.push(m);
-        return null;
+        return getAckMessage(m);
     }
 
     private JMSMessage getAckMessage(JMSMessage m) {

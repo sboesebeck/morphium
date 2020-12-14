@@ -1,5 +1,6 @@
 package de.caluga.test.mongo.suite.jms;
 
+import de.caluga.morphium.messaging.Messaging;
 import de.caluga.morphium.messaging.jms.JMSConnectionFactory;
 import de.caluga.morphium.messaging.jms.*;
 import de.caluga.test.mongo.suite.MorphiumTestBase;
@@ -103,5 +104,54 @@ public class BasicJMSTests extends MorphiumTestBase {
         assert (exchange.get("received") != null);
     }
 
+
+    @Test
+    public void consumerProducerTest() throws Exception {
+        Messaging m = new Messaging(morphium, 10, true);
+        Consumer consumer = new Consumer(m, new JMSTopic("jmstopic_test"));
+        m.start();
+        Messaging m2 = new Messaging(morphium, 10, true);
+        Producer producer = new Producer(m2);
+
+        producer.send(new JMSTopic("jmstopic_test"), "This is the body");
+        Message msg = consumer.receive();
+
+        assert (msg != null);
+
+        m.terminate();
+        m2.terminate();
+
+        consumer.close();
+
+
+    }
+
+
+    @Test
+    public void consumerProducerQueueTest() throws Exception {
+        Messaging m = new Messaging(morphium, 10, true);
+        Consumer consumer = new Consumer(m, new JMSQueue());
+        m.start();
+        Messaging m2 = new Messaging(morphium, 10, true);
+        Producer producer = new Producer(m2);
+
+        Messaging m3 = new Messaging(morphium, 10, true);
+        Consumer consumer2 = new Consumer(m3, new JMSQueue());
+
+        producer.send(new JMSQueue(), "This is the body");
+        Message msg = consumer.receive(1000);
+        Message msg2 = consumer2.receive(1000);
+        assert (msg != null || msg2 != null);
+        assert (msg != msg2);
+
+        m.terminate();
+        m2.terminate();
+        m3.terminate();
+
+        consumer.close();
+        consumer2.close();
+
+
+    }
 
 }
