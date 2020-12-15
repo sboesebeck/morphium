@@ -15,9 +15,9 @@ import java.util.List;
 public class WhereTest extends MorphiumTestBase {
 
     @Test
-    public void testWhere() {
+    public void testWhere() throws Exception {
         createUncachedObjects(100);
-
+        Thread.sleep(500);
         Query<UncachedObject> q = morphium.createQueryFor(UncachedObject.class);
         q = q.where("this.counter > 15");
 //        q.f("counter").ne(0);

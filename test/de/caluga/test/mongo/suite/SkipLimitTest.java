@@ -30,9 +30,9 @@ public class SkipLimitTest extends MorphiumTestBase {
     }
 
     @Test
-    public void skipLimitTest() {
+    public void skipLimitTest() throws Exception {
         createUncachedObjects(100);
-
+        Thread.sleep(150);
         List<UncachedObject> l = morphium.createQueryFor(UncachedObject.class).f("counter").lt(100).skip(50).limit(10).sort("counter").asList();
         assert (l.size() == 10);
         assert (l.get(0).getCounter() == 51);

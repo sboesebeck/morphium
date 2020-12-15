@@ -89,9 +89,9 @@ public class AdvancedInMemMessagingTests extends MorphiumInMemTestBase {
                 for (MorphiumId id : counts.keySet()) {
                     assert (counts.get(id) <= 1) : "Count for id " + id.toString() + " is " + counts.get(id);
                 }
-                Thread.sleep(1000);
+                Thread.sleep(2000);
                 assert (counts.size() != lastCount);
-                log.info("----> current speed: " + (counts.size() - lastCount) + "/sec");
+                log.info("----> current speed: " + (counts.size() - lastCount) / 2 + "/sec");
                 lastCount = counts.size();
             }
             log.info("-----> Messages processed so far: " + counts.size() + "/" + amount + " with " + receivers + " receivers");

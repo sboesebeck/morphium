@@ -425,7 +425,7 @@ public class Messaging extends Thread implements ShutdownListener {
                 }
             }
         }
-        if (obj.isExclusive() && obj.getLockedBy().equals(id)) {
+        if (obj.isExclusive() && obj.getLockedBy() != null && obj.getLockedBy().equals(id)) {
             morphium.set(obj, getCollectionName(), "locked_by", false, false, null);
         }
 

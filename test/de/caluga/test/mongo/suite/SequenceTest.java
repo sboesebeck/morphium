@@ -182,24 +182,32 @@ public class SequenceTest extends MorphiumTestBase {
         final Vector<Long> values = new Vector<>();
         List<Thread> threads = new ArrayList<>();
         final AtomicInteger errors = new AtomicInteger(0);
-        for (int i = 0; i < 10; i++) {
+        for (int i = 0; i < 50; i++) {
             Morphium m = new Morphium(MorphiumConfig.fromProperties(morphium.getConfig().asProperties()));
 
             Thread t = new Thread(() -> {
                 SequenceGenerator sg1 = new SequenceGenerator(m, "testsequence", 1, 0);
-                for (int j = 0; j < 100; j++) {
-                    long l = sg1.getNextValue();
-                    log.info("Got nextValue: " + l);
-                    if (values.contains(l)) {
-                        log.error("Duplicate value " + l);
-                        errors.incrementAndGet();
-                    } else {
-                        values.add(l);
-                    }
+                for (int j = 0; j < 50; j++) {
                     try {
-                        Thread.sleep((long) (100 * Math.random()));
-                    } catch (InterruptedException e) {
+                        long l = sg1.getNextValue();
+                        if (l % 100 == 0)
+                            log.info("Got nextValue: " + l);
+                        if (values.contains(l)) {
+                            log.error("Duplicate value " + l);
+                            errors.incrementAndGet();
+                        } else {
+                            values.add(l);
+                        }
+                    } catch (Exception e) {
+                        log.error("Got Exception... pausing");
+                        errors.incrementAndGet();
+                        try {
+                            Thread.sleep((long) (250 * Math.random()));
+                        } catch (InterruptedException interruptedException) {
+                        }
+
                     }
+
                 }
                 m.close();
             });
@@ -210,12 +218,15 @@ public class SequenceTest extends MorphiumTestBase {
 
         while (threads.size() > 0) {
             //log.info("Threads active: "+threads.size());
-            threads.get(0).join();
-            threads.remove(0);
-            Thread.sleep(100);
+            threads.remove(0).join();
         }
 
         assert (errors.get() == 0);
+        assert (values.size() == 2500);
+        //checking that no value was skipped
+        for (int i = 0; i < values.size(); i++) {
+            assert (values.get(i) == i);
+        }
 
     }
 }

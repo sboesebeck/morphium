@@ -75,7 +75,7 @@ public class SortingTest extends MorphiumTestBase {
 
         lst = q.asList();
         lastValue = 8888;
-
+        assert (lst.size() == 5002);
         for (UncachedObject u : lst) {
             assert (lastValue >= u.getCounter()) : "Counter not smaller, last: " + lastValue + " now:" + u.getCounter();
             lastValue = u.getCounter();

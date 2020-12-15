@@ -663,9 +663,9 @@ public class MessagingNCTest extends MorphiumTestBase {
         List<Messaging> systems;
         systems = new ArrayList<>();
         try {
-            int numberOfWorkers = 10;
-            int numberOfMessages = 100;
-            long ttl = 15000; //15 sec
+            int numberOfWorkers = 20;
+            int numberOfMessages = 200;
+            long ttl = 150000; //15 sec
 
             final boolean[] failed = {false};
             morphium.clearCollection(Msg.class);

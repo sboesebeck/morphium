@@ -846,6 +846,7 @@ public class BasicFunctionalityTest extends MorphiumTestBase {
     public void testFindOneAndUpdate() throws Exception {
         UncachedObject uc = new UncachedObject("value", 123);
         morphium.store(uc);
+        Thread.sleep(150);
         UncachedObject ret = morphium.createQueryFor(UncachedObject.class).f("_id").eq(uc.getMorphiumId()).findOneAndUpdate(Utils.getMap("$set", Utils.getMap("counter", 42)));
         assert (ret.getValue().equals("value"));
         assert (morphium.createQueryFor(UncachedObject.class).countAll() == 1);
