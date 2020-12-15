@@ -1,6 +1,7 @@
 package de.caluga.test.mongo.suite.inmem;
 
 import de.caluga.morphium.annotations.ReadPreferenceLevel;
+import de.caluga.morphium.async.AsyncCallbackAdapter;
 import de.caluga.morphium.async.AsyncOperationCallback;
 import de.caluga.morphium.async.AsyncOperationType;
 import de.caluga.morphium.query.Query;
@@ -106,7 +107,7 @@ public class BulkInsertInMemTest extends MorphiumInMemTestBase {
             UncachedObject uc = new UncachedObject();
             uc.setCounter(i + 1);
             uc.setValue("nix " + i);
-            morphium.store(uc, new AsyncOperationCallback<UncachedObject>() {
+            morphium.store(uc, new AsyncCallbackAdapter<UncachedObject>() {
                 @Override
                 public void onOperationSucceeded(AsyncOperationType type, Query<UncachedObject> q, long duration, List<UncachedObject> result, UncachedObject entity, Object... param) {
                     asyncCall = true;

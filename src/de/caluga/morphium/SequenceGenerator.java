@@ -1,7 +1,6 @@
 package de.caluga.morphium;
 
 import de.caluga.morphium.driver.MorphiumDriverException;
-import de.caluga.morphium.driver.MorphiumId;
 import de.caluga.morphium.query.Query;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -100,81 +99,87 @@ public class SequenceGenerator {
     }
 
     private synchronized long getNextValue(int recLevel) {
-        Query<Sequence> seq = morphium.createQueryFor(Sequence.class).f("_id").eq(name);
-        if (seq.countAll() == 0) {
-            log.error("Sequence vanished?");
-            throw new RuntimeException("Sequence vanished");
-        }
-        Map<String, Object> values = new HashMap<>();
-        Sequence sequence = seq.get();
-        if (recLevel > 30) {
-            log.error("Could not get lock on Sequence " + name + " Checking timestamp...");
-            if (System.currentTimeMillis() - sequence.getLockedAt() > 1000 * 5) {
-                log.error("Was locked for more than 30s - assuming error, resetting lock");
-                //sequence.setLockedBy(null);
-                morphium.set(sequence, "locked_by", null);
-                //noinspection EmptyCatchBlock
-                try {
-                    Thread.sleep(500);
-                } catch (InterruptedException e) {
-                }
-                if (log.isDebugEnabled()) {
-                    log.debug("overwriting lock for locked sequence " + name);
-                }
-                return getNextValue(1);
+        while (true) {
+            Query<Sequence> seq = morphium.createQueryFor(Sequence.class).f("_id").eq(name);
+            if (seq.countAll() == 0) {
+                log.error("Sequence vanished?");
+                throw new RuntimeException("Sequence vanished");
             }
-            throw new RuntimeException("Getting lock on sequence " + name + " failed!");
-        }
+            Map<String, Object> values = new HashMap<>();
+            Sequence sequence = seq.get();
+            if (recLevel > 2000) {
+                log.error("Could not get lock on Sequence " + name + " Checking timestamp...");
+                if (System.currentTimeMillis() - sequence.getLockedAt() > 1000 * 30) {
+                    log.error("Was locked for more than 30s - assuming error, resetting lock");
+                    //sequence.setLockedBy(null);
+                    morphium.set(sequence, "locked_by", null);
+                    //noinspection EmptyCatchBlock
+                    try {
+                        Thread.sleep(500);
+                    } catch (InterruptedException e) {
+                    }
+                    if (log.isDebugEnabled()) {
+                        log.debug("overwriting lock for locked sequence " + name);
+                    }
+                    recLevel = 1;
+                    continue;
+                }
+                throw new RuntimeException("Getting lock on sequence " + name + " failed!");
+            }
 
-        seq = seq.q().f("name").eq(name).f("locked_by").eq(null);
-        values.put("locked_by", id);
-        values.put("locked_at", System.currentTimeMillis());
-        morphium.set(seq, values, false, false);
-        if (log.isDebugEnabled()) {
-            log.debug("locked sequence entry");
-        }
-        seq = morphium.createQueryFor(Sequence.class);
-        seq.f("_id").eq(name).f("locked_by").eq(id);
-
-        if (seq.countAll() == 0) {
-            //locking failed... wait a moment, try again
-            //            if (log.isDebugEnabled()) {
-            log.warn("Locking failed on level " + recLevel + " - recursing.");
-            //            }
+            seq = seq.q().f("name").eq(name).f("locked_by").eq(null);
+            values.put("locked_by", id);
+            values.put("locked_at", System.currentTimeMillis());
+            morphium.set(seq, values, false, false);
             try {
-                Thread.sleep(300);
-            } catch (InterruptedException ignored) {
+                Thread.sleep(25);
+            } catch (InterruptedException e) {
             }
-            return getNextValue(recLevel + 1);
-        }
-        if (seq.countAll() > 1) {
-            log.error("sequence name / locked by not unique??? - using first");
-        }
-        if (log.isDebugEnabled()) {
-            log.debug("Found it!");
-        }
+            log.debug("locked sequence entry");
+            seq = morphium.createQueryFor(Sequence.class);
+            seq.f("_id").eq(name).f("locked_by").eq(id);
 
-        //        Map<String, Object> values = new HashMap<String, Object>();
-        morphium.inc(seq, "current_value", inc);
-        if (log.isDebugEnabled()) {
-            log.debug("increased it");
-        }
-        Sequence s = seq.get();
-        if (s == null) {
-            log.error("locked Sequence not found anymore?");
-            seq = morphium.createQueryFor(Sequence.class).f("name").eq(name);
-            for (Sequence sq : seq.asList()) {
-                log.error("Sequence: " + sq.toString());
+            if (seq.countAll() == 0) {
+                //locking failed... wait a moment, try again
+                //            if (log.isDebugEnabled()) {
+                log.debug("Locking failed on retry " + recLevel + " - restarting.");
+                //            }
+                try {
+                    Thread.sleep((long) (300 * Math.random() + 100));
+                } catch (InterruptedException ignored) {
+                }
+                recLevel++;
+                continue;
             }
-            return -1;
-        }
-        s.setLockedBy(null);
-        morphium.store(s);
-        if (log.isDebugEnabled()) {
-            log.debug("unlocked it");
-        }
+            if (seq.countAll() > 1) {
+                log.error("sequence name / locked by not unique??? - using first");
+            }
+            if (log.isDebugEnabled()) {
+                log.debug("Found it!");
+            }
 
-        return s.getCurrentValue();
+            //        Map<String, Object> values = new HashMap<String, Object>();
+            morphium.inc(seq, "current_value", inc);
+            if (log.isDebugEnabled()) {
+                log.debug("increased it");
+            }
+            Sequence s = seq.get();
+            if (s == null) {
+                log.error("locked Sequence not found anymore?");
+                seq = morphium.createQueryFor(Sequence.class).f("name").eq(name);
+                for (Sequence sq : seq.asList()) {
+                    log.error("Sequence: " + sq.toString());
+                }
+                return -1;
+            }
+            s.setLockedBy(null);
+            morphium.store(s);
+            if (log.isDebugEnabled()) {
+                log.debug("unlocked it");
+            }
+
+            return s.getCurrentValue();
+        }
 
     }
 

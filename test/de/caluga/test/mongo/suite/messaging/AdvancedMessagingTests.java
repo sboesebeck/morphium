@@ -291,7 +291,7 @@ public class AdvancedMessagingTests extends MorphiumTestBase {
         Msg msg = new Msg("testAnswering", "query", "value");
         msg.setMsgId(msgId);
         producer.sendMessage(msg);
-        Thread.sleep(1500);
+        Thread.sleep(2500);
         assert (counts.get(msgId).equals(1));
         producer.terminate();
         consumer.terminate();

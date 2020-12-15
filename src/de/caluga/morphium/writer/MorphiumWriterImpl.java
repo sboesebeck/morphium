@@ -491,12 +491,10 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                             throw new ConcurrentModificationException("versioning failure");
                         }
 
-                        if (en.autoVersioning()) {
-                            String fld = morphium.getARHelper().getFields(type, Version.class).get(0);
-                            Long v = morphium.getARHelper().getLongValue(o, fld);
-                            v = v + 1;
-                            morphium.getARHelper().setValue(o, v, fld);
-                        }
+                        String fld = morphium.getARHelper().getFields(type, Version.class).get(0);
+                        Long v = morphium.getARHelper().getLongValue(o, fld);
+                        v = v + 1;
+                        morphium.getARHelper().setValue(o, v, fld);
                     }
                     long dur = System.currentTimeMillis() - start;
                     morphium.fireProfilingWriteEvent(o.getClass(), marshall, dur, true, WriteAccessType.SINGLE_INSERT);
@@ -1743,7 +1741,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                     }
                 } catch (RuntimeException e) {
                     if (callback == null) {
-                        throw new RuntimeException(e);
+                        return; //throw new RuntimeException(e);
                     }
                     callback.onOperationError(AsyncOperationType.PUSH, query, System.currentTimeMillis() - start, e.getMessage(), e, null, field, value, upsert, multiple);
                 }

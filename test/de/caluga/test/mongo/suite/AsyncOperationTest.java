@@ -88,7 +88,7 @@ public class AsyncOperationTest extends MorphiumTestBase {
         createUncachedObjects(100);
         Query<UncachedObject> q = morphium.createQueryFor(UncachedObject.class);
         q = q.f("counter").lt(1000);
-        q.asList(new AsyncOperationCallback<UncachedObject>() {
+        q.asList(new AsyncCallbackAdapter<UncachedObject>() {
             @Override
             public void onOperationSucceeded(AsyncOperationType type, Query<UncachedObject> q, long duration, List<UncachedObject> result, UncachedObject entity, Object... param) {
                 asyncCall = true;

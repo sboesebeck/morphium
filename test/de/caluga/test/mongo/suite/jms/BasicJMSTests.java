@@ -102,6 +102,9 @@ public class BasicJMSTests extends MorphiumTestBase {
         Thread.sleep(5000);
         assert (exchange.get("sent") != null);
         assert (exchange.get("received") != null);
+
+        ctx1.close();
+        ctx2.close();
     }
 
 

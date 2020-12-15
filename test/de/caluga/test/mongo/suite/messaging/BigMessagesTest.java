@@ -36,8 +36,8 @@ public class BigMessagesTest extends MorphiumTestBase {
                 for (int t = 0; t < 6 * Math.random() + 5; t++) {
                     txt.append(txt.toString() + "/" + txt.toString());
                 }
-                log.info("Text Size: " + txt.length());
-
+                log.info(i + ". Text Size: " + txt.length());
+                Thread.yield();
                 Msg big = new Msg();
                 big.setName("bigMsg");
                 big.setTtl(3000000);
@@ -47,12 +47,25 @@ public class BigMessagesTest extends MorphiumTestBase {
                 big.setTimestamp(System.currentTimeMillis());
                 sender.sendMessage(big);
             }
-
+            long start = System.currentTimeMillis();
             while (count.get() < amount) {
                 if (count.get() % 10 == 0) {
                     log.info("... messages recieved: " + count.get());
                 }
                 Thread.sleep(500);
+                if (System.currentTimeMillis() - start > 10000) {
+                    log.error("Message was lost: ");
+                    log.info("Messagecount: " + morphium.createQueryFor(Msg.class).countAll());
+                    for (Msg m : morphium.createQueryFor(Msg.class).asIterable()) {
+                        log.info("Msg: " + m.getMsgId());
+                        if (m.getProcessedBy() != null) {
+                            for (String pb : m.getProcessedBy()) {
+                                log.info("Processed by: " + pb);
+                            }
+                        }
+
+                    }
+                }
             }
         } finally {
             sender.terminate();
